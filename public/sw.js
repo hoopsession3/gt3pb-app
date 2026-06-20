@@ -1,6 +1,7 @@
 /* GT3PB service worker — offline shell + asset cache (runbook Phase 6).
-   Push handlers are stubbed for the OneSignal/web-push step (post-install opt-in). */
-const CACHE = "gt3pb-v1";
+   Native Web Push (VAPID) handlers below; opt-in happens after a couple visits.
+   Bump CACHE on any shell/icon change so installed clients refresh cleanly. */
+const CACHE = "gt3pb-v2";
 const SHELL = ["/", "/truck", "/menu", "/events", "/3mpire", "/book", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
@@ -47,7 +48,7 @@ self.addEventListener("fetch", (event) => {
   );
 });
 
-/* ---- Web push (wired at OneSignal opt-in step) ---- */
+/* ---- Native Web Push (VAPID) ---- */
 self.addEventListener("push", (event) => {
   if (!event.data) return;
   let data = {};
