@@ -450,3 +450,23 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .sheet.paper .honest{background:rgba(184,36,32,.07);border-color:rgba(184,36,32,.2);color:#3a2b22}
 .sheet.paper .honest b{color:#221F18}
 .sheet.paper .auth-err{color:#9a4742;background:rgba(184,36,32,.08);border-color:rgba(184,36,32,.28)}
+
+/* ===================================================================
+   ARRIVAL — de-gated first-time front door (welcome before sign-in)
+   =================================================================== */
+.arr-brand{display:flex;flex-direction:column;line-height:1}
+.arr-brand .g3{font-family:'Archivo Black';font-size:22px;letter-spacing:.4px;color:var(--cream);line-height:1}
+.arr-brand .pb{font-family:'Inter';font-weight:600;font-size:8.5px;letter-spacing:3px;text-transform:uppercase;color:var(--cream-m);margin-top:5px}
+.arr-stmt{font-family:'Fraunces';font-weight:400;font-size:22px;line-height:1.42;color:var(--cream);margin-top:22px;letter-spacing:.1px}
+.arr-principles{font-family:'Inter';font-weight:600;font-size:9.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);margin-top:16px;line-height:1.95}
+.arr-craft{margin-top:2px}
+.arr-shot{aspect-ratio:16/10;background:#1c1a14;border:1px solid var(--line);border-radius:16px;display:flex;align-items:center;justify-content:center;color:rgba(245,241,232,.16)}
+.arr-shot svg{width:34px;height:34px}
+.arr-shot-cap{font-family:'Fraunces';font-style:italic;font-size:13px;color:var(--cream-m);margin-top:9px;line-height:1.4}
+.arr-shot-cap + .arr-shot{margin-top:18px}
+.arr-pillar{display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:14px 0;border-bottom:1px solid var(--line)}
+.arr-pillar b{font-family:'Inter';font-weight:700;font-size:15px;letter-spacing:.2px;color:var(--cream);flex:0 0 auto}
+.arr-pillar span{font-family:'Fraunces';font-style:italic;font-size:12.5px;color:var(--cream-m);text-align:right}
+.arr-join{margin-top:24px;background:#221f18;border:1px solid var(--line2);border-radius:18px;padding:20px}
+.arr-join b{display:block;font-family:'Inter';font-weight:700;font-size:17px;letter-spacing:-.3px;color:var(--cream);margin:6px 0 4px}
+.arr-join span{display:block;font-size:12.5px;color:var(--cream-m);line-height:1.5}
