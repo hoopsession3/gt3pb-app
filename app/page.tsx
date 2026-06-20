@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAuth, type Profile } from "@/components/AuthProvider";
 import { useApp } from "@/components/AppProvider";
-import SignIn from "@/components/SignIn";
+import AccountPill from "@/components/AccountPill";
 import GenerateDay from "@/components/GenerateDay";
 import { clickable } from "@/lib/a11y";
 
@@ -119,10 +120,54 @@ function TodayDemo() {
   );
 }
 
+// ───────────────────────── arrival (first-time / signed-out front door) ─────────────────────────
+const IMGICON = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5" /><circle cx="8.5" cy="10" r="1.7" /><path d="M21 15.5l-4.5-4.5L7 20.5" /></svg>
+);
+
+function Arrival() {
+  const router = useRouter();
+  return (
+    <section className="screen arrival" id="s-today">
+      <div className="toprow">
+        <div className="arr-brand"><span className="g3">GT3</span><span className="pb">Performance Bar</span></div>
+        <AccountPill />
+      </div>
+
+      <p className="arr-stmt">Cold-extracted coffee, whole-food hydration, and slow-simmered fuel&nbsp;— prepared to order.</p>
+      <div className="arr-principles">Cold-extracted · No plastic contact · Whole-food inputs · Made to order</div>
+
+      <div className="sec">The craft</div>
+      <div className="arr-craft">
+        <div className="arr-shot">{IMGICON}</div>
+        <div className="arr-shot-cap">Cold extraction, never heat — slow, in small batches.</div>
+        <div className="arr-shot">{IMGICON}</div>
+        <div className="arr-shot-cap">Whole coconuts and slow-simmered broth — nothing from a powder.</div>
+      </div>
+
+      <div className="sec">What we make</div>
+      <div className="arr-pillar"><b>Activation</b><span>Cold-extracted coffee · before the work</span></div>
+      <div className="arr-pillar"><b>Hydration</b><span>Whole-coconut, no concentrate · during</span></div>
+      <div className="arr-pillar"><b>Fuel</b><span>Slow-simmered bone broth · after</span></div>
+
+      <button className="handle" style={{ marginTop: 20 }} onClick={() => router.push("/menu")}><span>See the menu</span></button>
+
+      <div className="arr-join">
+        <div className="hero-eye">Membership</div>
+        <b>Members get their day dialed.</b>
+        <span>Points, member pours, and limited reserves — the 3MPIRE.</span>
+        <button className="btn2" style={{ marginTop: 14 }} onClick={() => router.push("/3mpire")}>Become a member</button>
+      </div>
+
+      <div className="signoff">Pure Signal. No Noise.</div>
+    </section>
+  );
+}
+
 export default function TodayScreen() {
   const { ready, enabled, user } = useAuth();
   if (!enabled) return <TodayDemo />;
   if (!ready) return <section className="screen" id="s-today" />;
-  if (!user) return <SignIn />;
+  if (!user) return <Arrival />;
   return <TodayReal />;
 }
