@@ -89,6 +89,13 @@ function MpireReal() {
 
       <div className="sec">Your account</div>
       <div className="rows">
+        {profile?.is_admin && (
+          <div className="row" aria-label="Back office" {...clickable(() => router.push("/admin"))}>
+            <div className="ri"><svg viewBox="0 0 24 24" strokeWidth="2"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z" /><path d="M9 12l2 2 4-4" /></svg></div>
+            <div className="rl"><b>Back office</b><span>Live truck · members · events</span></div>
+            <div className="rr">›</div>
+          </div>
+        )}
         <div className="row" aria-label="My Subscription" {...clickable(() => toast("No active subscription yet — start one at the truck"))}>
           <div className="ri"><svg viewBox="0 0 24 24" strokeWidth="2"><path d="M3 7h18v13H3zM3 7l3-4h12l3 4M9 11h6" /></svg></div>
           <div className="rl"><b>My Subscription</b><span>Not subscribed yet</span></div>

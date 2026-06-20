@@ -47,6 +47,8 @@ export default function RouteMap({ points }: { points: RoutePoint[] }) {
       }).addTo(map);
 
       ordered.forEach((p) => {
+        // Direction by side of the centroid so labels fan outward and overlap less.
+        const dir = p.lng < cx ? "left" : "right";
         L.circleMarker([p.lat, p.lng], {
           radius: p.live ? 8 : 6,
           color: p.live ? "#B82420" : "#cda84b",
@@ -55,7 +57,12 @@ export default function RouteMap({ points }: { points: RoutePoint[] }) {
           fillOpacity: 1,
         })
           .addTo(map!)
-          .bindTooltip(p.live ? `${p.name} · live` : p.name, { direction: "top", className: "rm-tip" });
+          .bindTooltip(p.live ? `${p.name} · LIVE` : p.name, {
+            permanent: true,
+            direction: dir,
+            offset: dir === "left" ? [-8, 0] : [8, 0],
+            className: `rm-tip${p.live ? " rm-tip-live" : ""}`,
+          });
       });
 
       map.fitBounds(latlngs, { padding: [34, 34] });

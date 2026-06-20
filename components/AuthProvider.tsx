@@ -12,6 +12,7 @@ export interface Profile {
   streak_days: number;
   credit_cents: number;
   founding_member: boolean;
+  is_admin: boolean;
 }
 
 interface AuthCtx {
