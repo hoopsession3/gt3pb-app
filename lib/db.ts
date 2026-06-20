@@ -12,6 +12,7 @@ export interface Stop {
   tag_label: string | null;
   menu_tier: string | null;
   notes: string | null;
+  address: string | null;
   sort: number;
 }
 

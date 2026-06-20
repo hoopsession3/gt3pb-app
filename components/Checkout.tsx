@@ -46,8 +46,13 @@ export default function Checkout() {
   const items = [...cart] as DrinkId[];
   const priceOf = (id: DrinkId) => prices?.[id] ?? Math.round(parseFloat(DRINKS[id].px.replace("$", "")) * 100);
   const totalCents = items.reduce((s, id) => s + priceOf(id), 0);
-  const total = (totalCents / 100).toFixed(2);
   const customer = profile?.display_name || (user?.email ? user.email.split("@")[0] : "Guest");
+
+  // Tip (card path only; pre-orders tip in person). Default 20% — easy to change.
+  const [tipPct, setTipPct] = useState(0.2);
+  const tipCents = Math.round(totalCents * tipPct);
+  const grandCents = totalCents + tipCents;
+  const total = (grandCents / 100).toFixed(2);
 
   // Record the order for the kitchen (back-of-house) regardless of paid/pre-order.
   const recordOrder = async (paid: boolean, paymentId?: string, amountCents?: number) => {
@@ -120,7 +125,7 @@ export default function Checkout() {
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceId: result.token, items }),
+        body: JSON.stringify({ sourceId: result.token, items, tipCents }),
       });
       const data = await res.json();
       setBusy(false);
@@ -147,11 +152,20 @@ export default function Checkout() {
               {items.map((id) => (
                 <div className="co-line" key={id}><span>{DRINKS[id].n}</span><span>${(priceOf(id) / 100).toFixed(2)}</span></div>
               ))}
-              <div className="co-line co-total"><span>Total</span><span>${total}</span></div>
 
               {squareClientReady ? (
                 <>
-                  <div className="spec-label" style={{ marginTop: 18 }}>Card</div>
+                  <div className="co-line"><span>Subtotal</span><span>${(totalCents / 100).toFixed(2)}</span></div>
+                  <div className="spec-label" style={{ marginTop: 16 }}>Add a tip</div>
+                  <div className="tip-row">
+                    {[0, 0.15, 0.2, 0.25].map((p) => (
+                      <button key={p} type="button" className={`tip-opt${tipPct === p ? " on" : ""}`} onClick={() => setTipPct(p)}>
+                        {p === 0 ? "No tip" : `${Math.round(p * 100)}%`}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="co-line co-total"><span>Total</span><span>${total}</span></div>
+                  <div className="spec-label" style={{ marginTop: 16 }}>Card</div>
                   <div id="sq-card" className="sq-card" />
                   {err && <div className="auth-err">{err}</div>}
                   <button className="handle" onClick={pay} disabled={!ready || busy || items.length === 0}>
@@ -161,6 +175,7 @@ export default function Checkout() {
                 </>
               ) : (
                 <>
+                  <div className="co-line co-total"><span>Total</span><span>${(totalCents / 100).toFixed(2)}</span></div>
                   <div className="honest" style={{ marginTop: 16 }}>
                     Card checkout switches on soon. For now this is a <b>pre-order</b> — we&apos;ll have it ready and you pay at the truck.
                   </div>

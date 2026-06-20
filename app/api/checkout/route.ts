@@ -31,9 +31,9 @@ export async function POST(req: Request) {
   const locationId = process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID;
   if (!token || !locationId) return NextResponse.json({ error: "Checkout isn't switched on yet." }, { status: 503 });
 
-  let body: { sourceId?: string; items?: DrinkId[] };
+  let body: { sourceId?: string; items?: DrinkId[]; tipCents?: number };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
-  const { sourceId, items } = body;
+  const { sourceId, items, tipCents } = body;
   if (!sourceId || !Array.isArray(items) || items.length === 0) {
     return NextResponse.json({ error: "Empty order" }, { status: 400 });
   }
@@ -44,6 +44,11 @@ export async function POST(req: Request) {
   for (const id of items) {
     if (!DRINKS[id]) return NextResponse.json({ error: `Unknown item: ${id}` }, { status: 400 });
     amount += prices[id] ?? Math.round(parseFloat(DRINKS[id].px.replace("$", "")) * 100);
+  }
+  // Tip is additive and charged to the customer's own card; cap at the subtotal as a fat-finger guard.
+  const subtotal = amount;
+  if (typeof tipCents === "number" && Number.isFinite(tipCents) && tipCents > 0) {
+    amount += Math.min(Math.round(tipCents), subtotal);
   }
 
   try {

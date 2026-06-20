@@ -8,6 +8,7 @@ import SignIn from "@/components/SignIn";
 import { supabase } from "@/lib/supabase";
 import { subscribePush } from "@/lib/push";
 import { DRINKS, type DrinkId } from "@/lib/menu";
+import { geocode } from "@/lib/geocode";
 import type { Stop, LiveStatus, EventRow, BookingRequest, Order } from "@/lib/db";
 
 const STATUSES: BookingRequest["status"][] = ["new", "contacted", "booked", "declined"];
@@ -121,6 +122,55 @@ function Readiness() {
   );
 }
 
+// ───────────────────────── one stop: go-live + location + notes ─────────────────────────
+function StopControl({ s, isCur, onGoLive }: { s: Stop; isCur: boolean; onGoLive: (id: string) => void }) {
+  const { toast } = useApp();
+  const [address, setAddress] = useState(s.address ?? "");
+  const [busy, setBusy] = useState(false);
+  const hasCoords = s.lat != null && s.lng != null;
+
+  const saveNotes = async (notes: string) => {
+    const { error } = await supabase!.from("stops").update({ notes: notes.trim() || null }).eq("id", s.id);
+    toast(error ? `Error: ${error.message}` : "Stop details saved");
+  };
+  const saveLocation = async () => {
+    const q = address.trim();
+    if (!q) return;
+    setBusy(true);
+    const geo = await geocode(q);
+    if (!geo) { setBusy(false); toast("Couldn't find that address — add city & state, then retry."); return; }
+    const { error } = await supabase!.from("stops").update({ address: q, lat: geo.lat, lng: geo.lng }).eq("id", s.id);
+    setBusy(false);
+    toast(error ? `Error: ${error.message}` : "Location set — directions are now accurate");
+  };
+
+  return (
+    <div className="adm-stopwrap">
+      <div className={`adm-stop${isCur ? " cur" : ""}`}>
+        <div><b>{s.name}</b><span>{s.location_text}</span></div>
+        <button className={`adm-btn${isCur ? " on" : " go"}`} onClick={() => onGoLive(s.id)} disabled={isCur}>
+          {isCur ? "Live ✓" : "Go live here"}
+        </button>
+      </div>
+      <div className="adm-loc">
+        <input className="adm-locinput" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Street address (for directions)" maxLength={300} />
+        <button className="adm-btn" onClick={saveLocation} disabled={busy || !address.trim()}>{busy ? "Finding…" : "Save location"}</button>
+      </div>
+      <div className={`adm-loc-status${hasCoords ? " ok" : ""}`}>
+        {hasCoords ? `Location set · ${(s.lat as number).toFixed(4)}, ${(s.lng as number).toFixed(4)}` : "No location set — add an address so directions are accurate"}
+      </div>
+      <textarea
+        className="adm-notes"
+        rows={2}
+        maxLength={1000}
+        defaultValue={s.notes ?? ""}
+        placeholder="Details guests see when they tap this stop — parking, what's special, anything to know"
+        onBlur={(e) => { if (e.target.value !== (s.notes ?? "")) saveNotes(e.target.value); }}
+      />
+    </div>
+  );
+}
+
 // ───────────────────────── live truck control ─────────────────────────
 function LiveControl() {
   const { toast } = useApp();
@@ -156,11 +206,6 @@ function LiveControl() {
     const { error } = await supabase!.rpc("admin_set_live", { stop: live.current_stop_id, live: false });
     toast(error ? `Error: ${error.message}` : "Truck paused");
   };
-  const saveNotes = async (id: string, notes: string) => {
-    const { error } = await supabase!.from("stops").update({ notes: notes.trim() || null }).eq("id", id);
-    toast(error ? `Error: ${error.message}` : "Stop details saved");
-  };
-
   return (
     <div className="adm-sec">
       <div className="sec">Live truck</div>
@@ -168,27 +213,9 @@ function LiveControl() {
         <div><span className={`adm-dot${live?.is_live ? " on" : ""}`} /> {live?.is_live ? "Live now" : "Offline"}</div>
         {live?.is_live && <button className="adm-btn ghost" onClick={pause}>Pause</button>}
       </div>
-      {stops.map((s) => {
-        const isCur = s.id === live?.current_stop_id && live?.is_live;
-        return (
-          <div className="adm-stopwrap" key={s.id}>
-            <div className={`adm-stop${isCur ? " cur" : ""}`}>
-              <div><b>{s.name}</b><span>{s.location_text}</span></div>
-              <button className={`adm-btn${isCur ? " on" : " go"}`} onClick={() => goLive(s.id)} disabled={isCur}>
-                {isCur ? "Live ✓" : "Go live here"}
-              </button>
-            </div>
-            <textarea
-              className="adm-notes"
-              rows={2}
-              maxLength={1000}
-              defaultValue={s.notes ?? ""}
-              placeholder="Details guests see when they tap this stop — parking, what's special, anything to know"
-              onBlur={(e) => { if (e.target.value !== (s.notes ?? "")) saveNotes(s.id, e.target.value); }}
-            />
-          </div>
-        );
-      })}
+      {stops.map((s) => (
+        <StopControl key={s.id} s={s} isCur={Boolean(s.id === live?.current_stop_id && live?.is_live)} onGoLive={goLive} />
+      ))}
     </div>
   );
 }

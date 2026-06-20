@@ -484,6 +484,10 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .sheet.paper .honest{background:rgba(184,36,32,.07);border-color:rgba(184,36,32,.2);color:#3a2b22}
 .sheet.paper .honest b{color:#221F18}
 .sheet.paper .auth-err{color:#9a4742;background:rgba(184,36,32,.08);border-color:rgba(184,36,32,.28)}
+.sheet.paper .tip-row{display:flex;gap:7px;margin:2px 0 6px}
+.sheet.paper .tip-opt{flex:1;font-family:'Inter';font-weight:600;font-size:13px;padding:11px 0;border-radius:11px;border:1px solid rgba(34,31,24,.16);background:transparent;color:#5f5a49;cursor:pointer}
+.sheet.paper .tip-opt.on{background:#221F18;border-color:#221F18;color:#F4EFE3}
+.sheet.paper .tip-opt:active{transform:scale(.97)}
 
 /* ===================================================================
    ARRIVAL — de-gated first-time front door (welcome before sign-in)
@@ -533,3 +537,9 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .adm-notes{width:100%;margin-top:7px;background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:11px;padding:10px 12px;color:var(--cream);font-family:'Inter';font-size:13px;line-height:1.4;outline:none;resize:vertical}
 .adm-notes::placeholder{color:rgba(245,241,232,.34)}
 .adm-notes:focus{border-color:var(--gold2)}
+.adm-loc{display:flex;gap:8px;margin-top:7px}
+.adm-locinput{flex:1;min-width:0;background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:11px;padding:10px 12px;color:var(--cream);font-family:'Inter';font-size:13px;outline:none}
+.adm-locinput::placeholder{color:rgba(245,241,232,.34)}
+.adm-locinput:focus{border-color:var(--gold2)}
+.adm-loc-status{font-family:'Inter';font-size:11px;color:var(--warn);margin-top:6px;letter-spacing:.2px}
+.adm-loc-status.ok{color:var(--ok)}
