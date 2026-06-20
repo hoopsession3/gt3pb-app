@@ -16,36 +16,51 @@ export default function MenuScreen() {
     fetch("/api/menu").then((r) => r.json()).then((d) => setPrices(d.prices || {})).catch(() => {});
   }, []);
   const priceLabel = (id: DrinkId) => (prices[id] != null ? `$${(prices[id] / 100).toFixed(0)}` : DRINKS[id].px);
-  const coLbl = cart.size > 0 ? `Checkout · ${cart.size}` : "Pre-order for pickup";
+  const coLbl = cart.size > 0 ? `Pre-order · ${cart.size}` : "Pre-order for pickup";
 
   return (
-    <section className="screen" id="s-menu">
+    <section className="screen menu" id="s-menu">
       <div className="toprow">
-        <div className="eyb">The NET+ Menu</div>
+        <div className="mast-brand">
+          <span className="g3">GT3</span>
+          <span className="pb">Performance Bar</span>
+        </div>
         <AccountPill />
       </div>
-      <div className="h-title">Built for the work.</div>
-      <div className="h-sub">Whole-food functional beverages. Nothing toxic. Before, during &amp; after.</div>
 
-      <div className="phaseflow">
-        <div className="pf-step"><div className="s">S1</div><div className="n">ACTIVATE</div><div className="w">before</div></div>
-        <div className="pf-step"><div className="s">S2</div><div className="n">HYDRATE</div><div className="w">during</div></div>
-        <div className="pf-step"><div className="s">S3</div><div className="n">REBUILD</div><div className="w">after</div></div>
-      </div>
+      <p className="mast-stmt">
+        Cold-extracted coffee, whole-food hydration, and slow-simmered fuel&nbsp;— prepared to order.
+      </p>
 
       {MENU.map((cat) => (
-        <div key={cat.sx}>
-          <div className="menucat"><span className="sx">{cat.sx}</span>{cat.name}<span className="wn">{cat.wn}</span></div>
-          {cat.rows.map((row) => {
-            const d = DRINKS[row.id];
-            const on = isInCart(row.id);
+        <div key={cat.name}>
+          <div className="chapter">
+            <span className="chn">{cat.name}</span>
+            <span className="chw">{cat.wn}</span>
+          </div>
+          <div className="chrule" />
+
+          {cat.rows.map((id) => {
+            const d = DRINKS[id];
+            const on = isInCart(id);
             return (
-              <div className="drink" key={row.id} aria-label={`${d.n}, ${d.px}, view details`} {...clickable(() => openDrink(row.id))}>
-                <div className="sw" style={{ background: d.grad }}>{d.n}</div>
-                <div className="dm"><b>{d.n}</b><span>{row.blurb}</span></div>
-                <div className="rt">
-                  <span className="px">{priceLabel(row.id)}</span>
-                  <div className={`plus${on ? " on" : ""}`}>{on ? "✓" : "+"}</div>
+              <div
+                className="entry"
+                key={id}
+                aria-label={`${d.n}, ${priceLabel(id)}, view details`}
+                {...clickable(() => openDrink(id))}
+              >
+                <div className="entry-head">
+                  <span className="entry-dot" style={{ background: d.dot }} />
+                  <span className="entry-name">{d.n}</span>
+                  {on && <span className="entry-in" aria-label="in your order">✓</span>}
+                  <span className="entry-px">{priceLabel(id)}</span>
+                </div>
+                <div className="entry-body">
+                  {d.lines.map((l) => (
+                    <div className="entry-ing" key={l}>{l}</div>
+                  ))}
+                  <div className="entry-why">{d.why}</div>
                 </div>
               </div>
             );
@@ -53,9 +68,14 @@ export default function MenuScreen() {
         </div>
       ))}
 
-      <button className="handle" onClick={() => (cart.size === 0 ? toast("Tap + on a drink to build your order") : setCoOpen(true))}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2"><path d="M5 12l5 5L20 7" /></svg>
-        <span>{coLbl}</span>
+      <div className="menu-integrity">No plastic contact · No powders · No artificial anything</div>
+      <div className="menu-mto">Made to order</div>
+
+      <button
+        className="order-bar"
+        onClick={() => (cart.size === 0 ? toast("Tap a drink to read it, then add to your order") : setCoOpen(true))}
+      >
+        {coLbl}
       </button>
 
       <Checkout open={coOpen} onClose={() => setCoOpen(false)} prices={prices} />

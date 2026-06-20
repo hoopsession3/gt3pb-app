@@ -4,6 +4,12 @@ import { useEffect, useRef } from "react";
 import { useApp } from "./AppProvider";
 import { DRINKS } from "@/lib/menu";
 
+const PILLAR: Record<"BEFORE" | "DURING" | "AFTER", string> = {
+  BEFORE: "Activation · Before the work",
+  DURING: "Hydration · During the work",
+  AFTER: "Fuel · After the work",
+};
+
 export default function DrinkSheet() {
   const { openId, closeDrink, isInCart, bump } = useApp();
   const d = openId ? DRINKS[openId] : null;
@@ -30,7 +36,7 @@ export default function DrinkSheet() {
     <>
       <div className={`scrim${openId ? " open" : ""}`} onClick={closeDrink} aria-hidden="true" />
       <div
-        className={`sheet${openId ? " open" : ""}`}
+        className={`sheet paper${openId ? " open" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="drink-sheet-title"
@@ -42,33 +48,45 @@ export default function DrinkSheet() {
         <div className="sin">
           {d && openId && (
             <>
-              <div className="sheet-hero" style={{ background: d.grad }}>
-                <span className="px">{d.px}</span>
-                <b id="drink-sheet-title">{d.n}</b>
+              <div className="sheet-pillar">{PILLAR[d.when]}</div>
+              <div className="sheet-mark">
+                <span className="sheet-dot" style={{ background: d.dot }} />
+                <span className="sheet-name" id="drink-sheet-title">{d.n}</span>
+                <span className="sheet-px">{d.px}</span>
               </div>
-              <div className="spec-label">What&apos;s in it</div>
-              <div className="chips">
+
+              <div className="sheet-lines">
+                {d.lines.map((l) => (
+                  <div className="sheet-line" key={l}>{l}</div>
+                ))}
+              </div>
+              <p className="sheet-why">{d.why}</p>
+
+              <div className="sheet-rule" />
+
+              <div className="sheet-sec">In the cup</div>
+              <ul className="sheet-list">
                 {d.has.map((x) => (
-                  <span className="chip yes" key={x}>{x}</span>
+                  <li key={x}>{x}</li>
                 ))}
-              </div>
-              <div className="spec-label">What&apos;s not</div>
-              <div className="chips">
+              </ul>
+
+              <div className="sheet-sec">Never</div>
+              <ul className="sheet-list no">
                 {d.no.map((x) => (
-                  <span className="chip no" key={x}>{x}</span>
+                  <li key={x}>{x}</li>
                 ))}
+              </ul>
+
+              <div className="sheet-when">
+                <span className="sheet-when-k">When</span>
+                <span className="sheet-when-v">{d.whenT}</span>
               </div>
-              <div className="when-card">
-                <div className="stamp">{d.when}</div>
-                <div>
-                  <b>When to drink it</b>
-                  <span>{d.whenT}</span>
-                </div>
-              </div>
-              <button className="handle" onClick={() => bump(openId)}>
-                <span>{on ? "Remove from order" : "Add to pre-order"}</span>
+
+              <button className="order-bar" onClick={() => bump(openId)}>
+                {on ? "Remove from order" : "Add to order"}
               </button>
-              <div className="signoff">Nothing toxic. The standard you can taste.</div>
+              <div className="sheet-signoff">Made to order. The standard you can taste.</div>
             </>
           )}
         </div>

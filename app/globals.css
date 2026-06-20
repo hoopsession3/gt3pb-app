@@ -384,3 +384,62 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .gen-card-time{font-family:'Inter';font-size:11px;font-weight:500;color:var(--cream-m);margin-top:4px;letter-spacing:.2px}
 .gen-badge{font-family:'Inter';font-weight:650;font-size:9px;letter-spacing:1.2px;text-transform:uppercase;padding:4px 8px;border-radius:6px;background:rgba(184,144,47,.12);color:var(--gold2);border:1px solid rgba(184,144,47,.2);white-space:nowrap;flex-shrink:0}
 .gen-science{font-family:'Inter';font-size:12.5px;color:var(--cream-m);line-height:1.6;margin:0}
+
+/* ===================================================================
+   MENU — editorial "printed-menu" surface (cream paper on dark shell)
+   The one light surface in the app: a physical café menu, not an app tab.
+   =================================================================== */
+@font-face{font-family:'Fraunces';font-style:normal;font-weight:400 500;font-display:swap;src:url(/fonts/fraunces-400.woff2) format('woff2');}
+@font-face{font-family:'Fraunces';font-style:italic;font-weight:400 500;font-display:swap;src:url(/fonts/fraunces-400-italic.woff2) format('woff2');}
+
+.menu{background:#F4EFE3;min-height:100%;color:#221F18;padding-bottom:42px}
+.menu .toprow{padding-top:4px}
+.mast-brand{display:flex;flex-direction:column;line-height:1}
+.mast-brand .g3{font-family:'Archivo Black';font-size:22px;letter-spacing:.4px;color:#221F18;line-height:1}
+.mast-brand .pb{font-family:'Inter';font-weight:600;font-size:8.5px;letter-spacing:3px;text-transform:uppercase;color:#8a8472;margin-top:5px}
+.mast-stmt{font-family:'Fraunces';font-weight:400;font-size:17px;line-height:1.5;color:#33301f;margin-top:18px;letter-spacing:.1px}
+
+.chapter{display:flex;align-items:baseline;justify-content:space-between;margin:34px 0 0}
+.chapter .chn{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:2.6px;text-transform:uppercase;color:#9A7A2A}
+.chapter .chw{font-family:'Fraunces';font-style:italic;font-size:12.5px;color:#8a8472}
+.chrule{height:1px;background:#221F18;opacity:.55;margin:9px 0 2px}
+
+.entry{padding:15px 0;border-bottom:1px solid rgba(34,31,24,.11);cursor:pointer}
+.entry:active{opacity:.7}
+.entry-head{display:flex;align-items:baseline;gap:10px}
+.entry-dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto;transform:translateY(-1px)}
+.entry-name{flex:1;font-family:'Archivo Black';font-size:15.5px;letter-spacing:.4px;color:#221F18;line-height:1}
+.entry-in{font-family:'Inter';font-weight:700;font-size:11px;color:#6aa05c}
+.entry-px{font-family:'DM Mono';font-weight:500;font-size:13px;color:#5f5a49}
+.entry-body{margin-left:17px;margin-top:7px}
+.entry-ing{font-family:'Fraunces';font-size:13.5px;color:#2c291d;line-height:1.5}
+.entry-why{font-family:'Fraunces';font-style:italic;font-size:12.5px;color:#8a8472;margin-top:6px;line-height:1.4}
+
+.menu-integrity{font-family:'Inter';font-weight:600;font-size:9px;letter-spacing:1.6px;text-transform:uppercase;color:#a59f8c;text-align:center;margin-top:26px;line-height:1.8}
+.menu-mto{font-family:'Fraunces';font-style:italic;font-size:12.5px;color:#8a8472;text-align:center;margin-top:7px}
+.order-bar{width:100%;margin-top:20px;border:none;cursor:pointer;font-family:'Inter';font-weight:600;letter-spacing:1.5px;text-transform:uppercase;font-size:12.5px;padding:16px;border-radius:14px;background:#221F18;color:#F4EFE3}
+.order-bar:active{transform:scale(.99)}
+
+/* cream detail sheet — a card lifted off the menu */
+.sheet.paper{background:#F4EFE3;border-top:1px solid rgba(34,31,24,.14)}
+.sheet.paper .grab{background:rgba(34,31,24,.22)}
+.sheet-pillar{font-family:'Inter';font-weight:600;font-size:9.5px;letter-spacing:2px;text-transform:uppercase;color:#9A7A2A;margin-top:6px}
+.sheet-mark{display:flex;align-items:baseline;gap:11px;margin-top:12px}
+.sheet-dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;transform:translateY(-2px)}
+.sheet-name{flex:1;font-family:'Archivo Black';font-size:26px;letter-spacing:-.3px;color:#221F18;line-height:1;text-transform:uppercase}
+.sheet-px{font-family:'DM Mono';font-weight:500;font-size:15px;color:#5f5a49}
+.sheet-lines{margin-top:16px}
+.sheet-line{font-family:'Fraunces';font-size:16px;color:#2c291d;line-height:1.55}
+.sheet-why{font-family:'Fraunces';font-style:italic;font-size:13.5px;color:#8a8472;margin-top:9px;line-height:1.5}
+.sheet-rule{height:1px;background:rgba(34,31,24,.14);margin:20px 0 4px}
+.sheet-sec{font-family:'Inter';font-weight:600;font-size:10px;letter-spacing:1.8px;text-transform:uppercase;color:#9A7A2A;margin:16px 0 9px}
+.sheet-list{list-style:none;display:flex;flex-wrap:wrap;gap:7px}
+.sheet-list li{font-family:'DM Mono';font-size:11.5px;color:#2c291d;background:rgba(34,31,24,.05);border:1px solid rgba(34,31,24,.12);padding:6px 10px;border-radius:9px}
+.sheet-list li:before{content:"• ";color:#9A7A2A}
+.sheet-list.no li{color:#9a4742;border-color:rgba(184,36,32,.3)}
+.sheet-list.no li:before{content:"✕ ";color:#B82420}
+.sheet-when{display:flex;gap:12px;align-items:baseline;background:rgba(34,31,24,.04);border:1px solid rgba(34,31,24,.1);border-radius:13px;padding:13px 15px;margin-top:18px}
+.sheet-when-k{font-family:'Inter';font-weight:600;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#9A7A2A;flex:0 0 auto}
+.sheet-when-v{font-family:'Fraunces';font-size:13.5px;color:#2c291d}
+.sheet.paper .order-bar{margin-top:18px}
+.sheet-signoff{text-align:center;font-family:'Fraunces';font-style:italic;font-size:13px;color:#8a8472;margin-top:18px}
