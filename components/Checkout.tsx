@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useApp } from "./AppProvider";
+import { useAuth } from "./AuthProvider";
+import { supabase } from "@/lib/supabase";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import { SQUARE_APP_ID, SQUARE_LOCATION_ID, squareClientReady, squareWebSdkUrl } from "@/lib/square";
 
@@ -27,16 +29,33 @@ function loadSquare(): Promise<any> {
   });
 }
 
-export default function Checkout({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function Checkout({ open, onClose, prices }: { open: boolean; onClose: () => void; prices?: Record<string, number> }) {
   const { cart, toast, checkout } = useApp();
+  const { user, profile } = useAuth();
   const cardRef = useRef<any>(null);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
   const items = [...cart] as DrinkId[];
-  const totalCents = items.reduce((s, id) => s + Math.round(parseFloat(DRINKS[id].px.replace("$", "")) * 100), 0);
+  const priceOf = (id: DrinkId) => prices?.[id] ?? Math.round(parseFloat(DRINKS[id].px.replace("$", "")) * 100);
+  const totalCents = items.reduce((s, id) => s + priceOf(id), 0);
   const total = (totalCents / 100).toFixed(2);
+  const customer = profile?.display_name || (user?.email ? user.email.split("@")[0] : "Guest");
+
+  // Record the order for the kitchen (back-of-house) regardless of paid/pre-order.
+  const recordOrder = async (paid: boolean, paymentId?: string, amountCents?: number) => {
+    if (!supabase) return;
+    await supabase.from("orders").insert({
+      items,
+      total_cents: amountCents ?? totalCents,
+      paid,
+      payment_id: paymentId ?? null,
+      customer,
+      user_id: user?.id ?? null,
+      status: "new",
+    });
+  };
 
   // Mount the Square card form when the sheet opens (only if Square is configured).
   useEffect(() => {
@@ -93,6 +112,7 @@ export default function Checkout({ open, onClose }: { open: boolean; onClose: ()
       const data = await res.json();
       setBusy(false);
       if (!res.ok) { setErr(data.error || "Payment failed"); return; }
+      await recordOrder(true, data.paymentId, data.amount);
       toast(`Paid $${total} — order in. Ready in ~8 min.`);
       checkout(); // clears cart
       onClose();
@@ -112,7 +132,7 @@ export default function Checkout({ open, onClose }: { open: boolean; onClose: ()
             <>
               <div className="spec-label">Your pre-order</div>
               {items.map((id) => (
-                <div className="co-line" key={id}><span>{DRINKS[id].n}</span><span>{DRINKS[id].px}</span></div>
+                <div className="co-line" key={id}><span>{DRINKS[id].n}</span><span>${(priceOf(id) / 100).toFixed(2)}</span></div>
               ))}
               <div className="co-line co-total"><span>Total</span><span>${total}</span></div>
 
@@ -131,7 +151,7 @@ export default function Checkout({ open, onClose }: { open: boolean; onClose: ()
                   <div className="honest" style={{ marginTop: 16 }}>
                     Card checkout switches on soon. For now this is a <b>pre-order</b> — we&apos;ll have it ready and you pay at the truck.
                   </div>
-                  <button className="handle" onClick={() => { toast(`${items.length} drinks pre-ordered — ready in ~8 min`); checkout(); onClose(); }}>
+                  <button className="handle" onClick={async () => { await recordOrder(false); toast(`${items.length} drinks pre-ordered — ready in ~8 min`); checkout(); onClose(); }}>
                     <span>Send pre-order</span>
                   </button>
                 </>

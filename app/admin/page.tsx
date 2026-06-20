@@ -6,9 +6,63 @@ import { useApp } from "@/components/AppProvider";
 import { useAuth, type Profile } from "@/components/AuthProvider";
 import SignIn from "@/components/SignIn";
 import { supabase } from "@/lib/supabase";
-import type { Stop, LiveStatus, EventRow, BookingRequest } from "@/lib/db";
+import { DRINKS, type DrinkId } from "@/lib/menu";
+import type { Stop, LiveStatus, EventRow, BookingRequest, Order } from "@/lib/db";
 
 const STATUSES: BookingRequest["status"][] = ["new", "contacted", "booked", "declined"];
+
+// ───────────────────────── kitchen display (KDS) ─────────────────────────
+const NEXT: Record<Order["status"], Order["status"] | null> = { new: "preparing", preparing: "ready", ready: "done", done: null, void: null };
+const NEXT_LABEL: Record<string, string> = { new: "Start", preparing: "Mark ready", ready: "Picked up" };
+
+function ago(iso: string) {
+  const s = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+  return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` : `${Math.floor(s / 3600)}h`;
+}
+
+function Kitchen() {
+  const { toast } = useApp();
+  const [orders, setOrders] = useState<Order[]>([]);
+  const load = useCallback(async () => {
+    if (!supabase) return;
+    const { data } = await supabase.from("orders").select("*").neq("status", "done").neq("status", "void").order("created_at");
+    if (data) setOrders(data as Order[]);
+  }, []);
+  useEffect(() => {
+    load();
+    if (!supabase) return;
+    const ch = supabase.channel("admin-kds").on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => load()).subscribe();
+    return () => { supabase?.removeChannel(ch); };
+  }, [load]);
+
+  const advance = async (o: Order) => {
+    const next = NEXT[o.status];
+    if (!next) return;
+    const { error } = await supabase!.from("orders").update({ status: next }).eq("id", o.id);
+    if (error) toast(`Error: ${error.message}`);
+  };
+  const voidOrder = async (id: string) => { await supabase!.from("orders").update({ status: "void" }).eq("id", id); };
+
+  return (
+    <div className="adm-sec">
+      <div className="sec">Kitchen{orders.length > 0 && <span className="adm-pill">{orders.length} active</span>}</div>
+      {orders.map((o) => (
+        <div className={`adm-order st-${o.status}`} key={o.id}>
+          <div className="adm-order-top">
+            <b>{o.items.map((i) => DRINKS[i as DrinkId]?.n ?? i).join(" · ")}</b>
+            <span className="adm-ref">{ago(o.created_at)}</span>
+          </div>
+          <div className="meta">{o.customer ?? "Guest"} · ${(o.total_cents / 100).toFixed(2)} · <span className={o.paid ? "pd" : "unp"}>{o.paid ? "PAID" : "pre-order"}</span> · <b>{o.status}</b></div>
+          <div className="adm-status">
+            {NEXT[o.status] && <button className="on" onClick={() => advance(o)}>{NEXT_LABEL[o.status]}</button>}
+            <button onClick={() => voidOrder(o.id)}>Void</button>
+          </div>
+        </div>
+      ))}
+      {orders.length === 0 && <div className="h-sub">No active orders — new ones appear here in realtime.</div>}
+    </div>
+  );
+}
 
 // ───────────────────────── booking requests ─────────────────────────
 function Bookings() {
@@ -245,6 +299,7 @@ export default function AdminPage() {
       <div className="toprow"><div className="eyb">GT3PB · Back office</div><Link className="pf" href="/3mpire" aria-label="Exit admin">‹</Link></div>
       <div className="h-title">Control room.</div>
       <div className="h-sub">Changes here reach every member instantly.</div>
+      <Kitchen />
       <LiveControl />
       <Bookings />
       <EventsAdmin />

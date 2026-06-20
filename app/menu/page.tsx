@@ -1,15 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import AccountPill from "@/components/AccountPill";
 import Checkout from "@/components/Checkout";
-import { DRINKS, MENU } from "@/lib/menu";
+import { DRINKS, MENU, type DrinkId } from "@/lib/menu";
 import { clickable } from "@/lib/a11y";
 
 export default function MenuScreen() {
   const { openDrink, isInCart, cart, toast } = useApp();
   const [coOpen, setCoOpen] = useState(false);
+  const [prices, setPrices] = useState<Record<string, number>>({});
+  // Prices come from Square Catalog (one source of truth across truck + app).
+  useEffect(() => {
+    fetch("/api/menu").then((r) => r.json()).then((d) => setPrices(d.prices || {})).catch(() => {});
+  }, []);
+  const priceLabel = (id: DrinkId) => (prices[id] != null ? `$${(prices[id] / 100).toFixed(0)}` : DRINKS[id].px);
   const coLbl = cart.size > 0 ? `Checkout · ${cart.size}` : "Pre-order for pickup";
 
   return (
@@ -38,7 +44,7 @@ export default function MenuScreen() {
                 <div className="sw" style={{ background: d.grad }}>{d.n}</div>
                 <div className="dm"><b>{d.n}</b><span>{row.blurb}</span></div>
                 <div className="rt">
-                  <span className="px">{d.px}</span>
+                  <span className="px">{priceLabel(row.id)}</span>
                   <div className={`plus${on ? " on" : ""}`}>{on ? "✓" : "+"}</div>
                 </div>
               </div>
@@ -52,7 +58,7 @@ export default function MenuScreen() {
         <span>{coLbl}</span>
       </button>
 
-      <Checkout open={coOpen} onClose={() => setCoOpen(false)} />
+      <Checkout open={coOpen} onClose={() => setCoOpen(false)} prices={prices} />
     </section>
   );
 }

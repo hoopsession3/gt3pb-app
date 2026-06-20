@@ -21,6 +21,18 @@ export interface LiveStatus {
   next_eta: string | null;
 }
 
+export interface Order {
+  id: string;
+  user_id: string | null;
+  customer: string | null;
+  items: string[];
+  total_cents: number;
+  paid: boolean;
+  payment_id: string | null;
+  status: "new" | "preparing" | "ready" | "done" | "void";
+  created_at: string;
+}
+
 export interface BookingRequest {
   id: string;
   name: string | null;

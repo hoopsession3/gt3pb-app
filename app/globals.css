@@ -312,6 +312,16 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .adm-status button{font-family:'Inter';font-weight:600;font-size:10.5px;padding:6px 10px;border-radius:9px;border:1px solid var(--line2);background:transparent;color:var(--cream-m);cursor:pointer}
 .adm-status button.on{background:var(--red);border-color:var(--red);color:#fff}
 .adm-pill{font-family:'Inter';font-weight:650;font-size:8px;letter-spacing:1px;text-transform:uppercase;padding:2px 7px;border-radius:5px;background:rgba(184,144,47,.16);color:var(--gold2);margin-left:7px;vertical-align:middle}
+/* kitchen orders */
+.adm-order{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-top:9px;border-left:3px solid var(--cream-m)}
+.adm-order.st-new{border-left-color:var(--red)}
+.adm-order.st-preparing{border-left-color:var(--gold2)}
+.adm-order.st-ready{border-left-color:var(--ok)}
+.adm-order-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
+.adm-order-top b{font-family:'Inter';font-weight:650;font-size:14px;line-height:1.2}
+.adm-order .meta{font-size:11.5px;color:var(--cream-m);margin-bottom:9px}
+.adm-order .meta .pd{color:var(--ok);font-weight:650}
+.adm-order .meta .unp{color:var(--gold2)}
 
 /* ---- sign-in / welcome (luxury) ---- */
 .auth{display:flex;flex-direction:column;min-height:100%;padding-top:calc(40px + env(safe-area-inset-top))}
