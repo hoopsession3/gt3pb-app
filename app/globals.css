@@ -330,9 +330,10 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .auth-welcome{font-family:'Inter';font-weight:650;letter-spacing:4px;text-transform:uppercase;font-size:11px;color:var(--gold);opacity:0;animation:authRise .7s ease .05s both}
 .auth-logo{width:206px;max-width:64%;height:auto;margin:14px 0 2px;opacity:0;animation:authRise 1s cubic-bezier(.2,.7,.2,1) .14s both}
 .auth-rule{width:52px;height:1px;background:linear-gradient(90deg,transparent,var(--gold),transparent);margin:20px 0 22px;opacity:0;animation:authRise .8s ease .36s both}
-.auth-tag{font-family:'Playfair Display';font-style:italic;font-weight:700;font-size:27px;line-height:1.16;letter-spacing:-.2px;color:var(--cream);max-width:330px;perspective:900px}
-.auth-tag .w{display:inline-block;transform-origin:top center;animation:foldIn .85s cubic-bezier(.2,.75,.25,1) both}
-.auth-tag-sm{font-size:30px;line-height:1.02;letter-spacing:-1px;font-family:'Inter';font-style:normal}
+.auth-headline{font-family:'Archivo Black';font-weight:400;font-size:30px;line-height:1.06;letter-spacing:-.5px;color:var(--cream);margin-top:2px;opacity:0;animation:authRise .5s ease .3s both}
+/* keep .auth-tag for any legacy refs */
+.auth-tag{font-family:'Archivo Black';font-weight:400;font-size:28px;line-height:1.06;letter-spacing:-.4px;color:var(--cream);max-width:330px}
+.auth-tag-sm{font-size:30px;line-height:1.02;letter-spacing:-1px;font-family:'Inter';font-weight:700}
 .auth-sub{font-size:13px;color:var(--cream-m);margin-top:14px;line-height:1.55;max-width:330px;opacity:0;animation:authRise .7s ease 1.25s both}
 .auth-form{opacity:0;animation:authRise .7s ease 1.45s both}
 .auth-label{display:block;font-family:'Inter';font-weight:650;letter-spacing:1.2px;text-transform:uppercase;font-size:10px;color:var(--cream-m);margin:18px 0 7px}
@@ -344,11 +345,17 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .auth-err{margin-top:12px;font-size:12.5px;color:#e0918c;background:rgba(184,36,32,.12);border:1px solid rgba(184,36,32,.28);border-radius:11px;padding:10px 13px;line-height:1.4}
 .auth-fine{font-size:11.5px;color:rgba(245,241,232,.4);line-height:1.55;margin-top:auto;padding-top:26px;padding-bottom:14px;opacity:0;animation:authRise .7s ease 1.7s both}
 .auth-link{background:none;border:none;color:var(--gold2);font-family:'Inter';font-weight:600;font-size:12.5px;letter-spacing:.3px;cursor:pointer;margin-top:16px;align-self:flex-start;padding:6px 0}
-.auth-check-row{display:flex;align-items:center;gap:9px;margin-top:16px;cursor:pointer;font-family:'Inter';font-size:13px;color:var(--cream-m)}
+.auth-check-row{display:flex;align-items:center;gap:9px;margin-top:12px;cursor:pointer;font-family:'Inter';font-size:13px;color:var(--cream-m)}
 .auth-check-row input[type=checkbox]{width:17px;height:17px;accent-color:var(--red);cursor:pointer;flex-shrink:0}
-.auth-divider{width:100%;height:1px;background:var(--line);margin:24px 0 0}
+.auth-divider{width:100%;height:1px;background:var(--line);margin:22px 0 0}
 .auth-paste-hint{font-size:12px;color:rgba(245,241,232,.45);line-height:1.5;margin:7px 0 11px}
 .handle.ghost{background:transparent;border:1px solid var(--line2);color:var(--cream-m)}
+.auth-tabs{display:flex;gap:6px;margin-top:18px}
+.auth-tab{flex:1;padding:10px 0;border-radius:12px;border:1px solid var(--line2);background:transparent;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;transition:.15s}
+.auth-tab.on{background:rgba(184,36,32,.18);border-color:var(--red);color:var(--cream)}
+.auth-pass-wrap{position:relative}
+.auth-pass-wrap .auth-input{padding-right:60px}
+.auth-show-pass{position:absolute;right:14px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--gold);font-family:'Inter';font-weight:600;font-size:12px;cursor:pointer;padding:4px}
 /* signed-in check-in toggles (Today) */
 .ckin{display:flex;gap:9px;margin:14px 0 4px}
 .ckin .q{flex:1;background:rgba(0,0,0,.22);border:1px solid var(--line);border-radius:15px;padding:13px}

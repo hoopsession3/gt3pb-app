@@ -16,13 +16,15 @@ export interface Profile {
 }
 
 interface AuthCtx {
-  ready: boolean; // initial session resolved
-  enabled: boolean; // Supabase configured (env present)
+  ready: boolean;
+  enabled: boolean;
   user: User | null;
   profile: Profile | null;
   sendCode: (email: string, displayName?: string) => Promise<{ error?: string }>;
   verifyCode: (email: string, token: string) => Promise<{ error?: string }>;
   signInWithUrl: (url: string) => Promise<{ error?: string }>;
+  signInWithPassword: (email: string, password: string) => Promise<{ error?: string }>;
+  signUp: (email: string, password: string, displayName?: string) => Promise<{ error?: string; confirm?: boolean }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -112,6 +114,27 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     }
   }, []);
 
+  const signInWithPassword = useCallback<AuthCtx["signInWithPassword"]>(async (email, password) => {
+    if (!supabase) return { error: "Sign-in isn't configured yet." };
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    return error ? { error: error.message } : {};
+  }, []);
+
+  const signUp = useCallback<AuthCtx["signUp"]>(async (email, password, displayName) => {
+    if (!supabase) return { error: "Sign-in isn't configured yet." };
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: displayName ? { display_name: displayName } : undefined,
+        emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
+      },
+    });
+    if (error) return { error: error.message };
+    // If session is null but user exists, email confirmation is required
+    return { confirm: !data.session && !!data.user };
+  }, []);
+
   const signOut = useCallback(async () => {
     await supabase?.auth.signOut();
     setUser(null);
@@ -123,7 +146,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   }, [user, loadProfile]);
 
   return (
-    <Ctx.Provider value={{ ready, enabled: supabaseEnabled, user, profile, sendCode, verifyCode, signInWithUrl, signOut, refreshProfile }}>
+    <Ctx.Provider value={{ ready, enabled: supabaseEnabled, user, profile, sendCode, verifyCode, signInWithUrl, signInWithPassword, signUp, signOut, refreshProfile }}>
       {children}
     </Ctx.Provider>
   );
