@@ -89,7 +89,7 @@ function TruckLive() {
           <div className="hero-eye">Next stop</div>
         )}
         <div className="hero-state" style={{ fontSize: 26 }}>{liveStop?.name ?? (loaded ? "No stops yet" : "…")}</div>
-        <div className="hero-sub">{liveStop?.location_text ?? ""}{liveStop ? " · full NET+ bar on board" : ""}</div>
+        <div className="hero-sub">{liveStop?.location_text ?? ""}{liveStop ? " · the full bar on board" : ""}</div>
         <div className="cells">
           <div className="cell"><div className={`cv ${isLive ? "ok" : "gold"}`}>{isLive ? "LIVE" : "Soon"}</div><div className="cl">Status</div></div>
           <div className="cell"><div className="cv">{liveStop?.time_label ?? "—"}</div><div className="cl">Open</div></div>
@@ -144,7 +144,7 @@ function TruckDemo() {
       <div className="hero"><div className="hin">
         <div className="livebadge"><span className="d" />Live now</div>
         <div className="hero-state" style={{ fontSize: 26 }}>Duncan Town Square</div>
-        <div className="hero-sub">Saturday Market · full NET+ bar on board</div>
+        <div className="hero-sub">Saturday Market · the full bar on board</div>
         <div className="cells">
           <div className="cell"><div className="cv gold">1.4 mi</div><div className="cl">Away</div></div>
           <div className="cell"><div className="cv">til 3:00p</div><div className="cl">Open</div></div>
@@ -172,7 +172,7 @@ function TruckDemo() {
       </div>
       <div className="stop" aria-label="Spartanburg Market — save reminder" {...clickable(() => toast("Saved — we'll remind you"))}>
         <div className="when"><b>WED</b><span>7–11</span></div>
-        <div className="info"><b>Spartanburg Market</b><span>Full NET+ bar</span></div>
+        <div className="info"><b>Spartanburg Market</b><span>Full bar</span></div>
         <div className="tag soon">Wed</div>
       </div>
       <div className="stop" aria-label="Founding First Pour — save reminder" {...clickable(() => toast("Saved — we'll remind you"))}>

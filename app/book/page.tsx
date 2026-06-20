@@ -57,7 +57,7 @@ export default function BookScreen() {
       <div className="bookcard">
         <div className="eyb">Bring GT3PB to your event</div>
         <h2>Book the bar.</h2>
-        <p>Offsites, run clubs, launches, weddings. We bring the full NET+ bar and pour on site. Tell us the basics — Kayla takes it from there.</p>
+        <p>Offsites, run clubs, launches, weddings. We bring the full bar and pour on site. Tell us the basics — Kayla takes it from there.</p>
       </div>
 
       <form className="auth-form" onSubmit={submit} style={{ marginTop: 18 }}>
