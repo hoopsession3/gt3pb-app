@@ -6,7 +6,60 @@ import { useApp } from "@/components/AppProvider";
 import { useAuth, type Profile } from "@/components/AuthProvider";
 import SignIn from "@/components/SignIn";
 import { supabase } from "@/lib/supabase";
-import type { Stop, LiveStatus, EventRow } from "@/lib/db";
+import type { Stop, LiveStatus, EventRow, BookingRequest } from "@/lib/db";
+
+const STATUSES: BookingRequest["status"][] = ["new", "contacted", "booked", "declined"];
+
+// ───────────────────────── booking requests ─────────────────────────
+function Bookings() {
+  const { toast } = useApp();
+  const [reqs, setReqs] = useState<BookingRequest[]>([]);
+  const load = useCallback(async () => {
+    if (!supabase) return;
+    const { data } = await supabase.from("booking_requests").select("*").order("created_at", { ascending: false });
+    if (data) setReqs(data as BookingRequest[]);
+  }, []);
+  useEffect(() => {
+    load();
+    if (!supabase) return;
+    const ch = supabase.channel("admin-bookings")
+      .on("postgres_changes", { event: "*", schema: "public", table: "booking_requests" }, () => load())
+      .subscribe();
+    return () => { supabase?.removeChannel(ch); };
+  }, [load]);
+
+  const setStatus = async (id: string, status: BookingRequest["status"]) => {
+    const { error } = await supabase!.from("booking_requests").update({ status }).eq("id", id);
+    toast(error ? `Error: ${error.message}` : `Marked ${status}`);
+    if (!error) load();
+  };
+
+  const open = reqs.filter((r) => r.status === "new").length;
+  return (
+    <div className="adm-sec">
+      <div className="sec">Booking requests{open > 0 && <span className="adm-pill">{open} new</span>}</div>
+      {reqs.map((r) => (
+        <div className={`adm-req${r.status === "new" ? " new" : ""}`} key={r.id}>
+          <div className="adm-member-top">
+            <b>{r.name ?? "—"}{r.event_date && <span className="adm-pill">{r.event_date}</span>}</b>
+            <span className="adm-ref">{r.headcount ? `${r.headcount} ppl` : ""}</span>
+          </div>
+          <div className="meta">
+            {r.email && <><a href={`mailto:${r.email}`}>{r.email}</a>{r.phone ? " · " : ""}</>}{r.phone}
+            {r.location_text && <> · {r.location_text}</>}
+            {r.notes && <><br />{r.notes}</>}
+          </div>
+          <div className="adm-status">
+            {STATUSES.map((s) => (
+              <button key={s} className={r.status === s ? "on" : ""} onClick={() => setStatus(r.id, s)}>{s}</button>
+            ))}
+          </div>
+        </div>
+      ))}
+      {reqs.length === 0 && <div className="h-sub">No requests yet — they land here from the Book the bar form.</div>}
+    </div>
+  );
+}
 
 // ───────────────────────── live truck control ─────────────────────────
 function LiveControl() {
@@ -140,16 +193,30 @@ function EventsAdmin() {
     toast(error ? `Error: ${error.message}` : "Event updated");
     if (!error) load();
   };
+  const addEvent = async () => {
+    const { error } = await supabase!.from("events").insert({ title: "New event", day_label: "SAT", sort: events.length });
+    toast(error ? `Error: ${error.message}` : "Event added");
+    if (!error) load();
+  };
+  const remove = async (id: string) => {
+    const { error } = await supabase!.from("events").delete().eq("id", id);
+    toast(error ? `Error: ${error.message}` : "Event removed");
+    if (!error) load();
+  };
 
   return (
     <div className="adm-sec">
-      <div className="sec">Events</div>
+      <div className="sec">Events <button className="adm-btn" style={{ marginLeft: "auto" }} onClick={addEvent}>+ Add</button></div>
       {events.map((e) => (
         <div className="adm-event" key={e.id}>
-          <div className="adm-member-top"><b>{e.day_label} · {e.title}</b></div>
+          <div className="adm-member-top">
+            <input className="auth-input" style={{ fontSize: 14, padding: "8px 10px" }} defaultValue={e.title} onBlur={(ev) => ev.target.value !== e.title && update(e.id, { title: ev.target.value })} />
+          </div>
           <div className="adm-fields">
+            <label>Day<input type="text" defaultValue={e.day_label ?? ""} onBlur={(ev) => update(e.id, { day_label: ev.target.value })} /></label>
             <label>Going<input type="number" defaultValue={e.going_count ?? 0} onBlur={(ev) => update(e.id, { going_count: parseInt(ev.target.value) || 0 })} /></label>
-            <label className="adm-check"><input type="checkbox" defaultChecked={e.member_only} onChange={(ev) => update(e.id, { member_only: ev.target.checked })} />Members only</label>
+            <label className="adm-check"><input type="checkbox" defaultChecked={e.member_only} onChange={(ev) => update(e.id, { member_only: ev.target.checked })} />Members</label>
+            <button className="adm-btn ghost" onClick={() => remove(e.id)}>Delete</button>
           </div>
         </div>
       ))}
@@ -179,8 +246,9 @@ export default function AdminPage() {
       <div className="h-title">Control room.</div>
       <div className="h-sub">Changes here reach every member instantly.</div>
       <LiveControl />
-      <Members />
+      <Bookings />
       <EventsAdmin />
+      <Members />
     </section>
   );
 }

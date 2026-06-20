@@ -64,6 +64,16 @@ export default function Checkout({ open, onClose }: { open: boolean; onClose: ()
     };
   }, [open]);
 
+  // Robust readiness: enable Pay once the card field is actually visible (survives
+  // dev StrictMode double-mount and any attach-timing races).
+  useEffect(() => {
+    if (!open || !squareClientReady) return;
+    const iv = setInterval(() => {
+      if (document.querySelector("#sq-card iframe")) { setReady(true); clearInterval(iv); }
+    }, 250);
+    return () => clearInterval(iv);
+  }, [open]);
+
   const pay = async () => {
     setErr("");
     if (!cardRef.current) return;

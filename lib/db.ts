@@ -21,6 +21,19 @@ export interface LiveStatus {
   next_eta: string | null;
 }
 
+export interface BookingRequest {
+  id: string;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  event_date: string | null;
+  headcount: number | null;
+  location_text: string | null;
+  notes: string | null;
+  status: "new" | "contacted" | "booked" | "declined";
+  created_at: string;
+}
+
 export interface EventRow {
   id: string;
   title: string;
