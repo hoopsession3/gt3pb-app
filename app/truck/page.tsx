@@ -7,6 +7,7 @@ import { useAuth } from "@/components/AuthProvider";
 import AccountPill from "@/components/AccountPill";
 import RouteMap, { type RoutePoint } from "@/components/RouteMap";
 import { clickable } from "@/lib/a11y";
+import { openDirections } from "@/lib/maps";
 import { supabase } from "@/lib/supabase";
 import type { Stop, LiveStatus } from "@/lib/db";
 
@@ -133,6 +134,9 @@ function TruckLive() {
                   <button className="handle" style={{ marginTop: 12 }} onClick={() => router.push("/menu")}><span>Pre-order · skip the line</span></button>
                 ) : (
                   <button className="btn2" style={{ marginTop: 12 }} onClick={() => toast("Saved — we'll remind you before this stop")}><span>Remind me</span></button>
+                )}
+                {s.lat != null && s.lng != null && (
+                  <button className="btn2" style={{ marginTop: 10 }} onClick={() => openDirections(s.lat as number, s.lng as number)}><span>Get directions</span></button>
                 )}
               </div>
             )}

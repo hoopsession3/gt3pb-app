@@ -2,6 +2,7 @@
 
 import "leaflet/dist/leaflet.css";
 import { useEffect, useRef } from "react";
+import { openDirections } from "@/lib/maps";
 
 export interface RoutePoint {
   name: string;
@@ -10,10 +11,12 @@ export interface RoutePoint {
   live?: boolean;
 }
 
-// Lightweight Leaflet map (dark CartoDB tiles, no API key) showing the truck's stops
-// connected into a non-self-intersecting loop — the "strategic circle" route.
+// Static orientation map + one-tap navigation. Interaction (pan/zoom) is OFF so it
+// never traps page scroll on mobile; tapping a pin opens native directions, and the
+// "Directions" button routes to the live (or next) stop.
 export default function RouteMap({ points }: { points: RoutePoint[] }) {
   const elRef = useRef<HTMLDivElement>(null);
+  const target = points.find((p) => p.live) ?? points[0];
 
   useEffect(() => {
     if (!elRef.current || points.length === 0) return;
@@ -24,7 +27,7 @@ export default function RouteMap({ points }: { points: RoutePoint[] }) {
       const L = (await import("leaflet")).default;
       if (cancelled || !elRef.current) return;
 
-      // Order the stops by angle around their centroid → a clean loop (no crossings).
+      // Order stops by angle around their centroid → a clean loop (no crossings).
       const cx = points.reduce((s, p) => s + p.lng, 0) / points.length;
       const cy = points.reduce((s, p) => s + p.lat, 0) / points.length;
       const ordered = [...points].sort(
@@ -32,7 +35,17 @@ export default function RouteMap({ points }: { points: RoutePoint[] }) {
       );
       const latlngs = ordered.map((p) => [p.lat, p.lng] as [number, number]);
 
-      map = L.map(elRef.current, { scrollWheelZoom: false, attributionControl: false });
+      // Fully static: no dragging/zoom so the map can't hijack a scroll gesture.
+      map = L.map(elRef.current, {
+        dragging: false,
+        scrollWheelZoom: false,
+        touchZoom: false,
+        doubleClickZoom: false,
+        boxZoom: false,
+        keyboard: false,
+        zoomControl: false,
+        attributionControl: false,
+      });
       L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
         maxZoom: 19,
         subdomains: "abcd",
@@ -41,33 +54,33 @@ export default function RouteMap({ points }: { points: RoutePoint[] }) {
       L.polyline([...latlngs, latlngs[0]], {
         color: "#B82420",
         weight: 3,
-        opacity: 0.9,
+        opacity: 0.8,
         dashArray: "2 8",
         lineCap: "round",
+        interactive: false,
       }).addTo(map);
 
-      // Stagger labels above/below alternately so neighbouring stops don't overlap;
-      // centered (top/bottom) keeps them inside the map rather than clipping at the edges.
-      ordered.forEach((p, i) => {
-        const dir = i % 2 === 0 ? "top" : "bottom";
-        L.circleMarker([p.lat, p.lng], {
-          radius: p.live ? 8 : 6,
+      ordered.forEach((p) => {
+        const marker = L.circleMarker([p.lat, p.lng], {
+          radius: p.live ? 9 : 7,
           color: p.live ? "#B82420" : "#cda84b",
           weight: 2,
           fillColor: p.live ? "#B82420" : "#2c2a22",
           fillOpacity: 1,
-        })
-          .addTo(map!)
-          .bindTooltip(p.live ? `${p.name} · LIVE` : p.name, {
-            permanent: true,
-            direction: dir,
-            offset: dir === "top" ? [0, -7] : [0, 7],
-            className: `rm-tip${p.live ? " rm-tip-live" : ""}`,
-          });
+          className: "rm-pin",
+        }).addTo(map!);
+        // Only the live stop is labelled — labelling every close-together stop just
+        // produces overlap on a phone. The list below names the rest.
+        if (p.live) {
+          marker.bindTooltip(`${p.name} · LIVE`, { permanent: true, direction: "top", offset: [0, -8], className: "rm-tip rm-tip-live" });
+        }
+        marker.on("click", (e) => {
+          L.DomEvent.stopPropagation(e);
+          openDirections(p.lat, p.lng);
+        });
       });
 
-      // Extra horizontal padding so the left/right stop labels aren't clipped at the edges.
-      map.fitBounds(latlngs, { paddingTopLeft: [78, 40], paddingBottomRight: [78, 28] });
+      map.fitBounds(latlngs, { paddingTopLeft: [46, 34], paddingBottomRight: [46, 26] });
     })();
 
     return () => {
@@ -76,5 +89,15 @@ export default function RouteMap({ points }: { points: RoutePoint[] }) {
     };
   }, [points]);
 
-  return <div className="routemap" ref={elRef} role="img" aria-label="Truck route map across the upstate" />;
+  return (
+    <div className="routemap-wrap">
+      <div className="routemap" ref={elRef} role="img" aria-label="Truck route map across the upstate" />
+      {target && (
+        <button className="rm-go" onClick={() => openDirections(target.lat, target.lng)} aria-label={`Directions to ${target.name}`}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 11l19-9-9 19-2-8-8-2z" /></svg>
+          Directions
+        </button>
+      )}
+    </div>
+  );
 }
