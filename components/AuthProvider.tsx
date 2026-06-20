@@ -69,9 +69,16 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
   const sendCode = useCallback<AuthCtx["sendCode"]>(async (email, displayName) => {
     if (!supabase) return { error: "Sign-in isn't configured yet." };
+    // Free-tier Supabase email sends a magic LINK (templates are locked without custom
+    // SMTP). emailRedirectTo brings the user back to the app signed in; detectSessionInUrl
+    // (set in lib/supabase) completes it. When Resend SMTP lands we can switch to a 6-digit code.
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { shouldCreateUser: true, data: displayName ? { display_name: displayName } : undefined },
+      options: {
+        shouldCreateUser: true,
+        emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
+        data: displayName ? { display_name: displayName } : undefined,
+      },
     });
     return error ? { error: error.message } : {};
   }, []);

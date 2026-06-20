@@ -7,33 +7,25 @@ import { useAuth } from "./AuthProvider";
 const TAGLINE = "Become a member and watch your empire grow.";
 
 export default function SignIn() {
-  const { sendCode, verifyCode } = useAuth();
-  const [step, setStep] = useState<"email" | "code">("email");
+  const { sendCode } = useAuth();
+  const [step, setStep] = useState<"email" | "sent">("email");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
-  const submitEmail = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim()) return;
+  const send = async () => {
     setBusy(true);
     setErr("");
     const { error } = await sendCode(email.trim(), name.trim() || undefined);
     setBusy(false);
     if (error) setErr(error);
-    else setStep("code");
+    else setStep("sent");
   };
 
-  const submitCode = async (e: React.FormEvent) => {
+  const submitEmail = (e: React.FormEvent) => {
     e.preventDefault();
-    if (code.trim().length < 6) return;
-    setBusy(true);
-    setErr("");
-    const { error } = await verifyCode(email.trim(), code.trim());
-    setBusy(false);
-    if (error) setErr(error); // success → AuthProvider flips to signed-in, this unmounts
+    if (email.trim()) send();
   };
 
   return (
@@ -51,7 +43,7 @@ export default function SignIn() {
               </Fragment>
             ))}
           </h1>
-          <p className="auth-sub">Members get their day dialed, their points, pours &amp; reserves. No password — we&apos;ll send a 6-digit code to your email.</p>
+          <p className="auth-sub">Members get their day dialed, their points, pours &amp; reserves. No password — we&apos;ll email you a one-tap sign-in link.</p>
           <form className="auth-form" onSubmit={submitEmail}>
             <label className="auth-label" htmlFor="auth-name">First name <span>(optional)</span></label>
             <input id="auth-name" className="auth-input" type="text" autoComplete="given-name" placeholder="Ryan" value={name} onChange={(e) => setName(e.target.value)} />
@@ -67,16 +59,12 @@ export default function SignIn() {
       ) : (
         <>
           <h1 className="auth-tag auth-tag-sm">Check your email.</h1>
-          <p className="auth-sub">We sent a 6-digit code to <b>{email}</b>. Enter it below.</p>
-          <form className="auth-form" onSubmit={submitCode}>
-            <label className="auth-label" htmlFor="auth-code">Code</label>
-            <input id="auth-code" className="auth-input auth-code" type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="••••••" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} required autoFocus />
-            {err && <div className="auth-err">{err}</div>}
-            <button className="handle" type="submit" disabled={busy} style={{ marginTop: 18 }}>
-              <span>{busy ? "Verifying…" : "Verify & enter"}</span>
-            </button>
-          </form>
-          <button className="auth-link" type="button" onClick={() => { setStep("email"); setCode(""); setErr(""); }}>
+          <p className="auth-sub">We sent a sign-in link to <b>{email}</b>. Tap it in this browser and you&apos;re in — your Today and 3MPIRE will be waiting. The link expires shortly.</p>
+          {err && <div className="auth-err">{err}</div>}
+          <button className="handle" type="button" disabled={busy} style={{ marginTop: 18 }} onClick={send}>
+            <span>{busy ? "Sending…" : "Resend link"}</span>
+          </button>
+          <button className="auth-link" type="button" onClick={() => { setStep("email"); setErr(""); }}>
             ← Use a different email
           </button>
         </>
