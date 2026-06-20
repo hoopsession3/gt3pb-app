@@ -439,3 +439,14 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .sheet-when-v{font-family:'Fraunces';font-size:13.5px;color:#2c291d}
 .sheet.paper .order-bar{margin-top:18px}
 .sheet-signoff{text-align:center;font-family:'Fraunces';font-style:italic;font-size:13px;color:#8a8472;margin-top:18px}
+
+/* cream checkout — recolour the legacy dark internals (scoped to the paper sheet) */
+.sheet.paper .spec-label{color:#9A7A2A}
+.sheet.paper .co-line{color:#221F18;border-bottom-color:rgba(34,31,24,.12)}
+.sheet.paper .co-line span:last-child{color:#5f5a49}
+.sheet.paper .co-total span{color:#221F18!important}
+.sheet.paper .sq-card{background:rgba(34,31,24,.04);border-color:rgba(34,31,24,.16)}
+.sheet.paper .signoff{color:#8a8472}
+.sheet.paper .honest{background:rgba(184,36,32,.07);border-color:rgba(184,36,32,.2);color:#3a2b22}
+.sheet.paper .honest b{color:#221F18}
+.sheet.paper .auth-err{color:#9a4742;background:rgba(184,36,32,.08);border-color:rgba(184,36,32,.28)}

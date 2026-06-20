@@ -138,7 +138,7 @@ export default function Checkout() {
   return (
     <>
       <div className={`scrim${open ? " open" : ""}`} onClick={onClose} aria-hidden="true" />
-      <div className={`sheet${open ? " open" : ""}`} role="dialog" aria-modal="true" aria-label="Checkout">
+      <div className={`sheet paper${open ? " open" : ""}`} role="dialog" aria-modal="true" aria-label="Checkout">
         <button type="button" className="grab" aria-label="Close" onClick={onClose} />
         <div className="sin">
           {open && (
