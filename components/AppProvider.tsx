@@ -21,6 +21,8 @@ interface AppCtx {
   coOpen: boolean;
   openCheckout: () => void;
   closeCheckout: () => void;
+  // one-tap reorder: replace the cart with a past order and open checkout
+  reorder: (items: DrinkId[]) => void;
 }
 
 const Ctx = createContext<AppCtx | null>(null);
@@ -72,10 +74,11 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   const [coOpen, setCoOpen] = useState(false);
   const openCheckout = useCallback(() => setCoOpen(true), []);
   const closeCheckout = useCallback(() => setCoOpen(false), []);
+  const reorder = useCallback((items: DrinkId[]) => { setCart(new Set(items)); setCoOpen(true); }, []);
 
   const value = useMemo<AppCtx>(
-    () => ({ toast, toastMsg, toastShown, cart, isInCart, bump, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout }),
-    [toast, toastMsg, toastShown, cart, isInCart, bump, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout]
+    () => ({ toast, toastMsg, toastShown, cart, isInCart, bump, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, reorder }),
+    [toast, toastMsg, toastShown, cart, isInCart, bump, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, reorder]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

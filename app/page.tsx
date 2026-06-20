@@ -2,11 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth, type Profile } from "@/components/AuthProvider";
 import { useApp } from "@/components/AppProvider";
 import AccountPill from "@/components/AccountPill";
 import GenerateDay from "@/components/GenerateDay";
+import { supabase } from "@/lib/supabase";
+import { DRINKS, type DrinkId } from "@/lib/menu";
+import type { Order } from "@/lib/db";
 import { clickable } from "@/lib/a11y";
 
 const SUN = (
@@ -36,6 +39,26 @@ function greet() {
   return h < 12 ? "Morning" : h < 18 ? "Afternoon" : "Evening";
 }
 
+// ───────────────────────── your usual — one-tap reorder of the last order ─────────────────────────
+function YourUsual() {
+  const { reorder } = useApp();
+  const { user } = useAuth();
+  const [last, setLast] = useState<Order | null>(null);
+  useEffect(() => {
+    if (!supabase || !user) return;
+    supabase.from("orders").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1)
+      .then(({ data }) => { if (data && data[0]) setLast(data[0] as Order); });
+  }, [user]);
+  if (!last) return null;
+  const names = last.items.map((i) => DRINKS[i as DrinkId]?.n ?? i).join(" · ");
+  return (
+    <button className="usual" onClick={() => reorder(last.items as DrinkId[])}>
+      <span className="usual-l"><span className="usual-k">Your usual</span><span className="usual-v">{names}</span></span>
+      <span className="usual-cta">Order again</span>
+    </button>
+  );
+}
+
 // ───────────────────────── signed-in Today — generator-driven ─────────────────────────
 function TodayReal() {
   const { user, profile } = useAuth();
@@ -48,6 +71,7 @@ function TodayReal() {
         <Link className="pf" href="/3mpire">{name.charAt(0)}</Link>
       </div>
       <div className="h-title">{greet()}, {name}.</div>
+      <YourUsual />
       <div className="h-sub">Five questions. I&apos;ll build your exact stack — drinks timed to your biology today.</div>
       <GenerateDay />
     </section>

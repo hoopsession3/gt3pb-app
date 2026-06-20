@@ -51,6 +51,8 @@ export default function MenuScreen() {
                 <div className="entry-head">
                   <span className="entry-dot" style={{ background: d.dot }} />
                   <span className="entry-name">{d.n}</span>
+                  {d.tag && <span className="entry-tag">{d.tag}</span>}
+                  <span className="entry-gap" />
                   {on && <span className="entry-in" aria-label="in your order">✓</span>}
                   <span className="entry-px">{priceLabel(id)}</span>
                 </div>

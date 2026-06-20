@@ -7,9 +7,51 @@ import { useEffect, useRef, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import { useAuth } from "@/components/AuthProvider";
 import SignIn from "@/components/SignIn";
+import { supabase } from "@/lib/supabase";
+import { DRINKS, type DrinkId } from "@/lib/menu";
+import type { Order } from "@/lib/db";
 import { clickable } from "@/lib/a11y";
 
 const RING = 232; // 2πr for r=37, matches prototype stroke-dasharray
+
+function histDate(iso: string) {
+  const d = new Date(iso);
+  const wk = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()];
+  const mo = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getMonth()];
+  return `${wk} · ${mo} ${d.getDate()}`;
+}
+
+// Real order history + one-tap reorder (replaces the old stub row).
+function OrderHistory() {
+  const { reorder } = useApp();
+  const { user } = useAuth();
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!supabase || !user) { setLoaded(true); return; }
+    supabase.from("orders").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(8)
+      .then(({ data }) => { if (data) setOrders(data as Order[]); setLoaded(true); });
+  }, [user]);
+
+  if (loaded && orders.length === 0) return null; // stay quiet for brand-new members
+
+  return (
+    <>
+      <div className="sec">Recent orders</div>
+      {orders.map((o) => (
+        <div className="hist" key={o.id}>
+          <div className="hist-top">
+            <b>{o.items.map((i) => DRINKS[i as DrinkId]?.n ?? i).join(" · ")}</b>
+            <span className="hist-px">${(o.total_cents / 100).toFixed(2)}</span>
+          </div>
+          <div className="hist-meta">{histDate(o.created_at)} · {o.paid ? "Paid" : "Pre-order"}</div>
+          <button className="hist-again" onClick={() => reorder(o.items as DrinkId[])}>Order again</button>
+        </div>
+      ))}
+    </>
+  );
+}
 
 function useRingFill(fill: number) {
   const ringRef = useRef<SVGCircleElement>(null);
@@ -85,6 +127,8 @@ function MpireReal() {
         <div className="cell"><div className="cv">${credit}</div><div className="cl">Credit</div></div>
       </div>
 
+      <OrderHistory />
+
       <ReferralCard code={code} />
 
       <div className="sec">Your account</div>
@@ -99,11 +143,6 @@ function MpireReal() {
         <div className="row" aria-label="My Subscription" {...clickable(() => toast("No active subscription yet — start one at the truck"))}>
           <div className="ri"><svg viewBox="0 0 24 24" strokeWidth="2"><path d="M3 7h18v13H3zM3 7l3-4h12l3 4M9 11h6" /></svg></div>
           <div className="rl"><b>My Subscription</b><span>Not subscribed yet</span></div>
-          <div className="rr">›</div>
-        </div>
-        <div className="row" aria-label="Order History" {...clickable(() => toast("No orders yet — your history shows here"))}>
-          <div className="ri"><svg viewBox="0 0 24 24" strokeWidth="2"><path d="M3 3h18v4H3zM5 7v14h14V7M9 11h6" /></svg></div>
-          <div className="rl"><b>Order History</b><span>No orders yet</span></div>
           <div className="rr">›</div>
         </div>
         <div className="row" aria-label="Saved Events" {...clickable(() => router.push("/events"))}>

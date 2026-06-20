@@ -11,6 +11,7 @@ export interface DrinkDetail {
   dot: string;           // tasting-dot color — the only color in the menu list
   lines: string[];       // what it is: extraction + whole-food input
   why: string;           // why it exists — one line, no hype
+  tag?: string;          // optional editorial anchor for newcomers, e.g. "Start here"
   has: string[];
   no: string[];
   when: "BEFORE" | "DURING" | "AFTER";
@@ -22,6 +23,7 @@ export const DRINKS: Record<DrinkId, DrinkDetail> = {
     n: "RISE", px: "$7", grad: "linear-gradient(140deg,#7a5c3a,#caa46d)", dot: "#C49A5E",
     lines: ["Cold-Extracted Coffee", "Finished with Organic Coconut Water"],
     why: "A clean, even start from whole-food inputs.",
+    tag: "Start here",
     has: ["Single-origin cold extraction", "Mineral water base", "Organic coconut water"],
     no: ["Sugar", "Dairy", "Syrups", "Preservatives"],
     when: "BEFORE", whenT: "Morning, before the first task.",
