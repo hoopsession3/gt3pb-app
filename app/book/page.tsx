@@ -62,17 +62,17 @@ export default function BookScreen() {
 
       <form className="auth-form" onSubmit={submit} style={{ marginTop: 18 }}>
         <label className="auth-label" htmlFor="b-name">Name</label>
-        <input id="b-name" className="auth-input" value={f.name} onChange={set("name")} placeholder="Your name" required />
+        <input id="b-name" className="auth-input" value={f.name} onChange={set("name")} placeholder="Your name" maxLength={200} required />
         <label className="auth-label" htmlFor="b-email">Email</label>
-        <input id="b-email" className="auth-input" type="email" inputMode="email" value={f.email} onChange={set("email")} placeholder="you@email.com" required />
+        <input id="b-email" className="auth-input" type="email" inputMode="email" value={f.email} onChange={set("email")} placeholder="you@email.com" maxLength={200} required />
         <div className="b-row">
           <div><label className="auth-label" htmlFor="b-date">Event date</label><input id="b-date" className="auth-input" type="date" value={f.event_date} onChange={set("event_date")} /></div>
-          <div><label className="auth-label" htmlFor="b-head">Headcount</label><input id="b-head" className="auth-input" type="number" inputMode="numeric" value={f.headcount} onChange={set("headcount")} placeholder="50" /></div>
+          <div><label className="auth-label" htmlFor="b-head">Headcount</label><input id="b-head" className="auth-input" type="number" inputMode="numeric" min={0} max={100000} value={f.headcount} onChange={set("headcount")} placeholder="50" /></div>
         </div>
         <label className="auth-label" htmlFor="b-loc">Location</label>
-        <input id="b-loc" className="auth-input" value={f.location_text} onChange={set("location_text")} placeholder="City / venue" />
+        <input id="b-loc" className="auth-input" value={f.location_text} onChange={set("location_text")} placeholder="City / venue" maxLength={300} />
         <label className="auth-label" htmlFor="b-notes">Anything else</label>
-        <textarea id="b-notes" className="auth-input" value={f.notes} onChange={set("notes")} placeholder="Vibe, timing, must-haves…" rows={3} />
+        <textarea id="b-notes" className="auth-input" value={f.notes} onChange={set("notes")} placeholder="Vibe, timing, must-haves…" rows={3} maxLength={2000} />
         <button className="handle" type="submit" disabled={busy} style={{ marginTop: 18 }}><span>{busy ? "Sending…" : "Send request"}</span></button>
       </form>
       <p className="auth-fine">Pricing &amp; prep handled by Booking Tool v5 — the app never quotes.</p>

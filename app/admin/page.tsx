@@ -181,6 +181,7 @@ function LiveControl() {
             <textarea
               className="adm-notes"
               rows={2}
+              maxLength={1000}
               defaultValue={s.notes ?? ""}
               placeholder="Details guests see when they tap this stop — parking, what's special, anything to know"
               onBlur={(e) => { if (e.target.value !== (s.notes ?? "")) saveNotes(s.id, e.target.value); }}
@@ -257,7 +258,7 @@ function MemberRow({ m, onSaved }: { m: Profile; onSaved: () => void }) {
     const { error } = await supabase!.rpc("admin_set_member", {
       member: m.id,
       new_points: pts,
-      new_credit_cents: Math.round(parseFloat(credit || "0") * 100),
+      new_credit_cents: Math.max(0, Math.round(parseFloat(credit || "0") * 100)),
       new_founding: founding,
     });
     setBusy(false);
@@ -272,7 +273,7 @@ function MemberRow({ m, onSaved }: { m: Profile; onSaved: () => void }) {
         <span className="adm-ref">{m.referral_code}</span>
       </div>
       <div className="adm-fields">
-        <label>Points<input type="number" value={pts} onChange={(e) => setPts(parseInt(e.target.value) || 0)} /></label>
+        <label>Points<input type="number" min={0} value={pts} onChange={(e) => setPts(Math.max(0, parseInt(e.target.value) || 0))} /></label>
         <label>Credit $<input type="text" inputMode="decimal" value={credit} onChange={(e) => setCredit(e.target.value)} /></label>
         <label className="adm-check"><input type="checkbox" checked={founding} onChange={(e) => setFounding(e.target.checked)} />Founding</label>
         <button className={`adm-btn${dirty ? " primary" : ""}`} onClick={save} disabled={!dirty || busy}>{busy ? "…" : "Save"}</button>
@@ -343,11 +344,11 @@ function EventsAdmin() {
       {events.map((e) => (
         <div className="adm-event" key={e.id}>
           <div className="adm-member-top">
-            <input className="auth-input" style={{ fontSize: 14, padding: "8px 10px" }} defaultValue={e.title} onBlur={(ev) => ev.target.value !== e.title && update(e.id, { title: ev.target.value })} />
+            <input className="auth-input" style={{ fontSize: 14, padding: "8px 10px" }} maxLength={200} defaultValue={e.title} onBlur={(ev) => ev.target.value !== e.title && update(e.id, { title: ev.target.value })} />
           </div>
           <div className="adm-fields">
             <label>Day<input type="text" defaultValue={e.day_label ?? ""} onBlur={(ev) => update(e.id, { day_label: ev.target.value })} /></label>
-            <label>Going<input type="number" defaultValue={e.going_count ?? 0} onBlur={(ev) => update(e.id, { going_count: parseInt(ev.target.value) || 0 })} /></label>
+            <label>Going<input type="number" min={0} defaultValue={e.going_count ?? 0} onBlur={(ev) => update(e.id, { going_count: Math.max(0, parseInt(ev.target.value) || 0) })} /></label>
             <label className="adm-check"><input type="checkbox" defaultChecked={e.member_only} onChange={(ev) => update(e.id, { member_only: ev.target.checked })} />Members</label>
             <button className="adm-btn ghost" onClick={() => remove(e.id)}>Delete</button>
           </div>

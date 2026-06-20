@@ -37,6 +37,7 @@ export async function POST(req: Request) {
   if (!sourceId || !Array.isArray(items) || items.length === 0) {
     return NextResponse.json({ error: "Empty order" }, { status: 400 });
   }
+  if (items.length > 25) return NextResponse.json({ error: "Order too large" }, { status: 400 });
 
   const prices = await priceMap(token);
   let amount = 0;
