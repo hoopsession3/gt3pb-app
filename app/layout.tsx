@@ -18,8 +18,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  // pinch-zoom left enabled (WCAG 1.4.4) — the prototype locked it, but a shipped PWA shouldn't
   themeColor: "#15140f",
 };
 

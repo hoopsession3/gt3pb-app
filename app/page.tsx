@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useApp } from "@/components/AppProvider";
+import { clickable } from "@/lib/a11y";
 
 export default function TodayScreen() {
   const { toast } = useApp();
@@ -20,9 +21,9 @@ export default function TodayScreen() {
       <div className="hero"><div className="hin">
         <div className="hero-top">
           <div className="hero-eye">Today&apos;s read</div>
-          <div className="seg">
-            <span className={range === "7" ? "on" : ""} onClick={() => setRange("7")}>7 days</span>
-            <span className={range === "30" ? "on" : ""} onClick={() => setRange("30")}>30 days</span>
+          <div className="seg" role="group" aria-label="Trend range">
+            <span className={range === "7" ? "on" : ""} aria-pressed={range === "7"} {...clickable(() => setRange("7"))}>7 days</span>
+            <span className={range === "30" ? "on" : ""} aria-pressed={range === "30"} {...clickable(() => setRange("30"))}>30 days</span>
           </div>
         </div>
         <div className="hero-state">Ease today.</div>

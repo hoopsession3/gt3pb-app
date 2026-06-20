@@ -52,15 +52,14 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   }, []);
 
   const checkout = useCallback(() => {
-    setCart((prev) => {
-      if (prev.size === 0) {
-        toast("Tap + on a drink to build your order");
-        return prev;
-      }
-      toast(`${prev.size} drinks pre-ordered — ready in ~8 min`);
-      return new Set();
-    });
-  }, [toast]);
+    // Decide from current state in the handler; keep the setCart updater pure (no side effects).
+    if (cart.size === 0) {
+      toast("Tap + on a drink to build your order");
+      return;
+    }
+    toast(`${cart.size} drinks pre-ordered — ready in ~8 min`);
+    setCart(new Set());
+  }, [cart, toast]);
 
   const [openId, setOpenId] = useState<DrinkId | null>(null);
   const openDrink = useCallback((id: DrinkId) => setOpenId(id), []);

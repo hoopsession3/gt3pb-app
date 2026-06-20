@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useApp } from "@/components/AppProvider";
+import { clickable } from "@/lib/a11y";
 
 export default function TruckScreen() {
   const { toast } = useApp();
@@ -51,22 +52,22 @@ export default function TruckScreen() {
       </div></div>
 
       <div className="sec">This week</div>
-      <div className="stop now" onClick={() => router.push("/menu")}>
+      <div className="stop now" aria-label="Duncan Town Square, live now — pre-order" {...clickable(() => router.push("/menu"))}>
         <div className="when"><b>NOW</b><span>til 3p</span></div>
         <div className="info"><b>Duncan Town Square</b><span>Saturday Market</span></div>
         <div className="tag live">Live</div>
       </div>
-      <div className="stop" onClick={() => toast("Saved — we'll remind you")}>
+      <div className="stop" aria-label="Greenville Run Club, Sunday — save reminder" {...clickable(() => toast("Saved — we'll remind you"))}>
         <div className="when"><b>SUN</b><span>10–2</span></div>
         <div className="info"><b>Greenville Run Club</b><span>Hydrate + Rebuild</span></div>
         <div className="tag soon">Sun</div>
       </div>
-      <div className="stop" onClick={() => toast("Saved — we'll remind you")}>
+      <div className="stop" aria-label="Spartanburg Market, Wednesday — save reminder" {...clickable(() => toast("Saved — we'll remind you"))}>
         <div className="when"><b>WED</b><span>7–11</span></div>
         <div className="info"><b>Spartanburg Market</b><span>Full NET+ bar</span></div>
         <div className="tag soon">Wed</div>
       </div>
-      <div className="stop" onClick={() => toast("Saved — we'll remind you")}>
+      <div className="stop" aria-label="Founding First Pour, Saturday — save reminder" {...clickable(() => toast("Saved — we'll remind you"))}>
         <div className="when"><b>SAT</b><span>2:30</span></div>
         <div className="info"><b>Founding First Pour</b><span>DUSK winter blend · members</span></div>
         <div className="tag soon">Next</div>

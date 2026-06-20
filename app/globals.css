@@ -216,7 +216,7 @@ body{background:#0b0a08;font-family:'Montserrat',system-ui,sans-serif;color:var(
 .sheet{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(180deg,#2a2820,#1f1d17);border-radius:28px 28px 0 0;z-index:41;
   transform:translateY(110%);transition:transform .32s cubic-bezier(.3,.9,.3,1);max-height:84%;overflow-y:auto;border-top:1px solid var(--line2)}
 .sheet.open{transform:translateY(0)}.sheet::-webkit-scrollbar{display:none}
-.grab{width:42px;height:4px;background:var(--line2);border-radius:3px;margin:11px auto 2px}
+.grab{width:42px;height:4px;background:var(--line2);border:none;padding:0;cursor:pointer;border-radius:3px;margin:11px auto 2px;display:block}
 .sin{padding:8px 22px 26px}
 .sheet-hero{height:96px;border-radius:20px;display:flex;align-items:flex-end;padding:15px;margin:10px 0 16px;position:relative;overflow:hidden}
 .sheet-hero b{font-family:'Archivo Black';font-size:26px;color:#fff;position:relative;z-index:2;text-transform:uppercase;letter-spacing:-.5px}

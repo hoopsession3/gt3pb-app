@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useApp } from "@/components/AppProvider";
 import { DRINKS, MENU } from "@/lib/menu";
+import { clickable } from "@/lib/a11y";
 
 export default function MenuScreen() {
   const { openDrink, isInCart, cart, checkout } = useApp();
@@ -30,7 +31,7 @@ export default function MenuScreen() {
             const d = DRINKS[row.id];
             const on = isInCart(row.id);
             return (
-              <div className="drink" key={row.id} onClick={() => openDrink(row.id)}>
+              <div className="drink" key={row.id} aria-label={`${d.n}, ${d.px}, view details`} {...clickable(() => openDrink(row.id))}>
                 <div className="sw" style={{ background: d.grad }}>{d.n}</div>
                 <div className="dm"><b>{d.n}</b><span>{row.blurb}</span></div>
                 <div className="rt">

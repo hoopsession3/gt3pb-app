@@ -11,11 +11,12 @@ const isProd = process.env.NODE_ENV === "production";
 // In dev we relax script-src ('unsafe-eval') because Next's dev runtime needs it.
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isProd ? "" : " 'unsafe-eval'"} https://web.squarecdn.com https://sandbox.web.squarecdn.com https://js.squareup.com https://cdn.onesignal.com https://*.onesignal.com`,
+  `script-src 'self' 'unsafe-inline'${isProd ? "" : " 'unsafe-eval'"} https://web.squarecdn.com https://sandbox.web.squarecdn.com https://js.squareup.com https://cdn.onesignal.com https://onesignal.com https://*.onesignal.com`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
-  "connect-src 'self' https://connect.squareup.com https://connect.squareupsandbox.com https://pci-connect.squareup.com https://pci-connect.squareupsandbox.com https://*.supabase.co wss://*.supabase.co https://*.onesignal.com https://api.resend.com",
+  // OneSignal hits the apex onesignal.com too — a *.onesignal.com wildcard does NOT match the apex.
+  "connect-src 'self' https://connect.squareup.com https://connect.squareupsandbox.com https://pci-connect.squareup.com https://pci-connect.squareupsandbox.com https://*.supabase.co wss://*.supabase.co https://onesignal.com https://*.onesignal.com wss://*.onesignal.com https://api.resend.com",
   "frame-src 'self' https://web.squarecdn.com https://sandbox.web.squarecdn.com https://connect.squareup.com https://connect.squareupsandbox.com",
   "worker-src 'self'",
   "manifest-src 'self'",
