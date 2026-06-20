@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { useApp } from "@/components/AppProvider";
+import { useState } from "react";
 import { useAuth, type Profile } from "@/components/AuthProvider";
+import { useApp } from "@/components/AppProvider";
 import SignIn from "@/components/SignIn";
+import GenerateDay from "@/components/GenerateDay";
 import { clickable } from "@/lib/a11y";
-import { supabase } from "@/lib/supabase";
 
 const SUN = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><circle cx="12" cy="12" r="4.2" /><path d="M12 1.8v2.4M12 19.8v2.4M3.5 12h-1.7M22.2 12h-1.7M5.6 5.6 4.4 4.4M19.6 19.6l-1.2-1.2M18.4 5.6l1.2-1.2M4.4 19.6l1.2-1.2" /></svg>
@@ -35,57 +35,10 @@ function greet() {
   return h < 12 ? "Morning" : h < 18 ? "Afternoon" : "Evening";
 }
 
-// ───────────────────────── signed-in, check-in-driven Today ─────────────────────────
+// ───────────────────────── signed-in Today — generator-driven ─────────────────────────
 function TodayReal() {
-  const { toast } = useApp();
   const { user, profile } = useAuth();
   const name = firstName(profile, user?.email);
-  const dayKey = new Date().toISOString().slice(0, 10);
-
-  const [slept, setSlept] = useState<boolean | null>(null);
-  const [trained, setTrained] = useState<boolean | null>(null);
-  const [done, setDone] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      if (supabase && user) {
-        const { data } = await supabase.from("check_ins").select("*").eq("user_id", user.id).eq("day", dayKey).maybeSingle();
-        if (active && data) {
-          setSlept(data.slept_well);
-          setTrained(data.trained);
-          setDone(true);
-        }
-      }
-      if (active) setLoaded(true);
-    })();
-    return () => { active = false; };
-  }, [user, dayKey]);
-
-  const build = async () => {
-    setDone(true);
-    if (supabase && user) {
-      await supabase.from("check_ins").upsert(
-        { user_id: user.id, day: dayKey, slept_well: slept, trained },
-        { onConflict: "user_id,day" }
-      ).then(({ error }) => { if (error) { /* table may be pending migration; UI still works */ } });
-    }
-    toast("Day built. DUSK queued, reminders set.");
-  };
-
-  // recommendation from the manual check-in (web has no Apple Health — runbook §1)
-  const ease = slept === false;
-  const read = !done
-    ? { state: "Let's read your day.", sub: "Two taps and I'll build the rest." }
-    : ease
-    ? { state: "Ease today.", sub: trained ? "Under-recovered and you trained — go gentle and earn it back." : "Rough night. Keep it light, bank an early night." }
-    : trained
-    ? { state: "Rebuild + go.", sub: "Recovered and trained — fuel the rebuild and push the work." }
-    : { state: "Strong start.", sub: "Well-rested. A good day to put in real work." };
-
-  const cupTitle = ease ? "DUSK, not FLOW" : "FLOW for focus";
-  const cupSub = ease ? "Warm + gentler — your system's asking for ease." : "Deep, focused energy for the work ahead.";
 
   return (
     <section className="screen" id="s-today">
@@ -94,60 +47,8 @@ function TodayReal() {
         <Link className="pf" href="/3mpire">{name.charAt(0)}</Link>
       </div>
       <div className="h-title">{greet()}, {name}.</div>
-      <div className="h-sub">{done ? "I read your check-in and built your day. One call below — tap and I'll run it." : "Quick check-in and I'll dial your day."}</div>
-
-      <div className="hero"><div className="hin">
-        <div className="hero-top"><div className="hero-eye">Today&apos;s read</div></div>
-        <div className="hero-state">{read.state}</div>
-        <div className="hero-sub">{read.sub}</div>
-
-        {!done ? (
-          <>
-            <div className="ckin">
-              <div className="q">
-                <div className="ql">Sleep</div>
-                <div className="opts">
-                  <button className={slept === true ? "sel" : ""} onClick={() => setSlept(true)} type="button">Rested</button>
-                  <button className={slept === false ? "sel" : ""} onClick={() => setSlept(false)} type="button">Rough</button>
-                </div>
-              </div>
-              <div className="q">
-                <div className="ql">Trained</div>
-                <div className="opts">
-                  <button className={trained === true ? "sel" : ""} onClick={() => setTrained(true)} type="button">Yes</button>
-                  <button className={trained === false ? "sel" : ""} onClick={() => setTrained(false)} type="button">No</button>
-                </div>
-              </div>
-            </div>
-            <button className="handle" style={{ marginTop: 14 }} disabled={slept === null || trained === null} onClick={build}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2"><path d="M5 12l5 5L20 7" /></svg>
-              <span>Build my day</span>
-            </button>
-          </>
-        ) : (
-          <div className="cells">
-            <div className={`cell`}><div className={`cv ${slept ? "ok" : "warn"}`}>{slept ? "Rested" : "Rough"}</div><div className="cl">Sleep</div></div>
-            <div className="cell"><div className={`cv ${trained ? "gold" : ""}`}>{trained ? "Yes" : "No"}</div><div className="cl">Trained</div></div>
-            <div className="cell"><div className="cv gold">Day {profile?.streak_days ?? 1}</div><div className="cl">Streak</div></div>
-          </div>
-        )}
-      </div></div>
-
-      {done && (
-        <>
-          <div className="sec">Your day · dialed</div>
-          <div className="step s-sun"><div className="ic">{SUN}</div><div className="sx"><b>Get sun — 10 min</b><span>Beats a hard coffee right now. Step out before your first meeting.</span></div><div className="tm now">now</div></div>
-          <div className="step s-cup"><div className="ic">{CUP}</div><div className="sx"><b>{cupTitle}</b><span>{cupSub}</span></div><div className="tm">9:00</div></div>
-          <div className="step s-broth"><div className="ic">{BROTH}</div><div className="sx"><b>FORGE broth</b><span>{trained ? "You trained — rebuild tonight, then an early night." : "A grounding rebuild to close the day."}</span></div><div className="tm">tonight</div></div>
-          <div className="honest"><b>Straight talk:</b> {ease ? "skip the double-shot reflex today. On a rough night, more caffeine just borrows from tonight. Sun + a gentle cup is the smarter trade." : "you've got the recovery to spend — put it into the hard thing first, then refuel."}</div>
-          <button className="handle" onClick={() => toast("Done. Sun reminder set, cup queued, broth moved to tonight.")}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2"><path d="M5 12l5 5L20 7" /></svg>
-            <span>Handle it for me<span className="sm">orders + reminders, done</span></span>
-          </button>
-          <div className="signoff">Your standard. On tap. Handled.</div>
-        </>
-      )}
-      {!loaded && null}
+      <div className="h-sub">Five questions. I&apos;ll build your exact stack — drinks timed to your biology today.</div>
+      <GenerateDay />
     </section>
   );
 }
@@ -163,7 +64,7 @@ function TodayDemo() {
         <Link className="pf" href="/3mpire">R</Link>
       </div>
       <div className="h-title">Morning, Ryan.</div>
-      <div className="h-sub">I read your night and built your day. One call below — tap once and I&apos;ll run it.</div>
+      <div className="h-sub">Five questions. I&apos;ll build your exact stack — drinks timed to your biology today.</div>
 
       <div className="hero"><div className="hin">
         <div className="hero-top">
