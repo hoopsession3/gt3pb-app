@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useApp } from "./AppProvider";
 import BottomNav from "./BottomNav";
 import DrinkSheet from "./DrinkSheet";
+import Checkout from "./Checkout";
 import Toast from "./Toast";
 import Notifications from "./Notifications";
 import ServiceWorkerRegister from "./ServiceWorkerRegister";
@@ -26,6 +27,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {children}
       </div>
       <DrinkSheet />
+      <Checkout />
       <Toast />
       <Notifications />
       <BottomNav />

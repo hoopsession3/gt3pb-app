@@ -206,8 +206,8 @@ body{background:#0b0a08;font-family:'Inter',system-ui,sans-serif;color:var(--cre
 .scrim{position:absolute;inset:0;background:rgba(0,0,0,.6);opacity:0;pointer-events:none;transition:.25s;z-index:40}
 .scrim.open{opacity:1;pointer-events:auto}
 .sheet{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(180deg,#2a2820,#1f1d17);border-radius:28px 28px 0 0;z-index:41;
-  transform:translateY(110%);transition:transform .32s cubic-bezier(.3,.9,.3,1);max-height:84%;overflow-y:auto;border-top:1px solid var(--line2)}
-.sheet.open{transform:translateY(0)}.sheet::-webkit-scrollbar{display:none}
+  transform:translateY(110%);transition:transform .32s cubic-bezier(.3,.9,.3,1),visibility 0s linear .32s;visibility:hidden;max-height:84%;overflow-y:auto;border-top:1px solid var(--line2)}
+.sheet.open{transform:translateY(0);visibility:visible;transition:transform .32s cubic-bezier(.3,.9,.3,1),visibility 0s}.sheet::-webkit-scrollbar{display:none}
 .grab{width:42px;height:4px;background:var(--line2);border:none;padding:0;cursor:pointer;border-radius:3px;margin:11px auto 2px;display:block}
 .sin{padding:8px 22px 26px}
 .sheet-hero{height:96px;border-radius:20px;display:flex;align-items:flex-end;padding:15px;margin:10px 0 16px;position:relative;overflow:hidden}

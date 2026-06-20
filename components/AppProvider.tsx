@@ -17,6 +17,10 @@ interface AppCtx {
   openId: DrinkId | null;
   openDrink: (id: DrinkId) => void;
   closeDrink: () => void;
+  // checkout sheet
+  coOpen: boolean;
+  openCheckout: () => void;
+  closeCheckout: () => void;
 }
 
 const Ctx = createContext<AppCtx | null>(null);
@@ -65,9 +69,13 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   const openDrink = useCallback((id: DrinkId) => setOpenId(id), []);
   const closeDrink = useCallback(() => setOpenId(null), []);
 
+  const [coOpen, setCoOpen] = useState(false);
+  const openCheckout = useCallback(() => setCoOpen(true), []);
+  const closeCheckout = useCallback(() => setCoOpen(false), []);
+
   const value = useMemo<AppCtx>(
-    () => ({ toast, toastMsg, toastShown, cart, isInCart, bump, checkout, openId, openDrink, closeDrink }),
-    [toast, toastMsg, toastShown, cart, isInCart, bump, checkout, openId, openDrink, closeDrink]
+    () => ({ toast, toastMsg, toastShown, cart, isInCart, bump, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout }),
+    [toast, toastMsg, toastShown, cart, isInCart, bump, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

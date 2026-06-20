@@ -3,13 +3,11 @@
 import { useEffect, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import AccountPill from "@/components/AccountPill";
-import Checkout from "@/components/Checkout";
 import { DRINKS, MENU, type DrinkId } from "@/lib/menu";
 import { clickable } from "@/lib/a11y";
 
 export default function MenuScreen() {
-  const { openDrink, isInCart, cart, toast } = useApp();
-  const [coOpen, setCoOpen] = useState(false);
+  const { openDrink, isInCart, cart, toast, openCheckout } = useApp();
   const [prices, setPrices] = useState<Record<string, number>>({});
   // Prices come from Square Catalog (one source of truth across truck + app).
   useEffect(() => {
@@ -73,12 +71,10 @@ export default function MenuScreen() {
 
       <button
         className="order-bar"
-        onClick={() => (cart.size === 0 ? toast("Tap a drink to read it, then add to your order") : setCoOpen(true))}
+        onClick={() => (cart.size === 0 ? toast("Tap a drink to read it, then add to your order") : openCheckout())}
       >
         {coLbl}
       </button>
-
-      <Checkout open={coOpen} onClose={() => setCoOpen(false)} prices={prices} />
     </section>
   );
 }

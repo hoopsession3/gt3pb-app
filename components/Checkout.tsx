@@ -30,9 +30,14 @@ function loadSquare(): Promise<any> {
   });
 }
 
-export default function Checkout({ open, onClose, prices }: { open: boolean; onClose: () => void; prices?: Record<string, number> }) {
-  const { cart, toast, checkout } = useApp();
+export default function Checkout() {
+  const { cart, toast, checkout, coOpen: open, closeCheckout: onClose } = useApp();
   const { user, profile } = useAuth();
+  const [prices, setPrices] = useState<Record<string, number>>({});
+  // Prices for the displayed total (the actual charge is computed server-side).
+  useEffect(() => {
+    fetch("/api/menu").then((r) => r.json()).then((d) => setPrices(d.prices || {})).catch(() => {});
+  }, []);
   const cardRef = useRef<any>(null);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
