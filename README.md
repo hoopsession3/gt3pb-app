@@ -1,36 +1,39 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# GT3 Performance Bar — web/PWA validation release
 
-## Getting Started
+The free, installable daily front door to GT3PB. Web-first (Next.js on Vercel) — a funnel
+into subscription LTV and B2B "Book the bar" inbound. Built to match `gt3pb-app-v3.html`.
 
-First, run the development server:
+## Status (build runbook v1.1)
+
+- ✅ **Phase 0** — Scaffold, design tokens, 5 self-hosted font families (9 woff2)
+- ✅ **Phase 2** — v3 components ported to React, pixel-faithful (warm palette, red = accent only)
+- ✅ **Phase 3** — 5 screens as routes: `/` Today · `/truck` · `/menu` · `/events` · `/3mpire`, plus `/book`
+- ✅ **PWA** — manifest, offline-shell service worker, CSP baked in (Square SDK ready)
+- ⏳ **Phase 1** — accounts/infra (Supabase, Square, OneSignal, Resend) — needs 🔑 taps
+- ⏳ **Phase 4/5** — live data + commerce hand-off — wiring stubbed, gated behind repeat-opens
+- ⏳ **Phase 7** — deploy to Vercel + bind gt3pb.com
+
+Today/Truck/Menu/Events run on local/mock state until the Phase 1 keys land.
+
+## Run locally
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev      # http://localhost:3000
+npm run build && npm run start   # production
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Architecture
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `app/` — App Router routes (one screen per route), `layout.tsx` shell, `manifest.ts`
+- `components/` — `AppProvider` (toast/cart/sheet state), `AppShell`, `BottomNav`, `DrinkSheet`, `Toast`
+- `lib/menu.ts` — NET+ catalog (single source of truth; descriptions are quality-attribute only)
+- `app/globals.css` — design tokens + components, ported verbatim from the v3 prototype
+- `public/fonts/` — self-hosted woff2 (Archivo Black, Playfair Display, Oswald, Montserrat, DM Mono)
+- `next.config.ts` — security headers + Content-Security-Policy (Square/OneSignal/Supabase allowances)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Brand lock
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Warm palette only · red ≤ accent (today dot, live tag, primary buttons, loyalty ring) · no vendor
+names · no medical claims · base claim "Nothing toxic." The app never quotes booking pricing —
+Booking Tool v5 is the rate source of truth.

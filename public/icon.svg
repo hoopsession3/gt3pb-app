@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a2820"/>
+      <stop offset="1" stop-color="#15140f"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect x="8" y="8" width="496" height="496" rx="106" fill="none" stroke="rgba(245,241,232,.12)" stroke-width="3"/>
+  <text x="256" y="300" text-anchor="middle" font-family="Arial Black, Helvetica, sans-serif" font-weight="900" font-size="180" letter-spacing="-6" fill="#F5F1E8">GT<tspan fill="#B82420">3</tspan></text>
+  <text x="256" y="372" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="34" letter-spacing="10" fill="#B8902F">PERFORMANCE BAR</text>
+</svg>
