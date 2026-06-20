@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
+import { subscribePush } from "@/lib/push";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import { SQUARE_APP_ID, SQUARE_LOCATION_ID, squareClientReady, squareWebSdkUrl } from "@/lib/square";
 
@@ -45,8 +46,13 @@ export default function Checkout({ open, onClose, prices }: { open: boolean; onC
 
   // Record the order for the kitchen (back-of-house) regardless of paid/pre-order.
   const recordOrder = async (paid: boolean, paymentId?: string, amountCents?: number) => {
-    // Ask to enable order-status alerts (this runs in the pay/pre-order click — a user gesture).
-    try { if (typeof Notification !== "undefined" && Notification.permission === "default") Notification.requestPermission(); } catch { /* */ }
+    // Enable order-status alerts (this runs in the pay/pre-order click — a user gesture).
+    try {
+      if (typeof Notification !== "undefined") {
+        if (Notification.permission === "default") await Notification.requestPermission();
+        if (Notification.permission === "granted") subscribePush(user?.id ?? null, !!profile?.is_admin);
+      }
+    } catch { /* */ }
     if (!supabase) return;
     await supabase.from("orders").insert({
       items,

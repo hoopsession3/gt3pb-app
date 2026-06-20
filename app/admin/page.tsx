@@ -6,6 +6,7 @@ import { useApp } from "@/components/AppProvider";
 import { useAuth, type Profile } from "@/components/AuthProvider";
 import SignIn from "@/components/SignIn";
 import { supabase } from "@/lib/supabase";
+import { subscribePush } from "@/lib/push";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import type { Stop, LiveStatus, EventRow, BookingRequest, Order } from "@/lib/db";
 
@@ -278,12 +279,20 @@ function EventsAdmin() {
   );
 }
 
-function EnableAlerts() {
+function EnableAlerts({ userId }: { userId: string | null }) {
   const [perm, setPerm] = useState<NotificationPermission | "unknown">("unknown");
   useEffect(() => { if (typeof Notification !== "undefined") setPerm(Notification.permission); }, []);
   if (perm === "unknown" || perm === "granted") return null;
   return (
-    <button className="btn2" style={{ marginTop: 14 }} onClick={async () => setPerm(await Notification.requestPermission())}>
+    <button
+      className="btn2"
+      style={{ marginTop: 14 }}
+      onClick={async () => {
+        const p = await Notification.requestPermission();
+        setPerm(p);
+        if (p === "granted") subscribePush(userId, true); // background push for the kitchen
+      }}
+    >
       🔔 Enable kitchen alerts
     </button>
   );
@@ -310,7 +319,7 @@ export default function AdminPage() {
       <div className="toprow"><div className="eyb">GT3PB · Back office</div><Link className="pf" href="/3mpire" aria-label="Exit admin">‹</Link></div>
       <div className="h-title">Control room.</div>
       <div className="h-sub">Changes here reach every member instantly.</div>
-      <EnableAlerts />
+      <EnableAlerts userId={user?.id ?? null} />
       <Kitchen />
       <LiveControl />
       <Bookings />
