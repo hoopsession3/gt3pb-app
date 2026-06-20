@@ -1,13 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import AccountPill from "@/components/AccountPill";
+import Checkout from "@/components/Checkout";
 import { DRINKS, MENU } from "@/lib/menu";
 import { clickable } from "@/lib/a11y";
 
 export default function MenuScreen() {
-  const { openDrink, isInCart, cart, checkout } = useApp();
-  const coLbl = cart.size > 0 ? `Pre-order ${cart.size} for pickup` : "Pre-order for pickup";
+  const { openDrink, isInCart, cart, toast } = useApp();
+  const [coOpen, setCoOpen] = useState(false);
+  const coLbl = cart.size > 0 ? `Checkout · ${cart.size}` : "Pre-order for pickup";
 
   return (
     <section className="screen" id="s-menu">
@@ -44,10 +47,12 @@ export default function MenuScreen() {
         </div>
       ))}
 
-      <button className="handle" onClick={checkout}>
+      <button className="handle" onClick={() => (cart.size === 0 ? toast("Tap + on a drink to build your order") : setCoOpen(true))}>
         <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2"><path d="M5 12l5 5L20 7" /></svg>
         <span>{coLbl}</span>
       </button>
+
+      <Checkout open={coOpen} onClose={() => setCoOpen(false)} />
     </section>
   );
 }

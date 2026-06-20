@@ -264,6 +264,13 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .leaflet-control-zoom a{background:var(--card)!important;color:var(--cream)!important;border-color:var(--line2)!important}
 .leaflet-control-zoom a:hover{background:var(--char2)!important}
 
+/* ---- checkout ---- */
+.co-line{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);font-family:'Inter';font-weight:600;font-size:14px;color:var(--cream)}
+.co-line span:last-child{font-family:'DM Mono';font-weight:500;color:var(--cream-m)}
+.co-total{border-bottom:none;margin-top:2px}
+.co-total span{font-weight:700;color:var(--cream)!important}
+.sq-card{background:rgba(0,0,0,.25);border:1px solid var(--line2);border-radius:13px;padding:11px 13px;margin-top:4px;min-height:54px}
+
 /* ---- sign-in / welcome (luxury) ---- */
 .auth{display:flex;flex-direction:column;min-height:100%;padding-top:calc(40px + env(safe-area-inset-top))}
 @keyframes authRise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
