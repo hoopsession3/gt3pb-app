@@ -7,12 +7,18 @@ import { useAuth } from "./AuthProvider";
 const TAGLINE = "Become a member and watch your empire grow.";
 
 export default function SignIn() {
-  const { sendCode } = useAuth();
+  const { sendCode, signInWithUrl } = useAuth();
   const [step, setStep] = useState<"email" | "sent">("email");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [remember, setRemember] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+
+  // paste-link flow (iOS PWA: magic link opens Safari, paste URL back here)
+  const [pastedUrl, setPastedUrl] = useState("");
+  const [pasteErr, setPasteErr] = useState("");
+  const [pasteBusy, setPasteBusy] = useState(false);
 
   const send = async () => {
     setBusy(true);
@@ -26,6 +32,15 @@ export default function SignIn() {
   const submitEmail = (e: React.FormEvent) => {
     e.preventDefault();
     if (email.trim()) send();
+  };
+
+  const tryPastedUrl = async () => {
+    if (!pastedUrl.trim()) return;
+    setPasteBusy(true);
+    setPasteErr("");
+    const { error } = await signInWithUrl(pastedUrl.trim());
+    if (error) setPasteErr(error);
+    setPasteBusy(false);
   };
 
   return (
@@ -49,6 +64,10 @@ export default function SignIn() {
             <input id="auth-name" className="auth-input" type="text" autoComplete="given-name" placeholder="Ryan" value={name} onChange={(e) => setName(e.target.value)} />
             <label className="auth-label" htmlFor="auth-email">Email</label>
             <input id="auth-email" className="auth-input" type="email" inputMode="email" autoComplete="email" placeholder="you@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            <label className="auth-check-row">
+              <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+              <span>Keep me signed in</span>
+            </label>
             {err && <div className="auth-err">{err}</div>}
             <button className="handle" type="submit" disabled={busy} style={{ marginTop: 18 }}>
               <span>{busy ? "Sending…" : "Become a member"}</span>
@@ -59,13 +78,37 @@ export default function SignIn() {
       ) : (
         <>
           <h1 className="auth-tag auth-tag-sm">Check your email.</h1>
-          <p className="auth-sub">We sent a sign-in link to <b>{email}</b>. Tap it in this browser and you&apos;re in — your Today and 3MPIRE will be waiting. The link expires shortly.</p>
+          <p className="auth-sub">We sent a sign-in link to <b>{email}</b>. Tap it and you&apos;re in — your Today and 3MPIRE will be waiting.</p>
           {err && <div className="auth-err">{err}</div>}
           <button className="handle" type="button" disabled={busy} style={{ marginTop: 18 }} onClick={send}>
             <span>{busy ? "Sending…" : "Resend link"}</span>
           </button>
           <button className="auth-link" type="button" onClick={() => { setStep("email"); setErr(""); }}>
             ← Use a different email
+          </button>
+
+          <div className="auth-divider" />
+          <div className="auth-label" style={{ marginTop: 4 }}>Saved to your home screen?</div>
+          <p className="auth-paste-hint">
+            On iOS the link opens in Safari (separate from your app). After clicking it, copy the URL from Safari&apos;s address bar and paste it here.
+          </p>
+          <input
+            className="auth-input"
+            type="url"
+            inputMode="url"
+            placeholder="Paste sign-in URL here…"
+            value={pastedUrl}
+            onChange={(e) => { setPastedUrl(e.target.value); setPasteErr(""); }}
+          />
+          {pasteErr && <div className="auth-err">{pasteErr}</div>}
+          <button
+            className="handle ghost"
+            type="button"
+            disabled={!pastedUrl.trim() || pasteBusy}
+            style={{ marginTop: 10 }}
+            onClick={tryPastedUrl}
+          >
+            <span>{pasteBusy ? "Signing in…" : "Sign in with pasted link"}</span>
           </button>
         </>
       )}

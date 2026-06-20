@@ -22,6 +22,7 @@ interface AuthCtx {
   profile: Profile | null;
   sendCode: (email: string, displayName?: string) => Promise<{ error?: string }>;
   verifyCode: (email: string, token: string) => Promise<{ error?: string }>;
+  signInWithUrl: (url: string) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -90,6 +91,27 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     return error ? { error: error.message } : {};
   }, []);
 
+  // For iOS PWA: magic links open in Safari (separate storage). The user copies the
+  // full redirect URL from Safari's address bar and pastes it here so we can extract
+  // the access/refresh tokens and set the session in the PWA context.
+  const signInWithUrl = useCallback<AuthCtx["signInWithUrl"]>(async (url) => {
+    if (!supabase) return { error: "Sign-in isn't configured yet." };
+    try {
+      const parsed = new URL(url.trim());
+      // Implicit flow: tokens arrive in the URL hash fragment (#access_token=...&refresh_token=...)
+      const frag = parsed.hash.startsWith("#") ? parsed.hash.slice(1) : parsed.search.slice(1);
+      const p = new URLSearchParams(frag);
+      const access_token = p.get("access_token");
+      const refresh_token = p.get("refresh_token");
+      if (!access_token || !refresh_token)
+        return { error: "Paste the full URL from your browser's address bar after clicking the sign-in link." };
+      const { error } = await supabase.auth.setSession({ access_token, refresh_token });
+      return error ? { error: error.message } : {};
+    } catch {
+      return { error: "That doesn't look like a valid sign-in URL." };
+    }
+  }, []);
+
   const signOut = useCallback(async () => {
     await supabase?.auth.signOut();
     setUser(null);
@@ -101,7 +123,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   }, [user, loadProfile]);
 
   return (
-    <Ctx.Provider value={{ ready, enabled: supabaseEnabled, user, profile, sendCode, verifyCode, signOut, refreshProfile }}>
+    <Ctx.Provider value={{ ready, enabled: supabaseEnabled, user, profile, sendCode, verifyCode, signInWithUrl, signOut, refreshProfile }}>
       {children}
     </Ctx.Provider>
   );
