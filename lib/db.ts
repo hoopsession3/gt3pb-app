@@ -4,6 +4,8 @@ export interface Stop {
   id: string;
   name: string;
   location_text: string | null;
+  lat: number | null;
+  lng: number | null;
   status: "live" | "upcoming" | "done";
   when_label: string | null;
   time_label: string | null;

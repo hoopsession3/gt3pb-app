@@ -31,7 +31,7 @@ export default function SignIn() {
   return (
     <section className="screen auth" id="s-auth">
       <div className="auth-welcome">Welcome to the</div>
-      <Image className="auth-logo" src="/gt3-pb-logo.png" alt="GT3 Performance Bar" width={440} height={248} priority />
+      <Image className="auth-logo" src="/gt3-pb-wordmark.png" alt="GT3 Performance Bar" width={440} height={248} priority unoptimized />
       <div className="auth-rule" />
 
       {step === "email" ? (

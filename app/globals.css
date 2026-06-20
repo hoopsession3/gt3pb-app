@@ -256,12 +256,20 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 /* section labels a touch tighter for Inter caps */
 .sec,.menucat,.spec-label{font-weight:650}
 
+/* ---- route map (Truck) ---- */
+.routemap{height:210px;border-radius:18px;overflow:hidden;border:1px solid var(--line2);margin-top:4px;background:#15140f;box-shadow:0 6px 16px rgba(0,0,0,.2)}
+.routemap .leaflet-container{background:#15140f;font-family:'Inter'}
+.rm-tip{background:var(--card)!important;border:1px solid var(--line2)!important;color:var(--cream)!important;font-family:'Inter'!important;font-size:11px!important;font-weight:600!important;border-radius:8px!important;box-shadow:0 4px 12px rgba(0,0,0,.4)!important}
+.rm-tip:before{border-top-color:var(--line2)!important}
+.leaflet-control-zoom a{background:var(--card)!important;color:var(--cream)!important;border-color:var(--line2)!important}
+.leaflet-control-zoom a:hover{background:var(--char2)!important}
+
 /* ---- sign-in / welcome (luxury) ---- */
 .auth{display:flex;flex-direction:column;min-height:100%;padding-top:calc(40px + env(safe-area-inset-top))}
 @keyframes authRise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 @keyframes foldIn{from{opacity:0;transform:rotateX(-82deg) translateY(16px);filter:blur(3px)}to{opacity:1;transform:none;filter:none}}
 .auth-welcome{font-family:'Inter';font-weight:650;letter-spacing:4px;text-transform:uppercase;font-size:11px;color:var(--gold);opacity:0;animation:authRise .7s ease .05s both}
-.auth-logo{width:206px;max-width:64%;height:auto;margin:14px 0 2px;mix-blend-mode:screen;opacity:0;animation:authRise 1s cubic-bezier(.2,.7,.2,1) .14s both}
+.auth-logo{width:206px;max-width:64%;height:auto;margin:14px 0 2px;opacity:0;animation:authRise 1s cubic-bezier(.2,.7,.2,1) .14s both}
 .auth-rule{width:52px;height:1px;background:linear-gradient(90deg,transparent,var(--gold),transparent);margin:20px 0 22px;opacity:0;animation:authRise .8s ease .36s both}
 .auth-tag{font-family:'Playfair Display';font-style:italic;font-weight:700;font-size:27px;line-height:1.16;letter-spacing:-.2px;color:var(--cream);max-width:330px;perspective:900px}
 .auth-tag .w{display:inline-block;transform-origin:top center;animation:foldIn .85s cubic-bezier(.2,.75,.25,1) both}

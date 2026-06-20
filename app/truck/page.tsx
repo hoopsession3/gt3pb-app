@@ -5,9 +5,17 @@ import { useCallback, useEffect, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import { useAuth } from "@/components/AuthProvider";
 import AccountPill from "@/components/AccountPill";
+import RouteMap, { type RoutePoint } from "@/components/RouteMap";
 import { clickable } from "@/lib/a11y";
 import { supabase } from "@/lib/supabase";
 import type { Stop, LiveStatus } from "@/lib/db";
+
+const DEMO_POINTS: RoutePoint[] = [
+  { name: "Duncan Town Square", lat: 34.9382, lng: -82.1426, live: true },
+  { name: "Greenville Run Club", lat: 34.8526, lng: -82.394 },
+  { name: "Spartanburg Market", lat: 34.9496, lng: -81.932 },
+  { name: "Founding First Pour", lat: 34.9387, lng: -82.2271 },
+];
 
 function useCountdown() {
   const [cd, setCd] = useState("00:00:00");
@@ -63,6 +71,9 @@ function TruckLive() {
   const liveStop =
     stops.find((s) => s.id === live?.current_stop_id) ?? stops.find((s) => s.status === "live") ?? stops[0];
   const isLive = Boolean(live?.is_live);
+  const points: RoutePoint[] = stops
+    .filter((s) => s.lat != null && s.lng != null)
+    .map((s) => ({ name: s.name, lat: s.lat as number, lng: s.lng as number, live: s.status === "live" }));
 
   return (
     <section className="screen" id="s-truck">
@@ -90,6 +101,13 @@ function TruckLive() {
           <span>Pre-order · skip the line</span>
         </button>
       </div></div>
+
+      {points.length >= 2 && (
+        <>
+          <div className="sec">Our route · the strategic circle</div>
+          <RouteMap points={points} />
+        </>
+      )}
 
       <div className="sec">This week</div>
       {stops.map((s) => {
@@ -138,6 +156,9 @@ function TruckDemo() {
           <span>Pre-order · skip the line</span>
         </button>
       </div></div>
+      <div className="sec">Our route · the strategic circle</div>
+      <RouteMap points={DEMO_POINTS} />
+
       <div className="sec">This week</div>
       <div className="stop now" aria-label="Duncan Town Square, live now — pre-order" {...clickable(() => router.push("/menu"))}>
         <div className="when"><b>NOW</b><span>til 3p</span></div>
