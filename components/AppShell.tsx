@@ -6,6 +6,7 @@ import { useApp } from "./AppProvider";
 import BottomNav from "./BottomNav";
 import DrinkSheet from "./DrinkSheet";
 import Toast from "./Toast";
+import Notifications from "./Notifications";
 import ServiceWorkerRegister from "./ServiceWorkerRegister";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
@@ -26,6 +27,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </div>
       <DrinkSheet />
       <Toast />
+      <Notifications />
       <BottomNav />
       <ServiceWorkerRegister />
     </div>

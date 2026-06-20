@@ -45,6 +45,8 @@ export default function Checkout({ open, onClose, prices }: { open: boolean; onC
 
   // Record the order for the kitchen (back-of-house) regardless of paid/pre-order.
   const recordOrder = async (paid: boolean, paymentId?: string, amountCents?: number) => {
+    // Ask to enable order-status alerts (this runs in the pay/pre-order click — a user gesture).
+    try { if (typeof Notification !== "undefined" && Notification.permission === "default") Notification.requestPermission(); } catch { /* */ }
     if (!supabase) return;
     await supabase.from("orders").insert({
       items,

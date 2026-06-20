@@ -278,6 +278,17 @@ function EventsAdmin() {
   );
 }
 
+function EnableAlerts() {
+  const [perm, setPerm] = useState<NotificationPermission | "unknown">("unknown");
+  useEffect(() => { if (typeof Notification !== "undefined") setPerm(Notification.permission); }, []);
+  if (perm === "unknown" || perm === "granted") return null;
+  return (
+    <button className="btn2" style={{ marginTop: 14 }} onClick={async () => setPerm(await Notification.requestPermission())}>
+      🔔 Enable kitchen alerts
+    </button>
+  );
+}
+
 export default function AdminPage() {
   const { ready, enabled, user, profile } = useAuth();
 
@@ -299,6 +310,7 @@ export default function AdminPage() {
       <div className="toprow"><div className="eyb">GT3PB · Back office</div><Link className="pf" href="/3mpire" aria-label="Exit admin">‹</Link></div>
       <div className="h-title">Control room.</div>
       <div className="h-sub">Changes here reach every member instantly.</div>
+      <EnableAlerts />
       <Kitchen />
       <LiveControl />
       <Bookings />
