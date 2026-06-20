@@ -9,6 +9,13 @@ export const supabaseEnabled = Boolean(url && anon);
 
 export const supabase: SupabaseClient | null = supabaseEnabled
   ? createClient(url as string, anon as string, {
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        // implicit flow: token arrives in the URL fragment, so a magic link works even when
+        // opened in a different browser/app than it was requested from (no PKCE verifier needed).
+        flowType: "implicit",
+      },
     })
   : null;

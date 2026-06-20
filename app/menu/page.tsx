@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useApp } from "@/components/AppProvider";
+import AccountPill from "@/components/AccountPill";
 import { DRINKS, MENU } from "@/lib/menu";
 import { clickable } from "@/lib/a11y";
 
@@ -13,7 +13,7 @@ export default function MenuScreen() {
     <section className="screen" id="s-menu">
       <div className="toprow">
         <div className="eyb">The NET+ Menu</div>
-        <Link className="pf" href="/3mpire">R</Link>
+        <AccountPill />
       </div>
       <div className="h-title">Built for the work.</div>
       <div className="h-sub">Whole-food functional beverages. Nothing toxic. Before, during &amp; after.</div>
