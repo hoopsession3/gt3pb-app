@@ -31,7 +31,7 @@ function loadSquare(): Promise<any> {
 }
 
 export default function Checkout() {
-  const { cart, toast, checkout, coOpen: open, closeCheckout: onClose } = useApp();
+  const { cart, inc, dec, toast, checkout, coOpen: open, closeCheckout: onClose } = useApp();
   const { user, profile } = useAuth();
   const [prices, setPrices] = useState<Record<string, number>>({});
   // Prices for the displayed total (the actual charge is computed server-side).
@@ -43,7 +43,8 @@ export default function Checkout() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
-  const items = [...cart] as DrinkId[];
+  const lines = Object.entries(cart) as [DrinkId, number][];
+  const items = lines.flatMap(([id, q]) => Array(q).fill(id)) as DrinkId[]; // flat list for the charge + order record
   const priceOf = (id: DrinkId) => prices?.[id] ?? Math.round(parseFloat(DRINKS[id].px.replace("$", "")) * 100);
   const totalCents = items.reduce((s, id) => s + priceOf(id), 0);
   const customer = profile?.display_name || (user?.email ? user.email.split("@")[0] : "Guest");
@@ -149,8 +150,16 @@ export default function Checkout() {
           {open && (
             <>
               <div className="spec-label">Your pre-order</div>
-              {items.map((id) => (
-                <div className="co-line" key={id}><span>{DRINKS[id].n}</span><span>${(priceOf(id) / 100).toFixed(2)}</span></div>
+              {lines.map(([id, q]) => (
+                <div className="co-line" key={id}>
+                  <span className="co-qty">
+                    <button type="button" className="co-step" aria-label={`Remove one ${DRINKS[id].n}`} onClick={() => dec(id)}>−</button>
+                    <b>{q}</b>
+                    <button type="button" className="co-step" aria-label={`Add one ${DRINKS[id].n}`} onClick={() => inc(id)}>+</button>
+                    {DRINKS[id].n}
+                  </span>
+                  <span>${((priceOf(id) * q) / 100).toFixed(2)}</span>
+                </div>
               ))}
 
               {squareClientReady ? (

@@ -140,11 +140,6 @@ function MpireReal() {
             <div className="rr">›</div>
           </div>
         )}
-        <div className="row" aria-label="My Subscription" {...clickable(() => toast("No active subscription yet — start one at the truck"))}>
-          <div className="ri"><svg viewBox="0 0 24 24" strokeWidth="2"><path d="M3 7h18v13H3zM3 7l3-4h12l3 4M9 11h6" /></svg></div>
-          <div className="rl"><b>My Subscription</b><span>Not subscribed yet</span></div>
-          <div className="rr">›</div>
-        </div>
         <div className="row" aria-label="Saved Events" {...clickable(() => router.push("/events"))}>
           <div className="ri"><svg viewBox="0 0 24 24" strokeWidth="2"><path d="M12 21s-7-6-7-11a7 7 0 0 1 14 0c0 5-7 11-7 11z" /><circle cx="12" cy="10" r="2.5" /></svg></div>
           <div className="rl"><b>Saved Events</b><span>Track stops + RSVP</span></div>
@@ -207,11 +202,6 @@ function MpireDemo() {
 
       <div className="sec">Your account</div>
       <div className="rows">
-        <div className="row" aria-label="My Subscription" {...clickable(() => toast("Bi-weekly · RISE + FLOW · next ships Mon"))}>
-          <div className="ri"><svg viewBox="0 0 24 24" strokeWidth="2"><path d="M3 7h18v13H3zM3 7l3-4h12l3 4M9 11h6" /></svg></div>
-          <div className="rl"><b>My Subscription</b><span>Bi-weekly · RISE + FLOW · next ships Mon</span></div>
-          <div className="rr">›</div>
-        </div>
         <div className="row" aria-label="Order History" {...clickable(() => toast("Showing your last 6 orders"))}>
           <div className="ri"><svg viewBox="0 0 24 24" strokeWidth="2"><path d="M3 3h18v4H3zM5 7v14h14V7M9 11h6" /></svg></div>
           <div className="rl"><b>Order History</b><span>Last: 2× FLOW · Duncan Square</span></div>

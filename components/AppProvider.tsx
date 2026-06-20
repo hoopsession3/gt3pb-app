@@ -8,10 +8,14 @@ interface AppCtx {
   toast: (msg: string) => void;
   toastMsg: string;
   toastShown: boolean;
-  // cart (pre-order)
-  cart: Set<DrinkId>;
+  // cart (pre-order) — quantity per drink
+  cart: Record<string, number>;
+  cartCount: number;
   isInCart: (id: DrinkId) => boolean;
+  qtyOf: (id: DrinkId) => number;
   bump: (id: DrinkId) => void;
+  inc: (id: DrinkId) => void;
+  dec: (id: DrinkId) => void;
   checkout: () => void;
   // drink sheet
   openId: DrinkId | null;
@@ -45,26 +49,37 @@ export default function AppProvider({ children }: { children: React.ReactNode })
     tRef.current = setTimeout(() => setToastShown(false), 3000);
   }, []);
 
-  const [cart, setCart] = useState<Set<DrinkId>>(new Set());
-  const isInCart = useCallback((id: DrinkId) => cart.has(id), [cart]);
+  const [cart, setCart] = useState<Record<string, number>>({});
+  const cartCount = Object.values(cart).reduce((s, n) => s + n, 0);
+  const isInCart = useCallback((id: DrinkId) => (cart[id] ?? 0) > 0, [cart]);
+  const qtyOf = useCallback((id: DrinkId) => cart[id] ?? 0, [cart]);
 
+  // bump = toggle in/out (menu tap); inc/dec adjust quantity (checkout / detail).
   const bump = useCallback((id: DrinkId) => {
     setCart((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      const next = { ...prev };
+      if (next[id]) delete next[id];
+      else next[id] = 1;
       return next;
     });
   }, []);
+  const inc = useCallback((id: DrinkId) => setCart((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 })), []);
+  const dec = useCallback((id: DrinkId) => setCart((prev) => {
+    const next = { ...prev };
+    const q = (next[id] ?? 0) - 1;
+    if (q <= 0) delete next[id];
+    else next[id] = q;
+    return next;
+  }), []);
 
   const checkout = useCallback(() => {
-    // Decide from current state in the handler; keep the setCart updater pure (no side effects).
-    if (cart.size === 0) {
+    const count = Object.values(cart).reduce((s, n) => s + n, 0);
+    if (count === 0) {
       toast("Tap + on a drink to build your order");
       return;
     }
-    toast(`${cart.size} drinks pre-ordered — ready in ~8 min`);
-    setCart(new Set());
+    toast(`${count} drinks pre-ordered — ready in ~8 min`);
+    setCart({});
   }, [cart, toast]);
 
   const [openId, setOpenId] = useState<DrinkId | null>(null);
@@ -74,11 +89,16 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   const [coOpen, setCoOpen] = useState(false);
   const openCheckout = useCallback(() => setCoOpen(true), []);
   const closeCheckout = useCallback(() => setCoOpen(false), []);
-  const reorder = useCallback((items: DrinkId[]) => { setCart(new Set(items)); setCoOpen(true); }, []);
+  const reorder = useCallback((items: DrinkId[]) => {
+    const next: Record<string, number> = {};
+    items.forEach((id) => { next[id] = (next[id] ?? 0) + 1; });
+    setCart(next);
+    setCoOpen(true);
+  }, []);
 
   const value = useMemo<AppCtx>(
-    () => ({ toast, toastMsg, toastShown, cart, isInCart, bump, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, reorder }),
-    [toast, toastMsg, toastShown, cart, isInCart, bump, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, reorder]
+    () => ({ toast, toastMsg, toastShown, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, reorder }),
+    [toast, toastMsg, toastShown, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, reorder]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

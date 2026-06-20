@@ -12,29 +12,16 @@ function evTime(ev: EventRow) {
 }
 
 function ReserveCard() {
-  const { toast } = useApp();
+  // Teaser only — the actual reserve sale isn't built yet, so no fake "claim".
   return (
     <div className="drop">
       <span className="badge">★ Member access</span>
       <div className="din">
         <div className="eyb">Limited Reserve</div>
         <h2>FLOW RESERVE</h2>
-        <div className="desc">A single-origin micro-lot of our cacao-nib cold brew. Capped run — members claim before it opens to the truck.</div>
-        <div className="meta"><span className="cd">2d 14h 06m</span><span className="left">38 of 120 left</span></div>
-        <button className="handle" style={{ marginTop: 0 }} onClick={() => toast("Reserve claimed — pick up at your next stop")}>
-          <span>Claim your reserve</span>
-        </button>
+        <div className="desc">A single-origin micro-lot of our cacao-nib cold brew. A capped run — members get first access when it drops.</div>
+        <div className="left" style={{ marginTop: 14 }}>Members are notified first</div>
       </div>
-    </div>
-  );
-}
-
-function BringSomeone() {
-  const { toast } = useApp();
-  return (
-    <div className="bring">
-      <div className="bt"><b>Bring someone.</b><span>Send a pour — they redeem at the truck, you both earn points.</span></div>
-      <button onClick={() => toast("Pour sent — Grow The 3MPIRE")}>Send</button>
     </div>
   );
 }
@@ -98,8 +85,6 @@ function EventsLive() {
       <div className="sec">RSVP · this week</div>
       {events.map((ev) => <RsvpRow key={ev.id} ev={ev} />)}
       {loaded && events.length === 0 && <div className="h-sub">No events scheduled right now — check back soon.</div>}
-
-      <BringSomeone />
     </section>
   );
 }
@@ -140,7 +125,6 @@ function EventsDemo() {
         <div className="info"><b>Greenville Run Club</b><span>Hydrate + Rebuild</span><span className="go">● 11 members going</span></div>
         <RsvpButtonDemo />
       </div>
-      <BringSomeone />
     </section>
   );
 }
