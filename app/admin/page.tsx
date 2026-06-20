@@ -156,6 +156,10 @@ function LiveControl() {
     const { error } = await supabase!.rpc("admin_set_live", { stop: live.current_stop_id, live: false });
     toast(error ? `Error: ${error.message}` : "Truck paused");
   };
+  const saveNotes = async (id: string, notes: string) => {
+    const { error } = await supabase!.from("stops").update({ notes: notes.trim() || null }).eq("id", id);
+    toast(error ? `Error: ${error.message}` : "Stop details saved");
+  };
 
   return (
     <div className="adm-sec">
@@ -167,11 +171,20 @@ function LiveControl() {
       {stops.map((s) => {
         const isCur = s.id === live?.current_stop_id && live?.is_live;
         return (
-          <div className={`adm-stop${isCur ? " cur" : ""}`} key={s.id}>
-            <div><b>{s.name}</b><span>{s.location_text}</span></div>
-            <button className={`adm-btn${isCur ? " on" : " go"}`} onClick={() => goLive(s.id)} disabled={isCur}>
-              {isCur ? "Live ✓" : "Go live here"}
-            </button>
+          <div className="adm-stopwrap" key={s.id}>
+            <div className={`adm-stop${isCur ? " cur" : ""}`}>
+              <div><b>{s.name}</b><span>{s.location_text}</span></div>
+              <button className={`adm-btn${isCur ? " on" : " go"}`} onClick={() => goLive(s.id)} disabled={isCur}>
+                {isCur ? "Live ✓" : "Go live here"}
+              </button>
+            </div>
+            <textarea
+              className="adm-notes"
+              rows={2}
+              defaultValue={s.notes ?? ""}
+              placeholder="Details guests see when they tap this stop — parking, what's special, anything to know"
+              onBlur={(e) => { if (e.target.value !== (s.notes ?? "")) saveNotes(s.id, e.target.value); }}
+            />
           </div>
         );
       })}

@@ -44,6 +44,7 @@ function TruckLive() {
   const [stops, setStops] = useState<Stop[]>([]);
   const [live, setLive] = useState<LiveStatus | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [openStop, setOpenStop] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -112,16 +113,29 @@ function TruckLive() {
       <div className="sec">This week</div>
       {stops.map((s) => {
         const rowLive = s.status === "live";
+        const isOpen = openStop === s.id;
         return (
-          <div
-            key={s.id}
-            className={`stop${rowLive ? " now" : ""}`}
-            aria-label={`${s.name}${rowLive ? ", live now — pre-order" : " — save reminder"}`}
-            {...clickable(() => (rowLive ? router.push("/menu") : toast("Saved — we'll remind you")))}
-          >
-            <div className="when"><b>{s.when_label ?? ""}</b><span>{s.time_label ?? ""}</span></div>
-            <div className="info"><b>{s.name}</b><span>{s.location_text ?? ""}</span></div>
-            <div className={`tag ${rowLive ? "live" : "soon"}`}>{s.tag_label ?? (rowLive ? "Live" : "Soon")}</div>
+          <div key={s.id}>
+            <div
+              className={`stop${rowLive ? " now" : ""}${isOpen ? " open" : ""}`}
+              aria-expanded={isOpen}
+              aria-label={`${s.name}, ${rowLive ? "live now" : "upcoming"} — details`}
+              {...clickable(() => setOpenStop(isOpen ? null : s.id))}
+            >
+              <div className="when"><b>{s.when_label ?? ""}</b><span>{s.time_label ?? ""}</span></div>
+              <div className="info"><b>{s.name}</b><span>{s.location_text ?? ""}</span></div>
+              <div className={`tag ${rowLive ? "live" : "soon"}`}>{s.tag_label ?? (rowLive ? "Live" : "Soon")}</div>
+            </div>
+            {isOpen && (
+              <div className="stop-detail">
+                <p className="stop-notes">{s.notes ?? "Full bar on board. Tap below to order ahead or save a reminder."}</p>
+                {rowLive ? (
+                  <button className="handle" style={{ marginTop: 12 }} onClick={() => router.push("/menu")}><span>Pre-order · skip the line</span></button>
+                ) : (
+                  <button className="btn2" style={{ marginTop: 12 }} onClick={() => toast("Saved — we'll remind you before this stop")}><span>Remind me</span></button>
+                )}
+              </div>
+            )}
           </div>
         );
       })}

@@ -107,19 +107,19 @@ export default function SignIn() {
       {step === "sent" && (
         <>
           <h1 className="auth-headline">Check your email.</h1>
-          <p className="auth-sub">We sent a sign-in link to <b>{email}</b> — tap it and you&apos;re in. Your email also includes a 6-digit code if you prefer.</p>
+          <p className="auth-sub">We sent a sign-in link to <b>{email}</b> — tap it and you&apos;re in. Your email also includes a code if you prefer.</p>
           {err && <div className="auth-err">{err}</div>}
 
-          <div className="auth-label" style={{ marginTop: 22 }}>Enter 6-digit code</div>
+          <div className="auth-label" style={{ marginTop: 22 }}>Enter the code from your email</div>
           <input
             className="auth-input auth-code"
             type="text"
             inputMode="numeric"
-            pattern="[0-9]{6}"
-            maxLength={6}
-            placeholder="000000"
+            pattern="[0-9]{6,8}"
+            maxLength={8}
+            placeholder="••••••"
             value={otp}
-            onChange={(e) => { setOtp(e.target.value.replace(/\D/g, "")); setErr(""); }}
+            onChange={(e) => { setOtp(e.target.value.replace(/\D/g, "").slice(0, 8)); setErr(""); }}
           />
           <button className="handle" disabled={otp.length < 6 || busy} onClick={handleVerifyCode} style={{ marginTop: 10 }}>
             <span>{busy ? "Verifying…" : "Verify code"}</span>

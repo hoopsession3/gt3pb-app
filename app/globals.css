@@ -516,3 +516,15 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .hist-meta{font-family:'Inter';font-size:11.5px;color:var(--cream-m);margin:5px 0 11px}
 .hist-again{font-family:'Inter';font-weight:650;font-size:11.5px;letter-spacing:.8px;text-transform:uppercase;color:var(--cream);background:transparent;border:1.5px solid var(--line2);border-radius:11px;padding:10px 14px;cursor:pointer}
 .hist-again:active{transform:scale(.99)}
+
+/* ===================================================================
+   TRUCK — tap a stop to open its details (customer) + admin stop notes
+   =================================================================== */
+.stop.open{border-bottom:none}
+.stop-detail{border-bottom:1px solid var(--line);padding:2px 2px 16px;animation:fade .2s}
+.stop-notes{font-family:'Inter';font-size:13px;color:var(--cream-m);line-height:1.55;margin:0}
+.adm-stopwrap{margin-top:9px}
+.adm-stopwrap .adm-stop{margin-top:0}
+.adm-notes{width:100%;margin-top:7px;background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:11px;padding:10px 12px;color:var(--cream);font-family:'Inter';font-size:13px;line-height:1.4;outline:none;resize:vertical}
+.adm-notes::placeholder{color:rgba(245,241,232,.34)}
+.adm-notes:focus{border-color:var(--gold2)}
