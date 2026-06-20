@@ -46,9 +46,10 @@ export default function RouteMap({ points }: { points: RoutePoint[] }) {
         lineCap: "round",
       }).addTo(map);
 
-      ordered.forEach((p) => {
-        // Direction by side of the centroid so labels fan outward and overlap less.
-        const dir = p.lng < cx ? "left" : "right";
+      // Stagger labels above/below alternately so neighbouring stops don't overlap;
+      // centered (top/bottom) keeps them inside the map rather than clipping at the edges.
+      ordered.forEach((p, i) => {
+        const dir = i % 2 === 0 ? "top" : "bottom";
         L.circleMarker([p.lat, p.lng], {
           radius: p.live ? 8 : 6,
           color: p.live ? "#B82420" : "#cda84b",
@@ -60,12 +61,13 @@ export default function RouteMap({ points }: { points: RoutePoint[] }) {
           .bindTooltip(p.live ? `${p.name} · LIVE` : p.name, {
             permanent: true,
             direction: dir,
-            offset: dir === "left" ? [-8, 0] : [8, 0],
+            offset: dir === "top" ? [0, -7] : [0, 7],
             className: `rm-tip${p.live ? " rm-tip-live" : ""}`,
           });
       });
 
-      map.fitBounds(latlngs, { padding: [34, 34] });
+      // Extra horizontal padding so the left/right stop labels aren't clipped at the edges.
+      map.fitBounds(latlngs, { paddingTopLeft: [78, 40], paddingBottomRight: [78, 28] });
     })();
 
     return () => {
