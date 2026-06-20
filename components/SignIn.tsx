@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useAuth } from "./AuthProvider";
 
@@ -18,6 +18,13 @@ export default function SignIn() {
   const [remember, setRemember] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [cooldown, setCooldown] = useState(0); // resend rate-limit (client; Supabase also throttles server-side)
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
 
   // passwordless — verify step
   const [otp, setOtp] = useState("");
@@ -43,7 +50,7 @@ export default function SignIn() {
     const { error } = await sendCode(email.trim(), name.trim() || undefined);
     setBusy(false);
     if (error) setErr(error);
-    else setStep("sent");
+    else { setStep("sent"); setCooldown(30); }
   };
 
   // ── verify 6-digit code ──
@@ -126,8 +133,8 @@ export default function SignIn() {
           </button>
 
           <div className="auth-divider" />
-          <button className="handle ghost" disabled={busy} onClick={() => { setBusy(true); sendCode(email, name || undefined).then(() => setBusy(false)); }}>
-            <span>{busy ? "Sending…" : "Resend"}</span>
+          <button className="handle ghost" disabled={busy || cooldown > 0} onClick={() => { setBusy(true); sendCode(email, name || undefined).then(() => { setBusy(false); setCooldown(30); }); }}>
+            <span>{busy ? "Sending…" : cooldown > 0 ? `Resend in ${cooldown}s` : "Resend"}</span>
           </button>
           <button className="auth-link" onClick={reset}>← Different email</button>
 
