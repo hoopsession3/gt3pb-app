@@ -539,19 +539,38 @@ function Subscribers() {
     return () => { supabase?.removeChannel(ch); };
   }, [load]);
 
-  const active = subs.filter((s) => s.status === "active").length;
+  // Fulfillment-first ordering: trouble (past_due) and soonest-due float to the top so
+  // an admin sees "who do I prep next / who needs a nudge" at a glance.
+  const rank: Record<string, number> = { past_due: 0, active: 1, pending: 2, paused: 3, canceled: 4 };
+  const ordered = [...subs].sort(
+    (a, b) => (rank[a.status] ?? 9) - (rank[b.status] ?? 9) || ((a.current_period_end ?? "9") < (b.current_period_end ?? "9") ? -1 : 1)
+  );
+  const active = subs.filter((s) => s.status === "active");
+  const daysTo = (d: string | null) => (d ? Math.ceil((new Date(d).getTime() - Date.now()) / 86400000) : null);
+  const dueSoon = active.filter((s) => { const n = daysTo(s.current_period_end); return n != null && n <= 3; }).length;
+  const packOf = (plan: string) => { const n = plan?.match(/\d+/)?.[0]; return n ? `${n} cups · every 2 wks` : plan; };
+  const renew = (s: Subscription) => {
+    if (s.status === "past_due") return { text: "Payment failed — card needs updating", cls: "due" };
+    const n = daysTo(s.current_period_end);
+    if (n == null) return { text: packOf(s.plan), cls: "" };
+    const when = n < 0 ? `overdue ${-n}d` : n === 0 ? "due today" : `fulfill in ${n}d`;
+    return { text: `${packOf(s.plan)} · ${when}`, cls: n <= 0 ? "due" : n <= 3 ? "soon" : "" };
+  };
   return (
     <div className="adm-sec">
-      <div className="sec">Subscribers{active > 0 && <span className="adm-pill">{active} active</span>}</div>
-      {subs.map((s) => (
-        <div className="adm-member" key={s.id}>
-          <div className="adm-member-top">
-            <b>{names[s.user_id] ?? "Member"}</b>
-            <span className={`adm-substat ${s.status}`}>{s.status.replace("_", " ")}</span>
+      <div className="sec">Subscribers{active.length > 0 && <span className="adm-pill">{active.length} active</span>}{dueSoon > 0 && <span className="adm-pill due">{dueSoon} due soon</span>}</div>
+      {ordered.map((s) => {
+        const r = renew(s);
+        return (
+          <div className="adm-member" key={s.id}>
+            <div className="adm-member-top">
+              <b>{names[s.user_id] ?? "Member"}</b>
+              <span className={`adm-substat ${s.status}`}>{s.status.replace("_", " ")}</span>
+            </div>
+            <div className={`meta sub-renew ${r.cls}`}>{r.text}</div>
           </div>
-          <div className="meta">{s.plan}{s.current_period_end ? ` · renews ${new Date(s.current_period_end).toLocaleDateString()}` : ""}</div>
-        </div>
-      ))}
+        );
+      })}
       {subs.length === 0 && <div className="h-sub">No subscribers yet — members subscribe from their 3MPIRE.</div>}
     </div>
   );

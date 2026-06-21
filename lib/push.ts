@@ -32,5 +32,11 @@ export async function subscribePush(userId: string | null, isAdmin: boolean) {
       { endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, user_id: userId, is_admin: isAdmin },
       { onConflict: "endpoint" }
     );
+    // Keep ONE active device per user. Reinstalls / different browsers mint new
+    // endpoints, and stale ones otherwise pile up so every order update fans out to
+    // all of them — that's the duplicate-notification spam. This collapses to current.
+    if (userId) {
+      await supabase.from("push_subscriptions").delete().eq("user_id", userId).neq("endpoint", j.endpoint);
+    }
   } catch { /* push optional; never block the UI */ }
 }
