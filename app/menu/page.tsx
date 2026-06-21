@@ -14,7 +14,7 @@ export default function MenuScreen() {
     fetch("/api/menu").then((r) => r.json()).then((d) => setPrices(d.prices || {})).catch(() => {});
   }, []);
   const priceLabel = (id: DrinkId) => (prices[id] != null ? `$${(prices[id] / 100).toFixed(0)}` : DRINKS[id].px);
-  const coLbl = cartCount > 0 ? `Pre-order · ${cartCount}` : "Pre-order for pickup";
+  const coLbl = cartCount > 0 ? `Review order · ${cartCount}` : "Order here · tap a drink";
 
   return (
     <section className="screen menu" id="s-menu">
@@ -29,6 +29,7 @@ export default function MenuScreen() {
       <p className="mast-stmt">
         Cold-extracted coffee, whole-food hydration, and slow-simmered fuel&nbsp;— prepared to order.
       </p>
+      <div className="mast-order">Order here — ready when you reach the truck.</div>
 
       {MENU.map((cat) => (
         <div key={cat.name}>

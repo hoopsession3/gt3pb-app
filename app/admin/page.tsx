@@ -29,17 +29,26 @@ function ageSev(min: number) {
 // One ticket, one next action. Oldest-first. Aging colour signals pressure.
 // Void is demoted to a guarded overflow — never under the operator's thumb.
 const NEXT: Record<Order["status"], Order["status"] | null> = { new: "preparing", preparing: "ready", ready: "done", done: null, void: null };
-const NEXT_LABEL: Record<string, string> = { new: "Start", preparing: "Mark ready", ready: "Picked up" };
 const ACT_CLASS: Record<string, string> = { new: "go", preparing: "primary", ready: "done" };
+// The three live stages of the pass. Tickets move down as the operator advances them.
+const STAGES: { key: Order["status"]; label: string; action: string }[] = [
+  { key: "new", label: "New", action: "Start" },
+  { key: "preparing", label: "In progress", action: "Mark ready" },
+  { key: "ready", label: "Ready · hand off", action: "Picked up" },
+];
 
 function Kitchen() {
   const { toast } = useApp();
   const [orders, setOrders] = useState<Order[]>([]);
   const [, setTick] = useState(0); // re-render so ages stay current
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [err, setErr] = useState("");
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    const { data } = await supabase.from("orders").select("*").neq("status", "done").neq("status", "void").order("created_at");
+    const { data, error } = await supabase.from("orders").select("*").neq("status", "done").neq("status", "void").order("created_at");
+    if (error) { setErr(error.message); return; }
+    setErr("");
     if (data) setOrders(data as Order[]);
   }, []);
   useEffect(() => {
@@ -50,43 +59,65 @@ function Kitchen() {
     return () => { clearInterval(t); supabase?.removeChannel(ch); };
   }, [load]);
 
+  // Optimistically move the ticket (instant feedback), write, then reload to reconcile
+  // — so the board updates even if the realtime socket is slow, and errors are visible.
   const advance = async (o: Order) => {
     const next = NEXT[o.status];
-    if (!next) return;
-    const { error } = await supabase!.from("orders").update({ status: next }).eq("id", o.id);
-    if (error) toast(`Error: ${error.message}`);
+    if (!next || !supabase) return;
+    setOrders((prev) => prev.map((x) => (x.id === o.id ? ({ ...x, status: next } as Order) : x)).filter((x) => x.status !== "done" && x.status !== "void"));
+    const { error } = await supabase.from("orders").update({ status: next }).eq("id", o.id);
+    if (error) { setErr(error.message); toast(`Couldn't update — ${error.message}`); }
+    load();
   };
   const voidOrder = async (o: Order) => {
     if (typeof window !== "undefined" && !window.confirm(`Void ${o.customer ?? "this order"}? This can't be undone.`)) return;
-    await supabase!.from("orders").update({ status: "void" }).eq("id", o.id);
+    if (!supabase) return;
+    setOrders((prev) => prev.filter((x) => x.id !== o.id));
+    const { error } = await supabase.from("orders").update({ status: "void" }).eq("id", o.id);
+    if (error) { setErr(error.message); toast(`Couldn't void — ${error.message}`); }
+    load();
   };
 
+  const toggle = (k: string) => setCollapsed((p) => { const n = new Set(p); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   const late = orders.filter((o) => o.status !== "ready" && ageMin(o.created_at) >= 8);
 
   return (
     <div className="adm-sec">
       <div className="sec">The pass{orders.length > 0 && <span className="adm-pill">{orders.length} active</span>}</div>
 
+      {err && <div className="adm-attn">Backend error: {err}</div>}
       {late.length > 0 && (
         <div className="adm-attn">
           <b>{late.map((o) => o.customer ?? "Guest").join(", ")}</b> waiting past 8 min — step over and reassure the guest.
         </div>
       )}
 
-      {orders.map((o) => {
-        const sev = ageSev(ageMin(o.created_at));
+      {STAGES.map((st) => {
+        const list = orders.filter((o) => o.status === st.key);
+        const isCol = collapsed.has(st.key);
         return (
-          <div className={`adm-order st-${o.status}`} key={o.id}>
-            <button className="adm-act-more" onClick={() => voidOrder(o)} aria-label="Void order">⋯</button>
-            <div className="adm-order-top">
-              <b>{o.customer ?? "Guest"}</b>
-              <span className={`adm-age ${sev}`}>{ago(o.created_at)}</span>
-            </div>
-            <div className="adm-items">{o.items.map((i) => DRINKS[i as DrinkId]?.n ?? i).join(" · ")}</div>
-            <div className="meta">#{o.id.slice(0, 4).toUpperCase()} · ${(o.total_cents / 100).toFixed(2)} · <span className={o.paid ? "pd" : "unp"}>{o.paid ? "PAID" : "pre-order"}</span></div>
-            {NEXT[o.status] && (
-              <button className={`adm-act ${ACT_CLASS[o.status]}`} onClick={() => advance(o)}>{NEXT_LABEL[o.status]}</button>
-            )}
+          <div className="kds-stage" key={st.key}>
+            <button type="button" className="kds-stage-h" onClick={() => toggle(st.key)} aria-expanded={!isCol}>
+              <span className={`kds-caret${isCol ? " col" : ""}`}>▾</span>
+              <span className="kds-stage-name">{st.label}</span>
+              <span className="kds-stage-n">{list.length}</span>
+            </button>
+            {!isCol && list.length === 0 && <div className="kds-empty">Nothing here.</div>}
+            {!isCol && list.map((o) => {
+              const sev = ageSev(ageMin(o.created_at));
+              return (
+                <div className={`adm-order st-${o.status}`} key={o.id}>
+                  <button className="adm-act-more" onClick={() => voidOrder(o)} aria-label="Void order">⋯</button>
+                  <div className="adm-order-top">
+                    <b>{o.customer ?? "Guest"}</b>
+                    <span className={`adm-age ${sev}`}>{ago(o.created_at)}</span>
+                  </div>
+                  <div className="adm-items">{o.items.map((i) => DRINKS[i as DrinkId]?.n ?? i).join(" · ")}</div>
+                  <div className="meta">#{o.id.slice(0, 4).toUpperCase()} · ${(o.total_cents / 100).toFixed(2)} · <span className={o.paid ? "pd" : "unp"}>{o.paid ? "PAID" : "pre-order"}</span></div>
+                  <button className={`adm-act ${ACT_CLASS[o.status]}`} onClick={() => advance(o)}>{st.action}</button>
+                </div>
+              );
+            })}
           </div>
         );
       })}
@@ -123,15 +154,24 @@ function Readiness() {
 }
 
 // ───────────────────────── one stop: go-live + location + notes ─────────────────────────
-function StopControl({ s, isCur, onGoLive }: { s: Stop; isCur: boolean; onGoLive: (id: string) => void }) {
+function StopControl({ s, isCur, onGoLive, onChanged }: { s: Stop; isCur: boolean; onGoLive: (id: string) => void; onChanged: () => void }) {
   const { toast } = useApp();
+  const [name, setName] = useState(s.name);
   const [address, setAddress] = useState(s.address ?? "");
   const [busy, setBusy] = useState(false);
   const hasCoords = s.lat != null && s.lng != null;
 
+  const saveName = async () => {
+    const nm = name.trim();
+    if (!nm || nm === s.name) return;
+    const { error } = await supabase!.from("stops").update({ name: nm }).eq("id", s.id);
+    toast(error ? `Error: ${error.message}` : "Name saved");
+    onChanged();
+  };
   const saveNotes = async (notes: string) => {
     const { error } = await supabase!.from("stops").update({ notes: notes.trim() || null }).eq("id", s.id);
     toast(error ? `Error: ${error.message}` : "Stop details saved");
+    onChanged();
   };
   const saveLocation = async () => {
     const q = address.trim();
@@ -139,15 +179,22 @@ function StopControl({ s, isCur, onGoLive }: { s: Stop; isCur: boolean; onGoLive
     setBusy(true);
     const geo = await geocode(q);
     if (!geo) { setBusy(false); toast("Couldn't find that address — add city & state, then retry."); return; }
-    const { error } = await supabase!.from("stops").update({ address: q, lat: geo.lat, lng: geo.lng }).eq("id", s.id);
+    const { error } = await supabase!.from("stops").update({ address: q, location_text: q, lat: geo.lat, lng: geo.lng }).eq("id", s.id);
     setBusy(false);
     toast(error ? `Error: ${error.message}` : "Location set — directions are now accurate");
+    onChanged();
+  };
+  const remove = async () => {
+    if (typeof window !== "undefined" && !window.confirm(`Remove ${s.name}?`)) return;
+    const { error } = await supabase!.from("stops").delete().eq("id", s.id);
+    toast(error ? `Error: ${error.message}` : "Stop removed");
+    onChanged();
   };
 
   return (
     <div className="adm-stopwrap">
       <div className={`adm-stop${isCur ? " cur" : ""}`}>
-        <div><b>{s.name}</b><span>{s.location_text}</span></div>
+        <input className="adm-stopname" value={name} onChange={(e) => setName(e.target.value)} onBlur={saveName} maxLength={120} placeholder="Stop name" />
         <button className={`adm-btn${isCur ? " on" : " go"}`} onClick={() => onGoLive(s.id)} disabled={isCur}>
           {isCur ? "Live ✓" : "Go live here"}
         </button>
@@ -167,6 +214,7 @@ function StopControl({ s, isCur, onGoLive }: { s: Stop; isCur: boolean; onGoLive
         placeholder="Details guests see when they tap this stop — parking, what's special, anything to know"
         onBlur={(e) => { if (e.target.value !== (s.notes ?? "")) saveNotes(e.target.value); }}
       />
+      <button className="adm-stop-remove" onClick={remove}>Remove stop</button>
     </div>
   );
 }
@@ -176,13 +224,15 @@ function LiveControl() {
   const { toast } = useApp();
   const [stops, setStops] = useState<Stop[]>([]);
   const [live, setLive] = useState<LiveStatus | null>(null);
+  const [err, setErr] = useState("");
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    const [{ data: s }, { data: l }] = await Promise.all([
+    const [{ data: s, error: se }, { data: l }] = await Promise.all([
       supabase.from("stops").select("*").order("sort"),
       supabase.from("live_status").select("*").maybeSingle(),
     ]);
+    if (se) setErr(se.message); else setErr("");
     if (s) setStops(s as Stop[]);
     if (l) setLive(l as LiveStatus);
   }, []);
@@ -191,31 +241,45 @@ function LiveControl() {
     load();
     if (!supabase) return;
     const ch = supabase.channel("admin-live")
-      .on("postgres_changes", { event: "*", schema: "public", table: "live_status" }, (p) => setLive(p.new as LiveStatus))
+      .on("postgres_changes", { event: "*", schema: "public", table: "live_status" }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "stops" }, () => load())
       .subscribe();
     return () => { supabase?.removeChannel(ch); };
   }, [load]);
 
+  // Each mutation reloads explicitly (don't depend on the realtime socket) and surfaces errors.
   const goLive = async (stopId: string) => {
     const { error } = await supabase!.rpc("admin_set_live", { stop: stopId, live: true });
-    toast(error ? `Error: ${error.message}` : "Truck is LIVE — members updated");
+    if (error) setErr(error.message);
+    toast(error ? `Couldn't go live — ${error.message}` : "Truck is LIVE — members updated");
+    load();
   };
   const pause = async () => {
     if (!live?.current_stop_id) return;
     const { error } = await supabase!.rpc("admin_set_live", { stop: live.current_stop_id, live: false });
-    toast(error ? `Error: ${error.message}` : "Truck paused");
+    if (error) setErr(error.message);
+    toast(error ? `Couldn't pause — ${error.message}` : "Truck paused");
+    load();
   };
+  const addStop = async () => {
+    const { error } = await supabase!.from("stops").insert({ name: "New stop", status: "upcoming", sort: stops.length });
+    if (error) setErr(error.message);
+    toast(error ? `Couldn't add — ${error.message}` : "Stop added — set its name, address & details below");
+    load();
+  };
+
   return (
     <div className="adm-sec">
-      <div className="sec">Live truck</div>
+      <div className="sec">Live truck <button className="adm-btn" style={{ marginLeft: "auto" }} onClick={addStop}>+ Add stop</button></div>
+      {err && <div className="adm-attn">Backend error: {err}</div>}
       <div className="adm-live">
         <div><span className={`adm-dot${live?.is_live ? " on" : ""}`} /> {live?.is_live ? "Live now" : "Offline"}</div>
-        {live?.is_live && <button className="adm-btn ghost" onClick={pause}>Pause</button>}
+        {live?.is_live && <button className="adm-btn ghost" onClick={pause}>Pause / end</button>}
       </div>
       {stops.map((s) => (
-        <StopControl key={s.id} s={s} isCur={Boolean(s.id === live?.current_stop_id && live?.is_live)} onGoLive={goLive} />
+        <StopControl key={s.id} s={s} isCur={Boolean(s.id === live?.current_stop_id && live?.is_live)} onGoLive={goLive} onChanged={load} />
       ))}
+      {stops.length === 0 && <div className="h-sub">No stops yet — tap &ldquo;Add stop&rdquo; to create your first location.</div>}
     </div>
   );
 }
