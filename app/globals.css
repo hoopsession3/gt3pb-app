@@ -460,6 +460,20 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .adm-hud-stat{flex:1;background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:12px;padding:13px 8px;text-align:center}
 .adm-hud-stat b{display:block;font-family:'DM Mono';font-size:25px;line-height:1.1;color:var(--cream)}
 .adm-hud-stat span{font-family:'Inter';font-weight:600;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--cream-m)}
+.adm-ready-bar{margin-top:8px;padding:11px 13px;border-radius:12px;background:rgba(0,0,0,.28);border:1px solid var(--line2);font-family:'Inter';font-size:13px;color:var(--cream)}
+.adm-ready-bar.ok{border-color:rgba(63,125,110,.5);background:rgba(63,125,110,.14)}
+.adm-ready-bar.miss{border-color:rgba(184,36,32,.4)}
+.adm-ready-miss{color:var(--red);font-weight:600}
+.adm-crew-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px}
+.adm-crew-chip{font-family:'Inter';font-weight:600;font-size:11px;padding:5px 9px;border-radius:8px;background:rgba(184,144,47,.14);color:var(--gold2);border:none;cursor:pointer}
+.adm-prep-sec{margin-top:8px}
+.adm-task{display:flex;align-items:center;gap:8px;padding:7px 2px;border-bottom:1px solid var(--line)}
+.adm-task-check{display:flex;align-items:center;gap:9px;flex:1;font-family:'Inter';font-size:14px;color:var(--cream);cursor:pointer}
+.adm-task.done .adm-task-check span{text-decoration:line-through;color:var(--cream-m)}
+.adm-task.crit:not(.done) .adm-task-check span{color:var(--red);font-weight:600}
+.adm-task-assign{background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:8px;padding:4px 6px;color:var(--cream);font-family:'Inter';font-size:12px;max-width:96px}
+.adm-task-add{display:flex;gap:8px;align-items:center;margin-top:10px}
+.adm-task-add input{flex:1}
 .adm-check{flex-direction:row!important;align-items:center;gap:6px!important;text-transform:none!important;font-size:11px!important;letter-spacing:0!important}
 .adm-check input{width:16px;height:16px;accent-color:var(--red)}
 

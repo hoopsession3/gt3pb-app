@@ -11,7 +11,8 @@ import { chime, unlockAudio } from "@/lib/chime";
 import { haptic, HAPTIC } from "@/lib/haptics";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import { geocode } from "@/lib/geocode";
-import type { Stop, LiveStatus, EventRow, BookingRequest, Order, Reserve, Subscription } from "@/lib/db";
+import { packListFor } from "@/lib/packlist";
+import type { Stop, LiveStatus, EventRow, EventTask, BookingRequest, Order, Reserve, Subscription } from "@/lib/db";
 
 const STATUSES: BookingRequest["status"][] = ["new", "contacted", "booked", "declined"];
 
@@ -213,28 +214,133 @@ function Kitchen() {
 }
 
 // ───────────────────────── pre-flight readiness ─────────────────────────
-const READY = ["Brewed", "Iced", "Stocked", "Cups", "Card reader"];
-function Readiness() {
-  const [done, setDone] = useState<Set<string>>(new Set());
-  const all = done.size === READY.length;
-  const toggle = (x: string) => setDone((p) => { const n = new Set(p); n.has(x) ? n.delete(x) : n.add(x); return n; });
+// Real per-event readiness: a pack-list checklist auto-derived from the event's rig/menu,
+// persisted, realtime, role-scoped, with a crew roster + task assignment. Replaces the old
+// hardcoded "Trailer ready" chips (which lied at a cart gig and reset on refresh).
+function EventPrep() {
+  const { user, profile } = useAuth();
+  const { toast } = useApp();
+  const isAdmin = roleOf(profile) === "admin" || roleOf(profile) === "owner";
+  const [ev, setEv] = useState<EventRow | null>(null);
+  const [tasks, setTasks] = useState<EventTask[]>([]);
+  const [crew, setCrew] = useState<{ id: string; user_id: string; role_label: string | null }[]>([]);
+  const [staff, setStaff] = useState<{ id: string; display_name: string | null }[]>([]);
+  const [newTask, setNewTask] = useState("");
 
-  if (all) {
-    return (
-      <div className="adm-ready ok">
-        <span className="adm-ready-dot" />
-        <span><b>Trailer ready</b> · brewed, iced, stocked, cups, reader paired</span>
-      </div>
-    );
-  }
+  const load = useCallback(async () => {
+    if (!supabase) return;
+    const { data: evs } = await supabase.from("events").select("*").order("sort");
+    const list = (evs as EventRow[]) ?? [];
+    const target = list.find((e) => e.is_live) ?? list[0] ?? null;
+    setEv(target);
+    if (!target) { setTasks([]); setCrew([]); return; }
+    const [{ data: t }, { data: c }] = await Promise.all([
+      supabase.from("event_tasks").select("*").eq("event_id", target.id).order("sort"),
+      supabase.from("event_staff").select("id, user_id, role_label").eq("event_id", target.id),
+    ]);
+    setTasks((t as EventTask[]) ?? []);
+    setCrew((c as { id: string; user_id: string; role_label: string | null }[]) ?? []);
+    if (isAdmin) {
+      const { data: p } = await supabase.from("profiles").select("id, display_name, role").neq("role", "member");
+      setStaff((p as { id: string; display_name: string | null }[]) ?? []);
+    }
+  }, [isAdmin]);
+  useEffect(() => {
+    load();
+    if (!supabase) return;
+    const ch = supabase.channel("admin-eventprep")
+      .on("postgres_changes", { event: "*", schema: "public", table: "event_tasks" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "event_staff" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "events" }, () => load())
+      .subscribe();
+    return () => { supabase?.removeChannel(ch); };
+  }, [load]);
+
+  const nameOf = (uid: string) => staff.find((s) => s.id === uid)?.display_name ?? "—";
+  const generate = async () => {
+    if (!ev || !supabase) return;
+    const rows = packListFor(ev).map((p, i) => ({ event_id: ev.id, label: p.label, section: p.section, critical: !!p.critical, kind: "pack", sort: i }));
+    if (!rows.length) { toast("Set the event's rig + menu first (Back office → Events)", "error"); return; }
+    const { error } = await supabase.from("event_tasks").insert(rows);
+    toast(error ? `Error: ${error.message}` : `Pack list generated — ${rows.length} items`);
+    if (!error) load();
+  };
+  const toggle = async (t: EventTask) => {
+    if (!supabase) return;
+    const next = !t.done;
+    setTasks((p) => p.map((x) => (x.id === t.id ? { ...x, done: next } : x)));
+    const { error } = await supabase.from("event_tasks").update({ done: next, done_by: next ? user?.id ?? null : null, done_at: next ? new Date().toISOString() : null }).eq("id", t.id);
+    if (error) { toast(`Error: ${error.message}`, "error"); load(); }
+  };
+  const assign = async (t: EventTask, uid: string) => {
+    if (!supabase) return;
+    const { error } = await supabase.from("event_tasks").update({ assignee: uid || null }).eq("id", t.id);
+    if (error) toast(`Error: ${error.message}`, "error"); else load();
+  };
+  const addTask = async () => {
+    if (!ev || !supabase || !newTask.trim()) return;
+    const { error } = await supabase.from("event_tasks").insert({ event_id: ev.id, label: newTask.trim(), kind: "task", section: "Task", sort: tasks.length });
+    setNewTask("");
+    if (error) toast(`Error: ${error.message}`, "error"); else load();
+  };
+  const addCrew = async (uid: string) => {
+    if (!ev || !supabase || !uid) return;
+    const { error } = await supabase.from("event_staff").insert({ event_id: ev.id, user_id: uid });
+    if (error) toast(error.code === "23505" ? "Already on crew" : `Error: ${error.message}`, "error"); else load();
+  };
+  const removeCrew = async (id: string) => { if (supabase) { await supabase.from("event_staff").delete().eq("id", id); load(); } };
+
+  if (!ev) return <div className="adm-sec"><div className="h-sub">No event yet — add one in Back office → Events to prep it.</div></div>;
+  const total = tasks.length, doneN = tasks.filter((t) => t.done).length;
+  const critOut = tasks.filter((t) => t.critical && !t.done);
+  const ready = total > 0 && doneN === total;
+  const sections = [...new Set(tasks.map((t) => t.section ?? "Task"))];
+
   return (
-    <div className="adm-ready">
-      <div className="adm-ready-h">Pre-flight · {done.size}/{READY.length} ready</div>
-      <div className="adm-ready-chips">
-        {READY.map((x) => (
-          <button key={x} className={`adm-chip${done.has(x) ? " on" : ""}`} onClick={() => toggle(x)}>{x}</button>
-        ))}
-      </div>
+    <div className="adm-sec adm-prep">
+      <div className="sec">{ev.title} · prep{ev.is_live && <span className="adm-pill due">LIVE</span>}</div>
+      {total > 0 ? (
+        <div className={`adm-ready-bar${ready ? " ok" : critOut.length ? " miss" : ""}`}>
+          <b>Loaded {doneN}/{total}</b>
+          {critOut.length > 0 && <span className="adm-ready-miss"> · missing {critOut.slice(0, 2).map((t) => t.label).join(", ")}{critOut.length > 2 ? ` +${critOut.length - 2}` : ""}</span>}
+          {ready && <span> · ready to roll</span>}
+        </div>
+      ) : isAdmin ? (
+        <button className="adm-btn primary" onClick={generate}>Generate pack list from menu</button>
+      ) : <div className="h-sub">No pack list yet — an owner generates it.</div>}
+
+      {isAdmin && (
+        <div className="adm-crew-row">
+          {crew.map((c) => <button key={c.id} className="adm-crew-chip" onClick={() => removeCrew(c.id)} title="Remove">{nameOf(c.user_id)} ✕</button>)}
+          <select className="adm-role" value="" onChange={(e) => { addCrew(e.target.value); e.target.value = ""; }} aria-label="Add crew">
+            <option value="">+ crew</option>
+            {staff.filter((s) => !crew.some((c) => c.user_id === s.id)).map((s) => <option key={s.id} value={s.id}>{s.display_name ?? "—"}</option>)}
+          </select>
+        </div>
+      )}
+
+      {sections.map((sec) => (
+        <div key={sec} className="adm-prep-sec">
+          <div className="adm-prep-label">{sec}</div>
+          {tasks.filter((t) => (t.section ?? "Task") === sec).map((t) => (
+            <div key={t.id} className={`adm-task${t.done ? " done" : ""}${t.critical ? " crit" : ""}`}>
+              <label className="adm-task-check"><input type="checkbox" checked={t.done} onChange={() => toggle(t)} /><span>{t.label}</span></label>
+              {isAdmin && (
+                <select className="adm-task-assign" value={t.assignee ?? ""} onChange={(e) => assign(t, e.target.value)} aria-label="Assign">
+                  <option value="">—</option>
+                  {staff.map((s) => <option key={s.id} value={s.id}>{(s.display_name ?? "—").split(" ")[0]}</option>)}
+                </select>
+              )}
+            </div>
+          ))}
+        </div>
+      ))}
+      {isAdmin && total > 0 && (
+        <div className="adm-task-add">
+          <input className="subpitch-email" style={{ marginBottom: 0 }} placeholder="Add a task…" value={newTask} onChange={(e) => setNewTask(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addTask()} aria-label="Add a task" />
+          <button className="adm-btn" onClick={addTask}>Add</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -909,7 +1015,7 @@ export default function AdminPage() {
       {mode === "service" ? (
         <>
           <EventHUD />
-          <Readiness />
+          <EventPrep />
           <EnableAlerts userId={user?.id ?? null} />
           <Kitchen />
           <LiveControl />

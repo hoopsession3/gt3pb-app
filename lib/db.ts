@@ -82,6 +82,21 @@ export interface EventRow {
   is_live?: boolean;
 }
 
+// Per-event execution checklist (0025) — pack-list items + ad-hoc tasks, role-scoped.
+export interface EventTask {
+  id: string;
+  event_id: string;
+  label: string;
+  section: string | null;
+  kind: "pack" | "task";
+  critical: boolean;
+  assignee: string | null;
+  done: boolean;
+  done_by: string | null;
+  done_at: string | null;
+  sort: number;
+}
+
 // Limited reserves (0014_reserves.sql). Stock is server-authoritative; members
 // claim via the claim_reserve RPC (atomic, no oversell).
 export interface Reserve {
