@@ -13,7 +13,16 @@ export interface Profile {
   credit_cents: number;
   founding_member: boolean;
   is_admin: boolean;
+  role?: "member" | "server" | "admin" | "owner";
   referred_by: string | null;
+}
+
+// Effective role with a graceful fallback for profiles loaded before the roles
+// migration ran (legacy admins read as owner).
+export function roleOf(p: { role?: string | null; is_admin?: boolean } | null): "member" | "server" | "admin" | "owner" {
+  const r = p?.role;
+  if (r === "server" || r === "admin" || r === "owner") return r;
+  return p?.is_admin ? "owner" : "member";
 }
 
 interface AuthCtx {

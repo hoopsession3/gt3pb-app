@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useApp } from "@/components/AppProvider";
-import { useAuth } from "@/components/AuthProvider";
+import { useAuth, roleOf } from "@/components/AuthProvider";
 import SignIn from "@/components/SignIn";
 import SubscriptionCard from "@/components/SubscriptionCard";
 import { supabase } from "@/lib/supabase";
@@ -165,10 +165,10 @@ function MpireReal() {
       <div className="dchapter"><span className="dchn">Your Account</span><span className="dchw">manage</span></div>
       <div className="dchrule" />
       <div className="rows">
-        {profile?.is_admin && (
-          <div className="row" aria-label="Back office" {...clickable(() => router.push("/admin"))}>
+        {roleOf(profile) !== "member" && (
+          <div className="row" aria-label="Staff" {...clickable(() => router.push("/admin"))}>
             <div className="ri"><svg viewBox="0 0 24 24" strokeWidth="2"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z" /><path d="M9 12l2 2 4-4" /></svg></div>
-            <div className="rl"><b>Back office</b><span>Live truck · members · events</span></div>
+            <div className="rl"><b>{roleOf(profile) === "server" ? "Service" : "Back office"}</b><span>{roleOf(profile) === "server" ? "Kitchen display" : "Live truck · members · events"}</span></div>
             <div className="rr">›</div>
           </div>
         )}

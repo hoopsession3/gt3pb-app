@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useApp } from "@/components/AppProvider";
-import { useAuth, type Profile } from "@/components/AuthProvider";
+import { useAuth, roleOf, type Profile } from "@/components/AuthProvider";
 import SignIn from "@/components/SignIn";
 import { supabase } from "@/lib/supabase";
 import { subscribePush } from "@/lib/push";
@@ -117,7 +117,8 @@ function Kitchen() {
     if (!to || !supabase) return;
     apply({ ...o, status: to, status_changed_at: new Date().toISOString() } as Order, false);
     haptic(HAPTIC.tap);
-    const { error } = await supabase.from("orders").update({ status: to }).eq("id", o.id);
+    // Definer RPC so a 'server' can advance status without table-wide write access.
+    const { error } = await supabase.rpc("staff_set_order_status", { p_order: o.id, p_status: to });
     if (error) { setErr(error.message); toast(`Couldn't update — ${error.message}`, "error"); load(); }
   };
   const advance = (o: Order) => move(o, NEXT[o.status]);
@@ -126,7 +127,7 @@ function Kitchen() {
     if (typeof window !== "undefined" && !window.confirm(`Void ${o.customer ?? "this order"}? This can't be undone.`)) return;
     if (!supabase) return;
     apply(o, true);
-    const { error } = await supabase.from("orders").update({ status: "void" }).eq("id", o.id);
+    const { error } = await supabase.rpc("staff_set_order_status", { p_order: o.id, p_status: "void" });
     if (error) { setErr(error.message); toast(`Couldn't void — ${error.message}`, "error"); load(); }
   };
 
@@ -597,14 +598,25 @@ function MemberRow({ m, onSaved }: { m: Profile; onSaved: () => void }) {
     toast(error ? `Error: ${error.message}` : `Saved ${m.display_name ?? "member"}`);
     if (!error) onSaved();
   };
+  const setRole = async (newRole: string) => {
+    const { error } = await supabase!.rpc("admin_set_role", { member: m.id, new_role: newRole });
+    toast(error ? `Error: ${error.message}` : `${m.display_name ?? "Member"} is now ${newRole}`);
+    if (!error) onSaved();
+  };
 
   return (
     <div className="adm-member">
       <div className="adm-member-top">
-        <b>{m.display_name ?? "—"}{m.is_admin && <span className="adm-tag">admin</span>}</b>
+        <b>{m.display_name ?? "—"}{roleOf(m) !== "member" && <span className="adm-tag">{roleOf(m)}</span>}</b>
         <span className="adm-ref">{m.referral_code}</span>
       </div>
       <div className="adm-fields">
+        <label>Role<select className="adm-role" value={roleOf(m)} onChange={(e) => setRole(e.target.value)}>
+          <option value="member">member</option>
+          <option value="server">server</option>
+          <option value="admin">admin</option>
+          <option value="owner">owner</option>
+        </select></label>
         <label>Points<input type="number" min={0} value={pts} onChange={(e) => setPts(Math.max(0, parseInt(e.target.value) || 0))} /></label>
         <label>Credit $<input type="text" inputMode="decimal" value={credit} onChange={(e) => setCredit(e.target.value)} /></label>
         <label className="adm-check"><input type="checkbox" checked={founding} onChange={(e) => setFounding(e.target.checked)} />Founding</label>
@@ -782,12 +794,29 @@ export default function AdminPage() {
   if (!enabled) return <section className="screen"><div className="h-title">Admin</div><div className="h-sub">The live backend isn&apos;t configured here.</div></section>;
   if (!ready) return <section className="screen" />;
   if (!user) return <SignIn />;
-  if (!profile?.is_admin) {
+  const role = roleOf(profile);
+  if (role === "member") {
     return (
       <section className="screen">
         <div className="toprow"><div className="eyb">Admin</div><Link className="pf" href="/">‹</Link></div>
         <div className="h-title">Staff only.</div>
-        <div className="h-sub">This area is for GT3PB staff. If that&apos;s you, sign in with your owner email.</div>
+        <div className="h-sub">This area is for GT3PB staff. If that&apos;s you, ask the owner to add you.</div>
+      </section>
+    );
+  }
+  const isOwner = role === "owner";
+  const isAdmin = role === "admin" || isOwner;
+
+  // Server is locked to the KDS — no toggle, no live truck, no back office.
+  if (!isAdmin) {
+    return (
+      <section className="screen admin">
+        <div className="toprow">
+          <div className="eyb">GT3PB · Service</div>
+          <Link className="pf" href="/3mpire" aria-label="Exit admin">‹</Link>
+        </div>
+        <EnableAlerts userId={user?.id ?? null} />
+        <Kitchen />
       </section>
     );
   }
@@ -819,7 +848,7 @@ export default function AdminPage() {
           <SubInterest />
           <OrdersHistory />
           <EventsAdmin />
-          <Members />
+          {isOwner && <Members />}
         </>
       )}
     </section>
