@@ -132,6 +132,7 @@ export default function SubscriptionCard() {
         <h3>{SUB_NAME}</h3>
         {/^\d+$/.test(packSize) && <p className="sub-sub">{packSize}-pack · {SUB_CADENCE}</p>}
         <div className={`sub-status ${sub.status}`}><span className="sub-dot" />{label}</div>
+        {sub.status === "active" && <p className="sub-rest">We&apos;ll have your next pack ready — no need to reorder.</p>}
         <div className="sub-actions">
           {sub.status === "active" && <button onClick={() => manage("pause")} disabled={busy}>Pause</button>}
           {sub.status === "paused" && <button onClick={() => manage("resume")} disabled={busy}>Resume</button>}

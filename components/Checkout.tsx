@@ -160,10 +160,11 @@ export default function Checkout() {
           {open && doneView ? (
             <div className="co-done">
               <div className="co-done-check" aria-hidden="true">✓</div>
-              <h3>Order in — ready in ~8 min</h3>
-              <p>Make it your ritual: your coffee packed and waiting every two weeks — skip the line, save up to 30% a cup.</p>
-              <button type="button" className="subpitch-cta" onClick={() => { onClose(); router.push("/3mpire"); }}>Start a subscription</button>
-              <button type="button" className="sub-link" onClick={onClose}>No thanks, done</button>
+              <div className="co-done-conf">Order in — ready in ~8 min</div>
+              <h3>Make it a regular?</h3>
+              <p>We can pack this same order every two weeks — so you never run low.</p>
+              <button type="button" className="subpitch-cta" onClick={() => { onClose(); router.push("/3mpire"); }}>Set it up</button>
+              <button type="button" className="sub-link" onClick={onClose}>Not now</button>
             </div>
           ) : open ? (
             <>
