@@ -51,31 +51,49 @@ function Kitchen() {
     setErr("");
     if (data) setOrders(data as Order[]);
   }, []);
+  // Merge a single row into state (no refetch). Used by realtime AND optimistic taps,
+  // so the board mutates in place — zero network on the hot path.
+  const apply = useCallback((row: Order | null, removed = false) => {
+    if (!row?.id) return;
+    setOrders((prev) => {
+      const without = prev.filter((o) => o.id !== row.id);
+      if (!removed && row.status !== "done" && row.status !== "void") {
+        without.push(row);
+        without.sort((a, b) => (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0));
+      }
+      return without;
+    });
+  }, []);
+
   useEffect(() => {
     load();
-    const t = setInterval(() => setTick((n) => n + 1), 30000);
+    const t = setInterval(() => setTick((n) => n + 1), 30000); // ages only — no network
     if (!supabase) return () => clearInterval(t);
-    const ch = supabase.channel("admin-kds").on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => load()).subscribe();
+    const ch = supabase
+      .channel("admin-kds")
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, (p) => {
+        const row = (p.eventType === "DELETE" ? p.old : p.new) as Order;
+        apply(row, p.eventType === "DELETE");
+      })
+      .subscribe();
     return () => { clearInterval(t); supabase?.removeChannel(ch); };
-  }, [load]);
+  }, [load, apply]);
 
-  // Optimistically move the ticket (instant feedback), write, then reload to reconcile
-  // — so the board updates even if the realtime socket is slow, and errors are visible.
+  // Instant: patch local state synchronously, fire the write, and DON'T refetch on
+  // success (realtime echoes the same row idempotently). Only resync on error.
   const advance = async (o: Order) => {
     const next = NEXT[o.status];
     if (!next || !supabase) return;
-    setOrders((prev) => prev.map((x) => (x.id === o.id ? ({ ...x, status: next } as Order) : x)).filter((x) => x.status !== "done" && x.status !== "void"));
+    apply({ ...o, status: next } as Order, next === "done");
     const { error } = await supabase.from("orders").update({ status: next }).eq("id", o.id);
-    if (error) { setErr(error.message); toast(`Couldn't update — ${error.message}`); }
-    load();
+    if (error) { setErr(error.message); toast(`Couldn't update — ${error.message}`); load(); }
   };
   const voidOrder = async (o: Order) => {
     if (typeof window !== "undefined" && !window.confirm(`Void ${o.customer ?? "this order"}? This can't be undone.`)) return;
     if (!supabase) return;
-    setOrders((prev) => prev.filter((x) => x.id !== o.id));
+    apply(o, true);
     const { error } = await supabase.from("orders").update({ status: "void" }).eq("id", o.id);
-    if (error) { setErr(error.message); toast(`Couldn't void — ${error.message}`); }
-    load();
+    if (error) { setErr(error.message); toast(`Couldn't void — ${error.message}`); load(); }
   };
 
   const toggle = (k: string) => setCollapsed((p) => { const n = new Set(p); if (n.has(k)) n.delete(k); else n.add(k); return n; });
