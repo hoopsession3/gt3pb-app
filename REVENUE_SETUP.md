@@ -41,7 +41,7 @@ Ownership (no redundancy): **Square** = all money, cards, and recurring billing.
 ### c) Add environment variables (Vercel → Project → Settings → Environment Variables, Production)
 | Variable | Value | Notes |
 |---|---|---|
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API → `service_role` secret | **Server-only. Never prefix with NEXT_PUBLIC.** |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API → `service_role` secret | **Server-only. Never prefix with NEXT_PUBLIC.** Also required for **card checkout** — paid orders are recorded server-side so `paid` can't be forged. |
 | `SQUARE_SUBSCRIPTION_PLAN_VARIATION_ID` | the variation ID from step (a) | |
 | `SQUARE_WEBHOOK_SIGNATURE_KEY` | the key from step (b) | |
 | `SQUARE_WEBHOOK_URL` | `https://YOUR-DOMAIN/api/square/webhook` | must exactly match the endpoint |

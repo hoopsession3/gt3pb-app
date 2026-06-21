@@ -39,7 +39,8 @@ function OrderHistory() {
 
   return (
     <>
-      <div className="sec">Recent orders</div>
+      <div className="dchapter"><span className="dchn">Recent Orders</span><span className="dchw">order again</span></div>
+      <div className="dchrule" />
       {orders.map((o) => (
         <div className="hist" key={o.id}>
           <div className="hist-top">
@@ -161,7 +162,8 @@ function MpireReal() {
 
       <ReferralCard code={code} />
 
-      <div className="sec">Your account</div>
+      <div className="dchapter"><span className="dchn">Your Account</span><span className="dchw">manage</span></div>
+      <div className="dchrule" />
       <div className="rows">
         {profile?.is_admin && (
           <div className="row" aria-label="Back office" {...clickable(() => router.push("/admin"))}>
@@ -230,7 +232,8 @@ function MpireDemo() {
 
       <ReferralCard code="RYAN-3MP" />
 
-      <div className="sec">Your account</div>
+      <div className="dchapter"><span className="dchn">Your Account</span><span className="dchw">manage</span></div>
+      <div className="dchrule" />
       <div className="rows">
         <div className="row" aria-label="Order History" {...clickable(() => toast("Showing your last 6 orders"))}>
           <div className="ri"><svg viewBox="0 0 24 24" strokeWidth="2"><path d="M3 3h18v4H3zM5 7v14h14V7M9 11h6" /></svg></div>

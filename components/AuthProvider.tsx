@@ -50,8 +50,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     if (!error && data && !(data as Profile).referred_by && typeof window !== "undefined") {
       const code = localStorage.getItem("gt3_ref");
       if (code) {
+        localStorage.removeItem("gt3_ref"); // consume first so a concurrent load can't re-issue it
         await supabase.rpc("attach_referral", { code });
-        localStorage.removeItem("gt3_ref");
         const r2 = await supabase.from("profiles").select("*").eq("id", uid).maybeSingle();
         if (!r2.error && r2.data) data = r2.data;
       }
@@ -75,9 +75,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     let active = true;
     supabase.auth.getSession().then(({ data }) => {
       if (!active) return;
-      const u = data.session?.user ?? null;
-      setUser(u);
-      if (u) loadProfile(u.id);
+      // Only set user/ready here; onAuthStateChange fires INITIAL_SESSION and owns the
+      // profile load, so we don't fetch (or attach_referral) twice on cold start.
+      setUser(data.session?.user ?? null);
       setReady(true);
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {

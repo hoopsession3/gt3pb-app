@@ -33,14 +33,16 @@ export default function Reserves() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Realtime: live stock + sold-out flips.
+  // Realtime: live stock + sold-out flips, plus the member's own claim changes
+  // (hold expiry / admin release) so the "Reserved" badge never goes stale.
   useEffect(() => {
     if (!supabase) return;
     const ch = supabase.channel("reserves-live")
-      .on("postgres_changes", { event: "*", schema: "public", table: "reserves" }, () => load())
-      .subscribe();
+      .on("postgres_changes", { event: "*", schema: "public", table: "reserves" }, () => load());
+    if (user) ch.on("postgres_changes", { event: "*", schema: "public", table: "reserve_claims", filter: `user_id=eq.${user.id}` }, () => load());
+    ch.subscribe();
     return () => { supabase?.removeChannel(ch); };
-  }, [load]);
+  }, [load, user]);
 
   const claim = async (r: Reserve) => {
     if (!user) { toast("Sign in to reserve yours"); router.push("/3mpire"); return; }

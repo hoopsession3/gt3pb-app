@@ -3,9 +3,9 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { SQUARE_BASE, squareHeaders, SQUARE_PLAN_VARIATION_ID, subsConfigured, mapSubStatus } from "@/lib/squareServer";
 
-// Create a recurring subscription: ensure a Square Customer, vault the card,
-// then CreateSubscription against the owner's plan variation. Square owns billing;
-// we write an initial mirror row (the webhook keeps it authoritative thereafter).
+// Create a recurring subscription: ensure a Square Customer, vault the card, then
+// CreateSubscription against the owner's plan variation. Square owns billing; we keep
+// a status mirror (the webhook keeps it authoritative).
 export async function POST(req: Request) {
   const token = process.env.SQUARE_ACCESS_TOKEN;
   const locationId = process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID;
@@ -19,17 +19,23 @@ export async function POST(req: Request) {
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
   if (!body.sourceId) return NextResponse.json({ error: "Card required" }, { status: 400 });
 
-  // already subscribed? (don't double-bill)
-  const { data: existing } = await supabaseAdmin
-    .from("subscriptions").select("id").eq("user_id", user.id).in("status", ["active", "paused", "pending"]).maybeSingle();
-  if (existing) return NextResponse.json({ error: "You already have a subscription." }, { status: 409 });
-
-  const { data: prof } = await supabaseAdmin.from("profiles").select("display_name, square_customer_id").eq("id", user.id).maybeSingle();
-  const { data: au } = await supabaseAdmin.auth.admin.getUserById(user.id);
-  const email = au?.user?.email ?? undefined;
+  // Atomic double-subscribe guard: claim a 'pending' row BEFORE calling Square. The
+  // partial unique index subscriptions_one_active(user_id) rejects a concurrent or
+  // existing active/paused/pending/past_due subscription, so only one request ever
+  // reaches Square — no duplicate billable subscriptions.
+  const { data: pending, error: claimErr } = await supabaseAdmin
+    .from("subscriptions").insert({ user_id: user.id, plan: "rise_flow", status: "pending" }).select("id").single();
+  if (claimErr || !pending) {
+    return NextResponse.json({ error: "You already have a subscription." }, { status: 409 });
+  }
+  const rowId = pending.id as string;
 
   try {
-    // 1) ensure a Square Customer (persist the id so we never orphan one)
+    const { data: prof } = await supabaseAdmin.from("profiles").select("display_name, square_customer_id").eq("id", user.id).maybeSingle();
+    const { data: au } = await supabaseAdmin.auth.admin.getUserById(user.id);
+    const email = au?.user?.email ?? undefined;
+
+    // 1) ensure a Square Customer (persist so we never orphan one)
     let customerId = prof?.square_customer_id || "";
     if (!customerId) {
       const cRes = await fetch(`${SQUARE_BASE}/v2/customers`, {
@@ -37,48 +43,42 @@ export async function POST(req: Request) {
         body: JSON.stringify({ idempotency_key: `cust-${user.id}`, given_name: prof?.display_name || undefined, email_address: email }),
       });
       const cData = await cRes.json();
-      if (!cRes.ok) return NextResponse.json({ error: cData?.errors?.[0]?.detail || "Couldn't set up billing" }, { status: 400 });
+      if (!cRes.ok) throw new Error(cData?.errors?.[0]?.detail || "Couldn't set up billing");
       customerId = cData?.customer?.id;
       await supabaseAdmin.from("profiles").update({ square_customer_id: customerId }).eq("id", user.id);
     }
 
-    // 2) vault the card on file
+    // 2) vault the card (idempotency keyed to this attempt's row → retries dedupe, resubscribe doesn't)
     const cardRes = await fetch(`${SQUARE_BASE}/v2/cards`, {
       method: "POST", headers: squareHeaders(token),
-      body: JSON.stringify({ idempotency_key: `card-${user.id}-${Date.now()}`, source_id: body.sourceId, card: { customer_id: customerId } }),
+      body: JSON.stringify({ idempotency_key: `card-${rowId}`, source_id: body.sourceId, card: { customer_id: customerId } }),
     });
     const cardData = await cardRes.json();
-    if (!cardRes.ok) return NextResponse.json({ error: cardData?.errors?.[0]?.detail || "Card couldn't be saved" }, { status: 400 });
+    if (!cardRes.ok) throw new Error(cardData?.errors?.[0]?.detail || "Card couldn't be saved");
     const cardId = cardData?.card?.id;
 
     // 3) create the subscription
     const subRes = await fetch(`${SQUARE_BASE}/v2/subscriptions`, {
       method: "POST", headers: squareHeaders(token),
-      body: JSON.stringify({
-        idempotency_key: `sub-${user.id}-${Date.now()}`,
-        location_id: locationId,
-        plan_variation_id: SQUARE_PLAN_VARIATION_ID,
-        customer_id: customerId,
-        card_id: cardId,
-      }),
+      body: JSON.stringify({ idempotency_key: `sub-${rowId}`, location_id: locationId, plan_variation_id: SQUARE_PLAN_VARIATION_ID, customer_id: customerId, card_id: cardId }),
     });
     const subData = await subRes.json();
-    if (!subRes.ok) return NextResponse.json({ error: subData?.errors?.[0]?.detail || "Subscription couldn't start" }, { status: 400 });
+    if (!subRes.ok) throw new Error(subData?.errors?.[0]?.detail || "Subscription couldn't start");
     const sub = subData?.subscription;
 
-    // 4) initial mirror (webhook reconciles authoritatively)
-    await supabaseAdmin.from("subscriptions").upsert({
-      user_id: user.id,
+    // 4) fill the mirror (webhook reconciles authoritatively)
+    await supabaseAdmin.from("subscriptions").update({
       square_subscription_id: sub?.id,
-      plan: "rise_flow",
       status: mapSubStatus(sub?.status),
       square_card_id: cardId,
       current_period_end: sub?.charged_through_date || null,
       updated_at: new Date().toISOString(),
-    }, { onConflict: "square_subscription_id" });
+    }).eq("id", rowId);
 
     return NextResponse.json({ ok: true, status: mapSubStatus(sub?.status) });
-  } catch {
-    return NextResponse.json({ error: "Subscription service unavailable" }, { status: 502 });
+  } catch (e) {
+    // Roll back the pending claim so the member isn't stuck and can retry.
+    await supabaseAdmin.from("subscriptions").delete().eq("id", rowId);
+    return NextResponse.json({ error: e instanceof Error ? e.message : "Subscription couldn't start" }, { status: 400 });
   }
 }

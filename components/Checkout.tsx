@@ -55,24 +55,21 @@ export default function Checkout() {
   const grandCents = totalCents + tipCents;
   const total = (grandCents / 100).toFixed(2);
 
-  // Record the order for the kitchen (back-of-house) regardless of paid/pre-order.
-  const recordOrder = async (paid: boolean, paymentId?: string, amountCents?: number) => {
-    // Enable order-status alerts (this runs in the pay/pre-order click — a user gesture).
+  // Enable order-status alerts (must run inside a click — a user gesture).
+  const enableAlerts = async () => {
     try {
       if (typeof Notification !== "undefined") {
         if (Notification.permission === "default") await Notification.requestPermission();
         if (Notification.permission === "granted") subscribePush(user?.id ?? null, !!profile?.is_admin);
       }
     } catch { /* */ }
+  };
+  // Pre-orders (pay at the truck) are recorded client-side as UNPAID. Paid card orders
+  // are recorded server-side in /api/checkout — `paid` is not client-writable (RLS).
+  const recordPreOrder = async () => {
     if (!supabase) return;
     await supabase.from("orders").insert({
-      items,
-      total_cents: amountCents ?? totalCents,
-      paid,
-      payment_id: paymentId ?? null,
-      customer,
-      user_id: user?.id ?? null,
-      status: "new",
+      items, total_cents: totalCents, paid: false, payment_id: null, customer, user_id: user?.id ?? null, status: "new",
     });
   };
 
@@ -117,22 +114,23 @@ export default function Checkout() {
     if (!cardRef.current) return;
     setBusy(true);
     try {
+      await enableAlerts();
       const result = await cardRef.current.tokenize();
       if (result.status !== "OK") {
         setErr("Card details look off — check and retry.");
         setBusy(false);
         return;
       }
+      const accessToken = (await supabase?.auth.getSession())?.data.session?.access_token;
       const res = await fetch("/api/checkout", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceId: result.token, items, tipCents }),
+        headers: { "Content-Type": "application/json", ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
+        body: JSON.stringify({ sourceId: result.token, items, tipCents, customer }),
       });
       const data = await res.json();
       setBusy(false);
       if (!res.ok) { setErr(data.error || "Payment failed"); return; }
-      await recordOrder(true, data.paymentId, data.amount);
-      toast(`Paid $${total} — order in. Ready in ~8 min.`);
+      toast(data.warn || `Paid $${total} — order in. Ready in ~8 min.`);
       checkout(); // clears cart
       onClose();
     } catch {
@@ -188,7 +186,7 @@ export default function Checkout() {
                   <div className="honest" style={{ marginTop: 16 }}>
                     Card checkout switches on soon. For now this is a <b>pre-order</b> — we&apos;ll have it ready and you pay at the truck.
                   </div>
-                  <button className="handle" onClick={async () => { await recordOrder(false); toast(`${items.length} drinks pre-ordered — ready in ~8 min`); checkout(); onClose(); }}>
+                  <button className="handle" onClick={async () => { await enableAlerts(); await recordPreOrder(); toast(`${items.length} drinks pre-ordered — ready in ~8 min`); checkout(); onClose(); }}>
                     <span>Send pre-order</span>
                   </button>
                 </>

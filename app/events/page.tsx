@@ -33,15 +33,28 @@ function RsvpRow({ ev }: { ev: EventRow }) {
   const [going, setGoing] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  // Hydrate from the DB so a refresh/return reflects the real RSVP (no phantom re-taps).
+  useEffect(() => {
+    if (!supabase || !user) return;
+    supabase.from("rsvps").select("status").eq("event_id", ev.id).eq("user_id", user.id).eq("status", "going").maybeSingle()
+      .then(({ data }) => { if (data) setGoing(true); });
+  }, [ev.id, user]);
+
   const onClick = async () => {
-    if (going) { setGoing(false); return; } // local toggle off (no destructive delete)
-    setGoing(true);
-    toast("You're in — we'll remind you");
-    if (supabase && !busy) {
-      setBusy(true);
-      await supabase.from("rsvps").insert({ event_id: ev.id, user_id: user?.id ?? null, contact_email: user?.email ?? null, status: "going" });
-      setBusy(false);
+    if (busy) return;
+    if (!supabase || !user) { toast("Sign in to RSVP"); return; }
+    const next = !going;
+    setGoing(next);
+    setBusy(true);
+    if (next) {
+      toast("You're in — we'll remind you");
+      const { error } = await supabase.from("rsvps").insert({ event_id: ev.id, user_id: user.id, contact_email: user.email ?? null, status: "going" });
+      if (error?.code === "23505") await supabase.from("rsvps").update({ status: "going" }).eq("event_id", ev.id).eq("user_id", user.id); // re-RSVP after cancel
+    } else {
+      await supabase.from("rsvps").update({ status: "cancelled" }).eq("event_id", ev.id).eq("user_id", user.id);
+      toast("RSVP removed");
     }
+    setBusy(false);
   };
 
   return (
