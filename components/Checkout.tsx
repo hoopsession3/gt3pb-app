@@ -78,8 +78,8 @@ export default function Checkout() {
   // Pre-orders (pay at the truck) are recorded client-side as UNPAID. Paid card orders
   // are recorded server-side in /api/checkout — `paid` is not client-writable (RLS).
   const recordPreOrder = async () => {
-    if (!supabase) return;
-    await supabase.from("orders").insert({
+    if (!supabase) return { error: { message: "We're offline right now — try again in a moment." } };
+    return supabase.from("orders").insert({
       items, total_cents: totalCents, paid: false, payment_id: null, customer, user_id: user?.id ?? null, status: "new",
     });
   };
@@ -115,7 +115,7 @@ export default function Checkout() {
   useEffect(() => {
     if (!open || !squareClientReady) return;
     const iv = setInterval(() => {
-      if (document.querySelector("#sq-card iframe")) { setReady(true); clearInterval(iv); }
+      if (cardRef.current && document.querySelector("#sq-card iframe")) { setReady(true); clearInterval(iv); }
     }, 250);
     return () => clearInterval(iv);
   }, [open]);
@@ -223,7 +223,15 @@ export default function Checkout() {
                   <div className="honest" style={{ marginTop: 16 }}>
                     Card checkout switches on soon. For now this is a <b>pre-order</b> — we&apos;ll have it ready and you pay at the truck.
                   </div>
-                  <button className="handle" onClick={async () => { if (!customer) { toast("Add a name for pickup", "error"); return; } await enableAlerts(); await recordPreOrder(); toast(`${items.length} drinks pre-ordered — ready in ~8 min`); checkout(); onClose(); }} disabled={!customer}>
+                  <button className="handle" onClick={async () => {
+                    if (!customer) { toast("Add a name for pickup", "error"); return; }
+                    if (items.length === 0) return;
+                    await enableAlerts();
+                    const { error } = await recordPreOrder();
+                    if (error) { toast("That didn't go through — give it another tap", "error"); return; }
+                    toast(`${items.length} drink${items.length === 1 ? "" : "s"} pre-ordered — ready in ~8 min`);
+                    checkout(); onClose();
+                  }} disabled={!customer || items.length === 0}>
                     <span>Send pre-order</span>
                   </button>
                 </>

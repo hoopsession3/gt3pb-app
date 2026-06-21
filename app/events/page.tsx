@@ -51,13 +51,17 @@ function RsvpRow({ ev }: { ev: EventRow }) {
     setGoing(next); // optimistic
     setBusy(true);
     if (next) {
-      let { error } = await supabase.from("rsvps").insert({ event_id: ev.id, user_id: user.id, contact_email: user.email ?? null, status: "going" });
-      if (error?.code === "23505") ({ error } = await supabase.from("rsvps").update({ status: "going" }).eq("event_id", ev.id).eq("user_id", user.id)); // re-RSVP after cancel
-      if (error) { setGoing(false); toast("Couldn't RSVP — try again", "error"); setBusy(false); return; }
+      const { error } = await supabase.from("rsvps").insert({ event_id: ev.id, user_id: user.id, contact_email: user.email ?? null, status: "going" });
+      let ok = !error;
+      if (error?.code === "23505") { // a cancelled row already exists — flip it back to going
+        const r = await supabase.from("rsvps").update({ status: "going" }).eq("event_id", ev.id).eq("user_id", user.id).select("user_id");
+        ok = !r.error && !!r.data?.length; // 0 rows back = the write didn't land; don't claim success
+      }
+      if (!ok) { setGoing(false); toast("Couldn't RSVP — try again", "error"); setBusy(false); return; }
       toast("You're in — we'll remind you");
     } else {
-      const { error } = await supabase.from("rsvps").update({ status: "cancelled" }).eq("event_id", ev.id).eq("user_id", user.id);
-      if (error) { setGoing(true); toast("Couldn't update — try again", "error"); setBusy(false); return; }
+      const { data, error } = await supabase.from("rsvps").update({ status: "cancelled" }).eq("event_id", ev.id).eq("user_id", user.id).select("user_id");
+      if (error || !data?.length) { setGoing(true); toast("Couldn't update — try again", "error"); setBusy(false); return; }
       toast("RSVP removed");
     }
     setBusy(false);

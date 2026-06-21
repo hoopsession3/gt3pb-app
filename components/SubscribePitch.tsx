@@ -25,9 +25,11 @@ export default function SubscribePitch() {
   const join = async () => {
     const em = (user?.email || email).trim();
     if (!em || !/.+@.+\..+/.test(em)) { toast("Add your email so we can reach you", "error"); return; }
+    if (!supabase) { toast("We're offline right now — try again in a moment", "error"); return; }
     setBusy(true);
-    if (supabase) await supabase.from("subscription_interest").insert({ user_id: user?.id ?? null, email: em, pack_size: pack });
+    const { error } = await supabase.from("subscription_interest").insert({ user_id: user?.id ?? null, email: em, pack_size: pack });
     setBusy(false);
+    if (error) { toast("That didn't save — give it another tap", "error"); return; }
     setDone(true);
     toast("You're on the list — we'll let you know");
   };
@@ -61,7 +63,7 @@ export default function SubscribePitch() {
       ) : !open ? (
         <>
           <button type="button" className="subpitch-cta" onClick={() => setOpen(true)}>Notify me when it opens</button>
-          <div className="subpitch-fine">No charge — just a heads-up when subscriptions launch.</div>
+          <div className="subpitch-fine">We&apos;ll send word the day it opens.</div>
         </>
       ) : (
         <>

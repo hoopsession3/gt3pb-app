@@ -17,7 +17,7 @@ export async function POST(req: Request) {
   if (!["pause", "resume", "cancel"].includes(action)) return NextResponse.json({ error: "Unknown action" }, { status: 400 });
 
   const { data: sub } = await supabaseAdmin
-    .from("subscriptions").select("square_subscription_id").eq("user_id", user.id).in("status", ["active", "paused", "pending"]).maybeSingle();
+    .from("subscriptions").select("square_subscription_id").eq("user_id", user.id).in("status", ["active", "paused", "pending", "past_due"]).maybeSingle();
   if (!sub?.square_subscription_id) return NextResponse.json({ error: "No active subscription." }, { status: 404 });
   const id = sub.square_subscription_id;
 
@@ -30,11 +30,14 @@ export async function POST(req: Request) {
     const data = await res.json();
     if (!res.ok) return NextResponse.json({ error: data?.errors?.[0]?.detail || "Action failed" }, { status: 400 });
 
-    // Optimistic; webhook delivers the authoritative state (e.g. cancel-at-period-end).
+    // Optimistic; webhook delivers the authoritative state. Square cancels at
+    // period-end and still returns status ACTIVE, so for cancel we honor the
+    // member's intent directly rather than trusting the synchronous status.
     const optimistic = action === "cancel" ? "canceled" : action === "pause" ? "paused" : "active";
     const next = mapSubStatus(data?.subscription?.status);
+    const written = action === "cancel" ? "canceled" : next === "pending" ? optimistic : next;
     await supabaseAdmin.from("subscriptions")
-      .update({ status: next === "pending" ? optimistic : next, updated_at: new Date().toISOString() })
+      .update({ status: written, updated_at: new Date().toISOString() })
       .eq("square_subscription_id", id);
     return NextResponse.json({ ok: true });
   } catch {

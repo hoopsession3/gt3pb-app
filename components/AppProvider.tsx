@@ -1,7 +1,7 @@
 "use client";
 
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
-import type { DrinkId } from "@/lib/menu";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { DRINKS, type DrinkId } from "@/lib/menu";
 
 type ToastVariant = "success" | "error" | "info";
 
@@ -30,7 +30,12 @@ interface AppCtx {
   closeCheckout: () => void;
   // one-tap reorder: replace the cart with a past order and open checkout
   reorder: (items: DrinkId[]) => void;
+  // authoritative price (cents) for a drink — Square Catalog if configured, else catalog fallback
+  priceCents: (id: DrinkId) => number;
 }
+
+// Catalog fallback price (cents) parsed from the bundled menu — used until /api/menu loads.
+const fallbackCents = (id: DrinkId) => Math.round(parseFloat(DRINKS[id].px.replace("$", "")) * 100);
 
 const Ctx = createContext<AppCtx | null>(null);
 
@@ -53,6 +58,17 @@ export default function AppProvider({ children }: { children: React.ReactNode })
     if (tRef.current) clearTimeout(tRef.current);
     tRef.current = setTimeout(() => setToastShown(false), variant === "error" ? 4200 : 3000);
   }, []);
+
+  // One source of truth for prices: Square Catalog via /api/menu (falls back to the
+  // bundled catalog per-drink until it loads / when Square isn't configured). Shared so
+  // the cart bar, the menu, and checkout can never show three different totals.
+  const [prices, setPrices] = useState<Record<string, number>>({});
+  useEffect(() => {
+    let on = true;
+    fetch("/api/menu").then((r) => (r.ok ? r.json() : null)).then((d) => { if (on && d) setPrices(d); }).catch(() => {});
+    return () => { on = false; };
+  }, []);
+  const priceCents = useCallback((id: DrinkId) => prices[id] ?? fallbackCents(id), [prices]);
 
   const [cart, setCart] = useState<Record<string, number>>({});
   const cartCount = Object.values(cart).reduce((s, n) => s + n, 0);
@@ -108,8 +124,8 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   }, [toast]);
 
   const value = useMemo<AppCtx>(
-    () => ({ toast, toastMsg, toastShown, toastVariant, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, reorder }),
-    [toast, toastMsg, toastShown, toastVariant, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, reorder]
+    () => ({ toast, toastMsg, toastShown, toastVariant, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, reorder, priceCents }),
+    [toast, toastMsg, toastShown, toastVariant, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, reorder, priceCents]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

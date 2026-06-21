@@ -192,7 +192,7 @@ function MpireReal() {
       <div className="domain">
         <Image src="/gt3pb-domain.png" alt="GT3PB.COM" width={170} height={24} style={{ height: 24, width: "auto", opacity: 0.8 }} priority />
       </div>
-      <div className="tag-soft">Pure Signal, No Noise.</div>
+      <div className="tag-soft">Yours, kept the way you like it.</div>
     </section>
   );
 }
@@ -255,7 +255,7 @@ function MpireDemo() {
       <div className="domain">
         <Image src="/gt3pb-domain.png" alt="GT3PB.COM" width={170} height={24} style={{ height: 24, width: "auto", opacity: 0.8 }} priority />
       </div>
-      <div className="tag-soft">Pure Signal, No Noise.</div>
+      <div className="tag-soft">Yours, kept the way you like it.</div>
     </section>
   );
 }

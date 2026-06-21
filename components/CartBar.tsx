@@ -1,17 +1,14 @@
 "use client";
 
 import { useApp } from "./AppProvider";
-import { DRINKS, type DrinkId } from "@/lib/menu";
+import { type DrinkId } from "@/lib/menu";
 
 // Persistent cart/checkout bar — always visible (above the nav) whenever the order
 // has something in it, on every screen. Hidden when empty or when checkout is open.
 export default function CartBar() {
-  const { cart, cartCount, openCheckout, coOpen } = useApp();
+  const { cart, cartCount, openCheckout, coOpen, priceCents } = useApp();
   if (cartCount === 0 || coOpen) return null;
-  const cents = Object.entries(cart).reduce(
-    (s, [id, q]) => s + Math.round(parseFloat(DRINKS[id as DrinkId].px.replace("$", "")) * 100) * q,
-    0
-  );
+  const cents = Object.entries(cart).reduce((s, [id, q]) => s + priceCents(id as DrinkId) * q, 0);
   return (
     <button
       className="cartbar"

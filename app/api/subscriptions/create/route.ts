@@ -22,6 +22,16 @@ export async function POST(req: Request) {
   const planId = planForPack(pack);
   if (!["6", "12", "18"].includes(pack) || !planId) return NextResponse.json({ error: "Choose a pack size (6, 12, or 18)." }, { status: 400 });
 
+  // Self-heal: clear the caller's own stale 'pending' rows that never reached Square
+  // (a prior attempt that died before vaulting the card). Only rows older than 10 min
+  // and with no Square id, so a genuinely concurrent in-flight attempt still trips the
+  // double-subscribe guard below. Without this, one dead attempt locks the member out
+  // of subscribing forever (the partial unique index keeps rejecting them).
+  await supabaseAdmin
+    .from("subscriptions").delete()
+    .eq("user_id", user.id).eq("status", "pending").is("square_subscription_id", null)
+    .lt("created_at", new Date(Date.now() - 10 * 60 * 1000).toISOString());
+
   // Atomic double-subscribe guard: claim a 'pending' row BEFORE calling Square. The
   // partial unique index subscriptions_one_active(user_id) rejects a concurrent or
   // existing active/paused/pending/past_due subscription, so only one request ever

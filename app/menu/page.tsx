@@ -44,9 +44,9 @@ export default function MenuScreen() {
       </div>
 
       <p className="mast-stmt">
-        Cold-extracted coffee, whole-food hydration, and slow-simmered fuel&nbsp;— prepared to order.
+        We draw the coffee cold, press the hydration from whole fruit, and simmer the broth slow, then make every cup the moment you order it.
       </p>
-      <div className="mast-order">Order here — ready when you reach the truck.</div>
+      <div className="mast-order">Order here, and it&apos;ll be waiting when you reach the window.</div>
 
       <div className="menu-chips" role="tablist" aria-label="Menu categories">
         {MENU.map((cat) => (
@@ -92,7 +92,7 @@ export default function MenuScreen() {
         </div>
       ))}
 
-      <div className="menu-integrity">No plastic contact · No powders · No artificial anything</div>
+      <div className="menu-integrity">Everything real, poured into glass, made the moment you order</div>
       <div className="menu-mto">Made to order</div>
 
       {/* Empty-state hint only; once items are added the floating CartBar takes over. */}

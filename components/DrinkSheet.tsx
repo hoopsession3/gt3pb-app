@@ -87,7 +87,7 @@ export default function DrinkSheet() {
               <button className="order-bar" onClick={() => { if (!on) toast("Added — keep building your order"); bump(openId); closeDrink(); }}>
                 {on ? "Remove from order" : "Add to order"}
               </button>
-              <div className="sheet-signoff">Made to order. The standard you can taste.</div>
+              <div className="sheet-signoff">Made the moment you order, and you&apos;ll taste it.</div>
             </>
           )}
         </div>

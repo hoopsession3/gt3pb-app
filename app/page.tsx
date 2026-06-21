@@ -156,36 +156,36 @@ function Arrival() {
         <AccountPill />
       </div>
 
-      <p className="arr-stmt">Cold-extracted coffee, whole-food hydration, and slow-simmered fuel&nbsp;— prepared to order.</p>
-      <div className="arr-principles">Cold-extracted · No plastic contact · Whole-food inputs · Made to order</div>
+      <p className="arr-stmt">We draw the coffee cold, press the hydration from whole fruit, and simmer the broth slow, then make every cup the moment you order it.</p>
+      <div className="arr-principles">Drawn cold, made to order, poured into glass</div>
 
       <div className="arr-cta">
         <button className="arr-order" onClick={() => router.push("/menu")}>Start your order</button>
-        <div className="arr-order-sub">Pick your drinks — ready when you reach the truck.</div>
+        <div className="arr-order-sub">Choose what you&apos;d like and we&apos;ll have it waiting at the window.</div>
       </div>
 
       <div className="dchapter"><span className="dchn">The Craft</span><span className="dchw">how it&apos;s made</span></div>
       <div className="dchrule" />
-      <div className="craft-row"><span className="craft-no">01</span><div className="craft-x"><b>Cold extraction</b><p>Never heat — slow, in small batches, out of respect for the bean.</p></div></div>
-      <div className="craft-row"><span className="craft-no">02</span><div className="craft-x"><b>Whole-food inputs</b><p>Whole coconuts and slow-simmered broth. Nothing from a powder.</p></div></div>
-      <div className="craft-row"><span className="craft-no">03</span><div className="craft-x"><b>Made to order</b><p>Built when you arrive — no plastic contact, no shortcuts.</p></div></div>
+      <div className="craft-row"><span className="craft-no">01</span><div className="craft-x"><b>Cold extraction</b><p>We draw it cold over hours, in small batches, which gives a rounder, gentler cup than heat ever could.</p></div></div>
+      <div className="craft-row"><span className="craft-no">02</span><div className="craft-x"><b>Whole-food inputs</b><p>It all starts as real food: coconuts we press by hand and bones we simmer for hours, so what you taste is the ingredient itself.</p></div></div>
+      <div className="craft-row"><span className="craft-no">03</span><div className="craft-x"><b>Made to order</b><p>We make your cup when you reach the window and pour it straight into glass, about as fresh as a thing can get.</p></div></div>
 
       <div className="dchapter"><span className="dchn">What We Make</span><span className="dchw">three acts</span></div>
       <div className="dchrule" />
-      <div className="pillar"><span className="pdot" style={{ background: "#B8902F" }} /><div className="px"><b>Activation</b><p>Cold-extracted coffee — before the work.</p></div></div>
-      <div className="pillar"><span className="pdot" style={{ background: "#3f7d6e" }} /><div className="px"><b>Hydration</b><p>Whole-coconut, no concentrate — during.</p></div></div>
-      <div className="pillar"><span className="pdot" style={{ background: "#B82420" }} /><div className="px"><b>Fuel</b><p>Slow-simmered bone broth — after.</p></div></div>
+      <div className="pillar"><span className="pdot" style={{ background: "#B8902F" }} /><div className="px"><b>Activation</b><p>Cold-extracted coffee to start the day clear.</p></div></div>
+      <div className="pillar"><span className="pdot" style={{ background: "#3f7d6e" }} /><div className="px"><b>Hydration</b><p>Whole-coconut water to carry you through it.</p></div></div>
+      <div className="pillar"><span className="pdot" style={{ background: "#B82420" }} /><div className="px"><b>Fuel</b><p>Slow-simmered broth to rebuild after.</p></div></div>
 
       <SubscribePitch />
 
       <div className="arr-join">
         <div className="hero-eye">Membership</div>
-        <b>Members get their day dialed.</b>
-        <span>Points, member pours, and limited reserves — the 3MPIRE.</span>
+        <b>A little more, for the regulars.</b>
+        <span>You&apos;ll earn toward free pours, taste the reserves before anyone else, and settle into the 3MPIRE.</span>
         <button className="btn2" style={{ marginTop: 14 }} onClick={() => router.push("/3mpire")}>Become a member</button>
       </div>
 
-      <div className="signoff">Pure Signal. No Noise.</div>
+      <div className="signoff">Made well, and worth the stop.</div>
     </section>
   );
 }

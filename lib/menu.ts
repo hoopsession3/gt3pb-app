@@ -22,7 +22,7 @@ export const DRINKS: Record<DrinkId, DrinkDetail> = {
   rise: {
     n: "RISE", px: "$7", grad: "linear-gradient(140deg,#7a5c3a,#caa46d)", dot: "#C49A5E",
     lines: ["Cold-extracted coffee in mineral water","Finished with Organic Coconut Water"],
-    why: "A clean, even start from whole-food inputs.",
+    why: "A clean, even lift to start the morning.",
     tag: "Start here",
     has: ["Single-origin cold extraction", "Mineral water base", "Organic coconut water"],
     no: ["Sugar", "Dairy", "Syrups", "Preservatives"],
@@ -31,7 +31,7 @@ export const DRINKS: Record<DrinkId, DrinkDetail> = {
   flow: {
     n: "FLOW", px: "$7", grad: "linear-gradient(140deg,#3a2418,#6b4429)", dot: "#6B4429",
     lines: ["Cold-extracted coffee in mineral water","Infused with Organic Cacao Nibs"],
-    why: "Cacao for a longer, steadier focus.",
+    why: "Cacao to keep the focus going a little longer.",
     has: ["Single-origin cold extraction", "Mineral water base", "Organic cacao nibs"],
     no: ["Sugar", "Dairy", "Syrups", "Preservatives"],
     when: "BEFORE", whenT: "Before deep, heads-down work.",
@@ -39,7 +39,7 @@ export const DRINKS: Record<DrinkId, DrinkDetail> = {
   dusk: {
     n: "DUSK", px: "$7", grad: "linear-gradient(140deg,#5a3826,#9c6b3f)", dot: "#9C6B3F",
     lines: ["Cold-extracted coffee in mineral water","Ceylon Cinnamon · Green Cardamom"],
-    why: "Whole spice for the back half of the day.",
+    why: "Warm spice for the slower half of the day.",
     has: ["Single-origin cold extraction", "Mineral water base", "Ceylon cinnamon", "Green cardamom"],
     no: ["Sugar", "Dairy", "Syrups", "Preservatives"],
     when: "BEFORE", whenT: "Afternoon, when you want less stimulant.",
@@ -47,7 +47,7 @@ export const DRINKS: Record<DrinkId, DrinkDetail> = {
   tide: {
     n: "TIDE", px: "$8", grad: "linear-gradient(140deg,#2f7d74,#79c7bb)", dot: "#2F7D74",
     lines: ["Young Coconut Water", "Blended with Thai Coconut Meat"],
-    why: "Hydration built entirely from whole-food inputs.",
+    why: "Real hydration that goes down easy.",
     has: ["Organic young coconut water", "Organic Thai coconut meat", "Blended to order"],
     no: ["Marine collagen", "Powders", "Added sugar", "Concentrate"],
     when: "DURING", whenT: "During work or training.",
@@ -55,7 +55,7 @@ export const DRINKS: Record<DrinkId, DrinkDetail> = {
   forge: {
     n: "FORGE", px: "$9", grad: "linear-gradient(140deg,#7a2420,#b8423c)", dot: "#B8423C",
     lines: ["Slow-Simmered Beef Bone Broth", "Pasture-Raised"],
-    why: "Rich and mineral-dense for the rebuild.",
+    why: "Deep and rich, full of minerals for the rebuild.",
     has: ["Slow-simmered beef bone broth", "Pasture-raised"],
     no: ["Bouillon", "Additives", "Powders", "Filler"],
     when: "AFTER", whenT: "After training, within the hour.",
@@ -63,7 +63,7 @@ export const DRINKS: Record<DrinkId, DrinkDetail> = {
   hunt: {
     n: "HUNT", px: "$9", grad: "linear-gradient(140deg,#5c3a52,#8a5c7d)", dot: "#8A5C7D",
     lines: ["Slow-Simmered Bison Bone Broth", "Pasture-Raised"],
-    why: "Leaner than beef, higher in iron and zinc.",
+    why: "Leaner than beef, with a little more iron and zinc.",
     has: ["Slow-simmered bison bone broth", "Pasture-raised"],
     no: ["Bouillon", "Additives", "Powders", "Filler"],
     when: "AFTER", whenT: "After training, within the hour.",
@@ -71,7 +71,7 @@ export const DRINKS: Record<DrinkId, DrinkDetail> = {
   wild: {
     n: "WILD", px: "$9", grad: "linear-gradient(140deg,#6b5a2f,#a89150)", dot: "#A89150",
     lines: ["Slow-Simmered Ostrich Bone Broth", "Pasture-Raised"],
-    why: "A rare, lean protein for a lighter rebuild.",
+    why: "A lighter, leaner broth for an easy rebuild.",
     has: ["Slow-simmered ostrich bone broth", "Pasture-raised"],
     no: ["Bouillon", "Additives", "Powders", "Filler"],
     when: "AFTER", whenT: "After a lighter session, or in the evening.",
