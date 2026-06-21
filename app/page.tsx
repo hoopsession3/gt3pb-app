@@ -185,7 +185,7 @@ function Arrival() {
         <button className="btn2" style={{ marginTop: 14 }} onClick={() => router.push("/3mpire")}>Become a member</button>
       </div>
 
-      <div className="signoff">Made well, and worth the stop.</div>
+      <div className="signoff">Pure Signal, No Noise.</div>
     </section>
   );
 }
