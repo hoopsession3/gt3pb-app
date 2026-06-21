@@ -69,18 +69,45 @@ function useRingFill(fill: number) {
 
 function ReferralCard({ code }: { code: string }) {
   const { toast } = useApp();
+  const { user } = useAuth();
   const [copyLbl, setCopyLbl] = useState("Copy");
+  const [stats, setStats] = useState<{ n: number; earned: number } | null>(null);
+
+  // Real earned-credit stats from the referral ledger (referrer = me).
+  useEffect(() => {
+    if (!supabase || !user) return;
+    supabase.from("referral_events").select("referrer_credit_cents").eq("referrer", user.id)
+      .then(({ data }) => {
+        if (data) setStats({ n: data.length, earned: data.reduce((s, r) => s + (r.referrer_credit_cents ?? 0), 0) });
+      });
+  }, [user]);
+
+  const link = typeof window !== "undefined" ? `${window.location.origin}/?ref=${encodeURIComponent(code)}` : "";
+
+  const share = async () => {
+    const payload = { title: "GT3 Performance Bar", text: `Join me on GT3 — use code ${code} and we both get $5.`, url: link };
+    try {
+      if (typeof navigator !== "undefined" && navigator.share) { await navigator.share(payload); return; }
+    } catch { return; } // user dismissed the share sheet
+    try { await navigator.clipboard.writeText(link); toast("Invite link copied"); } catch { toast(link); }
+  };
   const copyCode = async () => {
     try { await navigator.clipboard.writeText(code); } catch { /* clipboard may be blocked */ }
     setCopyLbl("Copied!");
     setTimeout(() => setCopyLbl("Copy"), 1400);
     toast("Referral code copied");
   };
+
   return (
     <div className="referral">
       <div className="eyb">Grow The 3MPIRE</div>
-      <h3>Give a cuppa, get a cuppa.</h3>
+      <h3>Give $5, get $5.</h3>
+      <p className="ref-sub">When a friend joins with your code and makes their first order, you each get $5 credit.</p>
       <div className="code"><b>{code}</b><span className="cp" aria-label={`Copy referral code ${code}`} {...clickable(copyCode)}>{copyLbl}</span></div>
+      <button type="button" className="ref-share" onClick={share}>Share invite</button>
+      {stats && stats.n > 0 && (
+        <div className="ref-stat">{stats.n} {stats.n === 1 ? "friend" : "friends"} joined · ${(stats.earned / 100).toFixed(0)} earned</div>
+      )}
     </div>
   );
 }

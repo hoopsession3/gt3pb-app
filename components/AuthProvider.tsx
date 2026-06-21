@@ -13,6 +13,7 @@ export interface Profile {
   credit_cents: number;
   founding_member: boolean;
   is_admin: boolean;
+  referred_by: string | null;
 }
 
 interface AuthCtx {
@@ -44,9 +45,29 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
   const loadProfile = useCallback(async (uid: string) => {
     if (!supabase) return;
-    const { data, error } = await supabase.from("profiles").select("*").eq("id", uid).maybeSingle();
+    let { data, error } = await supabase.from("profiles").select("*").eq("id", uid).maybeSingle();
+    // First load with no referrer yet + a stored ?ref= code → attach it (write-once, server-validated).
+    if (!error && data && !(data as Profile).referred_by && typeof window !== "undefined") {
+      const code = localStorage.getItem("gt3_ref");
+      if (code) {
+        await supabase.rpc("attach_referral", { code });
+        localStorage.removeItem("gt3_ref");
+        const r2 = await supabase.from("profiles").select("*").eq("id", uid).maybeSingle();
+        if (!r2.error && r2.data) data = r2.data;
+      }
+    }
     // error (e.g. SQL migration not run yet) → leave profile null; UI falls back to defaults.
     setProfile(error ? null : (data as Profile | null));
+  }, []);
+
+  // Capture a referral code from the invite link (/?ref=CODE) before sign-in so it
+  // survives the auth round-trip; loadProfile attaches it on first profile load.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const r = new URLSearchParams(window.location.search).get("ref");
+      if (r && r.trim()) localStorage.setItem("gt3_ref", r.trim());
+    } catch { /* storage may be blocked */ }
   }, []);
 
   useEffect(() => {
