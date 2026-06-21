@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
-import { SQUARE_BASE, squareHeaders, SQUARE_PLAN_VARIATION_ID, subsConfigured, mapSubStatus } from "@/lib/squareServer";
+import { SQUARE_BASE, squareHeaders, planForPack, subsConfigured, mapSubStatus } from "@/lib/squareServer";
 
 // Create a recurring subscription: ensure a Square Customer, vault the card, then
 // CreateSubscription against the owner's plan variation. Square owns billing; we keep
@@ -15,16 +15,19 @@ export async function POST(req: Request) {
   const user = await userFromRequest(req);
   if (!user) return NextResponse.json({ error: "Sign in to subscribe." }, { status: 401 });
 
-  let body: { sourceId?: string };
+  let body: { sourceId?: string; pack?: string };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
   if (!body.sourceId) return NextResponse.json({ error: "Card required" }, { status: 400 });
+  const pack = String(body.pack || "");
+  const planId = planForPack(pack);
+  if (!["6", "12", "18"].includes(pack) || !planId) return NextResponse.json({ error: "Choose a pack size (6, 12, or 18)." }, { status: 400 });
 
   // Atomic double-subscribe guard: claim a 'pending' row BEFORE calling Square. The
   // partial unique index subscriptions_one_active(user_id) rejects a concurrent or
   // existing active/paused/pending/past_due subscription, so only one request ever
   // reaches Square — no duplicate billable subscriptions.
   const { data: pending, error: claimErr } = await supabaseAdmin
-    .from("subscriptions").insert({ user_id: user.id, plan: "rise_flow", status: "pending" }).select("id").single();
+    .from("subscriptions").insert({ user_id: user.id, plan: `coffee_${pack}`, status: "pending" }).select("id").single();
   if (claimErr || !pending) {
     return NextResponse.json({ error: "You already have a subscription." }, { status: 409 });
   }
@@ -60,7 +63,7 @@ export async function POST(req: Request) {
     // 3) create the subscription
     const subRes = await fetch(`${SQUARE_BASE}/v2/subscriptions`, {
       method: "POST", headers: squareHeaders(token),
-      body: JSON.stringify({ idempotency_key: `sub-${rowId}`, location_id: locationId, plan_variation_id: SQUARE_PLAN_VARIATION_ID, customer_id: customerId, card_id: cardId }),
+      body: JSON.stringify({ idempotency_key: `sub-${rowId}`, location_id: locationId, plan_variation_id: planId, customer_id: customerId, card_id: cardId }),
     });
     const subData = await subRes.json();
     if (!subRes.ok) throw new Error(subData?.errors?.[0]?.detail || "Subscription couldn't start");

@@ -11,9 +11,18 @@ export const squareWebSdkUrl =
     ? "https://web.squarecdn.com/v1/square.js"
     : "https://sandbox.web.squarecdn.com/v1/square.js";
 
-// Subscriptions: the owner flips NEXT_PUBLIC_SUBSCRIPTIONS_ON=1 once the Square
-// plan + webhook are configured. Labels are display-only (real price/cadence live
-// in the Square plan variation).
+// Subscriptions: a coffee pack (6 / 12 / 18) on a cadence. The owner flips
+// NEXT_PUBLIC_SUBSCRIPTIONS_ON=1 once the Square plans + webhook are configured.
+// Real price/cadence live in the Square plan variations; labels here are display-only.
 export const SUBSCRIPTIONS_ON = process.env.NEXT_PUBLIC_SUBSCRIPTIONS_ON === "1";
-export const SUB_NAME = process.env.NEXT_PUBLIC_SUB_NAME || "RISE + FLOW";
-export const SUB_PRICE_LABEL = process.env.NEXT_PUBLIC_SUB_PRICE_LABEL || "$48 · every 2 weeks";
+export const SUB_NAME = process.env.NEXT_PUBLIC_SUB_NAME || "Coffee, on repeat";
+export const SUB_CADENCE = process.env.NEXT_PUBLIC_SUB_CADENCE || "every 2 weeks";
+
+// Three pack tiers. Prices are display labels (owner overrides via env); the
+// actual charge + cadence come from each pack's Square plan variation.
+export type SubPack = { size: number; key: "6" | "12" | "18"; price: string; each: string };
+export const SUB_PACKS: SubPack[] = [
+  { size: 6, key: "6", price: process.env.NEXT_PUBLIC_SUB_PRICE_6 || "$36", each: "$6.00 / cup" },
+  { size: 12, key: "12", price: process.env.NEXT_PUBLIC_SUB_PRICE_12 || "$66", each: "$5.50 / cup" },
+  { size: 18, key: "18", price: process.env.NEXT_PUBLIC_SUB_PRICE_18 || "$90", each: "$5.00 / cup" },
+];

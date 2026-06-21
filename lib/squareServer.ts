@@ -14,14 +14,22 @@ export function squareHeaders(token: string) {
   };
 }
 
-// Square Subscription Plan Variation that defines cadence + price. The owner
-// creates the plan in Square (e.g. "RISE + FLOW — every 2 weeks") and sets this.
-export const SQUARE_PLAN_VARIATION_ID = process.env.SQUARE_SUBSCRIPTION_PLAN_VARIATION_ID || "";
+// One Square Subscription Plan Variation per coffee pack (6 / 12 / 18). The owner
+// creates three plan variations in Square (each with its cadence + price) and sets these.
+export const SQUARE_PLAN_BY_PACK: Record<string, string> = {
+  "6": process.env.SQUARE_SUB_PLAN_6 || "",
+  "12": process.env.SQUARE_SUB_PLAN_12 || "",
+  "18": process.env.SQUARE_SUB_PLAN_18 || "",
+};
+export function planForPack(pack: string): string {
+  return SQUARE_PLAN_BY_PACK[pack] || "";
+}
 export const SQUARE_WEBHOOK_SIGNATURE_KEY = process.env.SQUARE_WEBHOOK_SIGNATURE_KEY || "";
 export const SQUARE_WEBHOOK_URL = process.env.SQUARE_WEBHOOK_URL || "";
 
 export function subsConfigured() {
-  return Boolean(process.env.SQUARE_ACCESS_TOKEN && process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID && SQUARE_PLAN_VARIATION_ID);
+  const anyPlan = SQUARE_PLAN_BY_PACK["6"] || SQUARE_PLAN_BY_PACK["12"] || SQUARE_PLAN_BY_PACK["18"];
+  return Boolean(process.env.SQUARE_ACCESS_TOKEN && process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID && anyPlan);
 }
 
 // Map Square subscription status -> our mirror enum.

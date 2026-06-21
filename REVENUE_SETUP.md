@@ -27,10 +27,13 @@ Ownership (no redundancy): **Square** = all money, cards, and recurring billing.
 
 ## 3. Subscriptions — needs Square setup (recurring billing)
 
-### a) Create the plan in Square (you do this in the Square Dashboard)
-1. Square Dashboard → **Subscriptions → Plans → Create plan** (e.g. "RISE + FLOW").
-2. Add a **plan variation** with the cadence + price (e.g. **$48 every 2 weeks**).
-3. Copy the **plan variation ID** (starts with a long ID).
+Members subscribe to a **coffee pack — 6, 12, or 18 cups — on a cadence.** That's three plan variations.
+
+### a) Create the plans in Square (you do this in the Square Dashboard)
+1. Square Dashboard → **Subscriptions → Plans → Create plan** (e.g. "Coffee Subscription").
+2. Add **three plan variations**, one per pack — each with the cadence + price, e.g.
+   **6 cups · $36 / 2 weeks**, **12 cups · $66 / 2 weeks**, **18 cups · $90 / 2 weeks**.
+3. Copy each **plan variation ID** (you'll paste all three below).
 
 ### b) Create the webhook (Square Dashboard → Developer → Webhooks)
 1. Add an endpoint: `https://YOUR-DOMAIN/api/square/webhook`
@@ -42,12 +45,15 @@ Ownership (no redundancy): **Square** = all money, cards, and recurring billing.
 | Variable | Value | Notes |
 |---|---|---|
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API → `service_role` secret | **Server-only. Never prefix with NEXT_PUBLIC.** Also required for **card checkout** — paid orders are recorded server-side so `paid` can't be forged. |
-| `SQUARE_SUBSCRIPTION_PLAN_VARIATION_ID` | the variation ID from step (a) | |
+| `SQUARE_SUB_PLAN_6` | the **6-cup** plan variation ID from step (a) | |
+| `SQUARE_SUB_PLAN_12` | the **12-cup** plan variation ID | |
+| `SQUARE_SUB_PLAN_18` | the **18-cup** plan variation ID | |
 | `SQUARE_WEBHOOK_SIGNATURE_KEY` | the key from step (b) | |
 | `SQUARE_WEBHOOK_URL` | `https://YOUR-DOMAIN/api/square/webhook` | must exactly match the endpoint |
 | `NEXT_PUBLIC_SUBSCRIPTIONS_ON` | `1` | flips the member Subscribe button on |
-| `NEXT_PUBLIC_SUB_NAME` | e.g. `RISE + FLOW` | display only (optional) |
-| `NEXT_PUBLIC_SUB_PRICE_LABEL` | e.g. `$48 · every 2 weeks` | display only (optional) |
+| `NEXT_PUBLIC_SUB_NAME` | e.g. `Coffee, on repeat` | display only (optional) |
+| `NEXT_PUBLIC_SUB_CADENCE` | e.g. `every 2 weeks` | display only (optional) |
+| `NEXT_PUBLIC_SUB_PRICE_6` / `_12` / `_18` | e.g. `$36` / `$66` / `$90` | display labels on the pack tiles (optional) |
 
 These are **in addition to** the live payment keys you're already adding:
 `NEXT_PUBLIC_SQUARE_APP_ID`, `NEXT_PUBLIC_SQUARE_LOCATION_ID`,

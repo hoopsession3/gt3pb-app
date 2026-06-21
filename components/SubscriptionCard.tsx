@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
-import { SUBSCRIPTIONS_ON, SUB_NAME, SUB_PRICE_LABEL, SQUARE_APP_ID, SQUARE_LOCATION_ID, squareClientReady, squareWebSdkUrl } from "@/lib/square";
+import { SUBSCRIPTIONS_ON, SUB_NAME, SUB_CADENCE, SUB_PACKS, SQUARE_APP_ID, SQUARE_LOCATION_ID, squareClientReady, squareWebSdkUrl } from "@/lib/square";
 import type { Subscription } from "@/lib/db";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -41,6 +41,7 @@ export default function SubscriptionCard() {
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [pack, setPack] = useState<"6" | "12" | "18">("12");
   const cardRef = useRef<any>(null);
 
   const load = useCallback(async () => {
@@ -90,7 +91,7 @@ export default function SubscriptionCard() {
       const res = await fetch("/api/subscriptions/create", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${await authToken()}` },
-        body: JSON.stringify({ sourceId: result.token }),
+        body: JSON.stringify({ sourceId: result.token, pack }),
       });
       const data = await res.json();
       setBusy(false);
@@ -124,10 +125,12 @@ export default function SubscriptionCard() {
       : sub.status === "paused" ? "Paused"
       : sub.status === "past_due" ? "Payment failed — update your card"
       : "Starting…";
+    const packSize = (sub.plan || "").replace("coffee_", "");
     return (
       <div className="subcard">
         <div className="eyb">Subscription</div>
         <h3>{SUB_NAME}</h3>
+        {/^\d+$/.test(packSize) && <p className="sub-sub">{packSize}-pack · {SUB_CADENCE}</p>}
         <div className={`sub-status ${sub.status}`}><span className="sub-dot" />{label}</div>
         <div className="sub-actions">
           {sub.status === "active" && <button onClick={() => manage("pause")} disabled={busy}>Pause</button>}
@@ -144,25 +147,36 @@ export default function SubscriptionCard() {
       <div className="subcard">
         <div className="eyb">Subscription</div>
         <h3>{SUB_NAME}</h3>
-        <p className="sub-sub">Your staples on a cadence — {SUB_PRICE_LABEL.toLowerCase()}. Opening to members soon.</p>
+        <p className="sub-sub">A 6, 12, or 18-pack of coffee delivered {SUB_CADENCE}. Opening to members soon.</p>
       </div>
     );
   }
 
-  // Subscribe
+  // Subscribe — choose a pack
+  const selected = SUB_PACKS.find((p) => p.key === pack) ?? SUB_PACKS[1];
   return (
     <div className="subcard">
       <div className="eyb">Subscription</div>
       <h3>{SUB_NAME}</h3>
-      <p className="sub-sub">Your staples on a cadence — {SUB_PRICE_LABEL}. Pause or cancel anytime.</p>
+      <p className="sub-sub">Pick a coffee pack, {SUB_CADENCE}. Pause or cancel anytime.</p>
+      <div className="sub-packs">
+        {SUB_PACKS.map((p) => (
+          <button key={p.key} type="button" className={`sub-pack${pack === p.key ? " on" : ""}`} onClick={() => setPack(p.key)} aria-pressed={pack === p.key}>
+            <span className="sub-pack-size">{p.size}</span>
+            <span className="sub-pack-cap">cups</span>
+            <span className="sub-pack-price">{p.price}</span>
+            <span className="sub-pack-each">{p.each}</span>
+          </button>
+        ))}
+      </div>
       {!open ? (
-        <button type="button" className="sub-cta" onClick={() => setOpen(true)}>Subscribe</button>
+        <button type="button" className="sub-cta" onClick={() => setOpen(true)}>Subscribe — {selected.size} cups</button>
       ) : (
         <>
           <div id="sq-sub-card" className="sub-cardfield" />
           {err && <div className="auth-err">{err}</div>}
           <button type="button" className="sub-cta" onClick={start} disabled={!ready || busy}>
-            {busy ? "Starting…" : ready ? `Start — ${SUB_PRICE_LABEL}` : "Loading card…"}
+            {busy ? "Starting…" : ready ? `Start ${selected.size}-pack · ${selected.price}` : "Loading card…"}
           </button>
           <button type="button" className="sub-link" onClick={() => setOpen(false)} disabled={busy}>Not now</button>
         </>
