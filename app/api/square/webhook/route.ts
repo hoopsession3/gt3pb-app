@@ -33,11 +33,16 @@ export async function POST(req: Request) {
     if (type.startsWith("subscription.")) {
       const sub = evt?.data?.object?.subscription;
       if (sub?.id) {
-        ({ error: err } = await supabaseAdmin.from("subscriptions").update({
-          status: mapSubStatus(sub.status),
+        const next = mapSubStatus(sub.status);
+        let q = supabaseAdmin.from("subscriptions").update({
+          status: next,
           current_period_end: sub.charged_through_date || null,
           updated_at: new Date().toISOString(),
-        }).eq("square_subscription_id", sub.id));
+        }).eq("square_subscription_id", sub.id);
+        // A stale 'subscription.updated' must not clear past_due back to active — only a
+        // real invoice.payment_made does. Other transitions (canceled/paused) still apply.
+        if (next === "active") q = q.neq("status", "past_due");
+        ({ error: err } = await q);
       }
     } else if (type === "invoice.payment_made") {
       const subId = evt?.data?.object?.invoice?.subscription_id;

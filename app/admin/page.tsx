@@ -12,6 +12,7 @@ import { haptic, HAPTIC } from "@/lib/haptics";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import { geocode } from "@/lib/geocode";
 import { packListFor } from "@/lib/packlist";
+import { complianceFor } from "@/lib/compliance";
 import type { Stop, LiveStatus, EventRow, EventTask, BookingRequest, Order, Reserve, Subscription } from "@/lib/db";
 
 const STATUSES: BookingRequest["status"][] = ["new", "contacted", "booked", "declined"];
@@ -259,10 +260,14 @@ function EventPrep() {
   const nameOf = (uid: string) => staff.find((s) => s.id === uid)?.display_name ?? "—";
   const generate = async () => {
     if (!ev || !supabase) return;
-    const rows = packListFor(ev).map((p, i) => ({ event_id: ev.id, label: p.label, section: p.section, critical: !!p.critical, kind: "pack", sort: i }));
+    // Pack list (rig/menu) + compliance (state/county) in one go — the whole "what do
+    // we need to bring AND what permits do we need" question, answered from the event.
+    const pack = packListFor(ev).map((p, i) => ({ event_id: ev.id, label: p.label, section: p.section, critical: !!p.critical, kind: "pack", link: null, sort: i }));
+    const comp = complianceFor(ev).map((p, i) => ({ event_id: ev.id, label: p.label, section: p.section, critical: !!p.critical, kind: "task", link: p.link ?? null, sort: 100 + i }));
+    const rows = [...pack, ...comp];
     if (!rows.length) { toast("Set the event's rig + menu first (Back office → Events)", "error"); return; }
     const { error } = await supabase.from("event_tasks").insert(rows);
-    toast(error ? `Error: ${error.message}` : `Pack list generated — ${rows.length} items`);
+    toast(error ? `Error: ${error.message}` : `Generated ${pack.length} pack + ${comp.length} compliance items`);
     if (!error) load();
   };
   const toggle = async (t: EventTask) => {
@@ -325,6 +330,7 @@ function EventPrep() {
           {tasks.filter((t) => (t.section ?? "Task") === sec).map((t) => (
             <div key={t.id} className={`adm-task${t.done ? " done" : ""}${t.critical ? " crit" : ""}`}>
               <label className="adm-task-check"><input type="checkbox" checked={t.done} onChange={() => toggle(t)} /><span>{t.label}</span></label>
+              {t.link && <a className="adm-task-link" href={t.link} target="_blank" rel="noopener noreferrer" aria-label="Open reference / application">↗</a>}
               {isAdmin && (
                 <select className="adm-task-assign" value={t.assignee ?? ""} onChange={(e) => assign(t, e.target.value)} aria-label="Assign">
                   <option value="">—</option>
@@ -791,7 +797,10 @@ function EventHUD() {
       .on("postgres_changes", { event: "*", schema: "public", table: "event_sales" }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "events" }, () => load())
       .subscribe();
-    return () => { supabase?.removeChannel(ch); };
+    // Reconcile every 15s so Square POS walk-ups + the $/hr clock advance even if a
+    // realtime event is missed (matches the KDS's reconcile).
+    const recon = setInterval(load, 15000);
+    return () => { clearInterval(recon); supabase?.removeChannel(ch); };
   }, [load]);
   if (!ev) return null;
   const hrs = stats.firstAt ? Math.max(0.25, (Date.now() - new Date(stats.firstAt).getTime()) / 3600000) : 0;
@@ -866,6 +875,8 @@ function EventsAdmin() {
             <label>Rig<select className="adm-role" defaultValue={e.rig ?? ""} onChange={(ev) => update(e.id, { rig: (ev.target.value || null) as EventRow["rig"] })}>
               <option value="">—</option><option value="cart_only">Cart only</option><option value="trailer_plus_cart">Trailer + cart</option>
             </select></label>
+            <label>State<input type="text" maxLength={20} placeholder="GA" defaultValue={e.state ?? ""} onBlur={(ev) => update(e.id, { state: ev.target.value.trim() || null })} /></label>
+            <label>County<input type="text" maxLength={40} placeholder="Fulton" defaultValue={e.county ?? ""} onBlur={(ev) => update(e.id, { county: ev.target.value.trim() || null })} /></label>
             <label>Att.<input type="number" min={0} defaultValue={e.expected_attendance ?? 0} onBlur={(ev) => update(e.id, { expected_attendance: Math.max(0, parseInt(ev.target.value) || 0) })} /></label>
             <label>Hrs<input type="number" min={0} step={0.5} defaultValue={e.duration_hrs ?? 0} onBlur={(ev) => update(e.id, { duration_hrs: parseFloat(ev.target.value) || 0 })} /></label>
             <label>Staff<input type="number" min={0} defaultValue={e.staff_count ?? 0} onBlur={(ev) => update(e.id, { staff_count: Math.max(0, parseInt(ev.target.value) || 0) })} /></label>

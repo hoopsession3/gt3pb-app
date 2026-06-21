@@ -80,6 +80,8 @@ export interface EventRow {
   duration_hrs?: number | null;
   staff_count?: number | null;
   is_live?: boolean;
+  state?: string | null;
+  county?: string | null;
 }
 
 // Per-event execution checklist (0025) — pack-list items + ad-hoc tasks, role-scoped.
@@ -94,8 +96,11 @@ export interface EventTask {
   done: boolean;
   done_by: string | null;
   done_at: string | null;
+  link: string | null;
   sort: number;
 }
+
+// Event location/jurisdiction lives on EventRow (state/county, 0026) for compliance.
 
 // Limited reserves (0014_reserves.sql). Stock is server-authoritative; members
 // claim via the claim_reserve RPC (atomic, no oversell).
