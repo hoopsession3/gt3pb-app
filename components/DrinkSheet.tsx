@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useApp } from "./AppProvider";
+import { useSheetDrag } from "@/lib/useSheetDrag";
 import { DRINKS } from "@/lib/menu";
 
 const PILLAR: Record<"BEFORE" | "DURING" | "AFTER", string> = {
@@ -14,7 +15,7 @@ export default function DrinkSheet() {
   const { openId, closeDrink, isInCart, bump } = useApp();
   const d = openId ? DRINKS[openId] : null;
   const on = openId ? isInCart(openId) : false;
-  const sheetRef = useRef<HTMLDivElement>(null);
+  const { sheetRef, handlers } = useSheetDrag(closeDrink);
   const restoreRef = useRef<HTMLElement | null>(null);
 
   // Focus management + Escape-to-close while the dialog is open.
@@ -44,7 +45,7 @@ export default function DrinkSheet() {
         tabIndex={-1}
         ref={sheetRef}
       >
-        <button type="button" className="grab" aria-label="Close" onClick={closeDrink} />
+        <button type="button" className="grab" aria-label="Close" onClick={closeDrink} {...handlers} />
         <div className="sin">
           {d && openId && (
             <>

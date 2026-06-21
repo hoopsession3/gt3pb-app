@@ -7,6 +7,8 @@ import { supabase } from "@/lib/supabase";
 import { subscribePush } from "@/lib/push";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import { SQUARE_APP_ID, SQUARE_LOCATION_ID, squareClientReady, squareWebSdkUrl } from "@/lib/square";
+import { useSheetDrag } from "@/lib/useSheetDrag";
+import Skeleton from "./Skeleton";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 declare global { interface Window { Square?: any } }
@@ -32,6 +34,7 @@ function loadSquare(): Promise<any> {
 
 export default function Checkout() {
   const { cart, inc, dec, toast, checkout, coOpen: open, closeCheckout: onClose } = useApp();
+  const { sheetRef, handlers } = useSheetDrag(onClose);
   const { user, profile } = useAuth();
   const [prices, setPrices] = useState<Record<string, number>>({});
   // Prices for the displayed total (the actual charge is computed server-side).
@@ -147,8 +150,8 @@ export default function Checkout() {
   return (
     <>
       <div className={`scrim${open ? " open" : ""}`} onClick={onClose} aria-hidden="true" />
-      <div className={`sheet paper${open ? " open" : ""}`} role="dialog" aria-modal="true" aria-label="Checkout">
-        <button type="button" className="grab" aria-label="Close" onClick={onClose} />
+      <div ref={sheetRef} className={`sheet paper${open ? " open" : ""}`} role="dialog" aria-modal="true" aria-label="Checkout">
+        <button type="button" className="grab" aria-label="Close" onClick={onClose} {...handlers} />
         <div className="sin">
           {open && (
             <>
@@ -187,14 +190,19 @@ export default function Checkout() {
                       </button>
                     ))}
                   </div>
-                  <div className="co-line co-total"><span>Total</span><span>${total}</span></div>
                   <div className="spec-label" style={{ marginTop: 16 }}>Card</div>
-                  <div id="sq-card" className="sq-card" />
+                  <div className="sq-wrap">
+                    <div id="sq-card" className="sq-card" />
+                    {!ready && <div className="sk sq-sk-bar" />}
+                  </div>
                   {err && <div className="auth-err">{err}</div>}
-                  <button className="handle" onClick={pay} disabled={!ready || busy || items.length === 0 || !customer}>
-                    <span>{busy ? "Charging…" : !customer ? "Add a name above" : ready ? `Pay $${total}` : "Loading card…"}</span>
-                  </button>
-                  <div className="signoff">Secured by Square · skip the line at pickup.</div>
+                  <div className="co-foot">
+                    <div className="co-line co-total"><span>Total</span><span>${total}</span></div>
+                    <button className="handle" onClick={pay} disabled={!ready || busy || items.length === 0 || !customer}>
+                      <span>{busy ? "Charging…" : !customer ? "Add a name above" : ready ? `Pay $${total}` : "Loading card…"}</span>
+                    </button>
+                    <div className="signoff">Secured by Square · skip the line at pickup.</div>
+                  </div>
                 </>
               ) : (
                 <>

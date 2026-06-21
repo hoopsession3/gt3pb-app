@@ -7,6 +7,7 @@ import { useAuth } from "@/components/AuthProvider";
 import AccountPill from "@/components/AccountPill";
 import RouteMap, { type RoutePoint } from "@/components/RouteMap";
 import Skeleton from "@/components/Skeleton";
+import EmptyState from "@/components/EmptyState";
 import { clickable } from "@/lib/a11y";
 import { openDirections } from "@/lib/maps";
 import { supabase } from "@/lib/supabase";
@@ -135,7 +136,7 @@ function TruckLive() {
           </div>
         );
       })}
-      {loaded && stops.length === 0 && <div className="h-sub">No stops scheduled right now — check back soon.</div>}
+      {loaded && stops.length === 0 && <EmptyState title="No stops scheduled" sub="Check back soon — this week's route posts here." />}
 
       {points.length >= 2 && (
         <>

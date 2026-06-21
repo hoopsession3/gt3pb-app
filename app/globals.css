@@ -141,6 +141,10 @@ body{background:#0b0a08;font-family:'Inter',system-ui,sans-serif;color:var(--cre
 .t-order{width:100%;margin-top:18px;border:none;cursor:pointer;font-family:'Inter';font-weight:650;letter-spacing:.3px;font-size:14px;padding:15px;border-radius:13px;background:var(--red);color:#fff}
 .t-order:active{transform:scale(.99)}
 .t-ghost{width:100%;border:1px solid var(--line2);cursor:pointer;font-family:'Inter';font-weight:600;letter-spacing:.3px;font-size:13px;padding:13px;border-radius:12px;background:transparent;color:var(--cream-m)}
+.empty{border:1px dashed var(--line2);border-radius:16px;padding:26px 18px;text-align:center;margin-top:14px}
+.empty-t{font-family:'Fraunces';font-style:italic;font-size:15px;color:var(--cream)}
+.empty-s{font-family:'Inter';font-size:12.5px;color:var(--cream-m);margin-top:6px;line-height:1.5}
+.empty-a{margin-top:12px}
 .stop-caret{flex:0 0 auto;color:var(--cream-m);font-size:20px;line-height:1;transition:transform .18s;margin-left:2px}
 .stop-caret.open{transform:rotate(90deg)}
 /* skeleton-loader primitive (perceived performance) */
@@ -365,6 +369,11 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .co-total{border-bottom:none;margin-top:2px}
 .co-total span{font-weight:700;color:var(--cream)!important}
 .sq-card{background:rgba(0,0,0,.25);border:1px solid var(--line2);border-radius:13px;padding:11px 13px;margin-top:4px;min-height:54px}
+.sq-wrap{position:relative;margin-top:4px}
+.sq-sk-bar{position:absolute;inset:0;border-radius:13px}
+/* sticky pay footer so Total + Pay stay visible while the order scrolls */
+.sheet.paper .co-foot{position:sticky;bottom:0;background:#F4EFE3;padding-top:12px;margin-top:8px}
+.sheet.paper .co-foot::before{content:"";position:absolute;left:0;right:0;top:-20px;height:20px;background:linear-gradient(transparent,#F4EFE3);pointer-events:none}
 
 /* ---- admin / back office ---- */
 .adm-sec{margin-top:8px}
@@ -542,6 +551,10 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .mast-brand .pb{font-family:'Inter';font-weight:600;font-size:8.5px;letter-spacing:3px;text-transform:uppercase;color:#6f6a59;margin-top:5px}
 .mast-stmt{font-family:'Fraunces';font-weight:400;font-size:17px;line-height:1.5;color:#33301f;margin-top:18px;letter-spacing:.1px}
 .mast-order{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:#9A7A2A;margin-top:12px}
+.menu-chips{position:sticky;top:0;z-index:6;display:flex;gap:8px;overflow-x:auto;padding:11px 0;margin-top:16px;background:#F4EFE3;border-bottom:1px solid rgba(34,31,24,.1)}
+.menu-chips::-webkit-scrollbar{display:none}
+.menu-chip{flex:0 0 auto;font-family:'Inter';font-weight:650;font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;color:#9A7A2A;background:transparent;border:1px solid rgba(34,31,24,.18);border-radius:20px;padding:9px 15px;cursor:pointer;white-space:nowrap;transition:.15s}
+.menu-chip.on{background:#221F18;color:#F4EFE3;border-color:#221F18}
 
 .chapter{display:flex;align-items:baseline;justify-content:space-between;margin:34px 0 0}
 .chapter .chn{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:2.6px;text-transform:uppercase;color:#9A7A2A}

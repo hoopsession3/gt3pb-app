@@ -6,6 +6,7 @@ import { useAuth } from "@/components/AuthProvider";
 import AccountPill from "@/components/AccountPill";
 import Reserves from "@/components/Reserves";
 import Skeleton from "@/components/Skeleton";
+import EmptyState from "@/components/EmptyState";
 import { supabase } from "@/lib/supabase";
 import type { EventRow } from "@/lib/db";
 
@@ -103,7 +104,7 @@ function EventsLive() {
       <div className="dchrule" />
       {!loaded && <Skeleton variant="row" count={3} />}
       {events.map((ev) => <RsvpRow key={ev.id} ev={ev} />)}
-      {loaded && events.length === 0 && <div className="h-sub">No events scheduled right now — check back soon.</div>}
+      {loaded && events.length === 0 && <EmptyState title="No events this week" sub="New pours and run-club meetups drop here — check back soon." />}
     </section>
   );
 }

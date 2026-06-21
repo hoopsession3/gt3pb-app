@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import AccountPill from "@/components/AccountPill";
 import { DRINKS, MENU, type DrinkId } from "@/lib/menu";
@@ -14,6 +14,24 @@ export default function MenuScreen() {
     fetch("/api/menu").then((r) => r.json()).then((d) => setPrices(d.prices || {})).catch(() => {});
   }, []);
   const priceLabel = (id: DrinkId) => (prices[id] != null ? `$${(prices[id] / 100).toFixed(0)}` : DRINKS[id].px);
+
+  // Sticky category chips that scroll-spy the menu (jump + highlight current section).
+  const [active, setActive] = useState<string>(MENU[0]?.name ?? "");
+  const catRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  useEffect(() => {
+    const root = document.getElementById("body");
+    const obs = new IntersectionObserver(
+      (entries) => {
+        const vis = entries.filter((e) => e.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        const cat = (vis?.target as HTMLElement | undefined)?.dataset.cat;
+        if (cat) setActive(cat);
+      },
+      { root, rootMargin: "-12% 0px -75% 0px", threshold: [0, 0.5, 1] }
+    );
+    Object.values(catRefs.current).forEach((el) => el && obs.observe(el));
+    return () => obs.disconnect();
+  }, []);
+  const jumpTo = (name: string) => catRefs.current[name]?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   return (
     <section className="screen menu" id="s-menu">
@@ -30,8 +48,14 @@ export default function MenuScreen() {
       </p>
       <div className="mast-order">Order here — ready when you reach the truck.</div>
 
+      <div className="menu-chips" role="tablist" aria-label="Menu categories">
+        {MENU.map((cat) => (
+          <button key={cat.name} type="button" role="tab" aria-selected={active === cat.name} className={`menu-chip${active === cat.name ? " on" : ""}`} onClick={() => jumpTo(cat.name)}>{cat.name}</button>
+        ))}
+      </div>
+
       {MENU.map((cat) => (
-        <div key={cat.name}>
+        <div key={cat.name} ref={(el) => { catRefs.current[cat.name] = el; }} data-cat={cat.name}>
           <div className="chapter">
             <span className="chn">{cat.name}</span>
             <span className="chw">{cat.wn}</span>
