@@ -90,3 +90,18 @@ export interface ReserveClaim {
   order_id: string | null;
   created_at: string;
 }
+
+// Subscriptions mirror (0015). Square is billing truth; this row is a read-only
+// status cache written only by the server/webhook (service role).
+export interface Subscription {
+  id: string;
+  user_id: string;
+  square_subscription_id: string | null;
+  plan: string;
+  cadence: string | null;
+  status: "pending" | "active" | "paused" | "canceled" | "past_due";
+  current_period_end: string | null;
+  square_card_id: string | null;
+  created_at: string;
+  updated_at: string;
+}

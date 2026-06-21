@@ -9,7 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { subscribePush } from "@/lib/push";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import { geocode } from "@/lib/geocode";
-import type { Stop, LiveStatus, EventRow, BookingRequest, Order, Reserve } from "@/lib/db";
+import type { Stop, LiveStatus, EventRow, BookingRequest, Order, Reserve, Subscription } from "@/lib/db";
 
 const STATUSES: BookingRequest["status"][] = ["new", "contacted", "booked", "declined"];
 
@@ -333,6 +333,48 @@ function ReservesAdmin() {
   );
 }
 
+// ───────────────────────── subscribers (read-only mirror) ─────────────────────────
+function Subscribers() {
+  const [subs, setSubs] = useState<Subscription[]>([]);
+  const [names, setNames] = useState<Record<string, string>>({});
+  const load = useCallback(async () => {
+    if (!supabase) return;
+    const { data } = await supabase.from("subscriptions").select("*").order("created_at", { ascending: false });
+    const rows = (data as Subscription[]) ?? [];
+    setSubs(rows);
+    const ids = [...new Set(rows.map((r) => r.user_id))];
+    if (ids.length) {
+      const { data: p } = await supabase.from("profiles").select("id, display_name").in("id", ids);
+      const m: Record<string, string> = {};
+      (p as { id: string; display_name: string | null }[] | null)?.forEach((x) => { m[x.id] = x.display_name ?? "—"; });
+      setNames(m);
+    }
+  }, []);
+  useEffect(() => {
+    load();
+    if (!supabase) return;
+    const ch = supabase.channel("admin-subs").on("postgres_changes", { event: "*", schema: "public", table: "subscriptions" }, () => load()).subscribe();
+    return () => { supabase?.removeChannel(ch); };
+  }, [load]);
+
+  const active = subs.filter((s) => s.status === "active").length;
+  return (
+    <div className="adm-sec">
+      <div className="sec">Subscribers{active > 0 && <span className="adm-pill">{active} active</span>}</div>
+      {subs.map((s) => (
+        <div className="adm-member" key={s.id}>
+          <div className="adm-member-top">
+            <b>{names[s.user_id] ?? "Member"}</b>
+            <span className={`adm-substat ${s.status}`}>{s.status.replace("_", " ")}</span>
+          </div>
+          <div className="meta">{s.plan}{s.current_period_end ? ` · renews ${new Date(s.current_period_end).toLocaleDateString()}` : ""}</div>
+        </div>
+      ))}
+      {subs.length === 0 && <div className="h-sub">No subscribers yet — members subscribe from their 3MPIRE.</div>}
+    </div>
+  );
+}
+
 // ───────────────────────── member management ─────────────────────────
 function MemberRow({ m, onSaved }: { m: Profile; onSaved: () => void }) {
   const { toast } = useApp();
@@ -506,6 +548,7 @@ export default function AdminPage() {
         <>
           <Bookings />
           <ReservesAdmin />
+          <Subscribers />
           <EventsAdmin />
           <Members />
         </>

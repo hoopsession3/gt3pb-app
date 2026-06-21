@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import { useAuth } from "@/components/AuthProvider";
 import SignIn from "@/components/SignIn";
+import SubscriptionCard from "@/components/SubscriptionCard";
 import { supabase } from "@/lib/supabase";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import type { Order } from "@/lib/db";
@@ -153,6 +154,8 @@ function MpireReal() {
         <div className="cell"><div className="cv ok">Day {streak}</div><div className="cl">Streak</div></div>
         <div className="cell"><div className="cv">${credit}</div><div className="cl">Credit</div></div>
       </div>
+
+      <SubscriptionCard />
 
       <OrderHistory />
 
