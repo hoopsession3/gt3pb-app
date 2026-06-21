@@ -23,7 +23,7 @@ export default function BottomNav() {
       {TABS.map((t) => {
         const on = t.href === "/" ? pathname === "/" : pathname.startsWith(t.href);
         return (
-          <Link key={t.key} href={t.href} className={`tab${on ? " on" : ""}`}>
+          <Link key={t.key} href={t.href} className={`tab${on ? " on" : ""}`} aria-current={on ? "page" : undefined}>
             <span className="ti">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                 {t.icon}

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
+import Skeleton from "./Skeleton";
 import type { Reserve, ReserveClaim } from "@/lib/db";
 
 // Live limited drops. Stock + claims are server-authoritative (claim_reserve RPC);
@@ -54,7 +55,7 @@ export default function Reserves() {
       const m = /sold out/i.test(error.message) ? "Just sold out — sorry."
         : /limit/i.test(error.message) ? "You've hit the limit on this drop."
         : "Couldn't reserve — try again.";
-      toast(m);
+      toast(m, "error");
       load();
       return;
     }
@@ -72,7 +73,8 @@ export default function Reserves() {
     load();
   };
 
-  if (!loaded || reserves.length === 0) return null;
+  if (!loaded) return <Skeleton variant="card" />;
+  if (reserves.length === 0) return null;
 
   return (
     <>

@@ -6,6 +6,7 @@ import { useApp } from "@/components/AppProvider";
 import { useAuth } from "@/components/AuthProvider";
 import AccountPill from "@/components/AccountPill";
 import RouteMap, { type RoutePoint } from "@/components/RouteMap";
+import Skeleton from "@/components/Skeleton";
 import { clickable } from "@/lib/a11y";
 import { openDirections } from "@/lib/maps";
 import { supabase } from "@/lib/supabase";
@@ -101,6 +102,7 @@ function TruckLive() {
       <div className="dchapter"><span className="dchn">The Route</span><span className="dchw">this week</span></div>
       <div className="dchrule" />
 
+      {!loaded && <Skeleton variant="row" count={4} />}
       {stops.map((s) => {
         const rowLive = s.status === "live";
         const isOpen = openStop === s.id;
@@ -115,6 +117,7 @@ function TruckLive() {
               <div className="when"><b>{s.when_label ?? ""}</b><span>{s.time_label ?? ""}</span></div>
               <div className="info"><b>{s.name}</b><span>{s.location_text ?? ""}</span></div>
               {rowLive && <div className="tag live">Live</div>}
+              <span className={`stop-caret${isOpen ? " open" : ""}`} aria-hidden="true">›</span>
             </div>
             {isOpen && (
               <div className="stop-detail">
@@ -184,6 +187,7 @@ function TruckDemo() {
           <div className="when"><b>{r.when}</b><span>{r.time}</span></div>
           <div className="info"><b>{r.name}</b><span>{r.desc}</span></div>
           {r.live && <div className="tag live">Live</div>}
+          <span className="stop-caret" aria-hidden="true">›</span>
         </div>
       ))}
 

@@ -5,6 +5,7 @@ import { useApp } from "@/components/AppProvider";
 import { useAuth } from "@/components/AuthProvider";
 import AccountPill from "@/components/AccountPill";
 import Reserves from "@/components/Reserves";
+import Skeleton from "@/components/Skeleton";
 import { supabase } from "@/lib/supabase";
 import type { EventRow } from "@/lib/db";
 
@@ -44,14 +45,16 @@ function RsvpRow({ ev }: { ev: EventRow }) {
     if (busy) return;
     if (!supabase || !user) { toast("Sign in to RSVP"); return; }
     const next = !going;
-    setGoing(next);
+    setGoing(next); // optimistic
     setBusy(true);
     if (next) {
+      let { error } = await supabase.from("rsvps").insert({ event_id: ev.id, user_id: user.id, contact_email: user.email ?? null, status: "going" });
+      if (error?.code === "23505") ({ error } = await supabase.from("rsvps").update({ status: "going" }).eq("event_id", ev.id).eq("user_id", user.id)); // re-RSVP after cancel
+      if (error) { setGoing(false); toast("Couldn't RSVP — try again", "error"); setBusy(false); return; }
       toast("You're in — we'll remind you");
-      const { error } = await supabase.from("rsvps").insert({ event_id: ev.id, user_id: user.id, contact_email: user.email ?? null, status: "going" });
-      if (error?.code === "23505") await supabase.from("rsvps").update({ status: "going" }).eq("event_id", ev.id).eq("user_id", user.id); // re-RSVP after cancel
     } else {
-      await supabase.from("rsvps").update({ status: "cancelled" }).eq("event_id", ev.id).eq("user_id", user.id);
+      const { error } = await supabase.from("rsvps").update({ status: "cancelled" }).eq("event_id", ev.id).eq("user_id", user.id);
+      if (error) { setGoing(true); toast("Couldn't update — try again", "error"); setBusy(false); return; }
       toast("RSVP removed");
     }
     setBusy(false);
@@ -98,6 +101,7 @@ function EventsLive() {
 
       <div className="dchapter"><span className="dchn">This Week</span><span className="dchw">save your spot</span></div>
       <div className="dchrule" />
+      {!loaded && <Skeleton variant="row" count={3} />}
       {events.map((ev) => <RsvpRow key={ev.id} ev={ev} />)}
       {loaded && events.length === 0 && <div className="h-sub">No events scheduled right now — check back soon.</div>}
     </section>

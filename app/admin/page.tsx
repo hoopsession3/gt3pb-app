@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import { useAuth, type Profile } from "@/components/AuthProvider";
 import SignIn from "@/components/SignIn";
 import { supabase } from "@/lib/supabase";
 import { subscribePush } from "@/lib/push";
+import { chime, unlockAudio } from "@/lib/chime";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import { geocode } from "@/lib/geocode";
 import type { Stop, LiveStatus, EventRow, BookingRequest, Order, Reserve, Subscription } from "@/lib/db";
@@ -29,6 +30,7 @@ function ageSev(min: number) {
 // One ticket, one next action. Oldest-first. Aging colour signals pressure.
 // Void is demoted to a guarded overflow — never under the operator's thumb.
 const NEXT: Record<Order["status"], Order["status"] | null> = { new: "preparing", preparing: "ready", ready: "done", done: null, void: null };
+const PREV: Record<Order["status"], Order["status"] | null> = { new: null, preparing: "new", ready: "preparing", done: "ready", void: null };
 const ACT_CLASS: Record<string, string> = { new: "go", preparing: "primary", ready: "done" };
 // The three live stages of the pass. Tickets move down as the operator advances them.
 const STAGES: { key: Order["status"]; label: string; action: string }[] = [
@@ -36,12 +38,25 @@ const STAGES: { key: Order["status"]; label: string; action: string }[] = [
   { key: "preparing", label: "In progress", action: "Mark ready" },
   { key: "ready", label: "Ready · hand off", action: "Picked up" },
 ];
+// Group identical drinks → "2× RISE" instead of "RISE · RISE".
+function groupItems(items: string[]) {
+  const m = new Map<string, number>();
+  items.forEach((i) => m.set(i, (m.get(i) ?? 0) + 1));
+  return [...m.entries()].map(([id, qty]) => ({ id, qty }));
+}
 
 function Kitchen() {
   const { toast } = useApp();
   const [orders, setOrders] = useState<Order[]>([]);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [flash, setFlash] = useState<Set<string>>(new Set());
+  const [muted, setMuted] = useState(false);
+  const [, setTick] = useState(0);
   const [err, setErr] = useState("");
+  const seeded = useRef(false);
+  const mutedRef = useRef(false);
+  useEffect(() => { mutedRef.current = muted; }, [muted]);
+  useEffect(() => { try { setMuted(localStorage.getItem("kds_muted") === "1"); } catch { /* */ } }, []);
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -49,6 +64,7 @@ function Kitchen() {
     if (error) { setErr(error.message); return; }
     setErr("");
     if (data) setOrders(data as Order[]);
+    seeded.current = true;
   }, []);
   // Merge a single row into state (no refetch). Used by realtime AND optimistic taps,
   // so the board mutates in place — zero network on the hot path.
@@ -64,83 +80,99 @@ function Kitchen() {
     });
   }, []);
 
+  // Ring + buzz + flash when a genuinely new order lands (not on initial seed / own taps).
+  const announceNew = useCallback((row: Order) => {
+    if (!seeded.current) return;
+    if (!mutedRef.current) { chime(); try { navigator.vibrate?.([200, 100, 200]); } catch { /* */ } }
+    setFlash((p) => new Set(p).add(row.id));
+    setTimeout(() => setFlash((p) => { const n = new Set(p); n.delete(row.id); return n; }), 6000);
+  }, []);
+
   useEffect(() => {
     load();
-    // Safety-net reconcile: realtime is primary (instant), but this guarantees every
-    // operator/admin converges to DB truth even if a realtime packet is dropped, and
-    // keeps aging colours current. Off the tap hot path, so taps stay instant.
-    const t = setInterval(() => load(), 15000);
-    if (!supabase) return () => clearInterval(t);
+    const tick = setInterval(() => setTick((n) => n + 1), 1000);   // live clocks/colours
+    const recon = setInterval(() => load(), 15000);                // reconcile safety net
+    if (!supabase) return () => { clearInterval(tick); clearInterval(recon); };
     const ch = supabase
       .channel("admin-kds")
       .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, (p) => {
         const row = (p.eventType === "DELETE" ? p.old : p.new) as Order;
         apply(row, p.eventType === "DELETE");
+        if (p.eventType === "INSERT" && row?.status === "new") announceNew(row);
       })
       .subscribe();
-    return () => { clearInterval(t); supabase?.removeChannel(ch); };
-  }, [load, apply]);
+    return () => { clearInterval(tick); clearInterval(recon); supabase?.removeChannel(ch); };
+  }, [load, apply, announceNew]);
 
-  // Instant: patch local state synchronously, fire the write, and DON'T refetch on
-  // success (realtime echoes the same row idempotently). Only resync on error.
-  const advance = async (o: Order) => {
-    const next = NEXT[o.status];
-    if (!next || !supabase) return;
-    apply({ ...o, status: next } as Order, next === "done");
-    const { error } = await supabase.from("orders").update({ status: next }).eq("id", o.id);
-    if (error) { setErr(error.message); toast(`Couldn't update — ${error.message}`); load(); }
+  // Instant: patch local state synchronously, fire the write, no refetch on success.
+  const move = async (o: Order, to: Order["status"] | null) => {
+    if (!to || !supabase) return;
+    apply({ ...o, status: to } as Order, to === "done");
+    try { navigator.vibrate?.(10); } catch { /* */ }
+    const { error } = await supabase.from("orders").update({ status: to }).eq("id", o.id);
+    if (error) { setErr(error.message); toast(`Couldn't update — ${error.message}`, "error"); load(); }
   };
+  const advance = (o: Order) => move(o, NEXT[o.status]);
+  const recall = (o: Order) => move(o, PREV[o.status]);
   const voidOrder = async (o: Order) => {
     if (typeof window !== "undefined" && !window.confirm(`Void ${o.customer ?? "this order"}? This can't be undone.`)) return;
     if (!supabase) return;
     apply(o, true);
     const { error } = await supabase.from("orders").update({ status: "void" }).eq("id", o.id);
-    if (error) { setErr(error.message); toast(`Couldn't void — ${error.message}`); load(); }
+    if (error) { setErr(error.message); toast(`Couldn't void — ${error.message}`, "error"); load(); }
   };
 
   const toggle = (k: string) => setCollapsed((p) => { const n = new Set(p); if (n.has(k)) n.delete(k); else n.add(k); return n; });
+  const toggleMute = () => setMuted((m) => { const v = !m; try { localStorage.setItem("kds_muted", v ? "1" : "0"); } catch { /* */ } unlockAudio(); return v; });
   const late = orders.filter((o) => o.status !== "ready" && ageMin(o.created_at) >= 8);
 
   return (
     <div className="adm-sec">
-      <div className="sec">The pass{orders.length > 0 && <span className="adm-pill">{orders.length} active</span>}</div>
+      <div className="sec">The pass{orders.length > 0 && <span className="adm-pill">{orders.length} active</span>}
+        <button type="button" className="kds-mute" onClick={toggleMute} aria-pressed={muted}>{muted ? "🔇 Muted" : "🔔 Sound"}</button>
+      </div>
 
-      {err && <div className="adm-attn">Backend error: {err}</div>}
+      {err && <div className="adm-attn" role="alert">Backend error: {err}</div>}
       {late.length > 0 && (
-        <div className="adm-attn">
+        <div className="adm-attn" role="alert">
           <b>{late.map((o) => o.customer ?? "Guest").join(", ")}</b> waiting past 8 min — step over and reassure the guest.
         </div>
       )}
 
-      {STAGES.map((st) => {
-        const list = orders.filter((o) => o.status === st.key);
-        const isCol = collapsed.has(st.key);
-        return (
-          <div className="kds-stage" key={st.key}>
-            <button type="button" className="kds-stage-h" onClick={() => toggle(st.key)} aria-expanded={!isCol}>
-              <span className={`kds-caret${isCol ? " col" : ""}`}>▾</span>
-              <span className="kds-stage-name">{st.label}</span>
-              <span className="kds-stage-n">{list.length}</span>
-            </button>
-            {!isCol && list.length === 0 && <div className="kds-empty">Nothing here.</div>}
-            {!isCol && list.map((o) => {
-              const sev = ageSev(ageMin(o.created_at));
-              return (
-                <div className={`adm-order st-${o.status}`} key={o.id}>
-                  <button className="adm-act-more" onClick={() => voidOrder(o)} aria-label="Void order">⋯</button>
-                  <div className="adm-order-top">
-                    <b>{o.customer ?? "Guest"}</b>
-                    <span className={`adm-age ${sev}`}>{ago(o.created_at)}</span>
+      <div aria-live="polite">
+        {STAGES.map((st) => {
+          const list = orders.filter((o) => o.status === st.key);
+          const isCol = collapsed.has(st.key);
+          return (
+            <div className="kds-stage" key={st.key}>
+              <button type="button" className="kds-stage-h" onClick={() => toggle(st.key)} aria-expanded={!isCol}>
+                <span className={`kds-caret${isCol ? " col" : ""}`}>▾</span>
+                <span className="kds-stage-name">{st.label}</span>
+                <span className="kds-stage-n">{list.length}</span>
+              </button>
+              {!isCol && list.length === 0 && <div className="kds-empty">Nothing here.</div>}
+              {!isCol && list.map((o) => {
+                const sev = ageSev(ageMin(o.created_at));
+                return (
+                  <div className={`adm-order st-${o.status}${flash.has(o.id) ? " flash" : ""}`} key={o.id}>
+                    <button className="adm-act-more" onClick={() => voidOrder(o)} aria-label={`Void ${o.customer ?? "order"}`}>⋯</button>
+                    <div className="adm-order-top">
+                      <b>{o.customer ?? "Guest"}</b>
+                      <span className={`adm-age ${sev}`}>{ago(o.created_at)}</span>
+                    </div>
+                    <div className="adm-items">{groupItems(o.items).map((g) => `${g.qty > 1 ? g.qty + "× " : ""}${DRINKS[g.id as DrinkId]?.n ?? g.id}`).join(" · ")}</div>
+                    <div className="meta">#{o.id.slice(0, 4).toUpperCase()} · ${(o.total_cents / 100).toFixed(2)} · <span className={o.paid ? "pd" : "unp"}>{o.paid ? "PAID" : "pre-order"}</span></div>
+                    <div className="adm-actions-row">
+                      {PREV[o.status] && <button className="adm-recall" onClick={() => recall(o)} aria-label="Move back a stage">↩</button>}
+                      <button className={`adm-act ${ACT_CLASS[o.status]}`} onClick={() => advance(o)}>{st.action}</button>
+                    </div>
                   </div>
-                  <div className="adm-items">{o.items.map((i) => DRINKS[i as DrinkId]?.n ?? i).join(" · ")}</div>
-                  <div className="meta">#{o.id.slice(0, 4).toUpperCase()} · ${(o.total_cents / 100).toFixed(2)} · <span className={o.paid ? "pd" : "unp"}>{o.paid ? "PAID" : "pre-order"}</span></div>
-                  <button className={`adm-act ${ACT_CLASS[o.status]}`} onClick={() => advance(o)}>{st.action}</button>
-                </div>
-              );
-            })}
-          </div>
-        );
-      })}
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
       {orders.length === 0 && <div className="h-sub">The pass is clear. New orders arrive here in realtime.</div>}
     </div>
   );
@@ -390,9 +422,9 @@ function ReservesAdmin() {
       {active.map((r) => (
         <div className="adm-event" key={r.id}>
           <div className="adm-member-top">
-            <input className="auth-input" style={{ fontSize: 14, padding: "8px 10px" }} maxLength={120} defaultValue={r.name} onBlur={(e) => e.target.value !== r.name && update(r.id, { name: e.target.value })} />
+            <input className="auth-input" style={{ fontSize: 16, padding: "9px 11px" }} maxLength={120} defaultValue={r.name} onBlur={(e) => e.target.value !== r.name && update(r.id, { name: e.target.value })} />
           </div>
-          <input className="auth-input" style={{ fontSize: 13, padding: "8px 10px", marginTop: 6 }} maxLength={300} defaultValue={r.blurb ?? ""} placeholder="One line guests see" onBlur={(e) => (e.target.value.trim() || null) !== r.blurb && update(r.id, { blurb: e.target.value.trim() || null })} />
+          <input className="auth-input" style={{ fontSize: 16, padding: "9px 11px", marginTop: 6 }} maxLength={300} defaultValue={r.blurb ?? ""} placeholder="One line guests see" onBlur={(e) => (e.target.value.trim() || null) !== r.blurb && update(r.id, { blurb: e.target.value.trim() || null })} />
           <div className="adm-fields">
             <label>Price $<input type="text" inputMode="decimal" defaultValue={(r.price_cents / 100).toFixed(2)} onBlur={(e) => update(r.id, { price_cents: Math.max(0, Math.round(parseFloat(e.target.value || "0") * 100)) })} /></label>
             <label>Stock<input type="number" min={0} defaultValue={r.stock_total} onBlur={(e) => update(r.id, { stock_total: Math.max(0, parseInt(e.target.value) || 0) })} /></label>
@@ -559,7 +591,7 @@ function EventsAdmin() {
       {events.map((e) => (
         <div className="adm-event" key={e.id}>
           <div className="adm-member-top">
-            <input className="auth-input" style={{ fontSize: 14, padding: "8px 10px" }} maxLength={200} defaultValue={e.title} onBlur={(ev) => ev.target.value !== e.title && update(e.id, { title: ev.target.value })} />
+            <input className="auth-input" style={{ fontSize: 16, padding: "9px 11px" }} maxLength={200} defaultValue={e.title} onBlur={(ev) => ev.target.value !== e.title && update(e.id, { title: ev.target.value })} />
           </div>
           <div className="adm-fields">
             <label>Day<input type="text" defaultValue={e.day_label ?? ""} onBlur={(ev) => update(e.id, { day_label: ev.target.value })} /></label>

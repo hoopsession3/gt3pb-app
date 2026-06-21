@@ -3,11 +3,14 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import type { DrinkId } from "@/lib/menu";
 
+type ToastVariant = "success" | "error" | "info";
+
 interface AppCtx {
   // toast
-  toast: (msg: string) => void;
+  toast: (msg: string, variant?: ToastVariant) => void;
   toastMsg: string;
   toastShown: boolean;
+  toastVariant: ToastVariant;
   // cart (pre-order) — quantity per drink
   cart: Record<string, number>;
   cartCount: number;
@@ -40,13 +43,15 @@ export function useApp() {
 export default function AppProvider({ children }: { children: React.ReactNode }) {
   const [toastMsg, setToastMsg] = useState("");
   const [toastShown, setToastShown] = useState(false);
+  const [toastVariant, setToastVariant] = useState<ToastVariant>("success");
   const tRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const toast = useCallback((msg: string) => {
+  const toast = useCallback((msg: string, variant: ToastVariant = "success") => {
     setToastMsg(msg);
+    setToastVariant(variant);
     setToastShown(true);
     if (tRef.current) clearTimeout(tRef.current);
-    tRef.current = setTimeout(() => setToastShown(false), 3000);
+    tRef.current = setTimeout(() => setToastShown(false), variant === "error" ? 4200 : 3000);
   }, []);
 
   const [cart, setCart] = useState<Record<string, number>>({});
@@ -89,16 +94,22 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   const [coOpen, setCoOpen] = useState(false);
   const openCheckout = useCallback(() => setCoOpen(true), []);
   const closeCheckout = useCallback(() => setCoOpen(false), []);
+  // Merge the past order into the current cart (don't clobber a build-in-progress).
+  // Only auto-open checkout when the cart was empty; otherwise toast so it's not jarring.
   const reorder = useCallback((items: DrinkId[]) => {
-    const next: Record<string, number> = {};
-    items.forEach((id) => { next[id] = (next[id] ?? 0) + 1; });
-    setCart(next);
-    setCoOpen(true);
-  }, []);
+    setCart((prev) => {
+      const wasEmpty = Object.keys(prev).length === 0;
+      const next = { ...prev };
+      items.forEach((id) => { next[id] = (next[id] ?? 0) + 1; });
+      if (wasEmpty) setCoOpen(true);
+      else toast(`Added ${items.length} to your order`, "success");
+      return next;
+    });
+  }, [toast]);
 
   const value = useMemo<AppCtx>(
-    () => ({ toast, toastMsg, toastShown, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, reorder }),
-    [toast, toastMsg, toastShown, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, reorder]
+    () => ({ toast, toastMsg, toastShown, toastVariant, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, reorder }),
+    [toast, toastMsg, toastShown, toastVariant, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, reorder]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

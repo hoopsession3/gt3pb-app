@@ -111,7 +111,7 @@ export default function SubscriptionCard() {
     });
     const data = await res.json();
     setBusy(false);
-    if (!res.ok) { toast(data.error || "Couldn't update subscription"); return; }
+    if (!res.ok) { toast(data.error || "Couldn't update subscription", "error"); return; }
     toast(action === "cancel" ? "Subscription canceled" : action === "pause" ? "Subscription paused" : "Subscription resumed");
     load();
   };
