@@ -10,11 +10,21 @@ export interface RoutePoint {
   live?: boolean;
 }
 
-// Lightweight Leaflet map (dark CartoDB tiles, no API key) showing the truck's stops
-// connected into a non-self-intersecting loop — the "strategic circle" route.
-export default function RouteMap({ points }: { points: RoutePoint[] }) {
-  const elRef = useRef<HTMLDivElement>(null);
+export interface TruckPos {
+  lat: number;
+  lng: number;
+}
 
+// Lightweight Leaflet map (dark CartoDB tiles, no API key) showing the truck's stops
+// connected into a non-self-intersecting loop — the "strategic circle" route — plus a
+// live truck marker that moves in place (the map is NOT rebuilt when the truck moves).
+export default function RouteMap({ points, truck }: { points: RoutePoint[]; truck?: TruckPos | null }) {
+  const elRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<import("leaflet").Map | null>(null);
+  const truckRef = useRef<import("leaflet").CircleMarker | null>(null);
+
+  // Build the base map + route + stop markers. Re-runs only when the stops change
+  // (the parent memoizes `points`), so realtime truck moves don't tear this down.
   useEffect(() => {
     if (!elRef.current || points.length === 0) return;
     let map: import("leaflet").Map | undefined;
@@ -33,6 +43,7 @@ export default function RouteMap({ points }: { points: RoutePoint[] }) {
       const latlngs = ordered.map((p) => [p.lat, p.lng] as [number, number]);
 
       map = L.map(elRef.current, { scrollWheelZoom: false, attributionControl: false });
+      mapRef.current = map;
       L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
         maxZoom: 19,
         subdomains: "abcd",
@@ -72,9 +83,47 @@ export default function RouteMap({ points }: { points: RoutePoint[] }) {
 
     return () => {
       cancelled = true;
+      truckRef.current = null;
+      mapRef.current = null;
       map?.remove();
     };
   }, [points]);
+
+  // Live truck marker: created/moved/removed independently of the base map so a position
+  // update is a single setLatLng() — no flicker, no lost zoom/pan.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const map = mapRef.current;
+      if (!map) return;
+      const L = (await import("leaflet")).default;
+      if (cancelled) return;
+
+      if (!truck) {
+        if (truckRef.current) { truckRef.current.remove(); truckRef.current = null; }
+        return;
+      }
+      if (truckRef.current) {
+        truckRef.current.setLatLng([truck.lat, truck.lng]);
+      } else {
+        truckRef.current = L.circleMarker([truck.lat, truck.lng], {
+          radius: 7,
+          color: "#F5F1E8",
+          weight: 3,
+          fillColor: "#B82420",
+          fillOpacity: 1,
+        })
+          .addTo(map)
+          .bindTooltip("Truck · here now", {
+            permanent: true,
+            direction: "right",
+            offset: [9, 0],
+            className: "rm-tip rm-tip-live",
+          });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [truck]);
 
   return <div className="routemap" ref={elRef} role="img" aria-label="Truck route map across the upstate" />;
 }

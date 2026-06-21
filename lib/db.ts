@@ -7,6 +7,8 @@ export interface Stop {
   lat: number | null;
   lng: number | null;
   status: "live" | "upcoming" | "done";
+  starts_at: string | null;
+  ends_at: string | null;
   when_label: string | null;
   time_label: string | null;
   tag_label: string | null;
@@ -19,6 +21,10 @@ export interface LiveStatus {
   current_stop_id: string | null;
   is_live: boolean;
   next_eta: string | null;
+  // Live truck position (set from the truck's phone via admin_set_truck_pos).
+  truck_lat: number | null;
+  truck_lng: number | null;
+  pos_updated_at: string | null;
 }
 
 export interface EventRow {
