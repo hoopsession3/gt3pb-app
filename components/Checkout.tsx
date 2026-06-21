@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
@@ -35,6 +36,9 @@ function loadSquare(): Promise<any> {
 export default function Checkout() {
   const { cart, inc, dec, toast, checkout, coOpen: open, closeCheckout: onClose } = useApp();
   const { sheetRef, handlers } = useSheetDrag(onClose);
+  const router = useRouter();
+  const [doneView, setDoneView] = useState(false); // post-pay subscription upsell
+  useEffect(() => { if (!open) setDoneView(false); }, [open]);
   const { user, profile } = useAuth();
   const [prices, setPrices] = useState<Record<string, number>>({});
   // Prices for the displayed total (the actual charge is computed server-side).
@@ -140,7 +144,7 @@ export default function Checkout() {
       if (!res.ok) { setErr(data.error || "Payment failed"); return; }
       toast(data.warn || `Paid $${total} — order in. Ready in ~8 min.`);
       checkout(); // clears cart
-      onClose();
+      setDoneView(true); // show the subscription upsell instead of closing
     } catch {
       setBusy(false);
       setErr("Payment failed — nothing was charged. Try again.");
@@ -153,7 +157,15 @@ export default function Checkout() {
       <div ref={sheetRef} className={`sheet paper${open ? " open" : ""}`} role="dialog" aria-modal="true" aria-label="Checkout">
         <button type="button" className="grab" aria-label="Close" onClick={onClose} {...handlers} />
         <div className="sin">
-          {open && (
+          {open && doneView ? (
+            <div className="co-done">
+              <div className="co-done-check" aria-hidden="true">✓</div>
+              <h3>Order in — ready in ~8 min</h3>
+              <p>Make it your ritual: your coffee packed and waiting every two weeks — skip the line, save up to 30% a cup.</p>
+              <button type="button" className="subpitch-cta" onClick={() => { onClose(); router.push("/3mpire"); }}>Start a subscription</button>
+              <button type="button" className="sub-link" onClick={onClose}>No thanks, done</button>
+            </div>
+          ) : open ? (
             <>
               <div className="spec-label">Name for pickup</div>
               <input
@@ -216,7 +228,7 @@ export default function Checkout() {
                 </>
               )}
             </>
-          )}
+          ) : null}
         </div>
       </div>
     </>

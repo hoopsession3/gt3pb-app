@@ -7,6 +7,7 @@ import { useAuth, type Profile } from "@/components/AuthProvider";
 import { useApp } from "@/components/AppProvider";
 import AccountPill from "@/components/AccountPill";
 import GenerateDay from "@/components/GenerateDay";
+import SubscribePitch from "@/components/SubscribePitch";
 import { supabase } from "@/lib/supabase";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import type { Order } from "@/lib/db";
@@ -72,6 +73,7 @@ function TodayReal() {
       </div>
       <div className="h-title">{greet()}, {name}.</div>
       <YourUsual />
+      <SubscribePitch />
       <div className="h-sub">Five questions. I&apos;ll build your exact stack — drinks timed to your biology today.</div>
       <GenerateDay />
     </section>
@@ -157,6 +159,11 @@ function Arrival() {
       <p className="arr-stmt">Cold-extracted coffee, whole-food hydration, and slow-simmered fuel&nbsp;— prepared to order.</p>
       <div className="arr-principles">Cold-extracted · No plastic contact · Whole-food inputs · Made to order</div>
 
+      <div className="arr-cta">
+        <button className="arr-order" onClick={() => router.push("/menu")}>Start your order</button>
+        <div className="arr-order-sub">Pick your drinks — ready when you reach the truck.</div>
+      </div>
+
       <div className="dchapter"><span className="dchn">The Craft</span><span className="dchw">how it&apos;s made</span></div>
       <div className="dchrule" />
       <div className="craft-row"><span className="craft-no">01</span><div className="craft-x"><b>Cold extraction</b><p>Never heat — slow, in small batches, out of respect for the bean.</p></div></div>
@@ -169,7 +176,7 @@ function Arrival() {
       <div className="pillar"><span className="pdot" style={{ background: "#3f7d6e" }} /><div className="px"><b>Hydration</b><p>Whole-coconut, no concentrate — during.</p></div></div>
       <div className="pillar"><span className="pdot" style={{ background: "#B82420" }} /><div className="px"><b>Fuel</b><p>Slow-simmered bone broth — after.</p></div></div>
 
-      <button className="t-order" style={{ marginTop: 24 }} onClick={() => router.push("/menu")}>See the menu</button>
+      <SubscribePitch />
 
       <div className="arr-join">
         <div className="hero-eye">Membership</div>

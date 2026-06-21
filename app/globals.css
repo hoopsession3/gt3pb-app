@@ -168,6 +168,24 @@ body{background:#0b0a08;font-family:'Inter',system-ui,sans-serif;color:var(--cre
 .pillar .pdot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;margin-top:6px}
 .pillar .px b{font-family:'Inter';font-weight:600;font-size:15px;letter-spacing:.2px;display:block}
 .pillar .px p{font-family:'Fraunces';font-style:italic;font-size:13px;line-height:1.5;color:var(--cream-m);margin:3px 0 0}
+/* front-door primary "Start your order" CTA */
+.arr-cta{margin-top:22px}
+.arr-order{width:100%;border:none;cursor:pointer;font-family:'Inter';font-weight:700;font-size:16.5px;letter-spacing:.2px;color:#fff;background:var(--red);border-radius:15px;padding:18px;box-shadow:0 8px 22px rgba(184,36,32,.34)}
+.arr-order:active{transform:scale(.99)}
+.arr-order-sub{text-align:center;font-family:'Inter';font-size:12px;color:var(--cream-m);margin-top:9px}
+/* subscription pitch (storytelling) */
+.subpitch{margin-top:26px;border-radius:20px;padding:22px;background:linear-gradient(165deg,#26201a,#1b1712);border:1px solid rgba(184,144,47,.3);box-shadow:0 10px 30px rgba(0,0,0,.36)}
+.subpitch .eyb{font-family:'Inter';font-weight:650;letter-spacing:2px;text-transform:uppercase;font-size:10px;color:var(--gold2)}
+.subpitch h2{font-family:'Archivo Black';font-size:25px;letter-spacing:-.6px;line-height:1.05;margin:9px 0 8px}
+.subpitch p{font-family:'Inter';font-size:13px;line-height:1.55;color:var(--cream-m);max-width:330px}
+.subpitch-packs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:16px 0}
+.subpitch-pack{display:flex;flex-direction:column;align-items:center;gap:1px;padding:13px 4px;border:1px solid var(--line2);border-radius:13px;background:rgba(0,0,0,.22)}
+.subpitch-pack b{font-family:'Archivo Black';font-size:22px;line-height:1}
+.subpitch-pack span{font-family:'Inter';font-weight:600;font-size:8px;letter-spacing:1px;text-transform:uppercase;color:var(--cream-m)}
+.subpitch-pack em{font-family:'DM Mono';font-style:normal;font-size:12px;margin-top:5px;color:var(--gold2)}
+.subpitch-cta{width:100%;border:none;cursor:pointer;font-family:'Inter';font-weight:650;font-size:14.5px;color:#fff;background:var(--red);border-radius:13px;padding:15px}
+.subpitch-cta:active{transform:scale(.99)}
+.subpitch-fine{text-align:center;font-family:'Inter';font-size:11px;color:var(--cream-m);margin-top:11px}
 
 /* ===== MENU ===== */
 .phaseflow{display:flex;gap:9px;margin-top:18px}
@@ -625,6 +643,12 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .sheet.paper .co-name{width:100%;margin-top:8px;background:#fff;border:1px solid rgba(34,31,24,.2);border-radius:12px;padding:13px 14px;color:#221F18;font-family:'Inter';font-size:16px;outline:none}
 .sheet.paper .co-name:focus{border-color:#221F18}
 .sheet.paper .co-name::placeholder{color:#9a9482}
+/* post-pay success + subscription upsell */
+.sheet.paper .co-done{text-align:center;padding:14px 4px 8px}
+.co-done-check{width:54px;height:54px;margin:0 auto 14px;border-radius:50%;background:#2f7a34;color:#fff;font-size:28px;display:flex;align-items:center;justify-content:center}
+.sheet.paper .co-done h3{font-family:'Inter';font-weight:700;font-size:20px;letter-spacing:-.4px;color:#221F18}
+.sheet.paper .co-done p{font-family:'Fraunces';font-style:italic;font-size:14.5px;line-height:1.5;color:#5f5a49;margin:10px auto 18px;max-width:300px}
+.sheet.paper .co-done .sub-link{color:#5f5a49}
 
 /* ===================================================================
    ARRIVAL — de-gated first-time front door (welcome before sign-in)
