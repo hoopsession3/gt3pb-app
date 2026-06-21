@@ -145,10 +145,6 @@ function TodayDemo() {
 }
 
 // ───────────────────────── arrival (first-time / signed-out front door) ─────────────────────────
-const IMGICON = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5" /><circle cx="8.5" cy="10" r="1.7" /><path d="M21 15.5l-4.5-4.5L7 20.5" /></svg>
-);
-
 function Arrival() {
   const router = useRouter();
   return (
@@ -161,20 +157,19 @@ function Arrival() {
       <p className="arr-stmt">Cold-extracted coffee, whole-food hydration, and slow-simmered fuel&nbsp;— prepared to order.</p>
       <div className="arr-principles">Cold-extracted · No plastic contact · Whole-food inputs · Made to order</div>
 
-      <div className="sec">The craft</div>
-      <div className="arr-craft">
-        <div className="arr-shot">{IMGICON}</div>
-        <div className="arr-shot-cap">Cold extraction, never heat — slow, in small batches.</div>
-        <div className="arr-shot">{IMGICON}</div>
-        <div className="arr-shot-cap">Whole coconuts and slow-simmered broth — nothing from a powder.</div>
-      </div>
+      <div className="dchapter"><span className="dchn">The Craft</span><span className="dchw">how it&apos;s made</span></div>
+      <div className="dchrule" />
+      <div className="craft-row"><span className="craft-no">01</span><div className="craft-x"><b>Cold extraction</b><p>Never heat — slow, in small batches, out of respect for the bean.</p></div></div>
+      <div className="craft-row"><span className="craft-no">02</span><div className="craft-x"><b>Whole-food inputs</b><p>Whole coconuts and slow-simmered broth. Nothing from a powder.</p></div></div>
+      <div className="craft-row"><span className="craft-no">03</span><div className="craft-x"><b>Made to order</b><p>Built when you arrive — no plastic contact, no shortcuts.</p></div></div>
 
-      <div className="sec">What we make</div>
-      <div className="arr-pillar"><b>Activation</b><span>Cold-extracted coffee · before the work</span></div>
-      <div className="arr-pillar"><b>Hydration</b><span>Whole-coconut, no concentrate · during</span></div>
-      <div className="arr-pillar"><b>Fuel</b><span>Slow-simmered bone broth · after</span></div>
+      <div className="dchapter"><span className="dchn">What We Make</span><span className="dchw">three acts</span></div>
+      <div className="dchrule" />
+      <div className="pillar"><span className="pdot" style={{ background: "#B8902F" }} /><div className="px"><b>Activation</b><p>Cold-extracted coffee — before the work.</p></div></div>
+      <div className="pillar"><span className="pdot" style={{ background: "#3f7d6e" }} /><div className="px"><b>Hydration</b><p>Whole-coconut, no concentrate — during.</p></div></div>
+      <div className="pillar"><span className="pdot" style={{ background: "#B82420" }} /><div className="px"><b>Fuel</b><p>Slow-simmered bone broth — after.</p></div></div>
 
-      <button className="handle" style={{ marginTop: 20 }} onClick={() => router.push("/menu")}><span>See the menu</span></button>
+      <button className="t-order" style={{ marginTop: 24 }} onClick={() => router.push("/menu")}>See the menu</button>
 
       <div className="arr-join">
         <div className="hero-eye">Membership</div>

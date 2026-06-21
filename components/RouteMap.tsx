@@ -46,16 +46,18 @@ export default function RouteMap({ points }: { points: RoutePoint[] }) {
         zoomControl: false,
         attributionControl: false,
       });
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      // Label-free dark tiles → no third-party city labels fighting the brand; our
+      // own red/gold markers carry the meaning. Reads as a custom artifact, not an embed.
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png", {
         maxZoom: 19,
         subdomains: "abcd",
       }).addTo(map);
 
       L.polyline([...latlngs, latlngs[0]], {
-        color: "#B82420",
-        weight: 3,
-        opacity: 0.8,
-        dashArray: "2 8",
+        color: "#cda84b",
+        weight: 1.5,
+        opacity: 0.45,
+        dashArray: "1 7",
         lineCap: "round",
         interactive: false,
       }).addTo(map);
@@ -72,7 +74,7 @@ export default function RouteMap({ points }: { points: RoutePoint[] }) {
         // Only the live stop is labelled — labelling every close-together stop just
         // produces overlap on a phone. The list below names the rest.
         if (p.live) {
-          marker.bindTooltip(`${p.name} · LIVE`, { permanent: true, direction: "top", offset: [0, -8], className: "rm-tip rm-tip-live" });
+          marker.bindTooltip(p.name, { permanent: true, direction: "top", offset: [0, -8], className: "rm-tip rm-tip-live" });
         }
         marker.on("click", (e) => {
           L.DomEvent.stopPropagation(e);

@@ -18,30 +18,36 @@ const DEMO_POINTS: RoutePoint[] = [
   { name: "Founding First Pour", lat: 34.9387, lng: -82.2271 },
 ];
 
-function useCountdown() {
-  const [cd, setCd] = useState("00:00:00");
-  useEffect(() => {
-    const tick = () => {
-      const now = new Date();
-      const tgt = new Date(now);
-      tgt.setHours(16, 30, 0, 0);
-      let d = Math.floor((tgt.getTime() - now.getTime()) / 1000);
-      if (d < 0) d += 86400;
-      const p = (n: number) => String(n).padStart(2, "0");
-      setCd(`${p(Math.floor(d / 3600))}:${p(Math.floor((d % 3600) / 60))}:${p(d % 60)}`);
-    };
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, []);
-  return cd;
+// ───────────────────────── editorial dispatch header (no card/tiles/clock) ─────────────────────────
+function Dispatch({ live, place, sub, openLabel, wait, next, onOrder }: {
+  live: boolean; place: string; sub: string; openLabel: string; wait: string; next: string | null; onOrder: () => void;
+}) {
+  return (
+    <header className="disp">
+      <div className={`disp-eye${live ? " live" : ""}`}>{live && <span className="livedot" />}{live ? "Live now" : "Next stop"}</div>
+      <h1 className="disp-name">{place}</h1>
+      {sub && <p className="disp-sub">{sub}</p>}
+      <div className="disp-facts">
+        <div className="fact"><span className="fk">Status</span><span className={`fv${live ? " ok" : ""}`}>{live ? "Live" : "Soon"}</span></div>
+        <div className="fact"><span className="fk">Open</span><span className="fv">{openLabel || "—"}</span></div>
+        <div className="fact"><span className="fk">Wait</span><span className="fv">{wait}</span></div>
+      </div>
+      {next && <p className="disp-next">Next · <b>{next}</b></p>}
+      <button type="button" className="t-order" onClick={onOrder}>Pre-order · skip the line</button>
+    </header>
+  );
+}
+
+function nextLabelFrom(stops: Stop[], liveId?: string) {
+  const idx = stops.findIndex((s) => s.id === liveId);
+  const n = (idx >= 0 ? stops.slice(idx + 1) : stops).find((s) => s.id !== liveId) ?? stops.find((s) => s.id !== liveId);
+  return n ? `${n.name} — ${[n.when_label, n.time_label].filter(Boolean).join(" ")}`.trim().replace(/—\s*$/, "").trim() : null;
 }
 
 // ───────────────────────── live (Supabase + realtime) ─────────────────────────
 function TruckLive() {
   const { toast } = useApp();
   const router = useRouter();
-  const cd = useCountdown();
   const [stops, setStops] = useState<Stop[]>([]);
   const [live, setLive] = useState<LiveStatus | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -61,7 +67,6 @@ function TruckLive() {
   useEffect(() => {
     load();
     if (!supabase) return;
-    // Realtime: the truck flips is_live / current_stop_id and the hero updates instantly.
     const ch = supabase
       .channel("truck-live")
       .on("postgres_changes", { event: "*", schema: "public", table: "live_status" }, (p) => setLive(p.new as LiveStatus))
@@ -70,48 +75,32 @@ function TruckLive() {
     return () => { supabase?.removeChannel(ch); };
   }, [load]);
 
-  const liveStop =
-    stops.find((s) => s.id === live?.current_stop_id) ?? stops.find((s) => s.status === "live") ?? stops[0];
+  const liveStop = stops.find((s) => s.id === live?.current_stop_id) ?? stops.find((s) => s.status === "live") ?? stops[0];
   const isLive = Boolean(live?.is_live);
   const points: RoutePoint[] = stops
     .filter((s) => s.lat != null && s.lng != null)
     .map((s) => ({ name: s.name, lat: s.lat as number, lng: s.lng as number, live: s.status === "live" }));
 
   return (
-    <section className="screen" id="s-truck">
+    <section className="screen truck" id="s-truck">
       <div className="toprow">
         <div className="eyb">On the ground</div>
         <AccountPill />
       </div>
 
-      <div className="hero"><div className="hin">
-        {isLive ? (
-          <div className="livebadge"><span className="d" />Live now</div>
-        ) : (
-          <div className="hero-eye">Next stop</div>
-        )}
-        <div className="hero-state" style={{ fontSize: 26 }}>{liveStop?.name ?? (loaded ? "No stops yet" : "…")}</div>
-        <div className="hero-sub">{liveStop?.location_text ?? ""}{liveStop ? " · the full bar on board" : ""}</div>
-        <div className="cells">
-          <div className="cell"><div className={`cv ${isLive ? "ok" : "gold"}`}>{isLive ? "LIVE" : "Soon"}</div><div className="cl">Status</div></div>
-          <div className="cell"><div className="cv">{liveStop?.time_label ?? "—"}</div><div className="cl">Open</div></div>
-          <div className="cell"><div className="cv ok">~7 min</div><div className="cl">Wait</div></div>
-        </div>
-        <div className="countpill"><span className="cl">Next stop in</span><span className="cd">{cd}</span></div>
-        <button className="handle" style={{ marginTop: 14 }} onClick={() => router.push("/menu")}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2"><path d="M5 12h14M12 5v14" /></svg>
-          <span>Pre-order · skip the line</span>
-        </button>
-      </div></div>
+      <Dispatch
+        live={isLive}
+        place={liveStop?.name ?? (loaded ? "No stops yet" : "…")}
+        sub={liveStop ? `${liveStop.location_text ?? ""}${liveStop.location_text ? " — " : ""}the full bar on board` : ""}
+        openLabel={liveStop?.time_label ?? ""}
+        wait="~7 min"
+        next={nextLabelFrom(stops, liveStop?.id)}
+        onOrder={() => router.push("/menu")}
+      />
 
-      {points.length >= 2 && (
-        <>
-          <div className="sec">Our route · the strategic circle</div>
-          <RouteMap points={points} />
-        </>
-      )}
+      <div className="dchapter"><span className="dchn">The Route</span><span className="dchw">this week</span></div>
+      <div className="dchrule" />
 
-      <div className="sec">This week</div>
       {stops.map((s) => {
         const rowLive = s.status === "live";
         const isOpen = openStop === s.id;
@@ -125,18 +114,18 @@ function TruckLive() {
             >
               <div className="when"><b>{s.when_label ?? ""}</b><span>{s.time_label ?? ""}</span></div>
               <div className="info"><b>{s.name}</b><span>{s.location_text ?? ""}</span></div>
-              <div className={`tag ${rowLive ? "live" : "soon"}`}>{s.tag_label ?? (rowLive ? "Live" : "Soon")}</div>
+              {rowLive && <div className="tag live">Live</div>}
             </div>
             {isOpen && (
               <div className="stop-detail">
-                <p className="stop-notes">{s.notes ?? "Full bar on board. Tap below to order ahead or save a reminder."}</p>
+                <p className="stop-notes">{s.notes ?? "Full bar on board. Order ahead or save a reminder."}</p>
                 {rowLive ? (
-                  <button className="handle" style={{ marginTop: 12 }} onClick={() => router.push("/menu")}><span>Pre-order · skip the line</span></button>
+                  <button className="t-order" style={{ marginTop: 12 }} onClick={() => router.push("/menu")}>Pre-order · skip the line</button>
                 ) : (
-                  <button className="btn2" style={{ marginTop: 12 }} onClick={() => toast("Saved — we'll remind you before this stop")}><span>Remind me</span></button>
+                  <button className="t-ghost" style={{ marginTop: 12 }} onClick={() => toast("Saved — we'll remind you before this stop")}>Remind me</button>
                 )}
                 {s.lat != null && s.lng != null && (
-                  <button className="btn2" style={{ marginTop: 10 }} onClick={() => openDirections(s.lat as number, s.lng as number)}><span>Get directions</span></button>
+                  <button className="t-ghost" style={{ marginTop: 10 }} onClick={() => openDirections(s.lat as number, s.lng as number)}>Get directions</button>
                 )}
               </div>
             )}
@@ -144,6 +133,14 @@ function TruckLive() {
         );
       })}
       {loaded && stops.length === 0 && <div className="h-sub">No stops scheduled right now — check back soon.</div>}
+
+      {points.length >= 2 && (
+        <>
+          <div className="dchapter"><span className="dchn">The Circuit</span><span className="dchw">tap a stop for directions</span></div>
+          <div className="dchrule" />
+          <RouteMap points={points} />
+        </>
+      )}
     </section>
   );
 }
@@ -152,52 +149,47 @@ function TruckLive() {
 function TruckDemo() {
   const { toast } = useApp();
   const router = useRouter();
-  const cd = useCountdown();
+  const rows = [
+    { when: "NOW", time: "til 3p", name: "Duncan Town Square", desc: "Saturday Market", live: true, tag: "Live" },
+    { when: "SUN", time: "10–2", name: "Greenville Run Club", desc: "Hydrate + Rebuild", live: false, tag: "Sun" },
+    { when: "WED", time: "7–11", name: "Spartanburg Market", desc: "Full bar", live: false, tag: "Wed" },
+    { when: "SAT", time: "2:30", name: "Founding First Pour", desc: "DUSK winter blend · members", live: false, tag: "Next" },
+  ];
   return (
-    <section className="screen" id="s-truck">
+    <section className="screen truck" id="s-truck">
       <div className="toprow">
         <div className="eyb">On the ground</div>
         <AccountPill />
       </div>
-      <div className="hero"><div className="hin">
-        <div className="livebadge"><span className="d" />Live now</div>
-        <div className="hero-state" style={{ fontSize: 26 }}>Duncan Town Square</div>
-        <div className="hero-sub">Saturday Market · the full bar on board</div>
-        <div className="cells">
-          <div className="cell"><div className="cv gold">1.4 mi</div><div className="cl">Away</div></div>
-          <div className="cell"><div className="cv">til 3:00p</div><div className="cl">Open</div></div>
-          <div className="cell"><div className="cv ok">~7 min</div><div className="cl">Wait</div></div>
-        </div>
-        <div className="countpill"><span className="cl">Next stop in</span><span className="cd">{cd}</span></div>
-        <button className="handle" style={{ marginTop: 14 }} onClick={() => router.push("/menu")}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2"><path d="M5 12h14M12 5v14" /></svg>
-          <span>Pre-order · skip the line</span>
-        </button>
-      </div></div>
-      <div className="sec">Our route · the strategic circle</div>
-      <RouteMap points={DEMO_POINTS} />
 
-      <div className="sec">This week</div>
-      <div className="stop now" aria-label="Duncan Town Square, live now — pre-order" {...clickable(() => router.push("/menu"))}>
-        <div className="when"><b>NOW</b><span>til 3p</span></div>
-        <div className="info"><b>Duncan Town Square</b><span>Saturday Market</span></div>
-        <div className="tag live">Live</div>
-      </div>
-      <div className="stop" aria-label="Greenville Run Club — save reminder" {...clickable(() => toast("Saved — we'll remind you"))}>
-        <div className="when"><b>SUN</b><span>10–2</span></div>
-        <div className="info"><b>Greenville Run Club</b><span>Hydrate + Rebuild</span></div>
-        <div className="tag soon">Sun</div>
-      </div>
-      <div className="stop" aria-label="Spartanburg Market — save reminder" {...clickable(() => toast("Saved — we'll remind you"))}>
-        <div className="when"><b>WED</b><span>7–11</span></div>
-        <div className="info"><b>Spartanburg Market</b><span>Full bar</span></div>
-        <div className="tag soon">Wed</div>
-      </div>
-      <div className="stop" aria-label="Founding First Pour — save reminder" {...clickable(() => toast("Saved — we'll remind you"))}>
-        <div className="when"><b>SAT</b><span>2:30</span></div>
-        <div className="info"><b>Founding First Pour</b><span>DUSK winter blend · members</span></div>
-        <div className="tag soon">Next</div>
-      </div>
+      <Dispatch
+        live
+        place="Duncan Town Square"
+        sub="Saturday Market — the full bar on board"
+        openLabel="til 3p"
+        wait="~7 min"
+        next="Greenville Run Club — Sun 10–2"
+        onOrder={() => router.push("/menu")}
+      />
+
+      <div className="dchapter"><span className="dchn">The Route</span><span className="dchw">this week</span></div>
+      <div className="dchrule" />
+      {rows.map((r) => (
+        <div
+          key={r.name}
+          className={`stop${r.live ? " now" : ""}`}
+          aria-label={`${r.name}, ${r.live ? "live now — pre-order" : "upcoming — save reminder"}`}
+          {...clickable(() => (r.live ? router.push("/menu") : toast("Saved — we'll remind you")))}
+        >
+          <div className="when"><b>{r.when}</b><span>{r.time}</span></div>
+          <div className="info"><b>{r.name}</b><span>{r.desc}</span></div>
+          {r.live && <div className="tag live">Live</div>}
+        </div>
+      ))}
+
+      <div className="dchapter"><span className="dchn">The Circuit</span><span className="dchw">tap a stop for directions</span></div>
+      <div className="dchrule" />
+      <RouteMap points={DEMO_POINTS} />
     </section>
   );
 }

@@ -83,7 +83,8 @@ function EventsLive() {
 
       <Reserves />
 
-      <div className="sec">RSVP · this week</div>
+      <div className="dchapter"><span className="dchn">This Week</span><span className="dchw">save your spot</span></div>
+      <div className="dchrule" />
       {events.map((ev) => <RsvpRow key={ev.id} ev={ev} />)}
       {loaded && events.length === 0 && <div className="h-sub">No events scheduled right now — check back soon.</div>}
     </section>
@@ -110,7 +111,8 @@ function EventsDemo() {
       </div>
       <div className="h-title">Events.</div>
       <ReserveCard />
-      <div className="sec">RSVP · this week</div>
+      <div className="dchapter"><span className="dchn">This Week</span><span className="dchw">save your spot</span></div>
+      <div className="dchrule" />
       <div className="ev">
         <div className="when"><b>SAT</b><span>8–1</span></div>
         <div className="info"><b>Duncan Town Square</b><span>Saturday Market</span><span className="go">● 23 members going</span></div>
