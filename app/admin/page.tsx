@@ -263,7 +263,7 @@ function EventPrep() {
     // Pack list (rig/menu) + compliance (state/county) in one go — the whole "what do
     // we need to bring AND what permits do we need" question, answered from the event.
     const pack = packListFor(ev).map((p, i) => ({ event_id: ev.id, label: p.label, section: p.section, critical: !!p.critical, kind: "pack", link: null, sort: i }));
-    const comp = complianceFor(ev).map((p, i) => ({ event_id: ev.id, label: p.label, section: p.section, critical: !!p.critical, kind: "task", link: p.link ?? null, sort: 100 + i }));
+    const comp = (await complianceFor(ev, supabase)).map((p, i) => ({ event_id: ev.id, label: p.label, section: p.section, critical: !!p.critical, kind: "task", link: p.link ?? null, sort: 100 + i }));
     const rows = [...pack, ...comp];
     if (!rows.length) { toast("Set the event's rig + menu first (Back office → Events)", "error"); return; }
     const { error } = await supabase.from("event_tasks").insert(rows);
@@ -977,6 +977,83 @@ function EnableAlerts({ userId }: { userId: string | null }) {
   );
 }
 
+// ───────────────────────── back office: overview command center ─────────────────────────
+function Overview({ onGo }: { onGo: (t: string) => void }) {
+  const [s, setS] = useState({ leads: 0, active: 0, pastDue: 0, waitlist: 0, live: null as EventRow | null });
+  const load = useCallback(async () => {
+    if (!supabase) return;
+    const [b, subs, wl, ev] = await Promise.all([
+      supabase.from("booking_requests").select("id", { count: "exact", head: true }).eq("status", "new"),
+      supabase.from("subscriptions").select("status"),
+      supabase.from("subscription_interest").select("id", { count: "exact", head: true }),
+      supabase.from("events").select("*").eq("is_live", true).maybeSingle(),
+    ]);
+    const rows = (subs.data as { status: string }[]) ?? [];
+    setS({ leads: b.count ?? 0, active: rows.filter((x) => x.status === "active").length, pastDue: rows.filter((x) => x.status === "past_due").length, waitlist: wl.count ?? 0, live: (ev.data as EventRow) ?? null });
+  }, []);
+  useEffect(() => {
+    load();
+    if (!supabase) return;
+    const ch = supabase.channel("admin-overview")
+      .on("postgres_changes", { event: "*", schema: "public", table: "booking_requests" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "subscriptions" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "events" }, () => load())
+      .subscribe();
+    return () => { supabase?.removeChannel(ch); };
+  }, [load]);
+  return (
+    <div className="adm-sec">
+      <div className="sec">At a glance</div>
+      <div className="bo-cards">
+        <button className={`bo-card${s.leads ? " hot" : ""}`} onClick={() => onGo("bookings")}><b>{s.leads}</b><span>new leads</span></button>
+        <button className="bo-card" onClick={() => onGo("money")}><b>{s.active}</b><span>active subs</span></button>
+        <button className={`bo-card${s.pastDue ? " alert" : ""}`} onClick={() => onGo("money")}><b>{s.pastDue}</b><span>past due</span></button>
+        <button className="bo-card" onClick={() => onGo("money")}><b>{s.waitlist}</b><span>waitlist</span></button>
+      </div>
+      {s.live ? (
+        <div className="bo-live" role="button" tabIndex={0} onClick={() => onGo("events")} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onGo("events")}>
+          <span className="adm-pill due">LIVE</span> <b>{s.live.title}</b> — running now · tap for prep
+        </div>
+      ) : (
+        <div className="h-sub" style={{ marginTop: 12 }}>No event live. Set one live under Events when you open.</div>
+      )}
+      {(s.leads > 0 || s.pastDue > 0) && (
+        <div className="bo-needs">
+          <div className="adm-prep-label">Needs you</div>
+          {s.leads > 0 && <button className="bo-need" onClick={() => onGo("bookings")}>{s.leads} new booking {s.leads === 1 ? "request" : "requests"} to reply to ›</button>}
+          {s.pastDue > 0 && <button className="bo-need alert" onClick={() => onGo("money")}>{s.pastDue} subscription {s.pastDue === 1 ? "payment" : "payments"} failed — card needs updating ›</button>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Segmented back office — one clean section at a time instead of a stacked wall.
+function BackOffice({ isOwner }: { isOwner: boolean }) {
+  const [tab, setTab] = useState("overview");
+  const tabs = [
+    { k: "overview", label: "Overview" },
+    { k: "events", label: "Events" },
+    { k: "money", label: "Money" },
+    { k: "bookings", label: "Bookings" },
+    ...(isOwner ? [{ k: "members", label: "Members" }] : []),
+  ];
+  return (
+    <>
+      <div className="bo-nav" role="tablist" aria-label="Back office sections">
+        {tabs.map((t) => (
+          <button key={t.k} role="tab" aria-selected={tab === t.k} className={tab === t.k ? "on" : ""} onClick={() => setTab(t.k)}>{t.label}</button>
+        ))}
+      </div>
+      {tab === "overview" && <Overview onGo={setTab} />}
+      {tab === "events" && <EventsAdmin />}
+      {tab === "money" && <><Subscribers /><SubInterest /><OrdersHistory /></>}
+      {tab === "bookings" && <><Bookings /><ReservesAdmin /></>}
+      {tab === "members" && isOwner && <Members />}
+    </>
+  );
+}
+
 export default function AdminPage() {
   const { ready, enabled, user, profile } = useAuth();
   const [mode, setMode] = useState<"service" | "office">("service");
@@ -1032,15 +1109,7 @@ export default function AdminPage() {
           <LiveControl />
         </>
       ) : (
-        <>
-          <Bookings />
-          <ReservesAdmin />
-          <Subscribers />
-          <SubInterest />
-          <OrdersHistory />
-          <EventsAdmin />
-          {isOwner && <Members />}
-        </>
+        <BackOffice isOwner={isOwner} />
       )}
     </section>
   );

@@ -1,41 +1,46 @@
 import type { EventRow } from "./db";
 import type { PackItem } from "./packlist";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-// Location-aware compliance items with official links. Researched from Fulton County
-// Board of Health + GA DPH (June 2026). Honest by design: jurisdictions we've verified
-// (GA/Fulton) get exact requirements + links; anywhere else gets a "confirm with the
-// county" prompt rather than a fabricated requirement. Permit rules change — these track
-// + link, they are not legal advice; the last item always points to the source of truth.
+// Location-aware compliance, PULLED from the compliance_rules DB (0027) by jurisdiction,
+// so it grows: add a row for a new city and every event there gets the right checklist.
+// Honest by design — only jurisdictions seeded in the DB return real requirements; an
+// unseeded location gets a "confirm with the county" prompt, never a fabricated rule.
 export interface ComplianceItem extends PackItem { link?: string }
 
-const FULTON_BOH = "https://fultoncountyboh.com/environmental-health/food-service/";
-const FULTON_APP = "https://www.fultoncountyga.gov/-/media/Departments/Board-of-Health/Environmental-Health/Restaurant-Inspection/Link-List-Items/Temporary-Event-Vendor-Application.pdf";
-const GA_DPH = "https://dph.georgia.gov/environmental-health/food-service";
-const GA_CFSM = "https://www.agr.georgia.gov/certified-food-protection-managers";
+const norm = (s?: string | null) => (s ?? "").trim().toLowerCase().replace("georgia", "ga");
 
-export function complianceFor(e: EventRow): ComplianceItem[] {
-  const st = (e.state ?? "").trim().toLowerCase();
-  const ga = st === "ga" || st === "georgia";
-  const fulton = (e.county ?? "").toLowerCase().includes("fulton");
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function complianceFor(e: EventRow, supabase: SupabaseClient | null): Promise<ComplianceItem[]> {
   const items: ComplianceItem[] = [];
+  const st = norm(e.state), co = norm(e.county);
+  let matchedJurisdiction = 0;
 
-  if (ga && fulton) {
-    items.push({ label: "Temporary Food Service Permit — apply ≥30 days out", section: "Compliance", critical: true, link: FULTON_APP });
-    items.push({ label: "Permit must go THROUGH the event organizer (no solo curb setup)", section: "Compliance", critical: true, link: FULTON_BOH });
-    items.push({ label: "Person-in-charge food-safety knowledge (ServSafe/CFSM — recommended, not required for temp)", section: "Compliance", link: GA_CFSM });
-    items.push({ label: "Call Fulton County Board of Health to confirm for the date", section: "Compliance", link: FULTON_BOH });
-  } else if (ga) {
-    items.push({ label: "Temporary Food Service Permit — county health dept, ≥30 days out", section: "Compliance", critical: true, link: GA_DPH });
-    items.push({ label: "Confirm permit + food-safety rules with the county health dept", section: "Compliance", link: GA_DPH });
-  } else if (e.state) {
-    items.push({ label: `Temporary Food Service Permit — confirm ${e.state}${e.county ? " / " + e.county : ""} health-dept rules`, section: "Compliance", critical: true });
-  } else {
-    items.push({ label: "Set the event State + County (Back office → Events) to load permit requirements", section: "Compliance" });
+  if (supabase) {
+    const { data } = await supabase
+      .from("compliance_rules")
+      .select("label,link,critical,sort,state,county")
+      .eq("active", true)
+      .order("sort");
+    for (const r of (data ?? []) as { label: string; link: string | null; critical: boolean; state: string | null; county: string | null }[]) {
+      const rSt = norm(r.state), rCo = norm(r.county);
+      const stateOk = !rSt || rSt === st;       // null = universal
+      const countyOk = !rCo || rCo === co;       // null = state-wide
+      if (stateOk && countyOk) {
+        items.push({ label: r.label, section: "Compliance", critical: !!r.critical, link: r.link ?? undefined });
+        if (rSt || rCo) matchedJurisdiction++;   // count only real jurisdiction matches
+      }
+    }
   }
 
-  // Universal on-site inspection items (what they check at any temp event).
-  items.push({ label: "Permit + inspection report displayed on site", section: "Compliance" });
-  items.push({ label: "Hot/cold holding thermometer + temp log", section: "Compliance" });
+  // No jurisdiction set / no match → prompt, don't invent.
+  if (!matchedJurisdiction && !st) {
+    items.unshift({ label: "Set the event State + County (Back office → Events) to load permit requirements", section: "Compliance" });
+  } else if (!matchedJurisdiction && st) {
+    items.unshift({ label: `Confirm ${e.state}${e.county ? " / " + e.county : ""} temporary food permit rules with the county health dept`, section: "Compliance", critical: true });
+  }
+
+  // Event-flag conditionals (driven by the event's own config, not jurisdiction).
   if (e.water_available === false) items.push({ label: "Handwash station set up + working (no water on site)", section: "Compliance", critical: true });
   if (e.rig === "trailer_plus_cart") items.push({ label: "COI naming the venue as additional insured", section: "Compliance", critical: true });
 
