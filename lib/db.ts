@@ -21,6 +21,10 @@ export interface LiveStatus {
   current_stop_id: string | null;
   is_live: boolean;
   next_eta: string | null;
+  // Live truck GPS — set from the truck's phone via admin_set_truck_pos, cleared on offline.
+  truck_lat?: number | null;
+  truck_lng?: number | null;
+  pos_updated_at?: string | null;
 }
 
 export interface Order {

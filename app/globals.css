@@ -387,6 +387,8 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .rm-go{position:absolute;right:11px;bottom:11px;z-index:500;display:flex;align-items:center;gap:7px;font-family:'Inter';font-weight:650;font-size:11.5px;letter-spacing:.6px;text-transform:uppercase;color:#fff;background:var(--red);border:none;border-radius:12px;padding:10px 14px;box-shadow:0 5px 16px rgba(0,0,0,.45);cursor:pointer}
 .rm-go:active{transform:scale(.97)}
 .rm-go svg{width:15px;height:15px}
+.rm-truck{animation:rmpulse 2s ease-in-out infinite;transform-origin:center}
+@keyframes rmpulse{0%,100%{opacity:1}50%{opacity:.5}}
 .rm-tip{background:rgba(20,19,15,.92)!important;border:1px solid var(--line2)!important;color:var(--cream)!important;font-family:'Inter'!important;font-size:10px!important;font-weight:650!important;letter-spacing:.2px!important;padding:2px 6px!important;border-radius:6px!important;box-shadow:0 3px 10px rgba(0,0,0,.5)!important;white-space:nowrap!important}
 .rm-tip.rm-tip-live{background:var(--red)!important;border-color:var(--red-d)!important;color:#fff!important}
 .leaflet-tooltip-left.rm-tip:before{border-left-color:var(--line2)!important}

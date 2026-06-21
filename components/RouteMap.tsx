@@ -11,11 +11,19 @@ export interface RoutePoint {
   live?: boolean;
 }
 
+export interface TruckPos {
+  lat: number;
+  lng: number;
+}
+
 // Static orientation map + one-tap navigation. Interaction (pan/zoom) is OFF so it
 // never traps page scroll on mobile; tapping a pin opens native directions, and the
-// "Directions" button routes to the live (or next) stop.
-export default function RouteMap({ points }: { points: RoutePoint[] }) {
+// "Directions" button routes to the live (or next) stop. When the truck is broadcasting
+// its position, a live dot rides on top and moves in place (no rebuild, no flicker).
+export default function RouteMap({ points, truck }: { points: RoutePoint[]; truck?: TruckPos | null }) {
   const elRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<import("leaflet").Map | null>(null);
+  const truckRef = useRef<import("leaflet").CircleMarker | null>(null);
   const target = points.find((p) => p.live) ?? points[0];
 
   useEffect(() => {
@@ -46,6 +54,7 @@ export default function RouteMap({ points }: { points: RoutePoint[] }) {
         zoomControl: false,
         attributionControl: false,
       });
+      mapRef.current = map;
       // Label-free dark tiles → no third-party city labels fighting the brand; our
       // own red/gold markers carry the meaning. Reads as a custom artifact, not an embed.
       L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png", {
@@ -87,9 +96,37 @@ export default function RouteMap({ points }: { points: RoutePoint[] }) {
 
     return () => {
       cancelled = true;
+      truckRef.current = null;
+      mapRef.current = null;
       map?.remove();
     };
   }, [points]);
+
+  // Live truck dot: created / moved / removed independently of the base map, so a
+  // realtime position update is a single setLatLng() — no flicker, no lost framing.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const map = mapRef.current;
+      if (!map) return;
+      const L = (await import("leaflet")).default;
+      if (cancelled) return;
+      if (!truck) {
+        if (truckRef.current) { truckRef.current.remove(); truckRef.current = null; }
+        return;
+      }
+      if (truckRef.current) {
+        truckRef.current.setLatLng([truck.lat, truck.lng]);
+      } else {
+        truckRef.current = L.circleMarker([truck.lat, truck.lng], {
+          radius: 7, color: "#F5F1E8", weight: 3, fillColor: "#B82420", fillOpacity: 1, className: "rm-truck",
+        })
+          .addTo(map)
+          .bindTooltip("Truck · here now", { permanent: true, direction: "right", offset: [9, 0], className: "rm-tip rm-tip-live" });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [truck]);
 
   return (
     <div className="routemap-wrap">

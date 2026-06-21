@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import { useAuth } from "@/components/AuthProvider";
 import AccountPill from "@/components/AccountPill";
@@ -79,9 +79,16 @@ function TruckLive() {
 
   const liveStop = stops.find((s) => s.id === live?.current_stop_id) ?? stops.find((s) => s.status === "live") ?? stops[0];
   const isLive = Boolean(live?.is_live);
-  const points: RoutePoint[] = stops
+  // Memoize on `stops` only, so a realtime position update (which changes `live`, not
+  // `stops`) doesn't rebuild the whole map — the truck dot just moves.
+  const points: RoutePoint[] = useMemo(() => stops
     .filter((s) => s.lat != null && s.lng != null)
-    .map((s) => ({ name: s.name, lat: s.lat as number, lng: s.lng as number, live: s.status === "live" }));
+    .map((s) => ({ name: s.name, lat: s.lat as number, lng: s.lng as number, live: s.status === "live" })), [stops]);
+  // Show the live dot only while the truck is actually live and broadcasting a position.
+  const truckPos = useMemo(
+    () => (isLive && live?.truck_lat != null && live?.truck_lng != null ? { lat: live.truck_lat, lng: live.truck_lng } : null),
+    [isLive, live?.truck_lat, live?.truck_lng]
+  );
 
   return (
     <section className="screen truck" id="s-truck">
@@ -142,7 +149,7 @@ function TruckLive() {
         <>
           <div className="dchapter"><span className="dchn">The Circuit</span><span className="dchw">tap a stop for directions</span></div>
           <div className="dchrule" />
-          <RouteMap points={points} />
+          <RouteMap points={points} truck={truckPos} />
         </>
       )}
     </section>

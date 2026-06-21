@@ -310,6 +310,7 @@ function LiveControl() {
   const [stops, setStops] = useState<Stop[]>([]);
   const [live, setLive] = useState<LiveStatus | null>(null);
   const [err, setErr] = useState("");
+  const [posBusy, setPosBusy] = useState(false);
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -348,6 +349,26 @@ function LiveControl() {
     else toast("Truck is offline");
     load();
   };
+  // Broadcast this phone's GPS as the truck's live position — members watch the dot move.
+  const pinHere = () => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) { toast("Location isn't available on this device", "error"); return; }
+    setPosBusy(true);
+    navigator.geolocation.getCurrentPosition(
+      async (p) => {
+        const { error } = await supabase!.rpc("admin_set_truck_pos", { lat: p.coords.latitude, lng: p.coords.longitude });
+        setPosBusy(false);
+        if (error) { setErr(error.message); toast(`Couldn't pin location — ${error.message}`, "error"); }
+        else toast("Location pinned — members see the dot move");
+      },
+      (e) => { setPosBusy(false); toast(`Location error: ${e.message}`, "error"); },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+  const posLabel = live?.is_live
+    ? live?.pos_updated_at
+      ? `Pinned ${new Date(live.pos_updated_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
+      : "Location not pinned yet"
+    : "";
   const addStop = async () => {
     const { error } = await supabase!.from("stops").insert({ name: "New stop", status: "upcoming", sort: stops.length });
     if (error) { setErr(error.message); toast(`Couldn't add — ${error.message}`, "error"); }
@@ -367,6 +388,12 @@ function LiveControl() {
         </div>
         {live?.is_live && <button className="adm-btn ghost" onClick={pause}>Go offline</button>}
       </div>
+      {live?.is_live && (
+        <div className="adm-live adm-live-pos">
+          <div className="adm-live-status"><span className="h-sub">{posLabel}</span></div>
+          <button className="adm-btn ghost" onClick={pinHere} disabled={posBusy}>{posBusy ? "Pinning…" : live?.pos_updated_at ? "Update location" : "Use my location"}</button>
+        </div>
+      )}
       {stops.map((s) => (
         <StopControl key={s.id} s={s} isCur={Boolean(s.id === live?.current_stop_id && live?.is_live)} onGoLive={goLive} onChanged={load} />
       ))}
