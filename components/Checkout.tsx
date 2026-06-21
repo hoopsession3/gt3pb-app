@@ -28,7 +28,7 @@ function loadSquare(): Promise<any> {
 }
 
 export default function Checkout({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { cart, toast, checkout } = useApp();
+  const { cart, toast, clearCart } = useApp();
   const cardRef = useRef<any>(null);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -84,7 +84,7 @@ export default function Checkout({ open, onClose }: { open: boolean; onClose: ()
       setBusy(false);
       if (!res.ok) { setErr(data.error || "Payment failed"); return; }
       toast(`Paid $${total} — order in. Ready in ~8 min.`);
-      checkout(); // clears cart
+      clearCart(); // clear without overwriting the "Paid …" toast
       onClose();
     } catch {
       setBusy(false);
@@ -121,7 +121,7 @@ export default function Checkout({ open, onClose }: { open: boolean; onClose: ()
                   <div className="honest" style={{ marginTop: 16 }}>
                     Card checkout switches on soon. For now this is a <b>pre-order</b> — we&apos;ll have it ready and you pay at the truck.
                   </div>
-                  <button className="handle" onClick={() => { toast(`${items.length} drinks pre-ordered — ready in ~8 min`); checkout(); onClose(); }}>
+                  <button className="handle" onClick={() => { toast(`${items.length} drinks pre-ordered — ready in ~8 min`); clearCart(); onClose(); }}>
                     <span>Send pre-order</span>
                   </button>
                 </>

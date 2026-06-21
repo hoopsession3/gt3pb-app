@@ -12,7 +12,7 @@ interface AppCtx {
   cart: Set<DrinkId>;
   isInCart: (id: DrinkId) => boolean;
   bump: (id: DrinkId) => void;
-  checkout: () => void;
+  clearCart: () => void;
   // drink sheet
   openId: DrinkId | null;
   openDrink: (id: DrinkId) => void;
@@ -51,23 +51,17 @@ export default function AppProvider({ children }: { children: React.ReactNode })
     });
   }, []);
 
-  const checkout = useCallback(() => {
-    // Decide from current state in the handler; keep the setCart updater pure (no side effects).
-    if (cart.size === 0) {
-      toast("Tap + on a drink to build your order");
-      return;
-    }
-    toast(`${cart.size} drinks pre-ordered — ready in ~8 min`);
-    setCart(new Set());
-  }, [cart, toast]);
+  // Empty the cart. The caller owns any messaging (e.g. after a successful card payment,
+  // so the "Paid …" toast isn't overwritten by a pre-order one).
+  const clearCart = useCallback(() => setCart(new Set()), []);
 
   const [openId, setOpenId] = useState<DrinkId | null>(null);
   const openDrink = useCallback((id: DrinkId) => setOpenId(id), []);
   const closeDrink = useCallback(() => setOpenId(null), []);
 
   const value = useMemo<AppCtx>(
-    () => ({ toast, toastMsg, toastShown, cart, isInCart, bump, checkout, openId, openDrink, closeDrink }),
-    [toast, toastMsg, toastShown, cart, isInCart, bump, checkout, openId, openDrink, closeDrink]
+    () => ({ toast, toastMsg, toastShown, cart, isInCart, bump, clearCart, openId, openDrink, closeDrink }),
+    [toast, toastMsg, toastShown, cart, isInCart, bump, clearCart, openId, openDrink, closeDrink]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

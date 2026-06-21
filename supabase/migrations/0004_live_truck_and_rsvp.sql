@@ -37,8 +37,10 @@ end; $$;
 
 -- ───────────────────────── 3) de-duplicated, reversible RSVPs ─────────────────────────
 -- One RSVP per signed-in member per event, and members can cancel (delete) their own.
+-- Not partial: NULL user_ids (anonymous RSVPs) are distinct in a unique index, so anon can
+-- still RSVP, signed-in members are de-duped, and PostgREST upsert can target this index.
 create unique index if not exists rsvps_user_event_uniq
-  on public.rsvps (event_id, user_id) where user_id is not null;
+  on public.rsvps (event_id, user_id);
 
 drop policy if exists "own rsvps update" on public.rsvps;
 create policy "own rsvps update" on public.rsvps for update using (auth.uid() = user_id) with check (auth.uid() = user_id);

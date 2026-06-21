@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import { useAuth } from "@/components/AuthProvider";
 import AccountPill from "@/components/AccountPill";
@@ -39,21 +39,15 @@ function BringSomeone() {
   );
 }
 
-function RsvpRow({ ev }: { ev: EventRow }) {
-  const { toast } = useApp();
-  const { user } = useAuth();
-  const [going, setGoing] = useState(false);
+// Presentational: the parent owns "going" (single source of truth, persisted to Supabase),
+// so there's no prop→state mirroring here. Local state is only the in-flight guard.
+function RsvpRow({ ev, going, onToggle }: { ev: EventRow; going: boolean; onToggle: (ev: EventRow, next: boolean) => Promise<void> }) {
   const [busy, setBusy] = useState(false);
-
   const onClick = async () => {
-    if (going) { setGoing(false); return; } // local toggle off (no destructive delete)
-    setGoing(true);
-    toast("You're in — we'll remind you");
-    if (supabase && !busy) {
-      setBusy(true);
-      await supabase.from("rsvps").insert({ event_id: ev.id, user_id: user?.id ?? null, contact_email: user?.email ?? null, status: "going" });
-      setBusy(false);
-    }
+    if (busy) return;
+    setBusy(true);
+    await onToggle(ev, !going);
+    setBusy(false);
   };
 
   return (
@@ -64,15 +58,46 @@ function RsvpRow({ ev }: { ev: EventRow }) {
         <span>{ev.blurb ?? ev.location_text ?? ""}</span>
         {ev.going_count != null && <span className="go">● {ev.going_count} going</span>}
       </div>
-      <button className={`rsvp${going ? " in" : ""}`} onClick={onClick}>{going ? "Going ✓" : "I'm in"}</button>
+      <button className={`rsvp${going ? " in" : ""}`} onClick={onClick} disabled={busy}>{going ? "Going ✓" : "I'm in"}</button>
     </div>
   );
 }
 
 // ───────────────────────── live ─────────────────────────
 function EventsLive() {
+  const { toast } = useApp();
+  const { user } = useAuth();
   const [events, setEvents] = useState<EventRow[]>([]);
+  const [going, setGoing] = useState<Set<string>>(new Set());
   const [loaded, setLoaded] = useState(false);
+
+  const setMember = useCallback((id: string, member: boolean) => {
+    setGoing((prev) => {
+      const s = new Set(prev);
+      if (member) s.add(id); else s.delete(id);
+      return s;
+    });
+  }, []);
+
+  // Optimistically flip, persist, and roll back on error. One RSVP per (event, member).
+  const toggle = useCallback(async (ev: EventRow, next: boolean) => {
+    setMember(ev.id, next);
+    if (next) toast("You're in — we'll remind you");
+    if (!supabase) return;
+    if (next) {
+      const { error } = await supabase
+        .from("rsvps")
+        .upsert(
+          { event_id: ev.id, user_id: user?.id ?? null, contact_email: user?.email ?? null, status: "going" },
+          { onConflict: "event_id,user_id" }
+        );
+      if (error) { setMember(ev.id, false); toast("Couldn't RSVP — try again"); }
+    } else if (user) {
+      // Cancel: remove the member's own RSVP (anonymous rows can't be targeted safely).
+      const { error } = await supabase.from("rsvps").delete().eq("event_id", ev.id).eq("user_id", user.id);
+      if (error) { setMember(ev.id, true); toast("Couldn't update — try again"); }
+    }
+  }, [user, toast, setMember]);
 
   useEffect(() => {
     let active = true;
@@ -80,10 +105,17 @@ function EventsLive() {
       if (!supabase) return;
       const { data } = await supabase.from("events").select("*").order("sort");
       if (active && data) setEvents(data as EventRow[]);
+      // Which events has this member already RSVP'd to? (RLS lets them read only their own.)
+      if (user) {
+        const { data: mine } = await supabase.from("rsvps").select("event_id").eq("user_id", user.id);
+        if (active && mine) setGoing(new Set(mine.map((r) => r.event_id as string)));
+      } else if (active) {
+        setGoing(new Set());
+      }
       if (active) setLoaded(true);
     })();
     return () => { active = false; };
-  }, []);
+  }, [user]);
 
   return (
     <section className="screen" id="s-events">
@@ -96,7 +128,7 @@ function EventsLive() {
       <ReserveCard />
 
       <div className="sec">RSVP · this week</div>
-      {events.map((ev) => <RsvpRow key={ev.id} ev={ev} />)}
+      {events.map((ev) => <RsvpRow key={ev.id} ev={ev} going={going.has(ev.id)} onToggle={toggle} />)}
       {loaded && events.length === 0 && <div className="h-sub">No events scheduled right now — check back soon.</div>}
 
       <BringSomeone />

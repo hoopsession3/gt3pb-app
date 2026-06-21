@@ -13,6 +13,7 @@ function LiveControl() {
   const { toast } = useApp();
   const [stops, setStops] = useState<Stop[]>([]);
   const [live, setLive] = useState<LiveStatus | null>(null);
+  const [posBusy, setPosBusy] = useState(false);
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -28,7 +29,11 @@ function LiveControl() {
     load();
     if (!supabase) return;
     const ch = supabase.channel("admin-live")
-      .on("postgres_changes", { event: "*", schema: "public", table: "live_status" }, (p) => setLive(p.new as LiveStatus))
+      .on("postgres_changes", { event: "*", schema: "public", table: "live_status" }, (p) => {
+        const row = p.new as LiveStatus;
+        if (row && typeof row.id !== "undefined") setLive(row);
+        else load();
+      })
       .on("postgres_changes", { event: "*", schema: "public", table: "stops" }, () => load())
       .subscribe();
     return () => { supabase?.removeChannel(ch); };
@@ -44,12 +49,38 @@ function LiveControl() {
     toast(error ? `Error: ${error.message}` : "Truck paused");
   };
 
+  // Broadcast the truck's GPS from this phone — members watch the dot move in realtime.
+  const pinHere = () => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      toast("Location isn't available on this device");
+      return;
+    }
+    setPosBusy(true);
+    navigator.geolocation.getCurrentPosition(
+      async (p) => {
+        const { error } = await supabase!.rpc("admin_set_truck_pos", { lat: p.coords.latitude, lng: p.coords.longitude });
+        setPosBusy(false);
+        toast(error ? `Error: ${error.message}` : "Truck location updated — members see it move");
+      },
+      (e) => { setPosBusy(false); toast(`Location error: ${e.message}`); },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
+  const posLabel = live?.pos_updated_at
+    ? `Truck pinned · ${new Date(live.pos_updated_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
+    : "Truck location not set";
+
   return (
     <div className="adm-sec">
       <div className="sec">Live truck control</div>
       <div className="adm-live">
         <div><span className={`adm-dot${live?.is_live ? " on" : ""}`} /> {live?.is_live ? "LIVE NOW" : "Offline"}</div>
         {live?.is_live && <button className="adm-btn ghost" onClick={pause}>Pause</button>}
+      </div>
+      <div className="adm-live">
+        <div>{posLabel}</div>
+        <button className="adm-btn ghost" onClick={pinHere} disabled={posBusy}>{posBusy ? "Pinning…" : "Use my location"}</button>
       </div>
       {stops.map((s) => {
         const isCur = s.id === live?.current_stop_id && live?.is_live;
