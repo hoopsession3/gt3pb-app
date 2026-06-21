@@ -648,6 +648,34 @@ function EventsAdmin() {
   );
 }
 
+// ───────────────────────── subscription interest (waitlist / demand signal) ─────────────────────────
+function SubInterest() {
+  const [rows, setRows] = useState<{ pack_size: string | null; email: string | null; created_at: string }[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    if (!supabase) { setLoaded(true); return; }
+    supabase.from("subscription_interest").select("pack_size,email,created_at").order("created_at", { ascending: false }).limit(100)
+      .then(({ data }) => { if (data) setRows(data as { pack_size: string | null; email: string | null; created_at: string }[]); setLoaded(true); });
+  }, []);
+  const byPack = (k: string) => rows.filter((r) => r.pack_size === k).length;
+  return (
+    <div className="adm-sec">
+      <div className="sec">Subscription interest{rows.length > 0 && <span className="adm-pill">{rows.length}</span>}</div>
+      {rows.length > 0 && <div className="meta" style={{ marginBottom: 10 }}>6-pack · {byPack("6")} &nbsp;|&nbsp; 12-pack · {byPack("12")} &nbsp;|&nbsp; 18-pack · {byPack("18")}</div>}
+      {rows.map((r, i) => (
+        <div className="adm-member" key={i}>
+          <div className="adm-member-top">
+            <b>{r.email ?? "—"}</b>
+            <span className="adm-substat active">{r.pack_size ? `${r.pack_size}-pack` : "—"}</span>
+          </div>
+          <div className="meta">{new Date(r.created_at).toLocaleDateString([], { month: "short", day: "numeric" })}</div>
+        </div>
+      ))}
+      {loaded && rows.length === 0 && <div className="h-sub">No interest yet — it lands here when people tap &ldquo;Notify me&rdquo; on the subscription pitch.</div>}
+    </div>
+  );
+}
+
 // ───────────────────────── order history (review past orders) ─────────────────────────
 function OrdersHistory() {
   const [rows, setRows] = useState<Order[]>([]);
@@ -742,6 +770,7 @@ export default function AdminPage() {
           <Bookings />
           <ReservesAdmin />
           <Subscribers />
+          <SubInterest />
           <OrdersHistory />
           <EventsAdmin />
           <Members />

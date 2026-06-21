@@ -179,7 +179,11 @@ body{background:#0b0a08;font-family:'Inter',system-ui,sans-serif;color:var(--cre
 .subpitch h2{font-family:'Fraunces';font-weight:400;font-size:26px;letter-spacing:-.3px;line-height:1.12;margin:9px 0 9px;color:var(--cream)}
 .subpitch p{font-family:'Inter';font-size:13px;line-height:1.6;color:var(--cream-m);max-width:330px}
 .subpitch-packs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:16px 0}
-.subpitch-pack{display:flex;flex-direction:column;align-items:center;gap:1px;padding:13px 4px;border:1px solid var(--line2);border-radius:13px;background:rgba(0,0,0,.22)}
+.subpitch-pack{display:flex;flex-direction:column;align-items:center;gap:1px;padding:13px 4px;border:1px solid var(--line2);border-radius:13px;background:rgba(0,0,0,.22);color:var(--cream);cursor:pointer;text-align:center}
+.subpitch-pack.on{border-color:var(--red);background:rgba(184,36,32,.14);box-shadow:inset 0 0 0 1px var(--red)}
+.subpitch-email{width:100%;margin-bottom:10px;background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:12px;padding:13px 14px;color:var(--cream);font-family:'Inter';font-size:16px;outline:none}
+.subpitch-email:focus{border-color:var(--gold2)}
+.subpitch-done{text-align:center;font-family:'Fraunces';font-style:italic;font-size:14px;line-height:1.5;color:var(--gold2);padding:6px 4px}
 .subpitch-pack b{font-family:'Archivo Black';font-size:22px;line-height:1}
 .subpitch-pack span{font-family:'Inter';font-weight:600;font-size:8px;letter-spacing:1px;text-transform:uppercase;color:var(--cream-m)}
 .subpitch-pack em{font-family:'DM Mono';font-style:normal;font-size:12px;margin-top:5px;color:var(--gold2)}
