@@ -10,7 +10,7 @@ export default function SubscribePitch() {
   return (
     <section className="subpitch">
       <div className="eyb">Subscription</div>
-      <h2>Your coffee, always ready.</h2>
+      <h2>The cups you love, always ready.</h2>
       <p>Pick a pack — 6, 12, or 18 cups — and we&apos;ll have it ready for you every two weeks.</p>
       <div className="subpitch-packs">
         {SUB_PACKS.map((p) => (
