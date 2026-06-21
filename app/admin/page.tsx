@@ -655,6 +655,53 @@ function Members() {
 }
 
 // ───────────────────────── events ─────────────────────────
+// ───────────────────────── live event HUD (command center) ─────────────────────────
+// The 3 numbers that matter mid-event, scoped to the live event. Sales = paid app orders
+// + Square POS mirror (event_sales), so walk-up cart sales count too.
+function EventHUD() {
+  const [ev, setEv] = useState<EventRow | null>(null);
+  const [stats, setStats] = useState<{ cents: number; orders: number; firstAt: string | null }>({ cents: 0, orders: 0, firstAt: null });
+  const load = useCallback(async () => {
+    if (!supabase) return;
+    const { data: e } = await supabase.from("events").select("*").eq("is_live", true).maybeSingle();
+    setEv((e as EventRow) ?? null);
+    if (!e) { setStats({ cents: 0, orders: 0, firstAt: null }); return; }
+    const eid = (e as EventRow).id;
+    const [{ data: ords }, { data: sales }] = await Promise.all([
+      supabase.from("orders").select("total_cents, paid, created_at").eq("event_id", eid),
+      supabase.from("event_sales").select("amount_cents, created_at").eq("event_id", eid),
+    ]);
+    const o = (ords as { total_cents: number; paid: boolean; created_at: string }[]) ?? [];
+    const s = (sales as { amount_cents: number; created_at: string }[]) ?? [];
+    const cents = o.filter((x) => x.paid).reduce((a, x) => a + x.total_cents, 0) + s.reduce((a, x) => a + x.amount_cents, 0);
+    const times = [...o.map((x) => x.created_at), ...s.map((x) => x.created_at)].filter(Boolean).sort();
+    setStats({ cents, orders: o.length + s.length, firstAt: times[0] ?? null });
+  }, []);
+  useEffect(() => {
+    load();
+    if (!supabase) return;
+    const ch = supabase.channel("admin-eventhud")
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "event_sales" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "events" }, () => load())
+      .subscribe();
+    return () => { supabase?.removeChannel(ch); };
+  }, [load]);
+  if (!ev) return null;
+  const hrs = stats.firstAt ? Math.max(0.25, (Date.now() - new Date(stats.firstAt).getTime()) / 3600000) : 0;
+  const perHr = hrs ? stats.cents / hrs : 0;
+  return (
+    <div className="adm-sec adm-hud">
+      <div className="sec">{ev.title}<span className="adm-pill due">LIVE</span></div>
+      <div className="adm-hud-row">
+        <div className="adm-hud-stat"><b>${(stats.cents / 100).toFixed(0)}</b><span>sales</span></div>
+        <div className="adm-hud-stat"><b>{stats.orders}</b><span>orders</span></div>
+        <div className="adm-hud-stat"><b>${(perHr / 100).toFixed(0)}</b><span>per hr</span></div>
+      </div>
+    </div>
+  );
+}
+
 function EventsAdmin() {
   const { toast } = useApp();
   const [events, setEvents] = useState<EventRow[]>([]);
@@ -681,6 +728,12 @@ function EventsAdmin() {
     toast(error ? `Error: ${error.message}` : "Event removed");
     if (!error) load();
   };
+  // Mark an event live — sales (POS + app) start tracking to it; only one live at a time.
+  const setLive = async (id: string, live: boolean) => {
+    const { error } = await supabase!.rpc("admin_set_event_live", { p_event: id, p_live: live });
+    toast(error ? `Error: ${error.message}` : live ? "Event is live — sales now track to it" : "Event closed");
+    if (!error) load();
+  };
 
   return (
     <div className="adm-sec">
@@ -699,6 +752,26 @@ function EventsAdmin() {
             <label>Going<input type="number" min={0} defaultValue={e.going_count ?? 0} onBlur={(ev) => update(e.id, { going_count: Math.max(0, parseInt(ev.target.value) || 0) })} /></label>
             <label className="adm-check"><input type="checkbox" defaultChecked={e.member_only} onChange={(ev) => update(e.id, { member_only: ev.target.checked })} />Members</label>
             <button className="adm-btn ghost" onClick={() => remove(e.id)}>Delete</button>
+          </div>
+
+          <div className="adm-prep-label">Event prep — drives the pack list &amp; sales tracking</div>
+          <div className="adm-fields">
+            <label className="adm-check"><input type="checkbox" checked={!!e.is_live} onChange={(ev) => setLive(e.id, ev.target.checked)} /><b style={e.is_live ? { color: "var(--red)" } : undefined}>{e.is_live ? "LIVE now" : "Set live"}</b></label>
+            <label>Rig<select className="adm-role" defaultValue={e.rig ?? ""} onChange={(ev) => update(e.id, { rig: (ev.target.value || null) as EventRow["rig"] })}>
+              <option value="">—</option><option value="cart_only">Cart only</option><option value="trailer_plus_cart">Trailer + cart</option>
+            </select></label>
+            <label>Att.<input type="number" min={0} defaultValue={e.expected_attendance ?? 0} onBlur={(ev) => update(e.id, { expected_attendance: Math.max(0, parseInt(ev.target.value) || 0) })} /></label>
+            <label>Hrs<input type="number" min={0} step={0.5} defaultValue={e.duration_hrs ?? 0} onBlur={(ev) => update(e.id, { duration_hrs: parseFloat(ev.target.value) || 0 })} /></label>
+            <label>Staff<input type="number" min={0} defaultValue={e.staff_count ?? 0} onBlur={(ev) => update(e.id, { staff_count: Math.max(0, parseInt(ev.target.value) || 0) })} /></label>
+          </div>
+          <div className="adm-fields">
+            <label className="adm-check"><input type="checkbox" defaultChecked={!!e.power_available} onChange={(ev) => update(e.id, { power_available: ev.target.checked })} />Power</label>
+            <label className="adm-check"><input type="checkbox" defaultChecked={!!e.water_available} onChange={(ev) => update(e.id, { water_available: ev.target.checked })} />Water</label>
+            <label className="adm-check"><input type="checkbox" defaultChecked={!!e.menu_nitro} onChange={(ev) => update(e.id, { menu_nitro: ev.target.checked })} />Nitro</label>
+            <label className="adm-check"><input type="checkbox" defaultChecked={!!e.menu_nature_aid} onChange={(ev) => update(e.id, { menu_nature_aid: ev.target.checked })} />Nature Aid</label>
+            <label className="adm-check"><input type="checkbox" defaultChecked={!!e.menu_salted_maple} onChange={(ev) => update(e.id, { menu_salted_maple: ev.target.checked })} />Salted Maple</label>
+            <label className="adm-check"><input type="checkbox" defaultChecked={!!e.menu_bottles} onChange={(ev) => update(e.id, { menu_bottles: ev.target.checked })} />Bottles</label>
+            <label className="adm-check"><input type="checkbox" defaultChecked={!!e.menu_broth} onChange={(ev) => update(e.id, { menu_broth: ev.target.checked })} />Broth</label>
           </div>
         </div>
       ))}
@@ -835,6 +908,7 @@ export default function AdminPage() {
 
       {mode === "service" ? (
         <>
+          <EventHUD />
           <Readiness />
           <EnableAlerts userId={user?.id ?? null} />
           <Kitchen />

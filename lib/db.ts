@@ -66,6 +66,20 @@ export interface EventRow {
   going_count: number | null;
   blurb: string | null;
   sort: number;
+  // operational event object (0024) — the "hard prep" config the pack list + command center read
+  archetype?: string | null;
+  rig?: "cart_only" | "trailer_plus_cart" | null;
+  menu_nitro?: boolean;
+  menu_nature_aid?: boolean;
+  menu_salted_maple?: boolean;
+  menu_bottles?: boolean;
+  menu_broth?: boolean;
+  power_available?: boolean | null;
+  water_available?: boolean | null;
+  expected_attendance?: number | null;
+  duration_hrs?: number | null;
+  staff_count?: number | null;
+  is_live?: boolean;
 }
 
 // Limited reserves (0014_reserves.sql). Stock is server-authoritative; members

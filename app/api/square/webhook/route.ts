@@ -45,6 +45,20 @@ export async function POST(req: Request) {
     } else if (type === "invoice.payment_failed") {
       const subId = evt?.data?.object?.invoice?.subscription_id;
       if (subId) ({ error: err } = await supabaseAdmin.from("subscriptions").update({ status: "past_due", updated_at: new Date().toISOString() }).eq("square_subscription_id", subId));
+    } else if (type.startsWith("payment.")) {
+      // Mirror completed Square sales (incl. walk-up POS that never touch the app) into
+      // event_sales, scoped to the live event, so the command center HUD is real. Dedupe
+      // by payment id (Square retries). Needs the "Payment" event subscribed in Square.
+      const p = evt?.data?.object?.payment;
+      if (p?.id && p?.status === "COMPLETED") {
+        const { data: liveEv } = await supabaseAdmin.from("events").select("id").eq("is_live", true).maybeSingle();
+        ({ error: err } = await supabaseAdmin.from("event_sales").upsert({
+          square_payment_id: p.id,
+          event_id: liveEv?.id ?? null,
+          source: "square",
+          amount_cents: p?.amount_money?.amount ?? 0,
+        }, { onConflict: "square_payment_id" }));
+      }
     }
     // Only ack once the write succeeded. On failure return 500 so Square RETRIES
     // (it retries on non-2xx) rather than silently dropping the state transition.
