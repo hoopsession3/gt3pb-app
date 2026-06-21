@@ -34,6 +34,8 @@ function RsvpRow({ ev }: { ev: EventRow }) {
   const { user } = useAuth();
   const [going, setGoing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
+  const hasDetail = Boolean(ev.location_text || ev.blurb || ev.start_time);
 
   // Hydrate from the DB so a refresh/return reflects the real RSVP (no phantom re-taps).
   useEffect(() => {
@@ -62,14 +64,26 @@ function RsvpRow({ ev }: { ev: EventRow }) {
   };
 
   return (
-    <div className={`ev${ev.member_only ? " mo" : ""}`}>
-      <div className="when"><b>{ev.day_label ?? ""}</b><span>{evTime(ev)}</span></div>
-      <div className="info">
-        <b>{ev.title}{ev.member_only && <span className="motag">Members</span>}</b>
-        <span>{ev.blurb ?? ev.location_text ?? ""}</span>
-        {ev.going_count != null && <span className="go">● {ev.going_count} going</span>}
+    <div className="ev-wrap">
+      <div className={`ev${ev.member_only ? " mo" : ""}`}>
+        <div className="when"><b>{ev.day_label ?? ""}</b><span>{evTime(ev)}</span></div>
+        <div className="info" role={hasDetail ? "button" : undefined} tabIndex={hasDetail ? 0 : undefined} aria-expanded={hasDetail ? open : undefined}
+          onClick={() => hasDetail && setOpen((o) => !o)} onKeyDown={(e) => { if (hasDetail && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setOpen((o) => !o); } }}>
+          <b>{ev.title}{ev.member_only && <span className="motag">Members</span>}</b>
+          <span>{ev.blurb ?? ev.location_text ?? ""}</span>
+          {ev.going_count != null && <span className="go">● {ev.going_count} going</span>}
+        </div>
+        {hasDetail && <span className={`ev-caret${open ? " open" : ""}`} aria-hidden="true">›</span>}
+        <button className={`rsvp${going ? " in" : ""}`} onClick={onClick}>{going ? "Going ✓" : "I'm in"}</button>
       </div>
-      <button className={`rsvp${going ? " in" : ""}`} onClick={onClick}>{going ? "Going ✓" : "I'm in"}</button>
+      {open && hasDetail && (
+        <div className="ev-detail">
+          {ev.location_text && <div className="ev-det-row"><span className="ev-det-k">Where</span><span>{ev.location_text}</span></div>}
+          {(ev.start_time || ev.end_time) && <div className="ev-det-row"><span className="ev-det-k">When</span><span>{ev.day_label ? `${ev.day_label} · ` : ""}{evTime(ev)}</span></div>}
+          {ev.blurb && <p className="ev-det-blurb">{ev.blurb}</p>}
+          {ev.member_only && <div className="ev-det-note">Members only — sign in to RSVP.</div>}
+        </div>
+      )}
     </div>
   );
 }

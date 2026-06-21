@@ -12,7 +12,7 @@ const PILLAR: Record<"BEFORE" | "DURING" | "AFTER", string> = {
 };
 
 export default function DrinkSheet() {
-  const { openId, closeDrink, isInCart, bump } = useApp();
+  const { openId, closeDrink, isInCart, bump, toast } = useApp();
   const d = openId ? DRINKS[openId] : null;
   const on = openId ? isInCart(openId) : false;
   const { sheetRef, handlers } = useSheetDrag(closeDrink);
@@ -84,7 +84,7 @@ export default function DrinkSheet() {
                 <span className="sheet-when-v">{d.whenT}</span>
               </div>
 
-              <button className="order-bar" onClick={() => bump(openId)}>
+              <button className="order-bar" onClick={() => { if (!on) toast("Added — keep building your order"); bump(openId); closeDrink(); }}>
                 {on ? "Remove from order" : "Add to order"}
               </button>
               <div className="sheet-signoff">Made to order. The standard you can taste.</div>

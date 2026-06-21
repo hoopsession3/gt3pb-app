@@ -332,34 +332,40 @@ function LiveControl() {
     return () => { supabase?.removeChannel(ch); };
   }, [load]);
 
-  // Each mutation reloads explicitly (don't depend on the realtime socket) and surfaces errors.
+  // Optimistic flip first (instant), then write + reconcile. Pause no longer needs a
+  // stop — admin_set_offline just flips is_live, so it always works.
   const goLive = async (stopId: string) => {
+    setLive((l) => ({ id: 1, current_stop_id: stopId, is_live: true, next_eta: l?.next_eta ?? null }));
     const { error } = await supabase!.rpc("admin_set_live", { stop: stopId, live: true });
-    if (error) setErr(error.message);
-    toast(error ? `Couldn't go live — ${error.message}` : "Truck is LIVE — members updated");
+    if (error) { setErr(error.message); toast(`Couldn't go live — ${error.message}`, "error"); }
+    else toast("Truck is LIVE — members updated");
     load();
   };
   const pause = async () => {
-    if (!live?.current_stop_id) return;
-    const { error } = await supabase!.rpc("admin_set_live", { stop: live.current_stop_id, live: false });
-    if (error) setErr(error.message);
-    toast(error ? `Couldn't pause — ${error.message}` : "Truck paused");
+    setLive((l) => (l ? { ...l, is_live: false } : { id: 1, current_stop_id: null, is_live: false, next_eta: null }));
+    const { error } = await supabase!.rpc("admin_set_offline");
+    if (error) { setErr(error.message); toast(`Couldn't go offline — ${error.message}`, "error"); }
+    else toast("Truck is offline");
     load();
   };
   const addStop = async () => {
     const { error } = await supabase!.from("stops").insert({ name: "New stop", status: "upcoming", sort: stops.length });
-    if (error) setErr(error.message);
-    toast(error ? `Couldn't add — ${error.message}` : "Stop added — set its name, address & details below");
+    if (error) { setErr(error.message); toast(`Couldn't add — ${error.message}`, "error"); }
+    else toast("Stop added — set its name, address & details below");
     load();
   };
+  const curStop = stops.find((s) => s.id === live?.current_stop_id);
 
   return (
     <div className="adm-sec">
       <div className="sec">Live truck <button className="adm-btn" style={{ marginLeft: "auto" }} onClick={addStop}>+ Add stop</button></div>
-      {err && <div className="adm-attn">Backend error: {err}</div>}
+      {err && <div className="adm-attn" role="alert">Backend error: {err}</div>}
       <div className="adm-live">
-        <div><span className={`adm-dot${live?.is_live ? " on" : ""}`} /> {live?.is_live ? "Live now" : "Offline"}</div>
-        {live?.is_live && <button className="adm-btn ghost" onClick={pause}>Pause / end</button>}
+        <div className="adm-live-status">
+          <span className={`adm-dot${live?.is_live ? " on" : ""}`} />
+          <span><b>{live?.is_live ? "Live now" : "Offline"}</b>{live?.is_live && curStop ? <span className="adm-live-at"> · {curStop.name}</span> : null}</span>
+        </div>
+        {live?.is_live && <button className="adm-btn ghost" onClick={pause}>Go offline</button>}
       </div>
       {stops.map((s) => (
         <StopControl key={s.id} s={s} isCur={Boolean(s.id === live?.current_stop_id && live?.is_live)} onGoLive={goLive} onChanged={load} />
@@ -624,10 +630,14 @@ function EventsAdmin() {
       {events.map((e) => (
         <div className="adm-event" key={e.id}>
           <div className="adm-member-top">
-            <input className="auth-input" style={{ fontSize: 16, padding: "9px 11px" }} maxLength={200} defaultValue={e.title} onBlur={(ev) => ev.target.value !== e.title && update(e.id, { title: ev.target.value })} />
+            <input className="auth-input" style={{ fontSize: 16, padding: "9px 11px" }} maxLength={200} defaultValue={e.title} onBlur={(ev) => ev.target.value !== e.title && update(e.id, { title: ev.target.value })} aria-label="Event title" />
           </div>
+          <input className="auth-input" style={{ fontSize: 16, padding: "9px 11px", marginTop: 6 }} maxLength={300} defaultValue={e.blurb ?? ""} placeholder="Details guests see when they tap this event" aria-label="Event details" onBlur={(ev) => (ev.target.value.trim() || null) !== e.blurb && update(e.id, { blurb: ev.target.value.trim() || null })} />
+          <input className="auth-input" style={{ fontSize: 16, padding: "9px 11px", marginTop: 6 }} maxLength={200} defaultValue={e.location_text ?? ""} placeholder="Location" aria-label="Location" onBlur={(ev) => (ev.target.value.trim() || null) !== e.location_text && update(e.id, { location_text: ev.target.value.trim() || null })} />
           <div className="adm-fields">
             <label>Day<input type="text" defaultValue={e.day_label ?? ""} onBlur={(ev) => update(e.id, { day_label: ev.target.value })} /></label>
+            <label>Start<input type="text" defaultValue={e.start_time ?? ""} onBlur={(ev) => update(e.id, { start_time: ev.target.value.trim() || null })} /></label>
+            <label>End<input type="text" defaultValue={e.end_time ?? ""} onBlur={(ev) => update(e.id, { end_time: ev.target.value.trim() || null })} /></label>
             <label>Going<input type="number" min={0} defaultValue={e.going_count ?? 0} onBlur={(ev) => update(e.id, { going_count: Math.max(0, parseInt(ev.target.value) || 0) })} /></label>
             <label className="adm-check"><input type="checkbox" defaultChecked={e.member_only} onChange={(ev) => update(e.id, { member_only: ev.target.checked })} />Members</label>
             <button className="adm-btn ghost" onClick={() => remove(e.id)}>Delete</button>

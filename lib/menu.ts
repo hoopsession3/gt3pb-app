@@ -21,7 +21,7 @@ export interface DrinkDetail {
 export const DRINKS: Record<DrinkId, DrinkDetail> = {
   rise: {
     n: "RISE", px: "$7", grad: "linear-gradient(140deg,#7a5c3a,#caa46d)", dot: "#C49A5E",
-    lines: ["Cold-Extracted Coffee", "Finished with Organic Coconut Water"],
+    lines: ["Cold-extracted coffee in mineral water","Finished with Organic Coconut Water"],
     why: "A clean, even start from whole-food inputs.",
     tag: "Start here",
     has: ["Single-origin cold extraction", "Mineral water base", "Organic coconut water"],
@@ -30,7 +30,7 @@ export const DRINKS: Record<DrinkId, DrinkDetail> = {
   },
   flow: {
     n: "FLOW", px: "$7", grad: "linear-gradient(140deg,#3a2418,#6b4429)", dot: "#6B4429",
-    lines: ["Cold-Extracted Coffee", "Infused with Organic Cacao Nibs"],
+    lines: ["Cold-extracted coffee in mineral water","Infused with Organic Cacao Nibs"],
     why: "Cacao for a longer, steadier focus.",
     has: ["Single-origin cold extraction", "Mineral water base", "Organic cacao nibs"],
     no: ["Sugar", "Dairy", "Syrups", "Preservatives"],
@@ -38,7 +38,7 @@ export const DRINKS: Record<DrinkId, DrinkDetail> = {
   },
   dusk: {
     n: "DUSK", px: "$7", grad: "linear-gradient(140deg,#5a3826,#9c6b3f)", dot: "#9C6B3F",
-    lines: ["Cold-Extracted Coffee", "Ceylon Cinnamon · Green Cardamom"],
+    lines: ["Cold-extracted coffee in mineral water","Ceylon Cinnamon · Green Cardamom"],
     why: "Whole spice for the back half of the day.",
     has: ["Single-origin cold extraction", "Mineral water base", "Ceylon cinnamon", "Green cardamom"],
     no: ["Sugar", "Dairy", "Syrups", "Preservatives"],
