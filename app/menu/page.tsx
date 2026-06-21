@@ -7,14 +7,13 @@ import { DRINKS, MENU, type DrinkId } from "@/lib/menu";
 import { clickable } from "@/lib/a11y";
 
 export default function MenuScreen() {
-  const { openDrink, isInCart, cartCount, toast, openCheckout } = useApp();
+  const { openDrink, isInCart, cartCount, toast } = useApp();
   const [prices, setPrices] = useState<Record<string, number>>({});
   // Prices come from Square Catalog (one source of truth across truck + app).
   useEffect(() => {
     fetch("/api/menu").then((r) => r.json()).then((d) => setPrices(d.prices || {})).catch(() => {});
   }, []);
   const priceLabel = (id: DrinkId) => (prices[id] != null ? `$${(prices[id] / 100).toFixed(0)}` : DRINKS[id].px);
-  const coLbl = cartCount > 0 ? `Review order · ${cartCount}` : "Order here · tap a drink";
 
   return (
     <section className="screen menu" id="s-menu">
@@ -72,12 +71,12 @@ export default function MenuScreen() {
       <div className="menu-integrity">No plastic contact · No powders · No artificial anything</div>
       <div className="menu-mto">Made to order</div>
 
-      <button
-        className="order-bar"
-        onClick={() => (cartCount === 0 ? toast("Tap a drink to read it, then add to your order") : openCheckout())}
-      >
-        {coLbl}
-      </button>
+      {/* Empty-state hint only; once items are added the floating CartBar takes over. */}
+      {cartCount === 0 && (
+        <button className="order-bar" onClick={() => toast("Tap a drink to read it, then add to your order")}>
+          Order here · tap a drink
+        </button>
+      )}
     </section>
   );
 }

@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { useApp } from "./AppProvider";
 import BottomNav from "./BottomNav";
+import CartBar from "./CartBar";
 import DrinkSheet from "./DrinkSheet";
 import Checkout from "./Checkout";
 import Toast from "./Toast";
@@ -30,6 +31,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <Checkout />
       <Toast />
       <Notifications />
+      <CartBar />
       <BottomNav />
       <ServiceWorkerRegister />
     </div>

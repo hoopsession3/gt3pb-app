@@ -40,7 +40,6 @@ const STAGES: { key: Order["status"]; label: string; action: string }[] = [
 function Kitchen() {
   const { toast } = useApp();
   const [orders, setOrders] = useState<Order[]>([]);
-  const [, setTick] = useState(0); // re-render so ages stay current
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [err, setErr] = useState("");
 
@@ -67,7 +66,10 @@ function Kitchen() {
 
   useEffect(() => {
     load();
-    const t = setInterval(() => setTick((n) => n + 1), 30000); // ages only — no network
+    // Safety-net reconcile: realtime is primary (instant), but this guarantees every
+    // operator/admin converges to DB truth even if a realtime packet is dropped, and
+    // keeps aging colours current. Off the tap hot path, so taps stay instant.
+    const t = setInterval(() => load(), 15000);
     if (!supabase) return () => clearInterval(t);
     const ch = supabase
       .channel("admin-kds")
