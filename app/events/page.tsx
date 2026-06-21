@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import { useAuth } from "@/components/AuthProvider";
 import AccountPill from "@/components/AccountPill";
+import Reserves from "@/components/Reserves";
 import { supabase } from "@/lib/supabase";
 import type { EventRow } from "@/lib/db";
 
@@ -80,7 +81,7 @@ function EventsLive() {
       </div>
       <div className="h-title">Events.</div>
 
-      <ReserveCard />
+      <Reserves />
 
       <div className="sec">RSVP · this week</div>
       {events.map((ev) => <RsvpRow key={ev.id} ev={ev} />)}

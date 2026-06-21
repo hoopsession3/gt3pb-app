@@ -9,7 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { subscribePush } from "@/lib/push";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import { geocode } from "@/lib/geocode";
-import type { Stop, LiveStatus, EventRow, BookingRequest, Order } from "@/lib/db";
+import type { Stop, LiveStatus, EventRow, BookingRequest, Order, Reserve } from "@/lib/db";
 
 const STATUSES: BookingRequest["status"][] = ["new", "contacted", "booked", "declined"];
 
@@ -271,6 +271,68 @@ function Bookings() {
   );
 }
 
+// ───────────────────────── reserves (limited drops) ─────────────────────────
+function ReservesAdmin() {
+  const { toast } = useApp();
+  const [rows, setRows] = useState<Reserve[]>([]);
+  const load = useCallback(async () => {
+    if (!supabase) return;
+    const { data } = await supabase.from("reserves").select("*").order("sort");
+    if (data) setRows(data as Reserve[]);
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const update = async (id: string, patch: Partial<Reserve>) => {
+    const { error } = await supabase!.from("reserves").update(patch).eq("id", id);
+    toast(error ? `Error: ${error.message}` : "Reserve updated");
+    if (!error) load();
+  };
+  const add = async () => {
+    const { error } = await supabase!.from("reserves").insert({
+      name: "New reserve", price_cents: 1200, stock_total: 12, stock_remaining: 12, status: "draft", sort: rows.length,
+    });
+    toast(error ? `Error: ${error.message}` : "Reserve created — set details, then set it Live");
+    if (!error) load();
+  };
+  const archive = async (id: string) => {
+    if (typeof window !== "undefined" && !window.confirm("Archive this reserve? It disappears from the app.")) return;
+    await update(id, { status: "archived" });
+  };
+
+  const active = rows.filter((r) => r.status !== "archived");
+  return (
+    <div className="adm-sec">
+      <div className="sec">Reserves <button className="adm-btn" style={{ marginLeft: "auto" }} onClick={add}>+ Add</button></div>
+      {active.map((r) => (
+        <div className="adm-event" key={r.id}>
+          <div className="adm-member-top">
+            <input className="auth-input" style={{ fontSize: 14, padding: "8px 10px" }} maxLength={120} defaultValue={r.name} onBlur={(e) => e.target.value !== r.name && update(r.id, { name: e.target.value })} />
+          </div>
+          <input className="auth-input" style={{ fontSize: 13, padding: "8px 10px", marginTop: 6 }} maxLength={300} defaultValue={r.blurb ?? ""} placeholder="One line guests see" onBlur={(e) => (e.target.value.trim() || null) !== r.blurb && update(r.id, { blurb: e.target.value.trim() || null })} />
+          <div className="adm-fields">
+            <label>Price $<input type="text" inputMode="decimal" defaultValue={(r.price_cents / 100).toFixed(2)} onBlur={(e) => update(r.id, { price_cents: Math.max(0, Math.round(parseFloat(e.target.value || "0") * 100)) })} /></label>
+            <label>Stock<input type="number" min={0} defaultValue={r.stock_total} onBlur={(e) => update(r.id, { stock_total: Math.max(0, parseInt(e.target.value) || 0) })} /></label>
+            <label>Left<input type="number" min={0} defaultValue={r.stock_remaining} onBlur={(e) => update(r.id, { stock_remaining: Math.max(0, parseInt(e.target.value) || 0) })} /></label>
+            <label>Limit<input type="number" min={1} defaultValue={r.per_member_limit} onBlur={(e) => update(r.id, { per_member_limit: Math.max(1, parseInt(e.target.value) || 1) })} /></label>
+          </div>
+          <div className="adm-fields">
+            <label>Status
+              <select defaultValue={r.status} onChange={(e) => update(r.id, { status: e.target.value as Reserve["status"] })}>
+                <option value="draft">Draft (hidden)</option>
+                <option value="live">Live</option>
+                <option value="sold_out">Sold out</option>
+              </select>
+            </label>
+            <label className="adm-check"><input type="checkbox" defaultChecked={r.member_only} onChange={(e) => update(r.id, { member_only: e.target.checked })} />Members</label>
+            <button className="adm-btn ghost" onClick={() => archive(r.id)}>Archive</button>
+          </div>
+        </div>
+      ))}
+      {active.length === 0 && <div className="h-sub">No reserves yet — add a limited drop to sell to members.</div>}
+    </div>
+  );
+}
+
 // ───────────────────────── member management ─────────────────────────
 function MemberRow({ m, onSaved }: { m: Profile; onSaved: () => void }) {
   const { toast } = useApp();
@@ -443,6 +505,7 @@ export default function AdminPage() {
       ) : (
         <>
           <Bookings />
+          <ReservesAdmin />
           <EventsAdmin />
           <Members />
         </>

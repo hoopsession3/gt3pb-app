@@ -62,3 +62,31 @@ export interface EventRow {
   blurb: string | null;
   sort: number;
 }
+
+// Limited reserves (0014_reserves.sql). Stock is server-authoritative; members
+// claim via the claim_reserve RPC (atomic, no oversell).
+export interface Reserve {
+  id: string;
+  name: string;
+  blurb: string | null;
+  price_cents: number;
+  stock_total: number;
+  stock_remaining: number;
+  per_member_limit: number;
+  member_only: boolean;
+  status: "draft" | "live" | "sold_out" | "archived";
+  drop_at: string | null;
+  sort: number;
+  created_at: string;
+}
+
+export interface ReserveClaim {
+  id: string;
+  reserve_id: string;
+  user_id: string;
+  qty: number;
+  state: "held" | "paid" | "expired" | "cancelled";
+  hold_expires_at: string | null;
+  order_id: string | null;
+  created_at: string;
+}
