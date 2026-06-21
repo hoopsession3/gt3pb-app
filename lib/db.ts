@@ -33,6 +33,7 @@ export interface Order {
   payment_id: string | null;
   status: "new" | "preparing" | "ready" | "done" | "void";
   created_at: string;
+  status_changed_at: string;
 }
 
 export interface BookingRequest {

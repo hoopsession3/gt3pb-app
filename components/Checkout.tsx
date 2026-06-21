@@ -47,7 +47,11 @@ export default function Checkout() {
   const items = lines.flatMap(([id, q]) => Array(q).fill(id)) as DrinkId[]; // flat list for the charge + order record
   const priceOf = (id: DrinkId) => prices?.[id] ?? Math.round(parseFloat(DRINKS[id].px.replace("$", "")) * 100);
   const totalCents = items.reduce((s, id) => s + priceOf(id), 0);
-  const customer = profile?.display_name || (user?.email ? user.email.split("@")[0] : "Guest");
+  // A name is required so the operator can call the order at pickup. Prefilled from
+  // the member's profile when the sheet opens; guests must type one.
+  const [name, setName] = useState("");
+  useEffect(() => { if (open) setName((n) => n || profile?.display_name || ""); }, [open, profile?.display_name]);
+  const customer = name.trim();
 
   // Tip (card path only; pre-orders tip in person). Default 20% — easy to change.
   const [tipPct, setTipPct] = useState(0.2);
@@ -111,6 +115,7 @@ export default function Checkout() {
 
   const pay = async () => {
     setErr("");
+    if (!customer) { setErr("Add a name for pickup"); return; }
     if (!cardRef.current) return;
     setBusy(true);
     try {
@@ -147,7 +152,18 @@ export default function Checkout() {
         <div className="sin">
           {open && (
             <>
-              <div className="spec-label">Your pre-order</div>
+              <div className="spec-label">Name for pickup</div>
+              <input
+                className="co-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Who's this order for?"
+                maxLength={40}
+                aria-label="Name for pickup"
+                autoComplete="name"
+                enterKeyHint="done"
+              />
+              <div className="spec-label" style={{ marginTop: 16 }}>Your pre-order</div>
               {lines.map(([id, q]) => (
                 <div className="co-line" key={id}>
                   <span className="co-qty">
@@ -175,8 +191,8 @@ export default function Checkout() {
                   <div className="spec-label" style={{ marginTop: 16 }}>Card</div>
                   <div id="sq-card" className="sq-card" />
                   {err && <div className="auth-err">{err}</div>}
-                  <button className="handle" onClick={pay} disabled={!ready || busy || items.length === 0}>
-                    <span>{busy ? "Charging…" : ready ? `Pay $${total}` : "Loading card…"}</span>
+                  <button className="handle" onClick={pay} disabled={!ready || busy || items.length === 0 || !customer}>
+                    <span>{busy ? "Charging…" : !customer ? "Add a name above" : ready ? `Pay $${total}` : "Loading card…"}</span>
                   </button>
                   <div className="signoff">Secured by Square · skip the line at pickup.</div>
                 </>
@@ -186,7 +202,7 @@ export default function Checkout() {
                   <div className="honest" style={{ marginTop: 16 }}>
                     Card checkout switches on soon. For now this is a <b>pre-order</b> — we&apos;ll have it ready and you pay at the truck.
                   </div>
-                  <button className="handle" onClick={async () => { await enableAlerts(); await recordPreOrder(); toast(`${items.length} drinks pre-ordered — ready in ~8 min`); checkout(); onClose(); }}>
+                  <button className="handle" onClick={async () => { if (!customer) { toast("Add a name for pickup", "error"); return; } await enableAlerts(); await recordPreOrder(); toast(`${items.length} drinks pre-ordered — ready in ~8 min`); checkout(); onClose(); }} disabled={!customer}>
                     <span>Send pre-order</span>
                   </button>
                 </>

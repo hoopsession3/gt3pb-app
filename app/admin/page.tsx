@@ -8,6 +8,7 @@ import SignIn from "@/components/SignIn";
 import { supabase } from "@/lib/supabase";
 import { subscribePush } from "@/lib/push";
 import { chime, unlockAudio } from "@/lib/chime";
+import { haptic, HAPTIC } from "@/lib/haptics";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import { geocode } from "@/lib/geocode";
 import type { Stop, LiveStatus, EventRow, BookingRequest, Order, Reserve, Subscription } from "@/lib/db";
@@ -44,6 +45,7 @@ function groupItems(items: string[]) {
   items.forEach((i) => m.set(i, (m.get(i) ?? 0) + 1));
   return [...m.entries()].map(([id, qty]) => ({ id, qty }));
 }
+const RECENT_MS = 30 * 60000; // picked-up orders linger 30 min for review / recall
 
 function Kitchen() {
   const { toast } = useApp();
@@ -51,6 +53,7 @@ function Kitchen() {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [flash, setFlash] = useState<Set<string>>(new Set());
   const [muted, setMuted] = useState(false);
+  const [doneOpen, setDoneOpen] = useState(false);
   const [, setTick] = useState(0);
   const [err, setErr] = useState("");
   const seeded = useRef(false);
@@ -58,21 +61,26 @@ function Kitchen() {
   useEffect(() => { mutedRef.current = muted; }, [muted]);
   useEffect(() => { try { setMuted(localStorage.getItem("kds_muted") === "1"); } catch { /* */ } }, []);
 
+  // Active board + recently-completed (last 30 min) so picked-up orders linger for
+  // review / recall instead of vanishing instantly.
   const load = useCallback(async () => {
     if (!supabase) return;
-    const { data, error } = await supabase.from("orders").select("*").neq("status", "done").neq("status", "void").order("created_at");
+    const recentISO = new Date(Date.now() - RECENT_MS).toISOString();
+    const { data, error } = await supabase.from("orders").select("*").neq("status", "void")
+      .or(`status.neq.done,status_changed_at.gte.${recentISO}`).order("created_at");
     if (error) { setErr(error.message); return; }
     setErr("");
     if (data) setOrders(data as Order[]);
     seeded.current = true;
   }, []);
-  // Merge a single row into state (no refetch). Used by realtime AND optimistic taps,
-  // so the board mutates in place — zero network on the hot path.
+  // Merge a single row into state (no refetch). Keeps recently-done; drops voids and
+  // stale dones (those fall off on the next reconcile).
   const apply = useCallback((row: Order | null, removed = false) => {
     if (!row?.id) return;
     setOrders((prev) => {
       const without = prev.filter((o) => o.id !== row.id);
-      if (!removed && row.status !== "done" && row.status !== "void") {
+      const isStaleDone = row.status === "done" && !(row.status_changed_at && Date.now() - new Date(row.status_changed_at).getTime() < RECENT_MS);
+      if (!removed && row.status !== "void" && !isStaleDone) {
         without.push(row);
         without.sort((a, b) => (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0));
       }
@@ -83,7 +91,7 @@ function Kitchen() {
   // Ring + buzz + flash when a genuinely new order lands (not on initial seed / own taps).
   const announceNew = useCallback((row: Order) => {
     if (!seeded.current) return;
-    if (!mutedRef.current) { chime(); try { navigator.vibrate?.([200, 100, 200]); } catch { /* */ } }
+    if (!mutedRef.current) { chime(); haptic(HAPTIC.alert); }
     setFlash((p) => new Set(p).add(row.id));
     setTimeout(() => setFlash((p) => { const n = new Set(p); n.delete(row.id); return n; }), 6000);
   }, []);
@@ -107,8 +115,8 @@ function Kitchen() {
   // Instant: patch local state synchronously, fire the write, no refetch on success.
   const move = async (o: Order, to: Order["status"] | null) => {
     if (!to || !supabase) return;
-    apply({ ...o, status: to } as Order, to === "done");
-    try { navigator.vibrate?.(10); } catch { /* */ }
+    apply({ ...o, status: to, status_changed_at: new Date().toISOString() } as Order, false);
+    haptic(HAPTIC.tap);
     const { error } = await supabase.from("orders").update({ status: to }).eq("id", o.id);
     if (error) { setErr(error.message); toast(`Couldn't update — ${error.message}`, "error"); load(); }
   };
@@ -124,11 +132,13 @@ function Kitchen() {
 
   const toggle = (k: string) => setCollapsed((p) => { const n = new Set(p); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   const toggleMute = () => setMuted((m) => { const v = !m; try { localStorage.setItem("kds_muted", v ? "1" : "0"); } catch { /* */ } unlockAudio(); return v; });
-  const late = orders.filter((o) => o.status !== "ready" && ageMin(o.created_at) >= 8);
+  const active = orders.filter((o) => o.status !== "done");
+  const done = orders.filter((o) => o.status === "done").sort((a, b) => (a.status_changed_at < b.status_changed_at ? 1 : -1));
+  const late = active.filter((o) => o.status !== "ready" && ageMin(o.created_at) >= 8);
 
   return (
     <div className="adm-sec">
-      <div className="sec">The pass{orders.length > 0 && <span className="adm-pill">{orders.length} active</span>}
+      <div className="sec">The pass{active.length > 0 && <span className="adm-pill">{active.length} active</span>}
         <button type="button" className="kds-mute" onClick={toggleMute} aria-pressed={muted}>{muted ? "🔇 Muted" : "🔔 Sound"}</button>
       </div>
 
@@ -161,7 +171,7 @@ function Kitchen() {
                       <span className={`adm-age ${sev}`}>{ago(o.created_at)}</span>
                     </div>
                     <div className="adm-items">{groupItems(o.items).map((g) => `${g.qty > 1 ? g.qty + "× " : ""}${DRINKS[g.id as DrinkId]?.n ?? g.id}`).join(" · ")}</div>
-                    <div className="meta">#{o.id.slice(0, 4).toUpperCase()} · ${(o.total_cents / 100).toFixed(2)} · <span className={o.paid ? "pd" : "unp"}>{o.paid ? "PAID" : "pre-order"}</span></div>
+                    <div className="meta">#{o.id.slice(0, 4).toUpperCase()} · ${(o.total_cents / 100).toFixed(2)} · <span className={o.paid ? "pd" : "unp"}>{o.paid ? "PAID" : "pre-order"}</span> · <span className="kds-stagetime">{ago(o.status_changed_at)} in stage</span></div>
                     <div className="adm-actions-row">
                       {PREV[o.status] && <button className="adm-recall" onClick={() => recall(o)} aria-label="Move back a stage">↩</button>}
                       <button className={`adm-act ${ACT_CLASS[o.status]}`} onClick={() => advance(o)}>{st.action}</button>
@@ -172,8 +182,31 @@ function Kitchen() {
             </div>
           );
         })}
+
+        {done.length > 0 && (
+          <div className="kds-stage">
+            <button type="button" className="kds-stage-h" onClick={() => setDoneOpen((v) => !v)} aria-expanded={doneOpen}>
+              <span className={`kds-caret${!doneOpen ? " col" : ""}`}>▾</span>
+              <span className="kds-stage-name">Just completed</span>
+              <span className="kds-stage-n">{done.length}</span>
+            </button>
+            {doneOpen && done.map((o) => (
+              <div className="adm-order st-done" key={o.id}>
+                <div className="adm-order-top">
+                  <b>{o.customer ?? "Guest"}</b>
+                  <span className="adm-age calm">picked up {ago(o.status_changed_at)} ago</span>
+                </div>
+                <div className="adm-items">{groupItems(o.items).map((g) => `${g.qty > 1 ? g.qty + "× " : ""}${DRINKS[g.id as DrinkId]?.n ?? g.id}`).join(" · ")}</div>
+                <div className="meta">#{o.id.slice(0, 4).toUpperCase()} · ${(o.total_cents / 100).toFixed(2)} · <span className={o.paid ? "pd" : "unp"}>{o.paid ? "PAID" : "pre-order"}</span></div>
+                <div className="adm-actions-row">
+                  <button className="adm-recall" onClick={() => recall(o)} aria-label={`Bring ${o.customer ?? "order"} back to ready`}>↩ Recall</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
-      {orders.length === 0 && <div className="h-sub">The pass is clear. New orders arrive here in realtime.</div>}
+      {active.length === 0 && done.length === 0 && <div className="h-sub">The pass is clear. New orders arrive here in realtime.</div>}
     </div>
   );
 }
@@ -605,6 +638,40 @@ function EventsAdmin() {
   );
 }
 
+// ───────────────────────── order history (review past orders) ─────────────────────────
+function OrdersHistory() {
+  const [rows, setRows] = useState<Order[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const load = useCallback(async () => {
+    if (!supabase) return;
+    const { data } = await supabase.from("orders").select("*").in("status", ["done", "void"]).order("status_changed_at", { ascending: false }).limit(60);
+    if (data) setRows(data as Order[]);
+    setLoaded(true);
+  }, []);
+  useEffect(() => {
+    load();
+    if (!supabase) return;
+    const ch = supabase.channel("admin-history").on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => load()).subscribe();
+    return () => { supabase?.removeChannel(ch); };
+  }, [load]);
+  const done = rows.filter((r) => r.status === "done").length;
+  return (
+    <div className="adm-sec">
+      <div className="sec">Order history{done > 0 && <span className="adm-pill">{done} completed</span>}</div>
+      {rows.map((o) => (
+        <div className="adm-member" key={o.id}>
+          <div className="adm-member-top">
+            <b>{o.customer ?? "Guest"}</b>
+            <span className={`adm-substat ${o.status === "void" ? "past_due" : "active"}`}>{o.status}</span>
+          </div>
+          <div className="meta">{groupItems(o.items).map((g) => `${g.qty > 1 ? g.qty + "× " : ""}${DRINKS[g.id as DrinkId]?.n ?? g.id}`).join(" · ")} · ${(o.total_cents / 100).toFixed(2)} · {new Date(o.status_changed_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>
+        </div>
+      ))}
+      {loaded && rows.length === 0 && <div className="h-sub">No completed orders yet — they appear here after pickup.</div>}
+    </div>
+  );
+}
+
 function EnableAlerts({ userId }: { userId: string | null }) {
   const [perm, setPerm] = useState<NotificationPermission | "unknown">("unknown");
   useEffect(() => { if (typeof Notification !== "undefined") setPerm(Notification.permission); }, []);
@@ -665,6 +732,7 @@ export default function AdminPage() {
           <Bookings />
           <ReservesAdmin />
           <Subscribers />
+          <OrdersHistory />
           <EventsAdmin />
           <Members />
         </>
