@@ -60,7 +60,7 @@ export default function OperatorNav() {
   if (role === "member") return <BottomNav />;
   const tabs = sectionsForRole(role);
   return (
-    <div className="nav opnav" role="tablist" aria-label="Employee console">
+    <div className="nav opnav" role="tablist" aria-label="Crew console">
       {tabs.map((k) => {
         const on = section === k;
         return (

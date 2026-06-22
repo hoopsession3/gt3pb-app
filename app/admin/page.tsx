@@ -1727,8 +1727,8 @@ export default function AdminPage() {
   return (
     <section className="screen admin">
       <div className="toprow">
-        <div className="eyb">GT3PB · Employee</div>
-        <Link className="pf" href="/3mpire" aria-label="Exit Employee Mode">‹</Link>
+        <div className="eyb">GT3PB · Crew</div>
+        <Link className="pf" href="/3mpire" aria-label="Exit Crew Mode">‹</Link>
       </div>
       <div className="op-head">
         <div className="op-head-t">{LABEL[sec]}</div>
