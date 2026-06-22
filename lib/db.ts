@@ -81,6 +81,7 @@ export interface EventRow {
   id: string;
   title: string;
   type: string | null;
+  day: string | null; // ISO date (events.day) — drives the Prep "by date/when" grouping
   day_label: string | null;
   start_time: string | null;
   end_time: string | null;

@@ -1,12 +1,12 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import SignIn from "@/components/SignIn";
+import AccountPill from "@/components/AccountPill";
 import SubscriptionCard from "@/components/SubscriptionCard";
 import { supabase } from "@/lib/supabase";
 import { DRINKS, type DrinkId } from "@/lib/menu";
@@ -132,7 +132,7 @@ function MpireReal() {
     <section className="screen" id="s-mpire">
       <div className="toprow">
         <div className="eyb">Membership</div>
-        <Link className="pf" href="/3mpire">{name.charAt(0).toUpperCase()}</Link>
+        <AccountPill />
       </div>
 
       <div className="memcard"><div className="min">
@@ -213,7 +213,7 @@ function MpireDemo() {
     <section className="screen" id="s-mpire">
       <div className="toprow">
         <div className="eyb">Membership</div>
-        <Link className="pf" href="/3mpire">R</Link>
+        <AccountPill />
       </div>
 
       <div className="memcard"><div className="min">
