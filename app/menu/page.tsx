@@ -8,9 +8,9 @@ import { DRINKS, MENU } from "@/lib/menu";
 import { clickable } from "@/lib/a11y";
 
 export default function MenuScreen() {
-  const { openDrink, isInCart, cart, toast } = useApp();
+  const { openDrink, qtyOf, cartCount, toast } = useApp();
   const [coOpen, setCoOpen] = useState(false);
-  const coLbl = cart.size > 0 ? `Checkout · ${cart.size}` : "Pre-order for pickup";
+  const coLbl = cartCount > 0 ? `Checkout · ${cartCount}` : "Pre-order for pickup";
 
   return (
     <section className="screen" id="s-menu">
@@ -32,14 +32,14 @@ export default function MenuScreen() {
           <div className="menucat"><span className="sx">{cat.sx}</span>{cat.name}<span className="wn">{cat.wn}</span></div>
           {cat.rows.map((row) => {
             const d = DRINKS[row.id];
-            const on = isInCart(row.id);
+            const q = qtyOf(row.id);
             return (
-              <div className="drink" key={row.id} aria-label={`${d.n}, ${d.px}, view details`} {...clickable(() => openDrink(row.id))}>
+              <div className="drink" key={row.id} aria-label={`${d.n}, ${d.px}${q > 0 ? `, ${q} in order` : ""}, view details`} {...clickable(() => openDrink(row.id))}>
                 <div className="sw" style={{ background: d.grad }}>{d.n}</div>
                 <div className="dm"><b>{d.n}</b><span>{row.blurb}</span></div>
                 <div className="rt">
                   <span className="px">{d.px}</span>
-                  <div className={`plus${on ? " on" : ""}`}>{on ? "✓" : "+"}</div>
+                  <div className={`plus${q > 0 ? " on" : ""}`}>{q > 0 ? q : "+"}</div>
                 </div>
               </div>
             );
@@ -47,7 +47,7 @@ export default function MenuScreen() {
         </div>
       ))}
 
-      <button className="handle" onClick={() => (cart.size === 0 ? toast("Tap + on a drink to build your order") : setCoOpen(true))}>
+      <button className="handle" onClick={() => (cartCount === 0 ? toast("Tap + on a drink to build your order") : setCoOpen(true))}>
         <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2"><path d="M5 12l5 5L20 7" /></svg>
         <span>{coLbl}</span>
       </button>

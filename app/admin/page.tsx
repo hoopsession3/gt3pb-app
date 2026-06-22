@@ -6,7 +6,7 @@ import { useApp } from "@/components/AppProvider";
 import { useAuth, type Profile } from "@/components/AuthProvider";
 import SignIn from "@/components/SignIn";
 import { supabase } from "@/lib/supabase";
-import type { Stop, LiveStatus, EventRow } from "@/lib/db";
+import type { Stop, LiveStatus, EventRow, Order } from "@/lib/db";
 
 // ───────────────────────── live truck control ─────────────────────────
 function LiveControl() {
@@ -93,6 +93,70 @@ function LiveControl() {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ───────────────────────── order queue (fulfillment) ─────────────────────────
+function OrdersAdmin() {
+  const { toast } = useApp();
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!supabase) return;
+    const { data } = await supabase
+      .from("orders")
+      .select("*, order_items(*)")
+      .in("status", ["pending", "ready"])
+      .order("created_at", { ascending: true });
+    if (data) setOrders(data as Order[]);
+    setLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    load();
+    if (!supabase) return;
+    // New pre-orders + status flips arrive live so the truck never refreshes.
+    const ch = supabase.channel("admin-orders")
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => load())
+      .subscribe();
+    return () => { supabase?.removeChannel(ch); };
+  }, [load]);
+
+  const setStatus = async (id: string, status: Order["status"]) => {
+    const patch = status === "ready" ? { status, ready_at: new Date().toISOString() } : { status };
+    const { error } = await supabase!.from("orders").update(patch).eq("id", id);
+    toast(error ? `Error: ${error.message}` : status === "ready" ? "Marked ready" : "Cleared");
+    if (!error) load();
+  };
+
+  const fmt = (c: number) => `$${(c / 100).toFixed(2)}`;
+  const time = (s: string) => new Date(s).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+  return (
+    <div className="adm-sec">
+      <div className="sec">Order queue · {orders.length}</div>
+      {orders.map((o) => {
+        const lines = (o.order_items ?? []).map((i) => `${i.qty}× ${i.name ?? i.drink_id}`).join(" · ");
+        return (
+          <div className={`adm-order${o.status === "ready" ? " ready" : ""}`} key={o.id}>
+            <div className="adm-order-top">
+              <b>{fmt(o.total_cents)} · {o.paid ? "Paid" : "Pay at truck"}{o.status === "ready" ? " · READY" : ""}</b>
+              <span className="when">{time(o.created_at)}</span>
+            </div>
+            <div className="lines">{lines || "—"}</div>
+            <div className="ord-actions">
+              {o.status === "pending" ? (
+                <button className="adm-btn" onClick={() => setStatus(o.id, "ready")}>Mark ready</button>
+              ) : (
+                <button className="adm-btn on" onClick={() => setStatus(o.id, "picked_up")}>Picked up ✓</button>
+              )}
+            </div>
+          </div>
+        );
+      })}
+      {loaded && orders.length === 0 && <div className="h-sub">No open orders — new pre-orders appear here in realtime.</div>}
     </div>
   );
 }
@@ -210,6 +274,7 @@ export default function AdminPage() {
       <div className="h-title">Control room.</div>
       <div className="h-sub">Changes here reach every member instantly.</div>
       <LiveControl />
+      <OrdersAdmin />
       <Members />
       <EventsAdmin />
     </section>

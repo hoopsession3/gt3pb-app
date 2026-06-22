@@ -27,6 +27,29 @@ export interface LiveStatus {
   pos_updated_at: string | null;
 }
 
+export interface OrderItem {
+  id: string;
+  order_id: string;
+  drink_id: string;
+  name: string | null;
+  qty: number;
+  unit_cents: number;
+}
+
+export interface Order {
+  id: string;
+  user_id: string | null;
+  stop_id: string | null;
+  status: "pending" | "ready" | "picked_up" | "cancelled";
+  total_cents: number;
+  paid: boolean;
+  square_payment_id: string | null;
+  note: string | null;
+  created_at: string;
+  ready_at: string | null;
+  order_items?: OrderItem[];
+}
+
 export interface EventRow {
   id: string;
   title: string;

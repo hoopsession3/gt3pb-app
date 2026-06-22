@@ -8,10 +8,12 @@ interface AppCtx {
   toast: (msg: string) => void;
   toastMsg: string;
   toastShown: boolean;
-  // cart (pre-order)
-  cart: Set<DrinkId>;
-  isInCart: (id: DrinkId) => boolean;
-  bump: (id: DrinkId) => void;
+  // cart (pre-order) — id → quantity
+  cart: Map<DrinkId, number>;
+  cartCount: number; // total quantity across all lines
+  qtyOf: (id: DrinkId) => number;
+  add: (id: DrinkId) => void;
+  remove: (id: DrinkId) => void;
   clearCart: () => void;
   // drink sheet
   openId: DrinkId | null;
@@ -39,29 +41,35 @@ export default function AppProvider({ children }: { children: React.ReactNode })
     tRef.current = setTimeout(() => setToastShown(false), 3000);
   }, []);
 
-  const [cart, setCart] = useState<Set<DrinkId>>(new Set());
-  const isInCart = useCallback((id: DrinkId) => cart.has(id), [cart]);
+  const [cart, setCart] = useState<Map<DrinkId, number>>(new Map());
+  const qtyOf = useCallback((id: DrinkId) => cart.get(id) ?? 0, [cart]);
+  const cartCount = useMemo(() => [...cart.values()].reduce((s, q) => s + q, 0), [cart]);
 
-  const bump = useCallback((id: DrinkId) => {
+  const add = useCallback((id: DrinkId) => {
+    setCart((prev) => new Map(prev).set(id, (prev.get(id) ?? 0) + 1));
+  }, []);
+
+  const remove = useCallback((id: DrinkId) => {
     setCart((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      const next = new Map(prev);
+      const q = (next.get(id) ?? 0) - 1;
+      if (q > 0) next.set(id, q);
+      else next.delete(id);
       return next;
     });
   }, []);
 
   // Empty the cart. The caller owns any messaging (e.g. after a successful card payment,
   // so the "Paid …" toast isn't overwritten by a pre-order one).
-  const clearCart = useCallback(() => setCart(new Set()), []);
+  const clearCart = useCallback(() => setCart(new Map()), []);
 
   const [openId, setOpenId] = useState<DrinkId | null>(null);
   const openDrink = useCallback((id: DrinkId) => setOpenId(id), []);
   const closeDrink = useCallback(() => setOpenId(null), []);
 
   const value = useMemo<AppCtx>(
-    () => ({ toast, toastMsg, toastShown, cart, isInCart, bump, clearCart, openId, openDrink, closeDrink }),
-    [toast, toastMsg, toastShown, cart, isInCart, bump, clearCart, openId, openDrink, closeDrink]
+    () => ({ toast, toastMsg, toastShown, cart, cartCount, qtyOf, add, remove, clearCart, openId, openDrink, closeDrink }),
+    [toast, toastMsg, toastShown, cart, cartCount, qtyOf, add, remove, clearCart, openId, openDrink, closeDrink]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

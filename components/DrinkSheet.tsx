@@ -5,9 +5,9 @@ import { useApp } from "./AppProvider";
 import { DRINKS } from "@/lib/menu";
 
 export default function DrinkSheet() {
-  const { openId, closeDrink, isInCart, bump } = useApp();
+  const { openId, closeDrink, qtyOf, add, remove } = useApp();
   const d = openId ? DRINKS[openId] : null;
-  const on = openId ? isInCart(openId) : false;
+  const qty = openId ? qtyOf(openId) : 0;
   const sheetRef = useRef<HTMLDivElement>(null);
   const restoreRef = useRef<HTMLElement | null>(null);
 
@@ -65,9 +65,17 @@ export default function DrinkSheet() {
                   <span>{d.whenT}</span>
                 </div>
               </div>
-              <button className="handle" onClick={() => bump(openId)}>
-                <span>{on ? "Remove from order" : "Add to pre-order"}</span>
-              </button>
+              {qty === 0 ? (
+                <button className="handle" onClick={() => add(openId)}>
+                  <span>Add to pre-order</span>
+                </button>
+              ) : (
+                <div className="qty-stepper" role="group" aria-label={`${d.n} quantity`}>
+                  <button type="button" className="qty-btn" aria-label="Remove one" onClick={() => remove(openId)}>−</button>
+                  <span className="qty-val" aria-live="polite">{qty} in order</span>
+                  <button type="button" className="qty-btn" aria-label="Add one" onClick={() => add(openId)}>+</button>
+                </div>
+              )}
               <div className="signoff">Nothing toxic. The standard you can taste.</div>
             </>
           )}

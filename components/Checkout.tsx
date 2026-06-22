@@ -4,6 +4,16 @@ import { useEffect, useRef, useState } from "react";
 import { useApp } from "./AppProvider";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import { SQUARE_APP_ID, SQUARE_LOCATION_ID, squareClientReady, squareWebSdkUrl } from "@/lib/square";
+import { supabase } from "@/lib/supabase";
+
+const unitCents = (id: DrinkId) => Math.round(parseFloat(DRINKS[id].px.replace("$", "")) * 100);
+
+// The signed-in member's access token (if any) so the server can attribute the order.
+async function accessToken(): Promise<string | undefined> {
+  if (!supabase) return undefined;
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token;
+}
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 declare global { interface Window { Square?: any } }
@@ -34,8 +44,9 @@ export default function Checkout({ open, onClose }: { open: boolean; onClose: ()
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
-  const items = [...cart] as DrinkId[];
-  const totalCents = items.reduce((s, id) => s + Math.round(parseFloat(DRINKS[id].px.replace("$", "")) * 100), 0);
+  const lines = [...cart] as [DrinkId, number][]; // [id, qty]
+  const items = lines.map(([id, qty]) => ({ id, qty }));
+  const totalCents = lines.reduce((s, [id, qty]) => s + unitCents(id) * qty, 0);
   const total = (totalCents / 100).toFixed(2);
 
   // Mount the Square card form when the sheet opens (only if Square is configured).
@@ -78,7 +89,7 @@ export default function Checkout({ open, onClose }: { open: boolean; onClose: ()
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceId: result.token, items }),
+        body: JSON.stringify({ sourceId: result.token, items, accessToken: await accessToken() }),
       });
       const data = await res.json();
       setBusy(false);
@@ -92,6 +103,26 @@ export default function Checkout({ open, onClose }: { open: boolean; onClose: ()
     }
   };
 
+  // Pre-order (no card): record the order server-side so it lands in the truck's queue.
+  // Falls back to a clean local confirmation if order persistence isn't configured.
+  const sendPreorder = async () => {
+    setBusy(true);
+    const totalQty = lines.reduce((s, [, q]) => s + q, 0);
+    try {
+      await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items, accessToken: await accessToken() }),
+      });
+    } catch {
+      /* network hiccup — still confirm locally; the customer pays at the truck */
+    }
+    setBusy(false);
+    toast(`${totalQty} ${totalQty === 1 ? "drink" : "drinks"} pre-ordered — ready in ~8 min`);
+    clearCart();
+    onClose();
+  };
+
   return (
     <>
       <div className={`scrim${open ? " open" : ""}`} onClick={onClose} aria-hidden="true" />
@@ -101,8 +132,11 @@ export default function Checkout({ open, onClose }: { open: boolean; onClose: ()
           {open && (
             <>
               <div className="spec-label">Your pre-order</div>
-              {items.map((id) => (
-                <div className="co-line" key={id}><span>{DRINKS[id].n}</span><span>{DRINKS[id].px}</span></div>
+              {lines.map(([id, qty]) => (
+                <div className="co-line" key={id}>
+                  <span>{DRINKS[id].n}{qty > 1 ? ` × ${qty}` : ""}</span>
+                  <span>${((unitCents(id) * qty) / 100).toFixed(2)}</span>
+                </div>
               ))}
               <div className="co-line co-total"><span>Total</span><span>${total}</span></div>
 
@@ -121,8 +155,8 @@ export default function Checkout({ open, onClose }: { open: boolean; onClose: ()
                   <div className="honest" style={{ marginTop: 16 }}>
                     Card checkout switches on soon. For now this is a <b>pre-order</b> — we&apos;ll have it ready and you pay at the truck.
                   </div>
-                  <button className="handle" onClick={() => { toast(`${items.length} drinks pre-ordered — ready in ~8 min`); clearCart(); onClose(); }}>
-                    <span>Send pre-order</span>
+                  <button className="handle" onClick={sendPreorder} disabled={busy || items.length === 0}>
+                    <span>{busy ? "Sending…" : "Send pre-order"}</span>
                   </button>
                 </>
               )}

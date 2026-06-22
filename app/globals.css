@@ -135,7 +135,20 @@ body{background:#0b0a08;font-family:'Inter',system-ui,sans-serif;color:var(--cre
 .drink .rt{display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex:0 0 auto}
 .drink .px{font-family:'DM Mono';font-weight:500;font-size:14px;color:var(--cream)}
 .drink .plus{width:32px;height:32px;border-radius:50%;background:rgba(184,36,32,.16);color:var(--red);display:flex;align-items:center;justify-content:center;font-family:'Archivo Black';font-size:18px}
-.drink .plus.on{background:var(--ok);color:#fff}
+.drink .plus.on{background:var(--ok);color:#fff;font-size:13px;font-family:'DM Mono',monospace}
+/* quantity stepper (drink sheet) */
+.qty-stepper{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:18px;background:rgba(0,0,0,.22);border:1px solid var(--line2);border-radius:15px;padding:8px 10px}
+.qty-stepper .qty-btn{flex:0 0 auto;width:44px;height:44px;border-radius:12px;border:1px solid var(--line2);background:rgba(184,36,32,.16);color:var(--cream);font-family:'Archivo Black';font-size:22px;line-height:1;cursor:pointer}
+.qty-stepper .qty-btn:active{transform:scale(.95)}
+.qty-stepper .qty-val{font-family:'Inter';font-weight:600;letter-spacing:1px;text-transform:uppercase;font-size:12px;color:var(--cream)}
+/* admin order queue */
+.adm-order{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:13px 15px;margin-bottom:11px}
+.adm-order.ready{box-shadow:inset 3px 0 0 var(--ok)}
+.adm-order-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.adm-order-top b{font-family:'Inter';font-weight:600;font-size:14px}
+.adm-order-top .when{font-family:'DM Mono';font-size:11px;color:var(--cream-m)}
+.adm-order .lines{font-size:12.5px;color:var(--cream-m);margin:7px 0 11px;line-height:1.5}
+.adm-order .ord-actions{display:flex;gap:9px}
 
 /* ===== EVENTS ===== */
 .drop{margin-top:22px;border-radius:26px;overflow:hidden;position:relative;padding:22px;
