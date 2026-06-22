@@ -20,6 +20,24 @@ export interface Stop {
   poc_email?: string | null;
   service_dates?: string | null;
   archived_at?: string | null;
+  vendor_id?: string | null; // linked canonical vendor/venue (0034)
+}
+
+// Vendor / venue — one relational record shared by truck stops and events (0034).
+export interface Vendor {
+  id: string;
+  name: string;
+  poc_name: string | null;
+  poc_phone: string | null;
+  poc_email: string | null;
+  address: string | null;
+  location_text: string | null;
+  lat: number | null;
+  lng: number | null;
+  service_dates: string | null;
+  notes: string | null;
+  archived_at: string | null;
+  sort: number;
 }
 
 export interface LiveStatus {
@@ -89,6 +107,7 @@ export interface EventRow {
   state?: string | null;
   county?: string | null;
   archived_at?: string | null; // set when filed out of the operator's active workspace (0032)
+  vendor_id?: string | null;   // linked canonical vendor/venue (0034)
 }
 
 // Per-event execution checklist (0025) — pack-list items + ad-hoc tasks, role-scoped.

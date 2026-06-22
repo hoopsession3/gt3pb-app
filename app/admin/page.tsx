@@ -16,7 +16,7 @@ import { complianceFor } from "@/lib/compliance";
 import { projectEvent, reconcile, DEFAULT_ECON, type EventEcon, type ProductEcon, type Projection } from "@/lib/economics";
 import { buildBrief } from "@/lib/eventbrief";
 import { fetchInventory, inventoryForEvent, rollupLowStock, type InventoryResp, type InvItem } from "@/lib/inventory";
-import type { Stop, LiveStatus, EventRow, EventTask, BookingRequest, Order, Reserve, Subscription } from "@/lib/db";
+import type { Stop, LiveStatus, EventRow, EventTask, BookingRequest, Order, Reserve, Subscription, Vendor } from "@/lib/db";
 
 // money helpers for the economics panels
 const usd = (cents: number) => `$${(cents / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
@@ -360,9 +360,10 @@ function EventPrep() {
 }
 
 // ───────────────────────── one stop: go-live + location + notes ─────────────────────────
-function StopControl({ s, index, isCur, open, onToggle, onGoLive, onArchive, onChanged }: {
+function StopControl({ s, index, isCur, open, onToggle, onGoLive, onArchive, onChanged, vendors, onLinkVendor }: {
   s: Stop; index: number; isCur: boolean; open: boolean; onToggle: () => void;
   onGoLive: (id: string) => void; onArchive: () => void; onChanged: () => void;
+  vendors: Vendor[]; onLinkVendor: (v: Vendor | null) => void;
 }) {
   const { toast } = useApp();
   const [name, setName] = useState(s.name);
@@ -428,12 +429,16 @@ function StopControl({ s, index, isCur, open, onToggle, onGoLive, onArchive, onC
             <div className={`stop-coords${hasCoords ? " ok" : ""}`}>{hasCoords ? `Pinned · ${(s.lat as number).toFixed(4)}, ${(s.lng as number).toFixed(4)}` : "No pin yet — add an address for accurate directions"}</div>
           </div>
 
-          <div className="ev-group">
-            <div className="ev-group-h">Vendor · point of contact</div>
-            <input className="ev-input" defaultValue={s.poc_name ?? ""} placeholder="POC name" maxLength={120} onBlur={(e) => { if ((e.target.value.trim() || null) !== (s.poc_name ?? null)) patch({ poc_name: e.target.value.trim() || null }, "Contact saved"); }} />
-            <input className="ev-input" type="tel" defaultValue={s.poc_phone ?? ""} placeholder="Phone" maxLength={40} onBlur={(e) => { if ((e.target.value.trim() || null) !== (s.poc_phone ?? null)) patch({ poc_phone: e.target.value.trim() || null }, "Contact saved"); }} />
-            <input className="ev-input" type="email" defaultValue={s.poc_email ?? ""} placeholder="Email" maxLength={160} onBlur={(e) => { if ((e.target.value.trim() || null) !== (s.poc_email ?? null)) patch({ poc_email: e.target.value.trim() || null }, "Contact saved"); }} />
-          </div>
+          <VendorPicker vendors={vendors} vendorId={s.vendor_id} onLink={onLinkVendor} />
+
+          {!s.vendor_id && (
+            <div className="ev-group">
+              <div className="ev-group-h">Point of contact</div>
+              <input className="ev-input" defaultValue={s.poc_name ?? ""} placeholder="POC name" maxLength={120} onBlur={(e) => { if ((e.target.value.trim() || null) !== (s.poc_name ?? null)) patch({ poc_name: e.target.value.trim() || null }, "Contact saved"); }} />
+              <input className="ev-input" type="tel" defaultValue={s.poc_phone ?? ""} placeholder="Phone" maxLength={40} onBlur={(e) => { if ((e.target.value.trim() || null) !== (s.poc_phone ?? null)) patch({ poc_phone: e.target.value.trim() || null }, "Contact saved"); }} />
+              <input className="ev-input" type="email" defaultValue={s.poc_email ?? ""} placeholder="Email" maxLength={160} onBlur={(e) => { if ((e.target.value.trim() || null) !== (s.poc_email ?? null)) patch({ poc_email: e.target.value.trim() || null }, "Contact saved"); }} />
+            </div>
+          )}
 
           <div className="ev-group">
             <div className="ev-group-h">Dates of service</div>
@@ -464,17 +469,28 @@ function LiveControl() {
   const [posBusy, setPosBusy] = useState(false);
   const [openStopId, setOpenStopId] = useState<string | null>(null); // single-open accordion
   const [showArchStops, setShowArchStops] = useState(false);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    const [{ data: s, error: se }, { data: l }] = await Promise.all([
+    const [{ data: s, error: se }, { data: l }, { data: vs }] = await Promise.all([
       supabase.from("stops").select("*").order("sort"),
       supabase.from("live_status").select("*").maybeSingle(),
+      supabase.from("vendors").select("*").order("sort"), // may not exist pre-0034
     ]);
     if (se) setErr(se.message); else setErr("");
     if (s) setStops(s as Stop[]);
     if (l) setLive(l as LiveStatus);
+    if (vs) setVendors((vs as Vendor[]).filter((v) => !v.archived_at));
   }, []);
+  // link a stop to a vendor → denormalize the public location onto the (public) stop row
+  const linkVendor = async (stopId: string, v: Vendor | null) => {
+    const p: Partial<Stop> = { vendor_id: v?.id ?? null };
+    if (v) { p.name = v.name; p.address = v.address; p.location_text = v.location_text; p.lat = v.lat; p.lng = v.lng; }
+    await supabase!.from("stops").update(p).eq("id", stopId);
+    toast(v ? `Linked to ${v.name}` : "Unlinked");
+    load();
+  };
 
   useEffect(() => {
     load();
@@ -590,6 +606,8 @@ function LiveControl() {
             onGoLive={goLive}
             onArchive={() => archiveStop(s.id)}
             onChanged={load}
+            vendors={vendors}
+            onLinkVendor={(v) => linkVendor(s.id, v)}
           />
         ))}
       </div>
@@ -1109,7 +1127,7 @@ function BriefPanel({ e, proj, inventory }: { e: EventRow; proj: Projection; inv
 }
 
 // One event as a collapsible card: clean header when closed, full editor when open.
-function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, onArchive, econRow, catalog, inventory, onSaveEcon }: {
+function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, onArchive, econRow, catalog, inventory, vendors, onLinkVendor, onSaveEcon }: {
   e: EventRow;
   index: number;
   open: boolean;
@@ -1121,6 +1139,8 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
   econRow: EventEcon | null;
   catalog: ProductEcon[];
   inventory: InventoryResp;
+  vendors: Vendor[];
+  onLinkVendor: (v: Vendor | null) => void;
   onSaveEcon: (econ: EventEcon) => void;
 }) {
   const when = [e.day_label, [e.start_time, e.end_time].filter(Boolean).join("–")].filter(Boolean).join(" ");
@@ -1154,6 +1174,8 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
             <span>{e.is_live ? "Green flag out — POS & app sales tracking here" : "Throw the green flag — go live"}</span>
             <span className="ev-golive-state">{e.is_live ? "LIVE" : "OFF"}</span>
           </button>
+
+          <VendorPicker vendors={vendors} vendorId={e.vendor_id} onLink={onLinkVendor} />
 
           {/* What guests see */}
           <div className="ev-group">
@@ -1230,18 +1252,21 @@ function EventsAdmin() {
   const [econMap, setEconMap] = useState<Record<string, EventEcon>>({});
   const [showArch, setShowArch] = useState(false);
   const [inventory, setInventory] = useState<InventoryResp>({ enabled: false, items: [] });
+  const [vendors, setVendors] = useState<Vendor[]>([]);
   useEffect(() => { fetchInventory().then(setInventory); }, []); // live stock from Notion (token-gated)
   const load = useCallback(async () => {
     if (!supabase) return;
-    // events + economics catalog + per-event econ in one round (catalog/econ
-    // tables may not exist pre-migration 0028 — fail soft to defaults).
-    const [evs, cat, ec] = await Promise.all([
+    // events + economics catalog + per-event econ + vendors in one round
+    // (catalog/econ/vendors tables may not exist pre-migration — fail soft).
+    const [evs, cat, ec, vs] = await Promise.all([
       supabase.from("events").select("*").order("sort"),
       supabase.from("product_economics").select("*").eq("active", true).order("sort"),
       supabase.from("event_economics").select("*"),
+      supabase.from("vendors").select("*").order("sort"),
     ]);
     if (evs.data) setEvents(evs.data as EventRow[]);
     if (cat.data) setCatalog(cat.data as ProductEcon[]);
+    if (vs.data) setVendors((vs.data as Vendor[]).filter((v) => !v.archived_at));
     if (ec.data) {
       const m: Record<string, EventEcon> = {};
       for (const r of ec.data as ({ event_id: string } & EventEcon)[]) m[r.event_id] = r;
@@ -1249,6 +1274,14 @@ function EventsAdmin() {
     }
   }, []);
   useEffect(() => { load(); }, [load]);
+  // link an event to a vendor → denormalize the guest-visible location
+  const linkVendor = async (eventId: string, v: Vendor | null) => {
+    const p: Partial<EventRow> = { vendor_id: v?.id ?? null };
+    if (v) { p.location_text = v.location_text ?? v.name; }
+    await supabase!.from("events").update(p).eq("id", eventId);
+    toast(v ? `Linked to ${v.name}` : "Unlinked");
+    load();
+  };
 
   // upsert the full econ row (keeps DB authoritative copy in sync with the panel)
   const saveEcon = async (id: string, econ: EventEcon) => {
@@ -1313,6 +1346,8 @@ function EventsAdmin() {
             econRow={econMap[e.id] ?? null}
             catalog={catalog}
             inventory={inventory}
+            vendors={vendors}
+            onLinkVendor={(v) => linkVendor(e.id, v)}
             onSaveEcon={(econ) => saveEcon(e.id, econ)}
           />
         ))}
@@ -1493,12 +1528,152 @@ function Overview({ onGo }: { onGo: (t: string) => void }) {
   );
 }
 
+// ───────────────────────── vendors (relational venue records) ─────────────────────────
+function VendorCard({ v, index, open, onToggle, onArchive, onChanged }: {
+  v: Vendor; index: number; open: boolean; onToggle: () => void; onArchive: () => void; onChanged: () => void;
+}) {
+  const { toast } = useApp();
+  const [name, setName] = useState(v.name);
+  const [address, setAddress] = useState(v.address ?? "");
+  const [busy, setBusy] = useState(false);
+  const hasCoords = v.lat != null && v.lng != null;
+  const patch = async (p: Partial<Vendor>, msg = "Saved") => {
+    const { error } = await supabase!.from("vendors").update(p).eq("id", v.id);
+    toast(error ? `Error: ${error.message}` : msg);
+    if (!error) onChanged();
+  };
+  const saveName = () => { const nm = name.trim(); if (nm && nm !== v.name) patch({ name: nm }, "Name saved"); };
+  const saveLocation = async () => {
+    const q = address.trim(); if (!q) return;
+    setBusy(true);
+    const geo = await geocode(q);
+    if (!geo) { setBusy(false); toast("Couldn't find that address — add city & state, then retry."); return; }
+    const { error } = await supabase!.from("vendors").update({ address: q, location_text: q, lat: geo.lat, lng: geo.lng }).eq("id", v.id);
+    setBusy(false);
+    toast(error ? `Error: ${error.message}` : "Location pinned");
+    if (!error) onChanged();
+  };
+  const remove = async () => {
+    if (typeof window !== "undefined" && !window.confirm(`Delete ${v.name}? Linked stops/events will unlink.`)) return;
+    const { error } = await supabase!.from("vendors").delete().eq("id", v.id);
+    toast(error ? `Error: ${error.message}` : "Vendor deleted");
+    if (!error) onChanged();
+  };
+  const sub = [v.poc_name, v.service_dates, hasCoords ? "pinned" : "no pin"].filter(Boolean).join("  ·  ");
+  return (
+    <div className={`ev-card${open ? " open" : ""}`}>
+      <button className="ev-head" onClick={onToggle} aria-expanded={open}>
+        <span className="ev-led" />
+        <span className="ev-head-main">
+          <span className="ev-tag">Vendor {String(index + 1).padStart(2, "0")}</span>
+          <span className="ev-title">{v.name || "Untitled vendor"}</span>
+          <span className="ev-sub">{sub || "Tap to set up"}</span>
+        </span>
+        <span className="ev-head-badges"><span className="ev-chev">›</span></span>
+      </button>
+      {open && (
+        <div className="ev-body">
+          <div className="ev-group">
+            <div className="ev-group-h">Venue</div>
+            <input className="ev-input" value={name} onChange={(e) => setName(e.target.value)} onBlur={saveName} maxLength={120} placeholder="Vendor / venue name" />
+            <div className="stop-addr">
+              <input className="ev-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Street address" maxLength={300} />
+              <button className="ev-archive" onClick={saveLocation} disabled={busy || !address.trim()}>{busy ? "Finding…" : "Save"}</button>
+            </div>
+            <div className={`stop-coords${hasCoords ? " ok" : ""}`}>{hasCoords ? `Pinned · ${(v.lat as number).toFixed(4)}, ${(v.lng as number).toFixed(4)}` : "No pin yet"}</div>
+          </div>
+          <div className="ev-group">
+            <div className="ev-group-h">Point of contact</div>
+            <input className="ev-input" defaultValue={v.poc_name ?? ""} placeholder="POC name" maxLength={120} onBlur={(e) => { if ((e.target.value.trim() || null) !== (v.poc_name ?? null)) patch({ poc_name: e.target.value.trim() || null }, "Contact saved"); }} />
+            <input className="ev-input" type="tel" defaultValue={v.poc_phone ?? ""} placeholder="Phone" maxLength={40} onBlur={(e) => { if ((e.target.value.trim() || null) !== (v.poc_phone ?? null)) patch({ poc_phone: e.target.value.trim() || null }, "Contact saved"); }} />
+            <input className="ev-input" type="email" defaultValue={v.poc_email ?? ""} placeholder="Email" maxLength={160} onBlur={(e) => { if ((e.target.value.trim() || null) !== (v.poc_email ?? null)) patch({ poc_email: e.target.value.trim() || null }, "Contact saved"); }} />
+          </div>
+          <div className="ev-group"><div className="ev-group-h">Dates of service</div><input className="ev-input" defaultValue={v.service_dates ?? ""} placeholder="e.g. Saturdays · May – Aug" maxLength={200} onBlur={(e) => { if ((e.target.value.trim() || null) !== (v.service_dates ?? null)) patch({ service_dates: e.target.value.trim() || null }, "Saved"); }} /></div>
+          <div className="ev-group"><div className="ev-group-h">Notes</div><textarea className="ev-input ev-area" rows={2} maxLength={1000} defaultValue={v.notes ?? ""} placeholder="Anything to remember about this vendor" onBlur={(e) => { if (e.target.value !== (v.notes ?? "")) patch({ notes: e.target.value.trim() || null }, "Saved"); }} /></div>
+          <div className="ev-card-foot">
+            <button className="ev-archive" onClick={onArchive}>Archive</button>
+            <button className="ev-delete" onClick={remove}>Delete</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VendorsAdmin() {
+  const { toast } = useApp();
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [showArch, setShowArch] = useState(false);
+  const load = useCallback(async () => {
+    if (!supabase) return;
+    const { data } = await supabase.from("vendors").select("*").order("sort");
+    if (data) setVendors(data as Vendor[]);
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  const add = async () => {
+    const { data, error } = await supabase!.from("vendors").insert({ name: "New vendor", sort: vendors.length }).select("id").single();
+    toast(error ? `Error: ${error.message}` : "Vendor added");
+    if (!error) { if (data) setOpenId((data as { id: string }).id); load(); }
+  };
+  const archive = async (id: string) => { await supabase!.from("vendors").update({ archived_at: new Date().toISOString() }).eq("id", id); setOpenId(null); load(); };
+  const restore = async (id: string) => { await supabase!.from("vendors").update({ archived_at: null }).eq("id", id); load(); };
+  const del = async (id: string, nm: string) => { if (typeof window !== "undefined" && !window.confirm(`Delete ${nm}?`)) return; await supabase!.from("vendors").delete().eq("id", id); load(); };
+  const active = vendors.filter((v) => !v.archived_at);
+  const archived = vendors.filter((v) => v.archived_at);
+  return (
+    <div className="adm-sec">
+      <div className="sec">Vendors <button className="adm-btn" style={{ marginLeft: "auto" }} onClick={add}>+ Add vendor</button></div>
+      <div className="pnl-note" style={{ marginBottom: 6 }}>One record per venue/partner — linked from truck stops and events. Edit a POC here and it updates everywhere it&apos;s linked.</div>
+      {active.length === 0 && <div className="ev-empty">No vendors yet. Tap <b>+ Add vendor</b> to create one.</div>}
+      <div className="ev-list">
+        {active.map((v, i) => (
+          <VendorCard key={v.id} v={v} index={i} open={openId === v.id} onToggle={() => setOpenId(openId === v.id ? null : v.id)} onArchive={() => archive(v.id)} onChanged={load} />
+        ))}
+      </div>
+      {archived.length > 0 && (
+        <div className="ev-archived">
+          <button className="ev-arch-head" onClick={() => setShowArch((s) => !s)} aria-expanded={showArch}>Archived vendors · {archived.length}<span className={`ev-chev${showArch ? " open" : ""}`}>›</span></button>
+          {showArch && archived.map((v) => (
+            <div className="ev-arch-row" key={v.id}><span className="ev-arch-name">{v.name}</span><button className="ev-arch-btn" onClick={() => restore(v.id)}>Restore</button><button className="ev-arch-btn del" onClick={() => del(v.id, v.name)}>Delete</button></div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Reusable venue picker — links a stop/event to a vendor and denormalizes the public
+// location. Shows the linked vendor's POC live (relational), edit-once-updates-everywhere.
+function VendorPicker({ vendors, vendorId, onLink }: { vendors: Vendor[]; vendorId: string | null | undefined; onLink: (v: Vendor | null) => void }) {
+  const linked = vendors.find((v) => v.id === vendorId) || null;
+  return (
+    <div className="ev-group">
+      <div className="ev-group-h">Venue · vendor</div>
+      <select className="ev-input" value={vendorId ?? ""} onChange={(e) => onLink(vendors.find((v) => v.id === e.target.value) || null)}>
+        <option value="">— not linked —</option>
+        {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+      </select>
+      {linked && (linked.poc_name || linked.poc_phone || linked.poc_email || linked.service_dates) && (
+        <div className="vlink">
+          {linked.poc_name && <div className="vlink-row"><span>POC</span><b>{linked.poc_name}</b></div>}
+          {linked.poc_phone && <div className="vlink-row"><span>Phone</span><a href={`tel:${linked.poc_phone}`}>{linked.poc_phone}</a></div>}
+          {linked.poc_email && <div className="vlink-row"><span>Email</span><a href={`mailto:${linked.poc_email}`}>{linked.poc_email}</a></div>}
+          {linked.service_dates && <div className="vlink-row"><span>Service</span><b>{linked.service_dates}</b></div>}
+          <div className="vlink-note">Managed in Vendors — edits there update everywhere.</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Segmented back office — one clean section at a time instead of a stacked wall.
 function BackOffice({ isOwner }: { isOwner: boolean }) {
   const [tab, setTab] = useState("overview");
   const tabs = [
     { k: "overview", label: "Overview" },
     { k: "events", label: "Events" },
+    { k: "vendors", label: "Vendors" },
     { k: "money", label: "Money" },
     { k: "bookings", label: "Bookings" },
     ...(isOwner ? [{ k: "members", label: "Members" }] : []),
@@ -1512,6 +1687,7 @@ function BackOffice({ isOwner }: { isOwner: boolean }) {
       </div>
       {tab === "overview" && <Overview onGo={setTab} />}
       {tab === "events" && <EventsAdmin />}
+      {tab === "vendors" && <VendorsAdmin />}
       {tab === "money" && <><ProductCatalog /><Subscribers /><SubInterest /><OrdersHistory /></>}
       {tab === "bookings" && <><Bookings /><ReservesAdmin /></>}
       {tab === "members" && isOwner && <Members />}

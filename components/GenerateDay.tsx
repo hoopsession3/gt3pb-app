@@ -179,9 +179,9 @@ export default function GenerateDay() {
         {rec.drinks.map((d) => {
           const dk = DRINKS[d.id];
           return (
-            <div key={d.id} className="gen-card">
+            <div key={d.id} className="gen-card" style={{ borderLeft: `3px solid ${dk.dot}` }}>
               <div className="gen-card-top">
-                <div className="gen-swatch" style={{ background: dk.grad }} />
+                <div className="gen-swatch" style={{ color: dk.dot, borderColor: dk.dot }}>{dk.n.charAt(0)}</div>
                 <div className="gen-card-meta">
                   <div className="gen-card-name">{dk.n}</div>
                   <div className="gen-card-time">{d.timing}</div>
