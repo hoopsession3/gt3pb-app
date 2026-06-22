@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import { useAuth, roleOf, type Profile } from "@/components/AuthProvider";
+import { useOperatorSection, sectionsForRole, type OpSection } from "@/components/OperatorNav";
 import SignIn from "@/components/SignIn";
 import { supabase } from "@/lib/supabase";
 import { subscribePush } from "@/lib/push";
@@ -1679,42 +1680,17 @@ function VendorPicker({ vendors, vendorId, onLink }: { vendors: Vendor[]; vendor
   );
 }
 
-// Segmented back office — one clean section at a time instead of a stacked wall.
-function BackOffice({ isOwner }: { isOwner: boolean }) {
-  const [tab, setTab] = useState("overview");
-  const tabs = [
-    { k: "overview", label: "Overview" },
-    { k: "events", label: "Events" },
-    { k: "vendors", label: "Vendors" },
-    { k: "money", label: "Money" },
-    { k: "bookings", label: "Bookings" },
-    ...(isOwner ? [{ k: "members", label: "Members" }] : []),
-  ];
-  return (
-    <>
-      <div className="bo-nav" role="tablist" aria-label="Back office sections">
-        {tabs.map((t) => (
-          <button key={t.k} role="tab" aria-selected={tab === t.k} className={tab === t.k ? "on" : ""} onClick={() => setTab(t.k)}>{t.label}</button>
-        ))}
-      </div>
-      {tab === "overview" && <Overview onGo={setTab} />}
-      {tab === "events" && <EventsAdmin />}
-      {tab === "vendors" && <VendorsAdmin />}
-      {tab === "money" && <><ProductCatalog /><Subscribers /><SubInterest /><OrdersHistory /></>}
-      {tab === "bookings" && <><Bookings /><ReservesAdmin /></>}
-      {tab === "members" && isOwner && <Members />}
-    </>
-  );
-}
-
 export default function AdminPage() {
   const { ready, enabled, user, profile } = useAuth();
-  const [mode, setMode] = useState<"service" | "office">("service");
+  const { section, setSection } = useOperatorSection();
 
   if (!enabled) return <section className="screen"><div className="h-title">Admin</div><div className="h-sub">The live backend isn&apos;t configured here.</div></section>;
   if (!ready) return <section className="screen" />;
   if (!user) return <SignIn />;
-  const role = roleOf(profile);
+
+  // Raw role read — roleOf() collapses the expanded set; profiles.role carries
+  // member/server/operator/event_manager/contractor/admin/owner (0031).
+  const role = (profile?.role as string | undefined) ?? (profile?.is_admin ? "owner" : "member");
   if (role === "member") {
     return (
       <section className="screen">
@@ -1724,45 +1700,83 @@ export default function AdminPage() {
       </section>
     );
   }
+
   const isOwner = role === "owner";
   const isAdmin = role === "admin" || isOwner;
+  const canManage = isAdmin || role === "event_manager";
+  const canPrep = canManage || role === "operator" || role === "contractor";
 
-  // Server is locked to the KDS — no toggle, no live truck, no back office.
-  if (!isAdmin) {
-    return (
-      <section className="screen admin">
-        <div className="toprow">
-          <div className="eyb">GT3PB · Service</div>
-          <Link className="pf" href="/3mpire" aria-label="Exit admin">‹</Link>
-        </div>
-        <EnableAlerts userId={user?.id ?? null} />
-        <Kitchen />
-      </section>
-    );
-  }
+  // The operator nav owns the section; clamp to what this role may see.
+  const allowed = sectionsForRole(role);
+  const sec: OpSection = allowed.includes(section) ? section : "now";
+  const LABEL: Record<OpSection, string> = { now: "Now", prep: "Prep", plan: "Plan", money: "Money", team: "Team" };
+  const SUB: Record<OpSection, string> = {
+    now: "The live shift — sales, dispatch & the order pass.",
+    prep: "Stock, readiness & the pack list for what's next.",
+    plan: "Events, vendors & bookings.",
+    money: "Pricing, subscriptions & order history.",
+    team: "People, roles & training.",
+  };
+
+  // Overview's jump links map onto the operator sections.
+  const goSection = (t: string) => {
+    const map: Record<string, OpSection> = { events: "plan", vendors: "plan", bookings: "plan", money: "money", members: "team" };
+    setSection(map[t] ?? "prep");
+  };
 
   return (
     <section className="screen admin">
       <div className="toprow">
-        <div className="eyb">GT3PB · {mode === "service" ? "Service" : "Back office"}</div>
-        <Link className="pf" href="/3mpire" aria-label="Exit admin">‹</Link>
+        <div className="eyb">GT3PB · Employee</div>
+        <Link className="pf" href="/3mpire" aria-label="Exit Employee Mode">‹</Link>
+      </div>
+      <div className="op-head">
+        <div className="op-head-t">{LABEL[sec]}</div>
+        <div className="op-head-s">{SUB[sec]}</div>
       </div>
 
-      <div className="adm-switch">
-        <button className={mode === "service" ? "on" : ""} onClick={() => setMode("service")}>Service</button>
-        <button className={mode === "office" ? "on" : ""} onClick={() => setMode("office")}>Back office</button>
-      </div>
-
-      {mode === "service" ? (
+      {sec === "now" && (
         <>
-          <EventHUD />
-          <EventPrep />
+          {canManage && <EventHUD />}
+          {canManage && <LiveControl />}
           <EnableAlerts userId={user?.id ?? null} />
           <Kitchen />
-          <LiveControl />
         </>
-      ) : (
-        <BackOffice isOwner={isOwner} />
+      )}
+
+      {sec === "prep" && canPrep && (
+        <>
+          <Overview onGo={goSection} />
+          <EventPrep />
+        </>
+      )}
+
+      {sec === "plan" && canManage && (
+        <>
+          <EventsAdmin />
+          <VendorsAdmin />
+          <Bookings />
+          <ReservesAdmin />
+        </>
+      )}
+
+      {sec === "money" && isAdmin && (
+        <>
+          <ProductCatalog />
+          <Subscribers />
+          <SubInterest />
+          <OrdersHistory />
+        </>
+      )}
+
+      {sec === "team" && isAdmin && (
+        <>
+          <Link href="/academy" className="opx-link">
+            <span className="opx-link-t">GT3 Academy</span>
+            <span className="opx-link-s">Training, certifications &amp; the cookbook →</span>
+          </Link>
+          {isOwner && <Members />}
+        </>
       )}
     </section>
   );
