@@ -510,21 +510,33 @@ function LiveControl() {
     // demote any other live stop, promote this one (one live at a time)
     await supabase!.from("stops").update({ status: "upcoming" }).eq("status", "live").neq("id", stopId);
     const r1 = await supabase!.from("stops").update({ status: "live" }).eq("id", stopId);
-    // upsert the single live_status row (insert-on-conflict needs no WHERE)
-    const r2 = await supabase!.from("live_status").upsert({ id: 1, is_live: true, current_stop_id: stopId }, { onConflict: "id" });
+    // upsert the single live_status row, and read it back to confirm it actually persisted
+    const r2 = await supabase!.from("live_status").upsert({ id: 1, is_live: true, current_stop_id: stopId }, { onConflict: "id" }).select("is_live");
     const error = r1.error || r2.error;
-    if (error) { setErr(error.message); toast(`Couldn't go live — ${error.message}`, "error"); }
-    else toast("Truck is LIVE — members updated");
+    if (error) { setErr(error.message); toast(`Couldn't go live — ${error.message}`, "error"); load(); return; }
+    if (!r2.data || r2.data.length === 0 || r2.data[0].is_live !== true) {
+      setErr("Go live didn't persist — your account lacks owner write access (RLS). Run: update profiles set role='owner' where is_admin.");
+      toast("Go live didn't save — your role lacks write access (see banner).", "error");
+      load(); return;
+    }
+    toast("Truck is LIVE — members updated");
     load();
   };
   const pause = async () => {
     setLive((l) => (l ? { ...l, is_live: false, current_stop_id: null } : { id: 1, current_stop_id: null, is_live: false, next_eta: null }));
-    // Direct, RLS-protected writes (admin policy) so going offline never depends on a
-    // specific RPC being migrated — flip the master flag AND clear any stuck "live" stop.
-    const { error } = await supabase!.from("live_status").update({ is_live: false, current_stop_id: null, truck_lat: null, truck_lng: null, pos_updated_at: null }).eq("id", 1);
+    // .select() so we KNOW the row actually changed — RLS can filter a write to 0 rows
+    // with NO error (the "false success" bug). If it didn't persist, say so loudly.
+    const { data, error } = await supabase!.from("live_status")
+      .update({ is_live: false, current_stop_id: null, truck_lat: null, truck_lng: null, pos_updated_at: null })
+      .eq("id", 1).select("is_live");
+    if (error) { setErr(error.message); toast(`Couldn't go offline — ${error.message}`, "error"); load(); return; }
+    if (!data || data.length === 0 || data[0].is_live !== false) {
+      setErr("Go offline didn't persist — your account lacks owner write access (RLS). Run: update profiles set role='owner' where is_admin.");
+      toast("Go offline didn't save — your role lacks write access (see banner).", "error");
+      load(); return;
+    }
     await supabase!.from("stops").update({ status: "upcoming" }).eq("status", "live");
-    if (error) { setErr(error.message); toast(`Couldn't go offline — ${error.message}`, "error"); }
-    else toast("Truck is offline");
+    toast("Truck is offline");
     load();
   };
   // Broadcast this phone's GPS as the truck's live position — members watch the dot move.
