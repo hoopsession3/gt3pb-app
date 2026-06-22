@@ -1,7 +1,7 @@
 /* GT3PB service worker — offline shell + asset cache (runbook Phase 6).
    Native Web Push (VAPID) handlers below; opt-in happens after a couple visits.
    Bump CACHE on any shell/icon change so installed clients refresh cleanly. */
-const CACHE = "gt3pb-v12";
+const CACHE = "gt3pb-v13";
 const SHELL = ["/", "/truck", "/menu", "/events", "/3mpire", "/book", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
@@ -53,13 +53,18 @@ self.addEventListener("push", (event) => {
   if (!event.data) return;
   let data = {};
   try { data = event.data.json(); } catch { data = { title: "GT3PB", body: event.data.text() }; }
-  event.waitUntil(
-    self.registration.showNotification(data.title || "GT3PB", {
+  event.waitUntil((async () => {
+    // If a window is open + focused, the in-app toast already shows this — don't
+    // double it with an OS banner. This is what kept stacking duplicate notifications.
+    const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    if (wins.some((c) => c.focused || c.visibilityState === "visible")) return;
+    await self.registration.showNotification(data.title || "GT3PB", {
       body: data.body || "",
       icon: data.icon || "/icon-192.png",
       badge: "/icon-192.png",
-    })
-  );
+      tag: "gt3pb",
+    });
+  })());
 });
 
 self.addEventListener("notificationclick", (event) => {

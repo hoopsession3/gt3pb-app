@@ -8,15 +8,6 @@ import { DRINKS, type DrinkId } from "@/lib/menu";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-// OS notification when the app is running and permission is granted (in addition to the in-app toast).
-function osNotify(title: string, body: string) {
-  try {
-    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-      new Notification(title, { body, icon: "/icon-192.png", badge: "/icon-192.png", tag: "gt3pb" });
-    }
-  } catch { /* no-op */ }
-}
-
 // Short kitchen chime for new tickets.
 function chime() {
   try {
@@ -39,7 +30,7 @@ function chime() {
 // Listens on Supabase realtime (RLS-scoped) and surfaces notifications. Renders nothing.
 export default function Notifications() {
   const { toast } = useApp();
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
 
   // Client: updates to MY orders.
   useEffect(() => {
@@ -54,11 +45,14 @@ export default function Notifications() {
           ready: "Your order is ready — come grab it!",
           done: "Order picked up. Enjoy.",
         };
-        if (msg[o.status]) { toast(msg[o.status]); osNotify("GT3PB", msg[o.status]); }
+        if (msg[o.status]) toast(msg[o.status]);
+        // Loyalty points are credited server-side on the 'done' transition — pull the
+        // fresh profile so the 3MPIRE ring updates live instead of waiting for a reload.
+        if (o.status === "done") refreshProfile();
       })
       .subscribe();
     return () => { supabase?.removeChannel(ch); };
-  }, [user, toast]);
+  }, [user, toast, refreshProfile]);
 
   // Admin: new orders + new booking requests (RLS delivers all to admins).
   useEffect(() => {
@@ -70,13 +64,11 @@ export default function Notifications() {
         const names = (o.items || []).map((i: string) => DRINKS[i as DrinkId]?.n ?? i).join(" · ");
         const amt = `$${(o.total_cents / 100).toFixed(2)}`;
         toast(`New order · ${names} · ${amt}`);
-        osNotify("🔔 New order", `${names} — ${amt}`);
         chime();
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "booking_requests" }, (p) => {
         const b = p.new as any;
         toast(`New booking request · ${b.name ?? "someone"}`);
-        osNotify("🔔 New booking request", `${b.name ?? "Someone"}${b.event_date ? " · " + b.event_date : ""}`);
         chime();
       })
       .subscribe();
