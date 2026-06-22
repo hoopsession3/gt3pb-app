@@ -366,6 +366,7 @@ function EventPrepDetail({ eventId, onBack }: { eventId: string; onBack: () => v
   const [staff, setStaff] = useState<{ id: string; display_name: string | null }[]>([]);
   const [newTask, setNewTask] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [assignFor, setAssignFor] = useState<EventTask | null>(null);
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -397,7 +398,12 @@ function EventPrepDetail({ eventId, onBack }: { eventId: string; onBack: () => v
     return () => { supabase?.removeChannel(ch); };
   }, [load]);
 
-  const nameOf = (uid: string) => staff.find((s) => s.id === uid)?.display_name ?? "—";
+  // Clear, identifiable labels — staff often sign in without setting a name, so fall back
+  // to something readable instead of an anonymous "—" that makes assignments look empty.
+  const staffName = (uid: string) => staff.find((s) => s.id === uid)?.display_name?.trim() || "Unnamed crew";
+  const firstNameOf = (uid: string) => staffName(uid).split(" ")[0];
+  const initialOf = (uid: string) => { const n = staff.find((s) => s.id === uid)?.display_name?.trim(); return n ? n.charAt(0).toUpperCase() : "?"; };
+  const nameOf = (uid: string) => staffName(uid);
   const generate = async (regen = false) => {
     if (!ev || !supabase || generating) return;
     if (regen && typeof window !== "undefined" && !window.confirm("Rebuild the pack list from the event's current menu/rig?\n\nThis clears the existing list and all its checkmarks.")) return;
@@ -429,8 +435,20 @@ function EventPrepDetail({ eventId, onBack }: { eventId: string; onBack: () => v
   };
   const assign = async (t: EventTask, uid: string) => {
     if (!supabase) return;
-    const { error } = await supabase.from("event_tasks").update({ assignee: uid || null }).eq("id", t.id);
-    if (error) toast(`Error: ${error.message}`, "error"); else load();
+    const prev = t.assignee ?? null;
+    const next = uid || null;
+    setAssignFor(null);
+    if (next === prev) return;
+    setTasks((p) => p.map((x) => (x.id === t.id ? { ...x, assignee: next } : x))); // optimistic — the assignment shows immediately
+    const { error } = await supabase.from("event_tasks").update({ assignee: next }).eq("id", t.id);
+    if (error) { toast(`Error: ${error.message}`, "error"); load(); return; }
+    toast(next ? `Assigned to ${firstNameOf(next)}` : "Unassigned");
+    // Notify the newly-assigned member (best-effort; lights up once the push Edge Function is redeployed).
+    if (next) {
+      supabase.functions
+        .invoke("push", { body: { table: "event_tasks", type: "UPDATE", record: { ...t, assignee: next }, old_record: { ...t, assignee: prev } } })
+        .catch(() => {});
+    }
   };
   const addTask = async () => {
     if (!ev || !supabase || !newTask.trim()) return;
@@ -488,14 +506,22 @@ function EventPrepDetail({ eventId, onBack }: { eventId: string; onBack: () => v
           <div className="adm-prep-label">{sec}</div>
           {tasks.filter((t) => (t.section ?? "Task") === sec).map((t) => (
             <div key={t.id} className={`adm-task${t.done ? " done" : ""}${t.critical ? " crit" : t.warn ? " warn" : ""}`}>
-              <label className="adm-task-check"><input type="checkbox" checked={t.done} onChange={() => toggle(t)} /><span>{t.label}</span></label>
-              {t.link && <a className="adm-task-link" href={t.link} target="_blank" rel="noopener noreferrer" aria-label="Open reference / application">↗</a>}
-              {isAdmin && (
-                <select className={`adm-task-assign${t.assignee ? " set" : ""}`} value={t.assignee ?? ""} onChange={(e) => assign(t, e.target.value)} aria-label={`Assign: ${t.label}`} title="Assign to crew">
-                  <option value="">+ assign</option>
-                  {staff.map((s) => <option key={s.id} value={s.id}>{(s.display_name ?? "—").split(" ")[0]}</option>)}
-                </select>
-              )}
+              <button type="button" className="task-check" aria-pressed={t.done} onClick={() => toggle(t)} aria-label={`${t.done ? "Mark not loaded" : "Mark loaded"}: ${t.label}`}>
+                <span className="task-box">{t.done && <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7" /></svg>}</span>
+                <span className="task-label">{t.label}</span>
+              </button>
+              <div className="task-right">
+                {t.link && <a className="adm-task-link" href={t.link} target="_blank" rel="noopener noreferrer" aria-label="Open reference / application">↗</a>}
+                {isAdmin ? (
+                  <button type="button" className={`task-assign${t.assignee ? " set" : ""}`} onClick={() => setAssignFor(t)} aria-label={t.assignee ? `Reassign ${t.label} — currently ${staffName(t.assignee)}` : `Assign ${t.label} to crew`}>
+                    {t.assignee
+                      ? <><span className="task-assign-av">{initialOf(t.assignee)}</span><span className="task-assign-name">{firstNameOf(t.assignee)}</span></>
+                      : <span className="task-assign-add">+ Assign</span>}
+                  </button>
+                ) : t.assignee ? (
+                  <span className="task-assign set readonly"><span className="task-assign-av">{initialOf(t.assignee)}</span><span className="task-assign-name">{firstNameOf(t.assignee)}</span></span>
+                ) : null}
+              </div>
             </div>
           ))}
         </div>
@@ -506,7 +532,51 @@ function EventPrepDetail({ eventId, onBack }: { eventId: string; onBack: () => v
           <button className="adm-btn" onClick={addTask}>Add</button>
         </div>
       )}
+
+      {assignFor && (
+        <AssignSheet task={assignFor} staff={staff} crewIds={crew.map((c) => c.user_id)} onPick={(uid) => assign(assignFor, uid)} onClose={() => setAssignFor(null)} />
+      )}
     </div>
+  );
+}
+
+// Mobile-friendly assignee picker — a bottom sheet with big tap rows, crew first.
+function AssignSheet({ task, staff, crewIds, onPick, onClose }: {
+  task: EventTask;
+  staff: { id: string; display_name: string | null }[];
+  crewIds: string[];
+  onPick: (uid: string) => void;
+  onClose: () => void;
+}) {
+  const label = (s: { display_name: string | null }) => s.display_name?.trim() || "Unnamed crew";
+  const initial = (s: { display_name: string | null }) => { const n = s.display_name?.trim(); return n ? n.charAt(0).toUpperCase() : "?"; };
+  const crew = staff.filter((s) => crewIds.includes(s.id));
+  const others = staff.filter((s) => !crewIds.includes(s.id));
+  const Row = (s: { id: string; display_name: string | null }) => (
+    <button key={s.id} type="button" className={`assign-row${task.assignee === s.id ? " on" : ""}`} onClick={() => onPick(s.id)}>
+      <span className="assign-av">{initial(s)}</span>
+      <span className="assign-name">{label(s)}</span>
+      {task.assignee === s.id && <span className="assign-check">✓</span>}
+    </button>
+  );
+  return (
+    <>
+      <div className="prep-scrim" onClick={onClose} aria-hidden="true" />
+      <div className="prep-sheet assign-sheet" role="dialog" aria-modal="true" aria-label={`Assign ${task.label}`}>
+        <div className="prep-sheet-grab" />
+        <div className="assign-sheet-h">Assign · <b>{task.label}</b></div>
+        {staff.length === 0 && <div className="h-sub">No staff yet — add people and set their role/name in <b>Team</b>.</div>}
+        {crew.length > 0 && <div className="assign-group">On this crew</div>}
+        {crew.map(Row)}
+        {others.length > 0 && <div className="assign-group">All staff</div>}
+        {others.map(Row)}
+        {task.assignee && (
+          <button type="button" className="assign-row clear" onClick={() => onPick("")}>
+            <span className="assign-av none">—</span><span className="assign-name">Unassign</span>
+          </button>
+        )}
+      </div>
+    </>
   );
 }
 

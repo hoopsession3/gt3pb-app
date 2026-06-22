@@ -1074,6 +1074,40 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .prep-sheet-opt{flex:1;background:rgba(255,255,255,.04);border:1px solid var(--line2);border-radius:12px;color:var(--cream);font-family:'Inter';font-weight:600;font-size:13px;padding:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .prep-sheet-opt.on{background:rgba(168,124,63,.16);border-color:var(--gold2);color:var(--gold2)}
 
+/* Prep detail — bigger, touch-friendly task rows + clear assignment */
+.adm-prep .adm-task{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 2px;border-bottom:1px solid var(--line)}
+.task-check{flex:1 1 60%;display:flex;align-items:center;gap:13px;min-width:0;min-height:48px;background:none;border:none;padding:8px 0;text-align:left;cursor:pointer;-webkit-appearance:none;appearance:none;color:inherit}
+.task-box{flex:0 0 auto;width:27px;height:27px;border-radius:8px;border:2px solid var(--line2);background:rgba(0,0,0,.22);display:flex;align-items:center;justify-content:center}
+.adm-task.done .task-box{background:var(--ok);border-color:var(--ok)}
+.adm-task.crit .task-box{border-color:var(--red)}
+.adm-task.warn .task-box{border-color:var(--warn)}
+.task-box svg{width:16px;height:16px;stroke:#fff;stroke-width:3.2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.task-label{font-family:'Inter';font-size:14.5px;line-height:1.32;color:var(--cream);word-break:break-word}
+.adm-task.crit .task-label{color:#ecb4b1}
+.adm-task.done .task-label{color:var(--cream-m);text-decoration:line-through}
+.task-right{flex:0 0 auto;display:flex;align-items:center;gap:8px;margin-left:auto}
+.task-assign{display:inline-flex;align-items:center;gap:7px;min-height:40px;padding:5px 13px 5px 5px;border-radius:999px;border:1px dashed var(--line2);background:rgba(168,124,63,.07);color:var(--gold2);font-family:'Inter';font-weight:600;font-size:12.5px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.task-assign:active{transform:scale(.97)}
+.task-assign.set{border-style:solid;border-color:var(--gold2);background:rgba(168,124,63,.16)}
+.task-assign.readonly{cursor:default}
+.task-assign-add{padding:0 7px}
+.task-assign-av{flex:0 0 auto;width:28px;height:28px;border-radius:50%;background:var(--gold2);color:#1a1310;display:flex;align-items:center;justify-content:center;font-family:'Archivo Black';font-size:12px}
+.task-assign-name{max-width:88px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* assignee picker sheet */
+.assign-sheet{max-height:70vh;overflow-y:auto}
+.assign-sheet-h{font-family:'Inter';font-size:13.5px;color:var(--cream-m);margin-bottom:6px}
+.assign-sheet-h b{color:var(--cream)}
+.assign-group{font-family:'Inter';font-weight:600;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--cream-m);margin:13px 0 5px}
+.assign-row{display:flex;align-items:center;gap:13px;width:100%;min-height:54px;padding:8px 10px;border-radius:13px;border:1px solid transparent;background:none;color:var(--cream);font-family:'Inter';font-size:15px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.assign-row:active{background:rgba(255,255,255,.05)}
+.assign-row.on{background:rgba(168,124,63,.16);border-color:var(--gold2)}
+.assign-av{flex:0 0 auto;width:36px;height:36px;border-radius:50%;background:var(--gold2);color:#1a1310;display:flex;align-items:center;justify-content:center;font-family:'Archivo Black';font-size:15px}
+.assign-av.none{background:rgba(245,241,232,.1);color:var(--cream-m);font-family:'Inter';font-weight:700}
+.assign-name{flex:1;text-align:left}
+.assign-check{color:var(--gold2);font-weight:700;font-size:16px}
+.assign-row.clear{margin-top:8px;border-top:1px solid var(--line);border-radius:0 0 13px 13px}
+
 /* Account avatar — coconut mark + role-aware dropdown */
 .acct{position:relative;flex:0 0 auto}
 .acct-av{position:relative;display:flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:50%;background:#1a1310;border:2px solid var(--gold2);cursor:pointer;padding:0}
