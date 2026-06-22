@@ -61,7 +61,8 @@ function TruckLive() {
       supabase.from("stops").select("*").order("sort"),
       supabase.from("live_status").select("*").maybeSingle(),
     ]);
-    if (s) setStops(s as Stop[]);
+    // hide archived locations from guests (client-side → safe pre-migration 0033)
+    if (s) setStops((s as Stop[]).filter((x) => !x.archived_at));
     if (l) setLive(l as LiveStatus);
     setLoaded(true);
   }, []);

@@ -360,67 +360,97 @@ function EventPrep() {
 }
 
 // ───────────────────────── one stop: go-live + location + notes ─────────────────────────
-function StopControl({ s, isCur, onGoLive, onChanged }: { s: Stop; isCur: boolean; onGoLive: (id: string) => void; onChanged: () => void }) {
+function StopControl({ s, index, isCur, open, onToggle, onGoLive, onArchive, onChanged }: {
+  s: Stop; index: number; isCur: boolean; open: boolean; onToggle: () => void;
+  onGoLive: (id: string) => void; onArchive: () => void; onChanged: () => void;
+}) {
   const { toast } = useApp();
   const [name, setName] = useState(s.name);
   const [address, setAddress] = useState(s.address ?? "");
   const [busy, setBusy] = useState(false);
   const hasCoords = s.lat != null && s.lng != null;
 
-  const saveName = async () => {
-    const nm = name.trim();
-    if (!nm || nm === s.name) return;
-    const { error } = await supabase!.from("stops").update({ name: nm }).eq("id", s.id);
-    toast(error ? `Error: ${error.message}` : "Name saved");
-    onChanged();
+  // every update carries a WHERE (id) — safe with the safeupdate guard
+  const patch = async (p: Partial<Stop>, msg = "Saved") => {
+    const { error } = await supabase!.from("stops").update(p).eq("id", s.id);
+    toast(error ? `Error: ${error.message}` : msg);
+    if (!error) onChanged();
   };
-  const saveNotes = async (notes: string) => {
-    const { error } = await supabase!.from("stops").update({ notes: notes.trim() || null }).eq("id", s.id);
-    toast(error ? `Error: ${error.message}` : "Stop details saved");
-    onChanged();
-  };
+  const saveName = () => { const nm = name.trim(); if (nm && nm !== s.name) patch({ name: nm }, "Name saved"); };
   const saveLocation = async () => {
-    const q = address.trim();
-    if (!q) return;
+    const q = address.trim(); if (!q) return;
     setBusy(true);
     const geo = await geocode(q);
     if (!geo) { setBusy(false); toast("Couldn't find that address — add city & state, then retry."); return; }
     const { error } = await supabase!.from("stops").update({ address: q, location_text: q, lat: geo.lat, lng: geo.lng }).eq("id", s.id);
     setBusy(false);
-    toast(error ? `Error: ${error.message}` : "Location set — directions are now accurate");
-    onChanged();
+    toast(error ? `Error: ${error.message}` : "Location pinned — directions are now accurate");
+    if (!error) onChanged();
   };
   const remove = async () => {
-    if (typeof window !== "undefined" && !window.confirm(`Remove ${s.name}?`)) return;
+    if (typeof window !== "undefined" && !window.confirm(`Delete ${s.name}? This removes the record.`)) return;
     const { error } = await supabase!.from("stops").delete().eq("id", s.id);
-    toast(error ? `Error: ${error.message}` : "Stop removed");
-    onChanged();
+    toast(error ? `Error: ${error.message}` : "Location deleted");
+    if (!error) onChanged();
   };
 
+  const sub = [s.poc_name, s.service_dates, hasCoords ? "pinned" : "no pin"].filter(Boolean).join("  ·  ");
   return (
-    <div className="adm-stopwrap">
-      <div className={`adm-stop${isCur ? " cur" : ""}`}>
-        <input className="adm-stopname" value={name} onChange={(e) => setName(e.target.value)} onBlur={saveName} maxLength={120} placeholder="Stop name" />
-        <button className={`adm-btn${isCur ? " on" : " go"}`} onClick={() => onGoLive(s.id)} disabled={isCur}>
-          {isCur ? "Live ✓" : "Go live here"}
-        </button>
-      </div>
-      <div className="adm-loc">
-        <input className="adm-locinput" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Street address (for directions)" maxLength={300} />
-        <button className="adm-btn" onClick={saveLocation} disabled={busy || !address.trim()}>{busy ? "Finding…" : "Save location"}</button>
-      </div>
-      <div className={`adm-loc-status${hasCoords ? " ok" : ""}`}>
-        {hasCoords ? `Location set · ${(s.lat as number).toFixed(4)}, ${(s.lng as number).toFixed(4)}` : "No location set — add an address so directions are accurate"}
-      </div>
-      <textarea
-        className="adm-notes"
-        rows={2}
-        maxLength={1000}
-        defaultValue={s.notes ?? ""}
-        placeholder="Details guests see when they tap this stop — parking, what's special, anything to know"
-        onBlur={(e) => { if (e.target.value !== (s.notes ?? "")) saveNotes(e.target.value); }}
-      />
-      <button className="adm-stop-remove" onClick={remove}>Remove stop</button>
+    <div className={`ev-card${isCur ? " live" : ""}${open ? " open" : ""}`}>
+      <button className="ev-head" onClick={onToggle} aria-expanded={open}>
+        <span className="ev-led" />
+        <span className="ev-head-main">
+          <span className="ev-tag">Location {String(index + 1).padStart(2, "0")}{isCur ? " · Live" : ""}</span>
+          <span className="ev-title">{s.name || "Untitled location"}</span>
+          <span className="ev-sub">{sub || "Tap to set up"}</span>
+        </span>
+        <span className="ev-head-badges">
+          {isCur && <span className="ev-badge live">● Live</span>}
+          <span className="ev-chev">›</span>
+        </span>
+      </button>
+
+      {open && (
+        <div className="ev-body">
+          <button className={`ev-golive${isCur ? " on" : ""}`} onClick={() => onGoLive(s.id)} disabled={isCur}>
+            <span className="ev-golive-dot" />
+            <span>{isCur ? "Live here now — guests see this location" : "Go live at this location"}</span>
+            <span className="ev-golive-state">{isCur ? "LIVE" : "GO"}</span>
+          </button>
+
+          <div className="ev-group">
+            <div className="ev-group-h">Location</div>
+            <input className="ev-input" value={name} onChange={(e) => setName(e.target.value)} onBlur={saveName} maxLength={120} placeholder="Location name" />
+            <div className="stop-addr">
+              <input className="ev-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Street address (for directions)" maxLength={300} />
+              <button className="ev-archive" onClick={saveLocation} disabled={busy || !address.trim()}>{busy ? "Finding…" : "Save"}</button>
+            </div>
+            <div className={`stop-coords${hasCoords ? " ok" : ""}`}>{hasCoords ? `Pinned · ${(s.lat as number).toFixed(4)}, ${(s.lng as number).toFixed(4)}` : "No pin yet — add an address for accurate directions"}</div>
+          </div>
+
+          <div className="ev-group">
+            <div className="ev-group-h">Vendor · point of contact</div>
+            <input className="ev-input" defaultValue={s.poc_name ?? ""} placeholder="POC name" maxLength={120} onBlur={(e) => { if ((e.target.value.trim() || null) !== (s.poc_name ?? null)) patch({ poc_name: e.target.value.trim() || null }, "Contact saved"); }} />
+            <input className="ev-input" type="tel" defaultValue={s.poc_phone ?? ""} placeholder="Phone" maxLength={40} onBlur={(e) => { if ((e.target.value.trim() || null) !== (s.poc_phone ?? null)) patch({ poc_phone: e.target.value.trim() || null }, "Contact saved"); }} />
+            <input className="ev-input" type="email" defaultValue={s.poc_email ?? ""} placeholder="Email" maxLength={160} onBlur={(e) => { if ((e.target.value.trim() || null) !== (s.poc_email ?? null)) patch({ poc_email: e.target.value.trim() || null }, "Contact saved"); }} />
+          </div>
+
+          <div className="ev-group">
+            <div className="ev-group-h">Dates of service</div>
+            <input className="ev-input" defaultValue={s.service_dates ?? ""} placeholder="e.g. Saturdays · May 3 – Aug 30" maxLength={200} onBlur={(e) => { if ((e.target.value.trim() || null) !== (s.service_dates ?? null)) patch({ service_dates: e.target.value.trim() || null }, "Service dates saved"); }} />
+          </div>
+
+          <div className="ev-group">
+            <div className="ev-group-h">Guest details</div>
+            <textarea className="ev-input ev-area" rows={2} maxLength={1000} defaultValue={s.notes ?? ""} placeholder="Parking, what's special, anything guests should know" onBlur={(e) => { if (e.target.value !== (s.notes ?? "")) patch({ notes: e.target.value.trim() || null }, "Details saved"); }} />
+          </div>
+
+          <div className="ev-card-foot">
+            <button className="ev-archive" onClick={onArchive}>Archive location</button>
+            <button className="ev-delete" onClick={remove}>Delete</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -432,6 +462,8 @@ function LiveControl() {
   const [live, setLive] = useState<LiveStatus | null>(null);
   const [err, setErr] = useState("");
   const [posBusy, setPosBusy] = useState(false);
+  const [openStopId, setOpenStopId] = useState<string | null>(null); // single-open accordion
+  const [showArchStops, setShowArchStops] = useState(false);
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -500,16 +532,37 @@ function LiveControl() {
       : "Location not pinned yet"
     : "";
   const addStop = async () => {
-    const { error } = await supabase!.from("stops").insert({ name: "New stop", status: "upcoming", sort: stops.length });
+    const { data, error } = await supabase!.from("stops").insert({ name: "New location", status: "upcoming", sort: stops.length }).select("id").single();
     if (error) { setErr(error.message); toast(`Couldn't add — ${error.message}`, "error"); }
-    else toast("Stop added — set its name, address & details below");
+    else { if (data) setOpenStopId((data as { id: string }).id); toast("Location added — fill in its details"); }
+    load();
+  };
+  // Archive a location out of the active list (keeps the record). If it was live, close it.
+  const archiveStop = async (id: string) => {
+    const wasLive = id === live?.current_stop_id;
+    await supabase!.from("stops").update({ archived_at: new Date().toISOString(), status: "upcoming" }).eq("id", id);
+    if (wasLive) await supabase!.from("live_status").update({ is_live: false, current_stop_id: null }).eq("id", 1);
+    toast("Location archived");
+    setOpenStopId(null);
+    load();
+  };
+  const restoreStop = async (id: string) => {
+    await supabase!.from("stops").update({ archived_at: null }).eq("id", id);
+    toast("Location restored");
+    load();
+  };
+  const deleteStop = async (id: string, nm: string) => {
+    if (typeof window !== "undefined" && !window.confirm(`Delete ${nm}? This removes the record.`)) return;
+    await supabase!.from("stops").delete().eq("id", id);
     load();
   };
   const curStop = stops.find((s) => s.id === live?.current_stop_id);
+  const active = stops.filter((s) => !s.archived_at);
+  const archived = stops.filter((s) => s.archived_at);
 
   return (
     <div className="adm-sec">
-      <div className="sec">Live truck <button className="adm-btn" style={{ marginLeft: "auto" }} onClick={addStop}>+ Add stop</button></div>
+      <div className="sec">Live truck <button className="adm-btn" style={{ marginLeft: "auto" }} onClick={addStop}>+ Add location</button></div>
       {err && <div className="adm-attn" role="alert">Backend error: {err}</div>}
       <div className="adm-live">
         <div className="adm-live-status">
@@ -524,10 +577,38 @@ function LiveControl() {
           <button className="adm-btn ghost" onClick={pinHere} disabled={posBusy}>{posBusy ? "Pinning…" : live?.pos_updated_at ? "Update location" : "Use my location"}</button>
         </div>
       )}
-      {stops.map((s) => (
-        <StopControl key={s.id} s={s} isCur={Boolean(s.id === live?.current_stop_id && live?.is_live)} onGoLive={goLive} onChanged={load} />
-      ))}
-      {stops.length === 0 && <div className="h-sub">No stops yet — tap &ldquo;Add stop&rdquo; to create your first location.</div>}
+
+      <div className="ev-list" style={{ marginTop: 12 }}>
+        {active.map((s, i) => (
+          <StopControl
+            key={s.id}
+            s={s}
+            index={i}
+            isCur={Boolean(s.id === live?.current_stop_id && live?.is_live)}
+            open={openStopId === s.id}
+            onToggle={() => setOpenStopId(openStopId === s.id ? null : s.id)}
+            onGoLive={goLive}
+            onArchive={() => archiveStop(s.id)}
+            onChanged={load}
+          />
+        ))}
+      </div>
+      {active.length === 0 && <div className="ev-empty">No locations yet. Tap <b>+ Add location</b> to create one{archived.length ? ", or reopen one below" : ""}.</div>}
+
+      {archived.length > 0 && (
+        <div className="ev-archived">
+          <button className="ev-arch-head" onClick={() => setShowArchStops((v) => !v)} aria-expanded={showArchStops}>
+            Archived locations · {archived.length}<span className={`ev-chev${showArchStops ? " open" : ""}`}>›</span>
+          </button>
+          {showArchStops && archived.map((s) => (
+            <div className="ev-arch-row" key={s.id}>
+              <span className="ev-arch-name">{s.name || "Untitled location"}</span>
+              <button className="ev-arch-btn" onClick={() => restoreStop(s.id)}>Restore</button>
+              <button className="ev-arch-btn del" onClick={() => deleteStop(s.id, s.name)}>Delete</button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

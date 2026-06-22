@@ -14,6 +14,12 @@ export interface Stop {
   notes: string | null;
   address: string | null;
   sort: number;
+  // vendor / location management (0033)
+  poc_name?: string | null;
+  poc_phone?: string | null;
+  poc_email?: string | null;
+  service_dates?: string | null;
+  archived_at?: string | null;
 }
 
 export interface LiveStatus {
