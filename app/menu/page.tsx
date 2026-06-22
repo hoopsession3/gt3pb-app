@@ -44,7 +44,7 @@ export default function MenuScreen() {
       </div>
 
       <p className="mast-stmt">
-        We draw the coffee cold, press the hydration from whole fruit, and simmer the broth slow, then make every cup the moment you order it.
+        We draw the coffee cold, blend the hydration from whole coconut, and simmer the broth slow — the long way, on purpose — then make every cup the moment you order it.
       </p>
       <div className="mast-order">Order here, and it&apos;ll be waiting when you reach the window.</div>
 

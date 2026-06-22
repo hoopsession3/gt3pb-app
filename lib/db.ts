@@ -82,6 +82,7 @@ export interface EventRow {
   is_live?: boolean;
   state?: string | null;
   county?: string | null;
+  archived_at?: string | null; // set when filed out of the operator's active workspace (0032)
 }
 
 // Per-event execution checklist (0025) — pack-list items + ad-hoc tasks, role-scoped.

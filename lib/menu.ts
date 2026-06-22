@@ -39,17 +39,17 @@ export const DRINKS: Record<DrinkId, DrinkDetail> = {
   dusk: {
     n: "DUSK", px: "$7", grad: "linear-gradient(140deg,#5a3826,#9c6b3f)", dot: "#9C6B3F",
     lines: ["Cold-extracted coffee in mineral water","Ceylon Cinnamon · Green Cardamom"],
-    why: "Warm spice for the slower half of the day.",
+    why: "Cinnamon and cardamom for a warmer, spiced cup.",
     has: ["Single-origin cold extraction", "Mineral water base", "Ceylon cinnamon", "Green cardamom"],
     no: ["Sugar", "Dairy", "Syrups", "Preservatives"],
-    when: "BEFORE", whenT: "Afternoon, when you want less stimulant.",
+    when: "BEFORE", whenT: "Afternoon, when you want a warmer cup with the same lift.",
   },
   tide: {
     n: "TIDE", px: "$8", grad: "linear-gradient(140deg,#2f7d74,#79c7bb)", dot: "#2F7D74",
-    lines: ["Young Coconut Water", "Blended with Thai Coconut Meat"],
+    lines: ["Young coconut water + Thai coconut meat", "Finished with a touch of raw honey"],
     why: "Real hydration that goes down easy.",
-    has: ["Organic young coconut water", "Organic Thai coconut meat", "Blended to order"],
-    no: ["Marine collagen", "Powders", "Added sugar", "Concentrate"],
+    has: ["Organic young coconut water", "Organic Thai coconut meat", "Raw honey", "Blended to order"],
+    no: ["Marine collagen", "Powders", "Concentrate"],
     when: "DURING", whenT: "During work or training.",
   },
   forge: {

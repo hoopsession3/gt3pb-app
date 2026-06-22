@@ -43,21 +43,22 @@ export default function RouteMap({ points, truck }: { points: RoutePoint[]; truc
       );
       const latlngs = ordered.map((p) => [p.lat, p.lng] as [number, number]);
 
-      // Fully static: no dragging/zoom so the map can't hijack a scroll gesture.
+      // Interactive: pinch/drag/zoom + zoom buttons so it's actually usable. Page-
+      // scroll wheel is left OFF so a desktop scroll doesn't get trapped by the map.
       map = L.map(elRef.current, {
-        dragging: false,
+        dragging: true,
         scrollWheelZoom: false,
-        touchZoom: false,
-        doubleClickZoom: false,
+        touchZoom: true,
+        doubleClickZoom: true,
         boxZoom: false,
         keyboard: false,
-        zoomControl: false,
+        zoomControl: true,
         attributionControl: false,
       });
       mapRef.current = map;
-      // Label-free dark tiles → no third-party city labels fighting the brand; our
-      // own red/gold markers carry the meaning. Reads as a custom artifact, not an embed.
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png", {
+      // Dark tiles WITH street/place labels — you can actually read where each stop is.
+      // Brand red/gold markers still carry the live/route meaning on top.
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
         maxZoom: 19,
         subdomains: "abcd",
       }).addTo(map);
@@ -91,7 +92,23 @@ export default function RouteMap({ points, truck }: { points: RoutePoint[]; truc
         });
       });
 
-      map.fitBounds(latlngs, { paddingTopLeft: [46, 34], paddingBottomRight: [46, 26] });
+      // Frame the route, but cap zoom so a single/clustered stop still shows street
+      // context instead of a blank max-zoom tile. If one stop is live, lean into it.
+      const fitOpts = { paddingTopLeft: [40, 44] as [number, number], paddingBottomRight: [40, 30] as [number, number], maxZoom: 14 };
+      const liveP = points.find((p) => p.live);
+      if (liveP && points.length > 1) {
+        map.setView([liveP.lat, liveP.lng], 13);
+      } else {
+        map.fitBounds(latlngs, fitOpts);
+      }
+      // The container can settle a frame after init inside the scroll view — recompute
+      // size so tiles fill it (classic Leaflet "gray map" fix) and re-frame once.
+      requestAnimationFrame(() => {
+        if (cancelled || !mapRef.current) return;
+        mapRef.current.invalidateSize();
+        if (liveP && points.length > 1) mapRef.current.setView([liveP.lat, liveP.lng], 13);
+        else mapRef.current.fitBounds(latlngs, fitOpts);
+      });
     })();
 
     return () => {

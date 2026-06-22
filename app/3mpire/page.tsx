@@ -172,6 +172,13 @@ function MpireReal() {
             <div className="rr">›</div>
           </div>
         )}
+        {roleOf(profile) !== "member" && (
+          <div className="row" aria-label="GT3 Academy" {...clickable(() => router.push("/academy"))}>
+            <div className="ri"><svg viewBox="0 0 24 24" strokeWidth="2"><path d="M12 3L2 8l10 5 10-5-10-5z" /><path d="M6 10v5c0 1 3 3 6 3s6-2 6-3v-5" /></svg></div>
+            <div className="rl"><b>GT3 Academy</b><span>Training · certifications · cookbook</span></div>
+            <div className="rr">›</div>
+          </div>
+        )}
         <div className="row" aria-label="Saved Events" {...clickable(() => router.push("/events"))}>
           <div className="ri"><svg viewBox="0 0 24 24" strokeWidth="2"><path d="M12 21s-7-6-7-11a7 7 0 0 1 14 0c0 5-7 11-7 11z" /><circle cx="12" cy="10" r="2.5" /></svg></div>
           <div className="rl"><b>Saved Events</b><span>Track stops + RSVP</span></div>

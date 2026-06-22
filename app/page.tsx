@@ -156,7 +156,7 @@ function Arrival() {
         <AccountPill />
       </div>
 
-      <p className="arr-stmt">We draw the coffee cold, press the hydration from whole fruit, and simmer the broth slow, then make every cup the moment you order it.</p>
+      <p className="arr-stmt">We draw the coffee cold, blend the hydration from whole coconut, and simmer the broth slow — the long way, on purpose — then make every cup the moment you order it.</p>
       <div className="arr-principles">Drawn cold, made to order, poured into glass</div>
 
       <div className="arr-cta">
@@ -167,7 +167,7 @@ function Arrival() {
       <div className="dchapter"><span className="dchn">The Craft</span><span className="dchw">how it&apos;s made</span></div>
       <div className="dchrule" />
       <div className="craft-row"><span className="craft-no">01</span><div className="craft-x"><b>Cold extraction</b><p>We draw it cold over hours, in small batches, which gives a rounder, gentler cup than heat ever could.</p></div></div>
-      <div className="craft-row"><span className="craft-no">02</span><div className="craft-x"><b>Whole-food inputs</b><p>It all starts as real food: coconuts we press by hand and bones we simmer for hours, so what you taste is the ingredient itself.</p></div></div>
+      <div className="craft-row"><span className="craft-no">02</span><div className="craft-x"><b>Whole-food inputs</b><p>It all starts as real food — whole coconut, pasture-raised bones, single-origin beans. We take the slow route and add nothing, so what you taste is the ingredient itself.</p></div></div>
       <div className="craft-row"><span className="craft-no">03</span><div className="craft-x"><b>Made to order</b><p>We make your cup when you reach the window and pour it straight into glass, about as fresh as a thing can get.</p></div></div>
 
       <div className="dchapter"><span className="dchn">What We Make</span><span className="dchw">three acts</span></div>

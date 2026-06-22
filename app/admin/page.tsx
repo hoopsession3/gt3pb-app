@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import { useAuth, roleOf, type Profile } from "@/components/AuthProvider";
 import SignIn from "@/components/SignIn";
@@ -13,7 +13,15 @@ import { DRINKS, type DrinkId } from "@/lib/menu";
 import { geocode } from "@/lib/geocode";
 import { packListFor } from "@/lib/packlist";
 import { complianceFor } from "@/lib/compliance";
+import { projectEvent, reconcile, DEFAULT_ECON, type EventEcon, type ProductEcon, type Projection } from "@/lib/economics";
+import { buildBrief } from "@/lib/eventbrief";
+import { fetchInventory, inventoryForEvent, rollupLowStock, type InventoryResp, type InvItem } from "@/lib/inventory";
 import type { Stop, LiveStatus, EventRow, EventTask, BookingRequest, Order, Reserve, Subscription } from "@/lib/db";
+
+// money helpers for the economics panels
+const usd = (cents: number) => `$${(cents / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+const toCents = (s: string) => Math.max(0, Math.round((parseFloat(s) || 0) * 100));
+const pctInt = (n: number) => Math.round(n * 100);
 
 const STATUSES: BookingRequest["status"][] = ["new", "contacted", "booked", "declined"];
 
@@ -456,8 +464,11 @@ function LiveControl() {
     load();
   };
   const pause = async () => {
-    setLive((l) => (l ? { ...l, is_live: false } : { id: 1, current_stop_id: null, is_live: false, next_eta: null }));
-    const { error } = await supabase!.rpc("admin_set_offline");
+    setLive((l) => (l ? { ...l, is_live: false, current_stop_id: null } : { id: 1, current_stop_id: null, is_live: false, next_eta: null }));
+    // Direct, RLS-protected writes (admin policy) so going offline never depends on a
+    // specific RPC being migrated — flip the master flag AND clear any stuck "live" stop.
+    const { error } = await supabase!.from("live_status").update({ is_live: false, current_stop_id: null, truck_lat: null, truck_lng: null, pos_updated_at: null }).eq("id", 1);
+    await supabase!.from("stops").update({ status: "upcoming" }).eq("status", "live");
     if (error) { setErr(error.message); toast(`Couldn't go offline — ${error.message}`, "error"); }
     else toast("Truck is offline");
     load();
@@ -726,6 +737,9 @@ function MemberRow({ m, onSaved }: { m: Profile; onSaved: () => void }) {
         <label>Role<select className="adm-role" value={roleOf(m)} onChange={(e) => setRole(e.target.value)}>
           <option value="member">member</option>
           <option value="server">server</option>
+          <option value="operator">operator</option>
+          <option value="event_manager">event manager</option>
+          <option value="contractor">contractor</option>
           <option value="admin">admin</option>
           <option value="owner">owner</option>
         </select></label>
@@ -773,21 +787,27 @@ function Members() {
 function EventHUD() {
   const [ev, setEv] = useState<EventRow | null>(null);
   const [stats, setStats] = useState<{ cents: number; orders: number; firstAt: string | null }>({ cents: 0, orders: 0, firstAt: null });
+  const [econ, setEcon] = useState<EventEcon | null>(null);
+  const [catalog, setCatalog] = useState<ProductEcon[]>([]);
   const load = useCallback(async () => {
     if (!supabase) return;
     const { data: e } = await supabase.from("events").select("*").eq("is_live", true).maybeSingle();
     setEv((e as EventRow) ?? null);
     if (!e) { setStats({ cents: 0, orders: 0, firstAt: null }); return; }
     const eid = (e as EventRow).id;
-    const [{ data: ords }, { data: sales }] = await Promise.all([
+    const [{ data: ords }, { data: sales }, { data: cat }, { data: ec }] = await Promise.all([
       supabase.from("orders").select("total_cents, paid, created_at").eq("event_id", eid),
       supabase.from("event_sales").select("amount_cents, created_at").eq("event_id", eid),
+      supabase.from("product_economics").select("*").eq("active", true).order("sort"),
+      supabase.from("event_economics").select("*").eq("event_id", eid).maybeSingle(),
     ]);
     const o = (ords as { total_cents: number; paid: boolean; created_at: string }[]) ?? [];
     const s = (sales as { amount_cents: number; created_at: string }[]) ?? [];
     const cents = o.filter((x) => x.paid).reduce((a, x) => a + x.total_cents, 0) + s.reduce((a, x) => a + x.amount_cents, 0);
     const times = [...o.map((x) => x.created_at), ...s.map((x) => x.created_at)].filter(Boolean).sort();
     setStats({ cents, orders: o.length + s.length, firstAt: times[0] ?? null });
+    setCatalog((cat as ProductEcon[]) ?? []);
+    setEcon((ec as EventEcon) ?? null);
   }, []);
   useEffect(() => {
     load();
@@ -805,6 +825,12 @@ function EventHUD() {
   if (!ev) return null;
   const hrs = stats.firstAt ? Math.max(0.25, (Date.now() - new Date(stats.firstAt).getTime()) / 3600000) : 0;
   const perHr = hrs ? stats.cents / hrs : 0;
+  // plan vs actual — feed the real gross into the projection's cost structure
+  const proj = projectEvent(ev, econ ?? DEFAULT_ECON, catalog);
+  const recon = reconcile(proj, stats.cents, econ ?? DEFAULT_ECON);
+  const hasPlan = proj.revenueCents > 0;
+  const pctOfPlan = hasPlan ? Math.round((stats.cents / proj.revenueCents) * 100) : 0;
+  const netUp = recon.actualNetCents >= 0;
   return (
     <div className="adm-sec adm-hud">
       <div className="sec">{ev.title}<span className="adm-pill due">LIVE</span></div>
@@ -813,6 +839,298 @@ function EventHUD() {
         <div className="adm-hud-stat"><b>{stats.orders}</b><span>orders</span></div>
         <div className="adm-hud-stat"><b>${(perHr / 100).toFixed(0)}</b><span>per hr</span></div>
       </div>
+      {hasPlan && (
+        <>
+          <div className="wrule"><span>Plan vs actual</span></div>
+          <div className="adm-hud-row">
+            <div className="adm-hud-stat"><b className={pctOfPlan >= 100 ? "ok" : "gold"}>{pctOfPlan}%</b><span>of plan</span></div>
+            <div className="adm-hud-stat"><b className={netUp ? "ok" : "red"}>{usd(recon.actualNetCents)}</b><span>net now</span></div>
+            <div className="adm-hud-stat"><b className={netUp ? "ok" : "red"}>{pctInt(recon.actualRoiPct)}%</b><span>ROI now</span></div>
+          </div>
+          <div className="pnl-be">Plan {usd(proj.revenueCents)} rev · {usd(proj.netCents)} net{proj.breakEvenGuests != null ? ` · break-even ${Math.ceil(proj.breakEvenGuests)} guests` : ""}</div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ───────────────────────── event ROI / P&L (telemetry money panel) ─────────────────────────
+// Live projection — recomputes on every keystroke; persists on blur. Reads the
+// event's own config (attendance/hours/crew/menu) so the plan tracks reality.
+function EventEconomics({ e, econRow, catalog, onSave }: {
+  e: EventRow; econRow: EventEcon | null; catalog: ProductEcon[];
+  onSave: (econ: EventEcon) => void;
+}) {
+  const [econ, setEcon] = useState<EventEcon>(econRow ?? DEFAULT_ECON);
+  useEffect(() => { if (econRow) setEcon(econRow); }, [econRow]);
+  const proj = useMemo(() => projectEvent(e, econ, catalog), [e, econ, catalog]);
+  const live = (patch: Partial<EventEcon>) => setEcon((p) => ({ ...p, ...patch }));   // live gauge
+  const commit = () => onSave(econ);                                                    // persist
+  const fixed = econ.booth_cents + econ.transport_cents + econ.permit_cents + econ.consumables_cents;
+  const profitable = proj.netCents >= 0;
+  const uncosted = proj.lines.some((l) => !l.costed);
+
+  return (
+    <div className="ev-group ev-pnl">
+      <div className="ev-group-h">Economics · projected ROI</div>
+
+      {proj.enabledLines === 0 ? (
+        <div className="pnl-note">Turn on the menu lines you&apos;ll pour (above) to project revenue &amp; ROI.</div>
+      ) : (
+        <>
+          <div className="ev-pnl-gauges">
+            <div className="gauge"><div className={`gv ${profitable ? "gold" : "red"}`}>{pctInt(proj.roiPct)}%</div><div className="gl">ROI</div></div>
+            <div className="gauge"><div className={`gv ${profitable ? "ok" : "red"}`}>{usd(proj.netCents)}</div><div className="gl">Net profit</div></div>
+            <div className="gauge"><div className="gv">{pctInt(proj.netMarginPct)}%</div><div className="gl">Margin</div></div>
+          </div>
+
+          <div className="pnl-rows">
+            <div className="pnl-row"><span className="k">Revenue · {Math.round(proj.projectedUnits)} units</span><span className="v">{usd(proj.revenueCents)}</span></div>
+            <div className="pnl-row neg"><span className="k">− Product COGS</span><span className="v">−{usd(proj.cogsCents)}</span></div>
+            <div className="pnl-row neg"><span className="k">− Labor</span><span className="v">−{usd(proj.laborCents)}</span></div>
+            <div className="pnl-row neg"><span className="k">− Booth · transport · permit · cups</span><span className="v">−{usd(fixed)}</span></div>
+            <div className={`pnl-row net ${profitable ? "" : "neg"}`}><span className="k">Net profit</span><span className="v">{usd(proj.netCents)}</span></div>
+          </div>
+
+          <div className="pnl-be">
+            {proj.breakEvenGuests != null
+              ? <>Break-even ≈ {Math.ceil(proj.breakEvenGuests)} buying guests · you&apos;re projecting {Math.round(proj.projectedGuests)}</>
+              : <>Set a unit price to compute break-even</>}
+          </div>
+          {uncosted && <div className="pnl-note">Some lines use the blended {pctInt(econ.cogs_pct)}% COGS — set their unit cost in Money → Product economics for exact margin.</div>}
+        </>
+      )}
+
+      <div className="ev-sub-h">Projection knobs</div>
+      <div className="ev-grid">
+        <label className="ev-f">Capture %<input type="number" min={0} max={100} value={pctInt(econ.capture_pct)} onChange={(ev) => live({ capture_pct: (parseFloat(ev.target.value) || 0) / 100 })} onBlur={commit} /></label>
+        <label className="ev-f">Units/guest<input type="number" min={0} step={0.1} value={econ.items_per_guest} onChange={(ev) => live({ items_per_guest: parseFloat(ev.target.value) || 0 })} onBlur={commit} /></label>
+        <label className="ev-f">COGS %<input type="number" min={0} max={100} value={pctInt(econ.cogs_pct)} onChange={(ev) => live({ cogs_pct: (parseFloat(ev.target.value) || 0) / 100 })} onBlur={commit} /></label>
+      </div>
+
+      <div className="ev-sub-h">Cost lines</div>
+      <div className="ev-grid">
+        <label className="ev-f">Labor $/hr<input type="number" min={0} value={(econ.labor_rate_cents / 100) || 0} onChange={(ev) => live({ labor_rate_cents: toCents(ev.target.value) })} onBlur={commit} /></label>
+        <label className="ev-f">Booth $<input type="number" min={0} value={(econ.booth_cents / 100) || 0} onChange={(ev) => live({ booth_cents: toCents(ev.target.value) })} onBlur={commit} /></label>
+        <label className="ev-f">Transport $<input type="number" min={0} value={(econ.transport_cents / 100) || 0} onChange={(ev) => live({ transport_cents: toCents(ev.target.value) })} onBlur={commit} /></label>
+        <label className="ev-f">Permit $<input type="number" min={0} value={(econ.permit_cents / 100) || 0} onChange={(ev) => live({ permit_cents: toCents(ev.target.value) })} onBlur={commit} /></label>
+        <label className="ev-f">Cups/ice $<input type="number" min={0} value={(econ.consumables_cents / 100) || 0} onChange={(ev) => live({ consumables_cents: toCents(ev.target.value) })} onBlur={commit} /></label>
+        <label className="ev-f">Labor total<input type="text" readOnly value={usd(proj.laborCents)} tabIndex={-1} /></label>
+      </div>
+    </div>
+  );
+}
+
+// Owner-set price + unit cost per menu line (Money tab). Drives exact per-product COGS.
+function ProductCatalog() {
+  const { toast } = useApp();
+  const [rows, setRows] = useState<ProductEcon[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const load = useCallback(async () => {
+    if (!supabase) { setLoaded(true); return; }
+    const { data } = await supabase.from("product_economics").select("*").order("sort");
+    if (data) setRows(data as ProductEcon[]);
+    setLoaded(true);
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  const save = async (key: string, patch: Partial<ProductEcon>) => {
+    const { error } = await supabase!.from("product_economics").update(patch).eq("product_key", key);
+    if (error) toast(`Error: ${error.message}`); else load();
+  };
+  return (
+    <div className="adm-sec">
+      <div className="sec">Product economics</div>
+      <div className="pnl-note" style={{ marginBottom: 10 }}>Representative price &amp; unit cost per line — these set exact COGS for every event&apos;s ROI projection.</div>
+      {rows.map((r) => (
+        <div className="cat-row" key={r.product_key}>
+          <div className="cat-name">{r.label}</div>
+          <label className="ev-f">Price $<input type="number" min={0} defaultValue={(r.price_cents / 100) || 0} onBlur={(ev) => toCents(ev.target.value) !== r.price_cents && save(r.product_key, { price_cents: toCents(ev.target.value) })} /></label>
+          <label className="ev-f">Cost $<input type="number" min={0} defaultValue={r.unit_cost_cents != null ? (r.unit_cost_cents / 100) : ""} placeholder="—" onBlur={(ev) => save(r.product_key, { unit_cost_cents: ev.target.value.trim() ? toCents(ev.target.value) : null })} /></label>
+          <div className="cat-margin">{r.unit_cost_cents != null && r.price_cents > 0 ? `${pctInt((r.price_cents - r.unit_cost_cents) / r.price_cents)}%` : "—"}</div>
+        </div>
+      ))}
+      {loaded && rows.length === 0 && <div className="pnl-note">No catalog yet — apply migration 0028 to seed it.</div>}
+    </div>
+  );
+}
+
+// Menu pours that drive the pack list — rendered as tap-to-toggle chips, not cramped checkboxes.
+const EVENT_MENU: { key: "menu_nitro" | "menu_nature_aid" | "menu_salted_maple" | "menu_bottles" | "menu_broth"; label: string }[] = [
+  { key: "menu_nitro", label: "Nitro" },
+  { key: "menu_nature_aid", label: "Nature Aid" },
+  { key: "menu_salted_maple", label: "Salted Maple" },
+  { key: "menu_bottles", label: "Bottles" },
+  { key: "menu_broth", label: "Broth" },
+];
+
+// Event Brief — computed prep intelligence (demand → brew/pack → ingredient pull →
+// crew check → readiness → risk flags). Turns the menu/attendance config into knowledge.
+function BriefPanel({ e, proj, inventory }: { e: EventRow; proj: Projection; inventory: InventoryResp }) {
+  const b = useMemo(() => buildBrief(e, proj), [e, proj]);
+  const inv = useMemo(() => inventoryForEvent(inventory.items, e), [inventory, e]);
+  return (
+    <div className="ev-group ev-brief">
+      <div className="ev-group-h">Event brief · what to bring</div>
+      <div className="ev-pnl-gauges">
+        <div className="gauge"><div className={`gv ${b.readiness >= 80 ? "ok" : b.readiness >= 50 ? "gold" : "red"}`}>{b.readiness}%</div><div className="gl">Ready</div></div>
+        <div className="gauge"><div className="gv">{b.projectedUnits}</div><div className="gl">Units</div></div>
+        <div className="gauge"><div className={`gv ${b.crewOk ? "ok" : "red"}`}>{b.crewHave}/{b.crewNeeded || "–"}</div><div className="gl">Crew</div></div>
+      </div>
+
+      {b.risks.length > 0 && (
+        <div className="ev-risks">
+          {b.risks.map((r, i) => (<div key={i} className={`ev-risk ${r.level}`}><span className="ev-risk-dot" />{r.text}</div>))}
+        </div>
+      )}
+
+      {b.prep.length > 0 && (
+        <>
+          <div className="ev-sub-h">Brew &amp; pack</div>
+          <div className="ev-prep-list">
+            {b.prep.map((p) => (
+              <div key={p.key} className="ev-prep-row">
+                <span className="ev-prep-n">{p.units}</span>
+                <span className="ev-prep-x"><b>{p.label}</b><span>{p.prep}</span></span>
+              </div>
+            ))}
+          </div>
+          <div className="ev-sub-h">Ingredient pull</div>
+          <div className="ev-ing">
+            {b.ingredients.map((g, i) => (<div key={i} className="ev-ing-row"><span>{g.name}</span><span className="ev-ing-q">{g.qty}</span></div>))}
+          </div>
+
+          <div className="ev-sub-h">Inventory check{inventory.enabled && <span className="ev-inv-live"> ● live</span>}</div>
+          {!inventory.enabled ? (
+            <div className="pnl-note">Quantities above are estimates. Connect your Notion inventory (set <b>NOTION_TOKEN</b> + share the GT3 — Inventory DB with the integration) to check real on-hand stock against this event here.</div>
+          ) : inv.low.length === 0 ? (
+            <div className="ev-risk info"><span className="ev-risk-dot" />{inv.onHandCount} relevant item{inv.onHandCount === 1 ? "" : "s"} on hand · nothing below reorder point.</div>
+          ) : (
+            <div className="ev-invlist">
+              {inv.low.map((it, i) => (
+                <div key={i} className={`ev-inv-row${(it.qty ?? 0) <= 0 ? " out" : ""}`}>
+                  <span className="ev-inv-n">{it.qty ?? "—"}</span>
+                  <span className="ev-inv-x"><b>{it.name}</b><span>reorder at {it.reorderPoint ?? "—"}{it.unit ? ` ${it.unit}` : ""}</span></span>
+                  {it.reorderLink && <a className="ev-inv-link" href={it.reorderLink} target="_blank" rel="noreferrer">Reorder ›</a>}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// One event as a collapsible card: clean header when closed, full editor when open.
+function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, onArchive, econRow, catalog, inventory, onSaveEcon }: {
+  e: EventRow;
+  index: number;
+  open: boolean;
+  onToggle: () => void;
+  onUpdate: (patch: Partial<EventRow>) => void;
+  onRemove: () => void;
+  onSetLive: (live: boolean) => void;
+  onArchive: () => void;
+  econRow: EventEcon | null;
+  catalog: ProductEcon[];
+  inventory: InventoryResp;
+  onSaveEcon: (econ: EventEcon) => void;
+}) {
+  const when = [e.day_label, [e.start_time, e.end_time].filter(Boolean).join("–")].filter(Boolean).join(" ");
+  const sub = [when, e.location_text].filter(Boolean).join("  ·  ");
+  const tag = `Event ${String(index + 1).padStart(2, "0")}${e.is_live ? " · Live" : ""}`;
+  // go/no-go ROI at a glance — from saved economics, no need to expand
+  const proj = useMemo(() => projectEvent(e, econRow ?? DEFAULT_ECON, catalog), [e, econRow, catalog]);
+  const showRoi = catalog.length > 0 && proj.revenueCents > 0;
+  return (
+    <div className={`ev-card${e.is_live ? " live" : ""}${open ? " open" : ""}`}>
+      <button className="ev-head" onClick={onToggle} aria-expanded={open}>
+        <span className="ev-led" />
+        <span className="ev-head-main">
+          <span className="ev-tag">{tag}</span>
+          <span className="ev-title">{e.title || "Untitled event"}</span>
+          <span className="ev-sub">{sub || "Tap to set up"}</span>
+        </span>
+        <span className="ev-head-badges">
+          {showRoi && <span className={`ev-badge roi${proj.netCents < 0 ? " neg" : ""}`}>ROI {pctInt(proj.roiPct)}%</span>}
+          {e.member_only && <span className="ev-badge gold">Members</span>}
+          {!!e.going_count && <span className="ev-badge">{e.going_count} going</span>}
+          <span className="ev-chev">›</span>
+        </span>
+      </button>
+
+      {open && (
+        <div className="ev-body">
+          {/* The one action that matters most gets its own banner — throw the green flag. */}
+          <button className={`ev-golive${e.is_live ? " on" : ""}`} onClick={() => onSetLive(!e.is_live)}>
+            <span className="ev-golive-dot" />
+            <span>{e.is_live ? "Green flag out — POS & app sales tracking here" : "Throw the green flag — go live"}</span>
+            <span className="ev-golive-state">{e.is_live ? "LIVE" : "OFF"}</span>
+          </button>
+
+          {/* What guests see */}
+          <div className="ev-group">
+            <div className="ev-group-h">Guest facing</div>
+            <input className="ev-input" maxLength={200} defaultValue={e.title} placeholder="Event title" aria-label="Event title"
+              onBlur={(ev) => ev.target.value !== e.title && onUpdate({ title: ev.target.value })} />
+            <textarea className="ev-input ev-area" maxLength={300} rows={2} defaultValue={e.blurb ?? ""} placeholder="Details guests see when they tap this event" aria-label="Event details"
+              onBlur={(ev) => (ev.target.value.trim() || null) !== e.blurb && onUpdate({ blurb: ev.target.value.trim() || null })} />
+            <input className="ev-input" maxLength={200} defaultValue={e.location_text ?? ""} placeholder="Location" aria-label="Location"
+              onBlur={(ev) => (ev.target.value.trim() || null) !== e.location_text && onUpdate({ location_text: ev.target.value.trim() || null })} />
+            <div className="ev-grid">
+              <label className="ev-f">Day<input defaultValue={e.day_label ?? ""} placeholder="SAT" onBlur={(ev) => ev.target.value !== e.day_label && onUpdate({ day_label: ev.target.value })} /></label>
+              <label className="ev-f">Start<input defaultValue={e.start_time ?? ""} placeholder="9:00" onBlur={(ev) => (ev.target.value.trim() || null) !== e.start_time && onUpdate({ start_time: ev.target.value.trim() || null })} /></label>
+              <label className="ev-f">End<input defaultValue={e.end_time ?? ""} placeholder="2:00" onBlur={(ev) => (ev.target.value.trim() || null) !== e.end_time && onUpdate({ end_time: ev.target.value.trim() || null })} /></label>
+              <label className="ev-f">Going<input type="number" min={0} defaultValue={e.going_count ?? 0} onBlur={(ev) => onUpdate({ going_count: Math.max(0, parseInt(ev.target.value) || 0) })} /></label>
+            </div>
+            <button className={`ev-toggle${e.member_only ? " on" : ""}`} onClick={() => onUpdate({ member_only: !e.member_only })} aria-pressed={e.member_only}>
+              <span className="ev-toggle-track"><span className="ev-toggle-knob" /></span>
+              Members only
+            </button>
+          </div>
+
+          {/* What the crew needs */}
+          <div className="ev-group">
+            <div className="ev-group-h">Crew prep · pack signal</div>
+            <div className="ev-grid">
+              <label className="ev-f wide">Rig
+                <select defaultValue={e.rig ?? ""} onChange={(ev) => onUpdate({ rig: (ev.target.value || null) as EventRow["rig"] })}>
+                  <option value="">— pick —</option><option value="cart_only">Cart only</option><option value="trailer_plus_cart">Trailer + cart</option>
+                </select>
+              </label>
+              <label className="ev-f">State<input maxLength={20} placeholder="GA" defaultValue={e.state ?? ""} onBlur={(ev) => onUpdate({ state: ev.target.value.trim() || null })} /></label>
+              <label className="ev-f">County<input maxLength={40} placeholder="Fulton" defaultValue={e.county ?? ""} onBlur={(ev) => onUpdate({ county: ev.target.value.trim() || null })} /></label>
+            </div>
+            <div className="ev-grid">
+              <label className="ev-f">Attendance<input type="number" min={0} defaultValue={e.expected_attendance ?? 0} onBlur={(ev) => onUpdate({ expected_attendance: Math.max(0, parseInt(ev.target.value) || 0) })} /></label>
+              <label className="ev-f">Hours<input type="number" min={0} step={0.5} defaultValue={e.duration_hrs ?? 0} onBlur={(ev) => onUpdate({ duration_hrs: parseFloat(ev.target.value) || 0 })} /></label>
+              <label className="ev-f">Crew<input type="number" min={0} defaultValue={e.staff_count ?? 0} onBlur={(ev) => onUpdate({ staff_count: Math.max(0, parseInt(ev.target.value) || 0) })} /></label>
+            </div>
+
+            <div className="ev-sub-h">Menu pouring</div>
+            <div className="ev-chips">
+              {EVENT_MENU.map((m) => (
+                <button key={m.key} className={`ev-chip${e[m.key] ? " on" : ""}`} aria-pressed={!!e[m.key]} onClick={() => onUpdate({ [m.key]: !e[m.key] } as Partial<EventRow>)}>{m.label}</button>
+              ))}
+            </div>
+
+            <div className="ev-sub-h">On site</div>
+            <div className="ev-chips">
+              <button className={`ev-chip${e.power_available ? " on" : ""}`} aria-pressed={!!e.power_available} onClick={() => onUpdate({ power_available: !e.power_available })}>Power</button>
+              <button className={`ev-chip${e.water_available ? " on" : ""}`} aria-pressed={!!e.water_available} onClick={() => onUpdate({ water_available: !e.water_available })}>Water</button>
+            </div>
+          </div>
+
+          <BriefPanel e={e} proj={proj} inventory={inventory} />
+
+          <EventEconomics e={e} econRow={econRow} catalog={catalog} onSave={onSaveEcon} />
+
+          <div className="ev-card-foot">
+            <button className="ev-archive" onClick={onArchive}>{e.is_live ? "Close & archive" : "Archive event"}</button>
+            <button className="ev-delete" onClick={onRemove}>Delete</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -820,12 +1138,36 @@ function EventHUD() {
 function EventsAdmin() {
   const { toast } = useApp();
   const [events, setEvents] = useState<EventRow[]>([]);
+  const [openId, setOpenId] = useState<string | null>(null); // single-open accordion
+  const [catalog, setCatalog] = useState<ProductEcon[]>([]);
+  const [econMap, setEconMap] = useState<Record<string, EventEcon>>({});
+  const [showArch, setShowArch] = useState(false);
+  const [inventory, setInventory] = useState<InventoryResp>({ enabled: false, items: [] });
+  useEffect(() => { fetchInventory().then(setInventory); }, []); // live stock from Notion (token-gated)
   const load = useCallback(async () => {
     if (!supabase) return;
-    const { data } = await supabase.from("events").select("*").order("sort");
-    if (data) setEvents(data as EventRow[]);
+    // events + economics catalog + per-event econ in one round (catalog/econ
+    // tables may not exist pre-migration 0028 — fail soft to defaults).
+    const [evs, cat, ec] = await Promise.all([
+      supabase.from("events").select("*").order("sort"),
+      supabase.from("product_economics").select("*").eq("active", true).order("sort"),
+      supabase.from("event_economics").select("*"),
+    ]);
+    if (evs.data) setEvents(evs.data as EventRow[]);
+    if (cat.data) setCatalog(cat.data as ProductEcon[]);
+    if (ec.data) {
+      const m: Record<string, EventEcon> = {};
+      for (const r of ec.data as ({ event_id: string } & EventEcon)[]) m[r.event_id] = r;
+      setEconMap(m);
+    }
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  // upsert the full econ row (keeps DB authoritative copy in sync with the panel)
+  const saveEcon = async (id: string, econ: EventEcon) => {
+    setEconMap((m) => ({ ...m, [id]: econ })); // optimistic — no flicker on the live gauge
+    await supabase!.from("event_economics").upsert({ event_id: id, ...econ }, { onConflict: "event_id" });
+  };
 
   const update = async (id: string, patch: Partial<EventRow>) => {
     const { error } = await supabase!.from("events").update(patch).eq("id", id);
@@ -833,9 +1175,9 @@ function EventsAdmin() {
     if (!error) load();
   };
   const addEvent = async () => {
-    const { error } = await supabase!.from("events").insert({ title: "New event", day_label: "SAT", sort: events.length });
+    const { data, error } = await supabase!.from("events").insert({ title: "New event", day_label: "SAT", sort: events.length }).select("id").single();
     toast(error ? `Error: ${error.message}` : "Event added");
-    if (!error) load();
+    if (!error) { if (data) setOpenId((data as { id: string }).id); load(); } // open the new one for editing
   };
   const remove = async (id: string) => {
     if (typeof window !== "undefined" && !window.confirm("Remove this event?")) return;
@@ -849,49 +1191,60 @@ function EventsAdmin() {
     toast(error ? `Error: ${error.message}` : live ? "Event is live — sales now track to it" : "Event closed");
     if (!error) load();
   };
+  // Archive — closes the event (clears live) and files it out of the active workspace.
+  // It stays in the DB for records/AAR; restore brings it back.
+  const archive = async (id: string) => {
+    const { error } = await supabase!.from("events").update({ archived_at: new Date().toISOString(), is_live: false }).eq("id", id);
+    toast(error ? `Error: ${error.message}` : "Event archived");
+    if (!error) { setOpenId(null); load(); }
+  };
+  const restore = async (id: string) => {
+    const { error } = await supabase!.from("events").update({ archived_at: null }).eq("id", id);
+    toast(error ? `Error: ${error.message}` : "Event restored");
+    if (!error) load();
+  };
+
+  const active = events.filter((e) => !e.archived_at);
+  const archived = events.filter((e) => e.archived_at);
 
   return (
     <div className="adm-sec">
       <div className="sec">Events <button className="adm-btn" style={{ marginLeft: "auto" }} onClick={addEvent}>+ Add</button></div>
-      {events.map((e) => (
-        <div className="adm-event" key={e.id}>
-          <div className="adm-member-top">
-            <input className="auth-input" style={{ fontSize: 16, padding: "9px 11px" }} maxLength={200} defaultValue={e.title} onBlur={(ev) => ev.target.value !== e.title && update(e.id, { title: ev.target.value })} aria-label="Event title" />
-          </div>
-          <input className="auth-input" style={{ fontSize: 16, padding: "9px 11px", marginTop: 6 }} maxLength={300} defaultValue={e.blurb ?? ""} placeholder="Details guests see when they tap this event" aria-label="Event details" onBlur={(ev) => (ev.target.value.trim() || null) !== e.blurb && update(e.id, { blurb: ev.target.value.trim() || null })} />
-          <input className="auth-input" style={{ fontSize: 16, padding: "9px 11px", marginTop: 6 }} maxLength={200} defaultValue={e.location_text ?? ""} placeholder="Location" aria-label="Location" onBlur={(ev) => (ev.target.value.trim() || null) !== e.location_text && update(e.id, { location_text: ev.target.value.trim() || null })} />
-          <div className="adm-fields">
-            <label>Day<input type="text" defaultValue={e.day_label ?? ""} onBlur={(ev) => update(e.id, { day_label: ev.target.value })} /></label>
-            <label>Start<input type="text" defaultValue={e.start_time ?? ""} onBlur={(ev) => update(e.id, { start_time: ev.target.value.trim() || null })} /></label>
-            <label>End<input type="text" defaultValue={e.end_time ?? ""} onBlur={(ev) => update(e.id, { end_time: ev.target.value.trim() || null })} /></label>
-            <label>Going<input type="number" min={0} defaultValue={e.going_count ?? 0} onBlur={(ev) => update(e.id, { going_count: Math.max(0, parseInt(ev.target.value) || 0) })} /></label>
-            <label className="adm-check"><input type="checkbox" defaultChecked={e.member_only} onChange={(ev) => update(e.id, { member_only: ev.target.checked })} />Members</label>
-            <button className="adm-btn ghost" onClick={() => remove(e.id)}>Delete</button>
-          </div>
+      {active.length === 0 && <div className="ev-empty">No active events. Tap <b>+ Add</b> to create one{archived.length ? ", or reopen one below" : ""}.</div>}
+      <div className="ev-list">
+        {active.map((e, i) => (
+          <EventCard
+            key={e.id}
+            e={e}
+            index={i}
+            open={openId === e.id}
+            onToggle={() => setOpenId(openId === e.id ? null : e.id)}
+            onUpdate={(patch) => update(e.id, patch)}
+            onRemove={() => remove(e.id)}
+            onSetLive={(live) => setLive(e.id, live)}
+            onArchive={() => archive(e.id)}
+            econRow={econMap[e.id] ?? null}
+            catalog={catalog}
+            inventory={inventory}
+            onSaveEcon={(econ) => saveEcon(e.id, econ)}
+          />
+        ))}
+      </div>
 
-          <div className="adm-prep-label">Event prep — drives the pack list &amp; sales tracking</div>
-          <div className="adm-fields">
-            <label className="adm-check"><input type="checkbox" checked={!!e.is_live} onChange={(ev) => setLive(e.id, ev.target.checked)} /><b style={e.is_live ? { color: "var(--red)" } : undefined}>{e.is_live ? "LIVE now" : "Set live"}</b></label>
-            <label>Rig<select className="adm-role" defaultValue={e.rig ?? ""} onChange={(ev) => update(e.id, { rig: (ev.target.value || null) as EventRow["rig"] })}>
-              <option value="">—</option><option value="cart_only">Cart only</option><option value="trailer_plus_cart">Trailer + cart</option>
-            </select></label>
-            <label>State<input type="text" maxLength={20} placeholder="GA" defaultValue={e.state ?? ""} onBlur={(ev) => update(e.id, { state: ev.target.value.trim() || null })} /></label>
-            <label>County<input type="text" maxLength={40} placeholder="Fulton" defaultValue={e.county ?? ""} onBlur={(ev) => update(e.id, { county: ev.target.value.trim() || null })} /></label>
-            <label>Att.<input type="number" min={0} defaultValue={e.expected_attendance ?? 0} onBlur={(ev) => update(e.id, { expected_attendance: Math.max(0, parseInt(ev.target.value) || 0) })} /></label>
-            <label>Hrs<input type="number" min={0} step={0.5} defaultValue={e.duration_hrs ?? 0} onBlur={(ev) => update(e.id, { duration_hrs: parseFloat(ev.target.value) || 0 })} /></label>
-            <label>Staff<input type="number" min={0} defaultValue={e.staff_count ?? 0} onBlur={(ev) => update(e.id, { staff_count: Math.max(0, parseInt(ev.target.value) || 0) })} /></label>
-          </div>
-          <div className="adm-fields">
-            <label className="adm-check"><input type="checkbox" defaultChecked={!!e.power_available} onChange={(ev) => update(e.id, { power_available: ev.target.checked })} />Power</label>
-            <label className="adm-check"><input type="checkbox" defaultChecked={!!e.water_available} onChange={(ev) => update(e.id, { water_available: ev.target.checked })} />Water</label>
-            <label className="adm-check"><input type="checkbox" defaultChecked={!!e.menu_nitro} onChange={(ev) => update(e.id, { menu_nitro: ev.target.checked })} />Nitro</label>
-            <label className="adm-check"><input type="checkbox" defaultChecked={!!e.menu_nature_aid} onChange={(ev) => update(e.id, { menu_nature_aid: ev.target.checked })} />Nature Aid</label>
-            <label className="adm-check"><input type="checkbox" defaultChecked={!!e.menu_salted_maple} onChange={(ev) => update(e.id, { menu_salted_maple: ev.target.checked })} />Salted Maple</label>
-            <label className="adm-check"><input type="checkbox" defaultChecked={!!e.menu_bottles} onChange={(ev) => update(e.id, { menu_bottles: ev.target.checked })} />Bottles</label>
-            <label className="adm-check"><input type="checkbox" defaultChecked={!!e.menu_broth} onChange={(ev) => update(e.id, { menu_broth: ev.target.checked })} />Broth</label>
-          </div>
+      {archived.length > 0 && (
+        <div className="ev-archived">
+          <button className="ev-arch-head" onClick={() => setShowArch((s) => !s)} aria-expanded={showArch}>
+            Archived · {archived.length}<span className={`ev-chev${showArch ? " open" : ""}`}>›</span>
+          </button>
+          {showArch && archived.map((e) => (
+            <div className="ev-arch-row" key={e.id}>
+              <span className="ev-arch-name">{e.title || "Untitled event"}</span>
+              <button className="ev-arch-btn" onClick={() => restore(e.id)}>Restore</button>
+              <button className="ev-arch-btn del" onClick={() => remove(e.id)}>Delete</button>
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }
@@ -980,16 +1333,24 @@ function EnableAlerts({ userId }: { userId: string | null }) {
 // ───────────────────────── back office: overview command center ─────────────────────────
 function Overview({ onGo }: { onGo: (t: string) => void }) {
   const [s, setS] = useState({ leads: 0, active: 0, pastDue: 0, waitlist: 0, live: null as EventRow | null });
+  const [low, setLow] = useState<InvItem[]>([]);
+  const [invEnabled, setInvEnabled] = useState(false);
   const load = useCallback(async () => {
     if (!supabase) return;
-    const [b, subs, wl, ev] = await Promise.all([
+    const [b, subs, wl, ev, evs, invResp] = await Promise.all([
       supabase.from("booking_requests").select("id", { count: "exact", head: true }).eq("status", "new"),
       supabase.from("subscriptions").select("status"),
       supabase.from("subscription_interest").select("id", { count: "exact", head: true }),
       supabase.from("events").select("*").eq("is_live", true).maybeSingle(),
+      supabase.from("events").select("*").order("sort"),
+      fetchInventory(),
     ]);
     const rows = (subs.data as { status: string }[]) ?? [];
     setS({ leads: b.count ?? 0, active: rows.filter((x) => x.status === "active").length, pastDue: rows.filter((x) => x.status === "past_due").length, waitlist: wl.count ?? 0, live: (ev.data as EventRow) ?? null });
+    // roll up low stock across all active (upcoming) events
+    const upcoming = ((evs.data as EventRow[]) ?? []).filter((e) => !e.archived_at);
+    setInvEnabled(invResp.enabled);
+    setLow(rollupLowStock(invResp.items, upcoming));
   }, []);
   useEffect(() => {
     load();
@@ -1017,6 +1378,23 @@ function Overview({ onGo }: { onGo: (t: string) => void }) {
       ) : (
         <div className="h-sub" style={{ marginTop: 12 }}>No event live. Set one live under Events when you open.</div>
       )}
+
+      {invEnabled && low.length > 0 && (
+        <>
+          <div className="wrule"><span>Restock · {low.length} low for upcoming events</span></div>
+          <div className="ev-invlist">
+            {low.slice(0, 8).map((it, i) => (
+              <div key={i} className={`ev-inv-row${(it.qty ?? 0) <= 0 ? " out" : ""}`}>
+                <span className="ev-inv-n">{it.qty ?? "—"}</span>
+                <span className="ev-inv-x"><b>{it.name}</b><span>reorder at {it.reorderPoint ?? "—"}{it.unit ? ` ${it.unit}` : ""}</span></span>
+                {it.reorderLink && <a className="ev-inv-link" href={it.reorderLink} target="_blank" rel="noreferrer">Reorder ›</a>}
+              </div>
+            ))}
+            {low.length > 8 && <div className="pnl-note">+ {low.length - 8} more below reorder point.</div>}
+          </div>
+        </>
+      )}
+
       {(s.leads > 0 || s.pastDue > 0) && (
         <div className="bo-needs">
           <div className="adm-prep-label">Needs you</div>
@@ -1047,7 +1425,7 @@ function BackOffice({ isOwner }: { isOwner: boolean }) {
       </div>
       {tab === "overview" && <Overview onGo={setTab} />}
       {tab === "events" && <EventsAdmin />}
-      {tab === "money" && <><Subscribers /><SubInterest /><OrdersHistory /></>}
+      {tab === "money" && <><ProductCatalog /><Subscribers /><SubInterest /><OrdersHistory /></>}
       {tab === "bookings" && <><Bookings /><ReservesAdmin /></>}
       {tab === "members" && isOwner && <Members />}
     </>

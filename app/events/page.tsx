@@ -102,7 +102,8 @@ function EventsLive() {
     (async () => {
       if (!supabase) return;
       const { data } = await supabase.from("events").select("*").order("sort");
-      if (active && data) setEvents(data as EventRow[]);
+      // hide archived events from guests (client-side so it's safe pre-migration 0032)
+      if (active && data) setEvents((data as EventRow[]).filter((e) => !e.archived_at));
       if (active) setLoaded(true);
     })();
     return () => { active = false; };

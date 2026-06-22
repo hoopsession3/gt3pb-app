@@ -71,19 +71,33 @@ function TruckLive() {
     if (!supabase) return;
     const ch = supabase
       .channel("truck-live")
-      .on("postgres_changes", { event: "*", schema: "public", table: "live_status" }, (p) => setLive(p.new as LiveStatus))
+      .on("postgres_changes", { event: "*", schema: "public", table: "live_status" }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "stops" }, () => load())
       .subscribe();
-    return () => { supabase?.removeChannel(ch); };
+    // Self-heal: realtime can be missed on mobile (backgrounded tab, dropped socket),
+    // which would leave a closed truck showing a stale "LIVE". Re-fetch the truth on a
+    // timer and whenever the page comes back to the foreground.
+    const poll = setInterval(load, 20000);
+    const onVis = () => { if (typeof document !== "undefined" && document.visibilityState === "visible") load(); };
+    if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("focus", onVis);
+    return () => {
+      supabase?.removeChannel(ch);
+      clearInterval(poll);
+      if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("focus", onVis);
+    };
   }, [load]);
 
-  const liveStop = stops.find((s) => s.id === live?.current_stop_id) ?? stops.find((s) => s.status === "live") ?? stops[0];
   const isLive = Boolean(live?.is_live);
+  // Single source of truth = live_status.is_live + current_stop_id. Never derive
+  // "live" from a stop's own status (it desyncs when the truck goes offline).
+  const liveStop = (isLive && stops.find((s) => s.id === live?.current_stop_id)) || stops[0];
   // Memoize on `stops` only, so a realtime position update (which changes `live`, not
   // `stops`) doesn't rebuild the whole map — the truck dot just moves.
   const points: RoutePoint[] = useMemo(() => stops
     .filter((s) => s.lat != null && s.lng != null)
-    .map((s) => ({ name: s.name, lat: s.lat as number, lng: s.lng as number, live: s.status === "live" })), [stops]);
+    .map((s) => ({ name: s.name, lat: s.lat as number, lng: s.lng as number, live: isLive && s.id === live?.current_stop_id })), [stops, isLive, live?.current_stop_id]);
   // Show the live dot only while the truck is actually live and broadcasting a position.
   const truckPos = useMemo(
     () => (isLive && live?.truck_lat != null && live?.truck_lng != null ? { lat: live.truck_lat, lng: live.truck_lng } : null),
@@ -112,7 +126,7 @@ function TruckLive() {
 
       {!loaded && <Skeleton variant="row" count={4} />}
       {stops.map((s) => {
-        const rowLive = s.status === "live";
+        const rowLive = isLive && s.id === live?.current_stop_id;
         const isOpen = openStop === s.id;
         return (
           <div key={s.id}>
