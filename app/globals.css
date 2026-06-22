@@ -1108,6 +1108,28 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .assign-check{color:var(--gold2);font-weight:700;font-size:16px}
 .assign-row.clear{margin-top:8px;border-top:1px solid var(--line);border-radius:0 0 13px 13px}
 
+/* Operator console — bigger, touch-friendly controls applied across every section
+   (Now / Prep / Plan / Money / Team). Scoped to .admin so the customer app is untouched. */
+.admin .adm-btn{font-size:13.5px;padding:12px 16px;border-radius:12px;min-height:44px}
+.admin .adm-role{min-height:44px;padding:10px 14px;border-radius:11px;border:1px solid var(--line2);background:rgba(168,124,63,.08);color:var(--gold2);font-family:'Inter';font-weight:600;font-size:13.5px;-webkit-appearance:none;appearance:none;cursor:pointer}
+.admin .adm-crew-row{gap:8px}
+.admin .adm-crew-chip{font-size:13px;padding:9px 13px;border-radius:10px;min-height:40px;display:inline-flex;align-items:center;gap:7px}
+.admin .adm-chip{font-size:13px;padding:10px 14px;min-height:42px;display:inline-flex;align-items:center}
+.admin .adm-fields{gap:11px}
+.admin .adm-fields label{font-size:10px}
+.admin .adm-fields select{min-height:44px;padding:11px 12px;font-size:15px;border-radius:11px}
+.admin .adm-fields input[type=number],.admin .adm-fields input[type=text]{min-height:44px;padding:11px;border-radius:11px}
+.admin .adm-stop,.admin .adm-member,.admin .adm-event{padding:14px 16px;border-radius:16px;margin-top:10px}
+.admin .adm-ready,.admin .adm-ready-bar{padding:13px 15px;font-size:13.5px;border-radius:14px}
+.admin .adm-regen{font-size:13px;padding:9px 0;min-height:40px}
+.admin .adm-task-add{gap:9px}
+.admin .adm-task-add input{min-height:46px}
+.admin .adm-task-link{width:38px;height:38px;font-size:16px;border-radius:9px}
+.admin .ev-f input,.admin .ev-f select,.admin .ev-input{min-height:46px}
+.admin .ev-golive{min-height:54px}
+.admin .op-head-t{font-size:28px}
+.admin .sec{font-size:12px}
+
 /* Account avatar — coconut mark + role-aware dropdown */
 .acct{position:relative;flex:0 0 auto}
 .acct-av{position:relative;display:flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:50%;background:#1a1310;border:2px solid var(--gold2);cursor:pointer;padding:0}
