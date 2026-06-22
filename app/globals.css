@@ -1038,3 +1038,17 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .opx-link:active{background:rgba(168,124,63,.14)}
 .opx-link-t{display:block;font-family:'Playfair Display',serif;font-style:italic;font-size:19px;color:var(--cream)}
 .opx-link-s{display:block;font-family:'Inter';font-size:12.5px;color:rgba(245,241,232,.5);margin-top:3px}
+
+/* Account avatar — coconut mark + role-aware dropdown */
+.acct{position:relative;flex:0 0 auto}
+.acct-av{position:relative;display:flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:50%;background:#1a1310;border:2px solid var(--gold2);cursor:pointer;padding:0}
+.acct-av:active{transform:scale(.96)}
+.acct-caret{position:absolute;right:-3px;bottom:-3px;width:16px;height:16px;border-radius:50%;background:var(--gold2);display:flex;align-items:center;justify-content:center;border:2px solid #0a0907}
+.acct-menu{position:absolute;top:48px;right:0;z-index:60;min-width:210px;background:#15110d;border:1px solid var(--line2);border-radius:14px;padding:7px;box-shadow:0 14px 40px rgba(0,0,0,.55)}
+.acct-who{padding:8px 10px 9px;border-bottom:1px solid var(--line);margin-bottom:5px}
+.acct-who b{display:block;font-family:'Inter';font-weight:600;font-size:14px;color:var(--cream)}
+.acct-who span{display:block;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:var(--gold2);margin-top:3px}
+.acct-item{display:block;width:100%;text-align:left;background:none;border:none;border-radius:9px;padding:10px;font-family:'Inter';font-size:14px;color:var(--cream);cursor:pointer}
+.acct-item:hover,.acct-item:active{background:rgba(255,255,255,.05)}
+.acct-item.crew{color:var(--gold2);font-weight:600}
+.acct-item.danger{color:var(--red)}
