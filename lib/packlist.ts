@@ -3,7 +3,9 @@ import type { EventRow } from "./db";
 // Deterministic pack list derived from the event's rig + menu flags. This is "workflow
 // as data" (the validated R3): two archetypes resolve to a checklist — NOT a configurable
 // engine. Mirrors the GT3 — Event Pack Lists manifests in Notion (the critical spine).
-export interface PackItem { label: string; section: string; critical?: boolean }
+// tiers: critical = a hard gate (can't serve / illegal without it) → red.
+//        warn     = important, bring-a-backup → amber. plain = consumable/nice-to-have.
+export interface PackItem { label: string; section: string; critical?: boolean; warn?: boolean }
 
 export function packListFor(e: EventRow): PackItem[] {
   const items: PackItem[] = [];
@@ -12,16 +14,16 @@ export function packListFor(e: EventRow): PackItem[] {
   // Power — trailer brings the genset; no power on site makes the EcoFlow mandatory.
   if (trailer) {
     items.push({ label: "Generator + fuel", section: "Power", critical: true });
-    items.push({ label: "Shore-power kit", section: "Power", critical: true });
+    items.push({ label: "Shore-power kit", section: "Power", warn: true });
   }
   if (trailer || e.power_available === false) items.push({ label: "EcoFlow Delta Pro", section: "Power", critical: true });
 
-  // Nitro chain — the spare regulator exists because of a past failure.
+  // Nitro chain — the spare regulator exists because of a past failure (warn, not gate).
   if (e.menu_nitro) {
-    items.push({ label: `Nitrogen tank${trailer ? " ×2" : ""}`, section: "Nitro", critical: true });
-    items.push({ label: "Regulator", section: "Nitro", critical: true });
-    items.push({ label: "SPARE regulator", section: "Nitro", critical: true });
-    items.push({ label: "Faucet kit + keg lines + coupler", section: "Nitro", critical: true });
+    items.push({ label: `Nitrogen tank${trailer ? " ×2" : ""}`, section: "Nitro", warn: true });
+    items.push({ label: "Regulator", section: "Nitro", warn: true });
+    items.push({ label: "SPARE regulator", section: "Nitro", warn: true });
+    items.push({ label: "Faucet kit + keg lines + coupler", section: "Nitro", warn: true });
     items.push({ label: "Cold-brew kegs (pre-charged)", section: "Nitro" });
   }
 

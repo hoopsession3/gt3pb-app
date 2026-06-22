@@ -118,6 +118,7 @@ export interface EventTask {
   section: string | null;
   kind: "pack" | "task";
   critical: boolean;
+  warn?: boolean; // important backup (amber) — between critical (red) and plain
   assignee: string | null;
   done: boolean;
   done_by: string | null;

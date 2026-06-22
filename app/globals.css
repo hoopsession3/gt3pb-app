@@ -595,7 +595,11 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .adm-task.done .adm-task-check span{text-decoration:line-through;color:var(--cream-m)}
 .adm-task.crit:not(.done) .adm-task-check span{color:var(--red);font-weight:600}
 .adm-task-link{flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:7px;background:rgba(184,144,47,.16);color:var(--gold2);text-decoration:none;font-size:14px;font-weight:700}
-.adm-task-assign{background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:8px;padding:4px 6px;color:var(--cream);font-family:'Inter';font-size:12px;max-width:96px}
+.adm-task-assign{background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:8px;padding:4px 6px;color:var(--cream-m);font-family:'Inter';font-size:12px;max-width:104px}
+.adm-task-assign.set{border-color:var(--gold2);color:var(--gold2)}
+.adm-task.warn:not(.done) .adm-task-check span{color:var(--gold2);font-weight:600}
+.adm-regen{margin-top:8px;background:none;border:none;color:var(--gold2);font-family:'Inter';font-size:12px;cursor:pointer;padding:3px 0;letter-spacing:.2px}
+.adm-regen:disabled{opacity:.5;cursor:default}
 .adm-task-add{display:flex;gap:8px;align-items:center;margin-top:10px}
 .adm-task-add input{flex:1}
 

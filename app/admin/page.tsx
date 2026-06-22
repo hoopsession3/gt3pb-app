@@ -236,6 +236,7 @@ function EventPrep() {
   const [crew, setCrew] = useState<{ id: string; user_id: string; role_label: string | null }[]>([]);
   const [staff, setStaff] = useState<{ id: string; display_name: string | null }[]>([]);
   const [newTask, setNewTask] = useState("");
+  const [generating, setGenerating] = useState(false);
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -248,7 +249,9 @@ function EventPrep() {
       supabase.from("event_tasks").select("*").eq("event_id", target.id).order("sort"),
       supabase.from("event_staff").select("id, user_id, role_label").eq("event_id", target.id),
     ]);
-    setTasks((t as EventTask[]) ?? []);
+    // Dedupe defensively — past double-generates left duplicate rows in the DB.
+    const seen = new Set<string>();
+    setTasks(((t as EventTask[]) ?? []).filter((x) => { const k = `${x.section ?? ""}|${x.label}`; if (seen.has(k)) return false; seen.add(k); return true; }));
     setCrew((c as { id: string; user_id: string; role_label: string | null }[]) ?? []);
     if (isAdmin) {
       const { data: p } = await supabase.from("profiles").select("id, display_name, role").neq("role", "member");
@@ -267,15 +270,25 @@ function EventPrep() {
   }, [load]);
 
   const nameOf = (uid: string) => staff.find((s) => s.id === uid)?.display_name ?? "—";
-  const generate = async () => {
-    if (!ev || !supabase) return;
+  const generate = async (regen = false) => {
+    if (!ev || !supabase || generating) return;
+    if (regen && typeof window !== "undefined" && !window.confirm("Rebuild the pack list from the event's current menu/rig?\n\nThis clears the existing list and all its checkmarks.")) return;
+    setGenerating(true);
+    // Idempotency: never double-insert (the old double-tap bug). If tasks already exist,
+    // a plain generate no-ops; "Regenerate" clears first then rebuilds.
+    const { data: existing } = await supabase.from("event_tasks").select("id").eq("event_id", ev.id);
+    if (existing && existing.length) {
+      if (!regen) { setGenerating(false); load(); return; }
+      await supabase.from("event_tasks").delete().eq("event_id", ev.id);
+    }
     // Pack list (rig/menu) + compliance (state/county) in one go — the whole "what do
     // we need to bring AND what permits do we need" question, answered from the event.
-    const pack = packListFor(ev).map((p, i) => ({ event_id: ev.id, label: p.label, section: p.section, critical: !!p.critical, kind: "pack", link: null, sort: i }));
-    const comp = (await complianceFor(ev, supabase)).map((p, i) => ({ event_id: ev.id, label: p.label, section: p.section, critical: !!p.critical, kind: "task", link: p.link ?? null, sort: 100 + i }));
+    const pack = packListFor(ev).map((p, i) => ({ event_id: ev.id, label: p.label, section: p.section, critical: !!p.critical, warn: !!p.warn, kind: "pack", link: null, sort: i }));
+    const comp = (await complianceFor(ev, supabase)).map((p, i) => ({ event_id: ev.id, label: p.label, section: p.section, critical: !!p.critical, warn: !!p.warn, kind: "task", link: p.link ?? null, sort: 100 + i }));
     const rows = [...pack, ...comp];
-    if (!rows.length) { toast("Set the event's rig + menu first (Back office → Events)", "error"); return; }
+    if (!rows.length) { setGenerating(false); toast("Set the event's rig + menu first (Plan → Events)", "error"); return; }
     const { error } = await supabase.from("event_tasks").insert(rows);
+    setGenerating(false);
     toast(error ? `Error: ${error.message}` : `Generated ${pack.length} pack + ${comp.length} compliance items`);
     if (!error) load();
   };
@@ -314,13 +327,16 @@ function EventPrep() {
     <div className="adm-sec adm-prep">
       <div className="sec">{ev.title} · prep{ev.is_live && <span className="adm-pill due">LIVE</span>}</div>
       {total > 0 ? (
-        <div className={`adm-ready-bar${ready ? " ok" : critOut.length ? " miss" : ""}`}>
-          <b>Loaded {doneN}/{total}</b>
-          {critOut.length > 0 && <span className="adm-ready-miss"> · missing {critOut.slice(0, 2).map((t) => t.label).join(", ")}{critOut.length > 2 ? ` +${critOut.length - 2}` : ""}</span>}
-          {ready && <span> · ready to roll</span>}
-        </div>
+        <>
+          <div className={`adm-ready-bar${ready ? " ok" : critOut.length ? " miss" : ""}`}>
+            <b>Loaded {doneN}/{total}</b>
+            {critOut.length > 0 && <span className="adm-ready-miss"> · {critOut.length} critical to load: {critOut.slice(0, 2).map((t) => t.label).join(", ")}{critOut.length > 2 ? ` +${critOut.length - 2}` : ""}</span>}
+            {ready && <span> · ready to roll</span>}
+          </div>
+          {isAdmin && <button className="adm-regen" onClick={() => generate(true)} disabled={generating}>↻ Regenerate from menu</button>}
+        </>
       ) : isAdmin ? (
-        <button className="adm-btn primary" onClick={generate}>Generate pack list from menu</button>
+        <button className="adm-btn primary" onClick={() => generate()} disabled={generating}>{generating ? "Generating…" : "Generate pack list from menu"}</button>
       ) : <div className="h-sub">No pack list yet — an owner generates it.</div>}
 
       {isAdmin && (
@@ -337,12 +353,12 @@ function EventPrep() {
         <div key={sec} className="adm-prep-sec">
           <div className="adm-prep-label">{sec}</div>
           {tasks.filter((t) => (t.section ?? "Task") === sec).map((t) => (
-            <div key={t.id} className={`adm-task${t.done ? " done" : ""}${t.critical ? " crit" : ""}`}>
+            <div key={t.id} className={`adm-task${t.done ? " done" : ""}${t.critical ? " crit" : t.warn ? " warn" : ""}`}>
               <label className="adm-task-check"><input type="checkbox" checked={t.done} onChange={() => toggle(t)} /><span>{t.label}</span></label>
               {t.link && <a className="adm-task-link" href={t.link} target="_blank" rel="noopener noreferrer" aria-label="Open reference / application">↗</a>}
               {isAdmin && (
-                <select className="adm-task-assign" value={t.assignee ?? ""} onChange={(e) => assign(t, e.target.value)} aria-label="Assign">
-                  <option value="">—</option>
+                <select className={`adm-task-assign${t.assignee ? " set" : ""}`} value={t.assignee ?? ""} onChange={(e) => assign(t, e.target.value)} aria-label={`Assign: ${t.label}`} title="Assign to crew">
+                  <option value="">+ assign</option>
                   {staff.map((s) => <option key={s.id} value={s.id}>{(s.display_name ?? "—").split(" ")[0]}</option>)}
                 </select>
               )}
@@ -524,6 +540,8 @@ function LiveControl() {
     load();
   };
   const pause = async () => {
+    // Going offline drops the truck for every customer mid-shift — confirm the accidental tap.
+    if (typeof window !== "undefined" && !window.confirm("Take the truck OFFLINE?\n\nCustomers will immediately stop seeing it as live on the Truck page.")) return;
     setLive((l) => (l ? { ...l, is_live: false, current_stop_id: null } : { id: 1, current_stop_id: null, is_live: false, next_eta: null }));
     // .select() so we KNOW the row actually changed — RLS can filter a write to 0 rows
     // with NO error (the "false success" bug). If it didn't persist, say so loudly.
