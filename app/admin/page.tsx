@@ -225,10 +225,138 @@ function Kitchen() {
 }
 
 // ───────────────────────── pre-flight readiness ─────────────────────────
-// Real per-event readiness: a pack-list checklist auto-derived from the event's rig/menu,
-// persisted, realtime, role-scoped, with a crew roster + task assignment. Replaces the old
-// hardcoded "Trailer ready" chips (which lied at a cart gig and reset on refresh).
+// ───────────────────────── per-event prep: card picker + detail ─────────────────────────
+type Readiness = { done: number; total: number; crit: number };
+
+// "By date / when" bucket for the Prep cards (events.day vs today).
+function whenBucket(day: string | null | undefined): { key: number; label: string } {
+  if (!day) return { key: 4, label: "Unscheduled" };
+  const d = new Date(`${day}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return { key: 4, label: "Unscheduled" };
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const diff = Math.round((d.getTime() - today.getTime()) / 86400000);
+  if (diff < 0) return { key: 0, label: "Past" };
+  if (diff === 0) return { key: 1, label: "Today" };
+  if (diff <= 7) return { key: 2, label: "This week" };
+  return { key: 3, label: "Later" };
+}
+
+// Pull-up sheet to categorize the card view (date/when sort direction).
+function PrepViewSheet({ dir, setDir, onClose }: { dir: "asc" | "desc"; setDir: (d: "asc" | "desc") => void; onClose: () => void }) {
+  return (
+    <>
+      <div className="prep-scrim" onClick={onClose} aria-hidden="true" />
+      <div className="prep-sheet" role="dialog" aria-modal="true" aria-label="Card view options">
+        <div className="prep-sheet-grab" />
+        <div className="prep-sheet-h">Group by · date / when</div>
+        <div className="prep-sheet-opts">
+          <button className={`prep-sheet-opt${dir === "asc" ? " on" : ""}`} onClick={() => { setDir("asc"); onClose(); }}>Soonest first</button>
+          <button className={`prep-sheet-opt${dir === "desc" ? " on" : ""}`} onClick={() => { setDir("desc"); onClose(); }}>Latest first</button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function PrepCard({ ev, r, onOpen }: { ev: EventRow; r: Readiness; onOpen: () => void }) {
+  const status = r.total === 0 ? "Not started" : r.done === r.total ? "Ready to roll" : `Loaded ${r.done}/${r.total}`;
+  const cls = r.total === 0 ? "none" : r.done === r.total ? "ok" : r.crit ? "miss" : "mid";
+  const pct = r.total ? Math.round((r.done / r.total) * 100) : 0;
+  const when = [ev.day_label, ev.start_time].filter(Boolean).join(" · ");
+  return (
+    <button className={`prep-card${ev.is_live ? " live" : ""}`} onClick={onOpen} aria-label={`Prep ${ev.title} — ${status}`}>
+      <div className="prep-card-top">
+        <span className="prep-card-when">{when || "—"}</span>
+        {ev.is_live && <span className="prep-card-livetag">● Live</span>}
+      </div>
+      <div className="prep-card-title">{ev.title}</div>
+      {ev.location_text && <div className="prep-card-loc">{ev.location_text}</div>}
+      <div className="prep-card-foot">
+        <span className={`prep-card-status ${cls}`}>{status}</span>
+        {r.crit > 0 && <span className="prep-card-crit">{r.crit} critical</span>}
+        <span className="prep-card-go">Prep ›</span>
+      </div>
+      {r.total > 0 && <div className="prep-card-bar"><span style={{ width: `${pct}%` }} /></div>}
+    </button>
+  );
+}
+
+// Outer: the event picker. Cards grouped by date/when, with a pull-up to re-sort.
+// Tapping a card opens that event's pack-list detail (EventPrepDetail).
 function EventPrep() {
+  const [events, setEvents] = useState<EventRow[]>([]);
+  const [ready, setReady] = useState<Record<string, Readiness>>({});
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [dir, setDir] = useState<"asc" | "desc">("asc");
+  const [sheet, setSheet] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!supabase) return;
+    const { data: evs } = await supabase.from("events").select("*").order("sort");
+    const list = ((evs as EventRow[]) ?? []).filter((e) => !e.archived_at);
+    setEvents(list);
+    const { data: t } = await supabase.from("event_tasks").select("event_id, done, critical");
+    const map: Record<string, Readiness> = {};
+    for (const row of (t as { event_id: string; done: boolean; critical: boolean }[]) ?? []) {
+      const m = (map[row.event_id] ??= { done: 0, total: 0, crit: 0 });
+      m.total++;
+      if (row.done) m.done++;
+      else if (row.critical) m.crit++;
+    }
+    setReady(map);
+    // First load auto-opens the live event so the gig in progress is one tap away.
+    setSelectedId((prev) => prev ?? list.find((e) => e.is_live)?.id ?? null);
+    setLoaded(true);
+  }, []);
+  useEffect(() => {
+    load();
+    if (!supabase) return;
+    const ch = supabase.channel("admin-prep-index")
+      .on("postgres_changes", { event: "*", schema: "public", table: "events" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "event_tasks" }, () => load())
+      .subscribe();
+    return () => { supabase?.removeChannel(ch); };
+  }, [load]);
+
+  if (selectedId) return <EventPrepDetail eventId={selectedId} onBack={() => setSelectedId(null)} />;
+
+  // group by date/when, buckets ordered Past→Today→This week→Later→Unscheduled; dir flips it
+  const by: Record<string, { key: number; label: string; items: EventRow[] }> = {};
+  for (const ev of events) {
+    const b = whenBucket(ev.day);
+    (by[b.label] ??= { key: b.key, label: b.label, items: [] }).items.push(ev);
+  }
+  const groups = Object.values(by).sort((a, b) => a.key - b.key);
+  const cmp = (a: EventRow, b: EventRow) => (a.day ?? "9999").localeCompare(b.day ?? "9999") || a.sort - b.sort;
+  for (const g of groups) g.items.sort(cmp);
+  if (dir === "desc") { groups.reverse(); for (const g of groups) g.items.reverse(); }
+
+  return (
+    <div className="adm-sec adm-prep">
+      <div className="sec">Prep · {events.length} event{events.length === 1 ? "" : "s"}
+        <button className="adm-prep-view" onClick={() => setSheet(true)} aria-haspopup="dialog">View ⌄</button>
+      </div>
+      {!loaded && <div className="h-sub">Loading events…</div>}
+      {loaded && events.length === 0 && <div className="h-sub">No events yet — add one in Plan → Events to prep it.</div>}
+      {groups.map((g) => (
+        <div key={g.label} className="prep-group">
+          <div className="prep-group-h">{g.label} <span>{g.items.length}</span></div>
+          <div className="prep-cards">
+            {g.items.map((ev) => (
+              <PrepCard key={ev.id} ev={ev} r={ready[ev.id] ?? { done: 0, total: 0, crit: 0 }} onOpen={() => setSelectedId(ev.id)} />
+            ))}
+          </div>
+        </div>
+      ))}
+      {sheet && <PrepViewSheet dir={dir} setDir={setDir} onClose={() => setSheet(false)} />}
+    </div>
+  );
+}
+
+// Detail: the per-event pack-list checklist (auto-derived from the event's rig/menu,
+// persisted, realtime, role-scoped, crew roster + task assignment) for a chosen event.
+function EventPrepDetail({ eventId, onBack }: { eventId: string; onBack: () => void }) {
   const { user, profile } = useAuth();
   const { toast } = useApp();
   const isAdmin = roleOf(profile) === "admin" || roleOf(profile) === "owner";
@@ -241,9 +369,8 @@ function EventPrep() {
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    const { data: evs } = await supabase.from("events").select("*").order("sort");
-    const list = (evs as EventRow[]) ?? [];
-    const target = list.find((e) => e.is_live) ?? list[0] ?? null;
+    const { data: e } = await supabase.from("events").select("*").eq("id", eventId).maybeSingle();
+    const target = (e as EventRow) ?? null;
     setEv(target);
     if (!target) { setTasks([]); setCrew([]); return; }
     const [{ data: t }, { data: c }] = await Promise.all([
@@ -258,7 +385,7 @@ function EventPrep() {
       const { data: p } = await supabase.from("profiles").select("id, display_name, role").neq("role", "member");
       setStaff((p as { id: string; display_name: string | null }[]) ?? []);
     }
-  }, [isAdmin]);
+  }, [eventId, isAdmin]);
   useEffect(() => {
     load();
     if (!supabase) return;
@@ -318,7 +445,12 @@ function EventPrep() {
   };
   const removeCrew = async (id: string) => { if (supabase) { await supabase.from("event_staff").delete().eq("id", id); load(); } };
 
-  if (!ev) return <div className="adm-sec"><div className="h-sub">No event yet — add one in Back office → Events to prep it.</div></div>;
+  if (!ev) return (
+    <div className="adm-sec adm-prep">
+      <button className="adm-prep-back" onClick={onBack}>‹ All events</button>
+      <div className="h-sub">Event not found — it may have been removed.</div>
+    </div>
+  );
   const total = tasks.length, doneN = tasks.filter((t) => t.done).length;
   const critOut = tasks.filter((t) => t.critical && !t.done);
   const ready = total > 0 && doneN === total;
@@ -326,6 +458,7 @@ function EventPrep() {
 
   return (
     <div className="adm-sec adm-prep">
+      <button className="adm-prep-back" onClick={onBack}>‹ All events</button>
       <div className="sec">{ev.title} · prep{ev.is_live && <span className="adm-pill due">LIVE</span>}</div>
       {total > 0 ? (
         <>
