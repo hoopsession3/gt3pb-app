@@ -1129,6 +1129,23 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .admin .ev-golive{min-height:54px}
 .admin .op-head-t{font-size:28px}
 .admin .sec{font-size:12px}
+/* pass 2 — KDS tickets, checkboxes, toggles, and legibility of tiny labels */
+.admin .adm-order{padding:14px 16px;border-radius:16px}
+.admin .adm-items{font-size:15.5px}
+.admin .kds-mute{min-height:38px;font-size:11px;padding:8px 12px}
+.admin .kds-stage-name{font-size:12px}
+.admin .kds-stage-h{padding:10px 2px 10px}
+.admin .adm-act-more{width:44px;height:44px;font-size:22px}
+.admin .adm-check{min-height:42px;font-size:12.5px!important}
+.admin .adm-check input{width:20px;height:20px}
+.admin .ev-toggle{min-height:44px;padding:6px 0;font-size:14px}
+.admin .ev-toggle-track{width:46px;height:26px}
+.admin .ev-toggle-knob{width:20px;height:20px}
+.admin .ev-toggle.on .ev-toggle-knob{left:22px}
+.admin .ev-group-h{font-size:10px;letter-spacing:1.8px}
+.admin .ev-f{font-size:9.5px}
+.admin .adm-tag,.admin .adm-pill{font-size:9.5px;padding:3px 8px}
+.admin .adm-ref{font-size:12px}
 
 /* Account avatar — coconut mark + role-aware dropdown */
 .acct{position:relative;flex:0 0 auto}
