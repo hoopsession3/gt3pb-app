@@ -454,11 +454,17 @@ function LiveControl() {
     return () => { supabase?.removeChannel(ch); };
   }, [load]);
 
-  // Optimistic flip first (instant), then write + reconcile. Pause no longer needs a
-  // stop — admin_set_offline just flips is_live, so it always works.
+  // Optimistic flip first (instant), then direct, RLS-protected writes — every UPDATE
+  // carries an explicit filter so Supabase's "no UPDATE without WHERE" guard is happy,
+  // and it doesn't depend on the admin_set_live RPC (which ran a bare UPDATE).
   const goLive = async (stopId: string) => {
     setLive((l) => ({ id: 1, current_stop_id: stopId, is_live: true, next_eta: l?.next_eta ?? null }));
-    const { error } = await supabase!.rpc("admin_set_live", { stop: stopId, live: true });
+    // demote any other live stop, promote this one (one live at a time)
+    await supabase!.from("stops").update({ status: "upcoming" }).eq("status", "live").neq("id", stopId);
+    const r1 = await supabase!.from("stops").update({ status: "live" }).eq("id", stopId);
+    // upsert the single live_status row (insert-on-conflict needs no WHERE)
+    const r2 = await supabase!.from("live_status").upsert({ id: 1, is_live: true, current_stop_id: stopId }, { onConflict: "id" });
+    const error = r1.error || r2.error;
     if (error) { setErr(error.message); toast(`Couldn't go live — ${error.message}`, "error"); }
     else toast("Truck is LIVE — members updated");
     load();
