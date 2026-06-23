@@ -1,0 +1,73 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { fetchSnapshot, type Snapshot } from "@/lib/reports";
+
+// Business snapshot — inventory value + low-stock, subscriber health, loyalty. One staff-gated
+// RPC (report_snapshot). On-brand, dependency-free. Lives in the MONEY tab under Sales.
+
+const usd = (cents: number) => "$" + Math.round((cents || 0) / 100).toLocaleString();
+const planLabel = (p: string) => (p || "—").replace(/_/g, " + ").toUpperCase();
+
+export default function SnapshotReport() {
+  const [snap, setSnap] = useState<Snapshot | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let live = true;
+    fetchSnapshot().then((s) => { if (live) { setSnap(s); setLoading(false); } });
+    return () => { live = false; };
+  }, []);
+
+  if (loading) return <div className="adm-sec rpt"><div className="sec">Business snapshot</div><div className="rpt-hint">Loading…</div></div>;
+  if (!snap || snap.error) return null;
+
+  const inv = snap.inventory, subs = snap.subs, loy = snap.loyalty;
+  const catMax = Math.max(1, ...(inv.by_category ?? []).map((c) => c.value_cents));
+  const planMax = Math.max(1, ...(subs.by_plan ?? []).map((p) => p.n));
+  const repeatRate = loy.buyers > 0 ? Math.round((loy.repeat_customers / loy.buyers) * 100) : 0;
+
+  return (
+    <div className="adm-sec rpt">
+      <div className="sec">Business snapshot</div>
+
+      <div className="rpt-block">
+        <div className="rpt-bh">Inventory value</div>
+        <div className="rpt-kpis">
+          <div className="rpt-kpi"><span className="rpt-k">On-hand value</span><b>{usd(inv.value_cents)}</b></div>
+          <div className="rpt-kpi"><span className="rpt-k">Items tracked</span><b>{inv.item_count.toLocaleString()}</b><span className="rpt-sub">{inv.low_stock} below reorder</span></div>
+        </div>
+        {(inv.by_category ?? []).slice(0, 6).map((c, i) => (
+          <div key={i} className="rpt-bar">
+            <div className="rpt-bar-l"><span>{c.cat}</span><b>{usd(c.value_cents)}</b></div>
+            <div className="rpt-track"><div className="rpt-fill" style={{ width: `${Math.max(3, (c.value_cents / catMax) * 100)}%` }} /></div>
+          </div>
+        ))}
+      </div>
+
+      <div className="rpt-block">
+        <div className="rpt-bh">Subscribers</div>
+        <div className="rpt-kpis">
+          <div className="rpt-kpi"><span className="rpt-k">Active</span><b>{subs.active.toLocaleString()}</b></div>
+          <div className="rpt-kpi"><span className="rpt-k">Past due</span><b>{subs.past_due.toLocaleString()}</b><span className="rpt-sub">{subs.paused} paused · {subs.total} total</span></div>
+        </div>
+        {(subs.by_plan ?? []).map((p, i) => (
+          <div key={i} className="rpt-bar">
+            <div className="rpt-bar-l"><span>{planLabel(p.plan)}</span><b>{p.n.toLocaleString()}</b></div>
+            <div className="rpt-track"><div className="rpt-fill alt" style={{ width: `${Math.max(3, (p.n / planMax) * 100)}%` }} /></div>
+          </div>
+        ))}
+        <div className="rpt-foot">MRR needs plan pricing — wire plan → price (Product economics) to value subscriptions.</div>
+      </div>
+
+      <div className="rpt-block">
+        <div className="rpt-bh">Loyalty</div>
+        <div className="rpt-kpis">
+          <div className="rpt-kpi"><span className="rpt-k">Members</span><b>{loy.members.toLocaleString()}</b></div>
+          <div className="rpt-kpi"><span className="rpt-k">Repeat rate</span><b>{repeatRate}%</b><span className="rpt-sub">{loy.repeat_customers}/{loy.buyers} buyers</span></div>
+        </div>
+        <div className="rpt-foot">{loy.points_out.toLocaleString()} points outstanding across members.</div>
+      </div>
+    </div>
+  );
+}

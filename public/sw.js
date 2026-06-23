@@ -1,7 +1,7 @@
 /* GT3PB service worker — offline shell + asset cache (runbook Phase 6).
    Native Web Push (VAPID) handlers below; opt-in happens after a couple visits.
    Bump CACHE on any shell/icon change so installed clients refresh cleanly. */
-const CACHE = "gt3pb-v20";
+const CACHE = "gt3pb-v21";
 const SHELL = ["/", "/truck", "/menu", "/events", "/3mpire", "/book", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {

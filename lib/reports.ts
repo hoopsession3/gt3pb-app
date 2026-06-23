@@ -21,3 +21,17 @@ export async function fetchSalesReport(days = 30): Promise<SalesReport | null> {
   if (error || !data) return null;
   return data as SalesReport;
 }
+
+export interface Snapshot {
+  inventory: { item_count: number; value_cents: number; low_stock: number; by_category: { cat: string; value_cents: number }[] };
+  subs: { active: number; past_due: number; paused: number; total: number; by_plan: { plan: string; n: number }[] };
+  loyalty: { members: number; points_out: number; buyers: number; repeat_customers: number };
+  error?: string;
+}
+
+export async function fetchSnapshot(): Promise<Snapshot | null> {
+  if (!supabase) return null;
+  const { data, error } = await supabase.rpc("report_snapshot");
+  if (error || !data) return null;
+  return data as Snapshot;
+}

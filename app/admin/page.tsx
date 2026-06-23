@@ -9,6 +9,7 @@ import TrailerLoadout from "@/components/TrailerLoadout";
 import GearLibrary from "@/components/GearLibrary";
 import InventoryLibrary from "@/components/InventoryLibrary";
 import Reports from "@/components/Reports";
+import SnapshotReport from "@/components/SnapshotReport";
 import SignIn from "@/components/SignIn";
 import { supabase } from "@/lib/supabase";
 import { subscribePush } from "@/lib/push";
@@ -2418,6 +2419,7 @@ export default function AdminPage() {
       {sec === "money" && isAdmin && (
         <>
           <Reports />
+          <SnapshotReport />
           <ProductCatalog />
           <Subscribers />
           <SubInterest />
