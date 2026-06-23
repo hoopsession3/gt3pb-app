@@ -13,6 +13,7 @@ type Item = {
   id: string; kind: string; channel: string; title: string; hook: string | null; caption: string | null;
   hashtags: string[]; status: string; review_note: string | null; scheduled_for: string | null;
   updated_at: string; updated_by: string | null;
+  canva_design_id?: string | null; canva_edit_url?: string | null; export_url?: string | null; published_url?: string | null;
 };
 type Version = { id: string; title: string | null; hook: string | null; caption: string | null; hashtags: string[] | null; status: string | null; label: string | null; edited_by: string | null; created_at: string };
 
@@ -103,6 +104,9 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   // caption engine
   const [brief, setBrief] = useState(""); const [drafting, setDrafting] = useState(false);
   const [options, setOptions] = useState<any[]>([]);
+  // Canva + Webflow muscle
+  const [pub, setPub] = useState<{ edit: string | null; png: string | null; live: string | null }>({ edit: null, png: null, live: null });
+  const [pubBusy, setPubBusy] = useState(""); const [pubErr, setPubErr] = useState("");
   const chRef = useRef<any>(null);
   const saveTimer = useRef<any>(null);
 
@@ -121,6 +125,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
       setItem(it); setTitle(it.title || ""); setHook(it.hook || ""); setCaption(it.caption || "");
       setTags((it.hashtags || []).join(", ")); setStatus(it.status); setNote(it.review_note || "");
       setSched(it.scheduled_for ? new Date(it.scheduled_for).toISOString().slice(0, 16) : "");
+      setPub({ edit: it.canva_edit_url ?? null, png: it.export_url ?? null, live: it.published_url ?? null });
     });
     loadVersions();
 
@@ -212,6 +217,36 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
     setDrafting(false);
   };
 
+  const callStudio = async (path: string, body: any) => {
+    const token = (await supabase!.auth.getSession()).data.session?.access_token;
+    const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) });
+    return r.json();
+  };
+  const makeCanva = async () => {
+    if (!supabase || pubBusy) return;
+    setPubBusy("design"); setPubErr("");
+    const j = await callStudio("/api/studio/canva", { content_id: id, action: "design" });
+    if (j.ok) { setPub((p) => ({ ...p, edit: j.canva_edit_url })); if (j.canva_edit_url) window.open(j.canva_edit_url, "_blank"); }
+    else setPubErr(String(j.error ?? "").includes("not configured") ? "Canva isn't connected yet (token + brand template needed)." : `Canva: ${j.error}`);
+    setPubBusy("");
+  };
+  const exportCanva = async () => {
+    if (!supabase || pubBusy) return;
+    setPubBusy("export"); setPubErr("");
+    const j = await callStudio("/api/studio/canva", { content_id: id, action: "export" });
+    if (j.ok) setPub((p) => ({ ...p, png: j.export_url })); else setPubErr(`Export: ${j.error}`);
+    setPubBusy("");
+  };
+  const publish = async () => {
+    if (!supabase || pubBusy) return;
+    if (!window.confirm("Publish this to the live GT3 site?")) return;
+    setPubBusy("publish"); setPubErr("");
+    const j = await callStudio("/api/studio/publish", { content_id: id });
+    if (j.ok) { setPub((p) => ({ ...p, live: j.published_url })); setStatus("published"); loadVersions(); }
+    else setPubErr(String(j.error ?? "").includes("not configured") ? "Webflow isn't connected yet (token + site/collection needed)." : `Publish: ${j.error}`);
+    setPubBusy("");
+  };
+
   const useOption = (o: any) => {
     edit("title", o.title || title); edit("hook", o.hook || ""); edit("caption", o.caption || "");
     edit("tags", (o.hashtags || []).join(", ")); setOptions([]); setBrief("");
@@ -282,6 +317,23 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
         <button type="button" className="studio-act ghost" onClick={() => setShowVers((s) => !s)}>History ({versions.length})</button>
       </div>
       {status === "changes" && item.review_note && <p className="insp-foot">Requested: {item.review_note}</p>}
+
+      {(status === "approved" || status === "scheduled" || status === "published") && (
+        <div className="studio-pub">
+          <div className="insp-lbl">Design &amp; publish</div>
+          <div className="studio-pub-row">
+            <button type="button" className="studio-act" onClick={makeCanva} disabled={!!pubBusy}>{pubBusy === "design" ? "Opening…" : "🎨 Make in Canva"}</button>
+            {pub.edit && <a className="studio-act ghost" href={pub.edit} target="_blank" rel="noreferrer">Open design ↗</a>}
+            {pub.edit && <button type="button" className="studio-act" onClick={exportCanva} disabled={!!pubBusy}>{pubBusy === "export" ? "Exporting…" : "Export PNG"}</button>}
+            {pub.png && <a className="studio-act ghost" href={pub.png} target="_blank" rel="noreferrer">View graphic ↗</a>}
+          </div>
+          <div className="studio-pub-row">
+            <button type="button" className="studio-act primary" onClick={publish} disabled={!!pubBusy}>{pubBusy === "publish" ? "Publishing…" : "🌐 Publish to site"}</button>
+            {pub.live && <a className="studio-act ghost" href={pub.live.startsWith("http") ? pub.live : undefined} target="_blank" rel="noreferrer">Live ↗ {pub.live.startsWith("http") ? "" : `(${pub.live})`}</a>}
+          </div>
+          {pubErr && <p className="insp-foot">{pubErr}</p>}
+        </div>
+      )}
 
       {showVers && (
         <div className="studio-vers">

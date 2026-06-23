@@ -1611,3 +1611,8 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .studio-ver{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--line)}
 .studio-ver-t{flex:1;font-family:'Inter';font-size:12.5px;color:var(--cream-m);line-height:1.4}
 .studio-ver-t b{color:var(--cream);text-transform:capitalize}
+
+/* ── Studio v1.1 — Canva + Webflow ── */
+.studio-pub{margin-top:14px;padding:13px;border:1px solid var(--line2);border-radius:13px;background:rgba(111,168,220,.06)}
+.studio-pub-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
+.studio-pub a.studio-act{text-decoration:none;display:inline-flex;align-items:center}
