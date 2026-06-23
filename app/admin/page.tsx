@@ -24,7 +24,7 @@ import { projectEvent, reconcile, DEFAULT_ECON, type EventEcon, type ProductEcon
 import { buildBrief } from "@/lib/eventbrief";
 import { fetchInventory, inventoryForEvent, rollupLowStock, type InventoryResp, type InvItem } from "@/lib/inventory";
 import { fetchAssets, type AssetsResp } from "@/lib/assets";
-import type { Stop, LiveStatus, EventRow, EventTask, BookingRequest, Order, Reserve, Subscription, Vendor } from "@/lib/db";
+import type { Stop, LiveStatus, EventRow, EventTask, BookingRequest, Order, Reserve, Subscription, Vendor, MeetingNote } from "@/lib/db";
 
 // money helpers for the economics panels
 const usd = (cents: number) => `$${(cents / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
@@ -232,7 +232,10 @@ function Kitchen() {
 
 // ───────────────────────── pre-flight readiness ─────────────────────────
 // ───────────────────────── my tasks: what's assigned to me, by priority ─────────────────────────
-type MyTaskRow = EventTask & { events: { title: string | null; day: string | null; is_live: boolean | null } | null };
+type MyTaskRow = EventTask & {
+  events: { title: string | null; day: string | null; is_live: boolean | null } | null;
+  meeting_notes: { title: string | null } | null;
+};
 
 function MyTasks({ userId }: { userId: string | null }) {
   const [tasks, setTasks] = useState<MyTaskRow[]>([]);
@@ -242,7 +245,7 @@ function MyTasks({ userId }: { userId: string | null }) {
     if (!supabase || !userId) { setTasks([]); setLoaded(true); return; }
     const { data } = await supabase
       .from("event_tasks")
-      .select("*, events(title, day, is_live)")
+      .select("*, events(title, day, is_live), meeting_notes(title)")
       .eq("assignee", userId)
       .eq("done", false)
       .order("sort");
@@ -282,7 +285,7 @@ function MyTasks({ userId }: { userId: string | null }) {
           </button>
           <div className="mytask-main">
             <span className="mytask-label">{t.label}</span>
-            <span className="mytask-ev">{t.events?.title ?? "Event"}{t.events?.is_live ? " · LIVE" : t.events?.day ? ` · ${whenBucket(t.events.day).label}` : ""}</span>
+            <span className="mytask-ev">{t.meeting_notes ? `Follow-up · ${t.meeting_notes.title ?? "Meeting"}` : `${t.events?.title ?? "Event"}${t.events?.is_live ? " · LIVE" : t.events?.day ? ` · ${whenBucket(t.events.day).label}` : ""}`}</span>
           </div>
           {t.critical ? <span className="mytask-pri crit">Critical</span> : t.warn ? <span className="mytask-pri warn">Important</span> : null}
         </div>
@@ -1270,6 +1273,217 @@ function LiveControl() {
             </div>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+// ───────────────────────── meeting notes (in-app system of record) ─────────────────────────
+const fmtNoteDate = (iso: string) => {
+  const d = new Date(`${iso}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+};
+
+// Meeting notes live in Supabase (operational, relational, tenant-scoped) — not Notion. A note's
+// follow-ups become event_tasks owned by meeting_note_id, so they ride the same assign + My Tasks +
+// push engine as event/stop prep. Leadership-only (RLS gates to event_manager/admin/owner).
+function MeetingNotes() {
+  const { user, profile } = useAuth();
+  const { toast } = useApp();
+  const isAdmin = roleOf(profile) === "admin" || roleOf(profile) === "owner";
+  const meId = user?.id ?? null;
+  const meName = profile?.display_name?.trim() || "Me";
+  const [notes, setNotes] = useState<MeetingNote[]>([]);
+  const [events, setEvents] = useState<{ id: string; title: string }[]>([]);
+  const [staff, setStaff] = useState<{ id: string; display_name: string | null }[]>([]);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [composing, setComposing] = useState(false);
+  const [cTitle, setCTitle] = useState("");
+  const [cDate, setCDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [cSummary, setCSummary] = useState("");
+  const [cBody, setCBody] = useState("");
+  const [cEvent, setCEvent] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!supabase) return;
+    const { data } = await supabase.from("meeting_notes").select("*").order("met_on", { ascending: false }).order("created_at", { ascending: false });
+    setNotes((data as MeetingNote[]) ?? []);
+  }, []);
+  useEffect(() => {
+    load();
+    if (!supabase) return;
+    supabase.from("events").select("id, title").is("archived_at", null).order("day", { ascending: false }).then(({ data }) => setEvents((data as { id: string; title: string }[]) ?? []));
+    supabase.from("profiles").select("id, display_name").neq("role", "member").then(({ data }) => setStaff((data as { id: string; display_name: string | null }[]) ?? []));
+    const ch = supabase.channel("admin-notes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "meeting_notes" }, () => load())
+      .subscribe();
+    return () => { supabase?.removeChannel(ch); };
+  }, [load]);
+
+  const save = async () => {
+    if (!supabase || !cTitle.trim() || saving) return;
+    setSaving(true);
+    const { error } = await supabase.from("meeting_notes").insert({
+      title: cTitle.trim(), met_on: cDate, summary: cSummary.trim() || null,
+      body: cBody.trim() || null, event_id: cEvent || null, created_by: meId,
+    });
+    setSaving(false);
+    if (error) { toast(`Error: ${error.message}`, "error"); return; }
+    toast("Note saved");
+    setCTitle(""); setCSummary(""); setCBody(""); setCEvent(""); setComposing(false);
+    load();
+  };
+  const remove = async (n: MeetingNote) => {
+    if (!supabase || !isAdmin) return;
+    if (typeof window !== "undefined" && !window.confirm(`Delete "${n.title}"? This also removes its follow-ups.`)) return;
+    await supabase.from("meeting_notes").delete().eq("id", n.id);
+    toast("Note deleted"); load();
+  };
+
+  return (
+    <div className="adm-sec">
+      <div className="sec">Meeting notes <span className="adm-pill">{notes.length}</span></div>
+      <div className="h-sub note-intro">Your talking points, in the app. Paste a recap, tag follow-ups, assign them — they land in everyone&apos;s My&nbsp;Tasks with a notification.</div>
+
+      {!composing ? (
+        <button type="button" className="note-new" onClick={() => setComposing(true)}>+ New note</button>
+      ) : (
+        <div className="note-composer">
+          <input className="note-in" placeholder="What did you meet about?" value={cTitle} onChange={(e) => setCTitle(e.target.value)} />
+          <div className="note-row">
+            <input type="date" className="note-in" value={cDate} onChange={(e) => setCDate(e.target.value)} aria-label="Meeting date" />
+            <select className="note-in" value={cEvent} onChange={(e) => setCEvent(e.target.value)} aria-label="Link to event">
+              <option value="">No event link</option>
+              {events.map((ev) => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
+            </select>
+          </div>
+          <textarea className="note-area" placeholder="Recap / summary — paste from your notes app…" value={cSummary} onChange={(e) => setCSummary(e.target.value)} rows={3} />
+          <textarea className="note-area" placeholder="Full transcript or detail (optional)" value={cBody} onChange={(e) => setCBody(e.target.value)} rows={3} />
+          <div className="note-actions">
+            <button type="button" className="note-cancel" onClick={() => setComposing(false)}>Cancel</button>
+            <button type="button" className="note-save" disabled={!cTitle.trim() || saving} onClick={save}>{saving ? "Saving…" : "Save note"}</button>
+          </div>
+        </div>
+      )}
+
+      {notes.map((n) => (
+        <MeetingNoteCard
+          key={n.id} note={n} open={openId === n.id} onToggle={() => setOpenId(openId === n.id ? null : n.id)}
+          staff={staff} meId={meId} meName={meName} isAdmin={isAdmin}
+          eventTitle={events.find((e) => e.id === n.event_id)?.title ?? null} onDelete={() => remove(n)}
+        />
+      ))}
+      {notes.length === 0 && !composing && <div className="h-sub">No notes yet — tap &ldquo;New note&rdquo; after your next sit-down.</div>}
+    </div>
+  );
+}
+
+function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, eventTitle, onDelete }: {
+  note: MeetingNote;
+  open: boolean;
+  onToggle: () => void;
+  staff: { id: string; display_name: string | null }[];
+  meId: string | null;
+  meName: string;
+  isAdmin: boolean;
+  eventTitle: string | null;
+  onDelete: () => void;
+}) {
+  const { user } = useAuth();
+  const { toast } = useApp();
+  const [items, setItems] = useState<EventTask[]>([]);
+  const [newItem, setNewItem] = useState("");
+  const [assignFor, setAssignFor] = useState<EventTask | null>(null);
+
+  const load = useCallback(async () => {
+    if (!supabase) return;
+    const { data } = await supabase.from("event_tasks").select("*").eq("meeting_note_id", note.id).order("sort");
+    setItems((data as EventTask[]) ?? []);
+  }, [note.id]);
+  useEffect(() => {
+    if (!open) return;
+    load();
+    if (!supabase) return;
+    const ch = supabase.channel(`note-items-${note.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "event_tasks", filter: `meeting_note_id=eq.${note.id}` }, () => load())
+      .subscribe();
+    return () => { supabase?.removeChannel(ch); };
+  }, [open, load, note.id]);
+
+  const staffName = (uid: string) => staff.find((s) => s.id === uid)?.display_name?.trim() || (uid === meId ? meName : "Unnamed crew");
+  const firstNameOf = (uid: string) => staffName(uid).split(" ")[0];
+
+  const add = async () => {
+    if (!supabase || !newItem.trim()) return;
+    const { error } = await supabase.from("event_tasks").insert({ meeting_note_id: note.id, label: newItem.trim(), kind: "task", section: "Follow-up", sort: items.length });
+    setNewItem("");
+    if (error) toast(`Error: ${error.message}`, "error"); else load();
+  };
+  const toggle = async (t: EventTask) => {
+    if (!supabase) return;
+    const next = !t.done;
+    setItems((p) => p.map((x) => (x.id === t.id ? { ...x, done: next } : x)));
+    const { error } = await supabase.from("event_tasks").update({ done: next, done_by: next ? user?.id ?? null : null, done_at: next ? new Date().toISOString() : null }).eq("id", t.id);
+    if (error) { toast(`Error: ${error.message}`, "error"); load(); }
+  };
+  const assign = async (t: EventTask, uid: string) => {
+    if (!supabase) return;
+    const prev = t.assignee ?? null;
+    const next = uid || null;
+    setAssignFor(null);
+    if (next === prev) return;
+    setItems((p) => p.map((x) => (x.id === t.id ? { ...x, assignee: next } : x))); // optimistic
+    const { error } = await supabase.from("event_tasks").update({ assignee: next }).eq("id", t.id);
+    if (error) { toast(`Error: ${error.message}`, "error"); load(); return; }
+    toast(next ? `Assigned to ${firstNameOf(next)}` : "Unassigned");
+    if (next) {
+      supabase.functions
+        .invoke("push", { body: { table: "event_tasks", type: "UPDATE", record: { ...t, assignee: next }, old_record: { ...t, assignee: prev } } })
+        .catch(() => {});
+    }
+  };
+  const removeItem = async (t: EventTask) => {
+    if (!supabase) return;
+    setItems((p) => p.filter((x) => x.id !== t.id));
+    await supabase.from("event_tasks").delete().eq("id", t.id);
+  };
+
+  const openCount = items.filter((i) => !i.done).length;
+  return (
+    <div className={`note-card${open ? " open" : ""}`}>
+      <button type="button" className="note-head" onClick={onToggle} aria-expanded={open}>
+        <div className="note-head-main">
+          <span className="note-title">{note.title}{note.source === "email" && <span className="note-src">email</span>}</span>
+          <span className="note-meta">{fmtNoteDate(note.met_on)}{eventTitle ? ` · ${eventTitle}` : ""}{items.length ? ` · ${openCount}/${items.length} follow-ups` : ""}</span>
+        </div>
+        <span className="note-chev" aria-hidden="true">{open ? "▾" : "▸"}</span>
+      </button>
+      {open && (
+        <div className="note-body">
+          {note.summary && <p className="note-summary">{note.summary}</p>}
+          {note.body && <details className="note-full"><summary>Full notes</summary><p>{note.body}</p></details>}
+          <div className="note-fu-h">Follow-ups</div>
+          {items.map((t) => (
+            <div key={t.id} className={`note-fu${t.done ? " done" : ""}`}>
+              <button type="button" className="task-check" onClick={() => toggle(t)} aria-label={`Mark done: ${t.label}`}>
+                <span className="task-box">{t.done && <svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11" /></svg>}</span>
+              </button>
+              <span className="note-fu-label">{t.label}</span>
+              <button type="button" className="note-fu-assign" onClick={() => setAssignFor(t)}>{t.assignee ? firstNameOf(t.assignee) : "Assign"}</button>
+              {isAdmin && <button type="button" className="note-fu-x" onClick={() => removeItem(t)} aria-label="Remove follow-up">×</button>}
+            </div>
+          ))}
+          <div className="note-fu-add">
+            <input className="note-in" placeholder="Add a follow-up…" value={newItem} onChange={(e) => setNewItem(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
+            <button type="button" className="note-fu-addbtn" onClick={add} disabled={!newItem.trim()}>Add</button>
+          </div>
+          {isAdmin && <button type="button" className="note-del" onClick={onDelete}>Delete note</button>}
+        </div>
+      )}
+      {assignFor && (
+        <AssignSheet task={assignFor} staff={staff} crewIds={[]} meId={meId} meName={meName}
+          onPick={(uid) => assign(assignFor, uid)} onClose={() => setAssignFor(null)} />
       )}
     </div>
   );
@@ -2454,6 +2668,7 @@ export default function AdminPage() {
 
       {sec === "plan" && canManage && (
         <>
+          <MeetingNotes />
           <EventsAdmin />
           <VendorsAdmin />
           <Bookings />

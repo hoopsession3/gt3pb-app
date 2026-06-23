@@ -114,7 +114,9 @@ export interface EventRow {
 // Per-event execution checklist (0025) — pack-list items + ad-hoc tasks, role-scoped.
 export interface EventTask {
   id: string;
-  event_id: string;
+  event_id: string | null;      // polymorphic owner: exactly one of event_id / stop_id / meeting_note_id
+  stop_id?: string | null;      // truck-stop pick lists (0040)
+  meeting_note_id?: string | null; // meeting-note follow-ups (0049)
   label: string;
   section: string | null;
   kind: "pack" | "task";
@@ -126,6 +128,23 @@ export interface EventTask {
   done_at: string | null;
   link: string | null;
   sort: number;
+}
+
+// Meeting notes (0049) — in-app system of record for talking points. Leadership-only
+// (event_manager/admin/owner), tenant-scoped. Follow-ups become event_tasks owned by
+// meeting_note_id, so they flow through My Tasks + push exactly like event/stop tasks.
+export interface MeetingNote {
+  id: string;
+  title: string;
+  met_on: string;          // ISO date
+  summary: string | null;  // quick recap (e.g. the notee summary)
+  body: string | null;     // full transcript / detail (optional)
+  source: string;          // 'manual' (composer) or 'email' (notee → inbound)
+  event_id: string | null; // optional relational link to an event
+  created_by: string | null;
+  tenant_id?: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 // Event location/jurisdiction lives on EventRow (state/county, 0026) for compliance.

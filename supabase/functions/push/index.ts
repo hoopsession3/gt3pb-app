@@ -78,14 +78,18 @@ Deno.serve(async (req) => {
       // Crew assignment → tell the assigned member they're on a task. Only on a real
       // assignee change (skip done-toggles and re-saves that don't touch the assignee).
       if (old_record && old_record.assignee === record.assignee) return new Response("skip: no assignee change");
-      let evTitle = "an event";
+      let ctx = " - an event";
       if (record.event_id) {
         const { data: e } = await supabase.from("events").select("title").eq("id", record.event_id).maybeSingle();
-        if (e?.title) evTitle = e.title;
+        if (e?.title) ctx = ` - ${e.title}`;
+      } else if (record.meeting_note_id) {
+        // follow-up captured from a meeting note (0049)
+        const { data: m } = await supabase.from("meeting_notes").select("title").eq("id", record.meeting_note_id).maybeSingle();
+        ctx = m?.title ? ` - follow-up - ${m.title}` : " - meeting follow-up";
       }
       const name = await nameForUser(record.assignee);
       title = "You're on the crew";
-      message = `${name ? name + ", you're" : "You're"} on: ${record.label} - ${evTitle}`;
+      message = `${name ? name + ", you're" : "You're"} on: ${record.label}${ctx}`;
       url = "/admin";
       targets = await subsFor((q) => q.eq("user_id", record.assignee));
 
