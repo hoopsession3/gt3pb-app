@@ -746,6 +746,7 @@ function LiveControl() {
   const pause = async () => {
     // Going offline drops the truck for every customer mid-shift — confirm the accidental tap.
     if (typeof window !== "undefined" && !window.confirm("Take the truck OFFLINE?\n\nCustomers will immediately stop seeing it as live on the Truck page.")) return;
+    stopBroadcast();
     setLive((l) => (l ? { ...l, is_live: false, current_stop_id: null } : { id: 1, current_stop_id: null, is_live: false, next_eta: null }));
     // .select() so we KNOW the row actually changed — RLS can filter a write to 0 rows
     // with NO error (the "false success" bug). If it didn't persist, say so loudly.
@@ -762,7 +763,7 @@ function LiveControl() {
     toast("Truck is offline");
     load();
   };
-  // Broadcast this phone's GPS as the truck's live position — members watch the dot move.
+  // One-shot pin of this phone's GPS as the truck's live position.
   const pinHere = () => {
     if (typeof navigator === "undefined" || !navigator.geolocation) { toast("Location isn't available on this device", "error"); return; }
     setPosBusy(true);
@@ -777,6 +778,47 @@ function LiveControl() {
       { enableHighAccuracy: true, timeout: 10000 }
     );
   };
+
+  // Continuous broadcast — stream the phone's GPS so the customer dot actually MOVES,
+  // not just a stale one-shot pin. A screen wake lock keeps it alive while open.
+  const watchRef = useRef<number | null>(null);
+  const wakeRef = useRef<{ release: () => Promise<void> } | null>(null);
+  const lastWriteRef = useRef(0);
+  const [broadcasting, setBroadcasting] = useState(false);
+
+  const stopBroadcast = () => {
+    if (watchRef.current != null && typeof navigator !== "undefined") navigator.geolocation.clearWatch(watchRef.current);
+    watchRef.current = null;
+    wakeRef.current?.release().catch(() => {});
+    wakeRef.current = null;
+    setBroadcasting(false);
+  };
+
+  const startBroadcast = async () => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) { toast("Location isn't available on this device", "error"); return; }
+    try {
+      const wl = (navigator as Navigator & { wakeLock?: { request: (t: "screen") => Promise<{ release: () => Promise<void> }> } }).wakeLock;
+      wakeRef.current = wl ? await wl.request("screen") : null;
+    } catch { /* wake lock is optional */ }
+    watchRef.current = navigator.geolocation.watchPosition(
+      async (p) => {
+        const now = Date.now();
+        if (now - lastWriteRef.current < 8000) return; // throttle to ~1 write / 8s
+        lastWriteRef.current = now;
+        await supabase!.rpc("admin_set_truck_pos", { lat: p.coords.latitude, lng: p.coords.longitude });
+      },
+      (e) => { toast(`Location error: ${e.message}`, "error"); stopBroadcast(); },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
+    );
+    setBroadcasting(true);
+    toast("Broadcasting live location — the dot moves with you");
+  };
+
+  // Stop streaming on unmount (ref-based so it doesn't depend on a memoized callback).
+  useEffect(() => () => {
+    if (watchRef.current != null && typeof navigator !== "undefined") navigator.geolocation.clearWatch(watchRef.current);
+    wakeRef.current?.release().catch(() => {});
+  }, []);
   const posLabel = live?.is_live
     ? live?.pos_updated_at
       ? `Pinned ${new Date(live.pos_updated_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
@@ -823,10 +865,22 @@ function LiveControl() {
         {live?.is_live && <button className="adm-btn ghost" onClick={pause}>Go offline</button>}
       </div>
       {live?.is_live && (
-        <div className="adm-live adm-live-pos">
-          <div className="adm-live-status"><span className="h-sub">{posLabel}</span></div>
-          <button className="adm-btn ghost" onClick={pinHere} disabled={posBusy}>{posBusy ? "Pinning…" : live?.pos_updated_at ? "Update location" : "Use my location"}</button>
-        </div>
+        <>
+          {!broadcasting && !live?.pos_updated_at && (
+            <div className="adm-attn" role="alert">Customers can&apos;t see the truck on the map yet — tap <b>Broadcast live</b> so the dot tracks you.</div>
+          )}
+          <div className="adm-live adm-live-pos">
+            <div className="adm-live-status"><span className="h-sub">{broadcasting ? "● Broadcasting — dot moves with you" : posLabel}</span></div>
+            {broadcasting ? (
+              <button className="adm-btn ghost" onClick={stopBroadcast}>Stop</button>
+            ) : (
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="adm-btn ghost" onClick={pinHere} disabled={posBusy}>{posBusy ? "Pinning…" : "Pin once"}</button>
+                <button className="adm-btn primary" onClick={startBroadcast}>Broadcast live</button>
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       <div className="ev-list" style={{ marginTop: 12 }}>

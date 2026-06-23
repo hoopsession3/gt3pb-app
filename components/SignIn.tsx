@@ -115,6 +115,7 @@ export default function SignIn() {
         <>
           <h1 className="auth-headline">Check your email.</h1>
           <p className="auth-sub">We sent a sign-in link to <b>{email}</b> — tap it and you&apos;re in. Your email also includes a code if you prefer.</p>
+          <p className="auth-paste-hint" style={{ marginTop: 8 }}>Don&apos;t see it? Check spam / promotions. Open the link in <b>this same browser</b> (Safari or Chrome) — not from inside another app.</p>
           {err && <div className="auth-err">{err}</div>}
 
           <div className="auth-label" style={{ marginTop: 22 }}>Enter the code from your email</div>

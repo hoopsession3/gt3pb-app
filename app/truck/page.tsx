@@ -21,8 +21,8 @@ const DEMO_POINTS: RoutePoint[] = [
 ];
 
 // ───────────────────────── editorial dispatch header (no card/tiles/clock) ─────────────────────────
-function Dispatch({ live, place, sub, openLabel, wait, next, onOrder }: {
-  live: boolean; place: string; sub: string; openLabel: string; wait: string; next: string | null; onOrder: () => void;
+function Dispatch({ live, place, sub, openLabel, eta, next, onOrder }: {
+  live: boolean; place: string; sub: string; openLabel: string; eta?: string | null; next: string | null; onOrder: () => void;
 }) {
   return (
     <header className="disp">
@@ -32,7 +32,8 @@ function Dispatch({ live, place, sub, openLabel, wait, next, onOrder }: {
       <div className="disp-facts">
         <div className="fact"><span className="fk">Status</span><span className={`fv${live ? " ok" : ""}`}>{live ? "Live" : "Soon"}</span></div>
         <div className="fact"><span className="fk">Open</span><span className="fv">{openLabel || "—"}</span></div>
-        <div className="fact"><span className="fk">Wait</span><span className="fv">{wait}</span></div>
+        {/* Only a real, data-backed third fact — no invented "wait" time. */}
+        {eta && <div className="fact"><span className="fk">{live ? "Next stop" : "ETA"}</span><span className="fv">{eta}</span></div>}
       </div>
       {next && <p className="disp-next">Next · <b>{next}</b></p>}
       <button type="button" className="t-order" onClick={onOrder}>Pre-order · skip the line</button>
@@ -117,7 +118,7 @@ function TruckLive() {
         place={liveStop?.name ?? (loaded ? "No stops yet" : "…")}
         sub={liveStop ? `${liveStop.location_text ?? ""}${liveStop.location_text ? " — " : ""}the full bar on board` : ""}
         openLabel={liveStop?.time_label ?? ""}
-        wait="~7 min"
+        eta={live?.next_eta ?? null}
         next={nextLabelFrom(stops, liveStop?.id)}
         onOrder={() => router.push("/menu")}
       />
@@ -193,7 +194,7 @@ function TruckDemo() {
         place="Duncan Town Square"
         sub="Saturday Market — the full bar on board"
         openLabel="til 3p"
-        wait="~7 min"
+        eta="Greenville · Sun"
         next="Greenville Run Club — Sun 10–2"
         onOrder={() => router.push("/menu")}
       />
