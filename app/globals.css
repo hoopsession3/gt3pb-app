@@ -1211,3 +1211,18 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .tl-ck-h{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:var(--gold2);margin-bottom:8px}
 .tl-ck-item{display:flex;align-items:flex-start;gap:9px;padding:7px 0;font-family:'Inter';font-size:13px;color:var(--cream);cursor:pointer;border-bottom:1px solid var(--line)}
 .tl-ck-item input{margin-top:2px;flex:0 0 auto}
+
+/* Gear & manuals (Assets bridge) */
+.gl{margin-top:14px}
+.gl-head{display:flex;align-items:center;justify-content:space-between;width:100%;background:none;border:none;padding:0;cursor:pointer;color:var(--cream)}
+.gl-chev{color:var(--gold2);font-size:13px}
+.gl-hint{font-family:'Inter';font-size:12px;color:var(--cream-m);margin-top:8px;line-height:1.5}
+.gl-body{margin-top:10px}
+.gl-brand{margin-bottom:12px}
+.gl-brand-h{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:var(--gold2);margin-bottom:6px}
+.gl-item{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.gl-item-main b{display:block;font-family:'Inter';font-weight:600;font-size:13.5px;color:var(--cream)}
+.gl-uc{display:block;font-family:'Inter';font-size:11.5px;color:var(--cream-m);margin-top:2px;line-height:1.4}
+.gl-links{flex:0 0 auto;display:flex;flex-direction:column;gap:4px;align-items:flex-end}
+.gl-links a{font-family:'Inter';font-size:11px;color:var(--gold2);text-decoration:none;white-space:nowrap}
+.gl-links a:active{opacity:.7}

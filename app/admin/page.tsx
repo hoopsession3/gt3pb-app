@@ -6,6 +6,7 @@ import { useApp } from "@/components/AppProvider";
 import { useAuth, roleOf, type Profile } from "@/components/AuthProvider";
 import { useOperatorSection, sectionsForRole, type OpSection } from "@/components/OperatorNav";
 import TrailerLoadout from "@/components/TrailerLoadout";
+import GearLibrary from "@/components/GearLibrary";
 import SignIn from "@/components/SignIn";
 import { supabase } from "@/lib/supabase";
 import { subscribePush } from "@/lib/push";
@@ -2025,6 +2026,7 @@ export default function AdminPage() {
           <Overview onGo={goSection} />
           <EventPrep />
           <TrailerLoadout />
+          <GearLibrary />
         </>
       )}
 
