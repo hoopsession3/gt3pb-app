@@ -19,6 +19,7 @@ import { complianceFor } from "@/lib/compliance";
 import { projectEvent, reconcile, DEFAULT_ECON, type EventEcon, type ProductEcon, type Projection } from "@/lib/economics";
 import { buildBrief } from "@/lib/eventbrief";
 import { fetchInventory, inventoryForEvent, rollupLowStock, type InventoryResp, type InvItem } from "@/lib/inventory";
+import { fetchAssets, type AssetsResp } from "@/lib/assets";
 import type { Stop, LiveStatus, EventRow, EventTask, BookingRequest, Order, Reserve, Subscription, Vendor } from "@/lib/db";
 
 // money helpers for the economics panels
@@ -760,8 +761,11 @@ function AssignSheet({ task, staff, crewIds, meId, meName, onPick, onClose }: {
   );
 }
 
-// Supply picker — references the Notion inventory catalog (/api/inventory) and lets you
-// add off-catalog items by typing. Pre-selects what the event's menu/rig actually needs.
+type SupplyItem = { name: string; category: string; qty: number | null; unit: string | null; critical: boolean };
+
+// Supply picker — one searchable catalog over BOTH Notion DBs: inventory (consumables,
+// /api/inventory) and assets/gear (/api/assets). Pre-selects what the event needs, and
+// anything in neither DB can be typed in off-catalog. (GearLibrary stays the manuals view.)
 function SupplyPicker({ ev, have, onAdd, onClose }: {
   ev: EventRow;
   have: Set<string>;
@@ -769,22 +773,32 @@ function SupplyPicker({ ev, have, onAdd, onClose }: {
   onClose: () => void;
 }) {
   const [inv, setInv] = useState<InventoryResp | null>(null);
+  const [assets, setAssets] = useState<AssetsResp | null>(null);
   const [q, setQ] = useState("");
   const [sel, setSel] = useState<Set<string>>(new Set());
 
-  useEffect(() => { fetchInventory().then(setInv); }, []);
-  // Pre-check the items this event actually draws on (from its menu/rig answers).
+  useEffect(() => { fetchInventory().then(setInv); fetchAssets().then(setAssets); }, []);
+  // Pre-check the consumables this event actually draws on (from its menu/rig answers).
   useEffect(() => {
     if (!inv) return;
     const relevant = inventoryForEvent(inv.items, ev).relevant;
     setSel(new Set(relevant.filter((it) => !have.has(it.name.trim().toLowerCase())).map((it) => it.name)));
   }, [inv]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const items = inv?.items ?? [];
+  // Merge both catalogs into one list (inventory wins on a name clash so qty/critical stick).
+  const invItems: SupplyItem[] = (inv?.items ?? []).map((it) => ({ name: it.name, category: it.category || "Supplies", qty: it.qty, unit: it.unit, critical: it.critical }));
+  const seenInv = new Set(invItems.map((i) => i.name.trim().toLowerCase()));
+  const gearItems: SupplyItem[] = (assets?.items ?? [])
+    .filter((it) => !seenInv.has(it.name.trim().toLowerCase()))
+    .map((it) => ({ name: it.name, category: it.category?.[0] || it.brand || "Gear", qty: it.qty, unit: null, critical: false }));
+  const items: SupplyItem[] = [...invItems, ...gearItems];
+  const loaded = inv !== null && assets !== null;
+  const enabled = Boolean(inv?.enabled || assets?.enabled);
+
   const ql = q.trim().toLowerCase();
   const onList = (name: string) => have.has(name.trim().toLowerCase());
   const relevantNames = inv ? new Set(inventoryForEvent(inv.items, ev).relevant.map((it) => it.name)) : new Set<string>();
-  const filtered = ql ? items.filter((it) => it.name.toLowerCase().includes(ql) || (it.category ?? "").toLowerCase().includes(ql)) : items;
+  const filtered = ql ? items.filter((it) => it.name.toLowerCase().includes(ql) || it.category.toLowerCase().includes(ql)) : items;
   const exactMatch = items.some((it) => it.name.trim().toLowerCase() === ql);
   const toggle = (name: string) => setSel((p) => { const n = new Set(p); if (n.has(name)) n.delete(name); else n.add(name); return n; });
   const confirm = () => onAdd(items.filter((it) => sel.has(it.name) && !onList(it.name)).map((it) => ({ label: it.name, critical: it.critical })));
@@ -792,7 +806,7 @@ function SupplyPicker({ ev, have, onAdd, onClose }: {
   const selCount = [...sel].filter((n) => !onList(n)).length;
 
   // Group: what this event needs first, then by catalog category — easier to scan than one flat list.
-  const groupsMap = new Map<string, InvItem[]>();
+  const groupsMap = new Map<string, SupplyItem[]>();
   for (const it of filtered) {
     const g = relevantNames.has(it.name) ? "Needed for this event" : (it.category || "Other");
     const arr = groupsMap.get(g) ?? [];
@@ -803,7 +817,7 @@ function SupplyPicker({ ev, have, onAdd, onClose }: {
     a[0] === "Needed for this event" ? -1 : b[0] === "Needed for this event" ? 1 : a[0].localeCompare(b[0])
   );
 
-  const Item = (it: InvItem) => {
+  const Item = (it: SupplyItem) => {
     const already = onList(it.name);
     const picked = sel.has(it.name);
     return (
@@ -822,7 +836,7 @@ function SupplyPicker({ ev, have, onAdd, onClose }: {
         <div className="supply-head">
           <div className="prep-sheet-grab" />
           <div className="assign-sheet-h">Supplies for · <b>{ev.title}</b></div>
-          <input className="subpitch-email" style={{ marginBottom: 0 }} placeholder="Search the asset database…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search supplies" autoFocus />
+          <input className="subpitch-email" style={{ marginBottom: 0 }} placeholder="Search inventory + gear…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search supplies" autoFocus />
           {ql && !exactMatch && (
             <button type="button" className="assign-row me" style={{ marginTop: 8 }} onClick={addCustom}>
               <span className="assign-av none">+</span>
@@ -831,9 +845,9 @@ function SupplyPicker({ ev, have, onAdd, onClose }: {
           )}
         </div>
         <div className="supply-list">
-          {!inv && <div className="h-sub" style={{ margin: "6px 0" }}>Loading the asset database…</div>}
-          {inv && !inv.enabled && <div className="h-sub" style={{ margin: "6px 0" }}>Asset database (Notion) isn&apos;t connected — type a name above and tap <b>Add</b> to put it on the list.</div>}
-          {inv && inv.enabled && groupEntries.length === 0 && <div className="h-sub" style={{ margin: "6px 0" }}>No matches{ql ? ` for “${q.trim()}”` : ""}. Type to add it off-catalog.</div>}
+          {!loaded && <div className="h-sub" style={{ margin: "6px 0" }}>Loading inventory + gear…</div>}
+          {loaded && !enabled && <div className="h-sub" style={{ margin: "6px 0" }}>Catalogs (Notion) aren&apos;t connected — type a name above and tap <b>Add</b> to put it on the list.</div>}
+          {loaded && enabled && groupEntries.length === 0 && <div className="h-sub" style={{ margin: "6px 0" }}>No matches{ql ? ` for “${q.trim()}”` : ""}. Type to add it off-catalog.</div>}
           {groupEntries.map(([g, list]) => (
             <div key={g}>
               <div className="assign-group">{g} <span className="supply-count">{list.length}</span></div>
@@ -2166,15 +2180,25 @@ function VendorCard({ v, index, open, onToggle, onArchive, onChanged }: {
   );
 }
 
+type VendorSug = { kind: "stop" | "event"; id: string; name: string; sub: string; stop?: Stop; event?: EventRow };
+
 function VendorsAdmin() {
   const { toast } = useApp();
   const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [stops, setStops] = useState<Stop[]>([]);
+  const [events, setEvents] = useState<EventRow[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
   const [showArch, setShowArch] = useState(false);
   const load = useCallback(async () => {
     if (!supabase) return;
-    const { data } = await supabase.from("vendors").select("*").order("sort");
-    if (data) setVendors(data as Vendor[]);
+    const [{ data: v }, { data: s }, { data: e }] = await Promise.all([
+      supabase.from("vendors").select("*").order("sort"),
+      supabase.from("stops").select("*"),
+      supabase.from("events").select("*"),
+    ]);
+    if (v) setVendors(v as Vendor[]);
+    setStops(((s as Stop[]) ?? []).filter((x) => !x.archived_at));
+    setEvents(((e as EventRow[]) ?? []).filter((x) => !x.archived_at));
   }, []);
   useEffect(() => { load(); }, [load]);
   const add = async () => {
@@ -2182,16 +2206,59 @@ function VendorsAdmin() {
     toast(error ? `Error: ${error.message}` : "Vendor added");
     if (!error) { if (data) setOpenId((data as { id: string }).id); load(); }
   };
+  // Relational fill: materialize a vendor from an existing stop/event and link the source,
+  // so "I had vendor events" turns into populated vendor records with one tap.
+  const createFrom = async (sug: VendorSug) => {
+    let payload: Partial<Vendor> = { name: sug.name, sort: vendors.length };
+    if (sug.kind === "stop" && sug.stop) {
+      const s = sug.stop;
+      payload = { ...payload, location_text: s.location_text, address: s.address, lat: s.lat, lng: s.lng, poc_name: s.poc_name, poc_phone: s.poc_phone, poc_email: s.poc_email, service_dates: s.service_dates };
+    } else if (sug.event) {
+      payload = { ...payload, location_text: sug.event.location_text };
+    }
+    const { data, error } = await supabase!.from("vendors").insert(payload).select("id").single();
+    if (error) { toast(`Error: ${error.message}`, "error"); return; }
+    const vid = (data as { id: string }).id;
+    if (sug.kind === "stop") await supabase!.from("stops").update({ vendor_id: vid }).eq("id", sug.id);
+    else await supabase!.from("events").update({ vendor_id: vid }).eq("id", sug.id);
+    toast(`Vendor created from ${sug.name} — now linked`);
+    load();
+  };
   const archive = async (id: string) => { await supabase!.from("vendors").update({ archived_at: new Date().toISOString() }).eq("id", id); setOpenId(null); load(); };
   const restore = async (id: string) => { await supabase!.from("vendors").update({ archived_at: null }).eq("id", id); load(); };
   const del = async (id: string, nm: string) => { if (typeof window !== "undefined" && !window.confirm(`Delete ${nm}?`)) return; await supabase!.from("vendors").delete().eq("id", id); load(); };
   const active = vendors.filter((v) => !v.archived_at);
   const archived = vendors.filter((v) => v.archived_at);
+
+  // Suggestions = stops/events not yet linked to a vendor, whose name isn't already a vendor.
+  const vendorNames = new Set(vendors.map((v) => v.name.trim().toLowerCase()));
+  const seen = new Set<string>();
+  const suggestions: VendorSug[] = [
+    ...stops.filter((s) => !s.vendor_id && s.name).map((s) => ({ kind: "stop" as const, id: s.id, name: s.name, sub: s.location_text ?? s.address ?? "Stop", stop: s })),
+    ...events.filter((e) => !e.vendor_id && e.title).map((e) => ({ kind: "event" as const, id: e.id, name: e.title, sub: e.location_text ?? "Event", event: e })),
+  ].filter((x) => {
+    const k = x.name.trim().toLowerCase();
+    if (vendorNames.has(k) || seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+
   return (
     <div className="adm-sec">
       <div className="sec">Vendors <button className="adm-btn" style={{ marginLeft: "auto" }} onClick={add}>+ Add vendor</button></div>
       <div className="pnl-note" style={{ marginBottom: 6 }}>One record per venue/partner — linked from truck stops and events. Edit a POC here and it updates everywhere it&apos;s linked.</div>
-      {active.length === 0 && <div className="ev-empty">No vendors yet. Tap <b>+ Add vendor</b> to create one.</div>}
+      {suggestions.length > 0 && (
+        <div className="vendor-sugs">
+          <div className="ev-group-h" style={{ marginBottom: 8 }}>Create from your stops &amp; events</div>
+          {suggestions.map((sug) => (
+            <div className="vendor-sug" key={`${sug.kind}-${sug.id}`}>
+              <div className="vendor-sug-main"><b>{sug.name}</b><span>{sug.kind === "stop" ? "Stop" : "Event"}{sug.sub ? ` · ${sug.sub}` : ""}</span></div>
+              <button className="adm-btn" onClick={() => createFrom(sug)}>+ Create</button>
+            </div>
+          ))}
+        </div>
+      )}
+      {active.length === 0 && suggestions.length === 0 && <div className="ev-empty">No vendors yet. Tap <b>+ Add vendor</b> to create one.</div>}
       <div className="ev-list">
         {active.map((v, i) => (
           <VendorCard key={v.id} v={v} index={i} open={openId === v.id} onToggle={() => setOpenId(openId === v.id ? null : v.id)} onArchive={() => archive(v.id)} onChanged={load} />
