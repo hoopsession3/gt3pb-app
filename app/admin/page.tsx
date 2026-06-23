@@ -636,6 +636,90 @@ function OperatorAssistant() {
   );
 }
 
+// INSPECTION AGENT (admin) — research a jurisdiction's permit/inspection requirements, get a
+// what-to-expect brief + prep checklist, and review agent-proposed compliance rows before they
+// go live. "We have an inspection in GA tomorrow" → grounded answer + a do-list on the event.
+type InspRule = { id: string; label: string; kind: string; critical: boolean; link: string | null };
+type InspResult = { place: string; researched: boolean; summary: string; checklist: string[]; confidence: string; proposed: InspRule[]; tasksAdded: number };
+
+function InspectionPrep() {
+  const { toast } = useApp();
+  const [state, setState] = useState("");
+  const [county, setCounty] = useState("");
+  const [events, setEvents] = useState<{ id: string; title: string | null; day: string | null; day_label: string | null }[]>([]);
+  const [eventId, setEventId] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [res, setRes] = useState<InspResult | null>(null);
+
+  useEffect(() => {
+    if (!supabase) return;
+    const today = new Date().toISOString().slice(0, 10);
+    supabase.from("events").select("id, title, day, day_label").is("archived_at", null).gte("day", today).order("day").limit(40)
+      .then(({ data }) => setEvents(data ?? []));
+  }, []);
+
+  const run = async () => {
+    if (!supabase || busy || !state.trim()) return;
+    setBusy(true); setRes(null);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const r = await fetch("/api/agents/inspection", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ state, county, event_id: eventId }) });
+      const j = await r.json();
+      if (!j.ok) toast(String(j.error ?? "").includes("ANTHROPIC") ? "AI isn't switched on yet — add the API key" : `Error: ${j.error ?? r.status}`, "error");
+      else { setRes(j); toast(j.researched ? `Researched ${j.place}${j.proposed.length ? ` — ${j.proposed.length} rules to review` : ""}` : `Brief ready for ${j.place}`); }
+    } catch { toast("Couldn't reach the inspection agent", "error"); }
+    setBusy(false);
+  };
+
+  const decide = async (id: string, approve: boolean) => {
+    if (!supabase) return;
+    if (approve) await supabase.from("compliance_rules").update({ active: true, verified: true }).eq("id", id);
+    else await supabase.from("compliance_rules").delete().eq("id", id);
+    setRes((r) => r ? { ...r, proposed: r.proposed.filter((p) => p.id !== id) } : r);
+    toast(approve ? "Approved — now in the official checklist" : "Dismissed");
+  };
+
+  return (
+    <div className="adm-sec">
+      <div className="sec">Inspection prep</div>
+      <div className="rdy">
+        <div className="insp-form">
+          <input className="insp-in insp-st" value={state} onChange={(e) => setState(e.target.value)} placeholder="State (GA)" maxLength={4} />
+          <input className="insp-in" value={county} onChange={(e) => setCounty(e.target.value)} placeholder="County (optional)" />
+          <select className="insp-in" value={eventId} onChange={(e) => setEventId(e.target.value)}>
+            <option value="">No event — just brief me</option>
+            {events.map((ev) => <option key={ev.id} value={ev.id}>{ev.day_label || ev.day || ""} · {ev.title || "Event"}</option>)}
+          </select>
+          <button type="button" className="rdy-run" onClick={run} disabled={busy || !state.trim()}>{busy ? "Researching…" : "✨ Research"}</button>
+        </div>
+        {res && (
+          <div className="insp-out">
+            <div className="insp-head">{res.place}{res.researched ? "" : " · from your records"}{res.confidence === "low" ? " · low confidence — verify with the county" : ""}</div>
+            <p className="insp-sum">{res.summary}</p>
+            {res.checklist.length > 0 && (
+              <><div className="insp-lbl">Prep checklist{res.tasksAdded ? ` · added ${res.tasksAdded} to the event` : ""}</div>
+              <ul className="rdy-gaps">{res.checklist.map((c, i) => <li key={i}>{c}</li>)}</ul></>
+            )}
+            {res.proposed.length > 0 && (
+              <><div className="insp-lbl">Proposed rules — approve to make official</div>
+              {res.proposed.map((p) => (
+                <div key={p.id} className="insp-rule">
+                  <span className="insp-rule-t">{p.critical ? "⚠️ " : ""}<b>{p.kind}</b> — {p.label}{p.link ? <a href={p.link} target="_blank" rel="noreferrer" className="insp-src"> source</a> : null}</span>
+                  <span className="insp-rule-act">
+                    <button type="button" className="insp-yes" onClick={() => decide(p.id, true)}>Approve</button>
+                    <button type="button" className="insp-no" onClick={() => decide(p.id, false)}>Dismiss</button>
+                  </span>
+                </div>
+              ))}</>
+            )}
+            <p className="insp-foot">Always confirm with the jurisdiction's health department for your specific date.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function EventPrep({ onGo }: { onGo: (t: string) => void }) {
   const [events, setEvents] = useState<EventRow[]>([]);
   const [stops, setStops] = useState<Stop[]>([]);
@@ -3113,6 +3197,7 @@ export default function AdminPage() {
       {sec === "prep" && canPrep && (
         <>
           {canManage && <ReadinessAgent />}
+          {canManage && <InspectionPrep />}
           <EventPrep onGo={goSection} />
         </>
       )}

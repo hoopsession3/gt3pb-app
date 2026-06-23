@@ -15,6 +15,7 @@ export interface ClaudeResult {
   text: string;
   toolUses: { name: string; input: any }[];
   stop_reason: string | null;
+  content: any[]; // raw content blocks — needed to resume a server-tool pause_turn
 }
 
 export function anthropicEnabled() {
@@ -52,5 +53,6 @@ export async function callClaude(opts: {
     text: blocks.filter((b) => b.type === "text").map((b) => b.text).join(""),
     toolUses: blocks.filter((b) => b.type === "tool_use").map((b) => ({ name: b.name, input: b.input })),
     stop_reason: data.stop_reason ?? null,
+    content: blocks,
   };
 }
