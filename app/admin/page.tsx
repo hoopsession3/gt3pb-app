@@ -1843,6 +1843,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
   const [openThread, setOpenThread] = useState<string | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [suggesting, setSuggesting] = useState(false);
+  const [resolving, setResolving] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -1872,6 +1873,19 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
     if (error) toast(`Error: ${error.message}`, "error"); else load();
   };
   // Agent #1 — let Claude pull the follow-ups out of the recap, proposed for review.
+  // Propose how to COMPLETE a follow-up (surfacing answers we already have). Persists on the task.
+  const resolve = useCallback(async (t: EventTask) => {
+    if (!supabase || t.ai_proposal || resolving.has(t.id)) return;
+    setResolving((s) => new Set(s).add(t.id));
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const r = await fetch("/api/agents/resolve", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ task_id: t.id }) });
+      const j = await r.json();
+      if (j.ok) setItems((p) => p.map((x) => (x.id === t.id ? { ...x, ai_proposal: j.proposal, ai_has_answer: j.have_answer } : x)));
+    } catch { /* */ }
+    setResolving((s) => { const n = new Set(s); n.delete(t.id); return n; });
+  }, [resolving]);
+
   const suggest = async () => {
     if (!supabase || suggesting) return;
     setSuggesting(true);
@@ -1880,7 +1894,13 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
       const r = await fetch("/api/agents/recap", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ note_id: note.id }) });
       const j = await r.json();
       if (!j.ok) toast(j.error === "AI not configured (set ANTHROPIC_API_KEY)" ? "AI isn't switched on yet — add the API key" : `Error: ${j.error ?? r.status}`, "error");
-      else { toast(j.added ? `Added ${j.added} suggested follow-up${j.added === 1 ? "" : "s"} — review & assign` : "No new action items found"); load(); }
+      else {
+        toast(j.added ? `Added ${j.added} follow-up${j.added === 1 ? "" : "s"} — proposing how to finish each…` : "No new action items found");
+        await load();
+        // Auto-propose a completion for the freshly generated items.
+        const { data: fresh } = await supabase.from("event_tasks").select("*").eq("meeting_note_id", note.id).is("ai_proposal", null).order("sort", { ascending: false }).limit(8);
+        for (const t of (fresh as EventTask[] ?? [])) await resolve(t);
+      }
     } catch { toast("Couldn't reach the recap agent", "error"); }
     setSuggesting(false);
   };
@@ -1958,8 +1978,15 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
                 <button type="button" className="note-fu-assign" onClick={() => setAssignFor(t)}>{t.assignee ? firstNameOf(t.assignee) : "Assign"}</button>
                 <button type="button" className="note-fu-flag" onClick={() => setOpenThread(openThread === t.id ? null : t.id)} aria-label="Discuss" title="Discuss">💬{counts[t.id] ? <span className="cmt-count">{counts[t.id]}</span> : null}</button>
                 <button type="button" className="note-fu-flag" onClick={() => flag(t)} aria-label="Flag as can't-miss" title="Flag as can't-miss">⚑</button>
+                {!t.ai_proposal && <button type="button" className="note-fu-solve" onClick={() => resolve(t)} disabled={resolving.has(t.id)} title="Propose how to complete this">{resolving.has(t.id) ? "…" : "💡"}</button>}
                 {isAdmin && <button type="button" className="note-fu-x" onClick={() => removeItem(t)} aria-label="Remove follow-up">×</button>}
               </div>
+              {t.ai_proposal && (
+                <div className={`fu-prop${t.ai_has_answer ? " has" : ""}`}>
+                  <div className="fu-prop-h">{t.ai_has_answer ? "✓ We already have this" : "💡 Proposed"}</div>
+                  <div className="fu-prop-b">{t.ai_proposal}</div>
+                </div>
+              )}
               {openThread === t.id && (
                 <CommentThread subject={{ col: "event_task_id", id: t.id }} notifyIds={[t.assignee, note.created_by]} label={t.label} meId={meId} meName={meName} />
               )}

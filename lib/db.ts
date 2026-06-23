@@ -128,6 +128,8 @@ export interface EventTask {
   done_at: string | null;
   link: string | null;
   sort: number;
+  ai_proposal?: string | null;   // AI-proposed completion / answer (0061)
+  ai_has_answer?: boolean | null; // true when GT3 data already answers it
 }
 
 // Meeting notes (0049) — in-app system of record for talking points. Leadership-only
