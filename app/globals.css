@@ -1123,6 +1123,8 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .assign-name{flex:1;text-align:left}
 .assign-check{color:var(--gold2);font-weight:700;font-size:16px}
 .assign-row.clear{margin-top:8px;border-top:1px solid var(--line);border-radius:0 0 13px 13px}
+.assign-row.me{border:1px solid var(--line2);background:rgba(168,124,63,.07);margin-bottom:6px;font-weight:600}
+.assign-row.me .assign-av{background:var(--red);color:#fff}
 
 /* Operator console — bigger, touch-friendly controls applied across every section
    (Now / Prep / Plan / Money / Team). Scoped to .admin so the customer app is untouched. */
