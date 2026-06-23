@@ -535,24 +535,36 @@ function EventPrepDetail({ eventId, onBack }: { eventId: string; onBack: () => v
       )}
 
       {assignFor && (
-        <AssignSheet task={assignFor} staff={staff} crewIds={crew.map((c) => c.user_id)} onPick={(uid) => assign(assignFor, uid)} onClose={() => setAssignFor(null)} />
+        <AssignSheet
+          task={assignFor}
+          staff={staff}
+          crewIds={crew.map((c) => c.user_id)}
+          meId={user?.id ?? null}
+          meName={profile?.display_name?.trim() || "Me"}
+          onPick={(uid) => assign(assignFor, uid)}
+          onClose={() => setAssignFor(null)}
+        />
       )}
     </div>
   );
 }
 
 // Mobile-friendly assignee picker — a bottom sheet with big tap rows, crew first.
-function AssignSheet({ task, staff, crewIds, onPick, onClose }: {
+function AssignSheet({ task, staff, crewIds, meId, meName, onPick, onClose }: {
   task: EventTask;
   staff: { id: string; display_name: string | null }[];
   crewIds: string[];
+  meId: string | null;
+  meName: string;
   onPick: (uid: string) => void;
   onClose: () => void;
 }) {
   const label = (s: { display_name: string | null }) => s.display_name?.trim() || "Unnamed crew";
   const initial = (s: { display_name: string | null }) => { const n = s.display_name?.trim(); return n ? n.charAt(0).toUpperCase() : "?"; };
-  const crew = staff.filter((s) => crewIds.includes(s.id));
-  const others = staff.filter((s) => !crewIds.includes(s.id));
+  // The current user can always assign to themselves, even if their profile name/role
+  // would otherwise keep them out of the staff list — that's "assign to me".
+  const crew = staff.filter((s) => crewIds.includes(s.id) && s.id !== meId);
+  const others = staff.filter((s) => !crewIds.includes(s.id) && s.id !== meId);
   const Row = (s: { id: string; display_name: string | null }) => (
     <button key={s.id} type="button" className={`assign-row${task.assignee === s.id ? " on" : ""}`} onClick={() => onPick(s.id)}>
       <span className="assign-av">{initial(s)}</span>
@@ -566,7 +578,14 @@ function AssignSheet({ task, staff, crewIds, onPick, onClose }: {
       <div className="prep-sheet assign-sheet" role="dialog" aria-modal="true" aria-label={`Assign ${task.label}`}>
         <div className="prep-sheet-grab" />
         <div className="assign-sheet-h">Assign · <b>{task.label}</b></div>
-        {staff.length === 0 && <div className="h-sub">No staff yet — add people and set their role/name in <b>Team</b>.</div>}
+        {meId && (
+          <button type="button" className={`assign-row me${task.assignee === meId ? " on" : ""}`} onClick={() => onPick(meId)}>
+            <span className="assign-av">{(meName.trim().charAt(0) || "M").toUpperCase()}</span>
+            <span className="assign-name">Assign to me{meName && meName !== "Me" ? ` · ${meName.split(" ")[0]}` : ""}</span>
+            {task.assignee === meId && <span className="assign-check">✓</span>}
+          </button>
+        )}
+        {crew.length === 0 && others.length === 0 && !meId && <div className="h-sub">No staff yet — add people and set their role/name in <b>Team</b>.</div>}
         {crew.length > 0 && <div className="assign-group">On this crew</div>}
         {crew.map(Row)}
         {others.length > 0 && <div className="assign-group">All staff</div>}
