@@ -1125,6 +1125,14 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .assign-row.clear{margin-top:8px;border-top:1px solid var(--line);border-radius:0 0 13px 13px}
 .assign-row.me{border:1px solid var(--line2);background:rgba(168,124,63,.07);margin-bottom:6px;font-weight:600}
 .assign-row.me .assign-av{background:var(--red);color:#fff}
+.assign-row:disabled{opacity:.5;cursor:default}
+.assign-row .task-box{flex:0 0 auto}
+.task-box.on{background:var(--gold2);border-color:var(--gold2)}
+/* supply picker */
+.adm-prep-actions{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.supply-list{max-height:42vh;overflow-y:auto;margin:4px 0}
+.supply-off{color:var(--cream-m);font-size:11px}
+.supply-crit{color:var(--red);font-size:11px}
 
 /* Operator console — bigger, touch-friendly controls applied across every section
    (Now / Prep / Plan / Money / Team). Scoped to .admin so the customer app is untouched. */

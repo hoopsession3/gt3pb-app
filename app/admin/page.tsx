@@ -367,6 +367,7 @@ function EventPrepDetail({ eventId, onBack }: { eventId: string; onBack: () => v
   const [newTask, setNewTask] = useState("");
   const [generating, setGenerating] = useState(false);
   const [assignFor, setAssignFor] = useState<EventTask | null>(null);
+  const [showSupplies, setShowSupplies] = useState(false);
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -462,6 +463,20 @@ function EventPrepDetail({ eventId, onBack }: { eventId: string; onBack: () => v
     if (error) toast(error.code === "23505" ? "Already on crew" : `Error: ${error.message}`, "error"); else load();
   };
   const removeCrew = async (id: string) => { if (supabase) { await supabase.from("event_staff").delete().eq("id", id); load(); } };
+  // Add supplies the crew must bring — picked from the Notion inventory catalog or typed
+  // off-catalog. Each becomes a checklist line under "Supplies" (no inventory duplication).
+  const addSupplies = async (items: { label: string; critical: boolean }[]) => {
+    setShowSupplies(false);
+    if (!ev || !supabase || items.length === 0) return;
+    const have = new Set(tasks.map((t) => t.label.trim().toLowerCase()));
+    const rows = items
+      .filter((i) => !have.has(i.label.trim().toLowerCase()))
+      .map((i, idx) => ({ event_id: ev.id, label: i.label.trim(), section: "Supplies", kind: "pack", critical: i.critical, sort: 40 + idx }));
+    if (rows.length === 0) { toast("Those are already on the list"); return; }
+    const { error } = await supabase.from("event_tasks").insert(rows);
+    toast(error ? `Error: ${error.message}` : `Added ${rows.length} suppl${rows.length === 1 ? "y" : "ies"}`);
+    if (!error) load();
+  };
 
   if (!ev) return (
     <div className="adm-sec adm-prep">
@@ -485,7 +500,12 @@ function EventPrepDetail({ eventId, onBack }: { eventId: string; onBack: () => v
             {critOut.length > 0 && <span className="adm-ready-miss"> · {critOut.length} critical to load: {critOut.slice(0, 2).map((t) => t.label).join(", ")}{critOut.length > 2 ? ` +${critOut.length - 2}` : ""}</span>}
             {ready && <span> · ready to roll</span>}
           </div>
-          {isAdmin && <button className="adm-regen" onClick={() => generate(true)} disabled={generating}>↻ Regenerate from menu</button>}
+          {isAdmin && (
+            <div className="adm-prep-actions">
+              <button className="adm-regen" onClick={() => generate(true)} disabled={generating}>↻ Regenerate from menu</button>
+              <button className="adm-regen" onClick={() => setShowSupplies(true)}>+ Add supplies</button>
+            </div>
+          )}
         </>
       ) : isAdmin ? (
         <button className="adm-btn primary" onClick={() => generate()} disabled={generating}>{generating ? "Generating…" : "Generate pack list from menu"}</button>
@@ -544,6 +564,10 @@ function EventPrepDetail({ eventId, onBack }: { eventId: string; onBack: () => v
           onClose={() => setAssignFor(null)}
         />
       )}
+
+      {showSupplies && (
+        <SupplyPicker ev={ev} have={new Set(tasks.map((t) => t.label.trim().toLowerCase()))} onAdd={addSupplies} onClose={() => setShowSupplies(false)} />
+      )}
     </div>
   );
 }
@@ -594,6 +618,76 @@ function AssignSheet({ task, staff, crewIds, meId, meName, onPick, onClose }: {
             <span className="assign-av none">—</span><span className="assign-name">Unassign</span>
           </button>
         )}
+      </div>
+    </>
+  );
+}
+
+// Supply picker — references the Notion inventory catalog (/api/inventory) and lets you
+// add off-catalog items by typing. Pre-selects what the event's menu/rig actually needs.
+function SupplyPicker({ ev, have, onAdd, onClose }: {
+  ev: EventRow;
+  have: Set<string>;
+  onAdd: (items: { label: string; critical: boolean }[]) => void;
+  onClose: () => void;
+}) {
+  const [inv, setInv] = useState<InventoryResp | null>(null);
+  const [q, setQ] = useState("");
+  const [sel, setSel] = useState<Set<string>>(new Set());
+
+  useEffect(() => { fetchInventory().then(setInv); }, []);
+  // Pre-check the items this event actually draws on (from its menu/rig answers).
+  useEffect(() => {
+    if (!inv) return;
+    const relevant = inventoryForEvent(inv.items, ev).relevant;
+    setSel(new Set(relevant.filter((it) => !have.has(it.name.trim().toLowerCase())).map((it) => it.name)));
+  }, [inv]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const items = inv?.items ?? [];
+  const ql = q.trim().toLowerCase();
+  const onList = (name: string) => have.has(name.trim().toLowerCase());
+  const filtered = (ql ? items.filter((it) => it.name.toLowerCase().includes(ql)) : items);
+  // relevant-first ordering
+  const relevantNames = inv ? new Set(inventoryForEvent(inv.items, ev).relevant.map((it) => it.name)) : new Set<string>();
+  const ordered = [...filtered].sort((a, b) => Number(relevantNames.has(b.name)) - Number(relevantNames.has(a.name)));
+  const exactMatch = items.some((it) => it.name.trim().toLowerCase() === ql);
+  const toggle = (name: string) => setSel((p) => { const n = new Set(p); if (n.has(name)) n.delete(name); else n.add(name); return n; });
+
+  const confirm = () => onAdd(items.filter((it) => sel.has(it.name) && !onList(it.name)).map((it) => ({ label: it.name, critical: it.critical })));
+  const addCustom = () => { if (ql) onAdd([{ label: q.trim(), critical: false }]); };
+  const selCount = [...sel].filter((n) => !onList(n)).length;
+
+  return (
+    <>
+      <div className="prep-scrim" onClick={onClose} aria-hidden="true" />
+      <div className="prep-sheet assign-sheet" role="dialog" aria-modal="true" aria-label="Add supplies">
+        <div className="prep-sheet-grab" />
+        <div className="assign-sheet-h">Supplies for · <b>{ev.title}</b></div>
+        <input className="subpitch-email" style={{ marginBottom: 10 }} placeholder="Search inventory or type a custom item…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search supplies" />
+        {ql && !exactMatch && (
+          <button type="button" className="assign-row me" onClick={addCustom}>
+            <span className="assign-av none">+</span>
+            <span className="assign-name">Add &ldquo;{q.trim()}&rdquo; <span className="supply-off">off-catalog</span></span>
+          </button>
+        )}
+        {inv && !inv.enabled && <div className="h-sub" style={{ margin: "4px 0 8px" }}>Inventory (Notion) isn&apos;t connected — type items above to add them.</div>}
+        {!inv && <div className="h-sub" style={{ margin: "4px 0" }}>Loading inventory…</div>}
+        <div className="supply-list">
+          {ordered.map((it) => {
+            const already = onList(it.name);
+            const picked = sel.has(it.name);
+            return (
+              <button key={it.name} type="button" className={`assign-row${picked && !already ? " on" : ""}`} disabled={already} onClick={() => toggle(it.name)}>
+                <span className={`task-box${picked && !already ? " on" : ""}`}>{picked && !already && <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7" /></svg>}</span>
+                <span className="assign-name">{it.name}{it.critical && <span className="supply-crit"> · critical</span>}{already && <span className="supply-off"> · on list</span>}</span>
+                {it.qty != null && <span className="orderbar-tag">{it.qty}{it.unit ? ` ${it.unit}` : ""}</span>}
+              </button>
+            );
+          })}
+        </div>
+        <button className="handle" style={{ marginTop: 12 }} onClick={confirm} disabled={selCount === 0}>
+          <span>{selCount > 0 ? `Add ${selCount} to checklist` : "Select items to add"}</span>
+        </button>
       </div>
     </>
   );
