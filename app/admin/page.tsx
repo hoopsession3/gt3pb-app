@@ -375,6 +375,11 @@ function EventPrep({ onGo }: { onGo: (t: string) => void }) {
   }, []);
   useEffect(() => {
     load();
+    // Deep-link target set by "Open prep" from an event editor → open that event directly.
+    try {
+      const target = localStorage.getItem("gt3-prep-open");
+      if (target) { localStorage.removeItem("gt3-prep-open"); setSelectedId(target); }
+    } catch { /* ignore */ }
     if (!supabase) return;
     const ch = supabase.channel("admin-prep-index")
       .on("postgres_changes", { event: "*", schema: "public", table: "events" }, () => load())
@@ -1715,7 +1720,7 @@ function BriefPanel({ e, proj, inventory }: { e: EventRow; proj: Projection; inv
 }
 
 // One event as a collapsible card: clean header when closed, full editor when open.
-function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, onArchive, econRow, catalog, inventory, vendors, onLinkVendor, onSaveEcon }: {
+function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, onArchive, econRow, catalog, inventory, vendors, onLinkVendor, onSaveEcon, onOpenPrep }: {
   e: EventRow;
   index: number;
   open: boolean;
@@ -1730,7 +1735,16 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
   vendors: Vendor[];
   onLinkVendor: (v: Vendor | null) => void;
   onSaveEcon: (econ: EventEcon) => void;
+  onOpenPrep: (id: string) => void;
 }) {
+  const [prep, setPrep] = useState<{ done: number; total: number; crit: number } | null>(null);
+  useEffect(() => {
+    if (!open || !supabase) return;
+    supabase.from("event_tasks").select("done, critical").eq("event_id", e.id).then(({ data }) => {
+      const rows = (data as { done: boolean; critical: boolean }[]) ?? [];
+      setPrep({ done: rows.filter((r) => r.done).length, total: rows.length, crit: rows.filter((r) => r.critical && !r.done).length });
+    });
+  }, [open, e.id]);
   const when = [e.day_label, [e.start_time, e.end_time].filter(Boolean).join("–")].filter(Boolean).join(" ");
   const sub = [when, e.location_text].filter(Boolean).join("  ·  ");
   const tag = `Event ${String(index + 1).padStart(2, "0")}${e.is_live ? " · Live" : ""}`;
@@ -1765,15 +1779,24 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
 
           <VendorPicker vendors={vendors} vendorId={e.vendor_id} onLink={onLinkVendor} />
 
+          {/* Relational link to this event's pack/pick list (lives in Prep) */}
+          <button type="button" className={`ev-prep${prep && prep.total > 0 && prep.done === prep.total ? " ok" : prep && prep.crit ? " miss" : ""}`} onClick={() => onOpenPrep(e.id)}>
+            <span className="ev-prep-main">
+              <b>Prep · pick list</b>
+              <span>{prep === null ? "…" : prep.total === 0 ? "Not generated yet — open Prep to build it" : `Loaded ${prep.done}/${prep.total}${prep.crit ? ` · ${prep.crit} critical to load` : prep.done === prep.total ? " · ready" : ""}`}</span>
+            </span>
+            <span className="ev-prep-go">Open ›</span>
+          </button>
+
           {/* What guests see */}
           <div className="ev-group">
             <div className="ev-group-h">Guest facing</div>
-            <input className="ev-input" maxLength={200} defaultValue={e.title} placeholder="Event title" aria-label="Event title"
-              onBlur={(ev) => ev.target.value !== e.title && onUpdate({ title: ev.target.value })} />
-            <textarea className="ev-input ev-area" maxLength={300} rows={2} defaultValue={e.blurb ?? ""} placeholder="Details guests see when they tap this event" aria-label="Event details"
-              onBlur={(ev) => (ev.target.value.trim() || null) !== e.blurb && onUpdate({ blurb: ev.target.value.trim() || null })} />
-            <input className="ev-input" maxLength={200} defaultValue={e.location_text ?? ""} placeholder="Location" aria-label="Location"
-              onBlur={(ev) => (ev.target.value.trim() || null) !== e.location_text && onUpdate({ location_text: ev.target.value.trim() || null })} />
+            <label className="ev-fld">Title<input className="ev-input" maxLength={200} defaultValue={e.title} placeholder="Event title" aria-label="Event title"
+              onBlur={(ev) => ev.target.value !== e.title && onUpdate({ title: ev.target.value })} /></label>
+            <label className="ev-fld">Details guests see<textarea className="ev-input ev-area" maxLength={300} rows={2} defaultValue={e.blurb ?? ""} placeholder="One line guests read when they tap this event" aria-label="Event details"
+              onBlur={(ev) => (ev.target.value.trim() || null) !== e.blurb && onUpdate({ blurb: ev.target.value.trim() || null })} /></label>
+            <label className="ev-fld">Location / venue<input className="ev-input" maxLength={200} defaultValue={e.location_text ?? ""} placeholder="e.g. Duncan Town Square" aria-label="Location"
+              onBlur={(ev) => (ev.target.value.trim() || null) !== e.location_text && onUpdate({ location_text: ev.target.value.trim() || null })} /></label>
             <div className="ev-grid">
               <label className="ev-f">Day<input defaultValue={e.day_label ?? ""} placeholder="SAT" onBlur={(ev) => ev.target.value !== e.day_label && onUpdate({ day_label: ev.target.value })} /></label>
               <label className="ev-f">Start<input defaultValue={e.start_time ?? ""} placeholder="9:00" onBlur={(ev) => (ev.target.value.trim() || null) !== e.start_time && onUpdate({ start_time: ev.target.value.trim() || null })} /></label>
@@ -1834,6 +1857,8 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
 
 function EventsAdmin() {
   const { toast } = useApp();
+  const { setSection } = useOperatorSection();
+  const openPrep = (id: string) => { try { localStorage.setItem("gt3-prep-open", id); } catch { /* ignore */ } setSection("prep"); };
   const [events, setEvents] = useState<EventRow[]>([]);
   const [openId, setOpenId] = useState<string | null>(null); // single-open accordion
   const [catalog, setCatalog] = useState<ProductEcon[]>([]);
@@ -1937,6 +1962,7 @@ function EventsAdmin() {
             vendors={vendors}
             onLinkVendor={(v) => linkVendor(e.id, v)}
             onSaveEcon={(econ) => saveEcon(e.id, econ)}
+            onOpenPrep={openPrep}
           />
         ))}
       </div>
