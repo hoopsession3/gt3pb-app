@@ -1,7 +1,7 @@
 /* GT3PB service worker — offline shell + asset cache (runbook Phase 6).
    Native Web Push (VAPID) handlers below; opt-in happens after a couple visits.
    Bump CACHE on any shell/icon change so installed clients refresh cleanly. */
-const CACHE = "gt3pb-v17";
+const CACHE = "gt3pb-v18";
 const SHELL = ["/", "/truck", "/menu", "/events", "/3mpire", "/book", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
@@ -25,6 +25,13 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;
+  const url = new URL(request.url);
+
+  // Dynamic data must NEVER come from cache: our /api/ routes + any cross-origin request
+  // (Supabase REST/Realtime, etc.). Go straight to the network so the app always sees fresh
+  // data. A cache-first SW here is what served stale /api/assets + event_approvals responses
+  // — the network was never hit, so cache:no-store and even RLS/DB fixes couldn't surface.
+  if (url.origin !== self.location.origin || url.pathname.startsWith("/api/")) return;
 
   // Network-first for navigations (fresh content), fall back to cached shell offline.
   if (request.mode === "navigate") {
