@@ -570,7 +570,7 @@ function ReadinessAgent() {
 // OPERATOR MODE — the crew's pocket brain. Grounded chat over the GT3 playbook (recipes, the why,
 // gear, stock, how-to). Voice in (Web Speech API where available), quick-asks, mobile-first.
 type ChatMsg = { role: "user" | "assistant"; content: string };
-const OA_QUICK = ["How do I make a Rise?", "Why no oxalates?", "What's in Nature Aid?", "How do I run the cart?", "What gear do we have?"];
+const OA_QUICK = ["We have an inspection in GA — what to expect?", "How do I make a Rise?", "Why no oxalates?", "What's in Nature Aid?", "How do I run the cart?", "What gear do we have?"];
 
 function OperatorAssistant() {
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);

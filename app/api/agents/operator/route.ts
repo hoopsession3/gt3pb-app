@@ -33,17 +33,19 @@ export async function POST(req: Request) {
   const trimmed: ClaudeMsg[] = messages.slice(-10).map((m) => ({ role: m?.role === "assistant" ? "assistant" : "user", content: String(m?.content ?? "").slice(0, 2000) }));
 
   // Live grounding (best-effort — the assistant still works on Academy knowledge alone).
-  let assets = "", inv = "";
+  let assets = "", inv = "", rules = "";
   if (supabaseAdmin) {
-    const [a, i] = await Promise.all([
+    const [a, i, c] = await Promise.all([
       supabaseAdmin.from("assets").select("name, brand, use_case, qty").limit(200),
       supabaseAdmin.from("inventory_items").select("name, qty, unit, status, critical").limit(200),
+      supabaseAdmin.from("compliance_rules").select("state, county, label, kind, critical, link").eq("active", true).order("sort").limit(300),
     ]);
     assets = (a.data ?? []).map((x: any) => `- ${x.name}${x.brand ? ` (${x.brand})` : ""}${x.qty != null ? ` ×${x.qty}` : ""}${x.use_case ? ` — ${x.use_case}` : ""}`).join("\n");
     inv = (i.data ?? []).map((x: any) => `- ${x.name}: ${x.qty ?? "?"}${x.unit ? ` ${x.unit}` : ""}${x.status ? ` (${x.status})` : ""}${x.critical ? " [critical]" : ""}`).join("\n");
+    rules = (c.data ?? []).map((x: any) => `- [${x.state ?? "ANY"}${x.county ? `/${x.county}` : ""}] (${x.kind}${x.critical ? ", CRITICAL" : ""}) ${x.label}${x.link ? ` — ${x.link}` : ""}`).join("\n");
   }
 
-  const system = `${SYSTEM}\n\n=== GT3 KNOWLEDGE ===\n${academyKnowledge()}\n\n=== ASSETS / GEAR WE HAVE ===\n${assets || "(none loaded)"}\n\n=== INVENTORY ON HAND ===\n${inv || "(none loaded)"}`;
+  const system = `${SYSTEM}\n\n=== GT3 KNOWLEDGE ===\n${academyKnowledge()}\n\n=== ASSETS / GEAR WE HAVE ===\n${assets || "(none loaded)"}\n\n=== INVENTORY ON HAND ===\n${inv || "(none loaded)"}\n\n=== PERMIT / INSPECTION REQUIREMENTS BY JURISDICTION (researched; [STATE/County], ANY = universal) ===\n${rules || "(none loaded)"}\nWhen asked about permits or an inspection for a place, use the rows matching that state/county PLUS the ANY rows. If we have NO rows for that jurisdiction, say it isn't researched yet, give the universal items, and tell them to confirm with that county's health department (and flag Ryan to research it). For an inspection ask, lead with what the inspector will check, then a short prep checklist. Always remind them to confirm with the authority for the specific date.`;
 
   try {
     const r = await callClaude({ model: MODELS.sonnet, maxTokens: 700, temperature: 0.3, system, messages: trimmed });
