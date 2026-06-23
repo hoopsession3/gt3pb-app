@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
+import BrandCalendar from "./BrandCalendar";
 
 // STUDIO — the collaborative marketing studio. Her money-maker, his taste → built around
 // collaboration: real-time co-editing (Supabase Realtime presence + broadcast), real version
@@ -12,7 +13,7 @@ import { supabase } from "@/lib/supabase";
 type Item = {
   id: string; kind: string; channel: string; title: string; hook: string | null; caption: string | null;
   hashtags: string[]; status: string; review_note: string | null; scheduled_for: string | null;
-  updated_at: string; updated_by: string | null;
+  updated_at: string; updated_by: string | null; event_id?: string | null;
   canva_design_id?: string | null; canva_edit_url?: string | null; export_url?: string | null; published_url?: string | null;
 };
 type Version = { id: string; title: string | null; hook: string | null; caption: string | null; hashtags: string[] | null; status: string | null; label: string | null; edited_by: string | null; created_at: string };
@@ -32,6 +33,7 @@ export default function Studio() {
   const [items, setItems] = useState<Item[]>([]);
   const [filter, setFilter] = useState<string>("all");
   const [openId, setOpenId] = useState<string | null>(null);
+  const [view, setView] = useState<"calendar" | "board">(() => (typeof window !== "undefined" && localStorage.getItem("gt3-studio-view") === "board") ? "board" : "calendar");
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -49,11 +51,12 @@ export default function Studio() {
     return () => { supabase?.removeChannel(ch); };
   }, [load]);
 
-  const create = async () => {
+  const create = async (scheduledISO?: string, eventId?: string | null) => {
     if (!supabase) return;
-    const { data } = await supabase.from("content_items").insert({ title: "Untitled", created_by: me.id, updated_by: me.id }).select("id").single();
+    const { data } = await supabase.from("content_items").insert({ title: "Untitled", created_by: me.id, updated_by: me.id, scheduled_for: scheduledISO ?? null, event_id: eventId ?? null }).select("id").single();
     if (data?.id) { await load(); setOpenId(data.id); }
   };
+  const pickView = (v: "calendar" | "board") => { setView(v); if (typeof window !== "undefined") localStorage.setItem("gt3-studio-view", v); };
 
   if (openId) return <StudioEditor id={openId} me={me} onClose={() => { setOpenId(null); load(); }} />;
 
@@ -61,32 +64,42 @@ export default function Studio() {
   return (
     <div className="adm-sec">
       <div className="studio-top">
-        <div className="sec" style={{ margin: 0 }}>Studio</div>
-        <button type="button" className="rdy-run" onClick={create}>✦ New piece</button>
-      </div>
-      <div className="subnav" role="tablist" aria-label="Filter">
-        {["all", ...Object.keys(STATUS)].map((k) => (
-          <button key={k} type="button" className={`subnav-tab${filter === k ? " on" : ""}`} onClick={() => setFilter(k)}>
-            {k === "all" ? "All" : STATUS[k].label}
-          </button>
-        ))}
-      </div>
-      {shown.length === 0 ? (
-        <div className="oa-empty" style={{ padding: "28px 8px" }}>No pieces yet. Start one — draft a caption with the engine, collaborate in real time, schedule it.</div>
-      ) : (
-        <div className="studio-grid">
-          {shown.map((it) => (
-            <button key={it.id} type="button" className="studio-card" onClick={() => setOpenId(it.id)}>
-              <div className="studio-card-h">
-                <span className={`st-pill ${STATUS[it.status]?.cls ?? ""}`}>{STATUS[it.status]?.label ?? it.status}</span>
-                <span className="studio-card-ch">{it.channel}</span>
-              </div>
-              <div className="studio-card-t">{it.title || "Untitled"}</div>
-              {it.caption && <div className="studio-card-c">{it.caption}</div>}
-              <div className="studio-card-f">{it.scheduled_for ? `📅 ${fmtDate(it.scheduled_for)}` : `Edited ${fmtDate(it.updated_at)}`}</div>
-            </button>
-          ))}
+        <div className="studio-views" role="tablist" aria-label="View">
+          <button type="button" className={`studio-view${view === "calendar" ? " on" : ""}`} onClick={() => pickView("calendar")}>Calendar</button>
+          <button type="button" className={`studio-view${view === "board" ? " on" : ""}`} onClick={() => pickView("board")}>Board</button>
         </div>
+        <button type="button" className="rdy-run" onClick={() => create()}>✦ New piece</button>
+      </div>
+
+      {view === "calendar" ? (
+        <BrandCalendar onOpen={setOpenId} onCreate={(iso) => create(iso)} />
+      ) : (
+        <>
+          <div className="subnav" role="tablist" aria-label="Filter">
+            {["all", ...Object.keys(STATUS)].map((k) => (
+              <button key={k} type="button" className={`subnav-tab${filter === k ? " on" : ""}`} onClick={() => setFilter(k)}>
+                {k === "all" ? "All" : STATUS[k].label}
+              </button>
+            ))}
+          </div>
+          {shown.length === 0 ? (
+            <div className="oa-empty" style={{ padding: "28px 8px" }}>No pieces yet. Start one — draft a caption with the engine, collaborate in real time, schedule it.</div>
+          ) : (
+            <div className="studio-grid">
+              {shown.map((it) => (
+                <button key={it.id} type="button" className="studio-card" onClick={() => setOpenId(it.id)}>
+                  <div className="studio-card-h">
+                    <span className={`st-pill ${STATUS[it.status]?.cls ?? ""}`}>{STATUS[it.status]?.label ?? it.status}</span>
+                    <span className="studio-card-ch">{it.channel}</span>
+                  </div>
+                  <div className="studio-card-t">{it.title || "Untitled"}</div>
+                  {it.caption && <div className="studio-card-c">{it.caption}</div>}
+                  <div className="studio-card-f">{it.scheduled_for ? `📅 ${fmtDate(it.scheduled_for)}` : `Edited ${fmtDate(it.updated_at)}`}</div>
+                </button>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -97,6 +110,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   const [title, setTitle] = useState(""); const [hook, setHook] = useState(""); const [caption, setCaption] = useState("");
   const [tags, setTags] = useState(""); const [status, setStatus] = useState("draft");
   const [sched, setSched] = useState(""); const [note, setNote] = useState("");
+  const [eventId, setEventId] = useState<string>(""); const [evs, setEvs] = useState<{ id: string; title: string | null; day: string | null; day_label: string | null }[]>([]);
   const [peers, setPeers] = useState<{ id: string; name: string }[]>([]);
   const [savedAt, setSavedAt] = useState<string>("");
   const [versions, setVersions] = useState<Version[]>([]);
@@ -126,6 +140,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
       setTags((it.hashtags || []).join(", ")); setStatus(it.status); setNote(it.review_note || "");
       setSched(it.scheduled_for ? new Date(it.scheduled_for).toISOString().slice(0, 16) : "");
       setPub({ edit: it.canva_edit_url ?? null, png: it.export_url ?? null, live: it.published_url ?? null });
+      setEventId(it.event_id ?? "");
     });
     loadVersions();
 
@@ -147,6 +162,13 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
     chRef.current = ch;
     return () => { cancelled = true; supabase?.removeChannel(ch); };
   }, [id, me.id, me.name, loadVersions]);
+
+  // Events for the relational link (upcoming + a little past).
+  useEffect(() => {
+    if (!supabase) return;
+    const since = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
+    supabase.from("events").select("id, title, day, day_label").is("archived_at", null).gte("day", since).order("day").limit(60).then(({ data }) => setEvs(data ?? []));
+  }, []);
 
   const persist = useCallback(async (patch: Record<string, any>) => {
     if (!supabase) return;
@@ -257,6 +279,20 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
     await persist({ [field]: value });
   };
 
+  // ── Relational helpers: when a piece is tied to an event, plan the campaign around it ──
+  const linkedEv = evs.find((e) => e.id === eventId);
+  const scheduleRel = async (offsetDays: number) => {
+    if (!linkedEv?.day) return;
+    const [y, m, d] = linkedEv.day.split("-").map(Number);
+    const dt = new Date(y, m - 1, d + offsetDays, 9, 0);
+    setSched(dt.toISOString().slice(0, 16));
+    await persist({ scheduled_for: dt.toISOString() });
+  };
+  const briefFromEvent = () => {
+    if (!linkedEv) return;
+    setBrief(`Promote ${linkedEv.title || "our event"}${linkedEv.day_label ? ` (${linkedEv.day_label})` : ""}. Education-first — lead with the why, sell by talking less.`);
+  };
+
   if (!item) return <div className="adm-sec"><div className="oa-empty">Loading…</div></div>;
 
   return (
@@ -273,7 +309,26 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
       <div className="studio-meta">
         <select className="insp-in" value={item.kind} onChange={(e) => setMeta("kind", e.target.value)}>{KINDS.map((k) => <option key={k} value={k}>{k}</option>)}</select>
         <select className="insp-in" value={item.channel} onChange={(e) => setMeta("channel", e.target.value)}>{CHANNELS.map((c) => <option key={c} value={c}>{c}</option>)}</select>
+        <select className="insp-in" value={eventId} onChange={(e) => { setEventId(e.target.value); persist({ event_id: e.target.value || null }); }} title="Link this piece to an event (optional)">
+          <option value="">🔗 No event</option>
+          {evs.map((ev) => <option key={ev.id} value={ev.id}>🔗 {ev.day_label || ev.day || ""} · {ev.title || "Event"}</option>)}
+        </select>
       </div>
+
+      {linkedEv && (
+        <div className="studio-rel">
+          <span className="studio-rel-l">🔗 Tied to <b>{linkedEv.title || "Event"}</b>{linkedEv.day_label ? ` · ${linkedEv.day_label}` : ""}</span>
+          <div className="studio-rel-chips">
+            <span className="studio-rel-cap">Schedule:</span>
+            <button type="button" onClick={() => scheduleRel(-7)}>−1 wk</button>
+            <button type="button" onClick={() => scheduleRel(-3)}>Teaser −3d</button>
+            <button type="button" onClick={() => scheduleRel(-1)}>Day before</button>
+            <button type="button" onClick={() => scheduleRel(0)}>Day of</button>
+            <button type="button" onClick={() => scheduleRel(1)}>Recap +1d</button>
+            <button type="button" className="rel-draft" onClick={briefFromEvent}>✨ Draft from event</button>
+          </div>
+        </div>
+      )}
 
       <input className="studio-title" value={title} onChange={(e) => edit("title", e.target.value)} placeholder="Title" />
       <input className="studio-hook" value={hook} onChange={(e) => edit("hook", e.target.value)} placeholder="Hook — the scroll-stopping first line" />
