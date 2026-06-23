@@ -1028,30 +1028,35 @@ function LiveControl() {
   };
   const pause = async () => {
     // Going offline closes out the current stop: it's archived off the live screen and the
-    // next stop on the route is queued. Confirm since it drops the truck for every customer.
+    // next stop on the route becomes the visible "next". Confirm — it drops the truck for all.
     const finished = stops.find((s) => s.id === live?.current_stop_id) ?? null;
     const next = stops.find((s) => !s.archived_at && s.status !== "done" && s.id !== finished?.id) ?? null;
     const msg = finished
-      ? `Close out ${finished.name} and go offline?\n\nIt gets archived off the live screen${next ? `, and ${next.name} is queued up next` : ""}. Customers stop seeing the truck as live.`
+      ? `Close out ${finished.name} and go offline?\n\nIt gets archived off the live screen${next ? `, and ${next.name} is up next` : ""}. Customers stop seeing the truck as live.`
       : "Take the truck OFFLINE?\n\nCustomers will immediately stop seeing it as live on the Truck page.";
     if (typeof window !== "undefined" && !window.confirm(msg)) return;
     stopBroadcast();
-    setLive((l) => (l ? { ...l, is_live: false, current_stop_id: next?.id ?? null } : { id: 1, current_stop_id: next?.id ?? null, is_live: false, next_eta: null }));
-    // .select() so we KNOW the row actually changed — RLS can filter a write to 0 rows
-    // with NO error (the "false success" bug). If it didn't persist, say so loudly.
-    const { data, error } = await supabase!.from("live_status")
-      .update({ is_live: false, current_stop_id: next?.id ?? null, truck_lat: null, truck_lng: null, pos_updated_at: null })
-      .eq("id", 1).select("is_live");
-    if (error) { setErr(error.message); toast(`Couldn't go offline — ${error.message}`, "error"); load(); return; }
-    if (!data || data.length === 0 || data[0].is_live !== false) {
-      setErr("Go offline didn't persist — your account lacks owner write access (RLS). Run: update profiles set role='owner' where is_admin.");
-      toast("Go offline didn't save — your role lacks write access (see banner).", "error");
-      load(); return;
+    setLive((l) => (l ? { ...l, is_live: false, current_stop_id: null, truck_lat: null, truck_lng: null, pos_updated_at: null } : { id: 1, current_stop_id: null, is_live: false, next_eta: null }));
+    // Authoritative, atomic go-offline via the SECURITY-DEFINER RPC — clears is_live,
+    // current_stop_id and the live position, and demotes the live stop, all server-side.
+    // (Replaces the piecemeal client writes that could report success without sticking.)
+    const { error } = await supabase!.rpc("admin_set_offline");
+    if (error) {
+      setErr(error.message);
+      toast(error.message.includes("not authorized") ? "Go offline failed — your account isn't an owner/admin." : `Couldn't go offline — ${error.message}`, "error");
+      load();
+      return;
     }
-    await supabase!.from("stops").update({ status: "upcoming" }).eq("status", "live");
     // Archive the just-finished stop off the live screen (record kept).
     if (finished) await supabase!.from("stops").update({ status: "done", archived_at: new Date().toISOString() }).eq("id", finished.id);
-    toast(next ? `Offline — ${next.name} queued next` : "Truck is offline");
+    // Verify against the source of truth — never claim offline if it didn't take.
+    const { data: chk } = await supabase!.from("live_status").select("is_live").eq("id", 1).maybeSingle();
+    if (chk && (chk as { is_live: boolean }).is_live === true) {
+      setErr("Go offline didn't persist — confirm your owner role (RLS).");
+      toast("Go offline didn't save — see banner.", "error");
+    } else {
+      toast(next ? `Offline — ${next.name} is next` : "Truck is offline");
+    }
     load();
   };
   // One-shot pin of this phone's GPS as the truck's live position.
