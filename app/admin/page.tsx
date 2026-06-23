@@ -8,6 +8,7 @@ import { useOperatorSection, sectionsForRole, type OpSection } from "@/component
 import TrailerLoadout from "@/components/TrailerLoadout";
 import GearLibrary from "@/components/GearLibrary";
 import InventoryLibrary from "@/components/InventoryLibrary";
+import Reports from "@/components/Reports";
 import SignIn from "@/components/SignIn";
 import { supabase } from "@/lib/supabase";
 import { subscribePush } from "@/lib/push";
@@ -2385,6 +2386,7 @@ export default function AdminPage() {
 
       {sec === "money" && isAdmin && (
         <>
+          <Reports />
           <ProductCatalog />
           <Subscribers />
           <SubInterest />
