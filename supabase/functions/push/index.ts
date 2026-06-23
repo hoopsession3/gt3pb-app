@@ -28,6 +28,24 @@ async function nameForUser(userId: string) {
   return firstName(data?.display_name);
 }
 
+// Post an alert card to the Teams channel (best-effort; skipped if no webhook / fyi tier).
+async function postTeams(severity: string, ttl: string, body: string) {
+  const teams = Deno.env.get("TEAMS_WEBHOOK_URL");
+  if (!teams || severity === "fyi") return;
+  const themeColor = severity === "critical" ? "D2554A" : "A97C3F";
+  const flag = severity === "critical" ? "🔴 " : "🟠 ";
+  try {
+    await fetch(teams, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ "@type": "MessageCard", "@context": "https://schema.org/extensions", themeColor, summary: ttl, title: flag + ttl, text: body || "" }),
+    });
+  } catch (_e) { /* never fail on a channel error */ }
+}
+// Drop a row in the in-app inbox (service role bypasses RLS — these are system-raised).
+async function insertAlert(a: { severity: string; category: string; title: string; body?: string; link?: string }) {
+  await supabase.from("alerts").insert({ severity: a.severity, category: a.category, title: a.title, body: a.body ?? null, link: a.link ?? "/admin" });
+}
+
 Deno.serve(async (req) => {
   try {
     const { table, type, record, old_record } = await req.json();
@@ -70,9 +88,12 @@ Deno.serve(async (req) => {
 
     } else if (table === "booking_requests" && type === "INSERT") {
       title = "New booking request";
-      message = `${record.name ?? "Someone"}${record.event_date ? " - " + record.event_date : ""}`;
+      message = `${record.name ?? "Someone"}${record.event_date ? " - " + record.event_date : ""}${record.location_text ? " - " + record.location_text : ""}`;
       url = "/admin";
       targets = await subsFor((q) => q.eq("is_admin", true));
+      // Producer: a new lead → inbox + Teams so it's chased before it goes cold.
+      await insertAlert({ severity: "important", category: "booking", title: "New booking lead", body: message });
+      await postTeams("important", "New booking lead", message);
 
     } else if (table === "event_tasks" && type === "UPDATE" && record.assignee) {
       // Crew assignment → tell the assigned member they're on a task. Only on a real
@@ -96,26 +117,9 @@ Deno.serve(async (req) => {
     } else if (table === "alerts" && type === "INSERT") {
       // Alert spine (0050) — fan one alert out to the chosen channels by severity.
       const sev = record.severity || "important";
-      // 1) Teams: post critical + important to the channel webhook (free; the chosen channel).
-      const teams = Deno.env.get("TEAMS_WEBHOOK_URL");
-      if (teams && sev !== "fyi") {
-        // Classic Incoming Webhook (MessageCard). If you wired a Power Automate "Workflows"
-        // webhook instead, it expects an Adaptive Card — say so and I'll switch the shape.
-        const themeColor = sev === "critical" ? "D2554A" : "A97C3F";
-        const flag = sev === "critical" ? "🔴 " : "🟠 ";
-        try {
-          await fetch(teams, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              "@type": "MessageCard", "@context": "https://schema.org/extensions",
-              themeColor, summary: record.title,
-              title: flag + record.title,
-              text: record.body || "",
-            }),
-          });
-        } catch (_e) { /* best effort — never fail the alert on a channel error */ }
-      }
+      // 1) Teams (classic Incoming Webhook / MessageCard). If you wired a Power Automate
+      // "Workflows" webhook instead, it expects an Adaptive Card — say so and I'll switch it.
+      await postTeams(sev, record.title, record.body || "");
       // 2) Web push: to the target user, or all leadership when there's no specific target.
       title = (sev === "critical" ? "Critical — " : "") + record.title;
       message = record.body || "";

@@ -1430,3 +1430,33 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .task-discuss:active,.alert-discuss:active{opacity:1}
 .alert-row{display:flex;align-items:center;gap:10px}
 .adm-task-wrap,.note-fu-wrap{display:block}
+
+/* ── input sheet (focused guided entry; keeps context above visible) ── */
+.isheet-scrim{position:fixed;inset:0;background:rgba(0,0,0,.34);z-index:60;animation:isheet-fade .15s ease}
+@keyframes isheet-fade{from{opacity:0}to{opacity:1}}
+.isheet{position:fixed;left:0;right:0;bottom:0;z-index:61;background:#16130c;border-top-left-radius:20px;border-top-right-radius:20px;border:1px solid var(--line2);border-bottom:none;padding:8px 16px calc(18px + env(safe-area-inset-bottom));box-shadow:0 -10px 40px rgba(0,0,0,.5);animation:isheet-up .2s cubic-bezier(.2,.8,.2,1)}
+@keyframes isheet-up{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.isheet-grab{width:38px;height:4px;border-radius:2px;background:var(--line2);margin:6px auto 10px}
+.isheet-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.isheet-x{background:none;border:none;color:var(--cream-m);font-family:'Inter';font-size:14px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.isheet-title{font-family:'Inter';font-weight:600;font-size:15px;color:var(--cream)}
+.isheet-done{background:none;border:none;color:var(--gold2);font-family:'Inter';font-weight:700;font-size:15px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.isheet-done:disabled{opacity:.4}
+.isheet-in{width:100%;background:rgba(0,0,0,.3);border:1px solid var(--line2);border-radius:12px;padding:16px;color:var(--cream);font-family:'Inter';font-size:22px;text-align:center;outline:none}
+.isheet-in:focus{border-color:var(--gold2)}
+.isheet-in::placeholder{color:rgba(245,241,232,.26)}
+.isheet-area{font-size:16px;text-align:left;line-height:1.5;resize:vertical;min-height:90px}
+.isheet-hint{font-family:'Inter';font-size:12.5px;color:var(--cream-m);text-align:center;margin-top:11px;line-height:1.45}
+.isheet-help{display:block;margin:12px auto 2px;background:none;border:none;color:var(--gold2);font-family:'Inter';font-weight:600;font-size:12.5px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.isheet-help-i{opacity:.8}
+.isheet-help-detail{font-family:'Inter';font-size:12.5px;color:var(--cream-m);line-height:1.55;background:rgba(0,0,0,.22);border:1px solid var(--line);border-radius:11px;padding:11px 13px;margin-top:8px}
+.isheet-help-detail b{color:var(--cream)}
+/* tappable field that opens an input sheet */
+.ev-fieldbtn{width:100%;display:flex;align-items:center;gap:10px;background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:10px;padding:12px 13px;margin-top:8px;cursor:pointer;-webkit-appearance:none;appearance:none;text-align:left}
+.ev-fieldbtn-l{flex:0 0 auto;font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--cream-m)}
+.ev-fieldbtn-v{flex:1;min-width:0;font-family:'Inter';font-size:15px;color:var(--cream);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ev-fieldbtn-v.ph{color:rgba(245,241,232,.34)}
+.ev-fieldbtn-chev{flex:0 0 auto;color:var(--gold2);font-size:16px}
+/* comment-count badge on a 💬 toggle */
+.cmt-count{display:inline-block;min-width:15px;margin-left:3px;padding:0 4px;background:var(--gold);color:#1a1610;font-family:'Inter';font-weight:700;font-size:10px;line-height:15px;text-align:center;border-radius:8px;vertical-align:middle}
+.cmt-del{background:none;border:none;color:var(--cream-m);font-size:14px;line-height:1;padding:0 2px;margin-left:6px;cursor:pointer;-webkit-appearance:none;appearance:none}
