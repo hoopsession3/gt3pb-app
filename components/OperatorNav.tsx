@@ -9,7 +9,7 @@ import BottomNav from "./BottomNav";
 // shared (context) so the nav (rendered in the shell) and the page content stay
 // in sync; persisted so you return to the same section.
 
-export type OpSection = "now" | "prep" | "plan" | "money" | "team";
+export type OpSection = "now" | "ask" | "prep" | "plan" | "money" | "team";
 
 const Ctx = createContext<{ section: OpSection; setSection: (s: OpSection) => void }>({ section: "now", setSection: () => {} });
 export const useOperatorSection = () => useContext(Ctx);
@@ -18,7 +18,7 @@ export function OperatorSectionProvider({ children }: { children: React.ReactNod
   const [section, setSectionState] = useState<OpSection>("now");
   useEffect(() => {
     const s = typeof window !== "undefined" ? localStorage.getItem("gt3-op-section") : null;
-    if (s === "now" || s === "prep" || s === "plan" || s === "money" || s === "team") setSectionState(s);
+    if (s === "now" || s === "ask" || s === "prep" || s === "plan" || s === "money" || s === "team") setSectionState(s);
   }, []);
   const setSection = useCallback((s: OpSection) => {
     setSectionState(s);
@@ -33,23 +33,24 @@ const rawRole = (p: { role?: string | null; is_admin?: boolean } | null): string
 
 // which sections each role gets — and in what order
 const ROLE_SECTIONS: Record<string, OpSection[]> = {
-  server: ["now"],
-  contractor: ["now", "prep"],
-  operator: ["now", "prep"],
-  event_manager: ["now", "prep", "plan"],
-  admin: ["now", "prep", "plan", "money", "team"],
-  owner: ["now", "prep", "plan", "money", "team"],
+  server: ["now", "ask"],
+  contractor: ["now", "ask", "prep"],
+  operator: ["now", "ask", "prep"],
+  event_manager: ["now", "ask", "prep", "plan"],
+  admin: ["now", "ask", "prep", "plan", "money", "team"],
+  owner: ["now", "ask", "prep", "plan", "money", "team"],
 };
 export const sectionsForRole = (role: string): OpSection[] => ROLE_SECTIONS[role] ?? ["now"];
 
 const ICONS: Record<OpSection, React.ReactNode> = {
   now: <path d="M13 2 4 14h7l-1 8 9-12h-7z" />,
+  ask: <><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.6-.8L3 21l1.8-5.9A8.5 8.5 0 1 1 21 11.5z" /><path d="M12 7v.5M12 11v3" /></>,
   prep: <><rect x="6" y="4" width="12" height="17" rx="2" /><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1" /><path d="M9 12l2 2 4-4" /></>,
   plan: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></>,
   money: <><circle cx="12" cy="12" r="9" /><path d="M12 7v10M9.5 9.5c0-1 1-1.6 2.5-1.6s2.5.6 2.5 1.6-1 1.5-2.5 1.5-2.5.5-2.5 1.5 1 1.6 2.5 1.6 2.5-.6 2.5-1.6" /></>,
   team: <><circle cx="9" cy="8" r="3" /><path d="M3 20c0-3 3-5 6-5s6 2 6 5" /><path d="M16 5.2a3 3 0 0 1 0 5.6M21 20c0-2.4-1.8-4-4-4.6" /></>,
 };
-const LABELS: Record<OpSection, string> = { now: "Now", prep: "Prep", plan: "Plan", money: "Money", team: "Team" };
+const LABELS: Record<OpSection, string> = { now: "Now", ask: "Ask", prep: "Prep", plan: "Plan", money: "Money", team: "Team" };
 
 export default function OperatorNav() {
   const { profile } = useAuth();
