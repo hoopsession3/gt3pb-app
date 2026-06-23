@@ -364,7 +364,8 @@ function EventPrepDetail({ eventId, onBack }: { eventId: string; onBack: () => v
   const [ev, setEv] = useState<EventRow | null>(null);
   const [tasks, setTasks] = useState<EventTask[]>([]);
   const [crew, setCrew] = useState<{ id: string; user_id: string; role_label: string | null }[]>([]);
-  const [staff, setStaff] = useState<{ id: string; display_name: string | null }[]>([]);
+  const [staff, setStaff] = useState<{ id: string; display_name: string | null; role?: string | null }[]>([]);
+  const [approvals, setApprovals] = useState<{ approver_id: string }[]>([]);
   const [newTask, setNewTask] = useState("");
   const [generating, setGenerating] = useState(false);
   const [assignFor, setAssignFor] = useState<EventTask | null>(null);
@@ -376,17 +377,19 @@ function EventPrepDetail({ eventId, onBack }: { eventId: string; onBack: () => v
     const target = (e as EventRow) ?? null;
     setEv(target);
     if (!target) { setTasks([]); setCrew([]); return; }
-    const [{ data: t }, { data: c }] = await Promise.all([
+    const [{ data: t }, { data: c }, { data: ap }] = await Promise.all([
       supabase.from("event_tasks").select("*").eq("event_id", target.id).order("sort"),
       supabase.from("event_staff").select("id, user_id, role_label").eq("event_id", target.id),
+      supabase.from("event_approvals").select("approver_id").eq("event_id", target.id), // may not exist pre-0038
     ]);
     // Dedupe defensively — past double-generates left duplicate rows in the DB.
     const seen = new Set<string>();
     setTasks(((t as EventTask[]) ?? []).filter((x) => { const k = `${x.section ?? ""}|${x.label}`; if (seen.has(k)) return false; seen.add(k); return true; }));
     setCrew((c as { id: string; user_id: string; role_label: string | null }[]) ?? []);
+    setApprovals((ap as { approver_id: string }[]) ?? []);
     if (isAdmin) {
       const { data: p } = await supabase.from("profiles").select("id, display_name, role").neq("role", "member");
-      setStaff((p as { id: string; display_name: string | null }[]) ?? []);
+      setStaff((p as { id: string; display_name: string | null; role?: string | null }[]) ?? []);
     }
   }, [eventId, isAdmin]);
   useEffect(() => {
@@ -395,6 +398,7 @@ function EventPrepDetail({ eventId, onBack }: { eventId: string; onBack: () => v
     const ch = supabase.channel("admin-eventprep")
       .on("postgres_changes", { event: "*", schema: "public", table: "event_tasks" }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "event_staff" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "event_approvals" }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "events" }, () => load())
       .subscribe();
     return () => { supabase?.removeChannel(ch); };
@@ -478,6 +482,30 @@ function EventPrepDetail({ eventId, onBack }: { eventId: string; onBack: () => v
     toast(error ? `Error: ${error.message}` : `Added ${rows.length} suppl${rows.length === 1 ? "y" : "ies"}`);
     if (!error) load();
   };
+  // Tag/untag a crew member as a manager — managers must approve the prep too.
+  const setManager = async (crewRowId: string, makeMgr: boolean) => {
+    if (!supabase) return;
+    await supabase.from("event_staff").update({ role_label: makeMgr ? "manager" : null }).eq("id", crewRowId);
+    load();
+  };
+  const toggleApproval = async (mine: boolean) => {
+    if (!user || !supabase || !ev) return;
+    if (mine) {
+      await supabase.from("event_approvals").delete().eq("event_id", ev.id).eq("approver_id", user.id);
+      toast("Approval withdrawn");
+    } else {
+      const { error } = await supabase.from("event_approvals").insert({ event_id: ev.id, approver_id: user.id });
+      toast(error ? `Error: ${error.message}` : "Prep approved");
+    }
+    load();
+  };
+  const requestSignoff = (approverIds: string[]) => {
+    if (!ev || !supabase || approverIds.length === 0) { toast("Everyone's already approved"); return; }
+    toast("Sign-off requested");
+    supabase.functions
+      .invoke("push", { body: { table: "event_approval_request", type: "INSERT", record: { event_id: ev.id, title: ev.title, approver_ids: approverIds } } })
+      .catch(() => {});
+  };
 
   if (!ev) return (
     <div className="adm-sec adm-prep">
@@ -489,6 +517,19 @@ function EventPrepDetail({ eventId, onBack }: { eventId: string; onBack: () => v
   const critOut = tasks.filter((t) => t.critical && !t.done);
   const ready = total > 0 && doneN === total;
   const sections = [...new Set(tasks.map((t) => t.section ?? "Task"))];
+
+  // Sign-off: an owner + every tagged manager must approve. Editing checklist content
+  // re-opens it (DB trigger). Checking items / assigning crew does NOT re-open.
+  const managers = crew.filter((c) => c.role_label === "manager");
+  const approvedIds = new Set(approvals.map((a) => a.approver_id));
+  const ownerApproved = approvals.some((a) => staff.find((s) => s.id === a.approver_id)?.role === "owner");
+  const ownerIds = staff.filter((s) => s.role === "owner").map((s) => s.id);
+  const fullyApproved = ownerApproved && managers.every((m) => approvedIds.has(m.user_id));
+  const approvedCount = (ownerApproved ? 1 : 0) + managers.filter((m) => approvedIds.has(m.user_id)).length;
+  const isOwner = roleOf(profile) === "owner";
+  const iAmRequired = !!user && (isOwner || managers.some((m) => m.user_id === user.id));
+  const iApproved = !!user && approvedIds.has(user.id);
+  const pendingApprovers = [...new Set([...managers.map((m) => m.user_id), ...ownerIds])].filter((id) => !approvedIds.has(id));
 
   return (
     <div className="adm-sec adm-prep">
@@ -514,11 +555,40 @@ function EventPrepDetail({ eventId, onBack }: { eventId: string; onBack: () => v
 
       {isAdmin && (
         <div className="adm-crew-row">
-          {crew.map((c) => <button key={c.id} className="adm-crew-chip" onClick={() => removeCrew(c.id)} title="Remove">{nameOf(c.user_id)} ✕</button>)}
+          {crew.map((c) => {
+            const mgr = c.role_label === "manager";
+            return (
+              <span key={c.id} className={`adm-crew-chip${mgr ? " mgr" : ""}`}>
+                <button type="button" className="crew-mgr" onClick={() => setManager(c.id, !mgr)} title={mgr ? "Remove manager" : "Make manager (must approve)"} aria-label={mgr ? "Remove manager" : "Make manager"}>{mgr ? "★" : "☆"}</button>
+                <span className="crew-name">{nameOf(c.user_id)}</span>
+                <button type="button" className="crew-x" onClick={() => removeCrew(c.id)} aria-label="Remove from crew">✕</button>
+              </span>
+            );
+          })}
           <select className="adm-role" value="" onChange={(e) => { addCrew(e.target.value); e.target.value = ""; }} aria-label="Add crew">
             <option value="">+ crew</option>
             {staff.filter((s) => !crew.some((c) => c.user_id === s.id)).map((s) => <option key={s.id} value={s.id}>{s.display_name ?? "—"}</option>)}
           </select>
+        </div>
+      )}
+
+      {total > 0 && (
+        <div className={`adm-approve${fullyApproved ? " ok" : ""}`}>
+          <div className="adm-approve-h">
+            <b>{fullyApproved ? "Prep approved" : "Prep sign-off"}</b>
+            <span>{approvedCount}/{1 + managers.length} approved</span>
+          </div>
+          <div className="adm-approve-rows">
+            <div className={`adm-approve-row${ownerApproved ? " done" : ""}`}><span>Owner</span><span className="adm-approve-mark">{ownerApproved ? "✓" : "—"}</span></div>
+            {managers.map((m) => (
+              <div key={m.id} className={`adm-approve-row${approvedIds.has(m.user_id) ? " done" : ""}`}><span>{firstNameOf(m.user_id)} · mgr</span><span className="adm-approve-mark">{approvedIds.has(m.user_id) ? "✓" : "—"}</span></div>
+            ))}
+          </div>
+          <div className="adm-approve-actions">
+            {iAmRequired && <button className={`adm-btn${iApproved ? " ghost" : " primary"}`} onClick={() => toggleApproval(iApproved)}>{iApproved ? "Withdraw approval" : "Approve prep"}</button>}
+            {isAdmin && !fullyApproved && pendingApprovers.length > 0 && <button className="adm-btn ghost" onClick={() => requestSignoff(pendingApprovers)}>Request sign-off</button>}
+          </div>
+          {managers.length === 0 && <div className="h-sub" style={{ marginTop: 6 }}>Tag a crew member ★ as manager to require their approval too.</div>}
         </div>
       )}
 

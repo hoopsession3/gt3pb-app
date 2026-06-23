@@ -1128,6 +1128,28 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .assign-row:disabled{opacity:.5;cursor:default}
 .assign-row .task-box{flex:0 0 auto}
 .task-box.on{background:var(--gold2);border-color:var(--gold2)}
+/* crew chips with manager tag */
+.admin .adm-crew-chip{padding:6px 6px 6px 4px}
+.adm-crew-chip.mgr{background:rgba(184,36,32,.16);color:#e7b6b3}
+.adm-crew-chip .crew-mgr{background:none;border:none;color:var(--gold2);font-size:14px;cursor:pointer;padding:0 2px;-webkit-appearance:none;appearance:none}
+.adm-crew-chip.mgr .crew-mgr{color:var(--red)}
+.adm-crew-chip .crew-name{padding:0 2px}
+.adm-crew-chip .crew-x{background:none;border:none;color:inherit;opacity:.6;font-size:12px;cursor:pointer;padding:0 3px;-webkit-appearance:none;appearance:none}
+
+/* prep sign-off (owner + managers) */
+.adm-approve{margin-top:12px;background:var(--card);border:1px solid var(--line2);border-radius:14px;padding:13px 15px}
+.adm-approve.ok{border-color:rgba(106,160,92,.5);background:rgba(106,160,92,.1)}
+.adm-approve-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.adm-approve-h b{font-family:'Inter';font-weight:650;font-size:14px;color:var(--cream)}
+.adm-approve.ok .adm-approve-h b{color:#bfe0b3}
+.adm-approve-h span{font-family:'DM Mono';font-size:11px;color:var(--cream-m)}
+.adm-approve-rows{margin:9px 0 11px;display:flex;flex-direction:column;gap:5px}
+.adm-approve-row{display:flex;align-items:center;justify-content:space-between;font-family:'Inter';font-size:13px;color:var(--cream-m)}
+.adm-approve-row.done{color:var(--cream)}
+.adm-approve-mark{font-weight:700;color:var(--cream-m)}
+.adm-approve-row.done .adm-approve-mark{color:var(--ok)}
+.adm-approve-actions{display:flex;gap:9px;flex-wrap:wrap}
+
 /* supply picker */
 .adm-prep-actions{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-top:8px}
 .supply-list{max-height:42vh;overflow-y:auto;margin:4px 0}
