@@ -12,6 +12,7 @@ import Reports from "@/components/Reports";
 import SnapshotReport from "@/components/SnapshotReport";
 import EventPnlReport from "@/components/EventPnlReport";
 import SignIn from "@/components/SignIn";
+import InputSheet from "@/components/InputSheet";
 import { supabase } from "@/lib/supabase";
 import { subscribePush } from "@/lib/push";
 import { chime, unlockAudio } from "@/lib/chime";
@@ -24,7 +25,7 @@ import { projectEvent, reconcile, DEFAULT_ECON, type EventEcon, type ProductEcon
 import { buildBrief } from "@/lib/eventbrief";
 import { fetchInventory, inventoryForEvent, rollupLowStock, type InventoryResp, type InvItem } from "@/lib/inventory";
 import { fetchAssets, type AssetsResp } from "@/lib/assets";
-import type { Stop, LiveStatus, EventRow, EventTask, BookingRequest, Order, Reserve, Subscription, Vendor, MeetingNote, Alert } from "@/lib/db";
+import type { Stop, LiveStatus, EventRow, EventTask, BookingRequest, Order, Reserve, Subscription, Vendor, MeetingNote, Alert, Comment } from "@/lib/db";
 
 // money helpers for the economics panels
 const usd = (cents: number) => `$${(cents / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
@@ -251,21 +252,38 @@ async function raiseAlert(a: {
   supabase.functions.invoke("push", { body: { table: "alerts", type: "INSERT", record: data } }).catch(() => {});
 }
 
+// How many comments hang off each subject — drives the count badge on a 💬 toggle so activity is
+// visible at a glance without opening every thread (organization/management at scale).
+async function commentCounts(col: "event_task_id" | "meeting_note_id" | "alert_id", ids: string[]): Promise<Record<string, number>> {
+  if (!supabase || ids.length === 0) return {};
+  const { data } = await supabase.from("comments").select(col).in(col, ids);
+  const out: Record<string, number> = {};
+  for (const r of (data ?? []) as Record<string, string | null>[]) { const k = r[col]; if (k) out[k] = (out[k] ?? 0) + 1; }
+  return out;
+}
+
 // The "don't-miss" inbox — unacknowledged alerts for me (or all-leadership), critical first.
 // Realtime, so a new alert lands at the top of the Now screen the instant it's raised.
 function AlertsInbox({ userId }: { userId: string | null }) {
+  const { profile } = useAuth();
+  const meName = profile?.display_name?.trim() || "Me";
   const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [openThread, setOpenThread] = useState<string | null>(null);
+  const [counts, setCounts] = useState<Record<string, number>>({});
 
   const load = useCallback(async () => {
     if (!supabase) return;
     const { data } = await supabase.from("alerts").select("*").is("ack_at", null).order("created_at", { ascending: false }).limit(50);
-    setAlerts((data as Alert[]) ?? []);
+    const rows = (data as Alert[]) ?? [];
+    setAlerts(rows);
+    setCounts(await commentCounts("alert_id", rows.map((r) => r.id)));
   }, []);
   useEffect(() => {
     load();
     if (!supabase) return;
     const ch = supabase.channel("admin-alerts")
       .on("postgres_changes", { event: "*", schema: "public", table: "alerts" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "comments" }, () => load())
       .subscribe();
     return () => { supabase?.removeChannel(ch); };
   }, [load]);
@@ -288,13 +306,102 @@ function AlertsInbox({ userId }: { userId: string | null }) {
       <div className="sec">Alerts <span className={`adm-pill${crit ? " due" : ""}`}>{mine.length}{crit ? ` · ${crit} critical` : ""}</span></div>
       {sorted.map((a) => (
         <div key={a.id} className={`alert sev-${a.severity}`}>
-          <div className="alert-main">
-            <span className="alert-title">{a.title}</span>
-            {a.body && <span className="alert-body">{a.body}</span>}
+          <div className="alert-row">
+            <div className="alert-main">
+              <span className="alert-title">{a.title}</span>
+              {a.body && <span className="alert-body">{a.body}</span>}
+            </div>
+            <button type="button" className="alert-discuss" onClick={() => setOpenThread(openThread === a.id ? null : a.id)} aria-label="Discuss">💬{counts[a.id] ? <span className="cmt-count">{counts[a.id]}</span> : null}</button>
+            <button type="button" className="alert-ack" onClick={() => ack(a)}>Got it</button>
           </div>
-          <button type="button" className="alert-ack" onClick={() => ack(a)}>Got it</button>
+          {openThread === a.id && (
+            <CommentThread subject={{ col: "alert_id", id: a.id }} notifyIds={[a.target_user_id, a.created_by]} label={a.title} meId={userId} meName={meName} />
+          )}
         </div>
       ))}
+    </div>
+  );
+}
+
+// ───────────────────────── discussion threads (two-way collaboration) ─────────────────────────
+// One reusable thread, keyed to any subject (a task, a meeting note, or an alert). A new reply
+// notifies the counterparties + anyone @mentioned through the alert spine (push + inbox + Teams),
+// so the back-and-forth lives in the app instead of Teams/text.
+function CommentThread({ subject, notifyIds, label, meId, meName }: {
+  subject: { col: "event_task_id" | "meeting_note_id" | "alert_id"; id: string };
+  notifyIds: (string | null)[];
+  label: string;
+  meId: string | null;
+  meName: string;
+}) {
+  const { toast } = useApp();
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [staff, setStaff] = useState<{ id: string; display_name: string | null }[]>([]);
+  const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!supabase) return;
+    const { data } = await supabase.from("comments").select("*").eq(subject.col, subject.id).order("created_at");
+    setComments((data as Comment[]) ?? []);
+  }, [subject.col, subject.id]);
+  useEffect(() => {
+    load();
+    if (!supabase) return;
+    supabase.from("profiles").select("id, display_name").neq("role", "member").then(({ data }) => setStaff((data as { id: string; display_name: string | null }[]) ?? []));
+    const ch = supabase.channel(`comments-${subject.col}-${subject.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "comments", filter: `${subject.col}=eq.${subject.id}` }, () => load())
+      .subscribe();
+    return () => { supabase?.removeChannel(ch); };
+  }, [load, subject.col, subject.id]);
+
+  const nameOf = (uid: string | null) => (uid && uid === meId ? "You" : (staff.find((s) => s.id === uid)?.display_name?.trim() || "Crew"));
+  const firstOf = (uid: string | null) => nameOf(uid).split(" ")[0];
+
+  const send = async () => {
+    if (!supabase || !text.trim() || sending) return;
+    setSending(true);
+    const sent = text.trim();
+    // @firstname → user id (case-insensitive). Lightweight; good enough for a small crew.
+    const lower = sent.toLowerCase();
+    const mentionIds = staff.filter((s) => { const fn = (s.display_name || "").trim().split(" ")[0].toLowerCase(); return fn.length > 1 && lower.includes("@" + fn); }).map((s) => s.id);
+    const { error } = await supabase.from("comments").insert({ [subject.col]: subject.id, body: sent, author_id: meId, mentions: mentionIds });
+    setSending(false);
+    if (error) { toast(`Error: ${error.message}`, "error"); return; }
+    setText("");
+    load();
+    // Ping the counterparties + mentions (never myself) so the reply doesn't go unseen.
+    const recips = Array.from(new Set([...notifyIds, ...mentionIds])).filter((id): id is string => !!id && id !== meId);
+    const meFirst = meName.split(" ")[0] || "Someone";
+    recips.forEach((rid) => raiseAlert({
+      severity: "important", category: "comment",
+      title: `${meFirst} replied`, body: `${label}: ${sent.slice(0, 140)}`,
+      target_user_id: rid, created_by: meId,
+    }));
+  };
+  const del = async (c: Comment) => {
+    if (!supabase) return;
+    setComments((p) => p.filter((x) => x.id !== c.id)); // optimistic; RLS allows author-only delete
+    await supabase.from("comments").delete().eq("id", c.id);
+  };
+
+  return (
+    <div className="cmt">
+      {comments.map((c) => (
+        <div key={c.id} className={`cmt-row${c.author_id === meId ? " me" : ""}`}>
+          <span className="cmt-av">{(nameOf(c.author_id).charAt(0) || "?").toUpperCase()}</span>
+          <div className="cmt-bub">
+            <span className="cmt-meta">{firstOf(c.author_id)} · {new Date(c.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+              {c.author_id === meId && <button type="button" className="cmt-del" onClick={() => del(c)} aria-label="Delete comment">×</button>}
+            </span>
+            <span className="cmt-body">{c.body}</span>
+          </div>
+        </div>
+      ))}
+      <div className="cmt-add">
+        <input className="note-in" placeholder="Reply… (@name to notify)" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }} />
+        <button type="button" className="note-fu-addbtn" onClick={send} disabled={!text.trim() || sending}>Send</button>
+      </div>
     </div>
   );
 }
@@ -551,6 +658,8 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   const [generating, setGenerating] = useState(false);
   const [assignFor, setAssignFor] = useState<EventTask | null>(null);
   const [showSupplies, setShowSupplies] = useState(false);
+  const [openThread, setOpenThread] = useState<string | null>(null);
+  const [counts, setCounts] = useState<Record<string, number>>({});
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -567,7 +676,9 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
     setLoadedOk(true);
     const { data: t } = await supabase.from("event_tasks").select("*").eq(ownerCol, target.id).order("sort");
     const seen = new Set<string>();
-    setTasks(((t as EventTask[]) ?? []).filter((x) => { const k = `${x.section ?? ""}|${x.label}`; if (seen.has(k)) return false; seen.add(k); return true; }));
+    const deduped = ((t as EventTask[]) ?? []).filter((x) => { const k = `${x.section ?? ""}|${x.label}`; if (seen.has(k)) return false; seen.add(k); return true; });
+    setTasks(deduped);
+    commentCounts("event_task_id", deduped.map((x) => x.id)).then(setCounts);
     // Crew + sign-off are event-only.
     if (isEvent) {
       const [{ data: c }, { data: ap }] = await Promise.all([
@@ -589,6 +700,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       .on("postgres_changes", { event: "*", schema: "public", table: "event_tasks" }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "event_staff" }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "event_approvals" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "comments" }, () => load())
       .subscribe();
     return () => { supabase?.removeChannel(ch); };
   }, [load]);
@@ -797,23 +909,29 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
         <div key={sec} className="adm-prep-sec">
           <div className="adm-prep-label">{sec}</div>
           {tasks.filter((t) => (t.section ?? "Task") === sec).map((t) => (
-            <div key={t.id} className={`adm-task${t.done ? " done" : ""}${t.critical ? " crit" : t.warn ? " warn" : ""}`}>
-              <button type="button" className="task-check" aria-pressed={t.done} onClick={() => toggle(t)} aria-label={`${t.done ? "Mark not loaded" : "Mark loaded"}: ${t.label}`}>
-                <span className="task-box">{t.done && <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7" /></svg>}</span>
-                <span className="task-label">{t.label}</span>
-              </button>
-              <div className="task-right">
-                {t.link && <a className="adm-task-link" href={t.link} target="_blank" rel="noopener noreferrer" aria-label="Open reference / application">↗</a>}
-                {isAdmin ? (
-                  <button type="button" className={`task-assign${t.assignee ? " set" : ""}`} onClick={() => setAssignFor(t)} aria-label={t.assignee ? `Reassign ${t.label} — currently ${staffName(t.assignee)}` : `Assign ${t.label} to crew`}>
-                    {t.assignee
-                      ? <><span className="task-assign-av">{initialOf(t.assignee)}</span><span className="task-assign-name">{firstNameOf(t.assignee)}</span></>
-                      : <span className="task-assign-add">+ Assign</span>}
-                  </button>
-                ) : t.assignee ? (
-                  <span className="task-assign set readonly"><span className="task-assign-av">{initialOf(t.assignee)}</span><span className="task-assign-name">{firstNameOf(t.assignee)}</span></span>
-                ) : null}
+            <div key={t.id} className="adm-task-wrap">
+              <div className={`adm-task${t.done ? " done" : ""}${t.critical ? " crit" : t.warn ? " warn" : ""}`}>
+                <button type="button" className="task-check" aria-pressed={t.done} onClick={() => toggle(t)} aria-label={`${t.done ? "Mark not loaded" : "Mark loaded"}: ${t.label}`}>
+                  <span className="task-box">{t.done && <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7" /></svg>}</span>
+                  <span className="task-label">{t.label}</span>
+                </button>
+                <div className="task-right">
+                  {t.link && <a className="adm-task-link" href={t.link} target="_blank" rel="noopener noreferrer" aria-label="Open reference / application">↗</a>}
+                  <button type="button" className="task-discuss" onClick={() => setOpenThread(openThread === t.id ? null : t.id)} aria-label={`Discuss ${t.label}`}>💬{counts[t.id] ? <span className="cmt-count">{counts[t.id]}</span> : null}</button>
+                  {isAdmin ? (
+                    <button type="button" className={`task-assign${t.assignee ? " set" : ""}`} onClick={() => setAssignFor(t)} aria-label={t.assignee ? `Reassign ${t.label} — currently ${staffName(t.assignee)}` : `Assign ${t.label} to crew`}>
+                      {t.assignee
+                        ? <><span className="task-assign-av">{initialOf(t.assignee)}</span><span className="task-assign-name">{firstNameOf(t.assignee)}</span></>
+                        : <span className="task-assign-add">+ Assign</span>}
+                    </button>
+                  ) : t.assignee ? (
+                    <span className="task-assign set readonly"><span className="task-assign-av">{initialOf(t.assignee)}</span><span className="task-assign-name">{firstNameOf(t.assignee)}</span></span>
+                  ) : null}
+                </div>
               </div>
+              {openThread === t.id && (
+                <CommentThread subject={{ col: "event_task_id", id: t.id }} notifyIds={[t.assignee]} label={t.label} meId={user?.id ?? null} meName={profile?.display_name?.trim() || "Me"} />
+              )}
             </div>
           ))}
         </div>
@@ -1009,6 +1127,7 @@ function StopControl({ s, index, isCur, open, onToggle, onGoLive, onArchive, onC
   const [name, setName] = useState(s.name);
   const [address, setAddress] = useState(s.address ?? "");
   const [busy, setBusy] = useState(false);
+  const [editAddr, setEditAddr] = useState(false);
   const hasCoords = s.lat != null && s.lng != null;
 
   // every update carries a WHERE (id) — safe with the safeupdate guard
@@ -1018,15 +1137,16 @@ function StopControl({ s, index, isCur, open, onToggle, onGoLive, onArchive, onC
     if (!error) onChanged();
   };
   const saveName = () => { const nm = name.trim(); if (nm && nm !== s.name) patch({ name: nm }, "Name saved"); };
-  const saveLocation = async () => {
-    const q = address.trim(); if (!q) return;
+  const saveLocation = async (): Promise<boolean> => {
+    const q = address.trim(); if (!q) return false;
     setBusy(true);
     const geo = await geocode(q);
-    if (!geo) { setBusy(false); toast("Couldn't find that address — add city & state, then retry."); return; }
+    if (!geo) { setBusy(false); toast("Couldn't find that address — add city & state, then retry."); return false; }
     const { error } = await supabase!.from("stops").update({ address: q, location_text: q, lat: geo.lat, lng: geo.lng }).eq("id", s.id);
     setBusy(false);
     toast(error ? `Error: ${error.message}` : "Location pinned — directions are now accurate");
     if (!error) onChanged();
+    return !error;
   };
   const remove = async () => {
     if (typeof window !== "undefined" && !window.confirm(`Delete ${s.name}? This removes the record.`)) return;
@@ -1062,11 +1182,23 @@ function StopControl({ s, index, isCur, open, onToggle, onGoLive, onArchive, onC
           <div className="ev-group">
             <div className="ev-group-h">Location</div>
             <input className="ev-input" value={name} onChange={(e) => setName(e.target.value)} onBlur={saveName} maxLength={120} placeholder="Location name" />
-            <div className="stop-addr">
-              <input className="ev-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Street address (for directions)" maxLength={300} />
-              <button className="ev-archive" onClick={saveLocation} disabled={busy || !address.trim()}>{busy ? "Finding…" : "Save"}</button>
-            </div>
+            <button type="button" className="ev-fieldbtn" onClick={() => setEditAddr(true)}>
+              <span className="ev-fieldbtn-l">Address</span>
+              <span className={`ev-fieldbtn-v${address.trim() ? "" : " ph"}`}>{address.trim() || "Tap to add — we'll pin it on the map"}</span>
+              <span className="ev-fieldbtn-chev">›</span>
+            </button>
             <div className={`stop-coords${hasCoords ? " ok" : ""}`}>{hasCoords ? `Pinned · ${(s.lat as number).toFixed(4)}, ${(s.lng as number).toFixed(4)}` : "No pin yet — add an address for accurate directions"}</div>
+            {editAddr && (
+              <InputSheet
+                title="Street address" value={address} onChange={setAddress}
+                placeholder="123 Main St, City, ST" inputMode="text" maxLength={300}
+                busy={busy} doneLabel="Save & pin"
+                hint="Add city & state for an accurate pin — or paste a Google Maps link."
+                help={{ label: "Where do I find this?", detail: (<>On Google Maps, find the spot → <b>Share</b> → <b>Copy link</b> and paste it here — or type the full street address with city &amp; state. We geocode it and drop the live-map pin guests follow.</>) }}
+                onClose={() => setEditAddr(false)}
+                onDone={async () => { if (await saveLocation()) setEditAddr(false); }}
+              />
+            )}
           </div>
 
           <VendorPicker vendors={vendors} vendorId={s.vendor_id} onLink={onLinkVendor} />
@@ -1474,11 +1606,15 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
   const [items, setItems] = useState<EventTask[]>([]);
   const [newItem, setNewItem] = useState("");
   const [assignFor, setAssignFor] = useState<EventTask | null>(null);
+  const [openThread, setOpenThread] = useState<string | null>(null);
+  const [counts, setCounts] = useState<Record<string, number>>({});
 
   const load = useCallback(async () => {
     if (!supabase) return;
     const { data } = await supabase.from("event_tasks").select("*").eq("meeting_note_id", note.id).order("sort");
-    setItems((data as EventTask[]) ?? []);
+    const rows = (data as EventTask[]) ?? [];
+    setItems(rows);
+    setCounts(await commentCounts("event_task_id", rows.map((r) => r.id)));
   }, [note.id]);
   useEffect(() => {
     if (!open) return;
@@ -1486,6 +1622,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
     if (!supabase) return;
     const ch = supabase.channel(`note-items-${note.id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "event_tasks", filter: `meeting_note_id=eq.${note.id}` }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "comments" }, () => load())
       .subscribe();
     return () => { supabase?.removeChannel(ch); };
   }, [open, load, note.id]);
@@ -1562,14 +1699,20 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
           {note.body && <details className="note-full"><summary>Full notes</summary><p>{note.body}</p></details>}
           <div className="note-fu-h">Follow-ups</div>
           {items.map((t) => (
-            <div key={t.id} className={`note-fu${t.done ? " done" : ""}`}>
-              <button type="button" className="task-check" onClick={() => toggle(t)} aria-label={`Mark done: ${t.label}`}>
-                <span className="task-box">{t.done && <svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11" /></svg>}</span>
-              </button>
-              <span className="note-fu-label">{t.label}</span>
-              <button type="button" className="note-fu-assign" onClick={() => setAssignFor(t)}>{t.assignee ? firstNameOf(t.assignee) : "Assign"}</button>
-              <button type="button" className="note-fu-flag" onClick={() => flag(t)} aria-label="Flag as can't-miss" title="Flag as can't-miss">⚑</button>
-              {isAdmin && <button type="button" className="note-fu-x" onClick={() => removeItem(t)} aria-label="Remove follow-up">×</button>}
+            <div key={t.id} className="note-fu-wrap">
+              <div className={`note-fu${t.done ? " done" : ""}`}>
+                <button type="button" className="task-check" onClick={() => toggle(t)} aria-label={`Mark done: ${t.label}`}>
+                  <span className="task-box">{t.done && <svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11" /></svg>}</span>
+                </button>
+                <span className="note-fu-label">{t.label}</span>
+                <button type="button" className="note-fu-assign" onClick={() => setAssignFor(t)}>{t.assignee ? firstNameOf(t.assignee) : "Assign"}</button>
+                <button type="button" className="note-fu-flag" onClick={() => setOpenThread(openThread === t.id ? null : t.id)} aria-label="Discuss" title="Discuss">💬{counts[t.id] ? <span className="cmt-count">{counts[t.id]}</span> : null}</button>
+                <button type="button" className="note-fu-flag" onClick={() => flag(t)} aria-label="Flag as can't-miss" title="Flag as can't-miss">⚑</button>
+                {isAdmin && <button type="button" className="note-fu-x" onClick={() => removeItem(t)} aria-label="Remove follow-up">×</button>}
+              </div>
+              {openThread === t.id && (
+                <CommentThread subject={{ col: "event_task_id", id: t.id }} notifyIds={[t.assignee, note.created_by]} label={t.label} meId={meId} meName={meName} />
+              )}
             </div>
           ))}
           <div className="note-fu-add">
