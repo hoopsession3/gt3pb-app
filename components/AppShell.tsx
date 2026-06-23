@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useApp } from "./AppProvider";
 import BottomNav from "./BottomNav";
 import OperatorNav, { OperatorSectionProvider } from "./OperatorNav";
+import QuickDock from "./QuickDock";
 import CartBar from "./CartBar";
 import OrderStatus from "./OrderStatus";
 import DrinkSheet from "./DrinkSheet";
@@ -42,6 +43,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {inAdmin ? null : <OrderStatus />}
         {inAdmin ? null : <CartBar />}
         {inAdmin ? <OperatorNav /> : <BottomNav />}
+        {inAdmin && <QuickDock />}
         <ServiceWorkerRegister />
       </div>
     </OperatorSectionProvider>
