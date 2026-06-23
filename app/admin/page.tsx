@@ -15,6 +15,7 @@ import SignIn from "@/components/SignIn";
 import InputSheet from "@/components/InputSheet";
 import { supabase } from "@/lib/supabase";
 import AskGT3 from "@/components/AskGT3";
+import Studio from "@/components/Studio";
 import { subscribePush } from "@/lib/push";
 import { chime, unlockAudio } from "@/lib/chime";
 import { haptic, HAPTIC } from "@/lib/haptics";
@@ -3093,12 +3094,13 @@ export default function AdminPage() {
   const allowed = sectionsForRole(role);
   const sec: OpSection = allowed.includes(section) ? section : "now";
   const [planTab, setPlanTab] = useState<"notes" | "events" | "vendors" | "bookings" | "reserves">("notes");
-  const LABEL: Record<OpSection, string> = { now: "Now", ask: "Ask GT3", prep: "Prep", plan: "Plan", money: "Money", team: "Team" };
+  const LABEL: Record<OpSection, string> = { now: "Now", ask: "Ask GT3", prep: "Prep", plan: "Plan", studio: "Studio", money: "Money", team: "Team" };
   const SUB: Record<OpSection, string> = {
     now: "The live shift — sales, dispatch & the order pass.",
     ask: "Recipes, the why, gear, stock & how-to — from the GT3 playbook.",
     prep: "Stock, readiness & the pack list for what's next.",
-    plan: "Events, vendors & bookings.",
+    plan: "Notes, events, vendors & bookings.",
+    studio: "Brand & marketing — draft, collaborate, schedule.",
     money: "Pricing, subscriptions & order history.",
     team: "People, roles & training.",
   };
@@ -3155,6 +3157,8 @@ export default function AdminPage() {
           {planTab === "reserves" && <ReservesAdmin />}
         </>
       )}
+
+      {sec === "studio" && canManage && <Studio />}
 
       {sec === "money" && isAdmin && (
         <>
