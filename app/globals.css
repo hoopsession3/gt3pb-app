@@ -1460,3 +1460,21 @@ select.note-in{-webkit-appearance:none;appearance:none}
 /* comment-count badge on a 💬 toggle */
 .cmt-count{display:inline-block;min-width:15px;margin-left:3px;padding:0 4px;background:var(--gold);color:#1a1610;font-family:'Inter';font-weight:700;font-size:10px;line-height:15px;text-align:center;border-radius:8px;vertical-align:middle}
 .cmt-del{background:none;border:none;color:var(--cream-m);font-size:14px;line-height:1;padding:0 2px;margin-left:6px;cursor:pointer;-webkit-appearance:none;appearance:none}
+
+/* ── AI agents (recap suggest + readiness) ── */
+.note-suggest{margin-left:auto;background:rgba(169,124,63,.16);border:1px solid var(--line2);border-radius:8px;padding:4px 10px;color:var(--gold2);font-family:'Inter';font-weight:600;font-size:11px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.note-suggest:disabled{opacity:.5}
+.note-fu-h{display:flex;align-items:center;gap:8px}
+.rdy{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:0 6px 16px rgba(0,0,0,.18)}
+.rdy-top{display:flex;align-items:center;gap:12px}
+.rdy-blurb{flex:1;font-family:'Inter';font-size:13px;color:var(--cream-m);line-height:1.45}
+.rdy-run{flex:0 0 auto;background:var(--gold);border:none;border-radius:11px;padding:10px 16px;color:#1a1610;font-family:'Inter';font-weight:700;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.rdy-run:disabled{opacity:.5}
+.rdy-out{margin-top:13px;padding:12px 13px;border-radius:12px;border:1px solid var(--line2);border-left-width:3px;background:rgba(0,0,0,.22)}
+.rdy-out.sev-critical{border-left-color:#d2554a}
+.rdy-out.sev-important{border-left-color:var(--gold2)}
+.rdy-out.sev-fyi{border-left-color:var(--ok)}
+.rdy-head{display:block;font-family:'Inter';font-weight:600;font-size:14px;color:var(--cream);line-height:1.4}
+.rdy-gaps{margin:9px 0 0;padding-left:18px}
+.rdy-gaps li{font-family:'Inter';font-size:13px;color:var(--cream-m);line-height:1.5;margin-bottom:4px}
+.rdy-gaps b{color:var(--cream)}
