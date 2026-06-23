@@ -447,7 +447,7 @@ function EventPrepDetail({ eventId, onBack }: { eventId: string; onBack: () => v
     const [{ data: t }, { data: c }, { data: ap }] = await Promise.all([
       supabase.from("event_tasks").select("*").eq("event_id", target.id).order("sort"),
       supabase.from("event_staff").select("id, user_id, role_label").eq("event_id", target.id),
-      supabase.from("event_approvals").select("approver_id").eq("event_id", target.id), // may not exist pre-0038
+      supabase.from("event_approvals").select("*").eq("event_id", target.id), // 0038/0039: select("*") — a narrow projection hit a generic-plan RLS quirk that returned empty
     ]);
     // Dedupe defensively — past double-generates left duplicate rows in the DB.
     const seen = new Set<string>();
