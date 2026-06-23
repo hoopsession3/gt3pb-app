@@ -320,19 +320,20 @@ function PrepViewSheet({ dir, setDir, onClose }: { dir: "asc" | "desc"; setDir: 
   );
 }
 
-function PrepCard({ ev, r, onOpen }: { ev: EventRow; r: Readiness; onOpen: () => void }) {
+type PrepTarget = { kind: "event" | "stop"; id: string };
+
+function PrepCard({ title, when, location, live, r, onOpen }: { title: string; when: string; location: string | null; live: boolean; r: Readiness; onOpen: () => void }) {
   const status = r.total === 0 ? "Not started" : r.done === r.total ? "Ready to roll" : `Loaded ${r.done}/${r.total}`;
   const cls = r.total === 0 ? "none" : r.done === r.total ? "ok" : r.crit ? "miss" : "mid";
   const pct = r.total ? Math.round((r.done / r.total) * 100) : 0;
-  const when = [ev.day_label, ev.start_time].filter(Boolean).join(" · ");
   return (
-    <button className={`prep-card${ev.is_live ? " live" : ""}`} onClick={onOpen} aria-label={`Prep ${ev.title} — ${status}`}>
+    <button className={`prep-card${live ? " live" : ""}`} onClick={onOpen} aria-label={`Prep ${title} — ${status}`}>
       <div className="prep-card-top">
         <span className="prep-card-when">{when || "—"}</span>
-        {ev.is_live && <span className="prep-card-livetag">● Live</span>}
+        {live && <span className="prep-card-livetag">● Live</span>}
       </div>
-      <div className="prep-card-title">{ev.title}</div>
-      {ev.location_text && <div className="prep-card-loc">{ev.location_text}</div>}
+      <div className="prep-card-title">{title}</div>
+      {location && <div className="prep-card-loc">{location}</div>}
       <div className="prep-card-foot">
         <span className={`prep-card-status ${cls}`}>{status}</span>
         {r.crit > 0 && <span className="prep-card-crit">{r.crit} critical</span>}
@@ -343,52 +344,63 @@ function PrepCard({ ev, r, onOpen }: { ev: EventRow; r: Readiness; onOpen: () =>
   );
 }
 
-// Outer: the event picker. Cards grouped by date/when, with a pull-up to re-sort.
-// Tapping a card opens that event's pack-list detail (EventPrepDetail).
+// The picker: truck locations + events, each with its own independent pick list (0040).
+// Tapping a card opens that target's checklist (PrepDetail).
 function EventPrep({ onGo }: { onGo: (t: string) => void }) {
   const [events, setEvents] = useState<EventRow[]>([]);
+  const [stops, setStops] = useState<Stop[]>([]);
+  const [liveStopId, setLiveStopId] = useState<string | null>(null);
   const [ready, setReady] = useState<Record<string, Readiness>>({});
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<PrepTarget | null>(null);
   const [dir, setDir] = useState<"asc" | "desc">("asc");
   const [sheet, setSheet] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    const { data: evs } = await supabase.from("events").select("*").order("sort");
-    const list = ((evs as EventRow[]) ?? []).filter((e) => !e.archived_at);
-    setEvents(list);
-    const { data: t } = await supabase.from("event_tasks").select("event_id, done, critical");
+    const [{ data: evs }, { data: sts }, { data: ls }, { data: t }] = await Promise.all([
+      supabase.from("events").select("*").order("sort"),
+      supabase.from("stops").select("*").order("sort"),
+      supabase.from("live_status").select("current_stop_id, is_live").maybeSingle(),
+      supabase.from("event_tasks").select("event_id, stop_id, done, critical"),
+    ]);
+    const evList = ((evs as EventRow[]) ?? []).filter((e) => !e.archived_at);
+    setEvents(evList);
+    setStops(((sts as Stop[]) ?? []).filter((s) => !s.archived_at));
+    const lstat = ls as { current_stop_id: string | null; is_live: boolean } | null;
+    setLiveStopId(lstat?.is_live ? lstat.current_stop_id : null);
     const map: Record<string, Readiness> = {};
-    for (const row of (t as { event_id: string; done: boolean; critical: boolean }[]) ?? []) {
-      const m = (map[row.event_id] ??= { done: 0, total: 0, crit: 0 });
+    for (const row of (t as { event_id: string | null; stop_id: string | null; done: boolean; critical: boolean }[]) ?? []) {
+      const key = row.event_id ?? row.stop_id;
+      if (!key) continue;
+      const m = (map[key] ??= { done: 0, total: 0, crit: 0 });
       m.total++;
       if (row.done) m.done++;
       else if (row.critical) m.crit++;
     }
     setReady(map);
-    // First load auto-opens the live event so the gig in progress is one tap away.
-    setSelectedId((prev) => prev ?? list.find((e) => e.is_live)?.id ?? null);
+    setSelected((prev) => prev ?? (evList.find((e) => e.is_live) ? { kind: "event", id: evList.find((e) => e.is_live)!.id } : null));
     setLoaded(true);
   }, []);
   useEffect(() => {
     load();
-    // Deep-link target set by "Open prep" from an event editor → open that event directly.
+    // Deep-link from an event editor's "Open prep".
     try {
-      const target = localStorage.getItem("gt3-prep-open");
-      if (target) { localStorage.removeItem("gt3-prep-open"); setSelectedId(target); }
+      const tgt = localStorage.getItem("gt3-prep-open");
+      if (tgt) { localStorage.removeItem("gt3-prep-open"); setSelected({ kind: "event", id: tgt }); }
     } catch { /* ignore */ }
     if (!supabase) return;
     const ch = supabase.channel("admin-prep-index")
       .on("postgres_changes", { event: "*", schema: "public", table: "events" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "stops" }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "event_tasks" }, () => load())
       .subscribe();
     return () => { supabase?.removeChannel(ch); };
   }, [load]);
 
-  if (selectedId) return <EventPrepDetail eventId={selectedId} onBack={() => setSelectedId(null)} />;
+  if (selected) return <PrepDetail target={selected} onBack={() => setSelected(null)} />;
 
-  // group by date/when, buckets ordered Past→Today→This week→Later→Unscheduled; dir flips it
+  // events grouped by date/when; dir flips order
   const by: Record<string, { key: number; label: string; items: EventRow[] }> = {};
   for (const ev of events) {
     const b = whenBucket(ev.day);
@@ -401,20 +413,34 @@ function EventPrep({ onGo }: { onGo: (t: string) => void }) {
 
   return (
     <>
-    {/* The overview + loadout live on the event LIST only — opening an event gives prep the full screen. */}
+    {/* Overview + loadout show on the list only — opening a target gives prep the full screen. */}
     <Overview onGo={onGo} />
     <div className="adm-sec adm-prep">
-      <div className="sec">Prep · {events.length} event{events.length === 1 ? "" : "s"}
+      <div className="sec">Prep
         <button className="adm-prep-view" onClick={() => setSheet(true)} aria-haspopup="dialog">View ⌄</button>
       </div>
-      {!loaded && <div className="h-sub">Loading events…</div>}
-      {loaded && events.length === 0 && <div className="h-sub">No events yet — add one in Plan → Events to prep it.</div>}
+      {!loaded && <div className="h-sub">Loading…</div>}
+      {loaded && events.length === 0 && stops.length === 0 && <div className="h-sub">Nothing to prep yet — add an event (Plan → Events) or a truck location (Now → Live truck).</div>}
+
+      {stops.length > 0 && (
+        <div className="prep-group">
+          <div className="prep-group-h">Truck locations <span>{stops.length}</span></div>
+          <div className="prep-cards">
+            {stops.map((s) => (
+              <PrepCard key={s.id} title={s.name} when={s.id === liveStopId ? "Live now" : (s.when_label ?? "Stop")} location={s.location_text} live={s.id === liveStopId}
+                r={ready[s.id] ?? { done: 0, total: 0, crit: 0 }} onOpen={() => setSelected({ kind: "stop", id: s.id })} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {groups.map((g) => (
         <div key={g.label} className="prep-group">
           <div className="prep-group-h">{g.label} <span>{g.items.length}</span></div>
           <div className="prep-cards">
             {g.items.map((ev) => (
-              <PrepCard key={ev.id} ev={ev} r={ready[ev.id] ?? { done: 0, total: 0, crit: 0 }} onOpen={() => setSelectedId(ev.id)} />
+              <PrepCard key={ev.id} title={ev.title} when={[ev.day_label, ev.start_time].filter(Boolean).join(" · ")} location={ev.location_text} live={!!ev.is_live}
+                r={ready[ev.id] ?? { done: 0, total: 0, crit: 0 }} onOpen={() => setSelected({ kind: "event", id: ev.id })} />
             ))}
           </div>
         </div>
@@ -427,13 +453,19 @@ function EventPrep({ onGo }: { onGo: (t: string) => void }) {
   );
 }
 
-// Detail: the per-event pack-list checklist (auto-derived from the event's rig/menu,
-// persisted, realtime, role-scoped, crew roster + task assignment) for a chosen event.
-function EventPrepDetail({ eventId, onBack }: { eventId: string; onBack: () => void }) {
+// Detail: a per-target pick list. For an EVENT it's the full thing (auto-generate from
+// rig/menu, crew roster, owner+manager sign-off). For a TRUCK STOP it's the same checklist
+// engine (assign, supply/gear picker, My Tasks) minus the event-only bits. Owner = event_id
+// XOR stop_id (migration 0040).
+function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: string }; onBack: () => void }) {
   const { user, profile } = useAuth();
   const { toast } = useApp();
   const isAdmin = roleOf(profile) === "admin" || roleOf(profile) === "owner";
-  const [ev, setEv] = useState<EventRow | null>(null);
+  const isEvent = target.kind === "event";
+  const ownerCol = isEvent ? "event_id" : "stop_id";
+  const [ev, setEv] = useState<EventRow | null>(null); // full event row (events only; drives generate)
+  const [name, setName] = useState<string | null>(null); // display name for either kind
+  const [loadedOk, setLoadedOk] = useState(false);
   const [tasks, setTasks] = useState<EventTask[]>([]);
   const [crew, setCrew] = useState<{ id: string; user_id: string; role_label: string | null }[]>([]);
   const [staff, setStaff] = useState<{ id: string; display_name: string | null; role?: string | null }[]>([]);
@@ -445,33 +477,41 @@ function EventPrepDetail({ eventId, onBack }: { eventId: string; onBack: () => v
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    const { data: e } = await supabase.from("events").select("*").eq("id", eventId).maybeSingle();
-    const target = (e as EventRow) ?? null;
-    setEv(target);
-    if (!target) { setTasks([]); setCrew([]); return; }
-    const [{ data: t }, { data: c }, { data: ap }] = await Promise.all([
-      supabase.from("event_tasks").select("*").eq("event_id", target.id).order("sort"),
-      supabase.from("event_staff").select("id, user_id, role_label").eq("event_id", target.id),
-      supabase.from("event_approvals").select("*").eq("event_id", target.id), // 0038/0039: select("*") — a narrow projection hit a generic-plan RLS quirk that returned empty
-    ]);
-    // Dedupe defensively — past double-generates left duplicate rows in the DB.
+    // Resolve the target's display name (+ the full event row for events).
+    if (isEvent) {
+      const { data: e } = await supabase.from("events").select("*").eq("id", target.id).maybeSingle();
+      setEv((e as EventRow) ?? null);
+      setName((e as EventRow)?.title ?? null);
+    } else {
+      const { data: s } = await supabase.from("stops").select("name").eq("id", target.id).maybeSingle();
+      setEv(null);
+      setName((s as { name: string } | null)?.name ?? null);
+    }
+    setLoadedOk(true);
+    const { data: t } = await supabase.from("event_tasks").select("*").eq(ownerCol, target.id).order("sort");
     const seen = new Set<string>();
     setTasks(((t as EventTask[]) ?? []).filter((x) => { const k = `${x.section ?? ""}|${x.label}`; if (seen.has(k)) return false; seen.add(k); return true; }));
-    setCrew((c as { id: string; user_id: string; role_label: string | null }[]) ?? []);
-    setApprovals((ap as { approver_id: string }[]) ?? []);
+    // Crew + sign-off are event-only.
+    if (isEvent) {
+      const [{ data: c }, { data: ap }] = await Promise.all([
+        supabase.from("event_staff").select("id, user_id, role_label").eq("event_id", target.id),
+        supabase.from("event_approvals").select("*").eq("event_id", target.id),
+      ]);
+      setCrew((c as { id: string; user_id: string; role_label: string | null }[]) ?? []);
+      setApprovals((ap as { approver_id: string }[]) ?? []);
+    } else { setCrew([]); setApprovals([]); }
     if (isAdmin) {
       const { data: p } = await supabase.from("profiles").select("id, display_name, role").neq("role", "member");
       setStaff((p as { id: string; display_name: string | null; role?: string | null }[]) ?? []);
     }
-  }, [eventId, isAdmin]);
+  }, [target.id, isEvent, ownerCol, isAdmin]);
   useEffect(() => {
     load();
     if (!supabase) return;
-    const ch = supabase.channel("admin-eventprep")
+    const ch = supabase.channel("admin-prepdetail")
       .on("postgres_changes", { event: "*", schema: "public", table: "event_tasks" }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "event_staff" }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "event_approvals" }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "events" }, () => load())
       .subscribe();
     return () => { supabase?.removeChannel(ch); };
   }, [load]);
@@ -529,8 +569,8 @@ function EventPrepDetail({ eventId, onBack }: { eventId: string; onBack: () => v
     }
   };
   const addTask = async () => {
-    if (!ev || !supabase || !newTask.trim()) return;
-    const { error } = await supabase.from("event_tasks").insert({ event_id: ev.id, label: newTask.trim(), kind: "task", section: "Task", sort: tasks.length });
+    if (!supabase || !newTask.trim()) return;
+    const { error } = await supabase.from("event_tasks").insert({ [ownerCol]: target.id, label: newTask.trim(), kind: "task", section: "Task", sort: tasks.length });
     setNewTask("");
     if (error) toast(`Error: ${error.message}`, "error"); else load();
   };
@@ -544,11 +584,11 @@ function EventPrepDetail({ eventId, onBack }: { eventId: string; onBack: () => v
   // off-catalog. Each becomes a checklist line under "Supplies" (no inventory duplication).
   const addSupplies = async (items: { label: string; critical: boolean }[]) => {
     setShowSupplies(false);
-    if (!ev || !supabase || items.length === 0) return;
+    if (!supabase || items.length === 0) return;
     const have = new Set(tasks.map((t) => t.label.trim().toLowerCase()));
     const rows = items
       .filter((i) => !have.has(i.label.trim().toLowerCase()))
-      .map((i, idx) => ({ event_id: ev.id, label: i.label.trim(), section: "Supplies", kind: "pack", critical: i.critical, sort: 40 + idx }));
+      .map((i, idx) => ({ [ownerCol]: target.id, label: i.label.trim(), section: "Supplies", kind: "pack", critical: i.critical, sort: 40 + idx }));
     if (rows.length === 0) { toast("Those are already on the list"); return; }
     const { error } = await supabase.from("event_tasks").insert(rows);
     toast(error ? `Error: ${error.message}` : `Added ${rows.length} suppl${rows.length === 1 ? "y" : "ies"}`);
@@ -579,10 +619,10 @@ function EventPrepDetail({ eventId, onBack }: { eventId: string; onBack: () => v
       .catch(() => {});
   };
 
-  if (!ev) return (
+  if (loadedOk && name === null) return (
     <div className="adm-sec adm-prep">
-      <button className="adm-prep-back" onClick={onBack}>‹ All events</button>
-      <div className="h-sub">Event not found — it may have been removed.</div>
+      <button className="adm-prep-back" onClick={onBack}>‹ All prep</button>
+      <div className="h-sub">{isEvent ? "Event" : "Location"} not found — it may have been removed.</div>
     </div>
   );
   const total = tasks.length, doneN = tasks.filter((t) => t.done).length;
@@ -605,8 +645,8 @@ function EventPrepDetail({ eventId, onBack }: { eventId: string; onBack: () => v
 
   return (
     <div className="adm-sec adm-prep">
-      <button className="adm-prep-back" onClick={onBack}>‹ All events</button>
-      <div className="sec">{ev.title} · prep{ev.is_live && <span className="adm-pill due">LIVE</span>}</div>
+      <button className="adm-prep-back" onClick={onBack}>‹ All prep</button>
+      <div className="sec">{name ?? "…"} · prep{isEvent && ev?.is_live && <span className="adm-pill due">LIVE</span>}{!isEvent && <span className="adm-pill">Location</span>}</div>
       {total > 0 ? (
         <>
           <div className={`adm-ready-bar${ready ? " ok" : critOut.length ? " miss" : ""}`}>
@@ -616,16 +656,18 @@ function EventPrepDetail({ eventId, onBack }: { eventId: string; onBack: () => v
           </div>
           {isAdmin && (
             <div className="adm-prep-actions">
-              <button className="adm-regen" onClick={() => generate(true)} disabled={generating}>↻ Regenerate from menu</button>
+              {isEvent && <button className="adm-regen" onClick={() => generate(true)} disabled={generating}>↻ Regenerate from menu</button>}
               <button className="adm-regen" onClick={() => setShowSupplies(true)}>+ Add supplies</button>
             </div>
           )}
         </>
       ) : isAdmin ? (
-        <button className="adm-btn primary" onClick={() => generate()} disabled={generating}>{generating ? "Generating…" : "Generate pack list from menu"}</button>
-      ) : <div className="h-sub">No pack list yet — an owner generates it.</div>}
+        isEvent
+          ? <button className="adm-btn primary" onClick={() => generate()} disabled={generating}>{generating ? "Generating…" : "Generate pack list from menu"}</button>
+          : <button className="adm-btn primary" onClick={() => setShowSupplies(true)}>+ Build this location&apos;s list</button>
+      ) : <div className="h-sub">No pick list yet.</div>}
 
-      {isAdmin && (
+      {isEvent && isAdmin && (
         <div className="adm-crew-row">
           {crew.map((c) => {
             const mgr = c.role_label === "manager";
@@ -644,7 +686,7 @@ function EventPrepDetail({ eventId, onBack }: { eventId: string; onBack: () => v
         </div>
       )}
 
-      {total > 0 && (
+      {isEvent && total > 0 && (
         <div className={`adm-approve${fullyApproved ? " ok" : ""}`}>
           <div className="adm-approve-h">
             <b>{fullyApproved ? "Prep approved" : "Prep sign-off"}</b>
@@ -709,7 +751,7 @@ function EventPrepDetail({ eventId, onBack }: { eventId: string; onBack: () => v
       )}
 
       {showSupplies && (
-        <SupplyPicker ev={ev} have={new Set(tasks.map((t) => t.label.trim().toLowerCase()))} onAdd={addSupplies} onClose={() => setShowSupplies(false)} />
+        <SupplyPicker ev={ev} title={name ?? (isEvent ? "this event" : "this location")} have={new Set(tasks.map((t) => t.label.trim().toLowerCase()))} onAdd={addSupplies} onClose={() => setShowSupplies(false)} />
       )}
     </div>
   );
@@ -771,8 +813,9 @@ type SupplyItem = { name: string; category: string; qty: number | null; unit: st
 // Supply picker — one searchable catalog over BOTH Notion DBs: inventory (consumables,
 // /api/inventory) and assets/gear (/api/assets). Pre-selects what the event needs, and
 // anything in neither DB can be typed in off-catalog. (GearLibrary stays the manuals view.)
-function SupplyPicker({ ev, have, onAdd, onClose }: {
-  ev: EventRow;
+function SupplyPicker({ ev, title, have, onAdd, onClose }: {
+  ev: EventRow | null; // null for a truck stop (no menu/rig to pre-select from)
+  title: string;
   have: Set<string>;
   onAdd: (items: { label: string; critical: boolean }[]) => void;
   onClose: () => void;
@@ -784,11 +827,12 @@ function SupplyPicker({ ev, have, onAdd, onClose }: {
 
   useEffect(() => { fetchInventory().then(setInv); fetchAssets().then(setAssets); }, []);
   // Pre-check the consumables this event actually draws on (from its menu/rig answers).
+  // A stop has no menu/rig, so nothing is pre-selected — the operator picks what to bring.
   useEffect(() => {
-    if (!inv) return;
+    if (!inv || !ev) return;
     const relevant = inventoryForEvent(inv.items, ev).relevant;
     setSel(new Set(relevant.filter((it) => !have.has(it.name.trim().toLowerCase())).map((it) => it.name)));
-  }, [inv]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [inv, ev]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Merge both catalogs into one list (inventory wins on a name clash so qty/critical stick).
   const invItems: SupplyItem[] = (inv?.items ?? []).map((it) => ({ name: it.name, category: it.category || "Supplies", qty: it.qty, unit: it.unit, critical: it.critical }));
@@ -802,7 +846,7 @@ function SupplyPicker({ ev, have, onAdd, onClose }: {
 
   const ql = q.trim().toLowerCase();
   const onList = (name: string) => have.has(name.trim().toLowerCase());
-  const relevantNames = inv ? new Set(inventoryForEvent(inv.items, ev).relevant.map((it) => it.name)) : new Set<string>();
+  const relevantNames = inv && ev ? new Set(inventoryForEvent(inv.items, ev).relevant.map((it) => it.name)) : new Set<string>();
   const filtered = ql ? items.filter((it) => it.name.toLowerCase().includes(ql) || it.category.toLowerCase().includes(ql)) : items;
   const exactMatch = items.some((it) => it.name.trim().toLowerCase() === ql);
   const toggle = (name: string) => setSel((p) => { const n = new Set(p); if (n.has(name)) n.delete(name); else n.add(name); return n; });
@@ -840,7 +884,7 @@ function SupplyPicker({ ev, have, onAdd, onClose }: {
       <div className="prep-sheet assign-sheet supply-sheet" role="dialog" aria-modal="true" aria-label="Add supplies">
         <div className="supply-head">
           <div className="prep-sheet-grab" />
-          <div className="assign-sheet-h">Supplies for · <b>{ev.title}</b></div>
+          <div className="assign-sheet-h">Supplies for · <b>{title}</b></div>
           <input className="subpitch-email" style={{ marginBottom: 0 }} placeholder="Search inventory + gear…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search supplies" autoFocus />
           {ql && !exactMatch && (
             <button type="button" className="assign-row me" style={{ marginTop: 8 }} onClick={addCustom}>
