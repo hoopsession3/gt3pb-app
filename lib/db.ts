@@ -149,6 +149,22 @@ export interface MeetingNote {
 
 // Event location/jurisdiction lives on EventRow (state/county, 0026) for compliance.
 
+// Alerts (0050) — tenant-scoped, severity-tiered "don't-miss" inbox. Producers insert rows; the
+// push Edge Function fans out to Teams + web push by severity; the in-app inbox acknowledges.
+export interface Alert {
+  id: string;
+  severity: "critical" | "important" | "fyi";
+  category: string | null;
+  title: string;
+  body: string | null;
+  link: string | null;
+  target_user_id: string | null;
+  created_by: string | null;
+  ack_at: string | null;
+  ack_by: string | null;
+  created_at: string;
+}
+
 // Limited reserves (0014_reserves.sql). Stock is server-authoritative; members
 // claim via the claim_reserve RPC (atomic, no oversell).
 export interface Reserve {
