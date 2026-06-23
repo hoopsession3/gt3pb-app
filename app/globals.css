@@ -1150,6 +1150,25 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .adm-approve-row.done .adm-approve-mark{color:var(--ok)}
 .adm-approve-actions{display:flex;gap:9px;flex-wrap:wrap}
 
+/* supply picker — fixed header (search) + scrolling list + sticky add button */
+.supply-sheet{display:flex;flex-direction:column;max-height:82vh;padding-top:0}
+.supply-head{flex:0 0 auto;padding-top:10px}
+.supply-sheet .supply-list{flex:1 1 auto;overflow-y:auto;min-height:80px;margin:8px 0}
+.supply-sheet .supply-add{flex:0 0 auto;margin-top:0}
+.supply-count{color:var(--gold2);background:rgba(168,124,63,.12);border-radius:20px;padding:1px 8px;font-size:10px}
+
+/* my tasks */
+.mytask{display:flex;align-items:center;gap:12px;padding:11px 4px;border-bottom:1px solid var(--line)}
+.mytask .task-check{flex:0 0 auto;min-height:44px;display:flex;align-items:center;background:none;border:none;cursor:pointer;-webkit-appearance:none;appearance:none}
+.mytask .task-box{width:26px;height:26px}
+.mytask-main{flex:1;min-width:0}
+.mytask-label{display:block;font-family:'Inter';font-size:14.5px;color:var(--cream);line-height:1.3}
+.mytask.crit .mytask-label{color:#ecb4b1}
+.mytask-ev{display:block;font-size:11.5px;color:var(--cream-m);margin-top:2px}
+.mytask-pri{flex:0 0 auto;font-family:'Inter';font-weight:650;font-size:9.5px;letter-spacing:.4px;text-transform:uppercase;padding:3px 8px;border-radius:20px}
+.mytask-pri.crit{color:var(--red);background:rgba(184,36,32,.16)}
+.mytask-pri.warn{color:var(--warn);background:rgba(207,154,74,.14)}
+
 /* supply picker */
 .adm-prep-actions{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-top:8px}
 .supply-list{max-height:42vh;overflow-y:auto;margin:4px 0}
