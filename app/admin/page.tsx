@@ -858,14 +858,20 @@ function LiveControl() {
     load();
   };
   const pause = async () => {
-    // Going offline drops the truck for every customer mid-shift — confirm the accidental tap.
-    if (typeof window !== "undefined" && !window.confirm("Take the truck OFFLINE?\n\nCustomers will immediately stop seeing it as live on the Truck page.")) return;
+    // Going offline closes out the current stop: it's archived off the live screen and the
+    // next stop on the route is queued. Confirm since it drops the truck for every customer.
+    const finished = stops.find((s) => s.id === live?.current_stop_id) ?? null;
+    const next = stops.find((s) => !s.archived_at && s.status !== "done" && s.id !== finished?.id) ?? null;
+    const msg = finished
+      ? `Close out ${finished.name} and go offline?\n\nIt gets archived off the live screen${next ? `, and ${next.name} is queued up next` : ""}. Customers stop seeing the truck as live.`
+      : "Take the truck OFFLINE?\n\nCustomers will immediately stop seeing it as live on the Truck page.";
+    if (typeof window !== "undefined" && !window.confirm(msg)) return;
     stopBroadcast();
-    setLive((l) => (l ? { ...l, is_live: false, current_stop_id: null } : { id: 1, current_stop_id: null, is_live: false, next_eta: null }));
+    setLive((l) => (l ? { ...l, is_live: false, current_stop_id: next?.id ?? null } : { id: 1, current_stop_id: next?.id ?? null, is_live: false, next_eta: null }));
     // .select() so we KNOW the row actually changed — RLS can filter a write to 0 rows
     // with NO error (the "false success" bug). If it didn't persist, say so loudly.
     const { data, error } = await supabase!.from("live_status")
-      .update({ is_live: false, current_stop_id: null, truck_lat: null, truck_lng: null, pos_updated_at: null })
+      .update({ is_live: false, current_stop_id: next?.id ?? null, truck_lat: null, truck_lng: null, pos_updated_at: null })
       .eq("id", 1).select("is_live");
     if (error) { setErr(error.message); toast(`Couldn't go offline — ${error.message}`, "error"); load(); return; }
     if (!data || data.length === 0 || data[0].is_live !== false) {
@@ -874,7 +880,9 @@ function LiveControl() {
       load(); return;
     }
     await supabase!.from("stops").update({ status: "upcoming" }).eq("status", "live");
-    toast("Truck is offline");
+    // Archive the just-finished stop off the live screen (record kept).
+    if (finished) await supabase!.from("stops").update({ status: "done", archived_at: new Date().toISOString() }).eq("id", finished.id);
+    toast(next ? `Offline — ${next.name} queued next` : "Truck is offline");
     load();
   };
   // One-shot pin of this phone's GPS as the truck's live position.
