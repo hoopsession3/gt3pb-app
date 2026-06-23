@@ -24,7 +24,7 @@ import { projectEvent, reconcile, DEFAULT_ECON, type EventEcon, type ProductEcon
 import { buildBrief } from "@/lib/eventbrief";
 import { fetchInventory, inventoryForEvent, rollupLowStock, type InventoryResp, type InvItem } from "@/lib/inventory";
 import { fetchAssets, type AssetsResp } from "@/lib/assets";
-import type { Stop, LiveStatus, EventRow, EventTask, BookingRequest, Order, Reserve, Subscription, Vendor, MeetingNote } from "@/lib/db";
+import type { Stop, LiveStatus, EventRow, EventTask, BookingRequest, Order, Reserve, Subscription, Vendor, MeetingNote, Alert } from "@/lib/db";
 
 // money helpers for the economics panels
 const usd = (cents: number) => `$${(cents / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
@@ -226,6 +226,75 @@ function Kitchen() {
         )}
       </div>
       {active.length === 0 && done.length === 0 && <div className="h-sub">The pass is clear. New orders arrive here in realtime.</div>}
+    </div>
+  );
+}
+
+// ───────────────────────── alerts: the "don't-miss" spine ─────────────────────────
+// Leadership = the tier that gets (and raises) can't-miss alerts. Matches the alerts RLS.
+const LEADERSHIP = ["event_manager", "admin", "owner"];
+const isLeader = (role: string | null | undefined) => LEADERSHIP.includes(role ?? "");
+
+// Raise an alert: write the row (drives the in-app inbox via realtime) AND fire the dispatcher
+// Edge Function (Teams + web push), best-effort. Producers across the console call this.
+async function raiseAlert(a: {
+  severity?: "critical" | "important" | "fyi"; category?: string; title: string;
+  body?: string; link?: string; target_user_id?: string | null; created_by?: string | null;
+}) {
+  if (!supabase) return;
+  const { data } = await supabase.from("alerts").insert({
+    severity: a.severity ?? "important", category: a.category ?? null, title: a.title,
+    body: a.body ?? null, link: a.link ?? "/admin", target_user_id: a.target_user_id ?? null,
+    created_by: a.created_by ?? null,
+  }).select("*").single();
+  if (!data) return;
+  supabase.functions.invoke("push", { body: { table: "alerts", type: "INSERT", record: data } }).catch(() => {});
+}
+
+// The "don't-miss" inbox — unacknowledged alerts for me (or all-leadership), critical first.
+// Realtime, so a new alert lands at the top of the Now screen the instant it's raised.
+function AlertsInbox({ userId }: { userId: string | null }) {
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+
+  const load = useCallback(async () => {
+    if (!supabase) return;
+    const { data } = await supabase.from("alerts").select("*").is("ack_at", null).order("created_at", { ascending: false }).limit(50);
+    setAlerts((data as Alert[]) ?? []);
+  }, []);
+  useEffect(() => {
+    load();
+    if (!supabase) return;
+    const ch = supabase.channel("admin-alerts")
+      .on("postgres_changes", { event: "*", schema: "public", table: "alerts" }, () => load())
+      .subscribe();
+    return () => { supabase?.removeChannel(ch); };
+  }, [load]);
+
+  const ack = async (a: Alert) => {
+    if (!supabase) return;
+    setAlerts((p) => p.filter((x) => x.id !== a.id)); // optimistic
+    await supabase.from("alerts").update({ ack_at: new Date().toISOString(), ack_by: userId }).eq("id", a.id);
+  };
+
+  // Show alerts addressed to me or to all-leadership (target null). RLS already scopes to leadership.
+  const mine = alerts.filter((a) => a.target_user_id == null || a.target_user_id === userId);
+  if (mine.length === 0) return null;
+  const rank = (s: string) => (s === "critical" ? 0 : s === "important" ? 1 : 2);
+  const sorted = [...mine].sort((a, b) => rank(a.severity) - rank(b.severity));
+  const crit = mine.filter((a) => a.severity === "critical").length;
+
+  return (
+    <div className="adm-sec">
+      <div className="sec">Alerts <span className={`adm-pill${crit ? " due" : ""}`}>{mine.length}{crit ? ` · ${crit} critical` : ""}</span></div>
+      {sorted.map((a) => (
+        <div key={a.id} className={`alert sev-${a.severity}`}>
+          <div className="alert-main">
+            <span className="alert-title">{a.title}</span>
+            {a.body && <span className="alert-body">{a.body}</span>}
+          </div>
+          <button type="button" className="alert-ack" onClick={() => ack(a)}>Got it</button>
+        </div>
+      ))}
     </div>
   );
 }
@@ -574,6 +643,16 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       supabase.functions
         .invoke("push", { body: { table: "event_tasks", type: "UPDATE", record: { ...t, assignee: next }, old_record: { ...t, assignee: prev } } })
         .catch(() => {});
+      // Can't-miss: a leader assigning another leader → raise a critical alert (Teams + inbox).
+      const assigneeRole = staff.find((s) => s.id === next)?.role ?? null;
+      if (next !== user?.id && isLeader(roleOf(profile)) && isLeader(assigneeRole)) {
+        raiseAlert({
+          severity: "critical", category: "assignment",
+          title: `${profile?.display_name?.split(" ")[0] || "A manager"} assigned you: ${t.label}`,
+          body: name ? `On ${isEvent ? "event" : "location"} · ${name}` : undefined,
+          target_user_id: next, created_by: user?.id ?? null,
+        });
+      }
     }
   };
   const addTask = async () => {
@@ -1295,7 +1374,7 @@ function MeetingNotes() {
   const meName = profile?.display_name?.trim() || "Me";
   const [notes, setNotes] = useState<MeetingNote[]>([]);
   const [events, setEvents] = useState<{ id: string; title: string }[]>([]);
-  const [staff, setStaff] = useState<{ id: string; display_name: string | null }[]>([]);
+  const [staff, setStaff] = useState<{ id: string; display_name: string | null; role?: string | null }[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
   const [composing, setComposing] = useState(false);
   const [cTitle, setCTitle] = useState("");
@@ -1314,7 +1393,7 @@ function MeetingNotes() {
     load();
     if (!supabase) return;
     supabase.from("events").select("id, title").is("archived_at", null).order("day", { ascending: false }).then(({ data }) => setEvents((data as { id: string; title: string }[]) ?? []));
-    supabase.from("profiles").select("id, display_name").neq("role", "member").then(({ data }) => setStaff((data as { id: string; display_name: string | null }[]) ?? []));
+    supabase.from("profiles").select("id, display_name, role").neq("role", "member").then(({ data }) => setStaff((data as { id: string; display_name: string | null; role?: string | null }[]) ?? []));
     const ch = supabase.channel("admin-notes")
       .on("postgres_changes", { event: "*", schema: "public", table: "meeting_notes" }, () => load())
       .subscribe();
@@ -1383,14 +1462,14 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
   note: MeetingNote;
   open: boolean;
   onToggle: () => void;
-  staff: { id: string; display_name: string | null }[];
+  staff: { id: string; display_name: string | null; role?: string | null }[];
   meId: string | null;
   meName: string;
   isAdmin: boolean;
   eventTitle: string | null;
   onDelete: () => void;
 }) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { toast } = useApp();
   const [items, setItems] = useState<EventTask[]>([]);
   const [newItem, setNewItem] = useState("");
@@ -1441,7 +1520,25 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
       supabase.functions
         .invoke("push", { body: { table: "event_tasks", type: "UPDATE", record: { ...t, assignee: next }, old_record: { ...t, assignee: prev } } })
         .catch(() => {});
+      // Can't-miss: a leader assigning another leader a follow-up → raise a critical alert.
+      const assigneeRole = staff.find((s) => s.id === next)?.role ?? null;
+      if (next !== user?.id && isLeader(roleOf(profile)) && isLeader(assigneeRole)) {
+        raiseAlert({
+          severity: "critical", category: "assignment",
+          title: `${profile?.display_name?.split(" ")[0] || "A manager"} assigned you: ${t.label}`,
+          body: `Follow-up · ${note.title}`, target_user_id: next, created_by: user?.id ?? null,
+        });
+      }
     }
+  };
+  // Promote a follow-up to a can't-miss alert (the "flag this" the talking-point becomes urgent).
+  const flag = async (t: EventTask) => {
+    await raiseAlert({
+      severity: "critical", category: "note",
+      title: `Flagged: ${t.label}`, body: `From meeting · ${note.title}`,
+      target_user_id: t.assignee ?? null, created_by: user?.id ?? null,
+    });
+    toast("Flagged — sent to alerts");
   };
   const removeItem = async (t: EventTask) => {
     if (!supabase) return;
@@ -1471,6 +1568,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
               </button>
               <span className="note-fu-label">{t.label}</span>
               <button type="button" className="note-fu-assign" onClick={() => setAssignFor(t)}>{t.assignee ? firstNameOf(t.assignee) : "Assign"}</button>
+              <button type="button" className="note-fu-flag" onClick={() => flag(t)} aria-label="Flag as can't-miss" title="Flag as can't-miss">⚑</button>
               {isAdmin && <button type="button" className="note-fu-x" onClick={() => removeItem(t)} aria-label="Remove follow-up">×</button>}
             </div>
           ))}
@@ -2656,6 +2754,7 @@ export default function AdminPage() {
 
       {sec === "now" && (
         <>
+          {canManage && <AlertsInbox userId={user?.id ?? null} />}
           <MyTasks userId={user?.id ?? null} />
           {canManage && <EventHUD />}
           {canManage && <LiveControl />}

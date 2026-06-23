@@ -93,6 +93,41 @@ Deno.serve(async (req) => {
       url = "/admin";
       targets = await subsFor((q) => q.eq("user_id", record.assignee));
 
+    } else if (table === "alerts" && type === "INSERT") {
+      // Alert spine (0050) — fan one alert out to the chosen channels by severity.
+      const sev = record.severity || "important";
+      // 1) Teams: post critical + important to the channel webhook (free; the chosen channel).
+      const teams = Deno.env.get("TEAMS_WEBHOOK_URL");
+      if (teams && sev !== "fyi") {
+        // Classic Incoming Webhook (MessageCard). If you wired a Power Automate "Workflows"
+        // webhook instead, it expects an Adaptive Card — say so and I'll switch the shape.
+        const themeColor = sev === "critical" ? "D2554A" : "A97C3F";
+        const flag = sev === "critical" ? "🔴 " : "🟠 ";
+        try {
+          await fetch(teams, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              "@type": "MessageCard", "@context": "https://schema.org/extensions",
+              themeColor, summary: record.title,
+              title: flag + record.title,
+              text: record.body || "",
+            }),
+          });
+        } catch (_e) { /* best effort — never fail the alert on a channel error */ }
+      }
+      // 2) Web push: to the target user, or all leadership when there's no specific target.
+      title = (sev === "critical" ? "Critical — " : "") + record.title;
+      message = record.body || "";
+      url = record.link || "/admin";
+      if (record.target_user_id) {
+        targets = await subsFor((q) => q.eq("user_id", record.target_user_id));
+      } else {
+        const { data: leads } = await supabase.from("profiles").select("id").in("role", ["event_manager", "admin", "owner"]);
+        const ids = (leads ?? []).map((p: { id: string }) => p.id);
+        targets = ids.length ? await subsFor((q) => q.in("user_id", ids)) : [];
+      }
+
     } else if (table === "event_approval_request" && Array.isArray(record.approver_ids) && record.approver_ids.length) {
       // Owner/manager prep sign-off request → ping the people who still need to approve.
       title = "Prep needs your sign-off";
