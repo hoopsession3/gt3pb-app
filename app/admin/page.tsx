@@ -1016,19 +1016,23 @@ function LiveControl() {
   // and it doesn't depend on the admin_set_live RPC (which ran a bare UPDATE).
   const goLive = async (stopId: string) => {
     setLive((l) => ({ id: 1, current_stop_id: stopId, is_live: true, next_eta: l?.next_eta ?? null }));
-    // demote any other live stop, promote this one (one live at a time)
-    await supabase!.from("stops").update({ status: "upcoming" }).eq("status", "live").neq("id", stopId);
-    const r1 = await supabase!.from("stops").update({ status: "live" }).eq("id", stopId);
-    // upsert the single live_status row, and read it back to confirm it actually persisted
-    const r2 = await supabase!.from("live_status").upsert({ id: 1, is_live: true, current_stop_id: stopId }, { onConflict: "id" }).select("is_live");
-    const error = r1.error || r2.error;
-    if (error) { setErr(error.message); toast(`Couldn't go live — ${error.message}`, "error"); load(); return; }
-    if (!r2.data || r2.data.length === 0 || r2.data[0].is_live !== true) {
-      setErr("Go live didn't persist — your account lacks owner write access (RLS). Run: update profiles set role='owner' where is_admin.");
-      toast("Go live didn't save — your role lacks write access (see banner).", "error");
-      load(); return;
+    // Authoritative + atomic via the SECURITY-DEFINER RPC (demotes other stops, promotes this
+    // one, upserts live_status) — same robustness path as go-offline, not piecemeal client writes.
+    const { error } = await supabase!.rpc("admin_set_live", { stop: stopId, live: true });
+    if (error) {
+      setErr(error.message);
+      toast(error.message.includes("not authorized") ? "Go live failed — your account isn't an owner/admin." : `Couldn't go live — ${error.message}`, "error");
+      load();
+      return;
     }
-    toast("Truck is LIVE — members updated");
+    // Verify against the source of truth before claiming success.
+    const { data: chk } = await supabase!.from("live_status").select("is_live").eq("id", 1).maybeSingle();
+    if (!chk || (chk as { is_live: boolean }).is_live !== true) {
+      setErr("Go live didn't persist — confirm your owner role (RLS).");
+      toast("Go live didn't save — see banner.", "error");
+    } else {
+      toast("Truck is LIVE — members updated");
+    }
     load();
   };
   const pause = async () => {
@@ -1134,8 +1138,9 @@ function LiveControl() {
   // Archive a location out of the active list (keeps the record). If it was live, close it.
   const archiveStop = async (id: string) => {
     const wasLive = id === live?.current_stop_id;
+    // If it's the live stop, take the truck offline authoritatively first (atomic RPC).
+    if (wasLive) await supabase!.rpc("admin_set_offline");
     await supabase!.from("stops").update({ archived_at: new Date().toISOString(), status: "upcoming" }).eq("id", id);
-    if (wasLive) await supabase!.from("live_status").update({ is_live: false, current_stop_id: null }).eq("id", 1);
     toast("Location archived");
     setOpenStopId(null);
     load();
