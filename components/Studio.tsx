@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
 import BrandCalendar from "./BrandCalendar";
+import BrandKit from "./BrandKit";
 
 // STUDIO — the collaborative marketing studio. Her money-maker, his taste → built around
 // collaboration: real-time co-editing (Supabase Realtime presence + broadcast), real version
@@ -33,7 +34,10 @@ export default function Studio() {
   const [items, setItems] = useState<Item[]>([]);
   const [filter, setFilter] = useState<string>("all");
   const [openId, setOpenId] = useState<string | null>(null);
-  const [view, setView] = useState<"calendar" | "board">(() => (typeof window !== "undefined" && localStorage.getItem("gt3-studio-view") === "board") ? "board" : "calendar");
+  const [view, setView] = useState<"calendar" | "board" | "brand">(() => {
+    const v = typeof window !== "undefined" ? localStorage.getItem("gt3-studio-view") : null;
+    return v === "board" || v === "brand" ? v : "calendar";
+  });
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -56,7 +60,7 @@ export default function Studio() {
     const { data } = await supabase.from("content_items").insert({ title: "Untitled", created_by: me.id, updated_by: me.id, scheduled_for: scheduledISO ?? null, event_id: eventId ?? null }).select("id").single();
     if (data?.id) { await load(); setOpenId(data.id); }
   };
-  const pickView = (v: "calendar" | "board") => { setView(v); if (typeof window !== "undefined") localStorage.setItem("gt3-studio-view", v); };
+  const pickView = (v: "calendar" | "board" | "brand") => { setView(v); if (typeof window !== "undefined") localStorage.setItem("gt3-studio-view", v); };
 
   if (openId) return <StudioEditor id={openId} me={me} onClose={() => { setOpenId(null); load(); }} />;
 
@@ -67,12 +71,15 @@ export default function Studio() {
         <div className="studio-views" role="tablist" aria-label="View">
           <button type="button" className={`studio-view${view === "calendar" ? " on" : ""}`} onClick={() => pickView("calendar")}>Calendar</button>
           <button type="button" className={`studio-view${view === "board" ? " on" : ""}`} onClick={() => pickView("board")}>Board</button>
+          <button type="button" className={`studio-view${view === "brand" ? " on" : ""}`} onClick={() => pickView("brand")}>Brand</button>
         </div>
-        <button type="button" className="rdy-run" onClick={() => create()}>✦ New piece</button>
+        {view !== "brand" && <button type="button" className="rdy-run" onClick={() => create()}>✦ New piece</button>}
       </div>
 
-      {view === "calendar" ? (
-        <BrandCalendar onOpen={setOpenId} onCreate={(iso) => create(iso)} />
+      {view === "brand" ? (
+        <BrandKit canEdit />
+      ) : view === "calendar" ? (
+        <BrandCalendar onOpen={setOpenId} onCreate={(iso, evId) => create(iso, evId)} />
       ) : (
         <>
           <div className="subnav" role="tablist" aria-label="Filter">
@@ -121,6 +128,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   // Canva + Webflow muscle
   const [pub, setPub] = useState<{ edit: string | null; png: string | null; live: string | null }>({ edit: null, png: null, live: null });
   const [pubBusy, setPubBusy] = useState(""); const [pubErr, setPubErr] = useState("");
+  const [campBusy, setCampBusy] = useState(false);
   const chRef = useRef<any>(null);
   const saveTimer = useRef<any>(null);
 
@@ -292,6 +300,19 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
     if (!linkedEv) return;
     setBrief(`Promote ${linkedEv.title || "our event"}${linkedEv.day_label ? ` (${linkedEv.day_label})` : ""}. Education-first — lead with the why, sell by talking less.`);
   };
+  const genCampaign = async () => {
+    if (!supabase || !eventId || campBusy) return;
+    if (!window.confirm("Generate a teaser + day-of + recap for this event? Three drafts will be added to the calendar.")) return;
+    setCampBusy(true); setPubErr("");
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const r = await fetch("/api/agents/campaign", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ event_id: eventId, channel: item?.channel }) });
+      const j = await r.json();
+      if (j.ok) onClose(); // back to the calendar to see the arc laid out
+      else setPubErr(String(j.error ?? "").includes("ANTHROPIC") ? "AI isn't switched on yet — add the API key." : `Campaign: ${j.error}`);
+    } catch { setPubErr("Couldn't reach the campaign agent."); }
+    setCampBusy(false);
+  };
 
   if (!item) return <div className="adm-sec"><div className="oa-empty">Loading…</div></div>;
 
@@ -326,6 +347,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
             <button type="button" onClick={() => scheduleRel(0)}>Day of</button>
             <button type="button" onClick={() => scheduleRel(1)}>Recap +1d</button>
             <button type="button" className="rel-draft" onClick={briefFromEvent}>✨ Draft from event</button>
+            <button type="button" className="rel-camp" onClick={genCampaign} disabled={campBusy}>{campBusy ? "Building…" : "⚡ Generate campaign"}</button>
           </div>
         </div>
       )}
