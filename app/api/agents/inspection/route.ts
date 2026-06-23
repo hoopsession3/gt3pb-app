@@ -75,12 +75,12 @@ export async function POST(req: Request) {
     } else {
       // RESEARCH with web search (server tool); resume through any pause_turn.
       researched = true;
-      const webTool: any = { type: "web_search_20260209", name: "web_search", max_uses: 5 };
+      const webTool: any = { type: "web_search_20260209", name: "web_search", max_uses: 2 }; // capped at 2 (was 5) so the research loop stays under the serverless time limit
       const sys = "You research local regulations for a mobile beverage truck (GT3 Performance Bar — coffee, broth, bottled drinks). Find the TEMPORARY food service / mobile vendor permit and health-inspection requirements for the named jurisdiction. Prefer official sources (county health department, state agriculture/DPH). Be specific and cite where requirements come from. Note that requirements must be confirmed with the authority for the exact date.";
       let msgs: ClaudeMsg[] = [{ role: "user", content: `Research what's needed to legally operate and pass a health inspection for a temporary mobile beverage setup in ${place}. List the permits, certifications, inspection items, and insurance, with source links.` }];
       let r = await callClaude({ model: MODELS.sonnet, maxTokens: 2200, system: sys, messages: msgs, tools: [webTool] });
       let guard = 0;
-      while (r.stop_reason === "pause_turn" && guard++ < 5) {
+      while (r.stop_reason === "pause_turn" && guard++ < 2) {
         msgs = [...msgs, { role: "assistant", content: r.content }];
         r = await callClaude({ model: MODELS.sonnet, maxTokens: 2200, system: sys, messages: msgs, tools: [webTool] });
       }
