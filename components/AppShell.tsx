@@ -6,6 +6,7 @@ import { useApp } from "./AppProvider";
 import BottomNav from "./BottomNav";
 import OperatorNav, { OperatorSectionProvider } from "./OperatorNav";
 import CartBar from "./CartBar";
+import OrderStatus from "./OrderStatus";
 import DrinkSheet from "./DrinkSheet";
 import Checkout from "./Checkout";
 import Toast from "./Toast";
@@ -38,6 +39,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <Checkout />
         <Toast />
         <Notifications />
+        {inAdmin ? null : <OrderStatus />}
         {inAdmin ? null : <CartBar />}
         {inAdmin ? <OperatorNav /> : <BottomNav />}
         <ServiceWorkerRegister />
