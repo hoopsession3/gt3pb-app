@@ -529,6 +529,44 @@ function PrepCard({ title, when, location, live, r, onOpen }: { title: string; w
 
 // The picker: truck locations + events, each with its own independent pick list (0040).
 // Tapping a card opens that target's checklist (PrepDetail).
+// AGENT #2 — prep/readiness. On-demand: asks Claude if stock covers the next two weeks of events,
+// shows the verdict, and (when there's a real gap) raises it on the alert spine.
+function ReadinessAgent() {
+  const { toast } = useApp();
+  const [busy, setBusy] = useState(false);
+  const [res, setRes] = useState<{ headline: string; severity: string; gaps: { item: string; detail: string }[] } | null>(null);
+  const run = async () => {
+    if (!supabase || busy) return;
+    setBusy(true);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const r = await fetch("/api/agents/readiness", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: "{}" });
+      const j = await r.json();
+      if (!j.ok) toast(String(j.error ?? "").includes("ANTHROPIC") ? "AI isn't switched on yet — add the API key" : `Error: ${j.error ?? r.status}`, "error");
+      else if (j.skipped) { setRes(null); toast("No upcoming events to check"); }
+      else setRes({ headline: j.headline, severity: j.severity, gaps: j.gaps ?? [] });
+    } catch { toast("Couldn't reach the readiness agent", "error"); }
+    setBusy(false);
+  };
+  return (
+    <div className="adm-sec">
+      <div className="sec">Readiness</div>
+      <div className="rdy">
+        <div className="rdy-top">
+          <span className="rdy-blurb">Ask the prep agent if you&apos;re stocked for the next two weeks.</span>
+          <button type="button" className="rdy-run" onClick={run} disabled={busy}>{busy ? "Checking…" : "✨ Check"}</button>
+        </div>
+        {res && (
+          <div className={`rdy-out sev-${res.severity}`}>
+            <span className="rdy-head">{res.headline}</span>
+            {res.gaps.length > 0 && <ul className="rdy-gaps">{res.gaps.map((g, i) => <li key={i}><b>{g.item}</b> — {g.detail}</li>)}</ul>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function EventPrep({ onGo }: { onGo: (t: string) => void }) {
   const [events, setEvents] = useState<EventRow[]>([]);
   const [stops, setStops] = useState<Stop[]>([]);
@@ -1608,6 +1646,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
   const [assignFor, setAssignFor] = useState<EventTask | null>(null);
   const [openThread, setOpenThread] = useState<string | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const [suggesting, setSuggesting] = useState(false);
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -1635,6 +1674,19 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
     const { error } = await supabase.from("event_tasks").insert({ meeting_note_id: note.id, label: newItem.trim(), kind: "task", section: "Follow-up", sort: items.length });
     setNewItem("");
     if (error) toast(`Error: ${error.message}`, "error"); else load();
+  };
+  // Agent #1 — let Claude pull the follow-ups out of the recap, proposed for review.
+  const suggest = async () => {
+    if (!supabase || suggesting) return;
+    setSuggesting(true);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const r = await fetch("/api/agents/recap", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ note_id: note.id }) });
+      const j = await r.json();
+      if (!j.ok) toast(j.error === "AI not configured (set ANTHROPIC_API_KEY)" ? "AI isn't switched on yet — add the API key" : `Error: ${j.error ?? r.status}`, "error");
+      else { toast(j.added ? `Added ${j.added} suggested follow-up${j.added === 1 ? "" : "s"} — review & assign` : "No new action items found"); load(); }
+    } catch { toast("Couldn't reach the recap agent", "error"); }
+    setSuggesting(false);
   };
   const toggle = async (t: EventTask) => {
     if (!supabase) return;
@@ -1697,7 +1749,9 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
         <div className="note-body">
           {note.summary && <p className="note-summary">{note.summary}</p>}
           {note.body && <details className="note-full"><summary>Full notes</summary><p>{note.body}</p></details>}
-          <div className="note-fu-h">Follow-ups</div>
+          <div className="note-fu-h">Follow-ups
+            <button type="button" className="note-suggest" onClick={suggest} disabled={suggesting}>{suggesting ? "Reading…" : "✨ Suggest"}</button>
+          </div>
           {items.map((t) => (
             <div key={t.id} className="note-fu-wrap">
               <div className={`note-fu${t.done ? " done" : ""}`}>
@@ -2984,7 +3038,12 @@ export default function AdminPage() {
         </>
       )}
 
-      {sec === "prep" && canPrep && <EventPrep onGo={goSection} />}
+      {sec === "prep" && canPrep && (
+        <>
+          {canManage && <ReadinessAgent />}
+          <EventPrep onGo={goSection} />
+        </>
+      )}
 
       {sec === "plan" && canManage && (
         <>
