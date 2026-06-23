@@ -165,6 +165,19 @@ export interface Alert {
   created_at: string;
 }
 
+// Comments (0051) — polymorphic discussion threads: a comment belongs to exactly one of an
+// event_task / meeting_note / alert. Replies + @mentions notify through the alert spine.
+export interface Comment {
+  id: string;
+  body: string;
+  author_id: string | null;
+  event_task_id?: string | null;
+  meeting_note_id?: string | null;
+  alert_id?: string | null;
+  mentions: string[];
+  created_at: string;
+}
+
 // Limited reserves (0014_reserves.sql). Stock is server-authoritative; members
 // claim via the claim_reserve RPC (atomic, no oversell).
 export interface Reserve {
