@@ -20,7 +20,7 @@ export default function GearLibrary() {
     return (
       <div className="adm-sec gl">
         <div className="sec">Gear &amp; manuals</div>
-        <div className="gl-hint">Connect Notion to pull your equipment + manuals here — set <b>NOTION_TOKEN</b> in Vercel and share the Assets DB with the integration.</div>
+        <div className="gl-hint">Sign in as crew to see the gear library.</div>
       </div>
     );
   }

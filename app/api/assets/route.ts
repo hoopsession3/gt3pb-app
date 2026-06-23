@@ -1,62 +1,42 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// Live assets bridge → reads the GT3 Assets Notion database (name, make/model, brand,
-// GT3 use case, manual link, KB status) so Crew Mode can surface gear + its knowledge
-// inline and link back to the Notion record. Token-gated: set NOTION_TOKEN (a Notion
-// internal-integration secret) server-side and share the Assets DB with that integration.
-// Until then this returns { enabled: false } and the Gear panel shows a setup hint.
+// Assets bridge → reads the GT3 `assets` table in Postgres (system-of-record as of 0041;
+// migrated off the read-only Notion bridge). Staff-only. Returns the same shape the Gear &
+// manuals panel already consumes, so the UI is unchanged. select("*") (not a narrow projection)
+// to stay clear of the PostgREST cache quirk we hit on event_approvals.
 
+import { createClient } from "@supabase/supabase-js";
 import { staffFromRequest } from "@/lib/apiAuth";
 
-const DB = process.env.NOTION_ASSETS_DB || "1837a183-b1d9-81a3-a222-f7d7f4683609";
-
 export async function GET(req: Request) {
-  // staff-only: never expose the asset register to a guest/member JWT
   if (!(await staffFromRequest(req))) return Response.json({ enabled: false, items: [], error: "unauthorized" }, { status: 401 });
-  const token = process.env.NOTION_TOKEN;
-  if (!token) return Response.json({ enabled: false, items: [] });
 
-  try {
-    const items: any[] = [];
-    let cursor: string | undefined;
-    for (let i = 0; i < 10; i++) {
-      const res = await fetch(`https://api.notion.com/v1/databases/${DB}/query`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Notion-Version": "2022-06-28",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ page_size: 100, start_cursor: cursor }),
-        cache: "no-store",
-      });
-      if (!res.ok) return Response.json({ enabled: true, error: `Notion ${res.status}`, items: [] });
-      const data = await res.json();
-      for (const p of data.results ?? []) {
-        const pr = p.properties ?? {};
-        const txt = (k: string) => (pr[k]?.rich_text ?? []).map((t: any) => t.plain_text).join("").trim();
-        const sel = (k: string) => pr[k]?.select?.name ?? null;
-        const ms = (k: string) => (pr[k]?.multi_select ?? []).map((o: any) => o.name);
-        const title = (pr["Name"]?.title ?? []).map((t: any) => t.plain_text).join("").trim();
-        items.push({
-          name: title || "—",
-          makeModel: txt("Asset Make and Model"),
-          brand: sel("Brand"),
-          category: ms("Asset Category"),
-          useCase: txt("GT3 Use Case"),
-          manual: pr["Manual / Source"]?.url ?? null,
-          kbStatus: sel("KB Status"),
-          qty: typeof pr["QTY"]?.number === "number" ? pr["QTY"].number : null,
-          notionUrl: p.url ?? null,
-        });
-      }
-      if (!data.has_more) break;
-      cursor = data.next_cursor;
-    }
-    // stable order: Performance Bar, Brew, Shared, then by name
-    const rank: Record<string, number> = { "GT3 Performance Bar": 0, "GT3 Brew": 1, "Shared": 2 };
-    items.sort((a, b) => (rank[a.brand] ?? 3) - (rank[b.brand] ?? 3) || a.name.localeCompare(b.name));
-    return Response.json({ enabled: true, items });
-  } catch (e: any) {
-    return Response.json({ enabled: true, error: String(e?.message ?? e), items: [] });
-  }
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const auth = req.headers.get("authorization") || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  if (!url || !anon || !token) return Response.json({ enabled: false, items: [] });
+
+  const sb = createClient(url, anon, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { data, error } = await sb.from("assets").select("*");
+  if (error) return Response.json({ enabled: true, error: error.message, items: [] });
+
+  const rank: Record<string, number> = { "GT3 Performance Bar": 0, "GT3 Brew": 1, "Shared": 2 };
+  const items = (data ?? [])
+    .map((a: any) => ({
+      name: a.name || "—",
+      makeModel: a.make_model ?? "",
+      brand: a.brand ?? null,
+      category: a.category ?? [],
+      useCase: a.use_case ?? "",
+      manual: a.manual_url ?? null,
+      kbStatus: a.kb_status ?? null,
+      qty: typeof a.qty === "number" ? a.qty : null,
+      notionUrl: a.notion_url ?? null,
+    }))
+    .sort((x: any, y: any) => (rank[x.brand] ?? 3) - (rank[y.brand] ?? 3) || x.name.localeCompare(y.name));
+
+  return Response.json({ enabled: true, items });
 }
