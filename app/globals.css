@@ -1616,3 +1616,42 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .studio-pub{margin-top:14px;padding:13px;border:1px solid var(--line2);border-radius:13px;background:rgba(111,168,220,.06)}
 .studio-pub-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
 .studio-pub a.studio-act{text-decoration:none;display:inline-flex;align-items:center}
+
+/* ── Studio view toggle + Brand Calendar ── */
+.studio-views{display:flex;gap:6px}
+.studio-view{background:transparent;border:1px solid var(--line2);border-radius:999px;padding:7px 16px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.studio-view.on{background:var(--gold);border-color:var(--gold);color:#1a1610}
+.cal-sticky{position:sticky;top:0;z-index:6;background:var(--bg,#161310);padding-top:4px}
+.cal-bar{display:flex;align-items:center;justify-content:space-between;padding:4px 0 10px}
+.cal-nav{display:flex;align-items:center;gap:10px}
+.cal-month{font-family:'Fraunces','Inter',serif;font-size:19px;color:var(--cream);min-width:9ch;text-align:center}
+.cal-arrow{background:var(--card);border:1px solid var(--line);border-radius:9px;width:34px;height:34px;color:var(--cream);font-size:18px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.cal-today{background:rgba(255,255,255,.06);border:1px solid var(--line2);border-radius:9px;padding:8px 14px;color:var(--cream);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.cal-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;padding-bottom:6px}
+.cal-dow-c{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--cream-m);text-align:center}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.cal-cell{min-height:92px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:5px 5px 6px;display:flex;flex-direction:column;gap:4px;transition:border-color .1s,background .1s}
+.cal-cell.dim{opacity:.42}
+.cal-cell.today{border-color:var(--gold2)}
+.cal-cell.over{border-color:var(--gold);background:rgba(212,165,92,.1)}
+.cal-cell-h{display:flex;align-items:center;justify-content:space-between}
+.cal-date{font-family:'Inter';font-weight:600;font-size:12px;color:var(--cream-m)}
+.cal-add{opacity:0;background:none;border:none;color:var(--gold2);font-size:16px;line-height:1;cursor:pointer;padding:0 3px}
+.cal-cell:hover .cal-add,.cal-add:focus{opacity:1}
+.cal-items{display:flex;flex-direction:column;gap:3px;overflow:hidden}
+.cal-ev{font-family:'Inter';font-size:10.5px;font-weight:600;color:var(--cream);background:rgba(111,168,220,.16);border-radius:5px;padding:2px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default}
+.cal-ev.lit{outline:1px solid #6fa8dc}
+.cal-chip{display:flex;align-items:center;gap:4px;text-align:left;background:rgba(255,255,255,.04);border:1px solid var(--line);border-left:3px solid #9a8f7c;border-radius:5px;padding:2px 5px;color:var(--cream);font-family:'Inter';font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:grab;-webkit-appearance:none;appearance:none}
+.cal-chip.lit{outline:1px solid var(--gold2);background:rgba(212,165,92,.12)}
+.cal-chip.backlog{font-size:12px;padding:6px 9px;cursor:grab}
+.cal-chip-dot{flex:0 0 auto;width:6px;height:6px;border-radius:50%}
+.cal-backlog{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}
+.cal-backlog-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+.cal-empty{font-family:'Inter';font-size:12.5px;color:var(--cream-m)}
+.studio-rel{margin:0 0 10px;padding:10px 12px;border:1px solid var(--line2);border-radius:11px;background:rgba(111,168,220,.07)}
+.studio-rel-l{font-family:'Inter';font-size:13px;color:var(--cream)}
+.studio-rel-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}
+.studio-rel-cap{font-family:'Inter';font-size:11.5px;color:var(--cream-m)}
+.studio-rel-chips button{background:rgba(255,255,255,.06);border:1px solid var(--line2);border-radius:8px;padding:6px 10px;color:var(--cream);font-family:'Inter';font-weight:600;font-size:12px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.studio-rel-chips button.rel-draft{background:rgba(169,124,63,.18);border-color:var(--gold2);color:var(--gold2)}
+@media (max-width:560px){.cal-cell{min-height:74px}.cal-add{opacity:1}}
