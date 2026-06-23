@@ -5,6 +5,7 @@ import { supabase } from "./supabase";
 // Brief's "ingredient pull" from an estimate into have-vs-need with low-stock flags.
 
 export interface InvItem {
+  id: string;
   name: string;
   qty: number | null;
   eventReady: number | null;
@@ -16,6 +17,8 @@ export interface InvItem {
   requiredFor: string[];
   critical: boolean;
   reorderLink: string | null;
+  vendor: string | null;
+  notes: string | null;
 }
 export interface InventoryResp { enabled: boolean; items: InvItem[]; error?: string }
 

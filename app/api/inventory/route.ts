@@ -24,6 +24,7 @@ export async function GET(req: Request) {
 
   const num = (v: any) => (typeof v === "number" ? v : v == null ? null : Number(v));
   const items = (data ?? []).map((r: any) => ({
+    id: r.id,
     name: r.name || "—",
     qty: num(r.qty),
     eventReady: num(r.qty_event_ready),
@@ -35,6 +36,8 @@ export async function GET(req: Request) {
     requiredFor: r.required_for ?? [],
     critical: r.critical ?? false,
     reorderLink: r.reorder_link ?? null,
+    vendor: r.vendor ?? null,
+    notes: r.notes ?? null,
   }));
 
   return Response.json({ enabled: true, items });

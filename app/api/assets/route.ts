@@ -26,6 +26,7 @@ export async function GET(req: Request) {
   const rank: Record<string, number> = { "GT3 Performance Bar": 0, "GT3 Brew": 1, "Shared": 2 };
   const items = (data ?? [])
     .map((a: any) => ({
+      id: a.id,
       name: a.name || "—",
       makeModel: a.make_model ?? "",
       brand: a.brand ?? null,

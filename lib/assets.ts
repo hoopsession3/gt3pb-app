@@ -2,6 +2,7 @@
 // GT3 use case + manufacturer manual in Crew Mode, linking back to the Notion record.
 
 export interface AssetItem {
+  id: string;
   name: string;
   makeModel: string;
   brand: string | null;

@@ -1285,3 +1285,25 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .gl-links{flex:0 0 auto;display:flex;flex-direction:column;gap:4px;align-items:flex-end}
 .gl-links a{font-family:'Inter';font-size:11px;color:var(--gold2);text-decoration:none;white-space:nowrap}
 .gl-links a:active{opacity:.7}
+/* gear / inventory editor */
+.gl-toolbar{display:flex;justify-content:flex-end;margin-bottom:8px}
+.gl-edit{background:none;border:none;font-family:'Inter';font-size:11px;color:var(--cream-m);cursor:pointer;padding:0}
+.gl-edit:active{opacity:.6}
+.gl-del{background:none;border:none;font-size:12px;color:var(--cream-d);cursor:pointer;padding:0;line-height:1}
+.gl-del:active{color:#B82420}
+.gl-item.low .gl-item-main b{color:var(--gold2)}
+.gl-form{background:rgba(255,255,255,.02);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:12px}
+.gl-form-h{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:var(--gold2);margin-bottom:10px}
+.gl-f{display:block;margin-bottom:9px}
+.gl-f>span{display:block;font-family:'Inter';font-size:11px;color:var(--cream-m);margin-bottom:3px}
+.gl-f>span i{color:var(--cream-d);font-style:normal}
+.gl-f input,.gl-f select,.gl-f textarea{width:100%;background:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:7px;padding:8px 9px;color:var(--cream);font-family:'Inter';font-size:13px;box-sizing:border-box}
+.gl-f textarea{resize:vertical}
+.gl-f input:focus,.gl-f select:focus,.gl-f textarea:focus{outline:none;border-color:var(--gold2)}
+.gl-frow{display:flex;gap:8px}
+.gl-frow .gl-f{flex:1;min-width:0}
+.gl-check{display:flex;flex-direction:row;align-items:center;gap:7px}
+.gl-check input{width:auto}
+.gl-check>span{margin:0}
+.gl-err{font-family:'Inter';font-size:12px;color:#d2554a;margin:4px 0 8px}
+.gl-form-actions{display:flex;gap:8px;margin-top:4px}
