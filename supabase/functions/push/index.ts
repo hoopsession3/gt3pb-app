@@ -89,6 +89,13 @@ Deno.serve(async (req) => {
       url = "/admin";
       targets = await subsFor((q) => q.eq("user_id", record.assignee));
 
+    } else if (table === "event_approval_request" && Array.isArray(record.approver_ids) && record.approver_ids.length) {
+      // Owner/manager prep sign-off request → ping the people who still need to approve.
+      title = "Prep needs your sign-off";
+      message = `Review & approve prep for ${record.title ?? "an event"}`;
+      url = "/admin";
+      targets = await subsFor((q) => q.in("user_id", record.approver_ids));
+
     } else {
       return new Response("skip");
     }
