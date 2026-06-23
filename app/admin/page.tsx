@@ -10,6 +10,7 @@ import GearLibrary from "@/components/GearLibrary";
 import InventoryLibrary from "@/components/InventoryLibrary";
 import Reports from "@/components/Reports";
 import SnapshotReport from "@/components/SnapshotReport";
+import EventPnlReport from "@/components/EventPnlReport";
 import SignIn from "@/components/SignIn";
 import { supabase } from "@/lib/supabase";
 import { subscribePush } from "@/lib/push";
@@ -2464,6 +2465,7 @@ export default function AdminPage() {
         <>
           <Reports />
           <SnapshotReport />
+          <EventPnlReport />
           <ProductCatalog />
           <Subscribers />
           <SubInterest />

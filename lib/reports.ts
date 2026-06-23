@@ -24,7 +24,7 @@ export async function fetchSalesReport(days = 30): Promise<SalesReport | null> {
 
 export interface Snapshot {
   inventory: { item_count: number; value_cents: number; low_stock: number; by_category: { cat: string; value_cents: number }[] };
-  subs: { active: number; past_due: number; paused: number; total: number; by_plan: { plan: string; n: number }[] };
+  subs: { active: number; past_due: number; paused: number; total: number; mrr_cents: number; by_plan: { plan: string; n: number }[] };
   loyalty: { members: number; points_out: number; buyers: number; repeat_customers: number };
   error?: string;
 }
@@ -34,4 +34,20 @@ export async function fetchSnapshot(): Promise<Snapshot | null> {
   const { data, error } = await supabase.rpc("report_snapshot");
   if (error || !data) return null;
   return data as Snapshot;
+}
+
+export interface EventPnlRow {
+  event: string;
+  actual_cents: number;
+  orders: number;
+  cogs_pct: number;
+  fixed_cents: number;
+  margin_cents: number;
+}
+
+export async function fetchEventPnl(): Promise<EventPnlRow[] | null> {
+  if (!supabase) return null;
+  const { data, error } = await supabase.rpc("report_events");
+  if (error || !data) return null;
+  return data as EventPnlRow[];
 }

@@ -48,7 +48,7 @@ export default function SnapshotReport() {
       <div className="rpt-block">
         <div className="rpt-bh">Subscribers</div>
         <div className="rpt-kpis">
-          <div className="rpt-kpi"><span className="rpt-k">Active</span><b>{subs.active.toLocaleString()}</b></div>
+          <div className="rpt-kpi"><span className="rpt-k">MRR</span><b>{usd(subs.mrr_cents)}</b><span className="rpt-sub">{subs.active} active</span></div>
           <div className="rpt-kpi"><span className="rpt-k">Past due</span><b>{subs.past_due.toLocaleString()}</b><span className="rpt-sub">{subs.paused} paused · {subs.total} total</span></div>
         </div>
         {(subs.by_plan ?? []).map((p, i) => (
@@ -57,7 +57,7 @@ export default function SnapshotReport() {
             <div className="rpt-track"><div className="rpt-fill alt" style={{ width: `${Math.max(3, (p.n / planMax) * 100)}%` }} /></div>
           </div>
         ))}
-        <div className="rpt-foot">MRR needs plan pricing — wire plan → price (Product economics) to value subscriptions.</div>
+        <div className="rpt-foot">MRR = active subs × plan price (6 / 12 / 18-pack, every 2 weeks), normalized monthly. Edit prices in subscription_plans.</div>
       </div>
 
       <div className="rpt-block">
