@@ -5,9 +5,13 @@
 // internal-integration secret) server-side and share the Assets DB with that integration.
 // Until then this returns { enabled: false } and the Gear panel shows a setup hint.
 
+import { staffFromRequest } from "@/lib/apiAuth";
+
 const DB = process.env.NOTION_ASSETS_DB || "1837a183-b1d9-81a3-a222-f7d7f4683609";
 
-export async function GET() {
+export async function GET(req: Request) {
+  // staff-only: never expose the asset register to a guest/member JWT
+  if (!(await staffFromRequest(req))) return Response.json({ enabled: false, items: [], error: "unauthorized" }, { status: 401 });
   const token = process.env.NOTION_TOKEN;
   if (!token) return Response.json({ enabled: false, items: [] });
 

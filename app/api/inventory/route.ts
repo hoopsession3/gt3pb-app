@@ -5,9 +5,13 @@
 // integration secret) server-side and share the inventory DB with that integration.
 // Until then this returns { enabled: false } and the app falls back to estimates.
 
+import { staffFromRequest } from "@/lib/apiAuth";
+
 const DB = process.env.NOTION_INVENTORY_DB || "40652255-7cb0-48f8-a9a0-0d4e3812b024";
 
-export async function GET() {
+export async function GET(req: Request) {
+  // staff-only: inventory is internal operations data
+  if (!(await staffFromRequest(req))) return Response.json({ enabled: false, items: [], error: "unauthorized" }, { status: 401 });
   const token = process.env.NOTION_TOKEN;
   if (!token) return Response.json({ enabled: false, items: [] });
 
