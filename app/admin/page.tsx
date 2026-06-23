@@ -226,6 +226,66 @@ function Kitchen() {
 }
 
 // ───────────────────────── pre-flight readiness ─────────────────────────
+// ───────────────────────── my tasks: what's assigned to me, by priority ─────────────────────────
+type MyTaskRow = EventTask & { events: { title: string | null; day: string | null; is_live: boolean | null } | null };
+
+function MyTasks({ userId }: { userId: string | null }) {
+  const [tasks, setTasks] = useState<MyTaskRow[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!supabase || !userId) { setTasks([]); setLoaded(true); return; }
+    const { data } = await supabase
+      .from("event_tasks")
+      .select("*, events(title, day, is_live)")
+      .eq("assignee", userId)
+      .eq("done", false)
+      .order("sort");
+    setTasks((data as MyTaskRow[]) ?? []);
+    setLoaded(true);
+  }, [userId]);
+
+  useEffect(() => {
+    load();
+    if (!supabase || !userId) return;
+    const ch = supabase.channel("my-tasks")
+      .on("postgres_changes", { event: "*", schema: "public", table: "event_tasks", filter: `assignee=eq.${userId}` }, () => load())
+      .subscribe();
+    return () => { supabase?.removeChannel(ch); };
+  }, [load, userId]);
+
+  const complete = async (t: MyTaskRow) => {
+    if (!supabase) return;
+    setTasks((p) => p.filter((x) => x.id !== t.id)); // optimistic
+    await supabase.from("event_tasks").update({ done: true, done_by: userId, done_at: new Date().toISOString() }).eq("id", t.id);
+  };
+
+  if (!userId || (loaded && tasks.length === 0)) return null;
+
+  // Priority: critical first, then important (warn), then tasks on a LIVE event, then by date.
+  const score = (t: MyTaskRow) => (t.critical ? 0 : t.warn ? 1 : t.events?.is_live ? 2 : 3);
+  const sorted = [...tasks].sort((a, b) => score(a) - score(b) || (a.events?.day ?? "9999").localeCompare(b.events?.day ?? "9999"));
+  const crit = tasks.filter((t) => t.critical).length;
+
+  return (
+    <div className="adm-sec">
+      <div className="sec">My tasks <span className={`adm-pill${crit ? " due" : ""}`}>{tasks.length}{crit ? ` · ${crit} critical` : ""}</span></div>
+      {sorted.map((t) => (
+        <div key={t.id} className={`mytask${t.critical ? " crit" : t.warn ? " warn" : ""}`}>
+          <button type="button" className="task-check" onClick={() => complete(t)} aria-label={`Mark done: ${t.label}`}>
+            <span className="task-box" />
+          </button>
+          <div className="mytask-main">
+            <span className="mytask-label">{t.label}</span>
+            <span className="mytask-ev">{t.events?.title ?? "Event"}{t.events?.is_live ? " · LIVE" : t.events?.day ? ` · ${whenBucket(t.events.day).label}` : ""}</span>
+          </div>
+          {t.critical ? <span className="mytask-pri crit">Critical</span> : t.warn ? <span className="mytask-pri warn">Important</span> : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ───────────────────────── per-event prep: card picker + detail ─────────────────────────
 type Readiness = { done: number; total: number; crit: number };
 
@@ -284,7 +344,7 @@ function PrepCard({ ev, r, onOpen }: { ev: EventRow; r: Readiness; onOpen: () =>
 
 // Outer: the event picker. Cards grouped by date/when, with a pull-up to re-sort.
 // Tapping a card opens that event's pack-list detail (EventPrepDetail).
-function EventPrep() {
+function EventPrep({ onGo }: { onGo: (t: string) => void }) {
   const [events, setEvents] = useState<EventRow[]>([]);
   const [ready, setReady] = useState<Record<string, Readiness>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -334,6 +394,9 @@ function EventPrep() {
   if (dir === "desc") { groups.reverse(); for (const g of groups) g.items.reverse(); }
 
   return (
+    <>
+    {/* The overview + loadout live on the event LIST only — opening an event gives prep the full screen. */}
+    <Overview onGo={onGo} />
     <div className="adm-sec adm-prep">
       <div className="sec">Prep · {events.length} event{events.length === 1 ? "" : "s"}
         <button className="adm-prep-view" onClick={() => setSheet(true)} aria-haspopup="dialog">View ⌄</button>
@@ -352,6 +415,9 @@ function EventPrep() {
       ))}
       {sheet && <PrepViewSheet dir={dir} setDir={setDir} onClose={() => setSheet(false)} />}
     </div>
+    <TrailerLoadout />
+    <GearLibrary />
+    </>
   );
 }
 
@@ -717,46 +783,65 @@ function SupplyPicker({ ev, have, onAdd, onClose }: {
   const items = inv?.items ?? [];
   const ql = q.trim().toLowerCase();
   const onList = (name: string) => have.has(name.trim().toLowerCase());
-  const filtered = (ql ? items.filter((it) => it.name.toLowerCase().includes(ql)) : items);
-  // relevant-first ordering
   const relevantNames = inv ? new Set(inventoryForEvent(inv.items, ev).relevant.map((it) => it.name)) : new Set<string>();
-  const ordered = [...filtered].sort((a, b) => Number(relevantNames.has(b.name)) - Number(relevantNames.has(a.name)));
+  const filtered = ql ? items.filter((it) => it.name.toLowerCase().includes(ql) || (it.category ?? "").toLowerCase().includes(ql)) : items;
   const exactMatch = items.some((it) => it.name.trim().toLowerCase() === ql);
   const toggle = (name: string) => setSel((p) => { const n = new Set(p); if (n.has(name)) n.delete(name); else n.add(name); return n; });
-
   const confirm = () => onAdd(items.filter((it) => sel.has(it.name) && !onList(it.name)).map((it) => ({ label: it.name, critical: it.critical })));
   const addCustom = () => { if (ql) onAdd([{ label: q.trim(), critical: false }]); };
   const selCount = [...sel].filter((n) => !onList(n)).length;
 
+  // Group: what this event needs first, then by catalog category — easier to scan than one flat list.
+  const groupsMap = new Map<string, InvItem[]>();
+  for (const it of filtered) {
+    const g = relevantNames.has(it.name) ? "Needed for this event" : (it.category || "Other");
+    const arr = groupsMap.get(g) ?? [];
+    if (arr.length === 0) groupsMap.set(g, arr);
+    arr.push(it);
+  }
+  const groupEntries = [...groupsMap.entries()].sort((a, b) =>
+    a[0] === "Needed for this event" ? -1 : b[0] === "Needed for this event" ? 1 : a[0].localeCompare(b[0])
+  );
+
+  const Item = (it: InvItem) => {
+    const already = onList(it.name);
+    const picked = sel.has(it.name);
+    return (
+      <button key={it.name} type="button" className={`assign-row${picked && !already ? " on" : ""}`} disabled={already} onClick={() => toggle(it.name)}>
+        <span className={`task-box${picked && !already ? " on" : ""}`}>{picked && !already && <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7" /></svg>}</span>
+        <span className="assign-name">{it.name}{it.critical && <span className="supply-crit"> · critical</span>}{already && <span className="supply-off"> · on list</span>}</span>
+        {it.qty != null && <span className="orderbar-tag">{it.qty}{it.unit ? ` ${it.unit}` : ""}</span>}
+      </button>
+    );
+  };
+
   return (
     <>
       <div className="prep-scrim" onClick={onClose} aria-hidden="true" />
-      <div className="prep-sheet assign-sheet" role="dialog" aria-modal="true" aria-label="Add supplies">
-        <div className="prep-sheet-grab" />
-        <div className="assign-sheet-h">Supplies for · <b>{ev.title}</b></div>
-        <input className="subpitch-email" style={{ marginBottom: 10 }} placeholder="Search inventory or type a custom item…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search supplies" />
-        {ql && !exactMatch && (
-          <button type="button" className="assign-row me" onClick={addCustom}>
-            <span className="assign-av none">+</span>
-            <span className="assign-name">Add &ldquo;{q.trim()}&rdquo; <span className="supply-off">off-catalog</span></span>
-          </button>
-        )}
-        {inv && !inv.enabled && <div className="h-sub" style={{ margin: "4px 0 8px" }}>Inventory (Notion) isn&apos;t connected — type items above to add them.</div>}
-        {!inv && <div className="h-sub" style={{ margin: "4px 0" }}>Loading inventory…</div>}
-        <div className="supply-list">
-          {ordered.map((it) => {
-            const already = onList(it.name);
-            const picked = sel.has(it.name);
-            return (
-              <button key={it.name} type="button" className={`assign-row${picked && !already ? " on" : ""}`} disabled={already} onClick={() => toggle(it.name)}>
-                <span className={`task-box${picked && !already ? " on" : ""}`}>{picked && !already && <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7" /></svg>}</span>
-                <span className="assign-name">{it.name}{it.critical && <span className="supply-crit"> · critical</span>}{already && <span className="supply-off"> · on list</span>}</span>
-                {it.qty != null && <span className="orderbar-tag">{it.qty}{it.unit ? ` ${it.unit}` : ""}</span>}
-              </button>
-            );
-          })}
+      <div className="prep-sheet assign-sheet supply-sheet" role="dialog" aria-modal="true" aria-label="Add supplies">
+        <div className="supply-head">
+          <div className="prep-sheet-grab" />
+          <div className="assign-sheet-h">Supplies for · <b>{ev.title}</b></div>
+          <input className="subpitch-email" style={{ marginBottom: 0 }} placeholder="Search the asset database…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search supplies" autoFocus />
+          {ql && !exactMatch && (
+            <button type="button" className="assign-row me" style={{ marginTop: 8 }} onClick={addCustom}>
+              <span className="assign-av none">+</span>
+              <span className="assign-name">Add &ldquo;{q.trim()}&rdquo; <span className="supply-off">off-catalog</span></span>
+            </button>
+          )}
         </div>
-        <button className="handle" style={{ marginTop: 12 }} onClick={confirm} disabled={selCount === 0}>
+        <div className="supply-list">
+          {!inv && <div className="h-sub" style={{ margin: "6px 0" }}>Loading the asset database…</div>}
+          {inv && !inv.enabled && <div className="h-sub" style={{ margin: "6px 0" }}>Asset database (Notion) isn&apos;t connected — type a name above and tap <b>Add</b> to put it on the list.</div>}
+          {inv && inv.enabled && groupEntries.length === 0 && <div className="h-sub" style={{ margin: "6px 0" }}>No matches{ql ? ` for “${q.trim()}”` : ""}. Type to add it off-catalog.</div>}
+          {groupEntries.map(([g, list]) => (
+            <div key={g}>
+              <div className="assign-group">{g} <span className="supply-count">{list.length}</span></div>
+              {list.map(Item)}
+            </div>
+          ))}
+        </div>
+        <button className="handle supply-add" onClick={confirm} disabled={selCount === 0}>
           <span>{selCount > 0 ? `Add ${selCount} to checklist` : "Select items to add"}</span>
         </button>
       </div>
@@ -2205,6 +2290,7 @@ export default function AdminPage() {
 
       {sec === "now" && (
         <>
+          <MyTasks userId={user?.id ?? null} />
           {canManage && <EventHUD />}
           {canManage && <LiveControl />}
           <EnableAlerts userId={user?.id ?? null} />
@@ -2212,14 +2298,7 @@ export default function AdminPage() {
         </>
       )}
 
-      {sec === "prep" && canPrep && (
-        <>
-          <Overview onGo={goSection} />
-          <EventPrep />
-          <TrailerLoadout />
-          <GearLibrary />
-        </>
-      )}
+      {sec === "prep" && canPrep && <EventPrep onGo={goSection} />}
 
       {sec === "plan" && canManage && (
         <>
