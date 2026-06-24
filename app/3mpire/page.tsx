@@ -146,7 +146,7 @@ function MpireReal() {
         <div className="mt">
           <div className="eyb">★ {profile?.founding_member ? "Founding Member" : "Member"}</div>
           <h2>{name}</h2>
-          <p>{10 - cuppas} bottles from a free pour. Earn a point on every drink, double on subscription boxes.</p>
+          <p>{10 - cuppas} cuppas from a free pour. Earn a point on every drink, double on subscription boxes.</p>
         </div>
       </div></div>
 
@@ -234,7 +234,7 @@ function MpireDemo() {
         <div className="mt">
           <div className="eyb">★ Founding Member</div>
           <h2>Ryan T.</h2>
-          <p>3 bottles from a free pour. Earn a point on every drink, double on subscription boxes.</p>
+          <p>3 cuppas from a free pour. Earn a point on every drink, double on subscription boxes.</p>
         </div>
       </div></div>
 
