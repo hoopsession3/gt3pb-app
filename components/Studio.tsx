@@ -392,6 +392,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
         )}
         {(status === "approved" || status === "scheduled") && <button type="button" className="studio-act" onClick={() => setStage("published", {}, "published")}>Mark published</button>}
         <button type="button" className="studio-act ghost" onClick={() => setShowVers((s) => !s)}>History ({versions.length})</button>
+        <button type="button" className="studio-act ghost" onClick={async () => { if (supabase && window.confirm("Delete this piece? This can't be undone.")) { await supabase.from("content_items").delete().eq("id", id); onClose(); } }}>Delete</button>
       </div>
       {status === "changes" && item.review_note && <p className="insp-foot">Requested: {item.review_note}</p>}
 

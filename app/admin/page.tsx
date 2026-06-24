@@ -17,6 +17,7 @@ import { supabase } from "@/lib/supabase";
 import AskGT3 from "@/components/AskGT3";
 import Studio from "@/components/Studio";
 import MenuManager from "@/components/MenuManager";
+import PlanEditor from "@/components/PlanEditor";
 import { subscribePush } from "@/lib/push";
 import { chime, unlockAudio } from "@/lib/chime";
 import { haptic, HAPTIC } from "@/lib/haptics";
@@ -2215,6 +2216,7 @@ const initials = (name: string | null) =>
 
 function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; isSelf: boolean; ownerCount: number; onPatch: (id: string, role: string) => void; onSaved: () => void }) {
   const { toast } = useApp();
+  const [name, setName] = useState(m.display_name ?? "");
   const role = rawRole(m);
   const meta = ROLE_META[role];
   const [pts, setPts] = useState(m.points);
@@ -2224,10 +2226,11 @@ function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; is
   const [open, setOpen] = useState(false);
   // Keep the loyalty inputs honest if a realtime reload changes them underneath us.
   useEffect(() => { setPts(m.points); setCredit((m.credit_cents / 100).toFixed(2)); setFounding(m.founding_member); }, [m.points, m.credit_cents, m.founding_member]);
-  const dirty = pts !== m.points || credit !== (m.credit_cents / 100).toFixed(2) || founding !== m.founding_member;
+  const dirty = name !== (m.display_name ?? "") || pts !== m.points || credit !== (m.credit_cents / 100).toFixed(2) || founding !== m.founding_member;
 
   const save = async () => {
     setBusy(true);
+    if (name !== (m.display_name ?? "")) await supabase!.rpc("admin_set_display_name", { member: m.id, name });
     const { error } = await supabase!.rpc("admin_set_member", {
       member: m.id,
       new_points: pts,
@@ -2270,6 +2273,7 @@ function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; is
       <button className="tm-more" onClick={() => setOpen((o) => !o)} aria-expanded={open}>{open ? "Hide loyalty" : "Loyalty & credit"}</button>
       {open && (
         <div className="adm-fields tm-loyalty">
+          <label>Name<input value={name} onChange={(e) => setName(e.target.value)} placeholder="Display name" /></label>
           <label>Points<input type="number" min={0} value={pts} onChange={(e) => setPts(Math.max(0, parseInt(e.target.value) || 0))} /></label>
           <label>Credit $<input type="text" inputMode="decimal" value={credit} onChange={(e) => setCredit(e.target.value)} /></label>
           <label className="adm-check"><input type="checkbox" checked={founding} onChange={(e) => setFounding(e.target.checked)} />Founding</label>
@@ -3305,6 +3309,7 @@ export default function AdminPage() {
           <SnapshotReport />
           <EventPnlReport />
           <ProductCatalog />
+          <PlanEditor />
           <Subscribers />
           <SubInterest />
           <OrdersHistory />
