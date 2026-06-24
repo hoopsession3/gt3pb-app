@@ -16,6 +16,7 @@ import InputSheet from "@/components/InputSheet";
 import { supabase } from "@/lib/supabase";
 import AskGT3 from "@/components/AskGT3";
 import Studio from "@/components/Studio";
+import MenuManager from "@/components/MenuManager";
 import { subscribePush } from "@/lib/push";
 import { chime, unlockAudio } from "@/lib/chime";
 import { haptic, HAPTIC } from "@/lib/haptics";
@@ -3299,6 +3300,7 @@ export default function AdminPage() {
 
       {sec === "money" && isAdmin && (
         <>
+          <MenuManager />
           <Reports />
           <SnapshotReport />
           <EventPnlReport />
