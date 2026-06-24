@@ -22,7 +22,7 @@ export const SUB_CADENCE = process.env.NEXT_PUBLIC_SUB_CADENCE || "every 2 weeks
 // actual charge + cadence come from each pack's Square plan variation.
 export type SubPack = { size: number; key: "6" | "12" | "18"; price: string; each: string };
 export const SUB_PACKS: SubPack[] = [
-  { size: 6, key: "6", price: process.env.NEXT_PUBLIC_SUB_PRICE_6 || "$36", each: "$6.00 / cup" },
-  { size: 12, key: "12", price: process.env.NEXT_PUBLIC_SUB_PRICE_12 || "$66", each: "$5.50 / cup" },
-  { size: 18, key: "18", price: process.env.NEXT_PUBLIC_SUB_PRICE_18 || "$90", each: "$5.00 / cup" },
+  { size: 6, key: "6", price: process.env.NEXT_PUBLIC_SUB_PRICE_6 || "$36", each: "$6.00 / bottle" },
+  { size: 12, key: "12", price: process.env.NEXT_PUBLIC_SUB_PRICE_12 || "$66", each: "$5.50 / bottle" },
+  { size: 18, key: "18", price: process.env.NEXT_PUBLIC_SUB_PRICE_18 || "$90", each: "$5.00 / bottle" },
 ];

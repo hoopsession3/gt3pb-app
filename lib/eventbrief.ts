@@ -31,7 +31,7 @@ function ingredientNeeds(lines: { key: string; units: number }[]): IngredientNee
   if (coconut > 0) { out.push({ name: "Coconut water + meat", qty: `~${Math.ceil(coconut * 0.9)} servings` }); out.push({ name: "Raw honey", qty: `~${Math.max(1, Math.round(coconut * 0.3))} oz` }); }
   if (broth > 0) out.push({ name: "Bone broth", qty: `~${(broth * 8 / 128).toFixed(1)} gal slow-simmered` });
   if (bottles > 0) out.push({ name: "Empty bottles + caps", qty: `${Math.ceil(bottles * 1.1)} ea` });
-  out.push({ name: "Cups · lids · ice", qty: "per pack list" });
+  out.push({ name: "Bottles · lids · ice", qty: "per pack list" });
   return out;
 }
 

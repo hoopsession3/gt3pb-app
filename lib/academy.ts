@@ -46,7 +46,7 @@ export const MODULES: Module[] = [
       { h: "Mission", p: "Make the cleanest, most honest performance beverages — every input a named whole food, every claim something we can stand behind — and serve them at the moments people actually need them." },
       { h: "Vision", p: "Grow GT3 from one owner-operated bar into a multi-city, multi-brand operation that anyone can run to the same standard — because the standard is written down, not in someone's head." },
       { h: "Brand pillars", p: "1) Signal over noise — measured, not hyped. 2) Whole-food, made to order. 3) Premium experiential. 4) Due-diligence-ready: clean and transferable." },
-      { h: "Core values", p: "Honesty in the cup. Respect for the ingredient. Lean and repeatable. Best-for-you — the customer's outcome leads." },
+      { h: "Core values", p: "Honesty in the bottle. Respect for the ingredient. Lean and repeatable. Best-for-you — the customer's outcome leads." },
     ],
     quiz: [
       { q: "What are GT3's two brands?", options: ["GT3 Brew & GT3 Performance Bar", "GT3 Coffee & GT3 Juice", "GT3 Brew & GT3 Energy"], correct: 0 },
@@ -79,7 +79,7 @@ export const MODULES: Module[] = [
       { h: "Explain products simply", p: "Name → what it is → why it exists. \"Tide / Nature Aid is whole-coconut hydration with a touch of honey — easy to drink during the work.\" Keep it true and plain." },
       { h: "Handle objections", p: "\"Why is it more than gas-station coffee?\" → \"It's cold-extracted over hours from single-origin beans, made when you order it.\" Acknowledge, give the real reason, never argue." },
       { h: "Serve with confidence", p: "Know the menu cold. If you don't know an answer, say so and find out — never guess a nutrition number or a health claim." },
-      { h: "Make it memorable", p: "Use the guest's name if you have it. Hand the cup with both hands and a line about how to enjoy it. The last ten seconds are what they remember." },
+      { h: "Make it memorable", p: "Use the guest's name if you have it. Hand the bottle with both hands and a line about how to enjoy it. The last ten seconds are what they remember." },
     ],
     quiz: [
       { q: "Best way to explain a product?", options: ["List every nutrient", "Name, what it is, why it exists — in plain language", "Tell them it's the healthiest drink ever"], correct: 1 },
@@ -91,17 +91,17 @@ export const MODULES: Module[] = [
     slug: "primal-nutrition", section: "nutrition", title: "Primal Nutrition — the why behind the ingredients", estMin: 10,
     summary: "Why our ingredients, sourcing, prep and process matter — without medical claims.",
     body: [
-      { h: "The goal", p: "This is not medical advice and you should never give any. The goal is to explain our choices confidently in plain language so guests understand the care behind the cup." },
+      { h: "The goal", p: "This is not medical advice and you should never give any. The goal is to explain our choices confidently in plain language so guests understand the care behind the bottle." },
       { h: "Why ingredients matter", p: "We start with named whole foods — single-origin coffee, organic coconut, pasture-raised bones — not powders, isolates, or concentrates. You can point to where every part of the drink came from." },
       { h: "Why sourcing matters", p: "Organic and pasture-raised where it counts, mineral-rich water as the base. Better inputs are the whole product; we don't fix a weak input downstream." },
-      { h: "Why preparation matters", p: "Cold extraction draws coffee gently over hours for a rounder, less bitter cup than heat. Broth is slow-simmered. We make to order so it's fresh in the glass." },
-      { h: "Why process matters", p: "Less processing, fewer additives. The fewer steps between a whole food and the cup, the more honest the result." },
+      { h: "Why preparation matters", p: "Cold extraction draws coffee gently over hours for a rounder, less bitter brew than heat. Broth is slow-simmered. We make to order so it's fresh in the glass." },
+      { h: "Why process matters", p: "Less processing, fewer additives. The fewer steps between a whole food and the bottle, the more honest the result." },
       { h: "The honesty rule", p: "Published nutrition is ESTIMATED until a lab panel is run — labels read \"Estimated nutrition, per 10 fl oz.\" Never state a specific health mechanism or a comparison we can't back up (e.g. \"absorbs faster than sports drinks\"). Describe the ingredient and the care; let the guest draw their own conclusion." },
     ],
     quiz: [
       { q: "How should we describe a product's nutrition?", options: ["Cite exact lab values confidently", "As estimated until lab-verified, focusing on real ingredients and care", "Compare it favorably to named competitors"], correct: 1 },
       { q: "Which is allowed?", options: ["\"This cures inflammation.\"", "\"It's cold-extracted from single-origin beans and made to order.\"", "\"Absorbs twice as fast as sports drinks.\""], correct: 1, why: "Describe ingredients and process, not health mechanisms." },
-      { q: "Cold extraction means…", options: ["Brewed hot then chilled", "Drawn cold over hours for a rounder, less bitter cup", "Instant coffee over ice"], correct: 1 },
+      { q: "Cold extraction means…", options: ["Brewed hot then chilled", "Drawn cold over hours for a rounder, less bitter brew", "Instant coffee over ice"], correct: 1 },
       { q: "What must every nutrition label say until lab-verified?", options: ["\"Clinically proven\"", "\"Estimated nutrition, per 10 fl oz\"", "Nothing"], correct: 1 },
     ],
   },
@@ -110,7 +110,7 @@ export const MODULES: Module[] = [
     summary: "Know every product cold: what it is, who it's for, and how to talk about it.",
     body: [
       { h: "How to use this", p: "Read every product card in the Academy (below this module), then take this check. You should be able to give the one-line version of any item and its honest talking points." },
-      { h: "Activation line", p: "Rise, Flow, Dusk — all cold-extracted single-origin coffee. IMPORTANT: all three share one brew spec and the SAME caffeine (~210 mg / 10 oz). The difference is flavor and ingredient, not stimulant level. Dusk is a warm, spiced cup — not a lower-caffeine option." },
+      { h: "Activation line", p: "Rise, Flow, Dusk — all cold-extracted single-origin coffee. IMPORTANT: all three share one brew spec and the SAME caffeine (~210 mg / 10 oz). The difference is flavor and ingredient, not stimulant level. Dusk is a warm, spiced bottle — not a lower-caffeine option." },
       { h: "Hydration & fuel", p: "Nature Aid is whole-coconut hydration with a touch of raw honey (disclose the honey). Bone broth is slow-simmered, pasture-raised, for the rebuild after." },
       { h: "Talking-point rule", p: "Lead with what it is and the real ingredient story. Never promise a health outcome or quote a nutrition number you're not sure of." },
     ],
@@ -126,7 +126,7 @@ export const MODULES: Module[] = [
     body: [
       { h: "Before — the pack", p: "Every event has a generated pack list driven by its menu and rig. Pack from the list, not memory. Confirm power and water on site; if no water, the handwash station is mandatory." },
       { h: "Compliance", p: "Confirm the temporary food permit and any county requirements before the event (the app surfaces the jurisdiction's rules). No permit, no pour." },
-      { h: "Run-of-show", p: "Arrive with setup buffer, pour a test cup, mark the event live in the app so sales track. One person owns the line; one owns restock." },
+      { h: "Run-of-show", p: "Arrive with setup buffer, pour a test bottle, mark the event live in the app so sales track. One person owns the line; one owns restock." },
       { h: "During", p: "Watch the pack-signal and sales on the HUD. Keep the bar clean and stocked. Mark items 86'd the moment you run out." },
       { h: "Breakdown & AAR", p: "Break down clean, reconcile sales, and log a short after-action: what sold, what ran short, what to change. That note feeds the next event." },
     ],
@@ -192,7 +192,7 @@ export const PRODUCTS: Product[] = [
     what: "Cold-extracted single-origin coffee in mineral water, finished with organic coconut water.",
     why: "A clean, even lift to start the morning.",
     ingredients: ["Single-origin cold extraction", "Mineral water base", "Organic coconut water"],
-    benefits: ["Clean morning lift", "Smooth, low-bitterness cup", "Made to order"],
+    benefits: ["Clean morning lift", "Smooth, low-bitterness bottle", "Made to order"],
     customer: "The morning regular who wants real coffee without the burnt bite.",
     talking: ["Our clean cold-brew to start the day", "Cold-extracted over hours, so it's rounder and less bitter", "Same caffeine as Flow and Dusk (~210 mg/10 oz)"],
     faqs: [
@@ -207,8 +207,8 @@ export const PRODUCTS: Product[] = [
     why: "Cacao to keep the focus going a little longer.",
     ingredients: ["Single-origin cold extraction", "Mineral water base", "Organic cacao nibs"],
     benefits: ["Longer, even focus arc", "Rich cacao note", "Made to order"],
-    customer: "The deep-work drinker who wants a smoother, longer ride than a hot cup.",
-    talking: ["Cold-brew infused with real cacao nibs", "A richer, longer-feeling cup", "Same caffeine as Rise and Dusk"],
+    customer: "The deep-work drinker who wants a smoother, longer ride than a hot coffee.",
+    talking: ["Cold-brew infused with real cacao nibs", "A richer, longer-feeling bottle", "Same caffeine as Rise and Dusk"],
     faqs: [
       { q: "Is there chocolate sugar in it?", a: "No — it's whole cacao nibs infused in the brew, not a sweetened syrup." },
       { q: "More caffeine than Rise?", a: "No, about the same (~210 mg/10 oz, estimated)." },
@@ -218,7 +218,7 @@ export const PRODUCTS: Product[] = [
   {
     key: "dusk", name: "Dusk", line: "Activation", price: "$7",
     what: "Cold-extracted single-origin coffee in mineral water with Ceylon cinnamon and green cardamom.",
-    why: "A warmer, spiced cup for the back half of the day.",
+    why: "A warmer, spiced bottle for the back half of the day.",
     ingredients: ["Single-origin cold extraction", "Mineral water base", "Ceylon cinnamon", "Green cardamom"],
     benefits: ["Warm baking-spice flavor", "Same clean cold-brew base", "Made to order"],
     customer: "Someone who wants a cozier, spiced coffee in the afternoon.",
@@ -227,7 +227,7 @@ export const PRODUCTS: Product[] = [
       { q: "Is Dusk less caffeinated / a wind-down?", a: "No. It's the same spec and caffeine (~210 mg/10 oz) as Rise and Flow — the difference is the spice, not the lift." },
       { q: "Is it sweet?", a: "No added sugar; the spice reads warm without sweetness." },
     ],
-    cookbook: { batch: "Standard Batch — GT3 with cinnamon + cardamom.", brew: ["Brew base to spec", "Add Ceylon cinnamon + green cardamom", "Filter and log batch"], serve: ["Pour over ice; garnish per spec"], storage: "Keep cold; standard hold window.", quality: "Spice aromatic, balanced — not gritty.", troubleshoot: [{ issue: "Gritty", fix: "Use infusion, not loose ground spice in the cup." }] },
+    cookbook: { batch: "Standard Batch — GT3 with cinnamon + cardamom.", brew: ["Brew base to spec", "Add Ceylon cinnamon + green cardamom", "Filter and log batch"], serve: ["Pour over ice; garnish per spec"], storage: "Keep cold; standard hold window.", quality: "Spice aromatic, balanced — not gritty.", troubleshoot: [{ issue: "Gritty", fix: "Use infusion, not loose ground spice in the bottle." }] },
   },
   {
     key: "nature_aid", name: "Nature Aid", line: "Hydration", price: "$8",
@@ -266,7 +266,7 @@ export const PRODUCTS: Product[] = [
     customer: "Every coffee guest — this is the foundation, not a menu item itself.",
     talking: ["Cold-extracted over ~18 hours, 1:13 to mineral water", "We do it 'out of respect for the coffee'", "It's the base for everything in Activation"],
     faqs: [
-      { q: "Why cold and not hot?", a: "Heat pulls bitterness and acidity fast; cold draws the coffee gently over hours for a rounder cup." },
+      { q: "Why cold and not hot?", a: "Heat pulls bitterness and acidity fast; cold draws the coffee gently over hours for a rounder brew." },
     ],
     cookbook: { batch: "Standard Batch — GT3: 1:13 beans to mineral water, ~18-hr extraction.", brew: ["Weigh to 1:13", "Cold-extract ~18 hrs", "Filter; log batch + signal score"], serve: ["Use as the base for Rise/Flow/Dusk/Nitro"], storage: "Keep cold; honor the hold window.", quality: "Signal Score 8+; smoothness is the watch metric.", troubleshoot: [{ issue: "Low smoothness signal", fix: "Adjust grind/time toward spec; re-profile." }] },
   },

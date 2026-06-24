@@ -2192,7 +2192,7 @@ function Subscribers() {
   const active = subs.filter((s) => s.status === "active");
   const daysTo = (d: string | null) => (d ? Math.ceil((new Date(d).getTime() - Date.now()) / 86400000) : null);
   const dueSoon = active.filter((s) => { const n = daysTo(s.current_period_end); return n != null && n <= 3; }).length;
-  const packOf = (plan: string) => { const n = plan?.match(/\d+/)?.[0]; return n ? `${n} cups · every 2 wks` : plan; };
+  const packOf = (plan: string) => { const n = plan?.match(/\d+/)?.[0]; return n ? `${n} bottles · every 2 wks` : plan; };
   const renew = (s: Subscription) => {
     if (s.status === "past_due") return { text: "Payment failed — card needs updating", cls: "due" };
     const n = daysTo(s.current_period_end);
@@ -2489,7 +2489,7 @@ function EventEconomics({ e, econRow, catalog, onSave }: {
             <div className="pnl-row"><span className="k">Revenue · {Math.round(proj.projectedUnits)} units</span><span className="v">{usd(proj.revenueCents)}</span></div>
             <div className="pnl-row neg"><span className="k">− Product COGS</span><span className="v">−{usd(proj.cogsCents)}</span></div>
             <div className="pnl-row neg"><span className="k">− Labor</span><span className="v">−{usd(proj.laborCents)}</span></div>
-            <div className="pnl-row neg"><span className="k">− Booth · transport · permit · cups</span><span className="v">−{usd(fixed)}</span></div>
+            <div className="pnl-row neg"><span className="k">− Booth · transport · permit · bottles</span><span className="v">−{usd(fixed)}</span></div>
             <div className={`pnl-row net ${profitable ? "" : "neg"}`}><span className="k">Net profit</span><span className="v">{usd(proj.netCents)}</span></div>
           </div>
 
@@ -2515,7 +2515,7 @@ function EventEconomics({ e, econRow, catalog, onSave }: {
         <label className="ev-f">Booth $<input type="number" min={0} value={(econ.booth_cents / 100) || 0} onChange={(ev) => live({ booth_cents: toCents(ev.target.value) })} onBlur={commit} /></label>
         <label className="ev-f">Transport $<input type="number" min={0} value={(econ.transport_cents / 100) || 0} onChange={(ev) => live({ transport_cents: toCents(ev.target.value) })} onBlur={commit} /></label>
         <label className="ev-f">Permit $<input type="number" min={0} value={(econ.permit_cents / 100) || 0} onChange={(ev) => live({ permit_cents: toCents(ev.target.value) })} onBlur={commit} /></label>
-        <label className="ev-f">Cups/ice $<input type="number" min={0} value={(econ.consumables_cents / 100) || 0} onChange={(ev) => live({ consumables_cents: toCents(ev.target.value) })} onBlur={commit} /></label>
+        <label className="ev-f">Bottles/ice $<input type="number" min={0} value={(econ.consumables_cents / 100) || 0} onChange={(ev) => live({ consumables_cents: toCents(ev.target.value) })} onBlur={commit} /></label>
         <label className="ev-f">Labor total<input type="text" readOnly value={usd(proj.laborCents)} tabIndex={-1} /></label>
       </div>
     </div>

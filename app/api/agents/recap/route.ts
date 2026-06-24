@@ -21,7 +21,7 @@ const TOOL: ToolDef = {
         items: {
           type: "object",
           properties: {
-            label: { type: "string", description: "The follow-up, imperative and specific (e.g. 'Order 4 cases of 12oz cups before Thursday')." },
+            label: { type: "string", description: "The follow-up, imperative and specific (e.g. 'Order 4 cases of 16oz bottles before Thursday')." },
             priority: { type: "string", enum: ["critical", "normal"], description: "critical = time-sensitive or blocks an event." },
           },
           required: ["label", "priority"],
