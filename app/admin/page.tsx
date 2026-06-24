@@ -669,34 +669,19 @@ function InspectionPrep() {
       .then(({ data }) => setEvents(data ?? []));
   }, [open]);
 
-  // Kick phase 2 (extract) once phase 1 (search) lands. The route claims the job atomically, so firing
-  // this more than once across polls is harmless.
-  const triggerExtract = async (jobId: string) => {
-    if (!supabase) return;
-    const token = (await supabase.auth.getSession()).data.session?.access_token;
-    await fetch("/api/agents/inspection", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      body: JSON.stringify({ phase: "extract", job_id: jobId }),
-    }).catch(() => {});
-  };
-
-  // Uncovered jurisdictions research in the background across two phases (search → extract). Poll the
-  // job row — staff RLS allows the read — driving the waiting banner, firing the phase-2 trigger the
-  // moment the search lands, and resolving on done/error or the deadline (two phases, each bounded ~120s).
+  // Uncovered jurisdictions research in the background (the route returns a job id and runs the lean
+  // research after the response is flushed). Poll the job row — staff RLS allows the read — keeping the
+  // waiting banner up until it finishes or the deadline (~3 min).
   const waitForJob = async (jobId: string): Promise<{ status: string; result: InspResult | null; error: string | null; place: string } | null> => {
     if (!supabase) return null;
-    const deadline = Date.now() + 230000;
-    let triggered = false;
+    const deadline = Date.now() + 180000;
     while (Date.now() < deadline && aliveRef.current) {
       await new Promise((r) => setTimeout(r, 3000));
       if (!aliveRef.current) return null;
       const { data } = await supabase.from("inspection_research_jobs").select("status, result, error, place").eq("id", jobId).maybeSingle();
       if (!data) continue;
-      if (data.status === "searched" && !triggered) { triggered = true; setWait("Writing up the brief…"); await triggerExtract(jobId); }
-      else if (data.status === "extracting") setWait("Writing up the brief…");
-      else if (data.status === "running" || data.status === "pending") setWait("Researching the jurisdiction…");
       if (data.status === "done" || data.status === "error") return data as { status: string; result: InspResult | null; error: string | null; place: string };
+      setWait("Researching the jurisdiction…");
     }
     return null;
   };

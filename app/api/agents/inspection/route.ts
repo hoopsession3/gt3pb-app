@@ -13,16 +13,14 @@ export const maxDuration = 120;
 // Covered jurisdiction (we already have active rows): we brief synchronously FROM RECORDS — one
 // fast Sonnet call, no web search — and return the result inline (status: "done").
 //
-// Uncovered jurisdiction: web research is too slow to finish inside one HTTP request — even the
-// background `after()` version blew the maxDuration cap (web_search + the structured extract together
-// ran >120s and the worker was killed mid-run, orphaning the job at 'running'). So we run it in TWO
-// bounded background phases, each comfortably under maxDuration:
-//   phase 1 (processSearchPhase): web_search the jurisdiction, save the raw findings, mark 'searched'.
-//   phase 2 (processExtractPhase): turn the saved findings into the brief + PROPOSED compliance rows
-//     (inactive/unverified until an admin approves) + optional event tasks, mark 'done'.
-// The route returns the job id immediately (status: "pending"); the Inspection Prep card polls
-// `inspection_research_jobs`, and the moment it sees 'searched' it POSTs back {phase:"extract"} to
-// kick phase 2 off in its own fresh function budget. Stranded jobs are reaped (see reapStale).
+// Uncovered jurisdiction: web research can't reliably finish inside one HTTP request. We QUEUE it —
+// insert a job row, return its id immediately (status: "pending"), and run the research AFTER the
+// response is flushed via Next `after()` (no gateway idle-timeout race). The work is kept LEAN so it
+// finishes under the 120s function cap: ONE web search + at most one pause-turn resume, then a fast
+// Haiku extract (see processResearchJob — the header there explains why earlier heavier versions, and a
+// two-phase split, both blew the cap). The background run writes the brief + PROPOSED compliance rows
+// (inactive/unverified until an admin approves) + optional event tasks; the Inspection Prep card polls
+// `inspection_research_jobs` for the result. Stranded jobs are reaped (see reapStale).
 
 const SAVE: ToolDef = {
   name: "save_requirements",
@@ -67,49 +65,34 @@ async function persistTasks(event_id: string, checklist: string[] | undefined): 
 const touchJob = (jobId: string, patch: Record<string, any>) =>
   supabaseAdmin!.from("inspection_research_jobs").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", jobId);
 
-// PHASE 1 (background) — web-research the jurisdiction and save the RAW findings, then mark 'searched'.
-// This phase does the slow web_search work ONLY; the structured extract is split into phase 2 so each
-// invocation finishes well under maxDuration (the single-pass version blew the 120s cap and orphaned
-// jobs at 'running'). Never throws: any failure lands as status 'error' so the poller stops cleanly.
-async function processSearchPhase(jobId: string, place: string) {
+// BACKGROUND — research an uncovered jurisdiction in ONE lean pass, then write the brief + PROPOSED
+// compliance rows back to the job row. Two earlier attempts both blew Vercel's 120s function cap: the
+// single-pass with 2 searches + 2 resume rounds, AND a two-phase split — because the AGENTIC WEB SEARCH
+// itself is the >120s cost (proven live: phase 1's search alone orphaned at 'running' past the cap), not
+// the extract. So we keep the search LEAN: one web search, at most one pause-turn resume, tight token
+// budgets — comfortably under maxDuration. Never throws: failures land as status 'error' so the poller
+// stops cleanly. The Inspection Prep card polls inspection_research_jobs for the result.
+async function processResearchJob(jobId: string, j: { state: string; county: string; event_id: string; place: string }) {
   if (!supabaseAdmin) return;
   try {
     await touchJob(jobId, { status: "running" });
-    // web_search server tool; resume through any pause_turn. Capped (2 searches + 2 resume rounds).
-    const webTool: any = { type: "web_search_20260209", name: "web_search", max_uses: 2 };
-    const sys = "You research local regulations for a mobile beverage truck (GT3 Performance Bar — coffee, broth, bottled drinks). Find the TEMPORARY food service / mobile vendor permit and health-inspection requirements for the named jurisdiction. Prefer official sources (county health department, state agriculture/DPH). Be specific and cite where requirements come from. Note that requirements must be confirmed with the authority for the exact date.";
-    let msgs: ClaudeMsg[] = [{ role: "user", content: `Research what's needed to legally operate and pass a health inspection for a temporary mobile beverage setup in ${place}. List the permits, certifications, inspection items, and insurance, with source links.` }];
-    let r = await callClaude({ model: MODELS.sonnet, maxTokens: 2200, system: sys, messages: msgs, tools: [webTool] });
-    let guard = 0;
-    while (r.stop_reason === "pause_turn" && guard++ < 2) {
+
+    // (1) ONE web search, lean. max_uses:1 + a single resume round keeps this well under the 120s cap.
+    const webTool: any = { type: "web_search_20260209", name: "web_search", max_uses: 1 };
+    const sys = "You research local regulations for a mobile beverage truck (GT3 Performance Bar — coffee, broth, bottled drinks). Find the TEMPORARY food service / mobile vendor permit and health-inspection requirements for the named jurisdiction. Prefer official sources (county health department, state agriculture/DPH). Make ONE focused search, then summarize concisely with sources. Note that requirements must be confirmed with the authority for the exact date.";
+    let msgs: ClaudeMsg[] = [{ role: "user", content: `Research what's needed to legally operate and pass a health inspection for a temporary mobile beverage setup in ${j.place}. List the permits, certifications, inspection items, and insurance, with source links.` }];
+    let r = await callClaude({ model: MODELS.sonnet, maxTokens: 1600, system: sys, messages: msgs, tools: [webTool] });
+    if (r.stop_reason === "pause_turn") {
       msgs = [...msgs, { role: "assistant", content: r.content }];
-      r = await callClaude({ model: MODELS.sonnet, maxTokens: 2200, system: sys, messages: msgs, tools: [webTool] });
+      r = await callClaude({ model: MODELS.sonnet, maxTokens: 1600, system: sys, messages: msgs, tools: [webTool] });
     }
-    const research = (r.text || "").trim();
-    if (!research) { await touchJob(jobId, { status: "error", error: "no findings from research" }); return; }
-    await touchJob(jobId, { status: "searched", research_raw: research.slice(0, 24000) });
-  } catch (e: any) {
-    await touchJob(jobId, { status: "error", error: String(e?.message ?? e).slice(0, 300) });
-  }
-}
+    const research = (r.text || "").trim() || "(no findings)";
 
-// PHASE 2 (background) — turn the saved findings into the structured brief + PROPOSED compliance rows,
-// then mark 'done'. No web search: a single fast Haiku extract, comfortably under maxDuration. Triggered
-// by the card the moment the job reaches 'searched' (the route already claimed it → 'extracting').
-async function processExtractPhase(jobId: string) {
-  if (!supabaseAdmin) return;
-  try {
-    const { data: job } = await supabaseAdmin.from("inspection_research_jobs")
-      .select("state, county, event_id, place, research_raw").eq("id", jobId).single();
-    if (!job) return;
-    const research = job.research_raw || "(no findings)";
-
-    // Extract structured rows (forced tool, no web search). Haiku — extraction from given text is easy
-    // and the faster model keeps this phase fast.
+    // (2) Extract structured rows (forced tool, no web search) — fast Haiku pass.
     const ex = await callClaude({
-      model: MODELS.haiku, maxTokens: 1500,
+      model: MODELS.haiku, maxTokens: 1400,
       system: "Turn the research into clean compliance rows for a mobile beverage truck. One row per distinct requirement. Keep links from the research. If sources were thin, set confidence low. Always answer with save_requirements.",
-      messages: [{ role: "user", content: `Jurisdiction: ${job.place}\n\nResearch findings:\n${research}` }],
+      messages: [{ role: "user", content: `Jurisdiction: ${j.place}\n\nResearch findings:\n${research}` }],
       tools: [SAVE], tool_choice: { type: "tool", name: "save_requirements" },
     });
     const out: SaveOut | null = ex.toolUses.find((t) => t.name === "save_requirements")?.input ?? null;
@@ -119,7 +102,7 @@ async function processExtractPhase(jobId: string) {
     let proposed: any[] = [];
     if (Array.isArray(out.rules) && out.rules.length) {
       const rows = out.rules.filter((x) => x?.label?.trim()).slice(0, 25).map((x, i) => ({
-        state: job.state, county: job.county || null, label: String(x.label).trim().slice(0, 300),
+        state: j.state, county: j.county || null, label: String(x.label).trim().slice(0, 300),
         kind: ["permit", "cert", "inspection", "insurance", "other"].includes(x.kind) ? x.kind : "other",
         link: x.link ? String(x.link).slice(0, 500) : null, critical: !!x.critical,
         active: false, verified: false, source: "agent-research", sort: 500 + i,
@@ -128,8 +111,7 @@ async function processExtractPhase(jobId: string) {
       proposed = data ?? [];
     }
 
-    const tasksAdded = await persistTasks(job.event_id, out.checklist);
-
+    const tasksAdded = await persistTasks(j.event_id, out.checklist);
     await touchJob(jobId, {
       status: "done",
       result: { researched: true, summary: out.summary, checklist: out.checklist ?? [], confidence: out.confidence, proposed, tasksAdded },
@@ -157,18 +139,6 @@ export async function POST(req: Request) {
 
   let body: any = {};
   try { body = await req.json(); } catch { /* */ }
-
-  // PHASE-2 TRIGGER — the card calls this once the job reaches 'searched'. Atomically CLAIM it
-  // (searched → extracting) so concurrent polls can't double-run the extract, then finish in the
-  // background. Idempotent: if it's already past 'searched', just acknowledge.
-  if (body.phase === "extract" && body.job_id) {
-    const jobId = String(body.job_id);
-    const { data: claimed } = await supabaseAdmin.from("inspection_research_jobs")
-      .update({ status: "extracting", updated_at: new Date().toISOString() })
-      .eq("id", jobId).eq("status", "searched").select("id").maybeSingle();
-    if (claimed) after(() => processExtractPhase(jobId));
-    return NextResponse.json({ ok: true, status: claimed ? "extracting" : "accepted" });
-  }
 
   const state = String(body.state ?? "").trim().toUpperCase().slice(0, 4);
   const county = String(body.county ?? "").trim().slice(0, 60);
@@ -203,8 +173,8 @@ export async function POST(req: Request) {
     }
   }
 
-  // RESEARCH PATH — phase 1 runs after the response is flushed; the card triggers phase 2 (see header
-  // note). Reap any of this state's jobs stranded by a prior timeout before queueing a fresh one.
+  // RESEARCH PATH — the lean research runs after the response is flushed (see header note). Reap any of
+  // this state's jobs stranded by a prior timeout before queueing a fresh one.
   await reapStale(state).catch(() => {});
   const me = await userFromRequest(req).catch(() => null);
   const { data: job, error } = await supabaseAdmin.from("inspection_research_jobs")
@@ -212,6 +182,6 @@ export async function POST(req: Request) {
     .select("id").single();
   if (error || !job) return NextResponse.json({ ok: false, error: "could not start research job" }, { status: 502 });
 
-  after(() => processSearchPhase(job.id, place));
+  after(() => processResearchJob(job.id, { state, county, event_id, place }));
   return NextResponse.json({ ok: true, status: "pending", job_id: job.id, place });
 }
