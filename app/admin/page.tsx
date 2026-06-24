@@ -20,6 +20,7 @@ import MenuManager from "@/components/MenuManager";
 import PlanEditor from "@/components/PlanEditor";
 import CompanyCalendar from "@/components/CompanyCalendar";
 import EventDayPlanner from "@/components/EventDayPlanner";
+import EventGenerator from "@/components/EventGenerator";
 import Markdown from "@/components/Markdown";
 import { subscribePush } from "@/lib/push";
 import { chime, unlockAudio } from "@/lib/chime";
@@ -656,13 +657,14 @@ function InspectionPrep() {
   const [eventId, setEventId] = useState("");
   const [busy, setBusy] = useState(false);
   const [res, setRes] = useState<InspResult | null>(null);
+  const [open, setOpen] = useState(false); // collapsed until needed — keeps the Prep screen clean
 
   useEffect(() => {
-    if (!supabase) return;
+    if (!open || !supabase) return;
     const today = new Date().toISOString().slice(0, 10);
     supabase.from("events").select("id, title, day, day_label").is("archived_at", null).gte("day", today).order("day").limit(40)
       .then(({ data }) => setEvents(data ?? []));
-  }, []);
+  }, [open]);
 
   const run = async () => {
     if (!supabase || busy || !state.trim()) return;
@@ -687,8 +689,12 @@ function InspectionPrep() {
 
   return (
     <div className="adm-sec">
-      <div className="sec">Inspection prep</div>
-      <div className="rdy">
+      <button type="button" className="prep-collapse" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <span className="prep-collapse-l"><b>Inspection prep</b><span>Permit / health-dept research — open it when one is coming up</span></span>
+        <span className={`ev-chev${open ? " open" : ""}`}>›</span>
+      </button>
+      {open && (
+      <div className="rdy" style={{ marginTop: 10 }}>
         <div className="insp-form">
           <input className="insp-in insp-st" value={state} onChange={(e) => setState(e.target.value)} placeholder="State (GA)" maxLength={4} />
           <input className="insp-in" value={county} onChange={(e) => setCounty(e.target.value)} placeholder="County (optional)" />
@@ -722,6 +728,7 @@ function InspectionPrep() {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }
@@ -2752,6 +2759,7 @@ function EventsAdmin() {
   const openPrep = (id: string) => { try { localStorage.setItem("gt3-prep-open", id); } catch { /* ignore */ } setSection("prep"); };
   const [events, setEvents] = useState<EventRow[]>([]);
   const [openId, setOpenId] = useState<string | null>(null); // single-open accordion
+  const [genOpen, setGenOpen] = useState(false); // "create from notes" agent
   const [catalog, setCatalog] = useState<ProductEcon[]>([]);
   const [econMap, setEconMap] = useState<Record<string, EventEcon>>({});
   const [showArch, setShowArch] = useState(false);
@@ -2833,7 +2841,11 @@ function EventsAdmin() {
 
   return (
     <div className="adm-sec">
-      <div className="sec">Events <button className="adm-btn" style={{ marginLeft: "auto" }} onClick={addEvent}>+ Add</button></div>
+      <div className="sec">Events
+        <button className="adm-btn eg-btn" style={{ marginLeft: "auto" }} onClick={() => setGenOpen(true)}>✨ From notes</button>
+        <button className="adm-btn" onClick={addEvent}>+ Add</button>
+      </div>
+      {genOpen && <EventGenerator onClose={() => setGenOpen(false)} onCreated={load} />}
       {active.length === 0 && <div className="ev-empty">No active events. Tap <b>+ Add</b> to create one{archived.length ? ", or reopen one below" : ""}.</div>}
       <div className="ev-list">
         {active.map((e, i) => (

@@ -6,6 +6,7 @@ import { useApp } from "./AppProvider";
 import BottomNav from "./BottomNav";
 import OperatorNav, { OperatorSectionProvider } from "./OperatorNav";
 import QuickDock from "./QuickDock";
+import Concierge from "./Concierge";
 import CartBar from "./CartBar";
 import OrderStatus from "./OrderStatus";
 import DrinkSheet from "./DrinkSheet";
@@ -29,6 +30,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // role-scoped operator console nav (OperatorNav falls back to the customer nav
   // for non-staff so they can still navigate away).
   const inAdmin = pathname.startsWith("/admin");
+  // Guest concierge shows on the customer-facing surfaces only (not the crew console, architecture, or academy).
+  const customerSurface = !inAdmin && !pathname.startsWith("/architecture") && !pathname.startsWith("/academy");
 
   // Day mode: the crew console defaults to a light theme for daylight/outdoor use. Persisted;
   // toggle back to dark anytime. Customer-facing pages are unaffected.
@@ -50,6 +53,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {inAdmin ? null : <CartBar />}
         {inAdmin ? <OperatorNav /> : <BottomNav />}
         {inAdmin && <QuickDock />}
+        {customerSurface && <Concierge />}
         {inAdmin && <button type="button" className="theme-toggle" onClick={toggleTheme} aria-label={theme === "day" ? "Switch to dark" : "Switch to day"}>{theme === "day" ? "🌙" : "☀️"}</button>}
         <ServiceWorkerRegister />
       </div>

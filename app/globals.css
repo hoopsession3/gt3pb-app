@@ -1630,7 +1630,9 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .cal-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;padding-bottom:6px}
 .cal-dow-c{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--cream-m);text-align:center}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
-.cal-cell{min-height:92px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:5px 5px 6px;display:flex;flex-direction:column;gap:4px;transition:border-color .1s,background .1s}
+/* min-width:0 lets 1fr columns shrink below their no-wrap content — without it the chips push
+   Saturday off-screen and you can't see all the dates. */
+.cal-cell{min-width:0;min-height:92px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:5px 5px 6px;display:flex;flex-direction:column;gap:4px;transition:border-color .1s,background .1s}
 .cal-cell.dim{opacity:.42}
 .cal-cell.today{border-color:var(--gold2)}
 .cal-cell.over{border-color:var(--gold);background:rgba(212,165,92,.1)}
@@ -1638,7 +1640,8 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .cal-date{font-family:'Inter';font-weight:600;font-size:12px;color:var(--cream-m)}
 .cal-add{opacity:0;background:none;border:none;color:var(--gold2);font-size:16px;line-height:1;cursor:pointer;padding:0 3px}
 .cal-cell:hover .cal-add,.cal-add:focus{opacity:1}
-.cal-items{display:flex;flex-direction:column;gap:3px;overflow:hidden}
+.cal-items{display:flex;flex-direction:column;gap:3px;overflow:hidden;min-width:0}
+.cal-items .cc-chip{max-width:100%}
 .cal-ev{font-family:'Inter';font-size:10.5px;font-weight:600;color:var(--cream);background:rgba(111,168,220,.16);border-radius:5px;padding:2px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default}
 .cal-ev.lit{outline:1px solid #6fa8dc}
 .cal-chip{display:flex;align-items:center;gap:4px;text-align:left;background:rgba(255,255,255,.04);border:1px solid var(--line);border-left:3px solid #9a8f7c;border-radius:5px;padding:2px 5px;color:var(--cream);font-family:'Inter';font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:grab;-webkit-appearance:none;appearance:none}
@@ -1949,3 +1952,112 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .biz-where{font-family:'DM Mono';font-size:11.5px;color:var(--cream);opacity:.9}
 .biz-next{font-family:'Inter';font-size:11.5px;color:var(--cream-d);font-style:italic}
 .app.crew-day .biz-card{background:#fff}
+/* ── Guest concierge (customer-facing AI host) ── */
+.conc-fab{position:fixed;right:16px;bottom:84px;z-index:55;display:flex;align-items:center;gap:7px;background:#15140f;color:#f4ead6;border:1px solid #B8902F;border-radius:999px;padding:10px 15px;font-family:'Inter';font-weight:700;font-size:14px;box-shadow:0 6px 22px rgba(0,0,0,.32);cursor:pointer}
+.conc-fab.hide{display:none}
+.conc-fab-i{font-size:16px}
+.conc-scrim{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
+.conc-panel{width:100%;max-width:480px;height:min(76vh,640px);display:flex;flex-direction:column;background:#1b1a14;border:1px solid #36332a;border-radius:18px 18px 0 0;box-shadow:0 -12px 40px rgba(0,0,0,.5);overflow:hidden;animation:qdup .18s ease}
+.conc-head{display:flex;align-items:center;gap:10px;padding:13px 15px;border-bottom:1px solid #2c2a22}
+.conc-head-l{display:flex;align-items:center;gap:10px}
+.conc-badge{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:9px;background:#B8902F;color:#15140f;font-family:'Fraunces',serif;font-weight:700;font-size:14px}
+.conc-title{font-family:'Inter';font-weight:800;font-size:15px;color:#f4ead6}
+.conc-sub{font-family:'Inter';font-size:11.5px;color:#a59c86}
+.conc-x{margin-left:auto;background:transparent;border:none;color:#a59c86;font-size:16px;cursor:pointer}
+.conc-body{flex:1;overflow-y:auto;padding:14px 15px;display:flex;flex-direction:column;gap:9px}
+.conc-msg{max-width:84%;padding:10px 13px;border-radius:14px;font-family:'Inter';font-size:14px;line-height:1.5;white-space:pre-wrap}
+.conc-msg.assistant{align-self:flex-start;background:#262318;color:#f0e7d5;border-bottom-left-radius:5px}
+.conc-msg.user{align-self:flex-end;background:#B8902F;color:#15140f;border-bottom-right-radius:5px;font-weight:500}
+.conc-typing{display:flex;gap:4px;align-items:center}
+.conc-typing span{width:6px;height:6px;border-radius:50%;background:#a59c86;animation:concb 1s infinite}
+.conc-typing span:nth-child(2){animation-delay:.15s}.conc-typing span:nth-child(3){animation-delay:.3s}
+@keyframes concb{0%,60%,100%{opacity:.3}30%{opacity:1}}
+.conc-chips{display:flex;flex-direction:column;gap:7px;margin-top:4px}
+.conc-chip{text-align:left;background:transparent;border:1px solid #3a372c;border-radius:11px;padding:10px 12px;color:#e7dcc6;font-family:'Inter';font-size:13.5px;cursor:pointer}
+.conc-chip:active{background:#262318}
+.conc-inbar{display:flex;gap:8px;padding:11px 13px;border-top:1px solid #2c2a22}
+.conc-in{flex:1;background:#0f0e0a;border:1px solid #36332a;border-radius:999px;padding:11px 15px;color:#f4ead6;font-family:'Inter';font-size:15px}
+.conc-in:focus{outline:none;border-color:#B8902F}
+.conc-send{flex:0 0 auto;width:42px;height:42px;border-radius:50%;background:#B8902F;color:#15140f;border:none;font-size:18px;font-weight:800;cursor:pointer}
+.conc-send:disabled{opacity:.4;cursor:default}
+.conc-foot{padding:0 15px 12px;font-family:'Inter';font-size:10.5px;line-height:1.4;color:#7d745f;text-align:center}
+
+/* ── Company calendar: view switcher + views ── */
+.cal-views{display:flex;gap:5px;padding-bottom:8px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.cal-view{flex:0 0 auto;background:transparent;border:1px solid var(--line2);border-radius:999px;padding:6px 13px;color:var(--cream-m);font-family:'Inter';font-weight:700;font-size:12.5px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.cal-view.on{background:var(--cream);color:var(--bg,#161310);border-color:var(--cream)}
+.app.crew-day .cal-view.on{background:#221f18;color:#fff;border-color:#221f18}
+/* week view — day rows */
+.cal-week{display:flex;flex-direction:column;gap:6px}
+.cal-wrow{display:flex;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:9px 11px}
+.cal-wrow.today{border-color:var(--gold2)}
+.cal-wrow.over{border-color:var(--gold);background:rgba(212,165,92,.1)}
+.cal-wday{flex:0 0 46px;display:flex;flex-direction:column;align-items:flex-start;gap:1px;position:relative}
+.cal-wday b{font-family:'Inter';font-size:12px;color:var(--cream-m)}
+.cal-wday span{font-family:'Fraunces',serif;font-size:20px;color:var(--cream)}
+.cal-add.wk{position:absolute;right:-2px;top:0;opacity:.6}
+.cal-witems{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;justify-content:center}
+.cal-wnone{font-family:'Inter';font-size:13px;color:var(--cream-d)}
+/* list / agenda */
+.cal-list{display:flex;flex-direction:column;gap:7px}
+.cal-lrow{display:flex;gap:11px;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:9px 11px}
+.cal-lrow.today{border-color:var(--gold2)}
+.cal-ldate{flex:0 0 40px;display:flex;flex-direction:column;align-items:center;text-align:center;line-height:1.05}
+.cal-ldate b{font-family:'Fraunces',serif;font-size:19px;color:var(--cream)}
+.cal-ldate span{font-family:'Inter';font-size:10.5px;color:var(--cream-m);text-transform:uppercase}
+.cal-lmon{color:var(--gold2)!important}
+.cal-litems{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;justify-content:center}
+/* quarter / year — mini months */
+.cal-multi{display:grid;gap:10px}
+.cal-multi.quarter{grid-template-columns:1fr}
+.cal-multi.year{grid-template-columns:repeat(2,1fr)}
+.mini-m{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.mini-h{font-family:'Inter';font-weight:800;font-size:13px;color:var(--cream);margin-bottom:6px}
+.mini-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.mini-d{min-width:0;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-family:'Inter';font-size:9.5px;color:var(--cream-m);border-radius:4px}
+.mini-d.dim{opacity:.3}
+.mini-d.today{background:var(--gold2);color:#1a1409;font-weight:700}
+.mini-dots{display:flex;gap:1.5px}
+.mini-dots i{width:3.5px;height:3.5px;border-radius:50%;display:block}
+.app.crew-day .mini-m,.app.crew-day .cal-wrow,.app.crew-day .cal-lrow{background:#fff}
+/* Outlook sync bar */
+.ol-bar{margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:13px 14px}
+.app.crew-day .ol-bar{background:#fff}
+.ol-top{display:flex;align-items:center;gap:8px;font-family:'Inter';font-size:14px;color:var(--cream)}
+.ol-i{font-size:15px}
+.ol-state{margin-left:auto;font-family:'Inter';font-weight:700;font-size:10.5px;letter-spacing:.4px;text-transform:uppercase;padding:3px 9px;border-radius:999px;border:1px solid var(--line2);color:var(--cream-m)}
+.ol-state.on{color:var(--ok);border-color:var(--ok)}
+.ol-state.off{color:var(--cream-d)}
+.ol-note{font-family:'Inter';font-size:12px;line-height:1.45;color:var(--cream-m);margin-top:7px}
+.ol-note code{font-family:'DM Mono';font-size:11px;background:rgba(255,255,255,.05);padding:1px 4px;border-radius:4px}
+.ol-acts{display:flex;gap:8px;margin-top:9px}
+.ol-btn{border-radius:9px;padding:9px 14px;font-family:'Inter';font-weight:700;font-size:13px;cursor:pointer;border:1px solid var(--line2);background:transparent;color:var(--cream);-webkit-appearance:none;appearance:none}
+.ol-btn.primary{background:var(--gold2);border-color:var(--gold2);color:#1a1409;margin-top:9px}
+.ol-acts .ol-btn.primary{margin-top:0}
+.ol-msg{font-family:'Inter';font-size:12.5px;color:var(--gold2);margin-top:9px}
+
+/* ── Prep declutter: collapsible section header ── */
+.prep-collapse{display:flex;align-items:center;gap:10px;width:100%;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer;-webkit-appearance:none;appearance:none;text-align:left}
+.app.crew-day .prep-collapse{background:#fff}
+.prep-collapse-l{display:flex;flex-direction:column;gap:2px}
+.prep-collapse-l b{font-family:'Inter';font-weight:700;font-size:14.5px;color:var(--cream)}
+.prep-collapse-l span{font-family:'Inter';font-size:12px;color:var(--cream-m)}
+.prep-collapse .ev-chev{margin-left:auto;transition:transform .15s}
+
+/* ── Event generator (create from notes) ── */
+.adm-btn.eg-btn{margin-right:7px}
+.eg-sec{font-family:'Inter';font-weight:800;font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--gold2);margin:14px 0 7px}
+.eg-row{display:flex;gap:9px;align-items:flex-start;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-left:3px solid var(--c,#888);border-radius:10px;padding:9px 11px;margin-bottom:6px;cursor:pointer;-webkit-appearance:none;appearance:none;opacity:.55}
+.eg-row.on{opacity:1}
+.app.crew-day .eg-row{background:#fff}
+.eg-ck{flex:0 0 auto;color:var(--c,var(--cream-m));font-size:14px;margin-top:1px}
+.eg-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.eg-main b{font-family:'Inter';font-weight:700;font-size:14px;color:var(--cream)}
+.eg-main span{font-family:'Inter';font-size:12.5px;line-height:1.45;color:var(--cream-m)}
+.eg-note{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:11px 13px}
+.app.crew-day .eg-note{background:#fff}
+.eg-note-t{display:block;font-family:'Inter';font-weight:800;font-size:14.5px;color:var(--cream);margin-bottom:2px}
+.eg-done-h{font-family:'Fraunces',serif;font-size:18px;color:var(--ok);margin-bottom:6px}
+.eg-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.eg-list li{position:relative;padding-left:16px;font-family:'Inter';font-size:13.5px;line-height:1.5;color:var(--cream)}
+.eg-list li::before{content:"✓";position:absolute;left:0;top:0;color:var(--ok);font-weight:700}
