@@ -1844,6 +1844,15 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .arch-db-note{font-family:'Inter';font-size:13px;line-height:1.5;color:var(--cream-m);margin-top:6px}
 .arch-db-note b{color:var(--cream)}
 
+/* ── Company calendar ── */
+.cal-filters{display:flex;flex-wrap:wrap;gap:6px;padding-bottom:8px}
+.cc-filter{display:flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--line2);border-radius:999px;padding:6px 12px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:12.5px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.cc-filter.on{background:rgba(169,124,63,.14);border-color:var(--c,var(--gold2));color:var(--cream)}
+.cc-dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto}
+.cc-chip{display:flex;align-items:center;gap:4px;text-align:left;width:100%;background:rgba(255,255,255,.04);border:1px solid var(--line);border-left:3px solid #888;border-radius:5px;padding:2px 5px;color:var(--cream);font-family:'Inter';font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;-webkit-appearance:none;appearance:none}
+.app.crew-day .cc-chip{background:rgba(34,31,24,.04)}
+.cc-chip.done{opacity:.5;text-decoration:line-through}
+.cc-check{flex:0 0 auto;font-size:11px;color:var(--cream-m);cursor:pointer}
 /* ── Brand: upload + editable assets ── */
 .brand-asset-wrap{position:relative}
 .brand-asset-x{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;border:none;background:rgba(0,0,0,.6);color:#fff;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2}

@@ -18,6 +18,7 @@ import AskGT3 from "@/components/AskGT3";
 import Studio from "@/components/Studio";
 import MenuManager from "@/components/MenuManager";
 import PlanEditor from "@/components/PlanEditor";
+import CompanyCalendar from "@/components/CompanyCalendar";
 import { subscribePush } from "@/lib/push";
 import { chime, unlockAudio } from "@/lib/chime";
 import { haptic, HAPTIC } from "@/lib/haptics";
@@ -3232,7 +3233,7 @@ export default function AdminPage() {
   // The operator nav owns the section; clamp to what this role may see.
   const allowed = sectionsForRole(role);
   const sec: OpSection = allowed.includes(section) ? section : "now";
-  const [planTab, setPlanTab] = useState<"notes" | "events" | "vendors" | "bookings" | "reserves">("notes");
+  const [planTab, setPlanTab] = useState<"calendar" | "notes" | "events" | "vendors" | "bookings" | "reserves">("calendar");
   const LABEL: Record<OpSection, string> = { day: "My Day", now: "Now", ask: "Ask GT3", prep: "Prep", plan: "Plan", studio: "Studio", money: "Money", team: "Team" };
   const SUB: Record<OpSection, string> = {
     day: "Your tasks, your flags & what's on today.",
@@ -3288,10 +3289,11 @@ export default function AdminPage() {
       {sec === "plan" && canManage && (
         <>
           <div className="subnav" role="tablist" aria-label="Plan">
-            {([["notes", "Notes"], ["events", "Events"], ["vendors", "Vendors"], ["bookings", "Bookings"], ["reserves", "Reserves"]] as const).map(([k, label]) => (
+            {([["calendar", "Calendar"], ["notes", "Notes"], ["events", "Events"], ["vendors", "Vendors"], ["bookings", "Bookings"], ["reserves", "Reserves"]] as const).map(([k, label]) => (
               <button key={k} type="button" role="tab" aria-selected={planTab === k} className={`subnav-tab${planTab === k ? " on" : ""}`} onClick={() => setPlanTab(k)}>{label}</button>
             ))}
           </div>
+          {planTab === "calendar" && <CompanyCalendar />}
           {planTab === "notes" && <MeetingNotes />}
           {planTab === "events" && <EventsAdmin />}
           {planTab === "vendors" && <VendorsAdmin />}
