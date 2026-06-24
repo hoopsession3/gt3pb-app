@@ -1741,6 +1741,7 @@ function MeetingNotes() {
   const [cDate, setCDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [cSummary, setCSummary] = useState("");
   const [cBody, setCBody] = useState("");
+  const [cActions, setCActions] = useState<{ title: string; category: string; critical: boolean }[]>([]);
   const [cEvent, setCEvent] = useState("");
   const [saving, setSaving] = useState(false);
   const [summarizing, setSummarizing] = useState(false);
@@ -1756,7 +1757,12 @@ function MeetingNotes() {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
       const r = await fetch("/api/agents/summarize", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ text: src }) });
       const j = await r.json();
-      if (j.ok) setCSummary(j.summary); else toast(String(j.error ?? "").includes("ANTHROPIC") ? "AI isn't switched on yet — add the API key" : `Error: ${j.error}`, "error");
+      if (j.ok) {
+        setCSummary(j.summary);
+        if (!cTitle.trim() && j.title) setCTitle(j.title);   // fill the title only if you haven't typed one
+        setCActions(j.actionItems ?? []);
+        toast(`Recap ready${j.actionItems?.length ? ` · ${j.actionItems.length} task${j.actionItems.length === 1 ? "" : "s"} to add on save` : ""}`);
+      } else toast(String(j.error ?? "").includes("ANTHROPIC") ? "AI isn't switched on yet — add the API key" : `Error: ${j.error}`, "error");
     } catch { toast("Couldn't reach the summarizer", "error"); }
     setSummarizing(false);
   };
@@ -1785,14 +1791,21 @@ function MeetingNotes() {
   const save = async () => {
     if (!supabase || !cTitle.trim() || saving) return;
     setSaving(true);
-    const { error } = await supabase.from("meeting_notes").insert({
+    const { data, error } = await supabase.from("meeting_notes").insert({
       title: cTitle.trim(), met_on: cDate, summary: cSummary.trim() || null,
       body: cBody.trim() || null, event_id: cEvent || null, created_by: meId,
-    });
+    }).select("id").single();
+    // AI-extracted action items become the note's follow-up tasks (My Tasks / note follow-ups).
+    const noteId = (data as { id: string } | null)?.id;
+    if (!error && noteId && cActions.length) {
+      await supabase.from("event_tasks").insert(cActions.map((a, i) => ({
+        meeting_note_id: noteId, label: a.title, kind: "task", section: "Follow-up", critical: a.critical, sort: 1000 + i,
+      })));
+    }
     setSaving(false);
     if (error) { toast(`Error: ${error.message}`, "error"); return; }
-    toast("Note saved");
-    setCTitle(""); setCSummary(""); setCBody(""); setCEvent(""); setComposing(false);
+    toast(`Note saved${cActions.length ? ` · ${cActions.length} task${cActions.length === 1 ? "" : "s"} added` : ""}`);
+    setCTitle(""); setCSummary(""); setCBody(""); setCEvent(""); setCActions([]); setComposing(false);
     load();
   };
   const remove = async (n: MeetingNote) => {
@@ -1820,10 +1833,16 @@ function MeetingNotes() {
             </select>
           </div>
           <textarea className="note-area" placeholder="Recap / summary — paste from your notes app, or ✨ generate below…" value={cSummary} onChange={(e) => setCSummary(e.target.value)} rows={cSummary.length > 200 ? 10 : 3} />
-          <textarea className="note-area" placeholder="Full transcript or detail (optional)" value={cBody} onChange={(e) => setCBody(e.target.value)} rows={4} />
-          <button type="button" className="note-suggest note-sum" onClick={summarize} disabled={summarizing}>{summarizing ? "Summarizing…" : "✨ Recreate summary from transcript"}</button>
+          <textarea className="note-area" placeholder="Paste the full transcript here — then ✨ summarize" value={cBody} onChange={(e) => setCBody(e.target.value)} rows={4} />
+          <button type="button" className="note-suggest note-sum" onClick={summarize} disabled={summarizing}>{summarizing ? "Summarizing…" : "✨ Summarize transcript → title · recap · tasks"}</button>
+          {cActions.length > 0 && (
+            <div className="note-tasks-prev">
+              <b>{cActions.length} follow-up task{cActions.length === 1 ? "" : "s"}</b> will be created when you save:
+              <ul>{cActions.map((a, i) => <li key={i}>{a.critical ? "⚠️ " : ""}{a.title}</li>)}</ul>
+            </div>
+          )}
           <div className="note-actions">
-            <button type="button" className="note-cancel" onClick={() => setComposing(false)}>Cancel</button>
+            <button type="button" className="note-cancel" onClick={() => { setComposing(false); setCActions([]); }}>Cancel</button>
             <button type="button" className="note-save" disabled={!cTitle.trim() || saving} onClick={save}>{saving ? "Saving…" : "Save note"}</button>
           </div>
         </div>
