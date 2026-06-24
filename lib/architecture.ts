@@ -272,11 +272,11 @@ export const ARCHITECTURE: ArchLayer[] = [
 export const BUILD_STATS: { asOf: string; items: { n: string; l: string }[] } = {
   asOf: "Jun 24, 2026",
   items: [
-    { n: "31", l: "features shipped" },
+    { n: "40", l: "features shipped" },
     { n: "11", l: "AI agents" },
-    { n: "70", l: "migrations" },
+    { n: "71", l: "migrations" },
     { n: "28", l: "API endpoints" },
-    { n: "40", l: "components" },
-    { n: "~16.6k", l: "lines of code" },
+    { n: "41", l: "components" },
+    { n: "~16.8k", l: "lines of code" },
   ],
 };

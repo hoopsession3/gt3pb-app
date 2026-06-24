@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import AccountPill from "@/components/AccountPill";
+import Watermark from "@/components/Watermark";
 import { DRINKS, MENU, type DrinkId } from "@/lib/menu";
 import { clickable } from "@/lib/a11y";
 
@@ -35,6 +36,7 @@ export default function MenuScreen() {
 
   return (
     <section className="screen menu" id="s-menu">
+      <Watermark variant="menu" />
       <div className="toprow">
         <div className="mast-brand">
           <span className="g3">GT3</span>
