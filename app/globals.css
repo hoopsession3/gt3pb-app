@@ -2129,3 +2129,8 @@ select.note-in{-webkit-appearance:none;appearance:none}
 /* cream /menu (warm paper) — charcoal-ink mark off the bottom-right, well below the masthead.
    Paper shows dark marks more readily than dark shows light, so this is capped lower. */
 .wm--menu{bottom:-40px;right:-19%;width:64%;max-width:350px;opacity:.04;background-image:url(/brand/3_outline_charcoal.svg)}
+/* ── Grouped nav: secondary segmented toggle (My Day·Now / Plan·Prep / Money·Team) ── */
+.grp-toggle{display:inline-flex;gap:3px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:3px;margin-bottom:14px}
+.app.crew-day .grp-toggle{background:#fff}
+.grp-seg{flex:0 0 auto;background:transparent;border:none;border-radius:999px;padding:7px 18px;color:var(--cream-m);font-family:'Inter';font-weight:700;font-size:13.5px;cursor:pointer;-webkit-appearance:none;appearance:none;transition:background .12s,color .12s}
+.grp-seg.on{background:var(--gold);color:#1a1610}
