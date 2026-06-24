@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 // BRAND KIT — GT3's logos, palette, fonts & voice, in the Studio. Seeded with the real brand;
@@ -20,15 +20,44 @@ export default function BrandKit({ canEdit }: { canEdit: boolean }) {
   const [saving, setSaving] = useState(false);
   const [newC, setNewC] = useState({ name: "", hex: "#" });
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [upErr, setUpErr] = useState("");
 
+  const loadAssets = useCallback(async () => {
+    if (!supabase) return;
+    const { data } = await supabase.from("brand_assets").select("id, label, kind, url, notes").order("sort");
+    setAssets((data as Asset[]) ?? []);
+  }, []);
   useEffect(() => {
     if (!supabase) return;
     supabase.from("brand_kit").select("*").limit(1).maybeSingle().then(({ data }) => {
       const k = data ? { ...EMPTY, ...data, colors: data.colors ?? [], fonts: data.fonts ?? [] } : EMPTY;
       setKit(k); setDraft(k);
     });
-    supabase.from("brand_assets").select("id, label, kind, url, notes").order("sort").then(({ data }) => setAssets((data as Asset[]) ?? []));
-  }, []);
+    loadAssets();
+  }, [loadAssets]);
+
+  const uploadLogo = async (file: File) => {
+    if (!supabase) return;
+    setUploading(true); setUpErr("");
+    try {
+      const path = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.]+/g, "-")}`;
+      const up = await supabase.storage.from("brand").upload(path, file, { upsert: false });
+      if (up.error) throw up.error;
+      const url = supabase.storage.from("brand").getPublicUrl(path).data.publicUrl;
+      const kind = /\.(jpg|jpeg)$/i.test(file.name) ? "photo" : "logo";
+      const label = file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ").slice(0, 60) || "Logo";
+      const ins = await supabase.from("brand_assets").insert({ label, kind, url, sort: 900 });
+      if (ins.error) throw ins.error;
+      await loadAssets();
+    } catch (e: any) { setUpErr(String(e?.message ?? "Upload failed").includes("Bucket not found") ? "Run migration 0064 (storage bucket) first." : `Upload: ${e?.message ?? e}`); }
+    setUploading(false);
+  };
+  const delAsset = async (id: string) => {
+    if (!supabase || !window.confirm("Remove this asset?")) return;
+    await supabase.from("brand_assets").delete().eq("id", id);
+    setAssets((a) => a.filter((x) => x.id !== id));
+  };
 
   const save = async () => {
     if (!supabase || !kit?.id) return;
@@ -97,17 +126,28 @@ export default function BrandKit({ canEdit }: { canEdit: boolean }) {
           <input className="studio-hook" value={k.logo_url} onChange={(e) => setDraft({ ...draft, logo_url: e.target.value })} placeholder="Logo/icon URL" />
         </div>
       )}
-      {assets.length > 0 && (
+      {(assets.length > 0 || canEdit) && (
         <>
           <div className="insp-lbl">Logos &amp; assets</div>
           <div className="brand-assets">
             {assets.map((a) => (
-              <a key={a.id} className="brand-asset" href={a.url} target="_blank" rel="noreferrer" title={a.notes || a.label}>
-                <span className={`brand-asset-img${a.kind === "photo" ? " photo" : ""}`}><img src={a.url} alt={a.label} /></span>
-                <span className="brand-asset-l">{a.label}</span>
-              </a>
+              <div key={a.id} className="brand-asset-wrap">
+                <a className="brand-asset" href={a.url} target="_blank" rel="noreferrer" title={a.notes || a.label}>
+                  <span className={`brand-asset-img${a.kind === "photo" ? " photo" : ""}`}><img src={a.url} alt={a.label} /></span>
+                  <span className="brand-asset-l">{a.label}</span>
+                </a>
+                {canEdit && <button type="button" className="brand-asset-x" onClick={() => delAsset(a.id)} aria-label={`Delete ${a.label}`}>✕</button>}
+              </div>
             ))}
+            {canEdit && (
+              <label className="brand-asset brand-upload">
+                <span className="brand-asset-img"><span className="brand-up-plus">{uploading ? "…" : "＋"}</span></span>
+                <span className="brand-asset-l">Upload logo</span>
+                <input type="file" accept="image/*" hidden disabled={uploading} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLogo(f); e.currentTarget.value = ""; }} />
+              </label>
+            )}
           </div>
+          {upErr && <p className="insp-foot">{upErr}</p>}
         </>
       )}
 
