@@ -9,16 +9,16 @@ import BottomNav from "./BottomNav";
 // shared (context) so the nav (rendered in the shell) and the page content stay
 // in sync; persisted so you return to the same section.
 
-export type OpSection = "now" | "ask" | "prep" | "plan" | "studio" | "money" | "team";
+export type OpSection = "day" | "now" | "ask" | "prep" | "plan" | "studio" | "money" | "team";
 
-const Ctx = createContext<{ section: OpSection; setSection: (s: OpSection) => void }>({ section: "now", setSection: () => {} });
+const Ctx = createContext<{ section: OpSection; setSection: (s: OpSection) => void }>({ section: "day", setSection: () => {} });
 export const useOperatorSection = () => useContext(Ctx);
 
 export function OperatorSectionProvider({ children }: { children: React.ReactNode }) {
-  const [section, setSectionState] = useState<OpSection>("now");
+  const [section, setSectionState] = useState<OpSection>("day");
   useEffect(() => {
     const s = typeof window !== "undefined" ? localStorage.getItem("gt3-op-section") : null;
-    if (s === "now" || s === "ask" || s === "prep" || s === "plan" || s === "studio" || s === "money" || s === "team") setSectionState(s);
+    if (s === "day" || s === "now" || s === "ask" || s === "prep" || s === "plan" || s === "studio" || s === "money" || s === "team") setSectionState(s);
   }, []);
   const setSection = useCallback((s: OpSection) => {
     setSectionState(s);
@@ -33,16 +33,17 @@ const rawRole = (p: { role?: string | null; is_admin?: boolean } | null): string
 
 // which sections each role gets — and in what order
 const ROLE_SECTIONS: Record<string, OpSection[]> = {
-  server: ["now", "ask"],
-  contractor: ["now", "ask", "prep"],
-  operator: ["now", "ask", "prep"],
-  event_manager: ["now", "ask", "prep", "plan", "studio"],
-  admin: ["now", "ask", "prep", "plan", "studio", "money", "team"],
-  owner: ["now", "ask", "prep", "plan", "studio", "money", "team"],
+  server: ["day", "now", "ask"],
+  contractor: ["day", "now", "ask", "prep"],
+  operator: ["day", "now", "ask", "prep"],
+  event_manager: ["day", "now", "ask", "prep", "plan", "studio"],
+  admin: ["day", "now", "ask", "prep", "plan", "studio", "money", "team"],
+  owner: ["day", "now", "ask", "prep", "plan", "studio", "money", "team"],
 };
 export const sectionsForRole = (role: string): OpSection[] => ROLE_SECTIONS[role] ?? ["now"];
 
 const ICONS: Record<OpSection, React.ReactNode> = {
+  day: <><circle cx="12" cy="12" r="4.2" /><path d="M12 2.5v2.4M12 19.1v2.4M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.2 19.8l1.7-1.7M18.1 5.9l1.7-1.7" /></>,
   now: <path d="M13 2 4 14h7l-1 8 9-12h-7z" />,
   ask: <><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.6-.8L3 21l1.8-5.9A8.5 8.5 0 1 1 21 11.5z" /><path d="M12 7v.5M12 11v3" /></>,
   studio: <><path d="M12 3l2.1 4.9 5.3.4-4 3.5 1.2 5.2L12 14.7 7.4 17.4l1.2-5.2-4-3.5 5.3-.4z" /></>,
@@ -51,7 +52,7 @@ const ICONS: Record<OpSection, React.ReactNode> = {
   money: <><circle cx="12" cy="12" r="9" /><path d="M12 7v10M9.5 9.5c0-1 1-1.6 2.5-1.6s2.5.6 2.5 1.6-1 1.5-2.5 1.5-2.5.5-2.5 1.5 1 1.6 2.5 1.6 2.5-.6 2.5-1.6" /></>,
   team: <><circle cx="9" cy="8" r="3" /><path d="M3 20c0-3 3-5 6-5s6 2 6 5" /><path d="M16 5.2a3 3 0 0 1 0 5.6M21 20c0-2.4-1.8-4-4-4.6" /></>,
 };
-const LABELS: Record<OpSection, string> = { now: "Now", ask: "Ask", prep: "Prep", plan: "Plan", studio: "Studio", money: "Money", team: "Team" };
+const LABELS: Record<OpSection, string> = { day: "My Day", now: "Now", ask: "Ask", prep: "Prep", plan: "Plan", studio: "Studio", money: "Money", team: "Team" };
 
 export default function OperatorNav() {
   const { profile } = useAuth();

@@ -415,6 +415,68 @@ type MyTaskRow = EventTask & {
   meeting_notes: { title: string | null } | null;
 };
 
+// MY DAY — the personal rollup: what's on today, the flags & pings aimed at YOU (alerts targeted
+// to your user), and your assigned tasks. The home base "where do my flags go?" answer.
+function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: string; isLeader: boolean }) {
+  const [flags, setFlags] = useState<{ id: string; severity: string; title: string; body: string | null }[]>([]);
+  const [today, setToday] = useState<{ id: string; title: string | null; day_label: string | null; is_live: boolean | null }[]>([]);
+
+  const loadFlags = useCallback(async () => {
+    if (!supabase || !userId || !isLeader) { setFlags([]); return; }
+    const { data } = await supabase.from("alerts").select("id, severity, title, body").eq("target_user_id", userId).is("ack_at", null).order("created_at", { ascending: false }).limit(20);
+    setFlags((data as typeof flags) ?? []);
+  }, [userId, isLeader]);
+
+  useEffect(() => {
+    loadFlags();
+    if (!supabase || !userId) return;
+    const ch = supabase.channel("my-day-flags").on("postgres_changes", { event: "*", schema: "public", table: "alerts", filter: `target_user_id=eq.${userId}` }, () => loadFlags()).subscribe();
+    return () => { supabase?.removeChannel(ch); };
+  }, [loadFlags, userId]);
+  useEffect(() => {
+    if (!supabase) return;
+    const d = new Date().toISOString().slice(0, 10);
+    supabase.from("events").select("id, title, day_label, is_live").eq("day", d).is("archived_at", null).then(({ data }) => setToday(data ?? []));
+  }, []);
+
+  const ack = async (id: string) => { setFlags((f) => f.filter((x) => x.id !== id)); await supabase?.from("alerts").update({ ack_at: new Date().toISOString(), ack_by: userId }).eq("id", id); };
+  const hr = new Date().getHours();
+  const greet = hr < 12 ? "Good morning" : hr < 17 ? "Good afternoon" : "Good evening";
+  const first = meName.split(" ")[0];
+
+  return (
+    <>
+      <div className="myday-hero">
+        <div className="myday-greet">{greet}{first && first !== "Me" ? `, ${first}` : ""}</div>
+        <div className="myday-date">{new Date().toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}</div>
+      </div>
+      {today.length > 0 && (
+        <div className="myday-today">
+          {today.map((e) => <div key={e.id} className="myday-ev">{e.is_live && <span className="myday-live">LIVE</span>}<span>📍 {e.title || e.day_label || "Event"}</span></div>)}
+        </div>
+      )}
+      {isLeader && (
+        <>
+          <div className="sec">Flags &amp; pings for you{flags.length ? ` · ${flags.length}` : ""}</div>
+          {flags.length === 0 ? (
+            <div className="myday-clear">✓ Nothing needs you right now.</div>
+          ) : flags.map((f) => (
+            <div key={f.id} className={`myday-flag sev-${f.severity}`}>
+              <div className="myday-flag-b">
+                <div className="myday-flag-t">{f.title}</div>
+                {f.body && <div className="myday-flag-x">{f.body}</div>}
+              </div>
+              <button type="button" className="myday-ack" onClick={() => ack(f.id)}>Got it</button>
+            </div>
+          ))}
+        </>
+      )}
+      <div className="sec">My tasks</div>
+      <MyTasks userId={userId} />
+    </>
+  );
+}
+
 function MyTasks({ userId }: { userId: string | null }) {
   const [tasks, setTasks] = useState<MyTaskRow[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -3094,8 +3156,9 @@ export default function AdminPage() {
   const allowed = sectionsForRole(role);
   const sec: OpSection = allowed.includes(section) ? section : "now";
   const [planTab, setPlanTab] = useState<"notes" | "events" | "vendors" | "bookings" | "reserves">("notes");
-  const LABEL: Record<OpSection, string> = { now: "Now", ask: "Ask GT3", prep: "Prep", plan: "Plan", studio: "Studio", money: "Money", team: "Team" };
+  const LABEL: Record<OpSection, string> = { day: "My Day", now: "Now", ask: "Ask GT3", prep: "Prep", plan: "Plan", studio: "Studio", money: "Money", team: "Team" };
   const SUB: Record<OpSection, string> = {
+    day: "Your tasks, your flags & what's on today.",
     now: "The live shift — sales, dispatch & the order pass.",
     ask: "Recipes, the why, gear, stock & how-to — from the GT3 playbook.",
     prep: "Stock, readiness & the pack list for what's next.",
@@ -3121,6 +3184,8 @@ export default function AdminPage() {
         <div className="op-head-t">{LABEL[sec]}</div>
         <div className="op-head-s">{SUB[sec]}</div>
       </div>
+
+      {sec === "day" && <MyDay userId={user?.id ?? null} meName={profile?.display_name?.trim() || "Me"} isLeader={canManage} />}
 
       {sec === "now" && (
         <>
