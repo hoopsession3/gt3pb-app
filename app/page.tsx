@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { useAuth, type Profile } from "@/components/AuthProvider";
 import { useApp } from "@/components/AppProvider";
 import AccountPill from "@/components/AccountPill";
+import Watermark from "@/components/Watermark";
 import GenerateDay from "@/components/GenerateDay";
 import SubscribePitch from "@/components/SubscribePitch";
 import { supabase } from "@/lib/supabase";
@@ -151,6 +152,7 @@ function Arrival() {
   const router = useRouter();
   return (
     <section className="screen arrival" id="s-today">
+      <Watermark variant="landing" />
       <div className="toprow">
         <div className="arr-brand"><span className="g3">GT3</span><span className="pb">Performance Bar</span></div>
         <AccountPill />

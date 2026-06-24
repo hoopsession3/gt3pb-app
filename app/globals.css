@@ -2101,3 +2101,18 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .subnav-div{flex:0 0 auto;align-self:center;width:1px;height:20px;background:var(--line2);margin:0 4px}
 .subnav-tab.back{opacity:.72;font-weight:500}            /* rarely-touched: visually quieter */
 .subnav-tab.back.on{opacity:1}
+
+/* ── The Debossed Marque — one faint, edge-cropped GT3 "3" pressed into a few landmark surfaces ──
+   Decorative, behind content, pointer-transparent. The locked outline-3 masters, recolored by world.
+   Curated surfaces give themselves a stacking context (position:relative+z-index:0) so the z-index:-1
+   mark sits above the surface background but below all content. One mark per screen; opacity lives in
+   the app's --line hairline register (you feel it before you see it). NOT global — opt-in per screen. */
+.screen.arrival,.screen.menu,.screen.arch{position:relative;z-index:0;overflow:hidden}
+.wm{position:absolute;z-index:-1;pointer-events:none;background-repeat:no-repeat;background-position:center;background-size:contain;aspect-ratio:1184/1730}
+/* arrival (dark) — cream mark bleeding off the top-right, behind the hero statement */
+.wm--landing{top:-46px;right:-21%;width:74%;max-width:420px;opacity:.05;background-image:url(/brand/3_outline_cream.svg)}
+/* partner /built (dark, brand-forward — the most generous of the set) — cream mark off the bottom-left */
+.wm--share{bottom:-58px;left:-22%;width:90%;max-width:470px;opacity:.06;background-image:url(/brand/3_outline_cream.svg)}
+/* cream /menu (warm paper) — charcoal-ink mark off the bottom-right, well below the masthead.
+   Paper shows dark marks more readily than dark shows light, so this is capped lower. */
+.wm--menu{bottom:-40px;right:-19%;width:64%;max-width:350px;opacity:.04;background-image:url(/brand/3_outline_charcoal.svg)}
