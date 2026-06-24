@@ -11,7 +11,7 @@ import EventDayPlanner from "./EventDayPlanner";
 // Views: List · Week · Month · Quarter · Year. Owner can connect Outlook for two-way sync.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-type Ev = { id: string; title: string | null; day: string; day_label: string | null; is_live: boolean | null; category: string | null; plan_days: number | null };
+type Ev = { id: string; title: string | null; day: string; day_label: string | null; is_live: boolean | null; category: string | null; plan_days: number | null; stage: string | null };
 type Content = { id: string; title: string; scheduled_for: string | null; status: string };
 type Todo = { id: string; title: string; category: string; due_on: string | null; done: boolean; event_id: string | null; meeting_note_id: string | null };
 
@@ -32,7 +32,7 @@ const VIEW_KEY = "gt3-company-cal-view";
 type View = "list" | "week" | "month" | "quarter" | "year";
 
 type Stop = { id: string; name: string; location_text: string | null; starts_at: string | null; status: string | null };
-type Item = { id: string; title: string; cat: string; kind: "event" | "content" | "todo" | "stop"; done?: boolean; go: () => void; toggle?: () => void };
+type Item = { id: string; title: string; cat: string; kind: "event" | "content" | "todo" | "stop"; done?: boolean; meta?: string; go: () => void; toggle?: () => void };
 
 function gridMonth(cursor: Date): Date[] { const s = new Date(cursor.getFullYear(), cursor.getMonth(), 1); s.setDate(1 - s.getDay()); return Array.from({ length: 42 }, (_, i) => { const d = new Date(s); d.setDate(s.getDate() + i); return d; }); }
 function gridWeek(cursor: Date): Date[] { const s = new Date(cursor); s.setDate(cursor.getDate() - cursor.getDay()); return Array.from({ length: 7 }, (_, i) => { const d = new Date(s); d.setDate(s.getDate() + i); return d; }); }
@@ -79,7 +79,7 @@ export default function CompanyCalendar() {
     const eFrom = (() => { const d = new Date(range.start); d.setDate(d.getDate() - 31); return key(d); })(); // catch multi-day spillover
     const from = key(range.start);
     const [e, c, t, s] = await Promise.all([
-      supabase.from("events").select("id, title, day, day_label, is_live, category, plan_days").is("archived_at", null).gte("day", eFrom).lte("day", to),
+      supabase.from("events").select("id, title, day, day_label, is_live, category, plan_days, stage").is("archived_at", null).gte("day", eFrom).lte("day", to),
       supabase.from("content_items").select("id, title, scheduled_for, status").is("archived_at", null).not("scheduled_for", "is", null).gte("scheduled_for", `${from}T00:00:00`).lte("scheduled_for", `${to}T23:59:59`),
       supabase.from("todos").select("id, title, category, due_on, done, event_id, meeting_note_id").not("due_on", "is", null).gte("due_on", from).lte("due_on", to),
       supabase.from("stops").select("id, name, location_text, starts_at, status").not("starts_at", "is", null).neq("status", "done").gte("starts_at", `${from}T00:00:00`).lte("starts_at", `${to}T23:59:59`),
@@ -131,7 +131,8 @@ export default function CompanyCalendar() {
       const span = Math.max(1, e.plan_days ?? 1);
       for (let di = 0; di < span; di++) {
         const base = e.title || e.day_label || "Event";
-        push(addDaysKey(e.day, di), { id: e.id, title: span > 1 ? `${base} · D${di + 1}` : base, cat, kind: "event", go: () => openPlanner(e, di + 1) });
+        const meta = e.is_live ? "Live" : (e.stage ? e.stage[0].toUpperCase() + e.stage.slice(1) : "");
+        push(addDaysKey(e.day, di), { id: e.id, title: span > 1 ? `${base} · D${di + 1}` : base, cat, kind: "event", meta, go: () => openPlanner(e, di + 1) });
       }
     }
     for (const s of stops) if (s.starts_at && pass("stop")) push(key(new Date(s.starts_at)), { id: s.id, title: s.name, cat: "stop", kind: "stop", go: () => openStopPrep(s.id) });
@@ -293,7 +294,7 @@ function DayView({ dayKey, items, onClose, onAdd }: { dayKey: string; items: Ite
             {items.map((it) => (
               <button key={`${it.kind}-${it.id}`} type="button" className={`dv-row${it.done ? " done" : ""}`} style={{ ["--c" as string]: CAT[it.cat]?.color }} onClick={() => { it.go(); onClose(); }}>
                 <span className="dv-dot" style={{ background: CAT[it.cat]?.color }} />
-                <span className="dv-main"><b>{it.title}</b><span>{CAT[it.cat]?.label}{it.kind === "stop" ? " · on-the-ground op" : it.kind === "event" ? " · event" : it.kind === "content" ? " · content" : ""}</span></span>
+                <span className="dv-main"><b>{it.title}</b><span>{CAT[it.cat]?.label}{it.kind === "stop" ? " · on-the-ground op" : it.kind === "event" ? (it.meta ? ` · ${it.meta}` : " · event") : it.kind === "content" ? " · content" : ""}</span></span>
                 {it.kind === "todo" ? <span className="dv-go" onClick={(e) => { e.stopPropagation(); it.toggle?.(); }}>{it.done ? "✓" : "○"}</span> : <span className="dv-go">›</span>}
               </button>
             ))}

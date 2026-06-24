@@ -2155,3 +2155,12 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .cal-nudge b{color:var(--gold2)}
 .cal-nudge button{margin-left:auto;flex:0 0 auto;background:var(--gold2);border:none;border-radius:8px;padding:7px 13px;color:#1a1409;font-family:'Inter';font-weight:700;font-size:12.5px;cursor:pointer}
 .cal-nudge button:disabled{opacity:.6}
+
+/* ── Event lifecycle stage ── */
+.ev-badge.stage{background:rgba(255,255,255,.06);border:1px solid var(--c,var(--line2));color:var(--c,var(--cream))}
+.app.crew-day .ev-badge.stage{background:rgba(34,31,24,.05)}
+.ev-stage{display:flex;gap:5px;overflow-x:auto;padding-bottom:11px;-webkit-overflow-scrolling:touch}
+.ev-stage-pill{flex:0 0 auto;background:transparent;border:1px solid var(--line2);border-radius:999px;padding:6px 13px;color:var(--cream-m);font-family:'Inter';font-weight:700;font-size:12.5px;cursor:pointer;-webkit-appearance:none;appearance:none;transition:background .12s,color .12s,border-color .12s}
+.ev-stage-pill.on{background:var(--c,var(--gold));border-color:var(--c,var(--gold));color:#15140f}
+.ev-stage-pill:disabled{cursor:default;opacity:.5}
+.ev-stage-pill.on:disabled{opacity:1}
