@@ -78,8 +78,8 @@ Deno.serve(async (req) => {
       if (old_record && old_record.status === record.status) return new Response("skip: no transition");
       const name = await nameForUser(record.user_id);
       const map: Record<string, string> = {
-        active: name ? `${name}, your subscription's live - your cups are ready when you are.` : "Your subscription's live - your cups are ready when you are.",
-        past_due: name ? `${name}, your subscription payment didn't go through - update your card to keep your cups coming.` : "Your subscription payment didn't go through - update your card to keep your cups coming.",
+        active: name ? `${name}, your subscription's live - your bottles are ready when you are.` : "Your subscription's live - your bottles are ready when you are.",
+        past_due: name ? `${name}, your subscription payment didn't go through - update your card to keep your bottles coming.` : "Your subscription payment didn't go through - update your card to keep your bottles coming.",
       };
       if (!map[record.status]) return new Response("skip");
       message = map[record.status];

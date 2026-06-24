@@ -65,7 +65,7 @@ export default function DrinkSheet() {
 
               <div className="sheet-rule" />
 
-              <div className="sheet-sec">In the cup</div>
+              <div className="sheet-sec">In the bottle</div>
               <ul className="sheet-list">
                 {d.has.map((x) => (
                   <li key={x}>{x}</li>

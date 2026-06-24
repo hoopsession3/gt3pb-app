@@ -164,14 +164,14 @@ export default function SubscriptionCard() {
         {SUB_PACKS.map((p) => (
           <button key={p.key} type="button" className={`sub-pack${pack === p.key ? " on" : ""}`} onClick={() => setPack(p.key)} aria-pressed={pack === p.key}>
             <span className="sub-pack-size">{p.size}</span>
-            <span className="sub-pack-cap">cups</span>
+            <span className="sub-pack-cap">bottles</span>
             <span className="sub-pack-price">{p.price}</span>
             <span className="sub-pack-each">{p.each}</span>
           </button>
         ))}
       </div>
       {!open ? (
-        <button type="button" className="sub-cta" onClick={() => setOpen(true)}>Subscribe — {selected.size} cups</button>
+        <button type="button" className="sub-cta" onClick={() => setOpen(true)}>Subscribe — {selected.size} bottles</button>
       ) : (
         <>
           <div id="sq-sub-card" className="sub-cardfield" />

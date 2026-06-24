@@ -37,8 +37,8 @@ export default function SubscribePitch() {
   return (
     <section className="subpitch">
       <div className="eyb">Subscription</div>
-      <h2>The cups you love, always ready.</h2>
-      <p>Pick a pack — 6, 12, or 18 cups — and we&apos;ll have it ready for you every two weeks.</p>
+      <h2>The bottles you love, always ready.</h2>
+      <p>Pick a pack — 6, 12, or 18 bottles — and we&apos;ll have it ready for you every two weeks.</p>
       <div className="subpitch-packs">
         {SUB_PACKS.map((p) => (
           <button
@@ -48,7 +48,7 @@ export default function SubscribePitch() {
             onClick={() => !live && setPack(p.key)}
             aria-pressed={!live ? pack === p.key : undefined}
           >
-            <b>{p.size}</b><span>cups</span><em>{p.price}</em>
+            <b>{p.size}</b><span>bottles</span><em>{p.price}</em>
           </button>
         ))}
       </div>

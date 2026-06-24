@@ -17,7 +17,7 @@ const WEIGHTS: { match: string; lb: number }[] = [
   { match: "canopy", lb: 80 }, { match: "ice", lb: 80 }, { match: "generator", lb: 75 },
   { match: "nitrogen tank", lb: 55 }, { match: "broth", lb: 50 }, { match: "handwash", lb: 40 },
   { match: "nature aid", lb: 40 }, { match: "salted maple", lb: 40 },
-  { match: "cups + lids", lb: 25 }, { match: "cooler", lb: 25 }, { match: "shore-power", lb: 20 },
+  { match: "bottles + lids", lb: 25 }, { match: "cooler", lb: 25 }, { match: "shore-power", lb: 20 },
   { match: "faucet kit", lb: 10 }, { match: "regulator", lb: 5 },
   { match: "kds tablet", lb: 2 }, { match: "square reader", lb: 1 },
 ];

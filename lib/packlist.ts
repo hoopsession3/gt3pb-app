@@ -45,7 +45,7 @@ export function packListFor(e: EventRow): PackItem[] {
   // Service — always.
   items.push({ label: "KDS tablet — charged", section: "Service", critical: true });
   items.push({ label: "Square reader — test offline mode", section: "Service", critical: true });
-  items.push({ label: "Cups + lids + straws + napkins", section: "Service" });
+  items.push({ label: "Bottles + lids + straws + napkins", section: "Service" });
   if (!trailer) items.push({ label: "Canopy + weights", section: "Service" });
 
   // Compliance — venue / indoor.
