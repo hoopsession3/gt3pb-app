@@ -2696,7 +2696,7 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
       {open && (
         <div className="ev-body">
           {/* The one action that matters most gets its own banner — throw the green flag. */}
-          <button className={`ev-golive${e.is_live ? " on" : ""}`} onClick={() => onSetLive(!e.is_live)}>
+          <button className={`ev-golive${e.is_live ? " on" : ""}`} onClick={() => { if (e.is_live && typeof window !== "undefined" && !window.confirm("Close this event? Sales tracking stops and the command-center HUD goes dark.")) return; onSetLive(!e.is_live); }}>
             <span className="ev-golive-dot" />
             <span>{e.is_live ? "Green flag out — POS & app sales tracking here" : "Throw the green flag — go live"}</span>
             <span className="ev-golive-state">{e.is_live ? "LIVE" : "OFF"}</span>
