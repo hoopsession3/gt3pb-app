@@ -11,13 +11,22 @@ import EventGenerator from "./EventGenerator";
 type ChatMsg = { role: "user" | "assistant"; content: string };
 const QUICK = ["Create an event from my notes", "We have an inspection in GA — what to expect?", "How do I make a Rise?", "What's in Nature Aid?", "What gear do we have?"];
 
-// "create / make / set up / plan / add / build a new event …" → open the event builder.
-const EVENT_INTENT = /\b(create|make|generate|build|plan|add|set\s?up|start|new|schedule)\b[^.?!]*\bevent\b/i;
-// strip the command so what's left ("…for the Beltline this Saturday") seeds the builder
+// Open the event builder when the crew asks to create one — robust to how people actually say it
+// ("plan a pop-up Saturday", "set up a market run", "book us for a wedding"), but NOT on questions
+// ("what's the plan for the market?") — those go to the chat.
+const EVENT_VERB = "(create|make|generate|build|plan|add|set\\s?up|start|new|schedule|book|host|run|organi[sz]e)";
+const EVENT_NOUN = "(events?|pop-?ups?|markets?(?:\\s*runs?)?|farmers?\\s*markets?|gigs?|bookings?|appearances?|festivals?|fairs?|weddings?|part(?:y|ies)|corporate\\s*events?|private\\s*events?|vendor\\s*events?|truck\\s*stops?)";
+const EVENT_INTENT = new RegExp(`\\b${EVENT_VERB}\\b[^.?!]*\\b${EVENT_NOUN}\\b`, "i");
+const QUESTION_START = /^\s*(what|how|why|when|where|who|which|whose|is|are|do|does|did|can|could|should|would|will|tell me|explain)(['’]?s)?\b/i;
+const isCreateEvent = (t: string) => EVENT_INTENT.test(t) && !QUESTION_START.test(t);
+
+// Keep the whole message as context when it has real detail beyond the command; else start blank.
 function eventSeed(text: string): string {
-  const m = text.match(/\bevent\b[:,\-\s]*(.*)$/i);
-  const rest = (m?.[1] || "").trim();
-  return rest.replace(/^(from\s+my\s+notes|please|for me)\b[:,\-\s]*/i, "").trim();
+  const detail = text
+    .replace(new RegExp(`\\b${EVENT_VERB}\\b`, "ig"), "").replace(new RegExp(`\\b${EVENT_NOUN}\\b`, "ig"), "")
+    .replace(/\b(a|an|the|me|us|for|please|from my notes|new|lets?|let's|i|we|want|to|need)\b/ig, "")
+    .replace(/[^a-z0-9]/ig, "");
+  return detail.length >= 3 ? text.trim() : "";
 }
 
 export default function AskGT3() {
@@ -34,7 +43,7 @@ export default function AskGT3() {
     const q = text.trim();
     if (!q || busy || !supabase) return;
     // Event-creation intent → open the builder (seeded) instead of just chatting.
-    if (EVENT_INTENT.test(q)) {
+    if (isCreateEvent(q)) {
       setMsgs((m) => [...m, { role: "user", content: q }, { role: "assistant", content: "On it — opening the event builder. Add a couple details (where, when, what's on) and I'll draft the event, a team note, and the to-dos for you to review." }]);
       setInput(""); setGenNotes(eventSeed(q));
       return;

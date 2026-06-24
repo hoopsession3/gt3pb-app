@@ -1953,7 +1953,8 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
   };
   // Agent #1 — let Claude pull the follow-ups out of the recap, proposed for review.
   // Propose how to COMPLETE a follow-up (surfacing answers we already have). Persists on the task.
-  const resolve = useCallback(async (t: EventTask) => {
+  // silent=true in the batch auto-propose loop (so one outage doesn't spew toasts); a direct tap surfaces it.
+  const resolve = useCallback(async (t: EventTask, silent = false) => {
     if (!supabase || t.ai_proposal || resolving.has(t.id)) return;
     setResolving((s) => new Set(s).add(t.id));
     try {
@@ -1961,9 +1962,10 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
       const r = await fetch("/api/agents/resolve", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ task_id: t.id }) });
       const j = await r.json();
       if (j.ok) setItems((p) => p.map((x) => (x.id === t.id ? { ...x, ai_proposal: j.proposal, ai_has_answer: j.have_answer } : x)));
-    } catch { /* */ }
+      else if (!silent) toast(String(j.error ?? "").includes("ANTHROPIC") ? "AI isn't switched on yet — add the API key" : "Couldn't propose a completion — try again", "error");
+    } catch { if (!silent) toast("Couldn't reach the resolve agent — try again", "error"); }
     setResolving((s) => { const n = new Set(s); n.delete(t.id); return n; });
-  }, [resolving]);
+  }, [resolving, toast]);
 
   const suggest = async () => {
     if (!supabase || suggesting) return;
@@ -1978,7 +1980,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
         await load();
         // Auto-propose a completion for the freshly generated items.
         const { data: fresh } = await supabase.from("event_tasks").select("*").eq("meeting_note_id", note.id).is("ai_proposal", null).order("sort", { ascending: false }).limit(8);
-        for (const t of (fresh as EventTask[] ?? [])) await resolve(t);
+        for (const t of (fresh as EventTask[] ?? [])) await resolve(t, true);
       }
     } catch { toast("Couldn't reach the recap agent", "error"); }
     setSuggesting(false);
@@ -2721,7 +2723,7 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
       {open && (
         <div className="ev-body">
           {/* The one action that matters most gets its own banner — throw the green flag. */}
-          <button className={`ev-golive${e.is_live ? " on" : ""}`} onClick={() => onSetLive(!e.is_live)}>
+          <button className={`ev-golive${e.is_live ? " on" : ""}`} onClick={() => { if (e.is_live && typeof window !== "undefined" && !window.confirm("Close this event? Sales tracking stops and the command-center HUD goes dark.")) return; onSetLive(!e.is_live); }}>
             <span className="ev-golive-dot" />
             <span>{e.is_live ? "Green flag out — POS & app sales tracking here" : "Throw the green flag — go live"}</span>
             <span className="ev-golive-state">{e.is_live ? "LIVE" : "OFF"}</span>
