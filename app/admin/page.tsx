@@ -1707,6 +1707,28 @@ function MeetingNotes() {
   const [cBody, setCBody] = useState("");
   const [cEvent, setCEvent] = useState("");
   const [saving, setSaving] = useState(false);
+  const [summarizing, setSummarizing] = useState(false);
+  const [query, setQuery] = useState("");
+  const [tab, setTab] = useState<"active" | "archived">("active");
+
+  const summarize = async () => {
+    if (!supabase || summarizing) return;
+    const src = (cBody.trim() || cSummary.trim());
+    if (!src) { toast("Add a transcript or recap first"); return; }
+    setSummarizing(true);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const r = await fetch("/api/agents/summarize", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ text: src }) });
+      const j = await r.json();
+      if (j.ok) setCSummary(j.summary); else toast(String(j.error ?? "").includes("ANTHROPIC") ? "AI isn't switched on yet — add the API key" : `Error: ${j.error}`, "error");
+    } catch { toast("Couldn't reach the summarizer", "error"); }
+    setSummarizing(false);
+  };
+  const archive = async (n: MeetingNote, on: boolean) => {
+    if (!supabase) return;
+    await supabase.from("meeting_notes").update({ archived_at: on ? new Date().toISOString() : null }).eq("id", n.id);
+    toast(on ? "Note archived" : "Note restored"); load();
+  };
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -1762,7 +1784,8 @@ function MeetingNotes() {
             </select>
           </div>
           <textarea className="note-area" placeholder="Recap / summary — paste from your notes app…" value={cSummary} onChange={(e) => setCSummary(e.target.value)} rows={3} />
-          <textarea className="note-area" placeholder="Full transcript or detail (optional)" value={cBody} onChange={(e) => setCBody(e.target.value)} rows={3} />
+          <textarea className="note-area" placeholder="Full transcript or detail (optional)" value={cBody} onChange={(e) => setCBody(e.target.value)} rows={4} />
+          <button type="button" className="note-suggest note-sum" onClick={summarize} disabled={summarizing}>{summarizing ? "Summarizing…" : "✨ Recreate summary from transcript"}</button>
           <div className="note-actions">
             <button type="button" className="note-cancel" onClick={() => setComposing(false)}>Cancel</button>
             <button type="button" className="note-save" disabled={!cTitle.trim() || saving} onClick={save}>{saving ? "Saving…" : "Save note"}</button>
@@ -1770,19 +1793,37 @@ function MeetingNotes() {
         </div>
       )}
 
-      {notes.map((n) => (
-        <MeetingNoteCard
-          key={n.id} note={n} open={openId === n.id} onToggle={() => setOpenId(openId === n.id ? null : n.id)}
-          staff={staff} meId={meId} meName={meName} isAdmin={isAdmin}
-          eventTitle={events.find((e) => e.id === n.event_id)?.title ?? null} onDelete={() => remove(n)}
-        />
-      ))}
-      {notes.length === 0 && !composing && <div className="h-sub">No notes yet — tap &ldquo;New note&rdquo; after your next sit-down.</div>}
+      {(() => {
+        const archivedCount = notes.filter((n) => n.archived_at).length;
+        const q = query.trim().toLowerCase();
+        const shown = notes.filter((n) => (tab === "archived" ? n.archived_at : !n.archived_at))
+          .filter((n) => !q || n.title.toLowerCase().includes(q) || (n.summary || "").toLowerCase().includes(q) || (events.find((e) => e.id === n.event_id)?.title || "").toLowerCase().includes(q));
+        return (
+          <>
+            <div className="note-filter">
+              <input className="note-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search notes…" />
+              <div className="note-tabs">
+                <button type="button" className={`note-tab${tab === "active" ? " on" : ""}`} onClick={() => setTab("active")}>Active</button>
+                <button type="button" className={`note-tab${tab === "archived" ? " on" : ""}`} onClick={() => setTab("archived")}>Archived{archivedCount ? ` ${archivedCount}` : ""}</button>
+              </div>
+            </div>
+            {shown.map((n) => (
+              <MeetingNoteCard
+                key={n.id} note={n} open={openId === n.id} onToggle={() => setOpenId(openId === n.id ? null : n.id)}
+                staff={staff} meId={meId} meName={meName} isAdmin={isAdmin}
+                eventTitle={events.find((e) => e.id === n.event_id)?.title ?? null} onDelete={() => remove(n)}
+                onArchive={() => archive(n, !n.archived_at)}
+              />
+            ))}
+            {shown.length === 0 && !composing && <div className="h-sub">{q ? "No notes match your search." : tab === "archived" ? "No archived notes." : "No notes yet — tap “New note” after your next sit-down."}</div>}
+          </>
+        );
+      })()}
     </div>
   );
 }
 
-function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, eventTitle, onDelete }: {
+function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, eventTitle, onDelete, onArchive }: {
   note: MeetingNote;
   open: boolean;
   onToggle: () => void;
@@ -1792,6 +1833,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
   isAdmin: boolean;
   eventTitle: string | null;
   onDelete: () => void;
+  onArchive: () => void;
 }) {
   const { user, profile } = useAuth();
   const { toast } = useApp();
@@ -1927,7 +1969,10 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
             <input className="note-in" placeholder="Add a follow-up…" value={newItem} onChange={(e) => setNewItem(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
             <button type="button" className="note-fu-addbtn" onClick={add} disabled={!newItem.trim()}>Add</button>
           </div>
-          {isAdmin && <button type="button" className="note-del" onClick={onDelete}>Delete note</button>}
+          <div className="note-foot">
+            <button type="button" className="note-arch" onClick={onArchive}>{note.archived_at ? "Restore" : "Archive"}</button>
+            {isAdmin && <button type="button" className="note-del" onClick={onDelete}>Delete note</button>}
+          </div>
         </div>
       )}
       {assignFor && (
