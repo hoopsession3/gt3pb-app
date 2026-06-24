@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
-import { ARCHITECTURE, ARCH_OVERVIEW, STATUS_LABEL, sotUrl, type ArchLayer, type ArchComponent, type ArchStatus } from "@/lib/architecture";
+import { ARCHITECTURE, ARCH_OVERVIEW, DATABASES, MANAGE_LABEL, STATUS_LABEL, sotUrl, type ArchLayer, type ArchComponent, type ArchStatus } from "@/lib/architecture";
 
 // Owner-only system architecture map. High level → layer → component. Manifest-backed, with LIVE
 // status pulled from /api/architecture/status (env presence + table existence), and search across
@@ -24,6 +24,7 @@ export default function ArchitecturePage() {
   const [open, setOpen] = useState<ArchLayer | null>(null);
   const [comp, setComp] = useState<string | null>(null);
   const [q, setQ] = useState("");
+  const [view, setView] = useState<"layers" | "databases">("layers");
   const [live, setLive] = useState<Record<string, ArchStatus> | null>(null);
 
   const isOwner = roleOf(profile) === "owner";
@@ -95,6 +96,24 @@ export default function ArchitecturePage() {
         <>
           <div className="h-title">System architecture</div>
           <div className="h-sub">High level first, then tap in. {live ? "Status is live — read from the running platform." : "Loading live status…"}</div>
+          <div className="studio-views" style={{ marginTop: 12 }}>
+            <button type="button" className={`studio-view${view === "layers" ? " on" : ""}`} onClick={() => setView("layers")}>Layers</button>
+            <button type="button" className={`studio-view${view === "databases" ? " on" : ""}`} onClick={() => setView("databases")}>Databases</button>
+          </div>
+          {view === "databases" ? (
+            <div className="arch-db">
+              <div className="arch-overview">
+                <div className="arch-ov-t">Database review</div>
+                <p className="arch-ov-b"><b>{DATABASES.filter((d) => d.manage === "full").length} of {DATABASES.length}</b> tables are fully manageable in the app. The rest are partial, read-only, or system-managed by design.</p>
+              </div>
+              {DATABASES.map((d) => (
+                <div key={d.table} className="arch-db-row">
+                  <div className="arch-db-h"><span className="arch-db-t">{d.table}</span><span className={`arch-mg mg-${d.manage}`}>{MANAGE_LABEL[d.manage]}</span></div>
+                  <div className="arch-db-note"><b>{d.surface}</b> · {d.note}</div>
+                </div>
+              ))}
+            </div>
+          ) : (<>
           <input className="arch-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search every layer & component…" />
           {q.trim() ? (
             <div className="arch-comps" style={{ marginTop: 6 }}>
@@ -127,6 +146,7 @@ export default function ArchitecturePage() {
               <a className="arch-sot-all" href="https://github.com/hoopsession3/gt3pb-app" target="_blank" rel="noreferrer">Live source ↗ hoopsession3/gt3pb-app</a>
             </>
           )}
+          </>)}
         </>
       )}
     </section>
