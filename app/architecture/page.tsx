@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
-import { ARCHITECTURE, ARCH_OVERVIEW, DATABASES, MANAGE_LABEL, STATUS_LABEL, sotUrl, type ArchLayer, type ArchComponent, type ArchStatus } from "@/lib/architecture";
+import { ARCHITECTURE, ARCH_OVERVIEW, DATABASES, BUSINESS, BUSINESS_OVERVIEW, MANAGE_LABEL, STATUS_LABEL, sotUrl, type ArchLayer, type ArchComponent, type ArchStatus } from "@/lib/architecture";
 
 // Owner-only system architecture map. High level → layer → component. Manifest-backed, with LIVE
 // status pulled from /api/architecture/status (env presence + table existence), and search across
@@ -24,7 +24,7 @@ export default function ArchitecturePage() {
   const [open, setOpen] = useState<ArchLayer | null>(null);
   const [comp, setComp] = useState<string | null>(null);
   const [q, setQ] = useState("");
-  const [view, setView] = useState<"layers" | "databases">("layers");
+  const [view, setView] = useState<"business" | "layers" | "databases">("business");
   const [live, setLive] = useState<Record<string, ArchStatus> | null>(null);
 
   const isOwner = roleOf(profile) === "owner";
@@ -97,10 +97,33 @@ export default function ArchitecturePage() {
           <div className="h-title">System architecture</div>
           <div className="h-sub">High level first, then tap in. {live ? "Status is live — read from the running platform." : "Loading live status…"}</div>
           <div className="studio-views" style={{ marginTop: 12 }}>
+            <button type="button" className={`studio-view${view === "business" ? " on" : ""}`} onClick={() => setView("business")}>Business</button>
             <button type="button" className={`studio-view${view === "layers" ? " on" : ""}`} onClick={() => setView("layers")}>Layers</button>
             <button type="button" className={`studio-view${view === "databases" ? " on" : ""}`} onClick={() => setView("databases")}>Databases</button>
           </div>
-          {view === "databases" ? (
+          {view === "business" ? (
+            <div className="arch-biz">
+              <div className="arch-overview">
+                <div className="arch-ov-t">What we&apos;ve built — for the business</div>
+                <p className="arch-ov-b">{BUSINESS_OVERVIEW}</p>
+              </div>
+              {BUSINESS.map((b) => (
+                <div key={b.id} className="biz-card">
+                  <div className="biz-head">
+                    <span className="biz-icon" aria-hidden>{b.icon}</span>
+                    <span className="biz-name">{b.name}</span>
+                    <span className={`arch-st st-${b.status}`}>{STATUS_LABEL[b.status]}</span>
+                  </div>
+                  <p className="biz-outcome">{b.outcome}</p>
+                  <ul className="biz-built">{b.built.map((x, i) => <li key={i}>{x}</li>)}</ul>
+                  <div className="biz-foot">
+                    <span className="biz-where">{b.where}</span>
+                    {b.next && <span className="biz-next">Next · {b.next}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : view === "databases" ? (
             <div className="arch-db">
               <div className="arch-overview">
                 <div className="arch-ov-t">Database review</div>

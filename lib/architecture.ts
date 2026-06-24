@@ -66,6 +66,117 @@ export const DATABASES: DbEntry[] = [
   { table: "trailer_profile", manage: "partial", surface: "Prep", note: "Singleton — update." },
 ];
 
+// Business architecture — the same platform, told operationally to an owner: the capabilities the
+// business runs on, what each one DOES for GT3, where it lives in the app, and what's next. Plain
+// language, not plumbing. Rendered as the "Business" view at /architecture.
+export interface BizCapability { id: string; icon: string; name: string; outcome: string; built: string[]; where: string; status: ArchStatus; next?: string }
+export const BUSINESS_OVERVIEW =
+  "What we've built, in business terms: a single platform that sells and serves customers, runs every event end to end, keeps the truck stocked and compliant, makes on-brand marketing, and turns meetings and numbers into action — with AI that proposes and people who approve.";
+
+export const BUSINESS: BizCapability[] = [
+  {
+    id: "sell", icon: "🛒", name: "Sell & Serve", status: "live",
+    outcome: "Customers find the truck, see what's pouring, pay, and book you — without a human in the loop.",
+    built: [
+      "Customer PWA storefront — menu with live card & cash pricing",
+      "Live truck status (open / where / what's on) flips instantly",
+      "Square-backed checkout + order status",
+      "Membership signup and the B2B booking pipeline (intake → review)",
+    ],
+    where: "Customer app · Money → Subscribers · Plan → Bookings",
+    next: "Public AI concierge (answer guests' menu/booking questions) — scoped, not yet built.",
+  },
+  {
+    id: "event", icon: "🎪", name: "Run the Event", status: "live",
+    outcome: "Every event from booking to teardown is planned, packed, and signed off — nothing improvised on site.",
+    built: [
+      "Events with menu, rig, attendance, power/water and venue/vendor link",
+      "Multi-day day planner / run of show — time by time (leave home → setup → doors → load out)",
+      "Per-event pack lists + AI readiness so you roll fully stocked",
+      "Go-live sign-off and live sales tracking to the event",
+    ],
+    where: "Plan → Events · Prep · Company Calendar",
+  },
+  {
+    id: "prep", icon: "📦", name: "Prep & Readiness", status: "live",
+    outcome: "You always know what to load and whether you're stocked — before you leave the driveway.",
+    built: [
+      "Inventory with reorder points + gear library, system-of-record in the app",
+      "AI readiness check: upcoming events vs stock → gaps + a prep alert",
+      "Pack/pick lists per event and per truck stop",
+      "Combine-and-optimize packing across home→show (recipe-aware via products)",
+    ],
+    where: "Prep → Inventory / Gear / Readiness",
+  },
+  {
+    id: "brand", icon: "🎨", name: "Brand & Marketing", status: "live",
+    outcome: "You and Kayla make on-brand content together and ship it — selling by teaching, not shouting.",
+    built: [
+      "Studio: collaborative editor, real version history, scheduling, status workflow",
+      "Brand Kit: voice, palette, type, editable logo/asset library",
+      "Caption engine + one-tap campaign from an event (teaser → day-of → recap)",
+      "Brand calendar; Canva template autofill + Webflow publish (config-gated)",
+    ],
+    where: "Studio",
+  },
+  {
+    id: "plan", icon: "🗓️", name: "Plan & Coordinate", status: "live",
+    outcome: "Everything dated lives in one pane, and meetings turn into tracked action instead of lost notes.",
+    built: [
+      "Company Calendar — events + admin/ops + to-dos, categorized, click-through to source",
+      "Meeting Notes with AI summaries in your house format (Action Items → sectioned recap)",
+      "Recap agent turns those into assignable follow-up tasks",
+      "Day planner reachable straight from a calendar day",
+    ],
+    where: "Plan → Calendar / Notes",
+    next: "Outlook two-way sync (Microsoft Graph) — UI is in, awaiting credentials.",
+  },
+  {
+    id: "team", icon: "👥", name: "Team & Crew", status: "live",
+    outcome: "Each person sees exactly their day and has answers in their pocket — operate 10/10 without you narrating.",
+    built: [
+      "Role-scoped crew console (My Day, Now, Prep, Plan, Studio, Money, Team)",
+      "My Day rollup: flags, pings and tasks assigned to you",
+      "Ask GT3 — grounded pocket-brain (recipes, the why, gear, stock, how-to)",
+      "Academy: training, certifications, the cookbook (the brand source of truth)",
+    ],
+    where: "My Day · Team · QuickDock (every page)",
+  },
+  {
+    id: "money", icon: "💰", name: "Money & Margins", status: "live",
+    outcome: "You see price, membership revenue, and go/no-go ROI per event — decisions on numbers, not gut.",
+    built: [
+      "Menu & product manager — price (card & cash), relational to inventory & Square",
+      "Membership plans editor + subscriber/MRR view",
+      "Event P&L with recipe-level product economics (go/no-go ROI at a glance)",
+      "Sales reports + snapshots",
+    ],
+    where: "Money",
+  },
+  {
+    id: "trust", icon: "🛡️", name: "Compliance & Trust", status: "live",
+    outcome: "You stay legal jurisdiction-to-jurisdiction and never make a claim you can't back — and it's all audited.",
+    built: [
+      "Inspection agent: web-researches a jurisdiction's permits → proposes rules you approve",
+      "Per-jurisdiction compliance rules feeding event pack lists",
+      "Claim-safety: a hard rule across every agent — no unsupported health/nutrition claims",
+      "Risk Register (R-001…R-004) + append-only audit log",
+    ],
+    where: "Prep → Inspection · Governance",
+  },
+  {
+    id: "ai", icon: "🤖", name: "The AI Layer", status: "live",
+    outcome: "AI is a teammate, not a gimmick: it proposes, you approve — grounded in GT3's own governed truth.",
+    built: [
+      "8 agents: recap, action-resolver, readiness, Ask GT3, inspection, caption, campaign, summarizer",
+      "Grounded in the Academy (brand/nutrition/ops) so answers trace to written, claim-checked truth",
+      "Human-in-the-loop everywhere — nothing auto-publishes or auto-commits",
+      "Claude Sonnet 4.6 internal · Haiku 4.5 for volume; key is server-only",
+    ],
+    where: "Throughout — surfaced where the work is",
+  },
+];
+
 export const ARCHITECTURE: ArchLayer[] = [
   {
     id: "agents", tag: "Agent Operations", label: "Autonomous & AI-assisted execution", color: "#2bb3a3",

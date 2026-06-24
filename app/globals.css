@@ -1933,3 +1933,19 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .md-ul li b,.md-p b{color:var(--cream);font-weight:700}
 .md-hr{border:none;border-top:1px solid var(--line);margin:14px 0}
 .md .md-h1:first-child,.md .md-h2:first-child{margin-top:2px}
+
+/* ── Architecture: Business view (owner-facing capabilities) ── */
+.arch-biz{margin-top:4px}
+.biz-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 15px;margin-bottom:10px}
+.biz-head{display:flex;align-items:center;gap:9px}
+.biz-icon{font-size:18px;flex:0 0 auto}
+.biz-name{font-family:'Inter';font-weight:800;font-size:15.5px;color:var(--cream)}
+.biz-head .arch-st{margin-left:auto}
+.biz-outcome{font-family:'Inter';font-size:13.5px;line-height:1.5;color:var(--gold2);margin:8px 0 0;font-weight:600}
+.biz-built{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:5px}
+.biz-built li{position:relative;padding-left:16px;font-family:'Inter';font-size:13px;line-height:1.5;color:var(--cream-m)}
+.biz-built li::before{content:"";position:absolute;left:3px;top:8px;width:5px;height:5px;border-radius:50%;background:var(--gold2)}
+.biz-foot{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:11px;padding-top:10px;border-top:1px solid var(--line)}
+.biz-where{font-family:'DM Mono';font-size:11.5px;color:var(--cream);opacity:.9}
+.biz-next{font-family:'Inter';font-size:11.5px;color:var(--cream-d);font-style:italic}
+.app.crew-day .biz-card{background:#fff}
