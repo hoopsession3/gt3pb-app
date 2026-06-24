@@ -136,7 +136,7 @@ function TodayDemo() {
       <div className="step s-cup"><div className="ic">{CUP}</div><div className="sx"><b>DUSK, not FLOW</b><span>Warm + gentler — your system&apos;s asking for ease.</span></div><div className="tm">9:00</div></div>
       <div className="step s-broth"><div className="ic">{BROTH}</div><div className="sx"><b>FORGE broth</b><span>You trained — rebuild tonight, then an early night.</span></div><div className="tm">tonight</div></div>
 
-      <div className="honest"><b>Straight talk:</b> skip the double-shot reflex today. On 5 hours, more caffeine just borrows from tonight. Sun + a gentle cup is the smarter trade.</div>
+      <div className="honest"><b>Straight talk:</b> skip the double-shot reflex today. On 5 hours, more caffeine just borrows from tonight. Sun + a gentle bottle is the smarter trade.</div>
       <button className="handle" onClick={() => toast("Done. Sun reminder set, DUSK queued at 8:30, broth moved to tonight.")}>
         <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2"><path d="M5 12l5 5L20 7" /></svg>
         <span>Handle it for me<span className="sm">orders + reminders, done</span></span>
@@ -156,7 +156,7 @@ function Arrival() {
         <AccountPill />
       </div>
 
-      <p className="arr-stmt">We draw the coffee cold, blend the hydration from whole coconut, and simmer the broth slow — the long way, on purpose — then make every cup the moment you order it.</p>
+      <p className="arr-stmt">We draw the coffee cold, blend the hydration from whole coconut, and simmer the broth slow — the long way, on purpose — then make every bottle the moment you order it.</p>
       <div className="arr-principles">Drawn cold, made to order, poured into glass</div>
 
       <div className="arr-cta">
@@ -166,9 +166,9 @@ function Arrival() {
 
       <div className="dchapter"><span className="dchn">The Craft</span><span className="dchw">how it&apos;s made</span></div>
       <div className="dchrule" />
-      <div className="craft-row"><span className="craft-no">01</span><div className="craft-x"><b>Cold extraction</b><p>We draw it cold over hours, in small batches, which gives a rounder, gentler cup than heat ever could.</p></div></div>
+      <div className="craft-row"><span className="craft-no">01</span><div className="craft-x"><b>Cold extraction</b><p>We draw it cold over hours, in small batches, which gives a rounder, gentler brew than heat ever could.</p></div></div>
       <div className="craft-row"><span className="craft-no">02</span><div className="craft-x"><b>Whole-food inputs</b><p>It all starts as real food — whole coconut, pasture-raised bones, single-origin beans. We take the slow route and add nothing, so what you taste is the ingredient itself.</p></div></div>
-      <div className="craft-row"><span className="craft-no">03</span><div className="craft-x"><b>Made to order</b><p>We make your cup when you reach the window and pour it straight into glass, about as fresh as a thing can get.</p></div></div>
+      <div className="craft-row"><span className="craft-no">03</span><div className="craft-x"><b>Made to order</b><p>We make your bottle when you reach the window and pour it straight into glass, about as fresh as a thing can get.</p></div></div>
 
       <div className="dchapter"><span className="dchn">What We Make</span><span className="dchw">three acts</span></div>
       <div className="dchrule" />

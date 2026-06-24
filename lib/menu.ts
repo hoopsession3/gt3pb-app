@@ -39,10 +39,10 @@ export const DRINKS: Record<DrinkId, DrinkDetail> = {
   dusk: {
     n: "DUSK", px: "$7", grad: "linear-gradient(140deg,#5a3826,#9c6b3f)", dot: "#9C6B3F",
     lines: ["Cold-extracted coffee in mineral water","Ceylon Cinnamon · Green Cardamom"],
-    why: "Cinnamon and cardamom for a warmer, spiced cup.",
+    why: "Cinnamon and cardamom for a warmer, spiced bottle.",
     has: ["Single-origin cold extraction", "Mineral water base", "Ceylon cinnamon", "Green cardamom"],
     no: ["Sugar", "Dairy", "Syrups", "Preservatives"],
-    when: "BEFORE", whenT: "Afternoon, when you want a warmer cup with the same lift.",
+    when: "BEFORE", whenT: "Afternoon, when you want a warmer bottle with the same lift.",
   },
   tide: {
     n: "TIDE", px: "$8", grad: "linear-gradient(140deg,#2f7d74,#79c7bb)", dot: "#2F7D74",

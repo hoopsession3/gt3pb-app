@@ -87,9 +87,9 @@ function buildRec(a: Complete): Rec {
   const sci: Record<DrinkId, string> = {
     rise:  "Caffeine + coconut MCTs: MCTs bypass first-pass metabolism and cross the blood-brain barrier ~30 min post-intake, providing ketone-adjacent fuel independent of blood glucose. Clean cortical activation without the glycemic spike.",
     flow:  "Caffeine + theobromine from cacao: theobromine is a PDE inhibitor that extends cAMP signaling in neurons — giving you a longer, calmer focus arc than caffeine alone, plus mild vasodilation for increased cerebral blood flow during sustained work.",
-    dusk:  "Cinnamon and cardamom give Dusk a warm, settling flavor for the back half of the day. Same single-origin cold extraction and caffeine as Rise and Flow — the difference is in the cup, not the lift.",
+    dusk:  "Cinnamon and cardamom give Dusk a warm, settling flavor for the back half of the day. Same single-origin cold extraction and caffeine as Rise and Flow — the difference is in the bottle, not the lift.",
     tide:  "A whole-food hydration base: young coconut water and blended coconut meat for potassium, magnesium and sodium, finished with a touch of raw honey for fast-burning carbohydrate. Not a powder, concentrate, or isolate.",
-    forge: "Glycine 8–10g/cup + proline + hydroxyproline → the three amino acids required for type I & II collagen synthesis. Glycine is also rate-limiting for glutathione production (master antioxidant) and directly modulates NMDA receptors for CNS calm post-effort.",
+    forge: "Glycine 8–10g/bottle + proline + hydroxyproline → the three amino acids required for type I & II collagen synthesis. Glycine is also rate-limiting for glutathione production (master antioxidant) and directly modulates NMDA receptors for CNS calm post-effort.",
     hunt:  "Bison broth runs ~2× the iron and zinc of beef with a leaner fat profile and higher CLA content. CLA reduces muscle catabolism and upregulates innate immune pathways — critical if you're overreaching or flagging. Iron + B12 restore erythrocyte function faster than supplementation alone.",
     wild:  "Ostrich is one of the leanest high-protein sources — very low saturated fat, high in lysine and arginine (tissue repair and vasodilation), rare amino acid branching profile. The rebuild without the digestive load when your gut is sensitive.",
   };
@@ -113,7 +113,7 @@ function buildRec(a: Complete): Rec {
   // ── Straight talk: most relevant biochem insight ──
   const bits: string[] = [];
   if (drained)
-    bits.push("On rough sleep, Dusk is the pick for its warm cinnamon-and-cardamom profile — the gentler-tasting way to take your coffee. It's the same lift as the others; the spice just makes it an easier cup to sit with.");
+    bits.push("On rough sleep, Dusk is the pick for its warm cinnamon-and-cardamom profile — the gentler-tasting way to take your coffee. It's the same lift as the others; the spice just makes it an easier bottle to sit with.");
   if (s1 === "flow")
     bits.push("Theobromine isn't a caffeine sidekick. It's a PDE inhibitor that keeps cAMP elevated in neurons longer — that's the mechanism behind the calmer focus arc without the cortisol hit of a double shot.");
   if (s3 === "forge" && lifting)
