@@ -1779,3 +1779,24 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .arch-livedot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--ok);margin-left:7px;vertical-align:middle;box-shadow:0 0 0 0 rgba(106,160,92,.5);animation:archpulse 2s infinite}
 @keyframes archpulse{0%,100%{box-shadow:0 0 0 0 rgba(106,160,92,.5)}50%{box-shadow:0 0 0 5px rgba(106,160,92,0)}}
 .arch-comp-layer{display:block;font-family:'Inter';font-weight:700;font-size:9.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--c);margin-bottom:3px}
+
+/* ── Menu / product manager ── */
+.prod{background:var(--card);border:1px solid var(--line);border-radius:14px;margin-bottom:9px;overflow:hidden}
+.prod-head{width:100%;display:flex;align-items:center;gap:10px;background:none;border:none;cursor:pointer;padding:13px 15px;-webkit-appearance:none;appearance:none;text-align:left}
+.prod-n{font-family:'Inter';font-weight:700;font-size:15.5px;color:var(--cream)}
+.prod-off{font-family:'Inter';font-weight:600;font-size:10px;text-transform:uppercase;color:var(--cream-d);border:1px solid var(--line2);border-radius:6px;padding:1px 6px;margin-left:7px}
+.prod-line{font-family:'Inter';font-size:12px;color:var(--cream-m);margin-left:auto}
+.prod-px{font-family:'DM Mono';font-size:14px;color:var(--gold2)}
+.prod-body{padding:0 15px 15px;border-top:1px solid var(--line)}
+.prod-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}
+.prod-f{display:flex;flex-direction:column;gap:4px;margin-top:9px}
+.prod-f span{font-family:'Inter';font-weight:600;font-size:11.5px;color:var(--cream-m)}
+.prod-f input,.prod-f textarea,.prod-addc select,.prod-addc input{background:var(--bg,#0d0b08);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--cream);font-family:'Inter';font-size:15px;-webkit-appearance:none;appearance:none}
+.app.crew-day .prod-f input,.app.crew-day .prod-f textarea,.app.crew-day .prod-addc select,.app.crew-day .prod-addc input{background:#fff}
+.prod-f input:focus,.prod-f textarea:focus{outline:none;border-color:var(--gold2)}
+.prod-toggle{display:flex;align-items:center;gap:8px;margin-top:12px;font-family:'Inter';font-size:14px;color:var(--cream)}
+.prod-recipe{margin-top:14px;border-top:1px solid var(--line);padding-top:11px}
+.prod-comp{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;font-family:'Inter';font-size:13.5px;color:var(--cream);border-bottom:1px solid var(--line)}
+.prod-addc{display:flex;gap:7px;align-items:center;margin-top:9px}
+.prod-addc select{flex:1;min-width:0}
+.prod-actions{display:flex;justify-content:space-between;align-items:center;margin-top:14px}
