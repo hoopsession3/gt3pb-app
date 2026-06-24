@@ -1630,7 +1630,9 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .cal-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;padding-bottom:6px}
 .cal-dow-c{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--cream-m);text-align:center}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
-.cal-cell{min-height:92px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:5px 5px 6px;display:flex;flex-direction:column;gap:4px;transition:border-color .1s,background .1s}
+/* min-width:0 lets 1fr columns shrink below their no-wrap content — without it the chips push
+   Saturday off-screen and you can't see all the dates. */
+.cal-cell{min-width:0;min-height:92px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:5px 5px 6px;display:flex;flex-direction:column;gap:4px;transition:border-color .1s,background .1s}
 .cal-cell.dim{opacity:.42}
 .cal-cell.today{border-color:var(--gold2)}
 .cal-cell.over{border-color:var(--gold);background:rgba(212,165,92,.1)}
@@ -1638,7 +1640,8 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .cal-date{font-family:'Inter';font-weight:600;font-size:12px;color:var(--cream-m)}
 .cal-add{opacity:0;background:none;border:none;color:var(--gold2);font-size:16px;line-height:1;cursor:pointer;padding:0 3px}
 .cal-cell:hover .cal-add,.cal-add:focus{opacity:1}
-.cal-items{display:flex;flex-direction:column;gap:3px;overflow:hidden}
+.cal-items{display:flex;flex-direction:column;gap:3px;overflow:hidden;min-width:0}
+.cal-items .cc-chip{max-width:100%}
 .cal-ev{font-family:'Inter';font-size:10.5px;font-weight:600;color:var(--cream);background:rgba(111,168,220,.16);border-radius:5px;padding:2px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default}
 .cal-ev.lit{outline:1px solid #6fa8dc}
 .cal-chip{display:flex;align-items:center;gap:4px;text-align:left;background:rgba(255,255,255,.04);border:1px solid var(--line);border-left:3px solid #9a8f7c;border-radius:5px;padding:2px 5px;color:var(--cream);font-family:'Inter';font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:grab;-webkit-appearance:none;appearance:none}
@@ -1978,3 +1981,65 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .conc-send{flex:0 0 auto;width:42px;height:42px;border-radius:50%;background:#B8902F;color:#15140f;border:none;font-size:18px;font-weight:800;cursor:pointer}
 .conc-send:disabled{opacity:.4;cursor:default}
 .conc-foot{padding:0 15px 12px;font-family:'Inter';font-size:10.5px;line-height:1.4;color:#7d745f;text-align:center}
+
+/* ── Company calendar: view switcher + views ── */
+.cal-views{display:flex;gap:5px;padding-bottom:8px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.cal-view{flex:0 0 auto;background:transparent;border:1px solid var(--line2);border-radius:999px;padding:6px 13px;color:var(--cream-m);font-family:'Inter';font-weight:700;font-size:12.5px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.cal-view.on{background:var(--cream);color:var(--bg,#161310);border-color:var(--cream)}
+.app.crew-day .cal-view.on{background:#221f18;color:#fff;border-color:#221f18}
+/* week view — day rows */
+.cal-week{display:flex;flex-direction:column;gap:6px}
+.cal-wrow{display:flex;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:9px 11px}
+.cal-wrow.today{border-color:var(--gold2)}
+.cal-wrow.over{border-color:var(--gold);background:rgba(212,165,92,.1)}
+.cal-wday{flex:0 0 46px;display:flex;flex-direction:column;align-items:flex-start;gap:1px;position:relative}
+.cal-wday b{font-family:'Inter';font-size:12px;color:var(--cream-m)}
+.cal-wday span{font-family:'Fraunces',serif;font-size:20px;color:var(--cream)}
+.cal-add.wk{position:absolute;right:-2px;top:0;opacity:.6}
+.cal-witems{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;justify-content:center}
+.cal-wnone{font-family:'Inter';font-size:13px;color:var(--cream-d)}
+/* list / agenda */
+.cal-list{display:flex;flex-direction:column;gap:7px}
+.cal-lrow{display:flex;gap:11px;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:9px 11px}
+.cal-lrow.today{border-color:var(--gold2)}
+.cal-ldate{flex:0 0 40px;display:flex;flex-direction:column;align-items:center;text-align:center;line-height:1.05}
+.cal-ldate b{font-family:'Fraunces',serif;font-size:19px;color:var(--cream)}
+.cal-ldate span{font-family:'Inter';font-size:10.5px;color:var(--cream-m);text-transform:uppercase}
+.cal-lmon{color:var(--gold2)!important}
+.cal-litems{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;justify-content:center}
+/* quarter / year — mini months */
+.cal-multi{display:grid;gap:10px}
+.cal-multi.quarter{grid-template-columns:1fr}
+.cal-multi.year{grid-template-columns:repeat(2,1fr)}
+.mini-m{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.mini-h{font-family:'Inter';font-weight:800;font-size:13px;color:var(--cream);margin-bottom:6px}
+.mini-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.mini-d{min-width:0;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-family:'Inter';font-size:9.5px;color:var(--cream-m);border-radius:4px}
+.mini-d.dim{opacity:.3}
+.mini-d.today{background:var(--gold2);color:#1a1409;font-weight:700}
+.mini-dots{display:flex;gap:1.5px}
+.mini-dots i{width:3.5px;height:3.5px;border-radius:50%;display:block}
+.app.crew-day .mini-m,.app.crew-day .cal-wrow,.app.crew-day .cal-lrow{background:#fff}
+/* Outlook sync bar */
+.ol-bar{margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:13px 14px}
+.app.crew-day .ol-bar{background:#fff}
+.ol-top{display:flex;align-items:center;gap:8px;font-family:'Inter';font-size:14px;color:var(--cream)}
+.ol-i{font-size:15px}
+.ol-state{margin-left:auto;font-family:'Inter';font-weight:700;font-size:10.5px;letter-spacing:.4px;text-transform:uppercase;padding:3px 9px;border-radius:999px;border:1px solid var(--line2);color:var(--cream-m)}
+.ol-state.on{color:var(--ok);border-color:var(--ok)}
+.ol-state.off{color:var(--cream-d)}
+.ol-note{font-family:'Inter';font-size:12px;line-height:1.45;color:var(--cream-m);margin-top:7px}
+.ol-note code{font-family:'DM Mono';font-size:11px;background:rgba(255,255,255,.05);padding:1px 4px;border-radius:4px}
+.ol-acts{display:flex;gap:8px;margin-top:9px}
+.ol-btn{border-radius:9px;padding:9px 14px;font-family:'Inter';font-weight:700;font-size:13px;cursor:pointer;border:1px solid var(--line2);background:transparent;color:var(--cream);-webkit-appearance:none;appearance:none}
+.ol-btn.primary{background:var(--gold2);border-color:var(--gold2);color:#1a1409;margin-top:9px}
+.ol-acts .ol-btn.primary{margin-top:0}
+.ol-msg{font-family:'Inter';font-size:12.5px;color:var(--gold2);margin-top:9px}
+
+/* ── Prep declutter: collapsible section header ── */
+.prep-collapse{display:flex;align-items:center;gap:10px;width:100%;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer;-webkit-appearance:none;appearance:none;text-align:left}
+.app.crew-day .prep-collapse{background:#fff}
+.prep-collapse-l{display:flex;flex-direction:column;gap:2px}
+.prep-collapse-l b{font-family:'Inter';font-weight:700;font-size:14.5px;color:var(--cream)}
+.prep-collapse-l span{font-family:'Inter';font-size:12px;color:var(--cream-m)}
+.prep-collapse .ev-chev{margin-left:auto;transition:transform .15s}

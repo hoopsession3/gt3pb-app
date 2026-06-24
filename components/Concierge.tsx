@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 
 // GUEST CONCIERGE — a friendly floating host on the customer app. Answers menu/visit/booking/
 // membership questions by calling the public /api/concierge route (grounded + claim-safe). No login.
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 type Msg = { role: "user" | "assistant"; content: string };
 const GREETING = "Hey — I'm the GT3 concierge. Ask me what's good to order, where the truck is, or how to book us for an event.";
