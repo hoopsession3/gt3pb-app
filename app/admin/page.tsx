@@ -19,6 +19,7 @@ import Studio from "@/components/Studio";
 import MenuManager from "@/components/MenuManager";
 import PlanEditor from "@/components/PlanEditor";
 import CompanyCalendar from "@/components/CompanyCalendar";
+import EventDayPlanner from "@/components/EventDayPlanner";
 import { subscribePush } from "@/lib/push";
 import { chime, unlockAudio } from "@/lib/chime";
 import { haptic, HAPTIC } from "@/lib/haptics";
@@ -2608,8 +2609,11 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
   onOpenPrep: (id: string) => void;
 }) {
   const [prep, setPrep] = useState<{ done: number; total: number; crit: number } | null>(null);
+  const [planOpen, setPlanOpen] = useState(false);
+  const [planCount, setPlanCount] = useState<number | null>(null);
   useEffect(() => {
     if (!open || !supabase) return;
+    supabase.from("event_schedule_items").select("id", { count: "exact", head: true }).eq("event_id", e.id).then(({ count }) => setPlanCount(count ?? 0));
     supabase.from("event_tasks").select("done, critical").eq("event_id", e.id).then(({ data }) => {
       const rows = (data as { done: boolean; critical: boolean }[]) ?? [];
       setPrep({ done: rows.filter((r) => r.done).length, total: rows.length, crit: rows.filter((r) => r.critical && !r.done).length });
@@ -2657,6 +2661,22 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
             </span>
             <span className="ev-prep-go">Open ›</span>
           </button>
+
+          {/* Multi-day run of show — leave home → drive → setup → service → teardown, time by time */}
+          <button type="button" className={`ev-prep${planCount && planCount > 0 ? " ok" : ""}`} onClick={() => setPlanOpen(true)}>
+            <span className="ev-prep-main">
+              <b>🗓️ Daily schedule · run of show</b>
+              <span>{planCount === null ? "…" : planCount === 0 ? "Build a time-by-time plan for each day" : `${planCount} block${planCount === 1 ? "" : "s"} across ${Math.max(1, e.plan_days ?? 1)} day${Math.max(1, e.plan_days ?? 1) === 1 ? "" : "s"}`}</span>
+            </span>
+            <span className="ev-prep-go">Plan ›</span>
+          </button>
+          {planOpen && (
+            <EventDayPlanner
+              eventId={e.id} title={e.title} eventDay={e.day} planDays={Math.max(1, e.plan_days ?? 1)}
+              onPlanDays={(n) => onUpdate({ plan_days: n })}
+              onClose={() => { setPlanOpen(false); if (supabase) supabase.from("event_schedule_items").select("id", { count: "exact", head: true }).eq("event_id", e.id).then(({ count }) => setPlanCount(count ?? 0)); }}
+            />
+          )}
 
           {/* What guests see */}
           <div className="ev-group">
