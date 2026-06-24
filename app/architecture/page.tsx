@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
-import { ARCHITECTURE, ARCH_OVERVIEW, DATABASES, BUSINESS, BUSINESS_OVERVIEW, MANAGE_LABEL, STATUS_LABEL, sotUrl, type ArchLayer, type ArchComponent, type ArchStatus } from "@/lib/architecture";
+import { ARCHITECTURE, ARCH_OVERVIEW, DATABASES, BUSINESS, BUSINESS_OVERVIEW, BUILD_STATS, MANAGE_LABEL, STATUS_LABEL, sotUrl, type ArchLayer, type ArchComponent, type ArchStatus } from "@/lib/architecture";
 
 // Owner-only system architecture map. High level → layer → component. Manifest-backed, with LIVE
 // status pulled from /api/architecture/status (env presence + table existence), and search across
@@ -129,6 +129,14 @@ export default function ArchitecturePage() {
                     <div className="prog-card"><span className="prog-l">Open tasks</span><span className="prog-n">{kpis.open_tasks}</span></div>
                   </div>
                   <div className="prog-foot">{BUSINESS.length} capabilities live · {kpis.tables} tables · {kpis.content_pieces} content pieces · {kpis.notes} meeting notes</div>
+                  <div className="prog-build">
+                    <div className="prog-build-h">What we&apos;ve built <span>· snapshot {BUILD_STATS.asOf}</span></div>
+                    <div className="prog-build-grid">
+                      {BUILD_STATS.items.map((s) => (
+                        <div key={s.l} className="prog-build-card"><span className="prog-build-n">{s.n}</span><span className="prog-build-l">{s.l}</span></div>
+                      ))}
+                    </div>
+                  </div>
                 </>
               )}
             </div>
