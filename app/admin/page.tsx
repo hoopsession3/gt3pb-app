@@ -21,6 +21,7 @@ import PlanEditor from "@/components/PlanEditor";
 import CompanyCalendar from "@/components/CompanyCalendar";
 import EventDayPlanner from "@/components/EventDayPlanner";
 import EventGenerator from "@/components/EventGenerator";
+import EventPrepAI from "@/components/EventPrepAI";
 import Markdown from "@/components/Markdown";
 import { subscribePush } from "@/lib/push";
 import { chime, unlockAudio } from "@/lib/chime";
@@ -902,6 +903,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   const [showSupplies, setShowSupplies] = useState(false);
   const [openThread, setOpenThread] = useState<string | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const [prepAIOpen, setPrepAIOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -1098,15 +1100,23 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
           {isAdmin && (
             <div className="adm-prep-actions">
               {isEvent && <button className="adm-regen" onClick={() => generate(true)} disabled={generating}>↻ Regenerate from menu</button>}
+              <button className="adm-regen" onClick={() => setPrepAIOpen(true)}>✨ AI prep list</button>
               <button className="adm-regen" onClick={() => setShowSupplies(true)}>+ Add supplies</button>
             </div>
           )}
         </>
       ) : isAdmin ? (
-        isEvent
-          ? <button className="adm-btn primary" onClick={() => generate()} disabled={generating}>{generating ? "Generating…" : "Generate pack list from menu"}</button>
-          : <button className="adm-btn primary" onClick={() => setShowSupplies(true)}>+ Build this location&apos;s list</button>
+        <div className="adm-prep-actions" style={{ flexWrap: "wrap" }}>
+          {isEvent
+            ? <button className="adm-btn primary" onClick={() => generate()} disabled={generating}>{generating ? "Generating…" : "Generate pack list from menu"}</button>
+            : <button className="adm-btn primary" onClick={() => setShowSupplies(true)}>+ Build this location&apos;s list</button>}
+          <button className="adm-btn" onClick={() => setPrepAIOpen(true)}>✨ AI prep list</button>
+        </div>
       ) : <div className="h-sub">No pick list yet.</div>}
+      {prepAIOpen && (
+        <EventPrepAI ownerType={target.kind} ownerId={target.id} title={name ?? (isEvent ? "Event" : "Stop")}
+          onClose={() => setPrepAIOpen(false)} onAdded={load} />
+      )}
 
       {isEvent && isAdmin && (
         <div className="adm-crew-row">
@@ -2675,6 +2685,7 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
 }) {
   const [prep, setPrep] = useState<{ done: number; total: number; crit: number } | null>(null);
   const [planOpen, setPlanOpen] = useState(false);
+  const [prepAIOpen, setPrepAIOpen] = useState(false);
   const [planCount, setPlanCount] = useState<number | null>(null);
   useEffect(() => {
     if (!open || !supabase) return;
@@ -2726,6 +2737,20 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
             </span>
             <span className="ev-prep-go">Open ›</span>
           </button>
+
+          {/* AI prep — tell it about this event, it builds a grounded to-do list (SOPs + inventory + compliance) */}
+          <button type="button" className="ev-prep" onClick={() => setPrepAIOpen(true)}>
+            <span className="ev-prep-main">
+              <b>✨ AI prep list</b>
+              <span>Tell it about this event — it builds the to-do list from your SOPs, inventory &amp; the rules</span>
+            </span>
+            <span className="ev-prep-go">Build ›</span>
+          </button>
+          {prepAIOpen && (
+            <EventPrepAI ownerType="event" ownerId={e.id} title={e.title}
+              onClose={() => setPrepAIOpen(false)}
+              onAdded={() => { if (supabase) supabase.from("event_tasks").select("done, critical").eq("event_id", e.id).then(({ data }) => { const rows = (data as { done: boolean; critical: boolean }[]) ?? []; setPrep({ done: rows.filter((r) => r.done).length, total: rows.length, crit: rows.filter((r) => r.critical && !r.done).length }); }); }} />
+          )}
 
           {/* Multi-day run of show — leave home → drive → setup → service → teardown, time by time */}
           <button type="button" className={`ev-prep${planCount && planCount > 0 ? " ok" : ""}`} onClick={() => setPlanOpen(true)}>
