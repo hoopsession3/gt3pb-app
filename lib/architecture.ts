@@ -17,6 +17,55 @@ export const ARCH_OVERVIEW = {
   flow: ["Edge Surfaces", "Control Plane", "Capabilities", "Agents + Model", "Data & Infrastructure", "Governance"],
 };
 
+// Database review — can each table be managed from the app, and how fully?
+export type Manage = "full" | "partial" | "readonly" | "system";
+export const MANAGE_LABEL: Record<Manage, string> = { full: "Full CRUD", partial: "Partial", readonly: "Read-only", system: "System" };
+export interface DbEntry { table: string; manage: Manage; surface: string; note: string }
+export const DATABASES: DbEntry[] = [
+  // Fully manageable from the app (create · edit attributes · delete)
+  { table: "products", manage: "full", surface: "Money → Menu & products", note: "Catalog + recipe (inventory) + price (card & cash)." },
+  { table: "product_components", manage: "full", surface: "Money → Menu & products", note: "Each drink's recipe → inventory." },
+  { table: "subscription_plans", manage: "full", surface: "Money → Membership plans", note: "Tiers, price, billing period, active." },
+  { table: "events", manage: "full", surface: "Plan → Events", note: "Create/edit/delete events + menu flags." },
+  { table: "stops", manage: "full", surface: "Now / Prep", note: "Truck stops + pick lists." },
+  { table: "vendors", manage: "full", surface: "Plan → Vendors", note: "Create/edit/delete." },
+  { table: "booking_requests", manage: "full", surface: "Plan → Bookings", note: "B2B booking pipeline." },
+  { table: "event_tasks", manage: "full", surface: "Prep / Notes", note: "Pack lists + follow-ups (assign, flag, AI propose)." },
+  { table: "event_staff", manage: "full", surface: "Plan → Events", note: "Crew on an event." },
+  { table: "meeting_notes", manage: "full", surface: "Plan → Notes", note: "Create/edit/archive/search + AI summary." },
+  { table: "inventory_items", manage: "full", surface: "Prep → Inventory", note: "Stock + reorder points." },
+  { table: "assets", manage: "full", surface: "Prep → Gear", note: "Gear library." },
+  { table: "compliance_rules", manage: "full", surface: "Prep → Inspection", note: "Per-jurisdiction; agent proposals approved here." },
+  { table: "content_items", manage: "full", surface: "Studio", note: "Create/edit/schedule/delete content." },
+  { table: "brand_kit", manage: "full", surface: "Studio → Brand", note: "Voice, palette, fonts, logos." },
+  { table: "brand_assets", manage: "full", surface: "Studio → Brand", note: "Logo / asset library." },
+  { table: "subscriptions", manage: "full", surface: "Money → Subscribers", note: "Member subs." },
+  { table: "profiles", manage: "full", surface: "Team", note: "Name, role, points, credit, founding." },
+  // Partial — manageable but bounded by design
+  { table: "alerts", manage: "partial", surface: "My Day / Now", note: "Raised + acknowledged, not edited." },
+  { table: "comments", manage: "partial", surface: "Throughout", note: "Post + delete; not edited." },
+  { table: "reserves", manage: "partial", surface: "Plan → Reserves", note: "Create + update." },
+  { table: "rsvps", manage: "partial", surface: "Events", note: "Create + update." },
+  { table: "event_approvals", manage: "partial", surface: "Now (sign-off)", note: "Create + delete (the sign-off flow)." },
+  { table: "event_economics", manage: "partial", surface: "Money → Event P&L", note: "P&L inputs (upsert)." },
+  { table: "event_sales", manage: "partial", surface: "Money → Event P&L", note: "Sales inputs (upsert)." },
+  { table: "product_economics", manage: "partial", surface: "Money", note: "Cost inputs (update)." },
+  { table: "content_versions", manage: "partial", surface: "Studio (history)", note: "Immutable snapshots — restore, not edit." },
+  { table: "academy_*", manage: "partial", surface: "Academy", note: "Progress/certs via training flow." },
+  // System / external — intentionally not hand-edited
+  { table: "orders", manage: "system", surface: "Checkout / Square", note: "Created at checkout; refunds in Square." },
+  { table: "audit_log", manage: "readonly", surface: "—", note: "Append-only by triggers." },
+  { table: "live_status", manage: "partial", surface: "Now → Go live", note: "Via the go-live control (RPC)." },
+  { table: "tenants", manage: "system", surface: "—", note: "Single tenant; staged for multi-tenant." },
+  { table: "push_subscriptions", manage: "system", surface: "—", note: "Managed by push registration." },
+  { table: "referral_events", manage: "system", surface: "—", note: "Event log." },
+  { table: "check_ins", manage: "system", surface: "—", note: "Event log." },
+  { table: "reserve_claims", manage: "system", surface: "—", note: "Claimed via RPC." },
+  { table: "admin_emails", manage: "readonly", surface: "SQL only", note: "Allowlist — not in-app." },
+  { table: "subscription_interest", manage: "partial", surface: "Money", note: "Captured from interest signups." },
+  { table: "trailer_profile", manage: "partial", surface: "Prep", note: "Singleton — update." },
+];
+
 export const ARCHITECTURE: ArchLayer[] = [
   {
     id: "agents", tag: "Agent Operations", label: "Autonomous & AI-assisted execution", color: "#2bb3a3",
