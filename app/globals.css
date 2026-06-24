@@ -2078,3 +2078,10 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .eg-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
 .eg-list li{position:relative;padding-left:16px;font-family:'Inter';font-size:13.5px;line-height:1.5;color:var(--cream)}
 .eg-list li::before{content:"✓";position:absolute;left:0;top:0;color:var(--ok);font-weight:700}
+
+/* ── Note composer: AI task preview ── */
+.note-tasks-prev{margin-top:9px;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:10px 12px;font-family:'Inter';font-size:12.5px;color:var(--cream-m)}
+.app.crew-day .note-tasks-prev{background:#fff}
+.note-tasks-prev b{color:var(--cream)}
+.note-tasks-prev ul{margin:6px 0 0;padding-left:16px;display:flex;flex-direction:column;gap:3px}
+.note-tasks-prev li{font-size:12.5px;line-height:1.45;color:var(--cream)}
