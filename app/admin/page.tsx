@@ -20,6 +20,7 @@ import MenuManager from "@/components/MenuManager";
 import PlanEditor from "@/components/PlanEditor";
 import CompanyCalendar from "@/components/CompanyCalendar";
 import EventDayPlanner from "@/components/EventDayPlanner";
+import EventGenerator from "@/components/EventGenerator";
 import Markdown from "@/components/Markdown";
 import { subscribePush } from "@/lib/push";
 import { chime, unlockAudio } from "@/lib/chime";
@@ -2758,6 +2759,7 @@ function EventsAdmin() {
   const openPrep = (id: string) => { try { localStorage.setItem("gt3-prep-open", id); } catch { /* ignore */ } setSection("prep"); };
   const [events, setEvents] = useState<EventRow[]>([]);
   const [openId, setOpenId] = useState<string | null>(null); // single-open accordion
+  const [genOpen, setGenOpen] = useState(false); // "create from notes" agent
   const [catalog, setCatalog] = useState<ProductEcon[]>([]);
   const [econMap, setEconMap] = useState<Record<string, EventEcon>>({});
   const [showArch, setShowArch] = useState(false);
@@ -2839,7 +2841,11 @@ function EventsAdmin() {
 
   return (
     <div className="adm-sec">
-      <div className="sec">Events <button className="adm-btn" style={{ marginLeft: "auto" }} onClick={addEvent}>+ Add</button></div>
+      <div className="sec">Events
+        <button className="adm-btn eg-btn" style={{ marginLeft: "auto" }} onClick={() => setGenOpen(true)}>✨ From notes</button>
+        <button className="adm-btn" onClick={addEvent}>+ Add</button>
+      </div>
+      {genOpen && <EventGenerator onClose={() => setGenOpen(false)} onCreated={load} />}
       {active.length === 0 && <div className="ev-empty">No active events. Tap <b>+ Add</b> to create one{archived.length ? ", or reopen one below" : ""}.</div>}
       <div className="ev-list">
         {active.map((e, i) => (

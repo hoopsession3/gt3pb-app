@@ -2043,3 +2043,21 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .prep-collapse-l b{font-family:'Inter';font-weight:700;font-size:14.5px;color:var(--cream)}
 .prep-collapse-l span{font-family:'Inter';font-size:12px;color:var(--cream-m)}
 .prep-collapse .ev-chev{margin-left:auto;transition:transform .15s}
+
+/* ── Event generator (create from notes) ── */
+.adm-btn.eg-btn{margin-right:7px}
+.eg-sec{font-family:'Inter';font-weight:800;font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--gold2);margin:14px 0 7px}
+.eg-row{display:flex;gap:9px;align-items:flex-start;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-left:3px solid var(--c,#888);border-radius:10px;padding:9px 11px;margin-bottom:6px;cursor:pointer;-webkit-appearance:none;appearance:none;opacity:.55}
+.eg-row.on{opacity:1}
+.app.crew-day .eg-row{background:#fff}
+.eg-ck{flex:0 0 auto;color:var(--c,var(--cream-m));font-size:14px;margin-top:1px}
+.eg-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.eg-main b{font-family:'Inter';font-weight:700;font-size:14px;color:var(--cream)}
+.eg-main span{font-family:'Inter';font-size:12.5px;line-height:1.45;color:var(--cream-m)}
+.eg-note{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:11px 13px}
+.app.crew-day .eg-note{background:#fff}
+.eg-note-t{display:block;font-family:'Inter';font-weight:800;font-size:14.5px;color:var(--cream);margin-bottom:2px}
+.eg-done-h{font-family:'Fraunces',serif;font-size:18px;color:var(--ok);margin-bottom:6px}
+.eg-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.eg-list li{position:relative;padding-left:16px;font-family:'Inter';font-size:13.5px;line-height:1.5;color:var(--cream)}
+.eg-list li::before{content:"✓";position:absolute;left:0;top:0;color:var(--ok);font-weight:700}
