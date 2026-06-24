@@ -2091,3 +2091,13 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .note-tasks-prev b{color:var(--cream)}
 .note-tasks-prev ul{margin:6px 0 0;padding-left:16px;display:flex;flex-direction:column;gap:3px}
 .note-tasks-prev li{font-size:12.5px;line-height:1.45;color:var(--cream)}
+
+/* ── Plan sub-nav: priority badges + back-office divider ── */
+.subnav-tab{display:inline-flex;align-items:center;gap:6px}
+.subnav-badge{display:inline-flex;align-items:center;justify-content:center;min-width:17px;height:17px;padding:0 5px;border-radius:999px;background:var(--line2);color:var(--cream);font-family:'Inter';font-weight:800;font-size:10.5px;line-height:1}
+.subnav-tab.on .subnav-badge{background:rgba(26,22,16,.22);color:#1a1610}
+.subnav-badge.hot{background:#c4453c;color:#fff}            /* pending bookings = money waiting */
+.subnav-tab.on .subnav-badge.hot{background:#1a1610;color:#fff}
+.subnav-div{flex:0 0 auto;align-self:center;width:1px;height:20px;background:var(--line2);margin:0 4px}
+.subnav-tab.back{opacity:.72;font-weight:500}            /* rarely-touched: visually quieter */
+.subnav-tab.back.on{opacity:1}
