@@ -265,3 +265,18 @@ export const ARCHITECTURE: ArchLayer[] = [
     ],
   },
 ];
+
+// Build scoreboard — what we've shipped, in numbers. A snapshot refreshed on each deploy alongside the
+// partner build log (~/Downloads/GT3-Build-Log.md). Velocity counts (PRs/commits/LOC) come from git, so
+// they're baked here; the business KPIs shown above this snapshot are live from Supabase.
+export const BUILD_STATS: { asOf: string; items: { n: string; l: string }[] } = {
+  asOf: "Jun 24, 2026",
+  items: [
+    { n: "31", l: "features shipped" },
+    { n: "11", l: "AI agents" },
+    { n: "70", l: "migrations" },
+    { n: "28", l: "API endpoints" },
+    { n: "40", l: "components" },
+    { n: "~16.6k", l: "lines of code" },
+  ],
+};
