@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
 import BrandCalendar from "./BrandCalendar";
@@ -30,7 +30,7 @@ const fmtDate = (s: string | null) => s ? new Date(s).toLocaleString([], { month
 
 export default function Studio() {
   const { user, profile } = useAuth();
-  const me = { id: user?.id ?? "anon", name: profile?.display_name || user?.email?.split("@")[0] || "Crew" };
+  const me = useMemo(() => ({ id: user?.id ?? "anon", name: profile?.display_name || user?.email?.split("@")[0] || "Crew" }), [user?.id, profile?.display_name, user?.email]);
   const [items, setItems] = useState<Item[]>([]);
   const [filter, setFilter] = useState<string>("all");
   const [openId, setOpenId] = useState<string | null>(null);
@@ -131,6 +131,9 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   const [campBusy, setCampBusy] = useState(false);
   const chRef = useRef<any>(null);
   const saveTimer = useRef<any>(null);
+  // Live identity for the realtime channel — read inside the subscribe effect so identity churn
+  // (auth/profile refresh, co-editor join, dev HMR) never re-keys the studio-${id} socket.
+  const meRef = useRef(me); useEffect(() => { meRef.current = me; }, [me]);
 
   const loadVersions = useCallback(async () => {
     if (!supabase) return;
@@ -138,6 +141,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
     setVersions((data as Version[]) ?? []);
   }, [id]);
 
+  // Load the piece + its versions when the editor opens (or the piece changes).
   useEffect(() => {
     if (!supabase) return;
     let cancelled = false;
@@ -151,25 +155,30 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
       setEventId(it.event_id ?? "");
     });
     loadVersions();
+    return () => { cancelled = true; };
+  }, [id, loadVersions]);
 
-    // Real-time co-editing: presence (who's here) + broadcast (live field patches).
-    const ch = supabase.channel(`studio-${id}`, { config: { presence: { key: me.id } } });
+  // Real-time co-editing: presence (who's here) + broadcast (live field patches). Subscribes EXACTLY
+  // once per piece (deps [id]); identity is read from meRef.current so churn never re-keys the socket.
+  useEffect(() => {
+    if (!supabase) return;
+    const ch = supabase.channel(`studio-${id}`, { config: { presence: { key: meRef.current.id } } });
     ch.on("presence", { event: "sync" }, () => {
       const state = ch.presenceState() as any;
       const list = Object.values(state).flat().map((p: any) => ({ id: p.id, name: p.name }));
-      setPeers(list.filter((p: any) => p.id !== me.id));
+      setPeers(list.filter((p: any) => p.id !== meRef.current.id));
     });
     ch.on("broadcast", { event: "patch" }, ({ payload }: any) => {
-      if (payload.by === me.id) return;
+      if (payload.by === meRef.current.id) return;
       if (payload.field === "title") setTitle(payload.value);
       else if (payload.field === "hook") setHook(payload.value);
       else if (payload.field === "caption") setCaption(payload.value);
       else if (payload.field === "tags") setTags(payload.value);
     });
-    ch.subscribe(async (st: string) => { if (st === "SUBSCRIBED") await ch.track({ id: me.id, name: me.name }); });
+    ch.subscribe(async (st: string) => { if (st === "SUBSCRIBED") await ch.track({ id: meRef.current.id, name: meRef.current.name }); });
     chRef.current = ch;
-    return () => { cancelled = true; supabase?.removeChannel(ch); };
-  }, [id, me.id, me.name, loadVersions]);
+    return () => { supabase?.removeChannel(ch); };
+  }, [id]);
 
   // Events for the relational link (upcoming + a little past).
   useEffect(() => {
@@ -288,7 +297,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   };
 
   // ── Relational helpers: when a piece is tied to an event, plan the campaign around it ──
-  const linkedEv = evs.find((e) => e.id === eventId);
+  const linkedEv = useMemo(() => evs.find((e) => e.id === eventId), [evs, eventId]);
   const scheduleRel = async (offsetDays: number) => {
     if (!linkedEv?.day) return;
     const [y, m, d] = linkedEv.day.split("-").map(Number);

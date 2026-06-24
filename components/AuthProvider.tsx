@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase, supabaseEnabled } from "@/lib/supabase";
 
@@ -175,8 +175,12 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     if (user) await loadProfile(user.id);
   }, [user, loadProfile]);
 
+  // Memoize the context value so incidental provider re-renders don't re-render the whole admin
+  // subtree (which churns the Studio realtime channel). supabaseEnabled is a module constant.
+  const value = useMemo(() => ({ ready, enabled: supabaseEnabled, user, profile, sendCode, verifyCode, signInWithUrl, signInWithPassword, signUp, signOut, refreshProfile }), [ready, user, profile, sendCode, verifyCode, signInWithUrl, signInWithPassword, signUp, signOut, refreshProfile]);
+
   return (
-    <Ctx.Provider value={{ ready, enabled: supabaseEnabled, user, profile, sendCode, verifyCode, signInWithUrl, signInWithPassword, signUp, signOut, refreshProfile }}>
+    <Ctx.Provider value={value}>
       {children}
     </Ctx.Provider>
   );
