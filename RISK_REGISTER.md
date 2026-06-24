@@ -5,9 +5,41 @@ Add new risks at the top. Close one by setting **Status: Closed** with the date 
 
 | ID | Risk | Severity | Status | Owner |
 |----|------|----------|--------|-------|
+| R-004 | Anthropic API key exposed in chat (rotation deferred) | Medium | Open (rotation pending) | Ryan |
 | R-001 | Unencrypted BI connection (Looker Studio → Supabase) | Medium | Accepted (temporary) | Ryan |
 | R-002 | Per-tenant RLS staged but not enforced | Medium | Open (staged) | Ryan |
 | R-003 | Audit-log trigger write volume / retention | Low–Medium | Open (monitor) | Ryan |
+
+---
+
+## R-004 — Anthropic API key exposed in chat (rotation deferred)
+
+- **Opened:** 2026-06-23
+- **Severity:** Medium
+- **Status:** Open (rotation pending — key intentionally left active for now)
+- **Owner:** Ryan
+
+**Description.** During setup of the in-app AI agents, a live Anthropic API key (`sk-ant-…`) was
+pasted in plaintext into an assistant chat. By decision the key was **not** rotated immediately —
+it remains active and powers the app via the `ANTHROPIC_API_KEY` env var. The key value is **not**
+stored in this repo, any commit, or any code (server-side env only).
+
+**Impact.** Anyone who can read that chat transcript can use the key to **spend against the
+Anthropic billing account** (financial loss / quota exhaustion). It is a billing/credential risk
+only — the key grants **model inference, not access to GT3PB data** (no Supabase, no customer PII).
+
+**Likelihood.** Low–Medium — depends entirely on who can access the transcript.
+
+**Compensating controls (already in place).**
+- A **low monthly usage cap** is set in the Anthropic Console — a hard ceiling on any misuse.
+- The key scope is **inference only**; it cannot read or write app/customer data.
+- The key lives **only** in the host env (Vercel), never in the repo or client bundle.
+
+**Plan / mitigation.** Rotate when convenient: create a fresh key in the Anthropic Console →
+update `ANTHROPIC_API_KEY` in Vercel → redeploy → **delete the exposed key**. Keep the spend cap.
+
+**Close when:** the exposed key is deleted and replaced by a fresh key that has never been shared
+in plaintext.
 
 ---
 

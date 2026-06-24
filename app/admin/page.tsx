@@ -2187,13 +2187,45 @@ function Subscribers() {
 }
 
 // ───────────────────────── member management ─────────────────────────
-function MemberRow({ m, onSaved }: { m: Profile; onSaved: () => void }) {
+// The full role set lives in profiles.role (migration 0031). roleOf() COLLAPSES it
+// (operator/event_manager/contractor → member), so the team console never uses it — it reads
+// the raw role and maps each to a tier, a human label, and the exact sections it unlocks
+// (kept in lockstep with OperatorNav's scope so "what can they see" is never a guess).
+type RoleKey = "owner" | "admin" | "event_manager" | "operator" | "contractor" | "server" | "member";
+const ROLE_META: Record<RoleKey, { label: string; tier: "lead" | "crew" | "member"; scope: string; tone: string }> = {
+  owner:         { label: "Owner",         tier: "lead",   scope: "Full access — every section",    tone: "red" },
+  admin:         { label: "Admin",         tier: "lead",   scope: "Full access — every section",    tone: "red" },
+  event_manager: { label: "Event Manager", tier: "lead",   scope: "Now · Prep · Plan",              tone: "gold" },
+  operator:      { label: "Operator",      tier: "crew",   scope: "Now · Prep",                     tone: "cream" },
+  contractor:    { label: "Contractor",    tier: "crew",   scope: "Now · Prep — event hire",        tone: "cream" },
+  server:        { label: "Server",        tier: "crew",   scope: "Now — order pass only",          tone: "cream" },
+  member:        { label: "Member",        tier: "member", scope: "Customer — loyalty only",        tone: "muted" },
+};
+const ROLE_ORDER: RoleKey[] = ["owner", "admin", "event_manager", "operator", "contractor", "server", "member"];
+const TIERS: { key: "lead" | "crew" | "member"; title: string; hint: string }[] = [
+  { key: "lead", title: "Leadership", hint: "Run the business" },
+  { key: "crew", title: "Crew", hint: "Work the shifts" },
+  { key: "member", title: "Members", hint: "Customers" },
+];
+const rawRole = (m: { role?: string | null }): RoleKey => {
+  const r = m.role as RoleKey;
+  return ROLE_ORDER.includes(r) ? r : "member";
+};
+const initials = (name: string | null) =>
+  (name ?? "").trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "·";
+
+function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; isSelf: boolean; ownerCount: number; onPatch: (id: string, role: string) => void; onSaved: () => void }) {
   const { toast } = useApp();
   const [name, setName] = useState(m.display_name ?? "");
+  const role = rawRole(m);
+  const meta = ROLE_META[role];
   const [pts, setPts] = useState(m.points);
   const [credit, setCredit] = useState((m.credit_cents / 100).toFixed(2));
   const [founding, setFounding] = useState(m.founding_member);
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
+  // Keep the loyalty inputs honest if a realtime reload changes them underneath us.
+  useEffect(() => { setPts(m.points); setCredit((m.credit_cents / 100).toFixed(2)); setFounding(m.founding_member); }, [m.points, m.credit_cents, m.founding_member]);
   const dirty = name !== (m.display_name ?? "") || pts !== m.points || credit !== (m.credit_cents / 100).toFixed(2) || founding !== m.founding_member;
 
   const save = async () => {
@@ -2209,39 +2241,51 @@ function MemberRow({ m, onSaved }: { m: Profile; onSaved: () => void }) {
     toast(error ? `Error: ${error.message}` : `Saved ${m.display_name ?? "member"}`);
     if (!error) onSaved();
   };
-  const setRole = async (newRole: string) => {
-    const { error } = await supabase!.rpc("admin_set_role", { member: m.id, new_role: newRole });
-    toast(error ? `Error: ${error.message}` : `${m.display_name ?? "Member"} is now ${newRole}`);
-    if (!error) onSaved();
+  const setRole = async (next: string) => {
+    if (next === role) return;
+    const name = m.display_name ?? "this person";
+    // Safety rails: never strand the business without an owner; double-check elevations + demotions.
+    if (role === "owner" && next !== "owner" && ownerCount <= 1) { toast("Can't remove the last owner — promote someone else first."); return; }
+    if (isSelf && role === "owner" && next !== "owner") { if (!window.confirm("Demote yourself from Owner? You'll lose full access immediately.")) return; }
+    else if (next === "owner" || next === "admin" || role === "owner") { if (!window.confirm(`Set ${name} to ${ROLE_META[next as RoleKey].label}?`)) return; }
+    onPatch(m.id, next); // optimistic — reflect the pick instantly
+    const { error } = await supabase!.rpc("admin_set_role", { member: m.id, new_role: next });
+    if (error) { onPatch(m.id, role); toast(`Error: ${error.message}`); }
+    else { toast(`${m.display_name ?? "Member"} → ${ROLE_META[next as RoleKey].label}`); onSaved(); }
   };
 
   return (
-    <div className="adm-member">
-      <div className="adm-member-top">
-        <b>{m.display_name ?? "—"}{roleOf(m) !== "member" && <span className="adm-tag">{roleOf(m)}</span>}</b>
-        <span className="adm-ref">{m.referral_code}</span>
+    <div className="adm-member tm-row">
+      <div className="tm-head">
+        <span className={`tm-av tone-${meta.tone}`}>{initials(m.display_name)}</span>
+        <div className="tm-id">
+          <b>{m.display_name ?? "Unnamed"}{isSelf && <span className="tm-you">you</span>}</b>
+          <span className="adm-ref">{m.referral_code || "—"}</span>
+        </div>
+        <span className={`tm-badge tone-${meta.tone}`}>{meta.label}</span>
       </div>
-      <div className="adm-fields">
-        <label>Name<input value={name} onChange={(e) => setName(e.target.value)} placeholder="Display name" /></label>
-        <label>Role<select className="adm-role" value={roleOf(m)} onChange={(e) => setRole(e.target.value)}>
-          <option value="member">member</option>
-          <option value="server">server</option>
-          <option value="operator">operator</option>
-          <option value="event_manager">event manager</option>
-          <option value="contractor">contractor</option>
-          <option value="admin">admin</option>
-          <option value="owner">owner</option>
-        </select></label>
-        <label>Points<input type="number" min={0} value={pts} onChange={(e) => setPts(Math.max(0, parseInt(e.target.value) || 0))} /></label>
-        <label>Credit $<input type="text" inputMode="decimal" value={credit} onChange={(e) => setCredit(e.target.value)} /></label>
-        <label className="adm-check"><input type="checkbox" checked={founding} onChange={(e) => setFounding(e.target.checked)} />Founding</label>
-        <button className={`adm-btn${dirty ? " primary" : ""}`} onClick={save} disabled={!dirty || busy}>{busy ? "…" : "Save"}</button>
-      </div>
+      <label className="tm-rolepick">
+        <select className="adm-role" value={role} onChange={(e) => setRole(e.target.value)} aria-label={`Role for ${m.display_name ?? "member"}`}>
+          {ROLE_ORDER.map((r) => <option key={r} value={r}>{ROLE_META[r].label}</option>)}
+        </select>
+        <i className="tm-scope">{meta.scope}</i>
+      </label>
+      <button className="tm-more" onClick={() => setOpen((o) => !o)} aria-expanded={open}>{open ? "Hide loyalty" : "Loyalty & credit"}</button>
+      {open && (
+        <div className="adm-fields tm-loyalty">
+          <label>Name<input value={name} onChange={(e) => setName(e.target.value)} placeholder="Display name" /></label>
+          <label>Points<input type="number" min={0} value={pts} onChange={(e) => setPts(Math.max(0, parseInt(e.target.value) || 0))} /></label>
+          <label>Credit $<input type="text" inputMode="decimal" value={credit} onChange={(e) => setCredit(e.target.value)} /></label>
+          <label className="adm-check"><input type="checkbox" checked={founding} onChange={(e) => setFounding(e.target.checked)} />Founding</label>
+          <button className={`adm-btn${dirty ? " primary" : ""}`} onClick={save} disabled={!dirty || busy}>{busy ? "…" : "Save"}</button>
+        </div>
+      )}
     </div>
   );
 }
 
 function Members() {
+  const { user } = useAuth();
   const [members, setMembers] = useState<Profile[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [q, setQ] = useState("");
@@ -2251,20 +2295,54 @@ function Members() {
     if (data) setMembers(data as Profile[]);
     setLoaded(true);
   }, []);
-  useEffect(() => { load(); }, [load]);
+  // Optimistic local patch so a role pick reflects instantly, before the round-trip.
+  const patch = useCallback((id: string, role: string) =>
+    setMembers((ms) => ms.map((x) => (x.id === id ? { ...x, role: role as Profile["role"] } : x))), []);
+  // Real-time: any role/loyalty change (this manager, another manager, or the affected user's
+  // own session re-reading their access) lands here live — no refresh.
+  useEffect(() => {
+    load();
+    if (!supabase) return;
+    const ch = supabase.channel("admin-members")
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => load())
+      .subscribe();
+    return () => { supabase?.removeChannel(ch); };
+  }, [load]);
 
+  const ql = q.trim().toLowerCase();
   const shown = members.filter((m) =>
-    !q || (m.display_name ?? "").toLowerCase().includes(q.toLowerCase()) || (m.referral_code ?? "").toLowerCase().includes(q.toLowerCase())
+    !ql || (m.display_name ?? "").toLowerCase().includes(ql) || (m.referral_code ?? "").toLowerCase().includes(ql) || ROLE_META[rawRole(m)].label.toLowerCase().includes(ql)
   );
+  const counts = { lead: 0, crew: 0, member: 0 };
+  members.forEach((m) => { counts[ROLE_META[rawRole(m)].tier]++; });
+  const ownerCount = members.filter((m) => rawRole(m) === "owner").length;
 
   return (
-    <div className="adm-sec">
-      <div className="sec">Members · {members.length}</div>
-      {members.length > 6 && (
-        <input className="auth-input" style={{ marginBottom: 4 }} placeholder="Search by name or code" value={q} onChange={(e) => setQ(e.target.value)} />
+    <div className="adm-sec tm">
+      <div className="sec">Team · {members.length}</div>
+      <div className="tm-counts">
+        <span><b>{counts.lead}</b> leadership</span>
+        <span><b>{counts.crew}</b> crew</span>
+        <span><b>{counts.member}</b> members</span>
+        <span className="tm-live">● live</span>
+      </div>
+      {members.length > 5 && (
+        <input className="auth-input tm-search" placeholder="Search name, code, or role" value={q} onChange={(e) => setQ(e.target.value)} />
       )}
-      {shown.map((m) => <MemberRow key={m.id} m={m} onSaved={load} />)}
-      {loaded && members.length === 0 && <div className="h-sub">No members yet — they appear here when people sign in.</div>}
+      {TIERS.map((tier) => {
+        const rows = shown
+          .filter((m) => ROLE_META[rawRole(m)].tier === tier.key)
+          .sort((a, b) => ROLE_ORDER.indexOf(rawRole(a)) - ROLE_ORDER.indexOf(rawRole(b)) || (a.display_name ?? "").localeCompare(b.display_name ?? ""));
+        if (rows.length === 0) return null;
+        return (
+          <div key={tier.key} className="tm-group">
+            <div className="tm-gh"><span>{tier.title}</span><i>{tier.hint}</i><b>{rows.length}</b></div>
+            {rows.map((m) => <MemberRow key={m.id} m={m} isSelf={m.id === user?.id} ownerCount={ownerCount} onPatch={patch} onSaved={load} />)}
+          </div>
+        );
+      })}
+      {loaded && members.length === 0 && <div className="h-sub">No one here yet — people appear when they sign in.</div>}
+      {loaded && members.length > 0 && shown.length === 0 && <div className="h-sub">No match for &ldquo;{q}&rdquo;.</div>}
     </div>
   );
 }

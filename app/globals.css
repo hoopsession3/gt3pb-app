@@ -588,6 +588,32 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .adm-substat.paused{background:rgba(207,154,74,.18);color:var(--warn)}
 .adm-substat.past_due{background:rgba(184,36,32,.2);color:#e7a09c}
 .adm-ref{font-family:'DM Mono';font-size:11px;color:var(--cream-m)}
+/* ── team / members — real-time role management ── */
+.tm-counts{display:flex;align-items:center;gap:15px;margin:-4px 0 14px;font-family:'Inter';font-size:11px;color:var(--cream-m)}
+.tm-counts b{color:var(--cream);font-weight:650;margin-right:3px}
+.tm-counts .tm-live{margin-left:auto;font-weight:600;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--ok)}
+.tm-search{margin-bottom:16px}
+.tm-group{margin-bottom:20px}
+.tm-gh{display:flex;align-items:center;gap:9px;margin:0 2px 9px;font-family:'Inter'}
+.tm-gh span{font-weight:650;font-size:11px;letter-spacing:1.8px;text-transform:uppercase;color:var(--cream)}
+.tm-gh i{font-style:normal;font-size:11px;color:var(--cream-d);flex:1}
+.tm-gh b{font-family:'DM Mono';font-size:11px;color:var(--gold2);background:rgba(168,124,63,.14);padding:1px 9px;border-radius:20px}
+.tm-row{padding:13px 14px}
+.tm-head{display:flex;align-items:center;gap:11px;margin-bottom:12px}
+.tm-av{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Archivo Black';font-size:13px;flex:0 0 auto;background:#2a2820;color:var(--cream);border:1.5px solid var(--line2)}
+.tm-av.tone-red{background:var(--red);color:#fff;border-color:var(--red-h)}
+.tm-av.tone-gold{background:rgba(168,124,63,.22);color:var(--gold2);border-color:rgba(168,124,63,.5)}
+.tm-id{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.tm-id b{font-family:'Inter';font-weight:650;font-size:14.5px;display:flex;align-items:center;gap:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tm-you{font-family:'Inter';font-weight:600;font-size:8px;letter-spacing:.6px;text-transform:uppercase;color:var(--cream-d);background:rgba(245,241,232,.08);padding:2px 6px;border-radius:5px;flex:0 0 auto}
+.tm-badge{font-family:'Inter';font-weight:650;font-size:9px;letter-spacing:.8px;text-transform:uppercase;padding:4px 10px;border-radius:20px;flex:0 0 auto;border:1px solid var(--line2);color:var(--cream-m);white-space:nowrap}
+.tm-badge.tone-red{background:rgba(214,75,70,.15);border-color:rgba(214,75,70,.42);color:var(--red-h)}
+.tm-badge.tone-gold{background:rgba(168,124,63,.16);border-color:rgba(168,124,63,.42);color:var(--gold2)}
+.tm-rolepick{display:flex;flex-direction:column;gap:6px}
+.tm-rolepick .adm-role{width:100%}
+.tm-scope{font-style:normal;font-family:'Inter';font-size:11px;color:var(--cream-d);padding-left:2px}
+.tm-more{align-self:flex-start;margin-top:11px;background:none;border:none;color:var(--gold2);font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:.3px;cursor:pointer;padding:3px 0}
+.tm-loyalty{margin-top:11px;padding-top:12px;border-top:1px solid var(--line)}
 .adm-fields{display:flex;align-items:flex-end;gap:9px;flex-wrap:wrap}
 .adm-fields label{font-family:'Inter';font-weight:600;font-size:9.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--cream-m);display:flex;flex-direction:column;gap:4px}
 .adm-fields input[type=number],.adm-fields input[type=text]{width:74px;background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:9px;padding:9px;color:var(--cream);font-family:'DM Mono';font-size:16px;outline:none}
