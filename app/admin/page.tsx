@@ -657,7 +657,10 @@ function InspectionPrep() {
   const [eventId, setEventId] = useState("");
   const [busy, setBusy] = useState(false);
   const [res, setRes] = useState<InspResult | null>(null);
+  const [wait, setWait] = useState<string | null>(null); // background-research banner ("Researching…" / "Writing up…")
   const [open, setOpen] = useState(false); // collapsed until needed — keeps the Prep screen clean
+  const aliveRef = useRef(true); // stop polling if the screen unmounts mid-research
+  useEffect(() => () => { aliveRef.current = false; }, []);
 
   useEffect(() => {
     if (!open || !supabase) return;
@@ -666,32 +669,53 @@ function InspectionPrep() {
       .then(({ data }) => setEvents(data ?? []));
   }, [open]);
 
-  // Uncovered jurisdictions research in the background (the route returns a job id). Poll the job
-  // row — staff RLS allows the read — until it finishes or ~180s passes.
-  const pollJob = async (jobId: string): Promise<{ status: string; result: InspResult | null; error: string | null; place: string } | null> => {
+  // Kick phase 2 (extract) once phase 1 (search) lands. The route claims the job atomically, so firing
+  // this more than once across polls is harmless.
+  const triggerExtract = async (jobId: string) => {
+    if (!supabase) return;
+    const token = (await supabase.auth.getSession()).data.session?.access_token;
+    await fetch("/api/agents/inspection", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ phase: "extract", job_id: jobId }),
+    }).catch(() => {});
+  };
+
+  // Uncovered jurisdictions research in the background across two phases (search → extract). Poll the
+  // job row — staff RLS allows the read — driving the waiting banner, firing the phase-2 trigger the
+  // moment the search lands, and resolving on done/error or the deadline (two phases, each bounded ~120s).
+  const waitForJob = async (jobId: string): Promise<{ status: string; result: InspResult | null; error: string | null; place: string } | null> => {
     if (!supabase) return null;
-    const deadline = Date.now() + 180000;
-    while (Date.now() < deadline) {
+    const deadline = Date.now() + 230000;
+    let triggered = false;
+    while (Date.now() < deadline && aliveRef.current) {
       await new Promise((r) => setTimeout(r, 3000));
+      if (!aliveRef.current) return null;
       const { data } = await supabase.from("inspection_research_jobs").select("status, result, error, place").eq("id", jobId).maybeSingle();
-      if (data && (data.status === "done" || data.status === "error")) return data as { status: string; result: InspResult | null; error: string | null; place: string };
+      if (!data) continue;
+      if (data.status === "searched" && !triggered) { triggered = true; setWait("Writing up the brief…"); await triggerExtract(jobId); }
+      else if (data.status === "extracting") setWait("Writing up the brief…");
+      else if (data.status === "running" || data.status === "pending") setWait("Researching the jurisdiction…");
+      if (data.status === "done" || data.status === "error") return data as { status: string; result: InspResult | null; error: string | null; place: string };
     }
     return null;
   };
 
   const run = async () => {
     if (!supabase || busy || !state.trim()) return;
-    setBusy(true); setRes(null);
+    setBusy(true); setRes(null); setWait(null);
     try {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
       const r = await fetch("/api/agents/inspection", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ state, county, event_id: eventId }) });
       const j = await r.json();
       if (!j.ok) { toast(String(j.error ?? "").includes("ANTHROPIC") ? "AI isn't switched on yet — add the API key" : `Error: ${j.error ?? r.status}`, "error"); setBusy(false); return; }
       if (j.status === "pending" && j.job_id) {
-        toast(`Researching ${j.place}… this can take up to a minute`);
-        const done = await pollJob(j.job_id);
-        if (!done) { toast("Research is taking a while — check back shortly", "error"); setBusy(false); return; }
-        if (done.status === "error" || !done.result) { toast(`Couldn't finish researching ${j.place} — try again`, "error"); setBusy(false); return; }
+        setWait("Researching the jurisdiction…");
+        const done = await waitForJob(j.job_id);
+        setWait(null);
+        if (!aliveRef.current) return;
+        if (!done) { toast(`Research for ${j.place} took too long — try again, or add a county to narrow it`, "error"); setBusy(false); return; }
+        if (done.status === "error" || !done.result) { toast(`Couldn't finish researching ${j.place} — try again, or add a county to narrow it`, "error"); setBusy(false); return; }
         const out = { ...done.result, place: done.place };
         setRes(out);
         toast(`Researched ${out.place}${out.proposed?.length ? ` — ${out.proposed.length} rules to review` : ""}`);
@@ -699,7 +723,7 @@ function InspectionPrep() {
         setRes(j);
         toast(j.researched ? `Researched ${j.place}${j.proposed.length ? ` — ${j.proposed.length} rules to review` : ""}` : `Brief ready for ${j.place}`);
       }
-    } catch { toast("Couldn't reach the inspection agent", "error"); }
+    } catch { toast("Couldn't reach the inspection agent", "error"); setWait(null); }
     setBusy(false);
   };
 
@@ -728,6 +752,11 @@ function InspectionPrep() {
           </select>
           <button type="button" className="rdy-run" onClick={run} disabled={busy || !state.trim()}>{busy ? "Researching…" : "✨ Research"}</button>
         </div>
+        {wait && (
+          <div className="insp-wait" role="status" aria-live="polite">
+            <span className="insp-wait-dot" /><span>{wait}</span><span className="insp-wait-sub">this can take a minute or two — you can keep working</span>
+          </div>
+        )}
         {res && (
           <div className="insp-out">
             <div className="insp-head">{res.place}{res.researched ? "" : " · from your records"}{res.confidence === "low" ? " · low confidence — verify with the county" : ""}</div>
