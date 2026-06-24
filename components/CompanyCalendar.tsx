@@ -15,10 +15,12 @@ type Ev = { id: string; title: string | null; day: string; day_label: string | n
 type Content = { id: string; title: string; scheduled_for: string | null; status: string };
 type Todo = { id: string; title: string; category: string; due_on: string | null; done: boolean; event_id: string | null; meeting_note_id: string | null };
 
-const CAT: Record<string, { label: string; color: string }> = {
-  admin: { label: "Admin", color: "#8b5cf6" }, ops: { label: "Ops", color: "#e0892b" },
-  event: { label: "Events", color: "#6fa8dc" }, content: { label: "Content", color: "#2bb3a3" },
+const CAT: Record<string, { label: string; color: string; icon: string }> = {
+  stop: { label: "Truck", color: "#5b9a6b", icon: "🚚" }, event: { label: "Events", color: "#6fa8dc", icon: "📍" },
+  ops: { label: "Ops", color: "#e0892b", icon: "🛠️" }, admin: { label: "Admin", color: "#8b5cf6", icon: "📋" },
+  content: { label: "Content", color: "#2bb3a3", icon: "🎨" },
 };
+const FILTERS = ["all", "stop", "event", "ops", "admin", "content"];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const MON3 = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -56,6 +58,8 @@ export default function CompanyCalendar() {
   const [filter, setFilter] = useState<string>("all");
   const [addDay, setAddDay] = useState<string | null>(null);
   const [dayOpen, setDayOpen] = useState<string | null>(null); // a date → show that day's detail
+  const [stale, setStale] = useState(0); // overdue, unpublished, not-yet-tidied content
+  const [tidying, setTidying] = useState(false);
   const [planEv, setPlanEv] = useState<{ id: string; title: string; day: string | null; plan_days: number; initialDay: number } | null>(null);
   const dragId = useRef<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
@@ -76,7 +80,7 @@ export default function CompanyCalendar() {
     const from = key(range.start);
     const [e, c, t, s] = await Promise.all([
       supabase.from("events").select("id, title, day, day_label, is_live, category, plan_days").is("archived_at", null).gte("day", eFrom).lte("day", to),
-      supabase.from("content_items").select("id, title, scheduled_for, status").not("scheduled_for", "is", null).gte("scheduled_for", `${from}T00:00:00`).lte("scheduled_for", `${to}T23:59:59`),
+      supabase.from("content_items").select("id, title, scheduled_for, status").is("archived_at", null).not("scheduled_for", "is", null).gte("scheduled_for", `${from}T00:00:00`).lte("scheduled_for", `${to}T23:59:59`),
       supabase.from("todos").select("id, title, category, due_on, done, event_id, meeting_note_id").not("due_on", "is", null).gte("due_on", from).lte("due_on", to),
       supabase.from("stops").select("id, name, location_text, starts_at, status").not("starts_at", "is", null).neq("status", "done").gte("starts_at", `${from}T00:00:00`).lte("starts_at", `${to}T23:59:59`),
     ]);
@@ -94,6 +98,15 @@ export default function CompanyCalendar() {
     return () => { supabase?.removeChannel(ch); };
   }, [load]);
 
+  const loadStale = useCallback(async () => { if (!supabase) return; const { data } = await supabase.rpc("stale_content_count"); setStale(typeof data === "number" ? data : 0); }, []);
+  useEffect(() => { loadStale(); }, [loadStale]);
+  const tidy = async () => {
+    if (!supabase || tidying) return;
+    setTidying(true);
+    const { data } = await supabase.rpc("tidy_stale_content", { grace_days: 0 }); // owner tapped Tidy → file all overdue now
+    setTidying(false); await load(); await loadStale();
+    return data;
+  };
   const openEventPrep = (eventId: string) => { if (typeof window !== "undefined") localStorage.setItem("gt3-prep-open", `event:${eventId}`); setSection("prep"); };
   const openStopPrep = (stopId: string) => { if (typeof window !== "undefined") localStorage.setItem("gt3-prep-open", `stop:${stopId}`); setSection("prep"); };
   const openPlanner = (e: Ev, dayNo: number) => setPlanEv({ id: e.id, title: e.title || e.day_label || "Event", day: e.day, plan_days: Math.max(1, e.plan_days ?? 1), initialDay: dayNo });
@@ -121,7 +134,7 @@ export default function CompanyCalendar() {
         push(addDaysKey(e.day, di), { id: e.id, title: span > 1 ? `${base} · D${di + 1}` : base, cat, kind: "event", go: () => openPlanner(e, di + 1) });
       }
     }
-    for (const s of stops) if (s.starts_at && pass("ops")) push(key(new Date(s.starts_at)), { id: s.id, title: `🚚 ${s.name}`, cat: "ops", kind: "stop", go: () => openStopPrep(s.id) });
+    for (const s of stops) if (s.starts_at && pass("stop")) push(key(new Date(s.starts_at)), { id: s.id, title: s.name, cat: "stop", kind: "stop", go: () => openStopPrep(s.id) });
     for (const c of content) if (c.scheduled_for && pass("content")) push(key(new Date(c.scheduled_for)), { id: c.id, title: c.title || "Content", cat: "content", kind: "content", go: () => setSection("studio") });
     for (const t of todos) if (t.due_on && pass(t.category)) push(t.due_on, { id: t.id, title: t.title, cat: CAT[t.category] ? t.category : "ops", kind: "todo", done: t.done, go: () => { if (t.event_id) openEventPrep(t.event_id); else if (t.meeting_note_id) setSection("plan"); }, toggle: () => toggleTodo(t) });
     return m;
@@ -155,6 +168,13 @@ export default function CompanyCalendar() {
 
   return (
     <div className="adm-sec cal">
+      <div className="cal-titlebar"><span className="cal-eyebrow">📅 Company calendar</span><span className="cal-titlesub">everything dated — events · truck · content · to-dos</span></div>
+      {stale > 0 && (
+        <div className="cal-nudge">
+          <span><b>{stale}</b> post{stale === 1 ? "" : "s"} went past their date unpublished.</span>
+          <button type="button" onClick={tidy} disabled={tidying}>{tidying ? "Tidying…" : "Tidy up"}</button>
+        </div>
+      )}
       <div className="cal-sticky">
         <div className="cal-bar">
           <div className="cal-nav">
@@ -168,9 +188,9 @@ export default function CompanyCalendar() {
           {VIEWS.map((v) => <button key={v} type="button" className={`cal-view${view === v ? " on" : ""}`} onClick={() => setV(v)}>{v[0].toUpperCase() + v.slice(1)}</button>)}
         </div>
         <div className="cal-filters">
-          {["all", "admin", "ops", "event", "content"].map((f) => (
+          {FILTERS.map((f) => (
             <button key={f} type="button" className={`cc-filter${filter === f ? " on" : ""}`} onClick={() => setFilter(f)} style={f !== "all" ? { ["--c" as string]: CAT[f].color } : undefined}>
-              {f !== "all" && <span className="cc-dot" style={{ background: CAT[f].color }} />}{f === "all" ? "All" : CAT[f].label}
+              {f !== "all" && <span className="cc-dot" style={{ background: CAT[f].color }} />}{f === "all" ? "All" : `${CAT[f].icon} ${CAT[f].label}`}
             </button>
           ))}
         </div>

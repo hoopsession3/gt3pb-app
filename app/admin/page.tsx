@@ -3351,6 +3351,11 @@ export default function AdminPage() {
   const allowed = sectionsForRole(role);
   const sec: OpSection = allowed.includes(section) ? section : "now";
   const [planTab, setPlanTab] = useState<"calendar" | "notes" | "events" | "vendors" | "bookings" | "reserves">("calendar");
+  // deep-link from Studio's "Company calendar ↗" → land on the Plan calendar
+  useEffect(() => {
+    if (sec !== "plan" || typeof window === "undefined") return;
+    if (localStorage.getItem("gt3-plan-tab") === "calendar") { localStorage.removeItem("gt3-plan-tab"); setPlanTab("calendar"); }
+  }, [sec]);
   const [planCounts, setPlanCounts] = useState<{ bookings: number; events: number }>({ bookings: 0, events: 0 });
   useEffect(() => {
     if (sec !== "plan" || !canManage || !supabase) return;
