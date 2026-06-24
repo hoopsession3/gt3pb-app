@@ -157,7 +157,7 @@ export const BUSINESS: BizCapability[] = [
     id: "trust", icon: "🛡️", name: "Compliance & Trust", status: "live",
     outcome: "You stay legal jurisdiction-to-jurisdiction and never make a claim you can't back — and it's all audited.",
     built: [
-      "Inspection agent: web-researches a jurisdiction's permits → proposes rules you approve",
+      "Inspection agent: web-researches a jurisdiction's permits in the background → proposes rules you approve",
       "Per-jurisdiction compliance rules feeding event pack lists",
       "Claim-safety: a hard rule across every agent — no unsupported health/nutrition claims",
       "Risk Register (R-001…R-004) + append-only audit log",
@@ -186,7 +186,7 @@ export const ARCHITECTURE: ArchLayer[] = [
       { name: "Action resolver", status: "live", desc: "Proposes how to complete each follow-up; surfaces answers already in our data.", sot: "app/api/agents/resolve/route.ts" },
       { name: "Readiness agent", status: "live", desc: "Upcoming events vs inventory → gaps + a prep alert.", sot: "app/api/agents/readiness/route.ts" },
       { name: "Operator assistant (Ask GT3)", status: "live", desc: "Grounded pocket-brain chat: recipes, the why, gear, stock, how-to.", sot: "app/api/agents/operator/route.ts" },
-      { name: "Inspection agent", status: "configured", desc: "Web-researches jurisdiction permits/inspection; proposes compliance rows for approval.", sot: "app/api/agents/inspection/route.ts" },
+      { name: "Inspection agent", status: "configured", desc: "Web-researches jurisdiction permits/inspection; proposes compliance rows for approval.", detail: "Covered jurisdictions brief inline from records; uncovered ones research in a TWO-PHASE background job (search → write-up, each bounded under the 120s function cap) and the card polls for the result.", sot: "app/api/agents/inspection/route.ts" },
       { name: "Caption engine", status: "live", desc: "Suave, on-brand content options from a brief (Studio).", sot: "app/api/agents/caption/route.ts" },
       { name: "Campaign generator", status: "live", desc: "An event → teaser + day-of + recap, scheduled & event-linked.", sot: "app/api/agents/campaign/route.ts" },
       { name: "Summarizer", status: "live", desc: "Recreate a note's recap from the transcript.", sot: "app/api/agents/summarize/route.ts" },
@@ -221,7 +221,7 @@ export const ARCHITECTURE: ArchLayer[] = [
     components: [
       { name: "Anthropic client", status: "configured", desc: "Server-only Messages API (tool use). Sonnet 4.6 internal · Haiku 4.5 high-volume.", detail: "Single shared client every agent calls. Never imported client-side — the browser only ever calls our own API routes, which hold the key.", config: "Models: claude-sonnet-4-6, claude-haiku-4-5 · Env: ANTHROPIC_API_KEY", sot: "lib/anthropic.ts" },
       { name: "Grounding (Source of Truth)", status: "live", desc: "Academy brand/nutrition/ops + products → claim-safe context.", detail: "Compiles the governed Academy content into the prompt so answers trace to written, claim-checked truth — no model freelancing on nutrition.", sot: "lib/operatorKb.ts" },
-      { name: "Web search tool", status: "configured", desc: "Server-side web_search for the inspection agent.", detail: "Capped at 2 searches + 2 resume rounds per request to stay under the serverless time limit.", config: "Enable web search for the workspace in the Anthropic Console", sot: "app/api/agents/inspection/route.ts" },
+      { name: "Web search tool", status: "configured", desc: "Server-side web_search for the inspection agent.", detail: "Runs in the background phase-1 search (capped at 2 searches + 2 resume rounds); the extract is split into a second phase so neither blows the 120s function cap.", config: "Enable web search for the workspace in the Anthropic Console", sot: "app/api/agents/inspection/route.ts" },
       { name: "ANTHROPIC_API_KEY", status: "configured", desc: "Host secret. Agents degrade gracefully until set.", detail: "Inference-scoped — grants model calls only, no access to app/customer data. Exposure tracked as Risk R-004 (rotation deferred).", config: "Vercel → Settings → Environment Variables → Production", sot: "RISK_REGISTER.md" },
     ],
   },
