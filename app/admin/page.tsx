@@ -20,6 +20,7 @@ import MenuManager from "@/components/MenuManager";
 import PlanEditor from "@/components/PlanEditor";
 import CompanyCalendar from "@/components/CompanyCalendar";
 import EventDayPlanner from "@/components/EventDayPlanner";
+import Markdown from "@/components/Markdown";
 import { subscribePush } from "@/lib/push";
 import { chime, unlockAudio } from "@/lib/chime";
 import { haptic, HAPTIC } from "@/lib/haptics";
@@ -1967,7 +1968,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
       </button>
       {open && (
         <div className="note-body">
-          {note.summary && <p className="note-summary">{note.summary}</p>}
+          {note.summary && <Markdown source={note.summary} className="note-summary" />}
           {note.body && <details className="note-full"><summary>Full notes</summary><p>{note.body}</p></details>}
           <div className="note-fu-h">Follow-ups
             <button type="button" className="note-suggest" onClick={suggest} disabled={suggesting}>{suggesting ? "Reading…" : "✨ Suggest"}</button>

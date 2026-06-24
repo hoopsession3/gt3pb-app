@@ -1920,3 +1920,16 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .dp-draftmain span{font-size:12px;color:var(--cream-m)}
 .app.crew-day .dp-tab,.app.crew-day .dp-item,.app.crew-day .dp-empty,.app.crew-day .dp-draftrow{background:#fff}
 .app.crew-day .dp-draft{color:#fff}
+
+/* ── Markdown (AI meeting summaries / structured recaps) ── */
+.md{font-family:'Inter';color:var(--cream)}
+.md-p{font-size:14px;line-height:1.55;margin:8px 0 0;color:var(--cream)}
+.md .md-h{margin:14px 0 2px;line-height:1.25;color:var(--cream)}
+.md .md-h1{font-family:'Fraunces',serif;font-size:18px;font-weight:600;padding-bottom:5px;border-bottom:1px solid var(--line)}
+.md .md-h2{font-family:'Inter';font-size:15px;font-weight:800;color:var(--gold2)}
+.md .md-h3{font-family:'Inter';font-size:13px;font-weight:700;letter-spacing:.2px;color:var(--cream-m);text-transform:none}
+.md-ul{margin:5px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:3px}
+.md-ul li{font-size:13.5px;line-height:1.5;color:var(--cream)}
+.md-ul li b,.md-p b{color:var(--cream);font-weight:700}
+.md-hr{border:none;border-top:1px solid var(--line);margin:14px 0}
+.md .md-h1:first-child,.md .md-h2:first-child{margin-top:2px}
