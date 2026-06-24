@@ -111,6 +111,7 @@ export interface EventRow {
   vendor_id?: string | null;   // linked canonical vendor/venue (0034)
   category?: string | null;    // company-calendar bucket: event | admin | ops (0065)
   plan_days?: number | null;   // how many days the day-planner / run-of-show spans (0067)
+  stage?: string | null;       // lifecycle: lead | confirmed | prep | live | done (0075)
 }
 
 // Per-event execution checklist (0025) — pack-list items + ad-hoc tasks, role-scoped.
