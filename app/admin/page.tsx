@@ -813,7 +813,7 @@ function EventPrep({ onGo }: { onGo: (t: string) => void }) {
     // Deep-link from an event editor's "Open prep".
     try {
       const tgt = localStorage.getItem("gt3-prep-open");
-      if (tgt) { localStorage.removeItem("gt3-prep-open"); setSelected({ kind: "event", id: tgt }); }
+      if (tgt) { localStorage.removeItem("gt3-prep-open"); const isStop = tgt.startsWith("stop:"); const id = tgt.includes(":") ? tgt.slice(tgt.indexOf(":") + 1) : tgt; setSelected({ kind: isStop ? "stop" : "event", id }); }
     } catch { /* ignore */ }
     if (!supabase) return;
     const ch = supabase.channel("admin-prep-index")
