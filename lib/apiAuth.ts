@@ -33,3 +33,22 @@ export async function staffFromRequest(req: Request): Promise<boolean> {
     return false;
   }
 }
+
+// Owner-only gate — same shape as staffFromRequest but keys off is_owner().
+export async function ownerFromRequest(req: Request): Promise<boolean> {
+  try {
+    const auth = req.headers.get("authorization") || "";
+    const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!token || !url || !anon) return false;
+    const sb = createClient(url, anon, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data, error } = await sb.rpc("is_owner");
+    return !error && data === true;
+  } catch {
+    return false;
+  }
+}
