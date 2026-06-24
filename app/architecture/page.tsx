@@ -24,21 +24,27 @@ export default function ArchitecturePage() {
   const [open, setOpen] = useState<ArchLayer | null>(null);
   const [comp, setComp] = useState<string | null>(null);
   const [q, setQ] = useState("");
-  const [view, setView] = useState<"business" | "layers" | "databases">("business");
+  const [view, setView] = useState<"progress" | "business" | "layers" | "databases">("progress");
   const [live, setLive] = useState<Record<string, ArchStatus> | null>(null);
+  const [kpis, setKpis] = useState<Record<string, number> | null>(null);
 
   const isOwner = roleOf(profile) === "owner";
   useEffect(() => {
     if (!isOwner || !supabase) return;
     (async () => {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const r = await fetch("/api/architecture/status", { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-      const j = await r.json();
-      if (j.ok) setLive(j.status);
+      const h = token ? { Authorization: `Bearer ${token}` } : undefined;
+      const [s, k] = await Promise.all([
+        fetch("/api/architecture/status", { headers: h }).then((r) => r.json()).catch(() => null),
+        fetch("/api/architecture/stats", { headers: h }).then((r) => r.json()).catch(() => null),
+      ]);
+      if (s?.ok) setLive(s.status);
+      if (k?.ok) setKpis(k.kpis);
     })().catch(() => {});
   }, [isOwner]);
 
   const statusOf = (c: ArchComponent): ArchStatus => (live && LIVE_KEY[c.name] && live[LIVE_KEY[c.name]]) || c.status;
+  const money = (c: number) => "$" + Math.round((c || 0) / 100).toLocaleString();
 
   const results = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -97,11 +103,36 @@ export default function ArchitecturePage() {
           <div className="h-title">System architecture</div>
           <div className="h-sub">High level first, then tap in. {live ? "Status is live — read from the running platform." : "Loading live status…"}</div>
           <div className="studio-views" style={{ marginTop: 12 }}>
+            <button type="button" className={`studio-view${view === "progress" ? " on" : ""}`} onClick={() => setView("progress")}>Progress</button>
             <button type="button" className={`studio-view${view === "business" ? " on" : ""}`} onClick={() => setView("business")}>Business</button>
             <button type="button" className={`studio-view${view === "layers" ? " on" : ""}`} onClick={() => setView("layers")}>Layers</button>
             <button type="button" className={`studio-view${view === "databases" ? " on" : ""}`} onClick={() => setView("databases")}>Databases</button>
           </div>
-          {view === "business" ? (
+          {view === "progress" ? (
+            <div className="arch-prog">
+              <div className="arch-overview">
+                <div className="arch-ov-t">What we&apos;ve built — by the numbers</div>
+                <p className="arch-ov-b">Live from the running platform. These move on their own as customers order, subscribe, and events run.</p>
+              </div>
+              {!kpis ? (
+                <div className="h-sub">Loading live numbers…</div>
+              ) : (
+                <>
+                  <div className="prog-grid">
+                    <div className="prog-card"><span className="prog-l">Revenue</span><span className="prog-n">{money(kpis.revenue_cents)}</span></div>
+                    <div className="prog-card"><span className="prog-l">Orders</span><span className="prog-n">{kpis.orders}</span></div>
+                    <div className="prog-card"><span className="prog-l">Members</span><span className="prog-n">{kpis.members}</span></div>
+                    <div className="prog-card"><span className="prog-l">Subscribers</span><span className="prog-n">{kpis.subscribers}</span></div>
+                    <div className="prog-card"><span className="prog-l">Events</span><span className="prog-n">{kpis.events}</span><span className="prog-s">{kpis.events_upcoming} upcoming</span></div>
+                    <div className="prog-card"><span className="prog-l">Inventory on hand</span><span className="prog-n">{money(kpis.inventory_value_cents)}</span><span className="prog-s">{kpis.inventory_items} items</span></div>
+                    <div className="prog-card"><span className="prog-l">Menu products</span><span className="prog-n">{kpis.products_live}</span></div>
+                    <div className="prog-card"><span className="prog-l">Open tasks</span><span className="prog-n">{kpis.open_tasks}</span></div>
+                  </div>
+                  <div className="prog-foot">{BUSINESS.length} capabilities live · {kpis.tables} tables · {kpis.content_pieces} content pieces · {kpis.notes} meeting notes</div>
+                </>
+              )}
+            </div>
+          ) : view === "business" ? (
             <div className="arch-biz">
               <div className="arch-overview">
                 <div className="arch-ov-t">What we&apos;ve built — for the business</div>
