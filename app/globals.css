@@ -1772,3 +1772,10 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .app.crew-day .arch-comp-cfg{background:rgba(34,31,24,.05)}
 .arch-cfg-l{font-family:'Inter';font-weight:700;font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:var(--gold2);margin-right:6px}
 .arch-comp-sot{display:inline-block;font-family:'DM Mono';font-size:12px;color:var(--gold2);text-decoration:none;word-break:break-all}
+
+/* ── Architecture: search + live ── */
+.arch-search{width:100%;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 15px;color:var(--cream);font-family:'Inter';font-size:15px;margin:14px 0 4px;-webkit-appearance:none;appearance:none}
+.arch-search:focus{outline:none;border-color:var(--gold2)}
+.arch-livedot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--ok);margin-left:7px;vertical-align:middle;box-shadow:0 0 0 0 rgba(106,160,92,.5);animation:archpulse 2s infinite}
+@keyframes archpulse{0%,100%{box-shadow:0 0 0 0 rgba(106,160,92,.5)}50%{box-shadow:0 0 0 5px rgba(106,160,92,0)}}
+.arch-comp-layer{display:block;font-family:'Inter';font-weight:700;font-size:9.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--c);margin-bottom:3px}
