@@ -17,6 +17,7 @@ import { supabase } from "@/lib/supabase";
 import AskGT3 from "@/components/AskGT3";
 import Studio from "@/components/Studio";
 import MenuManager from "@/components/MenuManager";
+import PlanEditor from "@/components/PlanEditor";
 import { subscribePush } from "@/lib/push";
 import { chime, unlockAudio } from "@/lib/chime";
 import { haptic, HAPTIC } from "@/lib/haptics";
@@ -2188,14 +2189,16 @@ function Subscribers() {
 // ───────────────────────── member management ─────────────────────────
 function MemberRow({ m, onSaved }: { m: Profile; onSaved: () => void }) {
   const { toast } = useApp();
+  const [name, setName] = useState(m.display_name ?? "");
   const [pts, setPts] = useState(m.points);
   const [credit, setCredit] = useState((m.credit_cents / 100).toFixed(2));
   const [founding, setFounding] = useState(m.founding_member);
   const [busy, setBusy] = useState(false);
-  const dirty = pts !== m.points || credit !== (m.credit_cents / 100).toFixed(2) || founding !== m.founding_member;
+  const dirty = name !== (m.display_name ?? "") || pts !== m.points || credit !== (m.credit_cents / 100).toFixed(2) || founding !== m.founding_member;
 
   const save = async () => {
     setBusy(true);
+    if (name !== (m.display_name ?? "")) await supabase!.rpc("admin_set_display_name", { member: m.id, name });
     const { error } = await supabase!.rpc("admin_set_member", {
       member: m.id,
       new_points: pts,
@@ -2219,6 +2222,7 @@ function MemberRow({ m, onSaved }: { m: Profile; onSaved: () => void }) {
         <span className="adm-ref">{m.referral_code}</span>
       </div>
       <div className="adm-fields">
+        <label>Name<input value={name} onChange={(e) => setName(e.target.value)} placeholder="Display name" /></label>
         <label>Role<select className="adm-role" value={roleOf(m)} onChange={(e) => setRole(e.target.value)}>
           <option value="member">member</option>
           <option value="server">server</option>
@@ -3227,6 +3231,7 @@ export default function AdminPage() {
           <SnapshotReport />
           <EventPnlReport />
           <ProductCatalog />
+          <PlanEditor />
           <Subscribers />
           <SubInterest />
           <OrdersHistory />

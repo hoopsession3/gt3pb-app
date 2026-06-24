@@ -33,7 +33,7 @@ export default function BrandKit({ canEdit }: { canEdit: boolean }) {
   const save = async () => {
     if (!supabase || !kit?.id) return;
     setSaving(true);
-    await supabase.from("brand_kit").update({ voice: draft.voice, tagline: draft.tagline, wordmark_url: draft.wordmark_url, logo_url: draft.logo_url, colors: draft.colors, notes: draft.notes }).eq("id", kit.id);
+    await supabase.from("brand_kit").update({ voice: draft.voice, tagline: draft.tagline, wordmark_url: draft.wordmark_url, logo_url: draft.logo_url, colors: draft.colors, fonts: draft.fonts, notes: draft.notes }).eq("id", kit.id);
     setKit(draft); setEdit(false); setSaving(false);
   };
 
@@ -74,10 +74,21 @@ export default function BrandKit({ canEdit }: { canEdit: boolean }) {
       <div className="brand-fonts">
         {k.fonts.map((f, i) => (
           <div key={i} className="brand-font">
-            <span className="brand-font-r">{f.role}</span>
-            <span className="brand-font-n" style={{ fontFamily: f.name.replace(" Italic", ""), fontStyle: f.name.includes("Italic") ? "italic" : "normal" }}>{f.name}</span>
+            {edit ? (
+              <>
+                <input className="brand-font-edit" value={f.role} onChange={(e) => setDraft({ ...draft, fonts: draft.fonts.map((g, j) => j === i ? { ...g, role: e.target.value } : g) })} placeholder="Role" />
+                <input className="brand-font-edit n" value={f.name} onChange={(e) => setDraft({ ...draft, fonts: draft.fonts.map((g, j) => j === i ? { ...g, name: e.target.value } : g) })} placeholder="Font name" />
+                <button type="button" className="brand-x" onClick={() => setDraft({ ...draft, fonts: draft.fonts.filter((_, j) => j !== i) })}>✕</button>
+              </>
+            ) : (
+              <>
+                <span className="brand-font-r">{f.role}</span>
+                <span className="brand-font-n" style={{ fontFamily: f.name.replace(" Italic", ""), fontStyle: f.name.includes("Italic") ? "italic" : "normal" }}>{f.name}</span>
+              </>
+            )}
           </div>
         ))}
+        {edit && <button type="button" className="studio-act" style={{ marginTop: 8 }} onClick={() => setDraft({ ...draft, fonts: [...draft.fonts, { role: "Role", name: "Font" }] })}>+ Add font</button>}
       </div>
 
       {edit && (

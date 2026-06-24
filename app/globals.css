@@ -1800,3 +1800,8 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .prod-addc{display:flex;gap:7px;align-items:center;margin-top:9px}
 .prod-addc select{flex:1;min-width:0}
 .prod-actions{display:flex;justify-content:space-between;align-items:center;margin-top:14px}
+
+/* ── editable brand fonts ── */
+.brand-font-edit{flex:0 0 auto;background:var(--bg,#0d0b08);border:1px solid var(--line);border-radius:8px;padding:7px 10px;color:var(--cream);font-family:'Inter';font-size:13px;-webkit-appearance:none;appearance:none;max-width:120px}
+.brand-font-edit.n{flex:1;max-width:none}
+.app.crew-day .brand-font-edit{background:#fff}
