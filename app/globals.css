@@ -1817,3 +1817,10 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .arch-mg.mg-system{color:var(--cream-d)}
 .arch-db-note{font-family:'Inter';font-size:13px;line-height:1.5;color:var(--cream-m);margin-top:6px}
 .arch-db-note b{color:var(--cream)}
+
+/* ── Brand: upload + editable assets ── */
+.brand-asset-wrap{position:relative}
+.brand-asset-x{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;border:none;background:rgba(0,0,0,.6);color:#fff;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2}
+.brand-upload{cursor:pointer}
+.brand-up-plus{font-size:30px;color:var(--gold2);font-weight:300}
+.brand-upload .brand-asset-img{border-style:dashed}
