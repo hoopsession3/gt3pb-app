@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useOperatorSection } from "./OperatorNav";
+import EventDayPlanner from "./EventDayPlanner";
 
 // COMPANY CALENDAR — one pane for everything dated: truck events, admin/ops work, scheduled content
 // (from Studio), and free-standing to-dos. Category-colored, filterable, and every chip CLICKS
@@ -10,7 +11,7 @@ import { useOperatorSection } from "./OperatorNav";
 // keeps its own content-only calendar; it all rolls up here.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-type Ev = { id: string; title: string | null; day: string; day_label: string | null; is_live: boolean | null; category: string | null };
+type Ev = { id: string; title: string | null; day: string; day_label: string | null; is_live: boolean | null; category: string | null; plan_days: number | null };
 type Content = { id: string; title: string; scheduled_for: string | null; status: string };
 type Todo = { id: string; title: string; category: string; due_on: string | null; done: boolean; event_id: string | null; meeting_note_id: string | null };
 
@@ -38,6 +39,7 @@ export default function CompanyCalendar() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [filter, setFilter] = useState<string>("all");
   const [addDay, setAddDay] = useState<string | null>(null);
+  const [planEv, setPlanEv] = useState<{ id: string; title: string; day: string | null; plan_days: number; initialDay: number } | null>(null);
   const dragId = useRef<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
 
@@ -46,8 +48,9 @@ export default function CompanyCalendar() {
   const load = useCallback(async () => {
     if (!supabase) return;
     const from = key(days[0]), to = key(days[41]);
+    const eFrom = (() => { const d = new Date(days[0]); d.setDate(d.getDate() - 30); return key(d); })(); // catch multi-day events that started before the window
     const [e, c, t] = await Promise.all([
-      supabase.from("events").select("id, title, day, day_label, is_live, category").is("archived_at", null).gte("day", from).lte("day", to),
+      supabase.from("events").select("id, title, day, day_label, is_live, category, plan_days").is("archived_at", null).gte("day", eFrom).lte("day", to),
       supabase.from("content_items").select("id, title, scheduled_for, status").not("scheduled_for", "is", null).gte("scheduled_for", `${from}T00:00:00`).lte("scheduled_for", `${to}T23:59:59`),
       supabase.from("todos").select("id, title, category, due_on, done, event_id, meeting_note_id").not("due_on", "is", null).gte("due_on", from).lte("due_on", to),
     ]);
@@ -64,6 +67,7 @@ export default function CompanyCalendar() {
   }, [load]);
 
   const openEventPrep = (eventId: string) => { if (typeof window !== "undefined") localStorage.setItem("gt3-prep-open", eventId); setSection("prep"); };
+  const openPlanner = (e: Ev, dayNo: number) => setPlanEv({ id: e.id, title: e.title || e.day_label || "Event", day: e.day, plan_days: Math.max(1, e.plan_days ?? 1), initialDay: dayNo });
   const toggleTodo = async (t: Todo) => {
     if (!supabase) return;
     setTodos((p) => p.map((x) => x.id === t.id ? { ...x, done: !x.done } : x));
@@ -79,7 +83,18 @@ export default function CompanyCalendar() {
     const m: Record<string, Item[]> = {};
     for (const d of days) m[key(d)] = [];
     const pass = (cat: string) => filter === "all" || filter === cat;
-    for (const e of events) { const cat = e.category && CAT[e.category] ? e.category : "event"; if (m[e.day] && pass(cat)) m[e.day].push({ id: e.id, title: e.title || e.day_label || "Event", cat, kind: "event", go: () => openEventPrep(e.id) }); }
+    const addDaysKey = (iso: string, n: number) => { const d = new Date(`${iso}T00:00:00`); d.setDate(d.getDate() + n); return key(d); };
+    for (const e of events) {
+      const cat = e.category && CAT[e.category] ? e.category : "event";
+      if (!e.day || !pass(cat)) continue;
+      const span = Math.max(1, e.plan_days ?? 1); // multi-day events span their days; each day clicks into that day's run of show
+      for (let di = 0; di < span; di++) {
+        const dk = addDaysKey(e.day, di);
+        if (!m[dk]) continue;
+        const base = e.title || e.day_label || "Event";
+        m[dk].push({ id: e.id, title: span > 1 ? `${base} · D${di + 1}` : base, cat, kind: "event", go: () => openPlanner(e, di + 1) });
+      }
+    }
     for (const c of content) if (c.scheduled_for && pass("content")) { const k = key(new Date(c.scheduled_for)); if (m[k]) m[k].push({ id: c.id, title: c.title || "Content", cat: "content", kind: "content", go: () => setSection("studio") }); }
     for (const t of todos) if (t.due_on && pass(t.category)) { if (m[t.due_on]) m[t.due_on].push({ id: t.id, title: t.title, cat: CAT[t.category] ? t.category : "ops", kind: "todo", done: t.done, go: () => { if (t.event_id) openEventPrep(t.event_id); else if (t.meeting_note_id) setSection("plan"); }, toggle: () => toggleTodo(t) }); }
     return m;
@@ -133,6 +148,13 @@ export default function CompanyCalendar() {
 
       <div className="insp-foot" style={{ marginTop: 12 }}>📅 Outlook two-way sync connects once Microsoft Graph credentials are set (config-gated).</div>
       {addDay && <AddSheet day={addDay} events={events} onClose={() => setAddDay(null)} onDone={() => { setAddDay(null); load(); }} setSection={setSection} />}
+      {planEv && (
+        <EventDayPlanner
+          eventId={planEv.id} title={planEv.title} eventDay={planEv.day} planDays={planEv.plan_days} initialDay={planEv.initialDay}
+          onPlanDays={async (n) => { if (supabase) { await supabase.from("events").update({ plan_days: n }).eq("id", planEv.id); setPlanEv((p) => p ? { ...p, plan_days: n } : p); load(); } }}
+          onClose={() => { setPlanEv(null); load(); }}
+        />
+      )}
     </div>
   );
 }

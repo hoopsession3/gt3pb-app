@@ -1859,3 +1859,77 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .brand-upload{cursor:pointer}
 .brand-up-plus{font-size:30px;color:var(--gold2);font-weight:300}
 .brand-upload .brand-asset-img{border-style:dashed}
+
+/* ── Event day planner · run of show ── */
+.qd-sheet.dp{max-width:620px;max-height:90vh}
+.dp-head{display:flex;align-items:flex-start;gap:10px;padding:16px 16px 10px}
+.dp-eyebrow{font-family:'Inter';font-weight:700;font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--gold2)}
+.dp-title{font-family:'Fraunces',serif;font-size:20px;line-height:1.2;color:var(--cream);margin-top:2px}
+.dp-daysctl{display:flex;align-items:center;gap:8px;padding:0 16px 10px;font-family:'Inter';font-size:13px;color:var(--cream-m)}
+.dp-daysctl b{font-size:16px;color:var(--cream)}
+.dp-step{width:30px;height:30px;border-radius:8px;border:1px solid var(--line2);background:transparent;color:var(--cream);font-size:18px;line-height:1;cursor:pointer}
+.dp-step:active{background:rgba(169,124,63,.14)}
+.dp-tabs{display:flex;gap:7px;overflow-x:auto;padding:0 16px 10px;-webkit-overflow-scrolling:touch}
+.dp-tab{flex:0 0 auto;display:flex;flex-direction:column;gap:1px;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:8px 13px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.dp-tab.on{border-color:var(--gold2);background:rgba(169,124,63,.14)}
+.dp-tab-d{font-family:'Inter';font-weight:700;font-size:13px;color:var(--cream)}
+.dp-tab-s{font-family:'Inter';font-size:11px;color:var(--cream-m)}
+.dp-body{overflow-y:auto;padding:0 16px 18px}
+.dp-daydate{display:flex;align-items:center;justify-content:space-between;font-family:'Inter';font-weight:700;font-size:13px;color:var(--cream);padding:4px 0 10px;border-bottom:1px solid var(--line);margin-bottom:10px}
+.dp-prog{font-weight:600;font-size:11.5px;color:var(--cream-m)}
+.dp-timeline{display:flex;flex-direction:column;gap:8px}
+.dp-empty{font-family:'Inter';font-size:13.5px;line-height:1.5;color:var(--cream-m);padding:14px 12px;text-align:center;background:var(--card);border:1px dashed var(--line2);border-radius:12px}
+.dp-item{display:flex;gap:9px;align-items:flex-start;background:var(--card);border:1px solid var(--line);border-left:3px solid var(--c,#888);border-radius:12px;padding:10px 11px}
+.dp-item.done{opacity:.55}
+.dp-item.done .dp-item-t{text-decoration:line-through}
+.dp-check{flex:0 0 auto;width:24px;height:24px;border-radius:50%;border:1px solid var(--line2);background:transparent;color:var(--c,var(--cream-m));font-size:13px;cursor:pointer;margin-top:1px}
+.dp-time{flex:0 0 54px;font-family:'DM Mono';font-size:12.5px;color:var(--cream);line-height:1.3}
+.dp-time-e{display:block;font-size:10.5px;color:var(--cream-m)}
+.dp-item-main{flex:1;min-width:0}
+.dp-item-h{display:flex;align-items:center;gap:6px}
+.dp-kind{flex:0 0 auto;font-size:13px}
+.dp-item-t{font-family:'Inter';font-weight:600;font-size:14.5px;color:var(--cream)}
+.dp-item-meta{display:flex;flex-wrap:wrap;gap:10px;font-family:'Inter';font-size:12px;color:var(--cream-m);margin-top:3px}
+.dp-item-addr{display:inline-block;font-family:'Inter';font-size:12px;color:#6fa8dc;text-decoration:none;margin-top:3px}
+.dp-item-det{font-family:'Inter';font-size:12.5px;line-height:1.5;color:var(--cream-m);margin-top:4px;white-space:pre-wrap}
+.dp-item-acts{flex:0 0 auto;display:flex;flex-direction:column;gap:5px;align-items:flex-end}
+.dp-mini{width:28px;height:28px;border-radius:7px;border:1px solid var(--line2);background:transparent;color:var(--cream-m);font-size:13px;cursor:pointer}
+.dp-mini.del:active{color:var(--bad,#d66)}
+.dp-move{border:1px solid var(--line2);background:transparent;color:var(--cream-m);border-radius:7px;font-size:11px;padding:3px 4px;-webkit-appearance:none;appearance:none}
+.dp-quick{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+.dp-qchip{display:flex;align-items:center;gap:5px;background:transparent;border:1px solid var(--line2);border-radius:999px;padding:6px 11px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:12px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.dp-qchip:active{background:rgba(169,124,63,.14);border-color:var(--c,var(--gold2));color:var(--cream)}
+.dp-actions{display:flex;gap:9px;margin-top:14px}
+.dp-add,.dp-draft{flex:1;border-radius:11px;padding:12px;font-family:'Inter';font-weight:700;font-size:14px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.dp-add{background:transparent;border:1px solid var(--line2);color:var(--cream)}
+.dp-draft{background:linear-gradient(135deg,#a97c3f,#caa35f);border:none;color:#1a1409}
+/* edit / draft sub-sheets sit above the planner */
+.qd-scrim.dp-scrim2{z-index:62;align-items:center;padding:14px}
+.qd-sheet.dp-form{max-width:520px;border-radius:18px;max-height:86vh}
+.dp-kinds,.dp-draftlist{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.dp-kchip{display:flex;align-items:center;gap:4px;background:transparent;border:1px solid var(--line2);border-radius:999px;padding:6px 10px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:12px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.dp-kchip.on{background:rgba(169,124,63,.14);border-color:var(--c,var(--gold2));color:var(--cream)}
+.dp-hint{font-family:'Inter';font-size:13px;line-height:1.5;color:var(--cream-m);margin-bottom:10px}
+.dp-err{font-family:'Inter';font-size:13px;color:var(--bad,#d66);margin-top:8px}
+.dp-draftlist{flex-direction:column}
+.dp-draftrow{display:flex;gap:9px;align-items:flex-start;text-align:left;width:100%;background:var(--card);border:1px solid var(--line);border-left:3px solid var(--c,#888);border-radius:10px;padding:9px 10px;cursor:pointer;-webkit-appearance:none;appearance:none;opacity:.6}
+.dp-draftrow.on{opacity:1}
+.dp-draftck{flex:0 0 auto;color:var(--c,var(--cream-m));font-size:13px;margin-top:1px}
+.dp-drafttime{flex:0 0 50px;font-family:'DM Mono';font-size:12px;color:var(--cream)}
+.dp-draftmain{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;font-family:'Inter';font-size:13.5px;color:var(--cream)}
+.dp-draftmain span{font-size:12px;color:var(--cream-m)}
+.app.crew-day .dp-tab,.app.crew-day .dp-item,.app.crew-day .dp-empty,.app.crew-day .dp-draftrow{background:#fff}
+.app.crew-day .dp-draft{color:#fff}
+
+/* ── Markdown (AI meeting summaries / structured recaps) ── */
+.md{font-family:'Inter';color:var(--cream)}
+.md-p{font-size:14px;line-height:1.55;margin:8px 0 0;color:var(--cream)}
+.md .md-h{margin:14px 0 2px;line-height:1.25;color:var(--cream)}
+.md .md-h1{font-family:'Fraunces',serif;font-size:18px;font-weight:600;padding-bottom:5px;border-bottom:1px solid var(--line)}
+.md .md-h2{font-family:'Inter';font-size:15px;font-weight:800;color:var(--gold2)}
+.md .md-h3{font-family:'Inter';font-size:13px;font-weight:700;letter-spacing:.2px;color:var(--cream-m);text-transform:none}
+.md-ul{margin:5px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:3px}
+.md-ul li{font-size:13.5px;line-height:1.5;color:var(--cream)}
+.md-ul li b,.md-p b{color:var(--cream);font-weight:700}
+.md-hr{border:none;border-top:1px solid var(--line);margin:14px 0}
+.md .md-h1:first-child,.md .md-h2:first-child{margin-top:2px}
