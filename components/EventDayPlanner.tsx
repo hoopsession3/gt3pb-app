@@ -58,11 +58,11 @@ function toMinutes(t: string | null): number {
   return h * 60 + min;
 }
 
-export default function EventDayPlanner({ eventId, title, eventDay, planDays, onPlanDays, onClose }: {
-  eventId: string; title: string; eventDay: string | null; planDays: number; onPlanDays: (n: number) => void; onClose: () => void;
+export default function EventDayPlanner({ eventId, title, eventDay, planDays, initialDay = 1, onPlanDays, onClose }: {
+  eventId: string; title: string; eventDay: string | null; planDays: number; initialDay?: number; onPlanDays: (n: number) => void; onClose: () => void;
 }) {
   const days = Math.max(1, planDays || 1);
-  const [active, setActive] = useState(1);
+  const [active, setActive] = useState(Math.min(Math.max(1, initialDay), Math.max(1, planDays || 1)));
   const [items, setItems] = useState<Item[]>([]);
   const [editing, setEditing] = useState<Item | "new" | null>(null);
   const [drafting, setDrafting] = useState(false);
