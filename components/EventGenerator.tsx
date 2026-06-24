@@ -11,8 +11,8 @@ import Markdown from "./Markdown";
 
 const CATC: Record<string, string> = { admin: "#8b5cf6", ops: "#e0892b", event: "#6fa8dc", content: "#2bb3a3" };
 
-export default function EventGenerator({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [notes, setNotes] = useState("");
+export default function EventGenerator({ onClose, onCreated, initialNotes }: { onClose: () => void; onCreated: () => void; initialNotes?: string }) {
+  const [notes, setNotes] = useState(initialNotes ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [plan, setPlan] = useState<any | null>(null);
