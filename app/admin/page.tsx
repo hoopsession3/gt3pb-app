@@ -3310,6 +3310,18 @@ export default function AdminPage() {
   const allowed = sectionsForRole(role);
   const sec: OpSection = allowed.includes(section) ? section : "now";
   const [planTab, setPlanTab] = useState<"calendar" | "notes" | "events" | "vendors" | "bookings" | "reserves">("calendar");
+  const [planCounts, setPlanCounts] = useState<{ bookings: number; events: number }>({ bookings: 0, events: 0 });
+  useEffect(() => {
+    if (sec !== "plan" || !canManage || !supabase) return;
+    const today = new Date().toISOString().slice(0, 10);
+    (async () => {
+      const [b, e] = await Promise.all([
+        supabase!.from("booking_requests").select("id", { count: "exact", head: true }).eq("status", "new"),
+        supabase!.from("events").select("id", { count: "exact", head: true }).is("archived_at", null).gte("day", today),
+      ]);
+      setPlanCounts({ bookings: b.count ?? 0, events: e.count ?? 0 });
+    })();
+  }, [sec, canManage, planTab]); // refetch when you switch tabs so badges reflect what you just did
   const LABEL: Record<OpSection, string> = { day: "My Day", now: "Now", ask: "Ask GT3", prep: "Prep", plan: "Plan", studio: "Studio", money: "Money", team: "Team" };
   const SUB: Record<OpSection, string> = {
     day: "Your tasks, your flags & what's on today.",
@@ -3365,8 +3377,16 @@ export default function AdminPage() {
       {sec === "plan" && canManage && (
         <>
           <div className="subnav" role="tablist" aria-label="Plan">
-            {([["calendar", "Calendar"], ["notes", "Notes"], ["events", "Events"], ["vendors", "Vendors"], ["bookings", "Bookings"], ["reserves", "Reserves"]] as const).map(([k, label]) => (
-              <button key={k} type="button" role="tab" aria-selected={planTab === k} className={`subnav-tab${planTab === k ? " on" : ""}`} onClick={() => setPlanTab(k)}>{label}</button>
+            {/* This week — what's hot at this stage */}
+            {([["calendar", "Calendar", 0], ["events", "Events", planCounts.events], ["bookings", "Bookings", planCounts.bookings], ["notes", "Notes", 0]] as const).map(([k, label, n]) => (
+              <button key={k} type="button" role="tab" aria-selected={planTab === k} className={`subnav-tab${planTab === k ? " on" : ""}`} onClick={() => setPlanTab(k)}>
+                {label}{n > 0 && <span className={`subnav-badge${k === "bookings" ? " hot" : ""}`}>{n}</span>}
+              </button>
+            ))}
+            <span className="subnav-div" aria-hidden />
+            {/* Back office — rarely touched */}
+            {([["vendors", "Vendors"], ["reserves", "Reserves"]] as const).map(([k, label]) => (
+              <button key={k} type="button" role="tab" aria-selected={planTab === k} className={`subnav-tab back${planTab === k ? " on" : ""}`} onClick={() => setPlanTab(k)}>{label}</button>
             ))}
           </div>
           {planTab === "calendar" && <CompanyCalendar />}
