@@ -12,6 +12,17 @@ export const metadata = {
   robots: { index: false, follow: false },
 };
 
+// Real customer feedback (from the GT3 Brew Feedback collection). Lightly trimmed; attributed by
+// first name + last initial. Static here so this page stays DB-free and public-safe.
+const REVIEWS: { quote: string; who: string; stars?: number }[] = [
+  { quote: "I have epilepsy, and caffeine usually leaves me feeling unwell. Their Dusk blend could be the answer for me — absolutely delicious, and I honestly feel BETTER than usual. Hear me when I say that just doesn't happen.", who: "Daniela S.", stars: 5 },
+  { quote: "Shoutout to Ryan for the cold brew — it was soo good! Let us know where and how we can get more.", who: "Neighborhood run group" },
+  { quote: "I'm not a coffee drinker, but my wife is and she loved it. Took some to her school — she's a teacher — and they were impressed too.", who: "A regular" },
+  { quote: "Light and airy, but it still does the job of what coffee should do — exactly what you want if you're a real coffee drinker.", who: "Early taster" },
+  { quote: "I really tasted a difference — the notes were soo subtle.", who: "A regular" },
+  { quote: "It was SO good — thank you!", who: "Amanda S." },
+];
+
 export default async function BuiltShare({ params }: { params: Promise<{ key: string }> }) {
   const { key } = await params;
   if (key !== SHARE_KEY) notFound();
@@ -39,6 +50,17 @@ export default async function BuiltShare({ params }: { params: Promise<{ key: st
             </div>
             <p className="biz-outcome">{b.outcome}</p>
           </div>
+        ))}
+      </div>
+
+      <div className="rev-h" style={{ marginTop: 28 }}>What people are saying</div>
+      <div className="rev-grid">
+        {REVIEWS.map((r, i) => (
+          <figure key={i} className="rev-card">
+            {r.stars ? <div className="rev-stars" aria-label={`${r.stars} out of 5`}>{"★".repeat(r.stars)}</div> : null}
+            <blockquote className="rev-q">{r.quote}</blockquote>
+            <figcaption className="rev-who">— {r.who}</figcaption>
+          </figure>
         ))}
       </div>
 

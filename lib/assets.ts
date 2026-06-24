@@ -11,6 +11,7 @@ export interface AssetItem {
   manual: string | null;
   kbStatus: string | null;
   qty: number | null;
+  notes: string | null;
   notionUrl: string | null;
 }
 export interface AssetsResp { enabled: boolean; items: AssetItem[]; error?: string }
