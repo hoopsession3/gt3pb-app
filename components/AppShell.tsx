@@ -30,8 +30,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // role-scoped operator console nav (OperatorNav falls back to the customer nav
   // for non-staff so they can still navigate away).
   const inAdmin = pathname.startsWith("/admin");
-  // Guest concierge shows on the customer-facing surfaces only (not the crew console, architecture, or academy).
-  const customerSurface = !inAdmin && !pathname.startsWith("/architecture") && !pathname.startsWith("/academy");
+  // Read-only partner "what we've built" share page — a bare surface: no nav, no concierge, no commerce.
+  const isShare = pathname.startsWith("/built");
+  // Guest concierge shows on the customer-facing surfaces only (not the crew console, architecture, academy, or a share page).
+  const customerSurface = !inAdmin && !isShare && !pathname.startsWith("/architecture") && !pathname.startsWith("/academy");
 
   // Day mode: the crew console defaults to a light theme for daylight/outdoor use. Persisted;
   // toggle back to dark anytime. Customer-facing pages are unaffected.
@@ -49,9 +51,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <Checkout />
         <Toast />
         <Notifications />
-        {inAdmin ? null : <OrderStatus />}
-        {inAdmin ? null : <CartBar />}
-        {inAdmin ? <OperatorNav /> : <BottomNav />}
+        {inAdmin || isShare ? null : <OrderStatus />}
+        {inAdmin || isShare ? null : <CartBar />}
+        {isShare ? null : inAdmin ? <OperatorNav /> : <BottomNav />}
         {inAdmin && <QuickDock />}
         {customerSurface && <Concierge />}
         {inAdmin && <button type="button" className="theme-toggle" onClick={toggleTheme} aria-label={theme === "day" ? "Switch to dark" : "Switch to day"}>{theme === "day" ? "🌙" : "☀️"}</button>}
