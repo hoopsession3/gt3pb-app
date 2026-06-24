@@ -1788,7 +1788,7 @@ function MeetingNotes() {
               {events.map((ev) => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
             </select>
           </div>
-          <textarea className="note-area" placeholder="Recap / summary — paste from your notes app…" value={cSummary} onChange={(e) => setCSummary(e.target.value)} rows={3} />
+          <textarea className="note-area" placeholder="Recap / summary — paste from your notes app, or ✨ generate below…" value={cSummary} onChange={(e) => setCSummary(e.target.value)} rows={cSummary.length > 200 ? 10 : 3} />
           <textarea className="note-area" placeholder="Full transcript or detail (optional)" value={cBody} onChange={(e) => setCBody(e.target.value)} rows={4} />
           <button type="button" className="note-suggest note-sum" onClick={summarize} disabled={summarizing}>{summarizing ? "Summarizing…" : "✨ Recreate summary from transcript"}</button>
           <div className="note-actions">
