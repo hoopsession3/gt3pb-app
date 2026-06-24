@@ -1,0 +1,107 @@
+// System architecture — a manifest of the GT3PB platform, layered the way a platform team maps it.
+// Each component points to its source-of-truth (SOT) path in the repo, so the map drills into real
+// files/configs and stays honest. Rendered owner-only at /architecture.
+
+export const REPO = "hoopsession3/gt3pb-app";
+export const sotUrl = (path: string) => `https://github.com/${REPO}/blob/main/${path}`;
+
+export type ArchStatus = "live" | "configured" | "staged" | "planned";
+export interface ArchComponent { name: string; status: ArchStatus; desc: string; detail?: string; config?: string; sot?: string }
+export interface ArchLayer { id: string; tag: string; label: string; color: string; blurb: string; components: ArchComponent[] }
+
+export const STATUS_LABEL: Record<ArchStatus, string> = { live: "Live", configured: "Configured", staged: "Staged", planned: "Planned" };
+
+// High-level overview — the platform in one breath, and how a request flows through the layers.
+export const ARCH_OVERVIEW = {
+  summary: "GT3PB is a Next.js PWA on Supabase. People meet it at the Edge; the Control Plane authorizes every request; Capabilities do the work; Agents + the Model Layer reason over GT3's own governed knowledge; Data is the source of truth; Governance watches every layer.",
+  flow: ["Edge Surfaces", "Control Plane", "Capabilities", "Agents + Model", "Data & Infrastructure", "Governance"],
+};
+
+export const ARCHITECTURE: ArchLayer[] = [
+  {
+    id: "agents", tag: "Agent Operations", label: "Autonomous & AI-assisted execution", color: "#2bb3a3",
+    blurb: "The agents that act on the platform — grounded in GT3's own truth, human-in-the-loop.",
+    components: [
+      { name: "Recap agent", status: "live", desc: "Meeting recap → concrete follow-up tasks (proposed for review).", sot: "app/api/agents/recap/route.ts" },
+      { name: "Action resolver", status: "live", desc: "Proposes how to complete each follow-up; surfaces answers already in our data.", sot: "app/api/agents/resolve/route.ts" },
+      { name: "Readiness agent", status: "live", desc: "Upcoming events vs inventory → gaps + a prep alert.", sot: "app/api/agents/readiness/route.ts" },
+      { name: "Operator assistant (Ask GT3)", status: "live", desc: "Grounded pocket-brain chat: recipes, the why, gear, stock, how-to.", sot: "app/api/agents/operator/route.ts" },
+      { name: "Inspection agent", status: "configured", desc: "Web-researches jurisdiction permits/inspection; proposes compliance rows for approval.", sot: "app/api/agents/inspection/route.ts" },
+      { name: "Caption engine", status: "live", desc: "Suave, on-brand content options from a brief (Studio).", sot: "app/api/agents/caption/route.ts" },
+      { name: "Campaign generator", status: "live", desc: "An event → teaser + day-of + recap, scheduled & event-linked.", sot: "app/api/agents/campaign/route.ts" },
+      { name: "Summarizer", status: "live", desc: "Recreate a note's recap from the transcript.", sot: "app/api/agents/summarize/route.ts" },
+    ],
+  },
+  {
+    id: "edge", tag: "Edge Surfaces", label: "Where people meet the platform", color: "#3b82c4",
+    blurb: "Customer and crew surfaces, plus the public endpoints the world talks to.",
+    components: [
+      { name: "Customer app", status: "live", desc: "PWA storefront — menu, live status, membership, booking.", sot: "app/page.tsx" },
+      { name: "Crew console", status: "live", desc: "Role-scoped operator console (My Day, Now, Prep, Plan, Studio, Money, Team).", sot: "app/admin/page.tsx" },
+      { name: "QuickDock", status: "live", desc: "Floating Ask GT3 + quick-note, on every crew page.", sot: "components/QuickDock.tsx" },
+      { name: "Checkout / orders", status: "live", desc: "Square-backed checkout + order status.", sot: "app/api/checkout" },
+      { name: "Square webhook", status: "live", desc: "Inbound payment/catalog events.", sot: "app/api/square" },
+      { name: "Notes inbound", status: "live", desc: "Email-in → meeting note (Share Text → Mail).", sot: "app/api/notes" },
+    ],
+  },
+  {
+    id: "control", tag: "Control Plane", label: "Identity-aware access on every request", color: "#8b5cf6",
+    blurb: "Who is this, what may they do — enforced at the database and the edge.",
+    components: [
+      { name: "Supabase Auth", status: "live", desc: "Email/password + magic link; session in the app.", sot: "components/AuthProvider.tsx" },
+      { name: "API auth gate", status: "live", desc: "staffFromRequest / userFromRequest — server routes verify the caller's token.", sot: "lib/apiAuth.ts" },
+      { name: "Role model", status: "live", desc: "member · server · operator · event_manager · contractor · admin · owner.", sot: "supabase/migrations/0031_academy_governance.sql" },
+      { name: "Row-Level Security", status: "live", desc: "is_staff / is_admin / is_owner gate every table.", sot: "supabase/migrations/0039_rls_plan_stable.sql" },
+      { name: "Multi-tenant scoping", status: "staged", desc: "tenant_id backfilled; per-tenant RLS staged (Risk R-002).", detail: "Every business table has tenant_id stamped by default, but policies don't yet filter by tenant — safe while single-tenant. Enforce before onboarding a second tenant.", sot: "supabase/migrations/0040_multitenant_foundation.sql" },
+    ],
+  },
+  {
+    id: "model", tag: "Model Layer", label: "The reasoning engines", color: "#22a06b",
+    blurb: "The Claude models and the governed knowledge they're grounded in.",
+    components: [
+      { name: "Anthropic client", status: "configured", desc: "Server-only Messages API (tool use). Sonnet 4.6 internal · Haiku 4.5 high-volume.", detail: "Single shared client every agent calls. Never imported client-side — the browser only ever calls our own API routes, which hold the key.", config: "Models: claude-sonnet-4-6, claude-haiku-4-5 · Env: ANTHROPIC_API_KEY", sot: "lib/anthropic.ts" },
+      { name: "Grounding (Source of Truth)", status: "live", desc: "Academy brand/nutrition/ops + products → claim-safe context.", detail: "Compiles the governed Academy content into the prompt so answers trace to written, claim-checked truth — no model freelancing on nutrition.", sot: "lib/operatorKb.ts" },
+      { name: "Web search tool", status: "configured", desc: "Server-side web_search for the inspection agent.", detail: "Capped at 2 searches + 2 resume rounds per request to stay under the serverless time limit.", config: "Enable web search for the workspace in the Anthropic Console", sot: "app/api/agents/inspection/route.ts" },
+      { name: "ANTHROPIC_API_KEY", status: "configured", desc: "Host secret. Agents degrade gracefully until set.", detail: "Inference-scoped — grants model calls only, no access to app/customer data. Exposure tracked as Risk R-004 (rotation deferred).", config: "Vercel → Settings → Environment Variables → Production", sot: "RISK_REGISTER.md" },
+    ],
+  },
+  {
+    id: "capabilities", tag: "Capabilities", label: "What the platform does", color: "#e0892b",
+    blurb: "The product surfaces the business runs on.",
+    components: [
+      { name: "Studio", status: "live", desc: "Collaborative content: editor, calendar, brand kit, caption engine, Canva/Webflow.", sot: "components/Studio.tsx" },
+      { name: "Brand Calendar", status: "live", desc: "Posts + events on one sticky, relational, drag-to-schedule month.", sot: "components/BrandCalendar.tsx" },
+      { name: "Brand Kit", status: "live", desc: "Voice, palette, type system, logo/asset library.", sot: "components/BrandKit.tsx" },
+      { name: "Events & Prep", status: "live", desc: "Events, pack lists, readiness, sign-off.", sot: "supabase/migrations/0025_event_execution.sql" },
+      { name: "Inventory & Assets", status: "live", desc: "Stock + gear, system-of-record in Postgres.", sot: "supabase/migrations/0041_assets_inventory_postgres.sql" },
+      { name: "Meeting Notes", status: "live", desc: "Talking points + AI follow-ups, archive, search.", sot: "supabase/migrations/0049_meeting_notes.sql" },
+      { name: "Alerts spine", status: "live", desc: "One nervous system: push + inbox + flags/pings.", sot: "supabase/migrations/0050_alerts.sql" },
+      { name: "Money", status: "live", desc: "Square pricing, subscriptions, reports, event P&L.", sot: "supabase/migrations/0048_mrr_and_event_pnl.sql" },
+      { name: "Academy", status: "live", desc: "Training, certifications, the cookbook — the brand SOT.", sot: "lib/academy.ts" },
+    ],
+  },
+  {
+    id: "data", tag: "Data & Infrastructure", label: "Source of truth & infrastructure", color: "#b07b3a",
+    blurb: "Where state lives and what runs it.",
+    components: [
+      { name: "Supabase Postgres", status: "live", desc: "System of record — 60+ versioned migrations, RLS-enforced.", detail: "Every business table lives here with Row-Level Security on. Realtime drives the live board/co-editing surfaces. Service-role key is server-only.", config: "Env: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY", sot: "supabase/migrations" },
+      { name: "Edge Function: push", status: "configured", desc: "Notification dispatcher (push + inbox + Teams) off the alerts spine.", detail: "Invoked with the service-role key on alert/assignment writes; fans out to web-push, the in-app inbox, and Teams.", sot: "supabase/functions" },
+      { name: "Square", status: "live", desc: "Catalog (menu prices) + payments + webhooks.", config: "Env: SQUARE_ACCESS_TOKEN, NEXT_PUBLIC_SQUARE_ENV", sot: "app/api/menu/route.ts" },
+      { name: "Canva Connect", status: "configured", desc: "Studio → autofill a brand template, export the graphic.", config: "Env: CANVA_ACCESS_TOKEN, CANVA_BRAND_TEMPLATE_ID", sot: "lib/canva.ts" },
+      { name: "Webflow Data API", status: "configured", desc: "Studio → publish a piece to the site.", config: "Env: WEBFLOW_API_TOKEN, WEBFLOW_SITE_ID, WEBFLOW_COLLECTION_ID", sot: "lib/webflow.ts" },
+      { name: "Brand assets", status: "live", desc: "Logos, wordmarks, taglines, photos (public/brand + brand_assets).", sot: "supabase/migrations/0058_brand_assets.sql" },
+      { name: "Vercel + Next.js", status: "live", desc: "App hosting + API routes + PWA.", sot: "package.json" },
+    ],
+  },
+  {
+    id: "governance", tag: "Governance & Observability", label: "Cross-cutting controls on every layer", color: "#c4453c",
+    blurb: "The guardrails that keep the platform honest, safe, and auditable.",
+    components: [
+      { name: "Risk Register", status: "live", desc: "Tracked operational/security risks (R-001…R-004).", sot: "RISK_REGISTER.md" },
+      { name: "Audit log", status: "live", desc: "Append-only trail on high-write tables (Risk R-003 monitors growth).", sot: "supabase/migrations/0042_audit_log.sql" },
+      { name: "Claim-safety", status: "live", desc: "Hard rule across every agent: no unsupported health/nutrition claims.", sot: "lib/academy.ts" },
+      { name: "Compliance rules", status: "live", desc: "Per-jurisdiction permit/inspection requirements; agent proposals approved before live.", sot: "supabase/migrations/0027_compliance_rules.sql" },
+      { name: "Human-in-the-loop", status: "live", desc: "Agents propose; people approve (follow-ups, readiness, inspection, Studio).", sot: "app/api/agents/recap/route.ts" },
+    ],
+  },
+];
