@@ -35,6 +35,7 @@ export async function GET(req: Request) {
       manual: a.manual_url ?? null,
       kbStatus: a.kb_status ?? null,
       qty: typeof a.qty === "number" ? a.qty : null,
+      notes: a.notes ?? null,
       notionUrl: a.notion_url ?? null,
     }))
     .sort((x: any, y: any) => (rank[x.brand] ?? 3) - (rank[y.brand] ?? 3) || x.name.localeCompare(y.name));

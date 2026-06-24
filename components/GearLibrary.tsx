@@ -13,12 +13,12 @@ const KB_OPTS = ["Drafted", "Reviewed", "Needs manual"];
 
 type Draft = {
   name: string; makeModel: string; brand: string; categoryStr: string;
-  useCase: string; manual: string; kbStatus: string; qty: string;
+  useCase: string; manual: string; kbStatus: string; qty: string; notes: string;
 };
-const emptyDraft: Draft = { name: "", makeModel: "", brand: "GT3 Performance Bar", categoryStr: "", useCase: "", manual: "", kbStatus: "Drafted", qty: "" };
+const emptyDraft: Draft = { name: "", makeModel: "", brand: "GT3 Performance Bar", categoryStr: "", useCase: "", manual: "", kbStatus: "Drafted", qty: "", notes: "" };
 const toDraft = (a: AssetItem): Draft => ({
   name: a.name, makeModel: a.makeModel || "", brand: a.brand || "Shared", categoryStr: (a.category || []).join(", "),
-  useCase: a.useCase || "", manual: a.manual || "", kbStatus: a.kbStatus || "Drafted", qty: a.qty != null ? String(a.qty) : "",
+  useCase: a.useCase || "", manual: a.manual || "", kbStatus: a.kbStatus || "Drafted", qty: a.qty != null ? String(a.qty) : "", notes: a.notes || "",
 });
 
 export default function GearLibrary() {
@@ -59,6 +59,7 @@ export default function GearLibrary() {
       manual_url: draft.manual.trim() || null,
       kb_status: draft.kbStatus || null,
       qty: draft.qty.trim() === "" ? null : Number(draft.qty),
+      notes: draft.notes.trim() || null,
     };
     const { error } = editing === "new"
       ? await supabase.from("assets").insert(row)
@@ -90,6 +91,7 @@ export default function GearLibrary() {
       </div>
       <label className="gl-f"><span>Category <i>(comma-separated)</i></span><input value={draft.categoryStr} onChange={(e) => setDraft({ ...draft, categoryStr: e.target.value })} placeholder="Event Equipment, Marketing" /></label>
       <label className="gl-f"><span>GT3 use case</span><textarea rows={2} value={draft.useCase} onChange={(e) => setDraft({ ...draft, useCase: e.target.value })} /></label>
+      <label className="gl-f"><span>Specs &amp; safety <i>(instructions — how to use it + safety)</i></span><textarea rows={5} value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} placeholder="Specs, how we use it, and the safety steps…" /></label>
       <label className="gl-f"><span>Manual / source URL</span><input value={draft.manual} onChange={(e) => setDraft({ ...draft, manual: e.target.value })} placeholder="https://…" /></label>
       <label className="gl-f"><span>KB status</span>
         <select value={draft.kbStatus} onChange={(e) => setDraft({ ...draft, kbStatus: e.target.value })}>
@@ -131,6 +133,12 @@ export default function GearLibrary() {
                         <div className="gl-item-main">
                           <b>{it.name}{it.qty && it.qty > 1 ? ` ×${it.qty}` : ""}</b>
                           {it.useCase && <span className="gl-uc">{it.useCase}</span>}
+                          {it.notes && (
+                            <details className="gl-notes">
+                              <summary>Specs &amp; safety</summary>
+                              <div className="gl-notes-body">{it.notes}</div>
+                            </details>
+                          )}
                         </div>
                         <div className="gl-links">
                           {it.manual && <a href={it.manual} target="_blank" rel="noopener noreferrer">Manual ↗</a>}
