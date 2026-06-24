@@ -1929,7 +1929,9 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
   };
   // Agent #1 — let Claude pull the follow-ups out of the recap, proposed for review.
   // Propose how to COMPLETE a follow-up (surfacing answers we already have). Persists on the task.
-  const resolve = useCallback(async (t: EventTask) => {
+  // silent=true when called in the batch auto-propose loop (so one outage doesn't spew 8 toasts);
+  // a direct tap surfaces the failure.
+  const resolve = useCallback(async (t: EventTask, silent = false) => {
     if (!supabase || t.ai_proposal || resolving.has(t.id)) return;
     setResolving((s) => new Set(s).add(t.id));
     try {
@@ -1937,9 +1939,10 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
       const r = await fetch("/api/agents/resolve", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ task_id: t.id }) });
       const j = await r.json();
       if (j.ok) setItems((p) => p.map((x) => (x.id === t.id ? { ...x, ai_proposal: j.proposal, ai_has_answer: j.have_answer } : x)));
-    } catch { /* */ }
+      else if (!silent) toast(String(j.error ?? "").includes("ANTHROPIC") ? "AI isn't switched on yet — add the API key" : "Couldn't propose a completion — try again", "error");
+    } catch { if (!silent) toast("Couldn't reach the resolve agent — try again", "error"); }
     setResolving((s) => { const n = new Set(s); n.delete(t.id); return n; });
-  }, [resolving]);
+  }, [resolving, toast]);
 
   const suggest = async () => {
     if (!supabase || suggesting) return;
@@ -1954,7 +1957,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
         await load();
         // Auto-propose a completion for the freshly generated items.
         const { data: fresh } = await supabase.from("event_tasks").select("*").eq("meeting_note_id", note.id).is("ai_proposal", null).order("sort", { ascending: false }).limit(8);
-        for (const t of (fresh as EventTask[] ?? [])) await resolve(t);
+        for (const t of (fresh as EventTask[] ?? [])) await resolve(t, true);
       }
     } catch { toast("Couldn't reach the recap agent", "error"); }
     setSuggesting(false);
