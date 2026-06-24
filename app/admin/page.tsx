@@ -666,6 +666,19 @@ function InspectionPrep() {
       .then(({ data }) => setEvents(data ?? []));
   }, [open]);
 
+  // Uncovered jurisdictions research in the background (the route returns a job id). Poll the job
+  // row — staff RLS allows the read — until it finishes or ~180s passes.
+  const pollJob = async (jobId: string): Promise<{ status: string; result: InspResult | null; error: string | null; place: string } | null> => {
+    if (!supabase) return null;
+    const deadline = Date.now() + 180000;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 3000));
+      const { data } = await supabase.from("inspection_research_jobs").select("status, result, error, place").eq("id", jobId).maybeSingle();
+      if (data && (data.status === "done" || data.status === "error")) return data as { status: string; result: InspResult | null; error: string | null; place: string };
+    }
+    return null;
+  };
+
   const run = async () => {
     if (!supabase || busy || !state.trim()) return;
     setBusy(true); setRes(null);
@@ -673,8 +686,19 @@ function InspectionPrep() {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
       const r = await fetch("/api/agents/inspection", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ state, county, event_id: eventId }) });
       const j = await r.json();
-      if (!j.ok) toast(String(j.error ?? "").includes("ANTHROPIC") ? "AI isn't switched on yet — add the API key" : `Error: ${j.error ?? r.status}`, "error");
-      else { setRes(j); toast(j.researched ? `Researched ${j.place}${j.proposed.length ? ` — ${j.proposed.length} rules to review` : ""}` : `Brief ready for ${j.place}`); }
+      if (!j.ok) { toast(String(j.error ?? "").includes("ANTHROPIC") ? "AI isn't switched on yet — add the API key" : `Error: ${j.error ?? r.status}`, "error"); setBusy(false); return; }
+      if (j.status === "pending" && j.job_id) {
+        toast(`Researching ${j.place}… this can take up to a minute`);
+        const done = await pollJob(j.job_id);
+        if (!done) { toast("Research is taking a while — check back shortly", "error"); setBusy(false); return; }
+        if (done.status === "error" || !done.result) { toast(`Couldn't finish researching ${j.place} — try again`, "error"); setBusy(false); return; }
+        const out = { ...done.result, place: done.place };
+        setRes(out);
+        toast(`Researched ${out.place}${out.proposed?.length ? ` — ${out.proposed.length} rules to review` : ""}`);
+      } else {
+        setRes(j);
+        toast(j.researched ? `Researched ${j.place}${j.proposed.length ? ` — ${j.proposed.length} rules to review` : ""}` : `Brief ready for ${j.place}`);
+      }
     } catch { toast("Couldn't reach the inspection agent", "error"); }
     setBusy(false);
   };
