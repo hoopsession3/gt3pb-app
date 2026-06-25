@@ -1108,7 +1108,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .prep-card-bar{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(245,241,232,.06)}
 .prep-card-bar span{display:block;height:100%;background:var(--gold2)}
 .prep-card.live .prep-card-bar span{background:var(--red)}
-.prep-scrim{position:absolute;inset:0;background:rgba(0,0,0,.5);z-index:55}
+.prep-scrim{position:absolute;inset:0;background:rgba(0,0,0,.5);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:55}
 .prep-sheet{position:absolute;left:0;right:0;bottom:0;z-index:56;background:#15110d;border-top:1px solid var(--line2);border-radius:18px 18px 0 0;padding:10px 18px calc(20px + env(safe-area-inset-bottom));box-shadow:0 -14px 40px rgba(0,0,0,.5)}
 .prep-sheet-grab{width:38px;height:4px;border-radius:2px;background:var(--line2);margin:4px auto 14px}
 .prep-sheet-h{font-family:'Inter';font-weight:600;font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--cream-m);margin-bottom:10px}
@@ -1471,7 +1471,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .adm-task-wrap,.note-fu-wrap{display:block}
 
 /* ── input sheet (focused guided entry; keeps context above visible) ── */
-.isheet-scrim{position:fixed;inset:0;background:rgba(0,0,0,.34);z-index:60;animation:isheet-fade .15s ease}
+.isheet-scrim{position:fixed;inset:0;background:rgba(0,0,0,.42);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:60;animation:isheet-fade .15s ease}
 @keyframes isheet-fade{from{opacity:0}to{opacity:1}}
 .isheet{position:fixed;left:0;right:0;bottom:0;z-index:61;background:#16130c;border-top-left-radius:20px;border-top-right-radius:20px;border:1px solid var(--line2);border-bottom:none;padding:8px 16px calc(18px + env(safe-area-inset-bottom));box-shadow:0 -10px 40px rgba(0,0,0,.5);animation:isheet-up .2s cubic-bezier(.2,.8,.2,1)}
 @keyframes isheet-up{from{transform:translateY(100%)}to{transform:translateY(0)}}
@@ -1573,9 +1573,11 @@ select.note-in{-webkit-appearance:none;appearance:none}
 /* ── QuickDock — floating Ask + Note launcher ── */
 .qd-fab{position:fixed;right:16px;bottom:calc(var(--navh,68px) + 16px);z-index:60;width:54px;height:54px;border-radius:50%;border:none;background:var(--gold);color:#1a1610;font-size:22px;font-weight:700;box-shadow:0 8px 22px rgba(0,0,0,.35);cursor:pointer;-webkit-appearance:none;appearance:none;display:flex;align-items:center;justify-content:center}
 .qd-fab.open{background:var(--card);color:var(--cream);border:1px solid var(--line)}
-.qd-scrim{position:fixed;inset:0;z-index:59;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center}
-.qd-sheet{width:100%;max-width:560px;max-height:84vh;display:flex;flex-direction:column;background:var(--bg,#161310);border:1px solid var(--line);border-radius:20px 20px 0 0;box-shadow:0 -12px 40px rgba(0,0,0,.5);animation:qdup .18s ease}
-@keyframes qdup{from{transform:translateY(20px);opacity:.6}to{transform:translateY(0);opacity:1}}
+/* Sheets are centered pop-ups that blur the screen behind, so nothing in the page (nav, FAB,
+   calendar) reads through or competes with them. */
+.qd-scrim{position:fixed;inset:0;z-index:59;background:rgba(0,0,0,.55);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);display:flex;align-items:center;justify-content:center;padding:16px}
+.qd-sheet{width:100%;max-width:560px;max-height:88vh;display:flex;flex-direction:column;background:var(--bg,#161310);border:1px solid var(--line);border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,.6);animation:qdup .18s ease}
+@keyframes qdup{from{transform:translateY(10px) scale(.98);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}
 .qd-tabs{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
 .qd-tab{background:rgba(255,255,255,.05);border:1px solid var(--line2);border-radius:999px;padding:8px 14px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .qd-tab.on{background:rgba(169,124,63,.18);border-color:var(--gold2);color:var(--gold2)}
