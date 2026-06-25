@@ -17,8 +17,8 @@ export default function TrailerLoadout() {
   const isOwner = roleOf(profile) === "owner";
   const [tp, setTp] = useState<TrailerProfile | null>(null);
   const [labels, setLabels] = useState<string[]>([]);
-  const [events, setEvents] = useState<{ id: string; title: string }[]>([]);
-  const [evId, setEvId] = useState<string | null>(null);
+  const [targets, setTargets] = useState<{ key: string; label: string }[]>([]); // "e:<id>" event | "s:<id>" stop
+  const [sel, setSel] = useState<string | null>(null);
   const [edit, setEdit] = useState(false);
   const [form, setForm] = useState<Partial<TrailerProfile>>({});
 
@@ -26,26 +26,36 @@ export default function TrailerLoadout() {
     if (!supabase) return;
     const { data: t } = await supabase.from("trailer_profile").select("*").eq("id", 1).maybeSingle();
     setTp((t as TrailerProfile) ?? null);
-    // Only REAL events (not archived test data); follow the live one, else the next upcoming, else first.
+    // Real events + truck stops (not archived test data); follow the live event, else the next
+    // upcoming across both, else the first thing on the books — the loadout works for either owner.
     const today = new Date().toISOString().slice(0, 10);
-    const { data: evs } = await supabase.from("events").select("id,title,is_live,day,sort").is("archived_at", null).order("day", { ascending: true, nullsFirst: false }).order("sort");
-    const list = (evs as { id: string; title: string; is_live?: boolean; day?: string | null }[]) ?? [];
-    setEvents(list.map((e) => ({ id: e.id, title: e.title })));
-    setEvId((cur) => {
-      if (cur && list.some((e) => e.id === cur)) return cur; // keep the user's pick
-      const live = list.find((e) => e.is_live);
-      const upcoming = list.find((e) => e.day && e.day >= today);
-      return (live ?? upcoming ?? list[0])?.id ?? null;
+    const [{ data: evs }, { data: sts }] = await Promise.all([
+      supabase.from("events").select("id,title,is_live,day,sort").is("archived_at", null).order("day", { ascending: true, nullsFirst: false }).order("sort"),
+      supabase.from("stops").select("id,name,starts_at,sort").is("archived_at", null).order("starts_at", { ascending: true, nullsFirst: false }).order("sort"),
+    ]);
+    const events = (evs as { id: string; title: string; is_live?: boolean; day?: string | null }[]) ?? [];
+    const stops = (sts as { id: string; name: string; starts_at?: string | null }[]) ?? [];
+    setTargets([
+      ...events.map((e) => ({ key: `e:${e.id}`, label: `🎪 ${e.title}` })),
+      ...stops.map((s) => ({ key: `s:${s.id}`, label: `🚚 ${s.name}` })),
+    ]);
+    setSel((cur) => {
+      if (cur && (events.some((e) => `e:${e.id}` === cur) || stops.some((s) => `s:${s.id}` === cur))) return cur; // keep pick
+      const live = events.find((e) => e.is_live);
+      const up = events.find((e) => e.day && e.day >= today);
+      return live ? `e:${live.id}` : up ? `e:${up.id}` : events[0] ? `e:${events[0].id}` : stops[0] ? `s:${stops[0].id}` : null;
     });
   }, []);
 
-  // Pack labels for the SELECTED event drive the loadout weights.
+  // Pack labels for the SELECTED event/stop drive the loadout weights.
   useEffect(() => {
-    if (!supabase || !evId) { setLabels([]); return; }
-    supabase.from("event_tasks").select("label,kind").eq("event_id", evId).then(({ data }) => {
+    if (!supabase || !sel) { setLabels([]); return; }
+    const [t, id] = sel.split(":");
+    const col = t === "s" ? "stop_id" : "event_id";
+    supabase.from("event_tasks").select("label,kind").eq(col, id).then(({ data }) => {
       setLabels(((data as { label: string; kind: string }[]) ?? []).filter((x) => x.kind === "pack").map((x) => x.label));
     });
-  }, [evId]);
+  }, [sel]);
 
   useEffect(() => {
     load();
@@ -53,6 +63,7 @@ export default function TrailerLoadout() {
     const ch = supabase.channel("trailer-loadout")
       .on("postgres_changes", { event: "*", schema: "public", table: "trailer_profile" }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "event_tasks" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "stops" }, () => load())
       .subscribe();
     return () => { supabase?.removeChannel(ch); };
   }, [load]);
@@ -78,9 +89,9 @@ export default function TrailerLoadout() {
   return (
     <div className="adm-sec tl">
       <div className="sec">Load-out &amp; tow plan
-        {events.length > 0 && (
-          <select className="tl-evsel" value={evId ?? ""} onChange={(e) => setEvId(e.target.value || null)} aria-label="Event for this load-out">
-            {events.map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}
+        {targets.length > 0 && (
+          <select className="tl-evsel" value={sel ?? ""} onChange={(e) => setSel(e.target.value || null)} aria-label="Event or stop for this load-out">
+            {targets.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
           </select>
         )}
       </div>

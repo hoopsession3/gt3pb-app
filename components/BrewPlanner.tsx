@@ -11,8 +11,9 @@ import { supabase } from "@/lib/supabase";
 
 type Recipe = { id: string; name: string; style: string | null; ratio: string | null; target_spec: string | null; base_water_gal: number; extraction_hours: number };
 type Vessel = { id: string; name: string; capacity_gal: number; filter_type: string | null };
-type Batch = { id: string; recipe_name: string | null; batch_gal: number; brew_date: string | null; ready_at: string | null; event_id: string | null; status: string; og: string | null; signal_score: number | null; target_spec: string | null; extraction_hours: number | null; brew_started_at: string | null; vessel: string | null; coffee_lot: string | null; brewer: string | null; taste_notes: string | null; created_at?: string | null };
+type Batch = { id: string; recipe_name: string | null; batch_gal: number; brew_date: string | null; ready_at: string | null; event_id: string | null; stop_id: string | null; status: string; og: string | null; signal_score: number | null; target_spec: string | null; extraction_hours: number | null; brew_started_at: string | null; vessel: string | null; coffee_lot: string | null; brewer: string | null; taste_notes: string | null; created_at?: string | null };
 type Ev = { id: string; title: string | null; day: string | null; day_label: string | null };
+type St = { id: string; name: string; starts_at: string | null };
 
 const STATUS: { key: string; label: string }[] = [
   { key: "planned", label: "Planned" }, { key: "brewing", label: "Brewing" }, { key: "ready", label: "Ready" },
@@ -34,6 +35,7 @@ export default function BrewPlanner() {
   const [vessels, setVessels] = useState<Vessel[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
   const [events, setEvents] = useState<Ev[]>([]);
+  const [stops, setStops] = useState<St[]>([]);
   const [plan, setPlan] = useState<Recipe | null>(null);
   const [pack, setPack] = useState<Batch | null>(null);
   const [logBatch, setLogBatch] = useState<Batch | null>(null);
@@ -51,13 +53,14 @@ export default function BrewPlanner() {
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    const [{ data: r }, { data: b }, { data: e }, { data: v }] = await Promise.all([
+    const [{ data: r }, { data: b }, { data: e }, { data: v }, { data: st }] = await Promise.all([
       supabase.from("brew_recipes").select("id, name, style, ratio, target_spec, base_water_gal, extraction_hours").is("archived_at", null).order("sort"),
-      supabase.from("brew_batches").select("id, recipe_name, batch_gal, brew_date, ready_at, event_id, status, og, signal_score, target_spec, extraction_hours, brew_started_at, vessel, coffee_lot, brewer, taste_notes, created_at").order("created_at", { ascending: false }),
+      supabase.from("brew_batches").select("id, recipe_name, batch_gal, brew_date, ready_at, event_id, stop_id, status, og, signal_score, target_spec, extraction_hours, brew_started_at, vessel, coffee_lot, brewer, taste_notes, created_at").order("created_at", { ascending: false }),
       supabase.from("events").select("id, title, day, day_label").is("archived_at", null).order("day"),
       supabase.from("brew_vessels").select("id, name, capacity_gal, filter_type").is("archived_at", null).order("sort"),
+      supabase.from("stops").select("id, name, starts_at").is("archived_at", null).order("starts_at", { ascending: true, nullsFirst: false }),
     ]);
-    setRecipes((r as Recipe[]) ?? []); setBatches((b as Batch[]) ?? []); setEvents((e as Ev[]) ?? []); setVessels((v as Vessel[]) ?? []);
+    setRecipes((r as Recipe[]) ?? []); setBatches((b as Batch[]) ?? []); setEvents((e as Ev[]) ?? []); setVessels((v as Vessel[]) ?? []); setStops((st as St[]) ?? []);
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -121,6 +124,7 @@ export default function BrewPlanner() {
         <div className="brew-list">
           {active.map((b) => {
             const ev = events.find((e) => e.id === b.event_id);
+            const tgt = ev ? (ev.title || ev.day_label) : stops.find((s) => s.id === b.stop_id)?.name ?? null;
             return (
               <div key={b.id} className={`brew-card st-${b.status}`}>
                 <div className="brew-card-top">
@@ -130,7 +134,7 @@ export default function BrewPlanner() {
                   </select>
                 </div>
                 <div className="brew-card-meta">
-                  {b.vessel ? `${b.vessel} · ` : ""}Brew {fmtDate(b.brew_date)} → ready {fmtTs(b.ready_at)}{ev ? ` · for ${ev.title || ev.day_label}` : ""}{b.target_spec ? ` · ${b.target_spec}` : ""}
+                  {b.vessel ? `${b.vessel} · ` : ""}Brew {fmtDate(b.brew_date)} → ready {fmtTs(b.ready_at)}{tgt ? ` · for ${tgt}` : ""}{b.target_spec ? ` · ${b.target_spec}` : ""}
                 </div>
 
                 {b.status === "planned" && (
@@ -175,9 +179,9 @@ export default function BrewPlanner() {
       </div>
       </>)}
 
-      {plan && <BrewSheet recipe={plan} events={events} vessels={vessels} onClose={() => setPlan(null)} onDone={() => { setPlan(null); load(); }} />}
+      {plan && <BrewSheet recipe={plan} events={events} stops={stops} vessels={vessels} onClose={() => setPlan(null)} onDone={() => { setPlan(null); load(); }} />}
       {pack && <BottleLoadout batch={pack} onClose={() => setPack(null)} />}
-      {logBatch && <BatchLog batch={logBatch} events={events} onClose={() => setLogBatch(null)} onSaved={() => { setLogBatch(null); load(); }} />}
+      {logBatch && <BatchLog batch={logBatch} events={events} stops={stops} onClose={() => setLogBatch(null)} onSaved={() => { setLogBatch(null); load(); }} />}
       {starting && <StartBrewSheet batch={starting} onClose={() => setStarting(null)} onStart={async (extras) => { await startBrew(starting, extras); setStarting(null); }} />}
     </div>
   );
@@ -210,11 +214,12 @@ function StartBrewSheet({ batch, onClose, onStart }: { batch: Batch; onClose: ()
 
 // Brew production log — the permanent record for one batch. Edit the traceability fields (coffee lot,
 // brewer), the Signal Score, taste notes, OG, and status. This is the "GT3 Brew Lab Production" sheet.
-function BatchLog({ batch, events, onClose, onSaved }: { batch: Batch; events: Ev[]; onClose: () => void; onSaved: () => void }) {
+function BatchLog({ batch, events, stops, onClose, onSaved }: { batch: Batch; events: Ev[]; stops: St[]; onClose: () => void; onSaved: () => void }) {
   const [f, setF] = useState<Batch>(batch);
   const [busy, setBusy] = useState(false);
   const set = (k: keyof Batch, v: any) => setF((p) => ({ ...p, [k]: v }));
-  const ev = events.find((e) => e.id === batch.event_id);
+  const evRow = events.find((e) => e.id === batch.event_id);
+  const ev = evRow ? { label: evRow.title || evRow.day_label } : (batch.stop_id ? { label: stops.find((s) => s.id === batch.stop_id)?.name ?? null } : null);
   const save = async () => {
     if (!supabase || busy) return;
     setBusy(true);
@@ -229,7 +234,7 @@ function BatchLog({ batch, events, onClose, onSaved }: { batch: Batch; events: E
       <div className="qd-sheet dp-form" onClick={(e) => e.stopPropagation()}>
         <div className="qd-tabs"><b style={{ fontFamily: "Inter", fontSize: 15 }}>Batch log · {batch.recipe_name}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>
         <div className="qd-body">
-          <div className="brew-spec">{batch.batch_gal} gal{batch.vessel ? ` · ${batch.vessel}` : ""}{batch.target_spec ? ` · ${batch.target_spec}` : ""}<br />Brewed {fmtTs(batch.brew_started_at)} → ready {fmtTs(batch.ready_at)}{ev ? ` · for ${ev.title || ev.day_label}` : ""}</div>
+          <div className="brew-spec">{batch.batch_gal} gal{batch.vessel ? ` · ${batch.vessel}` : ""}{batch.target_spec ? ` · ${batch.target_spec}` : ""}<br />Brewed {fmtTs(batch.brew_started_at)} → ready {fmtTs(batch.ready_at)}{ev?.label ? ` · for ${ev.label}` : ""}</div>
           <div className="prod-grid">
             <label className="prod-f"><span>Status</span>
               <select value={f.status} onChange={(e) => set("status", e.target.value)}>{STATUS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}</select>
@@ -326,7 +331,7 @@ function BottleLoadout({ batch, onClose }: { batch: Batch; onClose: () => void }
   );
 }
 
-function BrewSheet({ recipe, events, vessels, onClose, onDone }: { recipe: Recipe; events: Ev[]; vessels: Vessel[]; onClose: () => void; onDone: () => void }) {
+function BrewSheet({ recipe, events, stops, vessels, onClose, onDone }: { recipe: Recipe; events: Ev[]; stops: St[]; vessels: Vessel[]; onClose: () => void; onDone: () => void }) {
   const [vesselId, setVesselId] = useState(vessels[0]?.id ?? "");
   const [vesselCount, setVesselCount] = useState(1);
   const vessel = vessels.find((v) => v.id === vesselId) || null;
@@ -339,7 +344,7 @@ function BrewSheet({ recipe, events, vessels, onClose, onDone }: { recipe: Recip
     if (v) setGal(String(+(v.capacity_gal * count).toFixed(2)));
   };
   const vesselLabel = vessel ? `${vesselCount > 1 ? `${vesselCount}× ` : ""}${vessel.name} (${vessel.capacity_gal} gal${vesselCount > 1 ? ` ea` : ""})` : undefined;
-  const [eventId, setEventId] = useState("");
+  const [target, setTarget] = useState(""); // "" | "e:<id>" event | "s:<id>" stop — back-schedules to its date
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [res, setRes] = useState<any | null>(null);
@@ -348,7 +353,9 @@ function BrewSheet({ recipe, events, vessels, onClose, onDone }: { recipe: Recip
   const token = async () => (await supabase!.auth.getSession()).data.session?.access_token;
   const call = async (payload: any) => {
     const t = await token();
-    const r = await fetch("/api/agents/brew", { method: "POST", headers: { "Content-Type": "application/json", ...(t ? { Authorization: `Bearer ${t}` } : {}) }, body: JSON.stringify({ recipe_id: recipe.id, batch_gal: Number(gal) || 1, event_id: eventId || undefined, vessel: vesselLabel, ...payload }) });
+    const [tt, tid] = target.split(":");
+    const owner = target ? (tt === "s" ? { stop_id: tid } : { event_id: tid }) : {};
+    const r = await fetch("/api/agents/brew", { method: "POST", headers: { "Content-Type": "application/json", ...(t ? { Authorization: `Bearer ${t}` } : {}) }, body: JSON.stringify({ recipe_id: recipe.id, batch_gal: Number(gal) || 1, ...owner, vessel: vesselLabel, ...payload }) });
     return r.json();
   };
   const planIt = async () => {
@@ -400,10 +407,11 @@ function BrewSheet({ recipe, events, vessels, onClose, onDone }: { recipe: Recip
               )}
               <div className="prod-grid" style={{ marginTop: 12 }}>
                 <label className="prod-f"><span>Batch size (gal of water){vessel && !override ? ` · ${vesselLabel}` : ""}</span><input type="number" min="0.25" step="0.25" value={gal} onChange={(e) => { setGal(e.target.value); setOverride(true); }} /></label>
-                <label className="prod-f"><span>For event (optional)</span>
-                  <select value={eventId} onChange={(e) => setEventId(e.target.value)}>
-                    <option value="">Not tied to an event</option>
-                    {events.map((ev) => <option key={ev.id} value={ev.id}>{ev.title || ev.day_label}{ev.day ? ` · ${ev.day}` : ""}</option>)}
+                <label className="prod-f"><span>For event / stop (optional)</span>
+                  <select value={target} onChange={(e) => setTarget(e.target.value)}>
+                    <option value="">Not tied to a date</option>
+                    {events.length > 0 && <optgroup label="Events">{events.map((ev) => <option key={ev.id} value={`e:${ev.id}`}>{ev.title || ev.day_label}{ev.day ? ` · ${ev.day}` : ""}</option>)}</optgroup>}
+                    {stops.length > 0 && <optgroup label="Truck stops">{stops.map((s) => <option key={s.id} value={`s:${s.id}`}>{s.name}{s.starts_at ? ` · ${s.starts_at.slice(0, 10)}` : ""}</option>)}</optgroup>}
                   </select>
                 </label>
               </div>

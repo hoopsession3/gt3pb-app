@@ -67,11 +67,14 @@ export async function POST(req: Request) {
   const servings = Math.floor(finishedOz / SERVE_OZ);
   const extractionHours = Number((recipe as any).extraction_hours) || 0;
 
-  // If tied to an event (or an explicit need-by date), back-schedule the brew start.
+  // If tied to an event OR a truck stop (or an explicit need-by date), back-schedule the brew start.
   let eventDay: string | null = null, eventTitle: string | null = null;
   if (body.event_id) {
     const { data: e } = await supabaseAdmin.from("events").select("title, day, day_label").eq("id", body.event_id).maybeSingle();
     if (e) { eventDay = (e as any).day; eventTitle = (e as any).title; }
+  } else if (body.stop_id) {
+    const { data: s } = await supabaseAdmin.from("stops").select("name, starts_at").eq("id", body.stop_id).maybeSingle();
+    if (s) { eventDay = (s as any).starts_at ? String((s as any).starts_at).slice(0, 10) : null; eventTitle = (s as any).name; }
   }
   const needBy: string | null = body.need_by || eventDay || null;
   let brewDate: string | null = null, readyAt: string | null = null;
@@ -86,7 +89,7 @@ export async function POST(req: Request) {
   if (body.commit) {
     const { data: ins, error } = await supabaseAdmin.from("brew_batches").insert({
       recipe_id: recipeId, recipe_name: (recipe as any).name, batch_gal: batchGal,
-      brew_date: brewDate, ready_at: readyAt, event_id: body.event_id ?? null,
+      brew_date: brewDate, ready_at: readyAt, event_id: body.event_id ?? null, stop_id: body.stop_id ?? null,
       target_spec: (recipe as any).target_spec ?? null, scaled, status: "planned",
       extraction_hours: extractionHours, vessel: typeof body.vessel === "string" ? body.vessel.slice(0, 80) : null,
       og: typeof body.commit.og === "string" ? body.commit.og.slice(0, 60) : ((recipe as any).target_spec ?? null),
