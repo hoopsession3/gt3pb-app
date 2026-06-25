@@ -917,6 +917,8 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [prepAIOpen, setPrepAIOpen] = useState(false);
   const [troubleshootOpen, setTroubleshootOpen] = useState(false);
+  const [planOpen, setPlanOpen] = useState(false); // stop run-of-show / when-to-leave planner
+  const [stopMeta, setStopMeta] = useState<{ day: string | null; plan_days: number }>({ day: null, plan_days: 1 });
   const [onHand, setOnHand] = useState<{ item: string; bal: number }[]>([]); // carried-in stock (ledger balance)
 
   const loadOnHand = useCallback(async () => {
@@ -936,9 +938,11 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       setEv((e as EventRow) ?? null);
       setName((e as EventRow)?.title ?? null);
     } else {
-      const { data: s } = await supabase.from("stops").select("name").eq("id", target.id).maybeSingle();
+      const { data: s } = await supabase.from("stops").select("name, starts_at, plan_days").eq("id", target.id).maybeSingle();
       setEv(null);
-      setName((s as { name: string } | null)?.name ?? null);
+      const sm = s as { name: string; starts_at: string | null; plan_days: number | null } | null;
+      setName(sm?.name ?? null);
+      setStopMeta({ day: sm?.starts_at ? sm.starts_at.slice(0, 10) : null, plan_days: Math.max(1, sm?.plan_days ?? 1) });
     }
     setLoadedOk(true);
     const { data: t } = await supabase.from("event_tasks").select("*").eq(ownerCol, target.id).order("sort");
@@ -1173,6 +1177,19 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       {troubleshootOpen && (
         <TroubleshootAI ownerType={target.kind} ownerId={target.id} title={name ?? (isEvent ? "Event" : "Stop")}
           onClose={() => setTroubleshootOpen(false)} onLogged={load} />
+      )}
+
+      {/* Stops get the same run-of-show / "when do we leave" planner that events have. */}
+      {!isEvent && isAdmin && (
+        <div className="adm-prep-actions" style={{ marginTop: 10 }}>
+          <button className="adm-regen" onClick={() => setPlanOpen(true)}>🗓️ Schedule · when to leave</button>
+        </div>
+      )}
+      {planOpen && !isEvent && (
+        <EventDayPlanner
+          ownerType="stop" eventId={target.id} title={name ?? "Stop"} eventDay={stopMeta.day} planDays={stopMeta.plan_days}
+          onPlanDays={(n) => { setStopMeta((m) => ({ ...m, plan_days: n })); supabase?.from("stops").update({ plan_days: n }).eq("id", target.id).then(() => {}); }}
+          onClose={() => setPlanOpen(false)} />
       )}
 
       {isEvent && isAdmin && (

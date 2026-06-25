@@ -50,15 +50,20 @@ export async function POST(req: Request) {
   let body: any = {};
   try { body = await req.json(); } catch { /* empty */ }
   const eventId: string | undefined = body.event_id;
+  const stopId: string | undefined = body.stop_id;
+  const ownerCol = eventId ? "event_id" : stopId ? "stop_id" : null;
+  const ownerId = eventId || stopId;
   const dayIndex: number = Math.max(1, parseInt(body.day_index) || 1);
   const notes: string = String(body.notes ?? "").slice(0, 2000);
-  if (!eventId) return NextResponse.json({ ok: false, error: "event_id required" }, { status: 400 });
+  if (!ownerCol || !ownerId) return NextResponse.json({ ok: false, error: "event_id or stop_id required" }, { status: 400 });
 
   // ── DEPARTURE SUMMARY mode — read the day's EXISTING slots and say when to leave ──
   if (body.summarize) {
-    const { data: ev2 } = await supabaseAdmin.from("events").select("title, day_label, location_text").eq("id", eventId).maybeSingle();
+    const ev2 = eventId
+      ? (await supabaseAdmin.from("events").select("title, day_label, location_text").eq("id", eventId).maybeSingle()).data
+      : (await supabaseAdmin.from("stops").select("name, location_text, address, starts_at").eq("id", stopId).maybeSingle()).data;
     const { data: slots } = await supabaseAdmin.from("event_schedule_items")
-      .select("start_time, end_time, title, kind, location, address").eq("event_id", eventId).eq("day_index", dayIndex).order("sort");
+      .select("start_time, end_time, title, kind, location, address").eq(ownerCol, ownerId).eq("day_index", dayIndex).order("sort");
     const list = (slots ?? []).filter((s: any) => s.start_time || s.title);
     if (list.length === 0) return NextResponse.json({ ok: true, leave_by: "", summary: "", risks: [] });
     const DEP_TOOL: ToolDef = {
@@ -95,12 +100,19 @@ export async function POST(req: Request) {
     }
   }
 
-  const { data: e } = await supabaseAdmin.from("events")
-    .select("title, day, day_label, start_time, end_time, location_text, state, county, rig, expected_attendance, staff_count, plan_days")
-    .eq("id", eventId).maybeSingle();
-  if (!e) return NextResponse.json({ ok: false, error: "event not found" }, { status: 404 });
+  let e: any = null, ofDays = 1;
+  if (eventId) {
+    e = (await supabaseAdmin.from("events")
+      .select("title, day, day_label, start_time, end_time, location_text, state, county, rig, expected_attendance, staff_count, plan_days")
+      .eq("id", eventId).maybeSingle()).data;
+    ofDays = e?.plan_days ?? 1;
+  } else {
+    const s = (await supabaseAdmin.from("stops").select("name, location_text, address, starts_at, notes, menu_tier, plan_days").eq("id", stopId).maybeSingle()).data as any;
+    if (s) { e = { title: s.name, day: s.starts_at ? String(s.starts_at).slice(0, 10) : null, location_text: s.location_text, address: s.address, notes: s.notes, menu_tier: s.menu_tier, kind: "truck stop (on-the-ground ops)" }; ofDays = s.plan_days ?? 1; }
+  }
+  if (!e) return NextResponse.json({ ok: false, error: `${eventId ? "event" : "stop"} not found` }, { status: 404 });
 
-  const payload = { event: e, day_index: dayIndex, of_days: (e as any).plan_days ?? 1, planner_notes: notes };
+  const payload = { event: e, day_index: dayIndex, of_days: ofDays, planner_notes: notes };
 
   let out: { summary: string; items: any[] } | null = null;
   try {
@@ -114,7 +126,7 @@ export async function POST(req: Request) {
         "Cover the real-world arc: leaving home, drive/fuel, lodging check-in, load-in & setup, service window, breaks/meals, teardown, load-out. " +
         "Keep titles short and actionable. Put confirmable specifics (parking, gate code, contact, what to load) in details. " +
         "Don't invent addresses or codes you weren't given — leave those for the crew to fill. Always answer with the draft_day tool.",
-      messages: [{ role: "user", content: `Draft day ${dayIndex} of ${(e as any).plan_days ?? 1}.\n\n${JSON.stringify(payload)}` }],
+      messages: [{ role: "user", content: `Draft day ${dayIndex} of ${ofDays}.\n\n${JSON.stringify(payload)}` }],
       tools: [TOOL],
       tool_choice: { type: "tool", name: "draft_day" },
     });

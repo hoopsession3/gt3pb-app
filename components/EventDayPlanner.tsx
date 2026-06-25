@@ -58,9 +58,10 @@ function toMinutes(t: string | null): number {
   return h * 60 + min;
 }
 
-export default function EventDayPlanner({ eventId, title, eventDay, planDays, initialDay = 1, onPlanDays, onClose }: {
-  eventId: string; title: string; eventDay: string | null; planDays: number; initialDay?: number; onPlanDays: (n: number) => void; onClose: () => void;
+export default function EventDayPlanner({ ownerType = "event", eventId, title, eventDay, planDays, initialDay = 1, onPlanDays, onClose }: {
+  ownerType?: "event" | "stop"; eventId: string; title: string; eventDay: string | null; planDays: number; initialDay?: number; onPlanDays: (n: number) => void; onClose: () => void;
 }) {
+  const ownerCol = ownerType === "stop" ? "stop_id" : "event_id"; // event_schedule_items belongs to one owner
   const days = Math.max(1, planDays || 1);
   const [active, setActive] = useState(Math.min(Math.max(1, initialDay), Math.max(1, planDays || 1)));
   const [items, setItems] = useState<Item[]>([]);
@@ -71,17 +72,17 @@ export default function EventDayPlanner({ eventId, title, eventDay, planDays, in
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    const { data } = await supabase.from("event_schedule_items").select("*").eq("event_id", eventId).order("day_index").order("sort");
+    const { data } = await supabase.from("event_schedule_items").select("*").eq(ownerCol, eventId).order("day_index").order("sort");
     setItems((data as Item[]) ?? []);
-  }, [eventId]);
+  }, [eventId, ownerCol]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
     if (!supabase) return;
     const ch = supabase.channel(`dayplan-${eventId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "event_schedule_items", filter: `event_id=eq.${eventId}` }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "event_schedule_items", filter: `${ownerCol}=eq.${eventId}` }, () => load())
       .subscribe();
     return () => { supabase?.removeChannel(ch); };
-  }, [eventId, load]);
+  }, [eventId, ownerCol, load]);
 
   const dayDate = (di: number) => (eventDay ? isoAddDays(eventDay, di - 1) : null);
   const dayItems = useMemo(
@@ -97,7 +98,7 @@ export default function EventDayPlanner({ eventId, title, eventDay, planDays, in
     const { data: { user } } = await supabase.auth.getUser();
     const nextSort = (dayItems[dayItems.length - 1]?.sort ?? 0) + 1;
     await supabase.from("event_schedule_items").insert({
-      event_id: eventId, day_index: active, day_date: dayDate(active),
+      [ownerCol]: eventId, day_index: active, day_date: dayDate(active),
       title: patch.title ?? "New block", kind: patch.kind ?? "other",
       start_time: patch.start_time ?? null, end_time: patch.end_time ?? null,
       location: patch.location ?? null, address: patch.address ?? null, details: patch.details ?? null, who: patch.who ?? null,
@@ -118,7 +119,7 @@ export default function EventDayPlanner({ eventId, title, eventDay, planDays, in
     setDepBusy(true);
     try {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const r = await fetch("/api/agents/dayplan", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ event_id: eventId, day_index: active, summarize: true }) });
+      const r = await fetch("/api/agents/dayplan", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ [ownerCol]: eventId, day_index: active, summarize: true }) });
       const j = await r.json();
       if (j.ok) setDeparture({ leave_by: j.leave_by || "", summary: j.summary || "", risks: j.risks || [] });
     } catch { /* leave banner empty on failure */ }
@@ -224,7 +225,7 @@ export default function EventDayPlanner({ eventId, title, eventDay, planDays, in
         />
       )}
       {drafting && (
-        <DraftPanel eventId={eventId} dayIndex={active} onClose={() => setDrafting(false)}
+        <DraftPanel ownerType={ownerType} eventId={eventId} dayIndex={active} onClose={() => setDrafting(false)}
           onAdd={async (rows) => { for (const r of rows) await addItem(r); setDrafting(false); }} />
       )}
     </div>
@@ -265,7 +266,7 @@ function ItemForm({ item, onClose, onSave }: { item: Item | null; onClose: () =>
 }
 
 // AI draft — notes in, a proposed day out. Crew picks what to keep.
-function DraftPanel({ eventId, dayIndex, onClose, onAdd }: { eventId: string; dayIndex: number; onClose: () => void; onAdd: (rows: Partial<Item>[]) => void | Promise<void> }) {
+function DraftPanel({ ownerType = "event", eventId, dayIndex, onClose, onAdd }: { ownerType?: "event" | "stop"; eventId: string; dayIndex: number; onClose: () => void; onAdd: (rows: Partial<Item>[]) => void | Promise<void> }) {
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -277,7 +278,7 @@ function DraftPanel({ eventId, dayIndex, onClose, onAdd }: { eventId: string; da
     setLoading(true); setErr(null);
     try {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const r = await fetch("/api/agents/dayplan", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ event_id: eventId, day_index: dayIndex, notes }) });
+      const r = await fetch("/api/agents/dayplan", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ [ownerType === "stop" ? "stop_id" : "event_id"]: eventId, day_index: dayIndex, notes }) });
       const j = await r.json();
       if (!j.ok) { setErr(j.error || "Draft failed"); setRows(null); }
       else { setRows(j.items ?? []); setPick(Object.fromEntries((j.items ?? []).map((_: any, i: number) => [i, true]))); }
