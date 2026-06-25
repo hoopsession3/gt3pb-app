@@ -9,7 +9,6 @@ create table if not exists public.asset_maintenance (
   kind         text not null default 'service' check (kind in ('service','repair','clean','inspect','calibrate','note')),
   performed_on date not null default current_date,
   summary      text not null,
-  how_to       text,                 -- beginner step-by-step for this task (one step per line)
   next_due_on  date,                 -- when it's due again (drives the "due / overdue" flag)
   cost_cents   int,
   performed_by text,                 -- free-text who did it

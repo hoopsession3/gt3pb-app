@@ -4,6 +4,10 @@
 -- relative to when this runs (deploy), so "due in a month" means a month from go-live. Idempotent:
 -- assets seeded by name, each cadence entry seeded once (by asset + summary).
 
+-- ── 0) ensure the how_to column exists (added here, not in 0083, so it lands whether or not 0083
+--    was already applied before this how-to work existed) ──
+alter table public.asset_maintenance add column if not exists how_to text;
+
 -- ── 1) the gear (assets) ──
 insert into public.assets (name, make_model, brand, category, use_case, qty, notes)
 select v.name, v.make_model, 'GT3 Brew', '{brew}'::text[], v.use_case, v.qty, v.notes
