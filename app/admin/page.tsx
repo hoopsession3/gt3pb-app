@@ -1100,15 +1100,15 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
     const deduped = ((t as EventTask[]) ?? []).filter((x) => { const k = `${x.section ?? ""}|${x.label}`; if (seen.has(k)) return false; seen.add(k); return true; });
     setTasks(deduped);
     commentCounts("event_task_id", deduped.map((x) => x.id)).then(setCounts);
-    // Crew + sign-off are event-only.
-    if (isEvent) {
+    // Crew + sign-off work for events AND stops (owner-generic) — a stop staffs up just like an event.
+    {
       const [{ data: c }, { data: ap }] = await Promise.all([
-        supabase.from("event_staff").select("id, user_id, role_label").eq("event_id", target.id),
-        supabase.from("event_approvals").select("*").eq("event_id", target.id),
+        supabase.from("event_staff").select("id, user_id, role_label").eq(ownerCol, target.id),
+        supabase.from("event_approvals").select("*").eq(ownerCol, target.id),
       ]);
       setCrew((c as { id: string; user_id: string; role_label: string | null }[]) ?? []);
       setApprovals((ap as { approver_id: string }[]) ?? []);
-    } else { setCrew([]); setApprovals([]); }
+    }
     if (isAdmin) {
       const { data: p } = await supabase.from("profiles").select("id, display_name, role").neq("role", "member");
       setStaff((p as { id: string; display_name: string | null; role?: string | null }[]) ?? []);
@@ -1239,8 +1239,8 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
     if (error) toast(`Error: ${error.message}`, "error"); else load();
   };
   const addCrew = async (uid: string) => {
-    if (!ev || !supabase || !uid) return;
-    const { error } = await supabase.from("event_staff").insert({ event_id: ev.id, user_id: uid });
+    if (!supabase || !uid) return;
+    const { error } = await supabase.from("event_staff").insert({ [ownerCol]: target.id, user_id: uid });
     if (error) toast(error.code === "23505" ? "Already on crew" : `Error: ${error.message}`, "error"); else load();
   };
   const removeCrew = async (id: string) => { if (supabase) { await supabase.from("event_staff").delete().eq("id", id); load(); } };
@@ -1265,21 +1265,21 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
     load();
   };
   const toggleApproval = async (mine: boolean) => {
-    if (!user || !supabase || !ev) return;
+    if (!user || !supabase) return;
     if (mine) {
-      await supabase.from("event_approvals").delete().eq("event_id", ev.id).eq("approver_id", user.id);
+      await supabase.from("event_approvals").delete().eq(ownerCol, target.id).eq("approver_id", user.id);
       toast("Approval withdrawn");
     } else {
-      const { error } = await supabase.from("event_approvals").insert({ event_id: ev.id, approver_id: user.id });
+      const { error } = await supabase.from("event_approvals").insert({ [ownerCol]: target.id, approver_id: user.id });
       toast(error ? `Error: ${error.message}` : "Prep approved");
     }
     load();
   };
   const requestSignoff = (approverIds: string[]) => {
-    if (!ev || !supabase || approverIds.length === 0) { toast("Everyone's already approved"); return; }
+    if (!supabase || approverIds.length === 0) { toast("Everyone's already approved"); return; }
     toast("Sign-off requested");
     supabase.functions
-      .invoke("push", { body: { table: "event_approval_request", type: "INSERT", record: { event_id: ev.id, title: ev.title, approver_ids: approverIds } } })
+      .invoke("push", { body: { table: "event_approval_request", type: "INSERT", record: { event_id: isEvent ? target.id : null, stop_id: isEvent ? null : target.id, title: name ?? (isEvent ? "Event" : "Stop"), approver_ids: approverIds } } })
       .catch(() => {});
   };
 
@@ -1347,16 +1347,21 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
           onClose={() => setTroubleshootOpen(false)} onLogged={load} />
       )}
 
-      {/* Stops get the same run-of-show / "when do we leave" planner that events have. */}
-      {!isEvent && isAdmin && (
+      {/* Run-of-show / "when do we leave" planner — identical for events and stops. */}
+      {isAdmin && (
         <div className="adm-prep-actions" style={{ marginTop: 10 }}>
           <button className="adm-regen" onClick={() => setPlanOpen(true)}>🗓️ Schedule · when to leave</button>
         </div>
       )}
-      {planOpen && !isEvent && (
+      {planOpen && (
         <EventDayPlanner
-          ownerType="stop" eventId={target.id} title={name ?? "Stop"} eventDay={stopMeta.day} planDays={stopMeta.plan_days}
-          onPlanDays={(n) => { setStopMeta((m) => ({ ...m, plan_days: n })); supabase?.from("stops").update({ plan_days: n }).eq("id", target.id).then(() => {}); }}
+          ownerType={target.kind} eventId={target.id} title={name ?? (isEvent ? "Event" : "Stop")}
+          eventDay={isEvent ? (ev?.day ?? null) : stopMeta.day}
+          planDays={isEvent ? Math.max(1, ev?.plan_days ?? 1) : stopMeta.plan_days}
+          onPlanDays={(n) => {
+            if (isEvent) { supabase?.from("events").update({ plan_days: n }).eq("id", target.id).then(() => {}); }
+            else { setStopMeta((m) => ({ ...m, plan_days: n })); supabase?.from("stops").update({ plan_days: n }).eq("id", target.id).then(() => {}); }
+          }}
           onClose={() => setPlanOpen(false)} />
       )}
 
@@ -1378,7 +1383,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
         </div>
       )}
 
-      {isEvent && isAdmin && (
+      {isAdmin && (
         <div className="adm-crew-row">
           {crew.map((c) => {
             const mgr = c.role_label === "manager";
@@ -1397,7 +1402,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
         </div>
       )}
 
-      {isEvent && total > 0 && (
+      {total > 0 && (
         <div className={`adm-approve${fullyApproved ? " ok" : ""}`}>
           <div className="adm-approve-h">
             <b>{fullyApproved ? "Prep approved" : "Prep sign-off"}</b>
