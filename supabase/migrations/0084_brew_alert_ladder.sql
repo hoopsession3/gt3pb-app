@@ -11,9 +11,20 @@
 alter table public.brew_batches add column if not exists needed_by  timestamptz;
 alter table public.brew_batches add column if not exists hold_hours numeric not null default 72;
 alter table public.brew_batches add column if not exists brewer     uuid references auth.users(id) on delete set null;
--- the latest moment you can START and still be ready + bottled in time: needed_by − extraction − 90-min bottling buffer.
-alter table public.brew_batches add column if not exists latest_start_at timestamptz
-  generated always as (needed_by - make_interval(hours => greatest(1, ceil(coalesce(extraction_hours, 20))::int), mins => 90)) stored;
+-- the latest moment you can START and still be ready + bottled in time: needed_by − extraction − 90-min
+-- bottling buffer. A plain column kept in sync by a trigger — timestamptz − interval is STABLE (interval
+-- math can depend on the session tz / DST), not IMMUTABLE, so it can't be a GENERATED column.
+alter table public.brew_batches add column if not exists latest_start_at timestamptz;
+create or replace function public.brew_set_latest_start() returns trigger
+  language plpgsql set search_path = public as $$
+begin
+  new.latest_start_at := case when new.needed_by is null then null
+    else new.needed_by - make_interval(hours => greatest(1, ceil(coalesce(new.extraction_hours, 20))::int), mins => 90) end;
+  return new;
+end; $$;
+drop trigger if exists brew_latest_start on public.brew_batches;
+create trigger brew_latest_start before insert or update of needed_by, extraction_hours
+  on public.brew_batches for each row execute function public.brew_set_latest_start();
 
 alter table public.brew_batches add column if not exists alerted_start_window boolean not null default false;
 alter table public.brew_batches add column if not exists alerted_start_by     boolean not null default false;
