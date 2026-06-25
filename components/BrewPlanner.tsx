@@ -11,7 +11,7 @@ import { supabase } from "@/lib/supabase";
 
 type Recipe = { id: string; name: string; style: string | null; ratio: string | null; target_spec: string | null; base_water_gal: number; extraction_hours: number };
 type Vessel = { id: string; name: string; capacity_gal: number; filter_type: string | null };
-type Batch = { id: string; recipe_name: string | null; batch_gal: number; brew_date: string | null; ready_at: string | null; event_id: string | null; status: string; og: string | null; signal_score: number | null; target_spec: string | null; extraction_hours: number | null; brew_started_at: string | null; vessel: string | null; coffee_lot: string | null; brewer: string | null; taste_notes: string | null; created_at?: string | null };
+type Batch = { id: string; recipe_name: string | null; batch_gal: number; brew_date: string | null; ready_at: string | null; event_id: string | null; status: string; og: string | null; signal_score: number | null; target_spec: string | null; extraction_hours: number | null; brew_started_at: string | null; vessel: string | null; coffee_lot: string | null; brewer: string | null; taste_notes: string | null; created_at?: string | null; needed_by: string | null; latest_start_at: string | null };
 type Ev = { id: string; title: string | null; day: string | null; day_label: string | null };
 
 const STATUS: { key: string; label: string }[] = [
@@ -53,7 +53,7 @@ export default function BrewPlanner() {
     if (!supabase) return;
     const [{ data: r }, { data: b }, { data: e }, { data: v }] = await Promise.all([
       supabase.from("brew_recipes").select("id, name, style, ratio, target_spec, base_water_gal, extraction_hours").is("archived_at", null).order("sort"),
-      supabase.from("brew_batches").select("id, recipe_name, batch_gal, brew_date, ready_at, event_id, status, og, signal_score, target_spec, extraction_hours, brew_started_at, vessel, coffee_lot, brewer, taste_notes, created_at").order("created_at", { ascending: false }),
+      supabase.from("brew_batches").select("id, recipe_name, batch_gal, brew_date, ready_at, event_id, status, og, signal_score, target_spec, extraction_hours, brew_started_at, vessel, coffee_lot, brewer, taste_notes, created_at, needed_by, latest_start_at").order("created_at", { ascending: false }),
       supabase.from("events").select("id, title, day, day_label").is("archived_at", null).order("day"),
       supabase.from("brew_vessels").select("id, name, capacity_gal, filter_type").is("archived_at", null).order("sort"),
     ]);
@@ -83,7 +83,7 @@ export default function BrewPlanner() {
     const brewer = extras?.brewer?.trim() || b.brewer || null;
     setBatches((p) => p.map((x) => x.id === b.id ? { ...x, status: "brewing", brew_started_at: startIso, ready_at: readyIso, coffee_lot: lot, brewer } : x));
     setNow(Date.now());
-    await supabase.from("brew_batches").update({ status: "brewing", brew_started_at: startIso, ready_at: readyIso, coffee_lot: lot, brewer, alerted_soon: false, alerted_ready: false }).eq("id", b.id);
+    await supabase.from("brew_batches").update({ status: "brewing", brew_started_at: startIso, ready_at: readyIso, coffee_lot: lot, brewer, alerted_soon: false, alerted_ready: false, alerted_started: false, alerted_overextract: false, alerted_hold_soon: false, alerted_hold_expired: false }).eq("id", b.id);
   };
 
   // schedule view = what's upcoming / in progress; the log view = every batch ever, the permanent record
@@ -134,7 +134,13 @@ export default function BrewPlanner() {
                 </div>
 
                 {b.status === "planned" && (
-                  <button type="button" className="brew-start" onClick={() => setStarting(b)}>▶ Start brew ({Number(b.extraction_hours) || 20}h)</button>
+                  <>
+                    {b.latest_start_at && (() => {
+                      const over = new Date(b.latest_start_at!).getTime() < now;
+                      return <div className={`brew-startby${over ? " over" : ""}`}>{over ? "🚨 Past the latest start to be ready in time — start now" : `⏰ Start by ${fmtTs(b.latest_start_at)} to be ready in time`}</div>;
+                    })()}
+                    <button type="button" className="brew-start" onClick={() => setStarting(b)}>▶ Start brew ({Number(b.extraction_hours) || 20}h)</button>
+                  </>
                 )}
                 {b.status === "brewing" && b.ready_at && (() => {
                   const ms = new Date(b.ready_at).getTime() - now;
