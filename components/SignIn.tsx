@@ -7,10 +7,10 @@ import { useAuth } from "./AuthProvider";
 type Mode = "passwordless" | "password";
 
 export default function SignIn() {
-  const { sendCode, verifyCode, signInWithUrl, signInWithPassword, signUp } = useAuth();
+  const { sendCode, verifyCode, signInWithUrl, signInWithPassword, signUp, resetPassword } = useAuth();
 
   const [mode, setMode] = useState<Mode>("passwordless");
-  const [step, setStep] = useState<"form" | "sent" | "confirm">("form");
+  const [step, setStep] = useState<"form" | "sent" | "confirm" | "reset-sent">("form");
 
   // shared fields
   const [name, setName] = useState("");
@@ -71,6 +71,15 @@ export default function SignIn() {
     setPasteBusy(false);
   };
 
+  // ── forgot password → email a reset link ──
+  const handleReset = async () => {
+    if (!email.trim()) { setErr("Enter your email first, then tap reset."); return; }
+    setBusy(true); setErr("");
+    const { error } = await resetPassword(email.trim());
+    setBusy(false);
+    if (error) setErr(error); else setStep("reset-sent");
+  };
+
   // ── password sign in / create account ──
   const handlePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,6 +115,17 @@ export default function SignIn() {
         <>
           <h1 className="auth-headline">Check your email.</h1>
           <p className="auth-sub">We sent a confirmation link to <b>{email}</b>. Tap it to activate your account, then come back and sign in.</p>
+          <button className="handle" onClick={reset} style={{ marginTop: 20 }}><span>Back to sign in</span></button>
+        </>
+      )}
+
+      {/* ── password reset link sent ── */}
+      {step === "reset-sent" && (
+        <>
+          <h1 className="auth-headline">Check your email.</h1>
+          <p className="auth-sub">We sent a password-reset link to <b>{email}</b>. Tap it, set a new password, and you&apos;re back in.</p>
+          <p className="auth-paste-hint" style={{ marginTop: 8 }}>Don&apos;t see it? Check spam / promotions. Open the link in <b>this same browser</b>.</p>
+          {err && <div className="auth-err">{err}</div>}
           <button className="handle" onClick={reset} style={{ marginTop: 20 }}><span>Back to sign in</span></button>
         </>
       )}
@@ -230,6 +250,11 @@ export default function SignIn() {
               <button className="handle" type="submit" disabled={busy} style={{ marginTop: 18 }}>
                 <span>{busy ? (isNew ? "Creating…" : "Signing in…") : (isNew ? "Create account" : "Sign in")}</span>
               </button>
+              {!isNew && (
+                <button type="button" className="auth-link" onClick={handleReset} disabled={busy} style={{ marginTop: 12 }}>
+                  Forgot your password? Email me a reset link
+                </button>
+              )}
             </form>
           )}
 

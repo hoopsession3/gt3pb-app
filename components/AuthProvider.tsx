@@ -35,6 +35,8 @@ interface AuthCtx {
   signInWithUrl: (url: string) => Promise<{ error?: string }>;
   signInWithPassword: (email: string, password: string) => Promise<{ error?: string }>;
   signUp: (email: string, password: string, displayName?: string) => Promise<{ error?: string; confirm?: boolean }>;
+  resetPassword: (email: string) => Promise<{ error?: string }>;
+  updatePassword: (password: string) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -51,6 +53,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const [ready, setReady] = useState(!supabaseEnabled); // if no Supabase, we're "ready" immediately
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [recovery, setRecovery] = useState(false); // landed via a password-reset link → must set a new password
 
   const loadProfile = useCallback(async (uid: string) => {
     if (!supabase) return;
@@ -89,11 +92,14 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       setUser(data.session?.user ?? null);
       setReady(true);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       const u = session?.user ?? null;
       setUser(u);
       if (u) loadProfile(u.id);
       else setProfile(null);
+      // Clicking a reset link signs the user in with a short-lived recovery session and fires this
+      // event — gate the app behind a "set a new password" overlay until they pick one.
+      if (event === "PASSWORD_RECOVERY") setRecovery(true);
     });
     return () => {
       active = false;
@@ -165,6 +171,26 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     return { confirm: !data.session && !!data.user };
   }, []);
 
+  // Email a password-reset link. Works for anyone with a password OR who only ever used magic links
+  // (Supabase just sets/overwrites the password on completion), so every user can recover access.
+  const resetPassword = useCallback<AuthCtx["resetPassword"]>(async (email) => {
+    if (!supabase) return { error: "Sign-in isn't configured yet." };
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
+    });
+    return error ? { error: error.message } : {};
+  }, []);
+
+  // Set the new password while in the recovery session, then drop the overlay (the user is now
+  // signed in normally with their new password).
+  const updatePassword = useCallback<AuthCtx["updatePassword"]>(async (password) => {
+    if (!supabase) return { error: "Sign-in isn't configured yet." };
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) return { error: error.message };
+    setRecovery(false);
+    return {};
+  }, []);
+
   const signOut = useCallback(async () => {
     await supabase?.auth.signOut();
     setUser(null);
@@ -177,11 +203,64 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
   // Memoize the context value so incidental provider re-renders don't re-render the whole admin
   // subtree (which churns the Studio realtime channel). supabaseEnabled is a module constant.
-  const value = useMemo(() => ({ ready, enabled: supabaseEnabled, user, profile, sendCode, verifyCode, signInWithUrl, signInWithPassword, signUp, signOut, refreshProfile }), [ready, user, profile, sendCode, verifyCode, signInWithUrl, signInWithPassword, signUp, signOut, refreshProfile]);
+  const value = useMemo(() => ({ ready, enabled: supabaseEnabled, user, profile, sendCode, verifyCode, signInWithUrl, signInWithPassword, signUp, resetPassword, updatePassword, signOut, refreshProfile }), [ready, user, profile, sendCode, verifyCode, signInWithUrl, signInWithPassword, signUp, resetPassword, updatePassword, signOut, refreshProfile]);
 
   return (
     <Ctx.Provider value={value}>
       {children}
+      {recovery && <PasswordRecovery updatePassword={updatePassword} onCancel={() => { setRecovery(false); signOut(); }} />}
     </Ctx.Provider>
+  );
+}
+
+// Shown over the app when the user arrives from a reset link — they pick a new password before
+// they can use the app. Reuses the auth styling so it feels like the sign-in screen.
+function PasswordRecovery({ updatePassword, onCancel }: { updatePassword: AuthCtx["updatePassword"]; onCancel: () => void }) {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [show, setShow] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [done, setDone] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password.length < 8) { setErr("Use at least 8 characters."); return; }
+    if (password !== confirm) { setErr("Passwords don't match."); return; }
+    setBusy(true); setErr("");
+    const { error } = await updatePassword(password);
+    setBusy(false);
+    if (error) setErr(error); else setDone(true);
+  };
+
+  return (
+    <div className="qd-scrim" style={{ zIndex: 200 }} role="dialog" aria-modal="true" aria-label="Set a new password">
+      <div className="qd-sheet" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
+        <div className="qd-body" style={{ padding: 22 }}>
+          {done ? (
+            <>
+              <h1 className="auth-headline" style={{ marginTop: 0 }}>Password updated.</h1>
+              <p className="auth-sub">You&apos;re all set — you&apos;re signed in with your new password.</p>
+              <button className="handle" onClick={onCancel} style={{ marginTop: 18 }}><span>Continue</span></button>
+            </>
+          ) : (
+            <form className="auth-form" onSubmit={submit}>
+              <h1 className="auth-headline" style={{ marginTop: 0 }}>Set a new password.</h1>
+              <p className="auth-sub">Pick a new password for your account. At least 8 characters.</p>
+              <label className="auth-label" htmlFor="rec-pass">New password</label>
+              <div className="auth-pass-wrap">
+                <input id="rec-pass" className="auth-input" type={show ? "text" : "password"} autoComplete="new-password" placeholder="New password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} autoFocus />
+                <button type="button" className="auth-show-pass" onClick={() => setShow((v) => !v)} tabIndex={-1}>{show ? "Hide" : "Show"}</button>
+              </div>
+              <label className="auth-label" htmlFor="rec-confirm">Confirm password</label>
+              <input id="rec-confirm" className="auth-input" type={show ? "text" : "password"} autoComplete="new-password" placeholder="Repeat password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
+              {err && <div className="auth-err">{err}</div>}
+              <button className="handle" type="submit" disabled={busy} style={{ marginTop: 18 }}><span>{busy ? "Saving…" : "Save new password"}</span></button>
+              <button type="button" className="auth-link" onClick={onCancel} style={{ marginTop: 10 }}>Cancel</button>
+            </form>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
