@@ -10,7 +10,8 @@ import { supabase } from "@/lib/supabase";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 type Recipe = { id: string; name: string; style: string | null; ratio: string | null; target_spec: string | null; base_water_gal: number; extraction_hours: number };
-type Batch = { id: string; recipe_name: string | null; batch_gal: number; brew_date: string | null; ready_at: string | null; event_id: string | null; status: string; og: string | null; signal_score: number | null; target_spec: string | null; extraction_hours: number | null; brew_started_at: string | null };
+type Vessel = { id: string; name: string; capacity_gal: number; filter_type: string | null };
+type Batch = { id: string; recipe_name: string | null; batch_gal: number; brew_date: string | null; ready_at: string | null; event_id: string | null; status: string; og: string | null; signal_score: number | null; target_spec: string | null; extraction_hours: number | null; brew_started_at: string | null; vessel: string | null };
 type Ev = { id: string; title: string | null; day: string | null; day_label: string | null };
 
 const STATUS: { key: string; label: string }[] = [
@@ -30,6 +31,7 @@ const remain = (target: string | null, now: number) => {
 
 export default function BrewPlanner() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [vessels, setVessels] = useState<Vessel[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
   const [events, setEvents] = useState<Ev[]>([]);
   const [plan, setPlan] = useState<Recipe | null>(null);
@@ -46,12 +48,13 @@ export default function BrewPlanner() {
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    const [{ data: r }, { data: b }, { data: e }] = await Promise.all([
+    const [{ data: r }, { data: b }, { data: e }, { data: v }] = await Promise.all([
       supabase.from("brew_recipes").select("id, name, style, ratio, target_spec, base_water_gal, extraction_hours").is("archived_at", null).order("sort"),
-      supabase.from("brew_batches").select("id, recipe_name, batch_gal, brew_date, ready_at, event_id, status, og, signal_score, target_spec, extraction_hours, brew_started_at").not("status", "in", "(served,dumped)").order("ready_at", { nullsFirst: false }),
+      supabase.from("brew_batches").select("id, recipe_name, batch_gal, brew_date, ready_at, event_id, status, og, signal_score, target_spec, extraction_hours, brew_started_at, vessel").not("status", "in", "(served,dumped)").order("ready_at", { nullsFirst: false }),
       supabase.from("events").select("id, title, day, day_label").is("archived_at", null).order("day"),
+      supabase.from("brew_vessels").select("id, name, capacity_gal, filter_type").is("archived_at", null).order("sort"),
     ]);
-    setRecipes((r as Recipe[]) ?? []); setBatches((b as Batch[]) ?? []); setEvents((e as Ev[]) ?? []);
+    setRecipes((r as Recipe[]) ?? []); setBatches((b as Batch[]) ?? []); setEvents((e as Ev[]) ?? []); setVessels((v as Vessel[]) ?? []);
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -97,7 +100,7 @@ export default function BrewPlanner() {
                   </select>
                 </div>
                 <div className="brew-card-meta">
-                  Brew {fmtDate(b.brew_date)} → ready {fmtTs(b.ready_at)}{ev ? ` · for ${ev.title || ev.day_label}` : ""}{b.target_spec ? ` · ${b.target_spec}` : ""}
+                  {b.vessel ? `${b.vessel} · ` : ""}Brew {fmtDate(b.brew_date)} → ready {fmtTs(b.ready_at)}{ev ? ` · for ${ev.title || ev.day_label}` : ""}{b.target_spec ? ` · ${b.target_spec}` : ""}
                 </div>
 
                 {b.status === "planned" && (
@@ -141,7 +144,7 @@ export default function BrewPlanner() {
         ))}
       </div>
 
-      {plan && <BrewSheet recipe={plan} events={events} onClose={() => setPlan(null)} onDone={() => { setPlan(null); load(); }} />}
+      {plan && <BrewSheet recipe={plan} events={events} vessels={vessels} onClose={() => setPlan(null)} onDone={() => { setPlan(null); load(); }} />}
       {pack && <BottleLoadout batch={pack} onClose={() => setPack(null)} />}
     </div>
   );
@@ -221,8 +224,19 @@ function BottleLoadout({ batch, onClose }: { batch: Batch; onClose: () => void }
   );
 }
 
-function BrewSheet({ recipe, events, onClose, onDone }: { recipe: Recipe; events: Ev[]; onClose: () => void; onDone: () => void }) {
-  const [gal, setGal] = useState("4"); // the user's example batch size
+function BrewSheet({ recipe, events, vessels, onClose, onDone }: { recipe: Recipe; events: Ev[]; vessels: Vessel[]; onClose: () => void; onDone: () => void }) {
+  const [vesselId, setVesselId] = useState(vessels[0]?.id ?? "");
+  const [vesselCount, setVesselCount] = useState(1);
+  const vessel = vessels.find((v) => v.id === vesselId) || null;
+  // batch size follows the chosen vessel(s); still editable as an override
+  const [gal, setGal] = useState(() => vessels[0] ? String(vessels[0].capacity_gal) : "4");
+  const [override, setOverride] = useState(false);
+  const pickVessel = (id: string, count = vesselCount) => {
+    setVesselId(id); setVesselCount(count); setOverride(false);
+    const v = vessels.find((x) => x.id === id);
+    if (v) setGal(String(+(v.capacity_gal * count).toFixed(2)));
+  };
+  const vesselLabel = vessel ? `${vesselCount > 1 ? `${vesselCount}× ` : ""}${vessel.name} (${vessel.capacity_gal} gal${vesselCount > 1 ? ` ea` : ""})` : undefined;
   const [eventId, setEventId] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -232,7 +246,7 @@ function BrewSheet({ recipe, events, onClose, onDone }: { recipe: Recipe; events
   const token = async () => (await supabase!.auth.getSession()).data.session?.access_token;
   const call = async (payload: any) => {
     const t = await token();
-    const r = await fetch("/api/agents/brew", { method: "POST", headers: { "Content-Type": "application/json", ...(t ? { Authorization: `Bearer ${t}` } : {}) }, body: JSON.stringify({ recipe_id: recipe.id, batch_gal: Number(gal) || 1, event_id: eventId || undefined, ...payload }) });
+    const r = await fetch("/api/agents/brew", { method: "POST", headers: { "Content-Type": "application/json", ...(t ? { Authorization: `Bearer ${t}` } : {}) }, body: JSON.stringify({ recipe_id: recipe.id, batch_gal: Number(gal) || 1, event_id: eventId || undefined, vessel: vesselLabel, ...payload }) });
     return r.json();
   };
   const planIt = async () => {
@@ -266,9 +280,24 @@ function BrewSheet({ recipe, events, onClose, onDone }: { recipe: Recipe; events
             </div>
           ) : !res ? (
             <>
-              <div className="dp-hint">Set the batch size in gallons of water — the recipe scales exactly and holds {recipe.target_spec || "the spec"}. Tie it to an event and it back-schedules the brew so it&apos;s ready in time.</div>
+              <div className="dp-hint">Which vessel are you brewing in? The batch sizes to it and the recipe scales exactly to hold {recipe.target_spec || "the spec"}. Tie it to an event and it back-schedules so it&apos;s ready in time.</div>
+              {vessels.length > 0 && (
+                <>
+                  <div className="ts-chips" style={{ marginTop: 12 }}>
+                    {vessels.map((v) => (
+                      <button key={v.id} type="button" className={`ts-chip${vesselId === v.id && !override ? " on" : ""}`} onClick={() => pickVessel(v.id)}>🫙 {v.name} · {v.capacity_gal} gal</button>
+                    ))}
+                  </div>
+                  <div className="dp-daysctl" style={{ padding: "8px 0 0" }}>
+                    <span>How many</span>
+                    <button type="button" className="dp-step" onClick={() => pickVessel(vesselId, Math.max(1, vesselCount - 1))} aria-label="Fewer">−</button>
+                    <b>{vesselCount}</b><span>{vessel ? vessel.name : "vessel"}{vesselCount === 1 ? "" : "s"}</span>
+                    <button type="button" className="dp-step" onClick={() => pickVessel(vesselId, vesselCount + 1)} aria-label="More">+</button>
+                  </div>
+                </>
+              )}
               <div className="prod-grid" style={{ marginTop: 12 }}>
-                <label className="prod-f"><span>Batch size (gal of water)</span><input type="number" min="0.25" step="0.25" value={gal} onChange={(e) => setGal(e.target.value)} autoFocus /></label>
+                <label className="prod-f"><span>Batch size (gal of water){vessel && !override ? ` · ${vesselLabel}` : ""}</span><input type="number" min="0.25" step="0.25" value={gal} onChange={(e) => { setGal(e.target.value); setOverride(true); }} /></label>
                 <label className="prod-f"><span>For event (optional)</span>
                   <select value={eventId} onChange={(e) => setEventId(e.target.value)}>
                     <option value="">Not tied to an event</option>
