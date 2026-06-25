@@ -33,10 +33,25 @@ export default function EventPrepAI({ ownerType, ownerId, title, onClose, onAdde
     catch { return { ok: false, error: r.ok ? "Got an unexpected response — try again." : `The prep agent failed (${r.status}) — it may be timing out, or the API key needs attention.` }; }
   };
 
+  // Poll the background job until the grounded build finishes (or fails / times out ~2 min).
+  const waitForJob = async (jobId: string): Promise<any> => {
+    const deadline = Date.now() + 120000;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 2500));
+      const { data } = await supabase!.from("agent_jobs").select("status, result, error").eq("id", jobId).maybeSingle();
+      if (!data) continue;
+      if (data.status === "done") return { ok: true, ...(data.result as any) };
+      if (data.status === "error") return { ok: false, error: (data as any).error || "The prep build failed." };
+    }
+    return { ok: false, error: "Still building — give it a moment and try again." };
+  };
+
   const generate = async () => {
     if (!supabase || busy) return;
     setBusy(true); setErr(null);
-    const j = await post({ notes }).catch((e) => ({ ok: false, error: String(e?.message ?? e) }));
+    let j = await post({ notes }).catch((e) => ({ ok: false, error: String(e?.message ?? e) }));
+    // background-job flow: route returns a job id, then we poll for the result
+    if (j.ok && j.status === "pending" && j.job_id) j = await waitForJob(j.job_id);
     if (!j.ok) setErr(j.error || "Couldn't build the list."); else { setSummary(j.summary || ""); setTasks(j.tasks ?? []); }
     setBusy(false);
   };

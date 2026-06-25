@@ -1,11 +1,40 @@
-import { NextResponse } from "next/server";
-import { staffFromRequest } from "@/lib/apiAuth";
+import { NextResponse, after } from "next/server";
+import { staffFromRequest, userFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { academyKnowledge } from "@/lib/operatorKb";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+
+// Run the (slow, grounded) prep-list build in the background and write the result to the job row, so
+// the client polls instead of holding a long request open. Never throws — failures land as error.
+async function runPrep(jobId: string, fmt: any) {
+  if (!supabaseAdmin) return;
+  const touch = (patch: any) => supabaseAdmin!.from("agent_jobs").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", jobId);
+  try {
+    await touch({ status: "running" });
+    const r = await callClaude({
+      model: MODELS.sonnet, maxTokens: 1800, temperature: 0.2,
+      system:
+        "You are the prep lead for GT3 Performance Bar, a mobile beverage truck. Build a TAILORED prep / to-do list for ONE specific event or truck stop, grounded ONLY in the data provided: its config, the run of show (events), current INVENTORY, GEAR, the COMPLIANCE rules, GT3's SOPs below, and the crew's notes. " +
+        "Rules: flag any poured menu item whose stock is low / below reorder point / critical as a reorder task (critical if it would run out). Include the compliance items that apply. Cover setup, service, teardown and travel per the rig/run of show. Honor the crew's notes. Do NOT repeat anything already on the list. Keep labels short and imperative; give each a one-line 'why' that points to the data. Never invent health/nutrition claims or facts not present. Always answer with the prep_list tool.\n\n=== GT3 SOPs / KNOWLEDGE ===\n" +
+        academyKnowledge().slice(0, 9000),
+      messages: [{ role: "user", content: `Build the prep list.\n\n${JSON.stringify(fmt)}` }],
+      tools: [TOOL],
+      tool_choice: { type: "tool", name: "prep_list" },
+    });
+    const out: any = r.toolUses.find((t) => t.name === "prep_list")?.input ?? null;
+    if (!out) { await touch({ status: "error", error: "The prep agent returned nothing — try again." }); return; }
+    const tasks = (out.tasks ?? []).filter((t: any) => t?.label?.trim()).map((t: any) => ({
+      label: String(t.label).slice(0, 300), section: SECTIONS.includes(t.section) ? t.section : "Prep",
+      critical: !!t.critical, why: t.why ? String(t.why).slice(0, 200) : "",
+    }));
+    await touch({ status: "done", result: { summary: out.summary ?? "", tasks } });
+  } catch (err: any) {
+    await touch({ status: "error", error: String(err?.message ?? err).slice(0, 300) });
+  }
+}
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // PREP AI — talk to it about a specific EVENT or on-the-ground TRUCK STOP and it builds a TAILORED
@@ -116,27 +145,13 @@ export async function POST(req: Request) {
     crew_notes: notes,
   };
 
-  let out: { summary: string; tasks: any[] } | null = null;
-  try {
-    const r = await callClaude({
-      model: MODELS.sonnet, maxTokens: 1800, temperature: 0.2,
-      system:
-        "You are the prep lead for GT3 Performance Bar, a mobile beverage truck. Build a TAILORED prep / to-do list for ONE specific event or truck stop, grounded ONLY in the data provided: its config, the run of show (events), current INVENTORY, GEAR, the COMPLIANCE rules, GT3's SOPs below, and the crew's notes. " +
-        "Rules: flag any poured menu item whose stock is low / below reorder point / critical as a reorder task (critical if it would run out). Include the compliance items that apply. Cover setup, service, teardown and travel per the rig/run of show. Honor the crew's notes. Do NOT repeat anything already on the list. Keep labels short and imperative; give each a one-line 'why' that points to the data. Never invent health/nutrition claims or facts not present. Always answer with the prep_list tool.\n\n=== GT3 SOPs / KNOWLEDGE ===\n" +
-        academyKnowledge().slice(0, 9000),
-      messages: [{ role: "user", content: `Build the prep list.\n\n${JSON.stringify(fmt)}` }],
-      tools: [TOOL],
-      tool_choice: { type: "tool", name: "prep_list" },
-    });
-    out = r.toolUses.find((t) => t.name === "prep_list")?.input ?? null;
-  } catch (err: any) {
-    return NextResponse.json({ ok: false, error: String(err?.message ?? err).slice(0, 300) }, { status: 502 });
-  }
-  if (!out) return NextResponse.json({ ok: false, error: "no list" }, { status: 502 });
-
-  const tasks = (out.tasks ?? []).filter((t) => t?.label?.trim()).map((t) => ({
-    label: String(t.label).slice(0, 300), section: SECTIONS.includes(t.section) ? t.section : "Prep",
-    critical: !!t.critical, why: t.why ? String(t.why).slice(0, 200) : "",
-  }));
-  return NextResponse.json({ ok: true, summary: out.summary ?? "", tasks });
+  // Kick the build into the background (after the response flushes) and hand back a job id to poll —
+  // the grounded build can take ~30s and shouldn't hold the phone's request open.
+  const me = await userFromRequest(req).catch(() => null);
+  const { data: job, error: jErr } = await supabaseAdmin.from("agent_jobs")
+    .insert({ kind: "eventprep", status: "pending", input: { owner: ownerCol, id: ownerId }, requested_by: me?.id ?? null })
+    .select("id").single();
+  if (jErr || !job) return NextResponse.json({ ok: false, error: "couldn't start the prep build" }, { status: 502 });
+  after(() => runPrep(job.id, fmt));
+  return NextResponse.json({ ok: true, status: "pending", job_id: job.id });
 }
