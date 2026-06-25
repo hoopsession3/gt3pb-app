@@ -1067,6 +1067,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   const [prepAIOpen, setPrepAIOpen] = useState(false);
   const [troubleshootOpen, setTroubleshootOpen] = useState(false);
   const [planOpen, setPlanOpen] = useState(false); // stop run-of-show / when-to-leave planner
+  const [loadoutOpen, setLoadoutOpen] = useState(false); // load-out & tow, scoped to this owner
   const [stopMeta, setStopMeta] = useState<{ day: string | null; plan_days: number }>({ day: null, plan_days: 1 });
   const [onHand, setOnHand] = useState<{ item: string; bal: number }[]>([]); // carried-in stock (ledger balance)
 
@@ -1358,6 +1359,14 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
           onPlanDays={(n) => { setStopMeta((m) => ({ ...m, plan_days: n })); supabase?.from("stops").update({ plan_days: n }).eq("id", target.id).then(() => {}); }}
           onClose={() => setPlanOpen(false)} />
       )}
+
+      {/* Load-out & tow, scoped to this event/stop — part of the one hub, not a separate screen. */}
+      {isAdmin && (
+        <div className="adm-prep-actions" style={{ marginTop: 10 }}>
+          <button className="adm-regen" onClick={() => setLoadoutOpen((o) => !o)}>🚚 Load-out &amp; tow {loadoutOpen ? "▾" : "▸"}</button>
+        </div>
+      )}
+      {loadoutOpen && isAdmin && <TrailerLoadout lockTo={{ kind: target.kind, id: target.id }} />}
 
       {/* How the crew shows up — dress code + call details. Leadership edits; assigned crew read it. */}
       <DayBrief ownerCol={ownerCol as "event_id" | "stop_id"} ownerId={target.id} isAdmin={isAdmin} />

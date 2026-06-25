@@ -11,7 +11,8 @@ const ZONE_LABEL: Record<string, string> = { nose: "Nose (front)", axle: "Over a
 
 // Load-Out & Tow Plan — reads the trailer profile (0037) + the live event's pack
 // items, then shows weight distribution, tow-rating checks, and a tow/tire checklist.
-export default function TrailerLoadout() {
+// `lockTo` embeds the load-out inside an event/stop's prep hub, scoped to that owner (no picker).
+export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | "stop"; id: string } } = {}) {
   const { profile } = useAuth();
   const { toast } = useApp();
   const isOwner = roleOf(profile) === "owner";
@@ -26,6 +27,8 @@ export default function TrailerLoadout() {
     if (!supabase) return;
     const { data: t } = await supabase.from("trailer_profile").select("*").eq("id", 1).maybeSingle();
     setTp((t as TrailerProfile) ?? null);
+    // Embedded in a hub → scope to that one owner, no picker.
+    if (lockTo) { setTargets([]); setSel(`${lockTo.kind === "stop" ? "s" : "e"}:${lockTo.id}`); return; }
     // Real events + truck stops (not archived test data); follow the live event, else the next
     // upcoming across both, else the first thing on the books — the loadout works for either owner.
     const today = new Date().toISOString().slice(0, 10);
@@ -45,7 +48,7 @@ export default function TrailerLoadout() {
       const up = events.find((e) => e.day && e.day >= today);
       return live ? `e:${live.id}` : up ? `e:${up.id}` : events[0] ? `e:${events[0].id}` : stops[0] ? `s:${stops[0].id}` : null;
     });
-  }, []);
+  }, [lockTo?.kind, lockTo?.id]);
 
   // Pack labels for the SELECTED event/stop drive the loadout weights.
   useEffect(() => {
@@ -89,7 +92,7 @@ export default function TrailerLoadout() {
   return (
     <div className="adm-sec tl">
       <div className="sec">Load-out &amp; tow plan
-        {targets.length > 0 && (
+        {!lockTo && targets.length > 0 && (
           <select className="tl-evsel" value={sel ?? ""} onChange={(e) => setSel(e.target.value || null)} aria-label="Event or stop for this load-out">
             {targets.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
           </select>
