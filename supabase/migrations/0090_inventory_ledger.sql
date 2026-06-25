@@ -1,4 +1,4 @@
--- 0089 — inventory ledger (append-only). The clean "On hand" UI is backed by a real ledger: every
+-- 0090 — inventory ledger (append-only). The clean "On hand" UI is backed by a real ledger: every
 -- confirm writes a signed delta entry, so the running balance per item is always correct AND the full
 -- movement history is preserved for reports (plan vs actual, per-event consumption, leftovers,
 -- carryover). The UI stays simple; the detail lives here.

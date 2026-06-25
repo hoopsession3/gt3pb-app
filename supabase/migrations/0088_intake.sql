@@ -1,4 +1,4 @@
--- 0087 — smart intake: a private storage bucket for dropped files + a documents table.
+-- 0088 — smart intake: a private storage bucket for dropped files + a documents table.
 -- Drop any file (photo of gear, a permit PDF, a receipt, a manual) and the intake agent reads it,
 -- decides what it is, and files it: gear → assets, a consumable → inventory, paperwork → documents.
 
