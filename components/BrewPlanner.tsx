@@ -37,6 +37,7 @@ export default function BrewPlanner() {
   const [plan, setPlan] = useState<Recipe | null>(null);
   const [pack, setPack] = useState<Batch | null>(null);
   const [logBatch, setLogBatch] = useState<Batch | null>(null);
+  const [starting, setStarting] = useState<Batch | null>(null);
   const [view, setView] = useState<"schedule" | "log">("schedule");
   const [now, setNow] = useState(() => Date.now());
 
@@ -71,15 +72,18 @@ export default function BrewPlanner() {
     setBatches((p) => p.map((x) => x.id === id ? { ...x, signal_score: score } : x));
     await supabase.from("brew_batches").update({ signal_score: score }).eq("id", id);
   };
-  // Start the brew NOW — stamp the start, set ready_at = now + extraction_hours, reset alert flags.
-  const startBrew = async (b: Batch) => {
+  // Start the brew NOW — stamp the start, set ready_at = now + extraction_hours, capture the coffee
+  // lot + brewer for traceability, reset alert flags.
+  const startBrew = async (b: Batch, extras?: { coffee_lot?: string; brewer?: string }) => {
     if (!supabase) return;
     const hrs = Number(b.extraction_hours) || 20;
     const startIso = new Date().toISOString();
     const readyIso = new Date(Date.now() + hrs * 3600000).toISOString();
-    setBatches((p) => p.map((x) => x.id === b.id ? { ...x, status: "brewing", brew_started_at: startIso, ready_at: readyIso } : x));
+    const lot = extras?.coffee_lot?.trim() || b.coffee_lot || null;
+    const brewer = extras?.brewer?.trim() || b.brewer || null;
+    setBatches((p) => p.map((x) => x.id === b.id ? { ...x, status: "brewing", brew_started_at: startIso, ready_at: readyIso, coffee_lot: lot, brewer } : x));
     setNow(Date.now());
-    await supabase.from("brew_batches").update({ status: "brewing", brew_started_at: startIso, ready_at: readyIso, alerted_soon: false, alerted_ready: false }).eq("id", b.id);
+    await supabase.from("brew_batches").update({ status: "brewing", brew_started_at: startIso, ready_at: readyIso, coffee_lot: lot, brewer, alerted_soon: false, alerted_ready: false }).eq("id", b.id);
   };
 
   // schedule view = what's upcoming / in progress; the log view = every batch ever, the permanent record
@@ -130,7 +134,7 @@ export default function BrewPlanner() {
                 </div>
 
                 {b.status === "planned" && (
-                  <button type="button" className="brew-start" onClick={() => startBrew(b)}>▶ Start brew ({Number(b.extraction_hours) || 20}h)</button>
+                  <button type="button" className="brew-start" onClick={() => setStarting(b)}>▶ Start brew ({Number(b.extraction_hours) || 20}h)</button>
                 )}
                 {b.status === "brewing" && b.ready_at && (() => {
                   const ms = new Date(b.ready_at).getTime() - now;
@@ -174,6 +178,32 @@ export default function BrewPlanner() {
       {plan && <BrewSheet recipe={plan} events={events} vessels={vessels} onClose={() => setPlan(null)} onDone={() => { setPlan(null); load(); }} />}
       {pack && <BottleLoadout batch={pack} onClose={() => setPack(null)} />}
       {logBatch && <BatchLog batch={logBatch} events={events} onClose={() => setLogBatch(null)} onSaved={() => { setLogBatch(null); load(); }} />}
+      {starting && <StartBrewSheet batch={starting} onClose={() => setStarting(null)} onStart={async (extras) => { await startBrew(starting, extras); setStarting(null); }} />}
+    </div>
+  );
+}
+
+// Start-brew sheet — captures the coffee lot + brewer at the moment of brewing (traceability), then
+// kicks off the countdown. Lot is the field a recall would hinge on, so prompt for it up front.
+function StartBrewSheet({ batch, onClose, onStart }: { batch: Batch; onClose: () => void; onStart: (extras: { coffee_lot: string; brewer: string }) => void | Promise<void> }) {
+  const [lot, setLot] = useState(batch.coffee_lot ?? "");
+  const [brewer, setBrewer] = useState(batch.brewer ?? "");
+  const [busy, setBusy] = useState(false);
+  const hrs = Number(batch.extraction_hours) || 20;
+  return (
+    <div className="qd-scrim" onClick={onClose}>
+      <div className="qd-sheet dp-form" onClick={(e) => e.stopPropagation()}>
+        <div className="qd-tabs"><b style={{ fontFamily: "Inter", fontSize: 15 }}>Start brew · {batch.recipe_name}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>
+        <div className="qd-body">
+          <div className="brew-spec">{batch.batch_gal} gal{batch.vessel ? ` · ${batch.vessel}` : ""} · {hrs}h cold extraction → ready ~{new Date(Date.now() + hrs * 3600000).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}</div>
+          <label className="prod-f"><span>Coffee lot — origin · roast date (for traceability)</span><input value={lot} onChange={(e) => setLot(e.target.value)} placeholder="e.g. Colombia single-origin · roasted 6/20" autoFocus /></label>
+          <label className="prod-f" style={{ marginTop: 8 }}><span>Brewer</span><input value={brewer} onChange={(e) => setBrewer(e.target.value)} placeholder="Ryan / Kayla" /></label>
+          <div className="prod-actions" style={{ marginTop: 14 }}>
+            <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
+            <button type="button" className="note-save" onClick={async () => { setBusy(true); await onStart({ coffee_lot: lot, brewer }); }} disabled={busy}>{busy ? "Starting…" : `▶ Start the ${hrs}h brew`}</button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
