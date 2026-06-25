@@ -45,7 +45,7 @@ export default function CompanyCalendar() {
   const todayKey = key(now);
   const [view, setView] = useState<View>(() => { if (typeof window !== "undefined") { const v = localStorage.getItem(VIEW_KEY) as View; if (v) return v; } return "month"; });
   const setV = (v: View) => { setView(v); if (typeof window !== "undefined") localStorage.setItem(VIEW_KEY, v); };
-  const [cursor, setCursor] = useState(() => new Date(now.getFullYear(), now.getMonth(), 1)); // always open to today's month
+  const [cursor, setCursor] = useState(() => new Date(now.getFullYear(), now.getMonth(), now.getDate())); // always open on today (right week AND month)
   const setCur = (d: Date) => setCursor(d);
   const [events, setEvents] = useState<Ev[]>([]);
   const [content, setContent] = useState<Content[]>([]);

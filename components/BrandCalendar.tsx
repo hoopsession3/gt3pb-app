@@ -25,7 +25,7 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
   const { setSection } = useOperatorSection();
   const goToCompany = () => setSection("plan");
   const now = new Date();
-  const [cursor, setCursor] = useState(() => new Date(now.getFullYear(), now.getMonth(), 1)); // always open to today's month
+  const [cursor, setCursor] = useState(() => new Date(now.getFullYear(), now.getMonth(), now.getDate())); // always open on today
   const setMonth = (d: Date) => setCursor(d);
   const [content, setContent] = useState<CItem[]>([]);
   const [events, setEvents] = useState<EvItem[]>([]);
