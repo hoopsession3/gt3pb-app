@@ -2176,6 +2176,18 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .dv-go{background:none;border:none;cursor:pointer;padding:0 2px}
 .dv-row{align-items:center}
 
+/* ── Day planner: "when to leave" summary ── */
+.dp-leave-btn{width:100%;background:rgba(111,168,220,.12);border:1px dashed rgba(111,168,220,.55);border-radius:11px;padding:11px;margin-bottom:11px;color:#9ec5ea;font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.dp-leave-btn:disabled{opacity:.6}
+.dp-leave{background:rgba(111,168,220,.12);border:1px solid rgba(111,168,220,.5);border-radius:11px;padding:11px 13px;margin-bottom:11px}
+.dp-leave-h{display:flex;align-items:center;gap:8px;font-family:'Inter';font-size:13px;color:var(--cream-m)}
+.dp-leave-h b{font-family:'Inter';font-weight:800;font-size:18px;color:#9ec5ea}
+.dp-leave-redo{margin-left:auto;background:none;border:none;color:var(--cream-m);font-size:15px;cursor:pointer}
+.dp-leave-sum{font-family:'Inter';font-size:13px;color:var(--cream);line-height:1.45;margin-top:5px}
+.dp-leave-risks{display:flex;flex-direction:column;gap:2px;margin-top:6px}
+.dp-leave-risks span{font-family:'Inter';font-size:12px;color:var(--warn)}
+.app.crew-day .dp-leave,.app.crew-day .dp-leave-btn{background:rgba(111,168,220,.1)}
+
 /* ── Brew planner (recipes + scheduled batches) ── */
 .brew-sched-h{font-family:'Inter';font-weight:800;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--gold);margin:4px 0 8px}
 .brew-list{display:flex;flex-direction:column;gap:8px}

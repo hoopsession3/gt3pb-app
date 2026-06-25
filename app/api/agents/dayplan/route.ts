@@ -53,6 +53,47 @@ export async function POST(req: Request) {
   const notes: string = String(body.notes ?? "").slice(0, 2000);
   if (!eventId) return NextResponse.json({ ok: false, error: "event_id required" }, { status: 400 });
 
+  // ── DEPARTURE SUMMARY mode — read the day's EXISTING slots and say when to leave ──
+  if (body.summarize) {
+    const { data: ev2 } = await supabaseAdmin.from("events").select("title, day_label, location_text").eq("id", eventId).maybeSingle();
+    const { data: slots } = await supabaseAdmin.from("event_schedule_items")
+      .select("start_time, end_time, title, kind, location, address").eq("event_id", eventId).eq("day_index", dayIndex).order("sort");
+    const list = (slots ?? []).filter((s: any) => s.start_time || s.title);
+    if (list.length === 0) return NextResponse.json({ ok: true, leave_by: "", summary: "", risks: [] });
+    const DEP_TOOL: ToolDef = {
+      name: "departure_summary",
+      description: "From a day's time blocks, say when the crew needs to leave / start, anchored on the first fixed commitment.",
+      input_schema: {
+        type: "object",
+        properties: {
+          leave_by: { type: "string", description: "The time to leave or start the day, e.g. '8:15a'. Echo the earliest travel/leave block's time if it has one; otherwise reason back from the first hard commitment (load-in / doors / service) with a realistic buffer." },
+          summary: { type: "string", description: "1–2 plain sentences: when to leave and why, tied to the first fixed commitment and the drive." },
+          risks: { type: "array", items: { type: "string" }, description: "Tight transitions or missing info (e.g. 'no drive time between leave and load-in — confirm it')." },
+        },
+        required: ["leave_by", "summary"],
+      },
+    };
+    try {
+      const r = await callClaude({
+        model: MODELS.sonnet, maxTokens: 500, temperature: 0.2,
+        system: "You are the logistics scheduler for GT3 Performance Bar (a small crew, Ryan & Kayla). Given a day's existing time blocks in order, produce a crisp 'when to leave' summary. Anchor on the earliest travel/'leave' block if it has a time; otherwise reason backward from the first hard commitment (load-in, doors, service) allowing a realistic buffer for the drive and setup. Be concrete and brief. If drive time isn't given, do NOT invent a number — tell them to confirm it. Always answer with the departure_summary tool.",
+        messages: [{ role: "user", content: `Day ${dayIndex}. Event: ${JSON.stringify(ev2 ?? {})}\n\nTime blocks (in order):\n${JSON.stringify(list)}` }],
+        tools: [DEP_TOOL],
+        tool_choice: { type: "tool", name: "departure_summary" },
+      });
+      const o = r.toolUses.find((t) => t.name === "departure_summary")?.input ?? null;
+      if (!o) return NextResponse.json({ ok: true, leave_by: "", summary: "", risks: [] });
+      return NextResponse.json({
+        ok: true,
+        leave_by: String(o.leave_by ?? "").slice(0, 40),
+        summary: String(o.summary ?? "").slice(0, 400),
+        risks: Array.isArray(o.risks) ? o.risks.map((s: any) => String(s).slice(0, 160)).slice(0, 4) : [],
+      });
+    } catch (err: any) {
+      return NextResponse.json({ ok: false, error: String(err?.message ?? err).slice(0, 300) }, { status: 502 });
+    }
+  }
+
   const { data: e } = await supabaseAdmin.from("events")
     .select("title, day, day_label, start_time, end_time, location_text, state, county, rig, expected_attendance, staff_count, plan_days")
     .eq("id", eventId).maybeSingle();

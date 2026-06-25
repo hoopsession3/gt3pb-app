@@ -66,6 +66,8 @@ export default function EventDayPlanner({ eventId, title, eventDay, planDays, in
   const [items, setItems] = useState<Item[]>([]);
   const [editing, setEditing] = useState<Item | "new" | null>(null);
   const [drafting, setDrafting] = useState(false);
+  const [departure, setDeparture] = useState<{ leave_by: string; summary: string; risks: string[] } | null>(null);
+  const [depBusy, setDepBusy] = useState(false);
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -108,6 +110,21 @@ export default function EventDayPlanner({ eventId, title, eventDay, planDays, in
   const toggle = async (it: Item) => { if (!supabase) return; setItems((p) => p.map((x) => x.id === it.id ? { ...x, done: !x.done } : x)); await supabase.from("event_schedule_items").update({ done: !it.done, done_at: !it.done ? new Date().toISOString() : null }).eq("id", it.id); };
   const moveDay = async (it: Item, di: number) => { if (!supabase) return; await supabase.from("event_schedule_items").update({ day_index: di, day_date: dayDate(di) }).eq("id", it.id); load(); };
 
+  // "When to leave" — the AI scheduler reads THIS day's slots and says when to leave, anchored on
+  // the first fixed commitment. Cleared whenever you switch days or the blocks change.
+  useEffect(() => { setDeparture(null); }, [active]);
+  const genDeparture = async () => {
+    if (!supabase || depBusy || dayItems.length === 0) return;
+    setDepBusy(true);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const r = await fetch("/api/agents/dayplan", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ event_id: eventId, day_index: active, summarize: true }) });
+      const j = await r.json();
+      if (j.ok) setDeparture({ leave_by: j.leave_by || "", summary: j.summary || "", risks: j.risks || [] });
+    } catch { /* leave banner empty on failure */ }
+    setDepBusy(false);
+  };
+
   const dd = dayDate(active);
   const doneCount = dayItems.filter((i) => i.done).length;
 
@@ -143,6 +160,18 @@ export default function EventDayPlanner({ eventId, title, eventDay, planDays, in
 
         <div className="dp-body">
           {dd && <div className="dp-daydate">{fmtDate(dd)}{dayItems.length > 0 && <span className="dp-prog">{doneCount}/{dayItems.length} done</span>}</div>}
+
+          {dayItems.length > 0 && (
+            departure ? (
+              <div className="dp-leave">
+                <div className="dp-leave-h"><span>🚗 Leave by</span><b>{departure.leave_by || "—"}</b><button type="button" className="dp-leave-redo" onClick={genDeparture} disabled={depBusy} aria-label="Recompute">↻</button></div>
+                {departure.summary && <div className="dp-leave-sum">{departure.summary}</div>}
+                {departure.risks.length > 0 && <div className="dp-leave-risks">{departure.risks.map((r, i) => <span key={i}>⚠ {r}</span>)}</div>}
+              </div>
+            ) : (
+              <button type="button" className="dp-leave-btn" onClick={genDeparture} disabled={depBusy}>{depBusy ? "Working out when to leave…" : "⏱ When do we leave? — summarize from the schedule"}</button>
+            )
+          )}
 
           <div className="dp-timeline">
             {dayItems.length === 0 && <div className="dp-empty">No blocks yet. Use a quick-add below, build one by hand, or let AI draft the day.</div>}
