@@ -2433,6 +2433,12 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .app:has(.isheet-scrim) .nav{transform:translateY(120%);transition:transform .15s ease}
 .qd-scrim{z-index:120}
 .qd-fab{z-index:110}
+/* The floating Ask-GT3 FAB lives at the app root; an open sheet's scrim is nested deep in the
+   scrolling body (a lower stacking context) so it can't paint over the FAB no matter its z-index.
+   Hide the FAB outright while any sheet is open — every sheet has its own ✕ and tap-to-dismiss. */
+.app:has(.qd-scrim) .qd-fab,
+.app:has(.prep-scrim) .qd-fab,
+.app:has(.isheet-scrim) .qd-fab{opacity:0;pointer-events:none}
 
 /* Trailer load-out: event picker in the header */
 .tl-evsel{margin-left:8px;background:rgba(0,0,0,.22);border:1px solid var(--line2);border-radius:8px;color:var(--cream);font-family:'Inter';font-weight:600;font-size:13px;padding:4px 8px;-webkit-appearance:none;appearance:none;max-width:60%}

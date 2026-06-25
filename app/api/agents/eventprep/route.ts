@@ -3,6 +3,7 @@ import { staffFromRequest, userFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { academyKnowledge } from "@/lib/operatorKb";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -17,8 +18,10 @@ async function runPrep(jobId: string, fmt: any) {
     const r = await callClaude({
       model: MODELS.sonnet, maxTokens: 1800, temperature: 0.2,
       system:
-        "You are the prep lead for GT3 Performance Bar, a mobile beverage truck. Build a TAILORED prep / to-do list for ONE specific event or truck stop, grounded ONLY in the data provided: its config, the run of show (events), current INVENTORY, GEAR, the COMPLIANCE rules, GT3's SOPs below, and the crew's notes. " +
-        "Rules: flag any poured menu item whose stock is low / below reorder point / critical as a reorder task (critical if it would run out). Include the compliance items that apply. Cover setup, service, teardown and travel per the rig/run of show. Honor the crew's notes. Do NOT repeat anything already on the list. Keep labels short and imperative; give each a one-line 'why' that points to the data. Never invent health/nutrition claims or facts not present. Always answer with the prep_list tool.\n\n=== GT3 SOPs / KNOWLEDGE ===\n" +
+        "You are the prep lead for GT3 Performance Bar, a mobile beverage truck. Build a COMPLETE, ready-to-work prep / to-do list for ONE specific event or truck stop. This is the crew's actual checklist for the day — it must stand on its own, so ALWAYS produce a full list (typically 10–18 items) that covers the whole operation end to end, even when little is known about the stop. Use the GT3 SOPs below and standard mobile-beverage-bar operations as your backbone, then TAILOR it with whatever specifics are provided: the event/stop config, the run of show, current INVENTORY, GEAR, the COMPLIANCE rules, and the crew's notes. " +
+        "Always include, in order: (1) a TIMELINE of time-blocked items from leave-home through teardown/depart — e.g. 'Leave by 8:30a — ~90 min drive + buffer', 'On site & set up by 10:30a', 'Service 11a–3p', 'Teardown & load out by 3:30p' (estimate sensible times from the start time / run of show; if no times are given, still lay out the sequence and say which times to confirm); then (2) Pack, (3) Stock/reorder, (4) Setup, (5) Service, (6) Compliance, (7) Travel, (8) Teardown. " +
+        "Flag any poured menu item whose stock is low / below reorder point / critical as a reorder task (critical if it would run out). Include the compliance items that apply. Honor the crew's notes — if they raise a concern, address it directly. " +
+        "The 'already_on_the_list' field is ONLY so you avoid proposing an EXACT duplicate of something already there — it is NOT a signal that the list is done. A short or empty existing list means you must build the whole thing. Keep labels short and imperative; give each a one-line 'why' that points to the data or SOP. Never invent health/nutrition claims or facts not present. Always answer with the prep_list tool.\n\n=== GT3 SOPs / KNOWLEDGE ===\n" +
         academyKnowledge().slice(0, 9000),
       messages: [{ role: "user", content: `Build the prep list.\n\n${JSON.stringify(fmt)}` }],
       tools: [TOOL],
@@ -36,13 +39,12 @@ async function runPrep(jobId: string, fmt: any) {
   }
 }
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // PREP AI — talk to it about a specific EVENT or on-the-ground TRUCK STOP and it builds a TAILORED
 // prep / to-do list, grounded in that thing's config (+ run of show for events), current inventory
 // (flags low/critical as reorder tasks), gear, jurisdiction compliance, and GT3's SOPs. Two phases
 // (preview → commit), both staff-gated. Proposes event_tasks for review; nothing is written until commit.
 
-const SECTIONS = ["Pack", "Stock / reorder", "Setup", "Service", "Compliance", "Travel", "Teardown", "Prep"];
+const SECTIONS = ["Timeline", "Pack", "Stock / reorder", "Setup", "Service", "Compliance", "Travel", "Teardown", "Prep"];
 
 const TOOL: ToolDef = {
   name: "prep_list",
@@ -50,14 +52,14 @@ const TOOL: ToolDef = {
   input_schema: {
     type: "object",
     properties: {
-      summary: { type: "string", description: "One line: the shape of this prep." },
+      summary: { type: "string", description: "One line: the shape of this prep day, including the rough timeline." },
       tasks: {
         type: "array",
-        description: "Concrete, actionable prep items for THIS event/stop. Ground every item in the data — don't pad.",
+        description: "The COMPLETE prep checklist for THIS event/stop — typically 10–18 items, start to finish. Lead with the time-blocked Timeline items, then Pack/Stock/Setup/Service/Compliance/Travel/Teardown. Tailor to the data but always produce a full working list; never return an empty or near-empty list.",
         items: {
           type: "object",
           properties: {
-            label: { type: "string", description: "Short imperative, e.g. 'Reorder 16oz bottles — below reorder point' or 'Load kegerator + 3 kegs'." },
+            label: { type: "string", description: "Short imperative. Timeline items carry a time, e.g. 'Leave by 8:30a — ~90 min drive + buffer' or 'Service 11a–3p'. Others e.g. 'Reorder 16oz bottles — below reorder point' or 'Load kegerator + 3 kegs'." },
             section: { type: "string", enum: SECTIONS },
             critical: { type: "boolean", description: "true if it blocks service (out-of-stock poured item, a required permit, water with none on site)." },
             why: { type: "string", description: "One short line of grounding (e.g. 'nitro is on the menu and stock is below reorder point')." },

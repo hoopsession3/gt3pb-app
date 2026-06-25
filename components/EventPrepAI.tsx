@@ -9,7 +9,7 @@ import { supabase } from "@/lib/supabase";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 const SECTION_COLOR: Record<string, string> = {
-  Pack: "#6fa8dc", "Stock / reorder": "#e0892b", Setup: "#8b5cf6", Service: "#2bb3a3",
+  Timeline: "#d4a24e", Pack: "#6fa8dc", "Stock / reorder": "#e0892b", Setup: "#8b5cf6", Service: "#2bb3a3",
   Compliance: "#c4453c", Travel: "#6fa8dc", Teardown: "#a1887f", Prep: "#9a8f7c",
 };
 
