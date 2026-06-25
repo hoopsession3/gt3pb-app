@@ -1022,6 +1022,14 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       }
     }
   };
+  // Confirm the actual count for a planned item — what's confirmed moves into "On hand". Setting an
+  // actual also checks the line off (it's done once you've confirmed what you really have).
+  const confirmQty = async (t: EventTask, v: string) => {
+    if (!supabase) return;
+    const n = v.trim() === "" ? null : Number(v);
+    setTasks((p) => p.map((x) => (x.id === t.id ? { ...x, actual_qty: n, done: n != null } : x)));
+    await supabase.from("event_tasks").update({ actual_qty: n, done: n != null, done_at: n != null ? new Date().toISOString() : null, done_by: n != null ? user?.id ?? null : null }).eq("id", t.id);
+  };
   const addTask = async () => {
     if (!supabase || !newTask.trim()) return;
     const { error } = await supabase.from("event_tasks").insert({ [ownerCol]: target.id, label: newTask.trim(), kind: "task", section: "Task", sort: tasks.length });
@@ -1174,6 +1182,26 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
         </div>
       )}
 
+      {tasks.some((t) => t.target_qty != null) && (
+        <div className="onhand">
+          <div className="onhand-h">On hand <span>plan → confirm what&apos;s real</span></div>
+          {tasks.filter((t) => t.target_qty != null).map((t) => {
+            const a = t.actual_qty, plan = t.target_qty as number;
+            const short = a != null && a < plan;
+            return (
+              <div key={t.id} className={`onhand-row${a != null ? " done" : ""}`}>
+                <span className="onhand-label">{t.label}</span>
+                <span className="onhand-nums">
+                  <input type="number" min="0" className="onhand-in" defaultValue={a ?? ""} placeholder="—"
+                    onBlur={(e) => { if ((e.target.value === "" ? null : Number(e.target.value)) !== (a ?? null)) confirmQty(t, e.target.value); }} aria-label={`Confirm actual for ${t.label}`} />
+                  <span className="onhand-of">/ {plan}{a != null && <b className={short ? "shy" : "ok"}>{short ? `· ${plan - a} short` : "· on hand"}</b>}</span>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {sections.map((sec) => (
         <div key={sec} className="adm-prep-sec">
           <div className="adm-prep-label">{sec}</div>
@@ -1182,7 +1210,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
               <div className={`adm-task${t.done ? " done" : ""}${t.critical ? " crit" : t.warn ? " warn" : ""}`}>
                 <button type="button" className="task-check" aria-pressed={t.done} onClick={() => toggle(t)} aria-label={`${t.done ? "Mark not loaded" : "Mark loaded"}: ${t.label}`}>
                   <span className="task-box">{t.done && <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7" /></svg>}</span>
-                  <span className="task-label">{t.label}</span>
+                  <span className="task-label">{t.label}{t.target_qty != null && <span className="task-qty">{t.actual_qty ?? "—"}/{t.target_qty}</span>}</span>
                 </button>
                 <div className="task-right">
                   {t.link && <a className="adm-task-link" href={t.link} target="_blank" rel="noopener noreferrer" aria-label="Open reference / application">↗</a>}
@@ -1295,6 +1323,7 @@ function TaskEditSheet({ task, onClose, onSaved }: { task: EventTask; onClose: (
   const [section, setSection] = useState(task.section ?? "Task");
   const [kind, setKind] = useState<"pack" | "task">(task.kind === "pack" ? "pack" : "task");
   const [priority, setPriority] = useState<"normal" | "important" | "critical">(task.critical ? "critical" : task.warn ? "important" : "normal");
+  const [targetQty, setTargetQty] = useState(task.target_qty != null ? String(task.target_qty) : "");
   const [saving, setSaving] = useState(false);
   const save = async () => {
     if (!supabase) return;
@@ -1303,6 +1332,7 @@ function TaskEditSheet({ task, onClose, onSaved }: { task: EventTask; onClose: (
     const { error } = await supabase.from("event_tasks").update({
       label: nm, section: section.trim() || null, kind,
       critical: priority === "critical", warn: priority === "important",
+      target_qty: targetQty.trim() === "" ? null : Number(targetQty),
     }).eq("id", task.id);
     setSaving(false);
     if (error) { toast(`Error: ${error.message}`, "error"); return; }
@@ -1339,6 +1369,7 @@ function TaskEditSheet({ task, onClose, onSaved }: { task: EventTask; onClose: (
             </button>
           ))}
         </div>
+        <label className="prod-f" style={{ marginTop: 10 }}><span>Plan quantity (optional) — e.g. 100 bottles to label</span><input type="number" min="0" value={targetQty} onChange={(e) => setTargetQty(e.target.value)} placeholder="leave blank for a plain to-do" /></label>
         <div className="prod-actions" style={{ marginTop: 14, justifyContent: "space-between" }}>
           <button type="button" className="note-arch" onClick={del} disabled={saving}>Delete</button>
           <div style={{ display: "flex", gap: 8 }}>

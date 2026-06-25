@@ -2395,3 +2395,19 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .intake-conf[data-c="high"]{background:var(--ok)}
 .intake-conf[data-c="medium"]{background:var(--warn)}
 .intake-conf[data-c="low"]{background:var(--red-h);color:#fff}
+
+/* ── On-hand: plan → confirm actuals on an event ── */
+.onhand{background:rgba(106,160,92,.1);border:1px solid rgba(106,160,92,.4);border-radius:12px;padding:11px 12px;margin-bottom:12px}
+.onhand-h{display:flex;align-items:baseline;gap:8px;font-family:'Inter';font-weight:800;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--ok);margin-bottom:8px}
+.onhand-h span{font-weight:600;font-size:11px;letter-spacing:0;text-transform:none;color:var(--cream-m)}
+.onhand-row{display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px solid var(--line)}
+.onhand-row:first-of-type{border-top:none}
+.onhand-label{font-family:'Inter';font-size:13.5px;color:var(--cream);flex:1;min-width:0}
+.onhand-row.done .onhand-label{color:var(--cream)}
+.onhand-nums{display:flex;align-items:center;gap:7px;flex:0 0 auto}
+.onhand-in{width:60px;text-align:right;background:var(--card);border:1px solid var(--line2);border-radius:8px;padding:6px 8px;color:var(--cream);font-family:'DM Mono';font-size:13px}
+.onhand-of{font-family:'Inter';font-size:12.5px;color:var(--cream-m);white-space:nowrap}
+.onhand-of b{margin-left:4px;font-weight:700}
+.onhand-of b.ok{color:var(--ok)}
+.onhand-of b.shy{color:var(--warn)}
+.task-qty{margin-left:7px;font-family:'DM Mono';font-size:11px;color:var(--gold2);background:rgba(169,124,63,.14);border-radius:5px;padding:1px 5px}

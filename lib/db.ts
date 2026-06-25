@@ -135,6 +135,8 @@ export interface EventTask {
   sort: number;
   ai_proposal?: string | null;   // AI-proposed completion / answer (0061)
   ai_has_answer?: boolean | null; // true when GT3 data already answers it
+  target_qty?: number | null;     // planned amount (0088)
+  actual_qty?: number | null;     // confirmed actual → on hand (0088)
 }
 
 // Meeting notes (0049) — in-app system of record for talking points. Leadership-only
