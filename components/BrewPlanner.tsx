@@ -33,6 +33,7 @@ export default function BrewPlanner() {
   const [batches, setBatches] = useState<Batch[]>([]);
   const [events, setEvents] = useState<Ev[]>([]);
   const [plan, setPlan] = useState<Recipe | null>(null);
+  const [pack, setPack] = useState<Batch | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
   // Live clock — only ticks while something is actively brewing, so the countdown stays current.
@@ -114,11 +115,14 @@ export default function BrewPlanner() {
                   );
                 })()}
                 {(b.status === "ready" || b.status === "kegged") && (
-                  <div className="brew-score">Signal Score
-                    {[6, 7, 8, 9, 10].map((n) => (
-                      <button key={n} type="button" className={`brew-score-b${b.signal_score === n ? " on" : ""}`} onClick={() => logScore(b.id, n)}>{n}</button>
-                    ))}
-                  </div>
+                  <>
+                    <div className="brew-score">Signal Score
+                      {[6, 7, 8, 9, 10].map((n) => (
+                        <button key={n} type="button" className={`brew-score-b${b.signal_score === n ? " on" : ""}`} onClick={() => logScore(b.id, n)}>{n}</button>
+                      ))}
+                    </div>
+                    <button type="button" className="brew-pack-btn" onClick={() => setPack(b)}>📦 Plan the bottle loadout</button>
+                  </>
                 )}
               </div>
             );
@@ -138,6 +142,70 @@ export default function BrewPlanner() {
       </div>
 
       {plan && <BrewSheet recipe={plan} events={events} onClose={() => setPlan(null)} onDone={() => { setPlan(null); load(); }} />}
+      {pack && <BottleLoadout batch={pack} onClose={() => setPack(null)} />}
+    </div>
+  );
+}
+
+// Bottle loadout — how to pack THIS batch's bottles for the car, and what to pack them in.
+function BottleLoadout({ batch, onClose }: { batch: Batch; onClose: () => void }) {
+  const [oz, setOz] = useState(10);
+  const [vehicle, setVehicle] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [res, setRes] = useState<any | null>(null);
+
+  const planIt = async () => {
+    if (!supabase || busy) return;
+    setBusy(true); setErr(null);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const r = await fetch("/api/agents/loadout", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ batch_id: batch.id, bottle_oz: oz, vehicle }) });
+      const j = await r.json();
+      if (!j.ok) setErr(j.error || "Couldn't plan the loadout."); else setRes(j);
+    } catch (e: any) { setErr(String(e?.message ?? e)); }
+    setBusy(false);
+  };
+
+  return (
+    <div className="qd-scrim" onClick={onClose}>
+      <div className="qd-sheet dp" onClick={(e) => e.stopPropagation()}>
+        <div className="dp-head">
+          <div className="dp-head-l"><div className="dp-eyebrow">📦 Bottle loadout · pack &amp; transport</div><div className="dp-title">{batch.recipe_name || "Batch"} · {batch.batch_gal} gal</div></div>
+          <button type="button" className="qd-x" onClick={onClose}>✕</button>
+        </div>
+        <div className="dp-body">
+          {!res ? (
+            <>
+              <div className="dp-hint">How to pack the bottles for the car and what to pack them in — cold and unbroken. Pick the bottle size; I&apos;ll work out counts and the pack plan.</div>
+              <div className="ts-chips" style={{ marginTop: 12 }}>
+                {[10, 16].map((n) => <button key={n} type="button" className={`ts-chip${oz === n ? " on" : ""}`} onClick={() => setOz(n)}>🍶 {n} oz bottles</button>)}
+              </div>
+              <label className="prod-f" style={{ marginTop: 8 }}><span>Vehicle / constraints (optional)</span><input value={vehicle} onChange={(e) => setVehicle(e.target.value)} placeholder="e.g. SUV, 2 coolers fit, 3-hr drive" /></label>
+              {err && <div className="dp-err">{err}</div>}
+              <div className="prod-actions" style={{ marginTop: 14 }}>
+                <button type="button" className="note-arch" onClick={onClose} disabled={busy}>Cancel</button>
+                <button type="button" className="note-save" onClick={planIt} disabled={busy}>{busy ? "Planning…" : "📦 Plan the pack"}</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="brew-spec"><b>{res.bottles}</b> × {res.bottle_oz}oz bottles · {res.summary}</div>
+              {res.containers?.length > 0 && (
+                <><div className="brew-block-h">Pack them in</div><div className="brew-ing">{res.containers.map((c: any, i: number) => <div key={i} className="brew-ing-row"><b>{c.count}×</b><span>{c.what}{c.note ? ` — ${c.note}` : ""}</span></div>)}</div></>
+              )}
+              {res.ice && <div className="brew-when">❄️ {res.ice}</div>}
+              {res.layout?.length > 0 && (<><div className="brew-block-h">How to pack a cooler</div><ol className="ts-steps">{res.layout.map((s: string, i: number) => <li key={i}>{s}</li>)}</ol></>)}
+              {res.vehicle && <div className="brew-when">🚗 {res.vehicle}</div>}
+              {res.checklist?.length > 0 && (<><div className="brew-block-h">Before you pull off</div><ul className="brew-checks">{res.checklist.map((s: string, i: number) => <li key={i}>{s}</li>)}</ul></>)}
+              <div className="prod-actions" style={{ marginTop: 14 }}>
+                <button type="button" className="note-arch" onClick={() => setRes(null)}>‹ Change</button>
+                <button type="button" className="note-save" onClick={onClose}>Done</button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

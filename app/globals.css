@@ -2213,6 +2213,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .brew-score{display:flex;align-items:center;gap:6px;margin-top:9px;font-family:'Inter';font-size:12px;color:var(--cream-m)}
 .brew-score-b{width:28px;height:28px;border-radius:8px;background:transparent;border:1px solid var(--line2);color:var(--cream-m);font-family:'Inter';font-weight:700;font-size:13px;cursor:pointer}
 .brew-score-b.on{background:var(--ok);border-color:var(--ok);color:#11210d}
+.brew-pack-btn{margin-top:9px;width:100%;background:transparent;border:1px solid var(--line2);border-radius:9px;padding:9px;color:var(--cream);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .brew-recipe{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:12px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .brew-recipe-main{display:flex;flex-direction:column;gap:3px}
 .brew-recipe-main b{font-family:'Inter';font-weight:700;font-size:14.5px;color:var(--cream)}
