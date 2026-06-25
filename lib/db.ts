@@ -13,6 +13,8 @@ export interface Stop {
   menu_tier: string | null;
   notes: string | null;
   address: string | null;
+  starts_at?: string | null; // the date/time it's on the calendar (0001)
+  ends_at?: string | null;
   sort: number;
   // vendor / location management (0033)
   poc_name?: string | null;

@@ -2170,3 +2170,8 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .app.crew-day .prep-sheet{background:#fff}
 .app.crew-day .subpitch-email{background:rgba(34,31,24,.05)}
 .app.crew-day .assign-row:active{background:rgba(34,31,24,.05)}
+
+/* ── Day view: tap-to-edit rows ── */
+.dv-tap{background:none;border:none;padding:0;font:inherit;cursor:pointer;align-items:flex-start}
+.dv-go{background:none;border:none;cursor:pointer;padding:0 2px}
+.dv-row{align-items:center}

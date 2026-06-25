@@ -257,7 +257,7 @@ export default function CompanyCalendar() {
       {isOwner && <OutlookBar onSynced={load} />}
       {!isOwner && <div className="insp-foot" style={{ marginTop: 12 }}>📅 Outlook two-way sync is managed by the owner.</div>}
 
-      {dayOpen && <DayView dayKey={dayOpen} items={byDay[dayOpen] || []} onClose={() => setDayOpen(null)} onAdd={() => { const k = dayOpen; setDayOpen(null); setAddDay(k); }} />}
+      {dayOpen && <DayView dayKey={dayOpen} items={byDay[dayOpen] || []} onClose={() => setDayOpen(null)} onAdd={() => { const k = dayOpen; setDayOpen(null); setAddDay(k); }} onSaved={load} />}
       {addDay && <AddSheet day={addDay} events={events} onClose={() => setAddDay(null)} onDone={() => { setAddDay(null); load(); }} setSection={setSection} />}
       {planEv && (
         <EventDayPlanner
@@ -270,10 +270,12 @@ export default function CompanyCalendar() {
   );
 }
 
-// One day, expanded — everything on it, each row clicks through to its source. Archived events for
-// this day show here (and ONLY here) so a removed event is still reachable by opening its day.
-function DayView({ dayKey, items, onClose, onAdd }: { dayKey: string; items: Item[]; onClose: () => void; onAdd: () => void }) {
+// One day, expanded. Tap an event or truck stop to EDIT it right here (date, title, location, stage)
+// — it relates straight back to the source. The "↗" opens its full prep / run-of-show. Archived
+// events show here (and only here) so a removed event is still reachable by opening its day.
+function DayView({ dayKey, items, onClose, onAdd, onSaved }: { dayKey: string; items: Item[]; onClose: () => void; onAdd: () => void; onSaved: () => void }) {
   const [archived, setArchived] = useState<{ id: string; title: string | null; day_label: string | null }[]>([]);
+  const [edit, setEdit] = useState<{ kind: "event" | "stop"; id: string } | null>(null);
   useEffect(() => {
     if (!supabase) return;
     supabase.from("events").select("id, title, day_label").not("archived_at", "is", null).eq("day", dayKey).then(({ data }) => setArchived((data as any[]) ?? []));
@@ -287,13 +289,20 @@ function DayView({ dayKey, items, onClose, onAdd }: { dayKey: string; items: Ite
         <div className="qd-body">
           {items.length === 0 && archived.length === 0 && <div className="oa-empty" style={{ padding: "18px 8px" }}>Nothing scheduled this day. Tap Add to put something here.</div>}
           <div className="dv-list">
-            {items.map((it) => (
-              <button key={`${it.kind}-${it.id}`} type="button" className={`dv-row${it.done ? " done" : ""}`} style={{ ["--c" as string]: CAT[it.cat]?.color }} onClick={() => { it.go(); onClose(); }}>
-                <span className="dv-dot" style={{ background: CAT[it.cat]?.color }} />
-                <span className="dv-main"><b>{it.title}</b><span>{CAT[it.cat]?.label}{it.kind === "stop" ? " · on-the-ground op" : it.kind === "event" ? (it.meta ? ` · ${it.meta}` : " · event") : it.kind === "content" ? " · content" : ""}</span></span>
-                {it.kind === "todo" ? <span className="dv-go" onClick={(e) => { e.stopPropagation(); it.toggle?.(); }}>{it.done ? "✓" : "○"}</span> : <span className="dv-go">›</span>}
-              </button>
-            ))}
+            {items.map((it) => {
+              const editable = it.kind === "event" || it.kind === "stop";
+              return (
+                <div key={`${it.kind}-${it.id}`} className={`dv-row${it.done ? " done" : ""}`} style={{ ["--c" as string]: CAT[it.cat]?.color }}>
+                  <span className="dv-dot" style={{ background: CAT[it.cat]?.color }} />
+                  <button type="button" className="dv-main dv-tap" onClick={() => { if (editable) setEdit({ kind: it.kind as "event" | "stop", id: it.id }); else { it.go(); onClose(); } }}>
+                    <b>{it.title}</b><span>{CAT[it.cat]?.label}{it.kind === "stop" ? " · on-the-ground op · tap to edit" : it.kind === "event" ? `${it.meta ? ` · ${it.meta}` : " · event"} · tap to edit` : it.kind === "content" ? " · content" : ""}</span>
+                  </button>
+                  {it.kind === "todo" ? <button type="button" className="dv-go" onClick={() => it.toggle?.()}>{it.done ? "✓" : "○"}</button>
+                    : editable ? <button type="button" className="dv-go" title="Open full prep" onClick={() => { it.go(); onClose(); }}>↗</button>
+                    : <button type="button" className="dv-go" onClick={() => { it.go(); onClose(); }}>›</button>}
+                </div>
+              );
+            })}
             {archived.length > 0 && (
               <>
                 <div className="dv-sub">Removed (archived)</div>
@@ -304,6 +313,56 @@ function DayView({ dayKey, items, onClose, onAdd }: { dayKey: string; items: Ite
             )}
           </div>
           <div className="prod-actions" style={{ marginTop: 14 }}><span /><button type="button" className="note-save" onClick={onAdd}>+ Add to this day</button></div>
+        </div>
+      </div>
+      {edit && <CalEdit kind={edit.kind} id={edit.id} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); onSaved(); }} />}
+    </div>
+  );
+}
+
+// Edit an event or truck stop in place — the core fields, including the DATE, saving straight back to
+// the source. Reachable wherever you see the item (the day view), so you never get bounced elsewhere.
+function CalEdit({ kind, id, onClose, onSaved }: { kind: "event" | "stop"; id: string; onClose: () => void; onSaved: () => void }) {
+  const [f, setF] = useState<any | null>(null);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (!supabase) return;
+    if (kind === "event") supabase.from("events").select("title, day, location_text, stage").eq("id", id).maybeSingle().then(({ data }) => setF(data ?? {}));
+    else supabase.from("stops").select("name, starts_at, location_text").eq("id", id).maybeSingle().then(({ data }) => setF(data ?? {}));
+  }, [kind, id]);
+  const set = (k: string, v: any) => setF((p: any) => ({ ...p, [k]: v }));
+  const localDate = (iso: string) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+  const save = async () => {
+    if (!supabase || !f) return;
+    setSaving(true);
+    if (kind === "event") await supabase.from("events").update({ title: (f.title || "").trim() || "Event", day: f.day || null, location_text: f.location_text?.trim() || null, stage: f.stage || "confirmed" }).eq("id", id);
+    else await supabase.from("stops").update({ name: (f.name || "").trim() || "Stop", starts_at: f.starts_at || null, location_text: f.location_text?.trim() || null }).eq("id", id);
+    setSaving(false); onSaved();
+  };
+  if (!f) return null;
+  const dateVal = kind === "event" ? (f.day || "") : (f.starts_at ? localDate(f.starts_at) : "");
+  const onDate = (v: string) => { if (kind === "event") set("day", v || null); else { if (!v) { set("starts_at", null); return; } const old = f.starts_at ? new Date(f.starts_at) : null; const hh = old ? `${String(old.getHours()).padStart(2, "0")}:${String(old.getMinutes()).padStart(2, "0")}` : "11:00"; set("starts_at", new Date(`${v}T${hh}:00`).toISOString()); } };
+  return (
+    <div className="qd-scrim dp-scrim2" onClick={onClose}>
+      <div className="qd-sheet dp-form" onClick={(e) => e.stopPropagation()}>
+        <div className="qd-tabs"><b style={{ fontFamily: "Inter", fontSize: 15 }}>Edit {kind === "stop" ? "truck stop" : "event"}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>
+        <div className="qd-body">
+          <input className="note-in" value={kind === "event" ? (f.title ?? "") : (f.name ?? "")} onChange={(e) => set(kind === "event" ? "title" : "name", e.target.value)} placeholder={kind === "event" ? "Event name" : "Stop name"} autoFocus />
+          <div className="prod-grid" style={{ marginTop: 10 }}>
+            <label className="prod-f"><span>Date</span><input type="date" value={dateVal} onChange={(e) => onDate(e.target.value)} /></label>
+            <label className="prod-f"><span>Location</span><input value={f.location_text ?? ""} onChange={(e) => set("location_text", e.target.value)} placeholder="Where" /></label>
+          </div>
+          {kind === "event" && (
+            <label className="prod-f" style={{ marginTop: 8 }}><span>Stage</span>
+              <select value={f.stage ?? "confirmed"} onChange={(e) => set("stage", e.target.value)}>
+                <option value="lead">Lead</option><option value="confirmed">Confirmed</option><option value="prep">Prep</option><option value="live">Live</option><option value="done">Done</option>
+              </select>
+            </label>
+          )}
+          <div className="prod-actions" style={{ marginTop: 14 }}>
+            <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
+            <button type="button" className="note-save" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
+          </div>
         </div>
       </div>
     </div>

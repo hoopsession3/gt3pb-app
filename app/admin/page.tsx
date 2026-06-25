@@ -1465,8 +1465,11 @@ function StopControl({ s, index, isCur, open, onToggle, onGoLive, onArchive, onC
           )}
 
           <div className="ev-group">
-            <div className="ev-group-h">Dates of service</div>
-            <input className="ev-input" defaultValue={s.service_dates ?? ""} placeholder="e.g. Saturdays · May 3 – Aug 30" maxLength={200} onBlur={(e) => { if ((e.target.value.trim() || null) !== (s.service_dates ?? null)) patch({ service_dates: e.target.value.trim() || null }, "Service dates saved"); }} />
+            <div className="ev-group-h">Date on the calendar</div>
+            <input className="ev-input" type="date"
+              defaultValue={s.starts_at ? (() => { const d = new Date(s.starts_at); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })() : ""}
+              onChange={(e) => { if (!e.target.value) { patch({ starts_at: null }, "Date cleared"); return; } const old = s.starts_at ? new Date(s.starts_at) : null; const hh = old ? `${String(old.getHours()).padStart(2, "0")}:${String(old.getMinutes()).padStart(2, "0")}` : "11:00"; patch({ starts_at: new Date(`${e.target.value}T${hh}:00`).toISOString() }, "Date saved — it's on the calendar"); }} />
+            <input className="ev-input" defaultValue={s.service_dates ?? ""} placeholder="Recurring note (optional) — e.g. Saturdays · May 3 – Aug 30" maxLength={200} style={{ marginTop: 8 }} onBlur={(e) => { if ((e.target.value.trim() || null) !== (s.service_dates ?? null)) patch({ service_dates: e.target.value.trim() || null }, "Service dates saved"); }} />
           </div>
 
           <div className="ev-group">
