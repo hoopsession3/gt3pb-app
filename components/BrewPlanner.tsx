@@ -217,16 +217,24 @@ function StartBrewSheet({ batch, onClose, onStart }: { batch: Batch; onClose: ()
 function BatchLog({ batch, events, stops, onClose, onSaved }: { batch: Batch; events: Ev[]; stops: St[]; onClose: () => void; onSaved: () => void }) {
   const [f, setF] = useState<Batch>(batch);
   const [busy, setBusy] = useState(false);
+  const [targets, setTargets] = useState<string[]>([]); // ["e:<id>"|"s:<id>"] this batch serves
   const set = (k: keyof Batch, v: any) => setF((p) => ({ ...p, [k]: v }));
-  const evRow = events.find((e) => e.id === batch.event_id);
-  const ev = evRow ? { label: evRow.title || evRow.day_label } : (batch.stop_id ? { label: stops.find((s) => s.id === batch.stop_id)?.name ?? null } : null);
+  useEffect(() => {
+    supabase?.from("brew_batch_links").select("event_id, stop_id").eq("batch_id", batch.id)
+      .then(({ data }) => setTargets(((data as { event_id: string | null; stop_id: string | null }[]) ?? []).map((l) => l.stop_id ? `s:${l.stop_id}` : `e:${l.event_id}`)));
+  }, [batch.id]);
   const save = async () => {
     if (!supabase || busy) return;
     setBusy(true);
     await supabase.from("brew_batches").update({
       status: f.status, og: f.og?.trim() || null, signal_score: f.signal_score,
       coffee_lot: f.coffee_lot?.trim() || null, brewer: f.brewer?.trim() || null, taste_notes: f.taste_notes?.trim() || null,
+      event_id: targets[0]?.startsWith("e:") ? targets[0].slice(2) : null,  // first selection = primary (back-schedule)
+      stop_id: targets[0]?.startsWith("s:") ? targets[0].slice(2) : null,
     }).eq("id", batch.id);
+    // Re-sync the links to the chosen set (clear + insert).
+    await supabase.from("brew_batch_links").delete().eq("batch_id", batch.id);
+    if (targets.length) await supabase.from("brew_batch_links").insert(targets.map((t) => { const [k, id] = t.split(":"); return k === "s" ? { batch_id: batch.id, stop_id: id } : { batch_id: batch.id, event_id: id }; }));
     setBusy(false); onSaved();
   };
   return (
@@ -234,7 +242,7 @@ function BatchLog({ batch, events, stops, onClose, onSaved }: { batch: Batch; ev
       <div className="qd-sheet dp-form" onClick={(e) => e.stopPropagation()}>
         <div className="qd-tabs"><b style={{ fontFamily: "Inter", fontSize: 15 }}>Batch log · {batch.recipe_name}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>
         <div className="qd-body">
-          <div className="brew-spec">{batch.batch_gal} gal{batch.vessel ? ` · ${batch.vessel}` : ""}{batch.target_spec ? ` · ${batch.target_spec}` : ""}<br />Brewed {fmtTs(batch.brew_started_at)} → ready {fmtTs(batch.ready_at)}{ev?.label ? ` · for ${ev.label}` : ""}</div>
+          <div className="brew-spec">{batch.batch_gal} gal{batch.vessel ? ` · ${batch.vessel}` : ""}{batch.target_spec ? ` · ${batch.target_spec}` : ""}<br />Brewed {fmtTs(batch.brew_started_at)} → ready {fmtTs(batch.ready_at)}</div>
           <div className="prod-grid">
             <label className="prod-f"><span>Status</span>
               <select value={f.status} onChange={(e) => set("status", e.target.value)}>{STATUS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}</select>
@@ -247,6 +255,13 @@ function BatchLog({ batch, events, stops, onClose, onSaved }: { batch: Batch; ev
             {[6, 7, 8, 9, 10].map((n) => <button key={n} type="button" className={`brew-score-b${f.signal_score === n ? " on" : ""}`} onClick={() => set("signal_score", n)}>{n}</button>)}
           </div>
           <label className="prod-f" style={{ marginTop: 10 }}><span>Taste / cupping notes</span><textarea className="note-in" rows={3} value={f.taste_notes ?? ""} onChange={(e) => set("taste_notes", e.target.value)} placeholder="Aroma, body, balance, anything off…" /></label>
+          <div className="prod-f" style={{ marginTop: 10 }}><span>Serving which events / stops? (first drives the schedule)</span>
+            <div className="ts-chips" style={{ marginTop: 4 }}>
+              {events.map((ev2) => { const k = `e:${ev2.id}`; const on = targets.includes(k); return <button key={ev2.id} type="button" className={`ts-chip${on ? " on" : ""}`} onClick={() => setTargets((p) => on ? p.filter((x) => x !== k) : [...p, k])}>{on ? "✓ " : ""}🎪 {ev2.title || ev2.day_label}</button>; })}
+              {stops.map((s) => { const k = `s:${s.id}`; const on = targets.includes(k); return <button key={s.id} type="button" className={`ts-chip${on ? " on" : ""}`} onClick={() => setTargets((p) => on ? p.filter((x) => x !== k) : [...p, k])}>{on ? "✓ " : ""}🚚 {s.name}</button>; })}
+              {events.length === 0 && stops.length === 0 && <span className="dp-hint">No events or stops yet.</span>}
+            </div>
+          </div>
           <div className="prod-actions" style={{ marginTop: 14 }}>
             <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
             <button type="button" className="note-save" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save log"}</button>
