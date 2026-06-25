@@ -52,8 +52,8 @@ export async function callClaude(opts: {
   // Budget the whole call UNDER the route's maxDuration (60s) so callClaude always returns a clean
   // error itself — if instead a single attempt ran to 60s, the platform would kill the function first
   // (504/HTML), and the browser would throw the cryptic "string did not match the expected pattern".
-  const TOTAL_BUDGET = 50_000;   // total wall-clock ceiling for all attempts
-  const ATTEMPT_MS = 24_000;     // per-attempt timeout (well under maxDuration)
+  const TOTAL_BUDGET = 52_000;   // total wall-clock ceiling for all attempts (under maxDuration 60)
+  const ATTEMPT_MS = 45_000;     // per-attempt timeout — heavy grounded calls (eventprep) need the room
   const started = Date.now();
   let lastErr: unknown = null;
   for (let attempt = 0; attempt < 3; attempt++) {
