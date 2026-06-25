@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 
 export const runtime = "nodejs";
+export const maxDuration = 30;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // AGENT #2 — prep/readiness. Reads the next ~2 weeks of events + the inventory on hand, asks Claude

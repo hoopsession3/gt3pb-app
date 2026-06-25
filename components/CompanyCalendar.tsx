@@ -519,12 +519,13 @@ function OutlookBar({ onSynced }: { onSynced: () => void }) {
 }
 
 function AddSheet({ day, events, onClose, onDone }: { day: string; events: Ev[]; onClose: () => void; onDone: () => void; setSection: (s: any) => void }) {
-  const [kind, setKind] = useState<"todo" | "event">("todo");
-  const [title, setTitle] = useState(""); const [cat, setCat] = useState("ops"); const [eventId, setEventId] = useState("");
+  const [kind, setKind] = useState<"todo" | "event" | "stop">("todo");
+  const [title, setTitle] = useState(""); const [cat, setCat] = useState("ops"); const [eventId, setEventId] = useState(""); const [where, setWhere] = useState("");
   const save = async () => {
     if (!supabase || !title.trim()) return;
     const { data: { user } } = await supabase.auth.getUser();
     if (kind === "todo") await supabase.from("todos").insert({ title: title.trim(), category: cat, due_on: day, event_id: eventId || null, created_by: user?.id ?? null });
+    else if (kind === "stop") await supabase.from("stops").insert({ name: title.trim(), location_text: where.trim() || null, starts_at: new Date(`${day}T11:00:00-04:00`).toISOString(), status: "upcoming", sort: 0 });
     else await supabase.from("events").insert({ title: title.trim(), day, category: cat === "content" ? "event" : cat });
     onDone();
   };
@@ -533,24 +534,32 @@ function AddSheet({ day, events, onClose, onDone }: { day: string; events: Ev[];
       <div className="qd-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="qd-tabs">
           <button type="button" className={`qd-tab${kind === "todo" ? " on" : ""}`} onClick={() => setKind("todo")}>To-do</button>
+          <button type="button" className={`qd-tab${kind === "stop" ? " on" : ""}`} onClick={() => setKind("stop")}>🚚 Truck stop</button>
           <button type="button" className={`qd-tab${kind === "event" ? " on" : ""}`} onClick={() => setKind("event")}>Event</button>
           <span style={{ marginLeft: "auto", fontFamily: "Inter", fontSize: 13, color: "var(--cream-m)" }}>{day}</span>
           <button type="button" className="qd-x" onClick={onClose}>✕</button>
         </div>
         <div className="qd-body">
-          <input className="note-in" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={kind === "todo" ? "What needs doing?" : "Event name"} autoFocus />
-          <div className="prod-grid" style={{ marginTop: 10 }}>
-            <label className="prod-f"><span>Category</span>
-              <select value={cat} onChange={(e) => setCat(e.target.value)}>
-                <option value="admin">Admin</option><option value="ops">Ops</option><option value="event">Events</option>{kind === "todo" && <option value="content">Content</option>}
-              </select>
-            </label>
-            {kind === "todo" && (
-              <label className="prod-f"><span>Link to event (optional)</span>
-                <select value={eventId} onChange={(e) => setEventId(e.target.value)}><option value="">None</option>{events.map((ev) => <option key={ev.id} value={ev.id}>{ev.title || ev.day_label}</option>)}</select>
+          <input className="note-in" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={kind === "todo" ? "What needs doing?" : kind === "stop" ? "Stop name — e.g. Saturday Market" : "Event name"} autoFocus />
+          {kind === "stop" ? (
+            <>
+              <label className="prod-f" style={{ marginTop: 10 }}><span>Where (address or place)</span><input value={where} onChange={(e) => setWhere(e.target.value)} placeholder="123 Main St, City — or a place name" /></label>
+              <div className="dp-hint" style={{ marginTop: 8 }}>Lands on this day&apos;s route at 11am (edit the time later). Add the address in the stop&apos;s editor to pin it on the map.</div>
+            </>
+          ) : (
+            <div className="prod-grid" style={{ marginTop: 10 }}>
+              <label className="prod-f"><span>Category</span>
+                <select value={cat} onChange={(e) => setCat(e.target.value)}>
+                  <option value="admin">Admin</option><option value="ops">Ops</option><option value="event">Events</option>{kind === "todo" && <option value="content">Content</option>}
+                </select>
               </label>
-            )}
-          </div>
+              {kind === "todo" && (
+                <label className="prod-f"><span>Link to event (optional)</span>
+                  <select value={eventId} onChange={(e) => setEventId(e.target.value)}><option value="">None</option>{events.map((ev) => <option key={ev.id} value={ev.id}>{ev.title || ev.day_label}</option>)}</select>
+                </label>
+              )}
+            </div>
+          )}
           <div className="prod-actions" style={{ marginTop: 14 }}>
             <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
             <button type="button" className="note-save" onClick={save} disabled={!title.trim()}>Add</button>

@@ -2423,3 +2423,13 @@ select.note-in{-webkit-appearance:none;appearance:none}
 /* carryover panel uses the on-hand styles, tinted gold to read as "coming in" */
 .onhand.carryin{background:rgba(169,124,63,.1);border-color:rgba(169,124,63,.4)}
 .onhand.carryin .onhand-h{color:var(--gold2)}
+
+/* When a bottom-sheet modal is open, slide the bottom nav out of the way. On iOS a position:fixed
+   sheet inside the scroll container doesn't paint over the nav, so the nav overlapped the sheet's
+   action buttons. :has() is supported on iOS 15.4+. Paired with viewport interactive-widget so the
+   keyboard no longer hides the buttons either. */
+.app:has(.qd-scrim) .nav,
+.app:has(.prep-scrim) .nav,
+.app:has(.isheet-scrim) .nav{transform:translateY(120%);transition:transform .15s ease}
+.qd-scrim{z-index:120}
+.qd-fab{z-index:110}

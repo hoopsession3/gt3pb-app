@@ -5,6 +5,7 @@ import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthro
 import { academyKnowledge } from "@/lib/operatorKb";
 
 export const runtime = "nodejs";
+export const maxDuration = 30;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // RESOLVE — propose how to COMPLETE a follow-up. If GT3's own data/knowledge already answers it

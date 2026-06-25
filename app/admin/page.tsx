@@ -437,7 +437,9 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
   const loadFlags = useCallback(async () => {
     if (!supabase || !userId || !isLeader) { setFlags([]); return; }
     const { data } = await supabase.from("alerts").select("id, severity, title, body").eq("target_user_id", userId).is("ack_at", null).order("created_at", { ascending: false }).limit(20);
-    setFlags((data as typeof flags) ?? []);
+    // dedupe identical pings (same title+body can arrive from more than one source)
+    const seen = new Set<string>();
+    setFlags(((data as typeof flags) ?? []).filter((f) => { const k = `${f.title}|${f.body ?? ""}`; if (seen.has(k)) return false; seen.add(k); return true; }));
   }, [userId, isLeader]);
 
   useEffect(() => {

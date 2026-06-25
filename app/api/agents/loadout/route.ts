@@ -5,6 +5,7 @@ import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthro
 import { academyKnowledge } from "@/lib/operatorKb";
 
 export const runtime = "nodejs";
+export const maxDuration = 30;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // BOTTLE LOADOUT — how to pack the bottles for the car, and what to pack them in. Bottle COUNT is

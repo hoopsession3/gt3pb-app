@@ -5,6 +5,7 @@ import { callClaude, anthropicEnabled, MODELS, type ClaudeMsg } from "@/lib/anth
 import { academyKnowledge } from "@/lib/operatorKb";
 
 export const runtime = "nodejs";
+export const maxDuration = 30;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // OPERATOR MODE — the crew's pocket brain (primarily for Kayla). Answers questions about recipes,
