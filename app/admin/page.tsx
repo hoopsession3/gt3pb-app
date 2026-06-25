@@ -22,6 +22,7 @@ import CompanyCalendar from "@/components/CompanyCalendar";
 import EventDayPlanner from "@/components/EventDayPlanner";
 import EventGenerator from "@/components/EventGenerator";
 import EventPrepAI from "@/components/EventPrepAI";
+import TroubleshootAI from "@/components/TroubleshootAI";
 import Markdown from "@/components/Markdown";
 import { subscribePush } from "@/lib/push";
 import { chime, unlockAudio } from "@/lib/chime";
@@ -905,6 +906,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   const [openThread, setOpenThread] = useState<string | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [prepAIOpen, setPrepAIOpen] = useState(false);
+  const [troubleshootOpen, setTroubleshootOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -1102,6 +1104,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
             <div className="adm-prep-actions">
               {isEvent && <button className="adm-regen" onClick={() => generate(true)} disabled={generating}>↻ Regenerate from menu</button>}
               <button className="adm-regen" onClick={() => setPrepAIOpen(true)}>✨ AI prep list</button>
+              <button className="adm-regen ts-btn" onClick={() => setTroubleshootOpen(true)}>🔧 Troubleshoot</button>
               <button className="adm-regen" onClick={() => setShowSupplies(true)}>+ Add supplies</button>
             </div>
           )}
@@ -1112,11 +1115,16 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
             ? <button className="adm-btn primary" onClick={() => generate()} disabled={generating}>{generating ? "Generating…" : "Generate pack list from menu"}</button>
             : <button className="adm-btn primary" onClick={() => setShowSupplies(true)}>+ Build this location&apos;s list</button>}
           <button className="adm-btn" onClick={() => setPrepAIOpen(true)}>✨ AI prep list</button>
+          <button className="adm-btn ts-btn" onClick={() => setTroubleshootOpen(true)}>🔧 Troubleshoot</button>
         </div>
       ) : <div className="h-sub">No pick list yet.</div>}
       {prepAIOpen && (
         <EventPrepAI ownerType={target.kind} ownerId={target.id} title={name ?? (isEvent ? "Event" : "Stop")}
           onClose={() => setPrepAIOpen(false)} onAdded={load} />
+      )}
+      {troubleshootOpen && (
+        <TroubleshootAI ownerType={target.kind} ownerId={target.id} title={name ?? (isEvent ? "Event" : "Stop")}
+          onClose={() => setTroubleshootOpen(false)} onLogged={load} />
       )}
 
       {isEvent && isAdmin && (

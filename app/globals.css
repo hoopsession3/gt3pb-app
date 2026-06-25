@@ -2176,6 +2176,26 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .dv-go{background:none;border:none;cursor:pointer;padding:0 2px}
 .dv-row{align-items:center}
 
+/* ── Troubleshoot AI (field ops) ── */
+.ts-btn{border-color:rgba(207,154,74,.5)!important;color:var(--warn)!important}
+.ts-chips{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px}
+.ts-chip{display:flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--line2);border-radius:999px;padding:7px 12px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:12.5px;cursor:pointer;-webkit-appearance:none;appearance:none;transition:background .12s,color .12s,border-color .12s}
+.ts-chip.on{background:rgba(207,154,74,.16);border-color:var(--warn);color:var(--cream)}
+.ts-toggle{display:flex;align-items:center;gap:8px;margin-top:11px;font-family:'Inter';font-size:13px;color:var(--cream-m);cursor:pointer}
+.ts-toggle input{width:17px;height:17px;accent-color:var(--red)}
+.ts-summary{background:rgba(184,36,32,.1);border:1px solid rgba(184,36,32,.4);border-radius:11px;padding:11px 13px;font-family:'Inter';font-weight:600;font-size:14px;color:var(--cream);line-height:1.4;margin-bottom:14px}
+.app.crew-day .ts-summary{background:rgba(184,36,32,.07)}
+.ts-block{margin-bottom:14px}
+.ts-block-h{display:flex;align-items:center;gap:8px;font-family:'Inter';font-weight:800;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--gold);margin-bottom:8px}
+.ts-keepn{margin-left:auto;font-weight:700;font-size:10.5px;letter-spacing:.3px;text-transform:none;color:var(--ok)}
+.ts-steps{margin:0;padding-left:0;list-style:none;counter-reset:ts}
+.ts-steps li{counter-increment:ts;position:relative;padding:9px 11px 9px 38px;background:var(--card);border:1px solid var(--line);border-radius:10px;margin-bottom:6px;font-family:'Inter';font-size:13.5px;line-height:1.45;color:var(--cream)}
+.ts-steps li::before{content:counter(ts);position:absolute;left:9px;top:9px;width:22px;height:22px;border-radius:50%;background:var(--red);color:#fff;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center}
+.ts-cause{display:flex;align-items:flex-start;gap:8px;padding:6px 0;font-family:'Inter';font-size:13px;color:var(--cream);line-height:1.4}
+.ts-cause span{color:var(--cream-m)}
+.ts-cause-dot{flex:0 0 auto;width:8px;height:8px;border-radius:50%;margin-top:5px;background:var(--warn)}
+.ts-cause.likely .ts-cause-dot{background:var(--red-h)}
+
 /* ── Task editor sheet: priority selector ── */
 .te-prio{display:flex;gap:7px;margin-top:12px}
 .te-prio-b{flex:1;background:transparent;border:1px solid var(--line2);border-radius:10px;padding:9px 6px;color:var(--cream-m);font-family:'Inter';font-weight:700;font-size:12.5px;cursor:pointer;-webkit-appearance:none;appearance:none;transition:background .12s,color .12s,border-color .12s}
