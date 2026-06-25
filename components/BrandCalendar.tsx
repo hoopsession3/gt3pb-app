@@ -20,17 +20,13 @@ const STC: Record<string, string> = { draft: "#9a8f7c", review: "var(--gold2)", 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const key = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-const CAL_KEY = "gt3-cal-month";
 
 export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: string) => void; onCreate: (iso: string, eventId?: string | null) => void }) {
   const { setSection } = useOperatorSection();
   const goToCompany = () => setSection("plan");
   const now = new Date();
-  const [cursor, setCursor] = useState(() => {
-    if (typeof window !== "undefined") { const s = localStorage.getItem(CAL_KEY); if (s) { const [y, m] = s.split("-").map(Number); if (y && m) return new Date(y, m - 1, 1); } }
-    return new Date(now.getFullYear(), now.getMonth(), 1);
-  });
-  const setMonth = (d: Date) => { setCursor(d); if (typeof window !== "undefined") localStorage.setItem(CAL_KEY, `${d.getFullYear()}-${d.getMonth() + 1}`); };
+  const [cursor, setCursor] = useState(() => new Date(now.getFullYear(), now.getMonth(), 1)); // always open to today's month
+  const setMonth = (d: Date) => setCursor(d);
   const [content, setContent] = useState<CItem[]>([]);
   const [events, setEvents] = useState<EvItem[]>([]);
   const [backlog, setBacklog] = useState<CItem[]>([]);

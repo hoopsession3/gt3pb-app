@@ -27,7 +27,6 @@ const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const pad = (n: number) => String(n).padStart(2, "0");
 const key = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const addDaysKey = (iso: string, n: number) => { const d = new Date(`${iso}T00:00:00`); d.setDate(d.getDate() + n); return key(d); };
-const CAL_KEY = "gt3-company-cal-month";
 const VIEW_KEY = "gt3-company-cal-view";
 type View = "list" | "week" | "month" | "quarter" | "year";
 
@@ -46,11 +45,8 @@ export default function CompanyCalendar() {
   const todayKey = key(now);
   const [view, setView] = useState<View>(() => { if (typeof window !== "undefined") { const v = localStorage.getItem(VIEW_KEY) as View; if (v) return v; } return "month"; });
   const setV = (v: View) => { setView(v); if (typeof window !== "undefined") localStorage.setItem(VIEW_KEY, v); };
-  const [cursor, setCursor] = useState(() => {
-    if (typeof window !== "undefined") { const s = localStorage.getItem(CAL_KEY); if (s) { const [y, m] = s.split("-").map(Number); if (y && m) return new Date(y, m - 1, 1); } }
-    return new Date(now.getFullYear(), now.getMonth(), 1);
-  });
-  const setCur = (d: Date) => { setCursor(d); if (typeof window !== "undefined") localStorage.setItem(CAL_KEY, `${d.getFullYear()}-${d.getMonth() + 1}`); };
+  const [cursor, setCursor] = useState(() => new Date(now.getFullYear(), now.getMonth(), 1)); // always open to today's month
+  const setCur = (d: Date) => setCursor(d);
   const [events, setEvents] = useState<Ev[]>([]);
   const [content, setContent] = useState<Content[]>([]);
   const [todos, setTodos] = useState<Todo[]>([]);
