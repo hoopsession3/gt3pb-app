@@ -2446,6 +2446,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
    keyboard no longer hides the buttons either. */
 .app:has(.qd-scrim) .nav,
 .app:has(.prep-scrim) .nav,
+.app:has(.conc-scrim) .nav,
 .app:has(.isheet-scrim) .nav{transform:translateY(120%);transition:transform .15s ease}
 .qd-scrim{z-index:120}
 .qd-fab{z-index:110}
