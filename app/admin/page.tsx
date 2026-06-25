@@ -24,6 +24,7 @@ import EventGenerator from "@/components/EventGenerator";
 import EventPrepAI from "@/components/EventPrepAI";
 import TroubleshootAI from "@/components/TroubleshootAI";
 import BrewPlanner from "@/components/BrewPlanner";
+import AssetMaintenance from "@/components/AssetMaintenance";
 import Markdown from "@/components/Markdown";
 import { subscribePush } from "@/lib/push";
 import { chime, unlockAudio } from "@/lib/chime";
@@ -877,6 +878,7 @@ function EventPrep({ onGo }: { onGo: (t: string) => void }) {
     </div>
     <TrailerLoadout />
     <GearLibrary />
+    <AssetMaintenance />
     <InventoryLibrary />
     </>
   );
