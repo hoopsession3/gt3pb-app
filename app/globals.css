@@ -2411,3 +2411,11 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .onhand-of b.ok{color:var(--ok)}
 .onhand-of b.shy{color:var(--warn)}
 .task-qty{margin-left:7px;font-family:'DM Mono';font-size:11px;color:var(--gold2);background:rgba(169,124,63,.14);border-radius:5px;padding:1px 5px}
+
+/* ── Smart intake: known-asset KB pull ── */
+.intake-kb{margin-top:10px;background:rgba(169,124,63,.12);border:1px solid var(--gold2);border-radius:11px;padding:11px}
+.intake-kb-h{font-family:'Inter';font-weight:800;font-size:12.5px;color:var(--gold2);margin-bottom:6px}
+.intake-kb-due{font-family:'Inter';font-size:12.5px;color:var(--cream);margin-bottom:6px}
+.intake-kb-due.over{color:var(--red-h);font-weight:700}
+.intake-kb-link{display:inline-block;font-family:'Inter';font-weight:700;font-size:12.5px;color:var(--gold2);margin-bottom:6px}
+.intake-kb-note{font-family:'Inter';font-size:11.5px;color:var(--cream-m);margin-top:6px}

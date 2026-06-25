@@ -129,19 +129,40 @@ export async function POST(req: Request) {
   }
   if (!out) return NextResponse.json({ ok: false, error: "no read" }, { status: 502 });
 
-  return NextResponse.json({
-    ok: true, path, name, mime,
-    proposal: {
-      kind: KINDS.includes(out.kind) ? out.kind : "other",
-      name: String(out.name || name).slice(0, 200),
-      summary: String(out.summary || "").slice(0, 500),
-      category: out.category ? String(out.category).slice(0, 60) : "",
-      qty: typeof out.qty === "number" ? out.qty : null,
-      unit: out.unit ? String(out.unit).slice(0, 24) : "",
-      doc_kind: out.doc_kind ? String(out.doc_kind).slice(0, 40) : "",
-      tags: Array.isArray(out.tags) ? out.tags.slice(0, 8).map((t: any) => String(t).slice(0, 40)) : [],
-      confidence: ["high", "medium", "low"].includes(out.confidence) ? out.confidence : "medium",
-      action: String(out.action || "").slice(0, 240),
-    },
-  });
+  const proposal = {
+    kind: KINDS.includes(out.kind) ? out.kind : "other",
+    name: String(out.name || name).slice(0, 200),
+    summary: String(out.summary || "").slice(0, 500),
+    category: out.category ? String(out.category).slice(0, 60) : "",
+    qty: typeof out.qty === "number" ? out.qty : null,
+    unit: out.unit ? String(out.unit).slice(0, 24) : "",
+    doc_kind: out.doc_kind ? String(out.doc_kind).slice(0, 40) : "",
+    tags: Array.isArray(out.tags) ? out.tags.slice(0, 8).map((t: any) => String(t).slice(0, 40)) : [],
+    confidence: ["high", "medium", "low"].includes(out.confidence) ? out.confidence : "medium",
+    action: String(out.action || "").slice(0, 240),
+  };
+
+  // ANTICIPATE: if this looks like gear we already own, pull that asset's KB (manual + maintenance +
+  // how-tos + what's due) so the most helpful thing surfaces instead of a blank "file as new".
+  let knownAsset: any = null;
+  if (proposal.kind === "asset" || proposal.kind === "inventory") {
+    const tokens = proposal.name.split(/\s+/).filter((w) => w.length >= 3).slice(0, 3);
+    const orClause = tokens.map((t) => `name.ilike.%${t.replace(/[%,()]/g, "")}%`).join(",");
+    if (orClause) {
+      const { data: hits } = await supabaseAdmin.from("assets").select("id, name, make_model, manual_url, notes").or(orClause).limit(1);
+      const a = hits?.[0];
+      if (a) {
+        const { data: maint } = await supabaseAdmin.from("asset_maintenance").select("kind, summary, how_to, next_due_on, performed_on").eq("asset_id", a.id).order("performed_on", { ascending: false }).limit(8);
+        const today = new Date().toISOString().slice(0, 10);
+        const due = (maint ?? []).filter((m: any) => m.next_due_on).sort((x: any, y: any) => x.next_due_on.localeCompare(y.next_due_on));
+        knownAsset = {
+          id: a.id, name: a.name, make_model: a.make_model, manual_url: a.manual_url, notes: a.notes,
+          next_due: due[0] ? { summary: due[0].summary, on: due[0].next_due_on, overdue: due[0].next_due_on < today } : null,
+          how_tos: (maint ?? []).filter((m: any) => m.how_to).map((m: any) => ({ summary: m.summary, how_to: m.how_to })).slice(0, 4),
+        };
+      }
+    }
+  }
+
+  return NextResponse.json({ ok: true, path, name, mime, proposal, knownAsset });
 }

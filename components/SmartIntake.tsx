@@ -83,6 +83,24 @@ export default function SmartIntake() {
           </div>
           {p.action && <div className="dp-hint" style={{ marginTop: 0 }}>{p.action}</div>}
 
+          {scan.knownAsset && (
+            <div className="intake-kb">
+              <div className="intake-kb-h">📖 You already have this — {scan.knownAsset.name}</div>
+              {scan.knownAsset.next_due && (
+                <div className={`intake-kb-due${scan.knownAsset.next_due.overdue ? " over" : ""}`}>
+                  {scan.knownAsset.next_due.overdue ? "⚠ Overdue" : "Next"}: {scan.knownAsset.next_due.summary} · {scan.knownAsset.next_due.on}
+                </div>
+              )}
+              {scan.knownAsset.manual_url && <a className="intake-kb-link" href={scan.knownAsset.manual_url} target="_blank" rel="noreferrer">Open manual ↗</a>}
+              {scan.knownAsset.how_tos?.map((h: any, i: number) => (
+                <details key={i} className="am-how"><summary>{h.summary}</summary>
+                  <div className="am-how-steps">{String(h.how_to).split("\n").map((s: string) => s.trim()).filter(Boolean).map((s: string, j: number) => <div key={j}>{s}</div>)}</div>
+                </details>
+              ))}
+              <div className="intake-kb-note">Already on file — only file again if this is a different unit.</div>
+            </div>
+          )}
+
           <div className="ts-chips" style={{ marginTop: 10 }}>
             {KINDS.map((k) => <button key={k.key} type="button" className={`ts-chip${p.kind === k.key ? " on" : ""}`} onClick={() => set("kind", k.key)}>{k.icon} {k.label}</button>)}
           </div>
