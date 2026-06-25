@@ -2223,6 +2223,10 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .app.crew-day .brew-status{background:rgba(34,31,24,.05)}
 .brew-card-meta{font-family:'Inter';font-size:12px;color:var(--cream-m);margin-top:5px;line-height:1.4}
 .brew-start{margin-top:9px;width:100%;background:linear-gradient(135deg,#a97c3f,#caa35f);border:none;border-radius:9px;padding:10px;color:#1a1409;font-family:'Inter';font-weight:800;font-size:13.5px;cursor:pointer;-webkit-appearance:none;appearance:none}
+/* back-scheduled "start by" hint on a planned batch (0084 brew alert ladder) */
+.brew-startby{margin-top:9px;font-family:'Inter';font-weight:700;font-size:12px;color:var(--cream-m);background:rgba(245,241,232,.05);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
+.app.crew-day .brew-startby{background:#fff;color:#6c6256}
+.brew-startby.over{color:var(--red-h);border-color:var(--red-h);background:rgba(184,36,32,.1)}
 .brew-timer{display:flex;align-items:center;gap:8px;margin-top:9px;background:rgba(43,179,163,.13);border:1px solid rgba(43,179,163,.5);border-radius:9px;padding:9px 11px;flex-wrap:wrap}
 .brew-timer b{font-family:'DM Mono';font-size:16px;color:#5fd0c2}
 .brew-timer span:last-child{font-family:'Inter';font-size:12px;color:var(--cream-m);flex:1 1 100%}
