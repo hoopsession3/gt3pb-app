@@ -90,6 +90,8 @@ export async function POST(req: Request) {
     const { data: ins, error } = await supabaseAdmin.from("brew_batches").insert({
       recipe_id: recipeId, recipe_name: (recipe as any).name, batch_gal: batchGal,
       brew_date: brewDate, ready_at: readyAt, event_id: body.event_id ?? null, stop_id: body.stop_id ?? null,
+      needed_by: needBy ? new Date(`${needBy}T08:00:00`).toISOString() : null,
+      hold_hours: Number((recipe as any).hold_hours) || 72,
       target_spec: (recipe as any).target_spec ?? null, scaled, status: "planned",
       extraction_hours: extractionHours, vessel: typeof body.vessel === "string" ? body.vessel.slice(0, 80) : null,
       og: typeof body.commit.og === "string" ? body.commit.og.slice(0, 60) : ((recipe as any).target_spec ?? null),
