@@ -257,7 +257,7 @@ export default function CompanyCalendar() {
       {isOwner && <OutlookBar onSynced={load} />}
       {!isOwner && <div className="insp-foot" style={{ marginTop: 12 }}>📅 Outlook two-way sync is managed by the owner.</div>}
 
-      {dayOpen && <DayView dayKey={dayOpen} items={byDay[dayOpen] || []} onClose={() => setDayOpen(null)} onAdd={() => { const k = dayOpen; setDayOpen(null); setAddDay(k); }} onSaved={load} />}
+      {dayOpen && <DayView dayKey={dayOpen} items={byDay[dayOpen] || []} events={events} onClose={() => setDayOpen(null)} onAdd={() => { const k = dayOpen; setDayOpen(null); setAddDay(k); }} onSaved={load} />}
       {addDay && <AddSheet day={addDay} events={events} onClose={() => setAddDay(null)} onDone={() => { setAddDay(null); load(); }} setSection={setSection} />}
       {planEv && (
         <EventDayPlanner
@@ -270,18 +270,20 @@ export default function CompanyCalendar() {
   );
 }
 
-// One day, expanded. Tap an event or truck stop to EDIT it right here (date, title, location, stage)
-// — it relates straight back to the source. The "↗" opens its full prep / run-of-show. Archived
+// One day, expanded. Tap ANY card — event, truck stop, ops/admin to-do, or content — to EDIT it
+// right here. Every edit saves straight back to its source row, so it relates back everywhere that
+// row appears (Prep, Studio, My Tasks). The "↗" opens its full prep / run-of-show / studio. Archived
 // events show here (and only here) so a removed event is still reachable by opening its day.
-function DayView({ dayKey, items, onClose, onAdd, onSaved }: { dayKey: string; items: Item[]; onClose: () => void; onAdd: () => void; onSaved: () => void }) {
+function DayView({ dayKey, items, events, onClose, onAdd, onSaved }: { dayKey: string; items: Item[]; events: Ev[]; onClose: () => void; onAdd: () => void; onSaved: () => void }) {
   const [archived, setArchived] = useState<{ id: string; title: string | null; day_label: string | null }[]>([]);
-  const [edit, setEdit] = useState<{ kind: "event" | "stop"; id: string } | null>(null);
+  const [edit, setEdit] = useState<{ kind: Item["kind"]; id: string } | null>(null);
   useEffect(() => {
     if (!supabase) return;
     supabase.from("events").select("id, title, day_label").not("archived_at", "is", null).eq("day", dayKey).then(({ data }) => setArchived((data as any[]) ?? []));
   }, [dayKey]);
   const d = new Date(`${dayKey}T00:00:00`);
   const heading = d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  const sub: Record<Item["kind"], string> = { event: "event", stop: "on-the-ground op", todo: "to-do", content: "content" };
   return (
     <div className="qd-scrim" onClick={onClose}>
       <div className="qd-sheet" onClick={(e) => e.stopPropagation()}>
@@ -289,20 +291,18 @@ function DayView({ dayKey, items, onClose, onAdd, onSaved }: { dayKey: string; i
         <div className="qd-body">
           {items.length === 0 && archived.length === 0 && <div className="oa-empty" style={{ padding: "18px 8px" }}>Nothing scheduled this day. Tap Add to put something here.</div>}
           <div className="dv-list">
-            {items.map((it) => {
-              const editable = it.kind === "event" || it.kind === "stop";
-              return (
-                <div key={`${it.kind}-${it.id}`} className={`dv-row${it.done ? " done" : ""}`} style={{ ["--c" as string]: CAT[it.cat]?.color }}>
-                  <span className="dv-dot" style={{ background: CAT[it.cat]?.color }} />
-                  <button type="button" className="dv-main dv-tap" onClick={() => { if (editable) setEdit({ kind: it.kind as "event" | "stop", id: it.id }); else { it.go(); onClose(); } }}>
-                    <b>{it.title}</b><span>{CAT[it.cat]?.label}{it.kind === "stop" ? " · on-the-ground op · tap to edit" : it.kind === "event" ? `${it.meta ? ` · ${it.meta}` : " · event"} · tap to edit` : it.kind === "content" ? " · content" : ""}</span>
-                  </button>
-                  {it.kind === "todo" ? <button type="button" className="dv-go" onClick={() => it.toggle?.()}>{it.done ? "✓" : "○"}</button>
-                    : editable ? <button type="button" className="dv-go" title="Open full prep" onClick={() => { it.go(); onClose(); }}>↗</button>
-                    : <button type="button" className="dv-go" onClick={() => { it.go(); onClose(); }}>›</button>}
-                </div>
-              );
-            })}
+            {items.map((it) => (
+              <div key={`${it.kind}-${it.id}`} className={`dv-row${it.done ? " done" : ""}`} style={{ ["--c" as string]: CAT[it.cat]?.color }}>
+                <span className="dv-dot" style={{ background: CAT[it.cat]?.color }} />
+                {/* every kind is editable in place — tap the card to open its editor */}
+                <button type="button" className="dv-main dv-tap" onClick={() => setEdit({ kind: it.kind, id: it.id })}>
+                  <b>{it.title}</b><span>{CAT[it.cat]?.label}{it.meta ? ` · ${it.meta}` : ` · ${sub[it.kind]}`} · tap to edit</span>
+                </button>
+                {it.kind === "todo"
+                  ? <button type="button" className="dv-go" title="Mark done" onClick={() => it.toggle?.()}>{it.done ? "✓" : "○"}</button>
+                  : <button type="button" className="dv-go" title={it.kind === "content" ? "Open in Studio" : "Open full prep"} onClick={() => { it.go(); onClose(); }}>↗</button>}
+              </div>
+            ))}
             {archived.length > 0 && (
               <>
                 <div className="dv-sub">Removed (archived)</div>
@@ -315,42 +315,92 @@ function DayView({ dayKey, items, onClose, onAdd, onSaved }: { dayKey: string; i
           <div className="prod-actions" style={{ marginTop: 14 }}><span /><button type="button" className="note-save" onClick={onAdd}>+ Add to this day</button></div>
         </div>
       </div>
-      {edit && <CalEdit kind={edit.kind} id={edit.id} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); onSaved(); }} />}
+      {edit && <CalEdit kind={edit.kind} id={edit.id} events={events} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); onSaved(); }} />}
     </div>
   );
 }
 
-// Edit an event or truck stop in place — the core fields, including the DATE, saving straight back to
-// the source. Reachable wherever you see the item (the day view), so you never get bounced elsewhere.
-function CalEdit({ kind, id, onClose, onSaved }: { kind: "event" | "stop"; id: string; onClose: () => void; onSaved: () => void }) {
+// Polymorphic in-place editor for ANY calendar card. It dispatches on `kind` to read + write the one
+// source row that backs the chip — events / stops / todos / content_items — so the calendar is a true
+// command surface over the database, not a copy. The "Link to event" control on to-dos and content
+// writes the foreign key that relates those rows back to an event. Reachable wherever the item shows.
+const SRC: Record<Item["kind"], { table: string; nameCol: string; dateCol: string; dateIsTimestamp: boolean; defTime: string; noun: string }> = {
+  event:   { table: "events",        nameCol: "title", dateCol: "day",           dateIsTimestamp: false, defTime: "11:00", noun: "event" },
+  stop:    { table: "stops",         nameCol: "name",  dateCol: "starts_at",     dateIsTimestamp: true,  defTime: "11:00", noun: "truck stop" },
+  todo:    { table: "todos",         nameCol: "title", dateCol: "due_on",        dateIsTimestamp: false, defTime: "09:00", noun: "to-do" },
+  content: { table: "content_items", nameCol: "title", dateCol: "scheduled_for", dateIsTimestamp: true,  defTime: "09:00", noun: "content" },
+};
+function CalEdit({ kind, id, events, onClose, onSaved }: { kind: Item["kind"]; id: string; events: Ev[]; onClose: () => void; onSaved: () => void }) {
+  const cfg = SRC[kind];
+  const { setSection } = useOperatorSection();
   const [f, setF] = useState<any | null>(null);
   const [saving, setSaving] = useState(false);
+  const sel = kind === "event" ? "title, day, location_text, stage"
+    : kind === "stop" ? "name, starts_at, location_text"
+    : kind === "todo" ? "title, due_on, category, event_id, done"
+    : "title, scheduled_for, status, event_id";
   useEffect(() => {
     if (!supabase) return;
-    if (kind === "event") supabase.from("events").select("title, day, location_text, stage").eq("id", id).maybeSingle().then(({ data }) => setF(data ?? {}));
-    else supabase.from("stops").select("name, starts_at, location_text").eq("id", id).maybeSingle().then(({ data }) => setF(data ?? {}));
-  }, [kind, id]);
+    supabase.from(cfg.table).select(sel).eq("id", id).maybeSingle().then(({ data }) => setF(data ?? {}));
+  }, [cfg.table, sel, id]);
   const set = (k: string, v: any) => setF((p: any) => ({ ...p, [k]: v }));
   const localDate = (iso: string) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+  // a date input <-> the source column, preserving the existing time-of-day on timestamp columns
+  const dateVal = !f ? "" : cfg.dateIsTimestamp ? (f[cfg.dateCol] ? localDate(f[cfg.dateCol]) : "") : (f[cfg.dateCol] || "");
+  const onDate = (v: string) => {
+    if (!cfg.dateIsTimestamp) { set(cfg.dateCol, v || null); return; }
+    if (!v) { set(cfg.dateCol, null); return; }
+    const old = f[cfg.dateCol] ? new Date(f[cfg.dateCol]) : null;
+    const hh = old ? `${String(old.getHours()).padStart(2, "0")}:${String(old.getMinutes()).padStart(2, "0")}` : cfg.defTime;
+    set(cfg.dateCol, new Date(`${v}T${hh}:00`).toISOString());
+  };
   const save = async () => {
     if (!supabase || !f) return;
     setSaving(true);
-    if (kind === "event") await supabase.from("events").update({ title: (f.title || "").trim() || "Event", day: f.day || null, location_text: f.location_text?.trim() || null, stage: f.stage || "confirmed" }).eq("id", id);
-    else await supabase.from("stops").update({ name: (f.name || "").trim() || "Stop", starts_at: f.starts_at || null, location_text: f.location_text?.trim() || null }).eq("id", id);
+    const name = (f[cfg.nameCol] || "").trim() || (kind === "event" ? "Event" : kind === "stop" ? "Stop" : kind === "todo" ? "To-do" : "Content");
+    const patch: any = { [cfg.nameCol]: name, [cfg.dateCol]: f[cfg.dateCol] || null };
+    if (kind === "event") { patch.location_text = f.location_text?.trim() || null; patch.stage = f.stage || "confirmed"; }
+    else if (kind === "stop") { patch.location_text = f.location_text?.trim() || null; }
+    else if (kind === "todo") { patch.category = f.category || "ops"; patch.event_id = f.event_id || null; }
+    else if (kind === "content") { patch.status = f.status || "scheduled"; patch.event_id = f.event_id || null; }
+    await supabase.from(cfg.table).update(patch).eq("id", id);
+    setSaving(false); onSaved();
+  };
+  // "Remove from calendar" — kind-appropriate: archive the event/stop, unschedule content, delete the to-do.
+  const remove = async () => {
+    if (!supabase) return;
+    if (typeof window !== "undefined" && !window.confirm(kind === "content" ? "Unschedule this from the calendar? (It stays in Studio.)" : kind === "todo" ? "Delete this to-do?" : "Remove from the calendar?")) return;
+    setSaving(true);
+    if (kind === "todo") await supabase.from("todos").delete().eq("id", id);
+    else if (kind === "content") await supabase.from("content_items").update({ scheduled_for: null }).eq("id", id);
+    else await supabase.from(cfg.table).update({ archived_at: new Date().toISOString() }).eq("id", id);
     setSaving(false); onSaved();
   };
   if (!f) return null;
-  const dateVal = kind === "event" ? (f.day || "") : (f.starts_at ? localDate(f.starts_at) : "");
-  const onDate = (v: string) => { if (kind === "event") set("day", v || null); else { if (!v) { set("starts_at", null); return; } const old = f.starts_at ? new Date(f.starts_at) : null; const hh = old ? `${String(old.getHours()).padStart(2, "0")}:${String(old.getMinutes()).padStart(2, "0")}` : "11:00"; set("starts_at", new Date(`${v}T${hh}:00`).toISOString()); } };
+  const linkable = kind === "todo" || kind === "content";
   return (
     <div className="qd-scrim dp-scrim2" onClick={onClose}>
       <div className="qd-sheet dp-form" onClick={(e) => e.stopPropagation()}>
-        <div className="qd-tabs"><b style={{ fontFamily: "Inter", fontSize: 15 }}>Edit {kind === "stop" ? "truck stop" : "event"}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>
+        <div className="qd-tabs"><b style={{ fontFamily: "Inter", fontSize: 15 }}>Edit {cfg.noun}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>
         <div className="qd-body">
-          <input className="note-in" value={kind === "event" ? (f.title ?? "") : (f.name ?? "")} onChange={(e) => set(kind === "event" ? "title" : "name", e.target.value)} placeholder={kind === "event" ? "Event name" : "Stop name"} autoFocus />
+          <input className="note-in" value={f[cfg.nameCol] ?? ""} onChange={(e) => set(cfg.nameCol, e.target.value)} placeholder={`${cfg.noun[0].toUpperCase() + cfg.noun.slice(1)} name`} autoFocus />
           <div className="prod-grid" style={{ marginTop: 10 }}>
             <label className="prod-f"><span>Date</span><input type="date" value={dateVal} onChange={(e) => onDate(e.target.value)} /></label>
-            <label className="prod-f"><span>Location</span><input value={f.location_text ?? ""} onChange={(e) => set("location_text", e.target.value)} placeholder="Where" /></label>
+            {(kind === "event" || kind === "stop") && <label className="prod-f"><span>Location</span><input value={f.location_text ?? ""} onChange={(e) => set("location_text", e.target.value)} placeholder="Where" /></label>}
+            {kind === "todo" && (
+              <label className="prod-f"><span>Category</span>
+                <select value={f.category ?? "ops"} onChange={(e) => set("category", e.target.value)}>
+                  <option value="admin">Admin</option><option value="ops">Ops</option><option value="event">Events</option><option value="content">Content</option>
+                </select>
+              </label>
+            )}
+            {kind === "content" && (
+              <label className="prod-f"><span>Status</span>
+                <select value={f.status ?? "scheduled"} onChange={(e) => set("status", e.target.value)}>
+                  <option value="draft">Draft</option><option value="review">In review</option><option value="changes">Changes</option><option value="approved">Approved</option><option value="scheduled">Scheduled</option><option value="published">Published</option>
+                </select>
+              </label>
+            )}
           </div>
           {kind === "event" && (
             <label className="prod-f" style={{ marginTop: 8 }}><span>Stage</span>
@@ -359,9 +409,21 @@ function CalEdit({ kind, id, onClose, onSaved }: { kind: "event" | "stop"; id: s
               </select>
             </label>
           )}
-          <div className="prod-actions" style={{ marginTop: 14 }}>
-            <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
-            <button type="button" className="note-save" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
+          {linkable && (
+            <label className="prod-f" style={{ marginTop: 8 }}><span>Link to event</span>
+              <select value={f.event_id ?? ""} onChange={(e) => set("event_id", e.target.value || null)}>
+                <option value="">None</option>
+                {events.map((ev) => <option key={ev.id} value={ev.id}>{ev.title || ev.day_label || "Event"}</option>)}
+              </select>
+            </label>
+          )}
+          {kind === "content" && <button type="button" className="cal-tolink" style={{ marginTop: 10, marginLeft: 0 }} onClick={() => { setSection("studio"); onClose(); }}>Open full editor in Studio ↗</button>}
+          <div className="prod-actions" style={{ marginTop: 14, justifyContent: "space-between" }}>
+            <button type="button" className="note-arch" onClick={remove} disabled={saving}>{kind === "content" ? "Unschedule" : kind === "todo" ? "Delete" : "Remove"}</button>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
+              <button type="button" className="note-save" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
+            </div>
           </div>
         </div>
       </div>
