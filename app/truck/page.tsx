@@ -44,7 +44,9 @@ function Dispatch({ live, place, sub, openLabel, eta, next, onOrder }: {
 function nextLabelFrom(stops: Stop[], liveId?: string) {
   const idx = stops.findIndex((s) => s.id === liveId);
   const n = (idx >= 0 ? stops.slice(idx + 1) : stops).find((s) => s.id !== liveId) ?? stops.find((s) => s.id !== liveId);
-  return n ? `${n.name} — ${[whenDay(n), whenTime(n)].filter(Boolean).join(" ")}`.trim().replace(/—\s*$/, "").trim() : null;
+  if (!n) return null;
+  const when = [whenDay(n), whenDate(n), whenTime(n)].filter(Boolean).join(" ");
+  return `${n.name}${when ? `, ${when}` : ""}`.trim();
 }
 
 // Day abbrev / time for a stop — prefer the hand-set labels, else derive from the real date (starts_at)
@@ -58,6 +60,21 @@ function whenTime(s: Stop): string {
   if (s.time_label?.trim()) return s.time_label;
   if (s.starts_at) return new Date(s.starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }).replace(":00", "").replace(" ", "").toLowerCase();
   return "";
+}
+// Calendar date "6/27" from the real date — so every dated stop always shows its date, not just a weekday.
+function whenDate(s: Stop): string {
+  if (!s.starts_at) return "";
+  const d = new Date(s.starts_at);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+const TIER_LABEL: Record<string, string> = { full: "Full bar on board", coffee: "Coffee bar", nitro: "Nitro bar", beer: "Beer & wine on board" };
+// One clean description line for a route card: never just echo the stop's own name back, and skip
+// the stale seed location text ("Saturday Market", "Atlanta, Atlanta, GA"). Prefer the human note,
+// then the menu tier — the actual place still lives on the map + Get Directions.
+function descFor(s: Stop): string {
+  const note = s.notes?.trim();
+  if (note) return note;
+  return TIER_LABEL[s.menu_tier ?? ""] ?? "Full bar on board";
 }
 
 // ───────────────────────── live (Supabase + realtime) ─────────────────────────
@@ -129,7 +146,7 @@ function TruckLive() {
       <Dispatch
         live={isLive}
         place={liveStop?.name ?? (loaded ? "No stops yet" : "…")}
-        sub={liveStop ? `${liveStop.location_text ?? ""}${liveStop.location_text ? " — " : ""}the full bar on board` : ""}
+        sub={liveStop ? descFor(liveStop) : ""}
         openLabel={liveStop ? whenTime(liveStop) : ""}
         eta={live?.next_eta ?? null}
         next={nextLabelFrom(stops, liveStop?.id)}
@@ -151,8 +168,8 @@ function TruckLive() {
               aria-label={`${s.name}, ${rowLive ? "live now" : "upcoming"} — details`}
               {...clickable(() => setOpenStop(isOpen ? null : s.id))}
             >
-              <div className="when"><b>{whenDay(s)}</b><span>{whenTime(s)}</span></div>
-              <div className="info"><b>{s.name}</b><span>{s.location_text ?? ""}</span></div>
+              <div className="when"><b>{whenDay(s)}</b><span>{[whenDate(s), whenTime(s)].filter(Boolean).join(" ")}</span></div>
+              <div className="info"><b>{s.name}</b><span>{descFor(s)}</span></div>
               {rowLive && <div className="tag live">Live</div>}
               <span className={`stop-caret${isOpen ? " open" : ""}`} aria-hidden="true">›</span>
             </div>
