@@ -9,7 +9,7 @@ import { supabase } from "@/lib/supabase";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 type Asset = { id: string; name: string; make_model: string | null; brand: string | null };
-type Log = { id: string; asset_id: string; kind: string; performed_on: string; summary: string; next_due_on: string | null; cost_cents: number | null; performed_by: string | null };
+type Log = { id: string; asset_id: string; kind: string; performed_on: string; summary: string; how_to: string | null; next_due_on: string | null; cost_cents: number | null; performed_by: string | null };
 
 const KINDS = ["service", "repair", "clean", "inspect", "calibrate", "note"];
 const KIND_ICON: Record<string, string> = { service: "🔧", repair: "🛠️", clean: "🧽", inspect: "🔍", calibrate: "🎚️", note: "📝" };
@@ -26,7 +26,7 @@ export default function AssetMaintenance() {
     if (!supabase) return;
     const [{ data: a }, { data: l }] = await Promise.all([
       supabase.from("assets").select("id, name, make_model, brand").order("name"),
-      supabase.from("asset_maintenance").select("id, asset_id, kind, performed_on, summary, next_due_on, cost_cents, performed_by").order("performed_on", { ascending: false }),
+      supabase.from("asset_maintenance").select("id, asset_id, kind, performed_on, summary, how_to, next_due_on, cost_cents, performed_by").order("performed_on", { ascending: false }),
     ]);
     setAssets((a as Asset[]) ?? []); setLogs((l as Log[]) ?? []);
   }, []);
@@ -73,7 +73,15 @@ export default function AssetMaintenance() {
                         {mine.map((m) => (
                           <div key={m.id} className="am-row">
                             <span className="am-row-k">{KIND_ICON[m.kind] || "•"}</span>
-                            <span className="am-row-main"><b>{m.summary}</b><span>{fmt(m.performed_on)}{m.performed_by ? ` · ${m.performed_by}` : ""}{m.cost_cents != null ? ` · $${(m.cost_cents / 100).toFixed(2)}` : ""}{m.next_due_on ? ` · next ${fmt(m.next_due_on)}` : ""}</span></span>
+                            <span className="am-row-main">
+                              <b>{m.summary}</b>
+                              <span>{fmt(m.performed_on)}{m.performed_by ? ` · ${m.performed_by}` : ""}{m.cost_cents != null ? ` · $${(m.cost_cents / 100).toFixed(2)}` : ""}{m.next_due_on ? ` · next ${fmt(m.next_due_on)}` : ""}</span>
+                              {m.how_to && (
+                                <details className="am-how"><summary>How to do this</summary>
+                                  <div className="am-how-steps">{m.how_to.split("\n").map((s) => s.trim()).filter(Boolean).map((s, i) => <div key={i}>{s}</div>)}</div>
+                                </details>
+                              )}
+                            </span>
                           </div>
                         ))}
                       </div>
@@ -98,13 +106,14 @@ function LogSheet({ asset, onClose, onSaved }: { asset: Asset; onClose: () => vo
   const [nextDue, setNextDue] = useState("");
   const [cost, setCost] = useState("");
   const [who, setWho] = useState("");
+  const [howTo, setHowTo] = useState("");
   const [busy, setBusy] = useState(false);
   const save = async () => {
     if (!supabase || !summary.trim() || busy) return;
     setBusy(true);
     const { data: { user } } = await supabase.auth.getUser();
     await supabase.from("asset_maintenance").insert({
-      asset_id: asset.id, kind, summary: summary.trim(), performed_on: performedOn || today(),
+      asset_id: asset.id, kind, summary: summary.trim(), how_to: howTo.trim() || null, performed_on: performedOn || today(),
       next_due_on: nextDue || null, cost_cents: cost ? Math.round(parseFloat(cost) * 100) : null,
       performed_by: who.trim() || null, created_by: user?.id ?? null,
     });
@@ -125,6 +134,7 @@ function LogSheet({ asset, onClose, onSaved }: { asset: Asset; onClose: () => vo
             <label className="prod-f"><span>Cost (optional)</span><input type="number" min="0" step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="0.00" /></label>
             <label className="prod-f"><span>By (optional)</span><input value={who} onChange={(e) => setWho(e.target.value)} placeholder="Ryan / shop" /></label>
           </div>
+          <label className="prod-f" style={{ marginTop: 8 }}><span>How-to / steps (optional — one per line)</span><textarea className="note-in" rows={3} value={howTo} onChange={(e) => setHowTo(e.target.value)} placeholder="Steps to do this next time" /></label>
           <div className="prod-actions" style={{ marginTop: 14 }}>
             <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
             <button type="button" className="note-save" onClick={save} disabled={busy || !summary.trim()}>{busy ? "Saving…" : "Log it"}</button>

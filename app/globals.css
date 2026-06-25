@@ -2203,7 +2203,13 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .am-row-k{flex:0 0 auto;font-size:14px}
 .am-row-main{display:flex;flex-direction:column;gap:2px}
 .am-row-main b{font-family:'Inter';font-weight:600;font-size:13px;color:var(--cream)}
-.am-row-main span{font-family:'Inter';font-size:11.5px;color:var(--cream-m)}
+.am-row-main>span{font-family:'Inter';font-size:11.5px;color:var(--cream-m)}
+.am-how{margin-top:5px}
+.am-how>summary{font-family:'Inter';font-weight:700;font-size:11.5px;color:var(--gold2);cursor:pointer;list-style:none}
+.am-how>summary::-webkit-details-marker{display:none}
+.am-how>summary::before{content:'📖 ';}
+.am-how-steps{margin-top:6px;display:flex;flex-direction:column;gap:5px}
+.am-how-steps>div{font-family:'Inter';font-size:12.5px;color:var(--cream);line-height:1.5;padding:7px 10px;background:var(--card);border:1px solid var(--line);border-radius:8px}
 
 /* ── Brew planner (recipes + scheduled batches) ── */
 .brew-sched-h{font-family:'Inter';font-weight:800;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--gold);margin:4px 0 8px}
