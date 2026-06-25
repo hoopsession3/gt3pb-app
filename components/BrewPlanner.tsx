@@ -150,17 +150,24 @@ export default function BrewPlanner() {
 // Bottle loadout — how to pack THIS batch's bottles for the car, and what to pack them in.
 function BottleLoadout({ batch, onClose }: { batch: Batch; onClose: () => void }) {
   const [oz, setOz] = useState(10);
+  const [kegGal, setKegGal] = useState("0"); // gallons of this batch going to keg(s)
   const [vehicle, setVehicle] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [res, setRes] = useState<any | null>(null);
+
+  // live preview of the pack-out split (server recomputes authoritatively)
+  const kg = Math.min(Math.max(0, Number(kegGal) || 0), batch.batch_gal);
+  const bottleGal = Math.max(0, batch.batch_gal - kg);
+  const prevBottles = Math.floor((bottleGal * 128) / oz);
+  const prevKegs = kg > 0 ? Math.ceil(kg / 5) : 0;
 
   const planIt = async () => {
     if (!supabase || busy) return;
     setBusy(true); setErr(null);
     try {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const r = await fetch("/api/agents/loadout", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ batch_id: batch.id, bottle_oz: oz, vehicle }) });
+      const r = await fetch("/api/agents/loadout", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ batch_id: batch.id, bottle_oz: oz, keg_gal: kg, vehicle }) });
       const j = await r.json();
       if (!j.ok) setErr(j.error || "Couldn't plan the loadout."); else setRes(j);
     } catch (e: any) { setErr(String(e?.message ?? e)); }
@@ -177,11 +184,15 @@ function BottleLoadout({ batch, onClose }: { batch: Batch; onClose: () => void }
         <div className="dp-body">
           {!res ? (
             <>
-              <div className="dp-hint">How to pack the bottles for the car and what to pack them in — cold and unbroken. Pick the bottle size; I&apos;ll work out counts and the pack plan.</div>
+              <div className="dp-hint">Split the {batch.batch_gal} gal between keg and bottles — I&apos;ll work out the counts, UVDTF labels, and the pack plan.</div>
               <div className="ts-chips" style={{ marginTop: 12 }}>
                 {[10, 16].map((n) => <button key={n} type="button" className={`ts-chip${oz === n ? " on" : ""}`} onClick={() => setOz(n)}>🍶 {n} oz bottles</button>)}
               </div>
-              <label className="prod-f" style={{ marginTop: 8 }}><span>Vehicle / constraints (optional)</span><input value={vehicle} onChange={(e) => setVehicle(e.target.value)} placeholder="e.g. SUV, 2 coolers fit, 3-hr drive" /></label>
+              <div className="prod-grid" style={{ marginTop: 8 }}>
+                <label className="prod-f"><span>To keg (gal)</span><input type="number" min="0" step="0.5" max={String(batch.batch_gal)} value={kegGal} onChange={(e) => setKegGal(e.target.value)} /></label>
+                <label className="prod-f"><span>Vehicle (optional)</span><input value={vehicle} onChange={(e) => setVehicle(e.target.value)} placeholder="SUV, 3-hr drive" /></label>
+              </div>
+              <div className="brew-spec" style={{ marginTop: 10 }}>Pack-out: <b>{prevBottles}</b> × {oz}oz bottles · <b>{prevBottles}</b> UVDTF labels{prevKegs ? <> · <b>{prevKegs}</b> keg{prevKegs === 1 ? "" : "s"}</> : ""}</div>
               {err && <div className="dp-err">{err}</div>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={onClose} disabled={busy}>Cancel</button>
@@ -190,7 +201,7 @@ function BottleLoadout({ batch, onClose }: { batch: Batch; onClose: () => void }
             </>
           ) : (
             <>
-              <div className="brew-spec"><b>{res.bottles}</b> × {res.bottle_oz}oz bottles · {res.summary}</div>
+              <div className="brew-spec"><b>{res.bottles}</b> × {res.bottle_oz}oz bottles · <b>{res.uvdtf_labels}</b> UVDTF labels{res.label_order > res.uvdtf_labels ? ` (order ~${res.label_order} w/ spares)` : ""}{res.kegs ? <> · <b>{res.kegs}</b> keg{res.kegs === 1 ? "" : "s"} ({res.keg_gal} gal)</> : ""}</div>
               {res.containers?.length > 0 && (
                 <><div className="brew-block-h">Pack them in</div><div className="brew-ing">{res.containers.map((c: any, i: number) => <div key={i} className="brew-ing-row"><b>{c.count}×</b><span>{c.what}{c.note ? ` — ${c.note}` : ""}</span></div>)}</div></>
               )}

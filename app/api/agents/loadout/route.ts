@@ -38,6 +38,7 @@ export async function POST(req: Request) {
   let body: any = {};
   try { body = await req.json(); } catch { /* */ }
   const bottleOz = [10, 16].includes(Number(body.bottle_oz)) ? Number(body.bottle_oz) : 10;
+  const kegSizeGal = Number(body.keg_size_gal) > 0 ? Number(body.keg_size_gal) : 5; // corny keg default
 
   let gallons = Number(body.gallons) || 0;
   let recipeName: string | null = null;
@@ -47,11 +48,18 @@ export async function POST(req: Request) {
   }
   if (gallons <= 0) return NextResponse.json({ ok: false, error: "gallons or batch_id required" }, { status: 400 });
 
-  const bottles = Math.floor((gallons * OZ_PER_GAL) / bottleOz); // exact count
-  const base = { ok: true, gallons, bottle_oz: bottleOz, bottles, recipe_name: recipeName };
+  // Pack-out split: how much goes to keg vs bottle. Bottles each need one UVDTF label.
+  const kegGal = Math.min(Math.max(0, Number(body.keg_gal) || 0), gallons);
+  const bottleGal = Math.max(0, gallons - kegGal);
+  const kegs = kegGal > 0 ? Math.ceil(kegGal / kegSizeGal) : 0;
+  const bottles = Math.floor((bottleGal * OZ_PER_GAL) / bottleOz); // exact count
+  const uvdtf_labels = bottles;                                    // one UVDTF label per bottle
+  const label_order = Math.ceil(bottles * 1.05);                   // suggest ~5% spares for misapplies
+  const base = { ok: true, gallons, bottle_oz: bottleOz, keg_gal: kegGal, bottle_gal: bottleGal, kegs, keg_size_gal: kegSizeGal, bottles, uvdtf_labels, label_order, recipe_name: recipeName };
 
+  const packSummary = `${bottles} × ${bottleOz}oz bottles (${uvdtf_labels} UVDTF labels)${kegs ? ` + ${kegs} keg${kegs === 1 ? "" : "s"}` : ""}.`;
   if (!anthropicEnabled()) {
-    return NextResponse.json({ ...base, summary: `${bottles} × ${bottleOz}oz bottles to pack.`, containers: [], ice: "Pre-chill bottles + coolers; gel/ice packs between rows; hold under 40°F.", layout: ["Bottles upright in dividers", "Gel packs between layers", "Pack snug so nothing shifts"], vehicle: "Load low and centered, braced, out of sun, AC on.", checklist: [] });
+    return NextResponse.json({ ...base, summary: packSummary, containers: [], ice: "Pre-chill bottles + coolers; gel/ice packs between rows; hold under 40°F.", layout: ["Bottles upright in dividers", "Gel packs between layers", "Pack snug so nothing shifts"], vehicle: "Load low and centered, braced, out of sun, AC on.", checklist: [] });
   }
 
   const fmt = { ...base, vehicle_notes: String(body.vehicle ?? "").slice(0, 300), bottle_type: "GT3 glass bottles (breakable; must stay cold)" };
@@ -60,7 +68,7 @@ export async function POST(req: Request) {
     const r = await callClaude({
       model: MODELS.sonnet, maxTokens: 1100, temperature: 0.2,
       system:
-        "You are GT3 Performance Bar's loadout lead. The crew (Ryan & Kayla) is packing finished GLASS bottles to drive to an event — they must arrive cold and unbroken. The bottle COUNT is given; never recompute it. Give a practical packing & transport plan: what to pack them in (hard coolers / insulated crates, with dividers — wine-shipper inserts or foam sleeves — for glass), the cold strategy (gel/ice packs, NOT loose ice, target under 40°F, pre-chill), how to layer so glass stays upright and can't shift or clink, how to load and secure the coolers in the vehicle (low, centered, braced, shaded, AC on), and a short load-in checklist. Be specific to the count given (how many coolers/inserts). Don't invent gear they didn't mention beyond standard cooler/divider options. Never make health claims. Always answer with the loadout_plan tool.\n\n=== GT3 SOPs ===\n" +
+        "You are GT3 Performance Bar's pack-out & loadout lead. The crew (Ryan & Kayla) is packing out a finished cold-brew batch — some to KEGS, the rest to GLASS bottles — to drive to an event cold and unbroken. The split is already computed (keg_gal/kegs, bottle_gal/bottles, uvdtf_labels = one label per bottle); NEVER recompute counts. Give a practical pack-out & transport plan: bottle containers (hard coolers / insulated crates, with dividers — wine-shipper inserts or foam sleeves — for glass), the cold strategy (gel/ice packs, NOT loose ice, under 40°F, pre-chill), how to layer so glass stays upright and can't shift or clink, how to handle/transport the keg(s) cold and secured if kegs > 0, how to load and secure everything in the vehicle (low, centered, braced, shaded, AC on), and a short load-in checklist (include 'apply UVDTF labels — N bottles' and 'order ~label_order labels with spares'). Be specific to the counts given. Don't invent gear beyond standard cooler/divider/keg options. Never make health claims. Always answer with the loadout_plan tool.\n\n=== GT3 SOPs ===\n" +
         academyKnowledge().slice(0, 4000),
       messages: [{ role: "user", content: `Plan the bottle loadout.\n\n${JSON.stringify(fmt)}` }],
       tools: [TOOL],
@@ -68,12 +76,12 @@ export async function POST(req: Request) {
     });
     out = r.toolUses.find((t) => t.name === "loadout_plan")?.input ?? null;
   } catch (err: any) {
-    return NextResponse.json({ ...base, summary: `${bottles} × ${bottleOz}oz bottles.`, containers: [], ice: "Gel/ice packs between rows; pre-chill; hold under 40°F.", layout: ["Upright in dividers", "Packs between layers", "Snug — no shift"], vehicle: "Low, centered, braced, shaded.", checklist: [], ai_error: String(err?.message ?? err).slice(0, 200) });
+    return NextResponse.json({ ...base, summary: packSummary, containers: [], ice: "Gel/ice packs between rows; pre-chill; hold under 40°F.", layout: ["Upright in dividers", "Packs between layers", "Snug — no shift"], vehicle: "Low, centered, braced, shaded.", checklist: [], ai_error: String(err?.message ?? err).slice(0, 200) });
   }
 
   return NextResponse.json({
     ...base,
-    summary: out?.summary || `${bottles} × ${bottleOz}oz bottles.`,
+    summary: out?.summary || packSummary,
     containers: Array.isArray(out?.containers) ? out.containers.slice(0, 8) : [],
     ice: out?.ice || "",
     layout: Array.isArray(out?.layout) ? out.layout.map((s: any) => String(s).slice(0, 240)) : [],
