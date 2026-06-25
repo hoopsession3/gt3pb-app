@@ -1068,6 +1068,22 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
     toast(error ? `Error: ${error.message}` : `Generated ${pack.length} pack + ${comp.length} compliance items`);
     if (!error) load();
   };
+  // Nuke / reset — wipe everything built for this event/stop (AI-generated prep + run-of-show schedule)
+  // so the crew can start clean. The event/stop itself, its date, and its day-of brief stay.
+  const resetAll = async () => {
+    if (!supabase || generating) return;
+    const what = isEvent ? "event" : "truck stop";
+    if (typeof window !== "undefined" && !window.confirm(`Reset this ${what}?\n\nThis deletes its ENTIRE prep checklist and run-of-show schedule — everything you and the AI have built. The ${what} itself and its date stay. This can't be undone.`)) return;
+    setGenerating(true);
+    const [t1, t2] = await Promise.all([
+      supabase.from("event_tasks").delete().eq(ownerCol, target.id),
+      supabase.from("event_schedule_items").delete().eq(ownerCol, target.id),
+    ]);
+    setGenerating(false);
+    const e = t1.error || t2.error;
+    toast(e ? `Reset failed — ${e.message}` : `Reset — this ${what}'s prep & schedule are cleared`, e ? "error" : undefined);
+    if (!e) load();
+  };
   const toggle = async (t: EventTask) => {
     if (!supabase) return;
     const next = !t.done;
@@ -1258,6 +1274,13 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
 
       {/* How the crew shows up — dress code + call details. Leadership edits; assigned crew read it. */}
       <DayBrief ownerCol={ownerCol as "event_id" | "stop_id"} ownerId={target.id} isAdmin={isAdmin} />
+
+      {/* Nuke / reset — wipe the prep + schedule built for this event/stop and start clean. */}
+      {isAdmin && total > 0 && (
+        <div className="adm-reset-row">
+          <button type="button" className="adm-reset-btn" onClick={resetAll} disabled={generating}>🧨 Reset this {isEvent ? "event" : "truck stop"} — clear prep &amp; schedule</button>
+        </div>
+      )}
 
       {isEvent && isAdmin && (
         <div className="adm-crew-row">

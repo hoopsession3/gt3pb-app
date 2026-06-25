@@ -2464,3 +2464,9 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .myday-brief-row b{flex:0 0 64px;font-family:'Inter',sans-serif;font-weight:700;font-size:11px;color:var(--gold2)}
 .myday-brief-row span{color:var(--cream)}
 .app.crew-day .myday-brief-row span{color:#221f18}
+
+/* Reset / nuke an event or stop's prep + schedule — destructive, kept understated until needed. */
+.adm-reset-row{margin-top:16px;display:flex;justify-content:center}
+.adm-reset-btn{background:rgba(184,36,32,.1);border:1px solid rgba(184,36,32,.4);color:#e07a76;border-radius:10px;font-family:'Inter',sans-serif;font-weight:600;font-size:13px;padding:8px 14px;cursor:pointer}
+.adm-reset-btn:hover{background:rgba(184,36,32,.18)}
+.adm-reset-btn:disabled{opacity:.5}
