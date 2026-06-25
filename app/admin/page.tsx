@@ -430,9 +430,63 @@ type MyTaskRow = EventTask & {
 
 // MY DAY — the personal rollup: what's on today, the flags & pings aimed at YOU (alerts targeted
 // to your user), and your assigned tasks. The home base "where do my flags go?" answer.
+// DAY-OF BRIEF — how the crew shows up: dress code + call time / parking / what to bring. Leadership
+// edits it; assigned crew read it. Self-contained (loads + saves its own row), works for events or stops.
+function DayBrief({ ownerCol, ownerId, isAdmin }: { ownerCol: "event_id" | "stop_id"; ownerId: string; isAdmin: boolean }) {
+  const table = ownerCol === "stop_id" ? "stops" : "events";
+  const [dress, setDress] = useState("");
+  const [brief, setBrief] = useState("");
+  const [loaded, setLoaded] = useState(false);
+  const [edit, setEdit] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!supabase) return;
+    const { data } = await supabase.from(table).select("dress_code, crew_brief").eq("id", ownerId).maybeSingle();
+    setDress((data as { dress_code?: string | null } | null)?.dress_code ?? "");
+    setBrief((data as { crew_brief?: string | null } | null)?.crew_brief ?? "");
+    setLoaded(true);
+  }, [table, ownerId]);
+  useEffect(() => { load(); }, [load]);
+
+  const save = async () => {
+    if (!supabase) return;
+    setSaving(true);
+    await supabase.from(table).update({ dress_code: dress.trim() || null, crew_brief: brief.trim() || null }).eq("id", ownerId);
+    setSaving(false); setEdit(false);
+  };
+
+  if (!loaded) return null;
+  const empty = !dress.trim() && !brief.trim();
+  if (!isAdmin && empty) return null; // nothing to show crew yet
+
+  return (
+    <div className="daybrief">
+      <div className="daybrief-h">🧢 Day-of brief · how to show up{isAdmin && !edit && <button type="button" className="daybrief-edit" onClick={() => setEdit(true)}>{empty ? "+ Add" : "Edit"}</button>}</div>
+      {edit ? (
+        <>
+          <label className="prod-f"><span>Dress code — what to wear</span><input className="note-in" value={dress} onChange={(e) => setDress(e.target.value)} placeholder="e.g. Black GT3 tee, dark jeans, closed-toe shoes" maxLength={600} /></label>
+          <label className="prod-f" style={{ marginTop: 8 }}><span>Call time, parking, what to bring, anything else</span><textarea className="note-in" rows={4} value={brief} onChange={(e) => setBrief(e.target.value)} placeholder={"Call 9:30a · park behind the pavilion · bring your apron + black hat · we pour 11–3"} maxLength={4000} /></label>
+          <div className="prod-actions" style={{ marginTop: 10 }}>
+            <button type="button" className="note-arch" onClick={() => { setEdit(false); load(); }} disabled={saving}>Cancel</button>
+            <button type="button" className="note-save" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save brief"}</button>
+          </div>
+        </>
+      ) : empty ? (
+        <div className="daybrief-empty">No brief yet — add dress code + call details so the crew knows how to show up.</div>
+      ) : (
+        <>
+          {dress.trim() && <div className="daybrief-row"><b>Wear</b><span>{dress}</span></div>}
+          {brief.trim() && <div className="daybrief-row"><b>Details</b><span style={{ whiteSpace: "pre-wrap" }}>{brief}</span></div>}
+        </>
+      )}
+    </div>
+  );
+}
+
 function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: string; isLeader: boolean }) {
   const [flags, setFlags] = useState<{ id: string; severity: string; title: string; body: string | null }[]>([]);
-  const [today, setToday] = useState<{ id: string; title: string | null; day_label: string | null; is_live: boolean | null }[]>([]);
+  const [today, setToday] = useState<{ id: string; title: string | null; day_label: string | null; is_live: boolean | null; dress_code?: string | null; crew_brief?: string | null }[]>([]);
 
   const loadFlags = useCallback(async () => {
     if (!supabase || !userId || !isLeader) { setFlags([]); return; }
@@ -451,7 +505,7 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
   useEffect(() => {
     if (!supabase) return;
     const d = new Date().toISOString().slice(0, 10);
-    supabase.from("events").select("id, title, day_label, is_live").eq("day", d).is("archived_at", null).then(({ data }) => setToday(data ?? []));
+    supabase.from("events").select("id, title, day_label, is_live, dress_code, crew_brief").eq("day", d).is("archived_at", null).then(({ data }) => setToday(data ?? []));
   }, []);
 
   const ack = async (id: string) => { setFlags((f) => f.filter((x) => x.id !== id)); await supabase?.from("alerts").update({ ack_at: new Date().toISOString(), ack_by: userId }).eq("id", id); };
@@ -467,7 +521,17 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
       </div>
       {today.length > 0 && (
         <div className="myday-today">
-          {today.map((e) => <div key={e.id} className="myday-ev">{e.is_live && <span className="myday-live">LIVE</span>}<span>📍 {e.title || e.day_label || "Event"}</span></div>)}
+          {today.map((e) => (
+            <div key={e.id} className="myday-ev-wrap">
+              <div className="myday-ev">{e.is_live && <span className="myday-live">LIVE</span>}<span>📍 {e.title || e.day_label || "Event"}</span></div>
+              {(e.dress_code?.trim() || e.crew_brief?.trim()) && (
+                <div className="myday-brief">
+                  {e.dress_code?.trim() && <div className="myday-brief-row"><b>🧢 Wear</b><span>{e.dress_code}</span></div>}
+                  {e.crew_brief?.trim() && <div className="myday-brief-row"><b>📋 Details</b><span style={{ whiteSpace: "pre-wrap" }}>{e.crew_brief}</span></div>}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
       {isLeader && <ChiefOfStaff />}
@@ -1191,6 +1255,9 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
           onPlanDays={(n) => { setStopMeta((m) => ({ ...m, plan_days: n })); supabase?.from("stops").update({ plan_days: n }).eq("id", target.id).then(() => {}); }}
           onClose={() => setPlanOpen(false)} />
       )}
+
+      {/* How the crew shows up — dress code + call details. Leadership edits; assigned crew read it. */}
+      <DayBrief ownerCol={ownerCol as "event_id" | "stop_id"} ownerId={target.id} isAdmin={isAdmin} />
 
       {isEvent && isAdmin && (
         <div className="adm-crew-row">

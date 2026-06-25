@@ -2445,3 +2445,20 @@ select.note-in{-webkit-appearance:none;appearance:none}
 /* Trailer load-out: event picker in the header */
 .tl-evsel{margin-left:8px;background:rgba(0,0,0,.22);border:1px solid var(--line2);border-radius:8px;color:var(--cream);font-family:'Inter';font-weight:600;font-size:13px;padding:4px 8px;-webkit-appearance:none;appearance:none;max-width:60%}
 .app.crew-day .tl-evsel{background:rgba(34,31,24,.05)}
+
+/* Day-of crew brief — dress code + call details on the event/stop prep and on the crew's Today. */
+.daybrief{margin-top:12px;background:rgba(201,166,97,.08);border:1px solid var(--line2);border-radius:14px;padding:12px 14px}
+.app.crew-day .daybrief{background:rgba(201,166,97,.12)}
+.daybrief-h{display:flex;align-items:center;gap:8px;font-family:'Inter',sans-serif;font-weight:700;font-size:13px;letter-spacing:.02em;color:var(--gold2);margin-bottom:8px}
+.daybrief-edit{margin-left:auto;background:none;border:1px solid var(--line2);color:var(--cream);border-radius:8px;font-size:12px;font-weight:600;padding:3px 10px;cursor:pointer}
+.daybrief-empty{font-size:13px;color:var(--muted);line-height:1.5}
+.daybrief-row{display:flex;gap:10px;padding:5px 0;font-size:14px;line-height:1.5}
+.daybrief-row b{flex:0 0 56px;color:var(--gold2);font-family:'Inter',sans-serif;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.04em;padding-top:1px}
+.daybrief-row span{color:var(--cream)}
+.app.crew-day .daybrief-row span{color:#221f18}
+.myday-ev-wrap{display:flex;flex-direction:column}
+.myday-brief{margin:2px 0 8px;padding:8px 12px;background:rgba(201,166,97,.1);border-left:2px solid var(--gold);border-radius:0 10px 10px 0}
+.myday-brief-row{display:flex;gap:8px;font-size:13px;line-height:1.45;padding:2px 0}
+.myday-brief-row b{flex:0 0 64px;font-family:'Inter',sans-serif;font-weight:700;font-size:11px;color:var(--gold2)}
+.myday-brief-row span{color:var(--cream)}
+.app.crew-day .myday-brief-row span{color:#221f18}
