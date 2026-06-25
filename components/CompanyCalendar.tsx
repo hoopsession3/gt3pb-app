@@ -335,6 +335,7 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: Item["kind"]; i
   const { setSection } = useOperatorSection();
   const [f, setF] = useState<any | null>(null);
   const [saving, setSaving] = useState(false);
+  const [planOpen, setPlanOpen] = useState(false); // time blocks / run-of-show, right from the calendar
   const sel = kind === "event" ? "title, day, location_text, stage"
     : kind === "stop" ? "name, starts_at, location_text"
     : kind === "todo" ? "title, due_on, category, event_id, done"
@@ -379,6 +380,18 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: Item["kind"]; i
   if (!f) return null;
   const linkable = kind === "todo" || kind === "content";
   return (
+    <>
+    {planOpen && f && (kind === "event" || kind === "stop") && (
+      <EventDayPlanner
+        ownerType={kind === "stop" ? "stop" : "event"}
+        eventId={id}
+        title={f[cfg.nameCol] || cfg.noun}
+        eventDay={kind === "stop" ? (f.starts_at ? localDate(f.starts_at) : null) : (f.day || null)}
+        planDays={1}
+        onPlanDays={async (n) => { if (supabase) await supabase.from(cfg.table).update({ plan_days: n }).eq("id", id); }}
+        onClose={() => setPlanOpen(false)}
+      />
+    )}
     <div className="qd-scrim dp-scrim2" onClick={onClose}>
       <div className="qd-sheet dp-form" onClick={(e) => e.stopPropagation()}>
         <div className="qd-tabs"><b style={{ fontFamily: "Inter", fontSize: 15 }}>Edit {cfg.noun}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>
@@ -418,7 +431,12 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: Item["kind"]; i
             </label>
           )}
           {kind === "content" && <button type="button" className="cal-tolink" style={{ marginTop: 10, marginLeft: 0 }} onClick={() => { setSection("studio"); onClose(); }}>Open full editor in Studio ↗</button>}
-          {(kind === "event" || kind === "stop") && <button type="button" className="cal-tolink" style={{ marginTop: 10, marginLeft: 0 }} onClick={() => { try { localStorage.setItem("gt3-prep-open", kind === "stop" ? `stop:${id}` : id); } catch { /* ignore */ } setSection("prep"); onClose(); }}>Open full prep hub ↗</button>}
+          {(kind === "event" || kind === "stop") && (
+            <div className="prod-actions" style={{ marginTop: 10, gap: 8 }}>
+              <button type="button" className="cal-tolink" style={{ marginLeft: 0 }} onClick={() => setPlanOpen(true)}>⏱ Time blocks</button>
+              <button type="button" className="cal-tolink" style={{ marginLeft: 0 }} onClick={() => { try { localStorage.setItem("gt3-prep-open", kind === "stop" ? `stop:${id}` : id); } catch { /* ignore */ } setSection("prep"); onClose(); }}>Open full prep hub ↗</button>
+            </div>
+          )}
           <div className="prod-actions" style={{ marginTop: 14, justifyContent: "space-between" }}>
             <button type="button" className="note-arch" onClick={remove} disabled={saving}>{kind === "content" ? "Unschedule" : kind === "todo" ? "Delete" : "Remove"}</button>
             <div style={{ display: "flex", gap: 8 }}>
@@ -429,6 +447,7 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: Item["kind"]; i
         </div>
       </div>
     </div>
+    </>
   );
 }
 
