@@ -1126,6 +1126,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   const [planOpen, setPlanOpen] = useState(false); // stop run-of-show / when-to-leave planner
   const [loadoutOpen, setLoadoutOpen] = useState(false); // load-out & tow, scoped to this owner
   const [packPlanOpen, setPackPlanOpen] = useState(false); // kegs-vs-bottles pack-out plan
+  const [brewBatches, setBrewBatches] = useState<{ id: string; recipe_name: string | null; batch_gal: number; status: string; ready_at: string | null }[]>([]);
   const [stopMeta, setStopMeta] = useState<{ day: string | null; plan_days: number }>({ day: null, plan_days: 1 });
   const [onHand, setOnHand] = useState<{ item: string; bal: number }[]>([]); // carried-in stock (ledger balance)
 
@@ -1171,6 +1172,13 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       const { data: p } = await supabase.from("profiles").select("id, display_name, role").neq("role", "member");
       setStaff((p as { id: string; display_name: string | null; role?: string | null }[]) ?? []);
     }
+    // Brew batches serving THIS event/stop (many-to-many via the link table).
+    const { data: bl } = await supabase.from("brew_batch_links").select("brew_batches(id, recipe_name, batch_gal, status, ready_at)").eq(ownerCol, target.id);
+    type BB = { id: string; recipe_name: string | null; batch_gal: number; status: string; ready_at: string | null };
+    const seenB = new Set<string>();
+    const rows = (bl as unknown as { brew_batches: BB | BB[] | null }[]) ?? [];
+    setBrewBatches(rows.flatMap((r) => (Array.isArray(r.brew_batches) ? r.brew_batches : r.brew_batches ? [r.brew_batches] : []))
+      .filter((b) => !seenB.has(b.id) && (seenB.add(b.id), true)));
   }, [target.id, isEvent, ownerCol, isAdmin]);
   useEffect(() => {
     load();
@@ -1180,6 +1188,8 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       .on("postgres_changes", { event: "*", schema: "public", table: "event_staff" }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "event_approvals" }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "comments" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "brew_batch_links" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "brew_batches" }, () => load())
       .subscribe();
     return () => { supabase?.removeChannel(ch); };
   }, [load]);
@@ -1439,6 +1449,19 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       )}
       {loadoutOpen && isAdmin && <TrailerLoadout lockTo={{ kind: target.kind, id: target.id }} />}
       {packPlanOpen && <PackPlan ownerType={target.kind} ownerId={target.id} title={name ?? ""} onClose={() => setPackPlanOpen(false)} />}
+
+      {/* Brew serving this event/stop — linked from a batch (a batch can serve several events/stops). */}
+      {brewBatches.length > 0 && (
+        <div className="brewlink">
+          <div className="brewlink-h">🍺 Brew coming to this {isEvent ? "event" : "stop"}</div>
+          {brewBatches.map((b) => (
+            <div key={b.id} className="brewlink-row">
+              <span className="brewlink-name">{b.recipe_name || "Batch"} · {b.batch_gal} gal</span>
+              <span className="brewlink-st">{b.status}{b.ready_at && (b.status === "brewing" || b.status === "planned") ? ` · ready ${new Date(b.ready_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : ""}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* How the crew shows up — dress code + call details. Leadership edits; assigned crew read it. */}
       <DayBrief ownerCol={ownerCol as "event_id" | "stop_id"} ownerId={target.id} isAdmin={isAdmin} />

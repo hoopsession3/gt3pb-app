@@ -367,7 +367,7 @@ function BrewSheet({ recipe, events, stops, vessels, onClose, onDone }: { recipe
     if (v) setGal(String(+(v.capacity_gal * count).toFixed(2)));
   };
   const vesselLabel = vessel ? `${vesselCount > 1 ? `${vesselCount}× ` : ""}${vessel.name} (${vessel.capacity_gal} gal${vesselCount > 1 ? ` ea` : ""})` : undefined;
-  const [target, setTarget] = useState(""); // "" | "e:<id>" event | "s:<id>" stop — back-schedules to its date
+  const [targets, setTargets] = useState<string[]>([]); // ["e:<id>"|"s:<id>"] — a batch can serve several; first is primary (back-schedule)
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [res, setRes] = useState<any | null>(null);
@@ -376,8 +376,8 @@ function BrewSheet({ recipe, events, stops, vessels, onClose, onDone }: { recipe
   const token = async () => (await supabase!.auth.getSession()).data.session?.access_token;
   const call = async (payload: any) => {
     const t = await token();
-    const [tt, tid] = target.split(":");
-    const owner = target ? (tt === "s" ? { stop_id: tid } : { event_id: tid }) : {};
+    const [tt, tid] = (targets[0] || "").split(":"); // primary target drives the back-schedule date
+    const owner = targets[0] ? (tt === "s" ? { stop_id: tid } : { event_id: tid }) : {};
     const r = await fetch("/api/agents/brew", { method: "POST", headers: { "Content-Type": "application/json", ...(t ? { Authorization: `Bearer ${t}` } : {}) }, body: JSON.stringify({ recipe_id: recipe.id, batch_gal: Number(gal) || 1, ...owner, vessel: vesselLabel, ...payload }) });
     return r.json();
   };
@@ -392,7 +392,13 @@ function BrewSheet({ recipe, events, stops, vessels, onClose, onDone }: { recipe
     if (busy) return;
     setBusy(true); setErr(null);
     const j = await call({ commit: { og: res?.spec } }).catch((e) => ({ ok: false, error: String(e?.message ?? e) }));
-    if (!j.ok) setErr(j.error || "Couldn't save."); else { setSaved(true); }
+    if (!j.ok) { setErr(j.error || "Couldn't save."); setBusy(false); return; }
+    // Link the new batch to EVERY event/stop it serves (many-to-many).
+    if (j.batch_id && targets.length && supabase) {
+      const links = targets.map((t) => { const [k, id] = t.split(":"); return k === "s" ? { batch_id: j.batch_id, stop_id: id } : { batch_id: j.batch_id, event_id: id }; });
+      await supabase.from("brew_batch_links").insert(links);
+    }
+    setSaved(true);
     setBusy(false);
   };
 
@@ -430,13 +436,13 @@ function BrewSheet({ recipe, events, stops, vessels, onClose, onDone }: { recipe
               )}
               <div className="prod-grid" style={{ marginTop: 12 }}>
                 <label className="prod-f"><span>Batch size (gal of water){vessel && !override ? ` · ${vesselLabel}` : ""}</span><input type="number" min="0.25" step="0.25" value={gal} onChange={(e) => { setGal(e.target.value); setOverride(true); }} /></label>
-                <label className="prod-f"><span>For event / stop (optional)</span>
-                  <select value={target} onChange={(e) => setTarget(e.target.value)}>
-                    <option value="">Not tied to a date</option>
-                    {events.length > 0 && <optgroup label="Events">{events.map((ev) => <option key={ev.id} value={`e:${ev.id}`}>{ev.title || ev.day_label}{ev.day ? ` · ${ev.day}` : ""}</option>)}</optgroup>}
-                    {stops.length > 0 && <optgroup label="Truck stops">{stops.map((s) => <option key={s.id} value={`s:${s.id}`}>{s.name}{s.starts_at ? ` · ${s.starts_at.slice(0, 10)}` : ""}</option>)}</optgroup>}
-                  </select>
-                </label>
+              </div>
+              <div className="prod-f" style={{ marginTop: 8 }}><span>Serving which events / stops? (optional · pick any — first one drives the back-schedule)</span>
+                <div className="ts-chips" style={{ marginTop: 4 }}>
+                  {events.map((ev) => { const k = `e:${ev.id}`; const on = targets.includes(k); return <button key={ev.id} type="button" className={`ts-chip${on ? " on" : ""}`} onClick={() => setTargets((p) => on ? p.filter((x) => x !== k) : [...p, k])}>{on ? "✓ " : ""}🎪 {ev.title || ev.day_label}</button>; })}
+                  {stops.map((s) => { const k = `s:${s.id}`; const on = targets.includes(k); return <button key={s.id} type="button" className={`ts-chip${on ? " on" : ""}`} onClick={() => setTargets((p) => on ? p.filter((x) => x !== k) : [...p, k])}>{on ? "✓ " : ""}🚚 {s.name}</button>; })}
+                  {events.length === 0 && stops.length === 0 && <span className="dp-hint">No events or stops yet.</span>}
+                </div>
               </div>
               {err && <div className="dp-err">{err}</div>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
