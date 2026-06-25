@@ -6,6 +6,7 @@ import { useApp } from "@/components/AppProvider";
 import { useAuth, roleOf, type Profile } from "@/components/AuthProvider";
 import { useOperatorSection, sectionsForRole, type OpSection } from "@/components/OperatorNav";
 import TrailerLoadout from "@/components/TrailerLoadout";
+import PackPlan from "@/components/PackPlan";
 import GearLibrary from "@/components/GearLibrary";
 import InventoryLibrary from "@/components/InventoryLibrary";
 import Reports from "@/components/Reports";
@@ -1124,6 +1125,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   const [troubleshootOpen, setTroubleshootOpen] = useState(false);
   const [planOpen, setPlanOpen] = useState(false); // stop run-of-show / when-to-leave planner
   const [loadoutOpen, setLoadoutOpen] = useState(false); // load-out & tow, scoped to this owner
+  const [packPlanOpen, setPackPlanOpen] = useState(false); // kegs-vs-bottles pack-out plan
   const [stopMeta, setStopMeta] = useState<{ day: string | null; plan_days: number }>({ day: null, plan_days: 1 });
   const [onHand, setOnHand] = useState<{ item: string; bal: number }[]>([]); // carried-in stock (ledger balance)
 
@@ -1428,13 +1430,15 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
           onClose={() => setPlanOpen(false)} />
       )}
 
-      {/* Load-out & tow, scoped to this event/stop — part of the one hub, not a separate screen. */}
+      {/* Load-out & tow + pack-out plan, scoped to this event/stop — part of the one hub. */}
       {isAdmin && (
         <div className="adm-prep-actions" style={{ marginTop: 10 }}>
           <button className="adm-regen" onClick={() => setLoadoutOpen((o) => !o)}>🚚 Load-out &amp; tow {loadoutOpen ? "▾" : "▸"}</button>
+          <button className="adm-regen" onClick={() => setPackPlanOpen(true)}>📦 Pack-out plan · kegs vs bottles</button>
         </div>
       )}
       {loadoutOpen && isAdmin && <TrailerLoadout lockTo={{ kind: target.kind, id: target.id }} />}
+      {packPlanOpen && <PackPlan ownerType={target.kind} ownerId={target.id} title={name ?? ""} onClose={() => setPackPlanOpen(false)} />}
 
       {/* How the crew shows up — dress code + call details. Leadership edits; assigned crew read it. */}
       <DayBrief ownerCol={ownerCol as "event_id" | "stop_id"} ownerId={target.id} isAdmin={isAdmin} />

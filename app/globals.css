@@ -2488,3 +2488,25 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .menued-tog{background:rgba(0,0,0,.18);border:1px solid var(--line2);color:var(--cream);border-radius:9px;font-size:12.5px;font-weight:600;padding:6px 11px;cursor:pointer}
 .app.crew-day .menued-tog{background:rgba(34,31,24,.05);color:#221f18}
 .menued-tog b{color:var(--gold2);text-transform:capitalize}
+
+/* Pack-out plan — kegs vs bottles across all of an event/stop's batches */
+.pp-cfg{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px}
+.pp-cfg .prod-f{flex:1;min-width:120px}
+.pp-quick{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);margin-bottom:10px}
+.pp-quick span:first-child{margin-right:auto}
+.pp-mini{background:rgba(0,0,0,.18);border:1px solid var(--line2);color:var(--cream);border-radius:8px;font-size:12px;font-weight:600;padding:4px 10px;cursor:pointer}
+.app.crew-day .pp-mini{background:rgba(34,31,24,.05);color:#221f18}
+.pp-row{border:1px solid var(--line2);border-radius:12px;padding:10px 12px;margin-bottom:8px}
+.pp-row-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:14px}
+.pp-row-h span{font-size:12px;color:var(--muted)}
+.pp-split{display:flex;align-items:flex-end;gap:12px;margin-top:8px}
+.pp-keg{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--muted)}
+.pp-keg input{width:84px;background:rgba(0,0,0,.2);border:1px solid var(--line2);border-radius:8px;color:var(--cream);padding:6px 8px;font-size:14px}
+.app.crew-day .pp-keg input{background:#fff;color:#221f18}
+.pp-out{display:flex;flex-direction:column;gap:3px;font-size:13px;color:var(--cream)}
+.app.crew-day .pp-out{color:#221f18}
+.pp-short{color:#e07a76}
+.pp-totals{border-top:1px solid var(--line2);margin-top:10px;padding-top:10px}
+.pp-tot-row{display:flex;justify-content:space-between;font-size:14px;padding:3px 0}
+.pp-tot-row b{color:var(--gold2)}
+.pp-tot-row.warn b,.pp-tot-row.warn span{color:#e07a76}
