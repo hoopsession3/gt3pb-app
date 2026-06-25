@@ -1027,8 +1027,16 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   const confirmQty = async (t: EventTask, v: string) => {
     if (!supabase) return;
     const n = v.trim() === "" ? null : Number(v);
+    const delta = (n ?? 0) - (t.actual_qty ?? 0);
     setTasks((p) => p.map((x) => (x.id === t.id ? { ...x, actual_qty: n, done: n != null } : x)));
     await supabase.from("event_tasks").update({ actual_qty: n, done: n != null, done_at: n != null ? new Date().toISOString() : null, done_by: n != null ? user?.id ?? null : null }).eq("id", t.id);
+    // back the clean UI with an append-only ledger entry (signed delta) for reports + carryover
+    if (delta !== 0) {
+      await supabase.from("inventory_ledger").insert({
+        item: t.label.slice(0, 160), task_id: t.id, kind: "confirm", qty: delta,
+        event_id: isEvent ? target.id : null, stop_id: isEvent ? null : target.id, created_by: user?.id ?? null,
+      });
+    }
   };
   const addTask = async () => {
     if (!supabase || !newTask.trim()) return;
