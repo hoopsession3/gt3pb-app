@@ -32,6 +32,8 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
   const [backlog, setBacklog] = useState<CItem[]>([]);
   const [over, setOver] = useState<string | null>(null);
   const [focusEvent, setFocusEvent] = useState<string | null>(null); // highlight a relationship
+  const [dayOpen, setDayOpen] = useState<string | null>(null); // tap a day → its detail
+  const [editId, setEditId] = useState<string | null>(null);  // quick in-place edit of a piece
   const dragId = useRef<string | null>(null);
 
   const days = useMemo(() => {
@@ -85,7 +87,7 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
     const linked = !!c.event_id; const lit = focusEvent && c.event_id === focusEvent;
     return (
       <button type="button" draggable className={`cal-chip${inCell ? "" : " backlog"}${lit ? " lit" : ""}`} style={{ borderLeftColor: STC[c.status] ?? "#9a8f7c" }}
-        onDragStart={() => { dragId.current = c.id; }} onClick={() => onOpen(c.id)}
+        onDragStart={() => { dragId.current = c.id; }} onClick={(e) => { e.stopPropagation(); onOpen(c.id); }}
         onMouseEnter={() => linked && setFocusEvent(c.event_id)} onMouseLeave={() => setFocusEvent(null)}
         title={`${c.title} · ${c.status}${linked ? ` · ↔ ${evTitle(c.event_id)}` : ""}`}>
         <span className="cal-chip-dot" style={{ background: STC[c.status] ?? "#9a8f7c" }} />{linked ? "🔗 " : ""}{c.title || "Untitled"}
@@ -116,11 +118,12 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
           const k = key(d); const cell = byDay[k]; const dim = d.getMonth() !== cursor.getMonth();
           const dayEv = cell.evs[0]?.id ?? null;
           return (
-            <div key={k} className={`cal-cell${dim ? " dim" : ""}${over === k ? " over" : ""}${k === todayKey ? " today" : ""}`}
+            <div key={k} role="button" tabIndex={0} className={`cal-cell${dim ? " dim" : ""}${over === k ? " over" : ""}${k === todayKey ? " today" : ""}`}
+              onClick={() => setDayOpen(k)}
               onDragOver={(e) => { e.preventDefault(); setOver(k); }} onDragLeave={() => setOver((o) => (o === k ? null : o))} onDrop={() => drop(k)}>
               <div className="cal-cell-h">
                 <span className="cal-date">{d.getDate()}</span>
-                <button type="button" className="cal-add" onClick={() => onCreate(new Date(d.getFullYear(), d.getMonth(), d.getDate(), 9, 0).toISOString(), dayEv)} aria-label="New piece this day">+</button>
+                <button type="button" className="cal-add" onClick={(e) => { e.stopPropagation(); onCreate(new Date(d.getFullYear(), d.getMonth(), d.getDate(), 9, 0).toISOString(), dayEv); }} aria-label="New piece this day">+</button>
               </div>
               <div className="cal-items">
                 {cell.evs.map((e) => (
@@ -138,6 +141,104 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
         <div className="insp-lbl">Unscheduled — drag onto a day to plan it</div>
         <div className="cal-backlog-row">
           {backlog.length === 0 ? <span className="cal-empty">Nothing waiting. Tap a day&apos;s + to start a piece.</span> : backlog.map((c) => <Chip key={c.id} c={c} />)}
+        </div>
+      </div>
+
+      {dayOpen && (
+        <DayView dayKey={dayOpen} posts={byDay[dayOpen]?.posts ?? []} evs={byDay[dayOpen]?.evs ?? []} evTitle={evTitle}
+          onClose={() => setDayOpen(null)} onEdit={(id) => setEditId(id)} onOpenFull={(id) => { setDayOpen(null); onOpen(id); }}
+          onAdd={() => { const [y, mo, da] = dayOpen.split("-").map(Number); const evId = byDay[dayOpen]?.evs[0]?.id ?? null; setDayOpen(null); onCreate(new Date(y, mo - 1, da, 9, 0).toISOString(), evId); }} />
+      )}
+      {editId && <ContentEdit id={editId} events={events} onClose={() => setEditId(null)} onSaved={() => { setEditId(null); load(); }} onOpenFull={(id) => { setEditId(null); onOpen(id); }} />}
+    </div>
+  );
+}
+
+// One day, expanded — the Studio mirror of the Company calendar's day view. Tap a piece to edit it in
+// place (date, time, status, link-to-event); events are shown for context. "↗" opens the full editor.
+function DayView({ dayKey, posts, evs, evTitle, onClose, onEdit, onOpenFull, onAdd }: { dayKey: string; posts: CItem[]; evs: EvItem[]; evTitle: (id: string | null) => string; onClose: () => void; onEdit: (id: string) => void; onOpenFull: (id: string) => void; onAdd: () => void }) {
+  const d = new Date(`${dayKey}T00:00:00`);
+  const heading = d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  return (
+    <div className="qd-scrim" onClick={onClose}>
+      <div className="qd-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="qd-tabs"><b style={{ fontFamily: "Inter", fontSize: 15 }}>{heading}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>
+        <div className="qd-body">
+          {posts.length === 0 && evs.length === 0 && <div className="oa-empty" style={{ padding: "18px 8px" }}>Nothing this day. Tap + New piece to start one.</div>}
+          <div className="dv-list">
+            {evs.map((e) => (
+              <div key={e.id} className="dv-row" style={{ ["--c" as string]: "#6fa8dc" }}>
+                <span className="dv-dot" style={{ background: "#6fa8dc" }} />
+                <span className="dv-main"><b>📍 {e.title || e.day_label || "Event"}</b><span>event · plan content around it</span></span>
+              </div>
+            ))}
+            {posts.map((c) => (
+              <div key={c.id} className="dv-row" style={{ ["--c" as string]: STC[c.status] ?? "#9a8f7c" }}>
+                <span className="dv-dot" style={{ background: STC[c.status] ?? "#9a8f7c" }} />
+                <button type="button" className="dv-main dv-tap" onClick={() => onEdit(c.id)}>
+                  <b>{c.event_id ? "🔗 " : ""}{c.title || "Untitled"}</b>
+                  <span>{c.status} · {c.channel}{c.event_id ? ` · ↔ ${evTitle(c.event_id)}` : ""} · tap to edit</span>
+                </button>
+                <button type="button" className="dv-go" title="Open full editor" onClick={() => onOpenFull(c.id)}>↗</button>
+              </div>
+            ))}
+          </div>
+          <div className="prod-actions" style={{ marginTop: 14 }}><span /><button type="button" className="note-save" onClick={onAdd}>+ New piece</button></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Quick in-place editor for a scheduled piece — date, time, status, and the event link, written
+// straight to content_items. "Open full editor" jumps to Studio for hook/caption/Canva.
+function ContentEdit({ id, events, onClose, onSaved, onOpenFull }: { id: string; events: EvItem[]; onClose: () => void; onSaved: () => void; onOpenFull: (id: string) => void }) {
+  const [f, setF] = useState<any | null>(null);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { if (supabase) supabase.from("content_items").select("title, scheduled_for, status, event_id, channel").eq("id", id).maybeSingle().then(({ data }) => setF(data ?? {})); }, [id]);
+  const set = (k: string, v: any) => setF((p: any) => ({ ...p, [k]: v }));
+  const localDate = (iso: string) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+  const localTime = (iso: string) => { const d = new Date(iso); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
+  const save = async () => {
+    if (!supabase || !f) return;
+    setSaving(true);
+    await supabase.from("content_items").update({ title: (f.title || "").trim() || "Untitled", scheduled_for: f.scheduled_for || null, status: f.status || "draft", event_id: f.event_id || null }).eq("id", id);
+    setSaving(false); onSaved();
+  };
+  const unschedule = async () => { if (!supabase) return; setSaving(true); await supabase.from("content_items").update({ scheduled_for: null }).eq("id", id); setSaving(false); onSaved(); };
+  if (!f) return null;
+  const dateVal = f.scheduled_for ? localDate(f.scheduled_for) : "";
+  const timeVal = f.scheduled_for ? localTime(f.scheduled_for) : "09:00";
+  const setDT = (date: string, time: string) => { if (!date) { set("scheduled_for", null); return; } set("scheduled_for", new Date(`${date}T${time || "09:00"}:00`).toISOString()); };
+  return (
+    <div className="qd-scrim dp-scrim2" onClick={onClose}>
+      <div className="qd-sheet dp-form" onClick={(e) => e.stopPropagation()}>
+        <div className="qd-tabs"><b style={{ fontFamily: "Inter", fontSize: 15 }}>Edit piece</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>
+        <div className="qd-body">
+          <input className="note-in" value={f.title ?? ""} onChange={(e) => set("title", e.target.value)} placeholder="Title" autoFocus />
+          <div className="prod-grid" style={{ marginTop: 10 }}>
+            <label className="prod-f"><span>Date</span><input type="date" value={dateVal} onChange={(e) => setDT(e.target.value, timeVal)} /></label>
+            <label className="prod-f"><span>Time</span><input type="time" value={timeVal} onChange={(e) => setDT(dateVal, e.target.value)} /></label>
+            <label className="prod-f"><span>Status</span>
+              <select value={f.status ?? "draft"} onChange={(e) => set("status", e.target.value)}>
+                <option value="draft">Draft</option><option value="review">In review</option><option value="changes">Changes</option><option value="approved">Approved</option><option value="scheduled">Scheduled</option><option value="published">Published</option>
+              </select>
+            </label>
+            <label className="prod-f"><span>Link to event</span>
+              <select value={f.event_id ?? ""} onChange={(e) => set("event_id", e.target.value || null)}>
+                <option value="">None</option>
+                {events.map((ev) => <option key={ev.id} value={ev.id}>{ev.title || ev.day_label || "Event"}</option>)}
+              </select>
+            </label>
+          </div>
+          <button type="button" className="cal-tolink" style={{ marginTop: 10, marginLeft: 0 }} onClick={() => onOpenFull(id)}>Open full editor (hook, caption, Canva) ↗</button>
+          <div className="prod-actions" style={{ marginTop: 14, justifyContent: "space-between" }}>
+            <button type="button" className="note-arch" onClick={unschedule} disabled={saving}>Unschedule</button>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
+              <button type="button" className="note-save" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
