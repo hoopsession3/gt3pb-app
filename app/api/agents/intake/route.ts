@@ -70,27 +70,30 @@ export async function POST(req: Request) {
     const user = await userFromRequest(req).catch(() => null);
     try {
       if (kind === "asset") {
-        const { data } = await supabaseAdmin.from("assets").insert({
+        const { data, error } = await supabaseAdmin.from("assets").insert({
           name, make_model: c.category || null, category: c.category ? [String(c.category)] : [],
           notes: c.summary || null, manual_url: c.path || null,
         }).select("id").maybeSingle();
+        if (error) return NextResponse.json({ ok: false, error: error.code === "23505" ? "already on file" : error.message }, { status: error.code === "23505" ? 409 : 502 });
         return NextResponse.json({ ok: true, filed: "asset", id: data?.id ?? null });
       }
       if (kind === "inventory") {
-        const { data } = await supabaseAdmin.from("inventory_items").insert({
+        const { data, error } = await supabaseAdmin.from("inventory_items").insert({
           name, qty: typeof c.qty === "number" ? c.qty : null, unit: c.unit || null,
           category: c.category || null, status: "On Hand", notes: c.summary || null,
         }).select("id").maybeSingle();
+        if (error) return NextResponse.json({ ok: false, error: error.code === "23505" ? "already on file" : error.message }, { status: error.code === "23505" ? 409 : 502 });
         return NextResponse.json({ ok: true, filed: "inventory", id: data?.id ?? null });
       }
       // document / recipe / photo / other → documents
       const docKind = String(c.doc_kind || (kind === "recipe" ? "recipe" : kind === "photo" ? "photo" : "other")).slice(0, 40);
-      const { data } = await supabaseAdmin.from("documents").insert({
+      const { data, error: docErr } = await supabaseAdmin.from("documents").insert({
         title: name, kind: docKind, summary: c.summary || null,
         storage_path: c.path || null, file_name: c.name || null, mime: c.mime || null,
         tags: Array.isArray(c.tags) ? c.tags.slice(0, 8).map((t: any) => String(t).slice(0, 40)) : [],
         created_by: user?.id ?? null,
       }).select("id").maybeSingle();
+      if (docErr) return NextResponse.json({ ok: false, error: docErr.message }, { status: 502 });
       return NextResponse.json({ ok: true, filed: "document", id: data?.id ?? null });
     } catch (e: any) {
       return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 500 });
