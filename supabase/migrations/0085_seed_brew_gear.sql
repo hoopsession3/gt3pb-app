@@ -1,4 +1,4 @@
--- 0084 — seed brew gear as assets + baseline maintenance cadences.
+-- 0085 — seed brew gear as assets + baseline maintenance cadences.
 -- Populates the Asset Maintenance log from day one: the grinder, the brewing vessels, kegs, and the
 -- CO2 system, each with a first dated entry whose next_due_on sets the recurring cadence. Dates are
 -- relative to when this runs (deploy), so "due in a month" means a month from go-live. Idempotent:
