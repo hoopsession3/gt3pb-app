@@ -515,6 +515,62 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved }: { ownerType: "ev
   );
 }
 
+// MENU & RIG — the same menu/site flags an event carries, on the prep hub for events AND stops, so
+// "Generate pack list from menu" builds the right kit either way. Self-contained load/save.
+function MenuEditor({ ownerType, ownerId, isAdmin, onChanged }: { ownerType: "event" | "stop"; ownerId: string; isAdmin: boolean; onChanged: () => void }) {
+  const table = ownerType === "event" ? "events" : "stops";
+  const [f, setF] = useState<Record<string, boolean | string | null> | null>(null);
+  const [open, setOpen] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!supabase) return;
+    const { data } = await supabase.from(table).select("rig, power_available, water_available, menu_nitro, menu_nature_aid, menu_salted_maple, menu_bottles, menu_broth").eq("id", ownerId).maybeSingle();
+    setF((data as unknown as Record<string, boolean | string | null>) ?? {});
+  }, [table, ownerId]);
+  useEffect(() => { load(); }, [load]);
+
+  const save = async (patch: Record<string, boolean | string | null>) => {
+    if (!supabase || !f) return;
+    setF({ ...f, ...patch });
+    await supabase.from(table).update(patch).eq("id", ownerId);
+    onChanged();
+  };
+  if (!isAdmin || !f) return null;
+
+  const MENU = [
+    { k: "menu_nitro", label: "Nitro" }, { k: "menu_bottles", label: "Bottles" },
+    { k: "menu_nature_aid", label: "Nature Aid" }, { k: "menu_salted_maple", label: "Salted Maple" }, { k: "menu_broth", label: "Bone broth" },
+  ];
+  const tri = (v: boolean | null | undefined) => (v === true ? "yes" : v === false ? "no" : "—");
+  const cycleSite = (k: "power_available" | "water_available") => { const cur = f[k]; save({ [k]: cur === true ? false : cur === false ? null : true }); };
+
+  return (
+    <div className="menued">
+      <div className="adm-prep-actions" style={{ marginTop: 10 }}>
+        <button type="button" className="adm-regen" onClick={() => setOpen((o) => !o)}>🍹 Menu &amp; rig {open ? "▾" : "▸"}</button>
+      </div>
+      {open && (
+        <div className="menued-body">
+          <div className="menued-h">What we&apos;re pouring</div>
+          <div className="ts-chips">
+            {MENU.map((m) => <button key={m.k} type="button" className={`ts-chip${f[m.k] ? " on" : ""}`} onClick={() => save({ [m.k]: !f[m.k] })}>{f[m.k] ? "✓ " : ""}{m.label}</button>)}
+          </div>
+          <div className="menued-h" style={{ marginTop: 10 }}>Rig</div>
+          <div className="ts-chips">
+            {[{ k: "cart", label: "🛻 Cart" }, { k: "trailer_plus_cart", label: "🚚 Trailer + cart" }].map((r) => (
+              <button key={r.k} type="button" className={`ts-chip${f.rig === r.k ? " on" : ""}`} onClick={() => save({ rig: r.k })}>{r.label}</button>
+            ))}
+          </div>
+          <div className="menued-site">
+            <button type="button" className="menued-tog" onClick={() => cycleSite("power_available")}>Power on site · <b>{tri(f.power_available as boolean)}</b></button>
+            <button type="button" className="menued-tog" onClick={() => cycleSite("water_available")}>Water on site · <b>{tri(f.water_available as boolean)}</b></button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // DAY-OF BRIEF — how the crew shows up: dress code + call time / parking / what to bring. Leadership
 // edits it; assigned crew read it. Self-contained (loads + saves its own row), works for events or stops.
 function DayBrief({ ownerCol, ownerId, isAdmin }: { ownerCol: "event_id" | "stop_id"; ownerId: string; isAdmin: boolean }) {
@@ -1133,25 +1189,31 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   const initialOf = (uid: string) => { const n = staff.find((s) => s.id === uid)?.display_name?.trim(); return n ? n.charAt(0).toUpperCase() : "?"; };
   const nameOf = (uid: string) => staffName(uid);
   const generate = async (regen = false) => {
-    if (!ev || !supabase || generating) return;
-    if (regen && typeof window !== "undefined" && !window.confirm("Rebuild the pack list from the event's current menu/rig?\n\nThis clears the existing list and all its checkmarks.")) return;
+    if (!supabase || generating) return;
+    // The menu/rig/site row that drives packListFor — the event row, or the stop's own menu columns.
+    let menuRow = ev as EventRow | null;
+    if (!isEvent) {
+      const { data: s } = await supabase.from("stops").select("rig, power_available, water_available, menu_nitro, menu_nature_aid, menu_salted_maple, menu_bottles, menu_broth").eq("id", target.id).maybeSingle();
+      menuRow = (s as unknown as EventRow) ?? null;
+    }
+    if (!menuRow) return;
+    if (regen && typeof window !== "undefined" && !window.confirm(`Rebuild the pack list from the ${isEvent ? "event" : "stop"}'s current menu/rig?\n\nThis clears the existing list and all its checkmarks.`)) return;
     setGenerating(true);
     // Idempotency: never double-insert (the old double-tap bug). If tasks already exist,
     // a plain generate no-ops; "Regenerate" clears first then rebuilds.
-    const { data: existing } = await supabase.from("event_tasks").select("id").eq("event_id", ev.id);
+    const { data: existing } = await supabase.from("event_tasks").select("id").eq(ownerCol, target.id);
     if (existing && existing.length) {
       if (!regen) { setGenerating(false); load(); return; }
-      await supabase.from("event_tasks").delete().eq("event_id", ev.id);
+      await supabase.from("event_tasks").delete().eq(ownerCol, target.id);
     }
-    // Pack list (rig/menu) + compliance (state/county) in one go — the whole "what do
-    // we need to bring AND what permits do we need" question, answered from the event.
-    const pack = packListFor(ev).map((p, i) => ({ event_id: ev.id, label: p.label, section: p.section, critical: !!p.critical, warn: !!p.warn, kind: "pack", link: null, sort: i }));
-    const comp = (await complianceFor(ev, supabase)).map((p, i) => ({ event_id: ev.id, label: p.label, section: p.section, critical: !!p.critical, warn: !!p.warn, kind: "task", link: p.link ?? null, sort: 100 + i }));
+    // Pack list (rig/menu) for both; compliance (state/county) for events, which carry a jurisdiction.
+    const pack = packListFor(menuRow).map((p, i) => ({ [ownerCol]: target.id, label: p.label, section: p.section, critical: !!p.critical, warn: !!p.warn, kind: "pack", link: null, sort: i }));
+    const comp = isEvent && ev ? (await complianceFor(ev, supabase)).map((p, i) => ({ event_id: ev.id, label: p.label, section: p.section, critical: !!p.critical, warn: !!p.warn, kind: "task", link: p.link ?? null, sort: 100 + i })) : [];
     const rows = [...pack, ...comp];
-    if (!rows.length) { setGenerating(false); toast("Set the event's rig + menu first (Plan → Events)", "error"); return; }
+    if (!rows.length) { setGenerating(false); toast(`Set the ${isEvent ? "event" : "stop"}'s rig + menu first — tap Menu & rig`, "error"); return; }
     const { error } = await supabase.from("event_tasks").insert(rows);
     setGenerating(false);
-    toast(error ? `Error: ${error.message}` : `Generated ${pack.length} pack + ${comp.length} compliance items`);
+    toast(error ? `Error: ${error.message}` : `Generated ${pack.length} pack${comp.length ? ` + ${comp.length} compliance` : ""} items`);
     if (!error) load();
   };
   // Nuke / reset — wipe everything built for this event/stop (AI-generated prep + run-of-show schedule)
@@ -1322,7 +1384,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
           </div>
           {isAdmin && (
             <div className="adm-prep-actions">
-              {isEvent && <button className="adm-regen" onClick={() => generate(true)} disabled={generating}>↻ Regenerate from menu</button>}
+              <button className="adm-regen" onClick={() => generate(true)} disabled={generating}>↻ Regenerate from menu</button>
               <button className="adm-regen" onClick={() => setPrepAIOpen(true)}>✨ AI prep list</button>
               <button className="adm-regen ts-btn" onClick={() => setTroubleshootOpen(true)}>🔧 Troubleshoot</button>
               <button className="adm-regen" onClick={() => setShowSupplies(true)}>+ Add supplies</button>
@@ -1331,9 +1393,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
         </>
       ) : isAdmin ? (
         <div className="adm-prep-actions" style={{ flexWrap: "wrap" }}>
-          {isEvent
-            ? <button className="adm-btn primary" onClick={() => generate()} disabled={generating}>{generating ? "Generating…" : "Generate pack list from menu"}</button>
-            : <button className="adm-btn primary" onClick={() => setShowSupplies(true)}>+ Build this location&apos;s list</button>}
+          <button className="adm-btn primary" onClick={() => generate()} disabled={generating}>{generating ? "Generating…" : "Generate pack list from menu"}</button>
           <button className="adm-btn" onClick={() => setPrepAIOpen(true)}>✨ AI prep list</button>
           <button className="adm-btn ts-btn" onClick={() => setTroubleshootOpen(true)}>🔧 Troubleshoot</button>
         </div>
@@ -1346,6 +1406,9 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
         <TroubleshootAI ownerType={target.kind} ownerId={target.id} title={name ?? (isEvent ? "Event" : "Stop")}
           onClose={() => setTroubleshootOpen(false)} onLogged={load} />
       )}
+
+      {/* Menu & rig — the same flags an event carries; drives "Generate pack list from menu" for both. */}
+      <MenuEditor ownerType={target.kind} ownerId={target.id} isAdmin={isAdmin} onChanged={load} />
 
       {/* Run-of-show / "when do we leave" planner — identical for events and stops. */}
       {isAdmin && (
