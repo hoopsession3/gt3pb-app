@@ -257,6 +257,23 @@ function BatchLog({ batch, events, stops, onClose, onSaved }: { batch: Batch; ev
   );
 }
 
+// Fill `needGal` from the real keg fleet — smallest keg that covers the remainder, else the largest.
+function allocKegs(needGal: number, inv: { cap: number; qty: number }[]): { cap: number; count: number }[] {
+  if (needGal <= 0.001) return [];
+  const pool = (inv.length ? inv : [{ cap: 5, qty: 999 }]).map((k) => ({ ...k }));
+  const used: Record<number, number> = {};
+  let need = needGal, guard = 0;
+  while (need > 0.001 && guard++ < 100) {
+    const avail = pool.filter((k) => k.qty > 0);
+    if (!avail.length) break;
+    const covers = avail.filter((k) => k.cap >= need - 0.001).sort((a, b) => a.cap - b.cap);
+    const pick = covers[0] ?? avail.slice().sort((a, b) => b.cap - a.cap)[0];
+    pick.qty--; used[pick.cap] = (used[pick.cap] || 0) + 1; need -= pick.cap;
+  }
+  return Object.entries(used).map(([cap, count]) => ({ cap: Number(cap), count }));
+}
+const kegLabel = (plan: { cap: number; count: number }[]) => plan.map((k) => `${k.count}× ${k.cap}gal`).join(" + ");
+
 // Bottle loadout — how to pack THIS batch's bottles for the car, and what to pack them in.
 function BottleLoadout({ batch, onClose }: { batch: Batch; onClose: () => void }) {
   const [oz, setOz] = useState(10);
@@ -265,12 +282,18 @@ function BottleLoadout({ batch, onClose }: { batch: Batch; onClose: () => void }
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [res, setRes] = useState<any | null>(null);
+  const [kegInv, setKegInv] = useState<{ cap: number; qty: number }[]>([]);
+
+  useEffect(() => {
+    supabase?.from("kegs").select("capacity_gal, qty").is("archived_at", null)
+      .then(({ data }) => setKegInv(((data as { capacity_gal: number; qty: number }[]) ?? []).map((k) => ({ cap: Number(k.capacity_gal), qty: Number(k.qty) })).filter((k) => k.cap > 0 && k.qty > 0)));
+  }, []);
 
   // live preview of the pack-out split (server recomputes authoritatively)
   const kg = Math.min(Math.max(0, Number(kegGal) || 0), batch.batch_gal);
   const bottleGal = Math.max(0, batch.batch_gal - kg);
   const prevBottles = Math.floor((bottleGal * 128) / oz);
-  const prevKegs = kg > 0 ? Math.ceil(kg / 5) : 0;
+  const prevKegStr = kg > 0 ? kegLabel(allocKegs(kg, kegInv)) : "";
 
   const planIt = async () => {
     if (!supabase || busy) return;
@@ -302,7 +325,7 @@ function BottleLoadout({ batch, onClose }: { batch: Batch; onClose: () => void }
                 <label className="prod-f"><span>To keg (gal)</span><input type="number" min="0" step="0.5" max={String(batch.batch_gal)} value={kegGal} onChange={(e) => setKegGal(e.target.value)} /></label>
                 <label className="prod-f"><span>Vehicle (optional)</span><input value={vehicle} onChange={(e) => setVehicle(e.target.value)} placeholder="SUV, 3-hr drive" /></label>
               </div>
-              <div className="brew-spec" style={{ marginTop: 10 }}>Pack-out: <b>{prevBottles}</b> × {oz}oz bottles · <b>{prevBottles}</b> UVDTF labels{prevKegs ? <> · <b>{prevKegs}</b> keg{prevKegs === 1 ? "" : "s"}</> : ""}</div>
+              <div className="brew-spec" style={{ marginTop: 10 }}>Pack-out: <b>{prevBottles}</b> × {oz}oz bottles · <b>{prevBottles}</b> UVDTF labels{prevKegStr ? <> · <b>{prevKegStr}</b></> : ""}</div>
               {err && <div className="dp-err">{err}</div>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={onClose} disabled={busy}>Cancel</button>
@@ -311,7 +334,7 @@ function BottleLoadout({ batch, onClose }: { batch: Batch; onClose: () => void }
             </>
           ) : (
             <>
-              <div className="brew-spec"><b>{res.bottles}</b> × {res.bottle_oz}oz bottles · <b>{res.uvdtf_labels}</b> UVDTF labels{res.label_order > res.uvdtf_labels ? ` (order ~${res.label_order} w/ spares)` : ""}{res.kegs ? <> · <b>{res.kegs}</b> keg{res.kegs === 1 ? "" : "s"} ({res.keg_gal} gal)</> : ""}</div>
+              <div className="brew-spec"><b>{res.bottles}</b> × {res.bottle_oz}oz bottles · <b>{res.uvdtf_labels}</b> UVDTF labels{res.label_order > res.uvdtf_labels ? ` (order ~${res.label_order} w/ spares)` : ""}{res.keg_plan?.length ? <> · <b>{res.keg_plan.map((k: any) => `${k.count}× ${k.capacity_gal}gal`).join(" + ")}</b> ({res.keg_gal} gal){res.keg_shortfall_gal > 0.01 ? ` · short ${res.keg_shortfall_gal.toFixed(1)}gal` : ""}</> : res.kegs ? <> · <b>{res.kegs}</b> keg{res.kegs === 1 ? "" : "s"} ({res.keg_gal} gal)</> : ""}</div>
               {res.containers?.length > 0 && (
                 <><div className="brew-block-h">Pack them in</div><div className="brew-ing">{res.containers.map((c: any, i: number) => <div key={i} className="brew-ing-row"><b>{c.count}×</b><span>{c.what}{c.note ? ` — ${c.note}` : ""}</span></div>)}</div></>
               )}

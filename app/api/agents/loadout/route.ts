@@ -15,6 +15,27 @@ export const maxDuration = 60;
 
 const OZ_PER_GAL = 128;
 
+// Fill `needGal` from the keg fleet, picking the smallest keg that covers the remainder (least waste),
+// else the largest available. Falls back to an assumed corny size when no kegs are configured.
+function allocateKegs(needGal: number, inv: { name: string; cap: number; qty: number }[], fallbackCap: number) {
+  type Used = { name: string; capacity_gal: number; count: number };
+  if (needGal <= 0.001) return { plan: [] as Used[], shortfall: 0 };
+  const pool = inv.length ? inv.map((k) => ({ ...k })) : [{ name: `${fallbackCap} gal keg`, cap: fallbackCap, qty: 999 }];
+  const used: Record<string, Used> = {};
+  let need = needGal, guard = 0;
+  while (need > 0.001 && guard++ < 100) {
+    const avail = pool.filter((k) => k.qty > 0);
+    if (!avail.length) break;
+    const covers = avail.filter((k) => k.cap >= need - 0.001).sort((a, b) => a.cap - b.cap);
+    const pick = covers[0] ?? avail.slice().sort((a, b) => b.cap - a.cap)[0];
+    pick.qty--;
+    const key = `${pick.name}|${pick.cap}`;
+    (used[key] ??= { name: pick.name, capacity_gal: pick.cap, count: 0 }).count++;
+    need -= pick.cap;
+  }
+  return { plan: Object.values(used), shortfall: Math.max(0, need) };
+}
+
 const TOOL: ToolDef = {
   name: "loadout_plan",
   description: "A practical plan to pack and transport finished GT3 bottles safely and cold. The bottle COUNT is given — don't recompute it.",
@@ -52,13 +73,20 @@ export async function POST(req: Request) {
   // Pack-out split: how much goes to keg vs bottle. Bottles each need one UVDTF label.
   const kegGal = Math.min(Math.max(0, Number(body.keg_gal) || 0), gallons);
   const bottleGal = Math.max(0, gallons - kegGal);
-  const kegs = kegGal > 0 ? Math.ceil(kegGal / kegSizeGal) : 0;
   const bottles = Math.floor((bottleGal * OZ_PER_GAL) / bottleOz); // exact count
   const uvdtf_labels = bottles;                                    // one UVDTF label per bottle
   const label_order = Math.ceil(bottles * 1.05);                   // suggest ~5% spares for misapplies
-  const base = { ok: true, gallons, bottle_oz: bottleOz, keg_gal: kegGal, bottle_gal: bottleGal, kegs, keg_size_gal: kegSizeGal, bottles, uvdtf_labels, label_order, recipe_name: recipeName };
 
-  const packSummary = `${bottles} × ${bottleOz}oz bottles (${uvdtf_labels} UVDTF labels)${kegs ? ` + ${kegs} keg${kegs === 1 ? "" : "s"}` : ""}.`;
+  // Allocate the keg gallons to the REAL keg fleet (mixed sizes), not an assumed 5-gal corny.
+  const { data: kegRows } = await supabaseAdmin.from("kegs").select("name, capacity_gal, qty").is("archived_at", null).order("capacity_gal", { ascending: false });
+  const inv = (kegRows ?? []).map((k: any) => ({ name: String(k.name), cap: Number(k.capacity_gal), qty: Number(k.qty) })).filter((k) => k.cap > 0 && k.qty > 0);
+  const { plan: kegPlan, shortfall: kegShortfallGal } = allocateKegs(kegGal, inv, kegSizeGal);
+  const kegs = kegPlan.reduce((s, k) => s + k.count, 0);
+  const kegLabel = kegPlan.map((k) => `${k.count}× ${k.capacity_gal}gal`).join(" + ");
+
+  const base = { ok: true, gallons, bottle_oz: bottleOz, keg_gal: kegGal, bottle_gal: bottleGal, kegs, keg_plan: kegPlan, keg_shortfall_gal: kegShortfallGal, keg_size_gal: kegSizeGal, bottles, uvdtf_labels, label_order, recipe_name: recipeName };
+
+  const packSummary = `${bottles} × ${bottleOz}oz bottles (${uvdtf_labels} UVDTF labels)${kegs ? ` + ${kegLabel}` : ""}${kegShortfallGal > 0.01 ? ` — short ${kegShortfallGal.toFixed(1)} gal of keg space` : ""}.`;
   if (!anthropicEnabled()) {
     return NextResponse.json({ ...base, summary: packSummary, containers: [], ice: "Pre-chill bottles + coolers; gel/ice packs between rows; hold under 40°F.", layout: ["Bottles upright in dividers", "Gel packs between layers", "Pack snug so nothing shifts"], vehicle: "Load low and centered, braced, out of sun, AC on.", checklist: [] });
   }
