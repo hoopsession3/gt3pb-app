@@ -27,6 +27,7 @@ import BrewPlanner from "@/components/BrewPlanner";
 import AssetMaintenance from "@/components/AssetMaintenance";
 import ChiefOfStaff from "@/components/ChiefOfStaff";
 import ChiefOfSales from "@/components/ChiefOfSales";
+import SmartIntake from "@/components/SmartIntake";
 import Markdown from "@/components/Markdown";
 import { subscribePush } from "@/lib/push";
 import { chime, unlockAudio } from "@/lib/chime";
@@ -468,6 +469,7 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
         </div>
       )}
       {isLeader && <ChiefOfStaff />}
+      {isLeader && <SmartIntake />}
       {isLeader && (
         <>
           <div className="sec">Flags &amp; pings for you{flags.length ? ` · ${flags.length}` : ""}</div>

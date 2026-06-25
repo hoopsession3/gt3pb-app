@@ -2379,3 +2379,19 @@ select.note-in{-webkit-appearance:none;appearance:none}
 
 /* AI plan preview — stop vs event tag */
 .eg-kind{display:inline-block;font-family:'Inter';font-weight:700;font-size:9.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--c,#6fa8dc);border:1px solid var(--c,#6fa8dc);border-radius:5px;padding:1px 5px;vertical-align:middle;margin-left:4px}
+
+/* ── Smart intake (drop any file) ── */
+.intake{margin-bottom:16px}
+.intake-drop{display:flex;flex-direction:column;align-items:center;gap:4px;width:100%;background:rgba(245,241,232,.04);border:1px dashed var(--line2);border-radius:14px;padding:18px 14px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.app.crew-day .intake-drop{background:rgba(34,31,24,.03)}
+.intake-drop:disabled{opacity:.7}
+.intake-i{font-size:22px}
+.intake-drop b{font-family:'Inter';font-weight:700;font-size:14px;color:var(--cream);text-align:center}
+.intake-drop span{font-family:'Inter';font-size:12px;color:var(--cream-m);text-align:center}
+.intake-review{background:var(--card);border:1px solid var(--gold2);border-radius:14px;padding:14px}
+.intake-readhead{display:flex;align-items:center;gap:9px}
+.intake-readhead b{font-family:'Inter';font-weight:700;font-size:14.5px;color:var(--cream)}
+.intake-conf{font-family:'Inter';font-weight:800;font-size:9.5px;letter-spacing:.5px;text-transform:uppercase;border-radius:5px;padding:2px 6px;color:#15140f}
+.intake-conf[data-c="high"]{background:var(--ok)}
+.intake-conf[data-c="medium"]{background:var(--warn)}
+.intake-conf[data-c="low"]{background:var(--red-h);color:#fff}
