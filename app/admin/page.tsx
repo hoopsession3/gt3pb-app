@@ -26,6 +26,7 @@ import TroubleshootAI from "@/components/TroubleshootAI";
 import BrewPlanner from "@/components/BrewPlanner";
 import AssetMaintenance from "@/components/AssetMaintenance";
 import ChiefOfStaff from "@/components/ChiefOfStaff";
+import ChiefOfSales from "@/components/ChiefOfSales";
 import Markdown from "@/components/Markdown";
 import { subscribePush } from "@/lib/push";
 import { chime, unlockAudio } from "@/lib/chime";
@@ -2224,6 +2225,7 @@ function Bookings() {
   const open = reqs.filter((r) => r.status === "new").length;
   return (
     <div className="adm-sec">
+      <ChiefOfSales onLeads={load} />
       <div className="sec">Booking requests{open > 0 && <span className="adm-pill">{open} new</span>}</div>
       {reqs.map((r) => (
         <div className={`adm-req${r.status === "new" ? " new" : ""}`} key={r.id}>
