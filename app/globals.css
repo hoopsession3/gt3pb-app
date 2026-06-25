@@ -2176,6 +2176,14 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .dv-go{background:none;border:none;cursor:pointer;padding:0 2px}
 .dv-row{align-items:center}
 
+/* ── Task editor sheet: priority selector ── */
+.te-prio{display:flex;gap:7px;margin-top:12px}
+.te-prio-b{flex:1;background:transparent;border:1px solid var(--line2);border-radius:10px;padding:9px 6px;color:var(--cream-m);font-family:'Inter';font-weight:700;font-size:12.5px;cursor:pointer;-webkit-appearance:none;appearance:none;transition:background .12s,color .12s,border-color .12s}
+.te-prio-b.normal.on{background:rgba(245,241,232,.1);border-color:var(--line2);color:var(--cream)}
+.te-prio-b.important.on{background:rgba(207,154,74,.16);border-color:var(--warn);color:var(--warn)}
+.te-prio-b.critical.on{background:rgba(184,36,32,.16);border-color:var(--red-h);color:var(--red-h)}
+.app.crew-day .te-prio-b{color:#6c6256}
+
 /* ============================================================
    iPad / tablet — the ops planning device.
    The base shell pins the app to a 480px phone column (right on

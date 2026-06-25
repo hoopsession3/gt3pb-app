@@ -900,6 +900,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   const [newTask, setNewTask] = useState("");
   const [generating, setGenerating] = useState(false);
   const [assignFor, setAssignFor] = useState<EventTask | null>(null);
+  const [editTask, setEditTask] = useState<EventTask | null>(null);
   const [showSupplies, setShowSupplies] = useState(false);
   const [openThread, setOpenThread] = useState<string | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
@@ -1170,6 +1171,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
                 <div className="task-right">
                   {t.link && <a className="adm-task-link" href={t.link} target="_blank" rel="noopener noreferrer" aria-label="Open reference / application">↗</a>}
                   <button type="button" className="task-discuss" onClick={() => setOpenThread(openThread === t.id ? null : t.id)} aria-label={`Discuss ${t.label}`}>💬{counts[t.id] ? <span className="cmt-count">{counts[t.id]}</span> : null}</button>
+                  {isAdmin && <button type="button" className="task-discuss" onClick={() => setEditTask(t)} aria-label={`Edit ${t.label}`} title="Edit task">✎</button>}
                   {isAdmin ? (
                     <button type="button" className={`task-assign${t.assignee ? " set" : ""}`} onClick={() => setAssignFor(t)} aria-label={t.assignee ? `Reassign ${t.label} — currently ${staffName(t.assignee)}` : `Assign ${t.label} to crew`}>
                       {t.assignee
@@ -1206,6 +1208,8 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
           onClose={() => setAssignFor(null)}
         />
       )}
+
+      {editTask && <TaskEditSheet task={editTask} onClose={() => setEditTask(null)} onSaved={() => { setEditTask(null); load(); }} />}
 
       {showSupplies && (
         <SupplyPicker ev={ev} title={name ?? (isEvent ? "this event" : "this location")} have={new Set(tasks.map((t) => t.label.trim().toLowerCase()))} onAdd={addSupplies} onClose={() => setShowSupplies(false)} />
@@ -1260,6 +1264,72 @@ function AssignSheet({ task, staff, crewIds, meId, meName, onPick, onClose }: {
             <span className="assign-av none">—</span><span className="assign-name">Unassign</span>
           </button>
         )}
+      </div>
+    </>
+  );
+}
+
+// Shared task editor — one bottom sheet that edits ANY event_task (it's polymorphic at the schema
+// level: owned by an event, a stop, OR a meeting note). Updates are by id, so the same sheet works
+// from Prep and from Meeting Notes; the edit relates straight back to the source. Fills the gap the
+// per-surface rows left: rename the task, set its section, type (pack/to-do), and priority.
+function TaskEditSheet({ task, onClose, onSaved }: { task: EventTask; onClose: () => void; onSaved: () => void }) {
+  const { toast } = useApp();
+  const [label, setLabel] = useState(task.label);
+  const [section, setSection] = useState(task.section ?? "Task");
+  const [kind, setKind] = useState<"pack" | "task">(task.kind === "pack" ? "pack" : "task");
+  const [priority, setPriority] = useState<"normal" | "important" | "critical">(task.critical ? "critical" : task.warn ? "important" : "normal");
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
+    if (!supabase) return;
+    const nm = label.trim(); if (!nm) { toast("Give the task a name"); return; }
+    setSaving(true);
+    const { error } = await supabase.from("event_tasks").update({
+      label: nm, section: section.trim() || null, kind,
+      critical: priority === "critical", warn: priority === "important",
+    }).eq("id", task.id);
+    setSaving(false);
+    if (error) { toast(`Error: ${error.message}`, "error"); return; }
+    toast("Task updated"); onSaved();
+  };
+  const del = async () => {
+    if (!supabase) return;
+    if (typeof window !== "undefined" && !window.confirm(`Delete "${task.label}"?`)) return;
+    setSaving(true);
+    const { error } = await supabase.from("event_tasks").delete().eq("id", task.id);
+    setSaving(false);
+    if (error) { toast(`Error: ${error.message}`, "error"); return; }
+    toast("Task deleted"); onSaved();
+  };
+  return (
+    <>
+      <div className="prep-scrim" onClick={onClose} aria-hidden="true" />
+      <div className="prep-sheet" role="dialog" aria-modal="true" aria-label={`Edit ${task.label}`}>
+        <div className="prep-sheet-grab" />
+        <div className="assign-sheet-h">Edit task</div>
+        <input className="ev-input" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Task" maxLength={300} autoFocus />
+        <div className="prod-grid" style={{ marginTop: 10 }}>
+          <label className="prod-f"><span>Section</span><input value={section} onChange={(e) => setSection(e.target.value)} placeholder="Task" maxLength={60} /></label>
+          <label className="prod-f"><span>Type</span>
+            <select value={kind} onChange={(e) => setKind(e.target.value as "pack" | "task")}>
+              <option value="task">To-do</option><option value="pack">Pack / supply</option>
+            </select>
+          </label>
+        </div>
+        <div className="te-prio">
+          {(["normal", "important", "critical"] as const).map((p) => (
+            <button key={p} type="button" className={`te-prio-b ${p}${priority === p ? " on" : ""}`} onClick={() => setPriority(p)}>
+              {p === "normal" ? "Normal" : p === "important" ? "Important" : "Critical"}
+            </button>
+          ))}
+        </div>
+        <div className="prod-actions" style={{ marginTop: 14, justifyContent: "space-between" }}>
+          <button type="button" className="note-arch" onClick={del} disabled={saving}>Delete</button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
+            <button type="button" className="note-save" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
+          </div>
+        </div>
       </div>
     </>
   );
@@ -1939,6 +2009,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
   const [items, setItems] = useState<EventTask[]>([]);
   const [newItem, setNewItem] = useState("");
   const [assignFor, setAssignFor] = useState<EventTask | null>(null);
+  const [editTask, setEditTask] = useState<EventTask | null>(null);
   const [openThread, setOpenThread] = useState<string | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [suggesting, setSuggesting] = useState(false);
@@ -2080,6 +2151,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
                 <button type="button" className="note-fu-flag" onClick={() => setOpenThread(openThread === t.id ? null : t.id)} aria-label="Discuss" title="Discuss">💬{counts[t.id] ? <span className="cmt-count">{counts[t.id]}</span> : null}</button>
                 <button type="button" className="note-fu-flag" onClick={() => flag(t)} aria-label="Flag as can't-miss" title="Flag as can't-miss">⚑</button>
                 {!t.ai_proposal && <button type="button" className="note-fu-solve" onClick={() => resolve(t)} disabled={resolving.has(t.id)} title="Propose how to complete this">{resolving.has(t.id) ? "…" : "💡"}</button>}
+                {isAdmin && <button type="button" className="note-fu-flag" onClick={() => setEditTask(t)} aria-label="Edit follow-up" title="Edit follow-up">✎</button>}
                 {isAdmin && <button type="button" className="note-fu-x" onClick={() => removeItem(t)} aria-label="Remove follow-up">×</button>}
               </div>
               {t.ai_proposal && (
@@ -2107,6 +2179,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
         <AssignSheet task={assignFor} staff={staff} crewIds={[]} meId={meId} meName={meName}
           onPick={(uid) => assign(assignFor, uid)} onClose={() => setAssignFor(null)} />
       )}
+      {editTask && <TaskEditSheet task={editTask} onClose={() => setEditTask(null)} onSaved={() => { setEditTask(null); load(); }} />}
     </div>
   );
 }
