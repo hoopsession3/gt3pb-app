@@ -1733,10 +1733,10 @@ function SupplyPicker({ ev, title, have, onAdd, onClose }: {
 // address pin, POC trio, service dates, notes, archive/delete); the stop adds go-live, a calendar date,
 // and the vendor picker. Unifies what used to be StopControl + VendorCard (near-identical), and upgrades
 // the vendor to the stop's nicer modal address-pin flow. Stop-only props are optional.
-function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive, isCur, onGoLive, vendors, onLinkVendor }: {
+function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive, isCur, onGoLive, vendors, onLinkVendor, onOpenPrep }: {
   kind: "stop" | "vendor"; row: Stop | Vendor; index: number; isCur?: boolean; open: boolean; onToggle: () => void;
   onArchive: () => void; onChanged: () => void;
-  onGoLive?: (id: string) => void; vendors?: Vendor[]; onLinkVendor?: (v: Vendor | null) => void;
+  onGoLive?: (id: string) => void; vendors?: Vendor[]; onLinkVendor?: (v: Vendor | null) => void; onOpenPrep?: () => void;
 }) {
   const { toast } = useApp();
   const table = kind === "stop" ? "stops" : "vendors";
@@ -1852,6 +1852,7 @@ function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive
           </div>
 
           <div className="ev-card-foot">
+            {kind === "stop" && onOpenPrep && <button className="adm-btn" style={{ marginRight: "auto" }} onClick={onOpenPrep}>Open prep hub ›</button>}
             <button className="ev-archive" onClick={onArchive}>{kind === "stop" ? "Archive location" : "Archive"}</button>
             <button className="ev-delete" onClick={remove}>Delete</button>
           </div>
@@ -1864,6 +1865,8 @@ function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive
 // ───────────────────────── live truck control ─────────────────────────
 function LiveControl() {
   const { toast } = useApp();
+  const { setSection } = useOperatorSection();
+  const openPrep = (id: string) => { try { localStorage.setItem("gt3-prep-open", `stop:${id}`); } catch { /* ignore */ } setSection("prep"); };
   const [stops, setStops] = useState<Stop[]>([]);
   const [live, setLive] = useState<LiveStatus | null>(null);
   const [err, setErr] = useState("");
@@ -2096,6 +2099,7 @@ function LiveControl() {
             onChanged={load}
             vendors={vendors}
             onLinkVendor={(v) => linkVendor(s.id, v)}
+            onOpenPrep={() => openPrep(s.id)}
           />
         ))}
       </div>
