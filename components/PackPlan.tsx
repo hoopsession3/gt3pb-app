@@ -7,7 +7,6 @@ import { supabase } from "@/lib/supabase";
 // between KEGS (poured on tap) and 10/16oz BOTTLES (grab-and-go in the cooler), and allocate the keg
 // gallons across the REAL keg fleet (shared — a keg holds one product). Totals roll up to bottles +
 // UVDTF labels + coolers needed, and it flags when you're short on bottle stock or keg space.
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 type Batch = { id: string; recipe_name: string | null; batch_gal: number; status: string };
 
@@ -52,17 +51,14 @@ export default function PackPlan({ ownerType, ownerId, title, onClose }: { owner
   // Sequential allocation across the SHARED fleet — earlier batches claim kegs first.
   const plan = useMemo(() => {
     const mut = fleet.map((k) => ({ ...k }));
-    let totalBottles = 0, totalKegShort = 0;
     const rows = batches.map((b) => {
       const kg = Math.min(Math.max(0, Number(kegGal[b.id] || 0)), b.batch_gal);
       const bottleGal = Math.max(0, b.batch_gal - kg);
       const bottles = Math.floor((bottleGal * 128) / oz);
-      totalBottles += bottles;
-      const { plan: kp, shortfall } = fillFromFleet(kg, mut);
-      totalKegShort += shortfall;
+      const { plan: kp, shortfall } = fillFromFleet(kg, mut); // mutates `mut` — earlier batches claim kegs first
       return { b, kg, bottleGal, bottles, kp, shortfall };
     });
-    return { rows, totalBottles, totalKegShort };
+    return { rows, totalBottles: rows.reduce((s, r) => s + r.bottles, 0), totalKegShort: rows.reduce((s, r) => s + r.shortfall, 0) };
   }, [batches, kegGal, fleet, oz]);
 
   const stockN = Number(stock) || 0;
