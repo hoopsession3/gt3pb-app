@@ -28,7 +28,11 @@ export default function ChiefOfSales({ onLeads }: { onLeads?: () => void }) {
   const call = async (payload: any) => {
     const t = await token();
     const r = await fetch("/api/agents/sales", { method: "POST", headers: { "Content-Type": "application/json", ...(t ? { Authorization: `Bearer ${t}` } : {}) }, body: JSON.stringify(payload) });
-    return r.json();
+    // parse defensively — a timeout/500 can return an HTML page, which would otherwise throw a cryptic
+    // "string did not match the expected pattern" instead of a useful message
+    const text = await r.text();
+    try { return JSON.parse(text); }
+    catch { return { ok: false, error: r.ok ? "The scout returned an unexpected response — try again." : `Scout failed (${r.status}) — the AI may be timing out or the API key needs attention.` }; }
   };
 
   const scout = async () => {

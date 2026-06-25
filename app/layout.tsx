@@ -20,6 +20,10 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   // pinch-zoom left enabled (WCAG 1.4.4) — the prototype locked it, but a shipped PWA shouldn't
+  // resizes-content: when the on-screen keyboard opens, the layout viewport shrinks to the visible
+  // area, so bottom sheets (qd-sheet) sit ABOVE the keyboard instead of behind it (the "can't reach
+  // the Build button" bug).
+  interactiveWidget: "resizes-content",
   themeColor: "#15140f",
 };
 

@@ -5,6 +5,7 @@ import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthro
 import { academyKnowledge } from "@/lib/operatorKb";
 
 export const runtime = "nodejs";
+export const maxDuration = 30;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // BREW AI — scale a recipe to an exact batch size (gallons of water), hit the spec ("OG"/Signal
