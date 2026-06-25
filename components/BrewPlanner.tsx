@@ -11,7 +11,7 @@ import { supabase } from "@/lib/supabase";
 
 type Recipe = { id: string; name: string; style: string | null; ratio: string | null; target_spec: string | null; base_water_gal: number; extraction_hours: number };
 type Vessel = { id: string; name: string; capacity_gal: number; filter_type: string | null };
-type Batch = { id: string; recipe_name: string | null; batch_gal: number; brew_date: string | null; ready_at: string | null; event_id: string | null; status: string; og: string | null; signal_score: number | null; target_spec: string | null; extraction_hours: number | null; brew_started_at: string | null; vessel: string | null };
+type Batch = { id: string; recipe_name: string | null; batch_gal: number; brew_date: string | null; ready_at: string | null; event_id: string | null; status: string; og: string | null; signal_score: number | null; target_spec: string | null; extraction_hours: number | null; brew_started_at: string | null; vessel: string | null; coffee_lot: string | null; brewer: string | null; taste_notes: string | null; created_at?: string | null };
 type Ev = { id: string; title: string | null; day: string | null; day_label: string | null };
 
 const STATUS: { key: string; label: string }[] = [
@@ -36,6 +36,8 @@ export default function BrewPlanner() {
   const [events, setEvents] = useState<Ev[]>([]);
   const [plan, setPlan] = useState<Recipe | null>(null);
   const [pack, setPack] = useState<Batch | null>(null);
+  const [logBatch, setLogBatch] = useState<Batch | null>(null);
+  const [view, setView] = useState<"schedule" | "log">("schedule");
   const [now, setNow] = useState(() => Date.now());
 
   // Live clock — only ticks while something is actively brewing, so the countdown stays current.
@@ -50,7 +52,7 @@ export default function BrewPlanner() {
     if (!supabase) return;
     const [{ data: r }, { data: b }, { data: e }, { data: v }] = await Promise.all([
       supabase.from("brew_recipes").select("id, name, style, ratio, target_spec, base_water_gal, extraction_hours").is("archived_at", null).order("sort"),
-      supabase.from("brew_batches").select("id, recipe_name, batch_gal, brew_date, ready_at, event_id, status, og, signal_score, target_spec, extraction_hours, brew_started_at, vessel").not("status", "in", "(served,dumped)").order("ready_at", { nullsFirst: false }),
+      supabase.from("brew_batches").select("id, recipe_name, batch_gal, brew_date, ready_at, event_id, status, og, signal_score, target_spec, extraction_hours, brew_started_at, vessel, coffee_lot, brewer, taste_notes, created_at").order("created_at", { ascending: false }),
       supabase.from("events").select("id, title, day, day_label").is("archived_at", null).order("day"),
       supabase.from("brew_vessels").select("id, name, capacity_gal, filter_type").is("archived_at", null).order("sort"),
     ]);
@@ -80,16 +82,40 @@ export default function BrewPlanner() {
     await supabase.from("brew_batches").update({ status: "brewing", brew_started_at: startIso, ready_at: readyIso, alerted_soon: false, alerted_ready: false }).eq("id", b.id);
   };
 
+  // schedule view = what's upcoming / in progress; the log view = every batch ever, the permanent record
+  const active = batches.filter((b) => b.status !== "served" && b.status !== "dumped")
+    .sort((a, b) => (a.ready_at || "9999").localeCompare(b.ready_at || "9999"));
+
   return (
     <div className="adm-sec">
       <div className="sec">Brew <button className="adm-btn primary" style={{ marginLeft: "auto" }} onClick={() => setPlan(recipes[0] ?? null)} disabled={!recipes.length}>+ Plan a batch</button></div>
       <div className="pnl-note" style={{ marginBottom: 8 }}>Recipes scale exactly to the gallons of water you brew and hold the spec. Batches are back-scheduled from the event they&apos;re for, then logged to standard.</div>
 
-      {/* Upcoming schedule */}
+      <div className="brew-toggle">
+        {(["schedule", "log"] as const).map((k) => (
+          <button key={k} type="button" className={`brew-toggle-b${view === k ? " on" : ""}`} onClick={() => setView(k)}>{k === "schedule" ? "Schedule" : "Production log"}</button>
+        ))}
+      </div>
+
+      {view === "log" ? (
+        batches.length === 0 ? <div className="ev-empty">No batches logged yet — plan and brew one.</div> : (
+          <div className="brew-list">
+            {batches.map((b) => (
+              <button key={b.id} type="button" className={`brew-logrow st-${b.status}`} onClick={() => setLogBatch(b)}>
+                <span className="brew-recipe-main">
+                  <b>{b.recipe_name || "Batch"} · {b.batch_gal} gal{b.signal_score != null ? ` · Signal ${b.signal_score}/10` : ""}</b>
+                  <span>{fmtTs(b.brew_started_at || b.ready_at)}{b.vessel ? ` · ${b.vessel}` : ""}{b.coffee_lot ? ` · lot ${b.coffee_lot}` : ""} · {b.status}</span>
+                </span>
+                <span className="brew-recipe-go">Log ›</span>
+              </button>
+            ))}
+          </div>
+        )
+      ) : (<>
       <div className="brew-sched-h">Brew schedule</div>
-      {batches.length === 0 ? <div className="ev-empty">No batches scheduled. Tap <b>+ Plan a batch</b>.</div> : (
+      {active.length === 0 ? <div className="ev-empty">No batches scheduled. Tap <b>+ Plan a batch</b>.</div> : (
         <div className="brew-list">
-          {batches.map((b) => {
+          {active.map((b) => {
             const ev = events.find((e) => e.id === b.event_id);
             return (
               <div key={b.id} className={`brew-card st-${b.status}`}>
@@ -143,9 +169,55 @@ export default function BrewPlanner() {
           </button>
         ))}
       </div>
+      </>)}
 
       {plan && <BrewSheet recipe={plan} events={events} vessels={vessels} onClose={() => setPlan(null)} onDone={() => { setPlan(null); load(); }} />}
       {pack && <BottleLoadout batch={pack} onClose={() => setPack(null)} />}
+      {logBatch && <BatchLog batch={logBatch} events={events} onClose={() => setLogBatch(null)} onSaved={() => { setLogBatch(null); load(); }} />}
+    </div>
+  );
+}
+
+// Brew production log — the permanent record for one batch. Edit the traceability fields (coffee lot,
+// brewer), the Signal Score, taste notes, OG, and status. This is the "GT3 Brew Lab Production" sheet.
+function BatchLog({ batch, events, onClose, onSaved }: { batch: Batch; events: Ev[]; onClose: () => void; onSaved: () => void }) {
+  const [f, setF] = useState<Batch>(batch);
+  const [busy, setBusy] = useState(false);
+  const set = (k: keyof Batch, v: any) => setF((p) => ({ ...p, [k]: v }));
+  const ev = events.find((e) => e.id === batch.event_id);
+  const save = async () => {
+    if (!supabase || busy) return;
+    setBusy(true);
+    await supabase.from("brew_batches").update({
+      status: f.status, og: f.og?.trim() || null, signal_score: f.signal_score,
+      coffee_lot: f.coffee_lot?.trim() || null, brewer: f.brewer?.trim() || null, taste_notes: f.taste_notes?.trim() || null,
+    }).eq("id", batch.id);
+    setBusy(false); onSaved();
+  };
+  return (
+    <div className="qd-scrim" onClick={onClose}>
+      <div className="qd-sheet dp-form" onClick={(e) => e.stopPropagation()}>
+        <div className="qd-tabs"><b style={{ fontFamily: "Inter", fontSize: 15 }}>Batch log · {batch.recipe_name}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>
+        <div className="qd-body">
+          <div className="brew-spec">{batch.batch_gal} gal{batch.vessel ? ` · ${batch.vessel}` : ""}{batch.target_spec ? ` · ${batch.target_spec}` : ""}<br />Brewed {fmtTs(batch.brew_started_at)} → ready {fmtTs(batch.ready_at)}{ev ? ` · for ${ev.title || ev.day_label}` : ""}</div>
+          <div className="prod-grid">
+            <label className="prod-f"><span>Status</span>
+              <select value={f.status} onChange={(e) => set("status", e.target.value)}>{STATUS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}</select>
+            </label>
+            <label className="prod-f"><span>OG / spec</span><input value={f.og ?? ""} onChange={(e) => set("og", e.target.value)} placeholder="e.g. on spec" /></label>
+            <label className="prod-f"><span>Coffee lot (origin · roast date)</span><input value={f.coffee_lot ?? ""} onChange={(e) => set("coffee_lot", e.target.value)} placeholder="e.g. Colombia · roasted 6/20" /></label>
+            <label className="prod-f"><span>Brewer</span><input value={f.brewer ?? ""} onChange={(e) => set("brewer", e.target.value)} placeholder="Ryan / Kayla" /></label>
+          </div>
+          <div className="brew-score" style={{ marginTop: 10 }}>Signal Score
+            {[6, 7, 8, 9, 10].map((n) => <button key={n} type="button" className={`brew-score-b${f.signal_score === n ? " on" : ""}`} onClick={() => set("signal_score", n)}>{n}</button>)}
+          </div>
+          <label className="prod-f" style={{ marginTop: 10 }}><span>Taste / cupping notes</span><textarea className="note-in" rows={3} value={f.taste_notes ?? ""} onChange={(e) => set("taste_notes", e.target.value)} placeholder="Aroma, body, balance, anything off…" /></label>
+          <div className="prod-actions" style={{ marginTop: 14 }}>
+            <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
+            <button type="button" className="note-save" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save log"}</button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

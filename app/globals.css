@@ -2212,6 +2212,13 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .am-how-steps>div{font-family:'Inter';font-size:12.5px;color:var(--cream);line-height:1.5;padding:7px 10px;background:var(--card);border:1px solid var(--line);border-radius:8px}
 
 /* ── Brew planner (recipes + scheduled batches) ── */
+.brew-toggle{display:flex;gap:6px;margin-bottom:12px;background:rgba(0,0,0,.22);border:1px solid var(--line);border-radius:11px;padding:3px}
+.app.crew-day .brew-toggle{background:rgba(34,31,24,.05)}
+.brew-toggle-b{flex:1;background:none;border:none;border-radius:8px;padding:8px;color:var(--cream-m);font-family:'Inter';font-weight:700;font-size:13px;cursor:pointer}
+.brew-toggle-b.on{background:var(--gold);color:#15140f}
+.brew-logrow{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-left:3px solid var(--gold2);border-radius:11px;padding:11px 12px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.brew-logrow.st-served{border-left-color:var(--ok)}
+.brew-logrow.st-dumped{border-left-color:var(--red-h);opacity:.7}
 .brew-sched-h{font-family:'Inter';font-weight:800;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--gold);margin:4px 0 8px}
 .brew-list{display:flex;flex-direction:column;gap:8px}
 .brew-card{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--gold2);border-radius:11px;padding:11px 12px}
