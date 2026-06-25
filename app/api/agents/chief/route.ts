@@ -4,7 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 
 export const runtime = "nodejs";
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // CHIEF OF STAFF — the executive-assistant briefing. Pulls the WHOLE org snapshot for a period
