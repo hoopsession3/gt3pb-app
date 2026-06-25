@@ -3,7 +3,7 @@ import { staffFromRequest } from "@/lib/apiAuth";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 
 export const runtime = "nodejs";
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // SUMMARIZE — turn a meeting transcript into the whole note in one shot: a title, the house-format

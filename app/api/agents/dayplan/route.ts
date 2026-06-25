@@ -4,7 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 
 export const runtime = "nodejs";
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // DAY PLANNER DRAFT — given an event and a few freeform notes ("leaving Greenville 9am, market opens

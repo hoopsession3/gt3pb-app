@@ -28,7 +28,9 @@ export default function EventPrepAI({ ownerType, ownerId, title, onClose, onAdde
   const post = async (payload: any) => {
     const t = await token();
     const r = await fetch("/api/agents/eventprep", { method: "POST", headers: { "Content-Type": "application/json", ...(t ? { Authorization: `Bearer ${t}` } : {}) }, body: JSON.stringify({ [ownerKey]: ownerId, ...payload }) });
-    return r.json();
+    const text = await r.text();
+    try { return JSON.parse(text); }
+    catch { return { ok: false, error: r.ok ? "Got an unexpected response — try again." : `The prep agent failed (${r.status}) — it may be timing out, or the API key needs attention.` }; }
   };
 
   const generate = async () => {

@@ -5,7 +5,7 @@ import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthro
 import { academyKnowledge } from "@/lib/operatorKb";
 
 export const runtime = "nodejs";
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // TROUBLESHOOT AI — the field-ops first responder. The crew describes what's going wrong RIGHT NOW

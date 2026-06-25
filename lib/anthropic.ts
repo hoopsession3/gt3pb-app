@@ -49,13 +49,20 @@ export async function callClaude(opts: {
     tool_choice: opts.tool_choice,
   });
 
+  // Budget the whole call UNDER the route's maxDuration (60s) so callClaude always returns a clean
+  // error itself — if instead a single attempt ran to 60s, the platform would kill the function first
+  // (504/HTML), and the browser would throw the cryptic "string did not match the expected pattern".
+  const TOTAL_BUDGET = 50_000;   // total wall-clock ceiling for all attempts
+  const ATTEMPT_MS = 24_000;     // per-attempt timeout (well under maxDuration)
   const started = Date.now();
   let lastErr: unknown = null;
   for (let attempt = 0; attempt < 3; attempt++) {
-    if (attempt > 0) await sleep(300 * Math.pow(3, attempt - 1) + Math.floor(Math.random() * 200)); // 300ms, 900ms (+jitter)
-    // Per-attempt timeout so a hung request doesn't block the route forever.
+    const elapsed = Date.now() - started;
+    if (elapsed > TOTAL_BUDGET - 2000) break; // no budget for another attempt
+    if (attempt > 0) await sleep(Math.min(400 * attempt, 1000));
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 60_000);
+    const perAttempt = Math.min(ATTEMPT_MS, TOTAL_BUDGET - (Date.now() - started));
+    const timer = setTimeout(() => ctrl.abort(), perAttempt);
     try {
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -64,13 +71,13 @@ export async function callClaude(opts: {
       });
       if (!res.ok) {
         const detail = (await res.text()).slice(0, 500);
-        if (RETRYABLE.has(res.status) && attempt < 2) { lastErr = new Error(`Anthropic ${res.status}: ${detail}`); continue; }
+        // retry only fast, transient HTTP errors — and only if there's budget for another attempt
+        if (RETRYABLE.has(res.status) && attempt < 2 && Date.now() - started < TOTAL_BUDGET - ATTEMPT_MS) { lastErr = new Error(`Anthropic ${res.status}: ${detail}`); continue; }
         throw new Error(`Anthropic ${res.status}: ${detail}`);
       }
       const data = await res.json();
       const blocks: any[] = data.content ?? [];
       const u = data.usage ?? {};
-      // Lightweight observability: model · latency · tokens. Shows in server logs without a new table.
       console.log(`[claude] ${opts.model} ${Date.now() - started}ms in=${u.input_tokens ?? "?"} out=${u.output_tokens ?? "?"} stop=${data.stop_reason ?? "?"}${attempt ? ` retries=${attempt}` : ""}`);
       return {
         text: blocks.filter((b) => b.type === "text").map((b) => b.text).join(""),
@@ -81,9 +88,11 @@ export async function callClaude(opts: {
       };
     } catch (e: any) {
       lastErr = e;
-      // Network error / abort → retry; hard API error (already thrown above) → rethrow.
-      const isAbortOrNet = e?.name === "AbortError" || e?.message?.startsWith("Anthropic ") === false;
-      if (isAbortOrNet && attempt < 2) continue;
+      // A timeout (abort) means the API is slow — retrying would blow the function budget, so give up
+      // with a clean error the route can return as JSON. Only quick NETWORK blips get a retry.
+      if (e?.name === "AbortError") throw new Error("Anthropic request timed out");
+      const isNet = !(typeof e?.message === "string" && e.message.startsWith("Anthropic "));
+      if (isNet && attempt < 2 && Date.now() - started < TOTAL_BUDGET - ATTEMPT_MS) continue;
       throw e;
     } finally {
       clearTimeout(timer);
