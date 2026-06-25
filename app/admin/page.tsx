@@ -3701,29 +3701,13 @@ export default function AdminPage() {
   const { ready, enabled, user, profile } = useAuth();
   const { section, setSection } = useOperatorSection();
 
-  if (!enabled) return <section className="screen"><div className="h-title">Admin</div><div className="h-sub">The live backend isn&apos;t configured here.</div></section>;
-  if (!ready) return <section className="screen" />;
-  if (!user) return <SignIn />;
-
-  // Raw role read — roleOf() collapses the expanded set; profiles.role carries
-  // member/server/operator/event_manager/contractor/admin/owner (0031).
+  // Derive role + nav constants before any conditional return (Rules of Hooks).
+  // profiles.role: member/server/operator/event_manager/contractor/admin/owner (0031).
   const role = (profile?.role as string | undefined) ?? (profile?.is_admin ? "owner" : "member");
-  if (role === "member") {
-    return (
-      <section className="screen">
-        <div className="toprow"><div className="eyb">Admin</div><Link className="pf" href="/">‹</Link></div>
-        <div className="h-title">Staff only.</div>
-        <div className="h-sub">This area is for GT3PB staff. If that&apos;s you, ask the owner to add you.</div>
-      </section>
-    );
-  }
-
   const isOwner = role === "owner";
   const isAdmin = role === "admin" || isOwner;
   const canManage = isAdmin || role === "event_manager";
   const canPrep = canManage || role === "operator" || role === "contractor";
-
-  // The operator nav owns the section; clamp to what this role may see.
   const allowed = sectionsForRole(role);
   const sec: OpSection = allowed.includes(section) ? section : "now";
   const [planTab, setPlanTab] = useState<"calendar" | "notes" | "events" | "brew" | "vendors" | "bookings" | "reserves">("calendar");
@@ -3747,6 +3731,21 @@ export default function AdminPage() {
       setPlanCounts({ bookings: b.count ?? 0, events: e.count ?? 0 });
     })();
   }, [sec, canManage, planTab]); // refetch when you switch tabs so badges reflect what you just did
+
+  // Guard returns — all hooks live above (Rules of Hooks compliant).
+  if (!enabled) return <section className="screen"><div className="h-title">Admin</div><div className="h-sub">The live backend isn&apos;t configured here.</div></section>;
+  if (!ready) return <section className="screen" />;
+  if (!user) return <SignIn />;
+  if (role === "member") {
+    return (
+      <section className="screen">
+        <div className="toprow"><div className="eyb">Admin</div><Link className="pf" href="/">‹</Link></div>
+        <div className="h-title">Staff only.</div>
+        <div className="h-sub">This area is for GT3PB staff. If that&apos;s you, ask the owner to add you.</div>
+      </section>
+    );
+  }
+
   const LABEL: Record<OpSection, string> = { day: "My Day", now: "Now", ask: "Ask GT3", prep: "Prep", plan: "Plan", studio: "Studio", money: "Money", team: "Team" };
   const SUB: Record<OpSection, string> = {
     day: "Your tasks, your flags & what's on today.",

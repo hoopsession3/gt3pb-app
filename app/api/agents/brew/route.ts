@@ -78,11 +78,17 @@ export async function POST(req: Request) {
   }
   const needBy: string | null = body.need_by || eventDay || null;
   let brewDate: string | null = null, readyAt: string | null = null;
+  // Build 08:00 America/New_York explicitly (handles EDT/EST via Intl probe).
+  const etEight = (dateStr: string): Date => {
+    const probe = new Date(`${dateStr}T12:00:00Z`);
+    const etHour = parseInt(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }).format(probe));
+    return new Date(probe.getTime() + (8 - etHour) * 3600 * 1000);
+  };
   if (needBy) {
-    const need = new Date(`${needBy}T08:00:00`);
+    const need = etEight(needBy);
     const start = new Date(need.getTime() - Math.ceil(extractionHours) * 3600 * 1000);
     brewDate = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
-    readyAt = new Date(new Date(`${brewDate}T08:00:00`).getTime() + extractionHours * 3600 * 1000).toISOString();
+    readyAt = new Date(etEight(brewDate).getTime() + extractionHours * 3600 * 1000).toISOString();
   }
 
   // ── COMMIT: log the batch to the schedule ──
@@ -90,7 +96,7 @@ export async function POST(req: Request) {
     const { data: ins, error } = await supabaseAdmin.from("brew_batches").insert({
       recipe_id: recipeId, recipe_name: (recipe as any).name, batch_gal: batchGal,
       brew_date: brewDate, ready_at: readyAt, event_id: body.event_id ?? null, stop_id: body.stop_id ?? null,
-      needed_by: needBy ? new Date(`${needBy}T08:00:00`).toISOString() : null,
+      needed_by: needBy ? etEight(needBy).toISOString() : null,
       hold_hours: Number((recipe as any).hold_hours) || 72,
       target_spec: (recipe as any).target_spec ?? null, scaled, status: "planned",
       extraction_hours: extractionHours, vessel: typeof body.vessel === "string" ? body.vessel.slice(0, 80) : null,
