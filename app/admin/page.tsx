@@ -23,6 +23,7 @@ import EventDayPlanner from "@/components/EventDayPlanner";
 import EventGenerator from "@/components/EventGenerator";
 import EventPrepAI from "@/components/EventPrepAI";
 import TroubleshootAI from "@/components/TroubleshootAI";
+import BrewPlanner from "@/components/BrewPlanner";
 import Markdown from "@/components/Markdown";
 import { subscribePush } from "@/lib/push";
 import { chime, unlockAudio } from "@/lib/chime";
@@ -3405,7 +3406,7 @@ export default function AdminPage() {
   // The operator nav owns the section; clamp to what this role may see.
   const allowed = sectionsForRole(role);
   const sec: OpSection = allowed.includes(section) ? section : "now";
-  const [planTab, setPlanTab] = useState<"calendar" | "notes" | "events" | "vendors" | "bookings" | "reserves">("calendar");
+  const [planTab, setPlanTab] = useState<"calendar" | "notes" | "events" | "brew" | "vendors" | "bookings" | "reserves">("calendar");
   // deep-link from Studio's "Company calendar ↗" → land on the Plan calendar
   useEffect(() => {
     if (sec !== "plan" || typeof window === "undefined") return;
@@ -3479,7 +3480,7 @@ export default function AdminPage() {
         <>
           <div className="subnav" role="tablist" aria-label="Plan">
             {/* This week — what's hot at this stage */}
-            {([["calendar", "Calendar", 0], ["events", "Events", planCounts.events], ["bookings", "Bookings", planCounts.bookings], ["notes", "Notes", 0]] as const).map(([k, label, n]) => (
+            {([["calendar", "Calendar", 0], ["events", "Events", planCounts.events], ["brew", "Brew", 0], ["bookings", "Bookings", planCounts.bookings], ["notes", "Notes", 0]] as const).map(([k, label, n]) => (
               <button key={k} type="button" role="tab" aria-selected={planTab === k} className={`subnav-tab${planTab === k ? " on" : ""}`} onClick={() => setPlanTab(k)}>
                 {label}{n > 0 && <span className={`subnav-badge${k === "bookings" ? " hot" : ""}`}>{n}</span>}
               </button>
@@ -3491,6 +3492,7 @@ export default function AdminPage() {
             ))}
           </div>
           {planTab === "calendar" && <CompanyCalendar />}
+          {planTab === "brew" && <BrewPlanner />}
           {planTab === "notes" && <MeetingNotes />}
           {planTab === "events" && <EventsAdmin />}
           {planTab === "vendors" && <VendorsAdmin />}

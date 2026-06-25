@@ -2176,6 +2176,40 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .dv-go{background:none;border:none;cursor:pointer;padding:0 2px}
 .dv-row{align-items:center}
 
+/* ── Brew planner (recipes + scheduled batches) ── */
+.brew-sched-h{font-family:'Inter';font-weight:800;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--gold);margin:4px 0 8px}
+.brew-list{display:flex;flex-direction:column;gap:8px}
+.brew-card{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--gold2);border-radius:11px;padding:11px 12px}
+.brew-card.st-brewing{border-left-color:var(--warn)}
+.brew-card.st-ready{border-left-color:var(--ok)}
+.brew-card.st-dumped{border-left-color:var(--red-h);opacity:.6}
+.brew-card-top{display:flex;align-items:center;gap:8px}
+.brew-card-top b{font-family:'Inter';font-weight:700;font-size:14px;color:var(--cream)}
+.brew-status{margin-left:auto;background:rgba(0,0,0,.25);border:1px solid var(--line2);border-radius:8px;color:var(--cream);font-family:'Inter';font-size:12px;padding:4px 8px;-webkit-appearance:none;appearance:none}
+.app.crew-day .brew-status{background:rgba(34,31,24,.05)}
+.brew-card-meta{font-family:'Inter';font-size:12px;color:var(--cream-m);margin-top:5px;line-height:1.4}
+.brew-score{display:flex;align-items:center;gap:6px;margin-top:9px;font-family:'Inter';font-size:12px;color:var(--cream-m)}
+.brew-score-b{width:28px;height:28px;border-radius:8px;background:transparent;border:1px solid var(--line2);color:var(--cream-m);font-family:'Inter';font-weight:700;font-size:13px;cursor:pointer}
+.brew-score-b.on{background:var(--ok);border-color:var(--ok);color:#11210d}
+.brew-recipe{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:12px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.brew-recipe-main{display:flex;flex-direction:column;gap:3px}
+.brew-recipe-main b{font-family:'Inter';font-weight:700;font-size:14.5px;color:var(--cream)}
+.brew-recipe-main span{font-family:'Inter';font-size:12px;color:var(--cream-m)}
+.brew-recipe-go{margin-left:auto;font-family:'Inter';font-weight:700;font-size:12.5px;color:var(--gold2)}
+.brew-spec{background:rgba(169,124,63,.14);border:1px solid var(--gold2);border-radius:10px;padding:9px 12px;font-family:'Inter';font-size:13.5px;color:var(--cream);margin-bottom:12px}
+.brew-spec b{color:var(--gold2)}
+.brew-block-h{font-family:'Inter';font-weight:800;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--gold);margin:14px 0 7px}
+.brew-ing{display:flex;flex-direction:column;gap:5px}
+.brew-ing-row{display:flex;gap:10px;align-items:baseline;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:8px 11px}
+.brew-ing-row b{font-family:'DM Mono';font-size:13px;color:var(--gold2);flex:0 0 auto;min-width:86px}
+.brew-ing-row span{font-family:'Inter';font-size:13px;color:var(--cream)}
+.brew-when{margin-top:11px;background:rgba(212,165,92,.1);border:1px solid var(--line2);border-radius:9px;padding:8px 11px;font-family:'Inter';font-size:13px;color:var(--cream)}
+.brew-when b{color:var(--gold2)}
+.brew-checks{margin:0;padding-left:18px}
+.brew-checks li{font-family:'Inter';font-size:13px;color:var(--cream);line-height:1.5;margin-bottom:3px}
+.brew-flags{margin-top:11px;background:rgba(207,154,74,.14);border:1px solid var(--warn);border-radius:9px;padding:8px 11px;font-family:'Inter';font-size:12.5px;color:var(--cream)}
+.brew-flags b{color:var(--warn)}
+
 /* ── Troubleshoot AI (field ops) ── */
 .ts-btn{border-color:rgba(207,154,74,.5)!important;color:var(--warn)!important}
 .ts-chips{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px}
