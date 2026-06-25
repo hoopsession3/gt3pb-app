@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useOperatorSection } from "./OperatorNav";
 
 // BRAND CALENDAR — the planning brain of Studio. Posts (scheduled content) + events roll onto one
 // month view so Ryan + Kayla see the whole picture and build FROM it.
@@ -22,6 +23,8 @@ const key = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart
 const CAL_KEY = "gt3-cal-month";
 
 export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: string) => void; onCreate: (iso: string, eventId?: string | null) => void }) {
+  const { setSection } = useOperatorSection();
+  const goToCompany = () => setSection("plan");
   const now = new Date();
   const [cursor, setCursor] = useState(() => {
     if (typeof window !== "undefined") { const s = localStorage.getItem(CAL_KEY); if (s) { const [y, m] = s.split("-").map(Number); if (y && m) return new Date(y, m - 1, 1); } }
@@ -96,6 +99,10 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
 
   return (
     <div className="cal">
+      <div className="cal-titlebar">
+        <span className="cal-eyebrow">🎨 Content schedule</span>
+        <button type="button" className="cal-tolink" onClick={() => { if (typeof window !== "undefined") localStorage.setItem("gt3-plan-tab", "calendar"); goToCompany(); }}>Company calendar ↗</button>
+      </div>
       <div className="cal-sticky">
         <div className="cal-bar">
           <div className="cal-nav">

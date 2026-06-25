@@ -813,7 +813,7 @@ function EventPrep({ onGo }: { onGo: (t: string) => void }) {
     // Deep-link from an event editor's "Open prep".
     try {
       const tgt = localStorage.getItem("gt3-prep-open");
-      if (tgt) { localStorage.removeItem("gt3-prep-open"); setSelected({ kind: "event", id: tgt }); }
+      if (tgt) { localStorage.removeItem("gt3-prep-open"); const isStop = tgt.startsWith("stop:"); const id = tgt.includes(":") ? tgt.slice(tgt.indexOf(":") + 1) : tgt; setSelected({ kind: isStop ? "stop" : "event", id }); }
     } catch { /* ignore */ }
     if (!supabase) return;
     const ch = supabase.channel("admin-prep-index")
@@ -2668,6 +2668,18 @@ function BriefPanel({ e, proj, inventory }: { e: EventRow; proj: Projection; inv
 }
 
 // One event as a collapsible card: clean header when closed, full editor when open.
+// Event lifecycle — Lead → Confirmed → Prep → Live → Done. Live/Done are driven by the green flag
+// and archive; the planning stages you set. The current stage is shown everywhere at a glance.
+const EVENT_STAGES = [
+  { key: "lead", label: "Lead", color: "#9aa0a6" },
+  { key: "confirmed", label: "Confirmed", color: "#6fa8dc" },
+  { key: "prep", label: "Prep", color: "#e0892b" },
+  { key: "live", label: "Live", color: "#2bb3a3" },
+  { key: "done", label: "Done", color: "#7bbf6a" },
+] as const;
+const stageOf = (e: { stage?: string | null; is_live?: boolean }) => (e.is_live ? "live" : (e.stage || "confirmed"));
+const stageMeta = (k: string) => EVENT_STAGES.find((s) => s.key === k) ?? EVENT_STAGES[1];
+
 function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, onArchive, econRow, catalog, inventory, vendors, onLinkVendor, onSaveEcon, onOpenPrep }: {
   e: EventRow;
   index: number;
@@ -2713,15 +2725,28 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
           <span className="ev-sub">{sub || "Tap to set up"}</span>
         </span>
         <span className="ev-head-badges">
+          {(() => { const st = stageMeta(stageOf(e)); return <span className="ev-badge stage" style={{ ["--c" as string]: st.color }}>{st.label}</span>; })()}
           {showRoi && <span className={`ev-badge roi${proj.netCents < 0 ? " neg" : ""}`}>ROI {pctInt(proj.roiPct)}%</span>}
           {e.member_only && <span className="ev-badge gold">Members</span>}
-          {!!e.going_count && <span className="ev-badge">{e.going_count} going</span>}
           <span className="ev-chev">›</span>
         </span>
       </button>
 
       {open && (
         <div className="ev-body">
+          {/* Lifecycle — where this event stands. Live is set by the green flag below; the rest you set. */}
+          <div className="ev-stage" role="tablist" aria-label="Event stage">
+            {EVENT_STAGES.map((s) => {
+              const cur = stageOf(e) === s.key;
+              const settable = !e.is_live && s.key !== "live"; // Live is driven by the green flag, not a tap
+              return (
+                <button key={s.key} type="button" role="tab" aria-selected={cur} disabled={!settable && !cur}
+                  className={`ev-stage-pill${cur ? " on" : ""}`} style={{ ["--c" as string]: s.color }}
+                  onClick={() => { if (settable && !cur) onUpdate({ stage: s.key }); }}>{s.label}</button>
+              );
+            })}
+          </div>
+
           {/* The one action that matters most gets its own banner — throw the green flag. */}
           <button className={`ev-golive${e.is_live ? " on" : ""}`} onClick={() => { if (e.is_live && typeof window !== "undefined" && !window.confirm("Close this event? Sales tracking stops and the command-center HUD goes dark.")) return; onSetLive(!e.is_live); }}>
             <span className="ev-golive-dot" />
@@ -3351,6 +3376,11 @@ export default function AdminPage() {
   const allowed = sectionsForRole(role);
   const sec: OpSection = allowed.includes(section) ? section : "now";
   const [planTab, setPlanTab] = useState<"calendar" | "notes" | "events" | "vendors" | "bookings" | "reserves">("calendar");
+  // deep-link from Studio's "Company calendar ↗" → land on the Plan calendar
+  useEffect(() => {
+    if (sec !== "plan" || typeof window === "undefined") return;
+    if (localStorage.getItem("gt3-plan-tab") === "calendar") { localStorage.removeItem("gt3-plan-tab"); setPlanTab("calendar"); }
+  }, [sec]);
   const [planCounts, setPlanCounts] = useState<{ bookings: number; events: number }>({ bookings: 0, events: 0 });
   useEffect(() => {
     if (sec !== "plan" || !canManage || !supabase) return;

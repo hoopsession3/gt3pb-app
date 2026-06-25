@@ -11,14 +11,16 @@ import EventDayPlanner from "./EventDayPlanner";
 // Views: List · Week · Month · Quarter · Year. Owner can connect Outlook for two-way sync.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-type Ev = { id: string; title: string | null; day: string; day_label: string | null; is_live: boolean | null; category: string | null; plan_days: number | null };
+type Ev = { id: string; title: string | null; day: string; day_label: string | null; is_live: boolean | null; category: string | null; plan_days: number | null; stage: string | null };
 type Content = { id: string; title: string; scheduled_for: string | null; status: string };
 type Todo = { id: string; title: string; category: string; due_on: string | null; done: boolean; event_id: string | null; meeting_note_id: string | null };
 
-const CAT: Record<string, { label: string; color: string }> = {
-  admin: { label: "Admin", color: "#8b5cf6" }, ops: { label: "Ops", color: "#e0892b" },
-  event: { label: "Events", color: "#6fa8dc" }, content: { label: "Content", color: "#2bb3a3" },
+const CAT: Record<string, { label: string; color: string; icon: string }> = {
+  stop: { label: "Truck", color: "#5b9a6b", icon: "🚚" }, event: { label: "Events", color: "#6fa8dc", icon: "📍" },
+  ops: { label: "Ops", color: "#e0892b", icon: "🛠️" }, admin: { label: "Admin", color: "#8b5cf6", icon: "📋" },
+  content: { label: "Content", color: "#2bb3a3", icon: "🎨" },
 };
+const FILTERS = ["all", "stop", "event", "ops", "admin", "content"];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const MON3 = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -29,7 +31,8 @@ const CAL_KEY = "gt3-company-cal-month";
 const VIEW_KEY = "gt3-company-cal-view";
 type View = "list" | "week" | "month" | "quarter" | "year";
 
-type Item = { id: string; title: string; cat: string; kind: "event" | "content" | "todo"; done?: boolean; go: () => void; toggle?: () => void };
+type Stop = { id: string; name: string; location_text: string | null; starts_at: string | null; status: string | null };
+type Item = { id: string; title: string; cat: string; kind: "event" | "content" | "todo" | "stop"; done?: boolean; meta?: string; go: () => void; toggle?: () => void };
 
 function gridMonth(cursor: Date): Date[] { const s = new Date(cursor.getFullYear(), cursor.getMonth(), 1); s.setDate(1 - s.getDay()); return Array.from({ length: 42 }, (_, i) => { const d = new Date(s); d.setDate(s.getDate() + i); return d; }); }
 function gridWeek(cursor: Date): Date[] { const s = new Date(cursor); s.setDate(cursor.getDate() - cursor.getDay()); return Array.from({ length: 7 }, (_, i) => { const d = new Date(s); d.setDate(s.getDate() + i); return d; }); }
@@ -51,8 +54,12 @@ export default function CompanyCalendar() {
   const [events, setEvents] = useState<Ev[]>([]);
   const [content, setContent] = useState<Content[]>([]);
   const [todos, setTodos] = useState<Todo[]>([]);
+  const [stops, setStops] = useState<Stop[]>([]);
   const [filter, setFilter] = useState<string>("all");
   const [addDay, setAddDay] = useState<string | null>(null);
+  const [dayOpen, setDayOpen] = useState<string | null>(null); // a date → show that day's detail
+  const [stale, setStale] = useState(0); // overdue, unpublished, not-yet-tidied content
+  const [tidying, setTidying] = useState(false);
   const [planEv, setPlanEv] = useState<{ id: string; title: string; day: string | null; plan_days: number; initialDay: number } | null>(null);
   const dragId = useRef<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
@@ -71,12 +78,13 @@ export default function CompanyCalendar() {
     const to = key(range.end);
     const eFrom = (() => { const d = new Date(range.start); d.setDate(d.getDate() - 31); return key(d); })(); // catch multi-day spillover
     const from = key(range.start);
-    const [e, c, t] = await Promise.all([
-      supabase.from("events").select("id, title, day, day_label, is_live, category, plan_days").is("archived_at", null).gte("day", eFrom).lte("day", to),
-      supabase.from("content_items").select("id, title, scheduled_for, status").not("scheduled_for", "is", null).gte("scheduled_for", `${from}T00:00:00`).lte("scheduled_for", `${to}T23:59:59`),
+    const [e, c, t, s] = await Promise.all([
+      supabase.from("events").select("id, title, day, day_label, is_live, category, plan_days, stage").is("archived_at", null).gte("day", eFrom).lte("day", to),
+      supabase.from("content_items").select("id, title, scheduled_for, status").is("archived_at", null).not("scheduled_for", "is", null).gte("scheduled_for", `${from}T00:00:00`).lte("scheduled_for", `${to}T23:59:59`),
       supabase.from("todos").select("id, title, category, due_on, done, event_id, meeting_note_id").not("due_on", "is", null).gte("due_on", from).lte("due_on", to),
+      supabase.from("stops").select("id, name, location_text, starts_at, status").not("starts_at", "is", null).neq("status", "done").gte("starts_at", `${from}T00:00:00`).lte("starts_at", `${to}T23:59:59`),
     ]);
-    setEvents((e.data as Ev[]) ?? []); setContent((c.data as Content[]) ?? []); setTodos((t.data as Todo[]) ?? []);
+    setEvents((e.data as Ev[]) ?? []); setContent((c.data as Content[]) ?? []); setTodos((t.data as Todo[]) ?? []); setStops((s.data as Stop[]) ?? []);
   }, [range]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
@@ -85,11 +93,22 @@ export default function CompanyCalendar() {
       .on("postgres_changes", { event: "*", schema: "public", table: "todos" }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "content_items" }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "events" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "stops" }, () => load())
       .subscribe();
     return () => { supabase?.removeChannel(ch); };
   }, [load]);
 
-  const openEventPrep = (eventId: string) => { if (typeof window !== "undefined") localStorage.setItem("gt3-prep-open", eventId); setSection("prep"); };
+  const loadStale = useCallback(async () => { if (!supabase) return; const { data } = await supabase.rpc("stale_content_count"); setStale(typeof data === "number" ? data : 0); }, []);
+  useEffect(() => { loadStale(); }, [loadStale]);
+  const tidy = async () => {
+    if (!supabase || tidying) return;
+    setTidying(true);
+    const { data } = await supabase.rpc("tidy_stale_content", { grace_days: 0 }); // owner tapped Tidy → file all overdue now
+    setTidying(false); await load(); await loadStale();
+    return data;
+  };
+  const openEventPrep = (eventId: string) => { if (typeof window !== "undefined") localStorage.setItem("gt3-prep-open", `event:${eventId}`); setSection("prep"); };
+  const openStopPrep = (stopId: string) => { if (typeof window !== "undefined") localStorage.setItem("gt3-prep-open", `stop:${stopId}`); setSection("prep"); };
   const openPlanner = (e: Ev, dayNo: number) => setPlanEv({ id: e.id, title: e.title || e.day_label || "Event", day: e.day, plan_days: Math.max(1, e.plan_days ?? 1), initialDay: dayNo });
   const toggleTodo = async (t: Todo) => {
     if (!supabase) return;
@@ -112,13 +131,15 @@ export default function CompanyCalendar() {
       const span = Math.max(1, e.plan_days ?? 1);
       for (let di = 0; di < span; di++) {
         const base = e.title || e.day_label || "Event";
-        push(addDaysKey(e.day, di), { id: e.id, title: span > 1 ? `${base} · D${di + 1}` : base, cat, kind: "event", go: () => openPlanner(e, di + 1) });
+        const meta = e.is_live ? "Live" : (e.stage ? e.stage[0].toUpperCase() + e.stage.slice(1) : "");
+        push(addDaysKey(e.day, di), { id: e.id, title: span > 1 ? `${base} · D${di + 1}` : base, cat, kind: "event", meta, go: () => openPlanner(e, di + 1) });
       }
     }
+    for (const s of stops) if (s.starts_at && pass("stop")) push(key(new Date(s.starts_at)), { id: s.id, title: s.name, cat: "stop", kind: "stop", go: () => openStopPrep(s.id) });
     for (const c of content) if (c.scheduled_for && pass("content")) push(key(new Date(c.scheduled_for)), { id: c.id, title: c.title || "Content", cat: "content", kind: "content", go: () => setSection("studio") });
     for (const t of todos) if (t.due_on && pass(t.category)) push(t.due_on, { id: t.id, title: t.title, cat: CAT[t.category] ? t.category : "ops", kind: "todo", done: t.done, go: () => { if (t.event_id) openEventPrep(t.event_id); else if (t.meeting_note_id) setSection("plan"); }, toggle: () => toggleTodo(t) });
     return m;
-  }, [events, content, todos, filter]);
+  }, [events, content, todos, stops, filter]);
 
   // header label + navigation step by view
   const nav = (dir: number) => {
@@ -140,7 +161,7 @@ export default function CompanyCalendar() {
   const VIEWS: View[] = ["list", "week", "month", "quarter", "year"];
   const Chip = ({ it }: { it: Item }) => (
     <button type="button" draggable={it.kind === "todo"} className={`cc-chip${it.done ? " done" : ""}`} style={{ borderLeftColor: CAT[it.cat]?.color }}
-      onDragStart={() => { if (it.kind === "todo") dragId.current = it.id; }} onClick={it.go} title={`${CAT[it.cat]?.label}: ${it.title}`}>
+      onDragStart={() => { if (it.kind === "todo") dragId.current = it.id; }} onClick={(e) => { e.stopPropagation(); it.go(); }} title={`${CAT[it.cat]?.label}: ${it.title}`}>
       {it.kind === "todo" && <span className="cc-check" onClick={(e) => { e.stopPropagation(); it.toggle?.(); }}>{it.done ? "✓" : "○"}</span>}
       <span className="cc-dot" style={{ background: CAT[it.cat]?.color }} />{it.title}
     </button>
@@ -148,6 +169,13 @@ export default function CompanyCalendar() {
 
   return (
     <div className="adm-sec cal">
+      <div className="cal-titlebar"><span className="cal-eyebrow">📅 Company calendar</span><span className="cal-titlesub">everything dated — events · truck · content · to-dos</span></div>
+      {stale > 0 && (
+        <div className="cal-nudge">
+          <span><b>{stale}</b> post{stale === 1 ? "" : "s"} went past their date unpublished.</span>
+          <button type="button" onClick={tidy} disabled={tidying}>{tidying ? "Tidying…" : "Tidy up"}</button>
+        </div>
+      )}
       <div className="cal-sticky">
         <div className="cal-bar">
           <div className="cal-nav">
@@ -161,9 +189,9 @@ export default function CompanyCalendar() {
           {VIEWS.map((v) => <button key={v} type="button" className={`cal-view${view === v ? " on" : ""}`} onClick={() => setV(v)}>{v[0].toUpperCase() + v.slice(1)}</button>)}
         </div>
         <div className="cal-filters">
-          {["all", "admin", "ops", "event", "content"].map((f) => (
+          {FILTERS.map((f) => (
             <button key={f} type="button" className={`cc-filter${filter === f ? " on" : ""}`} onClick={() => setFilter(f)} style={f !== "all" ? { ["--c" as string]: CAT[f].color } : undefined}>
-              {f !== "all" && <span className="cc-dot" style={{ background: CAT[f].color }} />}{f === "all" ? "All" : CAT[f].label}
+              {f !== "all" && <span className="cc-dot" style={{ background: CAT[f].color }} />}{f === "all" ? "All" : `${CAT[f].icon} ${CAT[f].label}`}
             </button>
           ))}
         </div>
@@ -176,9 +204,9 @@ export default function CompanyCalendar() {
           {gridMonth(cursor).map((d) => {
             const k = key(d); const items = byDay[k] || []; const dim = d.getMonth() !== cursor.getMonth();
             return (
-              <div key={k} className={`cal-cell${dim ? " dim" : ""}${k === todayKey ? " today" : ""}${over === k ? " over" : ""}`}
+              <div key={k} role="button" tabIndex={0} className={`cal-cell${dim ? " dim" : ""}${k === todayKey ? " today" : ""}${over === k ? " over" : ""}`} onClick={() => setDayOpen(k)}
                 onDragOver={(e) => { e.preventDefault(); setOver(k); }} onDragLeave={() => setOver((o) => o === k ? null : o)} onDrop={() => { setOver(null); const id = dragId.current; dragId.current = null; if (id) reschedule(id, k); }}>
-                <div className="cal-cell-h"><span className="cal-date">{d.getDate()}</span><button type="button" className="cal-add" onClick={() => setAddDay(k)} aria-label="Add">+</button></div>
+                <div className="cal-cell-h"><span className="cal-date">{d.getDate()}</span><button type="button" className="cal-add" onClick={(e) => { e.stopPropagation(); setAddDay(k); }} aria-label="Add">+</button></div>
                 <div className="cal-items">{items.map((it) => <Chip key={`${it.kind}-${it.id}`} it={it} />)}</div>
               </div>
             );
@@ -194,7 +222,7 @@ export default function CompanyCalendar() {
             return (
               <div key={k} className={`cal-wrow${k === todayKey ? " today" : ""}${over === k ? " over" : ""}`}
                 onDragOver={(e) => { e.preventDefault(); setOver(k); }} onDragLeave={() => setOver((o) => o === k ? null : o)} onDrop={() => { setOver(null); const id = dragId.current; dragId.current = null; if (id) reschedule(id, k); }}>
-                <div className="cal-wday"><b>{DOW[d.getDay()]}</b><span>{d.getDate()}</span><button type="button" className="cal-add wk" onClick={() => setAddDay(k)} aria-label="Add">+</button></div>
+                <div className="cal-wday" role="button" tabIndex={0} onClick={() => setDayOpen(k)}><b>{DOW[d.getDay()]}</b><span>{d.getDate()}</span><button type="button" className="cal-add wk" onClick={(e) => { e.stopPropagation(); setAddDay(k); }} aria-label="Add">+</button></div>
                 <div className="cal-witems">{items.length === 0 ? <span className="cal-wnone">—</span> : items.map((it) => <Chip key={`${it.kind}-${it.id}`} it={it} />)}</div>
               </div>
             );
@@ -233,6 +261,7 @@ export default function CompanyCalendar() {
       {isOwner && <OutlookBar onSynced={load} />}
       {!isOwner && <div className="insp-foot" style={{ marginTop: 12 }}>📅 Outlook two-way sync is managed by the owner.</div>}
 
+      {dayOpen && <DayView dayKey={dayOpen} items={byDay[dayOpen] || []} onClose={() => setDayOpen(null)} onAdd={() => { const k = dayOpen; setDayOpen(null); setAddDay(k); }} />}
       {addDay && <AddSheet day={addDay} events={events} onClose={() => setAddDay(null)} onDone={() => { setAddDay(null); load(); }} setSection={setSection} />}
       {planEv && (
         <EventDayPlanner
@@ -241,6 +270,46 @@ export default function CompanyCalendar() {
           onClose={() => { setPlanEv(null); load(); }}
         />
       )}
+    </div>
+  );
+}
+
+// One day, expanded — everything on it, each row clicks through to its source. Archived events for
+// this day show here (and ONLY here) so a removed event is still reachable by opening its day.
+function DayView({ dayKey, items, onClose, onAdd }: { dayKey: string; items: Item[]; onClose: () => void; onAdd: () => void }) {
+  const [archived, setArchived] = useState<{ id: string; title: string | null; day_label: string | null }[]>([]);
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.from("events").select("id, title, day_label").not("archived_at", "is", null).eq("day", dayKey).then(({ data }) => setArchived((data as any[]) ?? []));
+  }, [dayKey]);
+  const d = new Date(`${dayKey}T00:00:00`);
+  const heading = d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  return (
+    <div className="qd-scrim" onClick={onClose}>
+      <div className="qd-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="qd-tabs"><b style={{ fontFamily: "Inter", fontSize: 15 }}>{heading}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>
+        <div className="qd-body">
+          {items.length === 0 && archived.length === 0 && <div className="oa-empty" style={{ padding: "18px 8px" }}>Nothing scheduled this day. Tap Add to put something here.</div>}
+          <div className="dv-list">
+            {items.map((it) => (
+              <button key={`${it.kind}-${it.id}`} type="button" className={`dv-row${it.done ? " done" : ""}`} style={{ ["--c" as string]: CAT[it.cat]?.color }} onClick={() => { it.go(); onClose(); }}>
+                <span className="dv-dot" style={{ background: CAT[it.cat]?.color }} />
+                <span className="dv-main"><b>{it.title}</b><span>{CAT[it.cat]?.label}{it.kind === "stop" ? " · on-the-ground op" : it.kind === "event" ? (it.meta ? ` · ${it.meta}` : " · event") : it.kind === "content" ? " · content" : ""}</span></span>
+                {it.kind === "todo" ? <span className="dv-go" onClick={(e) => { e.stopPropagation(); it.toggle?.(); }}>{it.done ? "✓" : "○"}</span> : <span className="dv-go">›</span>}
+              </button>
+            ))}
+            {archived.length > 0 && (
+              <>
+                <div className="dv-sub">Removed (archived)</div>
+                {archived.map((a) => (
+                  <div key={a.id} className="dv-row arch"><span className="dv-dot" style={{ background: "#9a8f7c" }} /><span className="dv-main"><b>{a.title || a.day_label || "Event"}</b><span>archived — no longer on the calendar</span></span></div>
+                ))}
+              </>
+            )}
+          </div>
+          <div className="prod-actions" style={{ marginTop: 14 }}><span /><button type="button" className="note-save" onClick={onAdd}>+ Add to this day</button></div>
+        </div>
+      </div>
     </div>
   );
 }
