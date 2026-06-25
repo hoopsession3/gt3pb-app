@@ -10,7 +10,7 @@ import { supabase } from "@/lib/supabase";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 type Recipe = { id: string; name: string; style: string | null; ratio: string | null; target_spec: string | null; base_water_gal: number; extraction_hours: number };
-type Batch = { id: string; recipe_name: string | null; batch_gal: number; brew_date: string | null; ready_at: string | null; event_id: string | null; status: string; og: string | null; signal_score: number | null; target_spec: string | null };
+type Batch = { id: string; recipe_name: string | null; batch_gal: number; brew_date: string | null; ready_at: string | null; event_id: string | null; status: string; og: string | null; signal_score: number | null; target_spec: string | null; extraction_hours: number | null; brew_started_at: string | null };
 type Ev = { id: string; title: string | null; day: string | null; day_label: string | null };
 
 const STATUS: { key: string; label: string }[] = [
@@ -19,18 +19,35 @@ const STATUS: { key: string; label: string }[] = [
 ];
 const fmtDate = (s: string | null) => s ? new Date(`${s}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : "—";
 const fmtTs = (s: string | null) => s ? new Date(s).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric" }) : "—";
+// remaining time to a target, as "12h 04m" / "48m" / "ready"
+const remain = (target: string | null, now: number) => {
+  if (!target) return "";
+  const ms = new Date(target).getTime() - now;
+  if (ms <= 0) return "ready";
+  const h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000);
+  return h > 0 ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`;
+};
 
 export default function BrewPlanner() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
   const [events, setEvents] = useState<Ev[]>([]);
   const [plan, setPlan] = useState<Recipe | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+
+  // Live clock — only ticks while something is actively brewing, so the countdown stays current.
+  const brewing = batches.some((b) => b.status === "brewing");
+  useEffect(() => {
+    if (!brewing) return;
+    const t = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(t);
+  }, [brewing]);
 
   const load = useCallback(async () => {
     if (!supabase) return;
     const [{ data: r }, { data: b }, { data: e }] = await Promise.all([
       supabase.from("brew_recipes").select("id, name, style, ratio, target_spec, base_water_gal, extraction_hours").is("archived_at", null).order("sort"),
-      supabase.from("brew_batches").select("id, recipe_name, batch_gal, brew_date, ready_at, event_id, status, og, signal_score, target_spec").not("status", "in", "(served,dumped)").order("ready_at", { nullsFirst: false }),
+      supabase.from("brew_batches").select("id, recipe_name, batch_gal, brew_date, ready_at, event_id, status, og, signal_score, target_spec, extraction_hours, brew_started_at").not("status", "in", "(served,dumped)").order("ready_at", { nullsFirst: false }),
       supabase.from("events").select("id, title, day, day_label").is("archived_at", null).order("day"),
     ]);
     setRecipes((r as Recipe[]) ?? []); setBatches((b as Batch[]) ?? []); setEvents((e as Ev[]) ?? []);
@@ -47,6 +64,16 @@ export default function BrewPlanner() {
     if (!supabase) return;
     setBatches((p) => p.map((x) => x.id === id ? { ...x, signal_score: score } : x));
     await supabase.from("brew_batches").update({ signal_score: score }).eq("id", id);
+  };
+  // Start the brew NOW — stamp the start, set ready_at = now + extraction_hours, reset alert flags.
+  const startBrew = async (b: Batch) => {
+    if (!supabase) return;
+    const hrs = Number(b.extraction_hours) || 20;
+    const startIso = new Date().toISOString();
+    const readyIso = new Date(Date.now() + hrs * 3600000).toISOString();
+    setBatches((p) => p.map((x) => x.id === b.id ? { ...x, status: "brewing", brew_started_at: startIso, ready_at: readyIso } : x));
+    setNow(Date.now());
+    await supabase.from("brew_batches").update({ status: "brewing", brew_started_at: startIso, ready_at: readyIso, alerted_soon: false, alerted_ready: false }).eq("id", b.id);
   };
 
   return (
@@ -71,6 +98,21 @@ export default function BrewPlanner() {
                 <div className="brew-card-meta">
                   Brew {fmtDate(b.brew_date)} → ready {fmtTs(b.ready_at)}{ev ? ` · for ${ev.title || ev.day_label}` : ""}{b.target_spec ? ` · ${b.target_spec}` : ""}
                 </div>
+
+                {b.status === "planned" && (
+                  <button type="button" className="brew-start" onClick={() => startBrew(b)}>▶ Start brew ({Number(b.extraction_hours) || 20}h)</button>
+                )}
+                {b.status === "brewing" && b.ready_at && (() => {
+                  const ms = new Date(b.ready_at).getTime() - now;
+                  const done = ms <= 0; const soon = !done && ms <= 3600000;
+                  return (
+                    <div className={`brew-timer${done ? " done" : soon ? " soon" : ""}`}>
+                      <span className="brew-timer-dot" />
+                      <b>{done ? "⏰ Time to bottle" : remain(b.ready_at, now)}</b>
+                      <span>{done ? `${b.recipe_name || "Brew"} · ${b.batch_gal} gal — filter, finish, bottle` : `${b.batch_gal} gal brewing · ready ${fmtTs(b.ready_at)}${soon ? " · almost there" : ""}`}</span>
+                    </div>
+                  );
+                })()}
                 {(b.status === "ready" || b.status === "kegged") && (
                   <div className="brew-score">Signal Score
                     {[6, 7, 8, 9, 10].map((n) => (

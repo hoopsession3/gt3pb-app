@@ -87,6 +87,7 @@ export async function POST(req: Request) {
       recipe_id: recipeId, recipe_name: (recipe as any).name, batch_gal: batchGal,
       brew_date: brewDate, ready_at: readyAt, event_id: body.event_id ?? null,
       target_spec: (recipe as any).target_spec ?? null, scaled, status: "planned",
+      extraction_hours: extractionHours,
       og: typeof body.commit.og === "string" ? body.commit.og.slice(0, 60) : ((recipe as any).target_spec ?? null),
       notes: typeof body.commit.notes === "string" ? body.commit.notes.slice(0, 600) : null,
     }).select("id").maybeSingle();

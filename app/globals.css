@@ -2200,6 +2200,16 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .brew-status{margin-left:auto;background:rgba(0,0,0,.25);border:1px solid var(--line2);border-radius:8px;color:var(--cream);font-family:'Inter';font-size:12px;padding:4px 8px;-webkit-appearance:none;appearance:none}
 .app.crew-day .brew-status{background:rgba(34,31,24,.05)}
 .brew-card-meta{font-family:'Inter';font-size:12px;color:var(--cream-m);margin-top:5px;line-height:1.4}
+.brew-start{margin-top:9px;width:100%;background:linear-gradient(135deg,#a97c3f,#caa35f);border:none;border-radius:9px;padding:10px;color:#1a1409;font-family:'Inter';font-weight:800;font-size:13.5px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.brew-timer{display:flex;align-items:center;gap:8px;margin-top:9px;background:rgba(43,179,163,.13);border:1px solid rgba(43,179,163,.5);border-radius:9px;padding:9px 11px;flex-wrap:wrap}
+.brew-timer b{font-family:'DM Mono';font-size:16px;color:#5fd0c2}
+.brew-timer span:last-child{font-family:'Inter';font-size:12px;color:var(--cream-m);flex:1 1 100%}
+.brew-timer-dot{width:9px;height:9px;border-radius:50%;background:#2bb3a3;animation:brewpulse 1.8s ease-in-out infinite}
+.brew-timer.soon{background:rgba(207,154,74,.16);border-color:var(--warn)}
+.brew-timer.soon b{color:var(--warn)}.brew-timer.soon .brew-timer-dot{background:var(--warn)}
+.brew-timer.done{background:rgba(184,36,32,.16);border-color:var(--red-h)}
+.brew-timer.done b{color:var(--red-h)}.brew-timer.done .brew-timer-dot{background:var(--red-h)}
+@keyframes brewpulse{0%,100%{opacity:1}50%{opacity:.3}}
 .brew-score{display:flex;align-items:center;gap:6px;margin-top:9px;font-family:'Inter';font-size:12px;color:var(--cream-m)}
 .brew-score-b{width:28px;height:28px;border-radius:8px;background:transparent;border:1px solid var(--line2);color:var(--cream-m);font-family:'Inter';font-weight:700;font-size:13px;cursor:pointer}
 .brew-score-b.on{background:var(--ok);border-color:var(--ok);color:#11210d}
