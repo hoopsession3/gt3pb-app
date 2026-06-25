@@ -18,7 +18,7 @@ export const runtime = "nodejs";
 const SYMPTOMS: Record<string, string> = {
   power: "Power / generator (breaker tripped, generator stalling, not enough power, surge on startup)",
   water: "Water / hot water (no flow, no hot water, water heater, pump, tank empty)",
-  gas: "CO2 / keg / gas (lost pressure, flat pour, foaming, regulator, propane out)",
+  gas: "Nitro / keg / gas (no cascade, flat pour, lost pressure, regulator, clogged stout faucet, pure N2 not CO2)",
   pos: "POS / payments / connectivity (card reader offline, no signal, app won't load)",
   stock: "Ran out of stock mid-service (a poured item, cups/bottles, ice)",
   other: "Other on-the-ground problem",

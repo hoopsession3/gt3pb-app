@@ -12,7 +12,7 @@ import { supabase } from "@/lib/supabase";
 const SYMPTOMS: { key: string; label: string; icon: string }[] = [
   { key: "power", label: "Power / generator", icon: "⚡" },
   { key: "water", label: "Water / hot water", icon: "🚿" },
-  { key: "gas", label: "CO2 / keg / gas", icon: "🛢️" },
+  { key: "gas", label: "Nitro / keg / gas", icon: "🛢️" },
   { key: "pos", label: "POS / payments", icon: "💳" },
   { key: "stock", label: "Ran out of stock", icon: "📦" },
   { key: "other", label: "Something else", icon: "🔧" },

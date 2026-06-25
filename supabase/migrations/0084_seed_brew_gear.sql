@@ -12,7 +12,8 @@ from (values
   ('Toddy (commercial)',      'Toddy commercial cold-brew system', 'Cold-brew vessel — 2.5 gal, filter bag', 1, 'Filter bag system. Rinse per use; deep clean + sanitize on cadence.'),
   ('Cold Brew Avenue vessel', 'Stainless cold-brew vessel ~5 gal', 'Cold-brew vessel — 5 gal, basket + tap', 1, 'Perforated filter basket + bottom tap. Watch tap seals and basket.'),
   ('Corny kegs (5 gal)',      'Ball-lock corny keg', 'Keg pack-out + dispense', 4, 'Sanitize each use; O-rings/poppets are wear parts.'),
-  ('CO2 system',              'CO2 tank + regulator', 'Keg carbonation / dispense', 1, 'Tank requires DOT hydrostatic test every 5 years. Regulator + lines: leak-check on cadence.')
+  ('Nitrogen system (N2)',    'N2 tank + regulator', 'Pure-nitro cold brew dispense', 1, 'Pure nitrogen (not CO2). Tank needs DOT hydrostatic test every 5 years; regulator + lines leak-checked on cadence.'),
+  ('Nitro tap (stout faucet)','Stout faucet w/ restrictor plate', 'Nitro pour / cascade', 1, 'Restrictor plate clogs — flush daily in service, deep clean on cadence for a clean cascade.')
 ) as v(name, make_model, use_case, qty, notes)
 where not exists (select 1 from public.assets a where a.name = v.name);
 
@@ -25,8 +26,9 @@ from (values
   ('Toddy (commercial)',      'clean',   'Deep clean + sanitize vessel and filter bag',                       interval '1 month'),
   ('Cold Brew Avenue vessel', 'clean',   'Deep clean + inspect basket, seals and tap',                        interval '1 month'),
   ('Corny kegs (5 gal)',      'service', 'Sanitize, inspect and replace O-rings / poppets as needed',          interval '3 months'),
-  ('CO2 system',              'inspect', 'CO2 leak-check + regulator inspection',                              interval '1 month'),
-  ('CO2 system',              'inspect', 'DOT hydrostatic test of CO2 tank (5-year requirement)',              interval '5 years')
+  ('Nitrogen system (N2)',    'inspect', 'N2 leak-check + regulator inspection',                               interval '1 month'),
+  ('Nitrogen system (N2)',    'inspect', 'DOT hydrostatic test of N2 tank (5-year requirement)',               interval '5 years'),
+  ('Nitro tap (stout faucet)','clean',   'Disassemble + clean stout faucet and restrictor plate',              interval '14 days')
 ) as x(asset_name, kind, summary, cadence)
 join public.assets a on a.name = x.asset_name
 where not exists (
