@@ -2470,3 +2470,12 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .adm-reset-btn{background:rgba(184,36,32,.1);border:1px solid rgba(184,36,32,.4);color:#e07a76;border-radius:10px;font-family:'Inter',sans-serif;font-weight:600;font-size:13px;padding:8px 14px;cursor:pointer}
 .adm-reset-btn:hover{background:rgba(184,36,32,.18)}
 .adm-reset-btn:disabled{opacity:.5}
+
+/* Owner (event/stop) identity + date/place/status, editable inline in the prep hub. */
+.ownerdet{margin:8px 0 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ownerdet-meta{font-size:13.5px;color:var(--cream-m);line-height:1.5}
+.app.crew-day .ownerdet-meta{color:#5b5446}
+.ownerdet-edit{margin-left:auto;background:none;border:1px solid var(--line2);color:var(--cream);border-radius:8px;font-size:12px;font-weight:600;padding:4px 11px;cursor:pointer}
+.ownerdet.editing{display:block;background:rgba(255,255,255,.02);border:1px solid var(--line2);border-radius:14px;padding:14px}
+.app.crew-day .ownerdet.editing{background:rgba(34,31,24,.03)}
+.ownerdet-hint{font-size:12px;color:var(--muted);margin-top:8px}

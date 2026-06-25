@@ -430,6 +430,91 @@ type MyTaskRow = EventTask & {
 
 // MY DAY — the personal rollup: what's on today, the flags & pings aimed at YOU (alerts targeted
 // to your user), and your assigned tasks. The home base "where do my flags go?" answer.
+// OWNER DETAILS — the identity (name, date, place, status) of an event or stop, editable inline so the
+// prep view is the single place to manage the thing end to end — no hopping to the calendar or Live
+// truck to change a name or date. Self-contained; works for events or stops. (Go-live + GPS stay in
+// Now ▸ Live truck, which owns the broadcast.)
+function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved }: { ownerType: "event" | "stop"; ownerId: string; isAdmin: boolean; onSaved: (name: string) => void }) {
+  const { toast } = useApp();
+  const isEvent = ownerType === "event";
+  const table = isEvent ? "events" : "stops";
+  const nameCol = isEvent ? "title" : "name";
+  const [f, setF] = useState<Record<string, string | null> | null>(null);
+  const [edit, setEdit] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!supabase) return;
+    const sel = isEvent ? "title, day, location_text, stage" : "name, starts_at, location_text, address, status";
+    const { data } = await supabase.from(table).select(sel).eq("id", ownerId).maybeSingle();
+    setF((data as unknown as Record<string, string | null>) ?? {});
+  }, [table, ownerId, isEvent]);
+  useEffect(() => { load(); }, [load]);
+
+  const set = (k: string, v: string | null) => setF((p) => ({ ...(p ?? {}), [k]: v }));
+  // date <-> column: events.day is a plain date; stops.starts_at is a timestamp (preserve time of day)
+  const dateVal = !f ? "" : isEvent ? (f.day || "") : (f.starts_at ? new Date(f.starts_at).toLocaleDateString("en-CA") : "");
+  const onDate = (v: string) => {
+    if (isEvent) { set("day", v || null); return; }
+    if (!v) { set("starts_at", null); return; }
+    const old = f?.starts_at ? new Date(f.starts_at) : null;
+    const hh = old ? `${String(old.getHours()).padStart(2, "0")}:${String(old.getMinutes()).padStart(2, "0")}` : "11:00";
+    set("starts_at", new Date(`${v}T${hh}:00`).toISOString());
+  };
+
+  const save = async () => {
+    if (!supabase || !f) return;
+    setSaving(true);
+    const nm = (f[nameCol] || "").trim() || (isEvent ? "Event" : "Stop");
+    const patch: Record<string, string | null> = isEvent
+      ? { title: nm, day: f.day || null, location_text: f.location_text?.trim() || null, stage: f.stage || "confirmed" }
+      : { name: nm, starts_at: f.starts_at || null, location_text: f.location_text?.trim() || null, address: f.address?.trim() || null, status: f.status || "upcoming" };
+    const { error } = await supabase.from(table).update(patch).eq("id", ownerId);
+    setSaving(false);
+    if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
+    setEdit(false); onSaved(nm); toast("Details saved");
+  };
+
+  if (!f) return null;
+  if (!edit) {
+    const date = dateVal ? new Date(`${dateVal}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : "No date set";
+    const place = f.location_text || f.address || "";
+    const status = isEvent ? f.stage : f.status;
+    return (
+      <div className="ownerdet">
+        <span className="ownerdet-meta">📅 {date}{place ? ` · 📍 ${place}` : ""}{status ? ` · ${status}` : ""}</span>
+        {isAdmin && <button type="button" className="ownerdet-edit" onClick={() => setEdit(true)}>Edit details</button>}
+      </div>
+    );
+  }
+  return (
+    <div className="ownerdet editing">
+      <input className="note-in" value={f[nameCol] ?? ""} onChange={(e) => set(nameCol, e.target.value)} placeholder={isEvent ? "Event name" : "Stop name"} />
+      <div className="prod-grid" style={{ marginTop: 8 }}>
+        <label className="prod-f"><span>Date</span><input type="date" value={dateVal} onChange={(e) => onDate(e.target.value)} /></label>
+        <label className="prod-f"><span>{isEvent ? "Location" : "Where"}</span><input value={f.location_text ?? ""} onChange={(e) => set("location_text", e.target.value)} placeholder="Where" /></label>
+      </div>
+      {!isEvent && <label className="prod-f" style={{ marginTop: 8 }}><span>Address (tap-to-map)</span><input value={f.address ?? ""} onChange={(e) => set("address", e.target.value)} placeholder="123 Peach St, Atlanta GA" /></label>}
+      <label className="prod-f" style={{ marginTop: 8 }}><span>Status</span>
+        {isEvent ? (
+          <select value={f.stage ?? "confirmed"} onChange={(e) => set("stage", e.target.value)}>
+            <option value="lead">Lead</option><option value="confirmed">Confirmed</option><option value="prep">Prep</option><option value="live">Live</option><option value="done">Done</option>
+          </select>
+        ) : (
+          <select value={f.status ?? "upcoming"} onChange={(e) => set("status", e.target.value)}>
+            <option value="upcoming">Upcoming</option><option value="done">Done</option>
+          </select>
+        )}
+      </label>
+      {!isEvent && <div className="ownerdet-hint">Go live &amp; broadcast GPS in Now ▸ Live truck.</div>}
+      <div className="prod-actions" style={{ marginTop: 12 }}>
+        <button type="button" className="note-arch" onClick={() => { setEdit(false); load(); }} disabled={saving}>Cancel</button>
+        <button type="button" className="note-save" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save details"}</button>
+      </div>
+    </div>
+  );
+}
+
 // DAY-OF BRIEF — how the crew shows up: dress code + call time / parking / what to bring. Leadership
 // edits it; assigned crew read it. Self-contained (loads + saves its own row), works for events or stops.
 function DayBrief({ ownerCol, ownerId, isAdmin }: { ownerCol: "event_id" | "stop_id"; ownerId: string; isAdmin: boolean }) {
@@ -1225,6 +1310,8 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
     <div className="adm-sec adm-prep">
       <button className="adm-prep-back" onClick={onBack}>‹ All prep</button>
       <div className="sec">{name ?? "…"} · prep{isEvent && ev?.is_live && <span className="adm-pill due">LIVE</span>}{!isEvent && <span className="adm-pill">Location</span>}</div>
+      {/* Identity / date / place / status — managed right here, so a stop or event is one screen end to end. */}
+      <OwnerDetails ownerType={target.kind} ownerId={target.id} isAdmin={isAdmin} onSaved={(nm) => { setName(nm); load(); }} />
       {total > 0 ? (
         <>
           <div className={`adm-ready-bar${ready ? " ok" : critOut.length ? " miss" : ""}`}>
