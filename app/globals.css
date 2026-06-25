@@ -2164,3 +2164,9 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .ev-stage-pill.on{background:var(--c,var(--gold));border-color:var(--c,var(--gold));color:#15140f}
 .ev-stage-pill:disabled{cursor:default;opacity:.5}
 .ev-stage-pill.on:disabled{opacity:1}
+
+/* ── Day-mode fix: the prep/supply bottom-sheet was hardcoded near-black, so in the light crew
+   console its (now-dark) text rendered on a dark sheet — invisible. Flip it light in Day mode. ── */
+.app.crew-day .prep-sheet{background:#fff}
+.app.crew-day .subpitch-email{background:rgba(34,31,24,.05)}
+.app.crew-day .assign-row:active{background:rgba(34,31,24,.05)}
