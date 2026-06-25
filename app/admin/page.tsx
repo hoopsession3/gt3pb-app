@@ -915,6 +915,16 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [prepAIOpen, setPrepAIOpen] = useState(false);
   const [troubleshootOpen, setTroubleshootOpen] = useState(false);
+  const [onHand, setOnHand] = useState<{ item: string; bal: number }[]>([]); // carried-in stock (ledger balance)
+
+  const loadOnHand = useCallback(async () => {
+    if (!supabase) return;
+    const { data } = await supabase.from("inventory_ledger").select("item, qty");
+    const m: Record<string, number> = {};
+    (data ?? []).forEach((r: any) => { m[r.item] = (m[r.item] ?? 0) + Number(r.qty); });
+    setOnHand(Object.entries(m).map(([item, bal]) => ({ item, bal })).filter((x) => Math.abs(x.bal) > 0.0001).sort((a, b) => a.item.localeCompare(b.item)));
+  }, []);
+  useEffect(() => { loadOnHand(); }, [loadOnHand]);
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -1036,7 +1046,19 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
         item: t.label.slice(0, 160), task_id: t.id, kind: "confirm", qty: delta,
         event_id: isEvent ? target.id : null, stop_id: isEvent ? null : target.id, created_by: user?.id ?? null,
       });
+      loadOnHand();
     }
+  };
+  // Correct the real count of a carried-in item (e.g. set the leftover after an event) — logs the
+  // delta so the ledger balance stays honest and carries to the next event.
+  const adjustOnHand = async (item: string, v: string) => {
+    if (!supabase) return;
+    const cur = onHand.find((o) => o.item === item)?.bal ?? 0;
+    const want = v.trim() === "" ? 0 : Number(v);
+    const delta = want - cur;
+    if (!delta) return;
+    setOnHand((p) => p.map((o) => (o.item === item ? { ...o, bal: want } : o)));
+    await supabase.from("inventory_ledger").insert({ item, kind: "adjust", qty: delta, event_id: isEvent ? target.id : null, stop_id: isEvent ? null : target.id, created_by: user?.id ?? null });
   };
   const addTask = async () => {
     if (!supabase || !newTask.trim()) return;
@@ -1187,6 +1209,21 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
             {isAdmin && !fullyApproved && pendingApprovers.length > 0 && <button className="adm-btn ghost" onClick={() => requestSignoff(pendingApprovers)}>Request sign-off</button>}
           </div>
           {managers.length === 0 && <div className="h-sub" style={{ marginTop: 6 }}>Tag a crew member ★ as manager to require their approval too.</div>}
+        </div>
+      )}
+
+      {onHand.length > 0 && (
+        <div className="onhand carryin">
+          <div className="onhand-h">📦 On hand now <span>carried in — correct any count</span></div>
+          {onHand.map((o) => (
+            <div key={o.item} className="onhand-row">
+              <span className="onhand-label">{o.item}</span>
+              <span className="onhand-nums">
+                <input type="number" className="onhand-in" defaultValue={o.bal} onBlur={(e) => adjustOnHand(o.item, e.target.value)} aria-label={`On hand ${o.item}`} />
+                <span className="onhand-of">on hand</span>
+              </span>
+            </div>
+          ))}
         </div>
       )}
 

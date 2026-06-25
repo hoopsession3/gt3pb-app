@@ -25,7 +25,8 @@ alter table public.inventory_ledger enable row level security;
 create policy inv_ledger_read   on public.inventory_ledger for select using (public.is_staff());
 create policy inv_ledger_insert on public.inventory_ledger for insert with check (public.is_staff());
 
--- On-hand per item = running balance. A view makes reports trivial.
-create or replace view public.inventory_on_hand as
+-- On-hand per item = running balance. A view makes reports trivial. security_invoker so the view
+-- honors the querying user's RLS on inventory_ledger (no privilege leak).
+create or replace view public.inventory_on_hand with (security_invoker = on) as
   select item, sum(qty) as on_hand, max(created_at) as last_movement
   from public.inventory_ledger group by item;

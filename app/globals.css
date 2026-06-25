@@ -2419,3 +2419,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .intake-kb-due.over{color:var(--red-h);font-weight:700}
 .intake-kb-link{display:inline-block;font-family:'Inter';font-weight:700;font-size:12.5px;color:var(--gold2);margin-bottom:6px}
 .intake-kb-note{font-family:'Inter';font-size:11.5px;color:var(--cream-m);margin-top:6px}
+
+/* carryover panel uses the on-hand styles, tinted gold to read as "coming in" */
+.onhand.carryin{background:rgba(169,124,63,.1);border-color:rgba(169,124,63,.4)}
+.onhand.carryin .onhand-h{color:var(--gold2)}
