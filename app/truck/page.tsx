@@ -44,7 +44,20 @@ function Dispatch({ live, place, sub, openLabel, eta, next, onOrder }: {
 function nextLabelFrom(stops: Stop[], liveId?: string) {
   const idx = stops.findIndex((s) => s.id === liveId);
   const n = (idx >= 0 ? stops.slice(idx + 1) : stops).find((s) => s.id !== liveId) ?? stops.find((s) => s.id !== liveId);
-  return n ? `${n.name} — ${[n.when_label, n.time_label].filter(Boolean).join(" ")}`.trim().replace(/—\s*$/, "").trim() : null;
+  return n ? `${n.name} — ${[whenDay(n), whenTime(n)].filter(Boolean).join(" ")}`.trim().replace(/—\s*$/, "").trim() : null;
+}
+
+// Day abbrev / time for a stop — prefer the hand-set labels, else derive from the real date (starts_at)
+// so every dated stop shows its day, not a blank column.
+function whenDay(s: Stop): string {
+  if (s.when_label?.trim()) return s.when_label;
+  if (s.starts_at) return new Date(s.starts_at).toLocaleDateString(undefined, { weekday: "short" }).toUpperCase();
+  return "";
+}
+function whenTime(s: Stop): string {
+  if (s.time_label?.trim()) return s.time_label;
+  if (s.starts_at) return new Date(s.starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }).replace(":00", "").replace(" ", "").toLowerCase();
+  return "";
 }
 
 // ───────────────────────── live (Supabase + realtime) ─────────────────────────
@@ -117,7 +130,7 @@ function TruckLive() {
         live={isLive}
         place={liveStop?.name ?? (loaded ? "No stops yet" : "…")}
         sub={liveStop ? `${liveStop.location_text ?? ""}${liveStop.location_text ? " — " : ""}the full bar on board` : ""}
-        openLabel={liveStop?.time_label ?? ""}
+        openLabel={liveStop ? whenTime(liveStop) : ""}
         eta={live?.next_eta ?? null}
         next={nextLabelFrom(stops, liveStop?.id)}
         onOrder={() => router.push("/menu")}
@@ -138,7 +151,7 @@ function TruckLive() {
               aria-label={`${s.name}, ${rowLive ? "live now" : "upcoming"} — details`}
               {...clickable(() => setOpenStop(isOpen ? null : s.id))}
             >
-              <div className="when"><b>{s.when_label ?? ""}</b><span>{s.time_label ?? ""}</span></div>
+              <div className="when"><b>{whenDay(s)}</b><span>{whenTime(s)}</span></div>
               <div className="info"><b>{s.name}</b><span>{s.location_text ?? ""}</span></div>
               {rowLive && <div className="tag live">Live</div>}
               <span className={`stop-caret${isOpen ? " open" : ""}`} aria-hidden="true">›</span>
