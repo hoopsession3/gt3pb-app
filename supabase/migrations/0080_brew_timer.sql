@@ -1,4 +1,4 @@
--- 0079 — live brew timer + on-brand brew alerts.
+-- 0080 — live brew timer + on-brand brew alerts.
 -- Hit "Start brew" on a batch: brew_started_at is stamped and ready_at = start + extraction_hours
 -- (20h house standard). A countdown shows in-app. A cron watches brewing batches and raises alerts
 -- through the existing alerts spine (→ Teams + web push): a 1-hour heads-up, then "time to bottle"

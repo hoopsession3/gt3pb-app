@@ -1,4 +1,4 @@
--- 0081 — brew vessels. A batch is brewed in a physical vessel with a real capacity, so the planner
+-- 0082 — brew vessels. A batch is brewed in a physical vessel with a real capacity, so the planner
 -- asks "which vessel am I brewing in?" and sizes the batch to it (× how many vessels). Recipes still
 -- scale exactly to the resulting gallons. Seeded with GT3's actual gear: the Toddy (2.5 gal, filter
 -- bag) and the Cold Brew Avenue (5 gal, filter basket + tap).

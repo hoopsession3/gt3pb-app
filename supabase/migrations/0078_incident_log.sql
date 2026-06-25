@@ -1,4 +1,4 @@
--- 0077 — incident log (field troubleshooting → event recap).
+-- 0078 — incident log (field troubleshooting → event recap).
 -- When something goes wrong on the ground (generator trips, no hot water, CO2 out, card reader
 -- offline, ran out of stock), the crew describes it, the Troubleshoot agent diagnoses it, and we
 -- KEEP the record against the event/stop. That's what turns "troubleshoot in the moment" into

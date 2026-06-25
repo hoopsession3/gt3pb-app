@@ -1,4 +1,4 @@
--- 0078 — GT3 Brew: recipes + batch schedule.
+-- 0079 — GT3 Brew: recipes + batch schedule.
 -- Brewing is part of ops. A RECIPE is defined per a reference water volume (base_water_gal) with a
 -- target spec ("OG"/Signal Score) and an ingredient list whose quantities scale linearly with water.
 -- A BATCH is one scheduled production run at a chosen size (batch_gal) — back-scheduled from when it's

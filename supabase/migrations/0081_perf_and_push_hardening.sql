@@ -1,4 +1,4 @@
--- 0080 — performance indexes + close the push_subscriptions INSERT gap.
+-- 0081 — performance indexes + close the push_subscriptions INSERT gap.
 -- Verified findings (a 0009 fix already closed the UPDATE hole; these remain):
 --  • The company calendar range-scans events.day and stops.starts_at on every load; My Tasks scans
 --    event_tasks by assignee. No indexes existed — add them (invisible now, real as data grows).

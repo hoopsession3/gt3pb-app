@@ -1,4 +1,4 @@
--- 0082 — asset maintenance log. A place to track upkeep of the gear (assets): each service, repair,
+-- 0083 — asset maintenance log. A place to track upkeep of the gear (assets): each service, repair,
 -- clean, inspection or note is a dated log entry against an asset, with an optional next-due date so
 -- the app can flag what's coming up or overdue. Same traceability standard as batch logging.
 
