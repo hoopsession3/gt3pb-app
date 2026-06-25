@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import BottomNav from "./BottomNav";
+import { supabase } from "@/lib/supabase";
 
 // Employee Mode — a dedicated operator console nav that replaces the customer
 // 5-tab nav while you're in /admin. Sections are role-scoped and the choice is
@@ -80,6 +81,18 @@ export default function OperatorNav() {
   const { profile } = useAuth();
   const { section, setSection } = useOperatorSection();
   const role = rawRole(profile);
+  // unacked-critical badge so you can SEE (and reach) alerts from any screen — not just the Now inbox.
+  const [critCount, setCritCount] = useState(0);
+  useEffect(() => {
+    if (!supabase) return;
+    const load = async () => {
+      const { count } = await supabase!.from("alerts").select("id", { count: "exact", head: true }).is("ack_at", null).eq("severity", "critical");
+      setCritCount(count ?? 0);
+    };
+    load();
+    const ch = supabase.channel("nav-alert-badge").on("postgres_changes", { event: "*", schema: "public", table: "alerts" }, load).subscribe();
+    return () => { supabase?.removeChannel(ch); };
+  }, []);
   // members / signed-out: no operator console — fall back to the customer nav so
   // they can still navigate away from /admin.
   if (role === "member") return <BottomNav />;
@@ -90,7 +103,7 @@ export default function OperatorNav() {
         const on = members.includes(section);
         return (
           <button key={group.id} role="tab" aria-selected={on} className={`tab${on ? " on" : ""}`} onClick={() => { if (!on) setSection(members[0]); }}>
-            <span className="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>{ICONS[group.icon]}</svg></span>
+            <span className="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>{ICONS[group.icon]}</svg>{group.id === "today" && critCount > 0 && <span className="nav-badge" aria-label={`${critCount} critical alert${critCount === 1 ? "" : "s"}`}>{critCount}</span>}</span>
             <span className="tl">{label}</span>
           </button>
         );

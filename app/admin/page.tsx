@@ -274,10 +274,21 @@ async function commentCounts(col: "event_task_id" | "meeting_note_id" | "alert_i
   return out;
 }
 
+// Where an alert lives — route it to the screen that owns it, so you can act on it immediately.
+function alertDest(category: string | null | undefined): { section: "day" | "plan" | "prep" | "money"; planTab?: string } {
+  const cat = category || "";
+  if (cat === "money") return { section: "money" };
+  if (cat === "brew") return { section: "plan", planTab: "brew" };
+  if (cat.startsWith("booking")) return { section: "plan", planTab: "bookings" };
+  if (cat === "prep") return { section: "prep" };
+  return { section: "day" };
+}
+
 // The "don't-miss" inbox — unacknowledged alerts for me (or all-leadership), critical first.
 // Realtime, so a new alert lands at the top of the Now screen the instant it's raised.
 function AlertsInbox({ userId }: { userId: string | null }) {
   const { profile } = useAuth();
+  const { setSection } = useOperatorSection();
   const meName = profile?.display_name?.trim() || "Me";
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [openThread, setOpenThread] = useState<string | null>(null);
@@ -305,6 +316,18 @@ function AlertsInbox({ userId }: { userId: string | null }) {
     setAlerts((p) => p.filter((x) => x.id !== a.id)); // optimistic
     await supabase.from("alerts").update({ ack_at: new Date().toISOString(), ack_by: userId }).eq("id", a.id);
   };
+  // Clear cleanly: acknowledge everything shown in one tap.
+  const clearAll = async (ids: string[]) => {
+    if (!supabase || !ids.length) return;
+    setAlerts((p) => p.filter((x) => !ids.includes(x.id))); // optimistic
+    await supabase.from("alerts").update({ ack_at: new Date().toISOString(), ack_by: userId }).in("id", ids);
+  };
+  // Respond immediately: jump to the screen that owns this alert.
+  const gotoAlert = (a: Alert) => {
+    const d = alertDest(a.category);
+    if (d.planTab) { try { localStorage.setItem("gt3-plan-tab", d.planTab); } catch { /* ignore */ } }
+    setSection(d.section);
+  };
 
   // Show alerts addressed to me or to all-leadership (target null). RLS already scopes to leadership.
   const mine = alerts.filter((a) => a.target_user_id == null || a.target_user_id === userId);
@@ -315,7 +338,7 @@ function AlertsInbox({ userId }: { userId: string | null }) {
 
   return (
     <div className="adm-sec">
-      <div className="sec">Alerts <span className={`adm-pill${crit ? " due" : ""}`}>{mine.length}{crit ? ` · ${crit} critical` : ""}</span></div>
+      <div className="sec">Alerts <span className={`adm-pill${crit ? " due" : ""}`}>{mine.length}{crit ? ` · ${crit} critical` : ""}</span>{mine.length > 1 && <button type="button" className="alert-clearall" onClick={() => clearAll(mine.map((a) => a.id))}>Clear all</button>}</div>
       {sorted.map((a) => (
         <div key={a.id} className={`alert sev-${a.severity}`}>
           <div className="alert-row">
@@ -323,6 +346,7 @@ function AlertsInbox({ userId }: { userId: string | null }) {
               <span className="alert-title">{a.title}</span>
               {a.body && <span className="alert-body">{a.body}</span>}
             </div>
+            <button type="button" className="alert-open" onClick={() => gotoAlert(a)}>Open →</button>
             <button type="button" className="alert-discuss" onClick={() => setOpenThread(openThread === a.id ? null : a.id)} aria-label="Discuss">💬{counts[a.id] ? <span className="cmt-count">{counts[a.id]}</span> : null}</button>
             <button type="button" className="alert-ack" onClick={() => ack(a)}>Got it</button>
           </div>
@@ -428,12 +452,13 @@ type MyTaskRow = EventTask & {
 // MY DAY — the personal rollup: what's on today, the flags & pings aimed at YOU (alerts targeted
 // to your user), and your assigned tasks. The home base "where do my flags go?" answer.
 function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: string; isLeader: boolean }) {
-  const [flags, setFlags] = useState<{ id: string; severity: string; title: string; body: string | null }[]>([]);
+  const [flags, setFlags] = useState<{ id: string; severity: string; title: string; body: string | null; category: string | null }[]>([]);
+  const { setSection } = useOperatorSection();
   const [today, setToday] = useState<{ id: string; title: string | null; day_label: string | null; is_live: boolean | null }[]>([]);
 
   const loadFlags = useCallback(async () => {
     if (!supabase || !userId || !isLeader) { setFlags([]); return; }
-    const { data } = await supabase.from("alerts").select("id, severity, title, body").eq("target_user_id", userId).is("ack_at", null).order("created_at", { ascending: false }).limit(20);
+    const { data } = await supabase.from("alerts").select("id, severity, title, body, category").eq("target_user_id", userId).is("ack_at", null).order("created_at", { ascending: false }).limit(20);
     setFlags((data as typeof flags) ?? []);
   }, [userId, isLeader]);
 
@@ -450,6 +475,7 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
   }, []);
 
   const ack = async (id: string) => { setFlags((f) => f.filter((x) => x.id !== id)); await supabase?.from("alerts").update({ ack_at: new Date().toISOString(), ack_by: userId }).eq("id", id); };
+  const gotoFlag = (category: string | null) => { const d = alertDest(category); if (d.planTab) { try { localStorage.setItem("gt3-plan-tab", d.planTab); } catch { /* ignore */ } } setSection(d.section); };
   const hr = new Date().getHours();
   const greet = hr < 12 ? "Good morning" : hr < 17 ? "Good afternoon" : "Good evening";
   const first = meName.split(" ")[0];
@@ -476,6 +502,7 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
                 <div className="myday-flag-t">{f.title}</div>
                 {f.body && <div className="myday-flag-x">{f.body}</div>}
               </div>
+              <button type="button" className="myday-open" onClick={() => gotoFlag(f.category)}>Open →</button>
               <button type="button" className="myday-ack" onClick={() => ack(f.id)}>Got it</button>
             </div>
           ))}
@@ -3412,7 +3439,10 @@ export default function AdminPage() {
   // deep-link from Studio's "Company calendar ↗" → land on the Plan calendar
   useEffect(() => {
     if (sec !== "plan" || typeof window === "undefined") return;
-    if (localStorage.getItem("gt3-plan-tab") === "calendar") { localStorage.removeItem("gt3-plan-tab"); setPlanTab("calendar"); }
+    const t = localStorage.getItem("gt3-plan-tab");
+    if (t && (["calendar", "notes", "events", "brew", "vendors", "bookings", "reserves"] as const).includes(t as typeof planTab)) {
+      localStorage.removeItem("gt3-plan-tab"); setPlanTab(t as typeof planTab);
+    }
   }, [sec]);
   const [planCounts, setPlanCounts] = useState<{ bookings: number; events: number }>({ bookings: 0, events: 0 });
   useEffect(() => {
