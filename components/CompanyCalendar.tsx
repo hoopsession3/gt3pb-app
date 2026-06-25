@@ -56,7 +56,6 @@ export default function CompanyCalendar() {
   const [dayOpen, setDayOpen] = useState<string | null>(null); // a date → show that day's detail
   const [stale, setStale] = useState(0); // overdue, unpublished, not-yet-tidied content
   const [tidying, setTidying] = useState(false);
-  const [planEv, setPlanEv] = useState<{ id: string; title: string; day: string | null; plan_days: number; initialDay: number } | null>(null);
   const dragId = useRef<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
 
@@ -103,9 +102,10 @@ export default function CompanyCalendar() {
     setTidying(false); await load(); await loadStale();
     return data;
   };
+  // Tapping ANY dated thing on the calendar — event or stop — opens the same unified prep hub, so they
+  // operate and look identical. (The run-of-show / time blocks live inside the hub and on CalEdit.)
   const openEventPrep = (eventId: string) => { if (typeof window !== "undefined") localStorage.setItem("gt3-prep-open", `event:${eventId}`); setSection("prep"); };
   const openStopPrep = (stopId: string) => { if (typeof window !== "undefined") localStorage.setItem("gt3-prep-open", `stop:${stopId}`); setSection("prep"); };
-  const openPlanner = (e: Ev, dayNo: number) => setPlanEv({ id: e.id, title: e.title || e.day_label || "Event", day: e.day, plan_days: Math.max(1, e.plan_days ?? 1), initialDay: dayNo });
   const toggleTodo = async (t: Todo) => {
     if (!supabase) return;
     setTodos((p) => p.map((x) => x.id === t.id ? { ...x, done: !x.done } : x));
@@ -128,7 +128,7 @@ export default function CompanyCalendar() {
       for (let di = 0; di < span; di++) {
         const base = e.title || e.day_label || "Event";
         const meta = e.is_live ? "Live" : (e.stage ? e.stage[0].toUpperCase() + e.stage.slice(1) : "");
-        push(addDaysKey(e.day, di), { id: e.id, title: span > 1 ? `${base} · D${di + 1}` : base, cat, kind: "event", meta, go: () => openPlanner(e, di + 1) });
+        push(addDaysKey(e.day, di), { id: e.id, title: span > 1 ? `${base} · D${di + 1}` : base, cat, kind: "event", meta, go: () => openEventPrep(e.id) });
       }
     }
     for (const s of stops) if (s.starts_at && pass("stop")) push(key(new Date(s.starts_at)), { id: s.id, title: s.name, cat: "stop", kind: "stop", go: () => openStopPrep(s.id) });
@@ -259,13 +259,6 @@ export default function CompanyCalendar() {
 
       {dayOpen && <DayView dayKey={dayOpen} items={byDay[dayOpen] || []} events={events} onClose={() => setDayOpen(null)} onAdd={() => { const k = dayOpen; setDayOpen(null); setAddDay(k); }} onSaved={load} />}
       {addDay && <AddSheet day={addDay} events={events} onClose={() => setAddDay(null)} onDone={() => { setAddDay(null); load(); }} setSection={setSection} />}
-      {planEv && (
-        <EventDayPlanner
-          eventId={planEv.id} title={planEv.title} eventDay={planEv.day} planDays={planEv.plan_days} initialDay={planEv.initialDay}
-          onPlanDays={async (n) => { if (supabase) { await supabase.from("events").update({ plan_days: n }).eq("id", planEv.id); setPlanEv((p) => p ? { ...p, plan_days: n } : p); load(); } }}
-          onClose={() => { setPlanEv(null); load(); }}
-        />
-      )}
     </div>
   );
 }
