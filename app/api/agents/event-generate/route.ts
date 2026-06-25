@@ -22,17 +22,18 @@ const TOOL: ToolDef = {
     properties: {
       events: {
         type: "array",
-        description: "Each distinct event mentioned. Resolve relative dates ('this weekend') against the provided calendar.",
+        description: "Each distinct event OR truck stop mentioned. Resolve relative dates ('this weekend') against the provided calendar.",
         items: {
           type: "object",
           properties: {
             title: { type: "string" },
+            kind: { type: "string", enum: ["event", "stop"], description: "'stop' = the truck physically parks and serves on the ground (market, run club, pop-up, vending spot). 'event' = a booked show / gig / party / catering. When in doubt or the user says 'add a stop', use 'stop'." },
             date: { type: "string", description: "YYYY-MM-DD, or empty if truly unknown." },
             day_label: { type: "string", description: "Short label like SAT/SUN." },
             location: { type: "string", description: "Venue / area if mentioned." },
             state: { type: "string", description: "2-letter state if known (e.g. GA), else empty." },
             county: { type: "string", description: "County/city if known, else empty." },
-            blurb: { type: "string", description: "One line on the event — menu/setup notes captured from the discussion." },
+            blurb: { type: "string", description: "One line on the event/stop — menu/setup notes captured from the discussion." },
           },
           required: ["title"],
         },
@@ -85,16 +86,27 @@ export async function POST(req: Request) {
     const user = await userFromRequest(req);
     const created: any = { events: [], note: null, todos: 0 };
     try {
-      // 1) events
-      const eventIds: (string | null)[] = [];
+      // 1) events + truck stops — a 'stop' is the truck on the ground (→ stops table, dated via
+      //    starts_at so it shows on the route); an 'event' is a booked show (→ events table).
+      const eventIds: (string | null)[] = []; // only events get an id here (action items FK to events)
       for (const e of (plan.events ?? [])) {
         if (e._skip) { eventIds.push(null); continue; }
+        if (e.kind === "stop") {
+          const startsAt = e.date ? new Date(`${e.date}T11:00:00-04:00`).toISOString() : null; // 11a ET default
+          const { data } = await supabaseAdmin.from("stops").insert({
+            name: String(e.title || "New stop").slice(0, 200), location_text: e.location || null,
+            starts_at: startsAt, status: "upcoming", notes: e.blurb || null, sort: 0,
+          }).select("id, name").single();
+          eventIds.push(null);
+          if (data) created.events.push({ id: data.id, title: data.name, kind: "stop" });
+          continue;
+        }
         const { data } = await supabaseAdmin.from("events").insert({
           title: String(e.title || "New event").slice(0, 200), day: e.date || null, day_label: e.day_label || null,
           location_text: e.location || null, state: e.state || null, county: e.county || null, blurb: e.blurb || null,
           category: "event", sort: 0,
         }).select("id, title").single();
-        if (data) { eventIds.push(data.id); created.events.push({ id: data.id, title: data.title }); } else eventIds.push(null);
+        if (data) { eventIds.push(data.id); created.events.push({ id: data.id, title: data.title, kind: "event" }); } else eventIds.push(null);
       }
       // 2) collaboration note (anchored to the first event)
       let noteId: string | null = null;
@@ -135,7 +147,7 @@ export async function POST(req: Request) {
   try {
     const r = await callClaude({
       model: MODELS.sonnet, maxTokens: 1800, temperature: 0.2,
-      system: `You are the planning agent for GT3 Performance Bar, a mobile beverage truck (Ryan & Kayla). Turn casual planning notes into a clean, structured plan: the events discussed, a team collaboration note (GT3 house format — a '## Action Items' block then numbered '## N. Topic' sections), and concrete action-item to-dos linked to the right event. Be grounded: only what's in the notes — never invent venues, dates, or tasks. Use real GT3 menu names if mentioned (Nature Aid, salted maple latte, nitro cold brew). Today is ${dow}, ${todayIso}. "This weekend" = Saturday ${sat} and Sunday ${sun}. Always answer with the event_plan tool.`,
+      system: `You are the planning agent for GT3 Performance Bar, a mobile beverage truck (Ryan & Kayla). Turn casual planning notes into a clean, structured plan: the events AND truck stops discussed, a team collaboration note (GT3 house format — a '## Action Items' block then numbered '## N. Topic' sections), and concrete action-item to-dos linked to the right item. Classify each item with kind: a 'stop' is the truck physically parking and serving on the ground (market, run club, pop-up, vending spot — these go on the public route); an 'event' is a booked show / gig / party / catering. If the user says "add a stop" or describes the truck setting up somewhere, use kind 'stop'. Be grounded: only what's in the notes — never invent venues, dates, or tasks. Use real GT3 menu names if mentioned (Nature Aid, salted maple latte, nitro cold brew). Today is ${dow}, ${todayIso}. "This weekend" = Saturday ${sat} and Sunday ${sun}. Always answer with the event_plan tool.`,
       messages: [{ role: "user", content: notes }],
       tools: [TOOL],
       tool_choice: { type: "tool", name: "event_plan" },

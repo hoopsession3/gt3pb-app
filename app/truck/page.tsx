@@ -52,7 +52,7 @@ function nextLabelFrom(stops: Stop[], liveId?: string) {
 function whenDay(s: Stop): string {
   if (s.when_label?.trim()) return s.when_label;
   if (s.starts_at) return new Date(s.starts_at).toLocaleDateString(undefined, { weekday: "short" }).toUpperCase();
-  return "";
+  return "TBD";
 }
 function whenTime(s: Stop): string {
   if (s.time_label?.trim()) return s.time_label;

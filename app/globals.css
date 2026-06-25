@@ -2376,3 +2376,6 @@ select.note-in{-webkit-appearance:none;appearance:none}
   .cal-items .cc-chip{font-size:12px}
   .h-sub{max-width:560px}
 }
+
+/* AI plan preview — stop vs event tag */
+.eg-kind{display:inline-block;font-family:'Inter';font-weight:700;font-size:9.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--c,#6fa8dc);border:1px solid var(--c,#6fa8dc);border-radius:5px;padding:1px 5px;vertical-align:middle;margin-left:4px}

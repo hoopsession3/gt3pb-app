@@ -57,7 +57,7 @@ export default function EventGenerator({ onClose, onCreated, initialNotes }: { o
             <div className="eg-done">
               <div className="eg-done-h">✓ Done — here&apos;s what I made</div>
               <ul className="eg-list">
-                <li>{done.events?.length ?? 0} event{(done.events?.length ?? 0) === 1 ? "" : "s"}{done.events?.length ? `: ${done.events.map((e: any) => e.title).join(", ")}` : ""}</li>
+                <li>{done.events?.length ?? 0} event{(done.events?.length ?? 0) === 1 ? "" : "s"} &amp; stop{(done.events?.length ?? 0) === 1 ? "" : "s"}{done.events?.length ? `: ${done.events.map((e: any) => e.title).join(", ")}` : ""}</li>
                 <li>{done.note ? `Team note: ${done.note.title}` : "No note"}</li>
                 <li>{done.todos ?? 0} to-do{(done.todos ?? 0) === 1 ? "" : "s"} from your action items</li>
               </ul>
@@ -76,13 +76,16 @@ export default function EventGenerator({ onClose, onCreated, initialNotes }: { o
             </>
           ) : (
             <>
-              <div className="eg-sec">Events</div>
-              {ev.length === 0 ? <div className="dp-hint">No events found in the notes.</div> : ev.map((e: any, i: number) => (
-                <button key={i} type="button" className={`eg-row${e._skip ? "" : " on"}`} onClick={() => toggle("events", i)} style={{ ["--c" as string]: "#6fa8dc" }}>
+              <div className="eg-sec">Events &amp; stops</div>
+              {ev.length === 0 ? <div className="dp-hint">No events or stops found in the notes.</div> : ev.map((e: any, i: number) => {
+                const isStop = e.kind === "stop";
+                return (
+                <button key={i} type="button" className={`eg-row${e._skip ? "" : " on"}`} onClick={() => toggle("events", i)} style={{ ["--c" as string]: isStop ? "#5b9a6b" : "#6fa8dc" }}>
                   <span className="eg-ck">{e._skip ? "○" : "✓"}</span>
-                  <span className="eg-main"><b>{e.title}</b><span>{[e.date || e.day_label, e.location].filter(Boolean).join(" · ") || "date TBD"}{e.blurb ? ` — ${e.blurb}` : ""}</span></span>
+                  <span className="eg-main"><b>{isStop ? "🚚 " : "📍 "}{e.title} <span className="eg-kind">{isStop ? "Truck stop" : "Event"}</span></b><span>{[e.date || e.day_label, e.location].filter(Boolean).join(" · ") || "date TBD"}{e.blurb ? ` — ${e.blurb}` : ""}</span></span>
                 </button>
-              ))}
+                );
+              })}
 
               {plan.collaboration_note && (
                 <>
