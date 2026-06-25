@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import { useAuth, roleOf, type Profile } from "@/components/AuthProvider";
-import { useOperatorSection, sectionsForRole, type OpSection } from "@/components/OperatorNav";
+import { useOperatorSection, sectionsForRole, groupOfSection, SECTION_LABEL, type OpSection } from "@/components/OperatorNav";
 import TrailerLoadout from "@/components/TrailerLoadout";
 import GearLibrary from "@/components/GearLibrary";
 import InventoryLibrary from "@/components/InventoryLibrary";
@@ -3443,6 +3443,21 @@ export default function AdminPage() {
         <div className="op-head-t">{LABEL[sec]}</div>
         <div className="op-head-s">{SUB[sec]}</div>
       </div>
+
+      {/* Secondary toggle — switches between the merged areas of a grouped bottom-nav tab
+          (Today: My Day · Now · Plan: Plan · Prep · Money: Money · Team). */}
+      {(() => {
+        const grp = groupOfSection(sec);
+        const members = grp ? grp.members.filter((m) => allowed.includes(m)) : [];
+        if (members.length < 2) return null;
+        return (
+          <div className="grp-toggle" role="tablist" aria-label={grp!.label}>
+            {members.map((m) => (
+              <button key={m} type="button" role="tab" aria-selected={sec === m} className={`grp-seg${sec === m ? " on" : ""}`} onClick={() => setSection(m)}>{SECTION_LABEL[m]}</button>
+            ))}
+          </div>
+        );
+      })()}
 
       {sec === "day" && <MyDay userId={user?.id ?? null} meName={profile?.display_name?.trim() || "Me"} isLeader={canManage} />}
 
