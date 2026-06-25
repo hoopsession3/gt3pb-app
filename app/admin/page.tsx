@@ -25,6 +25,7 @@ import EventPrepAI from "@/components/EventPrepAI";
 import TroubleshootAI from "@/components/TroubleshootAI";
 import BrewPlanner from "@/components/BrewPlanner";
 import AssetMaintenance from "@/components/AssetMaintenance";
+import ChiefOfStaff from "@/components/ChiefOfStaff";
 import Markdown from "@/components/Markdown";
 import { subscribePush } from "@/lib/push";
 import { chime, unlockAudio } from "@/lib/chime";
@@ -465,6 +466,7 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
           {today.map((e) => <div key={e.id} className="myday-ev">{e.is_live && <span className="myday-live">LIVE</span>}<span>📍 {e.title || e.day_label || "Event"}</span></div>)}
         </div>
       )}
+      {isLeader && <ChiefOfStaff />}
       {isLeader && (
         <>
           <div className="sec">Flags &amp; pings for you{flags.length ? ` · ${flags.length}` : ""}</div>
