@@ -1370,51 +1370,61 @@ function SupplyPicker({ ev, title, have, onAdd, onClose }: {
 }
 
 // ───────────────────────── one stop: go-live + location + notes ─────────────────────────
-function StopControl({ s, index, isCur, open, onToggle, onGoLive, onArchive, onChanged, vendors, onLinkVendor }: {
-  s: Stop; index: number; isCur: boolean; open: boolean; onToggle: () => void;
-  onGoLive: (id: string) => void; onArchive: () => void; onChanged: () => void;
-  vendors: Vendor[]; onLinkVendor: (v: Vendor | null) => void;
+// Polymorphic location editor — one accordion card that edits EITHER a truck stop OR a vendor/venue,
+// dispatching on `kind` to the matching source table. Both share the bulk of the form (name, geocoded
+// address pin, POC trio, service dates, notes, archive/delete); the stop adds go-live, a calendar date,
+// and the vendor picker. Unifies what used to be StopControl + VendorCard (near-identical), and upgrades
+// the vendor to the stop's nicer modal address-pin flow. Stop-only props are optional.
+function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive, isCur, onGoLive, vendors, onLinkVendor }: {
+  kind: "stop" | "vendor"; row: Stop | Vendor; index: number; isCur?: boolean; open: boolean; onToggle: () => void;
+  onArchive: () => void; onChanged: () => void;
+  onGoLive?: (id: string) => void; vendors?: Vendor[]; onLinkVendor?: (v: Vendor | null) => void;
 }) {
   const { toast } = useApp();
-  const [name, setName] = useState(s.name);
-  const [address, setAddress] = useState(s.address ?? "");
+  const table = kind === "stop" ? "stops" : "vendors";
+  const stop = kind === "stop" ? (row as Stop) : null;
+  const [name, setName] = useState(row.name);
+  const [address, setAddress] = useState(row.address ?? "");
   const [busy, setBusy] = useState(false);
   const [editAddr, setEditAddr] = useState(false);
-  const hasCoords = s.lat != null && s.lng != null;
+  const hasCoords = row.lat != null && row.lng != null;
 
   // every update carries a WHERE (id) — safe with the safeupdate guard
-  const patch = async (p: Partial<Stop>, msg = "Saved") => {
-    const { error } = await supabase!.from("stops").update(p).eq("id", s.id);
+  const patch = async (p: Record<string, unknown>, msg = "Saved") => {
+    const { error } = await supabase!.from(table).update(p).eq("id", row.id);
     toast(error ? `Error: ${error.message}` : msg);
     if (!error) onChanged();
   };
-  const saveName = () => { const nm = name.trim(); if (nm && nm !== s.name) patch({ name: nm }, "Name saved"); };
+  const saveName = () => { const nm = name.trim(); if (nm && nm !== row.name) patch({ name: nm }, "Name saved"); };
   const saveLocation = async (): Promise<boolean> => {
     const q = address.trim(); if (!q) return false;
     setBusy(true);
     const geo = await geocode(q);
     if (!geo) { setBusy(false); toast("Couldn't find that address — add city & state, then retry."); return false; }
-    const { error } = await supabase!.from("stops").update({ address: q, location_text: q, lat: geo.lat, lng: geo.lng }).eq("id", s.id);
+    const { error } = await supabase!.from(table).update({ address: q, location_text: q, lat: geo.lat, lng: geo.lng }).eq("id", row.id);
     setBusy(false);
-    toast(error ? `Error: ${error.message}` : "Location pinned — directions are now accurate");
+    toast(error ? `Error: ${error.message}` : `Location pinned${kind === "stop" ? " — directions are now accurate" : ""}`);
     if (!error) onChanged();
     return !error;
   };
   const remove = async () => {
-    if (typeof window !== "undefined" && !window.confirm(`Delete ${s.name}? This removes the record.`)) return;
-    const { error } = await supabase!.from("stops").delete().eq("id", s.id);
-    toast(error ? `Error: ${error.message}` : "Location deleted");
+    const ask = kind === "stop" ? `Delete ${row.name}? This removes the record.` : `Delete ${row.name}? Linked stops/events will unlink.`;
+    if (typeof window !== "undefined" && !window.confirm(ask)) return;
+    const { error } = await supabase!.from(table).delete().eq("id", row.id);
+    toast(error ? `Error: ${error.message}` : kind === "stop" ? "Location deleted" : "Vendor deleted");
     if (!error) onChanged();
   };
 
-  const sub = [s.poc_name, s.service_dates, hasCoords ? "pinned" : "no pin"].filter(Boolean).join("  ·  ");
+  const showPoc = kind === "vendor" || !stop?.vendor_id;
+  const sub = [row.poc_name, row.service_dates, hasCoords ? "pinned" : "no pin"].filter(Boolean).join("  ·  ");
+  const tag = kind === "stop" ? `Location ${String(index + 1).padStart(2, "0")}${isCur ? " · Live" : ""}` : `Vendor ${String(index + 1).padStart(2, "0")}`;
   return (
     <div className={`ev-card${isCur ? " live" : ""}${open ? " open" : ""}`}>
       <button className="ev-head" onClick={onToggle} aria-expanded={open}>
         <span className="ev-led" />
         <span className="ev-head-main">
-          <span className="ev-tag">Location {String(index + 1).padStart(2, "0")}{isCur ? " · Live" : ""}</span>
-          <span className="ev-title">{s.name || "Untitled location"}</span>
+          <span className="ev-tag">{tag}</span>
+          <span className="ev-title">{row.name || (kind === "stop" ? "Untitled location" : "Untitled vendor")}</span>
           <span className="ev-sub">{sub || "Tap to set up"}</span>
         </span>
         <span className="ev-head-badges">
@@ -1425,21 +1435,23 @@ function StopControl({ s, index, isCur, open, onToggle, onGoLive, onArchive, onC
 
       {open && (
         <div className="ev-body">
-          <button className={`ev-golive${isCur ? " on" : ""}`} onClick={() => onGoLive(s.id)} disabled={isCur}>
-            <span className="ev-golive-dot" />
-            <span>{isCur ? "Live here now — guests see this location" : "Go live at this location"}</span>
-            <span className="ev-golive-state">{isCur ? "LIVE" : "GO"}</span>
-          </button>
+          {kind === "stop" && onGoLive && (
+            <button className={`ev-golive${isCur ? " on" : ""}`} onClick={() => onGoLive(row.id)} disabled={isCur}>
+              <span className="ev-golive-dot" />
+              <span>{isCur ? "Live here now — guests see this location" : "Go live at this location"}</span>
+              <span className="ev-golive-state">{isCur ? "LIVE" : "GO"}</span>
+            </button>
+          )}
 
           <div className="ev-group">
-            <div className="ev-group-h">Location</div>
-            <input className="ev-input" value={name} onChange={(e) => setName(e.target.value)} onBlur={saveName} maxLength={120} placeholder="Location name" />
+            <div className="ev-group-h">{kind === "stop" ? "Location" : "Venue"}</div>
+            <input className="ev-input" value={name} onChange={(e) => setName(e.target.value)} onBlur={saveName} maxLength={120} placeholder={kind === "stop" ? "Location name" : "Vendor / venue name"} />
             <button type="button" className="ev-fieldbtn" onClick={() => setEditAddr(true)}>
               <span className="ev-fieldbtn-l">Address</span>
               <span className={`ev-fieldbtn-v${address.trim() ? "" : " ph"}`}>{address.trim() || "Tap to add — we'll pin it on the map"}</span>
               <span className="ev-fieldbtn-chev">›</span>
             </button>
-            <div className={`stop-coords${hasCoords ? " ok" : ""}`}>{hasCoords ? `Pinned · ${(s.lat as number).toFixed(4)}, ${(s.lng as number).toFixed(4)}` : "No pin yet — add an address for accurate directions"}</div>
+            <div className={`stop-coords${hasCoords ? " ok" : ""}`}>{hasCoords ? `Pinned · ${(row.lat as number).toFixed(4)}, ${(row.lng as number).toFixed(4)}` : "No pin yet — add an address for accurate directions"}</div>
             {editAddr && (
               <InputSheet
                 title="Street address" value={address} onChange={setAddress}
@@ -1453,32 +1465,36 @@ function StopControl({ s, index, isCur, open, onToggle, onGoLive, onArchive, onC
             )}
           </div>
 
-          <VendorPicker vendors={vendors} vendorId={s.vendor_id} onLink={onLinkVendor} />
+          {kind === "stop" && vendors && onLinkVendor && <VendorPicker vendors={vendors} vendorId={stop?.vendor_id} onLink={onLinkVendor} />}
 
-          {!s.vendor_id && (
+          {showPoc && (
             <div className="ev-group">
               <div className="ev-group-h">Point of contact</div>
-              <input className="ev-input" defaultValue={s.poc_name ?? ""} placeholder="POC name" maxLength={120} onBlur={(e) => { if ((e.target.value.trim() || null) !== (s.poc_name ?? null)) patch({ poc_name: e.target.value.trim() || null }, "Contact saved"); }} />
-              <input className="ev-input" type="tel" defaultValue={s.poc_phone ?? ""} placeholder="Phone" maxLength={40} onBlur={(e) => { if ((e.target.value.trim() || null) !== (s.poc_phone ?? null)) patch({ poc_phone: e.target.value.trim() || null }, "Contact saved"); }} />
-              <input className="ev-input" type="email" defaultValue={s.poc_email ?? ""} placeholder="Email" maxLength={160} onBlur={(e) => { if ((e.target.value.trim() || null) !== (s.poc_email ?? null)) patch({ poc_email: e.target.value.trim() || null }, "Contact saved"); }} />
+              <input className="ev-input" defaultValue={row.poc_name ?? ""} placeholder="POC name" maxLength={120} onBlur={(e) => { if ((e.target.value.trim() || null) !== (row.poc_name ?? null)) patch({ poc_name: e.target.value.trim() || null }, "Contact saved"); }} />
+              <input className="ev-input" type="tel" defaultValue={row.poc_phone ?? ""} placeholder="Phone" maxLength={40} onBlur={(e) => { if ((e.target.value.trim() || null) !== (row.poc_phone ?? null)) patch({ poc_phone: e.target.value.trim() || null }, "Contact saved"); }} />
+              <input className="ev-input" type="email" defaultValue={row.poc_email ?? ""} placeholder="Email" maxLength={160} onBlur={(e) => { if ((e.target.value.trim() || null) !== (row.poc_email ?? null)) patch({ poc_email: e.target.value.trim() || null }, "Contact saved"); }} />
             </div>
           )}
 
-          <div className="ev-group">
-            <div className="ev-group-h">Date on the calendar</div>
-            <input className="ev-input" type="date"
-              defaultValue={s.starts_at ? (() => { const d = new Date(s.starts_at); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })() : ""}
-              onChange={(e) => { if (!e.target.value) { patch({ starts_at: null }, "Date cleared"); return; } const old = s.starts_at ? new Date(s.starts_at) : null; const hh = old ? `${String(old.getHours()).padStart(2, "0")}:${String(old.getMinutes()).padStart(2, "0")}` : "11:00"; patch({ starts_at: new Date(`${e.target.value}T${hh}:00`).toISOString() }, "Date saved — it's on the calendar"); }} />
-            <input className="ev-input" defaultValue={s.service_dates ?? ""} placeholder="Recurring note (optional) — e.g. Saturdays · May 3 – Aug 30" maxLength={200} style={{ marginTop: 8 }} onBlur={(e) => { if ((e.target.value.trim() || null) !== (s.service_dates ?? null)) patch({ service_dates: e.target.value.trim() || null }, "Service dates saved"); }} />
-          </div>
+          {kind === "stop" ? (
+            <div className="ev-group">
+              <div className="ev-group-h">Date on the calendar</div>
+              <input className="ev-input" type="date"
+                defaultValue={stop?.starts_at ? (() => { const d = new Date(stop.starts_at as string); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })() : ""}
+                onChange={(e) => { if (!e.target.value) { patch({ starts_at: null }, "Date cleared"); return; } const old = stop?.starts_at ? new Date(stop.starts_at as string) : null; const hh = old ? `${String(old.getHours()).padStart(2, "0")}:${String(old.getMinutes()).padStart(2, "0")}` : "11:00"; patch({ starts_at: new Date(`${e.target.value}T${hh}:00`).toISOString() }, "Date saved — it's on the calendar"); }} />
+              <input className="ev-input" defaultValue={row.service_dates ?? ""} placeholder="Recurring note (optional) — e.g. Saturdays · May 3 – Aug 30" maxLength={200} style={{ marginTop: 8 }} onBlur={(e) => { if ((e.target.value.trim() || null) !== (row.service_dates ?? null)) patch({ service_dates: e.target.value.trim() || null }, "Service dates saved"); }} />
+            </div>
+          ) : (
+            <div className="ev-group"><div className="ev-group-h">Dates of service</div><input className="ev-input" defaultValue={row.service_dates ?? ""} placeholder="e.g. Saturdays · May – Aug" maxLength={200} onBlur={(e) => { if ((e.target.value.trim() || null) !== (row.service_dates ?? null)) patch({ service_dates: e.target.value.trim() || null }, "Saved"); }} /></div>
+          )}
 
           <div className="ev-group">
-            <div className="ev-group-h">Guest details</div>
-            <textarea className="ev-input ev-area" rows={2} maxLength={1000} defaultValue={s.notes ?? ""} placeholder="Parking, what's special, anything guests should know" onBlur={(e) => { if (e.target.value !== (s.notes ?? "")) patch({ notes: e.target.value.trim() || null }, "Details saved"); }} />
+            <div className="ev-group-h">{kind === "stop" ? "Guest details" : "Notes"}</div>
+            <textarea className="ev-input ev-area" rows={2} maxLength={1000} defaultValue={row.notes ?? ""} placeholder={kind === "stop" ? "Parking, what's special, anything guests should know" : "Anything to remember about this vendor"} onBlur={(e) => { if (e.target.value !== (row.notes ?? "")) patch({ notes: e.target.value.trim() || null }, "Details saved"); }} />
           </div>
 
           <div className="ev-card-foot">
-            <button className="ev-archive" onClick={onArchive}>Archive location</button>
+            <button className="ev-archive" onClick={onArchive}>{kind === "stop" ? "Archive location" : "Archive"}</button>
             <button className="ev-delete" onClick={remove}>Delete</button>
           </div>
         </div>
@@ -1709,9 +1725,10 @@ function LiveControl() {
 
       <div className="ev-list" style={{ marginTop: 12 }}>
         {active.map((s, i) => (
-          <StopControl
+          <LocationEditor
             key={s.id}
-            s={s}
+            kind="stop"
+            row={s}
             index={i}
             isCur={Boolean(s.id === live?.current_stop_id && live?.is_live)}
             open={openStopId === s.id}
@@ -3158,77 +3175,6 @@ function Overview({ onGo }: { onGo: (t: string) => void }) {
 }
 
 // ───────────────────────── vendors (relational venue records) ─────────────────────────
-function VendorCard({ v, index, open, onToggle, onArchive, onChanged }: {
-  v: Vendor; index: number; open: boolean; onToggle: () => void; onArchive: () => void; onChanged: () => void;
-}) {
-  const { toast } = useApp();
-  const [name, setName] = useState(v.name);
-  const [address, setAddress] = useState(v.address ?? "");
-  const [busy, setBusy] = useState(false);
-  const hasCoords = v.lat != null && v.lng != null;
-  const patch = async (p: Partial<Vendor>, msg = "Saved") => {
-    const { error } = await supabase!.from("vendors").update(p).eq("id", v.id);
-    toast(error ? `Error: ${error.message}` : msg);
-    if (!error) onChanged();
-  };
-  const saveName = () => { const nm = name.trim(); if (nm && nm !== v.name) patch({ name: nm }, "Name saved"); };
-  const saveLocation = async () => {
-    const q = address.trim(); if (!q) return;
-    setBusy(true);
-    const geo = await geocode(q);
-    if (!geo) { setBusy(false); toast("Couldn't find that address — add city & state, then retry."); return; }
-    const { error } = await supabase!.from("vendors").update({ address: q, location_text: q, lat: geo.lat, lng: geo.lng }).eq("id", v.id);
-    setBusy(false);
-    toast(error ? `Error: ${error.message}` : "Location pinned");
-    if (!error) onChanged();
-  };
-  const remove = async () => {
-    if (typeof window !== "undefined" && !window.confirm(`Delete ${v.name}? Linked stops/events will unlink.`)) return;
-    const { error } = await supabase!.from("vendors").delete().eq("id", v.id);
-    toast(error ? `Error: ${error.message}` : "Vendor deleted");
-    if (!error) onChanged();
-  };
-  const sub = [v.poc_name, v.service_dates, hasCoords ? "pinned" : "no pin"].filter(Boolean).join("  ·  ");
-  return (
-    <div className={`ev-card${open ? " open" : ""}`}>
-      <button className="ev-head" onClick={onToggle} aria-expanded={open}>
-        <span className="ev-led" />
-        <span className="ev-head-main">
-          <span className="ev-tag">Vendor {String(index + 1).padStart(2, "0")}</span>
-          <span className="ev-title">{v.name || "Untitled vendor"}</span>
-          <span className="ev-sub">{sub || "Tap to set up"}</span>
-        </span>
-        <span className="ev-head-badges"><span className="ev-chev">›</span></span>
-      </button>
-      {open && (
-        <div className="ev-body">
-          <div className="ev-group">
-            <div className="ev-group-h">Venue</div>
-            <input className="ev-input" value={name} onChange={(e) => setName(e.target.value)} onBlur={saveName} maxLength={120} placeholder="Vendor / venue name" />
-            <div className="stop-addr">
-              <input className="ev-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Street address" maxLength={300} />
-              <button className="ev-archive" onClick={saveLocation} disabled={busy || !address.trim()}>{busy ? "Finding…" : "Save"}</button>
-            </div>
-            <div className={`stop-coords${hasCoords ? " ok" : ""}`}>{hasCoords ? `Pinned · ${(v.lat as number).toFixed(4)}, ${(v.lng as number).toFixed(4)}` : "No pin yet"}</div>
-          </div>
-          <div className="ev-group">
-            <div className="ev-group-h">Point of contact</div>
-            <input className="ev-input" defaultValue={v.poc_name ?? ""} placeholder="POC name" maxLength={120} onBlur={(e) => { if ((e.target.value.trim() || null) !== (v.poc_name ?? null)) patch({ poc_name: e.target.value.trim() || null }, "Contact saved"); }} />
-            <input className="ev-input" type="tel" defaultValue={v.poc_phone ?? ""} placeholder="Phone" maxLength={40} onBlur={(e) => { if ((e.target.value.trim() || null) !== (v.poc_phone ?? null)) patch({ poc_phone: e.target.value.trim() || null }, "Contact saved"); }} />
-            <input className="ev-input" type="email" defaultValue={v.poc_email ?? ""} placeholder="Email" maxLength={160} onBlur={(e) => { if ((e.target.value.trim() || null) !== (v.poc_email ?? null)) patch({ poc_email: e.target.value.trim() || null }, "Contact saved"); }} />
-          </div>
-          <div className="ev-group"><div className="ev-group-h">Dates of service</div><input className="ev-input" defaultValue={v.service_dates ?? ""} placeholder="e.g. Saturdays · May – Aug" maxLength={200} onBlur={(e) => { if ((e.target.value.trim() || null) !== (v.service_dates ?? null)) patch({ service_dates: e.target.value.trim() || null }, "Saved"); }} /></div>
-          <div className="ev-group"><div className="ev-group-h">Notes</div><textarea className="ev-input ev-area" rows={2} maxLength={1000} defaultValue={v.notes ?? ""} placeholder="Anything to remember about this vendor" onBlur={(e) => { if (e.target.value !== (v.notes ?? "")) patch({ notes: e.target.value.trim() || null }, "Saved"); }} /></div>
-          <div className="ev-card-foot">
-            <button className="ev-archive" onClick={onArchive}>Archive</button>
-            <button className="ev-delete" onClick={remove}>Delete</button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 type VendorSug = { kind: "stop" | "event"; id: string; name: string; sub: string; stop?: Stop; event?: EventRow };
 
 function VendorsAdmin() {
@@ -3310,7 +3256,7 @@ function VendorsAdmin() {
       {active.length === 0 && suggestions.length === 0 && <div className="ev-empty">No vendors yet. Tap <b>+ Add vendor</b> to create one.</div>}
       <div className="ev-list">
         {active.map((v, i) => (
-          <VendorCard key={v.id} v={v} index={i} open={openId === v.id} onToggle={() => setOpenId(openId === v.id ? null : v.id)} onArchive={() => archive(v.id)} onChanged={load} />
+          <LocationEditor key={v.id} kind="vendor" row={v} index={i} open={openId === v.id} onToggle={() => setOpenId(openId === v.id ? null : v.id)} onArchive={() => archive(v.id)} onChanged={load} />
         ))}
       </div>
       {archived.length > 0 && (
