@@ -131,6 +131,7 @@ export interface EventTask {
   done: boolean;
   done_by: string | null;
   done_at: string | null;
+  due_at?: string | null;         // optional per-task deadline (0103); drives "tasks past due"
   link: string | null;
   sort: number;
   ai_proposal?: string | null;   // AI-proposed completion / answer (0061)

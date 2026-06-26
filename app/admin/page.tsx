@@ -48,6 +48,9 @@ import type { Stop, LiveStatus, EventRow, EventTask, BookingRequest, Order, Rese
 const usd = (cents: number) => `$${(cents / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 const toCents = (s: string) => Math.max(0, Math.round((parseFloat(s) || 0) * 100));
 const pctInt = (n: number) => Math.round(n * 100);
+// local YYYY-MM-DD (not UTC) — for date inputs / "is it past due in the operator's timezone"
+const localYMD = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const dueLabel = (iso: string) => new Date(iso).toLocaleDateString([], { month: "short", day: "numeric" });
 
 const STATUSES: BookingRequest["status"][] = ["new", "contacted", "booked", "declined"];
 
@@ -1631,7 +1634,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
               <div className={`adm-task${t.done ? " done" : ""}${t.critical ? " crit" : t.warn ? " warn" : ""}`}>
                 <button type="button" className="task-check" aria-pressed={t.done} onClick={() => toggle(t)} aria-label={`${t.done ? "Mark not loaded" : "Mark loaded"}: ${t.label}`}>
                   <span className="task-box">{t.done && <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7" /></svg>}</span>
-                  <span className="task-label">{t.label}{t.target_qty != null && <span className="task-qty">{t.actual_qty ?? "—"}/{t.target_qty}</span>}</span>
+                  <span className="task-label">{t.label}{t.target_qty != null && <span className="task-qty">{t.actual_qty ?? "—"}/{t.target_qty}</span>}{t.due_at && <span className={`task-due${!t.done && t.due_at < new Date().toISOString() ? " over" : ""}`}>{!t.done && t.due_at < new Date().toISOString() ? "⚠ " : ""}due {dueLabel(t.due_at)}</span>}</span>
                 </button>
                 <div className="task-right">
                   {t.link && <a className="adm-task-link" href={t.link} target="_blank" rel="noopener noreferrer" aria-label="Open reference / application">↗</a>}
@@ -1745,6 +1748,8 @@ function TaskEditSheet({ task, onClose, onSaved }: { task: EventTask; onClose: (
   const [kind, setKind] = useState<"pack" | "task">(task.kind === "pack" ? "pack" : "task");
   const [priority, setPriority] = useState<"normal" | "important" | "critical">(task.critical ? "critical" : task.warn ? "important" : "normal");
   const [targetQty, setTargetQty] = useState(task.target_qty != null ? String(task.target_qty) : "");
+  // due date — local YYYY-MM-DD; stored as end-of-day local so "due Thu" is past due once Thu ends
+  const [due, setDue] = useState(task.due_at ? localYMD(new Date(task.due_at)) : "");
   const [saving, setSaving] = useState(false);
   const save = async () => {
     if (!supabase) return;
@@ -1754,6 +1759,7 @@ function TaskEditSheet({ task, onClose, onSaved }: { task: EventTask; onClose: (
       label: nm, section: section.trim() || null, kind,
       critical: priority === "critical", warn: priority === "important",
       target_qty: targetQty.trim() === "" ? null : Number(targetQty),
+      due_at: due.trim() === "" ? null : new Date(`${due}T23:59:59`).toISOString(),
     }).eq("id", task.id);
     setSaving(false);
     if (error) { toast(`Error: ${error.message}`, "error"); return; }
@@ -1790,7 +1796,10 @@ function TaskEditSheet({ task, onClose, onSaved }: { task: EventTask; onClose: (
             </button>
           ))}
         </div>
-        <label className="prod-f" style={{ marginTop: 10 }}><span>Plan quantity (optional) — e.g. 100 bottles to label</span><input type="number" min="0" value={targetQty} onChange={(e) => setTargetQty(e.target.value)} placeholder="leave blank for a plain to-do" /></label>
+        <div className="prod-grid" style={{ marginTop: 10 }}>
+          <label className="prod-f"><span>Due date (optional)</span><input type="date" value={due} onChange={(e) => setDue(e.target.value)} /></label>
+          <label className="prod-f"><span>Plan quantity — e.g. 100 bottles</span><input type="number" min="0" value={targetQty} onChange={(e) => setTargetQty(e.target.value)} placeholder="blank = plain to-do" /></label>
+        </div>
         <div className="prod-actions" style={{ marginTop: 14, justifyContent: "space-between" }}>
           <button type="button" className="note-arch" onClick={del} disabled={saving}>Delete</button>
           <div style={{ display: "flex", gap: 8 }}>
@@ -3671,9 +3680,10 @@ function Overview({ onGo }: { onGo: (t: string) => void }) {
       supabase.from("events").select("*").eq("is_live", true).maybeSingle(),
       supabase.from("events").select("*").order("day"),
       supabase.from("stops").select("id, name, when_label, starts_at, status, archived_at").order("starts_at"),
-      supabase.from("event_tasks").select("event_id, stop_id, done, kind").eq("done", false).eq("kind", "task"),
+      supabase.from("event_tasks").select("event_id, stop_id, done, kind, due_at").eq("done", false).eq("kind", "task"),
       fetchInventory(),
     ]);
+    const nowIso = new Date().toISOString();
     const allEv = ((evs.data as EventRow[]) ?? []).filter((e) => !e.archived_at);
     const upEv = allEv.filter((e) => e.day && e.day >= today);
     const ne = upEv[0];
@@ -3683,8 +3693,11 @@ function Overview({ onGo }: { onGo: (t: string) => void }) {
     // past due = open team tasks whose event/stop already happened (strictly before today)
     const dueEv = new Set(allEv.filter((e) => e.day && e.day < today).map((e) => e.id));
     const dueSt = new Set(allSt.filter((x) => x.status === "done" || (x.starts_at && x.starts_at.slice(0, 10) < today)).map((x) => x.id));
-    const taskRows = (tasks.data as { event_id: string | null; stop_id: string | null }[]) ?? [];
-    const pastTasks = taskRows.filter((t) => (t.event_id && dueEv.has(t.event_id)) || (t.stop_id && dueSt.has(t.stop_id))).length;
+    const taskRows = (tasks.data as { event_id: string | null; stop_id: string | null; due_at: string | null }[]) ?? [];
+    // explicit per-task due date wins; otherwise fall back to the owning event/stop having passed
+    const pastTasks = taskRows.filter((t) =>
+      t.due_at ? t.due_at < nowIso : ((t.event_id && dueEv.has(t.event_id)) || (t.stop_id && dueSt.has(t.stop_id)))
+    ).length;
     setS({
       eventsUp: upEv.length, nextEvent: ne ? { title: ne.title ?? "Event", label: ne.day_label || ne.day || "" } : null,
       stopsUp: upSt.length, nextStop: ns ? { name: ns.name ?? "Stop", label: ns.when_label || "" } : null,

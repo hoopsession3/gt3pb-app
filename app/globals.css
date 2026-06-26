@@ -2427,6 +2427,8 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .onhand-of b.ok{color:var(--ok)}
 .onhand-of b.shy{color:var(--warn)}
 .task-qty{margin-left:7px;font-family:'DM Mono';font-size:11px;color:var(--gold2);background:rgba(169,124,63,.14);border-radius:5px;padding:1px 5px}
+.task-due{margin-left:7px;font-family:'DM Mono';font-size:10.5px;color:var(--cream-d);background:rgba(127,127,127,.12);border-radius:5px;padding:1px 5px;white-space:nowrap}
+.task-due.over{color:var(--red);background:rgba(184,36,32,.12)}
 
 /* ── Smart intake: known-asset KB pull ── */
 .intake-kb{margin-top:10px;background:rgba(169,124,63,.12);border:1px solid var(--gold2);border-radius:11px;padding:11px}
