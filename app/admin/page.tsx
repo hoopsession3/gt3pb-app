@@ -809,24 +809,27 @@ function MyTasks({ userId }: { userId: string | null }) {
 
   if (!userId || (loaded && tasks.length === 0)) return null;
 
-  // Priority: critical first, then important (warn), then tasks on a LIVE event, then by date.
-  const score = (t: MyTaskRow) => (t.critical ? 0 : t.warn ? 1 : t.events?.is_live ? 2 : 3);
-  const sorted = [...tasks].sort((a, b) => score(a) - score(b) || (a.events?.day ?? "9999").localeCompare(b.events?.day ?? "9999"));
+  // Priority: critical first, then overdue, then important (warn), then tasks on a LIVE event, then by date.
+  const nowIso = new Date().toISOString();
+  const isOver = (t: MyTaskRow) => !!t.due_at && t.due_at < nowIso;
+  const score = (t: MyTaskRow) => (t.critical ? 0 : isOver(t) ? 1 : t.warn ? 2 : t.events?.is_live ? 3 : 4);
+  const sorted = [...tasks].sort((a, b) => score(a) - score(b) || (a.due_at ?? a.events?.day ?? "9999").localeCompare(b.due_at ?? b.events?.day ?? "9999"));
   const crit = tasks.filter((t) => t.critical).length;
+  const over = tasks.filter(isOver).length;
 
   return (
     <div className="adm-sec">
-      <div className="sec">My tasks <span className={`adm-pill${crit ? " due" : ""}`}>{tasks.length}{crit ? ` · ${crit} critical` : ""}</span></div>
+      <div className="sec">My tasks <span className={`adm-pill${crit || over ? " due" : ""}`}>{tasks.length}{over ? ` · ${over} overdue` : crit ? ` · ${crit} critical` : ""}</span></div>
       {sorted.map((t) => (
-        <div key={t.id} className={`mytask${t.critical ? " crit" : t.warn ? " warn" : ""}`}>
+        <div key={t.id} className={`mytask${t.critical ? " crit" : isOver(t) ? " crit" : t.warn ? " warn" : ""}`}>
           <button type="button" className="task-check" onClick={() => complete(t)} aria-label={`Mark done: ${t.label}`}>
             <span className="task-box" />
           </button>
           <div className="mytask-main">
             <span className="mytask-label">{t.label}</span>
-            <span className="mytask-ev">{t.meeting_notes ? `Follow-up · ${t.meeting_notes.title ?? "Meeting"}` : `${t.events?.title ?? "Event"}${t.events?.is_live ? " · LIVE" : t.events?.day ? ` · ${whenBucket(t.events.day).label}` : ""}`}</span>
+            <span className="mytask-ev">{t.meeting_notes ? `Follow-up · ${t.meeting_notes.title ?? "Meeting"}` : `${t.events?.title ?? "Event"}${t.events?.is_live ? " · LIVE" : t.events?.day ? ` · ${whenBucket(t.events.day).label}` : ""}`}{t.due_at ? ` · due ${dueLabel(t.due_at)}` : ""}</span>
           </div>
-          {t.critical ? <span className="mytask-pri crit">Critical</span> : t.warn ? <span className="mytask-pri warn">Important</span> : null}
+          {isOver(t) ? <span className="mytask-pri over">Overdue</span> : t.critical ? <span className="mytask-pri crit">Critical</span> : t.warn ? <span className="mytask-pri warn">Important</span> : null}
         </div>
       ))}
     </div>
@@ -1191,6 +1194,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   const [staff, setStaff] = useState<{ id: string; display_name: string | null; role?: string | null }[]>([]);
   const [approvals, setApprovals] = useState<{ approver_id: string }[]>([]);
   const [newTask, setNewTask] = useState("");
+  const [newTaskDue, setNewTaskDue] = useState("");
   const [generating, setGenerating] = useState(false);
   const [assignFor, setAssignFor] = useState<EventTask | null>(null);
   const [editTask, setEditTask] = useState<EventTask | null>(null);
@@ -1384,8 +1388,9 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   };
   const addTask = async () => {
     if (!supabase || !newTask.trim()) return;
-    const { error } = await supabase.from("event_tasks").insert({ [ownerCol]: target.id, label: newTask.trim(), kind: "task", section: "Task", sort: tasks.length });
-    setNewTask("");
+    const due_at = newTaskDue.trim() === "" ? null : new Date(`${newTaskDue}T23:59:59`).toISOString();
+    const { error } = await supabase.from("event_tasks").insert({ [ownerCol]: target.id, label: newTask.trim(), kind: "task", section: "Task", sort: tasks.length, due_at });
+    setNewTask(""); setNewTaskDue("");
     if (error) toast(`Error: ${error.message}`, "error"); else load();
   };
   const addCrew = async (uid: string) => {
@@ -1661,6 +1666,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       {isAdmin && total > 0 && (
         <div className="adm-task-add">
           <input className="subpitch-email" style={{ marginBottom: 0 }} placeholder="Add a task…" value={newTask} onChange={(e) => setNewTask(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addTask()} aria-label="Add a task" />
+          <input type="date" className="subpitch-email adm-task-due" style={{ marginBottom: 0 }} value={newTaskDue} onChange={(e) => setNewTaskDue(e.target.value)} aria-label="Due date (optional)" title="Due date (optional)" />
           <button className="adm-btn" onClick={addTask}>Add</button>
         </div>
       )}

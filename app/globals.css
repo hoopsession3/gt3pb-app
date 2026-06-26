@@ -649,8 +649,9 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .adm-task.warn:not(.done) .adm-task-check span{color:var(--gold2);font-weight:600}
 .adm-regen{margin-top:8px;background:none;border:none;color:var(--gold2);font-family:'Inter';font-size:12px;cursor:pointer;padding:3px 0;letter-spacing:.2px}
 .adm-regen:disabled{opacity:.5;cursor:default}
-.adm-task-add{display:flex;gap:8px;align-items:center;margin-top:10px}
+.adm-task-add{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
 .adm-task-add input{flex:1}
+.adm-task-add .adm-task-due{flex:0 0 auto;max-width:9.5rem}
 
 /* events editor — collapsible cards (one clean header per event, full editor on tap) */
 .ev-empty{background:var(--card);border:1px dashed var(--line2);border-radius:14px;padding:18px;color:var(--cream-m);font-size:13px;text-align:center;margin-top:10px}
@@ -1209,6 +1210,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .mytask-ev{display:block;font-size:11.5px;color:var(--cream-m);margin-top:2px}
 .mytask-pri{flex:0 0 auto;font-family:'Inter';font-weight:650;font-size:9.5px;letter-spacing:.4px;text-transform:uppercase;padding:3px 8px;border-radius:20px}
 .mytask-pri.crit{color:var(--red);background:rgba(184,36,32,.16)}
+.mytask-pri.over{color:#fff;background:var(--red)}
 .mytask-pri.warn{color:var(--warn);background:rgba(207,154,74,.14)}
 
 /* labelled full-width event field (so e.g. "Details" vs "Location" aren't a confusing duplicate) */
