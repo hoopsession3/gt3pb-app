@@ -2560,3 +2560,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .ac-founder-k{font-family:'Inter',sans-serif;font-weight:700;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--gold2)}
 .ac-founder p{margin:6px 0 0;font-size:15px;line-height:1.55;color:var(--cream);font-style:italic}
 .app.crew-day .ac-why p,.app.crew-day .ac-founder p,.app.crew-day .ac-scn-d{color:#221f18}
+
+/* clickable maps link on customer event/stop locations */
+.ev-maplink{color:var(--gold2);text-decoration:none}
+.ev-maplink:hover{text-decoration:underline}

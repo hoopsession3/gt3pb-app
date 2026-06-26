@@ -488,13 +488,18 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
     if (!supabase || !f) return;
     setSaving(true);
     const nm = (f[nameCol] || "").trim() || (isEvent ? "Event" : "Stop");
-    const patch: Record<string, string | null> = isEvent
+    const patch: Record<string, string | number | null> = isEvent
       ? { title: nm, day: f.day || null, location_text: f.location_text?.trim() || null, stage: f.stage || "confirmed" }
       : { name: nm, starts_at: f.starts_at || null, location_text: f.location_text?.trim() || null, address: f.address?.trim() || null, status: f.status || "upcoming" };
+    // For stops, geocode the address (or location) so it pins on the map + customer directions work.
+    if (!isEvent) {
+      const q = (f.address?.trim() || f.location_text?.trim() || "");
+      if (q) { const g = await geocode(q).catch(() => null); if (g) { patch.lat = g.lat; patch.lng = g.lng; } }
+    }
     const { error } = await supabase.from(table).update(patch).eq("id", ownerId);
     setSaving(false);
     if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
-    setEdit(false); onSaved(nm); toast("Details saved");
+    setEdit(false); onSaved(nm); toast(isEvent ? "Details saved" : "Saved — address pinned on the map");
   };
 
   if (!f) return null;

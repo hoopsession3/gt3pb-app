@@ -82,7 +82,7 @@ function RsvpRow({ ev }: { ev: EventRow }) {
       </div>
       {open && hasDetail && (
         <div className="ev-detail">
-          {ev.location_text && <div className="ev-det-row"><span className="ev-det-k">Where</span><span>{ev.location_text}</span></div>}
+          {ev.location_text && <div className="ev-det-row"><span className="ev-det-k">Where</span><a className="ev-maplink" href={`https://maps.google.com/?q=${encodeURIComponent(ev.location_text)}`} target="_blank" rel="noreferrer">📍 {ev.location_text}</a></div>}
           {(ev.start_time || ev.end_time) && <div className="ev-det-row"><span className="ev-det-k">When</span><span>{ev.day_label ? `${ev.day_label} · ` : ""}{evTime(ev)}</span></div>}
           {ev.blurb && <p className="ev-det-blurb">{ev.blurb}</p>}
           {ev.member_only && <div className="ev-det-note">Members only — sign in to RSVP.</div>}
