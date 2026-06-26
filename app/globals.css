@@ -1790,6 +1790,9 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .app.crew-day .brand-asset-img,
 .app.crew-day .oa-log{background:#fff}
 .app.crew-day .oa-msg.assistant{background:#F4EEE2}
+/* dark-surfaced cards/buttons that had no light-theme override (read as gray/dark blobs in crew day) */
+.app.crew-day .bo-card{background:#fff}
+.app.crew-day .adm-btn:not(.primary):not(.go):not(.on){background:#fff;color:var(--cream);border-color:var(--line2)}
 /* checkerboard for transparent logos still reads on light */
 .app.crew-day .brand-asset-img{background:repeating-conic-gradient(#ece4d3 0% 25%, #f6f1e6 0% 50%) 50%/16px 16px}
 
