@@ -25,6 +25,7 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
   const [planning, setPlanning] = useState(false);
   const [edit, setEdit] = useState(false);
   const [form, setForm] = useState<Partial<TrailerProfile>>({});
+  const [veh, setVeh] = useState<{ q: string; pax: number; busy: boolean; spec: any | null }>({ q: "", pax: 2, busy: false, spec: null });
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -110,6 +111,28 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
     if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
     toast("Trailer profile saved"); setEdit(false); setForm({}); load();
   };
+  // Vehicle-spec agent: look up the cargo bay + tow rating for a make/model, sized to the passenger
+  // load, and apply it straight to the profile (least friction — no copy/paste of numbers).
+  const lookupVehicle = async () => {
+    if (!supabase || !veh.q.trim() || veh.busy) return;
+    setVeh((v) => ({ ...v, busy: true }));
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const r = await fetch("/api/agents/vehiclespec", {
+        method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ vehicle: veh.q.trim(), passengers: veh.pax }),
+      });
+      const j = await r.json();
+      if (!j.ok) { toast(j.error || "Couldn't look that up", "error"); setVeh((v) => ({ ...v, busy: false })); return; }
+      await supabase.from("trailer_profile").update({
+        veh_cargo_len_in: j.bay_len_in, veh_cargo_width_in: j.bay_width_in, veh_cargo_height_in: j.bay_height_in, veh_usable_pct: 85,
+        tow_rating_lb: Math.round(j.tow_capacity_lb), tow_vehicle: j.resolved, updated_at: new Date().toISOString(),
+      }).eq("id", 1);
+      setVeh((v) => ({ ...v, busy: false, spec: j }));
+      toast(`${j.resolved}: ~${j.usable_cuft} cu ft for ${j.passengers} riders — applied`);
+      load();
+    } catch (e: any) { toast(String(e?.message ?? e).slice(0, 160), "error"); setVeh((v) => ({ ...v, busy: false })); }
+  };
   const numField = (k: keyof TrailerProfile, label: string) => (
     <label className="tl-f"><span>{label}</span>
       <input type="number" defaultValue={tp[k] as number ?? ""} onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.value === "" ? null : Number(e.target.value) }))} />
@@ -151,6 +174,21 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
           {numField("interior_height_in", "Height (in)")}
           {numField("usable_pct", "Usable %")}
           <div className="tl-f wide" style={{ fontFamily: "var(--mono)", fontSize: 9, letterSpacing: 1, textTransform: "uppercase", color: "var(--bronze)", paddingTop: 4 }}>Vehicle cargo bay (in)</div>
+          <div className="tl-vlook">
+            <input className="tl-vlook-q" type="text" value={veh.q} onChange={(e) => setVeh((v) => ({ ...v, q: e.target.value }))} placeholder="Year make model — e.g. 2026 Honda Pilot" onKeyDown={(e) => e.key === "Enter" && lookupVehicle()} />
+            <select className="tl-vlook-pax" value={veh.pax} onChange={(e) => setVeh((v) => ({ ...v, pax: Number(e.target.value) }))} aria-label="Passengers riding">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => <option key={n} value={n}>{n} {n === 1 ? "rider" : "riders"}</option>)}
+            </select>
+            <button className="adm-btn" onClick={lookupVehicle} disabled={veh.busy || !veh.q.trim()}>{veh.busy ? "…" : "✦ Look up & fit"}</button>
+          </div>
+          {veh.spec && (
+            <div className="tl-vspec">
+              <b>{veh.spec.resolved}</b> · est. tow {Number(veh.spec.tow_capacity_lb).toLocaleString()} lb
+              <div>{veh.spec.seat_config} → <b>~{veh.spec.usable_cuft} cu ft</b> usable (seats-up {veh.spec.cargo_cuft_all_seats_up} · down {veh.spec.cargo_cuft_all_seats_down})</div>
+              {veh.spec.note && <div className="tl-bar-note">{veh.spec.note}</div>}
+              <div className="tl-bar-note">Expert estimate — applied to the cargo bay below; tune if you’ve measured it.</div>
+            </div>
+          )}
           {numField("veh_cargo_len_in", "Length (in)")}
           {numField("veh_cargo_width_in", "Width (in)")}
           {numField("veh_cargo_height_in", "Height (in)")}

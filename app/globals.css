@@ -1307,6 +1307,14 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .tl-f input{background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:8px;padding:8px 9px;color:var(--cream);font-family:'Inter';font-size:14px;outline:none}
 .tl-f input:focus{border-color:var(--gold2)}
 .tl-editform .adm-btn{grid-column:1 / -1}
+.tl-vlook{grid-column:1 / -1;display:flex;gap:6px;flex-wrap:wrap}
+.tl-vlook-q{flex:1;min-width:150px;background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:8px;padding:8px 9px;color:var(--cream);font-family:'Inter';font-size:14px;outline:none}
+.tl-vlook-q:focus{border-color:var(--gold2)}
+.tl-vlook-pax{background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:8px;padding:8px 9px;color:var(--cream);font-family:'Inter';font-size:13px;outline:none}
+.tl-editform .tl-vlook .adm-btn{grid-column:auto}
+.app.crew-day .tl-vlook-q,.app.crew-day .tl-vlook-pax,.app.crew-day .tl-f input{background:#fff}
+.tl-vspec{grid-column:1 / -1;background:rgba(169,124,63,.1);border:1px solid rgba(169,124,63,.3);border-radius:10px;padding:10px 12px;font-family:'Inter';font-size:12.5px;line-height:1.5;color:var(--cream)}
+.tl-vspec b{font-weight:650}
 .tl-checks{display:flex;flex-direction:column;gap:9px;margin-top:12px}
 .tl-bar-top{display:flex;justify-content:space-between;align-items:baseline;font-family:'Inter';font-size:12px;color:var(--cream-m)}
 .tl-bar-top b{color:var(--cream);font-weight:600;font-size:12.5px}
