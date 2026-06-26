@@ -111,33 +111,31 @@ export default function ArchitecturePage() {
           {view === "progress" ? (
             <div className="arch-prog">
               <div className="arch-overview">
-                <div className="arch-ov-t">What we&apos;ve built — by the numbers</div>
-                <p className="arch-ov-b">Live from the running platform. These move on their own as customers order, subscribe, and events run.</p>
+                <div className="arch-ov-t">What we&apos;ve built <span className="arch-ov-when">· snapshot {BUILD_STATS.asOf}</span></div>
+                <p className="arch-ov-b">The platform itself, by the numbers — everything shipped to run GT3PB.</p>
+              </div>
+              <div className="prog-grid">
+                {BUILD_STATS.items.map((s) => (
+                  <div key={s.l} className="prog-card"><span className="prog-l">{s.l}</span><span className="prog-n">{s.n}</span></div>
+                ))}
               </div>
               {!kpis ? (
-                <div className="h-sub">Loading live numbers…</div>
+                <div className="h-sub" style={{ marginTop: 14 }}>Loading live numbers…</div>
               ) : (
-                <>
-                  <div className="prog-grid">
-                    <div className="prog-card"><span className="prog-l">Revenue</span><span className="prog-n">{money(kpis.revenue_cents)}</span></div>
-                    <div className="prog-card"><span className="prog-l">Orders</span><span className="prog-n">{kpis.orders}</span></div>
-                    <div className="prog-card"><span className="prog-l">Members</span><span className="prog-n">{kpis.members}</span></div>
-                    <div className="prog-card"><span className="prog-l">Subscribers</span><span className="prog-n">{kpis.subscribers}</span></div>
-                    <div className="prog-card"><span className="prog-l">Events</span><span className="prog-n">{kpis.events}</span><span className="prog-s">{kpis.events_upcoming} upcoming</span></div>
-                    <div className="prog-card"><span className="prog-l">Inventory on hand</span><span className="prog-n">{money(kpis.inventory_value_cents)}</span><span className="prog-s">{kpis.inventory_items} items</span></div>
-                    <div className="prog-card"><span className="prog-l">Menu products</span><span className="prog-n">{kpis.products_live}</span></div>
-                    <div className="prog-card"><span className="prog-l">Open tasks</span><span className="prog-n">{kpis.open_tasks}</span></div>
+                <div className="prog-build">
+                  <div className="prog-build-h">By the numbers <span>· live from the running platform</span></div>
+                  <div className="prog-build-grid">
+                    <div className="prog-build-card"><span className="prog-build-n">{money(kpis.revenue_cents)}</span><span className="prog-build-l">Revenue</span></div>
+                    <div className="prog-build-card"><span className="prog-build-n">{kpis.orders}</span><span className="prog-build-l">Orders</span></div>
+                    <div className="prog-build-card"><span className="prog-build-n">{kpis.members}</span><span className="prog-build-l">Members</span></div>
+                    <div className="prog-build-card"><span className="prog-build-n">{kpis.subscribers}</span><span className="prog-build-l">Subscribers</span></div>
+                    <div className="prog-build-card"><span className="prog-build-n">{kpis.events}</span><span className="prog-build-l">Events · {kpis.events_upcoming} upcoming</span></div>
+                    <div className="prog-build-card"><span className="prog-build-n">{money(kpis.inventory_value_cents)}</span><span className="prog-build-l">Inventory · {kpis.inventory_items} items</span></div>
+                    <div className="prog-build-card"><span className="prog-build-n">{kpis.products_live}</span><span className="prog-build-l">Menu products</span></div>
+                    <div className="prog-build-card"><span className="prog-build-n">{kpis.open_tasks}</span><span className="prog-build-l">Open tasks</span></div>
                   </div>
                   <div className="prog-foot">{BUSINESS.length} capabilities live · {kpis.tables} tables · {kpis.content_pieces} content pieces · {kpis.notes} meeting notes</div>
-                  <div className="prog-build">
-                    <div className="prog-build-h">What we&apos;ve built <span>· snapshot {BUILD_STATS.asOf}</span></div>
-                    <div className="prog-build-grid">
-                      {BUILD_STATS.items.map((s) => (
-                        <div key={s.l} className="prog-build-card"><span className="prog-build-n">{s.n}</span><span className="prog-build-l">{s.l}</span></div>
-                      ))}
-                    </div>
-                  </div>
-                </>
+                </div>
               )}
             </div>
           ) : view === "business" ? (

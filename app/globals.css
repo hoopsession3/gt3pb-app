@@ -485,6 +485,13 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .ac-faq{padding:10px 0;border-bottom:1px solid var(--line)}
 .ac-faq b{display:block;font-family:'Inter';font-weight:650;font-size:13.5px;color:var(--cream);margin-bottom:3px}
 .ac-faq span{font-family:'Inter';font-size:13px;line-height:1.5;color:var(--cream-m)}
+/* three voices — match the guest */
+.ac-voices{display:flex;flex-direction:column;gap:9px;margin-top:4px}
+.ac-voice{background:var(--card);border:1px solid var(--line);border-left:2.5px solid var(--bronze);border-radius:11px;padding:10px 13px}
+.ac-voice p{font-family:'Inter';font-size:13px;line-height:1.55;color:var(--cream-m);margin:5px 0 0}
+.ac-voice-tag{font-family:var(--mono);font-weight:600;font-size:8.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--bronze)}
+.ac-voice-tag.gt3{color:var(--cream)}
+.ac-voice-tag.founder{color:#c8a15a}
 /* team board */
 .ac-team{display:flex;flex-direction:column;gap:9px;margin-top:14px}
 .ac-trow{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:12px 14px}
@@ -1791,6 +1798,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 /* ── System architecture map (owner) ── */
 .arch-overview{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:15px;margin:14px 0 6px}
 .arch-ov-t{font-family:'Inter';font-weight:800;font-size:11.5px;letter-spacing:1px;text-transform:uppercase;color:var(--gold)}
+.arch-ov-when{font-weight:400;letter-spacing:0;text-transform:none;color:var(--cream-d)}
 .arch-ov-b{font-family:'Inter';font-size:14.5px;line-height:1.55;color:var(--cream-m);margin:8px 0 12px}
 .arch-flow{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .arch-flow-i{display:flex;align-items:center;gap:6px;font-family:'Inter';font-weight:600;font-size:11.5px;color:var(--cream);background:rgba(169,124,63,.12);border:1px solid var(--line2);border-radius:999px;padding:5px 10px}

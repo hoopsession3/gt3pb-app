@@ -384,6 +384,17 @@ function ProductDetail({ p, onBack }: { p: Product; onBack: () => void }) {
       <div className="ac-mini-h" style={{ marginTop: 14 }}>Who it&apos;s for</div>
       <p className="ac-bp">{p.customer}</p>
 
+      {p.voices && (
+        <>
+          <div className="wrule"><span>Three voices · match the guest</span></div>
+          <div className="ac-voices">
+            <div className="ac-voice"><span className="ac-voice-tag">Simple</span><p>{p.voices.simple}</p></div>
+            <div className="ac-voice"><span className="ac-voice-tag gt3">GT3</span><p>{p.voices.gt3}</p></div>
+            <div className="ac-voice"><span className="ac-voice-tag founder">Founder</span><p>{p.voices.founder}</p></div>
+          </div>
+        </>
+      )}
+
       <div className="wrule"><span>Talking points</span></div>
       <ul className="ac-ul">{p.talking.map((x) => <li key={x}>{x}</li>)}</ul>
 

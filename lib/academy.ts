@@ -623,6 +623,8 @@ export interface Product {
   key: string; name: string; line: string; price?: string;
   what: string; why: string; ingredients: string[]; benefits: string[];
   customer: string; talking: string[]; faqs: { q: string; a: string }[];
+  // Three voices to explain it — match the guest: Simple (rushed), GT3 (curious), Founder (the deeper why).
+  voices?: { simple: string; gt3: string; founder: string };
   cookbook?: { batch?: string; brew?: string[]; serve?: string[]; storage?: string; quality?: string; troubleshoot?: { issue: string; fix: string }[] };
 }
 
@@ -639,6 +641,11 @@ export const PRODUCTS: Product[] = [
       { q: "How much caffeine?", a: "About 210 mg per 10 oz — the same as Flow and Dusk. (Estimated until lab-verified.)" },
       { q: "Is it sweet?", a: "No added sugar — the coconut water gives a light natural roundness." },
     ],
+    voices: {
+      simple: "Clean cold-brew coffee with a splash of coconut water. Smooth, not bitter, made to order.",
+      gt3: "Rise is our morning bottle — single-origin coffee cold-extracted over ~18 hours so it comes out rounder and less bitter than hot coffee, then finished with organic coconut water for a light, clean lift.",
+      founder: "We cold-extract instead of brewing hot out of respect for the coffee — heat rips out bitterness and acid in minutes; cold draws it gently over hours. The coconut water isn't a gimmick, it's GT3's whole-coconut hydration thread carried into the first cup of the day. Rise is the handshake: real coffee, no burnt bite, nothing to hide.",
+    },
     cookbook: { batch: "Standard Batch — GT3 (1:13, ~18-hr cold extraction).", brew: ["Weigh beans 1:13 to mineral water", "Cold-extract ~18 hrs", "Filter, log batch + signal score (target 8+)"], serve: ["Pour over ice", "Top with organic coconut water", "Serve in glass, made to order"], storage: "Keep cold; use within the standard hold window.", quality: "Signal Score 8+ (Energy/Clarity/Flavor/Smoothness).", troubleshoot: [{ issue: "Too bitter", fix: "Check grind/time — over-extraction; pull back toward spec." }, { issue: "Weak", fix: "Verify 1:13 ratio and full 18-hr extraction." }] },
   },
   {
@@ -653,6 +660,11 @@ export const PRODUCTS: Product[] = [
       { q: "Is there chocolate sugar in it?", a: "No — it's whole cacao nibs infused in the brew, not a sweetened syrup." },
       { q: "More caffeine than Rise?", a: "No, about the same (~210 mg/10 oz, estimated)." },
     ],
+    voices: {
+      simple: "Cold-brew with real cacao nibs infused in. Rich, smooth, no added sugar.",
+      gt3: "Flow takes the same cold-extracted base as Rise and infuses whole organic cacao nibs — so you get a richer, longer-feeling cup without a sweetened chocolate syrup. Same caffeine as the rest of the line.",
+      founder: "Flow is the deep-work bottle. The cacao note isn't dessert — it's whole nibs steeped into the brew, the bitterness reading as depth instead of sugar. It's the same coffee as Rise; the difference is the ride. When someone's locking in for hours, this is the one I point them to.",
+    },
     cookbook: { batch: "Standard Batch — GT3 with cacao-nib infusion.", brew: ["Brew base to spec", "Infuse organic cacao nibs", "Filter and log batch"], serve: ["Pour over ice in glass"], storage: "Keep cold; standard hold window.", quality: "Signal Score 8+; cacao aroma present, not muddy.", troubleshoot: [{ issue: "Muddy/silty", fix: "Improve filtration after nib infusion." }] },
   },
   {
@@ -667,6 +679,11 @@ export const PRODUCTS: Product[] = [
       { q: "Is Dusk less caffeinated / a wind-down?", a: "No. It's the same spec and caffeine (~210 mg/10 oz) as Rise and Flow — the difference is the spice, not the lift." },
       { q: "Is it sweet?", a: "No added sugar; the spice reads warm without sweetness." },
     ],
+    voices: {
+      simple: "Cold-brew with Ceylon cinnamon and cardamom. Warm and spiced, no sugar. Same caffeine as the others.",
+      gt3: "Dusk is the same clean cold-brew base spiced with Ceylon cinnamon and green cardamom. It reads warm and cozy for the back half of the day — but it's not a decaf or wind-down; the lift is identical to Rise and Flow.",
+      founder: "People assume 'evening spice' means less caffeine — it doesn't, and that's the one thing I'll always correct. Dusk is the same coffee, same lift, just dressed in baking spice instead of cacao. The cinnamon and cardamom are real, infused, never gritty. It's comfort without a single gram of added sugar.",
+    },
     cookbook: { batch: "Standard Batch — GT3 with cinnamon + cardamom.", brew: ["Brew base to spec", "Add Ceylon cinnamon + green cardamom", "Filter and log batch"], serve: ["Pour over ice; garnish per spec"], storage: "Keep cold; standard hold window.", quality: "Spice aromatic, balanced — not gritty.", troubleshoot: [{ issue: "Gritty", fix: "Use infusion, not loose ground spice in the bottle." }] },
   },
   {
@@ -681,6 +698,11 @@ export const PRODUCTS: Product[] = [
       { q: "Is there added sugar?", a: "Yes — a touch of raw honey. The rest is coconut water and coconut meat. We disclose it; we don't claim 'no added sugar.'" },
       { q: "Is it a sports drink?", a: "No — it's whole-food, blended fresh, not a powder or concentrate." },
     ],
+    voices: {
+      simple: "Fresh-blended coconut water and coconut meat with a touch of honey. Real hydration, no powder.",
+      gt3: "Nature Aid is whole-coconut hydration — young coconut water blended with Thai coconut meat and finished with a little raw honey. It's blended to order from real coconut, not mixed from a powder or concentrate like a sports drink.",
+      founder: "This is the heart of GT3 — the whole coconut, not an electrolyte isolate. We blend the water and the meat together because that's how the body actually wants it, whole-food. The honey is the one sweetener and I'll always name it; we disclose, we never hide behind 'no added sugar.' Coconut is the mark on our cup for a reason — Nature Aid is that promise in a glass.",
+    },
     cookbook: { batch: "Blend to order (no long batch).", brew: ["Combine young coconut water + Thai coconut meat", "Add measured raw honey per spec", "Blend until smooth"], serve: ["Serve cold, in glass, immediately"], storage: "Make to order; do not hold blended.", quality: "Smooth, no separation at serve.", troubleshoot: [{ issue: "Too sweet", fix: "Reduce honey to spec; honey is the only added sweetener." }, { issue: "Separating", fix: "Serve immediately after blend." }] },
   },
   {
@@ -695,6 +717,11 @@ export const PRODUCTS: Product[] = [
       { q: "Is there dairy?", a: "No — the creaminess comes from the nitrogen, not milk." },
       { q: "More caffeine?", a: "It's our cold-brew base; treat it like the Activation line (~210 mg/10 oz, estimated)." },
     ],
+    voices: {
+      simple: "Cold-brew on tap, charged with nitrogen so it pours creamy with no milk. Best straight, no ice.",
+      gt3: "Nitro is our cold-brew charged with pure nitrogen and poured from a stout faucet — the nitrogen breaks into tiny bubbles that cascade and settle into a silky, creamy head. No dairy, no sugar, just the same clean coffee with a texture that turns heads at events.",
+      founder: "The cascade is half the product — people drink with their eyes first. We charge with pure N₂ around 35 PSI, keep the keg cold at 34–40°F, and let it rest before it ever pours, because a rushed keg pours flat and a flat nitro isn't GT3. When it's done right and that creamy head settles tight, you've sold the next three before you've said a word.",
+    },
     cookbook: { batch: "Keg the Standard Batch cold brew (Torpedo keg + pure N₂).", brew: ["Chill the cold brew to 34–40°F first", "Fill the keg leaving headspace (don't top off)", "Hook up PURE nitrogen; set the regulator to 35 PSI (range 30–45 — not 10)", "Gently shake/roll the keg 2–5 min at 35 PSI to dissolve nitrogen", "Rest cold 30–60 min minimum — overnight is better"], serve: ["Open the stout/nitro faucet fully, pour straight, no ice", "Let it cascade and settle into a creamy head"], storage: "Keep the keg cold and pressurized at ~35 PSI.", quality: "Tight cascade + fine, creamy microfoam.", troubleshoot: [{ issue: "Flat pour", fix: "Flush the restrictor disc; confirm ~35 PSI, keg cold + rested. Just charged → needs more rest." }, { issue: "Foamy/wild", fix: "Keg too warm or over-pressured — cool fully, ease toward 35 PSI." }] },
   },
   {
