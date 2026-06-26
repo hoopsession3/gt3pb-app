@@ -1132,7 +1132,7 @@ function EventPrep({ onGo }: { onGo: (t: string) => void }) {
   return (
     <>
     {/* Overview + loadout show on the list only — opening a target gives prep the full screen. */}
-    <Overview onGo={onGo} />
+    <Overview onGo={onGo} onOpenTarget={(kind, id) => setSelected({ kind, id })} />
     <div className="adm-sec adm-prep">
       <div className="sec">Prep
         <button className="adm-prep-view" onClick={() => setSheet(true)} aria-haspopup="dialog">View ⌄</button>
@@ -3661,62 +3661,79 @@ function EnableAlerts({ userId }: { userId: string | null }) {
 }
 
 // ───────────────────────── back office: overview command center ─────────────────────────
-function Overview({ onGo }: { onGo: (t: string) => void }) {
+type OverdueTask = { taskId: string; label: string; kind: "event" | "stop"; ownerId: string; ownerName: string };
+function Overview({ onGo, onOpenTarget }: { onGo: (t: string) => void; onOpenTarget?: (kind: "event" | "stop", id: string) => void }) {
   // Operator-first glance: what's coming (events, stops), what's new (booking requests),
-  // and what's overdue (open team tasks on events/stops that already passed). Each card jumps
+  // and what's overdue (open team tasks past their due date / owner date). Each card jumps
   // to where you act on it. (Sales metrics — subs/waitlist — live in Money, not here.)
   const [s, setS] = useState({
     eventsUp: 0, nextEvent: null as { title: string; label: string } | null,
-    stopsUp: 0, nextStop: null as { name: string; label: string } | null,
-    news: 0, pastTasks: 0, live: null as EventRow | null,
+    stopsUp: 0, nextStop: null as { name: string; label: string; id: string } | null,
+    news: 0, live: null as EventRow | null,
   });
+  const [overdue, setOverdue] = useState<OverdueTask[]>([]);
+  const [showOverdue, setShowOverdue] = useState(false);
   const [low, setLow] = useState<InvItem[]>([]);
   const [invEnabled, setInvEnabled] = useState(false);
   const load = useCallback(async () => {
     if (!supabase) return;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localYMD(new Date()); // operator-local date, not UTC
+    const nowIso = new Date().toISOString();
     const [b, ev, evs, st, tasks, invResp] = await Promise.all([
       supabase.from("booking_requests").select("id", { count: "exact", head: true }).eq("status", "new"),
       supabase.from("events").select("*").eq("is_live", true).maybeSingle(),
       supabase.from("events").select("*").order("day"),
       supabase.from("stops").select("id, name, when_label, starts_at, status, archived_at").order("starts_at"),
-      supabase.from("event_tasks").select("event_id, stop_id, done, kind, due_at").eq("done", false).eq("kind", "task"),
+      supabase.from("event_tasks").select("id, label, event_id, stop_id, done, kind, due_at").eq("done", false).eq("kind", "task"),
       fetchInventory(),
     ]);
-    const nowIso = new Date().toISOString();
     const allEv = ((evs.data as EventRow[]) ?? []).filter((e) => !e.archived_at);
     const upEv = allEv.filter((e) => e.day && e.day >= today);
     const ne = upEv[0];
     const allSt = ((st.data as Stop[]) ?? []).filter((x) => !x.archived_at);
     const upSt = allSt.filter((x) => x.status !== "done");
     const ns = upSt.find((x) => x.status === "live") ?? upSt[0];
-    // past due = open team tasks whose event/stop already happened (strictly before today)
+    // name lookups for the overdue list
+    const evName = new Map(allEv.map((e) => [e.id, e.title ?? "Event"]));
+    const stName = new Map(allSt.map((x) => [x.id, x.name ?? "Stop"]));
+    // past due = owner already happened (strictly before today, operator-local)
     const dueEv = new Set(allEv.filter((e) => e.day && e.day < today).map((e) => e.id));
-    const dueSt = new Set(allSt.filter((x) => x.status === "done" || (x.starts_at && x.starts_at.slice(0, 10) < today)).map((x) => x.id));
-    const taskRows = (tasks.data as { event_id: string | null; stop_id: string | null; due_at: string | null }[]) ?? [];
+    const dueSt = new Set(allSt.filter((x) => x.status === "done" || (x.starts_at && localYMD(new Date(x.starts_at)) < today)).map((x) => x.id));
+    const taskRows = (tasks.data as { id: string; label: string; event_id: string | null; stop_id: string | null; due_at: string | null }[]) ?? [];
     // explicit per-task due date wins; otherwise fall back to the owning event/stop having passed
-    const pastTasks = taskRows.filter((t) =>
-      t.due_at ? t.due_at < nowIso : ((t.event_id && dueEv.has(t.event_id)) || (t.stop_id && dueSt.has(t.stop_id)))
-    ).length;
+    const od: OverdueTask[] = [];
+    for (const t of taskRows) {
+      const isPast = t.due_at ? t.due_at < nowIso : ((t.event_id && dueEv.has(t.event_id)) || (t.stop_id && dueSt.has(t.stop_id)));
+      if (!isPast) continue;
+      if (t.event_id) od.push({ taskId: t.id, label: t.label, kind: "event", ownerId: t.event_id, ownerName: evName.get(t.event_id) ?? "Event" });
+      else if (t.stop_id) od.push({ taskId: t.id, label: t.label, kind: "stop", ownerId: t.stop_id, ownerName: stName.get(t.stop_id) ?? "Stop" });
+    }
+    setOverdue(od);
     setS({
       eventsUp: upEv.length, nextEvent: ne ? { title: ne.title ?? "Event", label: ne.day_label || ne.day || "" } : null,
-      stopsUp: upSt.length, nextStop: ns ? { name: ns.name ?? "Stop", label: ns.when_label || "" } : null,
-      news: b.count ?? 0, pastTasks, live: (ev.data as EventRow) ?? null,
+      stopsUp: upSt.length, nextStop: ns ? { name: ns.name ?? "Stop", label: ns.when_label || "", id: ns.id } : null,
+      news: b.count ?? 0, live: (ev.data as EventRow) ?? null,
     });
     setInvEnabled(invResp.enabled);
     setLow(rollupLowStock(invResp.items, upEv)); // low stock across upcoming events
   }, []);
+  // Debounce realtime: a burst of task check-offs during prep should collapse into one reload,
+  // not fire a full 6-query load() per row.
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     load();
     if (!supabase) return;
+    const kick = () => { if (timer.current) clearTimeout(timer.current); timer.current = setTimeout(() => load(), 500); };
     const ch = supabase.channel("admin-overview")
-      .on("postgres_changes", { event: "*", schema: "public", table: "booking_requests" }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "events" }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "stops" }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "event_tasks" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "booking_requests" }, kick)
+      .on("postgres_changes", { event: "*", schema: "public", table: "events" }, kick)
+      .on("postgres_changes", { event: "*", schema: "public", table: "stops" }, kick)
+      .on("postgres_changes", { event: "*", schema: "public", table: "event_tasks" }, kick)
       .subscribe();
-    return () => { supabase?.removeChannel(ch); };
+    return () => { if (timer.current) clearTimeout(timer.current); supabase?.removeChannel(ch); };
   }, [load]);
+  const pastTasks = overdue.length;
+  const openStop = () => { if (s.nextStop && onOpenTarget) onOpenTarget("stop", s.nextStop.id); else onGo("stops"); };
   return (
     <div className="adm-sec">
       <div className="sec">At a glance</div>
@@ -3725,15 +3742,26 @@ function Overview({ onGo }: { onGo: (t: string) => void }) {
           <b>{s.eventsUp}</b><span>events</span>
           {s.nextEvent && <em className="bo-card-sub">{s.nextEvent.label ? `${s.nextEvent.label} · ` : ""}{s.nextEvent.title}</em>}
         </button>
-        <button className="bo-card" onClick={() => onGo("stops")}>
+        <button className="bo-card" onClick={openStop}>
           <b>{s.stopsUp}</b><span>truck stops</span>
           {s.nextStop && <em className="bo-card-sub">{s.nextStop.label ? `${s.nextStop.label} · ` : ""}{s.nextStop.name}</em>}
         </button>
         <button className={`bo-card${s.news ? " hot" : ""}`} onClick={() => onGo("bookings")}><b>{s.news}</b><span>news</span></button>
-        <button className={`bo-card${s.pastTasks ? " alert" : ""}`} onClick={() => onGo("tasks")}><b>{s.pastTasks}</b><span>tasks past due</span></button>
+        <button className={`bo-card${pastTasks ? " alert" : ""}${showOverdue ? " on" : ""}`} onClick={() => pastTasks ? setShowOverdue((o) => !o) : undefined} aria-expanded={showOverdue}><b>{pastTasks}</b><span>tasks past due</span></button>
       </div>
+      {showOverdue && pastTasks > 0 && (
+        <div className="bo-overdue">
+          {overdue.slice(0, 8).map((t) => (
+            <button key={t.taskId} className="bo-overdue-row" onClick={() => onOpenTarget?.(t.kind, t.ownerId)}>
+              <span className="bo-overdue-l">{t.label}</span>
+              <span className="bo-overdue-o">{t.ownerName} ›</span>
+            </button>
+          ))}
+          {pastTasks > 8 && <div className="pnl-note">+ {pastTasks - 8} more past due.</div>}
+        </div>
+      )}
       {s.live ? (
-        <div className="bo-live" role="button" tabIndex={0} onClick={() => onGo("events")} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onGo("events")}>
+        <div className="bo-live" role="button" tabIndex={0} onClick={() => onOpenTarget ? onOpenTarget("event", s.live!.id) : onGo("events")} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (onOpenTarget ? onOpenTarget("event", s.live!.id) : onGo("events"))}>
           <span className="adm-pill due">LIVE</span> <b>{s.live.title}</b> — running now · tap for prep
         </div>
       ) : (
@@ -3756,11 +3784,11 @@ function Overview({ onGo }: { onGo: (t: string) => void }) {
         </>
       )}
 
-      {(s.news > 0 || s.pastTasks > 0) && (
+      {(s.news > 0 || pastTasks > 0) && (
         <div className="bo-needs">
           <div className="adm-prep-label">Needs you</div>
           {s.news > 0 && <button className="bo-need" onClick={() => onGo("bookings")}>{s.news} new booking {s.news === 1 ? "request" : "requests"} to reply to ›</button>}
-          {s.pastTasks > 0 && <button className="bo-need alert" onClick={() => onGo("tasks")}>{s.pastTasks} team {s.pastTasks === 1 ? "task" : "tasks"} past due — knock them out ›</button>}
+          {pastTasks > 0 && <button className="bo-need alert" onClick={() => setShowOverdue(true)}>{pastTasks} team {pastTasks === 1 ? "task" : "tasks"} past due — knock them out ›</button>}
         </div>
       )}
     </div>
@@ -3947,9 +3975,12 @@ export default function AdminPage() {
     team: "People, roles & training.",
   };
 
-  // Overview's jump links map onto the operator sections.
+  // Overview's jump links map onto the operator sections — and the Plan sub-tab when relevant,
+  // so "Events" actually lands on Plan→Events instead of whatever tab was last open.
   const goSection = (t: string) => {
     const map: Record<string, OpSection> = { events: "plan", vendors: "plan", bookings: "plan", money: "money", members: "team", stops: "prep", tasks: "day" };
+    const tab: Record<string, typeof planTab> = { events: "events", bookings: "bookings", vendors: "vendors" };
+    if (tab[t]) setPlanTab(tab[t]);
     setSection(map[t] ?? "prep");
   };
 

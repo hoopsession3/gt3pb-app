@@ -799,6 +799,12 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .bo-card.alert{border-color:rgba(184,36,32,.4)}
 .bo-card.alert b{color:var(--red)}
 .bo-live{margin-top:12px;padding:12px 14px;border-radius:12px;background:rgba(184,36,32,.1);border:1px solid rgba(184,36,32,.3);font-family:'Inter';font-size:14px;color:var(--cream);cursor:pointer}
+.bo-card.on{border-color:var(--gold2)}
+.bo-overdue{margin-top:10px;display:flex;flex-direction:column;gap:6px}
+.bo-overdue-row{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:10px 12px;border-radius:11px;background:rgba(184,36,32,.08);border:1px solid rgba(184,36,32,.25);cursor:pointer}
+.bo-overdue-l{flex:1;min-width:0;font-family:'Inter';font-weight:600;font-size:13px;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bo-overdue-o{font-family:var(--mono);font-size:10.5px;letter-spacing:.4px;color:var(--red);white-space:nowrap}
+.app.crew-day .bo-overdue-row{background:rgba(184,36,32,.06)}
 .bo-needs{margin-top:14px}
 .bo-need{display:block;width:100%;text-align:left;margin-top:6px;padding:11px 13px;border-radius:11px;background:rgba(184,144,47,.1);border:1px solid rgba(184,144,47,.28);color:var(--gold2);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer}
 .bo-need.alert{background:rgba(184,36,32,.1);border-color:rgba(184,36,32,.3);color:var(--red)}
