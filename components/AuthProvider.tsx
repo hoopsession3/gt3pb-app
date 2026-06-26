@@ -15,6 +15,9 @@ export interface Profile {
   is_admin: boolean;
   role?: "member" | "server" | "admin" | "owner";
   referred_by: string | null;
+  avatar_url?: string | null;
+  title?: string | null;
+  bio?: string | null;
 }
 
 // Effective role with a graceful fallback for profiles loaded before the roles

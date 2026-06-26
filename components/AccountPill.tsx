@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "./AuthProvider";
 import { useApp } from "./AppProvider";
+import ProfileSheet from "./ProfileSheet";
 
 // Top-right account avatar → a role-aware dropdown. The coconut mark (GT3's whole-
 // coconut hydration) makes it jump out, and the bronze caret signals "there are options."
@@ -33,6 +34,7 @@ export default function AccountPill() {
   const { toast } = useApp();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [editProfile, setEditProfile] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -50,7 +52,7 @@ export default function AccountPill() {
   return (
     <div className="acct" ref={ref}>
       <button className="acct-av" aria-label="Account menu" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-        <Coconut />
+        {profile?.avatar_url ? <span className="acct-photo" style={{ backgroundImage: `url(${profile.avatar_url})` }} /> : <Coconut />}
         <span className="acct-caret" aria-hidden="true">
           <svg viewBox="0 0 10 10" width="8" height="8"><path d="M2 4l3 3 3-3" fill="none" stroke="#1a1310" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </span>
@@ -60,6 +62,7 @@ export default function AccountPill() {
           {user ? (
             <>
               <div className="acct-who"><b>{name}</b><span>{ROLE_LABEL[role] ?? "Member"}</span></div>
+              <button className="acct-item" role="menuitem" onClick={() => { setOpen(false); setEditProfile(true); }}>Edit profile</button>
               <button className="acct-item" role="menuitem" onClick={() => go("/3mpire")}>Your 3MPIRE</button>
               {staff && <button className="acct-item crew" role="menuitem" onClick={() => go("/admin")}>Switch to Crew Mode</button>}
               <button className="acct-item danger" role="menuitem" onClick={() => { setOpen(false); signOut(); toast("Signed out"); }}>Sign out</button>
@@ -72,6 +75,7 @@ export default function AccountPill() {
           )}
         </div>
       )}
+      {editProfile && <ProfileSheet onClose={() => setEditProfile(false)} />}
     </div>
   );
 }
