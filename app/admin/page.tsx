@@ -1489,6 +1489,19 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       {/* Menu & rig — the same flags an event carries; drives "Generate pack list from menu" for both. */}
       <MenuEditor ownerType={target.kind} ownerId={target.id} isAdmin={isAdmin} onChanged={load} />
 
+      {/* Brew serving this event/stop — sits right under Menu & rig (a batch can serve several). */}
+      {brewBatches.length > 0 && (
+        <div className="brewlink">
+          <div className="brewlink-h">🍺 Brew coming to this {isEvent ? "event" : "stop"}</div>
+          {brewBatches.map((b) => (
+            <div key={b.id} className="brewlink-row">
+              <span className="brewlink-name">{b.recipe_name || "Batch"} · {b.batch_gal} gal</span>
+              <span className="brewlink-st">{b.status}{b.ready_at && (b.status === "brewing" || b.status === "planned") ? ` · ready ${new Date(b.ready_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : ""}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Run-of-show / "when do we leave" planner — identical for events and stops. */}
       {isAdmin && (
         <div className="adm-prep-actions" style={{ marginTop: 10 }}>
@@ -1516,19 +1529,6 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       )}
       {loadoutOpen && isAdmin && <TrailerLoadout lockTo={{ kind: target.kind, id: target.id }} />}
       {packPlanOpen && <PackPlan ownerType={target.kind} ownerId={target.id} title={name ?? ""} onClose={() => setPackPlanOpen(false)} />}
-
-      {/* Brew serving this event/stop — linked from a batch (a batch can serve several events/stops). */}
-      {brewBatches.length > 0 && (
-        <div className="brewlink">
-          <div className="brewlink-h">🍺 Brew coming to this {isEvent ? "event" : "stop"}</div>
-          {brewBatches.map((b) => (
-            <div key={b.id} className="brewlink-row">
-              <span className="brewlink-name">{b.recipe_name || "Batch"} · {b.batch_gal} gal</span>
-              <span className="brewlink-st">{b.status}{b.ready_at && (b.status === "brewing" || b.status === "planned") ? ` · ready ${new Date(b.ready_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : ""}</span>
-            </div>
-          ))}
-        </div>
-      )}
 
       {/* Incidents logged here by the Troubleshoot agent — resolve or delete them. */}
       <IncidentLog ownerCol={ownerCol as "event_id" | "stop_id"} ownerId={target.id} />
