@@ -14,6 +14,7 @@ import Checkout from "./Checkout";
 import Toast from "./Toast";
 import Notifications from "./Notifications";
 import ServiceWorkerRegister from "./ServiceWorkerRegister";
+import DisplayToggle, { readDisplay, displayClass, DISPLAY_KEY } from "./DisplayToggle";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -41,9 +42,20 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => { const t = typeof window !== "undefined" ? localStorage.getItem("gt3-theme") : null; if (t === "dark" || t === "day") setTheme(t); }, []);
   const toggleTheme = () => { const t = theme === "day" ? "dark" : "day"; setTheme(t); if (typeof window !== "undefined") localStorage.setItem("gt3-theme", t); };
 
+  // Readability prefs (text size / bold / spacing) — applied app-wide as classes on `.app`,
+  // re-read live whenever the DisplayToggle writes them. Initialized on first client render.
+  const [disp, setDisp] = useState("");
+  useEffect(() => {
+    const apply = () => setDisp(displayClass(readDisplay()));
+    apply();
+    window.addEventListener(DISPLAY_KEY, apply);
+    window.addEventListener("storage", apply); // cross-tab
+    return () => { window.removeEventListener(DISPLAY_KEY, apply); window.removeEventListener("storage", apply); };
+  }, []);
+
   return (
     <OperatorSectionProvider>
-      <div className={`app${inAdmin && theme === "day" ? " crew-day" : ""}`}>
+      <div className={`app${inAdmin && theme === "day" ? " crew-day" : ""}${disp ? ` ${disp}` : ""}`}>
         <div className="body" ref={bodyRef} id="body">
           {children}
         </div>
@@ -57,6 +69,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {inAdmin && <QuickDock />}
         {customerSurface && <Concierge />}
         {inAdmin && <button type="button" className="theme-toggle" onClick={toggleTheme} aria-label={theme === "day" ? "Switch to dark" : "Switch to day"}>{theme === "day" ? "🌙" : "☀️"}</button>}
+        {!isShare && <DisplayToggle admin={inAdmin} />}
         <ServiceWorkerRegister />
       </div>
     </OperatorSectionProvider>

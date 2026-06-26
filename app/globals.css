@@ -1831,6 +1831,32 @@ select.note-in{-webkit-appearance:none;appearance:none}
 
 .theme-toggle{position:fixed;left:16px;bottom:calc(var(--navh,68px) + 16px);z-index:60;width:46px;height:46px;border-radius:50%;border:1px solid var(--line2);background:var(--card);color:var(--cream);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 16px rgba(0,0,0,.22);-webkit-appearance:none;appearance:none}
 
+/* ── Readability controls (global Aa toggle) ── */
+.disp{position:fixed;left:16px;bottom:calc(var(--navh,68px) + 74px);z-index:61}
+.disp-fab{width:46px;height:46px;border-radius:50%;border:1px solid var(--line2);background:var(--card);color:var(--cream);cursor:pointer;display:flex;align-items:baseline;justify-content:center;gap:1px;box-shadow:0 6px 16px rgba(0,0,0,.22);-webkit-appearance:none;appearance:none}
+.disp-fab-a{font-family:'Fraunces',serif;font-weight:600;line-height:1}
+.disp-panel{position:absolute;bottom:54px;left:0;width:214px;background:var(--card);border:1px solid var(--line2);border-radius:14px;padding:12px;box-shadow:0 12px 30px rgba(0,0,0,.4);display:flex;flex-direction:column;gap:8px}
+.app.crew-day .disp-panel,.app.crew-day .disp-fab{background:#fff}
+.disp-row-h{font-family:var(--mono);font-size:9px;letter-spacing:1.2px;text-transform:uppercase;color:var(--bronze)}
+.disp-sizes{display:flex;gap:6px}
+.disp-size{flex:1;height:38px;border-radius:9px;border:1px solid var(--line2);background:transparent;color:var(--cream);font-family:'Fraunces',serif;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.disp-size.on{border-color:var(--gold);background:rgba(184,144,47,.14);color:var(--gold)}
+.disp-opt{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 11px;border-radius:10px;border:1px solid var(--line2);background:transparent;color:var(--cream);font-family:'Inter';font-size:13px;cursor:pointer}
+.disp-opt.on{border-color:var(--gold);background:rgba(184,144,47,.14)}
+.disp-opt>span:last-child{font-family:var(--mono);font-size:10px;color:var(--cream-m)}
+.disp-opt.on>span:last-child{color:var(--gold)}
+.disp-reset{padding:7px;border:none;background:transparent;color:var(--cream-m);font-family:'Inter';font-size:12px;cursor:pointer;text-decoration:underline}
+
+/* effects — applied to the scroll content so the nav/FABs stay fixed-size */
+.app.txt1 .body{zoom:1.08}
+.app.txt2 .body{zoom:1.16}
+.app.txt3 .body{zoom:1.26}
+.app.disp-bold .body{font-weight:600}
+.app.disp-bold .body b,.app.disp-bold .body strong{font-weight:800}
+.app.disp-roomy .body{line-height:1.7;letter-spacing:.1px}
+.app.disp-roomy .body :where(p,li){margin-bottom:.45em}
+.app.disp-roomy .body :where(.sec,.h-title,.adm-prep-label){margin-bottom:.35em}
+
 /* ── System architecture map (owner) ── */
 .arch-overview{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:15px;margin:14px 0 6px}
 .arch-ov-t{font-family:'Inter';font-weight:800;font-size:11.5px;letter-spacing:1px;text-transform:uppercase;color:var(--gold)}
