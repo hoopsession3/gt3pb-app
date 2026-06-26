@@ -2528,3 +2528,17 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .ownerdet-del{flex:1;background:rgba(184,36,32,.1);border:1px solid rgba(184,36,32,.4);color:#e07a76;border-radius:9px;font-family:'Inter',sans-serif;font-weight:600;font-size:13px;padding:8px;cursor:pointer}
 .am-row-x{flex:0 0 auto;align-self:flex-start;background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:2px 6px;line-height:1}
 .am-row-x:hover{color:#e07a76}
+
+/* Incident log on the event/stop hub */
+.inclog{margin-top:12px;background:rgba(184,36,32,.06);border:1px solid var(--line2);border-radius:14px;padding:10px 14px}
+.app.crew-day .inclog{background:rgba(184,36,32,.05)}
+.inc-row{display:flex;align-items:flex-start;gap:10px;padding:6px 0}
+.inc-row.done{opacity:.55}
+.inc-ck{flex:0 0 auto;background:none;border:none;color:var(--gold2);font-size:15px;cursor:pointer;line-height:1.2;padding:0}
+.inc-main{flex:1;display:flex;flex-direction:column;gap:2px;font-size:13.5px;min-width:0}
+.inc-main b{color:var(--cream);font-weight:600}
+.app.crew-day .inc-main b{color:#221f18}
+.inc-main b.inc-blk{color:#e07a76}
+.inc-main span{font-size:12px;color:var(--muted);text-transform:capitalize}
+.inc-x{flex:0 0 auto;background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:2px 6px;line-height:1}
+.inc-x:hover{color:#e07a76}

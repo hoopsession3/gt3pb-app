@@ -541,6 +541,48 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
   );
 }
 
+// INCIDENT LOG — every field problem the Troubleshoot agent logged for this event/stop. Read it back,
+// flip resolved, or delete one. Self-contained; owner-generic.
+function IncidentLog({ ownerCol, ownerId }: { ownerCol: "event_id" | "stop_id"; ownerId: string }) {
+  type Inc = { id: string; problem: string; severity: string; resolved: boolean; created_at: string; symptom: string | null };
+  const [rows, setRows] = useState<Inc[]>([]);
+  const load = useCallback(async () => {
+    if (!supabase) return;
+    const { data } = await supabase.from("incident_log").select("id, problem, severity, resolved, created_at, symptom").eq(ownerCol, ownerId).order("created_at", { ascending: false });
+    setRows((data as Inc[]) ?? []);
+  }, [ownerCol, ownerId]);
+  useEffect(() => {
+    load();
+    if (!supabase) return;
+    const ch = supabase.channel(`inc-${ownerId}`).on("postgres_changes", { event: "*", schema: "public", table: "incident_log", filter: `${ownerCol}=eq.${ownerId}` }, () => load()).subscribe();
+    return () => { supabase?.removeChannel(ch); };
+  }, [load, ownerCol, ownerId]);
+  const toggle = async (r: Inc) => {
+    if (!supabase) return;
+    setRows((p) => p.map((x) => x.id === r.id ? { ...x, resolved: !x.resolved } : x));
+    await supabase.from("incident_log").update({ resolved: !r.resolved, resolved_at: !r.resolved ? new Date().toISOString() : null }).eq("id", r.id);
+  };
+  const del = async (id: string) => {
+    if (!supabase) return;
+    if (typeof window !== "undefined" && !window.confirm("Delete this incident from the log?")) return;
+    setRows((p) => p.filter((x) => x.id !== id));
+    await supabase.from("incident_log").delete().eq("id", id);
+  };
+  if (rows.length === 0) return null;
+  return (
+    <div className="inclog">
+      <div className="brewlink-h">🔧 Incident log</div>
+      {rows.map((r) => (
+        <div key={r.id} className={`inc-row${r.resolved ? " done" : ""}`}>
+          <button type="button" className="inc-ck" onClick={() => toggle(r)} aria-label={r.resolved ? "Mark unresolved" : "Mark resolved"}>{r.resolved ? "✓" : "○"}</button>
+          <span className="inc-main"><b className={r.severity === "blocker" ? "inc-blk" : ""}>{r.problem}</b><span>{[r.symptom, r.resolved ? "resolved" : null, new Date(r.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })].filter(Boolean).join(" · ")}</span></span>
+          <button type="button" className="inc-x" onClick={() => del(r.id)} aria-label="Delete incident">✕</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // MENU & RIG — the same menu/site flags an event carries, on the prep hub for events AND stops, so
 // "Generate pack list from menu" builds the right kit either way. Self-contained load/save.
 function MenuEditor({ ownerType, ownerId, isAdmin, onChanged }: { ownerType: "event" | "stop"; ownerId: string; isAdmin: boolean; onChanged: () => void }) {
@@ -1487,6 +1529,9 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
           ))}
         </div>
       )}
+
+      {/* Incidents logged here by the Troubleshoot agent — resolve or delete them. */}
+      <IncidentLog ownerCol={ownerCol as "event_id" | "stop_id"} ownerId={target.id} />
 
       {/* How the crew shows up — dress code + call details. Leadership edits; assigned crew read it. */}
       <DayBrief ownerCol={ownerCol as "event_id" | "stop_id"} ownerId={target.id} isAdmin={isAdmin} />
