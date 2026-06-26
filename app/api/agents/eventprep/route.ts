@@ -124,6 +124,8 @@ export async function POST(req: Request) {
     const { data: s } = await supabaseAdmin.from("stops").select("name, location_text, address, note, notes, starts_at, menu_tier, status").eq("id", stopId).maybeSingle();
     if (!s) return NextResponse.json({ ok: false, error: "stop not found" }, { status: 404 });
     target = s; kind = "truck stop (on-the-ground ops)";
+    const { data: stopSched } = await supabaseAdmin.from("event_schedule_items").select("day_index, start_time, title, location").eq("stop_id", stopId).order("day_index").order("sort");
+    runOfShow = (stopSched ?? []).map((s: any) => `D${s.day_index} ${s.start_time ?? ""} ${s.title}${s.location ? ` @ ${s.location}` : ""}`);
   }
 
   // Compliance: an event keys off its state (+ universal); a stop has no state column, so use the

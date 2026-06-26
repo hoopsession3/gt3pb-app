@@ -26,6 +26,28 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     closeDrink();
   }, [pathname, closeDrink]);
 
+  // Mobile keyboard: iOS Safari/standalone PWA doesn't shrink the layout viewport when the soft
+  // keyboard opens, so bottom-anchored sheets sit behind it (the Plan-a-batch batch-size input was
+  // hidden). Track the keyboard inset via visualViewport into --kb (sheets read it in CSS to stay
+  // above the keyboard), and nudge a focused input into view once the keyboard has animated.
+  useEffect(() => {
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    if (!vv) return;
+    const root = document.documentElement;
+    const update = () => root.style.setProperty("--kb", `${Math.max(0, window.innerHeight - vv.height - vv.offsetTop)}px`);
+    update();
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    const onFocusIn = (e: FocusEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && el.matches?.("input, textarea, select") && el.closest(".qd-sheet, .isheet, .prep-sheet, .conc-sheet, .assign-sheet, .supply-sheet")) {
+        setTimeout(() => el.scrollIntoView({ block: "center", behavior: "smooth" }), 280);
+      }
+    };
+    document.addEventListener("focusin", onFocusIn);
+    return () => { vv.removeEventListener("resize", update); vv.removeEventListener("scroll", update); document.removeEventListener("focusin", onFocusIn); };
+  }, []);
+
   // Employee Mode: inside /admin the customer 5-tab nav is replaced by the
   // role-scoped operator console nav (OperatorNav falls back to the customer nav
   // for non-staff so they can still navigate away).
