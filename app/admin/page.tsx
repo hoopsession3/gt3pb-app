@@ -2684,6 +2684,12 @@ function ReservesAdmin() {
     if (typeof window !== "undefined" && !window.confirm("Archive this reserve? It disappears from the app.")) return;
     await update(id, { status: "archived" });
   };
+  const remove = async (id: string, nm: string) => {
+    if (typeof window !== "undefined" && !window.confirm(`Delete "${nm}" for good?\n\nThis permanently removes the reserve and any claims on it. Can't be undone. (Archive instead if you just want it hidden.)`)) return;
+    const { error } = await supabase!.from("reserves").delete().eq("id", id);
+    toast(error ? `Couldn't delete — ${error.message}` : "Reserve deleted");
+    if (!error) load();
+  };
 
   const active = rows.filter((r) => r.status !== "archived");
   return (
@@ -2711,6 +2717,7 @@ function ReservesAdmin() {
             </label>
             <label className="adm-check"><input type="checkbox" defaultChecked={r.member_only} onChange={(e) => update(r.id, { member_only: e.target.checked })} />Members</label>
             <button className="adm-btn ghost" onClick={() => archive(r.id)}>Archive</button>
+            <button className="adm-btn ghost" style={{ color: "#e07a76" }} onClick={() => remove(r.id, r.name)}>Delete</button>
           </div>
         </div>
       ))}
