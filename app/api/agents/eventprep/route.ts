@@ -21,7 +21,9 @@ async function runPrep(jobId: string, fmt: any) {
         "You are the prep lead for GT3 Performance Bar, a mobile beverage truck. Build a COMPLETE, ready-to-work prep / to-do list for ONE specific event or truck stop. This is the crew's actual checklist for the day — it must stand on its own, so ALWAYS produce a full list (typically 10–18 items) that covers the whole operation end to end, even when little is known about the stop. Use the GT3 SOPs below and standard mobile-beverage-bar operations as your backbone, then TAILOR it with whatever specifics are provided: the event/stop config, the run of show, current INVENTORY, GEAR, the COMPLIANCE rules, and the crew's notes. " +
         "Always include, in order: (1) a TIMELINE of time-blocked items from leave-home through teardown/depart — e.g. 'Leave by 8:30a — ~90 min drive + buffer', 'On site & set up by 10:30a', 'Service 11a–3p', 'Teardown & load out by 3:30p' (estimate sensible times from the start time / run of show; if no times are given, still lay out the sequence and say which times to confirm); then (2) Pack, (3) Stock/reorder, (4) Setup, (5) Service, (6) Compliance, (7) Travel, (8) Teardown. " +
         "Flag any poured menu item whose stock is low / below reorder point / critical as a reorder task (critical if it would run out). Include the compliance items that apply. Honor the crew's notes — if they raise a concern, address it directly. " +
-        "The 'already_on_the_list' field is ONLY so you avoid proposing an EXACT duplicate of something already there — it is NOT a signal that the list is done. A short or empty existing list means you must build the whole thing. Keep labels short and imperative; give each a one-line 'why' that points to the data or SOP. Never invent health/nutrition claims or facts not present. Always answer with the prep_list tool.\n\n=== GT3 SOPs / KNOWLEDGE ===\n" +
+        "The 'already_on_the_list' field is ONLY so you avoid proposing an EXACT duplicate of something already there — it is NOT a signal that the list is done. A short or empty existing list means you must build the whole thing. Keep labels short and imperative; give each a one-line 'why' that points to the data or SOP. " +
+      "DUE DATES: for anything that must be done AHEAD of the day — ordering/restock, advance pack, securing a permit — set due_offset_days = how many days before the event it must be done (reorder ~2-3, advance pack or permit ~1-2). Leave it off (or 0) for day-of items (Timeline, Setup, Service, Travel, Teardown) — those are inherently the event day and don't need a separate deadline. " +
+      "Never invent health/nutrition claims or facts not present. Always answer with the prep_list tool.\n\n=== GT3 SOPs / KNOWLEDGE ===\n" +
         academyKnowledge().slice(0, 9000),
       messages: [{ role: "user", content: `Build the prep list.\n\n${JSON.stringify(fmt)}` }],
       tools: [TOOL],
@@ -32,6 +34,7 @@ async function runPrep(jobId: string, fmt: any) {
     const tasks = (out.tasks ?? []).filter((t: any) => t?.label?.trim()).map((t: any) => ({
       label: String(t.label).slice(0, 300), section: SECTIONS.includes(t.section) ? t.section : "Prep",
       critical: !!t.critical, why: t.why ? String(t.why).slice(0, 200) : "",
+      due_offset_days: typeof t.due_offset_days === "number" ? Math.max(0, Math.round(t.due_offset_days)) : null,
     }));
     await touch({ status: "done", result: { summary: out.summary ?? "", tasks } });
   } catch (err: any) {
@@ -62,6 +65,7 @@ const TOOL: ToolDef = {
             label: { type: "string", description: "Short imperative. Timeline items carry a time, e.g. 'Leave by 8:30a — ~90 min drive + buffer' or 'Service 11a–3p'. Others e.g. 'Reorder 16oz bottles — below reorder point' or 'Load kegerator + 3 kegs'." },
             section: { type: "string", enum: SECTIONS },
             critical: { type: "boolean", description: "true if it blocks service (out-of-stock poured item, a required permit, water with none on site)." },
+            due_offset_days: { type: "number", description: "If this must be done AHEAD of the day, how many days before the event/stop (reorder ~2-3, advance pack/permit ~1-2). Omit or 0 for day-of items." },
             why: { type: "string", description: "One short line of grounding (e.g. 'nitro is on the menu and stock is below reorder point')." },
           },
           required: ["label", "section", "critical"],
@@ -91,12 +95,22 @@ export async function POST(req: Request) {
     if (!tasks.length) return NextResponse.json({ ok: true, added: 0 });
     const { data: existing } = await supabaseAdmin.from("event_tasks").select("label").eq(ownerCol, ownerId);
     const have = new Set((existing ?? []).map((t: any) => t.label.trim().toLowerCase()));
+    // owner date anchors any "N days before" due dates the AI proposed
+    let ownerDate: string | null = null;
+    if (eventId) { const { data: e } = await supabaseAdmin.from("events").select("day").eq("id", eventId).maybeSingle(); ownerDate = (e as any)?.day ?? null; }
+    else { const { data: st } = await supabaseAdmin.from("stops").select("starts_at").eq("id", stopId).maybeSingle(); ownerDate = (st as any)?.starts_at ? String((st as any).starts_at).slice(0, 10) : null; }
+    const dueFrom = (offset: any): string | null => {
+      if (!ownerDate || typeof offset !== "number" || offset < 1) return null; // only advance-prep items get a deadline
+      const d = new Date(`${ownerDate}T00:00:00Z`); d.setUTCDate(d.getUTCDate() - Math.round(offset));
+      return `${d.toISOString().slice(0, 10)}T23:59:59Z`;
+    };
     const rows = tasks
       .filter((t: any) => !have.has(t.label.trim().toLowerCase()))
       .map((t: any, i: number) => ({
         [ownerCol]: ownerId, label: String(t.label).trim().slice(0, 300),
         section: SECTIONS.includes(t.section) ? t.section : "Prep",
         kind: t.section === "Pack" ? "pack" : "task", critical: !!t.critical, sort: 500 + i,
+        due_at: dueFrom(t.due_offset_days),
       }));
     if (!rows.length) return NextResponse.json({ ok: true, added: 0 });
     const { error } = await supabaseAdmin.from("event_tasks").insert(rows);

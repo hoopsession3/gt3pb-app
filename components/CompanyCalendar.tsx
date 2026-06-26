@@ -14,13 +14,14 @@ import EventDayPlanner from "./EventDayPlanner";
 type Ev = { id: string; title: string | null; day: string; day_label: string | null; is_live: boolean | null; category: string | null; plan_days: number | null; stage: string | null };
 type Content = { id: string; title: string; scheduled_for: string | null; status: string };
 type Todo = { id: string; title: string; category: string; due_on: string | null; done: boolean; event_id: string | null; meeting_note_id: string | null };
+type PrepTask = { id: string; label: string; due_at: string | null; event_id: string | null; stop_id: string | null; meeting_note_id: string | null };
 
 const CAT: Record<string, { label: string; color: string; icon: string }> = {
   stop: { label: "Truck", color: "#5b9a6b", icon: "🚚" }, event: { label: "Events", color: "#6fa8dc", icon: "📍" },
   ops: { label: "Ops", color: "#e0892b", icon: "🛠️" }, admin: { label: "Admin", color: "#8b5cf6", icon: "📋" },
-  content: { label: "Content", color: "#2bb3a3", icon: "🎨" },
+  content: { label: "Content", color: "#2bb3a3", icon: "🎨" }, task: { label: "Tasks", color: "#c2603f", icon: "⏰" },
 };
-const FILTERS = ["all", "stop", "event", "ops", "admin", "content"];
+const FILTERS = ["all", "stop", "event", "ops", "admin", "content", "task"];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const MON3 = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -31,7 +32,7 @@ const VIEW_KEY = "gt3-company-cal-view";
 type View = "list" | "week" | "month" | "quarter" | "year";
 
 type Stop = { id: string; name: string; location_text: string | null; starts_at: string | null; status: string | null };
-type Item = { id: string; title: string; cat: string; kind: "event" | "content" | "todo" | "stop"; done?: boolean; meta?: string; go: () => void; toggle?: () => void };
+type Item = { id: string; title: string; cat: string; kind: "event" | "content" | "todo" | "stop" | "task"; done?: boolean; meta?: string; go: () => void; toggle?: () => void };
 
 function gridMonth(cursor: Date): Date[] { const s = new Date(cursor.getFullYear(), cursor.getMonth(), 1); s.setDate(1 - s.getDay()); return Array.from({ length: 42 }, (_, i) => { const d = new Date(s); d.setDate(s.getDate() + i); return d; }); }
 function gridWeek(cursor: Date): Date[] { const s = new Date(cursor); s.setDate(cursor.getDate() - cursor.getDay()); return Array.from({ length: 7 }, (_, i) => { const d = new Date(s); d.setDate(s.getDate() + i); return d; }); }
@@ -51,6 +52,7 @@ export default function CompanyCalendar() {
   const [content, setContent] = useState<Content[]>([]);
   const [todos, setTodos] = useState<Todo[]>([]);
   const [stops, setStops] = useState<Stop[]>([]);
+  const [prepTasks, setPrepTasks] = useState<PrepTask[]>([]);
   const [filter, setFilter] = useState<string>("all");
   const [addDay, setAddDay] = useState<string | null>(null);
   const [dayOpen, setDayOpen] = useState<string | null>(null); // a date → show that day's detail
@@ -73,13 +75,14 @@ export default function CompanyCalendar() {
     const to = key(range.end);
     const eFrom = (() => { const d = new Date(range.start); d.setDate(d.getDate() - 31); return key(d); })(); // catch multi-day spillover
     const from = key(range.start);
-    const [e, c, t, s] = await Promise.all([
+    const [e, c, t, s, pt] = await Promise.all([
       supabase.from("events").select("id, title, day, day_label, is_live, category, plan_days, stage").is("archived_at", null).gte("day", eFrom).lte("day", to),
       supabase.from("content_items").select("id, title, scheduled_for, status").is("archived_at", null).not("scheduled_for", "is", null).gte("scheduled_for", `${from}T00:00:00`).lte("scheduled_for", `${to}T23:59:59`),
       supabase.from("todos").select("id, title, category, due_on, done, event_id, meeting_note_id").not("due_on", "is", null).gte("due_on", from).lte("due_on", to),
       supabase.from("stops").select("id, name, location_text, starts_at, status").not("starts_at", "is", null).neq("status", "done").gte("starts_at", `${from}T00:00:00`).lte("starts_at", `${to}T23:59:59`),
+      supabase.from("event_tasks").select("id, label, due_at, event_id, stop_id, meeting_note_id").eq("done", false).eq("kind", "task").not("due_at", "is", null).gte("due_at", `${from}T00:00:00`).lte("due_at", `${to}T23:59:59`),
     ]);
-    setEvents((e.data as Ev[]) ?? []); setContent((c.data as Content[]) ?? []); setTodos((t.data as Todo[]) ?? []); setStops((s.data as Stop[]) ?? []);
+    setEvents((e.data as Ev[]) ?? []); setContent((c.data as Content[]) ?? []); setTodos((t.data as Todo[]) ?? []); setStops((s.data as Stop[]) ?? []); setPrepTasks((pt.data as PrepTask[]) ?? []);
   }, [range]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
@@ -89,6 +92,7 @@ export default function CompanyCalendar() {
       .on("postgres_changes", { event: "*", schema: "public", table: "content_items" }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "events" }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "stops" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "event_tasks" }, () => load())
       .subscribe();
     return () => { supabase?.removeChannel(ch); };
   }, [load]);
@@ -134,8 +138,9 @@ export default function CompanyCalendar() {
     for (const s of stops) if (s.starts_at && pass("stop")) push(key(new Date(s.starts_at)), { id: s.id, title: s.name, cat: "stop", kind: "stop", go: () => openStopPrep(s.id) });
     for (const c of content) if (c.scheduled_for && pass("content")) push(key(new Date(c.scheduled_for)), { id: c.id, title: c.title || "Content", cat: "content", kind: "content", go: () => setSection("studio") });
     for (const t of todos) if (t.due_on && pass(t.category)) push(t.due_on, { id: t.id, title: t.title, cat: CAT[t.category] ? t.category : "ops", kind: "todo", done: t.done, go: () => { if (t.event_id) openEventPrep(t.event_id); else if (t.meeting_note_id) setSection("plan"); }, toggle: () => toggleTodo(t) });
+    for (const t of prepTasks) if (t.due_at && pass("task")) push(key(new Date(t.due_at)), { id: t.id, title: t.label, cat: "task", kind: "task", go: () => { if (t.event_id) openEventPrep(t.event_id); else if (t.stop_id) openStopPrep(t.stop_id); else if (t.meeting_note_id) setSection("plan"); } });
     return m;
-  }, [events, content, todos, stops, filter]);
+  }, [events, content, todos, stops, prepTasks, filter]);
 
   // header label + navigation step by view
   const nav = (dir: number) => {
@@ -276,7 +281,7 @@ function DayView({ dayKey, items, events, onClose, onAdd, onSaved }: { dayKey: s
   }, [dayKey]);
   const d = new Date(`${dayKey}T00:00:00`);
   const heading = d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-  const sub: Record<Item["kind"], string> = { event: "event", stop: "on-the-ground op", todo: "to-do", content: "content" };
+  const sub: Record<Item["kind"], string> = { event: "event", stop: "on-the-ground op", todo: "to-do", content: "content", task: "task due" };
   return (
     <div className="qd-scrim" onClick={onClose}>
       <div className="qd-sheet" onClick={(e) => e.stopPropagation()}>
@@ -322,6 +327,7 @@ const SRC: Record<Item["kind"], { table: string; nameCol: string; dateCol: strin
   stop:    { table: "stops",         nameCol: "name",  dateCol: "starts_at",     dateIsTimestamp: true,  defTime: "11:00", noun: "truck stop" },
   todo:    { table: "todos",         nameCol: "title", dateCol: "due_on",        dateIsTimestamp: false, defTime: "09:00", noun: "to-do" },
   content: { table: "content_items", nameCol: "title", dateCol: "scheduled_for", dateIsTimestamp: true,  defTime: "09:00", noun: "content" },
+  task:    { table: "event_tasks",   nameCol: "label", dateCol: "due_at",        dateIsTimestamp: true,  defTime: "23:59", noun: "task" },
 };
 function CalEdit({ kind, id, events, onClose, onSaved }: { kind: Item["kind"]; id: string; events: Ev[]; onClose: () => void; onSaved: () => void }) {
   const cfg = SRC[kind];

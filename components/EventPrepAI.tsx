@@ -13,7 +13,7 @@ const SECTION_COLOR: Record<string, string> = {
   Compliance: "#c4453c", Travel: "#6fa8dc", Teardown: "#a1887f", Prep: "#9a8f7c",
 };
 
-type Task = { label: string; section: string; critical: boolean; why?: string; _skip?: boolean };
+type Task = { label: string; section: string; critical: boolean; why?: string; due_offset_days?: number | null; _skip?: boolean };
 
 export default function EventPrepAI({ ownerType, ownerId, title, onClose, onAdded }: { ownerType: "event" | "stop"; ownerId: string; title: string; onClose: () => void; onAdded: () => void }) {
   const ownerKey = ownerType === "event" ? "event_id" : "stop_id";
@@ -99,7 +99,7 @@ export default function EventPrepAI({ ownerType, ownerId, title, onClose, onAdde
                   <span className="eg-ck">{t._skip ? "○" : "✓"}</span>
                   <span className="eg-main">
                     <b>{t.critical ? "⚠️ " : ""}{t.label}</b>
-                    <span>{t.section}{t.why ? ` · ${t.why}` : ""}</span>
+                    <span>{t.section}{t.due_offset_days && t.due_offset_days >= 1 ? ` · due ${t.due_offset_days}d before` : ""}{t.why ? ` · ${t.why}` : ""}</span>
                   </span>
                 </button>
               ))}
