@@ -13,6 +13,7 @@ export interface AssetItem {
   qty: number | null;
   notes: string | null;
   notionUrl: string | null;
+  lenIn: number | null; widthIn: number | null; heightIn: number | null; weightLb: number | null;
 }
 export interface AssetsResp { enabled: boolean; items: AssetItem[]; error?: string }
 

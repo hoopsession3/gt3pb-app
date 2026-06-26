@@ -14,12 +14,15 @@ const KB_OPTS = ["Drafted", "Reviewed", "Needs manual"];
 type Draft = {
   name: string; makeModel: string; brand: string; categoryStr: string;
   useCase: string; manual: string; kbStatus: string; qty: string; notes: string;
+  lenIn: string; widthIn: string; heightIn: string; weightLb: string;
 };
-const emptyDraft: Draft = { name: "", makeModel: "", brand: "GT3 Performance Bar", categoryStr: "", useCase: "", manual: "", kbStatus: "Drafted", qty: "", notes: "" };
+const emptyDraft: Draft = { name: "", makeModel: "", brand: "GT3 Performance Bar", categoryStr: "", useCase: "", manual: "", kbStatus: "Drafted", qty: "", notes: "", lenIn: "", widthIn: "", heightIn: "", weightLb: "" };
 const toDraft = (a: AssetItem): Draft => ({
   name: a.name, makeModel: a.makeModel || "", brand: a.brand || "Shared", categoryStr: (a.category || []).join(", "),
   useCase: a.useCase || "", manual: a.manual || "", kbStatus: a.kbStatus || "Drafted", qty: a.qty != null ? String(a.qty) : "", notes: a.notes || "",
+  lenIn: a.lenIn != null ? String(a.lenIn) : "", widthIn: a.widthIn != null ? String(a.widthIn) : "", heightIn: a.heightIn != null ? String(a.heightIn) : "", weightLb: a.weightLb != null ? String(a.weightLb) : "",
 });
+const cuft = (a: AssetItem) => (a.lenIn && a.widthIn && a.heightIn ? Math.round(((a.lenIn * a.widthIn * a.heightIn) / 1728) * 10) / 10 : null);
 
 export default function GearLibrary() {
   const [resp, setResp] = useState<AssetsResp | null>(null);
@@ -60,6 +63,10 @@ export default function GearLibrary() {
       kb_status: draft.kbStatus || null,
       qty: draft.qty.trim() === "" ? null : Number(draft.qty),
       notes: draft.notes.trim() || null,
+      len_in: draft.lenIn.trim() === "" ? null : Number(draft.lenIn),
+      width_in: draft.widthIn.trim() === "" ? null : Number(draft.widthIn),
+      height_in: draft.heightIn.trim() === "" ? null : Number(draft.heightIn),
+      weight_lb: draft.weightLb.trim() === "" ? null : Number(draft.weightLb),
     };
     const { error } = editing === "new"
       ? await supabase.from("assets").insert(row)
@@ -88,6 +95,17 @@ export default function GearLibrary() {
           </select>
         </label>
         <label className="gl-f"><span>Qty</span><input type="number" inputMode="numeric" value={draft.qty} onChange={(e) => setDraft({ ...draft, qty: e.target.value })} /></label>
+      </div>
+      <div className="gl-f"><span>Load-out size <i>(inches — drives the trailer/vehicle fit)</i></span>
+        <div className="gl-dims">
+          <input type="number" inputMode="decimal" value={draft.lenIn} onChange={(e) => setDraft({ ...draft, lenIn: e.target.value })} placeholder="L" aria-label="Length (in)" />
+          <span className="gl-dimx">×</span>
+          <input type="number" inputMode="decimal" value={draft.widthIn} onChange={(e) => setDraft({ ...draft, widthIn: e.target.value })} placeholder="W" aria-label="Width (in)" />
+          <span className="gl-dimx">×</span>
+          <input type="number" inputMode="decimal" value={draft.heightIn} onChange={(e) => setDraft({ ...draft, heightIn: e.target.value })} placeholder="H" aria-label="Height (in)" />
+          <input type="number" inputMode="decimal" className="gl-dimw" value={draft.weightLb} onChange={(e) => setDraft({ ...draft, weightLb: e.target.value })} placeholder="lb" aria-label="Weight (lb)" />
+        </div>
+        {draft.lenIn && draft.widthIn && draft.heightIn && <div className="gl-dim-note">≈ {Math.round(((Number(draft.lenIn) * Number(draft.widthIn) * Number(draft.heightIn)) / 1728) * 10) / 10} cu ft — packed (collapse handles/lids first)</div>}
       </div>
       <label className="gl-f"><span>Category <i>(comma-separated)</i></span><input value={draft.categoryStr} onChange={(e) => setDraft({ ...draft, categoryStr: e.target.value })} placeholder="Event Equipment, Marketing" /></label>
       <label className="gl-f"><span>GT3 use case</span><textarea rows={2} value={draft.useCase} onChange={(e) => setDraft({ ...draft, useCase: e.target.value })} /></label>
@@ -132,6 +150,7 @@ export default function GearLibrary() {
                       <div key={it.id} className="gl-item">
                         <div className="gl-item-main">
                           <b>{it.name}{it.qty && it.qty > 1 ? ` ×${it.qty}` : ""}</b>
+                          {cuft(it) != null && <span className="gl-dimtag" title="Used by the load-out space planner">📐 {it.lenIn}×{it.widthIn}×{it.heightIn}in · {cuft(it)} cu ft{it.weightLb ? ` · ${it.weightLb} lb` : ""}</span>}
                           {it.useCase && <span className="gl-uc">{it.useCase}</span>}
                           {it.notes && (
                             <details className="gl-notes">
