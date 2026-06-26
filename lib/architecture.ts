@@ -187,6 +187,7 @@ export const ARCHITECTURE: ArchLayer[] = [
       { name: "Readiness agent", status: "live", desc: "Upcoming events vs inventory → gaps + a prep alert.", sot: "app/api/agents/readiness/route.ts" },
       { name: "Operator assistant (Ask GT3)", status: "live", desc: "Grounded pocket-brain chat: recipes, the why, gear, stock, how-to.", sot: "app/api/agents/operator/route.ts" },
       { name: "Inspection agent", status: "configured", desc: "Web-researches jurisdiction permits/inspection; proposes compliance rows for approval.", detail: "Covered jurisdictions brief inline from records; uncovered ones run a lean background research job (one focused web search + a fast extract, kept under the 120s function cap) and the card polls for the result.", sot: "app/api/agents/inspection/route.ts" },
+      { name: "Inventory AI", status: "configured", desc: "Describe an item → it drafts a complete inventory record (every attribute inferred from how a mobile bev bar uses it) for you to review + add to the stock register.", sot: "app/api/agents/inventory/route.ts" },
       { name: "Caption engine", status: "live", desc: "Suave, on-brand content options from a brief (Studio).", sot: "app/api/agents/caption/route.ts" },
       { name: "Campaign generator", status: "live", desc: "An event → teaser + day-of + recap, scheduled & event-linked.", sot: "app/api/agents/campaign/route.ts" },
       { name: "Summarizer", status: "live", desc: "Recreate a note's recap from the transcript.", sot: "app/api/agents/summarize/route.ts" },
@@ -272,8 +273,8 @@ export const ARCHITECTURE: ArchLayer[] = [
 export const BUILD_STATS: { asOf: string; items: { n: string; l: string }[] } = {
   asOf: "Jun 24, 2026",
   items: [
-    { n: "40", l: "features shipped" },
-    { n: "11", l: "AI agents" },
+    { n: "48", l: "features shipped" },
+    { n: "12", l: "AI agents" },
     { n: "71", l: "migrations" },
     { n: "28", l: "API endpoints" },
     { n: "41", l: "components" },
