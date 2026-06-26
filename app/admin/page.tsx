@@ -3653,33 +3653,54 @@ function EnableAlerts({ userId }: { userId: string | null }) {
 
 // ───────────────────────── back office: overview command center ─────────────────────────
 function Overview({ onGo }: { onGo: (t: string) => void }) {
-  const [s, setS] = useState({ leads: 0, active: 0, pastDue: 0, waitlist: 0, live: null as EventRow | null });
+  // Operator-first glance: what's coming (events, stops), what's new (booking requests),
+  // and what's overdue (open team tasks on events/stops that already passed). Each card jumps
+  // to where you act on it. (Sales metrics — subs/waitlist — live in Money, not here.)
+  const [s, setS] = useState({
+    eventsUp: 0, nextEvent: null as { title: string; label: string } | null,
+    stopsUp: 0, nextStop: null as { name: string; label: string } | null,
+    news: 0, pastTasks: 0, live: null as EventRow | null,
+  });
   const [low, setLow] = useState<InvItem[]>([]);
   const [invEnabled, setInvEnabled] = useState(false);
   const load = useCallback(async () => {
     if (!supabase) return;
-    const [b, subs, wl, ev, evs, invResp] = await Promise.all([
+    const today = new Date().toISOString().slice(0, 10);
+    const [b, ev, evs, st, tasks, invResp] = await Promise.all([
       supabase.from("booking_requests").select("id", { count: "exact", head: true }).eq("status", "new"),
-      supabase.from("subscriptions").select("status"),
-      supabase.from("subscription_interest").select("id", { count: "exact", head: true }),
       supabase.from("events").select("*").eq("is_live", true).maybeSingle(),
-      supabase.from("events").select("*").order("sort"),
+      supabase.from("events").select("*").order("day"),
+      supabase.from("stops").select("id, name, when_label, starts_at, status, archived_at").order("starts_at"),
+      supabase.from("event_tasks").select("event_id, stop_id, done, kind").eq("done", false).eq("kind", "task"),
       fetchInventory(),
     ]);
-    const rows = (subs.data as { status: string }[]) ?? [];
-    setS({ leads: b.count ?? 0, active: rows.filter((x) => x.status === "active").length, pastDue: rows.filter((x) => x.status === "past_due").length, waitlist: wl.count ?? 0, live: (ev.data as EventRow) ?? null });
-    // roll up low stock across all active (upcoming) events
-    const upcoming = ((evs.data as EventRow[]) ?? []).filter((e) => !e.archived_at);
+    const allEv = ((evs.data as EventRow[]) ?? []).filter((e) => !e.archived_at);
+    const upEv = allEv.filter((e) => e.day && e.day >= today);
+    const ne = upEv[0];
+    const allSt = ((st.data as Stop[]) ?? []).filter((x) => !x.archived_at);
+    const upSt = allSt.filter((x) => x.status !== "done");
+    const ns = upSt.find((x) => x.status === "live") ?? upSt[0];
+    // past due = open team tasks whose event/stop already happened (strictly before today)
+    const dueEv = new Set(allEv.filter((e) => e.day && e.day < today).map((e) => e.id));
+    const dueSt = new Set(allSt.filter((x) => x.status === "done" || (x.starts_at && x.starts_at.slice(0, 10) < today)).map((x) => x.id));
+    const taskRows = (tasks.data as { event_id: string | null; stop_id: string | null }[]) ?? [];
+    const pastTasks = taskRows.filter((t) => (t.event_id && dueEv.has(t.event_id)) || (t.stop_id && dueSt.has(t.stop_id))).length;
+    setS({
+      eventsUp: upEv.length, nextEvent: ne ? { title: ne.title ?? "Event", label: ne.day_label || ne.day || "" } : null,
+      stopsUp: upSt.length, nextStop: ns ? { name: ns.name ?? "Stop", label: ns.when_label || "" } : null,
+      news: b.count ?? 0, pastTasks, live: (ev.data as EventRow) ?? null,
+    });
     setInvEnabled(invResp.enabled);
-    setLow(rollupLowStock(invResp.items, upcoming));
+    setLow(rollupLowStock(invResp.items, upEv)); // low stock across upcoming events
   }, []);
   useEffect(() => {
     load();
     if (!supabase) return;
     const ch = supabase.channel("admin-overview")
       .on("postgres_changes", { event: "*", schema: "public", table: "booking_requests" }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "subscriptions" }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "events" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "stops" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "event_tasks" }, () => load())
       .subscribe();
     return () => { supabase?.removeChannel(ch); };
   }, [load]);
@@ -3687,10 +3708,16 @@ function Overview({ onGo }: { onGo: (t: string) => void }) {
     <div className="adm-sec">
       <div className="sec">At a glance</div>
       <div className="bo-cards">
-        <button className={`bo-card${s.leads ? " hot" : ""}`} onClick={() => onGo("bookings")}><b>{s.leads}</b><span>new leads</span></button>
-        <button className="bo-card" onClick={() => onGo("money")}><b>{s.active}</b><span>active subs</span></button>
-        <button className={`bo-card${s.pastDue ? " alert" : ""}`} onClick={() => onGo("money")}><b>{s.pastDue}</b><span>past due</span></button>
-        <button className="bo-card" onClick={() => onGo("money")}><b>{s.waitlist}</b><span>waitlist</span></button>
+        <button className="bo-card" onClick={() => onGo("events")}>
+          <b>{s.eventsUp}</b><span>events</span>
+          {s.nextEvent && <em className="bo-card-sub">{s.nextEvent.label ? `${s.nextEvent.label} · ` : ""}{s.nextEvent.title}</em>}
+        </button>
+        <button className="bo-card" onClick={() => onGo("stops")}>
+          <b>{s.stopsUp}</b><span>truck stops</span>
+          {s.nextStop && <em className="bo-card-sub">{s.nextStop.label ? `${s.nextStop.label} · ` : ""}{s.nextStop.name}</em>}
+        </button>
+        <button className={`bo-card${s.news ? " hot" : ""}`} onClick={() => onGo("bookings")}><b>{s.news}</b><span>news</span></button>
+        <button className={`bo-card${s.pastTasks ? " alert" : ""}`} onClick={() => onGo("tasks")}><b>{s.pastTasks}</b><span>tasks past due</span></button>
       </div>
       {s.live ? (
         <div className="bo-live" role="button" tabIndex={0} onClick={() => onGo("events")} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onGo("events")}>
@@ -3716,11 +3743,11 @@ function Overview({ onGo }: { onGo: (t: string) => void }) {
         </>
       )}
 
-      {(s.leads > 0 || s.pastDue > 0) && (
+      {(s.news > 0 || s.pastTasks > 0) && (
         <div className="bo-needs">
           <div className="adm-prep-label">Needs you</div>
-          {s.leads > 0 && <button className="bo-need" onClick={() => onGo("bookings")}>{s.leads} new booking {s.leads === 1 ? "request" : "requests"} to reply to ›</button>}
-          {s.pastDue > 0 && <button className="bo-need alert" onClick={() => onGo("money")}>{s.pastDue} subscription {s.pastDue === 1 ? "payment" : "payments"} failed — card needs updating ›</button>}
+          {s.news > 0 && <button className="bo-need" onClick={() => onGo("bookings")}>{s.news} new booking {s.news === 1 ? "request" : "requests"} to reply to ›</button>}
+          {s.pastTasks > 0 && <button className="bo-need alert" onClick={() => onGo("tasks")}>{s.pastTasks} team {s.pastTasks === 1 ? "task" : "tasks"} past due — knock them out ›</button>}
         </div>
       )}
     </div>
@@ -3909,7 +3936,7 @@ export default function AdminPage() {
 
   // Overview's jump links map onto the operator sections.
   const goSection = (t: string) => {
-    const map: Record<string, OpSection> = { events: "plan", vendors: "plan", bookings: "plan", money: "money", members: "team" };
+    const map: Record<string, OpSection> = { events: "plan", vendors: "plan", bookings: "plan", money: "money", members: "team", stops: "prep", tasks: "day" };
     setSection(map[t] ?? "prep");
   };
 

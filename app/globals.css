@@ -794,6 +794,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .bo-card:active{border-color:var(--gold2)}
 .bo-card b{display:block;font-family:'DM Mono';font-size:23px;line-height:1.1;color:var(--cream)}
 .bo-card span{font-family:var(--mono);font-weight:500;font-size:8px;letter-spacing:1.4px;text-transform:uppercase;color:var(--cream-d)}
+.bo-card-sub{display:block;margin-top:4px;font-family:'Inter';font-style:normal;font-weight:600;font-size:9.5px;line-height:1.25;color:var(--gold2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bo-card.hot b{color:var(--gold2)}
 .bo-card.alert{border-color:rgba(184,36,32,.4)}
 .bo-card.alert b{color:var(--red)}
