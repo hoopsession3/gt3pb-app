@@ -427,6 +427,191 @@ export const MODULES: Module[] = [
       { q: "The point of writing the Playbook is to capture…", options: ["What decisions were made", "WHY decisions were made, so the brand outlives the founder", "Nothing important"], correct: 1 },
     ],
   },
+
+  // ═══════════════ Phase 1 depth — Welcome ═══════════════
+  {
+    slug: "why-details-matter", section: "welcome", title: "Why the Details Matter — the founder's philosophy", estMin: 8,
+    summary: "Before any SOP: why GT3 exists, and why we sweat things nobody asked us to.",
+    whyItMatters: "If you only learn the steps, you'll do them when it's easy and skip them when it's hard. If you understand WHY GT3 exists, you'll hold the standard at 8pm on a dead-tired Saturday — which is the only time it actually matters.",
+    objectives: ["Say in one sentence why GT3 exists", "Explain why a 'small' detail is never small here", "Tell a guest what makes us different without sounding rehearsed"],
+    body: [
+      { h: "Why GT3 exists", p: "Most 'performance' or 'wellness' drinks are noise — sugar, hype, and claims nobody can back. GT3 exists to be the opposite: clean, honest performance beverages we can stand behind, made with real ingredients and a process we'll show you, served when people actually need them. We'd rather be the most trusted than the loudest." },
+      { h: "Two brands, one standard", p: "GT3 Brew makes the coffee and cold brew; GT3 Performance Bar is how we serve it — the cart, the trailer, the events. Different jobs, identical standard. A guest never sees 'the brand we felt like being today.'" },
+      { h: "Why a small detail is never small", p: "A wiped counter, a settled pour, a disclosed allergen, the same recipe at every cart — guests can rarely name why we feel premium, but they feel it, and they come back for it. The details aren't decoration; they ARE the product. Skip one and you've quietly handed the guest a different, worse brand." },
+      { h: "The bar we hold", p: "The whole Academy is built around one test: 'If Ryan wasn't here, would you make the same call?' Everything you learn is to close that gap — so the experience is identical whether the founder is standing next to you or a thousand miles away." },
+    ],
+    founderInsight: "I'm not precious about details to be difficult. I'm precise because consistency is the only thing that earns trust at scale — and trust is the entire business.",
+    quiz: [
+      { q: "GT3 exists to be…", options: ["The cheapest option", "The most trusted — clean, honest performance beverages", "The loudest brand at the event"], correct: 1 },
+      { q: "A 'small' detail like a wiped counter is…", options: ["Optional when busy", "Part of the product — guests feel it", "Only for inspections"], correct: 1 },
+      { q: "The Academy's core test is…", options: ["Can you pour fast?", "Would you make the same call the founder would?", "Did you memorize the menu?"], correct: 1 },
+    ],
+  },
+
+  // ═══════════════ Phase 2 depth — Brand DNA ═══════════════
+  {
+    slug: "brand-dna", section: "brand", title: "Brand DNA — mission, values & voice", estMin: 9,
+    summary: "Who GT3 is at the core: mission, vision, the values we won't trade, and how we talk.",
+    whyItMatters: "Your job at an event is to BE the brand to every guest. You can't represent something you can't articulate. This is the DNA you carry so the brand sounds and feels the same out of anyone's mouth.",
+    objectives: ["State the mission and the values in your own words", "Use the GT3 voice — confident, warm, never hype", "Spot an off-brand move before you make it"],
+    body: [
+      { h: "Mission", p: "Clean, honest performance beverages we can stand behind, served when people need them. Every product, price, and pour either serves that or it doesn't belong." },
+      { h: "Vision", p: "A brand people trust enough that 'GT3 made it' is reason enough to try it — built to outlast and out-scale its founder by encoding the standard into people and systems, not personality." },
+      { h: "Core values", p: "Honesty (never a claim we can't back). Consistency (the same experience every time). Hospitality (the guest leaves better than they arrived). Craft (real ingredients, real process). Stewardship (everyone protects the standard, watched or not). When two values seem to conflict, honesty and safety win — always." },
+      { h: "Brand voice", p: "Confident but never arrogant. Warm but not cutesy. Educational but never preachy. We state things plainly and let the substance carry it. 'Pure Signal. No Noise.' is the voice in three words: measured substance, zero hype. If a sentence sounds like a supplement ad, it's wrong." },
+      { h: "Off-brand tells", p: "Hype words ('miracle,' 'detox,' 'crushes the competition'), invented health benefits, inconsistency between carts, cutting a corner because it's busy, or talking down to a guest. Any of these is the brand slipping — catch it and correct it." },
+    ],
+    mistakes: ["Slipping into hype/ad language to make a sale", "Sounding superior instead of warm", "Treating values as a poster instead of the actual decision filter"],
+    founderInsight: "Brand isn't the logo. It's the promise that every interaction keeps. Break the promise once and the logo is just a sticker.",
+    quiz: [
+      { q: "The GT3 voice is…", options: ["Loud and hype-driven", "Confident, warm, plain — substance over hype", "Formal and distant"], correct: 1 },
+      { q: "When honesty and speed conflict…", options: ["Speed wins, we're busy", "Honesty wins — always", "Flip a coin"], correct: 1 },
+      { q: "Which is an off-brand tell?", options: ["'It's cold-extracted over ~18 hours'", "'This detoxes you and crushes the competition'", "'Want it over ice?'"], correct: 1 },
+    ],
+  },
+
+  // ═══════════════ Phase 4 depth — Product Mastery ═══════════════
+  {
+    slug: "recommend-upsell", section: "product", title: "Recommend & Upsell — match the guest to the pour", estMin: 9,
+    summary: "A simple decision tree for recommending the right drink, plus upselling as genuine care.",
+    whyItMatters: "An overwhelmed or rushed guest doesn't want a menu — they want your pick. A great recommendation raises the check AND the experience at the same time. Done right, the guest thanks you for the upsell.",
+    objectives: ["Recommend the right drink from a 5-second read", "Pair a hydration or food add-on naturally", "Upsell as care, never as pressure"],
+    body: [
+      { h: "The recommendation tree", p: "First-timer or unsure → Rise (the clean, smooth flagship cold brew). Wants chocolatey/steadier → Flow (cacao). Evening / lower-key / spiced → Dusk. On tap / wants the show → Nitro. Caffeine-sensitive or hydration-focused → Nature Aid or the Coconut Shake. Wants savory/warm → Bone Broth. Sweet tooth → Salted Maple. You can place almost any guest in two questions." },
+      { h: "Lead with the one-liner, then stop", p: "'Rise is our smooth cold brew over ice — best first pour.' Give the headline, read their face, and only go deeper if they lean in. The recommendation is a gift; don't bury it in detail." },
+      { h: "Pair, don't pile", p: "The natural add-on is hydration or food alongside the coffee: 'Want a Nature Aid to sip alongside it?' or 'Bone broth if you want something savory.' One thoughtful pairing beats three pushy ones. The test: would you genuinely suggest it to a friend, or are you just adding dollars?" },
+      { h: "Read the 'no'", p: "If they decline the add-on, drop it instantly and warmly — 'You got it.' A clean no-pressure no is what makes the next yes possible. Pressure wins one sale and loses the relationship." },
+    ],
+    mistakes: ["Listing options instead of making the call", "Upselling things you wouldn't actually recommend (guests smell it)", "Pushing after a 'no' — kills trust", "Over-explaining when the guest just wanted the headline"],
+    founderInsight: "The best upsell doesn't feel like one. It feels like a friend who knows the menu saying 'oh, you'd love this with it.' That's the only kind we do.",
+    scenarios: [
+      { situation: "Guest: 'I don't really drink coffee but I'm curious'", doThis: "Steer to flavor + lower commitment: 'Then try Dusk — it's spiced and smooth, or a Coconut Shake if you want zero coffee. Both are easy first sips.'" },
+      { situation: "Post-workout guest grabbing a Rise", doThis: "Natural pair: 'Want a Nature Aid alongside to hydrate? A lot of folks do after a workout.' If no, 'You got it — enjoy.'" },
+    ],
+    quiz: [
+      { q: "An unsure first-timer should get…", options: ["The whole menu read aloud", "A confident rec — usually Rise", "Whatever's slowest to make"], correct: 1 },
+      { q: "A good upsell is…", options: ["Pushed until they cave", "A genuine pairing you'd suggest a friend, dropped on a 'no'", "Added silently to the total"], correct: 1 },
+      { q: "Caffeine-sensitive guest → recommend…", options: ["A double Nitro", "Nature Aid or the Coconut Shake", "Two Rises"], correct: 1 },
+    ],
+  },
+
+  // ═══════════════ Phase 7 depth — Event Operations ═══════════════
+  {
+    slug: "food-safety", section: "ops", title: "Food Safety & Health Code — the non-negotiables", estMin: 11,
+    summary: "The food-safety rules that keep guests safe and keep us legal — these are never optional.",
+    whyItMatters: "Everything else is craft and hospitality. This is the floor: get food safety wrong and you can make someone sick and end the business. It's the one area where 'we were busy' is never, ever a reason.",
+    objectives: ["Keep cold product cold and hot product hot, with numbers", "Prevent cross-contamination and practice clean hands", "Know when to throw something out without hesitating"],
+    body: [
+      { h: "The temperature danger zone", p: "Bacteria multiply fastest between about 40°F and 140°F. Cold product (cold brew, coconut, milk) must stay at or below 40°F; hot product (bone broth) must hold at or above 140°F. Anything that sits in the danger zone too long gets discarded — when in doubt, throw it out. Check and log temps at open and during service." },
+      { h: "Clean hands, clean surfaces", p: "Wash hands properly (soap, 20 seconds, warm water) at the start, after any break, after touching your face/phone/trash, and any time they could be contaminated. Use the handwash station — hand sanitizer is a supplement, not a replacement. Sanitize contact surfaces on a schedule with a food-safe sanitizer at the right concentration." },
+      { h: "Avoid cross-contamination", p: "Keep ready-to-serve product away from raw inputs, trash, and chemicals. Don't let a dirty rag, an ungloved hand, or a contaminated scoop touch what a guest drinks. Allergens matter too: know what's in each drink (raw honey, dairy, coconut) and never let one product contaminate another." },
+      { h: "Hold windows & dating", p: "Every product has a safe hold window — cold brew, blended drinks, and broth don't last forever out in the world. Honor the window, label/date batches, and discard past it. 'It still looks fine' is not a food-safety standard; the clock is." },
+      { h: "Permits, COI & inspections", p: "Bigger activations need the right permits and a Certificate of Insurance naming the venue. Keep them with the rig. If a health inspector shows up, be calm, clean, and honest — a crew that follows these rules has nothing to fear from an inspection." },
+    ],
+    mistakes: ["Letting cold product drift above 40°F because the ice ran low", "Treating hand sanitizer as a substitute for handwashing", "Serving past the hold window because it 'looks fine'", "Skipping temp logs when it's busy — that's exactly when it matters"],
+    founderInsight: "Hospitality and craft are how we win. Food safety is how we don't lose everything. I will back you 100% for dumping product to stay safe — never the other way.",
+    scenarios: [
+      { situation: "Cooler ice melted, cold brew is creeping warm mid-event", doThis: "Get it back under 40°F immediately (fresh ice/packs). If it sat warm too long, pull and discard that product — don't serve it. Fix the cold chain before reopening that station." },
+      { situation: "You're slammed and tempted to skip the temp check", doThis: "Do it anyway — 10 seconds. The one time you skip is the time something's wrong. Safety steps are load-bearing exactly when it's busy." },
+    ],
+    quiz: [
+      { q: "The danger zone is roughly…", options: ["0–32°F", "40–140°F", "Above 200°F"], correct: 1, why: "Bacteria grow fastest between ~40 and ~140°F." },
+      { q: "Cold brew must be held at or below…", options: ["40°F", "60°F", "Room temp"], correct: 0 },
+      { q: "Product is past its hold window but 'looks fine.' You…", options: ["Serve it", "Discard it — the clock is the standard", "Smell-test and decide"], correct: 1 },
+    ],
+  },
+  {
+    slug: "pos-cash", section: "ops", title: "POS, Cash & Payments — get paid, balance out, never lose a sale", estMin: 8,
+    summary: "Run the register, handle cash cleanly, survive a dead signal, and reconcile at close.",
+    whyItMatters: "A line that can't pay is lost revenue and a frustrated guest. Knowing the POS cold — including when the signal drops — means the money keeps moving and the day balances at close.",
+    objectives: ["Take card + cash cleanly and fast", "Keep selling when connectivity drops (offline mode)", "Reconcile the drawer/day so the numbers are honest"],
+    body: [
+      { h: "Test before doors", p: "At open, test the card reader AND its offline mode, confirm the menu/prices are right, and make sure the device is charged with a backup power source nearby. A reader that dies at peak is a self-inflicted wound — catch it before the first guest." },
+      { h: "Signal drops — keep selling", p: "Events kill cell signal at peak. Know how to switch the reader to offline mode so payments queue and process when the signal returns, or fall back to cash. Never tell a ready-to-buy guest 'sorry, we can't take payment' — that's a lost sale and a bad memory." },
+      { h: "Cash discipline", p: "Start with a known float, keep the cash secured and out of sight, make change carefully, and don't let the drawer become a free-for-all. Cash is the easiest thing to lose track of, so it gets the most discipline." },
+      { h: "Reconcile at close", p: "At close, count cash against the float + cash sales, confirm card batches went through (including queued offline ones), and log the day's total. Reconciliation isn't bureaucracy — it's how you catch a problem the same day instead of next month." },
+    ],
+    mistakes: ["Not testing offline mode before doors", "Telling a guest you can't take payment instead of switching modes", "Sloppy cash handling / no float discipline", "Skipping the close-out reconciliation"],
+    founderInsight: "The fastest way to insult a guest who wants to give you money is to fumble taking it. Smooth payment is part of hospitality.",
+    quiz: [
+      { q: "Signal drops at peak. You…", options: ["Tell guests you can't sell", "Switch to offline mode / cash and keep selling", "Close the bar"], correct: 1 },
+      { q: "You reconcile at close to…", options: ["Look busy", "Catch a cash/card problem the same day", "Avoid counting"], correct: 1 },
+      { q: "Before doors you should test…", options: ["Only that the reader turns on", "The reader AND its offline mode + charge", "Nothing — it usually works"], correct: 1 },
+    ],
+  },
+  {
+    slug: "peak-volume", section: "ops", title: "Peak Volume & the Line — flow under pressure", estMin: 9,
+    summary: "How to run a rush without dropping quality: pre-batch, station discipline, and reading the line.",
+    whyItMatters: "Any bar looks good when it's quiet. The brand is won or lost in the rush — when the line is 20 deep, the standard either holds or it doesn't. Flow under pressure is a trainable skill.",
+    objectives: ["Pre-stage so the rush doesn't catch you empty", "Keep the line moving without rushing the product", "Never run a station dry mid-peak"],
+    body: [
+      { h: "Win the rush before it starts", p: "Peak is decided during setup. Pre-batch what you can, pre-chill bottles and glasses, stage cups/lids/labels within arm's reach, and keep two of every critical tool. The pour at minute 90 should be as easy as minute 1 because you set it up that way." },
+      { h: "Station discipline", p: "At volume, split the work: one person takes orders + payment, one builds, one restocks/runs. Don't let everyone try to do everything — that's how the line stalls. Keep your station clean as you go; a buried station is a slow station." },
+      { h: "Read the pack signal", p: "Watch your levels: ice, bottles, the keg, the busy items. The moment something's heading low, restock it BEFORE it's empty — running a station dry mid-rush costs you minutes and sales you never get back." },
+      { h: "Fast ≠ rushed", p: "Speed comes from preparation and flow, not from cutting the pour. A settled nitro and a clean build still happen fast when the station is staged right. Never sacrifice the product to shave seconds — a bad drink handed out fast is still a bad drink." },
+    ],
+    mistakes: ["Not pre-batching/staging, so the rush catches you empty", "Everyone doing everything instead of splitting roles", "Letting a station run dry before restocking", "Rushing the pour to save seconds and dropping quality"],
+    founderInsight: "Calm is a setup decision. If the rush feels chaotic, the fix is almost always in how you prepped — not in moving your hands faster.",
+    scenarios: [
+      { situation: "Line is 15 deep and growing", doThis: "Split roles immediately (order/pay, build, run), call out what's low so the runner restocks ahead, and keep the pours clean. Felt-momentum keeps the line patient." },
+      { situation: "Bottles are getting low with a big crowd still coming", doThis: "Restock NOW from on-hand, and flag it to the lead so a reorder/loadout happens before you're out. Don't wait for empty." },
+    ],
+    quiz: [
+      { q: "Peak is mostly won…", options: ["By moving your hands faster", "During setup — pre-batch and stage", "By cutting the pour"], correct: 1 },
+      { q: "At volume you should…", options: ["Have everyone do everything", "Split roles: order/pay, build, run", "Slow down the line on purpose"], correct: 1 },
+      { q: "A station heading low should be restocked…", options: ["After it's empty", "Before it's empty", "At close"], correct: 1 },
+    ],
+  },
+
+  // ═══════════════ Phase 6 depth — Hospitality ═══════════════
+  {
+    slug: "objections", section: "cx", title: "Objections & Hard Moments — turn friction into trust", estMin: 8,
+    summary: "How to handle the price pushback, the skeptic, the complaint, and the upset guest — without losing the standard or the relationship.",
+    whyItMatters: "How you handle the hard moment is remembered far longer than the easy ones. A well-handled objection or complaint can turn a skeptic into your most loyal guest. A badly-handled one becomes the story they tell.",
+    objectives: ["Answer the price objection with value, not defensiveness", "Handle a complaint so the guest leaves whole", "Hold the standard without being cold"],
+    body: [
+      { h: "'Why is it so expensive?'", p: "Don't apologize or argue their gas-station coffee is bad. Give the real reason, calmly: 'It's single-origin, cold-extracted over ~18 hours, made to order — that's what you're tasting.' Value, stated plainly, ends the objection. If it's still not for them, that's fine — be warm about it." },
+      { h: "The skeptic", p: "Some guests expect hype and are testing whether you'll oversell. Win them by NOT overselling: describe what it is honestly, admit what you don't know, offer a small taste if you can. Honesty disarms a skeptic faster than enthusiasm." },
+      { h: "The complaint", p: "Listen fully, don't get defensive, own it, fix it fast. A flat pour or a wrong order gets remade — no debate, no charge if it's our miss. 'You're right, let me remake that' is the whole play. The goal is the guest leaves feeling taken care of, not 'handled.'" },
+      { h: "The upset guest", p: "Stay calm and lower your voice; don't match their heat. Acknowledge the feeling ('I hear you, that's frustrating'), fix what you can, and if it's beyond you, get the lead. Never argue to win — protect the experience and the brand, not your ego." },
+    ],
+    mistakes: ["Getting defensive about price instead of explaining value", "Overselling a skeptic (confirms their suspicion)", "Debating a complaint instead of just remaking it", "Matching an upset guest's energy"],
+    founderInsight: "A complaint is a gift — the guest is giving you a chance to fix it instead of just never coming back. Treat it like one.",
+    scenarios: [
+      { situation: "'$7 for a coffee? That's crazy.'", doThis: "Calm value, no apology: 'I get it — it's single-origin, cold-brewed over ~18 hours and made fresh. That's the difference in the cup. Want to try it?' If still no, warm exit." },
+      { situation: "Guest says their nitro poured flat", doThis: "'You're right — let me remake that for you.' Fix the cause (restrictor/pressure), re-pour a proper cascade, hand it over. No debate, no charge." },
+    ],
+    quiz: [
+      { q: "Best answer to a price objection?", options: ["Apologize and discount", "Argue their usual coffee is bad", "Calmly explain the value — process + ingredients"], correct: 2 },
+      { q: "A guest complains the drink is wrong. You…", options: ["Explain why it's fine", "Own it and remake it, no debate", "Charge for a new one"], correct: 1 },
+      { q: "An upset guest is raising their voice. You…", options: ["Match their energy", "Stay calm, acknowledge, fix, escalate if needed", "Argue to win"], correct: 1 },
+    ],
+  },
+
+  // ═══════════════ Phase 9 depth — Leadership ═══════════════
+  {
+    slug: "training-feedback", section: "leadership", title: "Train Others & Give Feedback — multiply the standard", estMin: 9,
+    summary: "How to bring a new person to the GT3 bar and give feedback that actually sticks — so the standard scales past you.",
+    whyItMatters: "A leader isn't the best operator — it's the one who makes other operators great. The brand only scales if each person who 'gets it' can transfer it to the next. Training is how the standard survives growth.",
+    objectives: ["Train a new person with show → explain why → watch → feedback", "Give feedback that corrects without crushing", "Build accountability without fear"],
+    body: [
+      { h: "Teach the why, not just the what", p: "Anyone can recite steps; a step without its reason breaks the first time reality doesn't match the script. When you train, always attach the why: 'We flush the restrictor daily BECAUSE a clogged disc kills the cascade.' The why is what lets them adapt when you're not there." },
+      { h: "The training loop", p: "Show it done right. Explain the why. Watch them do it. Give specific feedback. Repeat until it's theirs. Don't hand someone a manual and walk away — apprenticeship beats documentation for a craft." },
+      { h: "Feedback that lands", p: "Be specific, timely, and kind: name the exact thing ('that pour went out before it settled'), the why ('the cascade is half the product'), and the fix ('let it settle a few more seconds'). Praise the same way — specific beats 'good job.' Correct the action, never attack the person." },
+      { h: "Accountability without fear", p: "People hold a standard when they understand it and feel safe surfacing mistakes. Punishing honesty teaches people to hide problems. Make it safe to say 'I messed up' — then the incident becomes a lesson the whole team gets, which is how the bar rises." },
+    ],
+    mistakes: ["Handing someone a manual instead of apprenticing them", "Vague feedback ('be better') instead of specific + the why + the fix", "Correcting the person instead of the action", "Punishing honesty, so mistakes get hidden"],
+    founderInsight: "My job was never to be the best on the cart. It was to make ten people who hold the standard like it's theirs. That's the only version of GT3 that outlives me.",
+    scenarios: [
+      { situation: "New hire keeps sending pours out before they settle", doThis: "Specific + why + fix, kindly: 'Hey — let that nitro settle a few more seconds before it goes out; the cascade is half the product. Watch this one with me.' Then watch their next." },
+      { situation: "Someone admits they poured a bad batch", doThis: "Reward the honesty: 'Good catch telling me — what happened, and what'll you change?' Make it a lesson, not a punishment, so they keep surfacing problems." },
+    ],
+    quiz: [
+      { q: "Good training attaches…", options: ["Only the steps", "The WHY to each step", "Nothing — let them figure it out"], correct: 1 },
+      { q: "Effective feedback is…", options: ["'Be better'", "Specific + the why + the fix, kindly", "Public and harsh"], correct: 1 },
+      { q: "When someone admits a mistake, you…", options: ["Punish it", "Reward the honesty and make it a lesson", "Ignore it"], correct: 1, why: "Punishing honesty teaches people to hide problems." },
+    ],
+  },
 ];
 
 // ─────────────────────────── product education + cookbook ───────────────────────────
@@ -566,24 +751,29 @@ export const PRODUCTS: Product[] = [
 // ─────────────────────────── certifications ───────────────────────────
 export interface Cert { key: string; title: string; blurb: string; modules: string[] }
 export const CERTS: Cert[] = [
-  { key: "brand", title: "Brand Certified", blurb: "Knows who GT3 is and the Pure Signal standard.", modules: ["welcome-gt3", "brand-pure-signal"] },
-  { key: "cx", title: "Customer Experience Certified", blurb: "Greets, educates, and serves to standard.", modules: ["customer-experience"] },
-  { key: "product", title: "Product Certified", blurb: "Knows the lineup and the nutrition philosophy honestly.", modules: ["primal-nutrition", "product-knowledge"] },
-  { key: "event", title: "Event Certified", blurb: "Can run an event end to end.", modules: ["event-ops"] },
+  { key: "brand", title: "Brand Certified", blurb: "Knows who GT3 is and the Pure Signal standard.", modules: ["welcome-gt3", "why-details-matter", "brand-pure-signal", "brand-dna"] },
+  { key: "cx", title: "Hospitality Certified", blurb: "Greets, reads, educates, and recovers to standard.", modules: ["customer-experience", "hospitality-excellence", "objections"] },
+  { key: "product", title: "Product Certified", blurb: "Knows the lineup and recommends honestly.", modules: ["primal-nutrition", "product-knowledge", "recommend-upsell"] },
+  { key: "science", title: "Science Certified", blurb: "Explains the why behind the cup — claim-safe.", modules: ["coffee-science", "functional-ingredients"] },
+  { key: "equipment", title: "Equipment Certified", blurb: "Runs, cleans, and troubleshoots every system.", modules: ["nitro-mastery", "coldbrew-power-mastery"] },
+  { key: "event", title: "Event Certified", blurb: "Runs an event end to end, safely.", modules: ["event-ops", "food-safety", "pos-cash", "peak-volume"] },
   { key: "inventory", title: "Inventory Certified", blurb: "Keeps the bar stocked and the books clean.", modules: ["inventory-ops"] },
   { key: "ops", title: "Operations (Cart) Certified", blurb: "Can run the cart and the line.", modules: ["cart-ops"] },
   { key: "trailer", title: "Trailer Certified", blurb: "Can run the full trailer activation.", modules: ["trailer-ops"] },
+  { key: "excellence", title: "Operational Excellence Certified", blurb: "Runs the cadence, par, waste, and the numbers.", modules: ["operating-cadence"] },
+  { key: "leadership", title: "Leadership Certified", blurb: "Thinks like an owner; trains and develops the crew.", modules: ["think-like-owner", "training-feedback"] },
+  { key: "philosophy", title: "GT3 Philosophy Certified", blurb: "Carries the principles and the founder's playbook.", modules: ["how-gt3-thinks", "founders-playbook"] },
 ];
 
 // ─────────────────────────── role learning paths ───────────────────────────
 export interface RolePath { role: Role; certs: string[] }
 export const ROLE_PATHS: RolePath[] = [
-  { role: "contractor", certs: ["brand", "cx"] },
-  { role: "staff", certs: ["brand", "cx", "product"] },
-  { role: "operator", certs: ["brand", "cx", "product", "ops", "inventory"] },
-  { role: "event_manager", certs: ["brand", "cx", "product", "event", "ops", "trailer", "inventory"] },
-  { role: "admin", certs: ["brand", "cx", "product", "event", "ops", "trailer", "inventory"] },
-  { role: "founder", certs: ["brand", "cx", "product", "event", "ops", "trailer", "inventory"] },
+  { role: "contractor", certs: ["brand", "cx", "event"] },
+  { role: "staff", certs: ["brand", "cx", "product", "science"] },
+  { role: "operator", certs: ["brand", "cx", "product", "science", "equipment", "ops", "inventory", "event"] },
+  { role: "event_manager", certs: ["brand", "cx", "product", "science", "equipment", "event", "ops", "trailer", "inventory", "excellence", "leadership"] },
+  { role: "admin", certs: ["brand", "cx", "product", "science", "equipment", "event", "ops", "trailer", "inventory", "excellence", "leadership", "philosophy"] },
+  { role: "founder", certs: ["brand", "cx", "product", "science", "equipment", "event", "ops", "trailer", "inventory", "excellence", "leadership", "philosophy"] },
 ];
 
 // ─────────────────────────── operational readiness ───────────────────────────
@@ -600,7 +790,8 @@ export const READINESS: Readiness[] = [
 // ─────────────────────────── certification expiry ───────────────────────────
 // Food-safety-adjacent certs expire and must be renewed. 0 = no expiry.
 export const CERT_EXPIRY_DAYS: Record<string, number> = {
-  brand: 0, cx: 365, product: 730, event: 365, inventory: 365, ops: 365, trailer: 365,
+  brand: 0, cx: 365, product: 730, science: 0, equipment: 365, event: 365,
+  inventory: 365, ops: 365, trailer: 365, excellence: 365, leadership: 0, philosophy: 0,
 };
 export const certExpiryDays = (key: string) => CERT_EXPIRY_DAYS[key] ?? 0;
 
