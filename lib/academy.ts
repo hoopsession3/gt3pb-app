@@ -9,7 +9,29 @@
 // Nature Aid (coconut hydration) contains raw honey — disclose it.
 
 export type Role = "founder" | "admin" | "event_manager" | "operator" | "staff" | "contractor";
-export type Section = "welcome" | "brand" | "cx" | "product" | "nutrition" | "ops" | "cookbook";
+// The GT3 Academy is built as a university — phases that take someone from zero to "would make the
+// same call Ryan would." Existing keys are kept; new phases extend them. Order + labels live in SECTIONS.
+export type Section =
+  | "welcome" | "brand" | "nutrition" | "product" | "equipment"
+  | "cx" | "ops" | "excellence" | "leadership" | "philosophy"
+  | "playbook" | "cookbook";
+
+export interface SectionMeta { key: Section; phase: string; label: string; blurb: string }
+export const SECTIONS: SectionMeta[] = [
+  { key: "welcome",    phase: "Phase 1",  label: "Welcome to GT3",        blurb: "Who we are, why GT3 exists, and why the details matter." },
+  { key: "brand",      phase: "Phase 2",  label: "Brand DNA",             blurb: "The standard we never break — Pure Signal. No Noise." },
+  { key: "nutrition",  phase: "Phase 3",  label: "The Science",           blurb: "Enough to educate a guest — never to overwhelm them." },
+  { key: "product",    phase: "Phase 4",  label: "Product Mastery",       blurb: "Every product, ratio, note, and recommendation." },
+  { key: "equipment",  phase: "Phase 5",  label: "Equipment Mastery",     blurb: "Run, clean, and troubleshoot every system in the field." },
+  { key: "cx",         phase: "Phase 6",  label: "Hospitality Excellence",blurb: "Four-Seasons service at a performance bar." },
+  { key: "ops",        phase: "Phase 7",  label: "Event Operations",      blurb: "Open, run, and break down a flawless service." },
+  { key: "excellence", phase: "Phase 8",  label: "Operational Excellence",blurb: "Checklists, par, waste, cost, and the numbers." },
+  { key: "leadership", phase: "Phase 9",  label: "Leadership",            blurb: "Think and decide like an owner. Steward the brand." },
+  { key: "philosophy", phase: "Phase 10", label: "GT3 Philosophy",        blurb: "How to think — so you can solve what no SOP covered." },
+  { key: "playbook",   phase: "Playbook", label: "The GT3 Playbook",      blurb: "Why every major decision was made, not just what it was." },
+  { key: "cookbook",   phase: "Reference",label: "Cookbook",              blurb: "The recipes, ratios, and specs." },
+];
+export const sectionMeta = (k: Section): SectionMeta => SECTIONS.find((s) => s.key === k) ?? { key: k, phase: "", label: k, blurb: "" };
 
 export const ROLES: { key: Role; label: string; blurb: string }[] = [
   { key: "founder", label: "Founder", blurb: "Owns the brand and the standard. Sees everything." },
@@ -22,6 +44,7 @@ export const ROLES: { key: Role; label: string; blurb: string }[] = [
 
 export interface QuizQ { q: string; options: string[]; correct: number; why?: string }
 export interface ModuleSection { h: string; p: string }
+export interface Scenario { situation: string; doThis: string }
 export interface Module {
   slug: string;
   section: Section;
@@ -29,6 +52,12 @@ export interface Module {
   summary: string;
   estMin: number;
   body: ModuleSection[];
+  // Academy Standards — every lesson earns the guest's trust the same way.
+  whyItMatters?: string;          // the stakes, in one breath
+  objectives?: string[];          // what you'll be able to do after this
+  mistakes?: string[];            // the common ways this goes wrong
+  founderInsight?: string;        // Ryan's voice — the why behind the standard
+  scenarios?: Scenario[];         // "a guest does X → you do Y"
   quiz?: QuizQ[];
   pass?: number; // % needed to pass (default 80)
 }
@@ -174,6 +203,228 @@ export const MODULES: Module[] = [
     quiz: [
       { q: "A trailer activation usually requires…", options: ["Nothing extra", "More power and a COI naming the venue as additional insured", "Only one person"], correct: 1 },
       { q: "At trailer scale you should…", options: ["Have one person do everything", "Split roles: line, restock, lead", "Skip the roster"], correct: 1 },
+    ],
+  },
+
+  // ═══════════════ Phase 3 — The Science ═══════════════
+  {
+    slug: "coffee-science", section: "nutrition", title: "Coffee Science — why cold extraction tastes the way it does", estMin: 12,
+    summary: "The real chemistry behind cold extraction, single-origin, and mineral water — enough to explain it honestly.",
+    whyItMatters: "A guest asking 'why is this $7 and not $2' is really asking 'what am I tasting?' If you can answer with the actual science, calmly and without hype, the price explains itself and they trust everything else you say.",
+    objectives: ["Explain in one breath why cold extraction is smoother than hot", "Say what 'single-origin' and '1:13' actually mean", "Describe why we use mineral water — without claiming a health benefit"],
+    body: [
+      { h: "Hot vs. cold is a chemistry difference, not a temperature gimmick", p: "Heat is a solvent accelerator. Brewing hot pulls coffee's oils, acids, and bitter compounds out fast — including the harsher ones. Cold water extracts the same coffee slowly over ~18 hours, pulling far less of the acidic and bitter compounds. The result is naturally lower in perceived acidity and bitterness — rounder, smoother — without adding anything. That smoothness is extracted, not sweetened." },
+      { h: "Time and ratio are the recipe", p: "Our spec is 1:13 — one part coffee to thirteen parts water by weight — cold-extracted ~18 hours, then filtered. Ratio sets strength; time sets how complete the extraction is. Under-extract (too short / too coarse / too little coffee) and it tastes weak and sour. Over-extract (too long / too fine) and bitterness creeps back. The whole point of a spec is that every batch lands in the same place." },
+      { h: "Single-origin means traceable, not fancy", p: "Single-origin means the beans come from one place, not a blend of mystery lots. It lets us point to where it's from and keep the flavor consistent batch to batch. We pair it with organic sourcing because it's the standard we chose — say 'organic, single-origin, cold-extracted over hours,' not 'healthier than theirs.'" },
+      { h: "Mineral water — taste first", p: "Water is ~98% of the cup, so the water is part of the recipe. Minerals in the water interact with extraction and mouthfeel; we use mineral water (Mountain Valley Spring Water on spec) because it gives a cleaner, rounder result we can repeat. Frame it as taste and consistency. Do NOT claim a health benefit from the water." },
+      { h: "Caffeine — know the honest number", p: "Rise, Flow, and Dusk share one base and the SAME caffeine — about 210 mg per 10 oz (estimated until lab-verified). Cold brew is often higher in caffeine than people expect because of the long extraction and ratio. If a guest is caffeine-sensitive, tell them the real number and steer them to Nature Aid or the Coconut Shake." },
+    ],
+    mistakes: ["Saying cold brew is 'less acidic for your stomach' — that's a health claim; say 'lower in perceived acidity, smoother'", "Guessing the caffeine number — quote ~210 mg/10 oz (estimated) or say you'll confirm", "Calling it 'healthier' than gas-station coffee instead of describing the process"],
+    founderInsight: "I didn't pick cold extraction because it's trendy. I picked it because when you taste the difference, you stop needing me to sell it. The science is just the honest version of 'try it.'",
+    scenarios: [
+      { situation: "Guest: 'Why is cold brew stronger? Isn't cold weaker?'", doThis: "'Opposite — it steeps ~18 hours at our 1:13 ratio, so it actually pulls more caffeine than a quick hot cup. It just tastes smoother because cold water leaves the bitter stuff behind.'" },
+      { situation: "Guest: 'Is this less acidic? My stomach…'", doThis: "Stay honest: 'It's lower in perceived acidity and smoother because of how it's brewed. I can't make a stomach claim, but a lot of people find it easy-drinking.'" },
+    ],
+    quiz: [
+      { q: "Why is cold-extracted coffee smoother?", options: ["We add a smoothing agent", "Cold water pulls fewer bitter/acidic compounds over a long, slow extraction", "It's brewed hot then chilled"], correct: 1, why: "Smoothness is extracted, not added." },
+      { q: "Our spec is…", options: ["1:13, ~18-hr cold extraction", "1:5, 1-hour hot brew", "Instant over ice"], correct: 0 },
+      { q: "A guest asks if the mineral water is healthier. You…", options: ["Say yes, it detoxes you", "Talk taste + consistency, make no health claim", "Change the subject"], correct: 1, why: "Water is about taste and repeatability — never a health claim." },
+    ],
+  },
+  {
+    slug: "functional-ingredients", section: "nutrition", title: "Functional Ingredients — the why behind every addition (claim-safe)", estMin: 11,
+    summary: "Coconut water, electrolytes, cacao, spice, maple, bone broth — what each one is and how to talk about it without inventing a benefit.",
+    whyItMatters: "Every ingredient on our menu is there on purpose. If you know the real reason it exists, you can educate a guest in a sentence — and you'll never get cornered into a claim we can't back.",
+    objectives: ["Name the real reason each functional ingredient is on the menu", "Describe a benefit as 'what it is / how people use it,' not a cure", "Disclose allergens (raw honey, dairy) every time"],
+    body: [
+      { h: "The one rule that governs all of this", p: "We describe ingredients and process, never physiological or comparative health claims. 'Coconut water has naturally occurring electrolytes' is fine. 'This rehydrates you faster than a sports drink' is not — that's a comparative claim we haven't tested. When in doubt, describe what it is and how people use it, and say you'll confirm anything you're unsure of." },
+      { h: "Coconut water & electrolytes (Nature Aid, Coconut Shake)", p: "Coconut water naturally contains electrolytes — minerals like potassium and sodium that the body uses for hydration and nerve/muscle function. We use young coconut water + coconut meat for body. Nature Aid adds a measured amount of RAW HONEY as the only sweetener — always disclose the honey (allergen + not for infants). Talk about it as 'natural hydration,' not a medical rehydration claim." },
+      { h: "Cacao nibs (Flow)", p: "Organic cacao nibs are infused into the cold brew. Cacao brings chocolate aroma and naturally contains theobromine — a gentle, longer compound that pairs with caffeine for a steadier feel. Say 'cacao for a smooth, sustained focus,' not 'boosts your metabolism.'" },
+      { h: "Spice (Dusk: cinnamon + cardamom)", p: "Ceylon cinnamon and green cardamom are infused for warmth and aroma — an evening-leaning, lower-noise flavor. It's a flavor story, not a health story." },
+      { h: "Real maple & salt (Salted Maple)", p: "Real maple is the sweetener and a pinch of salt balances it — that's culinary contrast, not a 'natural sugar is healthy' claim. Maple-forward, never cloying." },
+      { h: "Bone broth — protein & amino acids (Fuel)", p: "Slow-simmered from pasture-raised bones, bone broth naturally contains protein and amino acids (like collagen-derived ones) and is served hot as a savory option. Describe it as 'a warm, savory, protein-forward option' — don't promise joint or gut outcomes." },
+    ],
+    mistakes: ["Forgetting to disclose the raw honey in Nature Aid", "Saying coconut water 'hydrates faster than Gatorade' (untested comparative claim)", "Calling bone broth a gut-health cure instead of 'protein-forward and savory'"],
+    founderInsight: "Functional doesn't mean we make medical promises. It means every ingredient earns its place for a real reason. If the reason is just 'it tastes good,' say that — that's still a great reason.",
+    scenarios: [
+      { situation: "Guest with a nut/coconut allergy eyeing Nature Aid", doThis: "Flag it directly: 'Heads up — Nature Aid is coconut-based and has raw honey. Want me to point you to Rise or Dusk instead?'" },
+      { situation: "Guest: 'Does the cacao give me energy?'", doThis: "'It's got natural compounds that pair nicely with the cold brew for a steady focus — most people like Flow for a smooth, sustained lift.'" },
+    ],
+    quiz: [
+      { q: "Which is a safe way to describe coconut water?", options: ["'Rehydrates you faster than sports drinks'", "'Naturally contains electrolytes like potassium'", "'Cures dehydration'"], correct: 1 },
+      { q: "Nature Aid contains raw honey. You…", options: ["Mention it only if asked", "Always disclose it (allergen, not for infants)", "Leave it off the description"], correct: 1, why: "Always disclose allergens." },
+      { q: "Bone broth is best described as…", options: ["A gut-healing treatment", "A warm, savory, protein-forward option", "A weight-loss drink"], correct: 1 },
+    ],
+  },
+
+  // ═══════════════ Phase 5 — Equipment Mastery ═══════════════
+  {
+    slug: "nitro-mastery", section: "equipment", title: "Nitro System Mastery — pour a perfect cascade, fix a bad one", estMin: 12,
+    summary: "How the nitro system works, how to pour it right, and how to diagnose a flat or wild pour in the field.",
+    whyItMatters: "Nitro is the showpiece — the cascade is half the product. A flat, fizzy, or foamy pour in front of a line tells the guest we're amateurs. Knowing the system means you fix it in 60 seconds instead of pulling it off the menu.",
+    objectives: ["Explain why we use pure nitrogen, not CO₂", "Pour a clean cascade with a tight head", "Diagnose the three most common bad pours"],
+    body: [
+      { h: "Pure nitrogen, not CO₂ — and why it matters", p: "We run PURE NITROGEN (N₂), not CO₂. Nitrogen is far less soluble in liquid, so it comes out as tiny bubbles that create the signature cascade and creamy head — without the sharp carbonated 'fizz' and acidity that CO₂ adds. Using a CO₂ tank or a mixed-gas tank by mistake will ruin the pour and the taste. Always confirm the cylinder is N₂." },
+      { h: "The chain, end to end", p: "N₂ cylinder → regulator (sets working pressure) → gas line → keg of cold brew → liquid line → stout faucet with a restrictor plate. The restrictor plate is the small disc with tiny holes behind the spout — forcing the beer through it is what breaks the nitrogen into that fine cascade. Keep the keg cold and at the right pressure; warm or wrong-pressure kegs pour badly." },
+      { h: "How to pour", p: "Open the faucet fully (don't crack it half-open), pour straight down the center, no ice. Let it cascade and settle into a tight, creamy head before you hand it over. Presentation is part of the product — a settled glass beats a rushed one." },
+      { h: "Daily + weekly care", p: "The #1 cause of a flat, no-cascade pour is a clogged restrictor plate. DAILY in service, pull the spout and flush the disc with hot water. WEEKLY, take the faucet apart, soak the parts in food-safe beer-line cleaner, clear every tiny hole in the disc with the brush/pin, rinse very well, reassemble, and pour a test glass." },
+    ],
+    mistakes: ["Mistaking a CO₂ or mixed-gas tank for N₂ — always confirm pure nitrogen", "Cracking the faucet half-open (kills the cascade) instead of opening it fully", "Letting the restrictor disc clog because daily flushing got skipped", "Serving a warm keg and blaming the gas"],
+    founderInsight: "The cascade is a promise that we sweat the details. If it pours flat, we don't serve it and apologize for it — we fix it. A bad nitro pour is never 'good enough.'",
+    scenarios: [
+      { situation: "Flat pour, no cascade, mid-rush", doThis: "Most likely a clogged restrictor or low pressure. Pull the spout and flush the disc with hot water; check the regulator is at spec and the keg is cold. Re-pour a test before serving." },
+      { situation: "Wild, foamy, all-head pour", doThis: "Usually warm keg or pressure too high. Lower the pressure toward spec and let the keg cool fully; foamy = gas breaking out too early." },
+    ],
+    quiz: [
+      { q: "GT3 nitro uses…", options: ["CO₂", "Pure nitrogen (N₂)", "Mixed beer gas"], correct: 1, why: "Pure N₂ gives the fine cascade without CO₂'s fizz." },
+      { q: "The #1 cause of a flat nitro pour is…", options: ["The glass", "A clogged restrictor disc / low pressure", "Too much ice"], correct: 1 },
+      { q: "A wild, foamy pour usually means…", options: ["Keg too cold", "Warm keg or pressure too high", "Faucet too clean"], correct: 1 },
+    ],
+  },
+  {
+    slug: "coldbrew-power-mastery", section: "equipment", title: "Cold-Brew, Grinder & Power — keep the line running off-grid", estMin: 11,
+    summary: "The grinder, the brewing vessels, and the power chain (EcoFlow / generator) — run them, clean them, and never go dark.",
+    whyItMatters: "Everything we serve starts at the grinder and runs on power we bring ourselves. A wrong grind ruins a whole batch; a tripped breaker stops the whole bar. Knowing these systems is the difference between a hiccup and a dead service.",
+    objectives: ["Grind to the cold-brew spec and care for the burrs", "Clean and sanitize a brewing vessel correctly", "Stage power so you never trip a breaker mid-rush"],
+    body: [
+      { h: "Grinder — coarse and clean", p: "Cold brew wants a COARSE, even grind (think coarse sea salt). Too fine over-extracts and clogs filters; too coarse under-extracts and tastes weak. The burrs are a consumable: dry-brush only, NEVER wash with water (steel burrs rust), and don't oil them. Once a month run cleaning tablets through and re-season with a little coffee." },
+      { h: "Brewing vessels — the spec lives here", p: "Toddy (2.5 gal, filter bag) and the Cold Brew Avenue vessel (~5 gal, basket + tap) are where the 1:13, ~18-hr spec happens. Clean every use; deep-clean + sanitize on cadence with a no-rinse food-safe sanitizer (Star San — no-rinse means don't rinse it off). Watch tap seals and basket fit; a bad seal drips your yield onto the floor." },
+      { h: "Power — bring your own, stage your loads", p: "Off-grid, the EcoFlow Delta Pro (and the generator on the trailer) is the bar's heart. The lesson from the field: a generator carries the running watts PLUS the biggest startup surge. Motors and heating elements (water heater, AC, blender, ice maker) spike 2–4× on startup. Never bring two big draws up at once — stagger them — or a startup surge trips the breaker and the bar goes dark." },
+      { h: "If the power drops", p: "Don't panic-flip everything back on at once (that re-trips it). Shed the big loads, bring the generator/EcoFlow back up, then add appliances ONE at a time, biggest last. Keep the kegerator and cold storage prioritized so the product stays safe and cold." },
+    ],
+    mistakes: ["Washing the grinder burrs with water (they rust) instead of dry-brushing", "Rinsing off no-rinse sanitizer", "Starting the water heater and AC at the same instant and tripping the generator", "Re-energizing everything at once after a trip"],
+    founderInsight: "We chose to be self-sufficient on power so a venue's bad outlet can never end our day. That only works if the crew understands the load. Respect the surge and you'll never go dark.",
+    scenarios: [
+      { situation: "Breaker trips when a second appliance kicks on", doThis: "Classic surge overload. Shed loads, restore power, then bring appliances up one at a time, biggest last. If it keeps tripping, you're over the generator's capacity — run fewer big draws at once." },
+      { situation: "Cold brew tastes weak across a whole batch", doThis: "Check grind (too coarse?), ratio (1:13?), and that it got the full ~18 hrs. One of those three is almost always the cause." },
+    ],
+    quiz: [
+      { q: "Cold brew needs what grind?", options: ["Espresso-fine", "Coarse and even", "Powder"], correct: 1 },
+      { q: "You clean the grinder burrs by…", options: ["Washing with hot soapy water", "Dry-brushing only — never water", "Oiling them"], correct: 1, why: "Water rusts steel burrs." },
+      { q: "After a generator trips, you…", options: ["Flip everything back on at once", "Shed loads, restore, then add appliances one at a time", "Give up and go home"], correct: 1 },
+    ],
+  },
+
+  // ═══════════════ Phase 6 — Hospitality Excellence ═══════════════
+  {
+    slug: "hospitality-excellence", section: "cx", title: "Hospitality Excellence — Four-Seasons service at a beverage bar", estMin: 12,
+    summary: "Greet, read, educate, and create a memorable moment — luxury hospitality without arrogance.",
+    whyItMatters: "Product gets a guest to try us once. Hospitality is what makes them come back and bring a friend. At a busy event you ARE the brand — the same warmth, the same knowledge, every single guest, whether it's the first or the four-hundredth.",
+    objectives: ["Run the greet → read → educate → close flow", "Make a confident recommendation in one sentence", "Turn a line into an experience, not a wait"],
+    body: [
+      { h: "Presence first", p: "Four Seasons hospitality isn't fancy words — it's undivided attention. Look up, make eye contact, smile, and greet before they reach the counter. A guest who feels seen forgives a wait; a guest who feels processed remembers it. Luxury without arrogance: we're warm and confident, never stiff or superior." },
+      { h: "Read the guest in five seconds", p: "Are they in a hurry or browsing? New or a regular? Confident or overwhelmed by the menu? Match them: the rushed runner wants 'Rise, our cold brew, want it over ice?' — fast and decisive. The curious browser wants a 15-second story. Reading personalities is the skill that makes the same menu feel personal." },
+      { h: "Educate without preaching", p: "Lead with the one-liner: name, what it is, why it exists — in plain language. 'Flow is our cold brew infused with cacao, smooth and steady.' Stop there unless they want more. Nobody came for a lecture; teach only as much as the guest invited." },
+      { h: "Make the call for them", p: "An overwhelmed guest doesn't want ten options — they want your pick. 'If it's your first time, I'd start with Rise.' A confident recommendation is a gift, not a sale. Then upsell as care, not pressure: 'Want a Nature Aid to hydrate alongside it?'" },
+      { h: "The memorable moment", p: "The settle on a nitro pour, remembering a regular's order, a genuine 'enjoy the rest of your day' — small, real touches are what they tell a friend about. The goal: every guest leaves having had a better minute than they expected." },
+    ],
+    mistakes: ["Talking AT the guest with every nutrient instead of the one-liner", "Treating the rushed guest and the curious guest the same way", "Letting a line feel like a DMV — no eye contact, no warmth", "Upselling as pressure instead of as care"],
+    founderInsight: "I'd rather a guest remember how we made them feel than the exact caffeine number. Get the feeling right and they trust the rest. That's the whole game.",
+    scenarios: [
+      { situation: "Long line, guest looks impatient", doThis: "Acknowledge them early with eye contact and 'I've got you in just a sec.' Then be fast and decisive — recommend, don't deliberate. Felt-seen beats fast." },
+      { situation: "Guest is overwhelmed: 'I don't know, what's good?'", doThis: "Make the call: 'First time? Start with Rise — our smooth cold brew over ice. You'll know in one sip.' Confidence relaxes them." },
+    ],
+    quiz: [
+      { q: "Best response to an overwhelmed guest?", options: ["List the whole menu", "Make a confident one-line recommendation", "Tell them to decide and come back"], correct: 1 },
+      { q: "'Luxury without arrogance' means…", options: ["Stiff and formal", "Warm, confident, attentive — never superior", "Upsell everything hard"], correct: 1 },
+      { q: "You educate a guest by…", options: ["Reciting every nutrient", "Leading with the one-liner, more only if they want it", "Avoiding questions"], correct: 1 },
+    ],
+  },
+
+  // ═══════════════ Phase 8 — Operational Excellence ═══════════════
+  {
+    slug: "operating-cadence", section: "excellence", title: "The Operating Cadence — checklists, par, waste & the numbers", estMin: 11,
+    summary: "Daily, weekly, and monthly rhythms that keep quality and margin from drifting — and the few numbers every operator watches.",
+    whyItMatters: "Consistency isn't a vibe — it's a cadence. The reason every visit is the same is that someone runs the same checklist every day and watches the same numbers every week. Skip the rhythm and quality and margin both quietly erode.",
+    objectives: ["Run the open/close checklist without missing a safety-critical step", "Set and hold par levels so you never run dry or over-buy", "Name the handful of numbers that tell you if the day worked"],
+    body: [
+      { h: "Daily — open and close the same way every time", p: "Open: power up and stage loads, temps checked on cold storage, nitro test-poured, stations stocked to par, POS + reader tested in offline mode, hands + surfaces clean. Close: reconcile the day, break down and clean every contact surface, flush the nitro disc, log what ran low, secure product cold. The checklist exists so the tired end-of-day version of you doesn't skip the step that matters." },
+      { h: "Weekly — deeper clean + restock to par", p: "Weekly: deep-clean the faucet/restrictor, sanitize vessels, inspect seals and O-rings, count inventory against par, place orders for what's below reorder point, and review the week's incidents so the same problem doesn't repeat." },
+      { h: "Monthly — audit + cadence gear", p: "Monthly: grinder deep clean, equipment maintenance cadences (the asset maintenance log tells you what's due), a real inventory audit, and a look at waste — what got thrown out and why." },
+      { h: "Par, waste & cost — the discipline", p: "Par level = the amount of each item you keep on hand so you never run out but never over-stock. Order back to par, not by guesswork. Waste is margin on the floor: track what's dumped (expired, over-batched, spilled) and fix the cause. Cost control is choosing the standard ingredient AND not wasting it — both at once." },
+      { h: "The numbers that matter", p: "You don't need a finance degree — you need a few signals: did we hit our sales for the event, what was our best/worst seller, did we run anything out (lost sales), what did we waste, and did any incident cost us time or product. Those five tell you if the day worked." },
+    ],
+    mistakes: ["Treating the checklist as optional when you're tired (that's exactly when it's load-bearing)", "Ordering by gut instead of back to par", "Ignoring waste because 'it's just a little' — it's margin", "Not reviewing incidents, so the same failure repeats"],
+    founderInsight: "Systems are how the standard survives a bad day. On a great day anyone looks good; the cadence is what makes the off day still feel like GT3.",
+    scenarios: [
+      { situation: "You keep running out of bottles mid-event", doThis: "Your par is too low or you didn't stock to it. Raise the par for that item and confirm the open checklist stocks to par, not 'looks like enough.'" },
+      { situation: "End of day, exhausted, tempted to skip the nitro flush", doThis: "Do it anyway — that's the whole point of the checklist. A skipped flush is tomorrow's flat pour in front of a line." },
+    ],
+    quiz: [
+      { q: "A 'par level' is…", options: ["A score", "The on-hand amount that prevents running out without over-stocking", "A cleaning step"], correct: 1 },
+      { q: "You should order…", options: ["By gut feel", "Back to par, based on the count", "Only when you're fully out"], correct: 1 },
+      { q: "Why run the checklist when tired?", options: ["You shouldn't", "That's exactly when steps get skipped — it's load-bearing then", "To look busy"], correct: 1 },
+    ],
+  },
+
+  // ═══════════════ Phase 9 — Leadership ═══════════════
+  {
+    slug: "think-like-owner", section: "leadership", title: "Think Like an Owner — decisions, accountability, brand stewardship", estMin: 10,
+    summary: "How to make the call the founder would make when no SOP covers it, own the outcome, and protect the brand.",
+    whyItMatters: "The academy's whole test is: 'If Ryan wasn't here, would this person make the same decision?' Leadership is what closes that gap — making owner-grade calls under pressure and being accountable for them.",
+    objectives: ["Apply the GT3 decision filter to a judgment call", "Own a mistake the way an owner does", "Train someone else to the standard"],
+    body: [
+      { h: "The decision filter", p: "When no SOP covers it, run the call through three questions in order: (1) Is it SAFE and honest? (food safety, no false claim — non-negotiable). (2) Does it protect the GUEST experience and the brand standard? (3) Is it sustainable for the business (cost, time, repeatable)? If a choice fails #1 it's dead no matter how good for #3. That ordering IS the brand." },
+      { h: "Default to the standard, not the shortcut", p: "Under pressure the tempting move is the shortcut — serve the flat pour, skip the disclosure, stretch the claim. An owner eats the small cost now to protect the standard, because the standard is the asset. 'Would I be proud to hand this to a stranger and tell them what's in it?' If not, remake it." },
+      { h: "Accountability", p: "Owners don't hide a miss — they surface it fast, fix it, and prevent the repeat. 'I poured a bad batch, I dumped it, here's what I changed' is exactly right. The incident log and the recap exist so a mistake becomes a lesson the whole team gets, not a secret." },
+      { h: "Stewardship — you carry the brand", p: "At an event you're not 'working for' GT3, you ARE GT3 to every guest. Brand stewardship means the standard doesn't relax because the founder isn't watching. Train the next person to that bar: show, explain the why, watch them do it, give the real feedback." },
+    ],
+    mistakes: ["Optimizing for speed/cost (#3) over safety/honesty (#1)", "Hiding a mistake instead of surfacing and fixing it", "Letting the standard slip because no one's watching", "Training someone on the 'what' without the 'why' — so they can't adapt"],
+    founderInsight: "I don't need clones. I need people who hold the same standard I do, so that when something happens I didn't plan for, they protect the brand the way I would. That's the only way GT3 scales past me.",
+    scenarios: [
+      { situation: "Slammed, and a batch is slightly off-spec. Serve it or dump it?", doThis: "Dump it. Off-spec fails the brand-standard filter, and 'we were busy' isn't a reason a guest accepts. Eat the small loss; protect the asset." },
+      { situation: "You made a real mistake at an event", doThis: "Surface it immediately, fix what you can now, log it, and say what you'll change. Owners make mistakes recoverable by being fast and honest about them." },
+    ],
+    quiz: [
+      { q: "First question in the GT3 decision filter?", options: ["Is it cheapest?", "Is it safe and honest?", "Is it fastest?"], correct: 1, why: "Safety + honesty is non-negotiable and comes first." },
+      { q: "A slightly off-spec batch during a rush should be…", options: ["Served — we're busy", "Remade/dumped — the standard is the asset", "Discounted"], correct: 1 },
+      { q: "Owning a mistake looks like…", options: ["Hiding it", "Surfacing it fast, fixing it, preventing the repeat", "Blaming the gear"], correct: 1 },
+    ],
+  },
+
+  // ═══════════════ Phase 10 — GT3 Philosophy ═══════════════
+  {
+    slug: "how-gt3-thinks", section: "philosophy", title: "How GT3 Thinks — the principles you solve problems with", estMin: 9,
+    summary: "The handful of principles that, once you hold them, let you handle anything the manual didn't cover.",
+    whyItMatters: "We can't write an SOP for every situation. The point of philosophy is that if you understand HOW we think, you can make the right call in a moment we never anticipated — which is most of the real ones.",
+    objectives: ["State the GT3 principles in your own words", "Use a principle to resolve a situation no SOP covered"],
+    body: [
+      { h: "Pure Signal. No Noise.", p: "Signal is measured substance — real ingredients, honest process, consistent quality. Noise is hype, additives, shortcuts, and unsupported claims. Every decision adds signal or noise. When unsure, ask which one you're about to add." },
+      { h: "Consistency is the product", p: "The thing we actually sell is the SAME experience every time. A brilliant one-off pour that can't be repeated is worse than a good one that always lands. Repeatability beats heroics." },
+      { h: "Honesty is a feature, not a constraint", p: "We never need to invent a benefit because the real story is good enough. 'I don't know, I'll confirm' builds more trust than a confident guess. The day we'd have to lie to sell it is the day we change the product, not the pitch." },
+      { h: "Details are the message", p: "The settle on a pour, the clean counter, the disclosed allergen — guests can't always name why we feel premium, but they feel it. The details ARE the brand telling them we care." },
+      { h: "Teach the why, and people self-correct", p: "Rules without reasons break the moment they don't fit. Reasons travel — give someone the why and they'll make the right call in a situation you never listed." },
+    ],
+    founderInsight: "If I did my job, you don't memorize GT3 — you think in it. Then you don't need me in the room, because the principle is.",
+    scenarios: [
+      { situation: "A request comes up that no rule covers", doThis: "Run it through the principles: does it add signal or noise? Is it honest? Is it repeatable? The right answer is usually obvious once you ask which principle applies." },
+    ],
+    quiz: [
+      { q: "'Noise' in Pure Signal. No Noise. is…", options: ["Loud events", "Hype, additives, shortcuts, unsupported claims", "Talking to guests"], correct: 1 },
+      { q: "A repeatable good pour vs. a brilliant one-off?", options: ["The one-off — wow them", "The repeatable one — consistency is the product", "Neither matters"], correct: 1 },
+      { q: "When no SOP covers a situation, you…", options: ["Freeze", "Apply the principles (signal? honest? repeatable?)", "Guess confidently"], correct: 1 },
+    ],
+  },
+
+  // ═══════════════ The GT3 Playbook ═══════════════
+  {
+    slug: "founders-playbook", section: "playbook", title: "The Founder's Playbook — why we built it this way", estMin: 10,
+    summary: "The institutional memory: the reasoning behind GT3's biggest decisions, so the brand is bigger than any one founder.",
+    whyItMatters: "Most of what makes GT3 GT3 is invisible — it's the WHY behind a hundred choices. Capture that and the brand can outlive and out-scale its founder. Lose it and a new operator re-litigates settled questions and slowly drifts off-brand.",
+    objectives: ["Recall the reasoning behind a core GT3 decision", "Avoid re-opening a question the founder already settled — and know which ones are open"],
+    body: [
+      { h: "Why cold extraction (not hot, not nitro-only)", p: "We built the whole base on cold extraction because the smoothness is real and repeatable, and it gives us one base (Rise/Flow/Dusk/Nitro all share it) — simpler to run, consistent to serve. One great base beats five mediocre brewers." },
+      { h: "Why one base and the same caffeine across Rise/Flow/Dusk", p: "Three flavors, one spec, same ~210 mg/10 oz. It keeps batching simple, training simple, and the honest answer simple — a guest can choose by flavor, not by guessing strength. Consistency over complexity." },
+      { h: "Why 'estimated until lab-verified' on nutrition", p: "We'd rather under-claim and be trusted than over-claim and get caught. The Risk Register made this a hard rule: no unsupported physiological or comparative claims, ever. Trust compounds; a single caught exaggeration doesn't." },
+      { h: "Why pure nitrogen, self-sufficient power, and our own water spec", p: "Each is a 'control the variable' decision: N₂ for the pour we want, our own power so a venue can't end our day, a named water spec so the cup is the same in any city. We pay more up front to remove the thing that would make us inconsistent." },
+      { h: "Why the app exists", p: "The GT3 app is this philosophy turned into systems — prep, run-of-show, inventory, brew schedule, incident log, and this Academy — so the standard runs even when the founder doesn't. The app is the brand's memory and nervous system." },
+      { h: "What's still open", p: "Some things are settled (the claim rule, the base, N₂). Some are still evolving — menu additions, pricing, new markets. Know the difference: don't re-open settled safety/brand questions, and bring genuine new ideas to leadership rather than quietly changing the standard on the floor." },
+    ],
+    founderInsight: "Write down WHY, not just what. The 'what' is easy to copy and easy to drift from. The 'why' is what lets someone new make the call I'd make — and improve on it without breaking it.",
+    quiz: [
+      { q: "Why do Rise/Flow/Dusk share one base + caffeine?", options: ["We ran out of beans", "Consistency over complexity — choose by flavor, not strength", "To confuse guests"], correct: 1 },
+      { q: "'Estimated until lab-verified' exists because…", options: ["We're lazy", "Under-claiming and being trusted beats over-claiming and getting caught", "It's required by law to say 'estimated'"], correct: 1 },
+      { q: "The point of writing the Playbook is to capture…", options: ["What decisions were made", "WHY decisions were made, so the brand outlives the founder", "Nothing important"], correct: 1 },
     ],
   },
 ];

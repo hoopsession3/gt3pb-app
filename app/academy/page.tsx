@@ -8,7 +8,7 @@ import SignIn from "@/components/SignIn";
 import { supabase } from "@/lib/supabase";
 import {
   PRODUCTS, CERTS, ROLES, READINESS, PASS_DEFAULT, ACKS, ackByKey, certExpiryDays,
-  moduleBySlug, certByKey, pathForRole, certEarned, requiredModules,
+  moduleBySlug, certByKey, pathForRole, certEarned, requiredModules, sectionMeta,
   type Module, type Product, type QuizQ, type Role, type Ack,
 } from "@/lib/academy";
 
@@ -16,10 +16,6 @@ type View = { k: "home" } | { k: "module"; slug: string } | { k: "product"; key:
 interface Assignment { target_type: string; target_key: string; due_at: string | null }
 const DAY = 86400000;
 
-const SECTION_LABEL: Record<string, string> = {
-  welcome: "Welcome", brand: "Brand", cx: "Customer experience",
-  product: "Product", nutrition: "Nutrition", ops: "Operations", cookbook: "Cookbook",
-};
 
 // The app's account roles (member/server/admin/owner) map onto Academy roles.
 // Event-manager and contractor are Academy-only paths until profiles carry them.
@@ -221,7 +217,7 @@ export default function AcademyPage() {
             <button key={m.slug} className={`ac-mod${done ? " done" : ""}`} onClick={() => setView({ k: "module", slug: m.slug })}>
               <span className="ac-mod-tick">{done ? "✓" : "○"}</span>
               <span className="ac-mod-main">
-                <span className="ac-mod-sec">{SECTION_LABEL[m.section]} · {m.estMin} min</span>
+                <span className="ac-mod-sec">{sectionMeta(m.section).label} · {m.estMin} min</span>
                 <span className="ac-mod-t">{m.title}</span>
               </span>
               {done && best != null && <span className="ac-mod-score">{best}%</span>}
@@ -265,11 +261,15 @@ function ModuleReader({ m, done, onBack, onComplete }: { m: Module; done: boolea
   const [quiz, setQuiz] = useState(false);
   return (
     <section className="screen academy">
-      <div className="toprow"><button className="ac-back" onClick={onBack}>‹ Academy</button><div className="eyb">{SECTION_LABEL[m.section]}</div></div>
+      <div className="toprow"><button className="ac-back" onClick={onBack}>‹ Academy</button><div className="eyb">{sectionMeta(m.section).label}</div></div>
       {!quiz ? (
         <>
           <h1 className="h-title" style={{ fontSize: 28 }}>{m.title}</h1>
           <div className="subm" style={{ marginTop: 8 }}>{m.estMin} min{done ? " · completed" : ""}</div>
+          {m.whyItMatters && <div className="ac-why"><span className="ac-why-k">Why it matters</span><p>{m.whyItMatters}</p></div>}
+          {m.objectives && m.objectives.length > 0 && (
+            <div className="ac-obj"><div className="ac-bh">By the end, you can…</div><ul>{m.objectives.map((o, i) => <li key={i}>{o}</li>)}</ul></div>
+          )}
           <div className="ac-body">
             {m.body.map((s, i) => (
               <div key={i} className="ac-bsec">
@@ -278,6 +278,15 @@ function ModuleReader({ m, done, onBack, onComplete }: { m: Module; done: boolea
               </div>
             ))}
           </div>
+          {m.mistakes && m.mistakes.length > 0 && (
+            <div className="ac-mistakes"><div className="ac-bh">⚠ Common mistakes</div><ul>{m.mistakes.map((x, i) => <li key={i}>{x}</li>)}</ul></div>
+          )}
+          {m.scenarios && m.scenarios.length > 0 && (
+            <div className="ac-scn"><div className="ac-bh">In the moment</div>{m.scenarios.map((s, i) => (
+              <div key={i} className="ac-scn-row"><div className="ac-scn-s">{s.situation}</div><div className="ac-scn-d">→ {s.doThis}</div></div>
+            ))}</div>
+          )}
+          {m.founderInsight && <div className="ac-founder"><span className="ac-founder-k">Founder’s note</span><p>“{m.founderInsight}”</p></div>}
           {m.quiz && m.quiz.length > 0 ? (
             <button className="handle" onClick={() => setQuiz(true)}>{done ? "Retake knowledge check" : "Take the knowledge check"}</button>
           ) : (

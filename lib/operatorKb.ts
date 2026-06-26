@@ -13,9 +13,13 @@ export function academyKnowledge(): string {
     return `## ${p.name} (${p.line}${p.price ? `, ${p.price}` : ""})\n  What: ${p.what}\n  Why: ${p.why}\n  Ingredients: ${p.ingredients.join(", ")}\n  Benefits: ${p.benefits.join(", ")}\n  Talking points: ${p.talking.join(" | ")}\n  FAQs: ${p.faqs.map((f) => `${f.q} — ${f.a}`).join(" | ")}${recipe}`;
   }).join("\n\n");
 
-  const mods = MODULES.map((m) =>
-    `## ${m.title}  [${m.section}]\n${m.summary}\n${m.body.map((b) => `  • ${b.h}: ${b.p}`).join("\n")}`
-  ).join("\n\n");
+  const mods = MODULES.map((m) => {
+    const why = m.whyItMatters ? `\n  WHY IT MATTERS: ${m.whyItMatters}` : "";
+    const mist = m.mistakes?.length ? `\n  COMMON MISTAKES: ${m.mistakes.join("; ")}` : "";
+    const ins = m.founderInsight ? `\n  FOUNDER: ${m.founderInsight}` : "";
+    const scn = m.scenarios?.length ? `\n  SCENARIOS: ${m.scenarios.map((s) => `${s.situation} → ${s.doThis}`).join(" | ")}` : "";
+    return `## ${m.title}  [${m.section}]\n${m.summary}${why}\n${m.body.map((b) => `  • ${b.h}: ${b.p}`).join("\n")}${mist}${scn}${ins}`;
+  }).join("\n\n");
 
   return `# PRODUCTS & RECIPES\n${prods}\n\n# BRAND, NUTRITION, CX & OPS (Academy modules)\n${mods}`;
 }
