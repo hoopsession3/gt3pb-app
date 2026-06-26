@@ -6,34 +6,52 @@ import { academyKnowledge } from "@/lib/operatorKb";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// Two sequential callClaude calls are possible (the empty-list retry below), so give the background
+// job headroom under the function cap — same ceiling the inspection agent uses.
+export const maxDuration = 120;
+
+const PREP_SYSTEM =
+  "You are the prep lead for GT3 Performance Bar, a mobile beverage truck. Build a COMPLETE, ready-to-work prep / to-do list for ONE specific event or truck stop. This is the crew's actual checklist for the day — it must stand on its own, so ALWAYS produce a full list (typically 10–18 items) that covers the whole operation end to end, even when little is known about the stop. Use the GT3 SOPs below and standard mobile-beverage-bar operations as your backbone, then TAILOR it with whatever specifics are provided: the event/stop config, the run of show, current INVENTORY, GEAR, the COMPLIANCE rules, and the crew's notes. " +
+  "Always include, in order: (1) a TIMELINE of time-blocked items from leave-home through teardown/depart — e.g. 'Leave by 8:30a — ~90 min drive + buffer', 'On site & set up by 10:30a', 'Service 11a–3p', 'Teardown & load out by 3:30p' (estimate sensible times from the start time / run of show; if no times are given, still lay out the sequence and say which times to confirm); then (2) Pack, (3) Stock/reorder, (4) Setup, (5) Service, (6) Compliance, (7) Travel, (8) Teardown. " +
+  "Flag any poured menu item whose stock is low / below reorder point / critical as a reorder task (critical if it would run out). Include the compliance items that apply. Honor the crew's notes — if they raise a concern, address it directly. " +
+  "The 'already_on_the_list' field is ONLY so you avoid proposing an EXACT duplicate of something already there — it is NOT a signal that the list is done. A short or empty existing list means you must build the whole thing. Keep labels short and imperative; give each a one-line 'why' that points to the data or SOP. Never invent health/nutrition claims or facts not present. Always answer with the prep_list tool.\n\n=== GT3 SOPs / KNOWLEDGE ===\n";
+
+// The crew's checklist must never come back empty. Below this many items we treat the answer as a
+// non-answer and retry once with a corrective nudge (the model occasionally says "looks covered"
+// despite the instruction, especially on a fresh stop with lots of gear already catalogued).
+const MIN_TASKS = 8;
 
 // Run the (slow, grounded) prep-list build in the background and write the result to the job row, so
 // the client polls instead of holding a long request open. Never throws — failures land as error.
 async function runPrep(jobId: string, fmt: any) {
   if (!supabaseAdmin) return;
   const touch = (patch: any) => supabaseAdmin!.from("agent_jobs").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", jobId);
-  try {
-    await touch({ status: "running" });
+  const ask = async (nudge?: string) => {
     const r = await callClaude({
       model: MODELS.sonnet, maxTokens: 1800, temperature: 0.2,
-      system:
-        "You are the prep lead for GT3 Performance Bar, a mobile beverage truck. Build a COMPLETE, ready-to-work prep / to-do list for ONE specific event or truck stop. This is the crew's actual checklist for the day — it must stand on its own, so ALWAYS produce a full list (typically 10–18 items) that covers the whole operation end to end, even when little is known about the stop. Use the GT3 SOPs below and standard mobile-beverage-bar operations as your backbone, then TAILOR it with whatever specifics are provided: the event/stop config, the run of show, current INVENTORY, GEAR, the COMPLIANCE rules, and the crew's notes. " +
-        "Always include, in order: (1) a TIMELINE of time-blocked items from leave-home through teardown/depart — e.g. 'Leave by 8:30a — ~90 min drive + buffer', 'On site & set up by 10:30a', 'Service 11a–3p', 'Teardown & load out by 3:30p' (estimate sensible times from the start time / run of show; if no times are given, still lay out the sequence and say which times to confirm); then (2) Pack, (3) Stock/reorder, (4) Setup, (5) Service, (6) Compliance, (7) Travel, (8) Teardown. " +
-        "Flag any poured menu item whose stock is low / below reorder point / critical as a reorder task (critical if it would run out). Include the compliance items that apply. Honor the crew's notes — if they raise a concern, address it directly. " +
-        "The 'already_on_the_list' field is ONLY so you avoid proposing an EXACT duplicate of something already there — it is NOT a signal that the list is done. A short or empty existing list means you must build the whole thing. Keep labels short and imperative; give each a one-line 'why' that points to the data or SOP. Never invent health/nutrition claims or facts not present. Always answer with the prep_list tool.\n\n=== GT3 SOPs / KNOWLEDGE ===\n" +
-        academyKnowledge().slice(0, 9000),
-      messages: [{ role: "user", content: `Build the prep list.\n\n${JSON.stringify(fmt)}` }],
+      system: PREP_SYSTEM + academyKnowledge().slice(0, 9000),
+      messages: [{ role: "user", content: `Build the prep list.\n\n${JSON.stringify(fmt)}${nudge ? `\n\n${nudge}` : ""}` }],
       tools: [TOOL],
       tool_choice: { type: "tool", name: "prep_list" },
     });
     const out: any = r.toolUses.find((t) => t.name === "prep_list")?.input ?? null;
-    if (!out) { await touch({ status: "error", error: "The prep agent returned nothing — try again." }); return; }
+    if (!out) return null;
     const tasks = (out.tasks ?? []).filter((t: any) => t?.label?.trim()).map((t: any) => ({
       label: String(t.label).slice(0, 300), section: SECTIONS.includes(t.section) ? t.section : "Prep",
       critical: !!t.critical, why: t.why ? String(t.why).slice(0, 200) : "",
     }));
-    await touch({ status: "done", result: { summary: out.summary ?? "", tasks } });
+    return { summary: out.summary ?? "", tasks };
+  };
+  try {
+    await touch({ status: "running" });
+    let res = await ask();
+    // Empty / near-empty floor: a real working list, every time. Retry once and keep the fuller result.
+    if (!res || res.tasks.length < MIN_TASKS) {
+      const retry = await ask("Your last answer had too few items to be a usable checklist. Produce the COMPLETE list NOW — at least 10 items: the time-blocked Timeline (leave-home → teardown) plus Pack, Stock/reorder, Setup, Service, Compliance, Travel, Teardown. This is a fresh stop with little prep done — do NOT say it looks covered or return an empty list.");
+      if (retry && (!res || retry.tasks.length > res.tasks.length)) res = retry;
+    }
+    if (!res) { await touch({ status: "error", error: "The prep agent returned nothing — try again." }); return; }
+    await touch({ status: "done", result: res });
   } catch (err: any) {
     await touch({ status: "error", error: String(err?.message ?? err).slice(0, 300) });
   }
@@ -124,6 +142,8 @@ export async function POST(req: Request) {
     const { data: s } = await supabaseAdmin.from("stops").select("name, location_text, address, note, notes, starts_at, menu_tier, status").eq("id", stopId).maybeSingle();
     if (!s) return NextResponse.json({ ok: false, error: "stop not found" }, { status: 404 });
     target = s; kind = "truck stop (on-the-ground ops)";
+    const { data: stopSched } = await supabaseAdmin.from("event_schedule_items").select("day_index, start_time, title, location").eq("stop_id", stopId).order("day_index").order("sort");
+    runOfShow = (stopSched ?? []).map((s: any) => `D${s.day_index} ${s.start_time ?? ""} ${s.title}${s.location ? ` @ ${s.location}` : ""}`);
   }
 
   // Compliance: an event keys off its state (+ universal); a stop has no state column, so use the
