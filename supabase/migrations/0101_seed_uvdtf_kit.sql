@@ -4,6 +4,10 @@
 -- workflow (heat); seeded too so all the gear is tracked. Idempotent (by name / summary).
 
 alter table public.asset_maintenance add column if not exists how_to text;
+-- the how-to log below uses kind='how_to'; extend the 0083 kind check to allow it.
+alter table public.asset_maintenance drop constraint if exists asset_maintenance_kind_check;
+alter table public.asset_maintenance add constraint asset_maintenance_kind_check
+  check (kind in ('service','repair','clean','inspect','calibrate','note','how_to'));
 
 -- ── gear (assets) ──
 insert into public.assets (name, make_model, brand, category, use_case, qty, notes)

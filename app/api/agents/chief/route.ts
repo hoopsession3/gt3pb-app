@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { staffFromRequest } from "@/lib/apiAuth";
+import { ownerFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 
@@ -50,7 +50,7 @@ const TOOL: ToolDef = {
 };
 
 export async function POST(req: Request) {
-  if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  if (!(await ownerFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   if (!anthropicEnabled()) return NextResponse.json({ ok: false, error: "AI not configured (set ANTHROPIC_API_KEY)" }, { status: 503 });
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
 
