@@ -21,6 +21,24 @@ const PREP_SYSTEM =
 // despite the instruction, especially on a fresh stop with lots of gear already catalogued).
 const MIN_TASKS = 8;
 
+// Deterministic standard run-of-day checklist for a mobile beverage bar — the floor the operator
+// always gets when the model under-delivers. `key` is a lowercase substring used to skip an item the
+// model already covered, so the graft never obviously duplicates real, tailored output.
+const BASELINE_TASKS: { key: string; label: string; section: string; critical: boolean; why: string }[] = [
+  { key: "leave", label: "Confirm leave-by time — drive + load-in buffer", section: "Timeline", critical: false, why: "Back-timed from service start." },
+  { key: "set up by", label: "On site & set up ~60 min before service", section: "Timeline", critical: false, why: "Time to level, plumb, and prime before doors." },
+  { key: "service", label: "Service window — pour & serve", section: "Timeline", critical: false, why: "The pour window itself." },
+  { key: "teardown", label: "Teardown & load out", section: "Timeline", critical: false, why: "Break down and pack out at the end." },
+  { key: "load the rig", label: "Load the rig — taps/kegerator, cups, ice, tools", section: "Pack", critical: false, why: "Core service gear." },
+  { key: "bottles", label: "Pack bottles + backups for the menu", section: "Pack", critical: false, why: "Bottled service + spares." },
+  { key: "reorder", label: "Confirm stock for every poured item; reorder anything low", section: "Stock / reorder", critical: true, why: "Don't run out mid-service." },
+  { key: "power/water", label: "Set up bar — power/water check, level, sanitize surfaces", section: "Setup", critical: false, why: "Health-code + a stable pour." },
+  { key: "pos", label: "Open: test POS/Square, prime taps, first-pour check", section: "Service", critical: false, why: "Catch issues before the first customer." },
+  { key: "permit", label: "Confirm permits + sanitation (handwash, gloves) for the jurisdiction", section: "Compliance", critical: true, why: "Required to operate." },
+  { key: "parking", label: "Confirm route + parking / load-in access", section: "Travel", critical: false, why: "Know where to pull in." },
+  { key: "count remaining", label: "Pack out — count remaining stock, clean, secure", section: "Teardown", critical: false, why: "Accurate carryover + clean gear." },
+];
+
 // Run the (slow, grounded) prep-list build in the background and write the result to the job row, so
 // the client polls instead of holding a long request open. Never throws — failures land as error.
 async function runPrep(jobId: string, fmt: any) {
@@ -47,10 +65,24 @@ async function runPrep(jobId: string, fmt: any) {
     let res = await ask();
     // Empty / near-empty floor: a real working list, every time. Retry once and keep the fuller result.
     if (!res || res.tasks.length < MIN_TASKS) {
-      const retry = await ask("Your last answer had too few items to be a usable checklist. Produce the COMPLETE list NOW — at least 10 items: the time-blocked Timeline (leave-home → teardown) plus Pack, Stock/reorder, Setup, Service, Compliance, Travel, Teardown. This is a fresh stop with little prep done — do NOT say it looks covered or return an empty list.");
+      const retry = await ask("Your last answer had too few items to be a usable checklist. Produce the COMPLETE list NOW — at least 10 items: the time-blocked Timeline (leave-home → teardown) plus Pack, Stock/reorder, Setup, Service, Compliance, Travel, Teardown. Do NOT say it looks covered or return an empty list.");
       if (retry && (!res || retry.tasks.length > res.tasks.length)) res = retry;
     }
-    if (!res) { await touch({ status: "error", error: "The prep agent returned nothing — try again." }); return; }
+    // HARD floor: if the model STILL under-delivers (it sometimes insists "looks covered"), graft a
+    // deterministic standard run-of-day checklist so the crew always leaves with a real working list.
+    // Grafted items are skipped when the model already covered that ground (keyword match).
+    if (!res) res = { summary: "", tasks: [] };
+    if (res.tasks.length < MIN_TASKS) {
+      const have = res.tasks.map((t: any) => String(t.label).toLowerCase());
+      for (const b of BASELINE_TASKS) {
+        if (res.tasks.length >= MIN_TASKS) break;
+        if (!have.some((h: string) => h.includes(b.key))) {
+          res.tasks.push({ label: b.label, section: b.section, critical: b.critical, why: b.why });
+          have.push(b.label.toLowerCase());
+        }
+      }
+      if (!res.summary) res.summary = "Standard run-of-day checklist — tailor the times + stock to this stop.";
+    }
     await touch({ status: "done", result: res });
   } catch (err: any) {
     await touch({ status: "error", error: String(err?.message ?? err).slice(0, 300) });
