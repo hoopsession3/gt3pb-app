@@ -31,6 +31,12 @@ export default function AssetMaintenance() {
     setAssets((a as Asset[]) ?? []); setLogs((l as Log[]) ?? []);
   }, []);
   useEffect(() => { load(); }, [load]);
+  const delLog = async (id: string) => {
+    if (!supabase) return;
+    if (typeof window !== "undefined" && !window.confirm("Delete this maintenance record?")) return;
+    setLogs((p) => p.filter((x) => x.id !== id)); // optimistic
+    await supabase.from("asset_maintenance").delete().eq("id", id);
+  };
 
   const tdy = today();
   const statusOf = (id: string) => {
@@ -82,6 +88,7 @@ export default function AssetMaintenance() {
                                 </details>
                               )}
                             </span>
+                            <button type="button" className="am-row-x" onClick={() => delLog(m.id)} aria-label="Delete record">✕</button>
                           </div>
                         ))}
                       </div>

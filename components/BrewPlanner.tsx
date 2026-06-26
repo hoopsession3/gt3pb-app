@@ -237,6 +237,13 @@ function BatchLog({ batch, events, stops, onClose, onSaved }: { batch: Batch; ev
     if (targets.length) await supabase.from("brew_batch_links").insert(targets.map((t) => { const [k, id] = t.split(":"); return k === "s" ? { batch_id: batch.id, stop_id: id } : { batch_id: batch.id, event_id: id }; }));
     setBusy(false); onSaved();
   };
+  const del = async () => {
+    if (!supabase || busy) return;
+    if (typeof window !== "undefined" && !window.confirm(`Delete this ${batch.recipe_name || "batch"} (${batch.batch_gal} gal)?\n\nThis removes it from the brew schedule and unlinks it from any events/stops. Can't be undone.`)) return;
+    setBusy(true);
+    await supabase.from("brew_batches").delete().eq("id", batch.id); // brew_batch_links cascade via FK
+    setBusy(false); onSaved();
+  };
   return (
     <div className="qd-scrim" onClick={onClose}>
       <div className="qd-sheet dp-form" onClick={(e) => e.stopPropagation()}>
@@ -262,9 +269,12 @@ function BatchLog({ batch, events, stops, onClose, onSaved }: { batch: Batch; ev
               {events.length === 0 && stops.length === 0 && <span className="dp-hint">No events or stops yet.</span>}
             </div>
           </div>
-          <div className="prod-actions" style={{ marginTop: 14 }}>
+          <div className="prod-actions" style={{ marginTop: 14, justifyContent: "space-between" }}>
+            <button type="button" className="note-arch brew-del" onClick={del} disabled={busy}>Delete batch</button>
+            <div style={{ display: "flex", gap: 8 }}>
             <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
             <button type="button" className="note-save" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save log"}</button>
+            </div>
           </div>
         </div>
       </div>

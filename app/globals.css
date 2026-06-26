@@ -2519,3 +2519,12 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .brewlink-name{color:var(--cream)}
 .app.crew-day .brewlink-name{color:#221f18}
 .brewlink-st{font-size:12px;color:var(--muted);text-transform:capitalize;white-space:nowrap}
+
+/* Delete affordances — batch log, owner (event/stop) danger zone, maintenance rows */
+.brew-del{color:#e07a76;border-color:rgba(184,36,32,.4)}
+.ownerdet-danger{display:flex;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line2)}
+.ownerdet-arch{flex:1;background:rgba(0,0,0,.18);border:1px solid var(--line2);color:var(--cream);border-radius:9px;font-family:'Inter',sans-serif;font-weight:600;font-size:13px;padding:8px;cursor:pointer}
+.app.crew-day .ownerdet-arch{background:rgba(34,31,24,.05);color:#221f18}
+.ownerdet-del{flex:1;background:rgba(184,36,32,.1);border:1px solid rgba(184,36,32,.4);color:#e07a76;border-radius:9px;font-family:'Inter',sans-serif;font-weight:600;font-size:13px;padding:8px;cursor:pointer}
+.am-row-x{flex:0 0 auto;align-self:flex-start;background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:2px 6px;line-height:1}
+.am-row-x:hover{color:#e07a76}

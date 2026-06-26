@@ -435,14 +435,35 @@ type MyTaskRow = EventTask & {
 // prep view is the single place to manage the thing end to end — no hopping to the calendar or Live
 // truck to change a name or date. Self-contained; works for events or stops. (Go-live + GPS stay in
 // Now ▸ Live truck, which owns the broadcast.)
-function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved }: { ownerType: "event" | "stop"; ownerId: string; isAdmin: boolean; onSaved: (name: string) => void }) {
+function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { ownerType: "event" | "stop"; ownerId: string; isAdmin: boolean; onSaved: (name: string) => void; onRemoved: () => void }) {
   const { toast } = useApp();
   const isEvent = ownerType === "event";
   const table = isEvent ? "events" : "stops";
   const nameCol = isEvent ? "title" : "name";
+  const what = isEvent ? "event" : "truck stop";
   const [f, setF] = useState<Record<string, string | null> | null>(null);
   const [edit, setEdit] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Remove from the active lists (keeps the record, reversible). The standard "delete" for a real
+  // event/stop — same as the calendar's Remove and Live truck's Archive.
+  const archive = async () => {
+    if (!supabase) return;
+    if (typeof window !== "undefined" && !window.confirm(`Archive this ${what}?\n\nIt comes off the active lists (calendar, prep, route) but the record is kept — you can restore it.`)) return;
+    setSaving(true);
+    await supabase.from(table).update({ archived_at: new Date().toISOString() }).eq("id", ownerId);
+    setSaving(false); toast(`${isEvent ? "Event" : "Stop"} archived`); onRemoved();
+  };
+  // Hard delete — gone for good, plus its prep, schedule, crew, links (FK cascade).
+  const del = async () => {
+    if (!supabase) return;
+    if (typeof window !== "undefined" && !window.confirm(`DELETE this ${what} for good?\n\nThis permanently removes it AND its prep list, schedule, crew, and brew links. This can't be undone. (Use Archive instead if you just want it off the lists.)`)) return;
+    setSaving(true);
+    const { error } = await supabase.from(table).delete().eq("id", ownerId);
+    setSaving(false);
+    if (error) { toast(`Couldn't delete — ${error.message}`, "error"); return; }
+    toast(`${isEvent ? "Event" : "Stop"} deleted`); onRemoved();
+  };
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -508,6 +529,10 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved }: { ownerType: "ev
         )}
       </label>
       {!isEvent && <div className="ownerdet-hint">Go live &amp; broadcast GPS in Now ▸ Live truck.</div>}
+      <div className="ownerdet-danger">
+        <button type="button" className="ownerdet-arch" onClick={archive} disabled={saving}>Archive {what}</button>
+        <button type="button" className="ownerdet-del" onClick={del} disabled={saving}>Delete for good</button>
+      </div>
       <div className="prod-actions" style={{ marginTop: 12 }}>
         <button type="button" className="note-arch" onClick={() => { setEdit(false); load(); }} disabled={saving}>Cancel</button>
         <button type="button" className="note-save" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save details"}</button>
@@ -1386,7 +1411,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       <button className="adm-prep-back" onClick={onBack}>‹ All prep</button>
       <div className="sec">{name ?? "…"} · prep{isEvent && ev?.is_live && <span className="adm-pill due">LIVE</span>}{!isEvent && <span className="adm-pill">Location</span>}</div>
       {/* Identity / date / place / status — managed right here, so a stop or event is one screen end to end. */}
-      <OwnerDetails ownerType={target.kind} ownerId={target.id} isAdmin={isAdmin} onSaved={(nm) => { setName(nm); load(); }} />
+      <OwnerDetails ownerType={target.kind} ownerId={target.id} isAdmin={isAdmin} onSaved={(nm) => { setName(nm); load(); }} onRemoved={onBack} />
       {total > 0 ? (
         <>
           <div className={`adm-ready-bar${ready ? " ok" : critOut.length ? " miss" : ""}`}>
