@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import { useApp } from "@/components/AppProvider";
-import { computeLoadout, towChecks, towChecklist, computeSpace, rigToBox, type TrailerProfile, type Loadout, type SpaceRig, type SpacePlan } from "@/lib/loadout";
+import { computeLoadout, towChecks, towChecklist, computeSpace, rigToBox, type TrailerProfile, type Loadout, type SpaceRig, type SpacePlan, type AssetDim } from "@/lib/loadout";
 
 const fmt = (n: number | null | undefined) => (n ?? 0).toLocaleString();
 const ZONE_LABEL: Record<string, string> = { nose: "Nose (front)", axle: "Over axle", tail: "Tail (rear)" };
@@ -17,6 +17,7 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
   const { toast } = useApp();
   const isOwner = roleOf(profile) === "owner";
   const [tp, setTp] = useState<TrailerProfile | null>(null);
+  const [assets, setAssets] = useState<AssetDim[]>([]);
   const [labels, setLabels] = useState<string[]>([]);
   const [rig, setRig] = useState<SpaceRig>("trailer");
   const [targets, setTargets] = useState<{ key: string; label: string }[]>([]); // "e:<id>" event | "s:<id>" stop
@@ -31,6 +32,7 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
     if (!supabase) return;
     const { data: t } = await supabase.from("trailer_profile").select("*").eq("id", 1).maybeSingle();
     setTp((t as TrailerProfile) ?? null);
+    supabase.from("assets").select("name, len_in, width_in, height_in").not("len_in", "is", null).then(({ data }) => setAssets((data as AssetDim[]) ?? []));
     // Embedded in a hub → scope to that one owner, no picker.
     if (lockTo) { setTargets([]); setSel(`${lockTo.kind === "stop" ? "s" : "e"}:${lockTo.id}`); return; }
     // Real events + truck stops (not archived test data); follow the live event, else the next
@@ -84,7 +86,7 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
   const lo: Loadout = computeLoadout(labels, tp);
   const checks = towChecks(lo, tp);
   const zoneLb = (z: string) => lo.items.filter((i) => i.zone === z).reduce((s, i) => s + i.lb, 0);
-  const space: SpacePlan = computeSpace(labels, tp, rig);
+  const space: SpacePlan = computeSpace(labels, tp, rig, assets);
 
   const runPlan = async () => {
     if (!supabase || !sel || planning) return;
@@ -232,7 +234,7 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
             })}
             {space.items.length > 0 && (
               <div className="tl-zone-items" style={{ marginTop: 8 }}>
-                {space.items.map((i) => <span key={i.label} className="tl-chip">{i.label} · {i.cuft}cf</span>)}
+                {space.items.map((i) => <span key={i.label} className={`tl-chip${i.src === "measured" ? " measured" : ""}`} title={i.src === "measured" ? `Measured from asset: ${i.asset}` : "Estimated footprint"}>{i.src === "measured" ? "📐 " : ""}{i.label} · {i.cuft}cf</span>)}
               </div>
             )}
           </>

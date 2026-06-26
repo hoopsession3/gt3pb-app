@@ -48,6 +48,21 @@ ok("empty level ok", eS.cuftLevel === "ok", eS.cuftLevel);
 const nd = L.computeSpace(pack, {...tp, interior_len_in:null}, "trailer");
 ok("no dims → hasDims false", nd.hasDims === false);
 
+// --- asset cross-reference: measured dims win over keyword estimate ---
+const assets = [
+  { name: "Summit Commercial Nitro & Cold-Brew Kegerator/Dispenser", len_in: 26.25, width_in: 23.75, height_in: 51.5 },
+  { name: "VEVOR 1500lb Poly Dump Cart", len_in: 48, width_in: 28, height_in: 24 },
+];
+const am = L.matchAsset("Load the kegerator + 3 kegs", assets);
+ok("matchAsset finds kegerator", !!am && /Kegerator/.test(am.name), am);
+ok("kegerator measured cuft ~18.6", !!am && Math.abs(am.cuft - (26.25*23.75*51.5/1728)) < 0.2, am && am.cuft);
+ok("matchAsset no false match", L.matchAsset("apply UVDTF labels", assets) === null);
+const mS = L.computeSpace(["Load the kegerator + 3 kegs", "48qt cooler"], tp, "trailer", assets);
+ok("computeSpace marks measured src", mS.items.some(i => i.src === "measured"));
+ok("computeSpace marks est src", mS.items.some(i => i.src === "est"));
+ok("measured kegerator > estimated cooler", (mS.items.find(i=>i.src==="measured")||{}).cuft > (mS.items.find(i=>i.src==="est")||{}).cuft);
+ok("dimsToFootprint math", L.dimsToFootprint(48,24,12).cuft === Math.round((48*24*12/1728)*10)/10);
+
 // --- weight loadout still works ---
 const lo = L.computeLoadout(pack, tp);
 ok("loadout cargoLb>0", lo.cargoLb > 0, lo.cargoLb);

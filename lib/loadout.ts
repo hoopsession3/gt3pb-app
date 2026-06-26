@@ -100,8 +100,32 @@ export function footprintFor(label: string): { sqft: number; cuft: number } {
   return { sqft: 0, cuft: 0 }; // unknown / paperwork = no footprint
 }
 
+// A real, measured asset from the DB — its dimensions override the keyword estimate when a pack
+// label matches it by name (so the load-out uses the EXACT gear size, not a guess).
+export interface AssetDim { name: string; len_in?: number | null; width_in?: number | null; height_in?: number | null }
+export function dimsToFootprint(len: number, wid: number, hei: number): { sqft: number; cuft: number } {
+  return { sqft: Math.round(((len * wid) / 144) * 10) / 10, cuft: Math.round(((len * wid * hei) / 1728) * 10) / 10 };
+}
+const STOP = new Set(["with", "and", "the", "for", "set", "kit", "pro", "gt3", "stainless", "steel", "commercial"]);
+const words = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter((w) => w.length >= 4 && !STOP.has(w));
+// Best asset whose distinctive words appear in the pack label (only dimensioned assets are passed in,
+// which bounds false matches). Returns the matched asset's footprint, or null if nothing matches.
+export function matchAsset(label: string, assets: AssetDim[]): { sqft: number; cuft: number; name: string } | null {
+  const lw = new Set(words(label));
+  let best: { score: number; a: AssetDim } | null = null;
+  for (const a of assets) {
+    if (a.len_in == null || a.width_in == null || a.height_in == null) continue;
+    const aw = words(a.name);
+    const score = aw.filter((w) => lw.has(w)).length;
+    if (score > 0 && (!best || score > best.score)) best = { score, a };
+  }
+  if (!best) return null;
+  const a = best.a;
+  return { ...dimsToFootprint(a.len_in!, a.width_in!, a.height_in!), name: a.name };
+}
+
 export type SpaceRig = "trailer" | "vehicle";
-export interface SpaceItem { label: string; sqft: number; cuft: number }
+export interface SpaceItem { label: string; sqft: number; cuft: number; src: "measured" | "est"; asset?: string }
 export interface SpacePlan {
   rig: SpaceRig; boxName: string; hasDims: boolean;
   grossCuft: number; usableCuft: number; usedCuft: number; cuftLevel: Level;
@@ -118,14 +142,20 @@ export function spaceBox(p: TrailerProfile, rig: SpaceRig) {
     ? { name: p.tow_vehicle || "Vehicle cargo", len: p.veh_cargo_len_in, wid: p.veh_cargo_width_in, hei: p.veh_cargo_height_in, usable: p.veh_usable_pct }
     : { name: p.name || "Trailer", len: p.interior_len_in, wid: p.interior_width_in, hei: p.interior_height_in, usable: p.usable_pct };
 }
-export function computeSpace(labels: string[], p: TrailerProfile, rig: SpaceRig): SpacePlan {
+export function computeSpace(labels: string[], p: TrailerProfile, rig: SpaceRig, assets: AssetDim[] = []): SpacePlan {
   const box = spaceBox(p, rig);
   const len = box.len ?? 0, wid = box.wid ?? 0, hei = box.hei ?? 0;
   const usable = (box.usable ?? 60) / 100;
   const grossCuft = (len * wid * hei) / 1728;
   const grossSqft = (len * wid) / 144;
   const usableCuft = r1(grossCuft * usable), usableSqft = r1(grossSqft * usable);
-  const items = labels.map((l) => ({ label: l, ...footprintFor(l) })).filter((x) => x.cuft > 0).sort((a, b) => b.cuft - a.cuft);
+  // exact asset dims win over the keyword estimate when a pack label matches a real, measured asset
+  const items: SpaceItem[] = labels.map((l) => {
+    const m = matchAsset(l, assets);
+    if (m) return { label: l, sqft: m.sqft, cuft: m.cuft, src: "measured" as const, asset: m.name };
+    const est = footprintFor(l);
+    return { label: l, sqft: est.sqft, cuft: est.cuft, src: "est" as const };
+  }).filter((x) => x.cuft > 0).sort((a, b) => b.cuft - a.cuft);
   const usedCuft = r1(items.reduce((s, i) => s + i.cuft, 0));
   const usedSqft = r1(items.reduce((s, i) => s + i.sqft, 0));
   return {

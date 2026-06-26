@@ -54,9 +54,10 @@ export async function POST(req: Request) {
   const ownerCol = eventId ? "event_id" : "stop_id";
   const ownerId = eventId || stopId;
 
-  const [{ data: tp }, { data: tasks }, ownerRes] = await Promise.all([
+  const [{ data: tp }, { data: tasks }, { data: assetRows }, ownerRes] = await Promise.all([
     supabaseAdmin.from("trailer_profile").select("*").eq("id", 1).maybeSingle(),
     supabaseAdmin.from("event_tasks").select("label, kind").eq(ownerCol, ownerId),
+    supabaseAdmin.from("assets").select("name, len_in, width_in, height_in").not("len_in", "is", null),
     eventId
       ? supabaseAdmin.from("events").select("title, rig").eq("id", eventId).maybeSingle()
       : supabaseAdmin.from("stops").select("name, rig").eq("id", stopId).maybeSingle(),
@@ -66,8 +67,9 @@ export async function POST(req: Request) {
   const owner: any = ownerRes?.data ?? {};
   const ownerName = owner.title || owner.name || (eventId ? "Event" : "Stop");
   const rig = rigToBox(owner.rig);
+  const assets = (assetRows as any[]) ?? [];
   const labels = ((tasks as { label: string; kind: string }[]) ?? []).filter((t) => t.kind === "pack").map((t) => t.label);
-  const space = computeSpace(labels, tp as TrailerProfile, rig);
+  const space = computeSpace(labels, tp as TrailerProfile, rig, assets);
 
   const fitNote = !space.hasDims
     ? "No interior dimensions set for this rig — add them to get a fit %."
@@ -82,7 +84,7 @@ export async function POST(req: Request) {
     rig, box_name: space.boxName,
     usable_cu_ft: space.usableCuft, used_cu_ft: space.usedCuft, fit_level: space.cuftLevel,
     usable_floor_sq_ft: space.usableSqft, used_floor_sq_ft: space.usedSqft,
-    items: space.items.map((i) => `${i.label} (~${i.cuft} cu ft, ~${i.sqft} sq ft)`),
+    items: space.items.map((i) => `${i.label} (${i.cuft} cu ft, ${i.sqft} sq ft — ${i.src === "measured" ? `MEASURED from asset "${i.asset}"` : "estimated"})`),
   };
   let out: any = null;
   try {

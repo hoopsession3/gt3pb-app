@@ -1339,6 +1339,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .tl-zone-items{display:flex;flex-wrap:wrap;gap:6px}
 .tl-chip{font-family:'Inter';font-size:11px;color:var(--cream);background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:7px;padding:4px 8px}
 .tl-chip.empty{color:var(--cream-m)}
+.tl-chip.measured{border-color:rgba(95,154,107,.5);background:rgba(95,154,107,.12)}
 .tl-ck{margin-top:14px;padding-top:10px;border-top:1px solid var(--line)}
 .tl-ck-h{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:var(--gold2);margin-bottom:8px}
 .tl-ck-item{display:flex;align-items:flex-start;gap:9px;padding:7px 0;font-family:'Inter';font-size:13px;color:var(--cream);cursor:pointer;border-bottom:1px solid var(--line)}
