@@ -23,7 +23,7 @@ export const DRINKS: Record<DrinkId, DrinkDetail> = {
     n: "RISE", px: "$7", grad: "linear-gradient(140deg,#7a5c3a,#caa46d)", dot: "#C49A5E",
     lines: ["Cold-extracted coffee in mineral water","Finished with Organic Coconut Water"],
     why: "A clean, even lift to start the morning.",
-    tag: "Start here",
+    tag: "Order here",
     has: ["Single-origin cold extraction", "Mineral water base", "Organic coconut water"],
     no: ["Sugar", "Dairy", "Syrups", "Preservatives"],
     when: "BEFORE", whenT: "Morning, before the first task.",

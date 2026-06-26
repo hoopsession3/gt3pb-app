@@ -69,7 +69,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {inAdmin && <QuickDock />}
         {customerSurface && <Concierge />}
         {inAdmin && <button type="button" className="theme-toggle" onClick={toggleTheme} aria-label={theme === "day" ? "Switch to dark" : "Switch to day"}>{theme === "day" ? "🌙" : "☀️"}</button>}
-        {!isShare && <DisplayToggle admin={inAdmin} />}
+        {!isShare && <DisplayToggle />}
         <ServiceWorkerRegister />
       </div>
     </OperatorSectionProvider>
