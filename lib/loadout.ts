@@ -7,6 +7,9 @@ export interface TrailerProfile {
   axle: string | null; tire_spec: string | null; tire_psi: number | null;
   tow_vehicle: string | null; tow_rating_lb: number | null; tongue_limit_lb: number | null;
   vin: string | null; notes: string | null;
+  // interior space (0105) — the packable box, so the load-out understands volume not just weight
+  interior_len_in?: number | null; interior_width_in?: number | null; interior_height_in?: number | null; usable_pct?: number | null;
+  veh_cargo_len_in?: number | null; veh_cargo_width_in?: number | null; veh_cargo_height_in?: number | null; veh_usable_pct?: number | null;
 }
 
 // Estimated gear weights (lb) by keyword — heaviest first wins on overlap.
@@ -62,6 +65,75 @@ export function towChecks(lo: Loadout, p: TrailerProfile): TowCheck[] {
   if (p.tongue_limit_lb) out.push({ label: "Tongue vs hitch limit", used: lo.tongueLb, limit: p.tongue_limit_lb, level: level(lo.tongueLb, p.tongue_limit_lb) });
   if (p.cargo_cap_lb) out.push({ label: "Cargo vs capacity", used: lo.cargoLb, limit: p.cargo_cap_lb, level: level(lo.cargoLb, p.cargo_cap_lb) });
   return out;
+}
+
+// ─────────────────────────────── SPACE / VOLUME ───────────────────────────────
+// Estimated footprint per gear item — floor area (sq ft) + volume (cu ft), keyword-matched
+// like the weights (most specific / largest first). Estimates for planning the pack, not exact
+// measurements — tune as real dimensions are captured. cu ft is the primary "does it fit" metric;
+// sq ft is the worst-case floor footprint if nothing is stacked.
+const FOOTPRINTS: { match: string; sqft: number; cuft: number }[] = [
+  { match: "dump cart", sqft: 4.0, cuft: 6.0 }, { match: "cart", sqft: 4.0, cuft: 6.0 },
+  { match: "handwash", sqft: 2.0, cuft: 4.0 }, { match: "hand sink", sqft: 2.0, cuft: 4.0 },
+  { match: "cooler", sqft: 2.5, cuft: 4.0 },
+  { match: "canopy", sqft: 2.4, cuft: 3.5 }, { match: "tent", sqft: 2.4, cuft: 3.5 },
+  { match: "generator", sqft: 1.6, cuft: 3.0 },
+  { match: "folding table", sqft: 3.0, cuft: 2.5 }, { match: "table", sqft: 3.0, cuft: 2.5 },
+  { match: "bottle inventory", sqft: 1.4, cuft: 2.0 },
+  { match: "nitrogen tank", sqft: 0.6, cuft: 2.0 }, { match: "n2 tank", sqft: 0.6, cuft: 2.0 },
+  { match: "nitro rig", sqft: 2.0, cuft: 1.5 }, { match: "kegerator", sqft: 2.2, cuft: 5.0 },
+  { match: "water jug", sqft: 0.9, cuft: 1.5 }, { match: "potable water", sqft: 0.9, cuft: 1.5 },
+  { match: "cold-brew keg", sqft: 0.6, cuft: 1.0 }, { match: "keg", sqft: 0.6, cuft: 1.0 },
+  { match: "ecoflow", sqft: 0.8, cuft: 1.0 }, { match: "battery", sqft: 0.8, cuft: 1.0 },
+  { match: "broth", sqft: 0.8, cuft: 1.2 }, { match: "cambro", sqft: 0.8, cuft: 1.2 },
+  { match: "ice", sqft: 0.7, cuft: 1.0 },
+  { match: "nature aid", sqft: 0.8, cuft: 1.0 }, { match: "salted maple", sqft: 0.8, cuft: 1.0 },
+  { match: "bottles + lids", sqft: 0.8, cuft: 1.0 }, { match: "bottles", sqft: 0.8, cuft: 1.0 },
+  { match: "handwash", sqft: 2.0, cuft: 4.0 },
+  { match: "shore-power", sqft: 0.4, cuft: 0.4 }, { match: "cord", sqft: 0.4, cuft: 0.4 },
+  { match: "faucet kit", sqft: 0.3, cuft: 0.4 }, { match: "regulator", sqft: 0.2, cuft: 0.2 },
+  { match: "kds tablet", sqft: 0.2, cuft: 0.1 }, { match: "square reader", sqft: 0.1, cuft: 0.05 },
+];
+export function footprintFor(label: string): { sqft: number; cuft: number } {
+  const l = label.toLowerCase();
+  for (const f of FOOTPRINTS) if (l.includes(f.match)) return { sqft: f.sqft, cuft: f.cuft };
+  return { sqft: 0, cuft: 0 }; // unknown / paperwork = no footprint
+}
+
+export type SpaceRig = "trailer" | "vehicle";
+export interface SpaceItem { label: string; sqft: number; cuft: number }
+export interface SpacePlan {
+  rig: SpaceRig; boxName: string; hasDims: boolean;
+  grossCuft: number; usableCuft: number; usedCuft: number; cuftLevel: Level;
+  grossSqft: number; usableSqft: number; usedSqft: number; sqftLevel: Level;
+  items: SpaceItem[];
+}
+const r1 = (n: number) => Math.round(n * 10) / 10;
+// Which box does an event/stop rig load into? Anything with a trailer → the trailer; else the vehicle.
+export function rigToBox(rig: string | null | undefined): SpaceRig {
+  return (rig ?? "").toLowerCase().includes("trailer") ? "trailer" : "vehicle";
+}
+export function spaceBox(p: TrailerProfile, rig: SpaceRig) {
+  return rig === "vehicle"
+    ? { name: p.tow_vehicle || "Vehicle cargo", len: p.veh_cargo_len_in, wid: p.veh_cargo_width_in, hei: p.veh_cargo_height_in, usable: p.veh_usable_pct }
+    : { name: p.name || "Trailer", len: p.interior_len_in, wid: p.interior_width_in, hei: p.interior_height_in, usable: p.usable_pct };
+}
+export function computeSpace(labels: string[], p: TrailerProfile, rig: SpaceRig): SpacePlan {
+  const box = spaceBox(p, rig);
+  const len = box.len ?? 0, wid = box.wid ?? 0, hei = box.hei ?? 0;
+  const usable = (box.usable ?? 60) / 100;
+  const grossCuft = (len * wid * hei) / 1728;
+  const grossSqft = (len * wid) / 144;
+  const usableCuft = r1(grossCuft * usable), usableSqft = r1(grossSqft * usable);
+  const items = labels.map((l) => ({ label: l, ...footprintFor(l) })).filter((x) => x.cuft > 0).sort((a, b) => b.cuft - a.cuft);
+  const usedCuft = r1(items.reduce((s, i) => s + i.cuft, 0));
+  const usedSqft = r1(items.reduce((s, i) => s + i.sqft, 0));
+  return {
+    rig, boxName: box.name, hasDims: len > 0 && wid > 0 && hei > 0,
+    grossCuft: r1(grossCuft), usableCuft, usedCuft, cuftLevel: level(usedCuft, usableCuft || 1),
+    grossSqft: r1(grossSqft), usableSqft, usedSqft, sqftLevel: level(usedSqft, usableSqft || 1),
+    items,
+  };
 }
 
 // Tow & tire best-practice checklist, with the trailer's real numbers baked in.

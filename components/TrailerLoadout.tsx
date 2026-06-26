@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import { useApp } from "@/components/AppProvider";
-import { computeLoadout, towChecks, towChecklist, type TrailerProfile, type Loadout } from "@/lib/loadout";
+import { computeLoadout, towChecks, towChecklist, computeSpace, rigToBox, type TrailerProfile, type Loadout, type SpaceRig, type SpacePlan } from "@/lib/loadout";
 
 const fmt = (n: number | null | undefined) => (n ?? 0).toLocaleString();
 const ZONE_LABEL: Record<string, string> = { nose: "Nose (front)", axle: "Over axle", tail: "Tail (rear)" };
@@ -18,8 +18,11 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
   const isOwner = roleOf(profile) === "owner";
   const [tp, setTp] = useState<TrailerProfile | null>(null);
   const [labels, setLabels] = useState<string[]>([]);
+  const [rig, setRig] = useState<SpaceRig>("trailer");
   const [targets, setTargets] = useState<{ key: string; label: string }[]>([]); // "e:<id>" event | "s:<id>" stop
   const [sel, setSel] = useState<string | null>(null);
+  const [plan, setPlan] = useState<any | null>(null);
+  const [planning, setPlanning] = useState(false);
   const [edit, setEdit] = useState(false);
   const [form, setForm] = useState<Partial<TrailerProfile>>({});
 
@@ -50,13 +53,17 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
     });
   }, [lockTo?.kind, lockTo?.id]);
 
-  // Pack labels for the SELECTED event/stop drive the loadout weights.
+  // Pack labels + rig for the SELECTED event/stop drive the loadout weight + space.
   useEffect(() => {
     if (!supabase || !sel) { setLabels([]); return; }
+    setPlan(null);
     const [t, id] = sel.split(":");
     const col = t === "s" ? "stop_id" : "event_id";
     supabase.from("event_tasks").select("label,kind").eq(col, id).then(({ data }) => {
       setLabels(((data as { label: string; kind: string }[]) ?? []).filter((x) => x.kind === "pack").map((x) => x.label));
+    });
+    supabase.from(t === "s" ? "stops" : "events").select("rig").eq("id", id).maybeSingle().then(({ data }) => {
+      setRig(rigToBox((data as { rig: string | null } | null)?.rig));
     });
   }, [sel]);
 
@@ -76,6 +83,26 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
   const lo: Loadout = computeLoadout(labels, tp);
   const checks = towChecks(lo, tp);
   const zoneLb = (z: string) => lo.items.filter((i) => i.zone === z).reduce((s, i) => s + i.lb, 0);
+  const space: SpacePlan = computeSpace(labels, tp, rig);
+
+  const runPlan = async () => {
+    if (!supabase || !sel || planning) return;
+    setPlanning(true);
+    try {
+      const [t, id] = sel.split(":");
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const r = await fetch("/api/agents/spaceplan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify(t === "s" ? { stop_id: id } : { event_id: id }),
+      });
+      const j = await r.json();
+      if (!j.ok) { toast(j.error || "Couldn't plan the space", "error"); return; }
+      setPlan(j);
+    } catch (e: any) {
+      toast(String(e?.message ?? e).slice(0, 160), "error");
+    } finally { setPlanning(false); }
+  };
 
   const saveProfile = async () => {
     if (!supabase) return;
@@ -118,6 +145,16 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
           {numField("tongue_limit_lb", "Tongue limit (lb)")}
           <label className="tl-f wide"><span>Tow vehicle</span>
             <input type="text" defaultValue={tp.tow_vehicle ?? ""} onChange={(e) => setForm((f) => ({ ...f, tow_vehicle: e.target.value }))} /></label>
+          <div className="tl-f wide" style={{ fontFamily: "var(--mono)", fontSize: 9, letterSpacing: 1, textTransform: "uppercase", color: "var(--bronze)", paddingTop: 4 }}>Trailer interior (in)</div>
+          {numField("interior_len_in", "Length (in)")}
+          {numField("interior_width_in", "Width (in)")}
+          {numField("interior_height_in", "Height (in)")}
+          {numField("usable_pct", "Usable %")}
+          <div className="tl-f wide" style={{ fontFamily: "var(--mono)", fontSize: 9, letterSpacing: 1, textTransform: "uppercase", color: "var(--bronze)", paddingTop: 4 }}>Vehicle cargo bay (in)</div>
+          {numField("veh_cargo_len_in", "Length (in)")}
+          {numField("veh_cargo_width_in", "Width (in)")}
+          {numField("veh_cargo_height_in", "Height (in)")}
+          {numField("veh_usable_pct", "Usable %")}
           <button className="adm-btn primary" onClick={saveProfile}>Save trailer profile</button>
         </div>
       )}
@@ -133,6 +170,59 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
             </div>
           );
         })}
+      </div>
+
+      {/* SPACE — does it physically fit the chosen rig (trailer vs vehicle), updated live with the pack list */}
+      <div className="tl-space">
+        <div className="tl-space-h">
+          <span>Space · {rig === "vehicle" ? `${tp.tow_vehicle || "Vehicle"} cargo` : tp.name}</span>
+          {labels.length > 0 && <button className="adm-btn" onClick={runPlan} disabled={planning}>{planning ? "Planning…" : "✦ Plan the space"}</button>}
+        </div>
+        {!space.hasDims ? (
+          <div className="tl-hint">{isOwner ? "Tap “Tune” and add the rig’s interior dimensions to see how much fits." : "Interior dimensions not set yet."}</div>
+        ) : (
+          <>
+            {([["Volume", space.usedCuft, space.usableCuft, "cu ft", space.cuftLevel], ["Floor", space.usedSqft, space.usableSqft, "sq ft", space.sqftLevel]] as const).map(([lab, used, limit, unit, lvl]) => {
+              const pct = Math.min(100, Math.round((used / (limit || 1)) * 100));
+              return (
+                <div key={lab} className={`tl-bar ${lvl}`}>
+                  <div className="tl-bar-top"><span>{lab}</span><b>{used} / {limit} {unit}</b></div>
+                  <div className="tl-bar-track"><div className="tl-bar-fill" style={{ width: `${pct}%` }} /></div>
+                  <div className="tl-bar-note">{used <= limit ? `${Math.round((limit - used) * 10) / 10} ${unit} free` : `${Math.round((used - limit) * 10) / 10} ${unit} OVER — nest, stack, or leave gear`}</div>
+                </div>
+              );
+            })}
+            {space.items.length > 0 && (
+              <div className="tl-zone-items" style={{ marginTop: 8 }}>
+                {space.items.map((i) => <span key={i.label} className="tl-chip">{i.label} · {i.cuft}cf</span>)}
+              </div>
+            )}
+          </>
+        )}
+        {plan && (
+          <div className="tl-plan">
+            {plan.summary && <div className="tl-plan-sum">{plan.summary}</div>}
+            {Array.isArray(plan.zones) && plan.zones.map((z: any, i: number) => (
+              <div key={i} className="tl-plan-zone">
+                <div className="tl-plan-zh">{z.zone}</div>
+                <div className="tl-zone-items">{(z.items ?? []).map((it: string) => <span key={it} className="tl-chip">{it}</span>)}</div>
+                {z.note && <div className="tl-bar-note">{z.note}</div>}
+              </div>
+            ))}
+            {Array.isArray(plan.at_risk) && plan.at_risk.length > 0 && (
+              <div className="tl-plan-risk">
+                <div className="tl-plan-zh">At risk</div>
+                {plan.at_risk.map((a: any, i: number) => <div key={i} className="tl-bar-note"><b>{a.item}</b> — {a.issue ? `${a.issue} · ` : ""}{a.fix}</div>)}
+              </div>
+            )}
+            {Array.isArray(plan.stacking) && plan.stacking.length > 0 && (
+              <div className="tl-plan-zone"><div className="tl-plan-zh">Claw back space</div><ul className="tl-plan-ul">{plan.stacking.map((s: string, i: number) => <li key={i}>{s}</li>)}</ul></div>
+            )}
+            {Array.isArray(plan.load_order) && plan.load_order.length > 0 && (
+              <div className="tl-plan-zone"><div className="tl-plan-zh">Load order (last in = first out)</div><ol className="tl-plan-ol">{plan.load_order.map((s: string, i: number) => <li key={i}>{s}</li>)}</ol></div>
+            )}
+          </div>
+        )}
       </div>
 
       <LoadMap lo={lo} />
