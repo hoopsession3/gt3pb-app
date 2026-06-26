@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { staffFromRequest } from "@/lib/apiAuth";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
-import { academyKnowledge } from "@/lib/operatorKb";
+import { studioSystem } from "@/lib/brandVoice";
 
 export const runtime = "nodejs";
 
@@ -45,12 +45,10 @@ export async function POST(req: Request) {
   brief = String(brief).slice(0, 1500);
   if (!brief.trim()) return NextResponse.json({ ok: false, error: "brief required" }, { status: 400 });
 
-  const system = `You are GT3's brand copywriter — suave, modern, premium, and precise. Voice: "Pure Signal. No Noise." Measured, not hyped. Education-first: teach the WHY (primal, whole-food, non-toxic ingredients) so the product sells itself — "sell by talking less." Write for ${channel}, format ${kind}.
-
-HARD RULES (health-adjacent brand): never invent or imply nutrition/health/caffeine claims beyond the GT3 knowledge below; nutrition is "estimated until lab-verified." No fake urgency, no clickbait, no generic AI filler. Stay in voice. Always answer with the draft_captions tool.
-
-=== GT3 BRAND & PRODUCT KNOWLEDGE ===
-${academyKnowledge()}`;
+  const system = studioSystem({
+    channel, kind,
+    task: `THE BRIEF — draft 2-3 distinct content options for this piece. Vary the ANGLE, not just the words: a different way in each time (a truth, a detail, a moment). Each option is title + hook + caption + hashtags. Educate first; let the product sell itself. Always answer with the draft_captions tool.`,
+  });
 
   try {
     const r = await callClaude({

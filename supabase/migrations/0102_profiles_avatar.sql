@@ -8,6 +8,11 @@ alter table public.profiles add column if not exists bio        text;
 alter table public.profiles drop constraint if exists profiles_bio_len;
 alter table public.profiles add constraint profiles_bio_len check (char_length(coalesce(bio,'')) <= 600);
 
+-- 0008 revoked blanket UPDATE on profiles and re-granted only (display_name); the new
+-- self-service columns need the same column-level grant or a user's own update is "permission
+-- denied for table profiles". RLS ("own profile update") still scopes it to auth.uid() = id.
+grant update (avatar_url, title, bio) on public.profiles to authenticated;
+
 insert into storage.buckets (id, name, public) values ('avatars', 'avatars', true)
 on conflict (id) do nothing;
 
