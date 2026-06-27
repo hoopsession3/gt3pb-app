@@ -755,6 +755,28 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .cat-name{flex:1;min-width:0;font-family:'Inter';font-weight:650;font-size:13.5px;letter-spacing:-.2px;color:var(--cream);align-self:center}
 .cat-row .ev-f{flex:0 0 64px}
 .cat-margin{flex:0 0 auto;align-self:center;font-family:var(--mono);font-size:12px;color:var(--gold2);min-width:36px;text-align:right}
+/* COGS calculator */
+.cogs-tabs{display:flex;gap:6px;margin:4px 0 10px}
+.cogs-tab{flex:1;padding:8px;border-radius:10px;border:1px solid var(--line2);background:transparent;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:12px;cursor:pointer}
+.cogs-tab.on{border-color:var(--gold);background:rgba(184,144,47,.14);color:var(--gold)}
+.cogs-bm.ok{color:#4fae6a}.cogs-bm.gold{color:var(--gold2)}.cogs-bm.red{color:var(--red)}
+.cogs-head,.cogs-row{display:grid;grid-template-columns:1fr 64px 64px 56px;gap:6px;align-items:center}
+.cogs-head{padding:0 13px 4px;font-family:var(--mono);font-size:8.5px;letter-spacing:1px;text-transform:uppercase;color:var(--cream-d)}
+.cogs-head span:not(:first-child),.cogs-row .cogs-v{text-align:right}
+.cogs-wrap{margin-top:7px}
+.cogs-row{width:100%;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:11px 13px;cursor:pointer;text-align:left}
+.cogs-name{font-family:'Inter';font-weight:650;font-size:13px;color:var(--cream);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cogs-name em{font-style:normal;font-weight:400;color:var(--cream-d);font-size:11px}
+.cogs-flag{margin-left:6px;font-family:var(--mono);font-size:8.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--warn);background:rgba(207,154,74,.14);border-radius:5px;padding:1px 5px;white-space:nowrap}
+.cogs-v{font-family:'DM Mono',monospace;font-size:12.5px;color:var(--cream)}
+.cogs-ok{color:#4fae6a}.cogs-gold{color:var(--gold2)}.cogs-red{color:var(--red)}
+.cogs-detail{background:rgba(255,255,255,.03);border:1px solid var(--line);border-top:none;border-radius:0 0 12px 12px;margin:-6px 5px 0;padding:9px 12px}
+.app.crew-day .cogs-detail{background:rgba(34,31,24,.04)}
+.cogs-sub{font-family:'Inter';font-size:11px;color:var(--cream-m);margin-bottom:6px}
+.cogs-line{display:flex;justify-content:space-between;gap:10px;font-family:'Inter';font-size:12px;color:var(--cream-m);padding:3px 0}
+.cogs-line.un span:last-child{color:var(--warn)}
+.cogs-line.tot{border-top:1px solid var(--line);margin-top:4px;padding-top:6px;color:var(--cream);font-weight:650}
+.cogs-empty{font-family:'Inter';font-size:12px;color:var(--cream-m)}
 /* event brief — computed prep intelligence */
 .ev-risks{display:flex;flex-direction:column;gap:6px}
 .ev-risk{display:flex;align-items:flex-start;gap:9px;font-family:'Inter';font-size:12.5px;line-height:1.4;color:var(--cream);padding:9px 11px;border-radius:10px;border:1px solid var(--line2);background:rgba(0,0,0,.22)}

@@ -1,4 +1,5 @@
 const L = require("../.smoke/loadout.js");
+const C = require("../.smoke/cogs.js");
 let pass = 0, fail = 0;
 const ok = (name, cond, got) => { if (cond) { pass++; } else { fail++; console.log(`  ✗ ${name}` + (got !== undefined ? ` → got ${JSON.stringify(got)}` : "")); } };
 
@@ -62,6 +63,39 @@ ok("computeSpace marks measured src", mS.items.some(i => i.src === "measured"));
 ok("computeSpace marks est src", mS.items.some(i => i.src === "est"));
 ok("measured kegerator > estimated cooler", (mS.items.find(i=>i.src==="measured")||{}).cuft > (mS.items.find(i=>i.src==="est")||{}).cuft);
 ok("dimsToFootprint math", L.dimsToFootprint(48,24,12).cuft === Math.round((48*24*12/1728)*10)/10);
+
+// --- COGS: per-drink from BOM ---
+const invList = [
+  { id: "coco", name: "Coconut water", unit_cost: 0.50, unit: "oz" },
+  { id: "honey", name: "Raw honey", unit_cost: 0.30, unit: "oz" },
+  { id: "goat", name: "Goat milk", unit_cost: 0.40, unit: "oz" },
+];
+const invById = new Map(invList.map(x => [x.id, x]));
+const invByName = new Map(invList.map(x => [x.name.toLowerCase(), x]));
+const comps = [
+  { product_id: "nature_aid", inventory_item_id: "coco", qty_per_serving: 8, unit: "oz" },
+  { product_id: "nature_aid", inventory_item_id: "honey", qty_per_serving: 1, unit: "oz" },
+  { product_id: "mystery", inventory_item_id: "x", qty_per_serving: 1, unit: "oz" }, // uncosted (no inv)
+];
+const dc = C.drinkCogs("nature_aid", comps, invById);
+ok("drink COGS sums BOM", dc.cents === Math.round((8*0.5 + 1*0.3)*100), dc.cents);
+ok("drink hasRecipe", dc.hasRecipe === true);
+ok("drink no uncosted", dc.uncosted === 0, dc.uncosted);
+const dm = C.margin(800, dc.cents);
+ok("margin pct correct", dm.pct === Math.round((800 - dc.cents)/800*100), dm.pct);
+const un = C.drinkCogs("mystery", comps, invById);
+ok("uncosted flagged", un.uncosted === 1, un.uncosted);
+ok("no-recipe product", C.drinkCogs("none", comps, invById).hasRecipe === false);
+
+// --- COGS: per-batch brew scaling + yield ---
+const recipe = { id: "cb", name: "Cold brew", style: "cold-brew", base_water_gal: 1, yield_factor: 0.9,
+  ingredients: [ { name: "Goat milk", qty: 4, unit: "oz" }, { name: "Filter", qty: 1, unit: "ea", scales: false }, { name: "Unknown bean", qty: 2, unit: "oz" } ] };
+const bc = C.batchCogs(recipe, invByName, 5, 10);
+ok("batch scales volume item", Math.abs(bc.batchCents - Math.round(4*5*0.40*100)) < 1, bc.batchCents); // goat 4oz×5gal; filter+unknown uncosted
+ok("batch flags uncosted", bc.uncosted === 2, bc.uncosted);
+ok("batch servable yield", bc.servableGal === 4.5, bc.servableGal);
+ok("batch bottle count", bc.bottles === Math.floor(4.5*128/10), bc.bottles);
+ok("batch per-gal", bc.perGalCents === Math.round(bc.batchCents/5), bc.perGalCents);
 
 // --- weight loadout still works ---
 const lo = L.computeLoadout(pack, tp);

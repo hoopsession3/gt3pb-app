@@ -26,6 +26,7 @@ import EventGenerator from "@/components/EventGenerator";
 import EventPrepAI from "@/components/EventPrepAI";
 import TroubleshootAI from "@/components/TroubleshootAI";
 import BrewPlanner from "@/components/BrewPlanner";
+import CogsCalculator from "@/components/CogsCalculator";
 import AssetMaintenance from "@/components/AssetMaintenance";
 import ChiefOfStaff from "@/components/ChiefOfStaff";
 import ChiefOfSales from "@/components/ChiefOfSales";
@@ -4058,6 +4059,7 @@ export default function AdminPage() {
           <SnapshotReport />
           <EventPnlReport />
           <ProductCatalog />
+          <CogsCalculator />
           <PlanEditor />
           <Subscribers />
           <SubInterest />
