@@ -1676,7 +1676,19 @@ select.note-in{-webkit-appearance:none;appearance:none}
 /* Instagram feed grid preview */
 .ig-note{font-family:'Inter';font-size:11.5px;color:var(--cream-m);margin:4px 0 9px}
 .ig-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px}
-.ig-cell{position:relative;aspect-ratio:1/1;background:var(--card);background-size:cover;background-position:center;border:none;border-radius:2px;overflow:hidden;cursor:pointer;padding:0}
+.ig-cell{position:relative;aspect-ratio:1/1;background:var(--card);background-size:cover;background-position:center;border:none;border-radius:2px;overflow:hidden;cursor:grab;padding:0}
+.ig-cell:active{cursor:grabbing}
+/* repurpose panel */
+.studio-rep{margin-top:12px;display:flex;flex-direction:column;gap:8px}
+.studio-rep-x{float:right;background:none;border:none;color:var(--cream-d);cursor:pointer;font-size:13px}
+.studio-rep-card{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:11px 13px}
+.app.crew-day .studio-rep-card{background:#fff}
+.studio-rep-h{display:flex;align-items:center;justify-content:space-between;font-family:var(--mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--bronze);margin-bottom:6px}
+.studio-rep-h span{display:flex;gap:6px}
+.studio-rep-h button{font-family:'Inter';font-size:10px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--gold2);background:rgba(184,144,47,.12);border:1px solid rgba(184,144,47,.3);border-radius:6px;padding:3px 8px;cursor:pointer}
+.studio-rep-card p{font-family:'Inter';font-size:12.5px;line-height:1.5;color:var(--cream-m);margin:3px 0}
+.studio-rep-card b{color:var(--cream)}
+.studio-rep-beats{margin:4px 0;padding-left:18px;font-family:'Inter';font-size:12.5px;line-height:1.5;color:var(--cream-m)}
 .app.crew-day .ig-cell{background:#ece4d3}
 .ig-ph{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:8px;text-align:center;border:1px dashed var(--line2);border-radius:2px}
 .ig-ph-cam{font-size:16px;opacity:.5;margin-bottom:1px}

@@ -18,7 +18,7 @@ type Item = {
   hashtags: string[]; status: string; review_note: string | null; scheduled_for: string | null;
   updated_at: string; updated_by: string | null; event_id?: string | null; created_by?: string | null;
   canva_design_id?: string | null; canva_edit_url?: string | null; export_url?: string | null; published_url?: string | null;
-  media_url?: string | null; media_type?: string | null; media?: Media[] | null;
+  media_url?: string | null; media_type?: string | null; media?: Media[] | null; grid_sort?: number | null;
 };
 type Version = { id: string; title: string | null; hook: string | null; caption: string | null; hashtags: string[] | null; status: string | null; label: string | null; edited_by: string | null; created_at: string };
 
@@ -44,6 +44,7 @@ export default function Studio() {
   const [items, setItems] = useState<Item[]>([]);
   const [filter, setFilter] = useState<string>("all");
   const [openId, setOpenId] = useState<string | null>(null);
+  const dragId = useRef<string | null>(null);
   const [view, setView] = useState<"calendar" | "board" | "grid" | "brand">(() => {
     const v = typeof window !== "undefined" ? localStorage.getItem("gt3-studio-view") : null;
     return v === "board" || v === "brand" || v === "grid" ? v : "calendar";
@@ -75,6 +76,22 @@ export default function Studio() {
   if (openId) return <StudioEditor id={openId} me={me} onClose={() => { setOpenId(null); load(); }} />;
 
   const shown = filter === "all" ? items : items.filter((i) => i.status === filter);
+  // feed order: manual grid_sort first, then newest by date — drag tiles to plan the feed
+  const feed = [...shown].sort((a, b) => (a.grid_sort ?? 1e9) - (b.grid_sort ?? 1e9) || (b.scheduled_for || b.updated_at).localeCompare(a.scheduled_for || a.updated_at));
+  const reorderFeed = async (orderedIds: string[]) => {
+    if (!supabase) return;
+    setItems((prev) => prev.map((it) => { const i = orderedIds.indexOf(it.id); return i >= 0 ? { ...it, grid_sort: i } : it; }));
+    await Promise.all(orderedIds.map((idv, i) => supabase!.from("content_items").update({ grid_sort: i }).eq("id", idv)));
+  };
+  const onDropTile = (targetId: string) => {
+    const from = dragId.current; dragId.current = null;
+    if (!from || from === targetId) return;
+    const ids = feed.map((f) => f.id);
+    const fi = ids.indexOf(from), ti = ids.indexOf(targetId);
+    if (fi < 0 || ti < 0) return;
+    ids.splice(ti, 0, ids.splice(fi, 1)[0]);
+    reorderFeed(ids);
+  };
   return (
     <div className="adm-sec">
       <div className="studio-top">
@@ -98,18 +115,19 @@ export default function Studio() {
               <button key={k} type="button" className={`subnav-tab${filter === k ? " on" : ""}`} onClick={() => setFilter(k)}>{k === "all" ? "All" : STATUS[k].label}</button>
             ))}
           </div>
-          <div className="ig-note">📱 Instagram feed preview — newest top-left. Tap a tile to open it.</div>
+          <div className="ig-note">📱 Instagram feed preview — drag tiles to plan the feed, tap to open.</div>
           {shown.length === 0 ? (
             <div className="oa-empty" style={{ padding: "28px 8px" }}>No pieces yet — add a design (export the PNG from Canva) and it shows in the grid.</div>
           ) : (
             <div className="ig-grid">
-              {[...shown].sort((a, b) => (b.scheduled_for || b.updated_at).localeCompare(a.scheduled_for || a.updated_at)).map((it) => {
+              {feed.map((it) => {
                 // cover = first item of the media array (source of truth), else the synced cover, else the Canva export
                 const cover = (Array.isArray(it.media) && it.media[0]) || (it.media_url ? { url: it.media_url, type: it.media_type || "image" } : null);
                 const img = cover && cover.type !== "video" ? cover.url : (it.export_url || null);
                 const vid = cover && cover.type === "video" ? cover.url : null;
                 return (
                   <button key={it.id} type="button" className="ig-cell" onClick={() => setOpenId(it.id)}
+                    draggable onDragStart={() => { dragId.current = it.id; }} onDragOver={(e) => e.preventDefault()} onDrop={() => onDropTile(it.id)}
                     style={img ? { backgroundImage: `url(${img})`, backgroundPosition: (cover && "focal" in cover && cover.focal) ? `${cover.focal.x}% ${cover.focal.y}%` : "center" } : undefined} aria-label={it.title || "Untitled"}>
                     {vid && <video className="ig-vid" src={vid} muted playsInline preload="metadata" />}
                     {!img && !vid && <span className="ig-ph"><span className="ig-ph-cam">📷</span><b>{it.title || "Untitled"}</b><span>tap to add a photo</span></span>}
@@ -171,6 +189,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   const [pub, setPub] = useState<{ edit: string | null; png: string | null; live: string | null }>({ edit: null, png: null, live: null });
   const [pubBusy, setPubBusy] = useState(""); const [pubErr, setPubErr] = useState("");
   const [campBusy, setCampBusy] = useState(false);
+  const [rep, setRep] = useState<any | null>(null); const [repBusy, setRepBusy] = useState(false);
   const [mediaList, setMediaList] = useState<Media[]>([]);
   const [active, setActive] = useState(0);
   const [uploading, setUploading] = useState(false);
@@ -420,6 +439,25 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
     setCampBusy(false);
   };
 
+  // Repurpose this caption into Story / Reel script / email / site blurb.
+  const doRepurpose = async () => {
+    if (!supabase || repBusy) return;
+    setRepBusy(true); setPubErr("");
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const r = await fetch("/api/agents/repurpose", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ content_id: id, caption, title }) });
+      const j = await r.json();
+      if (j.ok) setRep(j); else setPubErr(`Repurpose: ${j.error}`);
+    } catch { setPubErr("Couldn't reach the repurpose agent."); }
+    setRepBusy(false);
+  };
+  const spinOff = async (kind: string, cap: string) => {
+    if (!supabase) return;
+    const { data } = await supabase.from("content_items").insert({ title: `${title || "Untitled"} · ${kind}`, kind, caption: cap, created_by: me.id, updated_by: me.id, event_id: eventId || null }).select("id").single();
+    if (data?.id) onClose();
+  };
+  const copyText = (t: string) => { try { navigator.clipboard?.writeText(t); } catch { /* */ } };
+
   if (!item) return <div className="adm-sec"><div className="oa-empty">Loading…</div></div>;
   const cur = mediaList[active] || mediaList[0] || null;
   const lint = lintCaption(caption);
@@ -529,7 +567,18 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
             <button type="button" className="insp-yes" onClick={() => useOption(o)}>Use this</button>
           </div>
         ))}
+        <button type="button" className="studio-act" style={{ marginTop: 6 }} onClick={doRepurpose} disabled={repBusy || !caption.trim()}>{repBusy ? "Repurposing…" : "♻️ Repurpose — Story · Reel · Email · Site"}</button>
       </div>
+
+      {rep && (
+        <div className="studio-rep">
+          <div className="insp-lbl">♻️ Repurposed <button type="button" className="studio-rep-x" onClick={() => setRep(null)}>✕</button></div>
+          <div className="studio-rep-card"><div className="studio-rep-h">Story<span><button onClick={() => copyText(rep.story)}>Copy</button><button onClick={() => spinOff("story", rep.story)}>Spin off</button></span></div><p>{rep.story}</p></div>
+          <div className="studio-rep-card"><div className="studio-rep-h">Reel script<span><button onClick={() => copyText(`${rep.reel_script.hook}\n${(rep.reel_script.beats || []).join("\n")}\n${rep.reel_script.cta}`)}>Copy</button><button onClick={() => spinOff("reel", `${rep.reel_script.hook}\n\n${(rep.reel_script.beats || []).join("\n")}\n\n${rep.reel_script.cta}`)}>Spin off</button></span></div><p><b>Hook:</b> {rep.reel_script.hook}</p><ol className="studio-rep-beats">{(rep.reel_script.beats || []).map((b: string, i: number) => <li key={i}>{b}</li>)}</ol><p><b>CTA:</b> {rep.reel_script.cta}</p></div>
+          <div className="studio-rep-card"><div className="studio-rep-h">Email<span><button onClick={() => copyText(`${rep.email.subject}\n\n${rep.email.body}`)}>Copy</button></span></div><p><b>{rep.email.subject}</b></p><p style={{ whiteSpace: "pre-wrap" }}>{rep.email.body}</p></div>
+          <div className="studio-rep-card"><div className="studio-rep-h">Site blurb<span><button onClick={() => copyText(rep.site_blurb)}>Copy</button></span></div><p>{rep.site_blurb}</p></div>
+        </div>
+      )}
 
       {/* Schedule + workflow */}
       <div className="studio-sched">
