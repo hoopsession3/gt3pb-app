@@ -187,6 +187,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   const [tags, setTags] = useState(""); const [status, setStatus] = useState("draft");
   const [sched, setSched] = useState(""); const [note, setNote] = useState("");
   const [eventId, setEventId] = useState<string>(""); const [evs, setEvs] = useState<{ id: string; title: string | null; day: string | null; day_label: string | null }[]>([]);
+  const [stopId, setStopId] = useState<string>(""); const [stops, setStops] = useState<{ id: string; name: string | null; starts_at: string | null; when_label: string | null }[]>([]);
   const [peers, setPeers] = useState<{ id: string; name: string }[]>([]);
   const [savedAt, setSavedAt] = useState<string>("");
   const [versions, setVersions] = useState<Version[]>([]);
@@ -233,6 +234,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
         : (it.media_url ? [{ url: it.media_url, type: it.media_type || "image" }] : []);
       setMediaList(ml); setActive(0);
       setEventId(it.event_id ?? "");
+      setStopId((it as any).stop_id ?? "");
     });
     loadVersions();
     return () => { cancelled = true; };
@@ -265,6 +267,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
     if (!supabase) return;
     const since = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
     supabase.from("events").select("id, title, day, day_label").is("archived_at", null).gte("day", since).order("day").limit(60).then(({ data }) => setEvs(data ?? []));
+    supabase.from("stops").select("id, name, starts_at, when_label").is("archived_at", null).order("starts_at", { ascending: false }).limit(60).then(({ data }) => setStops((data as any) ?? []));
   }, []);
 
   const persist = useCallback(async (patch: Record<string, any>) => {
@@ -425,6 +428,8 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
 
   // ── Relational helpers: when a piece is tied to an event, plan the campaign around it ──
   const linkedEv = useMemo(() => evs.find((e) => e.id === eventId), [evs, eventId]);
+  const linkedStop = useMemo(() => stops.find((s) => s.id === stopId), [stops, stopId]);
+  const stopWhen = (s: { starts_at: string | null; when_label: string | null }) => s.when_label || (s.starts_at ? new Date(s.starts_at).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }) : "");
   const scheduleRel = async (offsetDays: number) => {
     if (!linkedEv?.day) return;
     const [y, m, d] = linkedEv.day.split("-").map(Number);
@@ -501,11 +506,23 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
       <div className="studio-meta">
         <select className="insp-in" value={item.kind} onChange={(e) => setMeta("kind", e.target.value)}>{KINDS.map((k) => <option key={k} value={k}>{k}</option>)}</select>
         <select className="insp-in" value={item.channel} onChange={(e) => setMeta("channel", e.target.value)}>{CHANNELS.map((c) => <option key={c} value={c}>{c}</option>)}</select>
-        <select className="insp-in" value={eventId} onChange={(e) => { setEventId(e.target.value); persist({ event_id: e.target.value || null }); }} title="Link this piece to an event (optional)">
-          <option value="">🔗 No event</option>
-          {evs.map((ev) => <option key={ev.id} value={ev.id}>🔗 {ev.day_label || ev.day || ""} · {ev.title || "Event"}</option>)}
+        <select className="insp-in" value={stopId ? `s:${stopId}` : eventId ? `e:${eventId}` : ""} onChange={(e) => {
+          const v = e.target.value;
+          if (v.startsWith("s:")) { const sid = v.slice(2); setStopId(sid); setEventId(""); persist({ stop_id: sid, event_id: null }); }
+          else if (v.startsWith("e:")) { const eid = v.slice(2); setEventId(eid); setStopId(""); persist({ event_id: eid, stop_id: null }); }
+          else { setEventId(""); setStopId(""); persist({ event_id: null, stop_id: null }); }
+        }} title="Link this piece to an event or truck stop (optional)">
+          <option value="">🔗 Not linked</option>
+          {evs.length > 0 && <optgroup label="Events">{evs.map((ev) => <option key={ev.id} value={`e:${ev.id}`}>🎪 {ev.day_label || ev.day || ""} · {ev.title || "Event"}</option>)}</optgroup>}
+          {stops.length > 0 && <optgroup label="Truck stops">{stops.map((s) => <option key={s.id} value={`s:${s.id}`}>🚚 {stopWhen(s)} · {s.name || "Stop"}</option>)}</optgroup>}
         </select>
       </div>
+
+      {linkedStop && (
+        <div className="studio-rel">
+          <span className="studio-rel-l">🚚 Tied to <b>{linkedStop.name || "Truck stop"}</b>{stopWhen(linkedStop) ? ` · ${stopWhen(linkedStop)}` : ""}</span>
+        </div>
+      )}
 
       {linkedEv && (
         <div className="studio-rel">

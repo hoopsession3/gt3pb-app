@@ -22,7 +22,8 @@ function dateLine(iso: string | null): string {
   if (isNaN(d.getTime())) return "";
   return `${DOW[d.getDay()]} · ${MON[d.getMonth()]} ${d.getDate()}`;
 }
-const DEFAULT_MENU = "3 COLD BREWS\nRise · Flow · Dusk\n\nSPECIALTY\nKing Me Nitro Cold Brew\nSalted Maple Latte\nNature's Aid Hydration";
+const norm = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+const DEFAULT_MENU ="3 COLD BREWS\nRise · Flow · Dusk\n\nSPECIALTY\nKing Me Nitro Cold Brew\nSalted Maple Latte\nNature's Aid Hydration";
 
 export default function RoadFlyer() {
   const { toast } = useApp();
@@ -33,6 +34,8 @@ export default function RoadFlyer() {
   const [tile, setTile] = useState<Tile>("announce");
   const [busy, setBusy] = useState(false);
   const [f, setF] = useState({ headline1: "FIND US", headline2: "ON THE ROAD", date: "", time: "", place: "", address: "", photo: "", menu: DEFAULT_MENU });
+  const wmRef = useRef<HTMLImageElement | null>(null);
+  const [logoReady, setLogoReady] = useState(0);
 
   useEffect(() => {
     if (!supabase) return;
@@ -47,6 +50,28 @@ export default function RoadFlyer() {
     });
   }, []);
   const pick = (key: string) => { const o = opts.find((x) => x.key === key); if (o) setF((p) => ({ ...p, date: o.date, time: o.time, place: o.place, address: o.address })); };
+
+  // Load the REAL GT3 wordmark so the flyer footer uses the actual logo (not canvas text).
+  // Prefers the brand kit's wordmark, falls back to a brand_asset, then to drawn text.
+  useEffect(() => {
+    if (!supabase) return;
+    let alive = true;
+    (async () => {
+      let wm = "";
+      const { data: bk } = await supabase.from("brand_kit").select("wordmark_url, logo_url").limit(1).maybeSingle();
+      if (bk) wm = (bk as any).wordmark_url || (bk as any).logo_url || "";
+      if (!wm) {
+        const { data: ba } = await supabase.from("brand_assets").select("kind, url, sort").in("kind", ["wordmark", "logo"]).order("sort");
+        const list = (ba as any[]) ?? [];
+        wm = (list.find((a) => a.kind === "wordmark") || list.find((a) => a.kind === "logo") || {}).url || "";
+      }
+      if (!wm) return;
+      const img = new Image(); img.crossOrigin = "anonymous";
+      img.onload = () => { if (alive) { wmRef.current = img; setLogoReady((n) => n + 1); } };
+      img.src = wm;
+    })();
+    return () => { alive = false; };
+  }, []);
 
   const uploadPhoto = async (file: File) => {
     if (!supabase) return; setBusy(true);
@@ -63,13 +88,27 @@ export default function RoadFlyer() {
 
   const footer = (ctx: CanvasRenderingContext2D, onPhoto = false) => {
     ctx.textAlign = "left";
-    ctx.font = "900 40px 'Archivo Black', system-ui"; ctx.fillStyle = RED; ctx.fillText("GT3", M, H - 70);
-    ctx.font = "500 22px 'DM Mono', monospace"; ctx.fillStyle = onPhoto ? "#fff" : INK; ctx.fillText("PERFORMANCE BAR", M + 96, H - 76);
+    const img = wmRef.current;
+    if (img && img.width > 0) {
+      const h = 56, w = img.width * (h / img.height), y = H - 116;
+      if (onPhoto) { ctx.fillStyle = CREAM; rr(ctx, M - 18, y - 14, Math.min(w + 36, W - 2 * M), h + 28, 16); ctx.fill(); }
+      ctx.drawImage(img, M, y, w, h);
+    } else {
+      // Fallback: drawn wordmark if no real logo is loaded yet.
+      ctx.font = "900 40px 'Archivo Black', system-ui"; ctx.fillStyle = RED; ctx.fillText("GT3", M, H - 70);
+      ctx.font = "500 22px 'DM Mono', monospace"; ctx.fillStyle = onPhoto ? "#fff" : INK; ctx.fillText("PERFORMANCE BAR", M + 96, H - 76);
+    }
     ctx.textAlign = "right";
     ctx.font = "900 30px 'Archivo Black', system-ui"; ctx.fillStyle = onPhoto ? "#fff" : INK; ctx.fillText("PURE SIGNAL.", W - M, H - 96);
     ctx.fillStyle = RED; ctx.fillText("NO NOISE.", W - M, H - 60); ctx.textAlign = "left";
   };
-  const checker = (ctx: CanvasRenderingContext2D) => { const cs = 26; for (let r = 0; r < 2; r++) for (let c = 0; c < 4; c++) if ((r + c) % 2 === 0) { ctx.fillStyle = INK; ctx.fillRect(M + c * cs, M + r * cs, cs, cs); } };
+  // Signature element: a GT3 racing flag — red speed bar over a two-row checker. Reads as the same
+  // set every time and is unmistakably motorsport. Drawn full-bleed across the top.
+  const racingStripe = (ctx: CanvasRenderingContext2D, onPhoto = false) => {
+    ctx.fillStyle = RED; ctx.fillRect(0, 0, W, 14);
+    const cs = 24, sq = onPhoto ? "#FFFFFF" : INK;
+    for (let r = 0; r < 2; r++) for (let c = 0; c <= Math.ceil(W / cs); c++) if ((r + c) % 2 === 0) { ctx.fillStyle = sq; ctx.fillRect(c * cs, 14 + r * cs, cs, cs); }
+  };
 
   const draw = useCallback(async () => {
     const cv = canvasRef.current; if (!cv) return; const ctx = cv.getContext("2d"); if (!ctx) return;
@@ -83,10 +122,10 @@ export default function RoadFlyer() {
       const g = ctx.createLinearGradient(0, H - 560, 0, H); g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,.82)"); ctx.fillStyle = g; ctx.fillRect(0, H - 560, W, 560);
       ctx.font = "900 104px 'Archivo Black', system-ui"; ctx.fillStyle = "#fff"; ctx.fillText((f.headline1 || "").toUpperCase(), M, H - 290);
       ctx.fillStyle = RED; ctx.fillText((f.headline2 || "").toUpperCase(), M, H - 290 + 106);
-      footer(ctx, true); return;
+      racingStripe(ctx, true); footer(ctx, true); return;
     }
 
-    ctx.fillStyle = CREAM; ctx.fillRect(0, 0, W, H); checker(ctx);
+    ctx.fillStyle = CREAM; ctx.fillRect(0, 0, W, H); racingStripe(ctx);
 
     if (tile === "menu") {
       ctx.font = "900 116px 'Archivo Black', system-ui"; ctx.fillStyle = INK; ctx.fillText("THE", M, M + 230); ctx.fillStyle = RED; ctx.fillText("MENU", M, M + 230 + 118);
@@ -112,14 +151,15 @@ export default function RoadFlyer() {
     const big = (t: string, color = INK, size = 60) => { ctx.font = `700 ${size}px Inter, system-ui`; ctx.fillStyle = color; ctx.fillText(t, M, y); y += size + 14; };
     const small = (t: string) => { ctx.font = "400 32px Inter, system-ui"; ctx.fillStyle = MUT; ctx.fillText(t, M, y); y += 46; };
     if (f.date || f.time) { label("WHEN"); if (f.date) big(f.date); if (f.time) big(f.time, RED, 50); y += 12; }
-    if (f.place || f.address) { label("WHERE"); if (f.place) big(f.place, INK, 50); if (f.address) small(f.address); }
+    const showAddr = f.address && norm(f.address) !== norm(f.place) && !norm(f.address).startsWith(norm(f.place) + " ");
+    if (f.place || showAddr) { label("WHERE"); if (f.place) big(f.place, INK, 50); if (showAddr) small(f.address); }
     const px = M, pw = W - 2 * M, ph = 380, py = H - ph - 150;
     rr(ctx, px, py, pw, ph, 28);
     const img = f.photo ? await loadImg(f.photo) : null;
     if (img) { ctx.save(); rr(ctx, px, py, pw, ph, 28); ctx.clip(); cover(ctx, img, px, py, pw, ph); ctx.restore(); }
     else { ctx.fillStyle = "#ece4d3"; ctx.fill(); ctx.font = "500 26px 'DM Mono'"; ctx.fillStyle = MUT; ctx.textAlign = "center"; ctx.fillText("ADD A PHOTO", W / 2, py + ph / 2 + 8); ctx.textAlign = "left"; }
     footer(ctx);
-  }, [f, tile]);
+  }, [f, tile, logoReady]);
 
   useEffect(() => { draw(); }, [draw]);
 
