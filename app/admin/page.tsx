@@ -762,6 +762,7 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
   }, []);
 
   const ack = async (id: string) => { setFlags((f) => f.filter((x) => x.id !== id)); await supabase?.from("alerts").update({ ack_at: new Date().toISOString(), ack_by: userId }).eq("id", id); };
+  const clearFlags = async () => { const ids = flags.map((f) => f.id); if (!supabase || !ids.length) return; setFlags([]); await supabase.from("alerts").update({ ack_at: new Date().toISOString(), ack_by: userId }).in("id", ids); };
   const gotoFlag = (category: string | null) => { const d = alertDest(category); if (d.planTab) { try { localStorage.setItem("gt3-plan-tab", d.planTab); } catch { /* ignore */ } } setSection(d.section); };
   const hr = new Date().getHours();
   const greet = hr < 12 ? "Good morning" : hr < 17 ? "Good afternoon" : "Good evening";
@@ -792,7 +793,7 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
       {isLeader && <SmartIntake />}
       {isLeader && (
         <>
-          <div className="sec">Flags &amp; pings for you{flags.length ? ` · ${flags.length}` : ""}</div>
+          <div className="sec">Flags &amp; pings for you{flags.length ? ` · ${flags.length}` : ""}{flags.length > 1 && <button type="button" className="alert-clearall" onClick={clearFlags}>Clear all</button>}</div>
           {flags.length === 0 ? (
             <div className="myday-clear">✓ Nothing needs you right now.</div>
           ) : flags.map((f) => (
