@@ -34,11 +34,20 @@ export default function OrderStatus() {
   useEffect(() => {
     load();
     if (!supabase || !user) return;
+    const interval = setInterval(load, 20000);
+    const onVis = () => { if (document.visibilityState === "visible") load(); };
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("focus", load);
     const ch = supabase
       .channel("my-orders")
       .on("postgres_changes", { event: "*", schema: "public", table: "orders", filter: `user_id=eq.${user.id}` }, () => load())
       .subscribe();
-    return () => { supabase?.removeChannel(ch); };
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("focus", load);
+      supabase?.removeChannel(ch);
+    };
   }, [load, user]);
 
   if (orders.length === 0) return null;

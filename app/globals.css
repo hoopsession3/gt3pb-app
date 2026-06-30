@@ -576,8 +576,8 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 /* KDS collapsible stages */
 .kds-stage{margin-top:14px}
 .kds-stage-h{width:100%;display:flex;align-items:center;gap:10px;background:none;border:none;border-bottom:1px solid var(--line2);padding:6px 2px 8px;cursor:pointer;color:var(--cream)}
-.kds-caret{color:var(--gold2);font-size:11px;transition:transform .15s}
-.kds-caret.col{transform:rotate(-90deg)}
+.kds-caret{color:var(--cream-m);font-family:'Inter';font-size:18px;line-height:1;transition:transform .15s;transform:rotate(90deg)}
+.kds-caret.col{transform:none}
 .kds-stage-name{font-family:'Inter';font-weight:650;font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:var(--gold)}
 .kds-stage-n{margin-left:auto;font-family:'DM Mono';font-size:12px;color:var(--cream-m)}
 .kds-empty{font-family:'Inter';font-size:12px;color:var(--cream-m);padding:10px 2px}
@@ -680,8 +680,11 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .ev-badge.roi{background:rgba(106,160,92,.16);color:#8fce86}
 .ev-badge.roi.neg{background:rgba(184,36,32,.16);color:var(--red-h)}
 @keyframes evpulse{0%,100%{opacity:1}50%{opacity:.5}}
-.ev-chev{font-family:'Inter';font-size:18px;line-height:1;color:var(--cream-m);transition:transform .18s}
-.ev-card.open .ev-chev{transform:rotate(90deg)}
+.ev-chev{font-family:'Inter';font-size:18px;line-height:1;color:var(--cream-m);transition:transform .18s;flex:0 0 auto}
+/* universal disclosure caret — points right when closed, rotates down (90deg) when its section is open */
+.ev-card.open .ev-chev,.ev-chev.open{transform:rotate(90deg)}
+.am-head .ev-chev{margin-left:auto}
+.adm-regen .ev-chev{font-size:14px;vertical-align:middle}
 .ev-body{padding:14px;display:flex;flex-direction:column;gap:16px;border-top:1px solid var(--line)}
 .ev-golive{display:flex;align-items:center;gap:11px;width:100%;padding:13px;border-radius:12px;border:1.5px solid var(--line2);background:rgba(0,0,0,.22);color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;text-align:left;transition:.15s}
 .ev-golive>span:nth-child(2){flex:1;line-height:1.3}
@@ -1155,7 +1158,8 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .prep-scrim{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:55}
 /* centered pop-up animation that keeps the translate(-50%,-50%) centering through the tween */
 @keyframes popcenter{from{opacity:0;transform:translate(-50%,-46%) scale(.985)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
-.prep-sheet{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:calc(100% - 32px);max-width:520px;max-height:86vh;overflow-y:auto;z-index:56;background:#15110d;border:1px solid var(--line2);border-radius:18px;padding:14px 18px calc(16px + env(safe-area-inset-bottom));box-shadow:0 24px 60px rgba(0,0,0,.6);animation:popcenter .18s ease}
+/* top shifts up by half the keyboard inset so a centered pop-up re-centers in the area above the keyboard */
+.prep-sheet{position:fixed;left:50%;top:calc(50% - var(--kb,0px) / 2);transform:translate(-50%,-50%);width:calc(100% - 32px);max-width:520px;max-height:min(86vh,calc(100dvh - var(--kb,0px) - 24px));overflow-y:auto;z-index:56;background:#15110d;border:1px solid var(--line2);border-radius:18px;padding:14px 18px calc(16px + env(safe-area-inset-bottom));box-shadow:0 24px 60px rgba(0,0,0,.6);animation:popcenter .18s ease}
 .prep-sheet-grab{width:38px;height:4px;border-radius:2px;background:var(--line2);margin:4px auto 14px}
 .prep-sheet-h{font-family:'Inter';font-weight:600;font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--cream-m);margin-bottom:10px}
 .prep-sheet-opts{display:flex;gap:9px}
@@ -1394,7 +1398,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .app.crew-day .gl-dims input{background:#fff}
 .gl-notes{margin-top:5px}
 .gl-notes>summary{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:.02em;color:var(--gold2);cursor:pointer;list-style:none;display:inline-flex;align-items:center;gap:4px}
-.gl-notes>summary::before{content:'▸';font-size:9px;transition:transform .15s}
+.gl-notes>summary::before{content:'›';font-size:14px;line-height:1;transition:transform .15s}
 .gl-notes[open]>summary::before{transform:rotate(90deg)}
 .gl-notes-body{white-space:pre-wrap;font-family:'Inter';font-size:11.5px;line-height:1.5;color:var(--cream-m);margin-top:6px;padding:9px 11px;background:rgba(0,0,0,.18);border:1px solid var(--line);border-radius:9px}
 .app.crew-day .gl-notes-body{background:rgba(34,31,24,.05)}
@@ -1489,11 +1493,15 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .note-title{display:block;font-family:'Inter';font-weight:700;font-size:16.5px;letter-spacing:-.2px;color:var(--cream);line-height:1.3}
 .note-src{display:inline-block;margin-left:8px;vertical-align:middle;font-family:'Inter';font-weight:600;letter-spacing:.5px;text-transform:uppercase;font-size:8.5px;color:var(--gold2);background:rgba(169,124,63,.16);border:1px solid var(--line2);border-radius:6px;padding:2px 6px}
 .note-meta{display:block;font-family:'Inter';font-size:11.5px;color:var(--cream-m);margin-top:3px}
-.note-chev{flex:0 0 auto;color:var(--gold2);font-size:14px}
+.note-chev{flex:0 0 auto;color:var(--cream-m);font-family:'Inter';font-size:18px;line-height:1;transition:transform .18s}
+.note-chev.open{transform:rotate(90deg)}
 .note-body{padding:0 16px 16px;border-top:1px solid var(--line)}
 .note-summary{font-family:'Inter';font-size:14px;color:var(--cream);line-height:1.55;margin:13px 0 0;white-space:pre-wrap}
 .note-full{margin-top:11px}
-.note-full summary{font-family:'Inter';font-weight:600;font-size:12.5px;color:var(--gold2);cursor:pointer}
+.note-full summary{font-family:'Inter';font-weight:600;font-size:12.5px;color:var(--gold2);cursor:pointer;list-style:none;display:inline-flex;align-items:center;gap:5px}
+.note-full summary::-webkit-details-marker{display:none}
+.note-full summary::before{content:'›';font-size:14px;line-height:1;transition:transform .15s}
+.note-full[open] summary::before{transform:rotate(90deg)}
 .note-full p{font-family:'Inter';font-size:13.5px;color:var(--cream-m);line-height:1.55;margin-top:8px;white-space:pre-wrap}
 .note-fu-h{font-family:'Inter';font-weight:600;letter-spacing:1.5px;text-transform:uppercase;font-size:9.5px;color:var(--gold);margin:18px 0 4px}
 .note-fu{display:flex;align-items:center;gap:11px;padding:9px 0;border-bottom:1px solid var(--line)}
@@ -1520,6 +1528,13 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .alert.sev-critical .alert-title{color:#ecb4b1}
 .alert-body{display:block;font-family:'Inter';font-size:12px;color:var(--cream-m);margin-top:3px;line-height:1.4}
 .alert-ack{flex:0 0 auto;background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:10px;padding:9px 14px;color:var(--gold2);font-family:'Inter';font-weight:600;font-size:12.5px;cursor:pointer;-webkit-appearance:none;appearance:none;min-height:40px}
+/* respond / clear actions on alerts (0084 alert-inbox pass) */
+.alert-open,.myday-open{flex:0 0 auto;background:var(--gold);border:none;border-radius:10px;padding:9px 14px;color:#1a1610;font-family:'Inter';font-weight:700;font-size:12.5px;cursor:pointer;-webkit-appearance:none;appearance:none;min-height:40px}
+.myday-open{margin-right:6px;padding:8px 12px;font-size:12px}
+.alert-clearall{margin-left:auto;background:none;border:1px solid var(--line2);border-radius:999px;padding:4px 12px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:11.5px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.app.crew-day .alert-clearall{color:#6c6256}
+.opnav .tab .ti{position:relative}
+.nav-badge{position:absolute;top:-5px;left:calc(50% + 4px);min-width:16px;height:16px;padding:0 4px;background:var(--red-h);color:#fff;border-radius:999px;font-family:'Inter';font-weight:800;font-size:10px;line-height:16px;text-align:center;box-sizing:border-box}
 .alert-ack:active{opacity:.7}
 .note-fu-flag{flex:0 0 auto;background:none;border:none;color:var(--cream-m);font-size:15px;line-height:1;padding:6px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .note-fu-flag:active{color:#d2554a}
@@ -1544,7 +1559,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 /* ── input sheet (focused guided entry; keeps context above visible) ── */
 .isheet-scrim{position:fixed;inset:0;background:rgba(0,0,0,.42);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:60;animation:isheet-fade .15s ease}
 @keyframes isheet-fade{from{opacity:0}to{opacity:1}}
-.isheet{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:calc(100% - 32px);max-width:520px;max-height:86vh;overflow-y:auto;z-index:61;background:#16130c;border-radius:20px;border:1px solid var(--line2);padding:10px 16px calc(14px + env(safe-area-inset-bottom));box-shadow:0 24px 60px rgba(0,0,0,.6);animation:popcenter .2s cubic-bezier(.2,.8,.2,1)}
+.isheet{position:fixed;left:50%;top:calc(50% - var(--kb,0px) / 2);transform:translate(-50%,-50%);width:calc(100% - 32px);max-width:520px;max-height:min(86vh,calc(100dvh - var(--kb,0px) - 24px));overflow-y:auto;z-index:61;background:#16130c;border-radius:20px;border:1px solid var(--line2);padding:10px 16px calc(14px + env(safe-area-inset-bottom));box-shadow:0 24px 60px rgba(0,0,0,.6);animation:popcenter .2s cubic-bezier(.2,.8,.2,1)}
 @keyframes isheet-up{from{transform:translateY(100%)}to{transform:translateY(0)}}
 .isheet-grab{width:38px;height:4px;border-radius:2px;background:var(--line2);margin:6px auto 10px}
 .isheet-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
@@ -1645,9 +1660,10 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .qd-fab{position:fixed;right:16px;bottom:calc(var(--navh,68px) + 16px);z-index:60;width:54px;height:54px;border-radius:50%;border:none;background:var(--gold);color:#1a1610;font-size:22px;font-weight:700;box-shadow:0 8px 22px rgba(0,0,0,.35);cursor:pointer;-webkit-appearance:none;appearance:none;display:flex;align-items:center;justify-content:center}
 .qd-fab.open{background:var(--card);color:var(--cream);border:1px solid var(--line)}
 /* Sheets are centered pop-ups that blur the screen behind, so nothing in the page (nav, FAB,
-   calendar) reads through or competes with them. */
-.qd-scrim{position:fixed;inset:0;z-index:59;background:rgba(0,0,0,.55);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);display:flex;align-items:center;justify-content:center;padding:16px}
-.qd-sheet{width:100%;max-width:560px;max-height:88vh;display:flex;flex-direction:column;background:var(--bg,#161310);border:1px solid var(--line);border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,.6);animation:qdup .18s ease}
+   calendar) reads through or competes with them. Bottom padding tracks the keyboard so the
+   centered sheet stays fully above it. */
+.qd-scrim{position:fixed;inset:0;z-index:59;background:rgba(0,0,0,.55);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);display:flex;align-items:center;justify-content:center;padding:16px 16px calc(16px + var(--kb,0px));box-sizing:border-box}
+.qd-sheet{width:100%;max-width:560px;max-height:min(88vh,calc(100dvh - var(--kb,0px) - 32px));display:flex;flex-direction:column;background:var(--bg,#161310);border:1px solid var(--line);border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,.6);animation:qdup .18s ease}
 @keyframes qdup{from{transform:translateY(10px) scale(.98);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}
 .qd-tabs{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
 .qd-tab{background:rgba(255,255,255,.05);border:1px solid var(--line2);border-radius:999px;padding:8px 14px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
@@ -2085,7 +2101,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .brand-upload .brand-asset-img{border-style:dashed}
 
 /* ── Event day planner · run of show ── */
-.qd-sheet.dp{max-width:620px;max-height:90vh}
+.qd-sheet.dp{max-width:620px;max-height:min(90vh,calc(100dvh - var(--kb,0px) - 16px))}
 .dp-head{display:flex;align-items:flex-start;gap:10px;padding:16px 16px 10px}
 .dp-eyebrow{font-family:'Inter';font-weight:700;font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--gold2)}
 .dp-title{font-family:'Fraunces',serif;font-size:20px;line-height:1.2;color:var(--cream);margin-top:2px}
@@ -2194,7 +2210,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .conc-fab{position:fixed;right:16px;bottom:84px;z-index:55;display:flex;align-items:center;gap:7px;background:#15140f;color:#f4ead6;border:1px solid #B8902F;border-radius:999px;padding:10px 15px;font-family:'Inter';font-weight:700;font-size:14px;box-shadow:0 6px 22px rgba(0,0,0,.32);cursor:pointer}
 .conc-fab.hide{display:none}
 .conc-fab-i{font-size:16px}
-.conc-scrim{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
+.conc-scrim{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;padding-bottom:var(--kb,0px);box-sizing:border-box}
 .conc-panel{width:100%;max-width:480px;height:min(76vh,640px);display:flex;flex-direction:column;background:#1b1a14;border:1px solid #36332a;border-radius:18px 18px 0 0;box-shadow:0 -12px 40px rgba(0,0,0,.5);overflow:hidden;animation:qdup .18s ease}
 .conc-head{display:flex;align-items:center;gap:10px;padding:13px 15px;border-bottom:1px solid #2c2a22}
 .conc-head-l{display:flex;align-items:center;gap:10px}
@@ -2331,6 +2347,11 @@ select.note-in{-webkit-appearance:none;appearance:none}
 /* cream /menu (warm paper) — charcoal-ink mark off the bottom-right, well below the masthead.
    Paper shows dark marks more readily than dark shows light, so this is capped lower. */
 .wm--menu{bottom:-40px;right:-19%;width:64%;max-width:350px;opacity:.04;background-image:url(/brand/3_outline_charcoal.svg)}
+/* ── Grouped nav: secondary segmented toggle (My Day·Now / Plan·Prep / Money·Team) ── */
+.grp-toggle{display:inline-flex;gap:3px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:3px;margin-bottom:14px}
+.app.crew-day .grp-toggle{background:#fff}
+.grp-seg{flex:0 0 auto;background:transparent;border:none;border-radius:999px;padding:7px 18px;color:var(--cream-m);font-family:'Inter';font-weight:700;font-size:13.5px;cursor:pointer;-webkit-appearance:none;appearance:none;transition:background .12s,color .12s}
+.grp-seg.on{background:var(--gold);color:#1a1610}
 
 /* ── Company calendar: tap-a-day detail view ── */
 .cal-cell{cursor:pointer}
@@ -2432,6 +2453,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 /* ── Chief of Sales (opportunity scout) ── */
 .cos-sales{padding:13px}
 .cossales-head{display:flex;align-items:center;gap:9px;width:100%;background:none;border:none;cursor:pointer;text-align:left;padding:0}
+.cossales-head .ev-chev{margin-left:auto}
 .cossales-sub{font-family:'Inter';font-size:12px;color:var(--cream-m)}
 .cossales-head .cos-area-tag{margin-left:auto;color:var(--gold2)}
 .sales-opp{display:flex;gap:10px;align-items:flex-start;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:10px 11px;margin-top:7px;cursor:pointer;-webkit-appearance:none;appearance:none;opacity:.6}
@@ -2462,9 +2484,11 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .am-row-main b{font-family:'Inter';font-weight:600;font-size:13px;color:var(--cream)}
 .am-row-main>span{font-family:'Inter';font-size:11.5px;color:var(--cream-m)}
 .am-how{margin-top:5px}
-.am-how>summary{font-family:'Inter';font-weight:700;font-size:11.5px;color:var(--gold2);cursor:pointer;list-style:none}
+.am-how>summary{font-family:'Inter';font-weight:700;font-size:11.5px;color:var(--gold2);cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px}
 .am-how>summary::-webkit-details-marker{display:none}
-.am-how>summary::before{content:'📖 ';}
+.am-how>summary::before{content:'📖';}
+.am-how>summary::after{content:'›';margin-left:auto;font-size:16px;color:var(--cream-m);transition:transform .18s}
+.am-how[open]>summary::after{transform:rotate(90deg)}
 .am-how-steps{margin-top:6px;display:flex;flex-direction:column;gap:5px}
 .am-how-steps>div{font-family:'Inter';font-size:12.5px;color:var(--cream);line-height:1.5;padding:7px 10px;background:var(--card);border:1px solid var(--line);border-radius:8px}
 
@@ -2488,6 +2512,10 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .app.crew-day .brew-status{background:rgba(34,31,24,.05)}
 .brew-card-meta{font-family:'Inter';font-size:12px;color:var(--cream-m);margin-top:5px;line-height:1.4}
 .brew-start{margin-top:9px;width:100%;background:linear-gradient(135deg,#a97c3f,#caa35f);border:none;border-radius:9px;padding:10px;color:#1a1409;font-family:'Inter';font-weight:800;font-size:13.5px;cursor:pointer;-webkit-appearance:none;appearance:none}
+/* back-scheduled "start by" hint on a planned batch (0084 brew alert ladder) */
+.brew-startby{margin-top:9px;font-family:'Inter';font-weight:700;font-size:12px;color:var(--cream-m);background:rgba(245,241,232,.05);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
+.app.crew-day .brew-startby{background:#fff;color:#6c6256}
+.brew-startby.over{color:var(--red-h);border-color:var(--red-h);background:rgba(184,36,32,.1)}
 .brew-timer{display:flex;align-items:center;gap:8px;margin-top:9px;background:rgba(43,179,163,.13);border:1px solid rgba(43,179,163,.5);border-radius:9px;padding:9px 11px;flex-wrap:wrap}
 .brew-timer b{font-family:'DM Mono';font-size:16px;color:#5fd0c2}
 .brew-timer span:last-child{font-family:'Inter';font-size:12px;color:var(--cream-m);flex:1 1 100%}
@@ -2634,6 +2662,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
    keyboard no longer hides the buttons either. */
 .app:has(.qd-scrim) .nav,
 .app:has(.prep-scrim) .nav,
+.app:has(.conc-scrim) .nav,
 .app:has(.isheet-scrim) .nav{transform:translateY(120%);transition:transform .15s ease}
 .qd-scrim{z-index:120}
 .qd-fab{z-index:110}
