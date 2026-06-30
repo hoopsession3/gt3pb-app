@@ -717,7 +717,8 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
 
   const loadFlags = useCallback(async () => {
     if (!supabase || !userId || !isLeader) { setFlags([]); return; }
-    const { data } = await supabase.from("alerts").select("id, severity, title, body").eq("target_user_id", userId).is("ack_at", null).order("created_at", { ascending: false }).limit(20);
+    // your own pings AND leadership broadcasts (no specific target) — e.g. content approvals route here
+    const { data } = await supabase.from("alerts").select("id, severity, title, body").or(`target_user_id.eq.${userId},target_user_id.is.null`).is("ack_at", null).order("created_at", { ascending: false }).limit(20);
     // dedupe identical pings (same title+body can arrive from more than one source)
     const seen = new Set<string>();
     setFlags(((data as typeof flags) ?? []).filter((f) => { const k = `${f.title}|${f.body ?? ""}`; if (seen.has(k)) return false; seen.add(k); return true; }));
@@ -726,7 +727,7 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
   useEffect(() => {
     loadFlags();
     if (!supabase || !userId) return;
-    const ch = supabase.channel("my-day-flags").on("postgres_changes", { event: "*", schema: "public", table: "alerts", filter: `target_user_id=eq.${userId}` }, () => loadFlags()).subscribe();
+    const ch = supabase.channel("my-day-flags").on("postgres_changes", { event: "*", schema: "public", table: "alerts" }, () => loadFlags()).subscribe();
     return () => { supabase?.removeChannel(ch); };
   }, [loadFlags, userId]);
   useEffect(() => {
@@ -2703,6 +2704,12 @@ function Bookings() {
     toast(error ? `Error: ${error.message}` : `Marked ${status}`);
     if (!error) load();
   };
+  const del = async (r: BookingRequest) => {
+    if (typeof window !== "undefined" && !window.confirm(`Delete the booking request from ${r.name ?? "this contact"}? This can't be undone.`)) return;
+    setReqs((p) => p.filter((x) => x.id !== r.id)); // optimistic
+    const { error } = await supabase!.from("booking_requests").delete().eq("id", r.id);
+    if (error) { toast(`Couldn't delete — ${error.message}`, "error"); load(); } else toast("Booking request deleted");
+  };
 
   const open = reqs.filter((r) => r.status === "new").length;
   return (
@@ -2724,6 +2731,7 @@ function Bookings() {
             {STATUSES.map((s) => (
               <button key={s} className={r.status === s ? "on" : ""} onClick={() => setStatus(r.id, s)}>{s}</button>
             ))}
+            <button className="adm-req-del" onClick={() => del(r)} aria-label={`Delete booking request from ${r.name ?? "contact"}`}>✕</button>
           </div>
         </div>
       ))}

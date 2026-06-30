@@ -16,7 +16,7 @@ type Item = {
   hashtags: string[]; status: string; review_note: string | null; scheduled_for: string | null;
   updated_at: string; updated_by: string | null; event_id?: string | null; created_by?: string | null;
   canva_design_id?: string | null; canva_edit_url?: string | null; export_url?: string | null; published_url?: string | null;
-  media_url?: string | null; media_type?: string | null;
+  media_url?: string | null; media_type?: string | null; media?: { url: string; type: string }[] | null;
 };
 type Version = { id: string; title: string | null; hook: string | null; caption: string | null; hashtags: string[] | null; status: string | null; label: string | null; edited_by: string | null; created_at: string };
 
@@ -25,7 +25,14 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   changes: { label: "Changes", cls: "st-changes" }, approved: { label: "Approved", cls: "st-approved" },
   scheduled: { label: "Scheduled", cls: "st-scheduled" }, published: { label: "Published", cls: "st-published" },
 };
-const KINDS = ["post", "carousel", "reel", "caption", "email", "menu_card", "promo", "blog"];
+const KINDS = ["post", "carousel", "reel", "story", "caption", "email", "menu_card", "promo", "blog"];
+// Format → the real frame aspect ratio + label, so the mockup matches what posts on the platform.
+const FORMATS: Record<string, { ratio: string; label: string }> = {
+  post: { ratio: "4 / 5", label: "Post · 4:5" }, carousel: { ratio: "4 / 5", label: "Carousel · 4:5" },
+  reel: { ratio: "9 / 16", label: "Reel · 9:16" }, story: { ratio: "9 / 16", label: "Story · 9:16" },
+  menu_card: { ratio: "1 / 1", label: "1:1" }, promo: { ratio: "1 / 1", label: "1:1" },
+};
+const fmtFor = (kind: string) => FORMATS[kind] ?? { ratio: "1 / 1", label: "1:1" };
 const CHANNELS = ["instagram", "tiktok", "site", "email", "print", "other"];
 const fmtDate = (s: string | null) => s ? new Date(s).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
 
@@ -103,6 +110,7 @@ export default function Studio() {
                     {vid && <video className="ig-vid" src={vid} muted playsInline preload="metadata" />}
                     {!img && !vid && <span className="ig-ph"><b>{it.title || "Untitled"}</b><span>{STATUS[it.status]?.label ?? it.status}</span></span>}
                     {vid && <span className="ig-reel">▶</span>}
+                    {(it.media?.length ?? 0) > 1 && <span className="ig-multi">▦</span>}
                     {(img || vid) && it.status !== "published" && <span className="ig-tag">{STATUS[it.status]?.label ?? it.status}</span>}
                   </button>
                 );
@@ -159,7 +167,8 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   const [pub, setPub] = useState<{ edit: string | null; png: string | null; live: string | null }>({ edit: null, png: null, live: null });
   const [pubBusy, setPubBusy] = useState(""); const [pubErr, setPubErr] = useState("");
   const [campBusy, setCampBusy] = useState(false);
-  const [media, setMedia] = useState<{ url: string; type: string } | null>(null);
+  const [mediaList, setMediaList] = useState<{ url: string; type: string }[]>([]);
+  const [active, setActive] = useState(0);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const chRef = useRef<any>(null);
@@ -185,7 +194,10 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
       setTags((it.hashtags || []).join(", ")); setStatus(it.status); setNote(it.review_note || "");
       setSched(it.scheduled_for ? new Date(it.scheduled_for).toISOString().slice(0, 16) : "");
       setPub({ edit: it.canva_edit_url ?? null, png: it.export_url ?? null, live: it.published_url ?? null });
-      setMedia(it.media_url ? { url: it.media_url, type: it.media_type || "image" } : null);
+      const ml = Array.isArray((it as any).media) && (it as any).media.length
+        ? ((it as any).media as { url: string; type: string }[])
+        : (it.media_url ? [{ url: it.media_url, type: it.media_type || "image" }] : []);
+      setMediaList(ml); setActive(0);
       setEventId(it.event_id ?? "");
     });
     loadVersions();
@@ -227,22 +239,32 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
     setSavedAt(new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
   }, [id, me.id]);
 
-  // Attach the post media — photo, video, or reel. Uploads to the public 'content' bucket and
-  // saves the URL + type so the feed/grid shows it.
-  const uploadMedia = async (file: File) => {
-    if (!supabase) return;
+  // Save the media array + keep the single cover columns (media_url/type) in sync for the grid.
+  const saveMedia = async (list: { url: string; type: string }[]) => {
+    setMediaList(list);
+    await persist({ media: list, media_url: list[0]?.url ?? null, media_type: list[0]?.type ?? null });
+  };
+  // Attach post media — one or many photos/videos (carousel). Uploads to the public 'content' bucket.
+  const uploadMedia = async (files: FileList) => {
+    if (!supabase || !files.length) return;
     setUploading(true);
-    const ext = (file.name.split(".").pop() || "bin").toLowerCase().replace(/[^a-z0-9]/g, "");
-    const path = `${id}/${new Date().getTime()}.${ext}`;
-    const up = await supabase.storage.from("content").upload(path, file, { upsert: true, cacheControl: "3600" });
-    if (up.error) { setUploading(false); setPubErr(`Upload: ${up.error.message}`); return; }
-    const url = supabase.storage.from("content").getPublicUrl(path).data.publicUrl;
-    const type = file.type.startsWith("video") ? "video" : "image";
-    setMedia({ url, type });
-    await persist({ media_url: url, media_type: type });
+    const added: { url: string; type: string }[] = [];
+    for (const file of Array.from(files)) {
+      const ext = (file.name.split(".").pop() || "bin").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const path = `${id}/${new Date().getTime()}-${added.length}.${ext}`;
+      const up = await supabase.storage.from("content").upload(path, file, { upsert: true, cacheControl: "3600" });
+      if (up.error) { setPubErr(`Upload: ${up.error.message}`); continue; }
+      added.push({ url: supabase.storage.from("content").getPublicUrl(path).data.publicUrl, type: file.type.startsWith("video") ? "video" : "image" });
+    }
+    if (added.length) await saveMedia([...mediaList, ...added]);
     setUploading(false);
   };
-  const removeMedia = async () => { setMedia(null); await persist({ media_url: null, media_type: null }); };
+  const removeMedia = async (i: number) => {
+    const list = mediaList.filter((_, j) => j !== i);
+    setActive((a) => Math.max(0, Math.min(a, list.length - 1)));
+    await saveMedia(list);
+  };
+  const makeCover = async (i: number) => { const list = [...mediaList]; const [m] = list.splice(i, 1); await saveMedia([m, ...list]); setActive(0); };
 
   // local edit → broadcast immediately + debounced autosave
   const edit = (field: "title" | "hook" | "caption" | "tags", value: string) => {
@@ -385,6 +407,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   };
 
   if (!item) return <div className="adm-sec"><div className="oa-empty">Loading…</div></div>;
+  const cur = mediaList[active] || mediaList[0] || null;
 
   return (
     <div className="adm-sec">
@@ -422,22 +445,35 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
         </div>
       )}
 
-      {/* Post media — photo / video / reel (what actually shows in the feed) */}
+      {/* Post media + a real, format-accurate mockup (post 4:5 · reel/story 9:16 · carousel slides) */}
       <div className="studio-media">
-        {media ? (
-          media.type === "video"
-            ? <video className="studio-media-prev" src={media.url} controls playsInline />
-            : <div className="studio-media-prev img" style={{ backgroundImage: `url(${media.url})` }} role="img" aria-label="Post media" />
+        <div className="studio-media-fmt">{fmtFor(item.kind).label}{mediaList.length > 1 ? ` · ${mediaList.length} slides` : ""}</div>
+        {mediaList.length === 0 ? (
+          <button type="button" className="studio-media-add" onClick={() => fileRef.current?.click()} disabled={uploading}>{uploading ? "Uploading…" : "＋ Add photos / video / reel"}</button>
         ) : (
-          <button type="button" className="studio-media-add" onClick={() => fileRef.current?.click()} disabled={uploading}>{uploading ? "Uploading…" : "＋ Add photo / video / reel"}</button>
-        )}
-        {media && (
-          <div className="studio-media-ctl">
-            <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading}>{uploading ? "Uploading…" : "Replace"}</button>
-            <button type="button" className="ghost" onClick={removeMedia}>Remove</button>
+          <div className="studio-mockup" style={{ aspectRatio: fmtFor(item.kind).ratio }}>
+            {cur?.type === "video"
+              ? <video className="studio-mockup-m" src={cur.url} controls playsInline />
+              : cur && <div className="studio-mockup-m" style={{ backgroundImage: `url(${cur.url})` }} role="img" aria-label="Preview" />}
+            {mediaList.length > 1 && <div className="studio-dots">{mediaList.map((_, i) => <span key={i} className={i === active ? "on" : ""} />)}</div>}
+            {mediaList.length > 1 && active > 0 && <button type="button" className="studio-nav prev" onClick={() => setActive((a) => a - 1)} aria-label="Previous">‹</button>}
+            {mediaList.length > 1 && active < mediaList.length - 1 && <button type="button" className="studio-nav next" onClick={() => setActive((a) => a + 1)} aria-label="Next">›</button>}
           </div>
         )}
-        <input ref={fileRef} type="file" accept="image/*,video/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadMedia(f); e.target.value = ""; }} />
+        {mediaList.length > 0 && (
+          <div className="studio-thumbs">
+            {mediaList.map((m, i) => (
+              <button type="button" key={i} className={`studio-thumb${i === active ? " on" : ""}`} onClick={() => setActive(i)} style={m.type !== "video" ? { backgroundImage: `url(${m.url})` } : undefined} aria-label={`Slide ${i + 1}`}>
+                {m.type === "video" && <video src={m.url} muted playsInline preload="metadata" />}
+                {i === 0 && <span className="studio-thumb-cover">Cover</span>}
+                <span className="studio-thumb-x" role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); removeMedia(i); }} aria-label="Remove">✕</span>
+                {i !== 0 && <span className="studio-thumb-cv" role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); makeCover(i); }} aria-label="Make cover">★</span>}
+              </button>
+            ))}
+            <button type="button" className="studio-thumb add" onClick={() => fileRef.current?.click()} disabled={uploading} aria-label="Add more">{uploading ? "…" : "＋"}</button>
+          </div>
+        )}
+        <input ref={fileRef} type="file" accept="image/*,video/*" multiple hidden onChange={(e) => { if (e.target.files?.length) uploadMedia(e.target.files); e.target.value = ""; }} />
       </div>
 
       <input className="studio-title" value={title} onChange={(e) => edit("title", e.target.value)} placeholder="Title" />
