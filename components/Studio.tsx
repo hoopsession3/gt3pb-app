@@ -5,6 +5,7 @@ import { useAuth } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
 import BrandCalendar from "./BrandCalendar";
 import BrandKit from "./BrandKit";
+import RoadFlyer from "./RoadFlyer";
 import { lintCaption } from "@/lib/captionLint";
 
 // STUDIO — the collaborative marketing studio. Her money-maker, his taste → built around
@@ -50,9 +51,9 @@ export default function Studio() {
   const [filter, setFilter] = useState<string>("all");
   const [openId, setOpenId] = useState<string | null>(null);
   const dragId = useRef<string | null>(null);
-  const [view, setView] = useState<"calendar" | "board" | "grid" | "brand">(() => {
+  const [view, setView] = useState<"calendar" | "board" | "grid" | "flyer" | "brand">(() => {
     const v = typeof window !== "undefined" ? localStorage.getItem("gt3-studio-view") : null;
-    return v === "board" || v === "brand" || v === "grid" ? v : "calendar";
+    return v === "board" || v === "brand" || v === "grid" || v === "flyer" ? v : "calendar";
   });
 
   const load = useCallback(async () => {
@@ -76,7 +77,7 @@ export default function Studio() {
     const { data } = await supabase.from("content_items").insert({ title: "Untitled", created_by: me.id, updated_by: me.id, scheduled_for: scheduledISO ?? null, event_id: eventId ?? null }).select("id").single();
     if (data?.id) { await load(); setOpenId(data.id); }
   };
-  const pickView = (v: "calendar" | "board" | "grid" | "brand") => { setView(v); if (typeof window !== "undefined") localStorage.setItem("gt3-studio-view", v); };
+  const pickView = (v: "calendar" | "board" | "grid" | "flyer" | "brand") => { setView(v); if (typeof window !== "undefined") localStorage.setItem("gt3-studio-view", v); };
 
   if (openId) return <StudioEditor id={openId} me={me} onClose={() => { setOpenId(null); load(); }} />;
 
@@ -104,12 +105,15 @@ export default function Studio() {
           <button type="button" className={`studio-view${view === "calendar" ? " on" : ""}`} onClick={() => pickView("calendar")}>Calendar</button>
           <button type="button" className={`studio-view${view === "board" ? " on" : ""}`} onClick={() => pickView("board")}>Board</button>
           <button type="button" className={`studio-view${view === "grid" ? " on" : ""}`} onClick={() => pickView("grid")}>Grid</button>
+          <button type="button" className={`studio-view${view === "flyer" ? " on" : ""}`} onClick={() => pickView("flyer")}>Flyer</button>
           <button type="button" className={`studio-view${view === "brand" ? " on" : ""}`} onClick={() => pickView("brand")}>Brand</button>
         </div>
-        {view !== "brand" && <button type="button" className="rdy-run" onClick={() => create()}>✦ New piece</button>}
+        {view !== "brand" && view !== "flyer" && <button type="button" className="rdy-run" onClick={() => create()}>✦ New piece</button>}
       </div>
 
-      {view === "brand" ? (
+      {view === "flyer" ? (
+        <RoadFlyer />
+      ) : view === "brand" ? (
         <BrandKit canEdit />
       ) : view === "calendar" ? (
         <BrandCalendar onOpen={setOpenId} onCreate={(iso, evId) => create(iso, evId)} />

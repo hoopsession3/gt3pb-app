@@ -1719,6 +1719,19 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .app.crew-day .kit-box{background:rgba(34,31,24,.04)}
 .kit-media{display:flex;flex-wrap:wrap;gap:6px}
 .kit-dl{font-family:'Inter';font-size:12px;font-weight:600;color:var(--cream);background:rgba(255,255,255,.04);border:1px solid var(--line2);border-radius:8px;padding:6px 10px;text-decoration:none}
+/* road flyer generator */
+.rf{display:flex;flex-direction:column;gap:9px;margin-top:6px}
+.rf-note{font-family:'Inter';font-size:12px;color:var(--cream-m);line-height:1.45}
+.rf-pick,.rf-f input{width:100%;background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:9px;padding:10px 11px;color:var(--cream);font-family:'Inter';font-size:14px;box-sizing:border-box}
+.app.crew-day .rf-pick,.app.crew-day .rf-f input{background:#fff}
+.rf-grid2{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.rf-f{display:flex;flex-direction:column;gap:4px}
+.rf-f span{font-family:var(--mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--bronze)}
+.rf-photo{display:flex;gap:8px}
+.rf-btn{flex:1;padding:10px;border-radius:9px;border:1px dashed var(--line2);background:rgba(255,255,255,.02);color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer}
+.rf-btn.ghost{flex:0 0 auto;border-style:solid;color:var(--red);border-color:rgba(184,36,32,.4)}
+.rf-canvas{width:100%;max-width:300px;margin:6px auto 0;display:block;border-radius:12px;border:1px solid var(--line2);box-shadow:0 10px 30px rgba(0,0,0,.3)}
+.rf-dl{margin-top:4px;padding:12px;border-radius:11px;border:none;background:var(--red);color:#fff;font-family:'Inter';font-weight:700;font-size:14px;cursor:pointer}
 .studio-media-add{width:100%;padding:22px;border-radius:12px;border:1.5px dashed var(--line2);background:rgba(255,255,255,.02);color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer}
 .app.crew-day .studio-media-add{background:rgba(34,31,24,.03)}
 /* full post simulation (IG chrome + safe zones) */
