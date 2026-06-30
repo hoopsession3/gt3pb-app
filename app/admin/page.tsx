@@ -266,13 +266,13 @@ async function raiseAlert(a: {
   body?: string; link?: string; target_user_id?: string | null; created_by?: string | null;
 }) {
   if (!supabase) return;
-  const { data } = await supabase.from("alerts").insert({
+  // Single delivery path: the alerts INSERT Database Webhook fans every alert out (Teams + web push) —
+  // the same path the cron/server producers use — so push fires exactly once. No direct invoke here.
+  await supabase.from("alerts").insert({
     severity: a.severity ?? "important", category: a.category ?? null, title: a.title,
     body: a.body ?? null, link: a.link ?? "/admin", target_user_id: a.target_user_id ?? null,
     created_by: a.created_by ?? null,
-  }).select("*").single();
-  if (!data) return;
-  supabase.functions.invoke("push", { body: { table: "alerts", type: "INSERT", record: data } }).catch(() => {});
+  });
 }
 
 // How many comments hang off each subject — drives the count badge on a 💬 toggle so activity is
@@ -1380,10 +1380,8 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
     toast(next ? `Assigned to ${firstNameOf(next)}` : "Unassigned");
     // Notify the newly-assigned member (best-effort; lights up once the push Edge Function is redeployed).
     if (next) {
-      supabase.functions
-        .invoke("push", { body: { table: "event_tasks", type: "UPDATE", record: { ...t, assignee: next }, old_record: { ...t, assignee: prev } } })
-        .catch(() => {});
-      // Can't-miss: a leader assigning another leader → raise a critical alert (Teams + inbox).
+      // One push per recipient: a leader assignee gets a can't-miss alert (inbox + Teams + one web
+      // push via the alerts webhook); crew get the direct ping (alerts are leadership-scoped).
       const assigneeRole = staff.find((s) => s.id === next)?.role ?? null;
       if (next !== user?.id && isLeader(roleOf(profile)) && isLeader(assigneeRole)) {
         raiseAlert({
@@ -1392,6 +1390,10 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
           body: name ? `On ${isEvent ? "event" : "location"} · ${name}` : undefined,
           target_user_id: next, created_by: user?.id ?? null,
         });
+      } else {
+        supabase.functions
+          .invoke("push", { body: { table: "event_tasks", type: "UPDATE", record: { ...t, assignee: next }, old_record: { ...t, assignee: prev } } })
+          .catch(() => {});
       }
     }
   };
@@ -2618,10 +2620,8 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
     if (error) { toast(`Error: ${error.message}`, "error"); load(); return; }
     toast(next ? `Assigned to ${firstNameOf(next)}` : "Unassigned");
     if (next) {
-      supabase.functions
-        .invoke("push", { body: { table: "event_tasks", type: "UPDATE", record: { ...t, assignee: next }, old_record: { ...t, assignee: prev } } })
-        .catch(() => {});
-      // Can't-miss: a leader assigning another leader a follow-up → raise a critical alert.
+      // One push per recipient: a leader assignee gets a can't-miss alert (inbox + Teams + one web
+      // push via the alerts webhook); crew get the direct ping (alerts are leadership-scoped).
       const assigneeRole = staff.find((s) => s.id === next)?.role ?? null;
       if (next !== user?.id && isLeader(roleOf(profile)) && isLeader(assigneeRole)) {
         raiseAlert({
@@ -2629,6 +2629,10 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
           title: `${profile?.display_name?.split(" ")[0] || "A manager"} assigned you: ${t.label}`,
           body: `Follow-up · ${note.title}`, target_user_id: next, created_by: user?.id ?? null,
         });
+      } else {
+        supabase.functions
+          .invoke("push", { body: { table: "event_tasks", type: "UPDATE", record: { ...t, assignee: next }, old_record: { ...t, assignee: prev } } })
+          .catch(() => {});
       }
     }
   };
