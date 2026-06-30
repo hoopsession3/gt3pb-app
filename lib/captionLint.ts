@@ -15,10 +15,18 @@ const SMELL = [
   /it'?s not just/i, /whether you'?re/i, /\bdiscover\b/i, /\bperfect for\b/i, /\blevel up\b/i, /\bexperience the\b/i,
 ];
 
+// Common GT3/brand misspellings — a typo on a premium brand reads as carelessness.
+const TYPOS: [RegExp, string][] = [
+  [/\borgin\b/i, "origin"], [/\boriginn?\b(?<!origin)/i, "origin"], [/\bintenton\w*/i, "intentionally"],
+  [/\bhydraton\b/i, "hydration"], [/\bseperate/i, "separate"], [/\bdefinately\b/i, "definitely"],
+  [/\bspeciality\b/i, "specialty"], [/\boccassion/i, "occasion"],
+];
+
 export function lintCaption(text: string): LintFinding[] {
   const out: LintFinding[] = [];
   const t = (text || "").trim();
   if (!t) return out;
+  for (const [re, fix] of TYPOS) { const m = t.match(re); if (m) { out.push({ level: "warn", tag: "spelling", msg: `Likely typo "${m[0]}" → "${fix}".` }); break; } }
   for (const re of HEALTH) { const m = t.match(re); if (m) { out.push({ level: "warn", tag: "claim", msg: `Possible health claim — "${m[0]}". GT3 doesn't make medical/nutrition claims.` }); break; } }
   if (/\b(no|zero|without)\b[^.!?\n]*\bsugar\b/i.test(t) || /\bsugar[- ]?free\b/i.test(t)) out.push({ level: "warn", tag: "disclosure", msg: "Says no/zero sugar — disclose the honey in Nature Aid / honey-sweetened items." });
   const smell = [...new Set(SMELL.filter((re) => re.test(t)).map((re) => (t.match(re)![0]).toLowerCase()))];

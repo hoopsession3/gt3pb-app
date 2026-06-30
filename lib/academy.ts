@@ -100,6 +100,36 @@ export const MODULES: Module[] = [
     ],
   },
   {
+    slug: "design-the-gt3-grid", section: "brand", title: "The GT3 Grid — Visual Design Standards", estMin: 9,
+    summary: "The locked system that makes every flyer, post, and story a 9–10 — the same way, every time.",
+    whyItMatters: "A misspelled word or a muddy layout tells a guest 'higher standard' is just talk. The look IS the product before they taste it. A locked design system means a deadline post and a planned one come out equally clean — no off days.",
+    objectives: ["Lay any graphic on the canvas + grid + margins", "Apply the type scale and color rules without eyeballing", "Build one hero per tile and a 4-tile set that reads as a set", "Run the pre-export checklist that kills typos and inconsistency"],
+    body: [
+      { h: "Canvas + grid (lock it)", p: "Feed = 1080×1350 (4:5). Story/Reel = 1080×1920 (9:16). Margins are ALWAYS 64px — nothing touches the edge. Snap every element to a 12-column grid and a baseline; if two blocks don't share an edge, fix it. 'Composed,' never 'assembled.'" },
+      { h: "One hero per tile", p: "Each graphic does exactly one job. Don't make 'FIND US,' 'PURE SIGNAL,' and the full menu shout at the same size — pick the hero, make it biggest, let everything else support it. A flyer with three heroes has none." },
+      { h: "The 4-tile set", p: "Our standard drop is four tiles that read as a family: ① Announcement (where + when), ② The truck (the place), ③ The menu, ④ The product. Same header bar, same margins, same type on all four. The set is the brand; the tiles are the verses." },
+      { h: "Type scale", p: "Display = Archivo Black, headlines ONLY. One body face for everything else. Fixed sizes: H1 ~96px, H2 ~48px, body ~28px, caption ~20px — no in-between guesses. Tracking tight on display, normal on body. Two type sizes fighting = amateur." },
+      { h: "Color rules", p: "Tokens: red #B82420, ink #1A1310, cream #F5F1E8, one gold accent. Red is for emphasis + the CTA ONLY — never body copy. Gold is one accent line, not a paragraph. Ink on cream is the default. High contrast or it doesn't ship." },
+      { h: "Logo + tagline lockup", p: "GT3 logo always with clear space around it (≥ the height of the '3'), never crowded, never below ~120px tall on a feed tile. 'Only the best for you' rides with it. One lockup size per tile." },
+      { h: "Photo treatment", p: "One photo per tile. Same 24px corner radius, same warm grade, same crop logic. No photo that carries its OWN marketing (double-branding). If two photos sit together, they must match like a pair." },
+      { h: "Motif discipline", p: "The checkered flags are a small accent used ONCE per tile — a corner, a divider. Never a faint full-bleed watermark behind text; that's clutter, not texture." },
+      { h: "The repeatable mechanism", p: "Don't rebuild from scratch — autofill. A LOCKED Canva Brand Template with named fields (date, time, address, map, photo, menu) that we fill from the event. Layout never moves; only the data changes. That's how a 10/10 survives a deadline. Studio → link the event → Draft from event → Canva design." },
+    ],
+    mistakes: ["Typos — 'orgin' for origin, 'WineXpress' vs 'Wine Xpress.' One typo drops a 9 to a 6. Spell-check before export, every time.", "Stating the date twice (and misaligned) — say it once, clearly.", "Faint full-bleed watermark behind the cleanest zone — kills contrast.", "Two photos with different crops/finishes — they read cheap.", "Red used for body text instead of emphasis only.", "Eyeballing sizes instead of using the type scale."],
+    founderInsight: "People taste with their eyes first. A clean, calm flyer says 'these people sweat the details' before a single pour. A typo says the opposite — and undoes the whole standard. The system isn't to box Kayla in; it's so a rushed Tuesday post looks as sharp as one she had a week to make.",
+    scenarios: [
+      { situation: "Event posts tomorrow and there's no time to design", doThis: "Open the locked Canva template, autofill date/time/address/map/photo from the event, run the checklist, export. Same 9–10 every time — no blank canvas." },
+      { situation: "A graphic feels 'busy' but you can't say why", doThis: "Find the hero. If three things are the same size, shrink two. Then check margins (64px) and that every block shares an edge on the grid." },
+      { situation: "About to export", doThis: "Run the checklist: spelling (origin, Wine Xpress, address format), one date statement, red only on emphasis, photos matched, logo clear space, snapped to grid. Then export." },
+    ],
+    quiz: [
+      { q: "How many heroes per tile?", options: ["As many as fit", "Exactly one — biggest, everything else supports it", "Three"], correct: 1 },
+      { q: "Red is used for…", options: ["Body copy", "Emphasis and the CTA only", "Backgrounds"], correct: 1, why: "Red is the signal accent — overuse makes it noise." },
+      { q: "The reliable way to hit 10/10 on a deadline is…", options: ["Design faster from scratch", "Autofill a locked Canva brand template from the event", "Add more elements"], correct: 1 },
+      { q: "One misspelled word…", options: ["Is fine, people skim", "Drops a 9 to a 6 — spell-check before export", "Only matters in print"], correct: 1 },
+    ],
+  },
+  {
     slug: "customer-experience", section: "cx", title: "Customer Experience", estMin: 9,
     summary: "How we greet, educate, explain, and create a memorable bar.",
     body: [

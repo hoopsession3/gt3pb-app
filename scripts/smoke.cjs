@@ -131,6 +131,7 @@ ok("lint flags no-sugar disclosure", lc("Zero sugar, all clean").includes("discl
 ok("lint flags chatgpt smell", lc("Elevate your morning, discover the difference").includes("voice"));
 ok("lint flags weak hook", lc("Hey friends! check this out").some(t => t === "hook" || t === "voice"));
 ok("lint clean caption passes", CL.lintCaption("Cold-extracted 18 hours. Round, clean, no burnt bite.").length === 0, CL.lintCaption("Cold-extracted 18 hours. Round, clean, no burnt bite."));
+ok("lint catches orgin typo", lc("Single orgin coffee").includes("spelling"));
 
 // --- weight loadout still works ---
 const lo = L.computeLoadout(pack, tp);
