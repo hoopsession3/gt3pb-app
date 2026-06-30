@@ -102,13 +102,15 @@ export default function Studio() {
           ) : (
             <div className="ig-grid">
               {[...shown].sort((a, b) => (b.scheduled_for || b.updated_at).localeCompare(a.scheduled_for || a.updated_at)).map((it) => {
-                const img = (it.media_type !== "video" && it.media_url) || it.export_url || null;
-                const vid = it.media_type === "video" ? it.media_url : null;
+                // cover = first item of the media array (source of truth), else the synced cover, else the Canva export
+                const cover = (Array.isArray(it.media) && it.media[0]) || (it.media_url ? { url: it.media_url, type: it.media_type || "image" } : null);
+                const img = cover && cover.type !== "video" ? cover.url : (it.export_url || null);
+                const vid = cover && cover.type === "video" ? cover.url : null;
                 return (
                   <button key={it.id} type="button" className="ig-cell" onClick={() => setOpenId(it.id)}
                     style={img ? { backgroundImage: `url(${img})` } : undefined} aria-label={it.title || "Untitled"}>
                     {vid && <video className="ig-vid" src={vid} muted playsInline preload="metadata" />}
-                    {!img && !vid && <span className="ig-ph"><b>{it.title || "Untitled"}</b><span>{STATUS[it.status]?.label ?? it.status}</span></span>}
+                    {!img && !vid && <span className="ig-ph"><span className="ig-ph-cam">📷</span><b>{it.title || "Untitled"}</b><span>tap to add a photo</span></span>}
                     {vid && <span className="ig-reel">▶</span>}
                     {(it.media?.length ?? 0) > 1 && <span className="ig-multi">▦</span>}
                     {(img || vid) && it.status !== "published" && <span className="ig-tag">{STATUS[it.status]?.label ?? it.status}</span>}
