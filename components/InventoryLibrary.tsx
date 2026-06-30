@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { fetchInventory, type InvItem, type InventoryResp } from "@/lib/inventory";
 import { supabase } from "@/lib/supabase";
+import InventoryAI from "./InventoryAI";
 
 // Inventory — the GT3 stock register, read from Postgres (system-of-record). Staff add / edit /
 // delete inline; writes go straight to `inventory_items` (RLS: staff-write). Lives next to the
@@ -29,6 +30,7 @@ export default function InventoryLibrary() {
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [ai, setAi] = useState(false);
 
   const load = () => fetchInventory().then(setResp);
   useEffect(() => { load(); }, []);
@@ -119,13 +121,15 @@ export default function InventoryLibrary() {
     <div className="adm-sec gl">
       <button className="gl-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
         <span className="sec">Inventory · {items.length}{low ? ` · ${low} low` : ""}</span>
-        <span className="gl-chev">{open ? "▾" : "▸"}</span>
+        <span className={`ev-chev${open ? " open" : ""}`} aria-hidden="true">›</span>
       </button>
       {open && (
         <div className="gl-body">
           <div className="gl-toolbar">
             <button className="adm-regen" onClick={startNew}>+ Add item</button>
+            <button className="adm-regen" onClick={() => setAi(true)}>✨ AI draft</button>
           </div>
+          {ai && <InventoryAI onClose={() => setAi(false)} onAdded={load} />}
           {editing === "new" && form}
           {resp.error ? (
             <div className="gl-hint">Couldn&apos;t reach inventory: {resp.error}</div>

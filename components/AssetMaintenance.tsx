@@ -68,9 +68,10 @@ export default function AssetMaintenance() {
             const mine = logs.filter((x) => x.asset_id === a.id);
             return (
               <div key={a.id} className={`am-card${s.overdue ? " overdue" : ""}`}>
-                <button type="button" className="am-head" onClick={() => setOpenId(open ? null : a.id)}>
+                <button type="button" className="am-head" onClick={() => setOpenId(open ? null : a.id)} aria-expanded={open}>
                   <span className="am-head-main"><b>{a.name}</b><span>{[a.make_model || a.brand, s.last ? `last ${fmt(s.last)}` : "no log yet", s.nextDue ? `${s.overdue ? "overdue" : "due"} ${fmt(s.nextDue)}` : null].filter(Boolean).join(" · ")}</span></span>
                   {s.overdue ? <span className="am-flag">DUE</span> : s.nextDue ? <span className="am-flag soon">{fmt(s.nextDue)}</span> : null}
+                  <span className={`ev-chev${open ? " open" : ""}`} aria-hidden="true">›</span>
                 </button>
                 {open && (
                   <div className="am-body">

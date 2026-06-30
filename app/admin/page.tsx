@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import { useAuth, roleOf, type Profile } from "@/components/AuthProvider";
-import { useOperatorSection, sectionsForRole, type OpSection } from "@/components/OperatorNav";
+import { useOperatorSection, sectionsForRole, groupOfSection, SECTION_LABEL, type OpSection } from "@/components/OperatorNav";
 import TrailerLoadout from "@/components/TrailerLoadout";
 import PackPlan from "@/components/PackPlan";
 import OrgChart from "@/components/OrgChart";
@@ -199,7 +199,7 @@ function Kitchen() {
           return (
             <div className="kds-stage" key={st.key}>
               <button type="button" className="kds-stage-h" onClick={() => toggle(st.key)} aria-expanded={!isCol}>
-                <span className={`kds-caret${isCol ? " col" : ""}`}>▾</span>
+                <span className={`kds-caret${isCol ? " col" : ""}`} aria-hidden="true">›</span>
                 <span className="kds-stage-name">{st.label}</span>
                 <span className="kds-stage-n">{list.length}</span>
               </button>
@@ -229,7 +229,7 @@ function Kitchen() {
         {done.length > 0 && (
           <div className="kds-stage">
             <button type="button" className="kds-stage-h" onClick={() => setDoneOpen((v) => !v)} aria-expanded={doneOpen}>
-              <span className={`kds-caret${!doneOpen ? " col" : ""}`}>▾</span>
+              <span className={`kds-caret${!doneOpen ? " col" : ""}`} aria-hidden="true">›</span>
               <span className="kds-stage-name">Just completed</span>
               <span className="kds-stage-n">{done.length}</span>
             </button>
@@ -266,13 +266,13 @@ async function raiseAlert(a: {
   body?: string; link?: string; target_user_id?: string | null; created_by?: string | null;
 }) {
   if (!supabase) return;
-  const { data } = await supabase.from("alerts").insert({
+  // Single delivery path: the alerts INSERT Database Webhook fans every alert out (Teams + web push) —
+  // the same path the cron/server producers use — so push fires exactly once. No direct invoke here.
+  await supabase.from("alerts").insert({
     severity: a.severity ?? "important", category: a.category ?? null, title: a.title,
     body: a.body ?? null, link: a.link ?? "/admin", target_user_id: a.target_user_id ?? null,
     created_by: a.created_by ?? null,
-  }).select("*").single();
-  if (!data) return;
-  supabase.functions.invoke("push", { body: { table: "alerts", type: "INSERT", record: data } }).catch(() => {});
+  });
 }
 
 // How many comments hang off each subject — drives the count badge on a 💬 toggle so activity is
@@ -285,10 +285,21 @@ async function commentCounts(col: "event_task_id" | "meeting_note_id" | "alert_i
   return out;
 }
 
+// Where an alert lives — route it to the screen that owns it, so you can act on it immediately.
+function alertDest(category: string | null | undefined): { section: "day" | "plan" | "prep" | "money"; planTab?: string } {
+  const cat = category || "";
+  if (cat === "money") return { section: "money" };
+  if (cat === "brew") return { section: "plan", planTab: "brew" };
+  if (cat.startsWith("booking")) return { section: "plan", planTab: "bookings" };
+  if (cat === "prep") return { section: "prep" };
+  return { section: "day" };
+}
+
 // The "don't-miss" inbox — unacknowledged alerts for me (or all-leadership), critical first.
 // Realtime, so a new alert lands at the top of the Now screen the instant it's raised.
 function AlertsInbox({ userId }: { userId: string | null }) {
   const { profile } = useAuth();
+  const { setSection } = useOperatorSection();
   const meName = profile?.display_name?.trim() || "Me";
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [openThread, setOpenThread] = useState<string | null>(null);
@@ -316,6 +327,18 @@ function AlertsInbox({ userId }: { userId: string | null }) {
     setAlerts((p) => p.filter((x) => x.id !== a.id)); // optimistic
     await supabase.from("alerts").update({ ack_at: new Date().toISOString(), ack_by: userId }).eq("id", a.id);
   };
+  // Clear cleanly: acknowledge everything shown in one tap.
+  const clearAll = async (ids: string[]) => {
+    if (!supabase || !ids.length) return;
+    setAlerts((p) => p.filter((x) => !ids.includes(x.id))); // optimistic
+    await supabase.from("alerts").update({ ack_at: new Date().toISOString(), ack_by: userId }).in("id", ids);
+  };
+  // Respond immediately: jump to the screen that owns this alert.
+  const gotoAlert = (a: Alert) => {
+    const d = alertDest(a.category);
+    if (d.planTab) { try { localStorage.setItem("gt3-plan-tab", d.planTab); } catch { /* ignore */ } }
+    setSection(d.section);
+  };
 
   // Show alerts addressed to me or to all-leadership (target null). RLS already scopes to leadership.
   const mine = alerts.filter((a) => a.target_user_id == null || a.target_user_id === userId);
@@ -326,7 +349,7 @@ function AlertsInbox({ userId }: { userId: string | null }) {
 
   return (
     <div className="adm-sec">
-      <div className="sec">Alerts <span className={`adm-pill${crit ? " due" : ""}`}>{mine.length}{crit ? ` · ${crit} critical` : ""}</span></div>
+      <div className="sec">Alerts <span className={`adm-pill${crit ? " due" : ""}`}>{mine.length}{crit ? ` · ${crit} critical` : ""}</span>{mine.length > 1 && <button type="button" className="alert-clearall" onClick={() => clearAll(mine.map((a) => a.id))}>Clear all</button>}</div>
       {sorted.map((a) => (
         <div key={a.id} className={`alert sev-${a.severity}`}>
           <div className="alert-row">
@@ -334,6 +357,7 @@ function AlertsInbox({ userId }: { userId: string | null }) {
               <span className="alert-title">{a.title}</span>
               {a.body && <span className="alert-body">{a.body}</span>}
             </div>
+            <button type="button" className="alert-open" onClick={() => gotoAlert(a)}>Open →</button>
             <button type="button" className="alert-discuss" onClick={() => setOpenThread(openThread === a.id ? null : a.id)} aria-label="Discuss">💬{counts[a.id] ? <span className="cmt-count">{counts[a.id]}</span> : null}</button>
             <button type="button" className="alert-ack" onClick={() => ack(a)}>Got it</button>
           </div>
@@ -633,7 +657,7 @@ function MenuEditor({ ownerType, ownerId, isAdmin, onChanged }: { ownerType: "ev
   return (
     <div className="menued">
       <div className="adm-prep-actions" style={{ marginTop: 10 }}>
-        <button type="button" className="adm-regen" onClick={() => setOpen((o) => !o)}>🍹 Menu &amp; rig {open ? "▾" : "▸"}</button>
+        <button type="button" className="adm-regen" onClick={() => setOpen((o) => !o)}>🍹 Menu &amp; rig <span className={`ev-chev${open ? " open" : ""}`} aria-hidden="true">›</span></button>
       </div>
       {open && (
         <div className="menued-body">
@@ -712,13 +736,14 @@ function DayBrief({ ownerCol, ownerId, isAdmin }: { ownerCol: "event_id" | "stop
 }
 
 function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: string; isLeader: boolean }) {
-  const [flags, setFlags] = useState<{ id: string; severity: string; title: string; body: string | null }[]>([]);
+  const [flags, setFlags] = useState<{ id: string; severity: string; title: string; body: string | null; category: string | null }[]>([]);
+  const { setSection } = useOperatorSection();
   const [today, setToday] = useState<{ id: string; title: string | null; day_label: string | null; is_live: boolean | null; dress_code?: string | null; crew_brief?: string | null }[]>([]);
 
   const loadFlags = useCallback(async () => {
     if (!supabase || !userId || !isLeader) { setFlags([]); return; }
     // your own pings AND leadership broadcasts (no specific target) — e.g. content approvals route here
-    const { data } = await supabase.from("alerts").select("id, severity, title, body").or(`target_user_id.eq.${userId},target_user_id.is.null`).is("ack_at", null).order("created_at", { ascending: false }).limit(20);
+    const { data } = await supabase.from("alerts").select("id, severity, title, body, category").or(`target_user_id.eq.${userId},target_user_id.is.null`).is("ack_at", null).order("created_at", { ascending: false }).limit(20);
     // dedupe identical pings (same title+body can arrive from more than one source)
     const seen = new Set<string>();
     setFlags(((data as typeof flags) ?? []).filter((f) => { const k = `${f.title}|${f.body ?? ""}`; if (seen.has(k)) return false; seen.add(k); return true; }));
@@ -737,6 +762,8 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
   }, []);
 
   const ack = async (id: string) => { setFlags((f) => f.filter((x) => x.id !== id)); await supabase?.from("alerts").update({ ack_at: new Date().toISOString(), ack_by: userId }).eq("id", id); };
+  const clearFlags = async () => { const ids = flags.map((f) => f.id); if (!supabase || !ids.length) return; setFlags([]); await supabase.from("alerts").update({ ack_at: new Date().toISOString(), ack_by: userId }).in("id", ids); };
+  const gotoFlag = (category: string | null) => { const d = alertDest(category); if (d.planTab) { try { localStorage.setItem("gt3-plan-tab", d.planTab); } catch { /* ignore */ } } setSection(d.section); };
   const hr = new Date().getHours();
   const greet = hr < 12 ? "Good morning" : hr < 17 ? "Good afternoon" : "Good evening";
   const first = meName.split(" ")[0];
@@ -766,7 +793,7 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
       {isLeader && <SmartIntake />}
       {isLeader && (
         <>
-          <div className="sec">Flags &amp; pings for you{flags.length ? ` · ${flags.length}` : ""}</div>
+          <div className="sec">Flags &amp; pings for you{flags.length ? ` · ${flags.length}` : ""}{flags.length > 1 && <button type="button" className="alert-clearall" onClick={clearFlags}>Clear all</button>}</div>
           {flags.length === 0 ? (
             <div className="myday-clear">✓ Nothing needs you right now.</div>
           ) : flags.map((f) => (
@@ -775,6 +802,7 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
                 <div className="myday-flag-t">{f.title}</div>
                 {f.body && <div className="myday-flag-x">{f.body}</div>}
               </div>
+              <button type="button" className="myday-open" onClick={() => gotoFlag(f.category)}>Open →</button>
               <button type="button" className="myday-ack" onClick={() => ack(f.id)}>Got it</button>
             </div>
           ))}
@@ -1353,10 +1381,8 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
     toast(next ? `Assigned to ${firstNameOf(next)}` : "Unassigned");
     // Notify the newly-assigned member (best-effort; lights up once the push Edge Function is redeployed).
     if (next) {
-      supabase.functions
-        .invoke("push", { body: { table: "event_tasks", type: "UPDATE", record: { ...t, assignee: next }, old_record: { ...t, assignee: prev } } })
-        .catch(() => {});
-      // Can't-miss: a leader assigning another leader → raise a critical alert (Teams + inbox).
+      // One push per recipient: a leader assignee gets a can't-miss alert (inbox + Teams + one web
+      // push via the alerts webhook); crew get the direct ping (alerts are leadership-scoped).
       const assigneeRole = staff.find((s) => s.id === next)?.role ?? null;
       if (next !== user?.id && isLeader(roleOf(profile)) && isLeader(assigneeRole)) {
         raiseAlert({
@@ -1365,6 +1391,10 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
           body: name ? `On ${isEvent ? "event" : "location"} · ${name}` : undefined,
           target_user_id: next, created_by: user?.id ?? null,
         });
+      } else {
+        supabase.functions
+          .invoke("push", { body: { table: "event_tasks", type: "UPDATE", record: { ...t, assignee: next }, old_record: { ...t, assignee: prev } } })
+          .catch(() => {});
       }
     }
   };
@@ -1547,7 +1577,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       {/* Load-out & tow + pack-out plan, scoped to this event/stop — part of the one hub. */}
       {isAdmin && (
         <div className="adm-prep-actions" style={{ marginTop: 10 }}>
-          <button className="adm-regen" onClick={() => setLoadoutOpen((o) => !o)}>🚚 Load-out &amp; tow {loadoutOpen ? "▾" : "▸"}</button>
+          <button className="adm-regen" onClick={() => setLoadoutOpen((o) => !o)}>🚚 Load-out &amp; tow <span className={`ev-chev${loadoutOpen ? " open" : ""}`} aria-hidden="true">›</span></button>
           <button className="adm-regen" onClick={() => setPackPlanOpen(true)}>📦 Pack-out plan · kegs vs bottles</button>
         </div>
       )}
@@ -2591,10 +2621,8 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
     if (error) { toast(`Error: ${error.message}`, "error"); load(); return; }
     toast(next ? `Assigned to ${firstNameOf(next)}` : "Unassigned");
     if (next) {
-      supabase.functions
-        .invoke("push", { body: { table: "event_tasks", type: "UPDATE", record: { ...t, assignee: next }, old_record: { ...t, assignee: prev } } })
-        .catch(() => {});
-      // Can't-miss: a leader assigning another leader a follow-up → raise a critical alert.
+      // One push per recipient: a leader assignee gets a can't-miss alert (inbox + Teams + one web
+      // push via the alerts webhook); crew get the direct ping (alerts are leadership-scoped).
       const assigneeRole = staff.find((s) => s.id === next)?.role ?? null;
       if (next !== user?.id && isLeader(roleOf(profile)) && isLeader(assigneeRole)) {
         raiseAlert({
@@ -2602,6 +2630,10 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
           title: `${profile?.display_name?.split(" ")[0] || "A manager"} assigned you: ${t.label}`,
           body: `Follow-up · ${note.title}`, target_user_id: next, created_by: user?.id ?? null,
         });
+      } else {
+        supabase.functions
+          .invoke("push", { body: { table: "event_tasks", type: "UPDATE", record: { ...t, assignee: next }, old_record: { ...t, assignee: prev } } })
+          .catch(() => {});
       }
     }
   };
@@ -2628,7 +2660,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
           <span className="note-title">{note.title}{note.source === "email" && <span className="note-src">email</span>}</span>
           <span className="note-meta">{fmtNoteDate(note.met_on)}{eventTitle ? ` · ${eventTitle}` : ""}{items.length ? ` · ${openCount}/${items.length} follow-ups` : ""}</span>
         </div>
-        <span className="note-chev" aria-hidden="true">{open ? "▾" : "▸"}</span>
+        <span className={`note-chev${open ? " open" : ""}`} aria-hidden="true">›</span>
       </button>
       {open && (
         <div className="note-body">
@@ -3943,36 +3975,23 @@ export default function AdminPage() {
   const { ready, enabled, user, profile } = useAuth();
   const { section, setSection } = useOperatorSection();
 
-  if (!enabled) return <section className="screen"><div className="h-title">Admin</div><div className="h-sub">The live backend isn&apos;t configured here.</div></section>;
-  if (!ready) return <section className="screen" />;
-  if (!user) return <SignIn />;
-
-  // Raw role read — roleOf() collapses the expanded set; profiles.role carries
-  // member/server/operator/event_manager/contractor/admin/owner (0031).
+  // Derive role + nav constants before any conditional return (Rules of Hooks).
+  // profiles.role: member/server/operator/event_manager/contractor/admin/owner (0031).
   const role = (profile?.role as string | undefined) ?? (profile?.is_admin ? "owner" : "member");
-  if (role === "member") {
-    return (
-      <section className="screen">
-        <div className="toprow"><div className="eyb">Admin</div><Link className="pf" href="/">‹</Link></div>
-        <div className="h-title">Staff only.</div>
-        <div className="h-sub">This area is for GT3PB staff. If that&apos;s you, ask the owner to add you.</div>
-      </section>
-    );
-  }
-
   const isOwner = role === "owner";
   const isAdmin = role === "admin" || isOwner;
   const canManage = isAdmin || role === "event_manager";
   const canPrep = canManage || role === "operator" || role === "contractor";
-
-  // The operator nav owns the section; clamp to what this role may see.
   const allowed = sectionsForRole(role);
   const sec: OpSection = allowed.includes(section) ? section : "now";
   const [planTab, setPlanTab] = useState<"calendar" | "notes" | "events" | "stops" | "brew" | "vendors" | "bookings" | "reserves">("calendar");
   // deep-link from Studio's "Company calendar ↗" → land on the Plan calendar
   useEffect(() => {
     if (sec !== "plan" || typeof window === "undefined") return;
-    if (localStorage.getItem("gt3-plan-tab") === "calendar") { localStorage.removeItem("gt3-plan-tab"); setPlanTab("calendar"); }
+    const t = localStorage.getItem("gt3-plan-tab");
+    if (t && (["calendar", "notes", "events", "stops", "brew", "vendors", "bookings", "reserves"] as const).includes(t as typeof planTab)) {
+      localStorage.removeItem("gt3-plan-tab"); setPlanTab(t as typeof planTab);
+    }
   }, [sec]);
   const [planCounts, setPlanCounts] = useState<{ bookings: number; events: number }>({ bookings: 0, events: 0 });
   useEffect(() => {
@@ -3986,6 +4005,21 @@ export default function AdminPage() {
       setPlanCounts({ bookings: b.count ?? 0, events: e.count ?? 0 });
     })();
   }, [sec, canManage, planTab]); // refetch when you switch tabs so badges reflect what you just did
+
+  // Guard returns — all hooks live above (Rules of Hooks compliant).
+  if (!enabled) return <section className="screen"><div className="h-title">Admin</div><div className="h-sub">The live backend isn&apos;t configured here.</div></section>;
+  if (!ready) return <section className="screen" />;
+  if (!user) return <SignIn />;
+  if (role === "member") {
+    return (
+      <section className="screen">
+        <div className="toprow"><div className="eyb">Admin</div><Link className="pf" href="/">‹</Link></div>
+        <div className="h-title">Staff only.</div>
+        <div className="h-sub">This area is for GT3PB staff. If that&apos;s you, ask the owner to add you.</div>
+      </section>
+    );
+  }
+
   const LABEL: Record<OpSection, string> = { day: "My Day", now: "Now", ask: "Ask GT3", prep: "Prep", plan: "Plan", studio: "Studio", money: "Money", team: "Team" };
   const SUB: Record<OpSection, string> = {
     day: "Your tasks, your flags & what's on today.",
@@ -4017,6 +4051,21 @@ export default function AdminPage() {
         <div className="op-head-t">{LABEL[sec]}</div>
         <div className="op-head-s">{SUB[sec]}</div>
       </div>
+
+      {/* Secondary toggle — switches between the merged areas of a grouped bottom-nav tab
+          (Today: My Day · Now · Plan: Plan · Prep · Money: Money · Team). */}
+      {(() => {
+        const grp = groupOfSection(sec);
+        const members = grp ? grp.members.filter((m) => allowed.includes(m)) : [];
+        if (members.length < 2) return null;
+        return (
+          <div className="grp-toggle" role="tablist" aria-label={grp!.label}>
+            {members.map((m) => (
+              <button key={m} type="button" role="tab" aria-selected={sec === m} className={`grp-seg${sec === m ? " on" : ""}`} onClick={() => setSection(m)}>{SECTION_LABEL[m]}</button>
+            ))}
+          </div>
+        );
+      })()}
 
       {sec === "day" && <MyDay userId={user?.id ?? null} meName={profile?.display_name?.trim() || "Me"} isLeader={canManage} />}
 
