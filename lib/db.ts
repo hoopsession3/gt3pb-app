@@ -95,7 +95,7 @@ export interface EventRow {
   sort: number;
   // operational event object (0024) — the "hard prep" config the pack list + command center read
   archetype?: string | null;
-  rig?: "cart_only" | "trailer_plus_cart" | null;
+  rig?: "cart_only" | "trailer_only" | "trailer_plus_cart" | null;
   menu_nitro?: boolean;
   menu_nature_aid?: boolean;
   menu_salted_maple?: boolean;

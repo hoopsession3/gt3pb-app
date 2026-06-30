@@ -643,7 +643,7 @@ function MenuEditor({ ownerType, ownerId, isAdmin, onChanged }: { ownerType: "ev
           </div>
           <div className="menued-h" style={{ marginTop: 10 }}>Rig</div>
           <div className="ts-chips">
-            {[{ k: "cart", label: "🛻 Cart" }, { k: "trailer_plus_cart", label: "🚚 Trailer + cart" }].map((r) => (
+            {[{ k: "cart", label: "🛻 Cart" }, { k: "trailer_only", label: "🚚 Trailer only" }, { k: "trailer_plus_cart", label: "🚚 Trailer + cart" }].map((r) => (
               <button key={r.k} type="button" className={`ts-chip${f.rig === r.k ? " on" : ""}`} onClick={() => save({ rig: r.k })}>{r.label}</button>
             ))}
           </div>
@@ -3419,7 +3419,7 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
             <div className="ev-grid">
               <label className="ev-f wide">Rig
                 <select defaultValue={e.rig ?? ""} onChange={(ev) => onUpdate({ rig: (ev.target.value || null) as EventRow["rig"] })}>
-                  <option value="">— pick —</option><option value="cart_only">Cart only</option><option value="trailer_plus_cart">Trailer + cart</option>
+                  <option value="">— pick —</option><option value="cart_only">Cart only</option><option value="trailer_only">Trailer only</option><option value="trailer_plus_cart">Trailer + cart</option>
                 </select>
               </label>
               <label className="ev-f">State<input maxLength={20} placeholder="GA" defaultValue={e.state ?? ""} onBlur={(ev) => onUpdate({ state: ev.target.value.trim() || null })} /></label>

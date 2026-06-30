@@ -17,6 +17,7 @@ const pack = ["Load kegerator + 3 kegs", "2× cold-brew keg", "Potable water jug
 // --- rig routing ---
 ok("rigToBox trailer", L.rigToBox("trailer_plus_cart") === "trailer", L.rigToBox("trailer_plus_cart"));
 ok("rigToBox cart_only→vehicle", L.rigToBox("cart_only") === "vehicle", L.rigToBox("cart_only"));
+ok("rigToBox trailer_only→trailer", L.rigToBox("trailer_only") === "trailer", L.rigToBox("trailer_only"));
 ok("rigToBox null→vehicle", L.rigToBox(null) === "vehicle", L.rigToBox(null));
 
 // --- footprint estimator ---
