@@ -576,8 +576,8 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 /* KDS collapsible stages */
 .kds-stage{margin-top:14px}
 .kds-stage-h{width:100%;display:flex;align-items:center;gap:10px;background:none;border:none;border-bottom:1px solid var(--line2);padding:6px 2px 8px;cursor:pointer;color:var(--cream)}
-.kds-caret{color:var(--gold2);font-size:11px;transition:transform .15s}
-.kds-caret.col{transform:rotate(-90deg)}
+.kds-caret{color:var(--cream-m);font-family:'Inter';font-size:18px;line-height:1;transition:transform .15s;transform:rotate(90deg)}
+.kds-caret.col{transform:none}
 .kds-stage-name{font-family:'Inter';font-weight:650;font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:var(--gold)}
 .kds-stage-n{margin-left:auto;font-family:'DM Mono';font-size:12px;color:var(--cream-m)}
 .kds-empty{font-family:'Inter';font-size:12px;color:var(--cream-m);padding:10px 2px}
@@ -680,8 +680,11 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .ev-badge.roi{background:rgba(106,160,92,.16);color:#8fce86}
 .ev-badge.roi.neg{background:rgba(184,36,32,.16);color:var(--red-h)}
 @keyframes evpulse{0%,100%{opacity:1}50%{opacity:.5}}
-.ev-chev{font-family:'Inter';font-size:18px;line-height:1;color:var(--cream-m);transition:transform .18s}
-.ev-card.open .ev-chev{transform:rotate(90deg)}
+.ev-chev{font-family:'Inter';font-size:18px;line-height:1;color:var(--cream-m);transition:transform .18s;flex:0 0 auto}
+/* universal disclosure caret — points right when closed, rotates down (90deg) when its section is open */
+.ev-card.open .ev-chev,.ev-chev.open{transform:rotate(90deg)}
+.am-head .ev-chev{margin-left:auto}
+.adm-regen .ev-chev{font-size:14px;vertical-align:middle}
 .ev-body{padding:14px;display:flex;flex-direction:column;gap:16px;border-top:1px solid var(--line)}
 .ev-golive{display:flex;align-items:center;gap:11px;width:100%;padding:13px;border-radius:12px;border:1.5px solid var(--line2);background:rgba(0,0,0,.22);color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;text-align:left;transition:.15s}
 .ev-golive>span:nth-child(2){flex:1;line-height:1.3}
@@ -1395,7 +1398,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .app.crew-day .gl-dims input{background:#fff}
 .gl-notes{margin-top:5px}
 .gl-notes>summary{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:.02em;color:var(--gold2);cursor:pointer;list-style:none;display:inline-flex;align-items:center;gap:4px}
-.gl-notes>summary::before{content:'▸';font-size:9px;transition:transform .15s}
+.gl-notes>summary::before{content:'›';font-size:14px;line-height:1;transition:transform .15s}
 .gl-notes[open]>summary::before{transform:rotate(90deg)}
 .gl-notes-body{white-space:pre-wrap;font-family:'Inter';font-size:11.5px;line-height:1.5;color:var(--cream-m);margin-top:6px;padding:9px 11px;background:rgba(0,0,0,.18);border:1px solid var(--line);border-radius:9px}
 .app.crew-day .gl-notes-body{background:rgba(34,31,24,.05)}
@@ -1490,7 +1493,8 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .note-title{display:block;font-family:'Inter';font-weight:700;font-size:16.5px;letter-spacing:-.2px;color:var(--cream);line-height:1.3}
 .note-src{display:inline-block;margin-left:8px;vertical-align:middle;font-family:'Inter';font-weight:600;letter-spacing:.5px;text-transform:uppercase;font-size:8.5px;color:var(--gold2);background:rgba(169,124,63,.16);border:1px solid var(--line2);border-radius:6px;padding:2px 6px}
 .note-meta{display:block;font-family:'Inter';font-size:11.5px;color:var(--cream-m);margin-top:3px}
-.note-chev{flex:0 0 auto;color:var(--gold2);font-size:14px}
+.note-chev{flex:0 0 auto;color:var(--cream-m);font-family:'Inter';font-size:18px;line-height:1;transition:transform .18s}
+.note-chev.open{transform:rotate(90deg)}
 .note-body{padding:0 16px 16px;border-top:1px solid var(--line)}
 .note-summary{font-family:'Inter';font-size:14px;color:var(--cream);line-height:1.55;margin:13px 0 0;white-space:pre-wrap}
 .note-full{margin-top:11px}
@@ -2379,6 +2383,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 /* ── Chief of Sales (opportunity scout) ── */
 .cos-sales{padding:13px}
 .cossales-head{display:flex;align-items:center;gap:9px;width:100%;background:none;border:none;cursor:pointer;text-align:left;padding:0}
+.cossales-head .ev-chev{margin-left:auto}
 .cossales-sub{font-family:'Inter';font-size:12px;color:var(--cream-m)}
 .cossales-head .cos-area-tag{margin-left:auto;color:var(--gold2)}
 .sales-opp{display:flex;gap:10px;align-items:flex-start;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:10px 11px;margin-top:7px;cursor:pointer;-webkit-appearance:none;appearance:none;opacity:.6}
@@ -2409,9 +2414,11 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .am-row-main b{font-family:'Inter';font-weight:600;font-size:13px;color:var(--cream)}
 .am-row-main>span{font-family:'Inter';font-size:11.5px;color:var(--cream-m)}
 .am-how{margin-top:5px}
-.am-how>summary{font-family:'Inter';font-weight:700;font-size:11.5px;color:var(--gold2);cursor:pointer;list-style:none}
+.am-how>summary{font-family:'Inter';font-weight:700;font-size:11.5px;color:var(--gold2);cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px}
 .am-how>summary::-webkit-details-marker{display:none}
-.am-how>summary::before{content:'📖 ';}
+.am-how>summary::before{content:'📖';}
+.am-how>summary::after{content:'›';margin-left:auto;font-size:16px;color:var(--cream-m);transition:transform .18s}
+.am-how[open]>summary::after{transform:rotate(90deg)}
 .am-how-steps{margin-top:6px;display:flex;flex-direction:column;gap:5px}
 .am-how-steps>div{font-family:'Inter';font-size:12.5px;color:var(--cream);line-height:1.5;padding:7px 10px;background:var(--card);border:1px solid var(--line);border-radius:8px}
 

@@ -128,7 +128,7 @@ export default function GearLibrary() {
     <div className="adm-sec gl">
       <button className="gl-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
         <span className="sec">Gear &amp; manuals · {items.length}</span>
-        <span className="gl-chev">{open ? "▾" : "▸"}</span>
+        <span className={`ev-chev${open ? " open" : ""}`} aria-hidden="true">›</span>
       </button>
       {open && (
         <div className="gl-body">

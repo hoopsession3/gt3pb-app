@@ -199,7 +199,7 @@ function Kitchen() {
           return (
             <div className="kds-stage" key={st.key}>
               <button type="button" className="kds-stage-h" onClick={() => toggle(st.key)} aria-expanded={!isCol}>
-                <span className={`kds-caret${isCol ? " col" : ""}`}>▾</span>
+                <span className={`kds-caret${isCol ? " col" : ""}`} aria-hidden="true">›</span>
                 <span className="kds-stage-name">{st.label}</span>
                 <span className="kds-stage-n">{list.length}</span>
               </button>
@@ -229,7 +229,7 @@ function Kitchen() {
         {done.length > 0 && (
           <div className="kds-stage">
             <button type="button" className="kds-stage-h" onClick={() => setDoneOpen((v) => !v)} aria-expanded={doneOpen}>
-              <span className={`kds-caret${!doneOpen ? " col" : ""}`}>▾</span>
+              <span className={`kds-caret${!doneOpen ? " col" : ""}`} aria-hidden="true">›</span>
               <span className="kds-stage-name">Just completed</span>
               <span className="kds-stage-n">{done.length}</span>
             </button>
@@ -657,7 +657,7 @@ function MenuEditor({ ownerType, ownerId, isAdmin, onChanged }: { ownerType: "ev
   return (
     <div className="menued">
       <div className="adm-prep-actions" style={{ marginTop: 10 }}>
-        <button type="button" className="adm-regen" onClick={() => setOpen((o) => !o)}>🍹 Menu &amp; rig {open ? "▾" : "▸"}</button>
+        <button type="button" className="adm-regen" onClick={() => setOpen((o) => !o)}>🍹 Menu &amp; rig <span className={`ev-chev${open ? " open" : ""}`} aria-hidden="true">›</span></button>
       </div>
       {open && (
         <div className="menued-body">
@@ -1574,7 +1574,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       {/* Load-out & tow + pack-out plan, scoped to this event/stop — part of the one hub. */}
       {isAdmin && (
         <div className="adm-prep-actions" style={{ marginTop: 10 }}>
-          <button className="adm-regen" onClick={() => setLoadoutOpen((o) => !o)}>🚚 Load-out &amp; tow {loadoutOpen ? "▾" : "▸"}</button>
+          <button className="adm-regen" onClick={() => setLoadoutOpen((o) => !o)}>🚚 Load-out &amp; tow <span className={`ev-chev${loadoutOpen ? " open" : ""}`} aria-hidden="true">›</span></button>
           <button className="adm-regen" onClick={() => setPackPlanOpen(true)}>📦 Pack-out plan · kegs vs bottles</button>
         </div>
       )}
@@ -2655,7 +2655,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
           <span className="note-title">{note.title}{note.source === "email" && <span className="note-src">email</span>}</span>
           <span className="note-meta">{fmtNoteDate(note.met_on)}{eventTitle ? ` · ${eventTitle}` : ""}{items.length ? ` · ${openCount}/${items.length} follow-ups` : ""}</span>
         </div>
-        <span className="note-chev" aria-hidden="true">{open ? "▾" : "▸"}</span>
+        <span className={`note-chev${open ? " open" : ""}`} aria-hidden="true">›</span>
       </button>
       {open && (
         <div className="note-body">
