@@ -417,8 +417,11 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   };
 
   const useOption = (o: any) => {
-    edit("title", o.title || title); edit("hook", o.hook || ""); edit("caption", o.caption || "");
-    edit("tags", (o.hashtags || []).join(", ")); setOptions([]); setBrief("");
+    const t = o.title || title, h = o.hook || "", cap = o.caption || "", tags = (o.hashtags || []).join(", ");
+    setTitle(t); setHook(h); setCaption(cap); setTags(tags);
+    chRef.current?.send({ type: "broadcast", event: "patch", payload: { by: me.id, field: "caption", value: cap } });
+    persist({ title: t, hook: h, caption: cap, hashtags: (o.hashtags || []) });
+    setOptions([]); setBrief("");
   };
 
   const setMeta = async (field: "kind" | "channel", value: string) => {

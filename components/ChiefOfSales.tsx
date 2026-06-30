@@ -56,10 +56,10 @@ export default function ChiefOfSales({ onLeads }: { onLeads?: () => void }) {
 
   return (
     <div className="cos cos-sales">
-      <button type="button" className="cossales-head" onClick={() => setOpen((o) => !o)}>
+      <button type="button" className="cossales-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
         <span className="cos-eyebrow">🎯 Chief of Sales</span>
         <span className="cossales-sub">scout events &amp; opportunities → leads</span>
-        <span className="cos-area-tag">{open ? "▾" : "▸"}</span>
+        <span className={`ev-chev${open ? " open" : ""}`} aria-hidden="true">›</span>
       </button>
 
       {open && (
