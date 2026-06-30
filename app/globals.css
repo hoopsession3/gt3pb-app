@@ -1706,7 +1706,19 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .studio-lint-row.warn .studio-lint-tag{color:var(--red);background:rgba(184,36,32,.16)}
 /* studio post media uploader + format-accurate mockup */
 .studio-media{margin:10px 0 6px}
-.studio-media-fmt{font-family:var(--mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--bronze);margin-bottom:6px}
+.studio-media-fmt{display:flex;align-items:center;font-family:var(--mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--bronze);margin-bottom:6px}
+.studio-lib-btn{margin-left:auto;font-family:'Inter';font-size:11px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--gold2);background:rgba(184,144,47,.12);border:1px solid rgba(184,144,47,.3);border-radius:7px;padding:4px 9px;cursor:pointer}
+.lib-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+.lib-cell{position:relative;aspect-ratio:1/1;background:var(--card);background-size:cover;background-position:center;border:1px solid var(--line2);border-radius:8px;overflow:hidden;cursor:pointer;padding:0}
+.lib-cell video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+/* post kit */
+.kit-row{display:flex;align-items:center;justify-content:space-between;margin:10px 0 4px}
+.kit-h{font-family:var(--mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--bronze)}
+.kit-copy{font-family:'Inter';font-size:11px;font-weight:600;color:var(--gold2);background:rgba(184,144,47,.12);border:1px solid rgba(184,144,47,.3);border-radius:6px;padding:3px 9px;cursor:pointer}
+.kit-box{font-family:'Inter';font-size:12.5px;line-height:1.5;color:var(--cream-m);background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:9px;padding:9px 11px}
+.app.crew-day .kit-box{background:rgba(34,31,24,.04)}
+.kit-media{display:flex;flex-wrap:wrap;gap:6px}
+.kit-dl{font-family:'Inter';font-size:12px;font-weight:600;color:var(--cream);background:rgba(255,255,255,.04);border:1px solid var(--line2);border-radius:8px;padding:6px 10px;text-decoration:none}
 .studio-media-add{width:100%;padding:22px;border-radius:12px;border:1.5px dashed var(--line2);background:rgba(255,255,255,.02);color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer}
 .app.crew-day .studio-media-add{background:rgba(34,31,24,.03)}
 /* full post simulation (IG chrome + safe zones) */

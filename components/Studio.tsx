@@ -37,6 +37,11 @@ const FORMATS: Record<string, { ratio: string; label: string }> = {
 const fmtFor = (kind: string) => FORMATS[kind] ?? { ratio: "1 / 1", label: "1:1" };
 const CHANNELS = ["instagram", "tiktok", "site", "email", "print", "other"];
 const fmtDate = (s: string | null) => s ? new Date(s).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+// rough best-time windows by channel (engagement-rule-of-thumb; tune with real analytics later)
+const bestTime = (channel: string) => channel === "tiktok"
+  ? "Tue–Thu, 6–10am or 7–11pm — TikTok skews early + late."
+  : channel === "email" ? "Tue/Thu mornings, 9–11am."
+  : "Tue–Fri, 11am–1pm or 7–9pm ET — IG lunch + evening windows.";
 
 export default function Studio() {
   const { user, profile } = useAuth();
@@ -190,6 +195,8 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   const [pubBusy, setPubBusy] = useState(""); const [pubErr, setPubErr] = useState("");
   const [campBusy, setCampBusy] = useState(false);
   const [rep, setRep] = useState<any | null>(null); const [repBusy, setRepBusy] = useState(false);
+  const [libOpen, setLibOpen] = useState(false); const [lib, setLib] = useState<Media[]>([]);
+  const [kitOpen, setKitOpen] = useState(false);
   const [mediaList, setMediaList] = useState<Media[]>([]);
   const [active, setActive] = useState(0);
   const [uploading, setUploading] = useState(false);
@@ -457,6 +464,19 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
     if (data?.id) onClose();
   };
   const copyText = (t: string) => { try { navigator.clipboard?.writeText(t); } catch { /* */ } };
+  // Media library — every photo/video already uploaded across pieces, to reuse without re-uploading.
+  const openLibrary = async () => {
+    if (!supabase) return;
+    setLibOpen(true);
+    const { data } = await supabase.from("content_items").select("media, media_url, media_type").limit(200);
+    const seen = new Set<string>(); const all: Media[] = [];
+    for (const row of (data as any[]) ?? []) {
+      const arr: Media[] = Array.isArray(row.media) && row.media.length ? row.media : (row.media_url ? [{ url: row.media_url, type: row.media_type || "image" }] : []);
+      for (const m of arr) { if (m?.url && !seen.has(m.url)) { seen.add(m.url); all.push({ url: m.url, type: m.type || "image" }); } }
+    }
+    setLib(all);
+  };
+  const addFromLibrary = async (m: Media) => { await saveMedia([...mediaList, { url: m.url, type: m.type }]); setLibOpen(false); };
 
   if (!item) return <div className="adm-sec"><div className="oa-empty">Loading…</div></div>;
   const cur = mediaList[active] || mediaList[0] || null;
@@ -501,7 +521,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
 
       {/* Post media + a real, format-accurate mockup (post 4:5 · reel/story 9:16 · carousel slides) */}
       <div className="studio-media">
-        <div className="studio-media-fmt">{fmtFor(item.kind).label}{mediaList.length > 1 ? ` · ${mediaList.length} slides` : ""}</div>
+        <div className="studio-media-fmt">{fmtFor(item.kind).label}{mediaList.length > 1 ? ` · ${mediaList.length} slides` : ""}<button type="button" className="studio-lib-btn" onClick={openLibrary}>📚 Library</button></div>
         {mediaList.length === 0 ? (
           <button type="button" className="studio-media-add" onClick={() => fileRef.current?.click()} disabled={uploading}>{uploading ? "Uploading…" : "＋ Add photos / video / reel"}</button>
         ) : (
@@ -541,6 +561,43 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
         )}
         <input ref={fileRef} type="file" accept="image/*,video/*" multiple hidden onChange={(e) => { if (e.target.files?.length) uploadMedia(e.target.files); e.target.value = ""; }} />
       </div>
+
+      {libOpen && (
+        <div className="qd-scrim" onClick={() => setLibOpen(false)}>
+          <div className="qd-sheet" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
+            <div className="qd-tabs"><b style={{ fontFamily: "Inter", fontSize: 15 }}>Media library</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setLibOpen(false)}>✕</button></div>
+            <div className="qd-body">
+              {lib.length === 0 ? <div className="oa-empty">No media yet — uploads from any piece show here to reuse.</div> : (
+                <div className="lib-grid">
+                  {lib.map((m, i) => (
+                    <button type="button" key={i} className="lib-cell" onClick={() => addFromLibrary(m)} style={m.type !== "video" ? { backgroundImage: `url(${m.url})` } : undefined} aria-label="Add this media">
+                      {m.type === "video" && <video src={m.url} muted playsInline preload="metadata" />}
+                      {m.type === "video" && <span className="ig-reel">▶</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {kitOpen && (
+        <div className="qd-scrim" onClick={() => setKitOpen(false)}>
+          <div className="qd-sheet" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
+            <div className="qd-tabs"><b style={{ fontFamily: "Inter", fontSize: 15 }}>📦 Post kit</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setKitOpen(false)}>✕</button></div>
+            <div className="qd-body">
+              <div className="kit-row"><span className="kit-h">Caption</span><button className="kit-copy" onClick={() => copyText(caption)}>Copy</button></div>
+              <div className="kit-box" style={{ whiteSpace: "pre-wrap" }}>{caption || "—"}</div>
+              {tags.trim() && <><div className="kit-row"><span className="kit-h">Hashtags</span><button className="kit-copy" onClick={() => copyText(tags.split(",").map((t) => `#${t.trim()}`).join(" "))}>Copy</button></div><div className="kit-box">{tags.split(",").map((t) => `#${t.trim()}`).join(" ")}</div></>}
+              {mediaList.length > 0 && <><div className="kit-row"><span className="kit-h">Media ({mediaList.length})</span></div><div className="kit-media">{mediaList.map((m, i) => <a key={i} className="kit-dl" href={m.url} download target="_blank" rel="noreferrer">⬇ {m.type === "video" ? "Video" : "Photo"} {i + 1}</a>)}</div></>}
+              <div className="kit-row"><span className="kit-h">Best time to post</span></div>
+              <div className="kit-box">{bestTime(item.channel)}</div>
+              <div className="pnl-note" style={{ marginTop: 8 }}>Copy the caption, download the media, post in {item.channel}. (Auto-publish needs a connected business account.)</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <input className="studio-title" value={title} onChange={(e) => edit("title", e.target.value)} placeholder="Title" />
       <input className="studio-hook" value={hook} onChange={(e) => edit("hook", e.target.value)} placeholder="Hook — the scroll-stopping first line" />
@@ -597,6 +654,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
           </span>
         )}
         {(status === "approved" || status === "scheduled") && <button type="button" className="studio-act" onClick={() => setStage("published", {}, "published")}>Mark published</button>}
+        <button type="button" className="studio-act" onClick={() => setKitOpen(true)}>📦 Post kit</button>
         <button type="button" className="studio-act ghost" onClick={() => setShowVers((s) => !s)}>History ({versions.length})</button>
         <button type="button" className="studio-act ghost" onClick={async () => { if (supabase && window.confirm("Delete this piece? This can't be undone.")) { await supabase.from("content_items").delete().eq("id", id); onClose(); } }}>Delete</button>
       </div>
