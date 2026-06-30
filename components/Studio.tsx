@@ -14,7 +14,7 @@ import BrandKit from "./BrandKit";
 type Item = {
   id: string; kind: string; channel: string; title: string; hook: string | null; caption: string | null;
   hashtags: string[]; status: string; review_note: string | null; scheduled_for: string | null;
-  updated_at: string; updated_by: string | null; event_id?: string | null;
+  updated_at: string; updated_by: string | null; event_id?: string | null; created_by?: string | null;
   canva_design_id?: string | null; canva_edit_url?: string | null; export_url?: string | null; published_url?: string | null;
   media_url?: string | null; media_type?: string | null;
 };
@@ -276,6 +276,16 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
     setStatus(next);
     await persist({ status: next, ...extra });
     await snapshot(label ?? next);
+    // approval notifications (→ alerts spine → in-app inbox + web push)
+    if (!supabase) return;
+    const t = (title || "Untitled").slice(0, 80);
+    if (next === "review") {
+      await supabase.from("alerts").insert({ severity: "important", category: "note", title: `🎨 Content ready for review — ${t}`.slice(0, 180), body: `${me.name} submitted "${t}" for approval.`.slice(0, 300), link: "/admin" });
+    } else if (next === "approved" && item?.created_by && item.created_by !== me.id) {
+      await supabase.from("alerts").insert({ severity: "fyi", category: "note", title: `✅ Approved — ${t}`.slice(0, 180), body: `${me.name} approved "${t}". Ready to schedule/publish.`.slice(0, 300), link: "/admin", target_user_id: item.created_by });
+    } else if (next === "changes" && item?.created_by && item.created_by !== me.id) {
+      await supabase.from("alerts").insert({ severity: "important", category: "note", title: `✏️ Changes requested — ${t}`.slice(0, 180), body: (extra.review_note ? String(extra.review_note) : `${me.name} requested changes on "${t}".`).slice(0, 300), link: "/admin", target_user_id: item.created_by });
+    }
   };
 
   const schedule = async () => {
