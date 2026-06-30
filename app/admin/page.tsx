@@ -474,7 +474,7 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    const sel = isEvent ? "title, day, location_text, stage" : "name, starts_at, location_text, address, status";
+    const sel = isEvent ? "title, day, location_text, stage, default_buffer_min" : "name, starts_at, location_text, address, status, default_buffer_min";
     const { data } = await supabase.from(table).select(sel).eq("id", ownerId).maybeSingle();
     setF((data as unknown as Record<string, string | null>) ?? {});
   }, [table, ownerId, isEvent]);
@@ -495,9 +495,10 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
     if (!supabase || !f) return;
     setSaving(true);
     const nm = (f[nameCol] || "").trim() || (isEvent ? "Event" : "Stop");
+    const buf = f.default_buffer_min != null && String(f.default_buffer_min).trim() !== "" ? Math.max(0, Number(f.default_buffer_min)) : null;
     const patch: Record<string, string | number | null> = isEvent
-      ? { title: nm, day: f.day || null, location_text: f.location_text?.trim() || null, stage: f.stage || "confirmed" }
-      : { name: nm, starts_at: f.starts_at || null, location_text: f.location_text?.trim() || null, address: f.address?.trim() || null, status: f.status || "upcoming" };
+      ? { title: nm, day: f.day || null, location_text: f.location_text?.trim() || null, stage: f.stage || "confirmed", default_buffer_min: buf }
+      : { name: nm, starts_at: f.starts_at || null, location_text: f.location_text?.trim() || null, address: f.address?.trim() || null, status: f.status || "upcoming", default_buffer_min: buf };
     // For stops, geocode the address (or location) so it pins on the map + customer directions work.
     if (!isEvent) {
       const q = (f.address?.trim() || f.location_text?.trim() || "");
@@ -520,7 +521,7 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
     return (
       <div className="ownerdet">
         <span className="ownerdet-meta">📅 {date}{place ? ` · 📍 ${place}` : ""}{status ? ` · ${status}` : ""}</span>
-        <AddToCalendar ev={cal} />
+        <AddToCalendar ev={cal} defaultBuffer={Number(f.default_buffer_min) || 0} />
         {isAdmin && <button type="button" className="ownerdet-edit" onClick={() => setEdit(true)}>Edit details</button>}
       </div>
     );
@@ -544,6 +545,7 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
           </select>
         )}
       </label>
+      <label className="prod-f" style={{ marginTop: 8 }}><span>Calendar buffer (min) — travel + setup blocked before service</span><input type="number" min={0} step={15} value={f.default_buffer_min ?? ""} onChange={(e) => set("default_buffer_min", e.target.value)} placeholder="e.g. 90" /></label>
       {!isEvent && <div className="ownerdet-hint">Go live &amp; broadcast GPS in Now ▸ Live truck.</div>}
       <div className="ownerdet-danger">
         <button type="button" className="ownerdet-arch" onClick={archive} disabled={saving}>Archive {what}</button>

@@ -74,6 +74,7 @@ export async function POST(req: Request) {
         properties: {
           leave_by: { type: "string", description: "The time to leave or start the day, e.g. '8:15a'. Echo the earliest travel/leave block's time if it has one; otherwise reason back from the first hard commitment (load-in / doors / service) with a realistic buffer." },
           summary: { type: "string", description: "1–2 plain sentences: when to leave and why, tied to the first fixed commitment and the drive." },
+          buffer_min: { type: "number", description: "Total minutes between leave_by and the first SERVICE start (drive + setup) — the buffer to block on the calendar. Only when you can derive it from a given drive time; omit if drive time is unknown." },
           risks: { type: "array", items: { type: "string" }, description: "Tight transitions or missing info (e.g. 'no drive time between leave and load-in — confirm it')." },
         },
         required: ["leave_by", "summary"],
@@ -93,6 +94,7 @@ export async function POST(req: Request) {
         ok: true,
         leave_by: String(o.leave_by ?? "").slice(0, 40),
         summary: String(o.summary ?? "").slice(0, 400),
+        buffer_min: typeof o.buffer_min === "number" && o.buffer_min > 0 ? Math.round(o.buffer_min) : null,
         risks: Array.isArray(o.risks) ? o.risks.map((s: any) => String(s).slice(0, 160)).slice(0, 4) : [],
       });
     } catch (err: any) {

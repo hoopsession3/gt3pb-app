@@ -121,7 +121,14 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
       const token = (await supabase.auth.getSession()).data.session?.access_token;
       const r = await fetch("/api/agents/dayplan", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ [ownerCol]: eventId, day_index: active, summarize: true }) });
       const j = await r.json();
-      if (j.ok) setDeparture({ leave_by: j.leave_by || "", summary: j.summary || "", risks: j.risks || [] });
+      if (j.ok) {
+        setDeparture({ leave_by: j.leave_by || "", summary: j.summary || "", risks: j.risks || [] });
+        // auto-fill the event's calendar buffer from the computed drive+setup time
+        if (typeof j.buffer_min === "number" && j.buffer_min > 0) {
+          const table = ownerCol === "stop_id" ? "stops" : "events";
+          supabase.from(table).update({ default_buffer_min: j.buffer_min }).eq("id", eventId).then(() => {});
+        }
+      }
     } catch { /* leave banner empty on failure */ }
     setDepBusy(false);
   };

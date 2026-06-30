@@ -7,6 +7,8 @@ import AccountPill from "@/components/AccountPill";
 import Reserves from "@/components/Reserves";
 import Skeleton from "@/components/Skeleton";
 import EmptyState from "@/components/EmptyState";
+import AddToCalendar from "@/components/AddToCalendar";
+import { calFromEvent } from "@/lib/ics";
 import { supabase } from "@/lib/supabase";
 import type { EventRow } from "@/lib/db";
 
@@ -86,6 +88,7 @@ function RsvpRow({ ev }: { ev: EventRow }) {
           {(ev.start_time || ev.end_time) && <div className="ev-det-row"><span className="ev-det-k">When</span><span>{ev.day_label ? `${ev.day_label} · ` : ""}{evTime(ev)}</span></div>}
           {ev.blurb && <p className="ev-det-blurb">{ev.blurb}</p>}
           {ev.member_only && <div className="ev-det-note">Members only — sign in to RSVP.</div>}
+          <div style={{ marginTop: 10 }}><AddToCalendar ev={calFromEvent({ id: ev.id, title: ev.title, day: ev.day, start_time: ev.start_time, end_time: ev.end_time, location_text: ev.location_text, blurb: ev.blurb })} /></div>
         </div>
       )}
     </div>

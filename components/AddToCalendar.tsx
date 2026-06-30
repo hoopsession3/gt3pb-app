@@ -11,10 +11,11 @@ const BUFFERS: { v: number; label: string }[] = [
 // event/stop drops into THEIR own calendar: .ics for Apple/Outlook (and any app), a one-tap
 // Google link. Stable UID per event/stop so re-adding updates rather than duplicates.
 
-export default function AddToCalendar({ ev, label = "Add to calendar" }: { ev: CalEvent | null; label?: string }) {
+export default function AddToCalendar({ ev, label = "Add to calendar", defaultBuffer = 0 }: { ev: CalEvent | null; label?: string; defaultBuffer?: number }) {
   const [open, setOpen] = useState(false);
-  const [buffer, setBuffer] = useState(0);
+  const [buffer, setBuffer] = useState(defaultBuffer);
   const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => { setBuffer(defaultBuffer); }, [defaultBuffer]);
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
@@ -44,7 +45,7 @@ export default function AddToCalendar({ ev, label = "Add to calendar" }: { ev: C
             <div className="atc-buf">
               <span className="atc-buf-h">Buffer before</span>
               <div className="atc-buf-row">
-                {BUFFERS.map((b) => (
+                {(BUFFERS.some((b) => b.v === defaultBuffer) ? BUFFERS : [...BUFFERS, { v: defaultBuffer, label: `${defaultBuffer}m` }].sort((a, b) => a.v - b.v)).map((b) => (
                   <button key={b.v} type="button" className={`atc-buf-c${buffer === b.v ? " on" : ""}`} onClick={() => setBuffer(b.v)} aria-pressed={buffer === b.v}>{b.label}</button>
                 ))}
               </div>
