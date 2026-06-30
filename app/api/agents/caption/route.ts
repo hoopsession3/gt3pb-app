@@ -2,6 +2,16 @@ import { NextResponse } from "next/server";
 import { staffFromRequest } from "@/lib/apiAuth";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { studioSystem } from "@/lib/brandVoice";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+
+// Recent captions the team approved/published — the live voice the agents learn from.
+async function approvedCaptions(limit = 4): Promise<string[]> {
+  if (!supabaseAdmin) return [];
+  const { data } = await supabaseAdmin.from("content_items")
+    .select("caption").in("status", ["approved", "scheduled", "published"]).not("caption", "is", null)
+    .order("updated_at", { ascending: false }).limit(limit);
+  return ((data as { caption: string | null }[]) ?? []).map((r) => (r.caption ?? "").trim()).filter((c) => c.length > 40);
+}
 
 export const runtime = "nodejs";
 
@@ -47,6 +57,7 @@ export async function POST(req: Request) {
 
   const system = studioSystem({
     channel, kind,
+    examples: await approvedCaptions(),
     task: `THE BRIEF — draft 2-3 distinct content options for this piece. Vary the ANGLE, not just the words: a different way in each time (a truth, a detail, a moment). Each option is title + hook + caption + hashtags. Educate first; let the product sell itself. Always answer with the draft_captions tool.`,
   });
 

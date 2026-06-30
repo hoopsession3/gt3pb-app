@@ -57,8 +57,13 @@ export async function POST(req: Request) {
   const { data: ev } = await supabaseAdmin.from("events").select("id, title, day, day_label").eq("id", event_id).maybeSingle();
   if (!ev || !ev.day) return NextResponse.json({ ok: false, error: "event not found" }, { status: 404 });
 
+  const { data: approvedRows } = await supabaseAdmin.from("content_items")
+    .select("caption").in("status", ["approved", "scheduled", "published"]).not("caption", "is", null)
+    .order("updated_at", { ascending: false }).limit(4);
+  const examples = ((approvedRows as { caption: string | null }[]) ?? []).map((r) => (r.caption ?? "").trim()).filter((c) => c.length > 40);
   const system = studioSystem({
     channel,
+    examples,
     task: `THE CAMPAIGN — three distinct moves for one event on ${channel}:
 - TEASER (−3 days): a 2-beat tease. Make them lean in. Name the why, not the what; let the date just sit there.
 - DAY-OF: the shortest one. We're here. Come. Two beats, or a single landed line.

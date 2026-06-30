@@ -33,15 +33,26 @@ THE CHATGPT SMELL — never write like this:
 HARD RULE — health-adjacent brand
 Never invent or imply nutrition / health / caffeine claims beyond the GT3 knowledge below; nutrition is "estimated until lab-verified." We disclose sweeteners (the honey is always named), we never hide behind "no added sugar." No fake urgency, no clickbait, no generic AI filler.`;
 
-// Compose a full system prompt for a studio agent: the trained voice + this task's
-// brief + the live Academy knowledge. `task` carries the agent-specific instructions
-// (e.g. the campaign arc, or the caption-options shape) and the tool to always answer with.
-export function studioSystem(opts: { channel?: string; kind?: string; task: string }): string {
-  const { channel, kind, task } = opts;
+// HER VOICE — anchor exemplars the studio is trained to mirror. The first is Kayla's own caption
+// (she runs the content); the agents learn her cadence: short declaratives, product-by-product,
+// "built around when you actually need them," a quiet close. Live approved captions are appended on
+// top of these at request time, so the voice keeps learning from what the team actually ships.
+export const VOICE_ANCHORS: string[] = [
+  `GT3 exists for one reason: to make the most honest, pure beverage we can — then hand it to you the moment you actually need it.\n\nThree cold brews. Built around when you actually need them. Rise starts the morning — single-origin, cold-extracted ~18 hours, finished with organic coconut water. Round, clean, no burnt bite.\n\nFlow carries the mid-day. Same organic beans infused with whole cacao nibs. A richer, steadier cup for the hours you're locked in.\n\nDusk closes the day. 🌙 Cinnamon and cardamom steeped into the same clean base. Warm, spiced, same lift.\n\nEvery ingredient is there for a reason. Every bottle is made to order.`,
+];
+
+// Compose a full system prompt for a studio agent: the trained voice + her voice exemplars
+// (anchors + live approved captions) + this task's brief + the live Academy knowledge.
+export function studioSystem(opts: { channel?: string; kind?: string; task: string; examples?: string[] }): string {
+  const { channel, kind, task, examples = [] } = opts;
   const fmt = [channel ? `channel ${channel}` : "", kind ? `format ${kind}` : ""].filter(Boolean).join(", ");
+  const samples = [...examples, ...VOICE_ANCHORS].slice(0, 6);
+  const voiceBlock = `=== HER VOICE — mirror this cadence (real captions the team approved; match the rhythm, not the exact words) ===\n${samples.map((s, i) => `[${i + 1}]\n${s}`).join("\n\n")}`;
   return `You are GT3's design studio — brand copywriter and art director in one.${fmt ? ` Write for ${fmt}.` : ""}
 
 ${BRAND_VOICE}
+
+${voiceBlock}
 
 ${task}
 
