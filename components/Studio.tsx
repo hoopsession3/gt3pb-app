@@ -16,6 +16,7 @@ type Item = {
   hashtags: string[]; status: string; review_note: string | null; scheduled_for: string | null;
   updated_at: string; updated_by: string | null; event_id?: string | null;
   canva_design_id?: string | null; canva_edit_url?: string | null; export_url?: string | null; published_url?: string | null;
+  media_url?: string | null; media_type?: string | null;
 };
 type Version = { id: string; title: string | null; hook: string | null; caption: string | null; hashtags: string[] | null; status: string | null; label: string | null; edited_by: string | null; created_at: string };
 
@@ -93,13 +94,19 @@ export default function Studio() {
             <div className="oa-empty" style={{ padding: "28px 8px" }}>No pieces yet — add a design (export the PNG from Canva) and it shows in the grid.</div>
           ) : (
             <div className="ig-grid">
-              {[...shown].sort((a, b) => (b.scheduled_for || b.updated_at).localeCompare(a.scheduled_for || a.updated_at)).map((it) => (
-                <button key={it.id} type="button" className="ig-cell" onClick={() => setOpenId(it.id)}
-                  style={it.export_url ? { backgroundImage: `url(${it.export_url})` } : undefined} aria-label={it.title || "Untitled"}>
-                  {!it.export_url && <span className="ig-ph"><b>{it.title || "Untitled"}</b><span>{STATUS[it.status]?.label ?? it.status}</span></span>}
-                  {it.export_url && it.status !== "published" && <span className="ig-tag">{STATUS[it.status]?.label ?? it.status}</span>}
-                </button>
-              ))}
+              {[...shown].sort((a, b) => (b.scheduled_for || b.updated_at).localeCompare(a.scheduled_for || a.updated_at)).map((it) => {
+                const img = (it.media_type !== "video" && it.media_url) || it.export_url || null;
+                const vid = it.media_type === "video" ? it.media_url : null;
+                return (
+                  <button key={it.id} type="button" className="ig-cell" onClick={() => setOpenId(it.id)}
+                    style={img ? { backgroundImage: `url(${img})` } : undefined} aria-label={it.title || "Untitled"}>
+                    {vid && <video className="ig-vid" src={vid} muted playsInline preload="metadata" />}
+                    {!img && !vid && <span className="ig-ph"><b>{it.title || "Untitled"}</b><span>{STATUS[it.status]?.label ?? it.status}</span></span>}
+                    {vid && <span className="ig-reel">▶</span>}
+                    {(img || vid) && it.status !== "published" && <span className="ig-tag">{STATUS[it.status]?.label ?? it.status}</span>}
+                  </button>
+                );
+              })}
             </div>
           )}
         </>
@@ -152,6 +159,9 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   const [pub, setPub] = useState<{ edit: string | null; png: string | null; live: string | null }>({ edit: null, png: null, live: null });
   const [pubBusy, setPubBusy] = useState(""); const [pubErr, setPubErr] = useState("");
   const [campBusy, setCampBusy] = useState(false);
+  const [media, setMedia] = useState<{ url: string; type: string } | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
   const chRef = useRef<any>(null);
   const saveTimer = useRef<any>(null);
   // Live identity for the realtime channel — read inside the subscribe effect so identity churn
@@ -175,6 +185,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
       setTags((it.hashtags || []).join(", ")); setStatus(it.status); setNote(it.review_note || "");
       setSched(it.scheduled_for ? new Date(it.scheduled_for).toISOString().slice(0, 16) : "");
       setPub({ edit: it.canva_edit_url ?? null, png: it.export_url ?? null, live: it.published_url ?? null });
+      setMedia(it.media_url ? { url: it.media_url, type: it.media_type || "image" } : null);
       setEventId(it.event_id ?? "");
     });
     loadVersions();
@@ -215,6 +226,23 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
     await supabase.from("content_items").update({ ...patch, updated_by: me.id }).eq("id", id);
     setSavedAt(new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
   }, [id, me.id]);
+
+  // Attach the post media — photo, video, or reel. Uploads to the public 'content' bucket and
+  // saves the URL + type so the feed/grid shows it.
+  const uploadMedia = async (file: File) => {
+    if (!supabase) return;
+    setUploading(true);
+    const ext = (file.name.split(".").pop() || "bin").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const path = `${id}/${new Date().getTime()}.${ext}`;
+    const up = await supabase.storage.from("content").upload(path, file, { upsert: true, cacheControl: "3600" });
+    if (up.error) { setUploading(false); setPubErr(`Upload: ${up.error.message}`); return; }
+    const url = supabase.storage.from("content").getPublicUrl(path).data.publicUrl;
+    const type = file.type.startsWith("video") ? "video" : "image";
+    setMedia({ url, type });
+    await persist({ media_url: url, media_type: type });
+    setUploading(false);
+  };
+  const removeMedia = async () => { setMedia(null); await persist({ media_url: null, media_type: null }); };
 
   // local edit → broadcast immediately + debounced autosave
   const edit = (field: "title" | "hook" | "caption" | "tags", value: string) => {
@@ -383,6 +411,24 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
           </div>
         </div>
       )}
+
+      {/* Post media — photo / video / reel (what actually shows in the feed) */}
+      <div className="studio-media">
+        {media ? (
+          media.type === "video"
+            ? <video className="studio-media-prev" src={media.url} controls playsInline />
+            : <div className="studio-media-prev img" style={{ backgroundImage: `url(${media.url})` }} role="img" aria-label="Post media" />
+        ) : (
+          <button type="button" className="studio-media-add" onClick={() => fileRef.current?.click()} disabled={uploading}>{uploading ? "Uploading…" : "＋ Add photo / video / reel"}</button>
+        )}
+        {media && (
+          <div className="studio-media-ctl">
+            <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading}>{uploading ? "Uploading…" : "Replace"}</button>
+            <button type="button" className="ghost" onClick={removeMedia}>Remove</button>
+          </div>
+        )}
+        <input ref={fileRef} type="file" accept="image/*,video/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadMedia(f); e.target.value = ""; }} />
+      </div>
 
       <input className="studio-title" value={title} onChange={(e) => edit("title", e.target.value)} placeholder="Title" />
       <input className="studio-hook" value={hook} onChange={(e) => edit("hook", e.target.value)} placeholder="Hook — the scroll-stopping first line" />
