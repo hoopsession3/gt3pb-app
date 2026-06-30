@@ -1498,7 +1498,10 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .note-body{padding:0 16px 16px;border-top:1px solid var(--line)}
 .note-summary{font-family:'Inter';font-size:14px;color:var(--cream);line-height:1.55;margin:13px 0 0;white-space:pre-wrap}
 .note-full{margin-top:11px}
-.note-full summary{font-family:'Inter';font-weight:600;font-size:12.5px;color:var(--gold2);cursor:pointer}
+.note-full summary{font-family:'Inter';font-weight:600;font-size:12.5px;color:var(--gold2);cursor:pointer;list-style:none;display:inline-flex;align-items:center;gap:5px}
+.note-full summary::-webkit-details-marker{display:none}
+.note-full summary::before{content:'›';font-size:14px;line-height:1;transition:transform .15s}
+.note-full[open] summary::before{transform:rotate(90deg)}
 .note-full p{font-family:'Inter';font-size:13.5px;color:var(--cream-m);line-height:1.55;margin-top:8px;white-space:pre-wrap}
 .note-fu-h{font-family:'Inter';font-weight:600;letter-spacing:1.5px;text-transform:uppercase;font-size:9.5px;color:var(--gold);margin:18px 0 4px}
 .note-fu{display:flex;align-items:center;gap:11px;padding:9px 0;border-bottom:1px solid var(--line)}
