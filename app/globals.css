@@ -35,6 +35,12 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
   body{align-items:center;padding:18px}
   .app{height:min(900px,96dvh);min-height:0;border-radius:40px;
     box-shadow:0 30px 80px rgba(0,0,0,.6),0 0 0 9px #050505,0 0 0 11px #1c1a16}
+  /* On desktop/iPad the app is a centered frame — pin the floating chrome (direct children of
+     .app) to THE FRAME instead of the viewport, so the FAB + toggles don't scatter to the
+     screen corners. .app is position:relative, so absolute anchors to it. */
+  .app > .qd-fab,.app > .theme-toggle,.app > .rdg,.app > .conc-fab,.app > .sw-update{position:absolute}
+  /* keep centered modal sheets within the frame width */
+  .prep-sheet,.isheet{max-width:440px}
 }
 .body{flex:1;overflow-y:auto;overflow-x:hidden;position:relative;-webkit-overflow-scrolling:touch}
 .body::-webkit-scrollbar{display:none}
@@ -1666,6 +1672,15 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .st-pill.st-approved,.st-pill.st-published{color:var(--ok);border-color:var(--ok)}
 .st-pill.st-scheduled{color:#6fa8dc;border-color:#6fa8dc}
 .studio-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+/* Instagram feed grid preview */
+.ig-note{font-family:'Inter';font-size:11.5px;color:var(--cream-m);margin:4px 0 9px}
+.ig-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px}
+.ig-cell{position:relative;aspect-ratio:1/1;background:var(--card);background-size:cover;background-position:center;border:none;border-radius:2px;overflow:hidden;cursor:pointer;padding:0}
+.app.crew-day .ig-cell{background:#ece4d3}
+.ig-ph{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:8px;text-align:center}
+.ig-ph b{font-family:'Inter';font-weight:650;font-size:11px;line-height:1.25;color:var(--cream);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.ig-ph span{font-family:var(--mono);font-size:8px;letter-spacing:.6px;text-transform:uppercase;color:var(--cream-d)}
+.ig-tag{position:absolute;top:5px;right:5px;font-family:var(--mono);font-size:8px;letter-spacing:.4px;text-transform:uppercase;color:#fff;background:rgba(0,0,0,.6);border-radius:5px;padding:2px 5px}
 .studio-card{text-align:left;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;cursor:pointer;-webkit-appearance:none;appearance:none;display:flex;flex-direction:column;gap:6px}
 .studio-card-h{display:flex;align-items:center;justify-content:space-between;gap:6px}
 .studio-card-ch{font-family:'Inter';font-size:11px;color:var(--cream-m);text-transform:capitalize}

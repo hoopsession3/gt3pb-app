@@ -34,9 +34,9 @@ export default function Studio() {
   const [items, setItems] = useState<Item[]>([]);
   const [filter, setFilter] = useState<string>("all");
   const [openId, setOpenId] = useState<string | null>(null);
-  const [view, setView] = useState<"calendar" | "board" | "brand">(() => {
+  const [view, setView] = useState<"calendar" | "board" | "grid" | "brand">(() => {
     const v = typeof window !== "undefined" ? localStorage.getItem("gt3-studio-view") : null;
-    return v === "board" || v === "brand" ? v : "calendar";
+    return v === "board" || v === "brand" || v === "grid" ? v : "calendar";
   });
 
   const load = useCallback(async () => {
@@ -60,7 +60,7 @@ export default function Studio() {
     const { data } = await supabase.from("content_items").insert({ title: "Untitled", created_by: me.id, updated_by: me.id, scheduled_for: scheduledISO ?? null, event_id: eventId ?? null }).select("id").single();
     if (data?.id) { await load(); setOpenId(data.id); }
   };
-  const pickView = (v: "calendar" | "board" | "brand") => { setView(v); if (typeof window !== "undefined") localStorage.setItem("gt3-studio-view", v); };
+  const pickView = (v: "calendar" | "board" | "grid" | "brand") => { setView(v); if (typeof window !== "undefined") localStorage.setItem("gt3-studio-view", v); };
 
   if (openId) return <StudioEditor id={openId} me={me} onClose={() => { setOpenId(null); load(); }} />;
 
@@ -71,6 +71,7 @@ export default function Studio() {
         <div className="studio-views" role="tablist" aria-label="View">
           <button type="button" className={`studio-view${view === "calendar" ? " on" : ""}`} onClick={() => pickView("calendar")}>Calendar</button>
           <button type="button" className={`studio-view${view === "board" ? " on" : ""}`} onClick={() => pickView("board")}>Board</button>
+          <button type="button" className={`studio-view${view === "grid" ? " on" : ""}`} onClick={() => pickView("grid")}>Grid</button>
           <button type="button" className={`studio-view${view === "brand" ? " on" : ""}`} onClick={() => pickView("brand")}>Brand</button>
         </div>
         {view !== "brand" && <button type="button" className="rdy-run" onClick={() => create()}>✦ New piece</button>}
@@ -80,6 +81,28 @@ export default function Studio() {
         <BrandKit canEdit />
       ) : view === "calendar" ? (
         <BrandCalendar onOpen={setOpenId} onCreate={(iso, evId) => create(iso, evId)} />
+      ) : view === "grid" ? (
+        <>
+          <div className="subnav" role="tablist" aria-label="Filter">
+            {["all", ...Object.keys(STATUS)].map((k) => (
+              <button key={k} type="button" className={`subnav-tab${filter === k ? " on" : ""}`} onClick={() => setFilter(k)}>{k === "all" ? "All" : STATUS[k].label}</button>
+            ))}
+          </div>
+          <div className="ig-note">📱 Instagram feed preview — newest top-left. Tap a tile to open it.</div>
+          {shown.length === 0 ? (
+            <div className="oa-empty" style={{ padding: "28px 8px" }}>No pieces yet — add a design (export the PNG from Canva) and it shows in the grid.</div>
+          ) : (
+            <div className="ig-grid">
+              {[...shown].sort((a, b) => (b.scheduled_for || b.updated_at).localeCompare(a.scheduled_for || a.updated_at)).map((it) => (
+                <button key={it.id} type="button" className="ig-cell" onClick={() => setOpenId(it.id)}
+                  style={it.export_url ? { backgroundImage: `url(${it.export_url})` } : undefined} aria-label={it.title || "Untitled"}>
+                  {!it.export_url && <span className="ig-ph"><b>{it.title || "Untitled"}</b><span>{STATUS[it.status]?.label ?? it.status}</span></span>}
+                  {it.export_url && it.status !== "published" && <span className="ig-tag">{STATUS[it.status]?.label ?? it.status}</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </>
       ) : (
         <>
           <div className="subnav" role="tablist" aria-label="Filter">
