@@ -2570,6 +2570,20 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .ownerdet-meta{font-size:13.5px;color:var(--cream-m);line-height:1.5}
 .app.crew-day .ownerdet-meta{color:#5b5446}
 .ownerdet-edit{margin-left:auto;background:none;border:1px solid var(--line2);color:var(--cream);border-radius:8px;font-size:12px;font-weight:600;padding:4px 11px;cursor:pointer}
+/* add-to-calendar (self-serve .ics / Google) */
+.atc{position:relative}
+.atc-btn{background:rgba(184,144,47,.12);border:1px solid rgba(184,144,47,.32);color:var(--gold2);border-radius:8px;font-family:'Inter';font-size:12px;font-weight:600;padding:5px 11px;cursor:pointer;white-space:nowrap}
+.atc-menu{position:absolute;top:calc(100% + 6px);left:0;z-index:40;min-width:180px;background:var(--card);border:1px solid var(--line2);border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,.4);overflow:hidden;display:flex;flex-direction:column}
+.app.crew-day .atc-menu{background:#fff}
+.atc-item{display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:10px 13px;background:none;border:none;border-bottom:1px solid var(--line);color:var(--cream);font-family:'Inter';font-size:13px;font-weight:600;text-align:left;cursor:pointer;text-decoration:none}
+.atc-item:last-child{border-bottom:none}
+.atc-item span{font-family:var(--mono);font-size:9.5px;font-weight:400;letter-spacing:.3px;color:var(--cream-d);text-transform:uppercase}
+.atc-item:active{background:rgba(184,144,47,.1)}
+.atc-buf{padding:9px 12px;border-bottom:1px solid var(--line)}
+.atc-buf-h{font-family:var(--mono);font-size:8.5px;letter-spacing:1px;text-transform:uppercase;color:var(--bronze)}
+.atc-buf-row{display:flex;gap:5px;margin-top:6px}
+.atc-buf-c{flex:1;padding:6px 0;border-radius:7px;border:1px solid var(--line2);background:transparent;color:var(--cream-m);font-family:'Inter';font-size:11px;font-weight:600;cursor:pointer}
+.atc-buf-c.on{border-color:var(--gold);background:rgba(184,144,47,.14);color:var(--gold)}
 .ownerdet.editing{display:block;background:rgba(255,255,255,.02);border:1px solid var(--line2);border-radius:14px;padding:14px}
 .app.crew-day .ownerdet.editing{background:rgba(34,31,24,.03)}
 .ownerdet-hint{font-size:12px;color:var(--muted);margin-top:8px}

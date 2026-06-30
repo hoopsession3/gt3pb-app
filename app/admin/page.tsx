@@ -27,6 +27,8 @@ import EventPrepAI from "@/components/EventPrepAI";
 import TroubleshootAI from "@/components/TroubleshootAI";
 import BrewPlanner from "@/components/BrewPlanner";
 import CogsCalculator from "@/components/CogsCalculator";
+import AddToCalendar from "@/components/AddToCalendar";
+import { calFromEvent, calFromStop } from "@/lib/ics";
 import AssetMaintenance from "@/components/AssetMaintenance";
 import ChiefOfStaff from "@/components/ChiefOfStaff";
 import ChiefOfSales from "@/components/ChiefOfSales";
@@ -512,9 +514,13 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
     const date = dateVal ? new Date(`${dateVal}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : "No date set";
     const place = f.location_text || f.address || "";
     const status = isEvent ? f.stage : f.status;
+    const cal = isEvent
+      ? calFromEvent({ id: ownerId, title: f.title ?? "", day: f.day ?? null, location_text: f.location_text })
+      : calFromStop({ id: ownerId, name: f.name ?? "", starts_at: f.starts_at ?? null, location_text: f.location_text, address: f.address });
     return (
       <div className="ownerdet">
         <span className="ownerdet-meta">📅 {date}{place ? ` · 📍 ${place}` : ""}{status ? ` · ${status}` : ""}</span>
+        <AddToCalendar ev={cal} />
         {isAdmin && <button type="button" className="ownerdet-edit" onClick={() => setEdit(true)}>Edit details</button>}
       </div>
     );

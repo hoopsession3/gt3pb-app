@@ -1,5 +1,6 @@
 const L = require("../.smoke/loadout.js");
 const C = require("../.smoke/cogs.js");
+const I = require("../.smoke/ics.js");
 let pass = 0, fail = 0;
 const ok = (name, cond, got) => { if (cond) { pass++; } else { fail++; console.log(`  ✗ ${name}` + (got !== undefined ? ` → got ${JSON.stringify(got)}` : "")); } };
 
@@ -96,6 +97,30 @@ ok("batch flags uncosted", bc.uncosted === 2, bc.uncosted);
 ok("batch servable yield", bc.servableGal === 4.5, bc.servableGal);
 ok("batch bottle count", bc.bottles === Math.floor(4.5*128/10), bc.bottles);
 ok("batch per-gal", bc.perGalCents === Math.round(bc.batchCents/5), bc.perGalCents);
+
+// --- ICS calendar export ---
+ok("parseClock am/pm", JSON.stringify(I.parseClock("2:30pm")) === JSON.stringify({h:14,m:30}), I.parseClock("2:30pm"));
+ok("parseClock 24h", JSON.stringify(I.parseClock("14:00")) === JSON.stringify({h:14,m:0}));
+ok("parseClock bare ambiguous → null", I.parseClock("8") === null);
+ok("parseClock 11AM", JSON.stringify(I.parseClock("11AM")) === JSON.stringify({h:11,m:0}));
+const stamp = new Date(Date.UTC(2026, 5, 27, 12, 0, 0));
+const stopCal = I.calFromStop({ id: "s1", name: "BeltLine", starts_at: "2026-06-27T15:00:00.000Z", location_text: "Atlanta", address: "1 Peach St" });
+ok("calFromStop builds", !!stopCal && stopCal.uid === "stop-s1@gt3pb", stopCal && stopCal.uid);
+ok("calFromStop uses address as location", stopCal.location === "1 Peach St");
+const ics = I.buildIcs(stopCal, stamp);
+ok("ics has VEVENT", ics.includes("BEGIN:VEVENT") && ics.includes("END:VCALENDAR"));
+ok("ics has stable UID", ics.includes("UID:stop-s1@gt3pb"));
+ok("ics has SUMMARY", ics.includes("SUMMARY:BeltLine"));
+ok("ics CRLF lines", ics.includes("\r\n"));
+const evCal = I.calFromEvent({ id: "e1", title: "Market, Sat", day: "2026-06-27", start_time: "8" });
+ok("event bare time → all-day", evCal.allDay === true);
+ok("ics escapes comma in title", I.buildIcs(evCal, stamp).includes("SUMMARY:Market\\, Sat"));
+ok("google url is google", I.googleCalUrl(stopCal).startsWith("https://calendar.google.com/calendar/render?"));
+ok("google url has UTC dates", /dates=\d{8}T\d{6}Z/.test(I.googleCalUrl(stopCal)));
+const buffered = I.withBuffer(stopCal, 60);
+ok("buffer moves start 60m earlier", buffered.start.getTime() === stopCal.start.getTime() - 3600000);
+ok("buffer adds note", /buffer/i.test(buffered.description || ""));
+ok("buffer no-op on all-day", I.withBuffer(evCal, 60).start.getTime() === evCal.start.getTime());
 
 // --- weight loadout still works ---
 const lo = L.computeLoadout(pack, tp);
