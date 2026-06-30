@@ -1,6 +1,7 @@
 const L = require("../.smoke/loadout.js");
 const C = require("../.smoke/cogs.js");
 const I = require("../.smoke/ics.js");
+const CL = require("../.smoke/captionLint.js");
 let pass = 0, fail = 0;
 const ok = (name, cond, got) => { if (cond) { pass++; } else { fail++; console.log(`  ✗ ${name}` + (got !== undefined ? ` → got ${JSON.stringify(got)}` : "")); } };
 
@@ -122,6 +123,14 @@ const buffered = I.withBuffer(stopCal, 60);
 ok("buffer moves start 60m earlier", buffered.start.getTime() === stopCal.start.getTime() - 3600000);
 ok("buffer adds note", /buffer/i.test(buffered.description || ""));
 ok("buffer no-op on all-day", I.withBuffer(evCal, 60).start.getTime() === evCal.start.getTime());
+
+// --- caption linter ---
+const lc = (t) => CL.lintCaption(t).map(f => f.tag);
+ok("lint flags health claim", lc("This cures your fatigue").includes("claim"));
+ok("lint flags no-sugar disclosure", lc("Zero sugar, all clean").includes("disclosure"));
+ok("lint flags chatgpt smell", lc("Elevate your morning, discover the difference").includes("voice"));
+ok("lint flags weak hook", lc("Hey friends! check this out").some(t => t === "hook" || t === "voice"));
+ok("lint clean caption passes", CL.lintCaption("Cold-extracted 18 hours. Round, clean, no burnt bite.").length === 0, CL.lintCaption("Cold-extracted 18 hours. Round, clean, no burnt bite."));
 
 // --- weight loadout still works ---
 const lo = L.computeLoadout(pack, tp);

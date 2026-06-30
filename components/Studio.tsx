@@ -5,18 +5,20 @@ import { useAuth } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
 import BrandCalendar from "./BrandCalendar";
 import BrandKit from "./BrandKit";
+import { lintCaption } from "@/lib/captionLint";
 
 // STUDIO — the collaborative marketing studio. Her money-maker, his taste → built around
 // collaboration: real-time co-editing (Supabase Realtime presence + broadcast), real version
 // history, scheduling, titles, status/approval, and a suave on-brand caption engine.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+type Media = { url: string; type: string; focal?: { x: number; y: number } };
 type Item = {
   id: string; kind: string; channel: string; title: string; hook: string | null; caption: string | null;
   hashtags: string[]; status: string; review_note: string | null; scheduled_for: string | null;
   updated_at: string; updated_by: string | null; event_id?: string | null; created_by?: string | null;
   canva_design_id?: string | null; canva_edit_url?: string | null; export_url?: string | null; published_url?: string | null;
-  media_url?: string | null; media_type?: string | null; media?: { url: string; type: string }[] | null;
+  media_url?: string | null; media_type?: string | null; media?: Media[] | null;
 };
 type Version = { id: string; title: string | null; hook: string | null; caption: string | null; hashtags: string[] | null; status: string | null; label: string | null; edited_by: string | null; created_at: string };
 
@@ -108,7 +110,7 @@ export default function Studio() {
                 const vid = cover && cover.type === "video" ? cover.url : null;
                 return (
                   <button key={it.id} type="button" className="ig-cell" onClick={() => setOpenId(it.id)}
-                    style={img ? { backgroundImage: `url(${img})` } : undefined} aria-label={it.title || "Untitled"}>
+                    style={img ? { backgroundImage: `url(${img})`, backgroundPosition: (cover && "focal" in cover && cover.focal) ? `${cover.focal.x}% ${cover.focal.y}%` : "center" } : undefined} aria-label={it.title || "Untitled"}>
                     {vid && <video className="ig-vid" src={vid} muted playsInline preload="metadata" />}
                     {!img && !vid && <span className="ig-ph"><span className="ig-ph-cam">📷</span><b>{it.title || "Untitled"}</b><span>tap to add a photo</span></span>}
                     {vid && <span className="ig-reel">▶</span>}
@@ -169,7 +171,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   const [pub, setPub] = useState<{ edit: string | null; png: string | null; live: string | null }>({ edit: null, png: null, live: null });
   const [pubBusy, setPubBusy] = useState(""); const [pubErr, setPubErr] = useState("");
   const [campBusy, setCampBusy] = useState(false);
-  const [mediaList, setMediaList] = useState<{ url: string; type: string }[]>([]);
+  const [mediaList, setMediaList] = useState<Media[]>([]);
   const [active, setActive] = useState(0);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -242,7 +244,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   }, [id, me.id]);
 
   // Save the media array + keep the single cover columns (media_url/type) in sync for the grid.
-  const saveMedia = async (list: { url: string; type: string }[]) => {
+  const saveMedia = async (list: Media[]) => {
     setMediaList(list);
     await persist({ media: list, media_url: list[0]?.url ?? null, media_type: list[0]?.type ?? null });
   };
@@ -267,6 +269,16 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
     await saveMedia(list);
   };
   const makeCover = async (i: number) => { const list = [...mediaList]; const [m] = list.splice(i, 1); await saveMedia([m, ...list]); setActive(0); };
+  // Tap the mockup to set the focal point — where the crop centers — so one photo frames right in
+  // every format (4:5 post, 9:16 reel/story) without re-cropping.
+  const setFocal = async (e: React.MouseEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const x = Math.round(Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width) * 100)));
+    const y = Math.round(Math.max(0, Math.min(100, ((e.clientY - r.top) / r.height) * 100)));
+    const list = mediaList.map((m, j) => (j === active ? { ...m, focal: { x, y } } : m));
+    await saveMedia(list);
+  };
+  const focalPos = (m: Media | null) => (m?.focal ? `${m.focal.x}% ${m.focal.y}%` : "center");
 
   // local edit → broadcast immediately + debounced autosave
   const edit = (field: "title" | "hook" | "caption" | "tags", value: string) => {
@@ -410,6 +422,8 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
 
   if (!item) return <div className="adm-sec"><div className="oa-empty">Loading…</div></div>;
   const cur = mediaList[active] || mediaList[0] || null;
+  const lint = lintCaption(caption);
+  const isVertical = item.kind === "reel" || item.kind === "story";
 
   return (
     <div className="adm-sec">
@@ -453,13 +467,25 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
         {mediaList.length === 0 ? (
           <button type="button" className="studio-media-add" onClick={() => fileRef.current?.click()} disabled={uploading}>{uploading ? "Uploading…" : "＋ Add photos / video / reel"}</button>
         ) : (
-          <div className="studio-mockup" style={{ aspectRatio: fmtFor(item.kind).ratio }}>
+          <div className="studio-sim">
+            <div className="studio-sim-head"><span className="studio-sim-av" />gt3performancebar<span className="studio-sim-dots">•••</span></div>
+            <div className="studio-mockup" style={{ aspectRatio: fmtFor(item.kind).ratio }}>
             {cur?.type === "video"
               ? <video className="studio-mockup-m" src={cur.url} controls playsInline />
-              : cur && <div className="studio-mockup-m" style={{ backgroundImage: `url(${cur.url})` }} role="img" aria-label="Preview" />}
+              : cur && <div className="studio-mockup-m" style={{ backgroundImage: `url(${cur.url})`, backgroundPosition: focalPos(cur) }} role="img" aria-label="Preview" onClick={setFocal} title="Tap to set the focal point (where the crop centers)">
+                  {cur.focal && <span className="studio-focal" style={{ left: `${cur.focal.x}%`, top: `${cur.focal.y}%` }} aria-hidden />}
+                </div>}
+            {isVertical && <><span className="sim-safe top" /><span className="sim-safe bottom" /><span className="sim-safe right" /></>}
             {mediaList.length > 1 && <div className="studio-dots">{mediaList.map((_, i) => <span key={i} className={i === active ? "on" : ""} />)}</div>}
             {mediaList.length > 1 && active > 0 && <button type="button" className="studio-nav prev" onClick={() => setActive((a) => a - 1)} aria-label="Previous">‹</button>}
             {mediaList.length > 1 && active < mediaList.length - 1 && <button type="button" className="studio-nav next" onClick={() => setActive((a) => a + 1)} aria-label="Next">›</button>}
+            </div>
+            {!isVertical && (
+              <>
+                <div className="studio-sim-actions"><span>♡</span><span>💬</span><span>➤</span><span className="bm">🔖</span></div>
+                {caption && <div className="studio-sim-cap"><b>gt3performancebar</b> {caption.slice(0, 125)}{caption.length > 125 && <span className="more"> … more</span>}</div>}
+              </>
+            )}
           </div>
         )}
         {mediaList.length > 0 && (
@@ -481,6 +507,11 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
       <input className="studio-title" value={title} onChange={(e) => edit("title", e.target.value)} placeholder="Title" />
       <input className="studio-hook" value={hook} onChange={(e) => edit("hook", e.target.value)} placeholder="Hook — the scroll-stopping first line" />
       <textarea className="studio-caption" value={caption} onChange={(e) => edit("caption", e.target.value)} rows={7} placeholder="Caption…" />
+      {lint.length > 0 && (
+        <div className="studio-lint">
+          {lint.map((f, i) => <div key={i} className={`studio-lint-row ${f.level}`}><span className="studio-lint-tag">{f.tag}</span>{f.msg}</div>)}
+        </div>
+      )}
       <input className="studio-tags" value={tags} onChange={(e) => edit("tags", e.target.value)} placeholder="hashtags, comma, separated" />
 
       {/* Caption engine */}

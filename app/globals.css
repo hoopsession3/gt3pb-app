@@ -1686,13 +1686,35 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .ig-vid{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .ig-reel{position:absolute;top:5px;left:5px;font-size:11px;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.7)}
 .ig-multi{position:absolute;top:4px;right:5px;font-size:12px;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.7)}
+/* caption linter */
+.studio-lint{display:flex;flex-direction:column;gap:5px;margin:-2px 0 8px}
+.studio-lint-row{display:flex;align-items:flex-start;gap:7px;font-family:'Inter';font-size:11.5px;line-height:1.4;color:var(--cream-m);padding:6px 9px;border-radius:8px;background:rgba(207,154,74,.1);border:1px solid rgba(207,154,74,.25)}
+.studio-lint-row.warn{background:rgba(184,36,32,.1);border-color:rgba(184,36,32,.3)}
+.studio-lint-tag{flex:0 0 auto;font-family:var(--mono);font-size:8px;letter-spacing:.5px;text-transform:uppercase;color:var(--warn);background:rgba(207,154,74,.16);border-radius:4px;padding:2px 5px;margin-top:1px}
+.studio-lint-row.warn .studio-lint-tag{color:var(--red);background:rgba(184,36,32,.16)}
 /* studio post media uploader + format-accurate mockup */
 .studio-media{margin:10px 0 6px}
 .studio-media-fmt{font-family:var(--mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--bronze);margin-bottom:6px}
 .studio-media-add{width:100%;padding:22px;border-radius:12px;border:1.5px dashed var(--line2);background:rgba(255,255,255,.02);color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer}
 .app.crew-day .studio-media-add{background:rgba(34,31,24,.03)}
-.studio-mockup{position:relative;width:100%;max-width:300px;margin:0 auto;border-radius:14px;overflow:hidden;background:#000;border:1px solid var(--line2)}
-.studio-mockup-m{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background-size:cover;background-position:center}
+/* full post simulation (IG chrome + safe zones) */
+.studio-sim{width:100%;max-width:300px;margin:0 auto}
+.studio-sim-head{display:flex;align-items:center;gap:7px;font-family:'Inter';font-weight:650;font-size:12px;color:var(--cream);padding:2px 2px 6px}
+.studio-sim-av{width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#caa46d,#7a5c3a);flex:0 0 auto}
+.studio-sim-dots{margin-left:auto;color:var(--cream-d);letter-spacing:1px}
+.studio-sim-actions{display:flex;gap:13px;font-size:17px;color:var(--cream);padding:8px 2px 4px}
+.studio-sim-actions .bm{margin-left:auto}
+.studio-sim-cap{font-family:'Inter';font-size:12px;line-height:1.45;color:var(--cream-m);padding:0 2px 2px}
+.studio-sim-cap b{color:var(--cream);font-weight:650}
+.studio-sim-cap .more{color:var(--cream-d)}
+/* reel/story UI safe zones — where IG's own buttons cover the video; keep text clear of these */
+.sim-safe{position:absolute;background:rgba(0,0,0,.28);pointer-events:none;z-index:1}
+.sim-safe.top{top:0;left:0;right:0;height:13%;box-shadow:inset 0 -1px 0 rgba(255,255,255,.15)}
+.sim-safe.bottom{bottom:0;left:0;right:0;height:22%;box-shadow:inset 0 1px 0 rgba(255,255,255,.15)}
+.sim-safe.right{top:30%;bottom:24%;right:0;width:16%;box-shadow:inset 1px 0 0 rgba(255,255,255,.12)}
+.studio-mockup{position:relative;width:100%;border-radius:14px;overflow:hidden;background:#000;border:1px solid var(--line2)}
+.studio-mockup-m{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background-size:cover;background-position:center;cursor:crosshair}
+.studio-focal{position:absolute;width:16px;height:16px;margin:-8px 0 0 -8px;border:2px solid #fff;border-radius:50%;box-shadow:0 0 0 1px rgba(0,0,0,.5),0 0 6px rgba(0,0,0,.5);pointer-events:none}
 .studio-dots{position:absolute;top:8px;left:0;right:0;display:flex;gap:4px;justify-content:center;z-index:2}
 .studio-dots span{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.5)}
 .studio-dots span.on{background:#fff}
