@@ -23,9 +23,9 @@ const PAGES = 4;
 type Theme = {
   id: string; name: string; note: string;
   paper: string; ink: string; headInk?: string; sub: string; accent: string; serif: string;
-  frame: "gold" | "cream" | "goldheavy" | "thin" | "brackets" | "press" | "none";
+  frame: "gold" | "cream" | "goldheavy" | "thin" | "brackets" | "press" | "ticket" | "none";
   motif: "crest" | "masthead" | "band" | "neon" | "monogram";
-  dark?: boolean; gold?: boolean; glow?: boolean; grain?: boolean; split?: boolean;
+  dark?: boolean; gold?: boolean; glow?: boolean; grain?: boolean; split?: boolean; weave?: boolean; warm?: boolean;
   crestSq?: string; crestAcc?: string;
 };
 // The 10 templates — one family, ten director's cuts.
@@ -40,6 +40,9 @@ const THEMES: Theme[] = [
   { id: "neon", name: "Neon Signal", note: "red-glow headline", paper: "#100d09", ink: CREAM, sub: cm(.55), accent: RED, serif: GOLD_LT, frame: "brackets", motif: "neon", dark: true, glow: true, crestSq: CREAM },
   { id: "monogram", name: "The Monogram", note: "oversized crest", paper: CREAM, ink: INK, sub: mc(.5), accent: RED, serif: GOLD, frame: "thin", motif: "monogram" },
   { id: "reserve", name: "Grain & Frame", note: "cinematic grain", paper: "#161009", ink: CREAM, sub: cm(.6), accent: RED, serif: GOLD_LT, frame: "gold", motif: "crest", dark: true, grain: true, crestSq: CREAM },
+  { id: "carbon", name: "Carbon Fiber", note: "woven motorsport", paper: "#17130d", ink: CREAM, sub: cm(.55), accent: RED, serif: GOLD_LT, frame: "gold", motif: "crest", dark: true, weave: true, crestSq: CREAM },
+  { id: "ticket", name: "The Ticket", note: "event ticket · perforated", paper: CREAM, ink: INK, sub: mc(.5), accent: RED, serif: GOLD, frame: "ticket", motif: "crest" },
+  { id: "amber", name: "Amber Glow", note: "warm sunrise gradient", paper: CREAM, ink: INK, sub: mc(.5), accent: RED, serif: GOLD, frame: "gold", motif: "crest", warm: true },
 ];
 
 const MON = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
@@ -66,6 +69,7 @@ export default function RoadFlyer() {
   const [tile, setTile] = useState<Tile>("announce");
   const [tpl, setTpl] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
   const [f, setF] = useState({ headline1: "FIND US", headline2: "ON THE ROAD", date: "", time: "", place: "", address: "", photo: "", menu: DEFAULT_MENU, submenu: DEFAULT_SUB, details: DEFAULT_DETAILS });
   const wmRef = useRef<HTMLImageElement | null>(null);
   const [logoReady, setLogoReady] = useState(0);
@@ -75,6 +79,36 @@ export default function RoadFlyer() {
     if (saved >= 0 && saved < THEMES.length) setTpl(saved);
   }, []);
   const pickTpl = (i: number) => { setTpl(i); if (typeof window !== "undefined") localStorage.setItem("gt3-flyer-tpl", String(i)); };
+  const applyTemplate = (id: string) => { const i = THEMES.findIndex((x) => x.id === id); if (i >= 0) pickTpl(i); return i >= 0 ? THEMES[i].name : ""; };
+
+  // Deterministic fallback pick when the AI isn't switched on — reads the slide + copy for a mood.
+  const heuristicPick = (): { id: string; reason: string } => {
+    const t = `${f.headline1} ${f.headline2} ${f.place} ${f.time} ${f.menu} ${f.submenu} ${f.details} ${tile}`.toLowerCase();
+    if (tile === "photo") return { id: "reserve", reason: "Photo-forward — the cinematic grain frames a real image best." };
+    if (tile === "menu" || tile === "submenu") return { id: "press", reason: "A menu reads with authority in the editorial masthead." };
+    if (/\b(invite|rsvp|ticket|party|celebrat)/.test(t)) return { id: "ticket", reason: "It's an invite — the perforated ticket makes it feel like a happening." };
+    if (/\b(night|evening|dusk|late|after ?dark|pm)\b/.test(t)) return { id: "neon", reason: "Evening energy — the red-glow cut owns after-dark." };
+    if (/\b(morning|sunrise|am|market|coffee|rise)\b/.test(t)) return { id: "amber", reason: "A morning market — warm sunrise tones fit the hour." };
+    if (/\b(race|track|grand|speed|launch|gt3|pit)\b/.test(t)) return { id: "checker", reason: "Motorsport moment — the checker cut leans into it." };
+    if (/\b(reserve|vip|member|special|limited)\b/.test(t)) return { id: "goldleaf", reason: "Something special — Gold Leaf gives it the reserve treatment." };
+    return { id: "marquee", reason: "Clean and premium — the Marquee is the refined default." };
+  };
+
+  const suggest = async () => {
+    setSuggesting(true);
+    const fallback = () => { const h = heuristicPick(); const name = applyTemplate(h.id); toast(`✨ ${name}: ${h.reason}`); };
+    try {
+      const token = supabase ? (await supabase.auth.getSession()).data.session?.access_token : null;
+      const r = await fetch("/api/agents/flyer-template", {
+        method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ tile, headline1: f.headline1, headline2: f.headline2, place: f.place, date: f.date, time: f.time, text: tile === "menu" ? f.menu : tile === "submenu" ? f.submenu : tile === "details" ? f.details : "" }),
+      });
+      const j = await r.json();
+      if (j.ok && j.template) { const name = applyTemplate(j.template); toast(`✨ ${name}: ${j.reason}`); }
+      else fallback();
+    } catch { fallback(); }
+    setSuggesting(false);
+  };
 
   useEffect(() => {
     if (!supabase) return;
@@ -169,6 +203,13 @@ export default function RoadFlyer() {
         return past;
       }
       ctx.fillStyle = th.paper; ctx.fillRect(0, 0, W, H);
+      if (th.warm) {
+        const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, "#f8f2e5"); g.addColorStop(1, "#e9d4a9"); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+        const rg = ctx.createRadialGradient(W / 2, 160, 40, W / 2, 160, 560); rg.addColorStop(0, "rgba(201,166,97,.3)"); rg.addColorStop(1, "rgba(201,166,97,0)"); ctx.fillStyle = rg; ctx.fillRect(0, 0, W, H);
+      }
+      if (th.weave) {
+        const s = 18; for (let y = 0; y < H; y += s) for (let x = 0; x < W; x += s) { ctx.fillStyle = ((x / s + y / s) % 2 === 0) ? "rgba(245,241,232,.03)" : "rgba(0,0,0,.22)"; ctx.fillRect(x, y, s, s); }
+      }
       if (th.motif === "monogram") {
         ctx.save(); ctx.globalAlpha = .05; ctx.translate(W / 2, H / 2 + 140); ctx.rotate(Math.PI / 4);
         const s = 340, n = 6, cs = (s * 2) / n;
@@ -187,6 +228,13 @@ export default function RoadFlyer() {
       else if (th.frame === "thin") { ctx.strokeStyle = goldHair; ctx.lineWidth = 1.5; ctx.strokeRect(44, 44, W - 88, H - 88); }
       else if (th.frame === "brackets") { ctx.strokeStyle = goldHair; ctx.lineWidth = 3; const L = 70, o = 44; ([[o, o, 1, 1], [W - o, o, -1, 1], [o, H - o, 1, -1], [W - o, H - o, -1, -1]] as const).forEach(([x, y, dx, dy]) => { ctx.beginPath(); ctx.moveTo(x + dx * L, y); ctx.lineTo(x, y); ctx.lineTo(x, y + dy * L); ctx.stroke(); }); }
       else if (th.frame === "press") { ctx.fillStyle = th.ink; ctx.fillRect(M, 150, W - 2 * M, 7); ctx.fillStyle = mc(.85); ctx.fillRect(M, H - 160, W - 2 * M, 3); }
+      else if (th.frame === "ticket") {
+        ctx.strokeStyle = INK; ctx.lineWidth = 2.5; rr(ctx, 44, 44, W - 88, H - 88, 20); ctx.stroke();
+        const py = H - 232;
+        ctx.save(); ctx.strokeStyle = mc(.5); ctx.lineWidth = 2; ctx.setLineDash([2, 12]); ctx.beginPath(); ctx.moveTo(72, py); ctx.lineTo(W - 72, py); ctx.stroke(); ctx.restore();
+        ctx.fillStyle = CREAM; ctx.beginPath(); ctx.arc(44, py, 22, 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(W - 44, py, 22, 0, 7); ctx.fill();
+        eyebrow("Admit One · GT3", W / 2, py + 42, mc(.55), "center", 5);
+      }
     };
     const topMotif = (caption: string) => {
       if (th.motif === "masthead") { eyebrow("GT3 · Performance Bar", W / 2, 120, th.ink, "center", 6); return; }
@@ -344,6 +392,10 @@ export default function RoadFlyer() {
 
   return (
     <div className="rf">
+      <div className="rf-tpl-head">
+        <span>Template · {THEMES[tpl].name}</span>
+        <button type="button" className="rf-ai" onClick={suggest} disabled={suggesting}>{suggesting ? "Thinking…" : "✨ Suggest for me"}</button>
+      </div>
       <div className="rf-tpls" role="tablist" aria-label="Template">
         {THEMES.map((t, i) => (
           <button key={t.id} type="button" className={`rf-tpl${tpl === i ? " on" : ""}`} onClick={() => pickTpl(i)} title={t.note}>{t.name}</button>
