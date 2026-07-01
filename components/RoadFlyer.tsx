@@ -78,7 +78,8 @@ export default function RoadFlyer() {
   const [busy, setBusy] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
   const [f, setF] = useState({ headline1: THEMES[0].l1, headline2: THEMES[0].l2, date: "", time: "", place: "", address: "", photo: "", menu: DEFAULT_MENU, submenu: DEFAULT_SUB, details: DEFAULT_DETAILS });
-  const wmRef = useRef<HTMLImageElement | null>(null);
+  const wmRef = useRef<HTMLImageElement | null>(null);   // full wordmark → footer
+  const logoRef = useRef<HTMLImageElement | null>(null); // GT3 mark/icon → the top-center emblem
   const [logoReady, setLogoReady] = useState(0);
   const headEditedRef = useRef(false); // once the user types their own headline, stop auto-seeding the saying
 
@@ -139,18 +140,21 @@ export default function RoadFlyer() {
     if (!supabase) return;
     let alive = true;
     (async () => {
-      let wm = "";
+      let wm = "", lg = "";
       const { data: bk } = await supabase.from("brand_kit").select("wordmark_url, logo_url").limit(1).maybeSingle();
-      if (bk) wm = (bk as any).wordmark_url || (bk as any).logo_url || "";
-      if (!wm) {
-        const { data: ba } = await supabase.from("brand_assets").select("kind, url, sort").in("kind", ["wordmark", "logo"]).order("sort");
+      if (bk) { wm = (bk as any).wordmark_url || (bk as any).logo_url || ""; lg = (bk as any).logo_url || ""; }
+      if (!wm || !lg) {
+        const { data: ba } = await supabase.from("brand_assets").select("kind, url, sort").in("kind", ["wordmark", "logo", "icon"]).order("sort");
         const list = (ba as any[]) ?? [];
-        wm = (list.find((a) => a.kind === "wordmark") || list.find((a) => a.kind === "logo") || {}).url || "";
+        if (!wm) wm = (list.find((a) => a.kind === "wordmark") || list.find((a) => a.kind === "logo") || {}).url || "";
+        // the emblem prefers a compact mark: icon → logo → (as a last resort) the wordmark
+        if (!lg) lg = (list.find((a) => a.kind === "icon") || list.find((a) => a.kind === "logo") || list.find((a) => a.kind === "wordmark") || {}).url || "";
       }
-      if (!wm) return;
-      const img = new Image(); img.crossOrigin = "anonymous";
-      img.onload = () => { if (alive) { wmRef.current = img; setLogoReady((n) => n + 1); } };
-      img.src = wm;
+      const load = (url: string, ref: React.MutableRefObject<HTMLImageElement | null>) => {
+        if (!url) return; const img = new Image(); img.crossOrigin = "anonymous";
+        img.onload = () => { if (alive) { ref.current = img; setLogoReady((n) => n + 1); } }; img.src = url;
+      };
+      load(wm, wmRef); load(lg, logoRef);
     })();
     return () => { alive = false; };
   }, []);
@@ -213,7 +217,16 @@ export default function RoadFlyer() {
     };
     // The house emblem — GT3 set in Archivo Black, flanked by two checker-diamond bookends. This is
     // the ONE constant across every template (the brand anchor); the templates differ around it.
-    const emblem = (cx: number, cy: number, col: string, sqO?: string) => {
+    const emblem = (cx: number, cy: number, col: string, sqO?: string, onDark = false) => {
+      // Prefer the REAL GT3 logo image (aspect-perfect, never stretched). On dark it sits on a cream
+      // pill so the actual mark is always legible. Drawn "GT3" is only a fallback if no logo exists.
+      const li = logoRef.current;
+      if (li && li.width > 0) {
+        const maxW = W - 2 * M - 96, s = Math.min(78 / li.height, maxW / li.width), w = li.width * s, h = li.height * s;
+        if (onDark) { ctx.fillStyle = CREAM; rr(ctx, cx - w / 2 - 18, cy - h / 2 - 11, w + 36, h + 22, 12); ctx.fill(); }
+        ctx.drawImage(li, cx - w / 2, cy - h / 2, w, h);
+        return w / 2 + (onDark ? 22 : 14);
+      }
       ctx.save(); ctx.font = "900 50px 'Archivo Black', system-ui"; const w = ctx.measureText("GT3").width;
       ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = col; ctx.fillText("GT3", cx, cy + 1); ctx.restore();
       ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
@@ -291,7 +304,7 @@ export default function RoadFlyer() {
       // Press keeps its editorial masthead (still GT3, top-centered); every other cut shows the GT3 emblem.
       if (th.motif === "masthead") { eyebrow("GT3 · Performance Bar", W / 2, 120, th.ink, "center", 6); return; }
       const cy = 146, cx = W / 2;
-      const hw = emblem(cx, cy, th.dark ? CREAM : INK);
+      const hw = emblem(cx, cy, th.dark ? CREAM : INK, undefined, th.dark);
       ctx.strokeStyle = goldHair; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(M + 6, cy); ctx.lineTo(cx - hw - 18, cy); ctx.moveTo(cx + hw + 18, cy); ctx.lineTo(W - M - 6, cy); ctx.stroke();
       eyebrow(caption, cx, cy + 58, th.motif === "neon" ? th.serif : goldHair, "center");
     };
@@ -375,7 +388,7 @@ export default function RoadFlyer() {
       else { const c1 = th.gold || th.warm ? GOLD : cm(.5); ctx.strokeStyle = c1; ctx.lineWidth = 2; ctx.strokeRect(38, 38, W - 76, H - 76); ctx.strokeStyle = th.gold || th.warm ? GOLD_LT : cm(.24); ctx.lineWidth = 1; ctx.strokeRect(48, 48, W - 96, H - 96); }
       // top — editorial masthead or the crest
       if (th.motif === "masthead") { eyebrow("GT3 · Performance Bar", W / 2, 120, cm(.9), "center", 6); ctx.fillStyle = cm(.5); ctx.fillRect(M, 150, W - 2 * M, 5); }
-      else { const cy = 146, cx = W / 2, gc = th.gold || th.warm ? GOLD_LT : cm(.85); const hw = emblem(cx, cy, CREAM, CREAM); ctx.strokeStyle = gc; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(M + 6, cy); ctx.lineTo(cx - hw - 18, cy); ctx.moveTo(cx + hw + 18, cy); ctx.lineTo(W - M - 6, cy); ctx.stroke(); eyebrow("GT3 Mobile Bar", cx, cy + 58, gc, "center"); }
+      else { const cy = 146, cx = W / 2, gc = th.gold || th.warm ? GOLD_LT : cm(.85); const hw = emblem(cx, cy, CREAM, CREAM, true); ctx.strokeStyle = gc; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(M + 6, cy); ctx.lineTo(cx - hw - 18, cy); ctx.moveTo(cx + hw + 18, cy); ctx.lineTo(W - M - 6, cy); ctx.stroke(); eyebrow("GT3 Mobile Bar", cx, cy + 58, gc, "center"); }
       // Checkered Flag — a cream/red racing band across the top
       if (th.motif === "band") { const by = 252, cs2 = 30; for (let r = 0; r < 2; r++) for (let k = 0; k <= Math.ceil((W - 2 * M) / cs2); k++) if ((r + k) % 2 === 0) { ctx.fillStyle = r === 0 ? CREAM : RED; ctx.fillRect(M + k * cs2, by + r * cs2, cs2, cs2); } }
       // headline
