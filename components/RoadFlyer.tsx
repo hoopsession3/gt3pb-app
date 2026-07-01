@@ -209,29 +209,15 @@ export default function RoadFlyer() {
       return w > maxW ? Math.max(52, Math.floor(maxSize * (maxW / w))) : maxSize;
     };
     const goldHead = (y: number, size: number) => { const g = ctx.createLinearGradient(0, y - size, 0, y + 8); g.addColorStop(0, GOLD_LT); g.addColorStop(.5, GOLD); g.addColorStop(1, "#8a6531"); return g; };
-    const checkerDiamond = (cx: number, cy: number, s: number, sqOverride?: string) => {
-      ctx.save(); ctx.translate(cx, cy); ctx.rotate(Math.PI / 4);
-      const n = 3, cs = (s * 2) / n, o = -s, sq = sqOverride || th.crestSq || INK, acc = th.crestAcc || RED;
-      for (let r = 0; r < n; r++) for (let k = 0; k < n; k++) { ctx.fillStyle = (r + k) % 2 === 0 ? sq : acc; ctx.fillRect(o + k * cs, o + r * cs, cs, cs); }
-      ctx.strokeStyle = GOLD; ctx.lineWidth = 2.5; ctx.strokeRect(-s, -s, s * 2, s * 2); ctx.restore();
-    };
-    // The house emblem — GT3 set in Archivo Black, flanked by two checker-diamond bookends. This is
-    // the ONE constant across every template (the brand anchor); the templates differ around it.
-    const emblem = (cx: number, cy: number, col: string, sqO?: string, onDark = false) => {
-      // Prefer the REAL GT3 logo image (aspect-perfect, never stretched). On dark it sits on a cream
-      // pill so the actual mark is always legible. Drawn "GT3" is only a fallback if no logo exists.
-      const li = logoRef.current;
-      if (li && li.width > 0) {
-        const maxW = W - 2 * M - 96, s = Math.min(78 / li.height, maxW / li.width), w = li.width * s, h = li.height * s;
-        if (onDark) { ctx.fillStyle = CREAM; rr(ctx, cx - w / 2 - 18, cy - h / 2 - 11, w + 36, h + 22, 12); ctx.fill(); }
-        ctx.drawImage(li, cx - w / 2, cy - h / 2, w, h);
-        return w / 2 + (onDark ? 22 : 14);
-      }
-      ctx.save(); ctx.font = "900 50px 'Archivo Black', system-ui"; const w = ctx.measureText("GT3").width;
-      ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = col; ctx.fillText("GT3", cx, cy + 1); ctx.restore();
-      ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
-      checkerDiamond(cx - w / 2 - 30, cy, 12, sqO); checkerDiamond(cx + w / 2 + 30, cy, 12, sqO);
-      return w / 2 + 42;
+    // The house emblem — GT3 in Signal Red, the ONE constant across every template (the brand anchor).
+    // The GT3 emblem — the real mark: "GT3" in Signal Red, bold (matches the brand logo). Red reads
+    // on cream AND charcoal; on the red field it flips to cream. No invented ornaments.
+    const emblem = (cx: number, cy: number, _col?: string, _sqO?: string, _onDark = false) => {
+      ctx.save(); (ctx as any).letterSpacing = "-2px"; ctx.font = "900 60px 'Archivo Black', system-ui";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle"; const w = ctx.measureText("GT3").width;
+      ctx.fillStyle = th.id === "redline" ? CREAM : RED; ctx.fillText("GT3", cx, cy + 1);
+      ctx.restore(); (ctx as any).letterSpacing = "0px"; ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+      return w / 2 + 18;
     };
     // background paint; returns the split-band bottom (0 if none)
     const paintBg = (hero: boolean) => {
@@ -338,21 +324,10 @@ export default function RoadFlyer() {
     const footer = (onPhoto = false) => {
       ctx.fillStyle = onPhoto ? cm(.32) : goldFaint; ctx.fillRect(M, H - 150, W - 2 * M, 1.5);
       ctx.textAlign = "left";
-      const img = wmRef.current;
-      if (img && img.width > 0) {
-        // Preserve the wordmark's exact aspect ratio (never stretched); fit within a max height AND a
-        // max width so it always clears the right-side tagline, then vertically center it on the footer
-        // line so it lands pixel-identically on every slide/template.
-        const maxH = 58, maxW = W / 2 - M - 20;
-        const s = Math.min(maxH / img.height, maxW / img.width);
-        const w = img.width * s, h = img.height * s;
-        const y = Math.round(H - 96 - h / 2);
-        if (onPhoto || th.dark) { ctx.fillStyle = CREAM; rr(ctx, M - 16, y - 11, w + 32, h + 22, 14); ctx.fill(); }
-        ctx.drawImage(img, M, y, w, h);
-      } else {
-        ctx.font = "900 38px 'Archivo Black', system-ui"; ctx.fillStyle = th.gold ? GOLD : th.accent; ctx.fillText("GT3", M, H - 74);
-        ctx.font = "500 21px 'DM Mono', monospace"; ctx.fillStyle = onPhoto ? "#fff" : th.ink; ctx.fillText("PERFORMANCE BAR", M + 92, H - 78);
-      }
+      // The wordmark, drawn: red "GT3" + "PERFORMANCE BAR" in the theme ink. Drawn (not the single-tone
+      // wordmark PNG, which is white and vanishes on cream) so it's legible on every template.
+      ctx.font = "900 38px 'Archivo Black', system-ui"; ctx.fillStyle = onPhoto ? RED : (th.id === "redline" ? CREAM : RED); ctx.fillText("GT3", M, H - 74);
+      ctx.font = "500 21px 'DM Mono', monospace"; ctx.fillStyle = onPhoto ? "#fff" : th.ink; ctx.fillText("PERFORMANCE BAR", M + 92, H - 78);
       ctx.textAlign = "right";
       ctx.font = "900 28px 'Archivo Black', system-ui"; ctx.fillStyle = onPhoto ? "#fff" : th.ink; ctx.fillText("PURE SIGNAL.", W - M, H - 98);
       ctx.fillStyle = onPhoto ? RED : th.accent; ctx.fillText("NO NOISE.", W - M, H - 64); ctx.textAlign = "left";
