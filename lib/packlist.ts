@@ -33,7 +33,7 @@ export function packListFor(e: EventRow): PackItem[] {
     items.push({ label: "Bottle inventory", section: "Bottles" });
     items.push({ label: "Ice — load morning-of", section: "Bottles" });
   }
-  if (e.menu_nature_aid || e.menu_salted_maple) items.push({ label: "Nature Aid / Salted Maple mix + milk (cold)", section: "Coffee / Iced" });
+  if (e.menu_nature_aid || e.menu_salted_maple) items.push({ label: "Nature Aide / Salted Maple mix + milk (cold)", section: "Coffee / Iced" });
   if (e.menu_broth) items.push({ label: "Bone broth + broth cups", section: "Fuel" });
 
   // Water — no water on site is a health-code + functional requirement.

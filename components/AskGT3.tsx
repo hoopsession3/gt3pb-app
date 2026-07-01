@@ -9,7 +9,7 @@ import EventGenerator from "./EventGenerator";
 // via Web Speech API where available; errors render inline as assistant messages (no toast dep).
 // It also ACTS on a couple of asks: say "create an event" and it opens the event builder.
 type ChatMsg = { role: "user" | "assistant"; content: string };
-const QUICK = ["Create an event from my notes", "We have an inspection in GA — what to expect?", "How do I make a Rise?", "What's in Nature Aid?", "What gear do we have?"];
+const QUICK = ["Create an event from my notes", "We have an inspection in GA — what to expect?", "How do I make a Rise?", "What's in Nature Aide?", "What gear do we have?"];
 
 // Open the event builder when the crew asks to create one — robust to how people actually say it
 // ("plan a pop-up Saturday", "set up a market run", "book us for a wedding"), but NOT on questions

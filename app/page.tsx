@@ -75,7 +75,7 @@ function TodayReal() {
       <div className="h-title">{greet()}, {name}.</div>
       <YourUsual />
       <SubscribePitch />
-      <div className="h-sub">Five questions. I&apos;ll build your exact stack — drinks timed to your biology today.</div>
+      <div className="h-sub">Five questions and I&apos;ll build your stack for the day.</div>
       <GenerateDay />
     </section>
   );
@@ -92,7 +92,7 @@ function TodayDemo() {
         <Link className="pf" href="/3mpire">R</Link>
       </div>
       <div className="h-title">Morning, Ryan.</div>
-      <div className="h-sub">Five questions. I&apos;ll build your exact stack — drinks timed to your biology today.</div>
+      <div className="h-sub">Five questions and I&apos;ll build your stack for the day.</div>
 
       <div className="hero"><div className="hin">
         <div className="hero-top">
@@ -103,7 +103,7 @@ function TodayDemo() {
           </div>
         </div>
         <div className="hero-state">Ease today.</div>
-        <div className="hero-sub">You&apos;re under-recovered — three nights trending down. We go gentle and earn it back.</div>
+        <div className="hero-sub">A few short nights in a row — we keep today gentle and build the routine back up.</div>
         <div className="spark">
           <svg viewBox="0 0 332 96" preserveAspectRatio="none">
             <defs>
@@ -137,7 +137,7 @@ function TodayDemo() {
       <div className="step s-cup"><div className="ic">{CUP}</div><div className="sx"><b>DUSK, not FLOW</b><span>Warm + gentler — your system&apos;s asking for ease.</span></div><div className="tm">9:00</div></div>
       <div className="step s-broth"><div className="ic">{BROTH}</div><div className="sx"><b>FORGE broth</b><span>You trained — rebuild tonight, then an early night.</span></div><div className="tm">tonight</div></div>
 
-      <div className="honest"><b>Straight talk:</b> skip the double-shot reflex today. On 5 hours, more caffeine just borrows from tonight. Sun + a gentle cup is the smarter trade.</div>
+      <div className="honest"><b>Straight talk:</b> skip the double-shot reflex today. On a short night, a gentle cup and a few minutes of sun beat a second coffee.</div>
       <button className="handle" onClick={() => toast("Done. Sun reminder set, DUSK queued at 8:30, broth moved to tonight.")}>
         <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2"><path d="M5 12l5 5L20 7" /></svg>
         <span>Handle it for me<span className="sm">orders + reminders, done</span></span>

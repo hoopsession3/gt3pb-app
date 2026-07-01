@@ -100,4 +100,4 @@ Rules:
 - Use ONLY information present in the notes. Never invent tasks, items, numbers, decisions, or a title that isn't supported.
 - Keep titles tight; keep bullets specific. The summary is only the Markdown document — no preamble or closing remarks.
 - Omit any optional sub-block (Key Items / Questions / Decisions) when the notes have nothing for it.
-- Match GT3's reality: real menu names (Nature Aid, salted maple latte, nitro cold brew), gear, and event types as written. We serve in glass bottles (10oz / 16oz).`;
+- Match GT3's reality: real menu names (Nature Aide, salted maple latte, nitro cold brew), gear, and event types as written. We serve in glass bottles (10oz / 16oz).`;

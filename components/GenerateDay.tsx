@@ -83,15 +83,16 @@ function buildRec(a: Complete): Rec {
     sub   = "Steady day. The stack keeps you level — no borrowing from tomorrow, no energy debt.";
   }
 
-  // ── Science copy ──
+  // ── What it is · why it fits (ingredient- and process-led; never a health/medical claim) ──
   const sci: Record<DrinkId, string> = {
-    rise:  "Caffeine + coconut MCTs: MCTs bypass first-pass metabolism and cross the blood-brain barrier ~30 min post-intake, providing ketone-adjacent fuel independent of blood glucose. Clean cortical activation without the glycemic spike.",
-    flow:  "Caffeine + theobromine from cacao: theobromine is a PDE inhibitor that extends cAMP signaling in neurons — giving you a longer, calmer focus arc than caffeine alone, plus mild vasodilation for increased cerebral blood flow during sustained work.",
-    dusk:  "Cinnamon and cardamom give Dusk a warm, settling flavor for the back half of the day. Same single-origin cold extraction and caffeine as Rise and Flow — the difference is in the cup, not the lift.",
-    tide:  "A whole-food hydration base: young coconut water and blended coconut meat for potassium, magnesium and sodium, finished with a touch of raw honey for fast-burning carbohydrate. Not a powder, concentrate, or isolate.",
-    forge: "Glycine 8–10g/bottle + proline + hydroxyproline → the three amino acids required for type I & II collagen synthesis. Glycine is also rate-limiting for glutathione production (master antioxidant) and directly modulates NMDA receptors for CNS calm post-effort.",
-    hunt:  "Bison broth runs ~2× the iron and zinc of beef with a leaner fat profile and higher CLA content. CLA reduces muscle catabolism and upregulates innate immune pathways — critical if you're overreaching or flagging. Iron + B12 restore erythrocyte function faster than supplementation alone.",
-    wild:  "Ostrich is one of the leanest high-protein sources — very low saturated fat, high in lysine and arginine (tissue repair and vasodilation), rare amino acid branching profile. The rebuild without the digestive load when your gut is sensitive.",
+    rise:  "Single-origin coffee, cold-extracted ~18 hours, finished with organic coconut water. A clean, even lift to open the day — rounder and less bitter than hot. Same caffeine as Flow and Dusk (~210 mg/10 oz, estimated until lab-verified).",
+    flow:  "The same cold-extraction base, infused with organic cacao nibs. Reads richer and steadier for heads-down work — no added sugar, same caffeine as the rest of the line.",
+    dusk:  "Ceylon cinnamon and green cardamom over the same cold-extraction base. Warm and spiced for the back half of the day — same caffeine as Rise and Flow, not a wind-down.",
+    tide:  "Whole-food hydration — young coconut water blended with young organic Thai coconut meat and a touch of organic local honey (we always name it). Blended to order, never a powder or concentrate.",
+    aide:  "Coconut water and mineral water with organic maple and a pinch of sea salt. Light, clean hydration for the middle of the work — real ingredients, not a powder.",
+    forge: "Slow-simmered beef bone broth, pasture-raised. Deep, rich and mineral-forward — real food for the rebuild after training, not a supplement.",
+    hunt:  "Slow-simmered bison bone broth, pasture-raised. Leaner than beef with a little more iron and zinc — savory fuel for the window after a session.",
+    wild:  "Slow-simmered ostrich bone broth, pasture-raised. Our lightest, leanest broth — easy to sit with when your gut is sensitive.",
   };
 
   const timing: Record<DrinkId, string> = {
@@ -99,6 +100,7 @@ function buildRec(a: Complete): Rec {
     flow:  "30 min before deep work or training",
     dusk:  "Morning or mid-morning window",
     tide:  "During work or training",
+    aide:  "During work or training",
     forge: "Post-training · within 60 min",
     hunt:  "Post-training · within 60 min",
     wild:  "Post-training or evening",
@@ -110,23 +112,23 @@ function buildRec(a: Complete): Rec {
     { id: s3, timing: timing[s3], science: sci[s3] },
   ];
 
-  // ── Straight talk: most relevant biochem insight ──
+  // ── Straight talk: plain, honest guidance — flavor + timing, never a physiological claim ──
   const bits: string[] = [];
   if (drained)
-    bits.push("On rough sleep, Dusk is the pick for its warm cinnamon-and-cardamom profile — the gentler-tasting way to take your coffee. It's the same lift as the others; the spice just makes it an easier cup to sit with.");
+    bits.push("On rough sleep, Dusk is the pick — same lift as the others, but the warm cinnamon and cardamom make it an easier cup to sit with.");
   if (s1 === "flow")
-    bits.push("Theobromine isn't a caffeine sidekick. It's a PDE inhibitor that keeps cAMP elevated in neurons longer — that's the mechanism behind the calmer focus arc without the cortisol hit of a double shot.");
+    bits.push("Flow is the deep-work pour — the cacao gives it a richer, steadier feel than a straight cup, with no added sugar.");
   if (s3 === "forge" && lifting)
-    bits.push("Post-lift collagen synthesis peaks in the 30–60 min window. Glycine is the rate-limiting amino acid for collagen production — so the timing on FORGE isn't advisory, it's the biology.");
+    bits.push("After a lift, Forge is the rebuild — slow-simmered beef bone broth, pasture-raised and mineral-rich. Best within the hour while you're winding down.");
   if (a.flags.has("gut"))
-    bits.push("Gut-sensitive days call for WILD. Beef and bison broths are excellent but their fat load increases bile demand. Ostrich's near-zero fat profile adds zero additional digestive burden.");
+    bits.push("Gut-sensitive day? Wild is the lightest broth we make — slow-simmered ostrich, leaner and easier to sit with than beef or bison.");
   if (a.flags.has("fatigue"))
-    bits.push("When iron and zinc are taxed from overtraining or illness, HUNT's bison profile is meaningfully different — ~2× the iron and zinc of beef, plus CLA to support immune function, not just muscle.");
+    bits.push("Run down? Hunt's bison broth leans a little richer in iron and zinc than beef — a savory way to refuel after the work.");
   if (!s2 && !a.flags.has("dehydrated"))
-    bits.push("TIDE didn't make your stack — your inputs don't flag hydration stress. On a sedentary day it's not mandatory. But if the 2pm drag hits, that's often sub-clinical dehydration before thirst even kicks in.");
+    bits.push("Tide didn't make your stack — your inputs don't flag hydration. On a low-movement day it's optional; add it if you're training or the afternoon drags.");
 
   const straight = bits.slice(0, 2).join(" ") ||
-    "Sequencing is the unlock: S1 primes your nervous system, S2 sustains performance and fluid balance, S3 starts cellular repair. Skip a step and the debt shows up as 'a rough day' 48 hours later.";
+    "The idea is sequence: something to start the work, something to carry you through it, something to rebuild after. Pick the ones that match the day — skip what you don't need.";
 
   return { state, sub, drinks, straight };
 }

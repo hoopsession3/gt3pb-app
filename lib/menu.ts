@@ -2,7 +2,7 @@
 // Pillars: ACTIVATION (before) · HYDRATION (during) · FUEL (after).
 // Copy is ingredient-led: name → what it is (extraction + whole-food input) → why it exists.
 
-export type DrinkId = "rise" | "flow" | "dusk" | "tide" | "forge" | "hunt" | "wild";
+export type DrinkId = "rise" | "flow" | "dusk" | "tide" | "aide" | "forge" | "hunt" | "wild";
 
 export interface DrinkDetail {
   n: string;
@@ -46,10 +46,18 @@ export const DRINKS: Record<DrinkId, DrinkDetail> = {
   },
   tide: {
     n: "TIDE", px: "$8", grad: "linear-gradient(140deg,#2f7d74,#79c7bb)", dot: "#2F7D74",
-    lines: ["Young coconut water + Thai coconut meat", "Finished with a touch of raw honey"],
+    lines: ["Young coconut water + young organic Thai coconut meat", "Finished with organic local honey"],
     why: "Real hydration that goes down easy.",
-    has: ["Organic young coconut water", "Organic Thai coconut meat", "Raw honey", "Blended to order"],
+    has: ["Organic young coconut water", "Young organic Thai coconut meat", "Organic local honey", "Blended to order"],
     no: ["Marine collagen", "Powders", "Concentrate"],
+    when: "DURING", whenT: "During work or training.",
+  },
+  aide: {
+    n: "NATURE AIDE", px: "$8", grad: "linear-gradient(140deg,#a97c3f,#c8a661)", dot: "#A97C3F",
+    lines: ["Coconut water + mineral water", "Organic maple · Sea salt"],
+    why: "Light, balanced hydration for the middle of the work.",
+    has: ["Coconut water", "Mineral water", "Organic maple syrup", "Sea salt"],
+    no: ["Powders", "Concentrate", "Dyes"],
     when: "DURING", whenT: "During work or training.",
   },
   forge: {
@@ -83,6 +91,6 @@ export interface MenuCategory { name: string; wn: string; rows: DrinkId[] }
 
 export const MENU: MenuCategory[] = [
   { name: "Activation", wn: "Before the work", rows: ["rise", "flow", "dusk"] },
-  { name: "Hydration", wn: "During the work", rows: ["tide"] },
+  { name: "Hydration", wn: "During the work", rows: ["tide", "aide"] },
   { name: "Fuel", wn: "After the work", rows: ["forge", "hunt", "wild"] },
 ];

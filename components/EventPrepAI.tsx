@@ -84,7 +84,7 @@ export default function EventPrepAI({ ownerType, ownerId, title, onClose, onAdde
           ) : !tasks ? (
             <>
               <div className="dp-hint">Tell me about this event — anything beyond what&apos;s in the app (special menu, the venue, headcount, what you&apos;re worried about). I&apos;ll build the prep list from that plus the run of show, your inventory, gear, the jurisdiction&apos;s rules, and our SOPs.</div>
-              <textarea className="note-in" rows={5} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Outdoor, no power or water on site, expecting ~300, pouring nitro + Nature Aid + bottles, 2 of us…" autoFocus disabled={busy} />
+              <textarea className="note-in" rows={5} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Outdoor, no power or water on site, expecting ~300, pouring nitro + Nature Aide + bottles, 2 of us…" autoFocus disabled={busy} />
               {err && <div className="dp-err">{err}</div>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={onClose} disabled={busy}>Cancel</button>

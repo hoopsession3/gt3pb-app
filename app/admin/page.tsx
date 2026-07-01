@@ -649,7 +649,7 @@ function MenuEditor({ ownerType, ownerId, isAdmin, onChanged }: { ownerType: "ev
 
   const MENU = [
     { k: "menu_nitro", label: "Nitro" }, { k: "menu_bottles", label: "Bottles" },
-    { k: "menu_nature_aid", label: "Nature Aid" }, { k: "menu_salted_maple", label: "Salted Maple" }, { k: "menu_broth", label: "Bone broth" },
+    { k: "menu_nature_aid", label: "Nature Aide" }, { k: "menu_salted_maple", label: "Salted Maple" }, { k: "menu_broth", label: "Bone broth" },
   ];
   const tri = (v: boolean | null | undefined) => (v === true ? "yes" : v === false ? "no" : "—");
   const cycleSite = (k: "power_available" | "water_available") => { const cur = f[k]; save({ [k]: cur === true ? false : cur === false ? null : true }); };
@@ -3240,7 +3240,7 @@ function ProductCatalog() {
 // Menu pours that drive the pack list — rendered as tap-to-toggle chips, not cramped checkboxes.
 const EVENT_MENU: { key: "menu_nitro" | "menu_nature_aid" | "menu_salted_maple" | "menu_bottles" | "menu_broth"; label: string }[] = [
   { key: "menu_nitro", label: "Nitro" },
-  { key: "menu_nature_aid", label: "Nature Aid" },
+  { key: "menu_nature_aid", label: "Nature Aide" },
   { key: "menu_salted_maple", label: "Salted Maple" },
   { key: "menu_bottles", label: "Bottles" },
   { key: "menu_broth", label: "Broth" },
