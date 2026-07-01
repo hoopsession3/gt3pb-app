@@ -26,6 +26,9 @@ const TEMPLATES: { id: string; when: string }[] = [
   { id: "carbon", when: "woven carbon-fiber dark — motorsport craft, a premium gear/performance angle." },
   { id: "ticket", when: "an event ticket with perforation — RSVPs, 'you're invited', a dated happening." },
   { id: "amber", when: "warm sunrise gradient — mornings, coffee warmth, a daytime market." },
+  { id: "proof", when: "editorial press-proof with registration marks — precise, technical, behind-the-craft, a process story." },
+  { id: "deco", when: "art-deco gilded rays on charcoal — elegant, celebratory, a 'golden hour' or anniversary moment." },
+  { id: "offset", when: "riso duotone with a handmade misprint — artful, indie, small-batch craft energy." },
 ];
 const IDS = TEMPLATES.map((t) => t.id);
 

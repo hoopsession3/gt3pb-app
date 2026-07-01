@@ -23,9 +23,9 @@ const PAGES = 4;
 type Theme = {
   id: string; name: string; note: string;
   paper: string; ink: string; headInk?: string; sub: string; accent: string; serif: string;
-  frame: "gold" | "cream" | "goldheavy" | "thin" | "brackets" | "press" | "ticket" | "none";
+  frame: "gold" | "cream" | "goldheavy" | "thin" | "brackets" | "press" | "ticket" | "proof" | "none";
   motif: "crest" | "masthead" | "band" | "neon" | "monogram";
-  dark?: boolean; gold?: boolean; glow?: boolean; grain?: boolean; split?: boolean; weave?: boolean; warm?: boolean;
+  dark?: boolean; gold?: boolean; glow?: boolean; grain?: boolean; split?: boolean; weave?: boolean; warm?: boolean; deco?: boolean; offset?: boolean;
   crestSq?: string; crestAcc?: string;
   l1: string; l2: string; // the template's default GT3 saying (headline) — a different angle per cut
 };
@@ -44,6 +44,9 @@ const THEMES: Theme[] = [
   { id: "carbon", name: "Carbon Fiber", note: "woven motorsport", paper: "#17130d", ink: CREAM, sub: cm(.55), accent: RED, serif: GOLD_LT, frame: "gold", motif: "crest", dark: true, weave: true, crestSq: CREAM, l1: "ENGINEERED", l2: "TO ORDER" },
   { id: "ticket", name: "The Ticket", note: "event ticket · perforated", paper: CREAM, ink: INK, sub: mc(.5), accent: RED, serif: GOLD, frame: "ticket", motif: "crest", l1: "YOU'RE", l2: "INVITED" },
   { id: "amber", name: "Amber Glow", note: "warm sunrise gradient", paper: CREAM, ink: INK, sub: mc(.5), accent: RED, serif: GOLD, frame: "gold", motif: "crest", warm: true, l1: "RISE", l2: "AND ROLL" },
+  { id: "proof", name: "The Proof", note: "press proof · registration", paper: CREAM, ink: INK, sub: mc(.52), accent: RED, serif: INK, frame: "proof", motif: "crest", l1: "PROOF", l2: "OF THE POUR" },
+  { id: "deco", name: "The Deco", note: "art-deco · gilded rays", paper: "#141007", ink: CREAM, sub: cm(.6), accent: GOLD, serif: GOLD_LT, frame: "gold", motif: "crest", dark: true, deco: true, gold: true, crestSq: CREAM, l1: "THE GOLDEN", l2: "HOUR" },
+  { id: "offset", name: "Offset", note: "riso duotone · handmade", paper: CREAM, ink: INK, sub: mc(.52), accent: RED, serif: INK, frame: "thin", motif: "crest", offset: true, l1: "MADE", l2: "BY HAND" },
 ];
 
 const MON = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
@@ -188,6 +191,8 @@ export default function RoadFlyer() {
     };
     const disp = (t: string, x: number, y: number, color: string | CanvasGradient, size: number, glow?: string) => {
       ctx.save(); (ctx as any).letterSpacing = "-1px"; ctx.font = `900 ${size}px 'Archivo Black', system-ui`;
+      // Offset cut — a riso-style misregistration ghost behind the type (handmade-print look)
+      if (th.offset && typeof color === "string") { ctx.fillStyle = color === INK ? "rgba(184,36,32,.5)" : "rgba(21,18,13,.42)"; ctx.fillText(t, x + 7, y + 7); }
       if (glow) { ctx.shadowColor = glow; ctx.shadowBlur = 32; } ctx.fillStyle = color; ctx.fillText(t, x, y);
       ctx.restore(); (ctx as any).letterSpacing = "0px";
     };
@@ -229,6 +234,15 @@ export default function RoadFlyer() {
       if (th.weave) {
         const s = 18; for (let y = 0; y < H; y += s) for (let x = 0; x < W; x += s) { ctx.fillStyle = ((x / s + y / s) % 2 === 0) ? "rgba(245,241,232,.03)" : "rgba(0,0,0,.22)"; ctx.fillRect(x, y, s, s); }
       }
+      if (th.deco) {
+        // gilded sunburst rays from above, + stepped art-deco corner ornaments
+        ctx.save(); ctx.strokeStyle = "rgba(201,166,97,.14)"; ctx.lineWidth = 2;
+        for (let a = -60; a <= 60; a += 12) { const rad = a * Math.PI / 180; ctx.beginPath(); ctx.moveTo(W / 2, -120); ctx.lineTo(W / 2 + Math.sin(rad) * 1300, -120 + Math.cos(rad) * 1300); ctx.stroke(); }
+        ctx.restore();
+        ctx.strokeStyle = GOLD; ctx.lineWidth = 2;
+        const step = (x: number, y: number, dx: number, dy: number) => { ctx.beginPath(); ctx.moveTo(x, y + dy * 74); ctx.lineTo(x, y + dy * 42); ctx.lineTo(x + dx * 32, y + dy * 42); ctx.lineTo(x + dx * 32, y + dy * 14); ctx.lineTo(x + dx * 74, y + dy * 14); ctx.stroke(); };
+        const o = 50; step(o, o, 1, 1); step(W - o, o, -1, 1); step(o, H - o, 1, -1); step(W - o, H - o, -1, -1);
+      }
       if (th.motif === "monogram") {
         ctx.save(); ctx.globalAlpha = .05; ctx.translate(W / 2, H / 2 + 140); ctx.rotate(Math.PI / 4);
         const s = 340, n = 6, cs = (s * 2) / n;
@@ -254,6 +268,18 @@ export default function RoadFlyer() {
         ctx.fillStyle = CREAM; ctx.beginPath(); ctx.arc(44, py, 22, 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(W - 44, py, 22, 0, 7); ctx.fill();
         eyebrow("Admit One · GT3", W / 2, py + 42, mc(.55), "center", 5);
       }
+      else if (th.frame === "proof") {
+        ctx.strokeStyle = "rgba(21,18,13,.5)"; ctx.lineWidth = 1; ctx.strokeRect(58, 58, W - 116, H - 116);
+        ctx.strokeStyle = INK; ctx.lineWidth = 1.5; const o = 30, L = 26;
+        ([[o, o, 1, 1], [W - o, o, -1, 1], [o, H - o, 1, -1], [W - o, H - o, -1, -1]] as const).forEach(([x, y, dx, dy]) => { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + dx * L, y); ctx.moveTo(x, y); ctx.lineTo(x, y + dy * L); ctx.stroke(); });
+        regTarget(W / 2, 30, 11, INK); regTarget(W / 2, H - 30, 11, INK); regTarget(30, H / 2, 11, INK); regTarget(W - 30, H / 2, 11, INK);
+      }
+    };
+    // a print registration target — circle + inner ring + crosshair overshoot
+    const regTarget = (x: number, y: number, r: number, col: string) => {
+      ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.stroke(); ctx.beginPath(); ctx.arc(x, y, r * 0.42, 0, 7); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x - r - 9, y); ctx.lineTo(x + r + 9, y); ctx.moveTo(x, y - r - 9); ctx.lineTo(x, y + r + 9); ctx.stroke();
     };
     const topMotif = (caption: string) => {
       // Press keeps its editorial masthead (still GT3, top-centered); every other cut shows the GT3 emblem.
@@ -339,6 +365,7 @@ export default function RoadFlyer() {
       else if (th.frame === "brackets") { ctx.strokeStyle = cm(.6); ctx.lineWidth = 3; const L = 70, o = 44; ([[o, o, 1, 1], [W - o, o, -1, 1], [o, H - o, 1, -1], [W - o, H - o, -1, -1]] as const).forEach(([x, y, dx, dy]) => { ctx.beginPath(); ctx.moveTo(x + dx * L, y); ctx.lineTo(x, y); ctx.lineTo(x, y + dy * L); ctx.stroke(); }); }
       else if (th.frame === "ticket") { ctx.strokeStyle = cm(.7); ctx.lineWidth = 2.5; rr(ctx, 44, 44, W - 88, H - 88, 20); ctx.stroke(); const py = H - 232; ctx.save(); ctx.strokeStyle = cm(.55); ctx.lineWidth = 2; ctx.setLineDash([2, 12]); ctx.beginPath(); ctx.moveTo(72, py); ctx.lineTo(W - 72, py); ctx.stroke(); ctx.restore(); ctx.fillStyle = INK; ctx.beginPath(); ctx.arc(44, py, 22, 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(W - 44, py, 22, 0, 7); ctx.fill(); eyebrow("Admit One · GT3", W / 2, py + 42, cm(.6), "center", 5); }
       else if (th.frame === "press") { ctx.fillStyle = cm(.42); ctx.fillRect(M, H - 160, W - 2 * M, 3); }
+      else if (th.frame === "proof") { ctx.strokeStyle = cm(.28); ctx.lineWidth = 1; ctx.strokeRect(58, 58, W - 116, H - 116); ctx.strokeStyle = cm(.7); ctx.lineWidth = 1.5; const o = 30, L = 26; ([[o, o, 1, 1], [W - o, o, -1, 1], [o, H - o, 1, -1], [W - o, H - o, -1, -1]] as const).forEach(([x, y, dx, dy]) => { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + dx * L, y); ctx.moveTo(x, y); ctx.lineTo(x, y + dy * L); ctx.stroke(); }); regTarget(W / 2, 30, 11, cm(.7)); regTarget(W / 2, H - 30, 11, cm(.7)); regTarget(30, H / 2, 11, cm(.7)); regTarget(W - 30, H / 2, 11, cm(.7)); }
       else { const c1 = th.gold || th.warm ? GOLD : cm(.5); ctx.strokeStyle = c1; ctx.lineWidth = 2; ctx.strokeRect(38, 38, W - 76, H - 76); ctx.strokeStyle = th.gold || th.warm ? GOLD_LT : cm(.24); ctx.lineWidth = 1; ctx.strokeRect(48, 48, W - 96, H - 96); }
       // top — editorial masthead or the crest
       if (th.motif === "masthead") { eyebrow("GT3 · Performance Bar", W / 2, 120, cm(.9), "center", 6); ctx.fillStyle = cm(.5); ctx.fillRect(M, 150, W - 2 * M, 5); }
