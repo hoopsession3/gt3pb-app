@@ -25,7 +25,7 @@ type Theme = {
   paper: string; ink: string; headInk?: string; sub: string; accent: string; serif: string;
   frame: "gold" | "cream" | "goldheavy" | "thin" | "brackets" | "press" | "ticket" | "proof" | "none";
   motif: "crest" | "masthead" | "band" | "neon" | "monogram";
-  dark?: boolean; gold?: boolean; glow?: boolean; grain?: boolean; split?: boolean; weave?: boolean; warm?: boolean; deco?: boolean; offset?: boolean;
+  dark?: boolean; gold?: boolean; glow?: boolean; grain?: boolean; split?: boolean; weave?: boolean; warm?: boolean; deco?: boolean; offset?: boolean; spotlight?: boolean; terrazzo?: boolean; halftone?: boolean;
   crestSq?: string; crestAcc?: string;
   l1: string; l2: string; // the template's default GT3 saying (headline) — a different angle per cut
 };
@@ -47,6 +47,9 @@ const THEMES: Theme[] = [
   { id: "proof", name: "The Proof", note: "press proof · registration", paper: CREAM, ink: INK, sub: mc(.52), accent: RED, serif: INK, frame: "proof", motif: "crest", l1: "PROOF", l2: "OF THE POUR" },
   { id: "deco", name: "The Deco", note: "art-deco · gilded rays", paper: "#141007", ink: CREAM, sub: cm(.6), accent: GOLD, serif: GOLD_LT, frame: "gold", motif: "crest", dark: true, deco: true, gold: true, crestSq: CREAM, l1: "THE GOLDEN", l2: "HOUR" },
   { id: "offset", name: "Offset", note: "riso duotone · handmade", paper: CREAM, ink: INK, sub: mc(.52), accent: RED, serif: INK, frame: "thin", motif: "crest", offset: true, l1: "MADE", l2: "BY HAND" },
+  { id: "nocturne", name: "Nocturne", note: "spotlit charcoal", paper: "#0f0c08", ink: CREAM, sub: cm(.55), accent: RED, serif: GOLD_LT, frame: "thin", motif: "crest", dark: true, spotlight: true, crestSq: CREAM, l1: "LOW", l2: "AND SLOW" },
+  { id: "terrazzo", name: "Terrazzo", note: "speckled · whole-food", paper: CREAM, ink: INK, sub: mc(.52), accent: RED, serif: GOLD, frame: "thin", motif: "crest", terrazzo: true, l1: "THE WHOLE", l2: "COCONUT" },
+  { id: "halftone", name: "Halftone", note: "pop-art dots", paper: CREAM, ink: INK, sub: mc(.52), accent: RED, serif: INK, frame: "thin", motif: "crest", halftone: true, l1: "BOLD", l2: "BY NATURE" },
 ];
 
 const MON = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
@@ -243,6 +246,9 @@ export default function RoadFlyer() {
         const step = (x: number, y: number, dx: number, dy: number) => { ctx.beginPath(); ctx.moveTo(x, y + dy * 74); ctx.lineTo(x, y + dy * 42); ctx.lineTo(x + dx * 32, y + dy * 42); ctx.lineTo(x + dx * 32, y + dy * 14); ctx.lineTo(x + dx * 74, y + dy * 14); ctx.stroke(); };
         const o = 50; step(o, o, 1, 1); step(W - o, o, -1, 1); step(o, H - o, 1, -1); step(W - o, H - o, -1, -1);
       }
+      if (th.spotlight) { const r = ctx.createRadialGradient(W / 2, 120, 30, W / 2, 120, 660); r.addColorStop(0, "rgba(201,166,97,.22)"); r.addColorStop(1, "rgba(201,166,97,0)"); ctx.fillStyle = r; ctx.fillRect(0, 0, W, H); }
+      if (th.terrazzo) { const cols = [RED, GOLD, GOLD_LT, INK, "#3f7d6e"]; const chip = (n: number, y0: number, y1: number) => { for (let i = 0; i < n; i++) { const x = Math.random() * (W - 2 * M) + M, y = Math.random() * (y1 - y0) + y0, rw = 6 + Math.random() * 12, rh = 5 + Math.random() * 9; ctx.save(); ctx.translate(x, y); ctx.rotate(Math.random() * Math.PI); ctx.globalAlpha = .7; ctx.fillStyle = cols[(Math.random() * cols.length) | 0]; ctx.beginPath(); ctx.ellipse(0, 0, rw, rh, 0, 0, 7); ctx.fill(); ctx.restore(); } }; chip(24, 72, 224); chip(28, H - 256, H - 72); ctx.globalAlpha = 1; }
+      if (th.halftone) { for (let y = 40; y < 340; y += 18) for (let x = W - 340; x < W - 40; x += 18) { const d = Math.hypot(x - (W - 40), y - 40), r = Math.max(0, 1 - d / 300) * 5.5; if (r > 0.5) { ctx.fillStyle = "rgba(184,36,32,.45)"; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); } } }
       if (th.motif === "monogram") {
         ctx.save(); ctx.globalAlpha = .05; ctx.translate(W / 2, H / 2 + 140); ctx.rotate(Math.PI / 4);
         const s = 340, n = 6, cs = (s * 2) / n;
