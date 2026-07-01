@@ -816,7 +816,7 @@ export const PRODUCTS: Product[] = [
   {
     key: "coconut_shake", name: "Coconut Shake", line: "Hydration", price: "$8",
     what: "A thicker whole-coconut blend — coconut water and meat blended rich, lightly sweetened with honey.",
-    why: "A more indulgent, creamy take on whole-coconut hydration.",
+    why: "A richer, creamier take on whole-coconut hydration.",
     ingredients: ["Organic young coconut water", "Organic coconut meat", "Raw honey", "Blended to order"],
     benefits: ["Rich, creamy, whole-food", "No dairy", "Blended fresh"],
     customer: "The guest who wants Nature Aide but creamier and more filling.",
