@@ -2,7 +2,7 @@
 // Pillars: ACTIVATION (before) · HYDRATION (during) · FUEL (after).
 // Copy is ingredient-led: name → what it is (extraction + whole-food input) → why it exists.
 
-export type DrinkId = "rise" | "flow" | "dusk" | "tide" | "forge" | "hunt" | "wild";
+export type DrinkId = "rise" | "flow" | "dusk" | "tide" | "aide" | "forge" | "hunt" | "wild";
 
 export interface DrinkDetail {
   n: string;
@@ -52,6 +52,14 @@ export const DRINKS: Record<DrinkId, DrinkDetail> = {
     no: ["Marine collagen", "Powders", "Concentrate"],
     when: "DURING", whenT: "During work or training.",
   },
+  aide: {
+    n: "NATURE AIDE", px: "$8", grad: "linear-gradient(140deg,#a97c3f,#c8a661)", dot: "#A97C3F",
+    lines: ["Coconut water + mineral water", "Organic maple · Sea salt"],
+    why: "Light, balanced hydration for the middle of the work.",
+    has: ["Coconut water", "Mineral water", "Organic maple syrup", "Sea salt"],
+    no: ["Powders", "Concentrate", "Dyes"],
+    when: "DURING", whenT: "During work or training.",
+  },
   forge: {
     n: "FORGE", px: "$9", grad: "linear-gradient(140deg,#7a2420,#b8423c)", dot: "#B8423C",
     lines: ["Slow-Simmered Beef Bone Broth", "Pasture-Raised"],
@@ -83,6 +91,6 @@ export interface MenuCategory { name: string; wn: string; rows: DrinkId[] }
 
 export const MENU: MenuCategory[] = [
   { name: "Activation", wn: "Before the work", rows: ["rise", "flow", "dusk"] },
-  { name: "Hydration", wn: "During the work", rows: ["tide"] },
+  { name: "Hydration", wn: "During the work", rows: ["tide", "aide"] },
   { name: "Fuel", wn: "After the work", rows: ["forge", "hunt", "wild"] },
 ];
