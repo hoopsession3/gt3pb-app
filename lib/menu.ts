@@ -46,9 +46,9 @@ export const DRINKS: Record<DrinkId, DrinkDetail> = {
   },
   tide: {
     n: "TIDE", px: "$8", grad: "linear-gradient(140deg,#2f7d74,#79c7bb)", dot: "#2F7D74",
-    lines: ["Young coconut water + Thai coconut meat", "Finished with a touch of raw honey"],
+    lines: ["Young coconut water + young organic Thai coconut meat", "Finished with organic local honey"],
     why: "Real hydration that goes down easy.",
-    has: ["Organic young coconut water", "Organic Thai coconut meat", "Raw honey", "Blended to order"],
+    has: ["Organic young coconut water", "Young organic Thai coconut meat", "Organic local honey", "Blended to order"],
     no: ["Marine collagen", "Powders", "Concentrate"],
     when: "DURING", whenT: "During work or training.",
   },
