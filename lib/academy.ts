@@ -6,7 +6,7 @@
 // HARD RULE (from the Source of Truth / Risk Register): no unsupported
 // physiological/comparative health claims. Nutrition is "estimated" until lab-
 // verified. Rise/Flow/Dusk share one spec and the SAME caffeine (~210 mg/10 oz).
-// Nature Aid (coconut hydration) contains raw honey — disclose it.
+// Nature Aide (coconut hydration) contains raw honey — disclose it.
 
 export type Role = "founder" | "admin" | "event_manager" | "operator" | "staff" | "contractor";
 // The GT3 Academy is built as a university — phases that take someone from zero to "would make the
@@ -135,7 +135,7 @@ export const MODULES: Module[] = [
     body: [
       { h: "Greet", p: "Eye contact, a real hello within a few seconds. \"First time with us?\" opens the door to educate. Warm and unhurried even when the line is long." },
       { h: "Educate, don't lecture", p: "Read the guest. A regular wants their order fast; a newcomer wants a quick why. Offer the one-line version first: \"Rise is our clean cold-brew to start the day\" — go deeper only if they're curious." },
-      { h: "Explain products simply", p: "Name → what it is → why it exists. \"Tide / Nature Aid is whole-coconut hydration with a touch of honey — easy to drink during the work.\" Keep it true and plain." },
+      { h: "Explain products simply", p: "Name → what it is → why it exists. \"Tide / Nature Aide is whole-coconut hydration with a touch of honey — easy to drink during the work.\" Keep it true and plain." },
       { h: "Handle objections", p: "\"Why is it more than gas-station coffee?\" → \"It's cold-extracted over hours from single-origin beans, made when you order it.\" Acknowledge, give the real reason, never argue." },
       { h: "Serve with confidence", p: "Know the menu cold. If you don't know an answer, say so and find out — never guess a nutrition number or a health claim." },
       { h: "Make it memorable", p: "Use the guest's name if you have it. Hand the bottle with both hands and a line about how to enjoy it. The last ten seconds are what they remember." },
@@ -170,12 +170,12 @@ export const MODULES: Module[] = [
     body: [
       { h: "How to use this", p: "Read every product card in the Academy (below this module), then take this check. You should be able to give the one-line version of any item and its honest talking points." },
       { h: "Activation line", p: "Rise, Flow, Dusk — all cold-extracted single-origin coffee. IMPORTANT: all three share one brew spec and the SAME caffeine (~210 mg / 10 oz). The difference is flavor and ingredient, not stimulant level. Dusk is a warm, spiced bottle — not a lower-caffeine option." },
-      { h: "Hydration & fuel", p: "Nature Aid is whole-coconut hydration with a touch of raw honey (disclose the honey). Bone broth is slow-simmered, pasture-raised, for the rebuild after." },
+      { h: "Hydration & fuel", p: "Nature Aide is whole-coconut hydration with a touch of raw honey (disclose the honey). Bone broth is slow-simmered, pasture-raised, for the rebuild after." },
       { h: "Talking-point rule", p: "Lead with what it is and the real ingredient story. Never promise a health outcome or quote a nutrition number you're not sure of." },
     ],
     quiz: [
       { q: "How much caffeine does Dusk have vs Rise and Flow?", options: ["Much less — it's a wind-down", "The same — all three share one spec (~210 mg/10 oz)", "Double"], correct: 1, why: "Dusk differs in flavor, not caffeine." },
-      { q: "Nature Aid contains…", options: ["Only coconut water", "Coconut water, coconut meat, and a touch of raw honey", "Coconut and added electrolyte powder"], correct: 1, why: "Disclose the honey — never claim 'no added sugar.'" },
+      { q: "Nature Aide contains…", options: ["Only coconut water", "Coconut water, coconut meat, and a touch of raw honey", "Coconut and added electrolyte powder"], correct: 1, why: "Disclose the honey — never claim 'no added sugar.'" },
       { q: "A guest wants the least caffeine in the Activation line. You say…", options: ["\"Dusk — it's the lightest.\"", "\"They're all about the same; Dusk is the same caffeine, just warmer and spiced.\"", "\"Flow has none.\""], correct: 1 },
     ],
   },
@@ -247,7 +247,7 @@ export const MODULES: Module[] = [
       { h: "Time and ratio are the recipe", p: "Our spec is 1:13 — one part coffee to thirteen parts water by weight — cold-extracted ~18 hours, then filtered. Ratio sets strength; time sets how complete the extraction is. Under-extract (too short / too coarse / too little coffee) and it tastes weak and sour. Over-extract (too long / too fine) and bitterness creeps back. The whole point of a spec is that every batch lands in the same place." },
       { h: "Single-origin means traceable, not fancy", p: "Single-origin means the beans come from one place, not a blend of mystery lots. It lets us point to where it's from and keep the flavor consistent batch to batch. We pair it with organic sourcing because it's the standard we chose — say 'organic, single-origin, cold-extracted over hours,' not 'healthier than theirs.'" },
       { h: "Mineral water — taste first", p: "Water is ~98% of the cup, so the water is part of the recipe. Minerals in the water interact with extraction and mouthfeel; we use mineral water (Mountain Valley Spring Water on spec) because it gives a cleaner, rounder result we can repeat. Frame it as taste and consistency. Do NOT claim a health benefit from the water." },
-      { h: "Caffeine — know the honest number", p: "Rise, Flow, and Dusk share one base and the SAME caffeine — about 210 mg per 10 oz (estimated until lab-verified). Cold brew is often higher in caffeine than people expect because of the long extraction and ratio. If a guest is caffeine-sensitive, tell them the real number and steer them to Nature Aid or the Coconut Shake." },
+      { h: "Caffeine — know the honest number", p: "Rise, Flow, and Dusk share one base and the SAME caffeine — about 210 mg per 10 oz (estimated until lab-verified). Cold brew is often higher in caffeine than people expect because of the long extraction and ratio. If a guest is caffeine-sensitive, tell them the real number and steer them to Nature Aide or the Coconut Shake." },
     ],
     mistakes: ["Saying cold brew is 'less acidic for your stomach' — that's a health claim; say 'lower in perceived acidity, smoother'", "Guessing the caffeine number — quote ~210 mg/10 oz (estimated) or say you'll confirm", "Calling it 'healthier' than gas-station coffee instead of describing the process"],
     founderInsight: "I didn't pick cold extraction because it's trendy. I picked it because when you taste the difference, you stop needing me to sell it. The science is just the honest version of 'try it.'",
@@ -268,21 +268,21 @@ export const MODULES: Module[] = [
     objectives: ["Name the real reason each functional ingredient is on the menu", "Describe a benefit as 'what it is / how people use it,' not a cure", "Disclose allergens (raw honey, dairy) every time"],
     body: [
       { h: "The one rule that governs all of this", p: "We describe ingredients and process, never physiological or comparative health claims. 'Coconut water has naturally occurring electrolytes' is fine. 'This rehydrates you faster than a sports drink' is not — that's a comparative claim we haven't tested. When in doubt, describe what it is and how people use it, and say you'll confirm anything you're unsure of." },
-      { h: "Coconut water & electrolytes (Nature Aid, Coconut Shake)", p: "Coconut water naturally contains electrolytes — minerals like potassium and sodium that the body uses for hydration and nerve/muscle function. We use young coconut water + coconut meat for body. Nature Aid adds a measured amount of RAW HONEY as the only sweetener — always disclose the honey (allergen + not for infants). Talk about it as 'natural hydration,' not a medical rehydration claim." },
+      { h: "Coconut water & electrolytes (Nature Aide, Coconut Shake)", p: "Coconut water naturally contains electrolytes — minerals like potassium and sodium that the body uses for hydration and nerve/muscle function. We use young coconut water + coconut meat for body. Nature Aide adds a measured amount of RAW HONEY as the only sweetener — always disclose the honey (allergen + not for infants). Talk about it as 'natural hydration,' not a medical rehydration claim." },
       { h: "Cacao nibs (Flow)", p: "Organic cacao nibs are infused into the cold brew. Cacao brings chocolate aroma and naturally contains theobromine — a gentle, longer compound that pairs with caffeine for a steadier feel. Say 'cacao for a smooth, sustained focus,' not 'boosts your metabolism.'" },
       { h: "Spice (Dusk: cinnamon + cardamom)", p: "Ceylon cinnamon and green cardamom are infused for warmth and aroma — an evening-leaning, lower-noise flavor. It's a flavor story, not a health story." },
       { h: "Real maple & salt (Salted Maple)", p: "Real maple is the sweetener and a pinch of salt balances it — that's culinary contrast, not a 'natural sugar is healthy' claim. Maple-forward, never cloying." },
       { h: "Bone broth — protein & amino acids (Fuel)", p: "Slow-simmered from pasture-raised bones, bone broth naturally contains protein and amino acids (like collagen-derived ones) and is served hot as a savory option. Describe it as 'a warm, savory, protein-forward option' — don't promise joint or gut outcomes." },
     ],
-    mistakes: ["Forgetting to disclose the raw honey in Nature Aid", "Saying coconut water 'hydrates faster than Gatorade' (untested comparative claim)", "Calling bone broth a gut-health cure instead of 'protein-forward and savory'"],
+    mistakes: ["Forgetting to disclose the raw honey in Nature Aide", "Saying coconut water 'hydrates faster than Gatorade' (untested comparative claim)", "Calling bone broth a gut-health cure instead of 'protein-forward and savory'"],
     founderInsight: "Functional doesn't mean we make medical promises. It means every ingredient earns its place for a real reason. If the reason is just 'it tastes good,' say that — that's still a great reason.",
     scenarios: [
-      { situation: "Guest with a nut/coconut allergy eyeing Nature Aid", doThis: "Flag it directly: 'Heads up — Nature Aid is coconut-based and has raw honey. Want me to point you to Rise or Dusk instead?'" },
+      { situation: "Guest with a nut/coconut allergy eyeing Nature Aide", doThis: "Flag it directly: 'Heads up — Nature Aide is coconut-based and has raw honey. Want me to point you to Rise or Dusk instead?'" },
       { situation: "Guest: 'Does the cacao give me energy?'", doThis: "'It's got natural compounds that pair nicely with the cold brew for a steady focus — most people like Flow for a smooth, sustained lift.'" },
     ],
     quiz: [
       { q: "Which is a safe way to describe coconut water?", options: ["'Rehydrates you faster than sports drinks'", "'Naturally contains electrolytes like potassium'", "'Cures dehydration'"], correct: 1 },
-      { q: "Nature Aid contains raw honey. You…", options: ["Mention it only if asked", "Always disclose it (allergen, not for infants)", "Leave it off the description"], correct: 1, why: "Always disclose allergens." },
+      { q: "Nature Aide contains raw honey. You…", options: ["Mention it only if asked", "Always disclose it (allergen, not for infants)", "Leave it off the description"], correct: 1, why: "Always disclose allergens." },
       { q: "Bone broth is best described as…", options: ["A gut-healing treatment", "A warm, savory, protein-forward option", "A weight-loss drink"], correct: 1 },
     ],
   },
@@ -349,7 +349,7 @@ export const MODULES: Module[] = [
       { h: "Presence first", p: "Four Seasons hospitality isn't fancy words — it's undivided attention. Look up, make eye contact, smile, and greet before they reach the counter. A guest who feels seen forgives a wait; a guest who feels processed remembers it. Luxury without arrogance: we're warm and confident, never stiff or superior." },
       { h: "Read the guest in five seconds", p: "Are they in a hurry or browsing? New or a regular? Confident or overwhelmed by the menu? Match them: the rushed runner wants 'Rise, our cold brew, want it over ice?' — fast and decisive. The curious browser wants a 15-second story. Reading personalities is the skill that makes the same menu feel personal." },
       { h: "Educate without preaching", p: "Lead with the one-liner: name, what it is, why it exists — in plain language. 'Flow is our cold brew infused with cacao, smooth and steady.' Stop there unless they want more. Nobody came for a lecture; teach only as much as the guest invited." },
-      { h: "Make the call for them", p: "An overwhelmed guest doesn't want ten options — they want your pick. 'If it's your first time, I'd start with Rise.' A confident recommendation is a gift, not a sale. Then upsell as care, not pressure: 'Want a Nature Aid to hydrate alongside it?'" },
+      { h: "Make the call for them", p: "An overwhelmed guest doesn't want ten options — they want your pick. 'If it's your first time, I'd start with Rise.' A confident recommendation is a gift, not a sale. Then upsell as care, not pressure: 'Want a Nature Aide to hydrate alongside it?'" },
       { h: "The memorable moment", p: "The settle on a nitro pour, remembering a regular's order, a genuine 'enjoy the rest of your day' — small, real touches are what they tell a friend about. The goal: every guest leaves having had a better minute than they expected." },
     ],
     mistakes: ["Talking AT the guest with every nutrient instead of the one-liner", "Treating the rushed guest and the curious guest the same way", "Letting a line feel like a DMV — no eye contact, no warmth", "Upselling as pressure instead of as care"],
@@ -511,21 +511,21 @@ export const MODULES: Module[] = [
     whyItMatters: "An overwhelmed or rushed guest doesn't want a menu — they want your pick. A great recommendation raises the check AND the experience at the same time. Done right, the guest thanks you for the upsell.",
     objectives: ["Recommend the right drink from a 5-second read", "Pair a hydration or food add-on naturally", "Upsell as care, never as pressure"],
     body: [
-      { h: "The recommendation tree", p: "First-timer or unsure → Rise (the clean, smooth flagship cold brew). Wants chocolatey/steadier → Flow (cacao). Evening / lower-key / spiced → Dusk. On tap / wants the show → Nitro. Caffeine-sensitive or hydration-focused → Nature Aid or the Coconut Shake. Wants savory/warm → Bone Broth. Sweet tooth → Salted Maple. You can place almost any guest in two questions." },
+      { h: "The recommendation tree", p: "First-timer or unsure → Rise (the clean, smooth flagship cold brew). Wants chocolatey/steadier → Flow (cacao). Evening / lower-key / spiced → Dusk. On tap / wants the show → Nitro. Caffeine-sensitive or hydration-focused → Nature Aide or the Coconut Shake. Wants savory/warm → Bone Broth. Sweet tooth → Salted Maple. You can place almost any guest in two questions." },
       { h: "Lead with the one-liner, then stop", p: "'Rise is our smooth cold brew over ice — best first pour.' Give the headline, read their face, and only go deeper if they lean in. The recommendation is a gift; don't bury it in detail." },
-      { h: "Pair, don't pile", p: "The natural add-on is hydration or food alongside the coffee: 'Want a Nature Aid to sip alongside it?' or 'Bone broth if you want something savory.' One thoughtful pairing beats three pushy ones. The test: would you genuinely suggest it to a friend, or are you just adding dollars?" },
+      { h: "Pair, don't pile", p: "The natural add-on is hydration or food alongside the coffee: 'Want a Nature Aide to sip alongside it?' or 'Bone broth if you want something savory.' One thoughtful pairing beats three pushy ones. The test: would you genuinely suggest it to a friend, or are you just adding dollars?" },
       { h: "Read the 'no'", p: "If they decline the add-on, drop it instantly and warmly — 'You got it.' A clean no-pressure no is what makes the next yes possible. Pressure wins one sale and loses the relationship." },
     ],
     mistakes: ["Listing options instead of making the call", "Upselling things you wouldn't actually recommend (guests smell it)", "Pushing after a 'no' — kills trust", "Over-explaining when the guest just wanted the headline"],
     founderInsight: "The best upsell doesn't feel like one. It feels like a friend who knows the menu saying 'oh, you'd love this with it.' That's the only kind we do.",
     scenarios: [
       { situation: "Guest: 'I don't really drink coffee but I'm curious'", doThis: "Steer to flavor + lower commitment: 'Then try Dusk — it's spiced and smooth, or a Coconut Shake if you want zero coffee. Both are easy first sips.'" },
-      { situation: "Post-workout guest grabbing a Rise", doThis: "Natural pair: 'Want a Nature Aid alongside to hydrate? A lot of folks do after a workout.' If no, 'You got it — enjoy.'" },
+      { situation: "Post-workout guest grabbing a Rise", doThis: "Natural pair: 'Want a Nature Aide alongside to hydrate? A lot of folks do after a workout.' If no, 'You got it — enjoy.'" },
     ],
     quiz: [
       { q: "An unsure first-timer should get…", options: ["The whole menu read aloud", "A confident rec — usually Rise", "Whatever's slowest to make"], correct: 1 },
       { q: "A good upsell is…", options: ["Pushed until they cave", "A genuine pairing you'd suggest a friend, dropped on a 'no'", "Added silently to the total"], correct: 1 },
-      { q: "Caffeine-sensitive guest → recommend…", options: ["A double Nitro", "Nature Aid or the Coconut Shake", "Two Rises"], correct: 1 },
+      { q: "Caffeine-sensitive guest → recommend…", options: ["A double Nitro", "Nature Aide or the Coconut Shake", "Two Rises"], correct: 1 },
     ],
   },
 
@@ -717,7 +717,7 @@ export const PRODUCTS: Product[] = [
     cookbook: { batch: "Standard Batch — GT3 with cinnamon + cardamom.", brew: ["Brew base to spec", "Add Ceylon cinnamon + green cardamom", "Filter and log batch"], serve: ["Pour over ice; garnish per spec"], storage: "Keep cold; standard hold window.", quality: "Spice aromatic, balanced — not gritty.", troubleshoot: [{ issue: "Gritty", fix: "Use infusion, not loose ground spice in the bottle." }] },
   },
   {
-    key: "nature_aid", name: "Nature Aid", line: "Hydration", price: "$8",
+    key: "nature_aid", name: "Nature Aide", line: "Hydration", price: "$8",
     what: "Whole-coconut hydration — young coconut water blended with Thai coconut meat, finished with a touch of raw honey.",
     why: "Real hydration that goes down easy during the work.",
     ingredients: ["Organic young coconut water", "Organic Thai coconut meat", "Raw honey", "Blended to order"],
@@ -730,8 +730,8 @@ export const PRODUCTS: Product[] = [
     ],
     voices: {
       simple: "Fresh-blended coconut water and coconut meat with a touch of honey. Real hydration, no powder.",
-      gt3: "Nature Aid is whole-coconut hydration — young coconut water blended with Thai coconut meat and finished with a little raw honey. It's blended to order from real coconut, not mixed from a powder or concentrate like a sports drink.",
-      founder: "This is the heart of GT3 — the whole coconut, not an electrolyte isolate. We blend the water and the meat together because that's how the body actually wants it, whole-food. The honey is the one sweetener and I'll always name it; we disclose, we never hide behind 'no added sugar.' Coconut is the mark on our cup for a reason — Nature Aid is that promise in a glass.",
+      gt3: "Nature Aide is whole-coconut hydration — young coconut water blended with Thai coconut meat and finished with a little raw honey. It's blended to order from real coconut, not mixed from a powder or concentrate like a sports drink.",
+      founder: "This is the heart of GT3 — the whole coconut, not an electrolyte isolate. We blend the water and the meat together because that's how the body actually wants it, whole-food. The honey is the one sweetener and I'll always name it; we disclose, we never hide behind 'no added sugar.' Coconut is the mark on our cup for a reason — Nature Aide is that promise in a glass.",
     },
     cookbook: { batch: "Blend to order (no long batch).", brew: ["Combine young coconut water + Thai coconut meat", "Add measured raw honey per spec", "Blend until smooth"], serve: ["Serve cold, in glass, immediately"], storage: "Make to order; do not hold blended.", quality: "Smooth, no separation at serve.", troubleshoot: [{ issue: "Too sweet", fix: "Reduce honey to spec; honey is the only added sweetener." }, { issue: "Separating", fix: "Serve immediately after blend." }] },
   },
@@ -799,7 +799,7 @@ export const PRODUCTS: Product[] = [
     why: "A more indulgent, creamy take on whole-coconut hydration.",
     ingredients: ["Organic young coconut water", "Organic coconut meat", "Raw honey", "Blended to order"],
     benefits: ["Rich, creamy, whole-food", "No dairy", "Blended fresh"],
-    customer: "The guest who wants Nature Aid but creamier and more filling.",
+    customer: "The guest who wants Nature Aide but creamier and more filling.",
     talking: ["A creamier whole-coconut blend, no dairy", "Sweetened with a touch of honey — disclose it", "Blended to order"],
     faqs: [
       { q: "Dairy?", a: "None — the creaminess is the coconut meat." },
