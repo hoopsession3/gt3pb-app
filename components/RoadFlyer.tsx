@@ -187,9 +187,9 @@ export default function RoadFlyer() {
       ctx.restore(); (ctx as any).letterSpacing = "0px";
     };
     const goldHead = (y: number, size: number) => { const g = ctx.createLinearGradient(0, y - size, 0, y + 8); g.addColorStop(0, GOLD_LT); g.addColorStop(.5, GOLD); g.addColorStop(1, "#8a6531"); return g; };
-    const checkerDiamond = (cx: number, cy: number, s: number) => {
+    const checkerDiamond = (cx: number, cy: number, s: number, sqOverride?: string) => {
       ctx.save(); ctx.translate(cx, cy); ctx.rotate(Math.PI / 4);
-      const n = 3, cs = (s * 2) / n, o = -s, sq = th.crestSq || INK, acc = th.crestAcc || RED;
+      const n = 3, cs = (s * 2) / n, o = -s, sq = sqOverride || th.crestSq || INK, acc = th.crestAcc || RED;
       for (let r = 0; r < n; r++) for (let k = 0; k < n; k++) { ctx.fillStyle = (r + k) % 2 === 0 ? sq : acc; ctx.fillRect(o + k * cs, o + r * cs, cs, cs); }
       ctx.strokeStyle = GOLD; ctx.lineWidth = 2.5; ctx.strokeRect(-s, -s, s * 2, s * 2); ctx.restore();
     };
@@ -276,8 +276,14 @@ export default function RoadFlyer() {
       ctx.textAlign = "left";
       const img = wmRef.current;
       if (img && img.width > 0) {
-        const h = 60, w = img.width * (h / img.height), y = H - 122;
-        if (onPhoto || th.dark) { ctx.fillStyle = CREAM; rr(ctx, M - 16, y - 12, Math.min(w + 32, W - 2 * M), h + 24, 14); ctx.fill(); }
+        // Preserve the wordmark's exact aspect ratio (never stretched); fit within a max height AND a
+        // max width so it always clears the right-side tagline, then vertically center it on the footer
+        // line so it lands pixel-identically on every slide/template.
+        const maxH = 58, maxW = W / 2 - M - 20;
+        const s = Math.min(maxH / img.height, maxW / img.width);
+        const w = img.width * s, h = img.height * s;
+        const y = Math.round(H - 96 - h / 2);
+        if (onPhoto || th.dark) { ctx.fillStyle = CREAM; rr(ctx, M - 16, y - 11, w + 32, h + 22, 14); ctx.fill(); }
         ctx.drawImage(img, M, y, w, h);
       } else {
         ctx.font = "900 38px 'Archivo Black', system-ui"; ctx.fillStyle = th.gold ? GOLD : th.accent; ctx.fillText("GT3", M, H - 74);
@@ -288,16 +294,22 @@ export default function RoadFlyer() {
       ctx.fillStyle = onPhoto ? RED : th.accent; ctx.fillText("NO NOISE.", W - M, H - 64); ctx.textAlign = "left";
     };
 
-    // ── PHOTO tile: the photo is its own dark hero; kept constant across templates ──
+    // ── PHOTO tile — a dark photo hero that still wears the chosen template ──
     if (tile === "photo") {
       ctx.fillStyle = INK; ctx.fillRect(0, 0, W, H);
       const img = f.photo ? await loadImg(f.photo) : null;
       if (img) cover(ctx, img, 0, 0, W, H); else { ctx.fillStyle = "#2a241c"; ctx.fillRect(0, 0, W, H); ctx.fillStyle = cm(.5); ctx.font = "500 28px 'DM Mono'"; ctx.textAlign = "center"; ctx.fillText("ADD A PHOTO", W / 2, H / 2); ctx.textAlign = "left"; }
-      const g = ctx.createLinearGradient(0, H - 620, 0, H); g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,.84)"); ctx.fillStyle = g; ctx.fillRect(0, H - 620, W, 620);
-      ctx.strokeStyle = cm(.5); ctx.lineWidth = 2; ctx.strokeRect(38, 38, W - 76, H - 76);
-      { const cy = 148, cx = W / 2; ctx.strokeStyle = cm(.85); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(M + 6, cy); ctx.lineTo(cx - 72, cy); ctx.moveTo(cx + 72, cy); ctx.lineTo(W - M - 6, cy); ctx.stroke(); checkerDiamond(cx, cy, 26); eyebrow("GT3 Mobile Bar", cx, cy + 58, cm(.85), "center"); }
+      const g = ctx.createLinearGradient(0, H - 640, 0, H); g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,.86)"); ctx.fillStyle = g; ctx.fillRect(0, H - 640, W, 640);
+      const gt = ctx.createLinearGradient(0, 0, 0, 320); gt.addColorStop(0, "rgba(0,0,0,.5)"); gt.addColorStop(1, "rgba(0,0,0,0)"); ctx.fillStyle = gt; ctx.fillRect(0, 0, W, 320);
+      // frame in the template's spirit (light, on photo)
+      if (th.frame === "goldheavy") { ctx.strokeStyle = GOLD; ctx.lineWidth = 3; ctx.strokeRect(36, 36, W - 72, H - 72); ctx.strokeStyle = GOLD_LT; ctx.lineWidth = 1; ctx.strokeRect(46, 46, W - 92, H - 92); }
+      else if (th.frame === "brackets") { ctx.strokeStyle = cm(.6); ctx.lineWidth = 3; const L = 70, o = 44; ([[o, o, 1, 1], [W - o, o, -1, 1], [o, H - o, 1, -1], [W - o, H - o, -1, -1]] as const).forEach(([x, y, dx, dy]) => { ctx.beginPath(); ctx.moveTo(x + dx * L, y); ctx.lineTo(x, y); ctx.lineTo(x, y + dy * L); ctx.stroke(); }); }
+      else { const c1 = th.gold || th.warm ? GOLD : cm(.5); ctx.strokeStyle = c1; ctx.lineWidth = 2; ctx.strokeRect(38, 38, W - 76, H - 76); ctx.strokeStyle = th.gold || th.warm ? GOLD_LT : cm(.24); ctx.lineWidth = 1; ctx.strokeRect(48, 48, W - 96, H - 96); }
+      { const cy = 148, cx = W / 2, gc = th.gold || th.warm ? GOLD_LT : cm(.85); ctx.strokeStyle = gc; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(M + 6, cy); ctx.lineTo(cx - 72, cy); ctx.moveTo(cx + 72, cy); ctx.lineTo(W - M - 6, cy); ctx.stroke(); checkerDiamond(cx, cy, 26, CREAM); eyebrow("GT3 Mobile Bar", cx, cy + 58, gc, "center"); }
+      pageTag(0); // no page number on the photo hero
+      const pAcc = th.gold ? GOLD : (th.accent === INK ? RED : th.accent);
       disp((f.headline1 || "").toUpperCase(), M, H - 300, "#fff", 100, th.glow ? RED : undefined);
-      disp((f.headline2 || "").toUpperCase(), M, H - 300 + 104, RED, 100, th.glow ? RED : undefined);
+      disp((f.headline2 || "").toUpperCase(), M, H - 300 + 104, pAcc, 100, th.glow ? RED : undefined);
       footer(true); return;
     }
 
