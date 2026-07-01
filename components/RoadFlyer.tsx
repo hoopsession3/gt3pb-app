@@ -10,8 +10,10 @@ import { useAuth } from "./AuthProvider";
 // Photo): refined motorsport — gold hairline framing, a checkered-flag crest, Archivo/Fraunces
 // editorial pairing. Pick a stop → it fills the data → tweak → Download PNG or Save to the feed.
 
-const W = 1080, H = 1350, M = 76;
-const INK = "#1A1310", RED = "#B82420", CREAM = "#F5F1E8", GOLD = "#A97C3F", MUT = "rgba(26,19,16,.52)";
+// Grid + palette locked to the GT3 brand standard (Academy "The GT3 Grid" + seeded brand_kit):
+// feed 1080×1350, margins ALWAYS 64, Charcoal/Signal Red/Cream/Gold, red on emphasis only.
+const W = 1080, H = 1350, M = 64;
+const INK = "#15120D", RED = "#B82420", CREAM = "#F5F1E8", GOLD = "#A97C3F", GOLD_LT = "#C8A661", MUT = "rgba(21,18,13,.52)";
 type Tile = "announce" | "menu" | "submenu" | "details" | "photo";
 // carousel position → drives the "01 ⁄ 04" page tag that signals "swipe for more"
 const PAGE: Record<Tile, number> = { announce: 1, menu: 2, submenu: 3, details: 4, photo: 0 };
@@ -27,9 +29,10 @@ function dateLine(iso: string | null): string {
 }
 const norm = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
-const DEFAULT_MENU = "COLD BREW\nRise · Flow · Dusk\n\nESPRESSO\nCortado · Latte · Americano";
-const DEFAULT_SUB = "THE RESERVE\nKing Me Nitro Cold Brew\nSalted Maple Latte\n\nSEASONAL\nNature's Aid Hydration\nGoat Milk Chai";
-const DEFAULT_DETAILS = "Rise | Bright and citrus-forward. Your morning gear.\nFlow | Smooth, balanced — the all-day cruise.\nDusk | Dark, low and slow. An evening pour.\nKing Me | Nitro cold brew under a cascading crema.\nNature's Aid | Honey + electrolytes. Clean hydration.";
+// Defaults are true to the Academy source of truth — real products, real specs, honey disclosed.
+const DEFAULT_MENU = "COLD BREW\nRise · Flow · Dusk\n\nON NITRO\nNitro Cold Brew";
+const DEFAULT_SUB = "SPECIALTY\nSalted Maple Latte\n\nHYDRATION\nNature Aid · Coconut Shake";
+const DEFAULT_DETAILS = "Rise | Cold-extracted ~18 hrs, coconut-finished. No burnt bite.\nFlow | The same base, cacao-infused. Richer, no added sugar.\nDusk | Cinnamon and cardamom. Warm, spiced — same lift.\nNitro | Charged with nitrogen. Creamy, no milk, no ice.\nNature Aid | Coconut with a touch of raw honey. Blended fresh.";
 
 export default function RoadFlyer() {
   const { toast } = useApp();
@@ -125,8 +128,12 @@ export default function RoadFlyer() {
   };
   // the framed border — double gold hairline, the "premium print" cue
   const frame = (ctx: CanvasRenderingContext2D, onPhoto = false) => {
-    ctx.strokeStyle = onPhoto ? "rgba(245,241,232,.5)" : GOLD; ctx.lineWidth = 2; ctx.strokeRect(40, 40, W - 80, H - 80);
-    ctx.strokeStyle = onPhoto ? "rgba(245,241,232,.26)" : "rgba(169,124,63,.45)"; ctx.lineWidth = 1; ctx.strokeRect(50, 50, W - 100, H - 100);
+    ctx.strokeStyle = onPhoto ? "rgba(245,241,232,.5)" : GOLD; ctx.lineWidth = 2; ctx.strokeRect(38, 38, W - 76, H - 76);
+    ctx.strokeStyle = onPhoto ? "rgba(245,241,232,.26)" : "rgba(200,166,97,.5)"; ctx.lineWidth = 1; ctx.strokeRect(48, 48, W - 96, H - 96);
+  };
+  // big Archivo display type with a touch of negative tracking — premium, not shouty
+  const display = (ctx: CanvasRenderingContext2D, text: string, x: number, y: number, color: string, size: number) => {
+    ctx.save(); (ctx as any).letterSpacing = "-1px"; ctx.font = `900 ${size}px 'Archivo Black', system-ui`; ctx.fillStyle = color; ctx.fillText(text, x, y); ctx.restore(); (ctx as any).letterSpacing = "0px";
   };
   // "01 ⁄ 04" — signals a swipeable set
   const pageTag = (ctx: CanvasRenderingContext2D, n: number, onPhoto = false) => {
@@ -136,9 +143,9 @@ export default function RoadFlyer() {
   };
   // editorial title: Fraunces italic word + Archivo Black word on one baseline
   const editorialTitle = (ctx: CanvasRenderingContext2D, serif: string, bold: string, y: number, onPhoto = false) => {
-    ctx.font = "italic 600 84px Fraunces, Georgia, serif"; ctx.fillStyle = RED; ctx.fillText(serif, M, y);
+    ctx.font = "italic 600 84px Fraunces, Georgia, serif"; ctx.fillStyle = onPhoto ? GOLD_LT : GOLD; ctx.fillText(serif, M, y);
     const tw = ctx.measureText(serif).width;
-    ctx.font = "900 92px 'Archivo Black', system-ui"; ctx.fillStyle = onPhoto ? "#fff" : INK; ctx.fillText(bold.toUpperCase(), M + tw + 24, y);
+    display(ctx, bold.toUpperCase(), M + tw + 24, y, onPhoto ? "#fff" : INK, 92);
   };
 
   const footer = (ctx: CanvasRenderingContext2D, onPhoto = false) => {
@@ -146,7 +153,7 @@ export default function RoadFlyer() {
     ctx.textAlign = "left";
     const img = wmRef.current;
     if (img && img.width > 0) {
-      const h = 52, w = img.width * (h / img.height), y = H - 116;
+      const h = 60, w = img.width * (h / img.height), y = H - 122;
       if (onPhoto) { ctx.fillStyle = CREAM; rr(ctx, M - 16, y - 12, Math.min(w + 32, W - 2 * M), h + 24, 14); ctx.fill(); }
       ctx.drawImage(img, M, y, w, h);
     } else {
@@ -188,8 +195,8 @@ export default function RoadFlyer() {
       if (img) cover(ctx, img, 0, 0, W, H); else { ctx.fillStyle = "#2a241c"; ctx.fillRect(0, 0, W, H); ctx.fillStyle = MUT; ctx.font = "500 28px 'DM Mono'"; ctx.textAlign = "center"; ctx.fillText("ADD A PHOTO", W / 2, H / 2); ctx.textAlign = "left"; }
       const g = ctx.createLinearGradient(0, H - 620, 0, H); g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,.84)"); ctx.fillStyle = g; ctx.fillRect(0, H - 620, W, 620);
       frame(ctx, true); topMotif(ctx, "GT3 Mobile Bar", true);
-      ctx.font = "900 100px 'Archivo Black', system-ui"; ctx.fillStyle = "#fff"; ctx.fillText((f.headline1 || "").toUpperCase(), M, H - 300);
-      ctx.fillStyle = RED; ctx.fillText((f.headline2 || "").toUpperCase(), M, H - 300 + 104);
+      display(ctx, (f.headline1 || "").toUpperCase(), M, H - 300, "#fff", 100);
+      display(ctx, (f.headline2 || "").toUpperCase(), M, H - 300 + 104, RED, 100);
       footer(ctx, true); return;
     }
 
@@ -207,7 +214,7 @@ export default function RoadFlyer() {
       const startY = topY + Math.max(0, (avail - listHeight(text)) / 2) + 46;
       menuList(ctx, text, startY);
       ctx.font = "italic 600 33px Fraunces, Georgia, serif"; ctx.fillStyle = GOLD;
-      ctx.fillText("Every bottle poured to order.", M, H - 205);
+      ctx.fillText("Every cup, made to order.", M, H - 205);
       footer(ctx); return;
     }
 
@@ -215,27 +222,27 @@ export default function RoadFlyer() {
       topMotif(ctx, "Swipe · Tasting Notes ›");
       editorialTitle(ctx, "The", "Pour", M + 288);
       goldRule(ctx, M, M + 330, W - 2 * M);
-      let y = M + 452;
       const rows = f.details.split("\n").map((l) => l.trim()).filter(Boolean).slice(0, 5);
+      // adaptive: tighten type + spacing when the list is long, so 5 notes still clear the footer
+      const many = rows.length >= 5;
+      const nameSz = many ? 40 : 44, descSz = many ? 27 : 30, descLh = descSz + 7, pad = many ? 32 : 42;
+      let y = M + (many ? 428 : 452);
       for (const row of rows) {
         const [name, ...rest] = row.split("|");
-        ctx.font = "700 44px Inter, system-ui"; ctx.fillStyle = INK; ctx.fillText((name || "").trim(), M, y);
+        ctx.font = `700 ${nameSz}px Inter, system-ui`; ctx.fillStyle = INK; ctx.fillText((name || "").trim(), M, y);
         const desc = rest.join("|").trim();
-        if (desc) {
-          y += 44; ctx.font = "400 30px Inter, system-ui"; ctx.fillStyle = MUT;
-          for (const ln of wrap(ctx, desc, W - 2 * M)) { ctx.fillText(ln, M, y); y += 38; }
-        }
-        y += 22; ctx.fillStyle = "rgba(169,124,63,.35)"; ctx.fillRect(M, y, W - 2 * M, 1); y += 46;
+        if (desc) { y += nameSz - 2; ctx.font = `400 ${descSz}px Inter, system-ui`; ctx.fillStyle = MUT; for (const ln of wrap(ctx, desc, W - 2 * M)) { ctx.fillText(ln, M, y); y += descLh; } }
+        y += pad * 0.42; ctx.fillStyle = "rgba(200,166,97,.4)"; ctx.fillRect(M, y, W - 2 * M, 1); y += pad;
       }
       footer(ctx); return;
     }
 
     // announce
     topMotif(ctx, "On The Road");
-    ctx.font = "900 112px 'Archivo Black', system-ui"; ctx.fillStyle = INK; ctx.fillText((f.headline1 || "").toUpperCase(), M, M + 300);
-    ctx.fillStyle = RED; ctx.fillText((f.headline2 || "").toUpperCase(), M, M + 300 + 114);
-    goldRule(ctx, M, M + 452, W - 2 * M);
-    let y = M + 552;
+    display(ctx, (f.headline1 || "").toUpperCase(), M, M + 312, INK, 112);
+    display(ctx, (f.headline2 || "").toUpperCase(), M, M + 312 + 114, RED, 112);
+    goldRule(ctx, M, M + 464, W - 2 * M);
+    let y = M + 566;
     const label = (t: string) => { eyebrow(ctx, t, M, y, GOLD); y += 46; };
     const big = (t: string, color = INK, size = 56) => { ctx.font = `700 ${size}px Inter, system-ui`; ctx.fillStyle = color; ctx.fillText(t, M, y); y += size + 12; };
     const serif = (t: string, size = 58) => { ctx.font = `italic 600 ${size}px Fraunces, Georgia, serif`; ctx.fillStyle = INK; ctx.fillText(t, M, y); y += size + 8; };
