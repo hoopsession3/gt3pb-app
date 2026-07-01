@@ -44,7 +44,6 @@ values (
   $f$[
     {"role":"Display","name":"Archivo Black"},
     {"role":"Editorial","name":"Fraunces Italic"},
-    {"role":"Headline serif","name":"Playfair Display Italic"},
     {"role":"Body","name":"Inter"},
     {"role":"Data","name":"DM Mono"}
   ]$f$::jsonb,

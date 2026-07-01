@@ -6,7 +6,8 @@
 // HARD RULE (from the Source of Truth / Risk Register): no unsupported
 // physiological/comparative health claims. Nutrition is "estimated" until lab-
 // verified. Rise/Flow/Dusk share one spec and the SAME caffeine (~210 mg/10 oz).
-// Nature Aide (coconut hydration) contains raw honey — disclose it.
+// Tide (coconut + honey hydration) contains raw honey; Nature Aide is coconut + mineral water with
+// organic maple + sea salt. They're SEPARATE products — disclose the sweetener either way.
 
 export type Role = "founder" | "admin" | "event_manager" | "operator" | "staff" | "contractor";
 // The GT3 Academy is built as a university — phases that take someone from zero to "would make the
@@ -135,7 +136,7 @@ export const MODULES: Module[] = [
     body: [
       { h: "Greet", p: "Eye contact, a real hello within a few seconds. \"First time with us?\" opens the door to educate. Warm and unhurried even when the line is long." },
       { h: "Educate, don't lecture", p: "Read the guest. A regular wants their order fast; a newcomer wants a quick why. Offer the one-line version first: \"Rise is our clean cold-brew to start the day\" — go deeper only if they're curious." },
-      { h: "Explain products simply", p: "Name → what it is → why it exists. \"Tide / Nature Aide is whole-coconut hydration with a touch of honey — easy to drink during the work.\" Keep it true and plain." },
+      { h: "Explain products simply", p: "Name → what it is → why it exists. \"Tide is whole-coconut hydration with a touch of honey; Nature Aide is coconut + mineral water with organic maple and sea salt — both easy to drink during the work.\" Keep it true and plain." },
       { h: "Handle objections", p: "\"Why is it more than gas-station coffee?\" → \"It's cold-extracted over hours from single-origin beans, made when you order it.\" Acknowledge, give the real reason, never argue." },
       { h: "Serve with confidence", p: "Know the menu cold. If you don't know an answer, say so and find out — never guess a nutrition number or a health claim." },
       { h: "Make it memorable", p: "Use the guest's name if you have it. Hand the bottle with both hands and a line about how to enjoy it. The last ten seconds are what they remember." },
@@ -170,12 +171,12 @@ export const MODULES: Module[] = [
     body: [
       { h: "How to use this", p: "Read every product card in the Academy (below this module), then take this check. You should be able to give the one-line version of any item and its honest talking points." },
       { h: "Activation line", p: "Rise, Flow, Dusk — all cold-extracted single-origin coffee. IMPORTANT: all three share one brew spec and the SAME caffeine (~210 mg / 10 oz). The difference is flavor and ingredient, not stimulant level. Dusk is a warm, spiced bottle — not a lower-caffeine option." },
-      { h: "Hydration & fuel", p: "Nature Aide is whole-coconut hydration with a touch of raw honey (disclose the honey). Bone broth is slow-simmered, pasture-raised, for the rebuild after." },
+      { h: "Hydration & fuel", p: "Tide is whole-coconut hydration with a touch of raw honey (disclose the honey). Nature Aide is a lighter coconut + mineral-water hydration with organic maple and sea salt (disclose the maple). Bone broth is slow-simmered, pasture-raised, for the rebuild after." },
       { h: "Talking-point rule", p: "Lead with what it is and the real ingredient story. Never promise a health outcome or quote a nutrition number you're not sure of." },
     ],
     quiz: [
       { q: "How much caffeine does Dusk have vs Rise and Flow?", options: ["Much less — it's a wind-down", "The same — all three share one spec (~210 mg/10 oz)", "Double"], correct: 1, why: "Dusk differs in flavor, not caffeine." },
-      { q: "Nature Aide contains…", options: ["Only coconut water", "Coconut water, coconut meat, and a touch of raw honey", "Coconut and added electrolyte powder"], correct: 1, why: "Disclose the honey — never claim 'no added sugar.'" },
+      { q: "Nature Aide contains…", options: ["Only coconut water", "Coconut water, mineral water, organic maple, and sea salt", "Coconut and added electrolyte powder"], correct: 1, why: "Disclose the maple — never claim 'no added sugar.'" },
       { q: "A guest wants the least caffeine in the Activation line. You say…", options: ["\"Dusk — it's the lightest.\"", "\"They're all about the same; Dusk is the same caffeine, just warmer and spiced.\"", "\"Flow has none.\""], correct: 1 },
     ],
   },
@@ -268,21 +269,21 @@ export const MODULES: Module[] = [
     objectives: ["Name the real reason each functional ingredient is on the menu", "Describe a benefit as 'what it is / how people use it,' not a cure", "Disclose allergens (raw honey, dairy) every time"],
     body: [
       { h: "The one rule that governs all of this", p: "We describe ingredients and process, never physiological or comparative health claims. 'Coconut water has naturally occurring electrolytes' is fine. 'This rehydrates you faster than a sports drink' is not — that's a comparative claim we haven't tested. When in doubt, describe what it is and how people use it, and say you'll confirm anything you're unsure of." },
-      { h: "Coconut water & electrolytes (Nature Aide, Coconut Shake)", p: "Coconut water naturally contains electrolytes — minerals like potassium and sodium that the body uses for hydration and nerve/muscle function. We use young coconut water + coconut meat for body. Nature Aide adds a measured amount of RAW HONEY as the only sweetener — always disclose the honey (allergen + not for infants). Talk about it as 'natural hydration,' not a medical rehydration claim." },
+      { h: "Coconut water & electrolytes (Nature Aide, Tide, Coconut Shake)", p: "Coconut water naturally contains electrolytes — minerals like potassium and sodium that the body uses for hydration and nerve/muscle function. Nature Aide pairs coconut water with mineral water, organic maple syrup, and sea salt — disclose the maple. Tide uses young coconut water + Thai coconut meat with a touch of RAW HONEY — always disclose the honey (allergen + not for infants). Talk about both as 'natural hydration,' not a medical rehydration claim." },
       { h: "Cacao nibs (Flow)", p: "Organic cacao nibs are infused into the cold brew. Cacao brings chocolate aroma and naturally contains theobromine — a gentle, longer compound that pairs with caffeine for a steadier feel. Say 'cacao for a smooth, sustained focus,' not 'boosts your metabolism.'" },
       { h: "Spice (Dusk: cinnamon + cardamom)", p: "Ceylon cinnamon and green cardamom are infused for warmth and aroma — an evening-leaning, lower-noise flavor. It's a flavor story, not a health story." },
       { h: "Real maple & salt (Salted Maple)", p: "Real maple is the sweetener and a pinch of salt balances it — that's culinary contrast, not a 'natural sugar is healthy' claim. Maple-forward, never cloying." },
       { h: "Bone broth — protein & amino acids (Fuel)", p: "Slow-simmered from pasture-raised bones, bone broth naturally contains protein and amino acids (like collagen-derived ones) and is served hot as a savory option. Describe it as 'a warm, savory, protein-forward option' — don't promise joint or gut outcomes." },
     ],
-    mistakes: ["Forgetting to disclose the raw honey in Nature Aide", "Saying coconut water 'hydrates faster than Gatorade' (untested comparative claim)", "Calling bone broth a gut-health cure instead of 'protein-forward and savory'"],
+    mistakes: ["Forgetting to disclose the raw honey in Tide (or the organic maple in Nature Aide)", "Confusing Tide (coconut + honey) with Nature Aide (coconut + mineral water + maple + sea salt) — they're separate drinks", "Saying coconut water 'hydrates faster than Gatorade' (untested comparative claim)", "Calling bone broth a gut-health cure instead of 'protein-forward and savory'"],
     founderInsight: "Functional doesn't mean we make medical promises. It means every ingredient earns its place for a real reason. If the reason is just 'it tastes good,' say that — that's still a great reason.",
     scenarios: [
-      { situation: "Guest with a nut/coconut allergy eyeing Nature Aide", doThis: "Flag it directly: 'Heads up — Nature Aide is coconut-based and has raw honey. Want me to point you to Rise or Dusk instead?'" },
+      { situation: "Guest with a nut/coconut allergy eyeing a hydration drink", doThis: "Flag it directly: 'Heads up — both Nature Aide and Tide are coconut-based, and Tide also has raw honey. Want me to point you to Rise or Dusk instead?'" },
       { situation: "Guest: 'Does the cacao give me energy?'", doThis: "'It's got natural compounds that pair nicely with the cold brew for a steady focus — most people like Flow for a smooth, sustained lift.'" },
     ],
     quiz: [
       { q: "Which is a safe way to describe coconut water?", options: ["'Rehydrates you faster than sports drinks'", "'Naturally contains electrolytes like potassium'", "'Cures dehydration'"], correct: 1 },
-      { q: "Nature Aide contains raw honey. You…", options: ["Mention it only if asked", "Always disclose it (allergen, not for infants)", "Leave it off the description"], correct: 1, why: "Always disclose allergens." },
+      { q: "Tide contains raw honey. You…", options: ["Mention it only if asked", "Always disclose it (allergen, not for infants)", "Leave it off the description"], correct: 1, why: "Always disclose allergens." },
       { q: "Bone broth is best described as…", options: ["A gut-healing treatment", "A warm, savory, protein-forward option", "A weight-loss drink"], correct: 1 },
     ],
   },
@@ -718,22 +719,22 @@ export const PRODUCTS: Product[] = [
   },
   {
     key: "nature_aid", name: "Nature Aide", line: "Hydration", price: "$8",
-    what: "Whole-coconut hydration — young coconut water blended with Thai coconut meat, finished with a touch of raw honey.",
-    why: "Real hydration that goes down easy during the work.",
-    ingredients: ["Organic young coconut water", "Organic Thai coconut meat", "Raw honey", "Blended to order"],
-    benefits: ["Whole-food hydration base", "Naturally smooth and easy to drink", "No powders, concentrate, or isolates"],
-    customer: "The active guest mid-work or mid-training who wants real hydration, not a sports drink.",
-    talking: ["Whole-coconut hydration with a touch of honey", "Blended to order from real coconut, not a powder", "Always mention the honey if asked about sugar"],
+    what: "A light electrolyte hydration — coconut water and mineral water with organic maple syrup, finished with sea salt.",
+    why: "Clean, balanced hydration that goes down easy during the work.",
+    ingredients: ["Coconut water", "Mineral water", "Organic maple syrup", "Sea salt"],
+    benefits: ["Light electrolyte hydration", "Real maple, not a powder or isolate", "Balanced sweet-and-salt, easy to drink"],
+    customer: "The active guest mid-work or mid-training who wants clean hydration, not a neon sports drink.",
+    talking: ["Coconut + mineral water with organic maple and a pinch of sea salt", "Real ingredients, not a powder or concentrate", "Disclose the maple if asked about sugar"],
     faqs: [
-      { q: "Is there added sugar?", a: "Yes — a touch of raw honey. The rest is coconut water and coconut meat. We disclose it; we don't claim 'no added sugar.'" },
-      { q: "Is it a sports drink?", a: "No — it's whole-food, blended fresh, not a powder or concentrate." },
+      { q: "Is there added sugar?", a: "Yes — organic maple syrup is the sweetener, balanced with a little sea salt. We disclose it; we don't claim 'no added sugar.'" },
+      { q: "Is it a sports drink?", a: "No — it's real coconut and mineral water with maple and sea salt, not a powdered electrolyte mix." },
     ],
     voices: {
-      simple: "Fresh-blended coconut water and coconut meat with a touch of honey. Real hydration, no powder.",
-      gt3: "Nature Aide is whole-coconut hydration — young coconut water blended with Thai coconut meat and finished with a little raw honey. It's blended to order from real coconut, not mixed from a powder or concentrate like a sports drink.",
-      founder: "This is the heart of GT3 — the whole coconut, not an electrolyte isolate. We blend the water and the meat together because that's how the body actually wants it, whole-food. The honey is the one sweetener and I'll always name it; we disclose, we never hide behind 'no added sugar.' Coconut is the mark on our cup for a reason — Nature Aide is that promise in a glass.",
+      simple: "Coconut and mineral water with a little organic maple and sea salt. Clean hydration, no powder.",
+      gt3: "Nature Aide is our light hydration — coconut water and mineral water with organic maple syrup and a pinch of sea salt. The maple and salt balance each other; it's real ingredients, not a powdered sports drink.",
+      founder: "Hydration doesn't need a lab. Coconut and mineral water carry what the body's after, organic maple gives it just enough, and sea salt rounds it out. The maple is the sweetener and I'll always name it — we disclose, we never hide behind 'no added sugar.' Simple, real, and it goes down easy in the middle of the work.",
     },
-    cookbook: { batch: "Blend to order (no long batch).", brew: ["Combine young coconut water + Thai coconut meat", "Add measured raw honey per spec", "Blend until smooth"], serve: ["Serve cold, in glass, immediately"], storage: "Make to order; do not hold blended.", quality: "Smooth, no separation at serve.", troubleshoot: [{ issue: "Too sweet", fix: "Reduce honey to spec; honey is the only added sweetener." }, { issue: "Separating", fix: "Serve immediately after blend." }] },
+    cookbook: { batch: "Mix to order (no long batch).", brew: ["Combine coconut water + mineral water", "Add organic maple syrup + sea salt to spec", "Stir until fully dissolved"], serve: ["Serve cold, in glass"], storage: "Make to order; keep cold.", quality: "Balanced sweet-and-salt, never cloying.", troubleshoot: [{ issue: "Too sweet", fix: "Reduce maple to spec." }, { issue: "Tastes flat", fix: "A pinch more sea salt lifts it." }] },
   },
   {
     key: "nitro", name: "Nitro Cold Brew", line: "Activation", price: "$7",
@@ -768,7 +769,7 @@ export const PRODUCTS: Product[] = [
     cookbook: { batch: "Standard Batch — GT3: 1:13 beans to mineral water, ~18-hr extraction.", brew: ["Weigh to 1:13", "Cold-extract ~18 hrs", "Filter; log batch + signal score"], serve: ["Use as the base for Rise/Flow/Dusk/Nitro"], storage: "Keep cold; honor the hold window.", quality: "Signal Score 8+; smoothness is the watch metric.", troubleshoot: [{ issue: "Low smoothness signal", fix: "Adjust grind/time toward spec; re-profile." }] },
   },
   {
-    key: "salted_maple", name: "Salted Maple Latte", line: "Specialty", price: "$8",
+    key: "salted_maple", name: "Salted Maple", line: "Specialty", price: "$8",
     what: "Cold-extracted coffee with real maple and a pinch of salt, balanced — not a sugar bomb.",
     why: "A touch of comfort and sweetness done with a real ingredient.",
     ingredients: ["Cold-extracted coffee", "Real maple", "Pinch of salt", "Milk or coconut base per build"],
@@ -778,7 +779,7 @@ export const PRODUCTS: Product[] = [
     faqs: [
       { q: "Is it very sweet?", a: "It's balanced — real maple with salt to round it. Maple is the sweetener; we disclose it." },
     ],
-    cookbook: { batch: "Build to order on the cold-brew base.", brew: ["Pull cold-brew base", "Add measured real maple + pinch of salt", "Add milk/coconut base per build"], serve: ["Over ice or steamed per build", "Made to order"], storage: "Make to order.", quality: "Sweet-salty balance; maple-forward, not cloying.", troubleshoot: [{ issue: "Too sweet", fix: "Cut maple to spec; add the salt pinch to balance." }] },
+    cookbook: { batch: "Build to order on the cold-brew base.", brew: ["Pull cold-brew base", "Add measured real maple + pinch of salt", "Add milk/coconut base per build"], serve: ["Over ice, or served warm per build", "Made to order"], storage: "Make to order.", quality: "Sweet-salty balance; maple-forward, not cloying.", troubleshoot: [{ issue: "Too sweet", fix: "Cut maple to spec; add the salt pinch to balance." }] },
   },
   {
     key: "bone_broth", name: "Bone Broth", line: "Fuel", price: "$9",

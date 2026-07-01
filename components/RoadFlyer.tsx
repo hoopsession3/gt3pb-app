@@ -31,8 +31,8 @@ const norm = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").
 
 // Defaults are true to the Academy source of truth — real products, real specs, honey disclosed.
 const DEFAULT_MENU = "COLD BREW\nRise · Flow · Dusk\n\nON NITRO\nNitro Cold Brew";
-const DEFAULT_SUB = "SPECIALTY\nSalted Maple Latte\n\nHYDRATION\nNature Aide · Coconut Shake";
-const DEFAULT_DETAILS = "Rise | Cold-extracted ~18 hrs, coconut-finished. No burnt bite.\nFlow | The same base, cacao-infused. Richer, no added sugar.\nDusk | Cinnamon and cardamom. Warm, spiced — same lift.\nNitro | Charged with nitrogen. Creamy, no milk, no ice.\nNature Aide | Coconut with a touch of raw honey. Blended fresh.";
+const DEFAULT_SUB = "SPECIALTY\nSalted Maple\n\nHYDRATION\nNature Aide · Tide";
+const DEFAULT_DETAILS = "Rise | Cold-extracted ~18 hrs, coconut-finished. No burnt bite.\nFlow | The same base, cacao-infused. Richer, no added sugar.\nDusk | Cinnamon and cardamom. Warm, spiced — same lift.\nNitro | Charged with nitrogen. Creamy, no milk, no ice.\nNature Aide | Coconut + mineral water, organic maple, sea salt.";
 
 export default function RoadFlyer() {
   const { toast } = useApp();
