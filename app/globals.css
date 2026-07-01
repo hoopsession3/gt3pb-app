@@ -1747,8 +1747,8 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .rf-btn{flex:1;padding:10px;border-radius:9px;border:1px dashed var(--line2);background:rgba(255,255,255,.02);color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer}
 .rf-btn.ghost{flex:0 0 auto;border-style:solid;color:var(--red);border-color:rgba(184,36,32,.4)}
 .rf-canvas{width:100%;max-width:300px;margin:6px auto 0;display:block;border-radius:12px;border:1px solid var(--line2);box-shadow:0 10px 30px rgba(0,0,0,.3)}
-.rf-tiles{display:flex;gap:6px}
-.rf-tile{flex:1;padding:9px;border-radius:9px;border:1px solid var(--line2);background:transparent;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:12.5px;cursor:pointer}
+.rf-tiles{display:flex;gap:6px;flex-wrap:wrap}
+.rf-tile{flex:1 1 auto;min-width:72px;padding:9px 6px;border-radius:9px;border:1px solid var(--line2);background:transparent;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:12px;cursor:pointer}
 .rf-tile.on{border-color:var(--gold);background:rgba(184,144,47,.14);color:var(--gold)}
 .rf-f textarea{width:100%;background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:9px;padding:10px 11px;color:var(--cream);font-family:'Inter';font-size:13.5px;box-sizing:border-box;resize:vertical;line-height:1.5}
 .app.crew-day .rf-f textarea{background:#fff}
