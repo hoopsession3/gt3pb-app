@@ -193,6 +193,15 @@ export default function RoadFlyer() {
       for (let r = 0; r < n; r++) for (let k = 0; k < n; k++) { ctx.fillStyle = (r + k) % 2 === 0 ? sq : acc; ctx.fillRect(o + k * cs, o + r * cs, cs, cs); }
       ctx.strokeStyle = GOLD; ctx.lineWidth = 2.5; ctx.strokeRect(-s, -s, s * 2, s * 2); ctx.restore();
     };
+    // The house emblem — GT3 set in Archivo Black, flanked by two checker-diamond bookends. This is
+    // the ONE constant across every template (the brand anchor); the templates differ around it.
+    const emblem = (cx: number, cy: number, col: string, sqO?: string) => {
+      ctx.save(); ctx.font = "900 50px 'Archivo Black', system-ui"; const w = ctx.measureText("GT3").width;
+      ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = col; ctx.fillText("GT3", cx, cy + 1); ctx.restore();
+      ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+      checkerDiamond(cx - w / 2 - 30, cy, 12, sqO); checkerDiamond(cx + w / 2 + 30, cy, 12, sqO);
+      return w / 2 + 42;
+    };
     // background paint; returns the split-band bottom (0 if none)
     const paintBg = (hero: boolean) => {
       if (th.split) {
@@ -237,12 +246,12 @@ export default function RoadFlyer() {
       }
     };
     const topMotif = (caption: string) => {
+      // Press keeps its editorial masthead (still GT3, top-centered); every other cut shows the GT3 emblem.
       if (th.motif === "masthead") { eyebrow("GT3 · Performance Bar", W / 2, 120, th.ink, "center", 6); return; }
-      const cy = 148, cx = W / 2;
-      if (th.motif === "neon") { eyebrow(`· ${caption} ·`, cx, cy, th.serif, "center", 6); return; }
-      if (th.motif === "monogram") { eyebrow("GT3 Mobile Bar", cx, cy, GOLD, "center", 5); return; }
-      ctx.strokeStyle = goldHair; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(M + 6, cy); ctx.lineTo(cx - 72, cy); ctx.moveTo(cx + 72, cy); ctx.lineTo(W - M - 6, cy); ctx.stroke();
-      checkerDiamond(cx, cy, 26); eyebrow(caption, cx, cy + 58, goldHair, "center");
+      const cy = 146, cx = W / 2;
+      const hw = emblem(cx, cy, th.dark ? CREAM : INK);
+      ctx.strokeStyle = goldHair; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(M + 6, cy); ctx.lineTo(cx - hw - 18, cy); ctx.moveTo(cx + hw + 18, cy); ctx.lineTo(W - M - 6, cy); ctx.stroke();
+      eyebrow(caption, cx, cy + 58, th.motif === "neon" ? th.serif : goldHair, "center");
     };
     const pageTag = (n: number) => {
       if (!n || th.motif === "masthead") return;
@@ -294,19 +303,39 @@ export default function RoadFlyer() {
       ctx.fillStyle = onPhoto ? RED : th.accent; ctx.fillText("NO NOISE.", W - M, H - 64); ctx.textAlign = "left";
     };
 
-    // ── PHOTO tile — a dark photo hero that still wears the chosen template ──
+    // ── PHOTO tile — a photo hero that wears the chosen template: each cut grades + marks the image
+    //    differently (color wash, grain, weave, split block, checker, ticket, masthead, monogram). ──
     if (tile === "photo") {
       ctx.fillStyle = INK; ctx.fillRect(0, 0, W, H);
       const img = f.photo ? await loadImg(f.photo) : null;
       if (img) cover(ctx, img, 0, 0, W, H); else { ctx.fillStyle = "#2a241c"; ctx.fillRect(0, 0, W, H); ctx.fillStyle = cm(.5); ctx.font = "500 28px 'DM Mono'"; ctx.textAlign = "center"; ctx.fillText("ADD A PHOTO", W / 2, H / 2); ctx.textAlign = "left"; }
+      // per-template color grade — the signature that makes each cut read distinctly, even over a photo
+      ctx.save();
+      if (th.id === "redline") { ctx.globalCompositeOperation = "multiply"; ctx.fillStyle = "rgba(184,36,32,.6)"; ctx.fillRect(0, 0, W, H); }
+      else if (th.id === "amber") { ctx.globalCompositeOperation = "multiply"; ctx.fillStyle = "rgba(201,150,60,.52)"; ctx.fillRect(0, 0, W, H); }
+      else if (th.id === "blackout") { ctx.fillStyle = "rgba(0,0,0,.44)"; ctx.fillRect(0, 0, W, H); }
+      ctx.restore();
+      if (th.weave) { const s = 18; ctx.save(); ctx.globalAlpha = .55; for (let yy = 0; yy < H; yy += s) for (let xx = 0; xx < W; xx += s) { ctx.fillStyle = ((xx / s + yy / s) % 2 === 0) ? "rgba(245,241,232,.03)" : "rgba(0,0,0,.5)"; ctx.fillRect(xx, yy, s, s); } ctx.restore(); }
+      if (th.grain) { for (let i = 0; i < 7000; i++) { ctx.fillStyle = `rgba(${Math.random() < .5 ? "245,241,232" : "0,0,0"},${Math.random() * .07})`; ctx.fillRect(Math.random() * W, Math.random() * H, 2, 2); } const vg = ctx.createRadialGradient(W / 2, H / 2, 220, W / 2, H / 2, 900); vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, "rgba(0,0,0,.55)"); ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H); }
+      // legibility gradients
       const g = ctx.createLinearGradient(0, H - 640, 0, H); g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,.86)"); ctx.fillStyle = g; ctx.fillRect(0, H - 640, W, 640);
       const gt = ctx.createLinearGradient(0, 0, 0, 320); gt.addColorStop(0, "rgba(0,0,0,.5)"); gt.addColorStop(1, "rgba(0,0,0,0)"); ctx.fillStyle = gt; ctx.fillRect(0, 0, W, 320);
-      // frame in the template's spirit (light, on photo)
+      // The Split — a charcoal caption block + red seam under the photo
+      if (th.split) { ctx.fillStyle = INK; ctx.fillRect(0, H - 440, W, 440); ctx.fillStyle = RED; ctx.fillRect(0, H - 440, W, 6); }
+      // The Monogram — faint oversized crest watermark
+      if (th.motif === "monogram") { ctx.save(); ctx.globalAlpha = .08; ctx.translate(W / 2, H / 2); ctx.rotate(Math.PI / 4); const s = 300, n = 6, cs2 = (s * 2) / n; for (let r = 0; r < n; r++) for (let k = 0; k < n; k++) if ((r + k) % 2 === 0) { ctx.fillStyle = CREAM; ctx.fillRect(-s + k * cs2, -s + r * cs2, cs2, cs2); } ctx.restore(); }
+      // frame per template (light, on photo)
       if (th.frame === "goldheavy") { ctx.strokeStyle = GOLD; ctx.lineWidth = 3; ctx.strokeRect(36, 36, W - 72, H - 72); ctx.strokeStyle = GOLD_LT; ctx.lineWidth = 1; ctx.strokeRect(46, 46, W - 92, H - 92); }
       else if (th.frame === "brackets") { ctx.strokeStyle = cm(.6); ctx.lineWidth = 3; const L = 70, o = 44; ([[o, o, 1, 1], [W - o, o, -1, 1], [o, H - o, 1, -1], [W - o, H - o, -1, -1]] as const).forEach(([x, y, dx, dy]) => { ctx.beginPath(); ctx.moveTo(x + dx * L, y); ctx.lineTo(x, y); ctx.lineTo(x, y + dy * L); ctx.stroke(); }); }
+      else if (th.frame === "ticket") { ctx.strokeStyle = cm(.7); ctx.lineWidth = 2.5; rr(ctx, 44, 44, W - 88, H - 88, 20); ctx.stroke(); const py = H - 232; ctx.save(); ctx.strokeStyle = cm(.55); ctx.lineWidth = 2; ctx.setLineDash([2, 12]); ctx.beginPath(); ctx.moveTo(72, py); ctx.lineTo(W - 72, py); ctx.stroke(); ctx.restore(); ctx.fillStyle = INK; ctx.beginPath(); ctx.arc(44, py, 22, 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(W - 44, py, 22, 0, 7); ctx.fill(); eyebrow("Admit One · GT3", W / 2, py + 42, cm(.6), "center", 5); }
+      else if (th.frame === "press") { ctx.fillStyle = cm(.42); ctx.fillRect(M, H - 160, W - 2 * M, 3); }
       else { const c1 = th.gold || th.warm ? GOLD : cm(.5); ctx.strokeStyle = c1; ctx.lineWidth = 2; ctx.strokeRect(38, 38, W - 76, H - 76); ctx.strokeStyle = th.gold || th.warm ? GOLD_LT : cm(.24); ctx.lineWidth = 1; ctx.strokeRect(48, 48, W - 96, H - 96); }
-      { const cy = 148, cx = W / 2, gc = th.gold || th.warm ? GOLD_LT : cm(.85); ctx.strokeStyle = gc; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(M + 6, cy); ctx.lineTo(cx - 72, cy); ctx.moveTo(cx + 72, cy); ctx.lineTo(W - M - 6, cy); ctx.stroke(); checkerDiamond(cx, cy, 26, CREAM); eyebrow("GT3 Mobile Bar", cx, cy + 58, gc, "center"); }
-      pageTag(0); // no page number on the photo hero
+      // top — editorial masthead or the crest
+      if (th.motif === "masthead") { eyebrow("GT3 · Performance Bar", W / 2, 120, cm(.9), "center", 6); ctx.fillStyle = cm(.5); ctx.fillRect(M, 150, W - 2 * M, 5); }
+      else { const cy = 146, cx = W / 2, gc = th.gold || th.warm ? GOLD_LT : cm(.85); const hw = emblem(cx, cy, CREAM, CREAM); ctx.strokeStyle = gc; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(M + 6, cy); ctx.lineTo(cx - hw - 18, cy); ctx.moveTo(cx + hw + 18, cy); ctx.lineTo(W - M - 6, cy); ctx.stroke(); eyebrow("GT3 Mobile Bar", cx, cy + 58, gc, "center"); }
+      // Checkered Flag — a cream/red racing band across the top
+      if (th.motif === "band") { const by = 252, cs2 = 30; for (let r = 0; r < 2; r++) for (let k = 0; k <= Math.ceil((W - 2 * M) / cs2); k++) if ((r + k) % 2 === 0) { ctx.fillStyle = r === 0 ? CREAM : RED; ctx.fillRect(M + k * cs2, by + r * cs2, cs2, cs2); } }
+      // headline
       const pAcc = th.gold ? GOLD : (th.accent === INK ? RED : th.accent);
       disp((f.headline1 || "").toUpperCase(), M, H - 300, "#fff", 100, th.glow ? RED : undefined);
       disp((f.headline2 || "").toUpperCase(), M, H - 300 + 104, pAcc, 100, th.glow ? RED : undefined);
