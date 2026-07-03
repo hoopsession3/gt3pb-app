@@ -31,25 +31,25 @@ type Theme = {
 };
 // The 10 templates — one family, ten director's cuts.
 const THEMES: Theme[] = [
-  { id: "marquee", name: "The Marquee", note: "cream · gold frame", paper: CREAM, ink: INK, sub: mc(.52), accent: RED, serif: GOLD, frame: "gold", motif: "crest", l1: "FIND US", l2: "ON THE ROAD" },
-  { id: "blackout", name: "Blackout", note: "charcoal night", paper: INK, ink: CREAM, sub: cm(.55), accent: RED, serif: GOLD_LT, frame: "gold", motif: "crest", dark: true, crestSq: CREAM, l1: "POURED", l2: "AFTER DARK" },
-  { id: "redline", name: "Redline", note: "signal-red field", paper: RED, ink: CREAM, sub: cm(.78), accent: INK, serif: CREAM, frame: "cream", motif: "crest", dark: true, crestSq: CREAM, crestAcc: INK, l1: "WIDE OPEN", l2: "NO LIFT" },
-  { id: "press", name: "The Press", note: "editorial masthead", paper: CREAM, ink: INK, sub: mc(.55), accent: RED, serif: INK, frame: "press", motif: "masthead", l1: "THE DAILY", l2: "POUR" },
-  { id: "goldleaf", name: "Gold Leaf", note: "gilded · opulent", paper: "#efe7d6", ink: INK, sub: mc(.5), accent: GOLD, serif: GOLD, frame: "goldheavy", motif: "crest", gold: true, l1: "SAVOR", l2: "THE RESERVE" },
-  { id: "checker", name: "Checkered Flag", note: "motorsport", paper: CREAM, ink: INK, sub: mc(.52), accent: RED, serif: INK, frame: "thin", motif: "band", l1: "LIGHTS OUT", l2: "POUR AWAY" },
-  { id: "split", name: "The Split", note: "charcoal ∕ cream", paper: CREAM, ink: INK, headInk: CREAM, sub: mc(.55), accent: RED, serif: GOLD, frame: "none", motif: "crest", split: true, crestSq: CREAM, l1: "SPLIT", l2: "THE DIFFERENCE" },
-  { id: "neon", name: "Neon Signal", note: "red-glow headline", paper: "#100d09", ink: CREAM, sub: cm(.55), accent: RED, serif: GOLD_LT, frame: "brackets", motif: "neon", dark: true, glow: true, crestSq: CREAM, l1: "THE NIGHT", l2: "SHIFT" },
+  { id: "marquee", name: "The Marquee", note: "cream · gold frame", paper: CREAM, ink: INK, sub: mc(.52), accent: RED, serif: GOLD, frame: "gold", motif: "crest", l1: "PULL OVER", l2: "STAY AWHILE" },
+  { id: "blackout", name: "Blackout", note: "charcoal night", paper: INK, ink: CREAM, sub: cm(.55), accent: RED, serif: GOLD_LT, frame: "gold", motif: "crest", dark: true, crestSq: CREAM, l1: "AFTER", l2: "THE LIGHTS" },
+  { id: "redline", name: "Redline", note: "signal-red field", paper: RED, ink: CREAM, sub: cm(.78), accent: INK, serif: CREAM, frame: "cream", motif: "crest", dark: true, crestSq: CREAM, crestAcc: INK, l1: "FLAT OUT", l2: "NO LIFT" },
+  { id: "press", name: "The Press", note: "editorial masthead", paper: CREAM, ink: INK, sub: mc(.55), accent: RED, serif: INK, frame: "press", motif: "masthead", l1: "TODAY'S", l2: "EDITION" },
+  { id: "goldleaf", name: "Gold Leaf", note: "gilded · opulent", paper: "#efe7d6", ink: INK, sub: mc(.5), accent: GOLD, serif: GOLD, frame: "goldheavy", motif: "crest", gold: true, l1: "GOLD", l2: "IN THE GLASS" },
+  { id: "checker", name: "Checkered Flag", note: "motorsport", paper: CREAM, ink: INK, sub: mc(.52), accent: RED, serif: INK, frame: "thin", motif: "band", l1: "LIGHTS OUT", l2: "AWAY WE GO" },
+  { id: "split", name: "The Split", note: "charcoal ∕ cream", paper: CREAM, ink: INK, headInk: CREAM, sub: mc(.55), accent: RED, serif: GOLD, frame: "none", motif: "crest", split: true, crestSq: CREAM, l1: "DRAW", l2: "THE LINE" },
+  { id: "neon", name: "Neon Signal", note: "red-glow headline", paper: "#100d09", ink: CREAM, sub: cm(.55), accent: RED, serif: GOLD_LT, frame: "brackets", motif: "neon", dark: true, glow: true, crestSq: CREAM, l1: "RED", l2: "TILL LATE" },
   { id: "monogram", name: "The Monogram", note: "oversized crest", paper: CREAM, ink: INK, sub: mc(.5), accent: RED, serif: GOLD, frame: "thin", motif: "monogram", l1: "PURE", l2: "SIGNAL" },
   { id: "reserve", name: "Grain & Frame", note: "cinematic grain", paper: "#161009", ink: CREAM, sub: cm(.6), accent: RED, serif: GOLD_LT, frame: "gold", motif: "crest", dark: true, grain: true, crestSq: CREAM, l1: "SHOT ON", l2: "LOCATION" },
-  { id: "carbon", name: "Carbon Fiber", note: "woven motorsport", paper: "#17130d", ink: CREAM, sub: cm(.55), accent: RED, serif: GOLD_LT, frame: "gold", motif: "crest", dark: true, weave: true, crestSq: CREAM, l1: "ENGINEERED", l2: "TO ORDER" },
-  { id: "ticket", name: "The Ticket", note: "event ticket · perforated", paper: CREAM, ink: INK, sub: mc(.5), accent: RED, serif: GOLD, frame: "ticket", motif: "crest", l1: "YOU'RE", l2: "INVITED" },
+  { id: "carbon", name: "Carbon Fiber", note: "woven motorsport", paper: "#17130d", ink: CREAM, sub: cm(.55), accent: RED, serif: GOLD_LT, frame: "gold", motif: "crest", dark: true, weave: true, crestSq: CREAM, l1: "BUILT", l2: "TO SPEC" },
+  { id: "ticket", name: "The Ticket", note: "event ticket · perforated", paper: CREAM, ink: INK, sub: mc(.5), accent: RED, serif: GOLD, frame: "ticket", motif: "crest", l1: "ADMIT", l2: "ONE" },
   { id: "amber", name: "Amber Glow", note: "warm sunrise gradient", paper: CREAM, ink: INK, sub: mc(.5), accent: RED, serif: GOLD, frame: "gold", motif: "crest", warm: true, l1: "RISE", l2: "AND ROLL" },
-  { id: "proof", name: "The Proof", note: "press proof · registration", paper: CREAM, ink: INK, sub: mc(.52), accent: RED, serif: INK, frame: "proof", motif: "crest", l1: "PROOF", l2: "OF THE POUR" },
+  { id: "proof", name: "The Proof", note: "press proof · registration", paper: CREAM, ink: INK, sub: mc(.52), accent: RED, serif: INK, frame: "proof", motif: "crest", l1: "NOTHING", l2: "TO HIDE" },
   { id: "deco", name: "The Deco", note: "art-deco · gilded rays", paper: "#141007", ink: CREAM, sub: cm(.6), accent: GOLD, serif: GOLD_LT, frame: "gold", motif: "crest", dark: true, deco: true, gold: true, crestSq: CREAM, l1: "THE GOLDEN", l2: "HOUR" },
-  { id: "offset", name: "Offset", note: "riso duotone · handmade", paper: CREAM, ink: INK, sub: mc(.52), accent: RED, serif: INK, frame: "thin", motif: "crest", offset: true, l1: "MADE", l2: "BY HAND" },
+  { id: "offset", name: "Offset", note: "riso duotone · handmade", paper: CREAM, ink: INK, sub: mc(.52), accent: RED, serif: INK, frame: "thin", motif: "crest", offset: true, l1: "ONE", l2: "AT A TIME" },
   { id: "nocturne", name: "Nocturne", note: "spotlit charcoal", paper: "#0f0c08", ink: CREAM, sub: cm(.55), accent: RED, serif: GOLD_LT, frame: "thin", motif: "crest", dark: true, spotlight: true, crestSq: CREAM, l1: "LOW", l2: "AND SLOW" },
   { id: "terrazzo", name: "Terrazzo", note: "speckled · whole-food", paper: CREAM, ink: INK, sub: mc(.52), accent: RED, serif: GOLD, frame: "thin", motif: "crest", terrazzo: true, l1: "THE WHOLE", l2: "COCONUT" },
-  { id: "halftone", name: "Halftone", note: "pop-art dots", paper: CREAM, ink: INK, sub: mc(.52), accent: RED, serif: INK, frame: "thin", motif: "crest", halftone: true, l1: "BOLD", l2: "BY NATURE" },
+  { id: "halftone", name: "Halftone", note: "pop-art dots", paper: CREAM, ink: INK, sub: mc(.52), accent: RED, serif: INK, frame: "thin", motif: "crest", halftone: true, l1: "ALL", l2: "SIGNAL" },
 ];
 
 const MON = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
