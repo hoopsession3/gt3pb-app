@@ -61,6 +61,9 @@ function dateLine(iso: string | null): string {
   return `${DOW[d.getDay()]} · ${MON[d.getMonth()]} ${d.getDate()}`;
 }
 const norm = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+// Crop box (fractions of the gt3pb-handle.png) that isolates just the red "GT3" from the full lockup —
+// measured from the asset's red bounding box. We draw THESE PIXELS, never a redrawn approximation.
+const LOGO = { fx: 0.035, fy: 0.05, fw: 0.93, fh: 0.50 };
 
 // Defaults are true to the Academy source of truth — real products, real specs, honey disclosed.
 const DEFAULT_MENU = "COLD BREW\nRise · Flow · Dusk\n\nON NITRO\nNitro Cold Brew";
@@ -78,8 +81,7 @@ export default function RoadFlyer() {
   const [busy, setBusy] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
   const [f, setF] = useState({ headline1: THEMES[0].l1, headline2: THEMES[0].l2, date: "", time: "", place: "", address: "", photo: "", menu: DEFAULT_MENU, submenu: DEFAULT_SUB, details: DEFAULT_DETAILS });
-  const wmRef = useRef<HTMLImageElement | null>(null);   // full wordmark → footer
-  const logoRef = useRef<HTMLImageElement | null>(null); // GT3 mark/icon → the top-center emblem
+  const logoRef = useRef<HTMLImageElement | null>(null); // the real GT3 logo image (gt3pb-handle.png)
   const [logoReady, setLogoReady] = useState(0);
   const headEditedRef = useRef(false); // once the user types their own headline, stop auto-seeding the saying
 
@@ -137,25 +139,10 @@ export default function RoadFlyer() {
   const pick = (key: string) => { const o = opts.find((x) => x.key === key); if (o) setF((p) => ({ ...p, date: o.date, time: o.time, place: o.place, address: o.address })); };
 
   useEffect(() => {
-    if (!supabase) return;
     let alive = true;
-    (async () => {
-      let wm = "", lg = "";
-      const { data: bk } = await supabase.from("brand_kit").select("wordmark_url, logo_url").limit(1).maybeSingle();
-      if (bk) { wm = (bk as any).wordmark_url || (bk as any).logo_url || ""; lg = (bk as any).logo_url || ""; }
-      if (!wm || !lg) {
-        const { data: ba } = await supabase.from("brand_assets").select("kind, url, sort").in("kind", ["wordmark", "logo", "icon"]).order("sort");
-        const list = (ba as any[]) ?? [];
-        if (!wm) wm = (list.find((a) => a.kind === "wordmark") || list.find((a) => a.kind === "logo") || {}).url || "";
-        // the emblem prefers a compact mark: icon → logo → (as a last resort) the wordmark
-        if (!lg) lg = (list.find((a) => a.kind === "icon") || list.find((a) => a.kind === "logo") || list.find((a) => a.kind === "wordmark") || {}).url || "";
-      }
-      const load = (url: string, ref: React.MutableRefObject<HTMLImageElement | null>) => {
-        if (!url) return; const img = new Image(); img.crossOrigin = "anonymous";
-        img.onload = () => { if (alive) { ref.current = img; setLogoReady((n) => n + 1); } }; img.src = url;
-      };
-      load(wm, wmRef); load(lg, logoRef);
-    })();
+    const img = new Image(); img.crossOrigin = "anonymous";
+    img.onload = () => { if (alive) { logoRef.current = img; setLogoReady((n) => n + 1); } };
+    img.src = "/brand/gt3pb-handle.png"; // the real GT3 logo asset (committed in /public/brand)
     return () => { alive = false; };
   }, []);
 
@@ -209,10 +196,20 @@ export default function RoadFlyer() {
       return w > maxW ? Math.max(52, Math.floor(maxSize * (maxW / w))) : maxSize;
     };
     const goldHead = (y: number, size: number) => { const g = ctx.createLinearGradient(0, y - size, 0, y + 8); g.addColorStop(0, GOLD_LT); g.addColorStop(.5, GOLD); g.addColorStop(1, "#8a6531"); return g; };
-    // The house emblem — GT3 in Signal Red, the ONE constant across every template (the brand anchor).
-    // The GT3 emblem — the real mark: "GT3" in Signal Red, bold (matches the brand logo). Red reads
-    // on cream AND charcoal; on the red field it flips to cream. No invented ornaments.
+    // The house emblem — the REAL GT3 logo, cropped straight from the asset (no redraw). Red-on-
+    // transparent reads on cream + charcoal; on the red field it gets a cream chip to stay visible.
+    const gtLogo = (cx: number, cy: number, h: number, chip: boolean) => {
+      const src = logoRef.current; if (!src || !src.width) return null;
+      const sx = LOGO.fx * src.width, sy = LOGO.fy * src.height, sw = LOGO.fw * src.width, sh = LOGO.fh * src.height;
+      let dh = h, dw = sw * (dh / sh); const maxW = W - 2 * M - 100; if (dw > maxW) { const k = maxW / dw; dw *= k; dh *= k; }
+      if (chip) { ctx.fillStyle = CREAM; rr(ctx, cx - dw / 2 - 18, cy - dh / 2 - 12, dw + 36, dh + 24, 12); ctx.fill(); }
+      ctx.drawImage(src, sx, sy, sw, sh, cx - dw / 2, cy - dh / 2, dw, dh);
+      return dw / 2;
+    };
     const emblem = (cx: number, cy: number, _col?: string, _sqO?: string, _onDark = false) => {
+      const hw = gtLogo(cx, cy, 74, th.id === "redline");
+      if (hw != null) return hw + (th.id === "redline" ? 24 : 16);
+      // fallback ONLY if the asset failed to load — the red GT3 wordmark drawn (never white/checker)
       ctx.save(); (ctx as any).letterSpacing = "-2px"; ctx.font = "900 60px 'Archivo Black', system-ui";
       ctx.textAlign = "center"; ctx.textBaseline = "middle"; const w = ctx.measureText("GT3").width;
       ctx.fillStyle = th.id === "redline" ? CREAM : RED; ctx.fillText("GT3", cx, cy + 1);
@@ -324,10 +321,16 @@ export default function RoadFlyer() {
     const footer = (onPhoto = false) => {
       ctx.fillStyle = onPhoto ? cm(.32) : goldFaint; ctx.fillRect(M, H - 150, W - 2 * M, 1.5);
       ctx.textAlign = "left";
-      // The wordmark, drawn: red "GT3" + "PERFORMANCE BAR" in the theme ink. Drawn (not the single-tone
-      // wordmark PNG, which is white and vanishes on cream) so it's legible on every template.
-      ctx.font = "900 38px 'Archivo Black', system-ui"; ctx.fillStyle = onPhoto ? RED : (th.id === "redline" ? CREAM : RED); ctx.fillText("GT3", M, H - 74);
-      ctx.font = "500 21px 'DM Mono', monospace"; ctx.fillStyle = onPhoto ? "#fff" : th.ink; ctx.fillText("PERFORMANCE BAR", M + 92, H - 78);
+      // Footer wordmark = the SAME real GT3 logo pixels, small, left-aligned (chip on the red field).
+      const src = logoRef.current;
+      if (src && src.width) {
+        const sx = LOGO.fx * src.width, sy = LOGO.fy * src.height, sw = LOGO.fw * src.width, sh = LOGO.fh * src.height;
+        const dh = 40, dw = sw * (dh / sh), y = Math.round(H - 96 - dh / 2);
+        if (th.id === "redline") { ctx.fillStyle = CREAM; rr(ctx, M - 10, y - 8, dw + 20, dh + 16, 8); ctx.fill(); }
+        ctx.drawImage(src, sx, sy, sw, sh, M, y, dw, dh);
+      } else {
+        ctx.font = "900 38px 'Archivo Black', system-ui"; ctx.fillStyle = onPhoto ? RED : (th.id === "redline" ? CREAM : RED); ctx.fillText("GT3", M, H - 74);
+      }
       ctx.textAlign = "right";
       ctx.font = "900 28px 'Archivo Black', system-ui"; ctx.fillStyle = onPhoto ? "#fff" : th.ink; ctx.fillText("PURE SIGNAL.", W - M, H - 98);
       ctx.fillStyle = onPhoto ? RED : th.accent; ctx.fillText("NO NOISE.", W - M, H - 64); ctx.textAlign = "left";
