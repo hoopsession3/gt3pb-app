@@ -8,7 +8,7 @@ Add new risks at the top. Close one by setting **Status: Closed** with the date 
 | R-004 | Anthropic API key exposed in chat (rotation deferred) | Medium | Open (rotation pending) | Ryan |
 | R-001 | Unencrypted BI connection (Looker Studio → Supabase) | Medium | Accepted (temporary) | Ryan |
 | R-002 | Per-tenant RLS staged but not enforced | Medium | Open (staged) | Ryan |
-| R-003 | Audit-log trigger write volume / retention | Low–Medium | Open (monitor) | Ryan |
+| R-003 | Audit-log trigger write volume / retention | Low–Medium | Closed (2026-07-05) | Ryan |
 
 ---
 
@@ -109,8 +109,9 @@ single-tenant is recorded here.
 ## R-003 — Audit-log trigger write volume / retention
 
 - **Opened:** 2026-06-23
+- **Closed:** 2026-07-05
 - **Severity:** Low–Medium
-- **Status:** Open (monitor)
+- **Status:** Closed — retention policy in place; growth is now bounded.
 - **Owner:** Ryan
 
 **Description.** The append-only `audit_log` (migration `0042`) is populated by triggers on
@@ -121,8 +122,13 @@ write amplification and unbounded table growth on a Nano-tier database (15-conne
 **Impact.** Over time, `audit_log` growth consumes DB storage and the audit triggers add latency
 to hot writes (e.g. order completion).
 
-**Plan / mitigation.** Add a retention policy (e.g. a `pg_cron` job to prune/archive audit rows
-older than N months) and/or narrow the triggers to the tables that genuinely need an audit trail.
-Revisit when order volume grows.
+**Resolution (2026-07-05).** Migration `0117` adds `public.tidy_audit_log(keep_days int default
+365)` — a `SECURITY DEFINER` pruner scheduled weekly via `pg_cron` (`tidy-audit-log`, Mon 07:10)
+that deletes audit rows older than one year. Growth is now bounded at ~12 months of trail (ample
+for the due-diligence story). The window is floored at 90 days in-function so a bad argument can't
+erase the recent trail, and `execute` is revoked from `anon`/`authenticated` so the tamper-proof
+log can't be purged by an app user — only the cron owner runs it. Trigger narrowing was considered
+and deferred: the current trigger set is intentional for traceability and the retention policy
+already bounds the cost.
 
-**Close when:** a retention/prune policy is in place and `audit_log` growth is bounded.
+**Close when:** ~~a retention/prune policy is in place and `audit_log` growth is bounded.~~ **Done.**
