@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { SQUARE_BASE, squareHeaders, planForPack, subsConfigured, mapSubStatus } from "@/lib/squareServer";
+import { raiseAlert } from "@/lib/serverAlerts";
 
 // Create a recurring subscription: ensure a Square Customer, vault the card, then
 // CreateSubscription against the owner's plan variation. Square owns billing; we keep
@@ -42,6 +43,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "You already have a subscription." }, { status: 409 });
   }
   const rowId = pending.id as string;
+  // Tracks whether a LIVE Square subscription exists for this attempt. Once it does, we must never
+  // delete the mirror row — that would orphan a billing subscription the member can't cancel in-app.
+  let squareSubId: string | null = null;
 
   try {
     const { data: prof } = await supabaseAdmin.from("profiles").select("display_name, square_customer_id").eq("id", user.id).maybeSingle();
@@ -78,19 +82,33 @@ export async function POST(req: Request) {
     const subData = await subRes.json();
     if (!subRes.ok) throw new Error(subData?.errors?.[0]?.detail || "Subscription couldn't start");
     const sub = subData?.subscription;
+    squareSubId = sub?.id ?? null;
 
-    // 4) fill the mirror (webhook reconciles authoritatively)
+    // Persist the Square id to the mirror IMMEDIATELY — before anything else can throw — so the row
+    // can never be orphaned: the member can always cancel, and the webhook can always match by id.
+    if (squareSubId) await supabaseAdmin.from("subscriptions").update({ square_subscription_id: squareSubId }).eq("id", rowId);
+
+    // 4) fill the rest of the mirror (webhook reconciles authoritatively)
     await supabaseAdmin.from("subscriptions").update({
-      square_subscription_id: sub?.id,
       status: mapSubStatus(sub?.status),
       square_card_id: cardId,
       current_period_end: sub?.charged_through_date || null,
       updated_at: new Date().toISOString(),
     }).eq("id", rowId);
 
+    // Leadership visibility — new recurring revenue shouldn't be invisible.
+    await raiseAlert({ severity: "fyi", category: "note", title: "New subscriber 🎉", body: `A member started a ${pack}-pack coffee subscription. See Subscribers.` });
     return NextResponse.json({ ok: true, status: mapSubStatus(sub?.status) });
   } catch (e) {
-    // Roll back the pending claim so the member isn't stuck and can retry.
+    if (squareSubId) {
+      // A Square subscription is LIVE. Deleting the mirror would orphan a billing subscription the
+      // member could never cancel in-app. Keep the row, ensure it carries the id, mark it active,
+      // and flag staff to reconcile — never silently drop a paying member.
+      await supabaseAdmin.from("subscriptions").update({ status: "active", square_subscription_id: squareSubId, updated_at: new Date().toISOString() }).eq("id", rowId);
+      await raiseAlert({ severity: "critical", category: "money", title: "Subscription needs reconcile", body: `A subscription is live at Square (${squareSubId}) but setup errored after billing started. It's kept so the member can cancel — verify the mirror in Subscribers.` });
+      return NextResponse.json({ ok: true, status: "active", warn: "You're subscribed — we're finalizing a couple details." });
+    }
+    // Nothing was created at Square — safe to roll back the pending claim so the member can retry.
     await supabaseAdmin.from("subscriptions").delete().eq("id", rowId);
     return NextResponse.json({ error: e instanceof Error ? e.message : "Subscription couldn't start" }, { status: 400 });
   }

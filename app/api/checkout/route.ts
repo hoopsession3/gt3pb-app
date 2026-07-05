@@ -3,6 +3,7 @@ import { DRINKS, type DrinkId } from "@/lib/menu";
 import { SQUARE_BASE, SQUARE_VERSION } from "@/lib/squareServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
+import { raiseAlert } from "@/lib/serverAlerts";
 
 // Authoritative prices from Square Catalog; fall back to the locked catalog if unavailable.
 async function priceMap(token: string): Promise<Record<string, number>> {
@@ -73,18 +74,19 @@ export async function POST(req: Request) {
     // are consistent across paid and pre-order paths.
     const user = await userFromRequest(req); // null for guest checkout
     const customer = typeof body.customer === "string" && body.customer.trim() ? body.customer.trim().slice(0, 80) : null;
-    const { error: insErr } = await supabaseAdmin.from("orders").insert({
-      items,
-      total_cents: subtotal,
-      paid: true,
-      payment_id: paymentId,
-      customer,
-      user_id: user?.id ?? null,
-      status: "new",
-    });
+    const orderRow = { items, total_cents: subtotal, paid: true, payment_id: paymentId, customer, user_id: user?.id ?? null, status: "new" };
+    let { error: insErr } = await supabaseAdmin.from("orders").insert(orderRow);
     if (insErr) {
-      // Charge succeeded but recording failed — surface a payment id so the operator can reconcile.
-      return NextResponse.json({ ok: true, paymentId, amount, recorded: false, warn: "Paid — tell staff to add your order." }, { status: 200 });
+      // Charge succeeded but recording failed. Retry once — a transient DB blip must not cost the
+      // customer their order record when their money is already taken.
+      ({ error: insErr } = await supabaseAdmin.from("orders").insert(orderRow));
+    }
+    if (insErr) {
+      // Still failed: alert the crew immediately with the payment id + items so they add it by hand,
+      // and hand the customer a reference to show at the window. No more "just tell staff".
+      const ref = (paymentId || "").slice(-6).toUpperCase();
+      await raiseAlert({ severity: "critical", category: "money", title: "Paid order didn't record — add it", body: `A card payment succeeded (${paymentId}) but the order didn't save. ${customer ? `Name: ${customer}. ` : ""}Items: ${items.join(", ")}. Add it to the pass and confirm in Square.` });
+      return NextResponse.json({ ok: true, paymentId, amount, recorded: false, ref, warn: `Payment received${ref ? ` — ref ${ref}` : ""}. We've alerted the crew to add your order; show this ref at the window.` }, { status: 200 });
     }
     return NextResponse.json({ ok: true, paymentId, amount, recorded: true });
   } catch {
