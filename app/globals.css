@@ -2934,6 +2934,24 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .dops-prog.done{color:#7FA86B}
 .dops-order.done{opacity:.5}
 .dops-tel{color:var(--gold2,#B8902F);text-decoration:none;font-weight:600}
+/* fulfillment + planning */
+.dops-due{font-size:11.5px;color:var(--gold2,#B8902F);font-weight:600;margin:-6px 2px 12px}
+.dops-owe{font-style:normal;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#d9903f;border:1px solid rgba(217,144,63,.45);border-radius:20px;padding:1px 6px;margin-left:4px;vertical-align:1px}
+.dops-plan{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:11.5px;color:var(--muted);border:1px dashed var(--hair,rgba(245,241,232,.18));border-radius:12px;padding:9px 12px;margin:0 0 12px;flex-wrap:wrap}
+.dops-plan.queued{border-style:solid;color:#cfe6c0;border-color:rgba(127,168,107,.35)}
+.dops-plan button{border:1.5px solid var(--gold2,#B8902F);border-radius:10px;background:transparent;color:var(--gold2,#B8902F);padding:7px 12px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;-webkit-appearance:none;appearance:none}
+.dops-mini{flex:none;border:1.5px solid var(--hair,rgba(245,241,232,.14));border-radius:10px;background:transparent;color:var(--muted);padding:9px 10px;font-size:11px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;-webkit-appearance:none;appearance:none}
+.dops-mini.danger{color:#c98e8e;border-color:rgba(200,90,90,.4)}
+/* crew-day (light) — complete the palette so the sheet + Now screen read at full contrast */
+.app.crew-day .dops-kick,.app.crew-day .dops-meta,.app.crew-day .dops-prog,.app.crew-day .dops-empty,.app.crew-day .dops-brew,.app.crew-day .dops-plan{color:#6f6a59}
+.app.crew-day .dops-stat,.app.crew-day .dops-order,.app.crew-day .dops-check,.app.crew-day .dops-mini,.app.crew-day .dops-plan{border-color:rgba(34,31,24,.16)}
+.app.crew-day .dops-stat .sk{color:#8a8371}
+.app.crew-day .dops-check{color:#57524a}
+.app.crew-day .dops-check.done{color:#3f6b2f;border-color:#7FA86B}
+.app.crew-day .dops-chip.ret{color:#3f6b2f}
+.app.crew-day .dops-mini{color:#57524a}
+.app.crew-day .dops-mini.danger{color:#a13c34;border-color:rgba(161,60,52,.4)}
+.app.crew-day .dops-plan.queued{color:#3f6b2f;border-color:rgba(127,168,107,.5)}
 
 /* order-ahead pitch tags (MOST POPULAR / BEST VALUE) on the reserve card */
 .subpitch-pack{position:relative}
