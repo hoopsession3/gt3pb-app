@@ -22,8 +22,8 @@ const DEMO_POINTS: RoutePoint[] = [
 ];
 
 // ───────────────────────── editorial dispatch header (no card/tiles/clock) ─────────────────────────
-function Dispatch({ live, place, sub, openLabel, eta, next, onOrder }: {
-  live: boolean; place: string; sub: string; openLabel: string; eta?: string | null; next: string | null; onOrder: () => void;
+function Dispatch({ live, place, sub, when, openLabel, eta, next, onOrder }: {
+  live: boolean; place: string; sub: string; when: string; openLabel: string; eta?: string | null; next: string | null; onOrder: () => void;
 }) {
   return (
     <header className="disp">
@@ -31,7 +31,8 @@ function Dispatch({ live, place, sub, openLabel, eta, next, onOrder }: {
       <h1 className="disp-name">{place}</h1>
       {sub && <p className="disp-sub">{sub}</p>}
       <div className="disp-facts">
-        <div className="fact"><span className="fk">Status</span><span className={`fv${live ? " ok" : ""}`}>{live ? "Live" : "Soon"}</span></div>
+        {/* Live: status leads. Not live: the DAY leads — "open 5pm" means nothing without it. */}
+        <div className="fact"><span className="fk">{live ? "Status" : "Day"}</span><span className={`fv${live ? " ok" : ""}`}>{live ? "Live" : when || "Soon"}</span></div>
         <div className="fact"><span className="fk">Open</span><span className="fv">{openLabel || "—"}</span></div>
         {/* Only a real, data-backed third fact — no invented "wait" time. */}
         {eta && <div className="fact"><span className="fk">{live ? "Next stop" : "ETA"}</span><span className="fv">{eta}</span></div>}
@@ -42,12 +43,20 @@ function Dispatch({ live, place, sub, openLabel, eta, next, onOrder }: {
   );
 }
 
-function nextLabelFrom(stops: Stop[], liveId?: string) {
-  const idx = stops.findIndex((s) => s.id === liveId);
-  const n = (idx >= 0 ? stops.slice(idx + 1) : stops).find((s) => s.id !== liveId) ?? stops.find((s) => s.id !== liveId);
+function stopLabel(n: Stop | undefined): string | null {
   if (!n) return null;
   const when = [whenDay(n), whenDate(n), whenTime(n)].filter(Boolean).join(" ");
   return `${n.name}${when ? `, ${when}` : ""}`.trim();
+}
+// The stop AFTER the one being featured. When live, walk past the live stop; when idle, it's simply
+// the second stop on the (date-ordered) road ahead — live_status.current_stop_id can be stale from
+// the last session and must not steer this while the truck is offline.
+function nextLabelFrom(stops: Stop[], isLive: boolean, liveId?: string | null) {
+  if (isLive && liveId) {
+    const idx = stops.findIndex((s) => s.id === liveId);
+    return stopLabel((idx >= 0 ? stops.slice(idx + 1) : stops.slice(1)).find((s) => s.id !== liveId));
+  }
+  return stopLabel(stops[1]);
 }
 
 // Day abbrev / time for a stop — prefer the hand-set labels, else derive from the real date (starts_at)
@@ -108,10 +117,15 @@ function TruckLive() {
     const lstat = l as LiveStatus | null;
     const liveId = lstat?.is_live ? lstat.current_stop_id : null;
     const nowT = Date.now();
-    if (s) setStops((s as (Stop & { completed_at?: string | null })[]).filter((x) =>
-      !x.archived_at && x.status !== "done" && !x.completed_at
-      && (x.id === liveId || !x.starts_at || new Date(x.starts_at).getTime() > nowT - 8 * 3600 * 1000)
-    ));
+    if (s) setStops((s as (Stop & { completed_at?: string | null })[])
+      .filter((x) =>
+        !x.archived_at && x.status !== "done" && !x.completed_at
+        && (x.id === liveId || !x.starts_at || new Date(x.starts_at).getTime() > nowT - 8 * 3600 * 1000)
+      )
+      // Soonest first: guests read the road in date order (undated stops sink to the end),
+      // so the headline is always the next real stop — not whoever sorts first by hand.
+      .sort((a, b) => (a.starts_at ? Date.parse(a.starts_at) : Infinity) - (b.starts_at ? Date.parse(b.starts_at) : Infinity))
+    );
     if (lstat) setLive(lstat);
     setLoaded(true);
   }, []);
@@ -168,9 +182,10 @@ function TruckLive() {
         live={isLive}
         place={liveStop?.name ?? (loaded ? "No stops yet" : "…")}
         sub={liveStop ? descFor(liveStop) : ""}
+        when={liveStop ? [whenDay(liveStop), whenDate(liveStop)].filter(Boolean).join(" ") : ""}
         openLabel={liveStop ? fmt12(whenTime(liveStop)) ?? "" : ""}
         eta={fmt12(live?.next_eta)}
-        next={nextLabelFrom(stops, liveStop?.id)}
+        next={nextLabelFrom(stops, isLive, live?.current_stop_id)}
         onOrder={() => router.push("/menu")}
       />
 
