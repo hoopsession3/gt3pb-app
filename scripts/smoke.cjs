@@ -2,6 +2,7 @@ const L = require("../.smoke/loadout.js");
 const C = require("../.smoke/cogs.js");
 const I = require("../.smoke/ics.js");
 const CL = require("../.smoke/captionLint.js");
+const OA = require("../.smoke/orderAhead.js");
 let pass = 0, fail = 0;
 const ok = (name, cond, got) => { if (cond) { pass++; } else { fail++; console.log(`  ✗ ${name}` + (got !== undefined ? ` → got ${JSON.stringify(got)}` : "")); } };
 
@@ -138,6 +139,37 @@ const lo = L.computeLoadout(pack, tp);
 ok("loadout cargoLb>0", lo.cargoLb > 0, lo.cargoLb);
 ok("loadout zones assigned", lo.items.every(i=>["nose","axle","tail"].includes(i.zone)));
 ok("tongue 10-15 target present", lo.tonguePct >= 0);
+
+// --- ORDER-AHEAD: pricing config is the single source of truth (70% margin floor lives here) ---
+ok("return pack 3 = $22.50", OA.packTotal(3, "return") === 22.5, OA.packTotal(3, "return"));
+ok("return pack 6 = $42", OA.packTotal(6, "return") === 42, OA.packTotal(6, "return"));
+ok("return pack 12 = $78", OA.packTotal(12, "return") === 78, OA.packTotal(12, "return"));
+ok("new glass 6 = $60 flat (no discount)", OA.packTotal(6, "new") === 60, OA.packTotal(6, "new"));
+ok("new glass per-bottle = $10", OA.perBottle(12, "new") === 10, OA.perBottle(12, "new"));
+ok("save on 6-pack = $18", OA.saveAmount(6) === 18, OA.saveAmount(6));
+ok("save on 12-pack = $42", OA.saveAmount(12) === 42, OA.saveAmount(12));
+ok("toCents rounds", OA.toCents(22.5) === 2250, OA.toCents(22.5));
+ok("dollars formats cents", OA.dollars(22.5) === "$22.50", OA.dollars(22.5));
+ok("dollars whole no decimals", OA.dollars(78) === "$78", OA.dollars(78));
+ok("isPackSize gate", OA.isPackSize(6) && !OA.isPackSize(9));
+// flavor mix
+const mix = { RISE: 2, FLOW: 2, DUSK: 2 };
+ok("mixTotal sums", OA.mixTotal(mix) === 6, OA.mixTotal(mix));
+ok("mixComplete when equal", OA.mixComplete(mix, 6) === true);
+ok("mixComplete false when short", OA.mixComplete({ RISE: 1, FLOW: 0, DUSK: 0 }, 6) === false);
+ok("overfull mix resets on shrink", OA.mixTotal(OA.mixFitsOrReset(mix, 3)) === 0, OA.mixFitsOrReset(mix, 3));
+ok("fitting mix kept on shrink", OA.mixTotal(OA.mixFitsOrReset({ RISE: 3, FLOW: 0, DUSK: 0 }, 3)) === 3);
+ok("mixSummary reads", OA.mixSummary({ RISE: 2, FLOW: 0, DUSK: 1 }) === "2× RISE · 1× DUSK", OA.mixSummary({ RISE: 2, FLOW: 0, DUSK: 1 }));
+// cutoff: Wed 18:00 closes that Saturday; past it rolls a week
+const wedAM = new Date(2026, 6, 1, 9, 0);   // Wed Jul 1 2026, 9am — before cutoff
+const wedPM = new Date(2026, 6, 1, 18, 1);  // Wed Jul 1 2026, 18:01 — after cutoff
+const satD = OA.nextDrop(wedAM).sat, satD2 = OA.nextDrop(wedPM).sat;
+ok("open Wed am → this Saturday Jul 4", satD.getMonth() === 6 && satD.getDate() === 4, satD.toDateString());
+ok("cutoff is Wed 18:00", OA.nextDrop(wedAM).cutoff.getHours() === 18 && OA.nextDrop(wedAM).cutoff.getDay() === 3);
+ok("past cutoff → next Saturday Jul 11", satD2.getDate() === 11, satD2.toDateString());
+ok("Saturday itself rolls forward", OA.nextDrop(new Date(2026, 6, 4, 10, 0)).sat.getDate() === 11);
+ok("dropIsOpen matches resolved sat", OA.dropIsOpen(satD.toISOString(), wedAM) === true);
+ok("dropIsOpen false for stale drop", OA.dropIsOpen(new Date(2026, 5, 27).toISOString(), wedAM) === false);
 
 console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
 console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);
