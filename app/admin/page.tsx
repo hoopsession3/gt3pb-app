@@ -181,7 +181,7 @@ function Kitchen() {
   const late = active.filter((o) => o.status !== "ready" && ageMin(o.created_at) >= 8);
 
   return (
-    <div className="adm-sec">
+    <div className="adm-sec" id="kitchen-pass">
       <div className="sec">The pass{active.length > 0 && <span className="adm-pill">{active.length} active</span>}
         <button type="button" className="kds-mute" onClick={toggleMute} aria-pressed={muted}>{muted ? "🔇 Muted" : "🔔 Sound"}</button>
       </div>
@@ -292,15 +292,20 @@ async function commentCounts(col: "event_task_id" | "meeting_note_id" | "alert_i
 function alertIsReservation(title: string | null | undefined): boolean {
   return /reservation/i.test(title || "");
 }
-function alertDest(category: string | null | undefined, title?: string | null): { section: OpSection; planTab?: string } {
+function alertDest(category: string | null | undefined, title?: string | null): { section: OpSection; planTab?: string; anchor?: string } {
   const cat = category || "";
-  if (cat === "order") return { section: "now" };  // the kitchen pass
+  if (cat === "order") return { section: "now", anchor: "kitchen-pass" };  // land ON the pass, even from the pass screen
   if (cat === "money") return { section: "money" };
   if (cat === "brew") return { section: "plan", planTab: "brew" };
   if (cat.startsWith("booking")) return { section: "plan", planTab: "bookings" };
   if (cat === "prep") return { section: "prep" };
   if (cat === "note" && /content ready|approved|changes requested/i.test(title || "")) return { section: "studio" };
   return { section: "day" };
+}
+// After a section switch React needs a beat to mount the destination before we can scroll to it.
+function scrollToAnchor(anchor?: string) {
+  if (!anchor) return;
+  setTimeout(() => document.getElementById(anchor)?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
 }
 
 // Pop-out card for reservation alerts — the full DropOps manager (brew totals, pickup checklist,
@@ -365,6 +370,7 @@ function AlertsInbox({ userId }: { userId: string | null }) {
     const d = alertDest(a.category, a.title);
     if (d.planTab) { try { localStorage.setItem("gt3-plan-tab", d.planTab); } catch { /* ignore */ } }
     setSection(d.section);
+    scrollToAnchor(d.anchor);
   };
 
   // Show alerts addressed to me or to all-leadership (target null). RLS already scopes to leadership.
@@ -840,6 +846,7 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
     const d = alertDest(f.category, f.title);
     if (d.planTab) { try { localStorage.setItem("gt3-plan-tab", d.planTab); } catch { /* ignore */ } }
     setSection(d.section);
+    scrollToAnchor(d.anchor);
   };
   const hr = new Date().getHours();
   const greet = hr < 12 ? "Good morning" : hr < 17 ? "Good afternoon" : "Good evening";
