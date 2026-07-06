@@ -9,6 +9,7 @@ import AccountPill from "@/components/AccountPill";
 import Watermark from "@/components/Watermark";
 import GenerateDay from "@/components/GenerateDay";
 import ReservePitch from "@/components/ReservePitch";
+import Gt3Mark from "@/components/Gt3Mark";
 import { supabase } from "@/lib/supabase";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import type { Order } from "@/lib/db";
@@ -154,7 +155,7 @@ function Arrival() {
     <section className="screen arrival" id="s-today">
       <Watermark variant="landing" />
       <div className="toprow">
-        <div className="arr-brand"><span className="g3">GT3</span><span className="pb">Performance Bar</span></div>
+        <div className="arr-brand"><Gt3Mark tone="cream" /><span className="pb">Performance Bar</span></div>
         <AccountPill />
       </div>
 

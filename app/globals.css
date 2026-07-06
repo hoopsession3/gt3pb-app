@@ -2938,3 +2938,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .gen-day{margin-top:4px}
 .gen-day .step .ic{font-family:'DM Mono',monospace;font-weight:600;font-size:14px;color:var(--gold2,#B8902F)}
 .gen-story{font-size:13px;line-height:1.6;color:var(--cream-m,rgba(245,241,232,.6));margin:2px 2px 6px;font-style:italic}
+
+/* the exact brand "3" glyph inside the GT3 wordmark (Gt3Mark) — vector, pixel-for-pixel */
+.g3{display:inline-flex;align-items:baseline}
+.g3-3{height:.82em;width:auto;display:inline-block;transform:translateY(.06em)}
