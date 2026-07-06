@@ -12,7 +12,7 @@ import { PRICING, FLAVORS, isPackSize, packTotal, toCents, mixComplete, mixSumma
 export async function POST(req: Request) {
   const token = process.env.SQUARE_ACCESS_TOKEN;
   const locationId = process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID;
-  if (!token || !locationId || !supabaseAdmin) {
+  if (!supabaseAdmin) {
     return NextResponse.json({ error: "Reservations aren't switched on yet." }, { status: 503 });
   }
 
@@ -23,7 +23,11 @@ export async function POST(req: Request) {
   const phone = typeof body.phone === "string" ? body.phone.trim().slice(0, 40) : "";
   const size = Number(body.size);
   const glass = body.glass === "new" ? "new" : "return";
-  if (!body.sourceId) return NextResponse.json({ error: "Card required" }, { status: 400 });
+  // A card token means "charge now"; no token means a pre-order (reserve now, pay at pickup). The
+  // charge path needs Square configured; the pre-order path just needs the DB — so the reserve flow
+  // is never a dead end.
+  const wantsCharge = !!body.sourceId;
+  if (wantsCharge && (!token || !locationId)) return NextResponse.json({ error: "Card checkout isn't switched on yet." }, { status: 503 });
   if (!name || !phone) return NextResponse.json({ error: "Name and phone are required for the pickup text." }, { status: 400 });
   if (!isPackSize(size)) return NextResponse.json({ error: "Pick a pack size (3, 6, or 12)." }, { status: 400 });
 
@@ -46,34 +50,41 @@ export async function POST(req: Request) {
   const amount = toCents(packTotal(size, glass as GlassPath));
 
   try {
-    const res = await fetch(`${SQUARE_BASE}/v2/payments`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "Square-Version": SQUARE_VERSION },
-      body: JSON.stringify({
-        source_id: body.sourceId,
-        idempotency_key: crypto.randomUUID(),
-        amount_money: { amount, currency: "USD" },
-        location_id: locationId,
-        note: `GT3PB order-ahead · ${size}-pack · ${glass} · pickup ${dropDate}`,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) return NextResponse.json({ error: data?.errors?.[0]?.detail || "Payment declined" }, { status: 400 });
-    const paymentId = data?.payment?.id ?? null;
+    // Charge only when a card token was supplied; otherwise it's a pay-at-pickup pre-order.
+    let paymentId: string | null = null;
+    let paid = false;
+    if (wantsCharge) {
+      const res = await fetch(`${SQUARE_BASE}/v2/payments`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "Square-Version": SQUARE_VERSION },
+        body: JSON.stringify({
+          source_id: body.sourceId,
+          idempotency_key: crypto.randomUUID(),
+          amount_money: { amount, currency: "USD" },
+          location_id: locationId,
+          note: `GT3PB order-ahead · ${size}-pack · ${glass} · pickup ${dropDate}`,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) return NextResponse.json({ error: data?.errors?.[0]?.detail || "Payment declined" }, { status: 400 });
+      paymentId = data?.payment?.id ?? null;
+      paid = true;
+    }
 
     const user = await userFromRequest(req); // null for guest reserve
-    const row = { user_id: user?.id ?? null, name, phone, size, glass, mix, total_cents: amount, paid: true, payment_id: paymentId, drop_date: dropDate };
+    const row = { user_id: user?.id ?? null, name, phone, size, glass, mix, total_cents: amount, paid, payment_id: paymentId, drop_date: dropDate };
     let { data: inserted, error: insErr } = await supabaseAdmin.from("drop_orders").insert(row).select("id").single();
     if (insErr) ({ data: inserted, error: insErr } = await supabaseAdmin.from("drop_orders").insert(row).select("id").single()); // retry once
     if (insErr) {
       const ref = (paymentId || "").slice(-6).toUpperCase();
-      await raiseAlert({ severity: "critical", category: "money", title: "Paid reservation didn't record — add it", body: `A card payment succeeded (${paymentId}) but the reservation didn't save. ${name} · ${size}-pack ${glass} · ${mixSummary(mix)} · pickup ${dropDate}. Add it and confirm in Square.` });
-      return NextResponse.json({ ok: true, paymentId, recorded: false, ref, warn: `Reserved — ref ${ref}. We've alerted the crew; show this at pickup.` });
+      const title = paid ? "Paid reservation didn't record — add it" : "Reservation didn't record — add it";
+      await raiseAlert({ severity: "critical", category: paid ? "money" : "order", title, body: `${paid ? `A card payment succeeded (${paymentId}) but the` : "A pre-order"} reservation didn't save. ${name} · ${size}-pack ${glass} · ${mixSummary(mix)} · pickup ${dropDate}.${paid ? " Add it and confirm in Square." : " Add it to the drop."}` });
+      return NextResponse.json({ ok: true, paid, recorded: false, ref, warn: `Reserved${ref ? ` — ref ${ref}` : ""}. We've alerted the crew; show this at pickup.` });
     }
 
-    await raiseAlert({ severity: "fyi", category: "note", title: "New reservation 🎉", body: `${name} reserved a ${size}-pack (${mixSummary(mix)}) for ${dropDate} — ${dollars(packTotal(size, glass as GlassPath))}, ${glass === "return" ? "bringing bottles back" : "new glass"}.` });
-    return NextResponse.json({ ok: true, id: inserted?.id ?? null, paymentId, recorded: true });
+    await raiseAlert({ severity: "fyi", category: "note", title: "New reservation 🎉", body: `${name} reserved a ${size}-pack (${mixSummary(mix)}) for ${dropDate} — ${dollars(packTotal(size, glass as GlassPath))}, ${glass === "return" ? "bringing bottles back" : "new glass"}${paid ? "" : " · pay at pickup"}.` });
+    return NextResponse.json({ ok: true, id: inserted?.id ?? null, paid, recorded: true });
   } catch {
-    return NextResponse.json({ error: "Payment service unavailable" }, { status: 502 });
+    return NextResponse.json({ error: "Reservation service unavailable" }, { status: 502 });
   }
 }

@@ -42,7 +42,7 @@ export default function OrderAhead() {
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
   const [err, setErr] = useState("");
-  const [conf, setConf] = useState<{ id: string; size: number; glass: GlassPath; mix: Mix; total: number; sat: Date; name: string } | null>(null);
+  const [conf, setConf] = useState<{ id: string; size: number; glass: GlassPath; mix: Mix; total: number; sat: Date; name: string; paid: boolean } | null>(null);
   const cardRef = useRef<any>(null);
 
   useEffect(() => { setNow(Date.now()); const iv = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(iv); }, []);
@@ -84,26 +84,38 @@ export default function OrderAhead() {
     return () => { cancelled = true; setReady(false); cardRef.current?.destroy?.(); cardRef.current = null; };
   }, [view]);
 
+  // One submit path. sourceId = a Square card token (charge now); null = pre-order (pay at pickup).
+  const submit = useCallback(async (sourceId: string | null) => {
+    setErr("");
+    if (!name.trim() || !phone.trim()) { setErr("Name and phone are required for the pickup text."); return; }
+    setBusy(true);
+    try {
+      const accessToken = (await supabase?.auth.getSession())?.data.session?.access_token;
+      const res = await fetch("/api/reserve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
+        body: JSON.stringify({ sourceId: sourceId ?? undefined, name: name.trim(), phone: phone.trim(), size, glass, mix, dropDate: drop.sat.toISOString() }),
+      });
+      const data = await res.json(); setBusy(false);
+      if (!res.ok) { setErr(data.error || "Something went wrong — try again."); return; }
+      setConf({ id: (data.id || data.ref || "").toString(), size, glass, mix: { ...mix }, total, sat: drop.sat, name: name.trim(), paid: !!data.paid });
+      setView("confirmed");
+    } catch { setBusy(false); setErr("Nothing was charged — try again."); }
+  }, [name, phone, size, glass, mix, drop, total]);
+
   const pay = useCallback(async () => {
     setErr("");
     if (!name.trim() || !phone.trim()) { setErr("Name and phone are required for the pickup text."); return; }
     if (!cardRef.current) return;
     setBusy(true);
+    let tok: string;
     try {
       const result = await cardRef.current.tokenize();
       if (result.status !== "OK") { setErr("Card details look off — check and retry."); setBusy(false); return; }
-      const accessToken = (await supabase?.auth.getSession())?.data.session?.access_token;
-      const res = await fetch("/api/reserve", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
-        body: JSON.stringify({ sourceId: result.token, name: name.trim(), phone: phone.trim(), size, glass, mix, dropDate: drop.sat.toISOString() }),
-      });
-      const data = await res.json(); setBusy(false);
-      if (!res.ok) { setErr(data.error || "Payment failed"); return; }
-      setConf({ id: (data.id || data.ref || "").toString(), size, glass, mix: { ...mix }, total, sat: drop.sat, name: name.trim() });
-      setView("confirmed");
-    } catch { setBusy(false); setErr("Payment failed — nothing was charged. Try again."); }
-  }, [name, phone, size, glass, mix, drop, total]);
+      tok = result.token;
+    } catch { setErr("Payment failed — nothing was charged. Try again."); setBusy(false); return; }
+    await submit(tok);
+  }, [name, phone, submit]);
 
   const reset = () => { setMix(emptyMix()); setName(profile?.display_name || ""); setPhone(""); setErr(""); setConf(null); setView("reserve"); };
 
@@ -206,7 +218,8 @@ export default function OrderAhead() {
             ) : (
               <>
                 {err && <div className="oa-err">{err}</div>}
-                <div className="oa-window">Card checkout switches on soon. Once it&rsquo;s live you&rsquo;ll reserve and pay here in one tap.</div>
+                <button type="button" className="oa-cta" onClick={() => submit(null)} disabled={busy}>{busy ? "Reserving…" : `Reserve ${dollars(total)} — pay at pickup`}</button>
+                <div className="oa-window">Card checkout switches on soon. For now, reserve here and pay at the window on pickup day.</div>
               </>
             )}
           </div>
@@ -222,7 +235,7 @@ export default function OrderAhead() {
               {conf.id && <div className="oa-rline"><span className="oa-rk">Order</span><span className="oa-rv">#{conf.id.slice(0, 6).toUpperCase()}</span></div>}
               <div className="oa-rline"><span className="oa-rk">Pack</span><span className="oa-rv">{conf.size} — {mixSummary(conf.mix)}</span></div>
               <div className="oa-rline"><span className="oa-rk">Pickup</span><span className="oa-rv">{dayName(conf.sat)}</span></div>
-              <div className="oa-rline total"><span className="oa-rk">Paid</span><span className="oa-rv">{dollars(conf.total)}</span></div>
+              <div className="oa-rline total"><span className="oa-rk">{conf.paid ? "Paid" : "Pay at pickup"}</span><span className="oa-rv">{dollars(conf.total)}</span></div>
             </div>
             <div className="oa-remind">
               {conf.glass === "return"
