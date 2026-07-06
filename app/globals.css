@@ -2969,6 +2969,22 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .app.crew-day .dops-hist-st.ok{color:#3f6b2f}
 .app.crew-day .dops-hist-st.cx{color:#a13c34}
 
+/* menu pack upsell — the take-home path (cream editorial palette) */
+.mpack{border:1px solid rgba(34,31,24,.14);border-radius:16px;padding:16px 16px 14px;margin:4px 0 26px}
+.mpack-row{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:2px 10px;padding:8px 0;border-bottom:1px dashed rgba(34,31,24,.1)}
+.mpack-row:last-of-type{border-bottom:none}
+.mpack-n{font-family:'Inter';font-size:13.5px;color:#33301f;white-space:nowrap}
+.mpack-n b{font-family:'DM Mono',monospace;font-size:16px;margin-right:4px}
+.mpack-tag{font-style:normal;font-size:8.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#B82420;border:1px solid rgba(184,36,32,.35);border-radius:20px;padding:2px 7px;margin-left:8px;vertical-align:2px;white-space:nowrap}
+.mpack-px{font-family:'Inter';font-size:12.5px;color:#6f6a59;text-align:right}
+.mpack-px b{color:#221f18;font-family:'DM Mono',monospace;font-size:13.5px}
+.mpack-note{font-family:'Inter';font-size:12px;line-height:1.55;color:#6f6a59;margin:10px 0 12px}
+.mpack-cta{display:block;text-align:center;font-family:'Inter';font-weight:700;font-size:13.5px;color:#F4EFE3;background:#B82420;border-radius:12px;padding:13px;text-decoration:none}
+
+/* checkout drawer: quiet pack cross-sell */
+.co-upsell{display:block;width:100%;text-align:left;background:none;border:1px dashed var(--hair,rgba(245,241,232,.18));border-radius:10px;color:var(--cream-m,rgba(245,241,232,.6));font-family:'Inter';font-size:12px;padding:10px 12px;margin:10px 0 4px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.co-upsell b{color:var(--gold2,#B8902F);font-weight:700}
+
 /* order-ahead pitch tags (MOST POPULAR / BEST VALUE) on the reserve card */
 .subpitch-pack{position:relative}
 .subpitch-tag{position:absolute;top:-8px;left:50%;transform:translateX(-50%);font-size:7.5px;letter-spacing:.06em;font-weight:700;color:var(--cream,#F5F1E8);background:var(--red,#B82420);padding:2px 6px;border-radius:20px;white-space:nowrap}

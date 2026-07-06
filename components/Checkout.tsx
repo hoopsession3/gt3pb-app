@@ -192,6 +192,10 @@ export default function Checkout() {
                 </div>
               ))}
 
+              <button type="button" className="co-upsell" onClick={() => router.push("/reserve")}>
+                Taking some home? <b>Reserve a Saturday pack ›</b>
+              </button>
+
               {squareClientReady ? (
                 <>
                   <div className="co-line"><span>Subtotal</span><span>${(totalCents / 100).toFixed(2)}</span></div>

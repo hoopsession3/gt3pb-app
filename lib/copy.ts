@@ -37,6 +37,12 @@ export const COPY_META: CopyMeta[] = [
     default: "Everything real, poured into glass, made the moment you order" },
   { key: "menu.mto", group: "Menu", label: "Made-to-order line",
     default: "Made to order" },
+  { key: "menu.packs_title", group: "Menu", label: "Packs — section title",
+    default: "Take it home" },
+  { key: "menu.packs_sub", group: "Menu", label: "Packs — section subtitle",
+    default: "Saturday packs" },
+  { key: "menu.packs_note", group: "Menu", label: "Packs — bring-back note", multiline: true,
+    default: "Bring your empties back for pack pricing — or take new glass at $10 a bottle. You choose when you reserve." },
   // ── Menu · sections + every drink. Names, tags, and descriptions are copy — PRICES ARE NOT:
   // the charge is computed server-side from the locked catalog / Square, so px stays in code.
   ...MENU.flatMap((s, i) => [

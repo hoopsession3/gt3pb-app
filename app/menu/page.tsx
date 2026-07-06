@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import AccountPill from "@/components/AccountPill";
@@ -7,6 +8,7 @@ import Watermark from "@/components/Watermark";
 import Gt3Mark from "@/components/Gt3Mark";
 import { useSiteCopy } from "@/lib/copy";
 import { DRINKS, MENU, type DrinkId } from "@/lib/menu";
+import { PACK_SIZES, PACK_TAG, packTotal, newGlassTotal, dollars } from "@/lib/orderAhead";
 import { clickable } from "@/lib/a11y";
 
 export default function MenuScreen() {
@@ -96,6 +98,24 @@ export default function MenuScreen() {
           })}
         </div>
       ))}
+
+      {/* Pack upsell — the take-home path. Prices come from the order-ahead grid (lib/orderAhead),
+          both glass paths shown honestly; the bring-back-or-new choice itself is made in Reserve. */}
+      <div className="chapter">
+        <span className="chn">{t("menu.packs_title")}</span>
+        <span className="chw">{t("menu.packs_sub")}</span>
+      </div>
+      <div className="chrule" />
+      <div className="mpack">
+        {PACK_SIZES.map((s) => (
+          <div className="mpack-row" key={s}>
+            <span className="mpack-n"><b>{s}</b> bottles{PACK_TAG[s] ? <em className="mpack-tag">{PACK_TAG[s]}</em> : null}</span>
+            <span className="mpack-px"><b>{dollars(packTotal(s, "return"))}</b> bring-back · {dollars(newGlassTotal(s))} new glass</span>
+          </div>
+        ))}
+        <div className="mpack-note">{t("menu.packs_note")}</div>
+        <Link href="/reserve" className="mpack-cta">Reserve Saturday&rsquo;s pack ›</Link>
+      </div>
 
       <div className="menu-integrity">{t("menu.integrity")}</div>
       <div className="menu-mto">{t("menu.mto")}</div>
