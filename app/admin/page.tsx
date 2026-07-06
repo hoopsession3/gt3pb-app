@@ -6,6 +6,7 @@ import { useApp } from "@/components/AppProvider";
 import { useAuth, roleOf, type Profile } from "@/components/AuthProvider";
 import { useOperatorSection, sectionsForRole, groupOfSection, SECTION_LABEL, type OpSection } from "@/components/OperatorNav";
 import TrailerLoadout from "@/components/TrailerLoadout";
+import DropOps from "@/components/DropOps";
 import PackPlan from "@/components/PackPlan";
 import OrgChart from "@/components/OrgChart";
 import GearLibrary from "@/components/GearLibrary";
@@ -4077,6 +4078,7 @@ export default function AdminPage() {
           {canManage && <LiveControl />}
           <EnableAlerts userId={user?.id ?? null} />
           <Kitchen />
+          <DropOps />
         </>
       )}
 

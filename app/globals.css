@@ -2899,3 +2899,29 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .oa-remind{background:rgba(184,144,47,.08);border:1px solid rgba(184,144,47,.28);border-radius:13px;padding:12px 14px;font-size:12.5px;line-height:1.55;color:var(--oa-cream-dim)}.oa-remind b{color:var(--oa-gold);font-weight:600}
 .oa-sqwrap{background:rgba(0,0,0,.3);border:1.5px solid var(--oa-hair);border-radius:12px;padding:12px;margin-bottom:14px;min-height:52px}
 .oa-err{color:#e0a09c;font-size:12.5px;margin-bottom:12px}
+
+/* order-ahead OPS (admin "Now" — cohesive with the kitchen pass) */
+.dops{margin-top:14px}
+.dops-head{display:flex;flex-direction:column;gap:2px;margin-bottom:12px}
+.dops-kick{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.dops-head b{font-size:16px;color:var(--cream);font-weight:700}
+.app.crew-day .dops-head b{color:#221f18}
+.dops-stats{display:flex;gap:9px;margin-bottom:14px}
+.dops-stat{flex:1;border:1px solid var(--hair,rgba(245,241,232,.14));border-radius:13px;padding:11px 6px;text-align:center}
+.dops-stat .sv{font-family:'DM Mono',monospace;font-size:19px;color:var(--gold2,#B8902F)}
+.dops-stat .sk{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-top:4px}
+.dops-brew{font-size:12px;color:var(--muted);margin:0 2px 12px}.dops-brew b{color:var(--cream)}
+.app.crew-day .dops-brew b{color:#221f18}
+.dops-order{border:1px solid var(--hair,rgba(245,241,232,.14));border-radius:14px;padding:12px 13px;margin-bottom:10px}
+.dops-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;gap:8px}
+.dops-name{font-weight:700;font-size:14px;color:var(--cream)}
+.app.crew-day .dops-name{color:#221f18}
+.dops-total{font-family:'DM Mono',monospace;font-size:12.5px;color:var(--gold2,#B8902F);flex:none}
+.dops-chip{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.07em;padding:2px 7px;border-radius:20px;margin-left:7px;vertical-align:1px}
+.dops-chip.ret{color:#cfe6c0;background:rgba(127,168,107,.15);border:1px solid rgba(127,168,107,.4)}
+.dops-chip.new{color:var(--gold2,#B8902F);background:rgba(184,144,47,.12);border:1px solid rgba(184,144,47,.4)}
+.dops-meta{font-size:11.5px;color:var(--muted);line-height:1.6}
+.dops-actions{display:flex;gap:8px;margin-top:10px}
+.dops-check{flex:1;border:1.5px solid var(--hair,rgba(245,241,232,.14));border-radius:10px;background:transparent;color:var(--muted);padding:9px 4px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;transition:.15s}
+.dops-check.done{border-color:#7FA86B;color:#cfe6c0;background:rgba(127,168,107,.1)}
+.dops-empty{text-align:center;color:var(--muted);font-size:13px;padding:24px 0}
