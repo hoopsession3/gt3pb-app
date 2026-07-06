@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useApp } from "@/components/AppProvider";
 import { useAuth, roleOf, type Profile } from "@/components/AuthProvider";
 import { useOperatorSection, sectionsForRole, groupOfSection, SECTION_LABEL, type OpSection } from "@/components/OperatorNav";
@@ -1284,11 +1284,45 @@ function EventPrep({ onGo }: { onGo: (t: string) => void }) {
       ))}
       {sheet && <PrepViewSheet dir={dir} setDir={setDir} onClose={() => setSheet(false)} />}
     </div>
-    <TrailerLoadout />
-    <GearLibrary />
-    <AssetMaintenance />
-    <InventoryLibrary />
+    <Garage events={events} stops={stops} liveStopId={liveStopId} loaded={loaded} />
     </>
+  );
+}
+
+// ── The garage — the standing libraries (load-out, gear, maintenance, inventory) collapsed to
+// quiet one-line rows. They're reference until there's something to pack for: the load-out row
+// auto-opens only when an event or stop is live or within the next 7 days. Bodies mount on open,
+// so a quiet week also skips their data fetches.
+function Garage({ events, stops, liveStopId, loaded }: { events: EventRow[]; stops: Stop[]; liveStopId: string | null; loaded: boolean }) {
+  const packSoon = useMemo(() => {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const horizon = new Date(today); horizon.setDate(horizon.getDate() + 7);
+    const within = (d?: string | null) => { if (!d) return false; const x = new Date(`${d.slice(0, 10)}T12:00:00`); return x >= today && x <= horizon; };
+    return Boolean(liveStopId) || events.some((e) => e.is_live || within(e.day))
+      || stops.some((s) => within((s as { starts_at?: string | null }).starts_at));
+  }, [events, stops, liveStopId]);
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const autoRef = useRef(false);
+  useEffect(() => { if (loaded && packSoon && !autoRef.current) { autoRef.current = true; setOpen((o) => ({ ...o, loadout: true })); } }, [loaded, packSoon]);
+  const row = (id: string, icon: string, title: string, hint: string, body: ReactNode) => (
+    <div className={`garage-row${open[id] ? " open" : ""}`}>
+      <button type="button" className="garage-head" onClick={() => setOpen((o) => ({ ...o, [id]: !o[id] }))} aria-expanded={!!open[id]}>
+        <span className="garage-ic">{icon}</span>
+        <span className="garage-t">{title}</span>
+        {!open[id] && <span className="garage-hint">{hint}</span>}
+        <span className="garage-chev">{open[id] ? "▾" : "▸"}</span>
+      </button>
+      {open[id] && <div className="garage-body">{body}</div>}
+    </div>
+  );
+  return (
+    <div className="garage">
+      <div className="prep-group-h">The garage <span>rigs · gear · stock</span></div>
+      {row("loadout", "🚚", "Load-out & tow plan", packSoon ? "event this week — check the load" : "quiet until an event is near", <TrailerLoadout />)}
+      {row("gear", "🧰", "Gear library", "", <GearLibrary />)}
+      {row("maint", "🔧", "Asset maintenance", "", <AssetMaintenance />)}
+      {row("inventory", "📦", "Inventory", "", <InventoryLibrary />)}
+    </div>
   );
 }
 

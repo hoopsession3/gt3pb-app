@@ -54,6 +54,7 @@ export default function CompanyCalendar() {
   const [stops, setStops] = useState<Stop[]>([]);
   const [prepTasks, setPrepTasks] = useState<PrepTask[]>([]);
   const [filter, setFilter] = useState<string>("all");
+  const [filterSheet, setFilterSheet] = useState(false); // categories live behind one quiet chip
   const [addDay, setAddDay] = useState<string | null>(null);
   const [dayOpen, setDayOpen] = useState<string | null>(null); // a date → show that day's detail
   const [stale, setStale] = useState(0); // overdue, unpublished, not-yet-tidied content
@@ -188,14 +189,26 @@ export default function CompanyCalendar() {
         </div>
         <div className="cal-views">
           {VIEWS.map((v) => <button key={v} type="button" className={`cal-view${view === v ? " on" : ""}`} onClick={() => setV(v)}>{v[0].toUpperCase() + v.slice(1)}</button>)}
+          <button type="button" className={`cal-filterbtn${filter !== "all" ? " on" : ""}`} onClick={() => setFilterSheet(true)} aria-haspopup="dialog">
+            {filter === "all" ? "Filter" : <><span className="cc-dot" style={{ background: CAT[filter].color }} />{CAT[filter].label}</>}
+          </button>
         </div>
-        <div className="cal-filters">
-          {FILTERS.map((f) => (
-            <button key={f} type="button" className={`cc-filter${filter === f ? " on" : ""}`} onClick={() => setFilter(f)} style={f !== "all" ? { ["--c" as string]: CAT[f].color } : undefined}>
-              {f !== "all" && <span className="cc-dot" style={{ background: CAT[f].color }} />}{f === "all" ? "All" : `${CAT[f].icon} ${CAT[f].label}`}
-            </button>
-          ))}
-        </div>
+        {filterSheet && (
+          <>
+            <div className="prep-scrim" onClick={() => setFilterSheet(false)} aria-hidden="true" />
+            <div className="prep-sheet" role="dialog" aria-modal="true" aria-label="Filter the calendar">
+              <div className="prep-sheet-grab" />
+              <div className="prep-sheet-h">Show on the calendar</div>
+              <div className="prep-sheet-opts">
+                {FILTERS.map((f) => (
+                  <button key={f} type="button" className={`prep-sheet-opt${filter === f ? " on" : ""}`} onClick={() => { setFilter(f); setFilterSheet(false); }}>
+                    {f === "all" ? "Everything" : `${CAT[f].icon} ${CAT[f].label}`}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
         {(view === "month" || view === "week") && <div className="cal-dow">{DOW.map((d) => <div key={d} className="cal-dow-c">{d}</div>)}</div>}
       </div>
 

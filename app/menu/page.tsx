@@ -52,42 +52,44 @@ export default function MenuScreen() {
       <div className="mast-order">{t("menu.order_line")}</div>
 
       <div className="menu-chips" role="tablist" aria-label="Menu categories">
-        {MENU.map((cat) => (
-          <button key={cat.name} type="button" role="tab" aria-selected={active === cat.name} className={`menu-chip${active === cat.name ? " on" : ""}`} onClick={() => jumpTo(cat.name)}>{cat.name}</button>
+        {MENU.map((cat, ci) => (
+          <button key={cat.name} type="button" role="tab" aria-selected={active === cat.name} className={`menu-chip${active === cat.name ? " on" : ""}`} onClick={() => jumpTo(cat.name)}>{t(`menu.sec.${ci}.name`)}</button>
         ))}
       </div>
 
-      {MENU.map((cat) => (
+      {MENU.map((cat, ci) => (
         <div key={cat.name} ref={(el) => { catRefs.current[cat.name] = el; }} data-cat={cat.name}>
           <div className="chapter">
-            <span className="chn">{cat.name}</span>
-            <span className="chw">{cat.wn}</span>
+            <span className="chn">{t(`menu.sec.${ci}.name`)}</span>
+            <span className="chw">{t(`menu.sec.${ci}.sub`)}</span>
           </div>
           <div className="chrule" />
 
           {cat.rows.map((id) => {
             const d = DRINKS[id];
             const on = isInCart(id);
+            const name = t(`menu.${id}.name`);
+            const tag = d.tag ? t(`menu.${id}.tag`) : "";
             return (
               <div
                 className="entry"
                 key={id}
-                aria-label={`${d.n}, ${priceLabel(id)}, view details`}
+                aria-label={`${name}, ${priceLabel(id)}, view details`}
                 {...clickable(() => openDrink(id))}
               >
                 <div className="entry-head">
                   <span className="entry-dot" style={{ background: d.dot }} />
-                  <span className="entry-name">{d.n}</span>
-                  {d.tag && <span className="entry-tag">{d.tag}</span>}
+                  <span className="entry-name">{name}</span>
+                  {tag && <span className="entry-tag">{tag}</span>}
                   <span className="entry-gap" />
                   {on && <span className="entry-in" aria-label="in your order">✓</span>}
                   <span className="entry-px">{priceLabel(id)}</span>
                 </div>
                 <div className="entry-body">
-                  {d.lines.map((l) => (
+                  {t(`menu.${id}.lines`).split("\n").filter(Boolean).map((l) => (
                     <div className="entry-ing" key={l}>{l}</div>
                   ))}
-                  <div className="entry-why">{d.why}</div>
+                  <div className="entry-why">{t(`menu.${id}.why`)}</div>
                 </div>
               </div>
             );
@@ -95,8 +97,8 @@ export default function MenuScreen() {
         </div>
       ))}
 
-      <div className="menu-integrity">Everything real, poured into glass, made the moment you order</div>
-      <div className="menu-mto">Made to order</div>
+      <div className="menu-integrity">{t("menu.integrity")}</div>
+      <div className="menu-mto">{t("menu.mto")}</div>
 
       {/* Empty-state hint only; once items are added the floating CartBar takes over. */}
       {cartCount === 0 && (

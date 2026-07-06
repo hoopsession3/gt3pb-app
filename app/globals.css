@@ -2970,6 +2970,25 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .ownerdet-recap-edit{margin-left:8px;background:none;border:none;color:var(--gold2,#B8902F);font-size:11px;font-weight:600;cursor:pointer;text-decoration:underline}
 .ownerdet-cancel{opacity:.7}
 
+/* the garage — standing prep libraries collapsed to quiet rows until needed */
+.garage{margin-top:18px}
+.garage-row{border:1px solid var(--hair,rgba(245,241,232,.12));border-radius:14px;margin-bottom:8px;overflow:hidden}
+.garage-head{display:flex;align-items:center;gap:10px;width:100%;background:rgba(0,0,0,.14);border:none;padding:13px 14px;cursor:pointer;text-align:left;-webkit-appearance:none;appearance:none}
+.app.crew-day .garage-head{background:rgba(34,31,24,.04)}
+.garage-ic{font-size:15px}
+.garage-t{flex:1;font-family:'Inter';font-weight:600;font-size:13.5px;color:var(--cream,#F5F1E8)}
+.app.crew-day .garage-t{color:#221f18}
+.garage-hint{font-family:'Inter';font-size:11px;color:var(--cream-m,rgba(245,241,232,.55));text-align:right}
+.app.crew-day .garage-hint{color:#8a8371}
+.garage-chev{font-size:11px;color:var(--gold2,#B8902F)}
+.garage-body{padding:4px 12px 12px}
+
+/* calendar: category filter lives behind one chip (opens a sheet) */
+.cal-filterbtn{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-family:'Inter';font-weight:600;font-size:12px;color:var(--cream-m,rgba(245,241,232,.6));background:none;border:1px solid var(--hair,rgba(245,241,232,.14));border-radius:16px;padding:6px 12px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.cal-filterbtn.on{color:var(--cream,#F5F1E8);border-color:var(--gold2,#B8902F)}
+.app.crew-day .cal-filterbtn{color:#6f6a59;border-color:rgba(34,31,24,.18)}
+.app.crew-day .cal-filterbtn.on{color:#221f18;border-color:#B8902F}
+
 /* drop sheet — DropOps popped out of an alert's "Open" */
 .drop-sheet{max-width:560px}
 .drop-sheet-h{display:flex;align-items:center;justify-content:space-between;font-family:'Inter';font-weight:600;font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--cream-m);margin:2px 0 10px}
