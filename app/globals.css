@@ -2930,3 +2930,11 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .dops-prog.done{color:#7FA86B}
 .dops-order.done{opacity:.5}
 .dops-tel{color:var(--gold2,#B8902F);text-decoration:none;font-weight:600}
+
+/* order-ahead pitch tags (MOST POPULAR / BEST VALUE) on the reserve card */
+.subpitch-pack{position:relative}
+.subpitch-tag{position:absolute;top:-8px;left:50%;transform:translateX(-50%);font-size:7.5px;letter-spacing:.06em;font-weight:700;color:var(--cream,#F5F1E8);background:var(--red,#B82420);padding:2px 6px;border-radius:20px;white-space:nowrap}
+/* generated-stack anticipation timeline ("Your day, in order") */
+.gen-day{margin-top:4px}
+.gen-day .step .ic{font-family:'DM Mono',monospace;font-weight:600;font-size:14px;color:var(--gold2,#B8902F)}
+.gen-story{font-size:13px;line-height:1.6;color:var(--cream-m,rgba(245,241,232,.6));margin:2px 2px 6px;font-style:italic}

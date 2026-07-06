@@ -17,8 +17,15 @@ interface Complete {
   flags: Set<Flag>;
 }
 
-interface RecDrink { id: DrinkId; timing: string; science: string }
-interface Rec { state: string; sub: string; drinks: RecDrink[]; straight: string }
+interface RecDrink { id: DrinkId; timing: string; science: string; role: string }
+interface Rec { state: string; sub: string; drinks: RecDrink[]; straight: string; story: string }
+
+// each drink's job in the day's arc — the anticipatory "what this is for" a guest wants to see
+const ROLE: Record<DrinkId, string> = {
+  rise: "Open the day clear", flow: "Carry the deep work", dusk: "Ease into the day",
+  tide: "Hydrate through it", aide: "Hydrate through it",
+  forge: "Rebuild after", hunt: "Rebuild after", wild: "Rebuild after",
+};
 
 // ─── recommendation engine ────────────────────────────────────────────────────
 function buildRec(a: Complete): Rec {
@@ -107,10 +114,16 @@ function buildRec(a: Complete): Rec {
   };
 
   const drinks: RecDrink[] = [
-    { id: s1, timing: timing[s1], science: sci[s1] },
-    ...(s2 ? [{ id: s2 as DrinkId, timing: timing[s2], science: sci[s2] }] : []),
-    { id: s3, timing: timing[s3], science: sci[s3] },
+    { id: s1, timing: timing[s1], science: sci[s1], role: ROLE[s1] },
+    ...(s2 ? [{ id: s2 as DrinkId, timing: timing[s2], science: sci[s2], role: ROLE[s2] }] : []),
+    { id: s3, timing: timing[s3], science: sci[s3], role: ROLE[s3] },
   ];
+
+  // The user story — the day, sequenced forward, so the guest can picture how it plays out.
+  const nm = (id: DrinkId) => DRINKS[id].n;
+  const story = s2
+    ? `Here's how the day flows: ${nm(s1)} to open, ${nm(s2)} to carry you through the work, then ${nm(s3)} to rebuild after. One sequence — start, sustain, recover.`
+    : `Here's how the day flows: ${nm(s1)} to open the work, then ${nm(s3)} to rebuild after. Start, then recover — skip what you don't need.`;
 
   // ── Straight talk: plain, honest guidance — flavor + timing, never a physiological claim ──
   const bits: string[] = [];
@@ -130,7 +143,7 @@ function buildRec(a: Complete): Rec {
   const straight = bits.slice(0, 2).join(" ") ||
     "The idea is sequence: something to start the work, something to carry you through it, something to rebuild after. Pick the ones that match the day — skip what you don't need.";
 
-  return { state, sub, drinks, straight };
+  return { state, sub, drinks, straight, story };
 }
 
 // ─── component ────────────────────────────────────────────────────────────────
@@ -176,7 +189,19 @@ export default function GenerateDay() {
           <div className="hero-sub">{rec.sub}</div>
         </div></div>
 
-        <div className="sec">Your stack · built</div>
+        <div className="sec">Your day, in order</div>
+        <div className="gen-day">
+          {rec.drinks.map((d, i) => (
+            <div key={d.id} className={`step s-${i === 0 ? "sun" : i === rec.drinks.length - 1 ? "broth" : "cup"}`}>
+              <div className="ic">{i + 1}</div>
+              <div className="sx"><b>{DRINKS[d.id].n}</b><span>{d.role}</span></div>
+              <div className="tm">{d.timing}</div>
+            </div>
+          ))}
+        </div>
+        <div className="gen-story">{rec.story}</div>
+
+        <div className="sec">Your stack · what&apos;s in it</div>
 
         {rec.drinks.map((d) => {
           const dk = DRINKS[d.id];
