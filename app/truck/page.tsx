@@ -262,6 +262,7 @@ function TruckDemo() {
         live
         place="Duncan Town Square"
         sub="Saturday Market — the full bar on board"
+        when="SAT"
         openLabel="til 3p"
         eta="Greenville · Sun"
         next="Greenville Run Club — Sun 10–2"
