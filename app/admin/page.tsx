@@ -476,6 +476,8 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
   const [f, setF] = useState<Record<string, string | null> | null>(null);
   const [edit, setEdit] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [wrapping, setWrapping] = useState(false); // capturing the after-action to complete an event
+  const [recap, setRecap] = useState("");
 
   // Remove from the active lists (keeps the record, reversible). The standard "delete" for a real
   // event/stop — same as the calendar's Remove and Live truck's Archive.
@@ -497,9 +499,26 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
     toast(`${isEvent ? "Event" : "Stop"} deleted`); onRemoved();
   };
 
+  // Complete (wrap) an event: mark it done, stamp when, and file the after-action. Optionally archive
+  // it off the active lists in the same move. The DB trigger also clears is_live on completion.
+  const complete = async (alsoArchive: boolean) => {
+    if (!supabase) return;
+    setSaving(true);
+    const now = new Date().toISOString();
+    const patch: Record<string, string | boolean | null> = { stage: "done", completed_at: now, is_live: false, recap: recap.trim() || null };
+    if (alsoArchive) patch.archived_at = now;
+    const { error } = await supabase.from("events").update(patch).eq("id", ownerId);
+    setSaving(false);
+    if (error) { toast(`Couldn't complete — ${error.message}`, "error"); return; }
+    setWrapping(false);
+    toast(alsoArchive ? "Event completed + archived" : "Event completed — nice work");
+    if (alsoArchive) { onRemoved(); return; }
+    setF((p) => ({ ...(p ?? {}), stage: "done", completed_at: now, recap: recap.trim() || null }));
+  };
+
   const load = useCallback(async () => {
     if (!supabase) return;
-    const sel = isEvent ? "title, day, location_text, stage, default_buffer_min" : "name, starts_at, location_text, address, status, default_buffer_min";
+    const sel = isEvent ? "title, day, location_text, stage, default_buffer_min, completed_at, recap" : "name, starts_at, location_text, address, status, default_buffer_min";
     const { data } = await supabase.from(table).select(sel).eq("id", ownerId).maybeSingle();
     setF((data as unknown as Record<string, string | null>) ?? {});
   }, [table, ownerId, isEvent]);
@@ -543,9 +562,33 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
     const cal = isEvent
       ? calFromEvent({ id: ownerId, title: f.title ?? "", day: f.day ?? null, location_text: f.location_text })
       : calFromStop({ id: ownerId, name: f.name ?? "", starts_at: f.starts_at ?? null, location_text: f.location_text, address: f.address });
+    const STAGE_LABEL: Record<string, string> = { lead: "Lead", confirmed: "Confirmed", prep: "Prep", live: "Live", done: "Done" };
+    const done = isEvent && (f.completed_at != null || f.stage === "done");
     return (
       <div className="ownerdet">
-        <span className="ownerdet-meta">📅 {date}{place ? ` · 📍 ${place}` : ""}{status ? ` · ${status}` : ""}</span>
+        <span className="ownerdet-meta">📅 {date}{place ? ` · 📍 ${place}` : ""}</span>
+        {isEvent && (
+          <div className="ownerdet-life">
+            <span className={`ownerdet-stage st-${status ?? "confirmed"}`}>{STAGE_LABEL[status ?? ""] ?? status}</span>
+            {done ? (
+              <span className="ownerdet-completed">✓ Completed{f.completed_at ? ` ${new Date(f.completed_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : ""}</span>
+            ) : isAdmin ? (
+              <button type="button" className="ownerdet-complete" onClick={() => { setRecap(f.recap ?? ""); setWrapping((w) => !w); }}>✓ Complete event</button>
+            ) : null}
+          </div>
+        )}
+        {isEvent && wrapping && (
+          <div className="ownerdet-wrap">
+            <div className="ownerdet-wrap-lbl">After-action <span>optional — what sold, what ran short, one change for next time</span></div>
+            <textarea className="note-in" rows={3} value={recap} onChange={(e) => setRecap(e.target.value)} placeholder="e.g. Rise + Tide sold out by noon; ran short on ice; bring a second cooler next time." />
+            <div className="ownerdet-wrap-actions">
+              <button type="button" className="ownerdet-complete" onClick={() => complete(false)} disabled={saving}>Mark complete</button>
+              <button type="button" className="ownerdet-arch" onClick={() => complete(true)} disabled={saving}>Complete &amp; archive</button>
+              <button type="button" className="ownerdet-cancel" onClick={() => setWrapping(false)} disabled={saving}>Cancel</button>
+            </div>
+          </div>
+        )}
+        {isEvent && done && f.recap && !wrapping && <div className="ownerdet-recap"><b>Recap</b> {f.recap}{isAdmin && <button type="button" className="ownerdet-recap-edit" onClick={() => { setRecap(f.recap ?? ""); setWrapping(true); }}>edit</button>}</div>}
         <AddToCalendar ev={cal} defaultBuffer={Number(f.default_buffer_min) || 0} />
         {isAdmin && <button type="button" className="ownerdet-edit" onClick={() => setEdit(true)}>Edit details</button>}
       </div>
