@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
@@ -32,6 +33,7 @@ type View = "reserve" | "details" | "confirmed";
 export default function OrderAhead() {
   const { toast } = useApp();
   const { user, profile } = useAuth();
+  const router = useRouter();
   const [view, setView] = useState<View>("reserve");
   const [size, setSize] = useState<number>(6);
   const [glass, setGlass] = useState<GlassPath>("return");
@@ -183,10 +185,19 @@ export default function OrderAhead() {
               </div>
             </div>
 
-            <button type="button" className="oa-cta" disabled={!complete} onClick={() => setView("details")}>
-              {complete ? `Reserve — ${dollars(total)} for ${dayName(drop.sat).split(",")[0]}` : "Pick your flavors"}
-            </button>
-            <div className="oa-window">No commitment, no plan — just this drop.<br />At the window: <b>$10 new · $8 bring-back</b> · single bottle <b>$10</b></div>
+            {user ? (
+              <>
+                <button type="button" className="oa-cta" disabled={!complete} onClick={() => setView("details")}>
+                  {complete ? `Reserve — ${dollars(total)} for ${dayName(drop.sat).split(",")[0]}` : "Pick your flavors"}
+                </button>
+                <div className="oa-window">No commitment, no plan — just this drop.<br />At the window: <b>$10 new · $8 bring-back</b> · single bottle <b>$10</b></div>
+              </>
+            ) : (
+              <>
+                <button type="button" className="oa-cta" onClick={() => router.push("/3mpire")}>Sign in to reserve — free to join</button>
+                <div className="oa-window">Order-ahead is a member perk: reserve the drop, skip the line, and your reservations live in your account.<br />At the window: <b>$10 new · $8 bring-back</b> · single bottle <b>$10</b> — no sign-in needed.</div>
+              </>
+            )}
           </div>
         )}
 

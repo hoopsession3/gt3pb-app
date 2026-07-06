@@ -8,7 +8,8 @@ import { PRICING, FLAVORS, isPackSize, packTotal, toCents, mixComplete, mixSumma
 // ORDER-AHEAD reserve — records a one-off Saturday-drop reservation. Price + cutoff are recomputed
 // SERVER-SIDE from lib/orderAhead (never trust the client), the charge is a Square ONE-TIME payment
 // (no recurring), and the row is written with the service role so `paid` can't be forged. Mirrors
-// /api/checkout. Guest reserve allowed (user_id null).
+// /api/checkout. Member-only: a reservation always belongs to an account (guests browse; the walk-up
+// window stays open to everyone).
 export async function POST(req: Request) {
   const token = process.env.SQUARE_ACCESS_TOKEN;
   const locationId = process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID;
@@ -18,6 +19,11 @@ export async function POST(req: Request) {
 
   let body: { sourceId?: string; name?: string; phone?: string; size?: number; glass?: string; mix?: Partial<Mix>; dropDate?: string };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
+
+  // Order-ahead is member-only: the reservation needs an owner (drop_orders.user_id) so it lives
+  // in the member's account. Checked FIRST — before validation and long before any charge.
+  const user = await userFromRequest(req);
+  if (!user) return NextResponse.json({ error: "Order-ahead is for members — sign in to reserve." }, { status: 401 });
 
   const name = typeof body.name === "string" ? body.name.trim().slice(0, 80) : "";
   const phone = typeof body.phone === "string" ? body.phone.trim().slice(0, 40) : "";
@@ -71,8 +77,7 @@ export async function POST(req: Request) {
       paid = true;
     }
 
-    const user = await userFromRequest(req); // null for guest reserve
-    const row = { user_id: user?.id ?? null, name, phone, size, glass, mix, total_cents: amount, paid, payment_id: paymentId, drop_date: dropDate };
+    const row = { user_id: user.id, name, phone, size, glass, mix, total_cents: amount, paid, payment_id: paymentId, drop_date: dropDate };
     let { data: inserted, error: insErr } = await supabaseAdmin.from("drop_orders").insert(row).select("id").single();
     if (insErr) ({ data: inserted, error: insErr } = await supabaseAdmin.from("drop_orders").insert(row).select("id").single()); // retry once
     if (insErr) {

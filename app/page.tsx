@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth, type Profile } from "@/components/AuthProvider";
 import { useApp } from "@/components/AppProvider";
 import GenerateDay from "@/components/GenerateDay";
 import ReservePitch from "@/components/ReservePitch";
-import SignIn from "@/components/SignIn";
 import { useSiteCopy } from "@/lib/copy";
 import { supabase } from "@/lib/supabase";
 import { DRINKS, type DrinkId } from "@/lib/menu";
@@ -147,13 +147,14 @@ function TodayDemo({ t }: { t: (k: string) => string }) {
 }
 
 // ───────────────────────── arrival (first-time / signed-out front door) ─────────────────────────
-// Today is the MEMBER home — signed out you get the door, not a preview. The storefront story
-// (reserve → what we make → order from the bar) lives on the public Reserve tab.
+// Today is the MEMBER home. Guests land on the Truck — where the bar is, the route, the menu —
+// and hit the membership door only where membership matters (order-ahead, 3MPIRE, account pill).
 export default function TodayScreen() {
   const { ready, enabled, user } = useAuth();
   const t = useSiteCopy();
+  const router = useRouter();
+  useEffect(() => { if (enabled && ready && !user) router.replace("/truck"); }, [enabled, ready, user, router]);
   if (!enabled) return <TodayDemo t={t} />;
-  if (!ready) return <section className="screen" id="s-today" />;
-  if (!user) return <SignIn />;
+  if (!ready || !user) return <section className="screen" id="s-today" />;
   return <TodayReal t={t} />;
 }
