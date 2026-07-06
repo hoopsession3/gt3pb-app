@@ -532,26 +532,30 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
     toast(`${isEvent ? "Event" : "Stop"} deleted`); onRemoved();
   };
 
-  // Complete (wrap) an event: mark it done, stamp when, and file the after-action. Optionally archive
-  // it off the active lists in the same move. The DB trigger also clears is_live on completion.
+  // Complete (wrap) an event OR a stop: mark it done, stamp when, and file the after-action.
+  // Optionally archive it off the active lists in the same move. DB triggers keep the world
+  // consistent: a completed event can't stay is_live, and completing the live STOP takes the
+  // truck offline (0125).
   const complete = async (alsoArchive: boolean) => {
     if (!supabase) return;
     setSaving(true);
     const now = new Date().toISOString();
-    const patch: Record<string, string | boolean | null> = { stage: "done", completed_at: now, is_live: false, recap: recap.trim() || null };
+    const patch: Record<string, string | boolean | null> = isEvent
+      ? { stage: "done", completed_at: now, is_live: false, recap: recap.trim() || null }
+      : { status: "done", completed_at: now, recap: recap.trim() || null };
     if (alsoArchive) patch.archived_at = now;
-    const { error } = await supabase.from("events").update(patch).eq("id", ownerId);
+    const { error } = await supabase.from(table).update(patch).eq("id", ownerId);
     setSaving(false);
     if (error) { toast(`Couldn't complete — ${error.message}`, "error"); return; }
     setWrapping(false);
-    toast(alsoArchive ? "Event completed + archived" : "Event completed — nice work");
+    toast(alsoArchive ? `${isEvent ? "Event" : "Stop"} completed + archived` : `${isEvent ? "Event" : "Stop"} completed — nice work`);
     if (alsoArchive) { onRemoved(); return; }
-    setF((p) => ({ ...(p ?? {}), stage: "done", completed_at: now, recap: recap.trim() || null }));
+    setF((p) => ({ ...(p ?? {}), ...(isEvent ? { stage: "done" } : { status: "done" }), completed_at: now, recap: recap.trim() || null }));
   };
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    const sel = isEvent ? "title, day, location_text, stage, default_buffer_min, completed_at, recap" : "name, starts_at, location_text, address, status, default_buffer_min";
+    const sel = isEvent ? "title, day, location_text, stage, default_buffer_min, completed_at, recap" : "name, starts_at, location_text, address, status, default_buffer_min, completed_at, recap";
     const { data } = await supabase.from(table).select(sel).eq("id", ownerId).maybeSingle();
     setF((data as unknown as Record<string, string | null>) ?? {});
   }, [table, ownerId, isEvent]);
@@ -595,22 +599,20 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
     const cal = isEvent
       ? calFromEvent({ id: ownerId, title: f.title ?? "", day: f.day ?? null, location_text: f.location_text })
       : calFromStop({ id: ownerId, name: f.name ?? "", starts_at: f.starts_at ?? null, location_text: f.location_text, address: f.address });
-    const STAGE_LABEL: Record<string, string> = { lead: "Lead", confirmed: "Confirmed", prep: "Prep", live: "Live", done: "Done" };
-    const done = isEvent && (f.completed_at != null || f.stage === "done");
+    const STAGE_LABEL: Record<string, string> = { lead: "Lead", confirmed: "Confirmed", prep: "Prep", live: "Live", done: "Done", upcoming: "Upcoming" };
+    const done = f.completed_at != null || (isEvent ? f.stage === "done" : f.status === "done");
     return (
       <div className="ownerdet">
         <span className="ownerdet-meta">📅 {date}{place ? ` · 📍 ${place}` : ""}</span>
-        {isEvent && (
-          <div className="ownerdet-life">
-            <span className={`ownerdet-stage st-${status ?? "confirmed"}`}>{STAGE_LABEL[status ?? ""] ?? status}</span>
-            {done ? (
-              <span className="ownerdet-completed">✓ Completed{f.completed_at ? ` ${new Date(f.completed_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : ""}</span>
-            ) : isAdmin ? (
-              <button type="button" className="ownerdet-complete" onClick={() => { setRecap(f.recap ?? ""); setWrapping((w) => !w); }}>✓ Complete event</button>
-            ) : null}
-          </div>
-        )}
-        {isEvent && wrapping && (
+        <div className="ownerdet-life">
+          <span className={`ownerdet-stage st-${status ?? (isEvent ? "confirmed" : "upcoming")}`}>{STAGE_LABEL[status ?? ""] ?? status}</span>
+          {done ? (
+            <span className="ownerdet-completed">✓ Completed{f.completed_at ? ` ${new Date(f.completed_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : ""}</span>
+          ) : isAdmin ? (
+            <button type="button" className="ownerdet-complete" onClick={() => { setRecap(f.recap ?? ""); setWrapping((w) => !w); }}>✓ Complete {isEvent ? "event" : "stop"}</button>
+          ) : null}
+        </div>
+        {wrapping && (
           <div className="ownerdet-wrap">
             <div className="ownerdet-wrap-lbl">After-action <span>optional — what sold, what ran short, one change for next time</span></div>
             <textarea className="note-in" rows={3} value={recap} onChange={(e) => setRecap(e.target.value)} placeholder="e.g. Rise + Tide sold out by noon; ran short on ice; bring a second cooler next time." />
@@ -621,7 +623,7 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
             </div>
           </div>
         )}
-        {isEvent && done && f.recap && !wrapping && <div className="ownerdet-recap"><b>Recap</b> {f.recap}{isAdmin && <button type="button" className="ownerdet-recap-edit" onClick={() => { setRecap(f.recap ?? ""); setWrapping(true); }}>edit</button>}</div>}
+        {done && f.recap && !wrapping && <div className="ownerdet-recap"><b>Recap</b> {f.recap}{isAdmin && <button type="button" className="ownerdet-recap-edit" onClick={() => { setRecap(f.recap ?? ""); setWrapping(true); }}>edit</button>}</div>}
         <AddToCalendar ev={cal} defaultBuffer={Number(f.default_buffer_min) || 0} />
         {isAdmin && <button type="button" className="ownerdet-edit" onClick={() => setEdit(true)}>Edit details</button>}
       </div>
