@@ -1865,6 +1865,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .cal-chip.backlog{font-size:12px;padding:6px 9px;cursor:grab}
 .cal-chip-dot{flex:0 0 auto;width:6px;height:6px;border-radius:50%}
 .cal-backlog{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}
+.cal-backlog-top{margin:2px 0 12px;border-top:none;border-bottom:1px solid var(--line);padding:0 0 12px}
 .cal-backlog-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
 .cal-empty{font-family:'Inter';font-size:12.5px;color:var(--cream-m)}
 .studio-rel{margin:0 0 10px;padding:10px 12px;border:1px solid var(--line2);border-radius:11px;background:rgba(111,168,220,.07)}

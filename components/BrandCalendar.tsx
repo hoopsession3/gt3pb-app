@@ -113,6 +113,15 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
         <div className="cal-dow">{DOW.map((d) => <div key={d} className="cal-dow-c">{d}</div>)}</div>
       </div>
 
+      {backlog.length > 0 && (
+        <div className="cal-backlog cal-backlog-top">
+          <div className="insp-lbl">Unscheduled · {backlog.length} — tap to open &amp; set a date, or drag onto a day</div>
+          <div className="cal-backlog-row">
+            {backlog.map((c) => <Chip key={c.id} c={c} />)}
+          </div>
+        </div>
+      )}
+
       <div className="cal-grid">
         {days.map((d) => {
           const k = key(d); const cell = byDay[k]; const dim = d.getMonth() !== cursor.getMonth();
@@ -135,13 +144,6 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
             </div>
           );
         })}
-      </div>
-
-      <div className="cal-backlog">
-        <div className="insp-lbl">Unscheduled — drag onto a day to plan it</div>
-        <div className="cal-backlog-row">
-          {backlog.length === 0 ? <span className="cal-empty">Nothing waiting. Tap a day&apos;s + to start a piece.</span> : backlog.map((c) => <Chip key={c.id} c={c} />)}
-        </div>
       </div>
 
       {dayOpen && (
