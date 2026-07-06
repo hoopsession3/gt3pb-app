@@ -1,12 +1,18 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import AccountPill from "@/components/AccountPill";
 import Watermark from "@/components/Watermark";
 import Gt3Mark from "@/components/Gt3Mark";
 import OrderAhead from "@/components/OrderAhead";
+import { useSiteCopy } from "@/lib/copy";
 
 // Order-ahead / reserve-your-drop screen. One-off Saturday pre-orders — no subscription, no plan.
+// This is also the signed-out storefront's story page: reserve first, then what we make, then the
+// walk-up path ("order from the bar" → the menu). Today itself is members-only.
 export default function ReserveScreen() {
+  const router = useRouter();
+  const t = useSiteCopy();
   return (
     <section className="screen" id="s-reserve">
       <Watermark variant="menu" />
@@ -18,6 +24,19 @@ export default function ReserveScreen() {
         <AccountPill />
       </div>
       <OrderAhead />
+
+      <div className="dchapter"><span className="dchn">What We Make</span><span className="dchw">three acts</span></div>
+      <div className="dchrule" />
+      <div className="pillar"><span className="pdot" style={{ background: "#B8902F" }} /><div className="px"><b>Activation</b><p>Cold-extracted coffee to start the day clear.</p></div></div>
+      <div className="pillar"><span className="pdot" style={{ background: "#3f7d6e" }} /><div className="px"><b>Hydration</b><p>Whole-coconut water to carry you through it.</p></div></div>
+      <div className="pillar"><span className="pdot" style={{ background: "#B82420" }} /><div className="px"><b>Fuel</b><p>Slow-simmered broth to rebuild after.</p></div></div>
+
+      <div className="arr-cta">
+        <button className="arr-order" onClick={() => router.push("/menu")}>{t("reserve.order_bar")}</button>
+        <div className="arr-order-sub">{t("home.cta_sub")}</div>
+      </div>
+
+      <div className="signoff">{t("home.signoff")}</div>
     </section>
   );
 }

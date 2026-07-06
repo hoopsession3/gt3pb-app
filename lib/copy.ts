@@ -30,6 +30,9 @@ export const COPY_META: CopyMeta[] = [
     default: "We draw the coffee cold, blend the hydration from whole coconut, and simmer the broth slow — the long way, on purpose — then make every cup the moment you order it." },
   { key: "menu.order_line", group: "Menu", label: "Order prompt",
     default: "Order here, and it'll be waiting when you reach the window." },
+  // ── Reserve (the signed-out storefront's story page) ──
+  { key: "reserve.order_bar", group: "Reserve", label: "Order-from-the-bar button",
+    default: "Order from the bar" },
   { key: "menu.integrity", group: "Menu", label: "Integrity line",
     default: "Everything real, poured into glass, made the moment you order" },
   { key: "menu.mto", group: "Menu", label: "Made-to-order line",

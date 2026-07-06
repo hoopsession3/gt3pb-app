@@ -1,15 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth, type Profile } from "@/components/AuthProvider";
 import { useApp } from "@/components/AppProvider";
-import AccountPill from "@/components/AccountPill";
-import Watermark from "@/components/Watermark";
 import GenerateDay from "@/components/GenerateDay";
 import ReservePitch from "@/components/ReservePitch";
-import Gt3Mark from "@/components/Gt3Mark";
+import SignIn from "@/components/SignIn";
 import { useSiteCopy } from "@/lib/copy";
 import { supabase } from "@/lib/supabase";
 import { DRINKS, type DrinkId } from "@/lib/menu";
@@ -150,42 +147,13 @@ function TodayDemo({ t }: { t: (k: string) => string }) {
 }
 
 // ───────────────────────── arrival (first-time / signed-out front door) ─────────────────────────
-function Arrival({ t }: { t: (k: string) => string }) {
-  const router = useRouter();
-  return (
-    <section className="screen arrival" id="s-today">
-      <Watermark variant="landing" />
-      <div className="toprow">
-        <div className="arr-brand"><Gt3Mark tone="cream" /><span className="pb">Performance Bar</span></div>
-        <AccountPill />
-      </div>
-
-      <p className="arr-stmt">{t("home.statement")}</p>
-      <div className="arr-principles">{t("home.principles")}</div>
-
-      <div className="arr-cta">
-        <button className="arr-order" onClick={() => router.push("/menu")}>{t("home.cta")}</button>
-        <div className="arr-order-sub">{t("home.cta_sub")}</div>
-      </div>
-
-      <div className="dchapter"><span className="dchn">What We Make</span><span className="dchw">three acts</span></div>
-      <div className="dchrule" />
-      <div className="pillar"><span className="pdot" style={{ background: "#B8902F" }} /><div className="px"><b>Activation</b><p>Cold-extracted coffee to start the day clear.</p></div></div>
-      <div className="pillar"><span className="pdot" style={{ background: "#3f7d6e" }} /><div className="px"><b>Hydration</b><p>Whole-coconut water to carry you through it.</p></div></div>
-      <div className="pillar"><span className="pdot" style={{ background: "#B82420" }} /><div className="px"><b>Fuel</b><p>Slow-simmered broth to rebuild after.</p></div></div>
-
-      <ReservePitch />
-
-      <div className="signoff">{t("home.signoff")}</div>
-    </section>
-  );
-}
-
+// Today is the MEMBER home — signed out you get the door, not a preview. The storefront story
+// (reserve → what we make → order from the bar) lives on the public Reserve tab.
 export default function TodayScreen() {
   const { ready, enabled, user } = useAuth();
   const t = useSiteCopy();
   if (!enabled) return <TodayDemo t={t} />;
   if (!ready) return <section className="screen" id="s-today" />;
-  if (!user) return <Arrival t={t} />;
+  if (!user) return <SignIn />;
   return <TodayReal t={t} />;
 }
