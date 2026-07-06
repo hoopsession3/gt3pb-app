@@ -2942,3 +2942,8 @@ select.note-in{-webkit-appearance:none;appearance:none}
 /* the exact brand "3" glyph inside the GT3 wordmark (Gt3Mark) — vector, pixel-for-pixel */
 .g3{display:inline-flex;align-items:baseline}
 .g3-3{height:.82em;width:auto;display:inline-block;transform:translateY(.06em)}
+
+/* order-history search box */
+.adm-search{width:100%;background:rgba(0,0,0,.28);border:1.5px solid var(--hair,rgba(245,241,232,.14));border-radius:12px;padding:11px 14px;color:var(--cream,#F5F1E8);font-size:14px;font-family:'Inter',sans-serif;margin:2px 0 12px}
+.app.crew-day .adm-search{background:rgba(0,0,0,.05);color:#221f18}
+.adm-search:focus{outline:none;border-color:var(--gold2,#B8902F)}

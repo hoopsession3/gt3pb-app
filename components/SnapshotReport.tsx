@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { fetchSnapshot, type Snapshot } from "@/lib/reports";
+import { supabase } from "@/lib/supabase";
+import { nextDrop } from "@/lib/orderAhead";
 
 // Business snapshot — inventory value + low-stock, subscriber health, loyalty. One staff-gated
 // RPC (report_snapshot). On-brand, dependency-free. Lives in the MONEY tab under Sales.
@@ -12,10 +14,26 @@ const planLabel = (p: string) => (p || "—").replace(/_/g, " + ").toUpperCase()
 export default function SnapshotReport() {
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [loading, setLoading] = useState(true);
+  // Order-ahead reservation revenue — its own stream (drop_orders), so it isn't invisible to the
+  // money view the way it was before. Read client-side (staff RLS), no report RPC change needed.
+  const [resv, setResv] = useState<{ drop: number; dropN: number; m30: number; m30N: number } | null>(null);
 
   useEffect(() => {
     let live = true;
     fetchSnapshot().then((s) => { if (live) { setSnap(s); setLoading(false); } });
+    (async () => {
+      if (!supabase) return;
+      const since = new Date(Date.now() - 30 * 864e5).toISOString();
+      const sat = nextDrop().sat.toISOString().slice(0, 10);
+      const { data } = await supabase.from("drop_orders").select("total_cents, drop_date").gte("created_at", since);
+      if (!live || !data) return;
+      let drop = 0, dropN = 0, m30 = 0, m30N = 0;
+      for (const r of data as { total_cents: number; drop_date: string }[]) {
+        m30 += r.total_cents; m30N++;
+        if ((r.drop_date || "").slice(0, 10) === sat) { drop += r.total_cents; dropN++; }
+      }
+      setResv({ drop, dropN, m30, m30N });
+    })();
     return () => { live = false; };
   }, []);
 
@@ -30,6 +48,17 @@ export default function SnapshotReport() {
   return (
     <div className="adm-sec rpt">
       <div className="sec">Business snapshot</div>
+
+      {resv && (resv.m30N > 0) && (
+        <div className="rpt-block">
+          <div className="rpt-bh">Reservations · order-ahead</div>
+          <div className="rpt-kpis">
+            <div className="rpt-kpi"><span className="rpt-k">This drop</span><b>{usd(resv.drop)}</b><span className="rpt-sub">{resv.dropN} reserved</span></div>
+            <div className="rpt-kpi"><span className="rpt-k">Last 30 days</span><b>{usd(resv.m30)}</b><span className="rpt-sub">{resv.m30N} reservation{resv.m30N === 1 ? "" : "s"}</span></div>
+          </div>
+          <div className="rpt-foot">One-off Saturday drops (drop_orders) — one-time, never recurring.</div>
+        </div>
+      )}
 
       <div className="rpt-block">
         <div className="rpt-bh">Inventory value</div>
