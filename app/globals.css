@@ -2947,3 +2947,25 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .adm-search{width:100%;background:rgba(0,0,0,.28);border:1.5px solid var(--hair,rgba(245,241,232,.14));border-radius:12px;padding:11px 14px;color:var(--cream,#F5F1E8);font-size:14px;font-family:'Inter',sans-serif;margin:2px 0 12px}
 .app.crew-day .adm-search{background:rgba(0,0,0,.05);color:#221f18}
 .adm-search:focus{outline:none;border-color:var(--gold2,#B8902F)}
+
+/* event completion / lifecycle (OwnerDetails) */
+.ownerdet-life{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 0 2px}
+.ownerdet-stage{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:3px 9px;border-radius:20px;border:1px solid var(--hair,rgba(245,241,232,.16));color:var(--muted)}
+.ownerdet-stage.st-live{color:#cfe6c0;background:rgba(127,168,107,.14);border-color:rgba(127,168,107,.4)}
+.ownerdet-stage.st-done{color:var(--muted);opacity:.8}
+.ownerdet-stage.st-prep,.ownerdet-stage.st-confirmed{color:var(--gold2,#B8902F);border-color:rgba(184,144,47,.4)}
+.ownerdet-complete{font-size:12.5px;font-weight:600;color:#cfe6c0;background:rgba(127,168,107,.12);border:1px solid rgba(127,168,107,.4);border-radius:10px;padding:7px 13px;cursor:pointer;font-family:'Inter',sans-serif}
+.ownerdet-completed{font-size:12.5px;font-weight:600;color:#7FA86B}
+.ownerdet-wrap{margin:8px 0;padding:12px;border:1px solid var(--hair,rgba(245,241,232,.16));border-radius:12px}
+.ownerdet-wrap-lbl{font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:600;color:var(--muted);margin-bottom:7px}
+.ownerdet-wrap-lbl span{text-transform:none;letter-spacing:0;font-weight:400;opacity:.7}
+.ownerdet-wrap textarea{width:100%}
+.ownerdet-wrap-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.ownerdet-wrap-actions button{font-size:12.5px;font-weight:600;border-radius:10px;padding:8px 12px;cursor:pointer;font-family:'Inter',sans-serif;border:1px solid var(--hair,rgba(245,241,232,.16));background:transparent;color:var(--cream,#F5F1E8)}
+.app.crew-day .ownerdet-wrap-actions button{color:#221f18}
+.ownerdet-wrap-actions .ownerdet-complete{color:#0e0d0b;background:#7FA86B;border-color:#7FA86B}
+.ownerdet-recap{font-size:12.5px;line-height:1.55;color:var(--muted);margin:8px 0;padding:10px 12px;border-left:2px solid var(--gold2,#B8902F);background:rgba(184,144,47,.06);border-radius:0 8px 8px 0}
+.ownerdet-recap b{color:var(--cream,#F5F1E8);margin-right:6px}
+.app.crew-day .ownerdet-recap b{color:#221f18}
+.ownerdet-recap-edit{margin-left:8px;background:none;border:none;color:var(--gold2,#B8902F);font-size:11px;font-weight:600;cursor:pointer;text-decoration:underline}
+.ownerdet-cancel{opacity:.7}
