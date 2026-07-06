@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import { useAuth } from "@/components/AuthProvider";
 import AccountPill from "@/components/AccountPill";
+import Gt3Mark from "@/components/Gt3Mark";
 import RouteMap, { type RoutePoint } from "@/components/RouteMap";
 import Skeleton from "@/components/Skeleton";
 import EmptyState from "@/components/EmptyState";
@@ -60,6 +61,16 @@ function whenTime(s: Stop): string {
   if (s.time_label?.trim()) return s.time_label;
   if (s.starts_at) return new Date(s.starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }).replace(":00", "").replace(" ", "").toLowerCase();
   return "";
+}
+// Hand-typed times arrive in any shape; if it's bare 24h ("16:30"), speak it like the rest of the
+// page does ("4:30pm"). Anything else passes through untouched.
+function fmt12(v?: string | null): string | null {
+  if (!v) return v ?? null;
+  const m = /^(\d{1,2}):(\d{2})$/.exec(v.trim());
+  if (!m) return v;
+  const h = Number(m[1]);
+  if (h > 23) return v;
+  return `${h % 12 || 12}:${m[2]}${h >= 12 ? "pm" : "am"}`;
 }
 // Calendar date "6/27" from the real date — so every dated stop always shows its date, not just a weekday.
 function whenDate(s: Stop): string {
@@ -146,7 +157,10 @@ function TruckLive() {
   return (
     <section className="screen truck" id="s-truck">
       <div className="toprow">
-        <div className="eyb">On the ground</div>
+        <div className="mast-brand mast-dark">
+          <Gt3Mark tone="cream" />
+          <span className="pb">Performance Bar</span>
+        </div>
         <AccountPill />
       </div>
 
@@ -154,8 +168,8 @@ function TruckLive() {
         live={isLive}
         place={liveStop?.name ?? (loaded ? "No stops yet" : "…")}
         sub={liveStop ? descFor(liveStop) : ""}
-        openLabel={liveStop ? whenTime(liveStop) : ""}
-        eta={live?.next_eta ?? null}
+        openLabel={liveStop ? fmt12(whenTime(liveStop)) ?? "" : ""}
+        eta={fmt12(live?.next_eta)}
         next={nextLabelFrom(stops, liveStop?.id)}
         onOrder={() => router.push("/menu")}
       />
@@ -222,7 +236,10 @@ function TruckDemo() {
   return (
     <section className="screen truck" id="s-truck">
       <div className="toprow">
-        <div className="eyb">On the ground</div>
+        <div className="mast-brand mast-dark">
+          <Gt3Mark tone="cream" />
+          <span className="pb">Performance Bar</span>
+        </div>
         <AccountPill />
       </div>
 

@@ -2979,6 +2979,9 @@ select.note-in{-webkit-appearance:none;appearance:none}
 
 /* the exact brand "3" glyph inside the GT3 wordmark (Gt3Mark) — real logo pixels, pixel-for-pixel */
 .g3{display:inline-flex;align-items:baseline}
+/* brand masthead on dark screens (truck / reserve) — cream GT, muted wordmark */
+.mast-dark .g3{color:var(--cream,#F5F1E8)}
+.mast-dark .pb{color:var(--cream-m,rgba(245,241,232,.55))}
 .g3-3{height:.76em;width:auto;display:inline-block;margin-left:1px;transform:translateY(.05em)}
 
 /* order-history search box */

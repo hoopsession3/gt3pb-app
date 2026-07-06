@@ -276,6 +276,16 @@ function MpireDemo() {
 
 export default function MpireScreen() {
   const { ready, enabled, user } = useAuth();
+  const router = useRouter();
+  // Return-to-intent: if the member door was opened mid-task (e.g. "Sign in to reserve"), finish
+  // the thought — send them back where they were the moment sign-in completes.
+  useEffect(() => {
+    if (!user) return;
+    try {
+      const next = sessionStorage.getItem("gt3-next");
+      if (next) { sessionStorage.removeItem("gt3-next"); router.replace(next); }
+    } catch { /* ignore */ }
+  }, [user, router]);
   if (!enabled) return <MpireDemo />;
   if (!ready) return <section className="screen" id="s-mpire" />;
   if (!user) return <SignIn />;

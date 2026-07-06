@@ -194,7 +194,7 @@ export default function OrderAhead() {
               </>
             ) : (
               <>
-                <button type="button" className="oa-cta" onClick={() => router.push("/3mpire")}>Sign in to reserve — free to join</button>
+                <button type="button" className="oa-cta" onClick={() => { try { sessionStorage.setItem("gt3-next", "/reserve"); } catch { /* ignore */ } router.push("/3mpire"); }}>Sign in to reserve — free to join</button>
                 <div className="oa-window">Order-ahead is a member perk: reserve the drop, skip the line, and your reservations live in your account.<br />At the window: <b>$10 new · $8 bring-back</b> · single bottle <b>$10</b> — no sign-in needed.</div>
               </>
             )}

@@ -17,8 +17,8 @@ export default function ReserveScreen() {
     <section className="screen" id="s-reserve">
       <Watermark variant="menu" />
       <div className="toprow">
-        <div className="mast-brand">
-          <Gt3Mark tone="ink" />
+        <div className="mast-brand mast-dark">
+          <Gt3Mark tone="cream" />
           <span className="pb">Performance Bar</span>
         </div>
         <AccountPill />
