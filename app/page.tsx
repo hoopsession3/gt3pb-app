@@ -10,6 +10,7 @@ import Watermark from "@/components/Watermark";
 import GenerateDay from "@/components/GenerateDay";
 import ReservePitch from "@/components/ReservePitch";
 import Gt3Mark from "@/components/Gt3Mark";
+import { useSiteCopy } from "@/lib/copy";
 import { supabase } from "@/lib/supabase";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import type { Order } from "@/lib/db";
@@ -63,7 +64,7 @@ function YourUsual() {
 }
 
 // ───────────────────────── signed-in Today — generator-driven ─────────────────────────
-function TodayReal() {
+function TodayReal({ t }: { t: (k: string) => string }) {
   const { user, profile } = useAuth();
   const name = firstName(profile, user?.email);
 
@@ -76,14 +77,14 @@ function TodayReal() {
       <div className="h-title">{greet()}, {name}.</div>
       <YourUsual />
       <ReservePitch />
-      <div className="h-sub">Five questions and I&apos;ll build your stack for the day.</div>
+      <div className="h-sub">{t("home.questions")}</div>
       <GenerateDay />
     </section>
   );
 }
 
 // ───────────────────────── demo Today (Supabase not configured) ─────────────────────────
-function TodayDemo() {
+function TodayDemo({ t }: { t: (k: string) => string }) {
   const { toast } = useApp();
   const [range, setRange] = useState<"7" | "30">("7");
   return (
@@ -93,7 +94,7 @@ function TodayDemo() {
         <Link className="pf" href="/3mpire">R</Link>
       </div>
       <div className="h-title">Morning, Ryan.</div>
-      <div className="h-sub">Five questions and I&apos;ll build your stack for the day.</div>
+      <div className="h-sub">{t("home.questions")}</div>
 
       <div className="hero"><div className="hin">
         <div className="hero-top">
@@ -149,7 +150,7 @@ function TodayDemo() {
 }
 
 // ───────────────────────── arrival (first-time / signed-out front door) ─────────────────────────
-function Arrival() {
+function Arrival({ t }: { t: (k: string) => string }) {
   const router = useRouter();
   return (
     <section className="screen arrival" id="s-today">
@@ -159,12 +160,12 @@ function Arrival() {
         <AccountPill />
       </div>
 
-      <p className="arr-stmt">We draw the coffee cold, blend the hydration from whole coconut, and simmer the broth slow — the long way, on purpose — then make every cup the moment you order it.</p>
-      <div className="arr-principles">Drawn cold, made to order, poured into glass</div>
+      <p className="arr-stmt">{t("home.statement")}</p>
+      <div className="arr-principles">{t("home.principles")}</div>
 
       <div className="arr-cta">
-        <button className="arr-order" onClick={() => router.push("/menu")}>Start your order</button>
-        <div className="arr-order-sub">Choose what you&apos;d like and we&apos;ll have it waiting at the window.</div>
+        <button className="arr-order" onClick={() => router.push("/menu")}>{t("home.cta")}</button>
+        <div className="arr-order-sub">{t("home.cta_sub")}</div>
       </div>
 
       <div className="dchapter"><span className="dchn">What We Make</span><span className="dchw">three acts</span></div>
@@ -175,15 +176,16 @@ function Arrival() {
 
       <ReservePitch />
 
-      <div className="signoff">Pure Signal, No Noise.</div>
+      <div className="signoff">{t("home.signoff")}</div>
     </section>
   );
 }
 
 export default function TodayScreen() {
   const { ready, enabled, user } = useAuth();
-  if (!enabled) return <TodayDemo />;
+  const t = useSiteCopy();
+  if (!enabled) return <TodayDemo t={t} />;
   if (!ready) return <section className="screen" id="s-today" />;
-  if (!user) return <Arrival />;
-  return <TodayReal />;
+  if (!user) return <Arrival t={t} />;
+  return <TodayReal t={t} />;
 }
