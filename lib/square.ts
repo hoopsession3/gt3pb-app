@@ -24,5 +24,5 @@ export type SubPack = { size: number; key: "6" | "12" | "18"; price: string; eac
 export const SUB_PACKS: SubPack[] = [
   { size: 6, key: "6", price: process.env.NEXT_PUBLIC_SUB_PRICE_6 || "$36", each: "$6.00 / bottle" },
   { size: 12, key: "12", price: process.env.NEXT_PUBLIC_SUB_PRICE_12 || "$66", each: "$5.50 / bottle" },
-  { size: 18, key: "18", price: process.env.NEXT_PUBLIC_SUB_PRICE_18 || "$90", each: "$5.00 / bottle" },
+  { size: 18, key: "18", price: process.env.NEXT_PUBLIC_SUB_PRICE_18 || "$96", each: "$5.33 / bottle" },
 ];
