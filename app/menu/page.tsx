@@ -5,11 +5,13 @@ import { useApp } from "@/components/AppProvider";
 import AccountPill from "@/components/AccountPill";
 import Watermark from "@/components/Watermark";
 import Gt3Mark from "@/components/Gt3Mark";
+import { useSiteCopy } from "@/lib/copy";
 import { DRINKS, MENU, type DrinkId } from "@/lib/menu";
 import { clickable } from "@/lib/a11y";
 
 export default function MenuScreen() {
   const { openDrink, isInCart, cartCount, toast } = useApp();
+  const t = useSiteCopy();
   const [prices, setPrices] = useState<Record<string, number>>({});
   // Prices come from Square Catalog (one source of truth across truck + app).
   useEffect(() => {
@@ -46,10 +48,8 @@ export default function MenuScreen() {
         <AccountPill />
       </div>
 
-      <p className="mast-stmt">
-        We draw the coffee cold, blend the hydration from whole coconut, and simmer the broth slow — the long way, on purpose — then make every cup the moment you order it.
-      </p>
-      <div className="mast-order">Order here, and it&apos;ll be waiting when you reach the window.</div>
+      <p className="mast-stmt">{t("menu.statement")}</p>
+      <div className="mast-order">{t("menu.order_line")}</div>
 
       <div className="menu-chips" role="tablist" aria-label="Menu categories">
         {MENU.map((cat) => (

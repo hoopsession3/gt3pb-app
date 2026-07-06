@@ -7,6 +7,7 @@ import BrandCalendar from "./BrandCalendar";
 import BrandKit from "./BrandKit";
 import RoadFlyer from "./RoadFlyer";
 import LetterFlyer from "./LetterFlyer";
+import SiteCopyEditor from "./SiteCopyEditor";
 import { lintCaption } from "@/lib/captionLint";
 
 // STUDIO — the collaborative marketing studio. Her money-maker, his taste → built around
@@ -118,7 +119,7 @@ export default function Studio() {
       ) : view === "letter" ? (
         <LetterFlyer />
       ) : view === "brand" ? (
-        <BrandKit canEdit />
+        <><BrandKit canEdit /><SiteCopyEditor /></>
       ) : view === "calendar" ? (
         <BrandCalendar onOpen={setOpenId} onCreate={(iso, evId) => create(iso, evId)} />
       ) : view === "grid" ? (
