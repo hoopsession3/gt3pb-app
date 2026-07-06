@@ -5,10 +5,13 @@ import Image from "next/image";
 import { useAuth } from "./AuthProvider";
 
 type Mode = "passwordless" | "password";
+type Intent = "join" | "signin";
 
 export default function SignIn() {
   const { sendCode, verifyCode, signInWithUrl, signInWithPassword, signUp, resetPassword } = useAuth();
 
+  // The first question is WHO you are (new vs returning) — the auth method comes second.
+  const [intent, setIntent] = useState<Intent>("join");
   const [mode, setMode] = useState<Mode>("passwordless");
   const [step, setStep] = useState<"form" | "sent" | "confirm" | "reset-sent">("form");
 
@@ -35,7 +38,7 @@ export default function SignIn() {
   // password mode
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [isNew, setIsNew] = useState(false);
+  const isNew = intent === "join"; // joining = creating the account; signing in = you have one
   const [showPass, setShowPass] = useState(false);
 
   const reset = () => {
@@ -97,7 +100,7 @@ export default function SignIn() {
       setBusy(false);
       if (error) {
         const msg = error.includes("Invalid login credentials")
-          ? "Wrong email or password. New here? Check the box below to create an account."
+          ? "Wrong email or password. New here? Switch to “Become a member” above."
           : error;
         setErr(msg);
       }
@@ -180,18 +183,31 @@ export default function SignIn() {
       {/* ── main form ── */}
       {step === "form" && (
         <>
-          <h1 className="auth-headline">Grow your 3MPIRE.</h1>
-          <p className="auth-sub">Members get their day dialed — points, pours &amp; reserves. Pick how you want to sign in.</p>
+          <h1 className="auth-headline">{intent === "join" ? "Grow your 3MPIRE." : "Welcome back."}</h1>
+          <p className="auth-sub">
+            {intent === "join"
+              ? <>Free to join — points on every pour, first taste of reserves, order-ahead perks.</>
+              : <>Good to see you. Pick how you want to sign in.</>}
+          </p>
 
-          <div className="auth-tabs">
+          <div className="auth-tabs auth-intent">
+            <button className={`auth-tab${intent === "join" ? " on" : ""}`} onClick={() => { setIntent("join"); setErr(""); }}>Become a member</button>
+            <button className={`auth-tab${intent === "signin" ? " on" : ""}`} onClick={() => { setIntent("signin"); setErr(""); }}>Member sign in</button>
+          </div>
+
+          <div className="auth-tabs auth-tabs-mini">
             <button className={`auth-tab${mode === "passwordless" ? " on" : ""}`} onClick={() => { setMode("passwordless"); setErr(""); }}>Link / code</button>
             <button className={`auth-tab${mode === "password" ? " on" : ""}`} onClick={() => { setMode("password"); setErr(""); }}>Password</button>
           </div>
 
           {mode === "passwordless" && (
             <form className="auth-form" onSubmit={handleSendCode}>
-              <label className="auth-label" htmlFor="auth-name">First name <span>(optional)</span></label>
-              <input id="auth-name" className="auth-input" type="text" autoComplete="given-name" placeholder="Ryan" value={name} onChange={(e) => setName(e.target.value)} />
+              {intent === "join" && (
+                <>
+                  <label className="auth-label" htmlFor="auth-name">First name <span>(so we can greet you)</span></label>
+                  <input id="auth-name" className="auth-input" type="text" autoComplete="given-name" placeholder="Ryan" value={name} onChange={(e) => setName(e.target.value)} />
+                </>
+              )}
               <label className="auth-label" htmlFor="auth-email">Email</label>
               <input id="auth-email" className="auth-input" type="email" inputMode="email" autoComplete="email" placeholder="you@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
               <label className="auth-check-row">
@@ -200,7 +216,7 @@ export default function SignIn() {
               </label>
               {err && <div className="auth-err">{err}</div>}
               <button className="handle" type="submit" disabled={busy} style={{ marginTop: 18 }}>
-                <span>{busy ? "Sending…" : "Send sign-in link"}</span>
+                <span>{busy ? "Sending…" : intent === "join" ? "Become a member — email my link" : "Send my sign-in link"}</span>
               </button>
             </form>
           )}
@@ -239,16 +255,12 @@ export default function SignIn() {
                 </>
               )}
               <label className="auth-check-row" style={{ marginTop: 14 }}>
-                <input type="checkbox" checked={isNew} onChange={(e) => { setIsNew(e.target.checked); setErr(""); }} />
-                <span>New here — create my account</span>
-              </label>
-              <label className="auth-check-row">
                 <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
                 <span>Keep me signed in</span>
               </label>
               {err && <div className="auth-err">{err}</div>}
               <button className="handle" type="submit" disabled={busy} style={{ marginTop: 18 }}>
-                <span>{busy ? (isNew ? "Creating…" : "Signing in…") : (isNew ? "Create account" : "Sign in")}</span>
+                <span>{busy ? (isNew ? "Creating…" : "Signing in…") : (isNew ? "Become a member" : "Sign in")}</span>
               </button>
               {!isNew && (
                 <button type="button" className="auth-link" onClick={handleReset} disabled={busy} style={{ marginTop: 12 }}>

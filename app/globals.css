@@ -933,6 +933,9 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .auth-paste-hint{font-size:12px;color:rgba(245,241,232,.45);line-height:1.5;margin:7px 0 11px}
 .handle.ghost{background:transparent;border:1px solid var(--line2);color:var(--cream-m)}
 .auth-tabs{display:flex;gap:6px;margin-top:18px}
+.auth-tabs.auth-intent{margin-top:20px}
+.auth-tabs.auth-tabs-mini{margin-top:10px}
+.auth-tabs-mini .auth-tab{font-size:11px;padding:8px 12px;opacity:.85}
 .auth-tab{flex:1;padding:10px 0;border-radius:12px;border:1px solid var(--line2);background:transparent;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;transition:.15s}
 .auth-tab.on{background:rgba(184,36,32,.18);border-color:var(--red);color:var(--cream)}
 .auth-pass-wrap{position:relative}

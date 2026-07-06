@@ -895,7 +895,6 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
           ))}
         </>
       )}
-      <div className="sec">My tasks</div>
       <MyTasks userId={userId} />
     </>
   );
