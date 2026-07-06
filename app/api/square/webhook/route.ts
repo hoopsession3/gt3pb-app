@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { SQUARE_WEBHOOK_SIGNATURE_KEY, SQUARE_WEBHOOK_URL, mapSubStatus } from "@/lib/squareServer";
+import { raiseAlert } from "@/lib/serverAlerts";
 
 export const runtime = "nodejs"; // needs node crypto + raw body
 
@@ -56,14 +57,18 @@ export async function POST(req: Request) {
           current_period_end: sub.charged_through_date || null,
           updated_at: new Date().toISOString(),
         }).eq("square_subscription_id", sub.id);
-        // A stale 'subscription.updated' must not clear past_due back to active — only a
-        // real invoice.payment_made does. Other transitions (canceled/paused) still apply.
-        if (next === "active") q = q.neq("status", "past_due");
+        // 'canceled' is terminal (the member's intent) and 'past_due' clears only on a real
+        // payment — so a stale 'subscription.updated' ACTIVE must not revive either back to active.
+        // Other transitions (canceled/paused) still apply.
+        if (next === "active") q = q.not("status", "in", "(canceled,past_due)");
         ({ error: err } = await q);
+        // Leadership visibility on churn — a cancel shouldn't be invisible.
+        if (next === "canceled") await raiseAlert({ severity: "important", category: "money", title: "Subscription canceled", body: "A member canceled their coffee subscription. See Subscribers." });
       }
     } else if (type === "invoice.payment_made") {
       const subId = evt?.data?.object?.invoice?.subscription_id;
-      if (subId) ({ error: err } = await supabaseAdmin.from("subscriptions").update({ status: "active", updated_at: new Date().toISOString() }).eq("square_subscription_id", subId));
+      // A payment clears past_due back to active, but must never resurrect a canceled subscription.
+      if (subId) ({ error: err } = await supabaseAdmin.from("subscriptions").update({ status: "active", updated_at: new Date().toISOString() }).eq("square_subscription_id", subId).neq("status", "canceled"));
     } else if (type === "invoice.payment_failed") {
       const subId = evt?.data?.object?.invoice?.subscription_id;
       if (subId) ({ error: err } = await supabaseAdmin.from("subscriptions").update({ status: "past_due", updated_at: new Date().toISOString() }).eq("square_subscription_id", subId));

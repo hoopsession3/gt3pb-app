@@ -23,26 +23,33 @@ const PAGES = 4;
 type Theme = {
   id: string; name: string; note: string;
   paper: string; ink: string; headInk?: string; sub: string; accent: string; serif: string;
-  frame: "gold" | "cream" | "goldheavy" | "thin" | "brackets" | "press" | "ticket" | "none";
+  frame: "gold" | "cream" | "goldheavy" | "thin" | "brackets" | "press" | "ticket" | "proof" | "none";
   motif: "crest" | "masthead" | "band" | "neon" | "monogram";
-  dark?: boolean; gold?: boolean; glow?: boolean; grain?: boolean; split?: boolean; weave?: boolean; warm?: boolean;
+  dark?: boolean; gold?: boolean; glow?: boolean; grain?: boolean; split?: boolean; weave?: boolean; warm?: boolean; deco?: boolean; offset?: boolean; spotlight?: boolean; terrazzo?: boolean; halftone?: boolean;
   crestSq?: string; crestAcc?: string;
+  l1: string; l2: string; // the template's default GT3 saying (headline) — a different angle per cut
 };
 // The 10 templates — one family, ten director's cuts.
 const THEMES: Theme[] = [
-  { id: "marquee", name: "The Marquee", note: "cream · gold frame", paper: CREAM, ink: INK, sub: mc(.52), accent: RED, serif: GOLD, frame: "gold", motif: "crest" },
-  { id: "blackout", name: "Blackout", note: "charcoal night", paper: INK, ink: CREAM, sub: cm(.55), accent: RED, serif: GOLD_LT, frame: "gold", motif: "crest", dark: true, crestSq: CREAM },
-  { id: "redline", name: "Redline", note: "signal-red field", paper: RED, ink: CREAM, sub: cm(.78), accent: INK, serif: CREAM, frame: "cream", motif: "crest", dark: true, crestSq: CREAM, crestAcc: INK },
-  { id: "press", name: "The Press", note: "editorial masthead", paper: CREAM, ink: INK, sub: mc(.55), accent: RED, serif: INK, frame: "press", motif: "masthead" },
-  { id: "goldleaf", name: "Gold Leaf", note: "gilded · opulent", paper: "#efe7d6", ink: INK, sub: mc(.5), accent: GOLD, serif: GOLD, frame: "goldheavy", motif: "crest", gold: true },
-  { id: "checker", name: "Checkered Flag", note: "motorsport", paper: CREAM, ink: INK, sub: mc(.52), accent: RED, serif: INK, frame: "thin", motif: "band" },
-  { id: "split", name: "The Split", note: "charcoal ∕ cream", paper: CREAM, ink: INK, headInk: CREAM, sub: mc(.55), accent: RED, serif: GOLD, frame: "none", motif: "crest", split: true, crestSq: CREAM },
-  { id: "neon", name: "Neon Signal", note: "red-glow headline", paper: "#100d09", ink: CREAM, sub: cm(.55), accent: RED, serif: GOLD_LT, frame: "brackets", motif: "neon", dark: true, glow: true, crestSq: CREAM },
-  { id: "monogram", name: "The Monogram", note: "oversized crest", paper: CREAM, ink: INK, sub: mc(.5), accent: RED, serif: GOLD, frame: "thin", motif: "monogram" },
-  { id: "reserve", name: "Grain & Frame", note: "cinematic grain", paper: "#161009", ink: CREAM, sub: cm(.6), accent: RED, serif: GOLD_LT, frame: "gold", motif: "crest", dark: true, grain: true, crestSq: CREAM },
-  { id: "carbon", name: "Carbon Fiber", note: "woven motorsport", paper: "#17130d", ink: CREAM, sub: cm(.55), accent: RED, serif: GOLD_LT, frame: "gold", motif: "crest", dark: true, weave: true, crestSq: CREAM },
-  { id: "ticket", name: "The Ticket", note: "event ticket · perforated", paper: CREAM, ink: INK, sub: mc(.5), accent: RED, serif: GOLD, frame: "ticket", motif: "crest" },
-  { id: "amber", name: "Amber Glow", note: "warm sunrise gradient", paper: CREAM, ink: INK, sub: mc(.5), accent: RED, serif: GOLD, frame: "gold", motif: "crest", warm: true },
+  { id: "marquee", name: "The Marquee", note: "cream · gold frame", paper: CREAM, ink: INK, sub: mc(.52), accent: RED, serif: GOLD, frame: "gold", motif: "crest", l1: "FIND US", l2: "ON THE ROAD" },
+  { id: "blackout", name: "Blackout", note: "charcoal night", paper: INK, ink: CREAM, sub: cm(.55), accent: RED, serif: GOLD_LT, frame: "gold", motif: "crest", dark: true, crestSq: CREAM, l1: "THE EVENING", l2: "POUR" },
+  { id: "redline", name: "Redline", note: "signal-red field", paper: RED, ink: CREAM, sub: cm(.78), accent: INK, serif: CREAM, frame: "cream", motif: "crest", dark: true, crestSq: CREAM, crestAcc: INK, l1: "PURE SIGNAL", l2: "NO NOISE" },
+  { id: "press", name: "The Press", note: "editorial masthead", paper: CREAM, ink: INK, sub: mc(.55), accent: RED, serif: INK, frame: "press", motif: "masthead", l1: "MADE", l2: "TO ORDER" },
+  { id: "goldleaf", name: "Gold Leaf", note: "gilded · opulent", paper: "#efe7d6", ink: INK, sub: mc(.5), accent: GOLD, serif: GOLD, frame: "goldheavy", motif: "crest", gold: true, l1: "SINGLE", l2: "ORIGIN" },
+  { id: "checker", name: "Checkered Flag", note: "motorsport", paper: CREAM, ink: INK, sub: mc(.52), accent: RED, serif: INK, frame: "thin", motif: "band", l1: "COLD", l2: "EXTRACTED" },
+  { id: "split", name: "The Split", note: "charcoal ∕ cream", paper: CREAM, ink: INK, headInk: CREAM, sub: mc(.55), accent: RED, serif: GOLD, frame: "none", motif: "crest", split: true, crestSq: CREAM, l1: "NOTHING", l2: "TO HIDE" },
+  { id: "neon", name: "Neon Signal", note: "red-glow headline", paper: "#100d09", ink: CREAM, sub: cm(.55), accent: RED, serif: GOLD_LT, frame: "brackets", motif: "neon", dark: true, glow: true, crestSq: CREAM, l1: "NITRO", l2: "ON TAP" },
+  { id: "monogram", name: "The Monogram", note: "oversized crest", paper: CREAM, ink: INK, sub: mc(.5), accent: RED, serif: GOLD, frame: "thin", motif: "monogram", l1: "ONLY THE BEST", l2: "FOR YOU" },
+  { id: "reserve", name: "Grain & Frame", note: "cinematic grain", paper: "#161009", ink: CREAM, sub: cm(.6), accent: RED, serif: GOLD_LT, frame: "gold", motif: "crest", dark: true, grain: true, crestSq: CREAM, l1: "OUT OF", l2: "RESPECT" },
+  { id: "carbon", name: "Carbon Fiber", note: "woven motorsport", paper: "#17130d", ink: CREAM, sub: cm(.55), accent: RED, serif: GOLD_LT, frame: "gold", motif: "crest", dark: true, weave: true, crestSq: CREAM, l1: "18 HOURS", l2: "COLD" },
+  { id: "ticket", name: "The Ticket", note: "event ticket · perforated", paper: CREAM, ink: INK, sub: mc(.5), accent: RED, serif: GOLD, frame: "ticket", motif: "crest", l1: "WHEN YOU", l2: "NEED IT" },
+  { id: "amber", name: "Amber Glow", note: "warm sunrise gradient", paper: CREAM, ink: INK, sub: mc(.5), accent: RED, serif: GOLD, frame: "gold", motif: "crest", warm: true, l1: "START", l2: "THE MORNING" },
+  { id: "proof", name: "The Proof", note: "press proof · registration", paper: CREAM, ink: INK, sub: mc(.52), accent: RED, serif: INK, frame: "proof", motif: "crest", l1: "HONEST", l2: "IN THE BOTTLE" },
+  { id: "deco", name: "The Deco", note: "art-deco · gilded rays", paper: "#141007", ink: CREAM, sub: cm(.6), accent: GOLD, serif: GOLD_LT, frame: "gold", motif: "crest", dark: true, deco: true, gold: true, crestSq: CREAM, l1: "ONLY WHAT", l2: "WE'D DRINK" },
+  { id: "offset", name: "Offset", note: "riso duotone · handmade", paper: CREAM, ink: INK, sub: mc(.52), accent: RED, serif: INK, frame: "thin", motif: "crest", offset: true, l1: "MADE", l2: "FRESH" },
+  { id: "nocturne", name: "Nocturne", note: "spotlit charcoal", paper: "#0f0c08", ink: CREAM, sub: cm(.55), accent: RED, serif: GOLD_LT, frame: "thin", motif: "crest", dark: true, spotlight: true, crestSq: CREAM, l1: "FOR THE", l2: "DEEP WORK" },
+  { id: "terrazzo", name: "Terrazzo", note: "speckled · whole-food", paper: CREAM, ink: INK, sub: mc(.52), accent: RED, serif: GOLD, frame: "thin", motif: "crest", terrazzo: true, l1: "WHOLE", l2: "COCONUT" },
+  { id: "halftone", name: "Halftone", note: "pop-art dots", paper: CREAM, ink: INK, sub: mc(.52), accent: RED, serif: INK, frame: "thin", motif: "crest", halftone: true, l1: "REAL", l2: "INGREDIENTS" },
 ];
 
 const MON = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
@@ -54,6 +61,9 @@ function dateLine(iso: string | null): string {
   return `${DOW[d.getDay()]} · ${MON[d.getMonth()]} ${d.getDate()}`;
 }
 const norm = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+// Crop box (fractions of the gt3pb-handle.png) that isolates just the red "GT3" from the full lockup —
+// measured from the asset's red bounding box. We draw THESE PIXELS, never a redrawn approximation.
+const LOGO = { fx: 0.035, fy: 0.05, fw: 0.93, fh: 0.50 };
 
 // Defaults are true to the Academy source of truth — real products, real specs, honey disclosed.
 const DEFAULT_MENU = "COLD BREW\nRise · Flow · Dusk\n\nON NITRO\nNitro Cold Brew";
@@ -70,15 +80,19 @@ export default function RoadFlyer() {
   const [tpl, setTpl] = useState(0);
   const [busy, setBusy] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
-  const [f, setF] = useState({ headline1: "FIND US", headline2: "ON THE ROAD", date: "", time: "", place: "", address: "", photo: "", menu: DEFAULT_MENU, submenu: DEFAULT_SUB, details: DEFAULT_DETAILS });
-  const wmRef = useRef<HTMLImageElement | null>(null);
+  const [f, setF] = useState({ headline1: THEMES[0].l1, headline2: THEMES[0].l2, date: "", time: "", place: "", address: "", photo: "", menu: DEFAULT_MENU, submenu: DEFAULT_SUB, details: DEFAULT_DETAILS });
+  const logoRef = useRef<HTMLImageElement | null>(null); // the real GT3 logo image (gt3pb-handle.png)
   const [logoReady, setLogoReady] = useState(0);
+  const headEditedRef = useRef(false); // once the user types their own headline, stop auto-seeding the saying
 
   useEffect(() => {
     const saved = typeof window !== "undefined" ? Number(localStorage.getItem("gt3-flyer-tpl")) : 0;
-    if (saved >= 0 && saved < THEMES.length) setTpl(saved);
+    if (saved >= 0 && saved < THEMES.length) { setTpl(saved); seedSaying(saved); }
   }, []);
-  const pickTpl = (i: number) => { setTpl(i); if (typeof window !== "undefined") localStorage.setItem("gt3-flyer-tpl", String(i)); };
+  // Each template carries its own GT3 saying; picking one shows that saying (a different angle),
+  // unless the user has already written their own headline.
+  const seedSaying = (i: number) => { if (!headEditedRef.current) setF((p) => ({ ...p, headline1: THEMES[i].l1, headline2: THEMES[i].l2 })); };
+  const pickTpl = (i: number) => { setTpl(i); if (typeof window !== "undefined") localStorage.setItem("gt3-flyer-tpl", String(i)); seedSaying(i); };
   const applyTemplate = (id: string) => { const i = THEMES.findIndex((x) => x.id === id); if (i >= 0) pickTpl(i); return i >= 0 ? THEMES[i].name : ""; };
 
   // Deterministic fallback pick when the AI isn't switched on — reads the slide + copy for a mood.
@@ -125,22 +139,10 @@ export default function RoadFlyer() {
   const pick = (key: string) => { const o = opts.find((x) => x.key === key); if (o) setF((p) => ({ ...p, date: o.date, time: o.time, place: o.place, address: o.address })); };
 
   useEffect(() => {
-    if (!supabase) return;
     let alive = true;
-    (async () => {
-      let wm = "";
-      const { data: bk } = await supabase.from("brand_kit").select("wordmark_url, logo_url").limit(1).maybeSingle();
-      if (bk) wm = (bk as any).wordmark_url || (bk as any).logo_url || "";
-      if (!wm) {
-        const { data: ba } = await supabase.from("brand_assets").select("kind, url, sort").in("kind", ["wordmark", "logo"]).order("sort");
-        const list = (ba as any[]) ?? [];
-        wm = (list.find((a) => a.kind === "wordmark") || list.find((a) => a.kind === "logo") || {}).url || "";
-      }
-      if (!wm) return;
-      const img = new Image(); img.crossOrigin = "anonymous";
-      img.onload = () => { if (alive) { wmRef.current = img; setLogoReady((n) => n + 1); } };
-      img.src = wm;
-    })();
+    const img = new Image(); img.crossOrigin = "anonymous";
+    img.onload = () => { if (alive) { logoRef.current = img; setLogoReady((n) => n + 1); } };
+    img.src = "/brand/gt3pb-handle.png"; // the real GT3 logo asset (committed in /public/brand)
     return () => { alive = false; };
   }, []);
 
@@ -183,24 +185,36 @@ export default function RoadFlyer() {
     };
     const disp = (t: string, x: number, y: number, color: string | CanvasGradient, size: number, glow?: string) => {
       ctx.save(); (ctx as any).letterSpacing = "-1px"; ctx.font = `900 ${size}px 'Archivo Black', system-ui`;
+      // Offset cut — a riso-style misregistration ghost behind the type (handmade-print look)
+      if (th.offset && typeof color === "string") { ctx.fillStyle = color === INK ? "rgba(184,36,32,.5)" : "rgba(21,18,13,.42)"; ctx.fillText(t, x + 7, y + 7); }
       if (glow) { ctx.shadowColor = glow; ctx.shadowBlur = 32; } ctx.fillStyle = color; ctx.fillText(t, x, y);
       ctx.restore(); (ctx as any).letterSpacing = "0px";
     };
-    const goldHead = (y: number, size: number) => { const g = ctx.createLinearGradient(0, y - size, 0, y + 8); g.addColorStop(0, GOLD_LT); g.addColorStop(.5, GOLD); g.addColorStop(1, "#8a6531"); return g; };
-    const checkerDiamond = (cx: number, cy: number, s: number, sqOverride?: string) => {
-      ctx.save(); ctx.translate(cx, cy); ctx.rotate(Math.PI / 4);
-      const n = 3, cs = (s * 2) / n, o = -s, sq = sqOverride || th.crestSq || INK, acc = th.crestAcc || RED;
-      for (let r = 0; r < n; r++) for (let k = 0; k < n; k++) { ctx.fillStyle = (r + k) % 2 === 0 ? sq : acc; ctx.fillRect(o + k * cs, o + r * cs, cs, cs); }
-      ctx.strokeStyle = GOLD; ctx.lineWidth = 2.5; ctx.strokeRect(-s, -s, s * 2, s * 2); ctx.restore();
+    // shrink a display line so it always fits the column (long sayings never run off the frame)
+    const fitSize = (t: string, maxSize: number, maxW: number) => {
+      ctx.save(); (ctx as any).letterSpacing = "-1px"; ctx.font = `900 ${maxSize}px 'Archivo Black', system-ui`; const w = ctx.measureText(t).width; ctx.restore(); (ctx as any).letterSpacing = "0px";
+      return w > maxW ? Math.max(52, Math.floor(maxSize * (maxW / w))) : maxSize;
     };
-    // The house emblem — GT3 set in Archivo Black, flanked by two checker-diamond bookends. This is
-    // the ONE constant across every template (the brand anchor); the templates differ around it.
-    const emblem = (cx: number, cy: number, col: string, sqO?: string) => {
-      ctx.save(); ctx.font = "900 50px 'Archivo Black', system-ui"; const w = ctx.measureText("GT3").width;
-      ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = col; ctx.fillText("GT3", cx, cy + 1); ctx.restore();
-      ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
-      checkerDiamond(cx - w / 2 - 30, cy, 12, sqO); checkerDiamond(cx + w / 2 + 30, cy, 12, sqO);
-      return w / 2 + 42;
+    const goldHead = (y: number, size: number) => { const g = ctx.createLinearGradient(0, y - size, 0, y + 8); g.addColorStop(0, GOLD_LT); g.addColorStop(.5, GOLD); g.addColorStop(1, "#8a6531"); return g; };
+    // The house emblem — the REAL GT3 logo, cropped straight from the asset (no redraw). Red-on-
+    // transparent reads on cream + charcoal; on the red field it gets a cream chip to stay visible.
+    const gtLogo = (cx: number, cy: number, h: number, chip: boolean) => {
+      const src = logoRef.current; if (!src || !src.width) return null;
+      const sx = LOGO.fx * src.width, sy = LOGO.fy * src.height, sw = LOGO.fw * src.width, sh = LOGO.fh * src.height;
+      let dh = h, dw = sw * (dh / sh); const maxW = W - 2 * M - 100; if (dw > maxW) { const k = maxW / dw; dw *= k; dh *= k; }
+      if (chip) { ctx.fillStyle = CREAM; rr(ctx, cx - dw / 2 - 18, cy - dh / 2 - 12, dw + 36, dh + 24, 12); ctx.fill(); }
+      ctx.drawImage(src, sx, sy, sw, sh, cx - dw / 2, cy - dh / 2, dw, dh);
+      return dw / 2;
+    };
+    const emblem = (cx: number, cy: number, _col?: string, _sqO?: string, _onDark = false) => {
+      const hw = gtLogo(cx, cy, 74, th.id === "redline");
+      if (hw != null) return hw + (th.id === "redline" ? 24 : 16);
+      // fallback ONLY if the asset failed to load — the red GT3 wordmark drawn (never white/checker)
+      ctx.save(); (ctx as any).letterSpacing = "-2px"; ctx.font = "900 60px 'Archivo Black', system-ui";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle"; const w = ctx.measureText("GT3").width;
+      ctx.fillStyle = th.id === "redline" ? CREAM : RED; ctx.fillText("GT3", cx, cy + 1);
+      ctx.restore(); (ctx as any).letterSpacing = "0px"; ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+      return w / 2 + 18;
     };
     // background paint; returns the split-band bottom (0 if none)
     const paintBg = (hero: boolean) => {
@@ -219,6 +233,18 @@ export default function RoadFlyer() {
       if (th.weave) {
         const s = 18; for (let y = 0; y < H; y += s) for (let x = 0; x < W; x += s) { ctx.fillStyle = ((x / s + y / s) % 2 === 0) ? "rgba(245,241,232,.03)" : "rgba(0,0,0,.22)"; ctx.fillRect(x, y, s, s); }
       }
+      if (th.deco) {
+        // gilded sunburst rays from above, + stepped art-deco corner ornaments
+        ctx.save(); ctx.strokeStyle = "rgba(201,166,97,.14)"; ctx.lineWidth = 2;
+        for (let a = -60; a <= 60; a += 12) { const rad = a * Math.PI / 180; ctx.beginPath(); ctx.moveTo(W / 2, -120); ctx.lineTo(W / 2 + Math.sin(rad) * 1300, -120 + Math.cos(rad) * 1300); ctx.stroke(); }
+        ctx.restore();
+        ctx.strokeStyle = GOLD; ctx.lineWidth = 2;
+        const step = (x: number, y: number, dx: number, dy: number) => { ctx.beginPath(); ctx.moveTo(x, y + dy * 74); ctx.lineTo(x, y + dy * 42); ctx.lineTo(x + dx * 32, y + dy * 42); ctx.lineTo(x + dx * 32, y + dy * 14); ctx.lineTo(x + dx * 74, y + dy * 14); ctx.stroke(); };
+        const o = 50; step(o, o, 1, 1); step(W - o, o, -1, 1); step(o, H - o, 1, -1); step(W - o, H - o, -1, -1);
+      }
+      if (th.spotlight) { const r = ctx.createRadialGradient(W / 2, 120, 30, W / 2, 120, 660); r.addColorStop(0, "rgba(201,166,97,.22)"); r.addColorStop(1, "rgba(201,166,97,0)"); ctx.fillStyle = r; ctx.fillRect(0, 0, W, H); }
+      if (th.terrazzo) { const cols = [RED, GOLD, GOLD_LT, INK, "#3f7d6e"]; const chip = (n: number, y0: number, y1: number) => { for (let i = 0; i < n; i++) { const x = Math.random() * (W - 2 * M) + M, y = Math.random() * (y1 - y0) + y0, rw = 6 + Math.random() * 12, rh = 5 + Math.random() * 9; ctx.save(); ctx.translate(x, y); ctx.rotate(Math.random() * Math.PI); ctx.globalAlpha = .7; ctx.fillStyle = cols[(Math.random() * cols.length) | 0]; ctx.beginPath(); ctx.ellipse(0, 0, rw, rh, 0, 0, 7); ctx.fill(); ctx.restore(); } }; chip(24, 72, 224); chip(28, H - 256, H - 72); ctx.globalAlpha = 1; }
+      if (th.halftone) { for (let y = 40; y < 340; y += 18) for (let x = W - 340; x < W - 40; x += 18) { const d = Math.hypot(x - (W - 40), y - 40), r = Math.max(0, 1 - d / 300) * 5.5; if (r > 0.5) { ctx.fillStyle = "rgba(184,36,32,.45)"; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); } } }
       if (th.motif === "monogram") {
         ctx.save(); ctx.globalAlpha = .05; ctx.translate(W / 2, H / 2 + 140); ctx.rotate(Math.PI / 4);
         const s = 340, n = 6, cs = (s * 2) / n;
@@ -244,12 +270,24 @@ export default function RoadFlyer() {
         ctx.fillStyle = CREAM; ctx.beginPath(); ctx.arc(44, py, 22, 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(W - 44, py, 22, 0, 7); ctx.fill();
         eyebrow("Admit One · GT3", W / 2, py + 42, mc(.55), "center", 5);
       }
+      else if (th.frame === "proof") {
+        ctx.strokeStyle = "rgba(21,18,13,.5)"; ctx.lineWidth = 1; ctx.strokeRect(58, 58, W - 116, H - 116);
+        ctx.strokeStyle = INK; ctx.lineWidth = 1.5; const o = 30, L = 26;
+        ([[o, o, 1, 1], [W - o, o, -1, 1], [o, H - o, 1, -1], [W - o, H - o, -1, -1]] as const).forEach(([x, y, dx, dy]) => { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + dx * L, y); ctx.moveTo(x, y); ctx.lineTo(x, y + dy * L); ctx.stroke(); });
+        regTarget(W / 2, 30, 11, INK); regTarget(W / 2, H - 30, 11, INK); regTarget(30, H / 2, 11, INK); regTarget(W - 30, H / 2, 11, INK);
+      }
+    };
+    // a print registration target — circle + inner ring + crosshair overshoot
+    const regTarget = (x: number, y: number, r: number, col: string) => {
+      ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.stroke(); ctx.beginPath(); ctx.arc(x, y, r * 0.42, 0, 7); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x - r - 9, y); ctx.lineTo(x + r + 9, y); ctx.moveTo(x, y - r - 9); ctx.lineTo(x, y + r + 9); ctx.stroke();
     };
     const topMotif = (caption: string) => {
       // Press keeps its editorial masthead (still GT3, top-centered); every other cut shows the GT3 emblem.
       if (th.motif === "masthead") { eyebrow("GT3 · Performance Bar", W / 2, 120, th.ink, "center", 6); return; }
       const cy = 146, cx = W / 2;
-      const hw = emblem(cx, cy, th.dark ? CREAM : INK);
+      const hw = emblem(cx, cy, th.dark ? CREAM : INK, undefined, th.dark);
       ctx.strokeStyle = goldHair; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(M + 6, cy); ctx.lineTo(cx - hw - 18, cy); ctx.moveTo(cx + hw + 18, cy); ctx.lineTo(W - M - 6, cy); ctx.stroke();
       eyebrow(caption, cx, cy + 58, th.motif === "neon" ? th.serif : goldHair, "center");
     };
@@ -283,20 +321,15 @@ export default function RoadFlyer() {
     const footer = (onPhoto = false) => {
       ctx.fillStyle = onPhoto ? cm(.32) : goldFaint; ctx.fillRect(M, H - 150, W - 2 * M, 1.5);
       ctx.textAlign = "left";
-      const img = wmRef.current;
-      if (img && img.width > 0) {
-        // Preserve the wordmark's exact aspect ratio (never stretched); fit within a max height AND a
-        // max width so it always clears the right-side tagline, then vertically center it on the footer
-        // line so it lands pixel-identically on every slide/template.
-        const maxH = 58, maxW = W / 2 - M - 20;
-        const s = Math.min(maxH / img.height, maxW / img.width);
-        const w = img.width * s, h = img.height * s;
-        const y = Math.round(H - 96 - h / 2);
-        if (onPhoto || th.dark) { ctx.fillStyle = CREAM; rr(ctx, M - 16, y - 11, w + 32, h + 22, 14); ctx.fill(); }
-        ctx.drawImage(img, M, y, w, h);
+      // Footer wordmark = the SAME real GT3 logo pixels, small, left-aligned (chip on the red field).
+      const src = logoRef.current;
+      if (src && src.width) {
+        const sx = LOGO.fx * src.width, sy = LOGO.fy * src.height, sw = LOGO.fw * src.width, sh = LOGO.fh * src.height;
+        const dh = 40, dw = sw * (dh / sh), y = Math.round(H - 96 - dh / 2);
+        if (th.id === "redline") { ctx.fillStyle = CREAM; rr(ctx, M - 10, y - 8, dw + 20, dh + 16, 8); ctx.fill(); }
+        ctx.drawImage(src, sx, sy, sw, sh, M, y, dw, dh);
       } else {
-        ctx.font = "900 38px 'Archivo Black', system-ui"; ctx.fillStyle = th.gold ? GOLD : th.accent; ctx.fillText("GT3", M, H - 74);
-        ctx.font = "500 21px 'DM Mono', monospace"; ctx.fillStyle = onPhoto ? "#fff" : th.ink; ctx.fillText("PERFORMANCE BAR", M + 92, H - 78);
+        ctx.font = "900 38px 'Archivo Black', system-ui"; ctx.fillStyle = onPhoto ? RED : (th.id === "redline" ? CREAM : RED); ctx.fillText("GT3", M, H - 74);
       }
       ctx.textAlign = "right";
       ctx.font = "900 28px 'Archivo Black', system-ui"; ctx.fillStyle = onPhoto ? "#fff" : th.ink; ctx.fillText("PURE SIGNAL.", W - M, H - 98);
@@ -329,16 +362,19 @@ export default function RoadFlyer() {
       else if (th.frame === "brackets") { ctx.strokeStyle = cm(.6); ctx.lineWidth = 3; const L = 70, o = 44; ([[o, o, 1, 1], [W - o, o, -1, 1], [o, H - o, 1, -1], [W - o, H - o, -1, -1]] as const).forEach(([x, y, dx, dy]) => { ctx.beginPath(); ctx.moveTo(x + dx * L, y); ctx.lineTo(x, y); ctx.lineTo(x, y + dy * L); ctx.stroke(); }); }
       else if (th.frame === "ticket") { ctx.strokeStyle = cm(.7); ctx.lineWidth = 2.5; rr(ctx, 44, 44, W - 88, H - 88, 20); ctx.stroke(); const py = H - 232; ctx.save(); ctx.strokeStyle = cm(.55); ctx.lineWidth = 2; ctx.setLineDash([2, 12]); ctx.beginPath(); ctx.moveTo(72, py); ctx.lineTo(W - 72, py); ctx.stroke(); ctx.restore(); ctx.fillStyle = INK; ctx.beginPath(); ctx.arc(44, py, 22, 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(W - 44, py, 22, 0, 7); ctx.fill(); eyebrow("Admit One · GT3", W / 2, py + 42, cm(.6), "center", 5); }
       else if (th.frame === "press") { ctx.fillStyle = cm(.42); ctx.fillRect(M, H - 160, W - 2 * M, 3); }
+      else if (th.frame === "proof") { ctx.strokeStyle = cm(.28); ctx.lineWidth = 1; ctx.strokeRect(58, 58, W - 116, H - 116); ctx.strokeStyle = cm(.7); ctx.lineWidth = 1.5; const o = 30, L = 26; ([[o, o, 1, 1], [W - o, o, -1, 1], [o, H - o, 1, -1], [W - o, H - o, -1, -1]] as const).forEach(([x, y, dx, dy]) => { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + dx * L, y); ctx.moveTo(x, y); ctx.lineTo(x, y + dy * L); ctx.stroke(); }); regTarget(W / 2, 30, 11, cm(.7)); regTarget(W / 2, H - 30, 11, cm(.7)); regTarget(30, H / 2, 11, cm(.7)); regTarget(W - 30, H / 2, 11, cm(.7)); }
       else { const c1 = th.gold || th.warm ? GOLD : cm(.5); ctx.strokeStyle = c1; ctx.lineWidth = 2; ctx.strokeRect(38, 38, W - 76, H - 76); ctx.strokeStyle = th.gold || th.warm ? GOLD_LT : cm(.24); ctx.lineWidth = 1; ctx.strokeRect(48, 48, W - 96, H - 96); }
       // top — editorial masthead or the crest
       if (th.motif === "masthead") { eyebrow("GT3 · Performance Bar", W / 2, 120, cm(.9), "center", 6); ctx.fillStyle = cm(.5); ctx.fillRect(M, 150, W - 2 * M, 5); }
-      else { const cy = 146, cx = W / 2, gc = th.gold || th.warm ? GOLD_LT : cm(.85); const hw = emblem(cx, cy, CREAM, CREAM); ctx.strokeStyle = gc; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(M + 6, cy); ctx.lineTo(cx - hw - 18, cy); ctx.moveTo(cx + hw + 18, cy); ctx.lineTo(W - M - 6, cy); ctx.stroke(); eyebrow("GT3 Mobile Bar", cx, cy + 58, gc, "center"); }
+      else { const cy = 146, cx = W / 2, gc = th.gold || th.warm ? GOLD_LT : cm(.85); const hw = emblem(cx, cy, CREAM, CREAM, true); ctx.strokeStyle = gc; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(M + 6, cy); ctx.lineTo(cx - hw - 18, cy); ctx.moveTo(cx + hw + 18, cy); ctx.lineTo(W - M - 6, cy); ctx.stroke(); eyebrow("GT3 Mobile Bar", cx, cy + 58, gc, "center"); }
       // Checkered Flag — a cream/red racing band across the top
       if (th.motif === "band") { const by = 252, cs2 = 30; for (let r = 0; r < 2; r++) for (let k = 0; k <= Math.ceil((W - 2 * M) / cs2); k++) if ((r + k) % 2 === 0) { ctx.fillStyle = r === 0 ? CREAM : RED; ctx.fillRect(M + k * cs2, by + r * cs2, cs2, cs2); } }
       // headline
       const pAcc = th.gold ? GOLD : (th.accent === INK ? RED : th.accent);
-      disp((f.headline1 || "").toUpperCase(), M, H - 300, "#fff", 100, th.glow ? RED : undefined);
-      disp((f.headline2 || "").toUpperCase(), M, H - 300 + 104, pAcc, 100, th.glow ? RED : undefined);
+      const pL1 = (f.headline1 || "").toUpperCase(), pL2 = (f.headline2 || "").toUpperCase(), pMaxW = W - 2 * M;
+      const pHs = Math.min(fitSize(pL1, 100, pMaxW), fitSize(pL2, 100, pMaxW)), pGap = Math.round(pHs * 1.04);
+      disp(pL1, M, H - 196 - pGap, "#fff", pHs, th.glow ? RED : undefined);
+      disp(pL2, M, H - 196, pAcc, pHs, th.glow ? RED : undefined);
       footer(true); return;
     }
 
@@ -382,8 +418,10 @@ export default function RoadFlyer() {
     // ── ANNOUNCE ──
     topMotif("On The Road");
     const onBand = th.split; // headlines sit on the charcoal band
-    disp((f.headline1 || "").toUpperCase(), M, M + 312, onBand ? (th.headInk || CREAM) : th.ink, 112, th.glow ? RED : undefined);
-    disp((f.headline2 || "").toUpperCase(), M, M + 312 + 114, th.gold ? goldHead(M + 426, 112) : th.accent, 112, th.glow ? RED : undefined);
+    const aL1 = (f.headline1 || "").toUpperCase(), aL2 = (f.headline2 || "").toUpperCase(), aMaxW = W - 2 * M;
+    const aHs = Math.min(fitSize(aL1, 112, aMaxW), fitSize(aL2, 112, aMaxW)), aGap = Math.round(aHs * 1.02);
+    disp(aL1, M, M + 312, onBand ? (th.headInk || CREAM) : th.ink, aHs, th.glow ? RED : undefined);
+    disp(aL2, M, M + 312 + aGap, th.gold ? goldHead(M + 312 + aGap, aHs) : th.accent, aHs, th.glow ? RED : undefined);
     rule(M, M + 464, W - 2 * M);
     let y = M + (th.motif === "band" ? 604 : 566);
     const label = (t: string) => { eyebrow(t, M, y, goldHair); y += 46; };
@@ -427,7 +465,7 @@ export default function RoadFlyer() {
   };
 
   const field = (k: keyof typeof f, label: string, ph: string) => (
-    <label className="rf-f"><span>{label}</span><input value={f[k]} onChange={(e) => setF((p) => ({ ...p, [k]: e.target.value }))} placeholder={ph} /></label>
+    <label className="rf-f"><span>{label}</span><input value={f[k]} onChange={(e) => { if (k === "headline1" || k === "headline2") headEditedRef.current = true; setF((p) => ({ ...p, [k]: e.target.value })); }} placeholder={ph} /></label>
   );
   const usesPhoto = tile === "announce" || tile === "photo";
 

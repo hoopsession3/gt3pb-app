@@ -6,6 +6,7 @@ import { useApp } from "@/components/AppProvider";
 import { useAuth, roleOf, type Profile } from "@/components/AuthProvider";
 import { useOperatorSection, sectionsForRole, groupOfSection, SECTION_LABEL, type OpSection } from "@/components/OperatorNav";
 import TrailerLoadout from "@/components/TrailerLoadout";
+import DropOps from "@/components/DropOps";
 import PackPlan from "@/components/PackPlan";
 import OrgChart from "@/components/OrgChart";
 import GearLibrary from "@/components/GearLibrary";
@@ -3666,9 +3667,10 @@ function SubInterest() {
 function OrdersHistory() {
   const [rows, setRows] = useState<Order[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [q, setQ] = useState("");
   const load = useCallback(async () => {
     if (!supabase) return;
-    const { data } = await supabase.from("orders").select("*").in("status", ["done", "void"]).order("status_changed_at", { ascending: false }).limit(60);
+    const { data } = await supabase.from("orders").select("*").in("status", ["done", "void"]).order("status_changed_at", { ascending: false }).limit(300);
     if (data) setRows(data as Order[]);
     setLoaded(true);
   }, []);
@@ -3679,10 +3681,22 @@ function OrdersHistory() {
     return () => { supabase?.removeChannel(ch); };
   }, [load]);
   const done = rows.filter((r) => r.status === "done").length;
+  // Under pressure a manager needs to LOOK UP an order — filter by name, order #, item, or amount.
+  const term = q.trim().toLowerCase();
+  const shown = term
+    ? rows.filter((o) => {
+        const name = (o.customer ?? "guest").toLowerCase();
+        const id = o.id.slice(0, 4).toLowerCase();
+        const items = o.items.map((i) => (DRINKS[i as DrinkId]?.n ?? i)).join(" ").toLowerCase();
+        return name.includes(term) || id.includes(term) || items.includes(term) || (o.total_cents / 100).toFixed(2).includes(term);
+      })
+    : rows;
   return (
     <div className="adm-sec">
       <div className="sec">Order history{done > 0 && <span className="adm-pill">{done} completed</span>}</div>
-      {rows.map((o) => (
+      <input className="adm-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name · order # · item · amount" aria-label="Search order history" />
+      {term && <div className="h-sub" style={{ margin: "2px 2px 10px" }}>{shown.length} match{shown.length === 1 ? "" : "es"}</div>}
+      {shown.map((o) => (
         <div className="adm-member" key={o.id}>
           <div className="adm-member-top">
             <b>{o.customer ?? "Guest"}</b>
@@ -3692,6 +3706,7 @@ function OrdersHistory() {
         </div>
       ))}
       {loaded && rows.length === 0 && <div className="h-sub">No completed orders yet — they appear here after pickup.</div>}
+      {loaded && rows.length > 0 && shown.length === 0 && <div className="h-sub">No orders match &ldquo;{q.trim()}&rdquo;.</div>}
     </div>
   );
 }
@@ -4077,6 +4092,7 @@ export default function AdminPage() {
           {canManage && <LiveControl />}
           <EnableAlerts userId={user?.id ?? null} />
           <Kitchen />
+          <DropOps />
         </>
       )}
 

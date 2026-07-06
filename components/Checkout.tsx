@@ -161,9 +161,9 @@ export default function Checkout() {
             <div className="co-done">
               <div className="co-done-check" aria-hidden="true">✓</div>
               <div className="co-done-conf">Order in — ready in ~8 min</div>
-              <h3>Make it a regular?</h3>
-              <p>We can pack this same order every two weeks — so you never run low.</p>
-              <button type="button" className="subpitch-cta" onClick={() => { onClose(); router.push("/3mpire"); }}>Set it up</button>
+              <h3>Skip the line next time?</h3>
+              <p>Reserve a Saturday drop — brewed to order, ready when you reach the window.</p>
+              <button type="button" className="subpitch-cta" onClick={() => { onClose(); router.push("/reserve"); }}>Reserve a drop</button>
               <button type="button" className="sub-link" onClick={onClose}>Not now</button>
             </div>
           ) : open ? (

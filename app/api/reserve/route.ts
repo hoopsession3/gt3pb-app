@@ -1,0 +1,79 @@
+import { NextResponse } from "next/server";
+import { SQUARE_BASE, SQUARE_VERSION } from "@/lib/squareServer";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { userFromRequest } from "@/lib/apiAuth";
+import { raiseAlert } from "@/lib/serverAlerts";
+import { PRICING, FLAVORS, isPackSize, packTotal, toCents, mixComplete, mixSummary, dropIsOpen, dollars, type GlassPath, type Mix } from "@/lib/orderAhead";
+
+// ORDER-AHEAD reserve — records a one-off Saturday-drop reservation. Price + cutoff are recomputed
+// SERVER-SIDE from lib/orderAhead (never trust the client), the charge is a Square ONE-TIME payment
+// (no recurring), and the row is written with the service role so `paid` can't be forged. Mirrors
+// /api/checkout. Guest reserve allowed (user_id null).
+export async function POST(req: Request) {
+  const token = process.env.SQUARE_ACCESS_TOKEN;
+  const locationId = process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID;
+  if (!token || !locationId || !supabaseAdmin) {
+    return NextResponse.json({ error: "Reservations aren't switched on yet." }, { status: 503 });
+  }
+
+  let body: { sourceId?: string; name?: string; phone?: string; size?: number; glass?: string; mix?: Partial<Mix>; dropDate?: string };
+  try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
+
+  const name = typeof body.name === "string" ? body.name.trim().slice(0, 80) : "";
+  const phone = typeof body.phone === "string" ? body.phone.trim().slice(0, 40) : "";
+  const size = Number(body.size);
+  const glass = body.glass === "new" ? "new" : "return";
+  if (!body.sourceId) return NextResponse.json({ error: "Card required" }, { status: 400 });
+  if (!name || !phone) return NextResponse.json({ error: "Name and phone are required for the pickup text." }, { status: 400 });
+  if (!isPackSize(size)) return NextResponse.json({ error: "Pick a pack size (3, 6, or 12)." }, { status: 400 });
+
+  // Rebuild the mix from trusted flavor keys only, and require it to total the pack size.
+  const mix: Mix = { RISE: 0, FLOW: 0, DUSK: 0 };
+  for (const f of FLAVORS) { const n = Math.max(0, Math.floor(Number(body.mix?.[f] ?? 0))); mix[f] = n; }
+  if (!mixComplete(mix, size)) return NextResponse.json({ error: "Your flavor picks must add up to the pack size." }, { status: 400 });
+  if (!PRICING.allowFlavorMix && FLAVORS.filter((f) => mix[f] > 0).length > 1) {
+    return NextResponse.json({ error: "This drop is single-flavor — pick one flavor for the whole pack." }, { status: 400 });
+  }
+
+  // Server-derived cutoff: the reservation must be for the currently-open Saturday drop. A stale or
+  // post-cutoff drop date is rejected here regardless of what the client clock said.
+  if (!body.dropDate || !dropIsOpen(String(body.dropDate))) {
+    return NextResponse.json({ error: "That drop has closed — refresh to reserve the next Saturday." }, { status: 409 });
+  }
+  const dropDate = String(body.dropDate).slice(0, 10);
+
+  // Authoritative total — recomputed from the pricing grid, never the client amount.
+  const amount = toCents(packTotal(size, glass as GlassPath));
+
+  try {
+    const res = await fetch(`${SQUARE_BASE}/v2/payments`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "Square-Version": SQUARE_VERSION },
+      body: JSON.stringify({
+        source_id: body.sourceId,
+        idempotency_key: crypto.randomUUID(),
+        amount_money: { amount, currency: "USD" },
+        location_id: locationId,
+        note: `GT3PB order-ahead · ${size}-pack · ${glass} · pickup ${dropDate}`,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) return NextResponse.json({ error: data?.errors?.[0]?.detail || "Payment declined" }, { status: 400 });
+    const paymentId = data?.payment?.id ?? null;
+
+    const user = await userFromRequest(req); // null for guest reserve
+    const row = { user_id: user?.id ?? null, name, phone, size, glass, mix, total_cents: amount, paid: true, payment_id: paymentId, drop_date: dropDate };
+    let { data: inserted, error: insErr } = await supabaseAdmin.from("drop_orders").insert(row).select("id").single();
+    if (insErr) ({ data: inserted, error: insErr } = await supabaseAdmin.from("drop_orders").insert(row).select("id").single()); // retry once
+    if (insErr) {
+      const ref = (paymentId || "").slice(-6).toUpperCase();
+      await raiseAlert({ severity: "critical", category: "money", title: "Paid reservation didn't record — add it", body: `A card payment succeeded (${paymentId}) but the reservation didn't save. ${name} · ${size}-pack ${glass} · ${mixSummary(mix)} · pickup ${dropDate}. Add it and confirm in Square.` });
+      return NextResponse.json({ ok: true, paymentId, recorded: false, ref, warn: `Reserved — ref ${ref}. We've alerted the crew; show this at pickup.` });
+    }
+
+    await raiseAlert({ severity: "fyi", category: "note", title: "New reservation 🎉", body: `${name} reserved a ${size}-pack (${mixSummary(mix)}) for ${dropDate} — ${dollars(packTotal(size, glass as GlassPath))}, ${glass === "return" ? "bringing bottles back" : "new glass"}.` });
+    return NextResponse.json({ ok: true, id: inserted?.id ?? null, paymentId, recorded: true });
+  } catch {
+    return NextResponse.json({ error: "Payment service unavailable" }, { status: 502 });
+  }
+}

@@ -8,7 +8,8 @@ import { useApp } from "@/components/AppProvider";
 import AccountPill from "@/components/AccountPill";
 import Watermark from "@/components/Watermark";
 import GenerateDay from "@/components/GenerateDay";
-import SubscribePitch from "@/components/SubscribePitch";
+import ReservePitch from "@/components/ReservePitch";
+import Gt3Mark from "@/components/Gt3Mark";
 import { supabase } from "@/lib/supabase";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import type { Order } from "@/lib/db";
@@ -74,7 +75,7 @@ function TodayReal() {
       </div>
       <div className="h-title">{greet()}, {name}.</div>
       <YourUsual />
-      <SubscribePitch />
+      <ReservePitch />
       <div className="h-sub">Five questions and I&apos;ll build your stack for the day.</div>
       <GenerateDay />
     </section>
@@ -154,7 +155,7 @@ function Arrival() {
     <section className="screen arrival" id="s-today">
       <Watermark variant="landing" />
       <div className="toprow">
-        <div className="arr-brand"><span className="g3">GT3</span><span className="pb">Performance Bar</span></div>
+        <div className="arr-brand"><Gt3Mark tone="cream" /><span className="pb">Performance Bar</span></div>
         <AccountPill />
       </div>
 
@@ -178,7 +179,7 @@ function Arrival() {
       <div className="pillar"><span className="pdot" style={{ background: "#3f7d6e" }} /><div className="px"><b>Hydration</b><p>Whole-coconut water to carry you through it.</p></div></div>
       <div className="pillar"><span className="pdot" style={{ background: "#B82420" }} /><div className="px"><b>Fuel</b><p>Slow-simmered broth to rebuild after.</p></div></div>
 
-      <SubscribePitch />
+      <ReservePitch />
 
       <div className="arr-join">
         <div className="hero-eye">Membership</div>

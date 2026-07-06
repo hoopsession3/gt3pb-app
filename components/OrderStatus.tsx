@@ -19,6 +19,7 @@ const RANK: Record<string, number> = { ready: 3, preparing: 2, new: 1 };
 export default function OrderStatus() {
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [canceling, setCanceling] = useState(false);
 
   const load = useCallback(async () => {
     if (!supabase || !user) { setOrders([]); return; }
@@ -54,6 +55,18 @@ export default function OrderStatus() {
   // Surface the most-advanced active order (ready beats preparing beats new), newest first.
   const o = [...orders].sort((a, b) => (RANK[b.status] - RANK[a.status]) || (a.created_at < b.created_at ? 1 : -1))[0];
   const items = o.items.map((i) => DRINKS[i as DrinkId]?.n ?? i).join(" · ");
+  const paid = Boolean((o as Order & { paid?: boolean }).paid);
+
+  // Self-service cancel — allowed only while the order is still 'new' (not yet on the pass). The RPC
+  // re-checks owner + status server-side; a paid order flags staff for the Square refund.
+  const cancel = async () => {
+    if (!supabase || canceling) return;
+    if (!window.confirm(paid ? "Cancel this order? Your refund will follow shortly." : "Cancel this order?")) return;
+    setCanceling(true);
+    const { data, error } = await supabase.rpc("cancel_own_order", { p_order: o.id });
+    setCanceling(false);
+    if (!error && data) load();
+  };
 
   return (
     <div className={`orderbar st-${o.status}`} role="status" aria-live="polite">
@@ -62,6 +75,11 @@ export default function OrderStatus() {
         <b>{STATUS_LABEL[o.status] ?? "Your order"}</b>
         <span>{items}{orders.length > 1 ? ` · +${orders.length - 1} more` : ""}</span>
       </div>
+      {o.status === "new" && (
+        <button type="button" className="orderbar-cancel" onClick={cancel} disabled={canceling}>
+          {canceling ? "Canceling…" : "Cancel"}
+        </button>
+      )}
       <span className="orderbar-tag">#{o.id.slice(0, 4).toUpperCase()}</span>
     </div>
   );

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import AccountPill from "@/components/AccountPill";
 import Watermark from "@/components/Watermark";
+import Gt3Mark from "@/components/Gt3Mark";
 import { DRINKS, MENU, type DrinkId } from "@/lib/menu";
 import { clickable } from "@/lib/a11y";
 
@@ -39,7 +40,7 @@ export default function MenuScreen() {
       <Watermark variant="menu" />
       <div className="toprow">
         <div className="mast-brand">
-          <span className="g3">GT3</span>
+          <Gt3Mark tone="ink" />
           <span className="pb">Performance Bar</span>
         </div>
         <AccountPill />
