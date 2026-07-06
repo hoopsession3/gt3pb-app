@@ -2127,6 +2127,16 @@ function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive
     toast(error ? `Error: ${error.message}` : kind === "stop" ? "Location deleted" : "Vendor deleted");
     if (!error) onChanged();
   };
+  // Wrap a finished stop right from the manager: completed_at fires the 0125 trigger (status→done,
+  // truck offline if this is the live stop) and archiving files it off the route + guest screens.
+  const completeStop = async () => {
+    if (kind !== "stop" || !supabase) return;
+    if (typeof window !== "undefined" && !window.confirm(`Complete ${row.name}?\n\nMarks it done and archives it off the route. Add an after-action recap from its prep hub anytime.`)) return;
+    const now = new Date().toISOString();
+    const { error } = await supabase.from("stops").update({ completed_at: now, archived_at: now }).eq("id", row.id);
+    toast(error ? `Error: ${error.message}` : "Stop completed + archived");
+    if (!error) onChanged();
+  };
 
   const showPoc = kind === "vendor" || !stop?.vendor_id;
   const sub = [row.poc_name, row.service_dates, hasCoords ? "pinned" : "no pin"].filter(Boolean).join("  ·  ");
@@ -2208,6 +2218,7 @@ function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive
 
           <div className="ev-card-foot">
             {kind === "stop" && onOpenPrep && <button className="adm-btn" style={{ marginRight: "auto" }} onClick={onOpenPrep}>Open prep hub ›</button>}
+            {kind === "stop" && <button className="ev-archive ev-complete" onClick={completeStop}>✓ Complete</button>}
             <button className="ev-archive" onClick={onArchive}>{kind === "stop" ? "Archive location" : "Archive"}</button>
             <button className="ev-delete" onClick={remove}>Delete</button>
           </div>

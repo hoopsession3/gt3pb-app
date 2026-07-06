@@ -28,6 +28,8 @@ export default function DropOps() {
   const [rows, setRows] = useState<DropOrder[]>([]);
   const [batches, setBatches] = useState<PlannedBatch[]>([]);
   const [busy, setBusy] = useState(false);
+  const [history, setHistory] = useState<DropOrder[]>([]); // past drops — where fulfilled orders live on
+  const [histOpen, setHistOpen] = useState(false);
   const sat = nextDrop().sat;
   const dropISO = sat.toISOString().slice(0, 10);
   const satLabel = sat.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
@@ -42,16 +44,22 @@ export default function DropOps() {
     const { data } = await supabase.from("brew_batches").select("id, recipe_name, batch_gal, status").eq("drop_date", dropISO).order("recipe_name");
     setBatches((data as PlannedBatch[]) ?? []);
   }, [dropISO]);
+  const loadHistory = useCallback(async () => {
+    if (!supabase) return;
+    const { data } = await supabase.from("drop_orders").select("*").lt("drop_date", dropISO)
+      .order("drop_date", { ascending: false }).order("created_at").limit(200);
+    setHistory((data as DropOrder[]) ?? []);
+  }, [dropISO]);
 
   useEffect(() => {
-    load(); loadBatches();
+    load(); loadBatches(); loadHistory();
     if (!supabase) return;
     const ch = supabase.channel("drop-ops")
-      .on("postgres_changes", { event: "*", schema: "public", table: "drop_orders" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "drop_orders" }, () => { load(); loadHistory(); })
       .on("postgres_changes", { event: "*", schema: "public", table: "brew_batches" }, () => loadBatches())
       .subscribe();
     return () => { supabase?.removeChannel(ch); };
-  }, [load, loadBatches]);
+  }, [load, loadBatches, loadHistory]);
 
   const toggle = async (id: string, key: "picked_up" | "bottles_returned", val: boolean) => {
     if (!supabase) return;
@@ -159,7 +167,7 @@ export default function DropOps() {
             {allDone ? "✓ All picked up · bottles in" : <><b>{pickedCount}/{rows.length}</b> picked up{returns.length > 0 ? <> · <b>{bottlesInCount}/{returns.length}</b> bottles in</> : null}</>}
           </div>
           {queue.map((o) => (
-            <div className={`dops-order${o.picked_up ? " done" : ""}`} key={o.id}>
+            <div className={`dops-order${o.picked_up ? " done" : ""}`} key={`cur-${o.id}`}>
               <div className="dops-top">
                 <span className="dops-name">{o.name}
                   <span className={`dops-chip ${o.glass === "return" ? "ret" : "new"}`}>{o.glass === "return" ? `GLASS BACK ×${o.size}` : "NEW GLASS"}</span>
@@ -182,6 +190,31 @@ export default function DropOps() {
             </div>
           ))}
         </>
+      )}
+      {history.length > 0 && (
+        <div className="dops-hist">
+          <button type="button" className="dops-hist-h" onClick={() => setHistOpen((v) => !v)} aria-expanded={histOpen}>
+            Past drops · {new Set(history.map((o) => o.drop_date)).size} <span>{histOpen ? "▾" : "▸"}</span>
+          </button>
+          {histOpen && Object.entries(history.reduce<Record<string, DropOrder[]>>((m, o) => { (m[o.drop_date] ??= []).push(o); return m; }, {})).map(([d, os]) => {
+            const kept = os.filter((o) => !o.canceled_at);
+            const rev = kept.reduce((a, o) => a + o.total_cents, 0) / 100;
+            const label = new Date(`${d}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+            return (
+              <div className="dops-hist-drop" key={d}>
+                <div className="dops-hist-meta"><b>{label}</b> · {kept.length} pack{kept.length === 1 ? "" : "s"} · {kept.reduce((a, o) => a + o.size, 0)} bottles · {dollars(rev)}</div>
+                {os.map((o) => (
+                  <div className="dops-hist-row" key={o.id}>
+                    <span>{o.name} — {o.size}-pack{o.paid ? "" : " · unpaid"}</span>
+                    <span className={`dops-hist-st ${o.canceled_at ? "cx" : o.picked_up ? "ok" : "miss"}`}>
+                      {o.canceled_at ? "canceled" : o.picked_up ? `✓ picked up${o.glass === "return" ? (o.bottles_returned ? " · bottles in" : " · bottles out") : ""}` : "no-show"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );

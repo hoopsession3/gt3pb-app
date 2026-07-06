@@ -92,9 +92,16 @@ function TruckLive() {
       supabase.from("stops").select("*").order("sort"),
       supabase.from("live_status").select("*").maybeSingle(),
     ]);
-    // hide archived locations from guests (client-side → safe pre-migration 0033)
-    if (s) setStops((s as Stop[]).filter((x) => !x.archived_at));
-    if (l) setLive(l as LiveStatus);
+    // Guests see the road AHEAD: hide archived, completed, and past-dated stops (a stop stays
+    // visible through its evening — 8h grace past its start). The live stop always shows.
+    const lstat = l as LiveStatus | null;
+    const liveId = lstat?.is_live ? lstat.current_stop_id : null;
+    const nowT = Date.now();
+    if (s) setStops((s as (Stop & { completed_at?: string | null })[]).filter((x) =>
+      !x.archived_at && x.status !== "done" && !x.completed_at
+      && (x.id === liveId || !x.starts_at || new Date(x.starts_at).getTime() > nowT - 8 * 3600 * 1000)
+    ));
+    if (lstat) setLive(lstat);
     setLoaded(true);
   }, []);
 
