@@ -3,7 +3,7 @@ import { SQUARE_BASE, SQUARE_VERSION } from "@/lib/squareServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
-import { PRICING, FLAVORS, isPackSize, packTotal, toCents, mixComplete, mixSummary, dropIsOpen, dollars, type GlassPath, type Mix } from "@/lib/orderAhead";
+import { PRICING, FLAVORS, isPackSize, packTotal, toCents, mixComplete, mixSummary, nextDrop, dropDateKey, dollars, type GlassPath, type Mix } from "@/lib/orderAhead";
 
 // ORDER-AHEAD reserve — records a one-off Saturday-drop reservation. Price + cutoff are recomputed
 // SERVER-SIDE from lib/orderAhead (never trust the client), the charge is a Square ONE-TIME payment
@@ -39,12 +39,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "This drop is single-flavor — pick one flavor for the whole pack." }, { status: 400 });
   }
 
-  // Server-derived cutoff: the reservation must be for the currently-open Saturday drop. A stale or
-  // post-cutoff drop date is rejected here regardless of what the client clock said.
-  if (!body.dropDate || !dropIsOpen(String(body.dropDate))) {
-    return NextResponse.json({ error: "That drop has closed — refresh to reserve the next Saturday." }, { status: 409 });
+  // Pickup follows the truck's NEXT scheduled stop (server-authoritative), falling back to the
+  // Saturday drop when the route is empty. The client's dropDate must match the current one, or we
+  // reject — regardless of what the client clock or a stale page said.
+  const { data: nextStop } = await supabaseAdmin.from("stops").select("starts_at")
+    .is("archived_at", null).neq("status", "done").not("starts_at", "is", null)
+    .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(1).maybeSingle();
+  const dropDate = nextStop?.starts_at ? dropDateKey(new Date(nextStop.starts_at)) : dropDateKey(nextDrop().sat);
+  if (!body.dropDate || String(body.dropDate).slice(0, 10) !== dropDate) {
+    return NextResponse.json({ error: "That pickup just changed — refresh to see the next stop." }, { status: 409 });
   }
-  const dropDate = String(body.dropDate).slice(0, 10);
 
   // Authoritative total — recomputed from the pricing grid, never the client amount.
   const amount = toCents(packTotal(size, glass as GlassPath));

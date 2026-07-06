@@ -76,3 +76,14 @@ export function dropIsOpen(dropDateISO: string, now: Date = new Date()): boolean
   const { sat } = nextDrop(now);
   return dropDateISO.slice(0, 10) === sat.toISOString().slice(0, 10);
 }
+
+// The pickup always follows the truck's NEXT scheduled stop: pickup = that stop's date, and ordering
+// closes a few hours before it so there's time to brew to order. Used when a stop is scheduled; the
+// Saturday nextDrop() above is the fallback when the route is empty.
+const STOP_LEAD_MS = 3 * 60 * 60 * 1000; // close ordering 3h before the stop
+export function dropForStop(startsAtISO: string): { sat: Date; cutoff: Date } {
+  const pickup = new Date(startsAtISO);
+  return { sat: pickup, cutoff: new Date(pickup.getTime() - STOP_LEAD_MS) };
+}
+// the drop-date string both sides agree on (UTC date slice), so client display and server validation match
+export const dropDateKey = (d: Date): string => d.toISOString().slice(0, 10);

@@ -60,8 +60,9 @@ export default function Checkout() {
   useEffect(() => { if (open) setName((n) => n || profile?.display_name || ""); }, [open, profile?.display_name]);
   const customer = name.trim();
 
-  // Tip (card path only; pre-orders tip in person). Default 20% — easy to change.
-  const [tipPct, setTipPct] = useState(0.2);
+  // Tip (card path only; pre-orders tip in person). Default to NO tip so selecting card never
+  // silently marks the price up — the guest opts in.
+  const [tipPct, setTipPct] = useState(0);
   const tipCents = Math.round(totalCents * tipPct);
   const grandCents = totalCents + tipCents;
   const total = (grandCents / 100).toFixed(2);

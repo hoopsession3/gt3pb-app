@@ -8,7 +8,7 @@ import { SQUARE_APP_ID, SQUARE_LOCATION_ID, squareClientReady, squareWebSdkUrl }
 import {
   PRICING, PACK_SIZES, PACK_TAG, PACK_HINT, FLAVORS, FLAVOR_DESC,
   packTotal, perBottle, saveAmount, newGlassTotal, mixTotal, mixComplete, mixFitsOrReset, mixSummary,
-  dollars, nextDrop, emptyMix, type GlassPath, type Mix, type Flavor,
+  dollars, nextDrop, dropForStop, emptyMix, type GlassPath, type Mix, type Flavor,
 } from "@/lib/orderAhead";
 
 // ORDER-AHEAD — customer reserve flow (reserve → details → confirmed). One-off Saturday-drop
@@ -43,12 +43,22 @@ export default function OrderAhead() {
   const [ready, setReady] = useState(false);
   const [err, setErr] = useState("");
   const [conf, setConf] = useState<{ id: string; size: number; glass: GlassPath; mix: Mix; total: number; sat: Date; name: string; paid: boolean } | null>(null);
+  const [stop, setStop] = useState<{ name: string | null; starts_at: string } | null>(null); // the truck's next stop = the pickup
   const cardRef = useRef<any>(null);
 
   useEffect(() => { setNow(Date.now()); const iv = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(iv); }, []);
   useEffect(() => { setName((n) => n || profile?.display_name || ""); }, [profile?.display_name]);
+  // Pickup always follows the next scheduled stop. Load it; fall back to the Saturday drop if none.
+  useEffect(() => {
+    if (!supabase) return;
+    let live = true;
+    supabase.from("stops").select("name, starts_at").is("archived_at", null).neq("status", "done").not("starts_at", "is", null)
+      .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(1).maybeSingle()
+      .then(({ data }) => { if (live && data) setStop(data as { name: string | null; starts_at: string }); });
+    return () => { live = false; };
+  }, []);
 
-  const drop = useMemo(() => nextDrop(now ? new Date(now) : new Date()), [now]);
+  const drop = useMemo(() => (stop?.starts_at ? dropForStop(stop.starts_at) : nextDrop(now ? new Date(now) : new Date())), [stop, now]);
   const total = packTotal(size, glass);
   const m = mixTotal(mix);
   const complete = mixComplete(mix, size);
@@ -127,7 +137,7 @@ export default function OrderAhead() {
           <div className="oa-view on">
             <div className="oa-kicker">ORDER AHEAD</div>
             <div className="oa-head">Tell us you&rsquo;re coming, we&rsquo;ll brew it to order.</div>
-            <div className="oa-cutoff"><span className="oa-dot" /><span>Order by <b>{dayName(drop.cutoff)} · 6 PM</b> · pickup <b>{dayName(drop.sat)}</b></span></div>
+            <div className="oa-cutoff"><span className="oa-dot" /><span>Order by <b>{dayName(drop.cutoff)}, {drop.cutoff.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</b> · pickup <b>{dayName(drop.sat)}{stop?.name ? ` · ${stop.name}` : ""}</b></span></div>
             {countdown && <div className="oa-count">{countdown}</div>}
             <div className="oa-fresh">Brewed to order, no preservatives — <b>fresh 7 days from pickup.</b></div>
 
