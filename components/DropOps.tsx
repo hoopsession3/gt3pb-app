@@ -44,6 +44,13 @@ export default function DropOps() {
   const revenue = rows.reduce((a, o) => a + o.total_cents, 0) / 100;
   const perF: Record<string, number> = { RISE: 0, FLOW: 0, DUSK: 0 };
   rows.forEach((o) => FLAVORS.forEach((f) => { perF[f] += o.mix?.[f] || 0; }));
+  // Under a Saturday rush the queue has to scan fast: unfulfilled float to the top, completed dim
+  // out. Progress counters tell the lead where the drop stands at a glance.
+  const returns = rows.filter((o) => o.glass === "return");
+  const pickedCount = rows.filter((o) => o.picked_up).length;
+  const bottlesInCount = returns.filter((o) => o.bottles_returned).length;
+  const queue = [...rows].sort((a, b) => Number(a.picked_up) - Number(b.picked_up));
+  const allDone = rows.length > 0 && pickedCount === rows.length && bottlesInCount === returns.length;
 
   return (
     <div className="dops">
@@ -58,15 +65,18 @@ export default function DropOps() {
       ) : (
         <>
           <div className="dops-brew">Brew sheet: <b>{FLAVORS.map((f) => `${perF[f]}× ${f}`).join(" · ")}</b></div>
-          {rows.map((o) => (
-            <div className="dops-order" key={o.id}>
+          <div className={`dops-prog${allDone ? " done" : ""}`}>
+            {allDone ? "✓ All picked up · bottles in" : <><b>{pickedCount}/{rows.length}</b> picked up{returns.length > 0 ? <> · <b>{bottlesInCount}/{returns.length}</b> bottles in</> : null}</>}
+          </div>
+          {queue.map((o) => (
+            <div className={`dops-order${o.picked_up ? " done" : ""}`} key={o.id}>
               <div className="dops-top">
                 <span className="dops-name">{o.name}
                   <span className={`dops-chip ${o.glass === "return" ? "ret" : "new"}`}>{o.glass === "return" ? `GLASS BACK ×${o.size}` : "NEW GLASS"}</span>
                 </span>
                 <span className="dops-total">{dollars(o.total_cents / 100)} ✓</span>
               </div>
-              <div className="dops-meta"><b>{o.size}-pack</b> — {mixSummary(o.mix)}{o.phone ? <><br />{o.phone}</> : null}</div>
+              <div className="dops-meta"><b>{o.size}-pack</b> — {mixSummary(o.mix)}{o.phone ? <><br /><a className="dops-tel" href={`tel:${o.phone.replace(/[^\d+]/g, "")}`}>{o.phone}</a></> : null}</div>
               <div className="dops-actions">
                 <button type="button" className={`dops-check${o.picked_up ? " done" : ""}`} onClick={() => toggle(o.id, "picked_up", !o.picked_up)}>{o.picked_up ? "✓ Picked up" : "Picked up"}</button>
                 {o.glass === "return" && (

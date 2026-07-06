@@ -2925,3 +2925,8 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .dops-check{flex:1;border:1.5px solid var(--hair,rgba(245,241,232,.14));border-radius:10px;background:transparent;color:var(--muted);padding:9px 4px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;transition:.15s}
 .dops-check.done{border-color:#7FA86B;color:#cfe6c0;background:rgba(127,168,107,.1)}
 .dops-empty{text-align:center;color:var(--muted);font-size:13px;padding:24px 0}
+.dops-prog{font-size:11.5px;color:var(--muted);margin:0 2px 12px;font-weight:600}
+.dops-prog b{font-family:'DM Mono',monospace;color:var(--gold2,#B8902F);font-weight:500}
+.dops-prog.done{color:#7FA86B}
+.dops-order.done{opacity:.5}
+.dops-tel{color:var(--gold2,#B8902F);text-decoration:none;font-weight:600}
