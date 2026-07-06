@@ -287,13 +287,36 @@ async function commentCounts(col: "event_task_id" | "meeting_note_id" | "alert_i
 }
 
 // Where an alert lives — route it to the screen that owns it, so you can act on it immediately.
-function alertDest(category: string | null | undefined): { section: "day" | "plan" | "prep" | "money"; planTab?: string } {
+// Reservation alerts don't route at all: callers pop the drop sheet (DropOps) in place instead,
+// so "Open" always visibly does something even when the alert's home is the screen you're on.
+function alertIsReservation(title: string | null | undefined): boolean {
+  return /reservation/i.test(title || "");
+}
+function alertDest(category: string | null | undefined, title?: string | null): { section: OpSection; planTab?: string } {
   const cat = category || "";
+  if (cat === "order") return { section: "now" };  // the kitchen pass
   if (cat === "money") return { section: "money" };
   if (cat === "brew") return { section: "plan", planTab: "brew" };
   if (cat.startsWith("booking")) return { section: "plan", planTab: "bookings" };
   if (cat === "prep") return { section: "prep" };
+  if (cat === "note" && /content ready|approved|changes requested/i.test(title || "")) return { section: "studio" };
   return { section: "day" };
+}
+
+// Pop-out card for reservation alerts — the full DropOps manager (brew totals, pickup checklist,
+// bottles-in toggles) in a centered sheet, so a flag can be handled without leaving the screen.
+function DropSheet({ onClose }: { onClose: () => void }) {
+  return (
+    <>
+      <div className="prep-scrim" onClick={onClose} aria-hidden="true" />
+      <div className="prep-sheet drop-sheet" role="dialog" aria-modal="true" aria-label="This week's drop">
+        <div className="prep-sheet-grab" />
+        <div className="drop-sheet-h"><span>This week&rsquo;s drop</span><button type="button" className="drop-sheet-x" onClick={onClose} aria-label="Close">✕</button></div>
+        <DropOps />
+        <button type="button" className="drop-sheet-done" onClick={onClose}>Done</button>
+      </div>
+    </>
+  );
 }
 
 // The "don't-miss" inbox — unacknowledged alerts for me (or all-leadership), critical first.
@@ -334,9 +357,12 @@ function AlertsInbox({ userId }: { userId: string | null }) {
     setAlerts((p) => p.filter((x) => !ids.includes(x.id))); // optimistic
     await supabase.from("alerts").update({ ack_at: new Date().toISOString(), ack_by: userId }).in("id", ids);
   };
-  // Respond immediately: jump to the screen that owns this alert.
+  // Respond immediately: reservation alerts pop the drop sheet right here; everything else jumps
+  // to the screen that owns it.
+  const [dropSheet, setDropSheet] = useState(false);
   const gotoAlert = (a: Alert) => {
-    const d = alertDest(a.category);
+    if (alertIsReservation(a.title)) { setDropSheet(true); return; }
+    const d = alertDest(a.category, a.title);
     if (d.planTab) { try { localStorage.setItem("gt3-plan-tab", d.planTab); } catch { /* ignore */ } }
     setSection(d.section);
   };
@@ -350,6 +376,7 @@ function AlertsInbox({ userId }: { userId: string | null }) {
 
   return (
     <div className="adm-sec">
+      {dropSheet && <DropSheet onClose={() => setDropSheet(false)} />}
       <div className="sec">Alerts <span className={`adm-pill${crit ? " due" : ""}`}>{mine.length}{crit ? ` · ${crit} critical` : ""}</span>{mine.length > 1 && <button type="button" className="alert-clearall" onClick={() => clearAll(mine.map((a) => a.id))}>Clear all</button>}</div>
       {sorted.map((a) => (
         <div key={a.id} className={`alert sev-${a.severity}`}>
@@ -807,13 +834,20 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
 
   const ack = async (id: string) => { setFlags((f) => f.filter((x) => x.id !== id)); await supabase?.from("alerts").update({ ack_at: new Date().toISOString(), ack_by: userId }).eq("id", id); };
   const clearFlags = async () => { const ids = flags.map((f) => f.id); if (!supabase || !ids.length) return; setFlags([]); await supabase.from("alerts").update({ ack_at: new Date().toISOString(), ack_by: userId }).in("id", ids); };
-  const gotoFlag = (category: string | null) => { const d = alertDest(category); if (d.planTab) { try { localStorage.setItem("gt3-plan-tab", d.planTab); } catch { /* ignore */ } } setSection(d.section); };
+  const [dropSheet, setDropSheet] = useState(false);
+  const gotoFlag = (f: { category: string | null; title: string }) => {
+    if (alertIsReservation(f.title)) { setDropSheet(true); return; }  // pop the drop card in place
+    const d = alertDest(f.category, f.title);
+    if (d.planTab) { try { localStorage.setItem("gt3-plan-tab", d.planTab); } catch { /* ignore */ } }
+    setSection(d.section);
+  };
   const hr = new Date().getHours();
   const greet = hr < 12 ? "Good morning" : hr < 17 ? "Good afternoon" : "Good evening";
   const first = meName.split(" ")[0];
 
   return (
     <>
+      {dropSheet && <DropSheet onClose={() => setDropSheet(false)} />}
       <div className="myday-hero">
         <div className="myday-greet">{greet}{first && first !== "Me" ? `, ${first}` : ""}</div>
         <div className="myday-date">{new Date().toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}</div>
@@ -846,7 +880,7 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
                 <div className="myday-flag-t">{f.title}</div>
                 {f.body && <div className="myday-flag-x">{f.body}</div>}
               </div>
-              <button type="button" className="myday-open" onClick={() => gotoFlag(f.category)}>Open →</button>
+              <button type="button" className="myday-open" onClick={() => gotoFlag(f)}>Open →</button>
               <button type="button" className="myday-ack" onClick={() => ack(f.id)}>Got it</button>
             </div>
           ))}
