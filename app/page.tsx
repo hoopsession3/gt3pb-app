@@ -7,6 +7,7 @@ import { useAuth, type Profile } from "@/components/AuthProvider";
 import { useApp } from "@/components/AppProvider";
 import GenerateDay from "@/components/GenerateDay";
 import ReservePitch from "@/components/ReservePitch";
+import StampCard from "@/components/StampCard";
 import { useSiteCopy } from "@/lib/copy";
 import { supabase } from "@/lib/supabase";
 import { DRINKS, type DrinkId } from "@/lib/menu";
@@ -73,6 +74,7 @@ function TodayReal({ t }: { t: (k: string) => string }) {
       </div>
       <div className="h-title">{greet()}, {name}.</div>
       <YourUsual />
+      <StampCard />
       <ReservePitch />
       <div className="h-sub">{t("home.questions")}</div>
       <GenerateDay />
