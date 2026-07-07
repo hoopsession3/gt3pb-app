@@ -34,6 +34,13 @@ the change isn't done.
   profanity, drop <4★/spam) and must be **staff-approved** (Studio → Review Desk) before the display
   shows them. Reviews from Google / Instagram / the feedback album are added there too.
 
+## UI standards
+- **Collapsible sections** = the `Panel` primitive (`app/admin/page.tsx`) — tappable header + chevron,
+  remembers open/closed per id. Use it for any new stacked crew section (Money and the Now management
+  panels already do). Keep specialized accordions that carry extra affordances (the Prep `row()` with
+  icons/subtitles, the KDS stage groups with live counts) — they're intentionally not plain Panels.
+- **Quiet by default**: in a stacked section, open only the primary panel; collapse the rest.
+
 ## Loyalty
 - `profiles.points`, +1 per drink on pickup (migration `0012`). Stamp card = a view of that; "10th on
   us." No separate data.
