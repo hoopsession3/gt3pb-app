@@ -4171,15 +4171,27 @@ export default function AdminPage() {
   }
 
   const LABEL: Record<OpSection, string> = { day: "My Day", now: "Now", ask: "Ask GT3", prep: "Prep", plan: "Plan", studio: "Studio", money: "Money", team: "Team" };
+  // Each section = one job at one moment. SUB says what's inside; WHEN says when to reach for it
+  // (rendered as a pill on the header) so the crew never wonders which tab a task belongs in.
   const SUB: Record<OpSection, string> = {
-    day: "Your tasks, your flags & what's on today.",
-    now: "The live shift — sales, dispatch & the order pass.",
-    ask: "Recipes, the why, gear, stock & how-to — from the GT3 playbook.",
+    day: "Your tasks, flags & what's on today.",
+    now: "Live sales, dispatch & the order pass.",
+    ask: "Recipes, gear, stock & how-to — from the GT3 playbook.",
     prep: "Stock, readiness & the pack list for what's next.",
-    plan: "Notes, events, vendors & bookings.",
-    studio: "Brand & marketing — draft, collaborate, schedule.",
-    money: "Pricing, subscriptions & order history.",
-    team: "People, roles & training.",
+    plan: "Calendar, events, vendors & bookings.",
+    studio: "Draft, schedule & post — brand & marketing.",
+    money: "Pricing, reserves & order history.",
+    team: "People, roles, access & training.",
+  };
+  const WHEN: Record<OpSection, string> = {
+    day: "Start of shift",
+    now: "During service",
+    ask: "When you're stuck",
+    prep: "Before the event",
+    plan: "Booking ahead",
+    studio: "Promoting a drop",
+    money: "The books",
+    team: "People & roles",
   };
 
   // Overview's jump links map onto the operator sections — and the Plan sub-tab when relevant,
@@ -4200,7 +4212,10 @@ export default function AdminPage() {
         <button type="button" className="pf" aria-label={canGoBack ? "Back" : "Exit Crew Mode"} onClick={() => { if (!back()) router.push("/3mpire"); }}>‹</button>
       </div>
       <div className="op-head">
-        <div className="op-head-t">{LABEL[sec]}</div>
+        <div className="op-head-row">
+          <div className="op-head-t">{LABEL[sec]}</div>
+          <span className="op-head-when">{WHEN[sec]}</span>
+        </div>
         <div className="op-head-s">{SUB[sec]}</div>
       </div>
 
