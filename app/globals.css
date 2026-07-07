@@ -2034,8 +2034,12 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .theme-toggle{position:fixed;left:16px;bottom:calc(var(--navh,68px) + 16px);z-index:60;width:46px;height:46px;border-radius:50%;border:1px solid var(--line2);background:var(--card);color:var(--cream);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 16px rgba(0,0,0,.22);-webkit-appearance:none;appearance:none}
 
 /* ── Readability controls (global Aa toggle) — prefixed rdg* to avoid the .disp (dispatch) class ── */
-.rdg{position:fixed;left:16px;bottom:calc(var(--navh,68px) + 74px);z-index:61}
-.rdg-fab{width:46px;height:46px;border-radius:50%;border:1px solid var(--line2);background:var(--card);color:var(--cream);cursor:pointer;display:flex;align-items:baseline;justify-content:center;gap:1px;box-shadow:0 6px 16px rgba(0,0,0,.22);-webkit-appearance:none;appearance:none}
+/* accessibility control — docked to the left edge, tucked, with a slow raise-in; slides fully out
+   on hover/focus so it's there when a user needs it, out of the way when they don't. */
+.rdg{position:fixed;left:0;bottom:calc(var(--navh,68px) + 118px);z-index:61;animation:rail-raise .9s ease both}
+.rdg-fab{width:48px;height:46px;border-radius:0 14px 14px 0;border:1px solid var(--line2);border-left:none;background:var(--card);color:var(--cream);cursor:pointer;display:flex;align-items:baseline;justify-content:center;gap:1px;box-shadow:0 6px 16px rgba(0,0,0,.22);-webkit-appearance:none;appearance:none;transform:translateX(-32%);transition:transform .45s cubic-bezier(.2,.9,.2,1)}
+.rdg:hover .rdg-fab,.rdg:focus-within .rdg-fab{transform:translateX(0)}
+@keyframes rail-raise{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:none}}
 .rdg-a{font-family:'Fraunces',serif;font-weight:600;line-height:1}
 .rdg-panel{position:absolute;bottom:54px;left:0;width:214px;background:var(--card);border:1px solid var(--line2);border-radius:14px;padding:12px;box-shadow:0 12px 30px rgba(0,0,0,.4);display:flex;flex-direction:column;gap:8px}
 .app.crew-day .rdg-panel,.app.crew-day .rdg-fab{background:#fff}
@@ -3277,3 +3281,34 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .mp-wallet-g{background:#fff;color:#3c4043;border:1px solid #dadce0}
 /* app name "No Noise" under the brand lockup (guest front door) */
 .mast-brand .mast-app{font-family:'DM Mono',ui-monospace,monospace;font-size:8px;font-weight:500;letter-spacing:2.6px;text-transform:uppercase;color:var(--gold2,#C8A661);margin-top:3px}
+
+/* ─────────── Connect hub (intent-driven link tree, side-docked) ─────────── */
+.chub{position:fixed;right:0;bottom:calc(var(--navh,68px) + 118px);z-index:62;display:flex;justify-content:flex-end}
+.chub-tab{display:flex;align-items:center;gap:7px;background:linear-gradient(135deg,#1c1811,#2a1c12);color:#f4ead6;border:1px solid var(--gold2,#B8902F);border-right:none;border-radius:14px 0 0 14px;padding:11px 13px 11px 15px;font-family:'Inter';font-weight:800;font-size:12.5px;letter-spacing:.03em;cursor:pointer;box-shadow:0 10px 26px rgba(0,0,0,.4);-webkit-appearance:none;appearance:none;transform:translateX(38%);transition:transform .5s cubic-bezier(.2,.9,.2,1),box-shadow .3s;animation:rail-raise .9s ease both}
+.chub-tab:hover,.chub-tab:focus-visible,.chub.open .chub-tab{transform:translateX(0);box-shadow:0 12px 30px rgba(184,144,47,.28)}
+.chub-tab-i{font-size:15px;line-height:1;color:var(--gold2,#C8A661)}
+.chub-tab-l{white-space:nowrap}
+.chub-panel{position:absolute;right:52px;bottom:0;width:min(310px,86vw);max-height:min(76vh,560px);overflow-y:auto;background:linear-gradient(168deg,#17130d 0%,#1e160e 60%,#241811 100%);color:#f4ead6;border:1px solid var(--gold2,#B8902F);border-radius:18px;padding:15px;box-shadow:0 24px 60px rgba(0,0,0,.6);animation:chub-raise-in .42s cubic-bezier(.2,.9,.2,1)}
+.chub-panel::-webkit-scrollbar{width:0}
+@keyframes chub-raise-in{from{opacity:0;transform:translate(16px,10px)}to{opacity:1;transform:none}}
+.chub-head{display:flex;align-items:center;gap:10px;margin-bottom:13px}
+.chub-head .g3{font-size:22px}
+.chub-head-s{font-family:'Playfair Display',serif;font-style:italic;font-size:16px;color:#f4ead6}
+.chub-groups{display:flex;flex-direction:column;gap:8px}
+.chub-grp{border:1px solid rgba(200,166,97,.22);border-radius:13px;overflow:hidden;background:rgba(255,255,255,.02);transition:border-color .2s}
+.chub-grp.on{border-color:var(--gold2,#C8A661);background:rgba(200,166,97,.05)}
+.chub-q{display:flex;align-items:center;justify-content:space-between;width:100%;background:transparent;border:none;color:#f4ead6;font-family:'Inter';font-weight:700;font-size:14.5px;padding:13px 14px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.chub-q-chev{color:var(--gold2,#C8A661);font-size:15px;transition:transform .25s ease}
+.chub-grp.on .chub-q-chev{transform:rotate(180deg)}
+.chub-links{display:flex;flex-direction:column;gap:6px;padding:0 8px 9px;animation:chub-drop .28s ease}
+@keyframes chub-drop{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.chub-link{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:11px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);text-decoration:none;color:#f4ead6;transition:background .16s,border-color .16s}
+.chub-link:hover,.chub-link:active{background:rgba(200,166,97,.1);border-color:rgba(200,166,97,.32)}
+.chub-badge{flex:0 0 32px;width:32px;height:32px;border-radius:9px;background:rgba(200,166,97,.14);border:1px solid rgba(200,166,97,.32);color:var(--gold2,#C8A661);display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:12px;font-weight:600}
+.chub-link-t{flex:1;display:flex;flex-direction:column;line-height:1.25;min-width:0}
+.chub-link-t b{font-family:'Inter';font-size:13.5px}
+.chub-link-t span{font-size:11px;color:rgba(244,234,214,.58)}
+.chub-go{color:rgba(244,234,214,.45);font-size:13px}
+.chub-qr{display:flex;align-items:center;gap:12px;margin-top:13px;padding-top:13px;border-top:1px solid rgba(255,255,255,.1)}
+.chub-qr img{background:#fff;border-radius:9px;padding:5px;flex:0 0 auto}
+.chub-qr span{font-family:'Inter';font-size:11.5px;color:rgba(244,234,214,.72);line-height:1.4}
