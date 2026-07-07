@@ -5,10 +5,11 @@ import AppProvider from "@/components/AppProvider";
 import AppShell from "@/components/AppShell";
 
 export const metadata: Metadata = {
-  title: "GT3 Performance Bar",
-  description: "Whole-food functional beverages. Nothing toxic. The daily front door to GT3PB.",
-  applicationName: "GT3 Performance Bar",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "GT3PB" },
+  metadataBase: new URL("https://app.gt3pb.com"),
+  title: "No Noise — GT3 Performance Bar",
+  description: "Whole-food functional beverages. Nothing toxic. No Noise is your GT3 home — order, reserve, and your membership.",
+  applicationName: "No Noise",
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "No Noise" },
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [{ url: "/icon.svg", type: "image/svg+xml" }, { url: "/icon-192.png", sizes: "192x192", type: "image/png" }],
