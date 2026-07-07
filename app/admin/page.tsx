@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useApp } from "@/components/AppProvider";
 import { useAuth, roleOf, type Profile } from "@/components/AuthProvider";
@@ -1209,9 +1210,12 @@ function EventPrep({ onGo }: { onGo: (t: string) => void }) {
       supabase.from("live_status").select("current_stop_id, is_live").maybeSingle(),
       supabase.from("event_tasks").select("event_id, stop_id, done, critical"),
     ]);
-    const evList = ((evs as EventRow[]) ?? []).filter((e) => !e.archived_at);
+    // Active prep = not archived AND not completed. Completing an event stamps stage:"done"
+    // (0121); finishing a truck stop sets status:"done". Either way it drops off the active
+    // list — it's still reachable via history/archive, just not cluttering today's prep.
+    const evList = ((evs as EventRow[]) ?? []).filter((e) => !e.archived_at && e.stage !== "done");
     setEvents(evList);
-    setStops(((sts as Stop[]) ?? []).filter((s) => !s.archived_at));
+    setStops(((sts as Stop[]) ?? []).filter((s) => !s.archived_at && s.status !== "done"));
     const lstat = ls as { current_stop_id: string | null; is_live: boolean } | null;
     setLiveStopId(lstat?.is_live ? lstat.current_stop_id : null);
     const map: Record<string, Readiness> = {};
@@ -4118,7 +4122,8 @@ function VendorPicker({ vendors, vendorId, onLink }: { vendors: Vendor[]; vendor
 
 export default function AdminPage() {
   const { ready, enabled, user, profile } = useAuth();
-  const { section, setSection } = useOperatorSection();
+  const { section, setSection, back, canGoBack } = useOperatorSection();
+  const router = useRouter();
 
   // Derive role + nav constants before any conditional return (Rules of Hooks).
   // profiles.role: member/server/operator/event_manager/contractor/admin/owner (0031).
@@ -4190,7 +4195,9 @@ export default function AdminPage() {
     <section className="screen admin">
       <div className="toprow">
         <div className="eyb">GT3PB · Crew</div>
-        <Link className="pf" href="/3mpire" aria-label="Exit Crew Mode">‹</Link>
+        {/* Back = previous section within crew mode; only leaves for /3mpire when there's no
+            section history to step back through. */}
+        <button type="button" className="pf" aria-label={canGoBack ? "Back" : "Exit Crew Mode"} onClick={() => { if (!back()) router.push("/3mpire"); }}>‹</button>
       </div>
       <div className="op-head">
         <div className="op-head-t">{LABEL[sec]}</div>
