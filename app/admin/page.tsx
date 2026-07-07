@@ -999,7 +999,7 @@ function PrepViewSheet({ dir, setDir, onClose }: { dir: "asc" | "desc"; setDir: 
 type PrepTarget = { kind: "event" | "stop"; id: string };
 
 function PrepCard({ title, when, location, live, r, onOpen }: { title: string; when: string; location: string | null; live: boolean; r: Readiness; onOpen: () => void }) {
-  const status = r.total === 0 ? "Not started" : r.done === r.total ? "Ready to roll" : `Loaded ${r.done}/${r.total}`;
+  const status = r.total === 0 ? "Not started" : r.done === r.total ? "✓ Ready to roll" : `Loaded ${r.done}/${r.total}`;
   const cls = r.total === 0 ? "none" : r.done === r.total ? "ok" : r.crit ? "miss" : "mid";
   const pct = r.total ? Math.round((r.done / r.total) * 100) : 0;
   return (

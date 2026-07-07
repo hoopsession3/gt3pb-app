@@ -3224,3 +3224,10 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .mpanel-body > .sec:first-child,
 .mpanel-body > .adm-sec > .studio-top > .sec{display:none}
 .mpanel-body > .adm-sec > .studio-top{justify-content:flex-end;margin-bottom:8px}
+
+/* ─────────── stamp-card achievement states ─────────── */
+.stamp.near{border-color:var(--gold2)}
+.stamp.near .stamp-foot{color:var(--gold2);font-weight:600}
+.stamp.won{border-color:var(--red);background:linear-gradient(180deg,rgba(184,36,32,.08),transparent)}
+.stamp.won .stamp-badge{background:var(--red);color:#fff}
+.stamp.won .stamp-foot{color:var(--red);font-weight:700}

@@ -13,13 +13,14 @@ export default function StampCard() {
   const inCard = pts % GOAL;          // stamps on the current card
   const free = Math.floor(pts / GOAL); // free drinks earned so far
   const toGo = GOAL - inCard;
-  const gotFree = inCard === 0 && pts > 0;
+  const gotFree = inCard === 0 && pts > 0; // just completed a card
+  const near = !gotFree && toGo <= 2;
 
   return (
-    <section className="stamp" aria-label="Loyalty card">
+    <section className={`stamp${gotFree ? " won" : near ? " near" : ""}`} aria-label="Loyalty card">
       <div className="stamp-top">
         <span className="stamp-k">Your card</span>
-        <span className="stamp-badge">{free > 0 ? `${free} free earned` : "10th is on us"}</span>
+        <span className="stamp-badge">{gotFree ? "🎉 Card full" : free > 0 ? `${free} free earned` : "10th is on us"}</span>
       </div>
       <div className="stamp-grid" role="img" aria-label={`${inCard} of ${GOAL} stamps`}>
         {Array.from({ length: GOAL }).map((_, i) => (
@@ -29,7 +30,9 @@ export default function StampCard() {
         ))}
       </div>
       <div className="stamp-foot">
-        {gotFree ? "Fresh card — your free cup is waiting." : `${toGo} more ${toGo === 1 ? "drink" : "drinks"} till your next free one.`}
+        {gotFree ? "Your 10th is on us — mention it at the window."
+          : near ? `So close — just ${toGo} more till a free cup.`
+          : `${toGo} more ${toGo === 1 ? "drink" : "drinks"} till your next free one.`}
       </div>
     </section>
   );
