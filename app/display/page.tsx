@@ -30,7 +30,11 @@ export default function DisplayPage() {
   useEffect(() => { const t = setInterval(() => setStep((v) => v + 1), DWELL); return () => clearInterval(t); }, []);
 
   const scene = scenes[step % scenes.length];
-  const review = reviews.length ? reviews[step % reviews.length] : null;
+  // Advance the review once per full loop, not by the raw step: the review scene only appears at
+  // one slot in the cycle, so indexing by step means step jumps by scenes.length between showings —
+  // and when reviews.length shares a factor with scenes.length (e.g. any multiple of 3, incl. the
+  // default cap of 12) only reviews.length/gcd of them are ever reachable and the rest go unseen.
+  const review = reviews.length ? reviews[Math.floor(step / scenes.length) % reviews.length] : null;
 
   return (
     <div className="disp" role="presentation">
