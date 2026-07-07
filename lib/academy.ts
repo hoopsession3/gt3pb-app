@@ -73,14 +73,14 @@ export const MODULES: Module[] = [
     body: [
       { h: "The company", p: "GT3 is a portfolio of premium, performance-oriented consumer brands — built lean, scalable, and structured to last. Two brands run off one shared backbone: GT3 Brew (functional coffee) and GT3 Performance Bar (the mobile bar you work)." },
       { h: "Founder story", p: "GT3 is owner-operated by Ryan and Kayla Thompkins. It started with a simple refusal: not to serve anything we wouldn't drink ourselves. Every recipe, vendor, and standard traces back to that." },
-      { h: "Mission", p: "Make the cleanest, most honest performance beverages — every input a named whole food, every claim something we can stand behind — and serve them at the moments people actually need them." },
+      { h: "Mission", p: "Make the cleanest, most honest beverages — every input a named whole food, every claim something we can stand behind — and serve them at the moments people actually need them." },
       { h: "Vision", p: "Grow GT3 from one owner-operated bar into a multi-city, multi-brand operation that anyone can run to the same standard — because the standard is written down, not in someone's head." },
       { h: "Brand pillars", p: "1) Signal over noise — measured, not hyped. 2) Whole-food, made to order. 3) Premium experiential. 4) Due-diligence-ready: clean and transferable." },
       { h: "Core values", p: "Honesty in the bottle. Respect for the ingredient. Lean and repeatable. Best-for-you — the customer's outcome leads." },
     ],
     quiz: [
       { q: "What are GT3's two brands?", options: ["GT3 Brew & GT3 Performance Bar", "GT3 Coffee & GT3 Juice", "GT3 Brew & GT3 Energy"], correct: 0 },
-      { q: "Which best states the mission?", options: ["Sell the most coffee in Atlanta", "Clean, honest performance beverages we can stand behind, served when people need them", "Be the cheapest option at every event"], correct: 1 },
+      { q: "Which best states the mission?", options: ["Sell the most coffee in Atlanta", "Clean, honest beverages we can stand behind, served when people need them", "Be the cheapest option at every event"], correct: 1 },
       { q: "\"Signal over noise\" means we…", options: ["Market loudly", "Measure and stand behind what we serve, without hype", "Avoid talking to customers"], correct: 1, why: "We lead with measured substance, not hype." },
     ],
   },
@@ -241,7 +241,7 @@ export const MODULES: Module[] = [
   {
     slug: "coffee-science", section: "nutrition", title: "Coffee Science — why cold extraction tastes the way it does", estMin: 12,
     summary: "The real chemistry behind cold extraction, single-origin, and mineral water — enough to explain it honestly.",
-    whyItMatters: "A guest asking 'why is this $7 and not $2' is really asking 'what am I tasting?' If you can answer with the actual science, calmly and without hype, the price explains itself and they trust everything else you say.",
+    whyItMatters: "A guest asking 'why is this $10 and not $2' is really asking 'what am I tasting?' If you can answer with the actual science, calmly and without hype, the price explains itself and they trust everything else you say.",
     objectives: ["Explain in one breath why cold extraction is smoother than hot", "Say what 'single-origin' and '1:13' actually mean", "Describe why we use mineral water — without claiming a health benefit"],
     body: [
       { h: "Hot vs. cold is a chemistry difference, not a temperature gimmick", p: "Heat is a solvent accelerator. Brewing hot pulls coffee's oils, acids, and bitter compounds out fast — including the harsher ones. Cold water extracts the same coffee slowly over ~18 hours, pulling far less of the acidic and bitter compounds. The result is naturally lower in perceived acidity and bitterness — rounder, smoother — without adding anything. That smoothness is extracted, not sweetened." },
@@ -470,14 +470,14 @@ export const MODULES: Module[] = [
     whyItMatters: "If you only learn the steps, you'll do them when it's easy and skip them when it's hard. If you understand WHY GT3 exists, you'll hold the standard at 8pm on a dead-tired Saturday — which is the only time it actually matters.",
     objectives: ["Say in one sentence why GT3 exists", "Explain why a 'small' detail is never small here", "Tell a guest what makes us different without sounding rehearsed"],
     body: [
-      { h: "Why GT3 exists", p: "Most 'performance' or 'wellness' drinks are noise — sugar, hype, and claims nobody can back. GT3 exists to be the opposite: clean, honest performance beverages we can stand behind, made with real ingredients and a process we'll show you, served when people actually need them. We'd rather be the most trusted than the loudest." },
+      { h: "Why GT3 exists", p: "Most 'performance' or 'wellness' drinks are noise — sugar, hype, and claims nobody can back. GT3 exists to be the opposite: clean, honest beverages we can stand behind, made with real ingredients and a process we'll show you, served when people actually need them. We'd rather be the most trusted than the loudest." },
       { h: "Two brands, one standard", p: "GT3 Brew makes the coffee and cold brew; GT3 Performance Bar is how we serve it — the cart, the trailer, the events. Different jobs, identical standard. A guest never sees 'the brand we felt like being today.'" },
       { h: "Why a small detail is never small", p: "A wiped counter, a settled pour, a disclosed allergen, the same recipe at every cart — guests can rarely name why we feel premium, but they feel it, and they come back for it. The details aren't decoration; they ARE the product. Skip one and you've quietly handed the guest a different, worse brand." },
       { h: "The bar we hold", p: "The whole Academy is built around one test: 'If Ryan wasn't here, would you make the same call?' Everything you learn is to close that gap — so the experience is identical whether the founder is standing next to you or a thousand miles away." },
     ],
     founderInsight: "I'm not precious about details to be difficult. I'm precise because consistency is the only thing that earns trust at scale — and trust is the entire business.",
     quiz: [
-      { q: "GT3 exists to be…", options: ["The cheapest option", "The most trusted — clean, honest performance beverages", "The loudest brand at the event"], correct: 1 },
+      { q: "GT3 exists to be…", options: ["The cheapest option", "The most trusted — clean, honest beverages", "The loudest brand at the event"], correct: 1 },
       { q: "A 'small' detail like a wiped counter is…", options: ["Optional when busy", "Part of the product — guests feel it", "Only for inspections"], correct: 1 },
       { q: "The Academy's core test is…", options: ["Can you pour fast?", "Would you make the same call the founder would?", "Did you memorize the menu?"], correct: 1 },
     ],
@@ -490,7 +490,7 @@ export const MODULES: Module[] = [
     whyItMatters: "Your job at an event is to BE the brand to every guest. You can't represent something you can't articulate. This is the DNA you carry so the brand sounds and feels the same out of anyone's mouth.",
     objectives: ["State the mission and the values in your own words", "Use the GT3 voice — confident, warm, never hype", "Spot an off-brand move before you make it"],
     body: [
-      { h: "Mission", p: "Clean, honest performance beverages we can stand behind, served when people need them. Every product, price, and pour either serves that or it doesn't belong." },
+      { h: "Mission", p: "Clean, honest beverages we can stand behind, served when people need them. Every product, price, and pour either serves that or it doesn't belong." },
       { h: "Vision", p: "A brand people trust enough that 'GT3 made it' is reason enough to try it — built to outlast and out-scale its founder by encoding the standard into people and systems, not personality." },
       { h: "Core values", p: "Honesty (never a claim we can't back). Consistency (the same experience every time). Hospitality (the guest leaves better than they arrived). Craft (real ingredients, real process). Stewardship (everyone protects the standard, watched or not). When two values seem to conflict, honesty and safety win — always." },
       { h: "Brand voice", p: "Confident but never arrogant. Warm but not cutesy. Educational but never preachy. We state things plainly and let the substance carry it. 'Pure Signal. No Noise.' is the voice in three words: measured substance, zero hype. If a sentence sounds like a supplement ad, it's wrong." },
@@ -613,7 +613,7 @@ export const MODULES: Module[] = [
     mistakes: ["Getting defensive about price instead of explaining value", "Overselling a skeptic (confirms their suspicion)", "Debating a complaint instead of just remaking it", "Matching an upset guest's energy"],
     founderInsight: "A complaint is a gift — the guest is giving you a chance to fix it instead of just never coming back. Treat it like one.",
     scenarios: [
-      { situation: "'$7 for a coffee? That's crazy.'", doThis: "Calm value, no apology: 'I get it — it's single-origin, cold-brewed over ~18 hours and made fresh. That's the difference in the cup. Want to try it?' If still no, warm exit." },
+      { situation: "'$10 for a coffee? That's crazy.'", doThis: "Calm value, no apology: 'I get it — it's single-origin, cold-brewed over ~18 hours and made fresh. That's the difference in the cup. Want to try it?' If still no, warm exit." },
       { situation: "Guest says their nitro poured flat", doThis: "'You're right — let me remake that for you.' Fix the cause (restrictor/pressure), re-pour a proper cascade, hand it over. No debate, no charge." },
     ],
     quiz: [
@@ -661,7 +661,7 @@ export interface Product {
 
 export const PRODUCTS: Product[] = [
   {
-    key: "rise", name: "Rise", line: "Activation", price: "$7",
+    key: "rise", name: "Rise", line: "Activation", price: "$10",
     what: "Cold-extracted single-origin coffee in mineral water, finished with organic coconut water.",
     why: "A clean, even lift to start the morning.",
     ingredients: ["Single-origin cold extraction", "Mineral water base", "Organic coconut water"],
@@ -680,7 +680,7 @@ export const PRODUCTS: Product[] = [
     cookbook: { batch: "Standard Batch — GT3 (1:13, ~18-hr cold extraction).", brew: ["Weigh beans 1:13 to mineral water", "Cold-extract ~18 hrs", "Filter, log batch + signal score (target 8+)"], serve: ["Pour over ice", "Top with organic coconut water", "Serve in glass, made to order"], storage: "Keep cold; use within the standard hold window.", quality: "Signal Score 8+ (Energy/Clarity/Flavor/Smoothness).", troubleshoot: [{ issue: "Too bitter", fix: "Check grind/time — over-extraction; pull back toward spec." }, { issue: "Weak", fix: "Verify 1:13 ratio and full 18-hr extraction." }] },
   },
   {
-    key: "flow", name: "Flow", line: "Activation", price: "$7",
+    key: "flow", name: "Flow", line: "Activation", price: "$10",
     what: "Cold-extracted single-origin coffee in mineral water, infused with organic cacao nibs.",
     why: "Cacao to keep the focus going a little longer.",
     ingredients: ["Single-origin cold extraction", "Mineral water base", "Organic cacao nibs"],
@@ -699,7 +699,7 @@ export const PRODUCTS: Product[] = [
     cookbook: { batch: "Standard Batch — GT3 with cacao-nib infusion.", brew: ["Brew base to spec", "Infuse organic cacao nibs", "Filter and log batch"], serve: ["Pour over ice in glass"], storage: "Keep cold; standard hold window.", quality: "Signal Score 8+; cacao aroma present, not muddy.", troubleshoot: [{ issue: "Muddy/silty", fix: "Improve filtration after nib infusion." }] },
   },
   {
-    key: "dusk", name: "Dusk", line: "Activation", price: "$7",
+    key: "dusk", name: "Dusk", line: "Activation", price: "$10",
     what: "Cold-extracted single-origin coffee in mineral water with Ceylon cinnamon and green cardamom.",
     why: "A warmer, spiced bottle for the back half of the day.",
     ingredients: ["Single-origin cold extraction", "Mineral water base", "Ceylon cinnamon", "Green cardamom"],
@@ -718,7 +718,7 @@ export const PRODUCTS: Product[] = [
     cookbook: { batch: "Standard Batch — GT3 with cinnamon + cardamom.", brew: ["Brew base to spec", "Add Ceylon cinnamon + green cardamom", "Filter and log batch"], serve: ["Pour over ice; garnish per spec"], storage: "Keep cold; standard hold window.", quality: "Spice aromatic, balanced — not gritty.", troubleshoot: [{ issue: "Gritty", fix: "Use infusion, not loose ground spice in the bottle." }] },
   },
   {
-    key: "nature_aid", name: "Nature Aide", line: "Hydration", price: "$8",
+    key: "nature_aid", name: "Nature's Aide", line: "Hydration", price: "$10",
     what: "A light electrolyte hydration — coconut water and mineral water with organic maple syrup, finished with sea salt.",
     why: "Clean, balanced hydration that goes down easy during the work.",
     ingredients: ["Coconut water", "Mineral water", "Organic maple syrup", "Sea salt"],
@@ -756,7 +756,7 @@ export const PRODUCTS: Product[] = [
     cookbook: { batch: "Blend to order (no long batch).", brew: ["Combine young coconut water + young organic Thai coconut meat", "Add measured organic local honey per spec", "Blend until smooth"], serve: ["Serve cold, in glass, immediately"], storage: "Make to order; do not hold blended.", quality: "Smooth, no separation at serve.", troubleshoot: [{ issue: "Too sweet", fix: "Reduce honey to spec; honey is the only added sweetener." }, { issue: "Separating", fix: "Serve immediately after blend." }] },
   },
   {
-    key: "nitro", name: "Nitro Cold Brew", line: "Activation", price: "$7",
+    key: "nitro", name: "King Me (Nitro)", line: "Activation", price: "$14",
     what: "Cold-extracted coffee charged with nitrogen for a smooth, cascading pour from the tap.",
     why: "The same clean cold-brew, served silky and creamy without dairy.",
     ingredients: ["Single-origin cold extraction", "Nitrogen charge"],
@@ -788,7 +788,7 @@ export const PRODUCTS: Product[] = [
     cookbook: { batch: "Standard Batch — GT3: 1:13 beans to mineral water, ~18-hr extraction.", brew: ["Weigh to 1:13", "Cold-extract ~18 hrs", "Filter; log batch + signal score"], serve: ["Use as the base for Rise/Flow/Dusk/Nitro"], storage: "Keep cold; honor the hold window.", quality: "Signal Score 8+; smoothness is the watch metric.", troubleshoot: [{ issue: "Low smoothness signal", fix: "Adjust grind/time toward spec; re-profile." }] },
   },
   {
-    key: "salted_maple", name: "Salted Maple", line: "Specialty", price: "$8",
+    key: "salted_maple", name: "Salted Maple Latte", line: "Specialty", price: "$14",
     what: "Cold-extracted coffee with real maple and a pinch of salt, balanced — not a sugar bomb.",
     why: "A touch of comfort and sweetness done with a real ingredient.",
     ingredients: ["Cold-extracted coffee", "Real maple", "Pinch of salt", "Milk or coconut base per build"],
