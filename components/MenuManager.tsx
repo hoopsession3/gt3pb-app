@@ -9,7 +9,7 @@ import { supabase } from "@/lib/supabase";
 // consumes), and toggle active. Price here is what the app charges — card AND cash.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-type Product = { id: string; slug: string; name: string; line: string | null; price_cents: number; active: boolean; sold_out: boolean; sort: number; what: string | null; why: string | null; ingredients: string[]; excludes: string[]; timing: string | null; square_item_id: string | null };
+type Product = { id: string; slug: string; name: string; line: string | null; price_cents: number; active: boolean; sold_out: boolean; sold_out_at: string | null; sort: number; what: string | null; why: string | null; ingredients: string[]; excludes: string[]; timing: string | null; square_item_id: string | null };
 type Inv = { id: string; name: string; unit: string | null };
 type Comp = { id: string; inventory_item_id: string; qty_per_serving: number | null; unit: string | null };
 
@@ -101,7 +101,7 @@ function ProductRow({ p, inv, open, onToggle, onSaved, toast }: { p: Product; in
       <div className="prod-headrow">
         <button type="button" className="prod-head" onClick={onToggle}>
           <span className="prod-dot" style={{ background: p.timing ? undefined : undefined }} />
-          <span className="prod-n">{p.name}{!p.active && <span className="prod-off">off</span>}{p.active && p.sold_out && <span className="prod-86tag">SOLD OUT</span>}</span>
+          <span className="prod-n">{p.name}{!p.active && <span className="prod-off">off</span>}{p.active && p.sold_out && <span className="prod-86tag">SOLD OUT{p.sold_out_at ? ` · ${new Date(p.sold_out_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}</span>}</span>
           <span className="prod-line">{p.line}</span>
           <span className="prod-px">${(p.price_cents / 100).toFixed(2)}</span>
         </button>

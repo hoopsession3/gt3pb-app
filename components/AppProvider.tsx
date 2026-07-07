@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { DRINKS, type DrinkId } from "@/lib/menu";
+import { useAvailability } from "@/lib/availability";
 
 type ToastVariant = "success" | "error" | "info";
 
@@ -112,16 +113,23 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   const closeCheckout = useCallback(() => setCoOpen(false), []);
   // Merge the past order into the current cart (don't clobber a build-in-progress).
   // Only auto-open checkout when the cart was empty; otherwise toast so it's not jarring.
+  // 86'd items are filtered here so one-tap reorder can never build a cart that dead-ends at
+  // checkout — the customer is told what's out, and the rest of their usual carries on.
+  const { soldOut } = useAvailability();
   const reorder = useCallback((items: DrinkId[]) => {
+    const out = [...new Set(items.filter((id) => soldOut.has(id)))].map((id) => DRINKS[id]?.n ?? id);
+    const ok = items.filter((id) => !soldOut.has(id));
+    if (out.length) toast(`${out.join(" · ")} ${out.length === 1 ? "is" : "are"} sold out today${ok.length ? " — added the rest" : ""}`, "error");
+    if (ok.length === 0) return;
     setCart((prev) => {
       const wasEmpty = Object.keys(prev).length === 0;
       const next = { ...prev };
-      items.forEach((id) => { next[id] = (next[id] ?? 0) + 1; });
+      ok.forEach((id) => { next[id] = (next[id] ?? 0) + 1; });
       if (wasEmpty) setCoOpen(true);
-      else toast(`Added ${items.length} to your order`, "success");
+      else toast(`Added ${ok.length} to your order`, "success");
       return next;
     });
-  }, [toast]);
+  }, [toast, soldOut]);
 
   const value = useMemo<AppCtx>(
     () => ({ toast, toastMsg, toastShown, toastVariant, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, reorder, priceCents }),

@@ -3026,6 +3026,15 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .prod-86tag{font-size:8.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#a13c34;border:1px solid rgba(161,60,52,.4);border-radius:20px;padding:2px 7px;margin-left:8px;vertical-align:1px}
 .app.crew-day .prod-86btn{color:#a13c34}
 .app.crew-day .prod-86btn.on{color:#fff}
+/* the 86 board on Now — chips, tap to flip */
+.es-note{font-family:'Inter';font-size:11.5px;color:var(--muted);margin:-2px 0 10px}
+.es-row{display:flex;flex-wrap:wrap;gap:8px}
+.es-chip{font-family:'Inter';font-weight:600;font-size:12.5px;color:var(--cream,#F5F1E8);background:rgba(0,0,0,.14);border:1.5px solid var(--hair,rgba(245,241,232,.14));border-radius:20px;padding:9px 14px;cursor:pointer;-webkit-appearance:none;appearance:none;transition:.15s}
+.es-chip em{font-style:normal;font-family:'DM Mono',monospace;font-size:10px;margin-left:6px;opacity:.8}
+.es-chip.out{color:#c98e8e;border-color:rgba(200,90,90,.5);background:rgba(200,90,90,.08);text-decoration:line-through}
+.es-chip.out em{text-decoration:none}
+.app.crew-day .es-chip{color:#221f18;background:rgba(34,31,24,.04);border-color:rgba(34,31,24,.16)}
+.app.crew-day .es-chip.out{color:#a13c34;border-color:rgba(161,60,52,.45);background:rgba(161,60,52,.06)}
 
 /* menu pack upsell — the take-home path (cream editorial palette) */
 .mpack{border:1px solid rgba(34,31,24,.14);border-radius:16px;padding:16px 16px 14px;margin:4px 0 26px}
