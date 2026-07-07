@@ -170,9 +170,9 @@ function Arrival({ t }: { t: (k: string) => string }) {
 
       <div className="dchapter"><span className="dchn">What We Make</span><span className="dchw">three acts</span></div>
       <div className="dchrule" />
-      <div className="pillar"><span className="pdot" style={{ background: "#B8902F" }} /><div className="px"><b>Activation</b><p>Cold-extracted coffee to start the day clear.</p></div></div>
-      <div className="pillar"><span className="pdot" style={{ background: "#3f7d6e" }} /><div className="px"><b>Hydration</b><p>Whole-coconut water to carry you through it.</p></div></div>
-      <div className="pillar"><span className="pdot" style={{ background: "#B82420" }} /><div className="px"><b>Fuel</b><p>Slow-simmered broth to rebuild after.</p></div></div>
+      <div className="pillar"><span className="pdot" style={{ background: "#B8902F" }} /><div className="px"><b>{t("home.pillar1_t")}</b><p>{t("home.pillar1_d")}</p></div></div>
+      <div className="pillar"><span className="pdot" style={{ background: "#3f7d6e" }} /><div className="px"><b>{t("home.pillar2_t")}</b><p>{t("home.pillar2_d")}</p></div></div>
+      <div className="pillar"><span className="pdot" style={{ background: "#B82420" }} /><div className="px"><b>{t("home.pillar3_t")}</b><p>{t("home.pillar3_d")}</p></div></div>
 
       <ReservePitch />
 
