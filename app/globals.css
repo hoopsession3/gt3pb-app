@@ -3206,3 +3206,21 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .disp-rev-q{font-family:'Playfair Display',serif;font-style:italic;font-size:6vmin;line-height:1.14;margin:0}
 .disp-rev-who{font-family:'Inter';font-weight:700;font-size:2.6vmin;color:var(--cream-m);margin-top:3vmin}
 .disp-rev-tag{font-family:'Inter';font-size:1.7vmin;letter-spacing:.24em;text-transform:uppercase;color:var(--cream-d);margin-top:5vmin}
+
+/* ─────────── collapsible admin panels (tame long sections) ─────────── */
+.mpanel{border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:10px;background:var(--card)}
+.app.crew-day .mpanel{background:#fff}
+.mpanel-h{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;background:transparent;border:none;padding:15px 16px;cursor:pointer;-webkit-appearance:none;appearance:none;text-align:left}
+.mpanel-t{font-family:'Inter';font-weight:700;font-size:13px;letter-spacing:.02em;color:var(--cream)}
+.mpanel-chev{flex:0 0 auto;color:var(--cream-m);font-size:19px;line-height:1;transition:transform .18s ease}
+.mpanel.open .mpanel-chev{transform:rotate(90deg)}
+.mpanel-body{padding:0 14px 14px;animation:mpanelin .22s ease}
+@keyframes mpanelin{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+/* the wrapped panel supplies its own title/pills — the Panel already shows it, so hide the dupe
+   (keep any action button in a .studio-top and any inner sub-headers). */
+.mpanel-body > .adm-sec{margin:0}
+.mpanel-body > .adm-sec > .sec:first-child,
+.mpanel-body > * > .sec:first-child,
+.mpanel-body > .sec:first-child,
+.mpanel-body > .adm-sec > .studio-top > .sec{display:none}
+.mpanel-body > .adm-sec > .studio-top{justify-content:flex-end;margin-bottom:8px}
