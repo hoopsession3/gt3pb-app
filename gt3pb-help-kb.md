@@ -33,7 +33,10 @@ the change isn't done.
 ## Data the customer sees publicly is always cleaned
 - Guest reviews pass through `lib/reviews.ts` (anonymize to first name + initial, strip PII, mask
   profanity, drop <4★/spam) and must be **staff-approved** (Studio → Review Desk) before the display
-  shows them. Reviews from Google / Instagram / the feedback album are added there too.
+  shows them. Reviews from Google / Instagram / the feedback album are added there too. Each pending
+  review can be **approved as-is** or **✨ Simplified** — an AI editor (Haiku, `/api/reviews/simplify`)
+  trims it to a display-ready line and **removes any health/medical claim** without inventing praise;
+  the operator accepts the suggestion or keeps the original.
 
 ## UI standards
 - **Collapsible sections** = the `Panel` primitive (`app/admin/page.tsx`) — tappable header + chevron,
@@ -47,5 +50,5 @@ the change isn't done.
   us." No separate data.
 
 ## Migration ledger (apply in order on prod; all idempotent)
-Through **0129** — see `gt3pb-deploy-v1.md` for the full table + verify SQL. Newest:
-`0127` board reprice · `0128` restore Tide + broths · `0129` reviews table.
+Through **0131** — see `gt3pb-deploy-v1.md` for the full table + verify SQL. Newest:
+`0127` board reprice · `0128` restore Tide + broths · `0129` sold-out (86) · `0130` 86 lifecycle (stamp + 4am reset) · `0131` reviews table.

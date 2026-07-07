@@ -3182,30 +3182,38 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .rva-act.ok{border-color:var(--ok);color:var(--ok)}
 .rva-act.ok:disabled{opacity:.4}
 .rva-act.del{color:var(--red-h);border-color:transparent;padding:7px 9px}
+.rva-act.ai{border-color:var(--gold2,#B8902F);color:var(--gold2,#B8902F)}
+.rva-act.ai:disabled{opacity:.5}
+/* AI-simplified suggestion, shown under the original for the operator to accept */
+.rva-sug{margin-top:8px;border-left:2px solid var(--gold2,#B8902F);background:rgba(184,144,47,.06);border-radius:0 8px 8px 0;padding:8px 12px}
+.rva-sug-lbl{font-family:'Inter';font-weight:700;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold2,#B8902F)}
+.rva-sug-q{font-size:13px;line-height:1.5;color:var(--cream,#F5F1E8);margin:4px 0 8px}
+.app.crew-day .rva-sug-q{color:#221f18}
+.rva-sug-actions{display:flex;gap:8px}
 
 /* ─────────── truck display loop (/display) ─────────── */
-.disp{position:fixed;inset:0;z-index:2000;background:linear-gradient(165deg,#15120D 0%,#1c1811 60%,#22160f 100%);color:var(--cream);display:flex;align-items:center;justify-content:center;overflow:hidden;padding:5vmin}
-.disp-scene{width:100%;max-width:1100px;animation:dispfade .8s ease}
+.tvl{position:fixed;inset:0;z-index:2000;background:linear-gradient(165deg,#15120D 0%,#1c1811 60%,#22160f 100%);color:var(--cream);display:flex;align-items:center;justify-content:center;overflow:hidden;padding:5vmin}
+.tvl-scene{width:100%;max-width:1100px;animation:dispfade .8s ease}
 @keyframes dispfade{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
-.disp-mast{display:flex;align-items:baseline;gap:2.4vmin;margin-bottom:4vmin}
-.disp-mast .g3{font-size:9vmin}
-.disp-mast-pb{font-family:'Inter';font-weight:700;font-size:2.2vmin;letter-spacing:.28em;text-transform:uppercase;color:var(--gold2)}
-.disp-cats{display:grid;grid-template-columns:1fr;gap:3.2vmin}
-.disp-cat-h{display:flex;align-items:baseline;gap:1.6vmin;font-family:'Playfair Display',serif;font-style:italic;font-size:3.4vmin;color:var(--gold-light,#C8A661);margin-bottom:1.2vmin}
-.disp-cat-h span{font-family:'Inter';font-style:normal;font-size:1.7vmin;letter-spacing:.2em;text-transform:uppercase;color:var(--cream-d)}
-.disp-row{display:flex;align-items:baseline;justify-content:space-between;padding:1vmin 0;border-bottom:1px solid rgba(245,241,232,.08)}
-.disp-row-n{font-family:'Archivo Black','Inter';font-size:3.1vmin;letter-spacing:.01em}
-.disp-row-p{font-family:'DM Mono',monospace;font-style:normal;font-size:3vmin;color:var(--gold2)}
-.disp-foot{margin-top:4vmin;font-family:'Inter';font-size:2vmin;letter-spacing:.16em;text-transform:uppercase;color:var(--cream-d);text-align:center}
-.disp-hero{text-align:center}
-.disp-hero-mark .g3{font-size:11vmin}
-.disp-stmt{font-family:'Playfair Display',serif;font-style:italic;font-size:11vmin;line-height:1.02;margin:4vmin 0 2vmin}
-.disp-sub{font-family:'Inter';font-size:2.6vmin;letter-spacing:.04em;color:var(--cream-m)}
-.disp-rev{text-align:center;max-width:900px;margin:0 auto}
-.disp-rev-stars{font-size:5vmin;color:var(--gold2);letter-spacing:.4vmin;margin-bottom:3vmin}
-.disp-rev-q{font-family:'Playfair Display',serif;font-style:italic;font-size:6vmin;line-height:1.14;margin:0}
-.disp-rev-who{font-family:'Inter';font-weight:700;font-size:2.6vmin;color:var(--cream-m);margin-top:3vmin}
-.disp-rev-tag{font-family:'Inter';font-size:1.7vmin;letter-spacing:.24em;text-transform:uppercase;color:var(--cream-d);margin-top:5vmin}
+.tvl-mast{display:flex;align-items:baseline;gap:2.4vmin;margin-bottom:4vmin}
+.tvl-mast .g3{font-size:9vmin}
+.tvl-mast-pb{font-family:'Inter';font-weight:700;font-size:2.2vmin;letter-spacing:.28em;text-transform:uppercase;color:var(--gold2)}
+.tvl-cats{display:grid;grid-template-columns:1fr;gap:3.2vmin}
+.tvl-cat-h{display:flex;align-items:baseline;gap:1.6vmin;font-family:'Playfair Display',serif;font-style:italic;font-size:3.4vmin;color:var(--gold-light,#C8A661);margin-bottom:1.2vmin}
+.tvl-cat-h span{font-family:'Inter';font-style:normal;font-size:1.7vmin;letter-spacing:.2em;text-transform:uppercase;color:var(--cream-d)}
+.tvl-row{display:flex;align-items:baseline;justify-content:space-between;padding:1vmin 0;border-bottom:1px solid rgba(245,241,232,.08)}
+.tvl-row-n{font-family:'Archivo Black','Inter';font-size:3.1vmin;letter-spacing:.01em}
+.tvl-row-p{font-family:'DM Mono',monospace;font-style:normal;font-size:3vmin;color:var(--gold2)}
+.tvl-foot{margin-top:4vmin;font-family:'Inter';font-size:2vmin;letter-spacing:.16em;text-transform:uppercase;color:var(--cream-d);text-align:center}
+.tvl-hero{text-align:center}
+.tvl-hero-mark .g3{font-size:11vmin}
+.tvl-stmt{font-family:'Playfair Display',serif;font-style:italic;font-size:11vmin;line-height:1.02;margin:4vmin 0 2vmin}
+.tvl-sub{font-family:'Inter';font-size:2.6vmin;letter-spacing:.04em;color:var(--cream-m)}
+.tvl-rev{text-align:center;max-width:900px;margin:0 auto}
+.tvl-rev-stars{font-size:5vmin;color:var(--gold2);letter-spacing:.4vmin;margin-bottom:3vmin}
+.tvl-rev-q{font-family:'Playfair Display',serif;font-style:italic;font-size:6vmin;line-height:1.14;margin:0}
+.tvl-rev-who{font-family:'Inter';font-weight:700;font-size:2.6vmin;color:var(--cream-m);margin-top:3vmin}
+.tvl-rev-tag{font-family:'Inter';font-size:1.7vmin;letter-spacing:.24em;text-transform:uppercase;color:var(--cream-d);margin-top:5vmin}
 
 /* ─────────── collapsible admin panels (tame long sections) ─────────── */
 .mpanel{border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:10px;background:var(--card)}

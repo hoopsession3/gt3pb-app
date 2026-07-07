@@ -37,38 +37,38 @@ export default function DisplayPage() {
   const review = reviews.length ? reviews[Math.floor(step / scenes.length) % reviews.length] : null;
 
   return (
-    <div className="disp" role="presentation">
+    <div className="tvl" role="presentation">
       {scene === "menu" && (
-        <div className="disp-scene disp-menu">
-          <div className="disp-mast"><Gt3Mark tone="cream" /><span className="disp-mast-pb">Performance Bar</span></div>
-          <div className="disp-cats">
+        <div className="tvl-scene tvl-menu">
+          <div className="tvl-mast"><Gt3Mark tone="cream" /><span className="tvl-mast-pb">Performance Bar</span></div>
+          <div className="tvl-cats">
             {MENU.map((cat) => (
-              <div key={cat.name} className="disp-cat">
-                <div className="disp-cat-h">{cat.name}<span>{cat.wn}</span></div>
+              <div key={cat.name} className="tvl-cat">
+                <div className="tvl-cat-h">{cat.name}<span>{cat.wn}</span></div>
                 {cat.rows.map((id) => (
-                  <div key={id} className="disp-row"><span className="disp-row-n">{DRINKS[id].n}</span><em className="disp-row-p">{DRINKS[id].px}</em></div>
+                  <div key={id} className="tvl-row"><span className="tvl-row-n">{DRINKS[id].n}</span><em className="tvl-row-p">{DRINKS[id].px}</em></div>
                 ))}
               </div>
             ))}
           </div>
-          <div className="disp-foot">Drawn cold · made to order · poured into glass</div>
+          <div className="tvl-foot">Drawn cold · made to order · poured into glass</div>
         </div>
       )}
 
       {scene === "brand" && (
-        <div className="disp-scene disp-hero">
-          <div className="disp-hero-mark"><Gt3Mark tone="cream" /></div>
-          <div className="disp-stmt">Pure Signal.<br />No Noise.</div>
-          <div className="disp-sub">Whole-food inputs. Made the moment you order it.</div>
+        <div className="tvl-scene tvl-hero">
+          <div className="tvl-hero-mark"><Gt3Mark tone="cream" /></div>
+          <div className="tvl-stmt">Pure Signal.<br />No Noise.</div>
+          <div className="tvl-sub">Whole-food inputs. Made the moment you order it.</div>
         </div>
       )}
 
       {scene === "review" && review && (
-        <div className="disp-scene disp-rev">
-          <div className="disp-rev-stars" aria-hidden>{"★".repeat(review.rating)}</div>
-          <blockquote className="disp-rev-q">“{review.text}”</blockquote>
-          <div className="disp-rev-who">— {review.who}</div>
-          <div className="disp-rev-tag">What the line is saying</div>
+        <div className="tvl-scene tvl-rev">
+          <div className="tvl-rev-stars" aria-hidden>{"★".repeat(review.rating)}</div>
+          <blockquote className="tvl-rev-q">“{review.text}”</blockquote>
+          <div className="tvl-rev-who">— {review.who}</div>
+          <div className="tvl-rev-tag">What the line is saying</div>
         </div>
       )}
     </div>
