@@ -8,6 +8,7 @@ import { useAuth, roleOf } from "@/components/AuthProvider";
 import SignIn from "@/components/SignIn";
 import AccountPill from "@/components/AccountPill";
 import SubscriptionCard from "@/components/SubscriptionCard";
+import ReviewPrompt from "@/components/ReviewPrompt";
 import { supabase } from "@/lib/supabase";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import type { Order } from "@/lib/db";
@@ -158,6 +159,7 @@ function MpireReal() {
 
       <SubscriptionCard />
 
+      <ReviewPrompt />
       <OrderHistory />
 
       <ReferralCard code={code} />

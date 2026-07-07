@@ -8,6 +8,7 @@ import { useAuth, roleOf, type Profile } from "@/components/AuthProvider";
 import { useOperatorSection, sectionsForRole, groupOfSection, SECTION_LABEL, type OpSection } from "@/components/OperatorNav";
 import TrailerLoadout from "@/components/TrailerLoadout";
 import DropOps from "@/components/DropOps";
+import ReviewsAdmin from "@/components/ReviewsAdmin";
 import PackPlan from "@/components/PackPlan";
 import OrgChart from "@/components/OrgChart";
 import GearLibrary from "@/components/GearLibrary";
@@ -4361,7 +4362,7 @@ export default function AdminPage() {
         </>
       )}
 
-      {sec === "studio" && canManage && <Studio />}
+      {sec === "studio" && canManage && <><Studio /><ReviewsAdmin /></>}
 
       {sec === "money" && isAdmin && (
         <>
