@@ -25,6 +25,29 @@ export const COPY_META: CopyMeta[] = [
   // ── Home · signed-in (Today) ──
   { key: "home.questions", group: "Home · signed-in", label: "Stack-builder intro", multiline: true,
     default: "Five questions and I'll build your stack for the day." },
+  // ── Home · the three pillars (signed-out "What We Make") ──
+  { key: "home.pillar1_t", group: "Home · pillars", label: "Pillar 1 — title", default: "Activation" },
+  { key: "home.pillar1_d", group: "Home · pillars", label: "Pillar 1 — line", default: "Cold-extracted coffee to start the day clear." },
+  { key: "home.pillar2_t", group: "Home · pillars", label: "Pillar 2 — title", default: "Hydration" },
+  { key: "home.pillar2_d", group: "Home · pillars", label: "Pillar 2 — line", default: "Whole-coconut water to carry you through it." },
+  { key: "home.pillar3_t", group: "Home · pillars", label: "Pillar 3 — title", default: "Fuel" },
+  { key: "home.pillar3_d", group: "Home · pillars", label: "Pillar 3 — line", default: "Slow-simmered broth to rebuild after." },
+  // ── Reserve card on the home screen ──
+  { key: "pitch.kicker", group: "Reserve card", label: "Kicker", default: "Order Ahead" },
+  { key: "pitch.headline", group: "Reserve card", label: "Headline", default: "The bottles you love, brewed to order." },
+  { key: "pitch.body", group: "Reserve card", label: "Body", multiline: true,
+    default: "Reserve a Saturday drop — 3, 6, or 12 bottles, brewed to order and ready when you reach the window. No plan, no commitment." },
+  { key: "pitch.cta", group: "Reserve card", label: "Button", default: "Reserve this week's drop" },
+  { key: "pitch.fine", group: "Reserve card", label: "Fine print", multiline: true,
+    default: "Order by Wed 6 PM · pickup Saturday · bring bottles back for the best price." },
+  // ── Reserve flow (order-ahead). {cutoff}/{pickup}/{size} are filled in live. ──
+  { key: "reserve.kicker", group: "Reserve flow", label: "Kicker", default: "Order Ahead" },
+  { key: "reserve.headline", group: "Reserve flow", label: "Headline", multiline: true, default: "Tell us you're coming, we'll brew it to order." },
+  { key: "reserve.cutoff", group: "Reserve flow", label: "Cutoff line (uses {cutoff} and {pickup})", default: "Order by {cutoff} · pickup {pickup}" },
+  { key: "reserve.fresh", group: "Reserve flow", label: "Fresh line", multiline: true, default: "Brewed to order, no preservatives — fresh 7 days from pickup." },
+  { key: "reserve.window", group: "Reserve flow", label: "Footer / walk-up prices", multiline: true, default: "No commitment, no plan — just this drop.\nAt the window: $10 new · $8 bring-back · single bottle $10" },
+  { key: "reserve.confirm_return", group: "Reserve flow", label: "Confirmation — bringing bottles back (uses {size})", multiline: true, default: "Don't forget your empties. Rinse them out and bring all {size} — that's what your pack price is built on. Fresh 7 days from pickup." },
+  { key: "reserve.confirm_new", group: "Reserve flow", label: "Confirmation — new glass", multiline: true, default: "Your bottles are yours to keep — or bring them back next drop and unlock pack pricing. Fresh 7 days from pickup." },
   // ── Menu header ──
   { key: "menu.statement", group: "Menu", label: "Menu statement", multiline: true,
     default: "We draw the coffee cold, blend the hydration from whole coconut, and simmer the broth slow — the long way, on purpose — then make every cup the moment you order it." },

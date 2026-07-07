@@ -9,8 +9,9 @@ import { SQUARE_APP_ID, SQUARE_LOCATION_ID, squareClientReady, squareWebSdkUrl }
 import {
   PRICING, PACK_SIZES, PACK_TAG, PACK_HINT, FLAVORS, FLAVOR_DESC,
   packTotal, perBottle, saveAmount, newGlassTotal, mixTotal, mixComplete, mixFitsOrReset, mixSummary,
-  dollars, nextDrop, emptyMix, type GlassPath, type Mix, type Flavor,
+  dollars, nextDrop, dropForStop, emptyMix, type GlassPath, type Mix, type Flavor,
 } from "@/lib/orderAhead";
+import { useSiteCopy } from "@/lib/copy";
 
 // ORDER-AHEAD — customer reserve flow (reserve → details → confirmed). One-off Saturday-drop
 // pre-orders: no subscription, no deposit, no recurring billing. All money math + the cutoff come
@@ -34,6 +35,7 @@ export default function OrderAhead() {
   const { toast } = useApp();
   const { user, profile } = useAuth();
   const router = useRouter();
+  const t = useSiteCopy();
   const [view, setView] = useState<View>("reserve");
   const [size, setSize] = useState<number>(6);
   const [glass, setGlass] = useState<GlassPath>("return");
@@ -45,12 +47,22 @@ export default function OrderAhead() {
   const [ready, setReady] = useState(false);
   const [err, setErr] = useState("");
   const [conf, setConf] = useState<{ id: string; size: number; glass: GlassPath; mix: Mix; total: number; sat: Date; name: string; paid: boolean } | null>(null);
+  const [stop, setStop] = useState<{ name: string | null; starts_at: string } | null>(null); // the truck's next stop = the pickup
   const cardRef = useRef<any>(null);
 
   useEffect(() => { setNow(Date.now()); const iv = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(iv); }, []);
   useEffect(() => { setName((n) => n || profile?.display_name || ""); }, [profile?.display_name]);
+  // Pickup always follows the next scheduled stop. Load it; fall back to the Saturday drop if none.
+  useEffect(() => {
+    if (!supabase) return;
+    let live = true;
+    supabase.from("stops").select("name, starts_at").is("archived_at", null).neq("status", "done").not("starts_at", "is", null)
+      .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(1).maybeSingle()
+      .then(({ data }) => { if (live && data) setStop(data as { name: string | null; starts_at: string }); });
+    return () => { live = false; };
+  }, []);
 
-  const drop = useMemo(() => nextDrop(now ? new Date(now) : new Date()), [now]);
+  const drop = useMemo(() => (stop?.starts_at ? dropForStop(stop.starts_at) : nextDrop(now ? new Date(now) : new Date())), [stop, now]);
   const total = packTotal(size, glass);
   const m = mixTotal(mix);
   const complete = mixComplete(mix, size);
@@ -127,11 +139,13 @@ export default function OrderAhead() {
         {/* ============ RESERVE ============ */}
         {view === "reserve" && (
           <div className="oa-view on">
-            <div className="oa-kicker">ORDER AHEAD</div>
-            <div className="oa-head">Tell us you&rsquo;re coming, we&rsquo;ll brew it to order.</div>
-            <div className="oa-cutoff"><span className="oa-dot" /><span>Order by <b>{dayName(drop.cutoff)} · 6 PM</b> · pickup <b>{dayName(drop.sat)}</b></span></div>
+            <div className="oa-kicker">{t("reserve.kicker").toUpperCase()}</div>
+            <div className="oa-head">{t("reserve.headline")}</div>
+            <div className="oa-cutoff"><span className="oa-dot" /><span>{t("reserve.cutoff")
+              .replace("{cutoff}", `${dayName(drop.cutoff)}, ${drop.cutoff.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`)
+              .replace("{pickup}", `${dayName(drop.sat)}${stop?.name ? ` · ${stop.name}` : ""}`)}</span></div>
             {countdown && <div className="oa-count">{countdown}</div>}
-            <div className="oa-fresh">Brewed to order, no preservatives — <b>fresh 7 days from pickup.</b></div>
+            <div className="oa-fresh">{t("reserve.fresh")}</div>
 
             <div className="oa-slabel">How many bottles</div>
             <div className="oa-tiles">
@@ -190,7 +204,7 @@ export default function OrderAhead() {
                 <button type="button" className="oa-cta" disabled={!complete} onClick={() => setView("details")}>
                   {complete ? `Reserve — ${dollars(total)} for ${dayName(drop.sat).split(",")[0]}` : "Pick your flavors"}
                 </button>
-                <div className="oa-window">No commitment, no plan — just this drop.<br />At the window: <b>$10 new · $8 bring-back</b> · single bottle <b>$10</b></div>
+                <div className="oa-window" style={{ whiteSpace: "pre-line" }}>{t("reserve.window")}</div>
               </>
             ) : (
               <>
@@ -250,8 +264,8 @@ export default function OrderAhead() {
             </div>
             <div className="oa-remind">
               {conf.glass === "return"
-                ? <><b>Don&rsquo;t forget your empties.</b> Rinse them out and bring all {conf.size} — that&rsquo;s what your pack price is built on. Fresh 7 days from pickup.</>
-                : <>Your bottles are yours to keep — or <b>bring them back next drop</b> and unlock pack pricing. Fresh 7 days from pickup.</>}
+                ? t("reserve.confirm_return").replace("{size}", String(conf.size))
+                : t("reserve.confirm_new")}
             </div>
             <button type="button" className="oa-cta" style={{ marginTop: 18 }} onClick={reset}>Reserve another</button>
           </div>
