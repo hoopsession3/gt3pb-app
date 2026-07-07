@@ -4337,8 +4337,8 @@ export default function AdminPage() {
         <>
           {canManage && <AlertsInbox userId={user?.id ?? null} />}
           <MyTasks userId={user?.id ?? null} />
-          {canManage && <EventHUD />}
-          {canManage && <LiveControl />}
+          {canManage && <Panel id="live" title="Live truck" defaultOpen><LiveControl /></Panel>}
+          {canManage && <Panel id="hud" title="Event heads-up"><EventHUD /></Panel>}
           <EnableAlerts userId={user?.id ?? null} />
           <Kitchen />
           <EightySix />

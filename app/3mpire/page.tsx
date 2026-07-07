@@ -7,7 +7,6 @@ import { useApp } from "@/components/AppProvider";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import SignIn from "@/components/SignIn";
 import AccountPill from "@/components/AccountPill";
-import SubscriptionCard from "@/components/SubscriptionCard";
 import ReviewPrompt from "@/components/ReviewPrompt";
 import { supabase } from "@/lib/supabase";
 import { DRINKS, type DrinkId } from "@/lib/menu";
@@ -147,7 +146,7 @@ function MpireReal() {
         <div className="mt">
           <div className="eyb">★ {profile?.founding_member ? "Founding Member" : "Member"}</div>
           <h2>{name}</h2>
-          <p>{10 - cuppas} cuppas from a free pour. Earn a point on every drink, double on subscription boxes.</p>
+          <p>{10 - cuppas} cuppas from a free pour — your 10th is on us. A point on every drink.</p>
         </div>
       </div></div>
 
@@ -156,8 +155,6 @@ function MpireReal() {
         <div className="cell"><div className="cv ok">Day {streak}</div><div className="cl">Streak</div></div>
         <div className="cell"><div className="cv">${credit}</div><div className="cl">Credit</div></div>
       </div>
-
-      <SubscriptionCard />
 
       <ReviewPrompt />
       <OrderHistory />
@@ -236,7 +233,7 @@ function MpireDemo() {
         <div className="mt">
           <div className="eyb">★ Founding Member</div>
           <h2>Ryan T.</h2>
-          <p>3 cuppas from a free pour. Earn a point on every drink, double on subscription boxes.</p>
+          <p>3 cuppas from a free pour — your 10th is on us. A point on every drink.</p>
         </div>
       </div></div>
 
