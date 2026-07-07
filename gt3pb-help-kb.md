@@ -15,6 +15,9 @@ the change isn't done.
 3. **This index** — the top-level map + the deploy runbook (`gt3pb-deploy-v1.md`).
 
 ## Customer surfaces
+The customer-facing app is named **"No Noise"** (PWA manifest + home-screen install name + guest-header
+wordmark; canonical host `app.gt3pb.com`). "GT3 Performance Bar" stays the brand lockup above it.
+
 | Surface | Route | What |
 |---|---|---|
 | Home / Today | `/` | Greeting, your usual, **loyalty stamp card**, reserve pitch, day-builder |
@@ -50,5 +53,5 @@ the change isn't done.
   us." No separate data.
 
 ## Migration ledger (apply in order on prod; all idempotent)
-Through **0131** — see `gt3pb-deploy-v1.md` for the full table + verify SQL. Newest:
-`0127` board reprice · `0128` restore Tide + broths · `0129` sold-out (86) · `0130` 86 lifecycle (stamp + 4am reset) · `0131` reviews table.
+Through **0132** — see `gt3pb-deploy-v1.md` for the full table + verify SQL. Newest:
+`0128` restore Tide + broths · `0129` sold-out (86) · `0130` 86 lifecycle (stamp + 4am reset) · `0131` reviews table · `0132` membership scan (`member_by_code` + `award_manual_point`).
