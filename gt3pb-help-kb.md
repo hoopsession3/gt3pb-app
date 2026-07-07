@@ -23,7 +23,7 @@ the change isn't done.
 | Truck | `/truck` | Live location / route |
 | Account (3mpire) | `/3mpire` | **Scannable GT3 membership card (unique per-member QR)**, ring, credit, **leave a review**, order history |
 | Operator scan | `/scan?m=<code>` | Staff-only: scan a member's card QR → their stamps → **add a stamp** for a walk-up |
-| Truck display | `/display` | Full-screen loop for a tablet/TV: menu · brand · guest reviews |
+| Truck display | `/display` | Full-screen loop for a tablet/TV: menu · brand · guest reviews · connect (scan QR) |
 
 ## Crew console sections (`/admin`) — mirror these in the Section Guide
 - **My Day** (start of shift) · **Now** (during service) · **Prep** (before the event) ·

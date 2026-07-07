@@ -1,21 +1,28 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import QRCode from "qrcode";
 import { DRINKS, MENU } from "@/lib/menu";
 import { pickForDisplay, type CleanReview } from "@/lib/reviews";
+import { CONNECT_PRIMARY } from "@/lib/connect";
 import { supabase } from "@/lib/supabase";
 import Gt3Mark from "@/components/Gt3Mark";
 
 // TRUCK DISPLAY — a full-screen, auto-rotating loop for a tablet or TV at the bar. Three scenes:
 // the live menu, the brand line, and a cleaned + anonymized guest review. Public (no login). Reviews
 // are staff-approved and scrubbed by lib/reviews before they ever reach this screen. Route: /display.
-type Scene = "menu" | "brand" | "review";
-const ORDER: Scene[] = ["menu", "review", "brand"];
+type Scene = "menu" | "brand" | "review" | "connect";
+const ORDER: Scene[] = ["menu", "review", "brand", "connect"];
 const DWELL = 9000;
 
 export default function DisplayPage() {
   const [reviews, setReviews] = useState<CleanReview[]>([]);
   const [step, setStep] = useState(0);
+  const [qr, setQr] = useState("");
+
+  useEffect(() => {
+    QRCode.toDataURL(CONNECT_PRIMARY, { margin: 1, width: 640, color: { dark: "#15120D", light: "#ffffff" } }).then(setQr).catch(() => setQr(""));
+  }, []);
 
   useEffect(() => {
     if (!supabase) return;
@@ -69,6 +76,21 @@ export default function DisplayPage() {
           <blockquote className="tvl-rev-q">“{review.text}”</blockquote>
           <div className="tvl-rev-who">— {review.who}</div>
           <div className="tvl-rev-tag">What the line is saying</div>
+        </div>
+      )}
+
+      {scene === "connect" && (
+        <div className="tvl-scene tvl-connect">
+          <div className="tvl-connect-l">
+            <div className="tvl-hero-mark"><Gt3Mark tone="cream" /></div>
+            <div className="tvl-connect-h">Find us. Follow the signal.</div>
+            <div className="tvl-connect-rows">
+              <div className="tvl-connect-row"><span>Order ahead</span><em>app.gt3pb.com</em></div>
+              <div className="tvl-connect-row"><span>Instagram · TikTok</span><em>@gt3pb</em></div>
+              <div className="tvl-connect-row"><span>Web</span><em>gt3pb.com</em></div>
+            </div>
+          </div>
+          {qr && <div className="tvl-connect-qr"><img src={qr} alt="Scan for gt3pb.com" /><span>Scan to order + follow</span></div>}
         </div>
       )}
     </div>

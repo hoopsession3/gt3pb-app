@@ -3316,3 +3316,16 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .chub-grp-lead{border-color:rgba(200,166,97,.5);background:linear-gradient(180deg,rgba(200,166,97,.08),transparent)}
 .chub-grp-lead .chub-q{color:var(--gold2,#C8A661)}
 .chub-lead-tag{font-family:'DM Mono',monospace;font-size:8.5px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:#0e0d0b;background:var(--gold2,#C8A661);border-radius:999px;padding:2px 6px 1px;margin-left:8px;vertical-align:middle}
+
+/* truck display — Connect scene (scan to order + follow) */
+.tvl-connect{display:flex;align-items:center;justify-content:center;gap:6vmin;width:100%;max-width:1100px}
+.tvl-connect-l{flex:1;min-width:0}
+.tvl-connect .tvl-hero-mark .g3{font-size:8vmin}
+.tvl-connect-h{font-family:'Playfair Display',serif;font-style:italic;font-size:6vmin;line-height:1.04;margin:3vmin 0 4.5vmin}
+.tvl-connect-rows{display:flex;flex-direction:column;gap:2vmin}
+.tvl-connect-row{display:flex;align-items:baseline;justify-content:space-between;gap:3vmin;border-bottom:1px solid rgba(245,241,232,.1);padding-bottom:1.5vmin}
+.tvl-connect-row span{font-family:'Inter';font-size:2.2vmin;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--cream-d)}
+.tvl-connect-row em{font-family:'DM Mono',ui-monospace,monospace;font-style:normal;font-size:3.3vmin;color:var(--gold2,#C8A661)}
+.tvl-connect-qr{flex:0 0 auto;text-align:center}
+.tvl-connect-qr img{width:34vmin;height:34vmin;background:#fff;border-radius:2vmin;padding:1.5vmin;display:block}
+.tvl-connect-qr span{display:block;font-family:'Inter';font-size:2vmin;letter-spacing:.05em;color:var(--cream-m);margin-top:2vmin}
