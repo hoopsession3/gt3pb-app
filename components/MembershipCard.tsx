@@ -14,9 +14,10 @@ const GOAL = 10;
 export default function MembershipCard() {
   const { profile, user } = useAuth();
   const [qr, setQr] = useState<string>("");
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"" | "apple" | "google">("");
   const code = profile?.referral_code || user?.id || "";
-  const walletReady = process.env.NEXT_PUBLIC_WALLET_READY === "1";
+  const appleReady = process.env.NEXT_PUBLIC_APPLE_WALLET === "1";
+  const googleReady = process.env.NEXT_PUBLIC_GOOGLE_WALLET === "1";
 
   useEffect(() => {
     if (!code || typeof window === "undefined") return;
@@ -30,8 +31,8 @@ export default function MembershipCard() {
   const pts = Math.max(0, profile.points || 0);
   const inCard = pts % GOAL;
 
-  const addToWallet = async () => {
-    setBusy(true);
+  const addApple = async () => {
+    setBusy("apple");
     try {
       const res = await fetch("/api/wallet/pass");
       if (!res.ok) throw new Error();
@@ -39,8 +40,17 @@ export default function MembershipCard() {
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob); a.download = "gt3-membership.pkpass"; a.click();
       URL.revokeObjectURL(a.href);
-    } catch { /* surfaced by the button label */ }
-    setBusy(false);
+    } catch { /* surfaced by the button */ }
+    setBusy("");
+  };
+  const addGoogle = async () => {
+    setBusy("google");
+    try {
+      const res = await fetch("/api/wallet/google");
+      const data = await res.json();
+      if (data?.saveUrl) window.location.href = data.saveUrl;
+    } catch { /* surfaced by the button */ }
+    setBusy("");
   };
 
   return (
@@ -59,10 +69,11 @@ export default function MembershipCard() {
         <div className="mp-qr">{qr ? <img src={qr} alt="Scan at the truck" width={110} height={110} /> : <div className="mp-qr-ph" />}</div>
       </div>
       <div className="mp-foot">Scan at the truck to earn your stamp · 10th is on us</div>
-      {walletReady && (
-        <button type="button" className="mp-wallet" onClick={addToWallet} disabled={busy}>
-          {busy ? "Preparing…" : " Add to Apple Wallet"}
-        </button>
+      {(appleReady || googleReady) && (
+        <div className="mp-wallets">
+          {appleReady && <button type="button" className="mp-wallet" onClick={addApple} disabled={!!busy}>{busy === "apple" ? "Preparing…" : " Add to Apple Wallet"}</button>}
+          {googleReady && <button type="button" className="mp-wallet mp-wallet-g" onClick={addGoogle} disabled={!!busy}>{busy === "google" ? "Preparing…" : "Save to Google Wallet"}</button>}
+        </div>
       )}
     </section>
   );

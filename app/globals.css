@@ -3264,3 +3264,6 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .scan-foot{font-family:'Inter';font-size:12.5px;color:var(--cream-m);margin-bottom:14px}
 .scan-add{width:100%;background:var(--red);color:#fff;border:none;border-radius:12px;font-family:'Inter';font-weight:700;font-size:15px;padding:14px;cursor:pointer}
 .scan-added{font-family:'Inter';font-size:13px;color:var(--ok);font-weight:600;margin-top:10px;text-align:center}
+.mp-wallets{display:flex;flex-direction:column;gap:8px;margin-top:13px}
+.mp-wallets .mp-wallet{margin-top:0}
+.mp-wallet-g{background:#fff;color:#3c4043;border:1px solid #dadce0}
