@@ -764,7 +764,7 @@ export const PRODUCTS: Product[] = [
     cookbook: { batch: "Mix to order (no long batch).", brew: ["Combine coconut water + mineral water", "Add organic maple syrup + sea salt to spec", "Stir until fully dissolved"], serve: ["Serve cold, in glass"], storage: "Make to order; keep cold.", quality: "Balanced sweet-and-salt, never cloying.", troubleshoot: [{ issue: "Too sweet", fix: "Reduce maple to spec." }, { issue: "Tastes flat", fix: "A pinch more sea salt lifts it." }] },
   },
   {
-    key: "tide", name: "Tide", line: "Hydration", price: "$8",
+    key: "tide", name: "Tide", line: "Hydration", price: "$12",
     what: "Whole-coconut hydration — young coconut water blended with young organic Thai coconut meat, finished with organic local honey.",
     why: "Real hydration that goes down easy during the work.",
     ingredients: ["Organic young coconut water", "Young organic Thai coconut meat", "Organic local honey", "Blended to order"],
@@ -838,7 +838,7 @@ export const PRODUCTS: Product[] = [
     cookbook: { batch: "Build to order on the cold-brew base.", brew: ["Pull cold-brew base", "Add measured real maple + pinch of salt", "Add milk/coconut base per build"], serve: ["Over ice, or served warm per build", "Made to order"], storage: "Make to order.", quality: "Sweet-salty balance; maple-forward, not cloying.", troubleshoot: [{ issue: "Too sweet", fix: "Cut maple to spec; add the salt pinch to balance." }] },
   },
   {
-    key: "bone_broth", name: "Bone Broth", line: "Fuel", price: "$9",
+    key: "bone_broth", name: "Bone Broth", line: "Fuel", price: "$10",
     what: "Slow-simmered, pasture-raised bone broth (beef / bison / ostrich variants).",
     why: "A warm, savory rebuild for after the work.",
     ingredients: ["Slow-simmered bone broth", "Pasture-raised bones"],
