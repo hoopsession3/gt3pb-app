@@ -8,6 +8,7 @@ import { useAuth, roleOf } from "@/components/AuthProvider";
 import SignIn from "@/components/SignIn";
 import AccountPill from "@/components/AccountPill";
 import ReviewPrompt from "@/components/ReviewPrompt";
+import MembershipCard from "@/components/MembershipCard";
 import { supabase } from "@/lib/supabase";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import type { Order } from "@/lib/db";
@@ -135,6 +136,7 @@ function MpireReal() {
         <AccountPill />
       </div>
 
+      <MembershipCard />
       <div className="memcard"><div className="min">
         <div className="ring">
           <svg width="88" height="88">
@@ -222,6 +224,7 @@ function MpireDemo() {
         <AccountPill />
       </div>
 
+      <MembershipCard />
       <div className="memcard"><div className="min">
         <div className="ring">
           <svg width="88" height="88">

@@ -21,7 +21,8 @@ the change isn't done.
 | Menu | `/menu` | Full line — Activation, Hydration, Fuel (prices per truck board) |
 | Reserve (order-ahead) | `/reserve` | 3/6/12 packs + flavor mix, next-stop pickup |
 | Truck | `/truck` | Live location / route |
-| Account (3mpire) | `/3mpire` | Membership ring, credit, **leave a review**, order history |
+| Account (3mpire) | `/3mpire` | **Scannable GT3 membership card (unique per-member QR)**, ring, credit, **leave a review**, order history |
+| Operator scan | `/scan?m=<code>` | Staff-only: scan a member's card QR → their stamps → **add a stamp** for a walk-up |
 | Truck display | `/display` | Full-screen loop for a tablet/TV: menu · brand · guest reviews |
 
 ## Crew console sections (`/admin`) — mirror these in the Section Guide

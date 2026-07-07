@@ -3231,3 +3231,36 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .stamp.won{border-color:var(--red);background:linear-gradient(180deg,rgba(184,36,32,.08),transparent)}
 .stamp.won .stamp-badge{background:var(--red);color:#fff}
 .stamp.won .stamp-foot{color:var(--red);font-weight:700}
+
+/* ─────────── GT3 membership card (scannable) ─────────── */
+.memberpass{position:relative;border-radius:20px;padding:18px 18px 16px;margin-bottom:14px;overflow:hidden;color:var(--cream);background:linear-gradient(150deg,#1c1811 0%,#221a10 55%,#2a1c12 100%);border:1px solid rgba(200,166,97,.28);box-shadow:0 14px 34px rgba(0,0,0,.4)}
+.memberpass::after{content:"";position:absolute;inset:0;background:radial-gradient(120% 80% at 100% 0%,rgba(200,166,97,.14),transparent 60%);pointer-events:none}
+.mp-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.mp-mark .g3{font-size:30px}
+.mp-tier{font-family:'DM Mono',monospace;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold-light,#C8A661);border:1px solid rgba(200,166,97,.4);border-radius:999px;padding:4px 10px 3px}
+.mp-name{font-family:'Playfair Display',serif;font-style:italic;font-size:26px;line-height:1;margin-bottom:14px}
+.mp-row{display:flex;align-items:flex-end;justify-content:space-between;gap:14px}
+.mp-meta-k{font-family:'Inter';font-weight:700;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--cream-d)}
+.mp-meta-v{font-family:'Archivo Black','Inter';font-size:30px;line-height:1.05;color:var(--cream)}
+.mp-meta-v span{font-size:15px;color:var(--cream-d)}
+.mp-code{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.1em;color:var(--gold-light,#C8A661);margin-top:6px}
+.mp-qr{background:#fff;border-radius:12px;padding:7px;line-height:0;flex:0 0 auto}
+.mp-qr img{display:block;border-radius:4px}
+.mp-qr-ph{width:110px;height:110px;border-radius:6px;background:#eee}
+.mp-foot{font-family:'Inter';font-size:11.5px;color:var(--cream-m);margin-top:14px}
+.mp-wallet{width:100%;margin-top:13px;background:#000;color:#fff;border:1px solid rgba(255,255,255,.22);border-radius:12px;font-family:'Inter';font-weight:600;font-size:14px;padding:12px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.mp-wallet:disabled{opacity:.6}
+
+/* ─────────── operator scan page ─────────── */
+.scanpg .scan-card{border-radius:18px;padding:18px;margin-top:8px;color:var(--cream);background:linear-gradient(150deg,#1c1811,#2a1c12);border:1px solid rgba(200,166,97,.28)}
+.scan-card-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.scan-card-top .g3{font-size:26px}
+.scan-tier{font-family:'DM Mono',monospace;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold-light,#C8A661)}
+.scan-name{font-family:'Playfair Display',serif;font-style:italic;font-size:28px;margin-bottom:14px}
+.scan-stamps{display:grid;grid-template-columns:repeat(10,1fr);gap:6px;margin-bottom:10px}
+.scan-dot{aspect-ratio:1;border-radius:999px;border:1.5px dashed rgba(245,241,232,.25)}
+.scan-dot.on{border-style:solid;border-color:var(--red);background:rgba(184,36,32,.3)}
+.scan-dot.gift{border-color:var(--gold-light,#C8A661)}
+.scan-foot{font-family:'Inter';font-size:12.5px;color:var(--cream-m);margin-bottom:14px}
+.scan-add{width:100%;background:var(--red);color:#fff;border:none;border-radius:12px;font-family:'Inter';font-weight:700;font-size:15px;padding:14px;cursor:pointer}
+.scan-added{font-family:'Inter';font-size:13px;color:var(--ok);font-weight:600;margin-top:10px;text-align:center}
