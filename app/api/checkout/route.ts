@@ -42,6 +42,20 @@ export async function POST(req: Request) {
   }
   if (items.length > 25) return NextResponse.json({ error: "Order too large" }, { status: 400 });
 
+  // Availability is enforced HERE, not just on the screen: a stale cart or tampered client can't
+  // buy an 86'd or delisted item. Checked before any charge. Missing product rows fail open (a
+  // catalog gap must not brick checkout).
+  {
+    const uniq = [...new Set(items)];
+    const { data: avail } = await supabaseAdmin.from("products").select("slug, sold_out, active").in("slug", uniq);
+    const blocked = ((avail ?? []) as { slug: string; sold_out: boolean | null; active: boolean | null }[])
+      .filter((p) => p.sold_out || p.active === false)
+      .map((p) => DRINKS[p.slug as DrinkId]?.n ?? p.slug);
+    if (blocked.length) {
+      return NextResponse.json({ error: `${blocked.join(" · ")} just sold out — remove ${blocked.length === 1 ? "it" : "them"} and try again.` }, { status: 409 });
+    }
+  }
+
   // Server computes the authoritative goods subtotal (never trust a client amount).
   const prices = await priceMap(token);
   let subtotal = 0;

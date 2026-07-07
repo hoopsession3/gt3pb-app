@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useApp } from "./AppProvider";
 import { useSheetDrag } from "@/lib/useSheetDrag";
+import { useAvailability } from "@/lib/availability";
 import { DRINKS } from "@/lib/menu";
 
 const PILLAR: Record<"BEFORE" | "DURING" | "AFTER", string> = {
@@ -13,8 +14,10 @@ const PILLAR: Record<"BEFORE" | "DURING" | "AFTER", string> = {
 
 export default function DrinkSheet() {
   const { openId, closeDrink, isInCart, bump, toast } = useApp();
+  const { soldOut } = useAvailability();
   const d = openId ? DRINKS[openId] : null;
   const on = openId ? isInCart(openId) : false;
+  const out = openId ? soldOut.has(openId) : false;
   const { sheetRef, handlers } = useSheetDrag(closeDrink);
   const restoreRef = useRef<HTMLElement | null>(null);
 
@@ -84,8 +87,8 @@ export default function DrinkSheet() {
                 <span className="sheet-when-v">{d.whenT}</span>
               </div>
 
-              <button className="order-bar" onClick={() => { if (!on) toast("Added — keep building your order"); bump(openId); closeDrink(); }}>
-                {on ? "Remove from order" : "Add to order"}
+              <button className={`order-bar${out && !on ? " order-bar-86" : ""}`} disabled={out && !on} onClick={() => { if (out && !on) { toast("Sold out today — back on the next brew", "error"); return; } if (!on) toast("Added — keep building your order"); bump(openId); closeDrink(); }}>
+                {on ? "Remove from order" : out ? "Sold out today" : "Add to order"}
               </button>
               <div className="sheet-signoff">Made the moment you order, and you&apos;ll taste it.</div>
             </>

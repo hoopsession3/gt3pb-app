@@ -3013,6 +3013,20 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .app.crew-day .dops-hist-st.ok{color:#3f6b2f}
 .app.crew-day .dops-hist-st.cx{color:#a13c34}
 
+/* 86 / sold out — one visual language everywhere */
+.entry-86{opacity:.55}
+.entry-86 .entry-px{text-decoration:line-through;opacity:.7}
+.entry-out{font-size:8.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#a13c34;border:1px solid rgba(161,60,52,.4);border-radius:20px;padding:2px 8px;margin-left:8px;vertical-align:2px;white-space:nowrap}
+.order-bar-86{opacity:.55;cursor:not-allowed}
+.co-86{font-family:'Inter';font-size:12px;line-height:1.5;color:#c98e8e;border:1px dashed rgba(200,90,90,.45);border-radius:10px;padding:9px 12px;margin:10px 0}
+.prod-headrow{display:flex;align-items:center;gap:8px}
+.prod-headrow .prod-head{flex:1;min-width:0}
+.prod-86btn{flex:none;font-family:'Inter';font-weight:700;font-size:11px;letter-spacing:.06em;color:#c98e8e;background:none;border:1.5px solid rgba(200,90,90,.45);border-radius:10px;padding:8px 12px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.prod-86btn.on{color:#0e0d0b;background:#7FA86B;border-color:#7FA86B}
+.prod-86tag{font-size:8.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#a13c34;border:1px solid rgba(161,60,52,.4);border-radius:20px;padding:2px 7px;margin-left:8px;vertical-align:1px}
+.app.crew-day .prod-86btn{color:#a13c34}
+.app.crew-day .prod-86btn.on{color:#fff}
+
 /* menu pack upsell — the take-home path (cream editorial palette) */
 .mpack{border:1px solid rgba(34,31,24,.14);border-radius:16px;padding:16px 16px 14px;margin:4px 0 26px}
 .mpack-row{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:2px 10px;padding:8px 0;border-bottom:1px dashed rgba(34,31,24,.1)}

@@ -7,6 +7,7 @@ import { useAuth } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
 import { subscribePush } from "@/lib/push";
 import { DRINKS, type DrinkId } from "@/lib/menu";
+import { useAvailability } from "@/lib/availability";
 import { SQUARE_APP_ID, SQUARE_LOCATION_ID, squareClientReady, squareWebSdkUrl } from "@/lib/square";
 import { useSheetDrag } from "@/lib/useSheetDrag";
 import Skeleton from "./Skeleton";
@@ -54,6 +55,10 @@ export default function Checkout() {
   const items = lines.flatMap(([id, q]) => Array(q).fill(id)) as DrinkId[]; // flat list for the charge + order record
   const priceOf = (id: DrinkId) => prices?.[id] ?? Math.round(parseFloat(DRINKS[id].px.replace("$", "")) * 100);
   const totalCents = items.reduce((s, id) => s + priceOf(id), 0);
+  // A cart line that sold out mid-order blocks submission (the server refuses it anyway — this is
+  // the polite version: name the item, let them remove it, keep the rest of the order alive).
+  const { soldOut } = useAvailability();
+  const blocked86 = lines.filter(([id]) => soldOut.has(id)).map(([id]) => DRINKS[id].n);
   // A name is required so the operator can call the order at pickup. Prefilled from
   // the member's profile when the sheet opens; guests must type one.
   const [name, setName] = useState("");
@@ -215,20 +220,23 @@ export default function Checkout() {
                   </div>
                   {err && <div className="auth-err">{err}</div>}
                   <div className="co-foot">
+                    {blocked86.length > 0 && <div className="co-86">{blocked86.join(" · ")} just sold out — remove {blocked86.length === 1 ? "it" : "them"} with the − button to continue.</div>}
                     <div className="co-line co-total"><span>Total</span><span>${total}</span></div>
-                    <button className="handle" onClick={pay} disabled={!ready || busy || items.length === 0 || !customer}>
-                      <span>{busy ? "Charging…" : !customer ? "Add a name above" : ready ? `Pay $${total}` : "Loading card…"}</span>
+                    <button className="handle" onClick={pay} disabled={!ready || busy || items.length === 0 || !customer || blocked86.length > 0}>
+                      <span>{busy ? "Charging…" : blocked86.length > 0 ? "Remove sold-out items" : !customer ? "Add a name above" : ready ? `Pay $${total}` : "Loading card…"}</span>
                     </button>
                     <div className="signoff">Secured by Square · skip the line at pickup.</div>
                   </div>
                 </>
               ) : (
                 <>
+                  {blocked86.length > 0 && <div className="co-86">{blocked86.join(" · ")} just sold out — remove {blocked86.length === 1 ? "it" : "them"} with the − button to continue.</div>}
                   <div className="co-line co-total"><span>Total</span><span>${(totalCents / 100).toFixed(2)}</span></div>
                   <div className="honest" style={{ marginTop: 16 }}>
                     Card checkout switches on soon. For now this is a <b>pre-order</b> — we&apos;ll have it ready and you pay at the truck.
                   </div>
                   <button className="handle" onClick={async () => {
+                    if (blocked86.length > 0) { toast("Remove the sold-out items first", "error"); return; }
                     if (!customer) { toast("Add a name for pickup", "error"); return; }
                     if (items.length === 0) return;
                     await enableAlerts();
@@ -236,8 +244,8 @@ export default function Checkout() {
                     if (error) { toast("That didn't go through — give it another tap", "error"); return; }
                     toast(`${items.length} drink${items.length === 1 ? "" : "s"} pre-ordered — ready in ~8 min`);
                     checkout(); onClose();
-                  }} disabled={!customer || items.length === 0}>
-                    <span>Send pre-order</span>
+                  }} disabled={!customer || items.length === 0 || blocked86.length > 0}>
+                    <span>{blocked86.length > 0 ? "Remove sold-out items" : "Send pre-order"}</span>
                   </button>
                 </>
               )}

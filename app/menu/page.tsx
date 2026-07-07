@@ -7,6 +7,7 @@ import AccountPill from "@/components/AccountPill";
 import Watermark from "@/components/Watermark";
 import Gt3Mark from "@/components/Gt3Mark";
 import { useSiteCopy } from "@/lib/copy";
+import { useAvailability } from "@/lib/availability";
 import { DRINKS, MENU, type DrinkId } from "@/lib/menu";
 import { PACK_SIZES, PACK_TAG, packTotal, newGlassTotal, dollars } from "@/lib/orderAhead";
 import { clickable } from "@/lib/a11y";
@@ -14,6 +15,7 @@ import { clickable } from "@/lib/a11y";
 export default function MenuScreen() {
   const { openDrink, isInCart, cartCount, toast } = useApp();
   const t = useSiteCopy();
+  const { soldOut } = useAvailability();
   const [prices, setPrices] = useState<Record<string, number>>({});
   // Prices come from Square Catalog (one source of truth across truck + app).
   useEffect(() => {
@@ -70,21 +72,22 @@ export default function MenuScreen() {
           {cat.rows.map((id) => {
             const d = DRINKS[id];
             const on = isInCart(id);
+            const out = soldOut.has(id);
             const name = t(`menu.${id}.name`);
             const tag = d.tag ? t(`menu.${id}.tag`) : "";
             return (
               <div
-                className="entry"
+                className={`entry${out ? " entry-86" : ""}`}
                 key={id}
-                aria-label={`${name}, ${priceLabel(id)}, view details`}
+                aria-label={`${name}, ${out ? "sold out today" : priceLabel(id)}, view details`}
                 {...clickable(() => openDrink(id))}
               >
                 <div className="entry-head">
                   <span className="entry-dot" style={{ background: d.dot }} />
                   <span className="entry-name">{name}</span>
-                  {tag && <span className="entry-tag">{tag}</span>}
+                  {out ? <span className="entry-out">SOLD OUT</span> : tag ? <span className="entry-tag">{tag}</span> : null}
                   <span className="entry-gap" />
-                  {on && <span className="entry-in" aria-label="in your order">✓</span>}
+                  {on && !out && <span className="entry-in" aria-label="in your order">✓</span>}
                   <span className="entry-px">{priceLabel(id)}</span>
                 </div>
                 <div className="entry-body">
