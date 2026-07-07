@@ -6,7 +6,7 @@
 // HARD RULE (from the Source of Truth / Risk Register): no unsupported
 // physiological/comparative health claims. Nutrition is "estimated" until lab-
 // verified. Rise/Flow/Dusk share one spec and the SAME caffeine (~210 mg/10 oz).
-// Tide (coconut + honey hydration) contains organic local honey; Nature Aide is coconut + mineral water with
+// Tide (coconut + honey hydration) contains organic local honey; Nature's Aide is coconut + mineral water with
 // organic maple + sea salt. They're SEPARATE products — disclose the sweetener either way.
 
 export type Role = "founder" | "admin" | "event_manager" | "operator" | "staff" | "contractor";
@@ -70,23 +70,29 @@ export const MODULES: Module[] = [
   {
     slug: "welcome-gt3", section: "welcome", title: "Welcome to GT3", estMin: 8,
     summary: "Who we are, why we exist, and what we believe.",
+    whyItMatters: "You can't carry a standard you can't explain. This is the lesson that makes every other lesson make sense — the why underneath the what. Learn it and the rest is detail; skip it and you're only following steps you'll drop the moment they're inconvenient.",
+    objectives: ["Say what GT3 is and why it exists in one breath", "Name the two brands and the single shared standard", "State the values that decide the calls no SOP covers"],
+    founderInsight: "We didn't start GT3 to sell coffee. We started it because we couldn't buy a bottle we'd hand someone we love without reading the label first. Every choice after that — the sourcing, the price, the app in your hand — is that one refusal, scaled.",
     body: [
       { h: "The company", p: "GT3 is a portfolio of premium, performance-oriented consumer brands — built lean, scalable, and structured to last. Two brands run off one shared backbone: GT3 Brew (functional coffee) and GT3 Performance Bar (the mobile bar you work)." },
       { h: "Founder story", p: "GT3 is owner-operated by Ryan and Kayla Thompkins. It started with a simple refusal: not to serve anything we wouldn't drink ourselves. Every recipe, vendor, and standard traces back to that." },
-      { h: "Mission", p: "Make the cleanest, most honest performance beverages — every input a named whole food, every claim something we can stand behind — and serve them at the moments people actually need them." },
+      { h: "Mission", p: "Make the cleanest, most honest beverages — every input a named whole food, every claim something we can stand behind — and serve them at the moments people actually need them." },
       { h: "Vision", p: "Grow GT3 from one owner-operated bar into a multi-city, multi-brand operation that anyone can run to the same standard — because the standard is written down, not in someone's head." },
       { h: "Brand pillars", p: "1) Signal over noise — measured, not hyped. 2) Whole-food, made to order. 3) Premium experiential. 4) Due-diligence-ready: clean and transferable." },
       { h: "Core values", p: "Honesty in the bottle. Respect for the ingredient. Lean and repeatable. Best-for-you — the customer's outcome leads." },
     ],
     quiz: [
       { q: "What are GT3's two brands?", options: ["GT3 Brew & GT3 Performance Bar", "GT3 Coffee & GT3 Juice", "GT3 Brew & GT3 Energy"], correct: 0 },
-      { q: "Which best states the mission?", options: ["Sell the most coffee in Atlanta", "Clean, honest performance beverages we can stand behind, served when people need them", "Be the cheapest option at every event"], correct: 1 },
+      { q: "Which best states the mission?", options: ["Sell the most coffee in Atlanta", "Clean, honest beverages we can stand behind, served when people need them", "Be the cheapest option at every event"], correct: 1 },
       { q: "\"Signal over noise\" means we…", options: ["Market loudly", "Measure and stand behind what we serve, without hype", "Avoid talking to customers"], correct: 1, why: "We lead with measured substance, not hype." },
     ],
   },
   {
     slug: "brand-pure-signal", section: "brand", title: "Brand Standards — Pure Signal. No Noise.", estMin: 7,
     summary: "Our north-star standard and how it drives every decision.",
+    whyItMatters: "'Pure Signal. No Noise.' isn't a slogan to repeat — it's the filter every decision runs through. Once you can tell signal from noise, you'll make the right call on the thing no checklist ever covered.",
+    objectives: ["Define signal and noise in your own words", "Use the standard to settle a product, service, or ops call", "Explain the idea to a guest without reciting the line at them"],
+    founderInsight: "The hard part of this business isn't what to add — it's what to leave out. A short menu we can stand behind beats a long one we can't. Noise is easy and cheap; signal is a discipline you choose again every single day.",
     body: [
       { h: "What it means", p: "\"Pure Signal. No Noise.\" is the GT3 Brew brand line. Signal is the real, felt effect of a clean product made from whole food. Noise is everything fake that gets in the way — additives, shortcuts, hype, and claims we can't back up." },
       { h: "How it drives product decisions", p: "If an ingredient or step doesn't add signal, it doesn't go in. Whole-food inputs, cold extraction, made to order. We would rather have a shorter menu we can stand behind than a long one we can't." },
@@ -133,10 +139,13 @@ export const MODULES: Module[] = [
   {
     slug: "customer-experience", section: "cx", title: "Customer Experience", estMin: 9,
     summary: "How we greet, educate, explain, and create a memorable bar.",
+    whyItMatters: "The product earns the first sip; how you make someone feel earns the next visit — and the friend they bring. On a busy day you ARE the brand, and the standard is only ever as good as what the last guest walked away feeling.",
+    objectives: ["Greet and read a guest in the first few seconds", "Explain any drink in one plain, true line", "Answer 'why so expensive' with value, never apology"],
+    founderInsight: "I'll take a guest who felt genuinely looked after over a technically perfect pour every time. Get the feeling right and they forgive a busy day; get it wrong and the best coffee in the city won't bring them back.",
     body: [
       { h: "Greet", p: "Eye contact, a real hello within a few seconds. \"First time with us?\" opens the door to educate. Warm and unhurried even when the line is long." },
       { h: "Educate, don't lecture", p: "Read the guest. A regular wants their order fast; a newcomer wants a quick why. Offer the one-line version first: \"Rise is our clean cold-brew to start the day\" — go deeper only if they're curious." },
-      { h: "Explain products simply", p: "Name → what it is → why it exists. \"Tide is whole-coconut hydration with organic local honey; Nature Aide is coconut + mineral water with organic maple and sea salt — both easy to drink during the work.\" Keep it true and plain." },
+      { h: "Explain products simply", p: "Name → what it is → why it exists. \"Tide is whole-coconut hydration with organic local honey; Nature's Aide is coconut + mineral water with organic maple and sea salt — both easy to drink during the work.\" Keep it true and plain." },
       { h: "Handle objections", p: "\"Why is it more than gas-station coffee?\" → \"It's cold-extracted over hours from single-origin beans, made when you order it.\" Acknowledge, give the real reason, never argue." },
       { h: "Serve with confidence", p: "Know the menu cold. If you don't know an answer, say so and find out — never guess a nutrition number or a health claim." },
       { h: "Make it memorable", p: "Use the guest's name if you have it. Hand the bottle with both hands and a line about how to enjoy it. The last ten seconds are what they remember." },
@@ -150,6 +159,9 @@ export const MODULES: Module[] = [
   {
     slug: "primal-nutrition", section: "nutrition", title: "Primal Nutrition — the why behind the ingredients", estMin: 10,
     summary: "Why our ingredients, sourcing, prep and process matter — without medical claims.",
+    whyItMatters: "Guests can taste care, but they can't see it — your words are how the work behind the bottle becomes real to them. Explain our choices with confidence and zero claims, and the price and the trust both take care of themselves.",
+    objectives: ["Explain why an ingredient, source, or step is there — in plain language", "Describe care without ever making a health claim", "Say 'estimated until lab-verified' like you mean it"],
+    founderInsight: "'Primal' isn't a diet to me — it's a filter: would this ingredient make sense to someone a hundred years ago? If it's a powder with a chemistry-set name, it doesn't go in. We let the whole food do the work and we never oversell what it does.",
     body: [
       { h: "The goal", p: "This is not medical advice and you should never give any. The goal is to explain our choices confidently in plain language so guests understand the care behind the bottle." },
       { h: "Why ingredients matter", p: "We start with named whole foods — single-origin coffee, organic coconut, pasture-raised bones — not powders, isolates, or concentrates. You can point to where every part of the drink came from." },
@@ -168,21 +180,27 @@ export const MODULES: Module[] = [
   {
     slug: "product-knowledge", section: "product", title: "Product Knowledge — the full lineup", estMin: 12,
     summary: "Know every product cold: what it is, who it's for, and how to talk about it.",
+    whyItMatters: "A guest decides in seconds whether you actually know what you're handing them. Know every drink cold and the recommendation lands; fumble it and even a great product suddenly feels uncertain.",
+    objectives: ["Give the one-line version of any item on the menu", "Name the honest talking points and the sweetener in each", "Never quote a number or a benefit you're not sure of"],
+    founderInsight: "The tell of a great bar isn't a long menu memorized — it's someone who can hear two words from a guest and hand them the exact right bottle. Know the line cold so the recommendation feels like a friend's, not a script.",
     body: [
       { h: "How to use this", p: "Read every product card in the Academy (below this module), then take this check. You should be able to give the one-line version of any item and its honest talking points." },
       { h: "Activation line", p: "Rise, Flow, Dusk — all cold-extracted single-origin coffee. IMPORTANT: all three share one brew spec and the SAME caffeine (~210 mg / 10 oz). The difference is flavor and ingredient, not stimulant level. Dusk is a warm, spiced bottle — not a lower-caffeine option." },
-      { h: "Hydration & fuel", p: "Tide is whole-coconut hydration with organic local honey (disclose the honey). Nature Aide is a lighter coconut + mineral-water hydration with organic maple and sea salt (disclose the maple). Bone broth is slow-simmered, pasture-raised, for the rebuild after." },
+      { h: "Hydration & fuel", p: "Tide is whole-coconut hydration with organic local honey (disclose the honey). Nature's Aide is a lighter coconut + mineral-water hydration with organic maple and sea salt (disclose the maple). Bone broth is slow-simmered, pasture-raised, for the rebuild after." },
       { h: "Talking-point rule", p: "Lead with what it is and the real ingredient story. Never promise a health outcome or quote a nutrition number you're not sure of." },
     ],
     quiz: [
       { q: "How much caffeine does Dusk have vs Rise and Flow?", options: ["Much less — it's a wind-down", "The same — all three share one spec (~210 mg/10 oz)", "Double"], correct: 1, why: "Dusk differs in flavor, not caffeine." },
-      { q: "Nature Aide contains…", options: ["Only coconut water", "Coconut water, mineral water, organic maple, and sea salt", "Coconut and added electrolyte powder"], correct: 1, why: "Disclose the maple — never claim 'no added sugar.'" },
+      { q: "Nature's Aide contains…", options: ["Only coconut water", "Coconut water, mineral water, organic maple, and sea salt", "Coconut and added electrolyte powder"], correct: 1, why: "Disclose the maple — never claim 'no added sugar.'" },
       { q: "A guest wants the least caffeine in the Activation line. You say…", options: ["\"Dusk — it's the lightest.\"", "\"They're all about the same; Dusk is the same caffeine, just warmer and spiced.\"", "\"Flow has none.\""], correct: 1 },
     ],
   },
   {
     slug: "event-ops", section: "ops", title: "Event Operations", estMin: 11,
     summary: "Run an event end to end: setup, run-of-show, compliance, breakdown.",
+    whyItMatters: "An event is a full bar built from nothing in an hour and torn down in twenty minutes — with no second chances in front of a live line. What you do before doors decides whether service feels calm or frantic.",
+    objectives: ["Pack from the generated list, not memory", "Clear compliance before the first pour", "Run setup, service, and breakdown to the same standard"],
+    founderInsight: "Every event that felt chaotic traces back to a shortcut before doors — a skipped pack check, an unconfirmed permit, a station set up wrong. Calm at peak is a decision you make during setup, not a personality trait.",
     body: [
       { h: "Before — the pack", p: "Every event has a generated pack list driven by its menu and rig. Pack from the list, not memory. Confirm power and water on site; if no water, the handwash station is mandatory." },
       { h: "Compliance", p: "Confirm the temporary food permit and any county requirements before the event (the app surfaces the jurisdiction's rules). No permit, no pour." },
@@ -199,6 +217,9 @@ export const MODULES: Module[] = [
   {
     slug: "inventory-ops", section: "ops", title: "Inventory & Par", estMin: 7,
     summary: "Keep the bar stocked and the books clean.",
+    whyItMatters: "Run out of your best seller at peak and you lose the sales AND the guests who walked; over-pack and you tie up cash and create waste. Par is how you thread that needle every time instead of guessing.",
+    objectives: ["Pull to an event's par instead of eyeballing", "Log every batch for traceability", "Close the low → flag → restock → log loop"],
+    founderInsight: "Inventory isn't busywork — it's the difference between a day that made money and a day that just looked busy. Every bottle you didn't have was a sale someone tried to hand you and couldn't.",
     body: [
       { h: "Par levels", p: "Every event has a par — the amount of each item you should leave with. Pull to par from the inventory DB; don't eyeball it." },
       { h: "Batch logging", p: "Every brew batch gets logged (GT3 Brew Lab Production) with its spec and signal score. Traceability is part of the standard and the due-diligence story." },
@@ -213,6 +234,9 @@ export const MODULES: Module[] = [
   {
     slug: "cart-ops", section: "ops", title: "Run the Cart", estMin: 8,
     summary: "Cart-only service: setup, flow, and safety.",
+    whyItMatters: "The cart is one person being the whole bar — greeter, barista, cashier, and restock at once. Master the lean rig and you can run a clean service solo; miss its limits and you'll promise a menu you can't pour.",
+    objectives: ["Know what the cart rig can and can't pour before committing a menu", "Run the one-person greet → make → hand-off → reset flow", "Hold cold items safely or don't serve them"],
+    founderInsight: "The cart is the whole business in miniature: if you can hold the standard alone, on a folding table, with a line building — you can hold it anywhere. Simple isn't lesser; it's the standard stripped to its bones.",
     body: [
       { h: "Cart rig", p: "The cart is the lean rig — cold brew on tap or bottles, limited menu, fast setup. Know what the cart can and can't pour before you commit to a menu." },
       { h: "Service flow", p: "One-person flow: greet → make → hand off → reset. Keep your station clean and your most-ordered items within reach." },
@@ -226,6 +250,9 @@ export const MODULES: Module[] = [
   {
     slug: "trailer-ops", section: "ops", title: "Run the Trailer", estMin: 9,
     summary: "Full trailer-plus-cart service for larger activations.",
+    whyItMatters: "The trailer is the full bar at full throughput — more menu, more power, more people, more that can go wrong. Scale magnifies both a sharp setup and a sloppy one, so roles and prep matter more here, not less.",
+    objectives: ["Bring the extra power and the COI naming the venue", "Split the crew into clear roles before doors", "Pre-batch and stage so no station runs dry mid-rush"],
+    founderInsight: "More equipment doesn't make a better bar — clearer roles do. The trailers that ran beautifully weren't the ones with the most gear; they were the ones where everyone knew their lane before the first guest showed up.",
     body: [
       { h: "Trailer rig", p: "The trailer is the full bar — nitro, full menu, more throughput. It needs more setup, power, and a COI naming the venue as additional insured." },
       { h: "Crew roles", p: "At trailer scale you split roles: line, restock, and a lead who owns the run-of-show and the numbers. Assign roles in the event crew roster before doors." },
@@ -241,14 +268,14 @@ export const MODULES: Module[] = [
   {
     slug: "coffee-science", section: "nutrition", title: "Coffee Science — why cold extraction tastes the way it does", estMin: 12,
     summary: "The real chemistry behind cold extraction, single-origin, and mineral water — enough to explain it honestly.",
-    whyItMatters: "A guest asking 'why is this $7 and not $2' is really asking 'what am I tasting?' If you can answer with the actual science, calmly and without hype, the price explains itself and they trust everything else you say.",
+    whyItMatters: "A guest asking 'why is this $10 and not $2' is really asking 'what am I tasting?' If you can answer with the actual science, calmly and without hype, the price explains itself and they trust everything else you say.",
     objectives: ["Explain in one breath why cold extraction is smoother than hot", "Say what 'single-origin' and '1:13' actually mean", "Describe why we use mineral water — without claiming a health benefit"],
     body: [
       { h: "Hot vs. cold is a chemistry difference, not a temperature gimmick", p: "Heat is a solvent accelerator. Brewing hot pulls coffee's oils, acids, and bitter compounds out fast — including the harsher ones. Cold water extracts the same coffee slowly over ~18 hours, pulling far less of the acidic and bitter compounds. The result is naturally lower in perceived acidity and bitterness — rounder, smoother — without adding anything. That smoothness is extracted, not sweetened." },
       { h: "Time and ratio are the recipe", p: "Our spec is 1:13 — one part coffee to thirteen parts water by weight — cold-extracted ~18 hours, then filtered. Ratio sets strength; time sets how complete the extraction is. Under-extract (too short / too coarse / too little coffee) and it tastes weak and sour. Over-extract (too long / too fine) and bitterness creeps back. The whole point of a spec is that every batch lands in the same place." },
       { h: "Single-origin means traceable, not fancy", p: "Single-origin means the beans come from one place, not a blend of mystery lots. It lets us point to where it's from and keep the flavor consistent batch to batch. We pair it with organic sourcing because it's the standard we chose — say 'organic, single-origin, cold-extracted over hours,' not 'healthier than theirs.'" },
       { h: "Mineral water — taste first", p: "Water is ~98% of the cup, so the water is part of the recipe. Minerals in the water interact with extraction and mouthfeel; we use mineral water (Mountain Valley Spring Water on spec) because it gives a cleaner, rounder result we can repeat. Frame it as taste and consistency. Do NOT claim a health benefit from the water." },
-      { h: "Caffeine — know the honest number", p: "Rise, Flow, and Dusk share one base and the SAME caffeine — about 210 mg per 10 oz (estimated until lab-verified). Cold brew is often higher in caffeine than people expect because of the long extraction and ratio. If a guest is caffeine-sensitive, tell them the real number and steer them to Nature Aide or the Coconut Shake." },
+      { h: "Caffeine — know the honest number", p: "Rise, Flow, and Dusk share one base and the SAME caffeine — about 210 mg per 10 oz (estimated until lab-verified). Cold brew is often higher in caffeine than people expect because of the long extraction and ratio. If a guest is caffeine-sensitive, tell them the real number and steer them to Nature's Aide or the Coconut Shake." },
     ],
     mistakes: ["Saying cold brew is 'less acidic for your stomach' — that's a health claim; say 'lower in perceived acidity, smoother'", "Guessing the caffeine number — quote ~210 mg/10 oz (estimated) or say you'll confirm", "Calling it 'healthier' than gas-station coffee instead of describing the process"],
     founderInsight: "I didn't pick cold extraction because it's trendy. I picked it because when you taste the difference, you stop needing me to sell it. The science is just the honest version of 'try it.'",
@@ -269,16 +296,16 @@ export const MODULES: Module[] = [
     objectives: ["Name the real reason each functional ingredient is on the menu", "Describe a benefit as 'what it is / how people use it,' not a cure", "Disclose allergens (raw honey, dairy) every time"],
     body: [
       { h: "The one rule that governs all of this", p: "We describe ingredients and process, never physiological or comparative health claims. 'Coconut water has naturally occurring electrolytes' is fine. 'This rehydrates you faster than a sports drink' is not — that's a comparative claim we haven't tested. When in doubt, describe what it is and how people use it, and say you'll confirm anything you're unsure of." },
-      { h: "Coconut water & electrolytes (Nature Aide, Tide, Coconut Shake)", p: "Coconut water naturally contains electrolytes — minerals like potassium and sodium that the body uses for hydration and nerve/muscle function. Nature Aide pairs coconut water with mineral water, organic maple syrup, and sea salt — disclose the maple. Tide uses young coconut water + young organic Thai coconut meat with a touch of organic local honey — always disclose the honey (allergen + not for infants). Talk about both as 'natural hydration,' not a medical rehydration claim." },
+      { h: "Coconut water & electrolytes (Nature's Aide, Tide, Coconut Shake)", p: "Coconut water naturally contains electrolytes — minerals like potassium and sodium that the body uses for hydration and nerve/muscle function. Nature's Aide pairs coconut water with mineral water, organic maple syrup, and sea salt — disclose the maple. Tide uses young coconut water + young organic Thai coconut meat with a touch of organic local honey — always disclose the honey (allergen + not for infants). Talk about both as 'natural hydration,' not a medical rehydration claim." },
       { h: "Cacao nibs (Flow)", p: "Organic cacao nibs are infused into the cold brew. Cacao brings chocolate aroma and naturally contains theobromine — a gentle, longer compound that pairs with caffeine for a steadier feel. Say 'cacao for a smooth, sustained focus,' not 'boosts your metabolism.'" },
       { h: "Spice (Dusk: cinnamon + cardamom)", p: "Ceylon cinnamon and green cardamom are infused for warmth and aroma — an evening-leaning, lower-noise flavor. It's a flavor story, not a health story." },
       { h: "Real maple & salt (Salted Maple)", p: "Real maple is the sweetener and a pinch of salt balances it — that's culinary contrast, not a 'natural sugar is healthy' claim. Maple-forward, never cloying." },
       { h: "Bone broth — protein & amino acids (Fuel)", p: "Slow-simmered from pasture-raised bones, bone broth naturally contains protein and amino acids (like collagen-derived ones) and is served hot as a savory option. Describe it as 'a warm, savory, protein-forward option' — don't promise joint or gut outcomes." },
     ],
-    mistakes: ["Forgetting to disclose the organic local honey in Tide (or the organic maple in Nature Aide)", "Confusing Tide (coconut + honey) with Nature Aide (coconut + mineral water + maple + sea salt) — they're separate drinks", "Saying coconut water 'hydrates faster than Gatorade' (untested comparative claim)", "Calling bone broth a gut-health cure instead of 'protein-forward and savory'"],
+    mistakes: ["Forgetting to disclose the organic local honey in Tide (or the organic maple in Nature's Aide)", "Confusing Tide (coconut + honey) with Nature's Aide (coconut + mineral water + maple + sea salt) — they're separate drinks", "Saying coconut water 'hydrates faster than Gatorade' (untested comparative claim)", "Calling bone broth a gut-health cure instead of 'protein-forward and savory'"],
     founderInsight: "Functional doesn't mean we make medical promises. It means every ingredient earns its place for a real reason. If the reason is just 'it tastes good,' say that — that's still a great reason.",
     scenarios: [
-      { situation: "Guest with a nut/coconut allergy eyeing a hydration drink", doThis: "Flag it directly: 'Heads up — both Nature Aide and Tide are coconut-based, and Tide also has organic local honey. Want me to point you to Rise or Dusk instead?'" },
+      { situation: "Guest with a nut/coconut allergy eyeing a hydration drink", doThis: "Flag it directly: 'Heads up — both Nature's Aide and Tide are coconut-based, and Tide also has organic local honey. Want me to point you to Rise or Dusk instead?'" },
       { situation: "Guest: 'Does the cacao give me energy?'", doThis: "'It's got natural compounds that pair nicely with the cold brew for a steady focus — most people like Flow for a smooth, sustained lift.'" },
     ],
     quiz: [
@@ -350,7 +377,7 @@ export const MODULES: Module[] = [
       { h: "Presence first", p: "Four Seasons hospitality isn't fancy words — it's undivided attention. Look up, make eye contact, smile, and greet before they reach the counter. A guest who feels seen forgives a wait; a guest who feels processed remembers it. Luxury without arrogance: we're warm and confident, never stiff or superior." },
       { h: "Read the guest in five seconds", p: "Are they in a hurry or browsing? New or a regular? Confident or overwhelmed by the menu? Match them: the rushed runner wants 'Rise, our cold brew, want it over ice?' — fast and decisive. The curious browser wants a 15-second story. Reading personalities is the skill that makes the same menu feel personal." },
       { h: "Educate without preaching", p: "Lead with the one-liner: name, what it is, why it exists — in plain language. 'Flow is our cold brew infused with cacao, smooth and steady.' Stop there unless they want more. Nobody came for a lecture; teach only as much as the guest invited." },
-      { h: "Make the call for them", p: "An overwhelmed guest doesn't want ten options — they want your pick. 'If it's your first time, I'd start with Rise.' A confident recommendation is a gift, not a sale. Then upsell as care, not pressure: 'Want a Nature Aide to hydrate alongside it?'" },
+      { h: "Make the call for them", p: "An overwhelmed guest doesn't want ten options — they want your pick. 'If it's your first time, I'd start with Rise.' A confident recommendation is a gift, not a sale. Then upsell as care, not pressure: 'Want a Nature's Aide to hydrate alongside it?'" },
       { h: "The memorable moment", p: "The settle on a nitro pour, remembering a regular's order, a genuine 'enjoy the rest of your day' — small, real touches are what they tell a friend about. The goal: every guest leaves having had a better minute than they expected." },
     ],
     mistakes: ["Talking AT the guest with every nutrient instead of the one-liner", "Treating the rushed guest and the curious guest the same way", "Letting a line feel like a DMV — no eye contact, no warmth", "Upselling as pressure instead of as care"],
@@ -470,14 +497,14 @@ export const MODULES: Module[] = [
     whyItMatters: "If you only learn the steps, you'll do them when it's easy and skip them when it's hard. If you understand WHY GT3 exists, you'll hold the standard at 8pm on a dead-tired Saturday — which is the only time it actually matters.",
     objectives: ["Say in one sentence why GT3 exists", "Explain why a 'small' detail is never small here", "Tell a guest what makes us different without sounding rehearsed"],
     body: [
-      { h: "Why GT3 exists", p: "Most 'performance' or 'wellness' drinks are noise — sugar, hype, and claims nobody can back. GT3 exists to be the opposite: clean, honest performance beverages we can stand behind, made with real ingredients and a process we'll show you, served when people actually need them. We'd rather be the most trusted than the loudest." },
+      { h: "Why GT3 exists", p: "Most 'performance' or 'wellness' drinks are noise — sugar, hype, and claims nobody can back. GT3 exists to be the opposite: clean, honest beverages we can stand behind, made with real ingredients and a process we'll show you, served when people actually need them. We'd rather be the most trusted than the loudest." },
       { h: "Two brands, one standard", p: "GT3 Brew makes the coffee and cold brew; GT3 Performance Bar is how we serve it — the cart, the trailer, the events. Different jobs, identical standard. A guest never sees 'the brand we felt like being today.'" },
       { h: "Why a small detail is never small", p: "A wiped counter, a settled pour, a disclosed allergen, the same recipe at every cart — guests can rarely name why we feel premium, but they feel it, and they come back for it. The details aren't decoration; they ARE the product. Skip one and you've quietly handed the guest a different, worse brand." },
       { h: "The bar we hold", p: "The whole Academy is built around one test: 'If Ryan wasn't here, would you make the same call?' Everything you learn is to close that gap — so the experience is identical whether the founder is standing next to you or a thousand miles away." },
     ],
     founderInsight: "I'm not precious about details to be difficult. I'm precise because consistency is the only thing that earns trust at scale — and trust is the entire business.",
     quiz: [
-      { q: "GT3 exists to be…", options: ["The cheapest option", "The most trusted — clean, honest performance beverages", "The loudest brand at the event"], correct: 1 },
+      { q: "GT3 exists to be…", options: ["The cheapest option", "The most trusted — clean, honest beverages", "The loudest brand at the event"], correct: 1 },
       { q: "A 'small' detail like a wiped counter is…", options: ["Optional when busy", "Part of the product — guests feel it", "Only for inspections"], correct: 1 },
       { q: "The Academy's core test is…", options: ["Can you pour fast?", "Would you make the same call the founder would?", "Did you memorize the menu?"], correct: 1 },
     ],
@@ -490,7 +517,7 @@ export const MODULES: Module[] = [
     whyItMatters: "Your job at an event is to BE the brand to every guest. You can't represent something you can't articulate. This is the DNA you carry so the brand sounds and feels the same out of anyone's mouth.",
     objectives: ["State the mission and the values in your own words", "Use the GT3 voice — confident, warm, never hype", "Spot an off-brand move before you make it"],
     body: [
-      { h: "Mission", p: "Clean, honest performance beverages we can stand behind, served when people need them. Every product, price, and pour either serves that or it doesn't belong." },
+      { h: "Mission", p: "Clean, honest beverages we can stand behind, served when people need them. Every product, price, and pour either serves that or it doesn't belong." },
       { h: "Vision", p: "A brand people trust enough that 'GT3 made it' is reason enough to try it — built to outlast and out-scale its founder by encoding the standard into people and systems, not personality." },
       { h: "Core values", p: "Honesty (never a claim we can't back). Consistency (the same experience every time). Hospitality (the guest leaves better than they arrived). Craft (real ingredients, real process). Stewardship (everyone protects the standard, watched or not). When two values seem to conflict, honesty and safety win — always." },
       { h: "Brand voice", p: "Confident but never arrogant. Warm but not cutesy. Educational but never preachy. We state things plainly and let the substance carry it. 'Pure Signal. No Noise.' is the voice in three words: measured substance, zero hype. If a sentence sounds like a supplement ad, it's wrong." },
@@ -512,21 +539,21 @@ export const MODULES: Module[] = [
     whyItMatters: "An overwhelmed or rushed guest doesn't want a menu — they want your pick. A great recommendation raises the check AND the experience at the same time. Done right, the guest thanks you for the upsell.",
     objectives: ["Recommend the right drink from a 5-second read", "Pair a hydration or food add-on naturally", "Upsell as care, never as pressure"],
     body: [
-      { h: "The recommendation tree", p: "First-timer or unsure → Rise (the clean, smooth flagship cold brew). Wants chocolatey/steadier → Flow (cacao). Evening / lower-key / spiced → Dusk. On tap / wants the show → Nitro. Caffeine-sensitive or hydration-focused → Nature Aide or the Coconut Shake. Wants savory/warm → Bone Broth. Sweet tooth → Salted Maple. You can place almost any guest in two questions." },
+      { h: "The recommendation tree", p: "First-timer or unsure → Rise (the clean, smooth flagship cold brew). Wants chocolatey/steadier → Flow (cacao). Evening / lower-key / spiced → Dusk. On tap / wants the show → Nitro. Caffeine-sensitive or hydration-focused → Nature's Aide or the Coconut Shake. Wants savory/warm → Bone Broth. Sweet tooth → Salted Maple. You can place almost any guest in two questions." },
       { h: "Lead with the one-liner, then stop", p: "'Rise is our smooth cold brew over ice — best first pour.' Give the headline, read their face, and only go deeper if they lean in. The recommendation is a gift; don't bury it in detail." },
-      { h: "Pair, don't pile", p: "The natural add-on is hydration or food alongside the coffee: 'Want a Nature Aide to sip alongside it?' or 'Bone broth if you want something savory.' One thoughtful pairing beats three pushy ones. The test: would you genuinely suggest it to a friend, or are you just adding dollars?" },
+      { h: "Pair, don't pile", p: "The natural add-on is hydration or food alongside the coffee: 'Want a Nature's Aide to sip alongside it?' or 'Bone broth if you want something savory.' One thoughtful pairing beats three pushy ones. The test: would you genuinely suggest it to a friend, or are you just adding dollars?" },
       { h: "Read the 'no'", p: "If they decline the add-on, drop it instantly and warmly — 'You got it.' A clean no-pressure no is what makes the next yes possible. Pressure wins one sale and loses the relationship." },
     ],
     mistakes: ["Listing options instead of making the call", "Upselling things you wouldn't actually recommend (guests smell it)", "Pushing after a 'no' — kills trust", "Over-explaining when the guest just wanted the headline"],
     founderInsight: "The best upsell doesn't feel like one. It feels like a friend who knows the menu saying 'oh, you'd love this with it.' That's the only kind we do.",
     scenarios: [
       { situation: "Guest: 'I don't really drink coffee but I'm curious'", doThis: "Steer to flavor + lower commitment: 'Then try Dusk — it's spiced and smooth, or a Coconut Shake if you want zero coffee. Both are easy first sips.'" },
-      { situation: "Post-workout guest grabbing a Rise", doThis: "Natural pair: 'Want a Nature Aide alongside to hydrate? A lot of folks do after a workout.' If no, 'You got it — enjoy.'" },
+      { situation: "Post-workout guest grabbing a Rise", doThis: "Natural pair: 'Want a Nature's Aide alongside to hydrate? A lot of folks do after a workout.' If no, 'You got it — enjoy.'" },
     ],
     quiz: [
       { q: "An unsure first-timer should get…", options: ["The whole menu read aloud", "A confident rec — usually Rise", "Whatever's slowest to make"], correct: 1 },
       { q: "A good upsell is…", options: ["Pushed until they cave", "A genuine pairing you'd suggest a friend, dropped on a 'no'", "Added silently to the total"], correct: 1 },
-      { q: "Caffeine-sensitive guest → recommend…", options: ["A double Nitro", "Nature Aide or the Coconut Shake", "Two Rises"], correct: 1 },
+      { q: "Caffeine-sensitive guest → recommend…", options: ["A double Nitro", "Nature's Aide or the Coconut Shake", "Two Rises"], correct: 1 },
     ],
   },
 
@@ -613,7 +640,7 @@ export const MODULES: Module[] = [
     mistakes: ["Getting defensive about price instead of explaining value", "Overselling a skeptic (confirms their suspicion)", "Debating a complaint instead of just remaking it", "Matching an upset guest's energy"],
     founderInsight: "A complaint is a gift — the guest is giving you a chance to fix it instead of just never coming back. Treat it like one.",
     scenarios: [
-      { situation: "'$7 for a coffee? That's crazy.'", doThis: "Calm value, no apology: 'I get it — it's single-origin, cold-brewed over ~18 hours and made fresh. That's the difference in the cup. Want to try it?' If still no, warm exit." },
+      { situation: "'$10 for a coffee? That's crazy.'", doThis: "Calm value, no apology: 'I get it — it's single-origin, cold-brewed over ~18 hours and made fresh. That's the difference in the cup. Want to try it?' If still no, warm exit." },
       { situation: "Guest says their nitro poured flat", doThis: "'You're right — let me remake that for you.' Fix the cause (restrictor/pressure), re-pour a proper cascade, hand it over. No debate, no charge." },
     ],
     quiz: [
@@ -661,7 +688,7 @@ export interface Product {
 
 export const PRODUCTS: Product[] = [
   {
-    key: "rise", name: "Rise", line: "Activation", price: "$7",
+    key: "rise", name: "Rise", line: "Activation", price: "$10",
     what: "Cold-extracted single-origin coffee in mineral water, finished with organic coconut water.",
     why: "A clean, even lift to start the morning.",
     ingredients: ["Single-origin cold extraction", "Mineral water base", "Organic coconut water"],
@@ -680,7 +707,7 @@ export const PRODUCTS: Product[] = [
     cookbook: { batch: "Standard Batch — GT3 (1:13, ~18-hr cold extraction).", brew: ["Weigh beans 1:13 to mineral water", "Cold-extract ~18 hrs", "Filter, log batch + signal score (target 8+)"], serve: ["Pour over ice", "Top with organic coconut water", "Serve in glass, made to order"], storage: "Keep cold; use within the standard hold window.", quality: "Signal Score 8+ (Energy/Clarity/Flavor/Smoothness).", troubleshoot: [{ issue: "Too bitter", fix: "Check grind/time — over-extraction; pull back toward spec." }, { issue: "Weak", fix: "Verify 1:13 ratio and full 18-hr extraction." }] },
   },
   {
-    key: "flow", name: "Flow", line: "Activation", price: "$7",
+    key: "flow", name: "Flow", line: "Activation", price: "$10",
     what: "Cold-extracted single-origin coffee in mineral water, infused with organic cacao nibs.",
     why: "Cacao to keep the focus going a little longer.",
     ingredients: ["Single-origin cold extraction", "Mineral water base", "Organic cacao nibs"],
@@ -699,7 +726,7 @@ export const PRODUCTS: Product[] = [
     cookbook: { batch: "Standard Batch — GT3 with cacao-nib infusion.", brew: ["Brew base to spec", "Infuse organic cacao nibs", "Filter and log batch"], serve: ["Pour over ice in glass"], storage: "Keep cold; standard hold window.", quality: "Signal Score 8+; cacao aroma present, not muddy.", troubleshoot: [{ issue: "Muddy/silty", fix: "Improve filtration after nib infusion." }] },
   },
   {
-    key: "dusk", name: "Dusk", line: "Activation", price: "$7",
+    key: "dusk", name: "Dusk", line: "Activation", price: "$10",
     what: "Cold-extracted single-origin coffee in mineral water with Ceylon cinnamon and green cardamom.",
     why: "A warmer, spiced bottle for the back half of the day.",
     ingredients: ["Single-origin cold extraction", "Mineral water base", "Ceylon cinnamon", "Green cardamom"],
@@ -718,7 +745,7 @@ export const PRODUCTS: Product[] = [
     cookbook: { batch: "Standard Batch — GT3 with cinnamon + cardamom.", brew: ["Brew base to spec", "Add Ceylon cinnamon + green cardamom", "Filter and log batch"], serve: ["Pour over ice; garnish per spec"], storage: "Keep cold; standard hold window.", quality: "Spice aromatic, balanced — not gritty.", troubleshoot: [{ issue: "Gritty", fix: "Use infusion, not loose ground spice in the bottle." }] },
   },
   {
-    key: "nature_aid", name: "Nature Aide", line: "Hydration", price: "$8",
+    key: "nature_aid", name: "Nature's Aide", line: "Hydration", price: "$10",
     what: "A light electrolyte hydration — coconut water and mineral water with organic maple syrup, finished with sea salt.",
     why: "Clean, balanced hydration that goes down easy during the work.",
     ingredients: ["Coconut water", "Mineral water", "Organic maple syrup", "Sea salt"],
@@ -731,13 +758,13 @@ export const PRODUCTS: Product[] = [
     ],
     voices: {
       simple: "Coconut and mineral water with a little organic maple and sea salt. Clean hydration, no powder.",
-      gt3: "Nature Aide is our light hydration — coconut water and mineral water with organic maple syrup and a pinch of sea salt. The maple and salt balance each other; it's real ingredients, not a powdered sports drink.",
+      gt3: "Nature's Aide is our light hydration — coconut water and mineral water with organic maple syrup and a pinch of sea salt. The maple and salt balance each other; it's real ingredients, not a powdered sports drink.",
       founder: "Hydration doesn't need a lab. Coconut and mineral water carry what the body's after, organic maple gives it just enough, and sea salt rounds it out. The maple is the sweetener and I'll always name it — we disclose, we never hide behind 'no added sugar.' Simple, real, and it goes down easy in the middle of the work.",
     },
     cookbook: { batch: "Mix to order (no long batch).", brew: ["Combine coconut water + mineral water", "Add organic maple syrup + sea salt to spec", "Stir until fully dissolved"], serve: ["Serve cold, in glass"], storage: "Make to order; keep cold.", quality: "Balanced sweet-and-salt, never cloying.", troubleshoot: [{ issue: "Too sweet", fix: "Reduce maple to spec." }, { issue: "Tastes flat", fix: "A pinch more sea salt lifts it." }] },
   },
   {
-    key: "tide", name: "Tide", line: "Hydration", price: "$8",
+    key: "tide", name: "Tide", line: "Hydration", price: "$12",
     what: "Whole-coconut hydration — young coconut water blended with young organic Thai coconut meat, finished with organic local honey.",
     why: "Real hydration that goes down easy during the work.",
     ingredients: ["Organic young coconut water", "Young organic Thai coconut meat", "Organic local honey", "Blended to order"],
@@ -746,7 +773,7 @@ export const PRODUCTS: Product[] = [
     talking: ["Whole-coconut hydration with a touch of organic local honey", "Blended to order from real coconut, not a powder", "Always name the honey if asked about sugar (allergen, not for infants)"],
     faqs: [
       { q: "Is there added sugar?", a: "Yes — a touch of organic local honey. The rest is coconut water and coconut meat. We disclose it; we don't claim 'no added sugar.'" },
-      { q: "How is it different from Nature Aide?", a: "Tide is whole-coconut (water + meat) sweetened with organic local honey. Nature Aide is a lighter coconut + mineral-water blend with organic maple and sea salt. Separate drinks." },
+      { q: "How is it different from Nature's Aide?", a: "Tide is whole-coconut (water + meat) sweetened with organic local honey. Nature's Aide is a lighter coconut + mineral-water blend with organic maple and sea salt. Separate drinks." },
     ],
     voices: {
       simple: "Fresh-blended coconut water and coconut meat with a touch of local honey. Real hydration, no powder.",
@@ -756,7 +783,7 @@ export const PRODUCTS: Product[] = [
     cookbook: { batch: "Blend to order (no long batch).", brew: ["Combine young coconut water + young organic Thai coconut meat", "Add measured organic local honey per spec", "Blend until smooth"], serve: ["Serve cold, in glass, immediately"], storage: "Make to order; do not hold blended.", quality: "Smooth, no separation at serve.", troubleshoot: [{ issue: "Too sweet", fix: "Reduce honey to spec; honey is the only added sweetener." }, { issue: "Separating", fix: "Serve immediately after blend." }] },
   },
   {
-    key: "nitro", name: "Nitro Cold Brew", line: "Activation", price: "$7",
+    key: "nitro", name: "King Me (Nitro)", line: "Activation", price: "$14",
     what: "Cold-extracted coffee charged with nitrogen for a smooth, cascading pour from the tap.",
     why: "The same clean cold-brew, served silky and creamy without dairy.",
     ingredients: ["Single-origin cold extraction", "Nitrogen charge"],
@@ -785,23 +812,33 @@ export const PRODUCTS: Product[] = [
     faqs: [
       { q: "Why cold and not hot?", a: "Heat pulls bitterness and acidity fast; cold draws the coffee gently over hours for a rounder brew." },
     ],
+    voices: {
+      simple: "The base for everything — single-origin coffee drawn cold over ~18 hours. Smoother and less bitter than hot.",
+      gt3: "Cold extraction is the foundation of the whole Activation line: single-origin beans at 1:13 to mineral water, drawn cold over ~18 hours, then filtered. Heat rips bitterness out in minutes; cold draws the coffee gently, so what's left is round and smooth — extracted, not sweetened.",
+      founder: "We built the entire base on cold extraction for one reason: when you taste the difference, you stop needing me to sell it. One great base under Rise, Flow, Dusk and Nitro means the cup is the same in every city. That's not a shortcut — it's the whole point.",
+    },
     cookbook: { batch: "Standard Batch — GT3: 1:13 beans to mineral water, ~18-hr extraction.", brew: ["Weigh to 1:13", "Cold-extract ~18 hrs", "Filter; log batch + signal score"], serve: ["Use as the base for Rise/Flow/Dusk/Nitro"], storage: "Keep cold; honor the hold window.", quality: "Signal Score 8+; smoothness is the watch metric.", troubleshoot: [{ issue: "Low smoothness signal", fix: "Adjust grind/time toward spec; re-profile." }] },
   },
   {
-    key: "salted_maple", name: "Salted Maple", line: "Specialty", price: "$8",
+    key: "salted_maple", name: "Salted Maple Latte", line: "Specialty", price: "$14",
     what: "Cold-extracted coffee with real maple and a pinch of salt, balanced — not a sugar bomb.",
     why: "A touch of comfort and sweetness done with a real ingredient.",
-    ingredients: ["Cold-extracted coffee", "Real maple", "Pinch of salt", "Milk or coconut base per build"],
+    ingredients: ["Cold-extracted coffee", "Organic A2 grass-fed goat milk", "Real organic maple", "Pinch of sea salt"],
     benefits: ["Balanced sweet-salty flavor", "Real maple, not flavored syrup", "Made to order"],
     customer: "The guest who wants a treat-leaning coffee but still real ingredients.",
     talking: ["Real maple and a pinch of salt — balanced, not a syrup bomb", "Disclose the maple as a sweetener", "Built on the same cold-brew base"],
     faqs: [
       { q: "Is it very sweet?", a: "It's balanced — real maple with salt to round it. Maple is the sweetener; we disclose it." },
     ],
+    voices: {
+      simple: "Cold-brew with A2 grass-fed goat milk, real maple, and a pinch of sea salt. Rich and smooth, not a sugar bomb.",
+      gt3: "Salted Maple Latte is built on the cold-brew base with organic A2 grass-fed goat milk, real organic maple, and a pinch of sea salt. The salt balances the maple so it reads rich and smooth — maple-forward, never cloying. Maple's the sweetener and we name it.",
+      founder: "This is the one that proves 'treat' and 'clean' aren't opposites. Real maple instead of flavored syrup, A2 goat milk instead of a mystery barista blend, a pinch of salt to keep it honest — indulgent without a single ingredient we'd have to hide.",
+    },
     cookbook: { batch: "Build to order on the cold-brew base.", brew: ["Pull cold-brew base", "Add measured real maple + pinch of salt", "Add milk/coconut base per build"], serve: ["Over ice, or served warm per build", "Made to order"], storage: "Make to order.", quality: "Sweet-salty balance; maple-forward, not cloying.", troubleshoot: [{ issue: "Too sweet", fix: "Cut maple to spec; add the salt pinch to balance." }] },
   },
   {
-    key: "bone_broth", name: "Bone Broth", line: "Fuel", price: "$9",
+    key: "bone_broth", name: "Bone Broth", line: "Fuel", price: "$10",
     what: "Slow-simmered, pasture-raised bone broth (beef / bison / ostrich variants).",
     why: "A warm, savory rebuild for after the work.",
     ingredients: ["Slow-simmered bone broth", "Pasture-raised bones"],
@@ -811,6 +848,11 @@ export const PRODUCTS: Product[] = [
     faqs: [
       { q: "Is it like a soup?", a: "It's a sippable broth — savory, warm, made from real bones simmered slow." },
     ],
+    voices: {
+      simple: "Slow-simmered bone broth from pasture-raised bones. Warm, savory, real — sip it like a drink.",
+      gt3: "Bone Broth is slow-simmered for hours from pasture-raised bones (beef, bison, or ostrich), strained and seasoned — no bouillon, no additives. Served hot as a savory, protein-forward option for the rebuild after the work.",
+      founder: "Broth is the oldest 'functional' food there is, and it needs no marketing — just hours on the stove and real bones. We call it warm, savory fuel and stop there; I won't promise your joints anything. The honesty is the product.",
+    },
     cookbook: { batch: "Slow-simmer batch per broth spec.", brew: ["Simmer pasture-raised bones for hours per spec", "Strain, season to spec", "Cool and hold safely"], serve: ["Serve hot in cup", "Hold hot at safe temp"], storage: "Hold hot; discard outside safe hold window.", quality: "Clear, rich, well-seasoned; no off-notes.", troubleshoot: [{ issue: "Greasy", fix: "Skim fat; strain again." }, { issue: "Flat", fix: "Season to spec; check simmer time." }] },
   },
   {
@@ -819,12 +861,17 @@ export const PRODUCTS: Product[] = [
     why: "A richer, creamier take on whole-coconut hydration.",
     ingredients: ["Organic young coconut water", "Organic coconut meat", "Raw honey", "Blended to order"],
     benefits: ["Rich, creamy, whole-food", "No dairy", "Blended fresh"],
-    customer: "The guest who wants Nature Aide but creamier and more filling.",
+    customer: "The guest who wants Nature's Aide but creamier and more filling.",
     talking: ["A creamier whole-coconut blend, no dairy", "Sweetened with a touch of honey — disclose it", "Blended to order"],
     faqs: [
       { q: "Dairy?", a: "None — the creaminess is the coconut meat." },
       { q: "Sugar?", a: "A touch of raw honey; the rest is coconut. We disclose the honey." },
     ],
+    voices: {
+      simple: "A creamier whole-coconut blend — coconut water and meat with a touch of honey. No dairy, blended to order.",
+      gt3: "Coconut Shake is our richer take on whole-coconut hydration — young coconut water blended with extra coconut meat for body, lightly sweetened with organic local honey. Creamy with zero dairy; the honey's the sweetener and we disclose it.",
+      founder: "Same idea as Tide, just fuller — the coconut meat does what dairy would, so it's creamy without any milk. The honey is local and named, always. Proof you can make something that feels like a shake out of nothing but real food.",
+    },
     cookbook: { batch: "Blend to order.", brew: ["Blend coconut water + extra coconut meat for body", "Add honey to spec"], serve: ["Serve cold immediately"], storage: "Make to order.", quality: "Creamy, smooth, no separation.", troubleshoot: [{ issue: "Too thin", fix: "Add coconut meat for body." }] },
   },
 ];

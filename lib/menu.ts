@@ -2,8 +2,6 @@
 // Pillars: ACTIVATION (before) · HYDRATION (during) · FUEL (after).
 // Copy is ingredient-led: name → what it is (extraction + whole-food input) → why it exists.
 
-// Live IDs = the truck board (rise/flow/dusk/kingme/maple/aide). tide/forge/hunt/wild are retained
-// so historical orders still render, but they're off the live MENU below.
 export type DrinkId = "rise" | "flow" | "dusk" | "kingme" | "maple" | "tide" | "aide" | "forge" | "hunt" | "wild";
 
 export interface DrinkDetail {
@@ -64,7 +62,7 @@ export const DRINKS: Record<DrinkId, DrinkDetail> = {
     when: "BEFORE", whenT: "An afternoon treat that still eats clean.",
   },
   tide: {
-    n: "TIDE", px: "$8", grad: "linear-gradient(140deg,#2f7d74,#79c7bb)", dot: "#2F7D74",
+    n: "TIDE", px: "$12", grad: "linear-gradient(140deg,#2f7d74,#79c7bb)", dot: "#2F7D74",
     lines: ["Young coconut water + young organic Thai coconut meat", "Finished with organic local honey"],
     why: "Real hydration that goes down easy.",
     has: ["Organic young coconut water", "Young organic Thai coconut meat", "Organic local honey", "Blended to order"],
@@ -80,7 +78,7 @@ export const DRINKS: Record<DrinkId, DrinkDetail> = {
     when: "DURING", whenT: "During work or training.",
   },
   forge: {
-    n: "FORGE", px: "$9", grad: "linear-gradient(140deg,#7a2420,#b8423c)", dot: "#B8423C",
+    n: "FORGE", px: "$10", grad: "linear-gradient(140deg,#7a2420,#b8423c)", dot: "#B8423C",
     lines: ["Slow-Simmered Beef Bone Broth", "Pasture-Raised"],
     why: "Deep and rich, full of minerals for the rebuild.",
     has: ["Slow-simmered beef bone broth", "Pasture-raised"],
@@ -88,7 +86,7 @@ export const DRINKS: Record<DrinkId, DrinkDetail> = {
     when: "AFTER", whenT: "After training, within the hour.",
   },
   hunt: {
-    n: "HUNT", px: "$9", grad: "linear-gradient(140deg,#5c3a52,#8a5c7d)", dot: "#8A5C7D",
+    n: "HUNT", px: "$10", grad: "linear-gradient(140deg,#5c3a52,#8a5c7d)", dot: "#8A5C7D",
     lines: ["Slow-Simmered Bison Bone Broth", "Pasture-Raised"],
     why: "Leaner than beef, with a little more iron and zinc.",
     has: ["Slow-simmered bison bone broth", "Pasture-raised"],
@@ -96,7 +94,7 @@ export const DRINKS: Record<DrinkId, DrinkDetail> = {
     when: "AFTER", whenT: "After training, within the hour.",
   },
   wild: {
-    n: "WILD", px: "$9", grad: "linear-gradient(140deg,#6b5a2f,#a89150)", dot: "#A89150",
+    n: "WILD", px: "$10", grad: "linear-gradient(140deg,#6b5a2f,#a89150)", dot: "#A89150",
     lines: ["Slow-Simmered Ostrich Bone Broth", "Pasture-Raised"],
     why: "A lighter, leaner broth for an easy rebuild.",
     has: ["Slow-simmered ostrich bone broth", "Pasture-raised"],
@@ -108,9 +106,9 @@ export const DRINKS: Record<DrinkId, DrinkDetail> = {
 // Menu pillars — permanent brand architecture.
 export interface MenuCategory { name: string; wn: string; rows: DrinkId[] }
 
-// Live menu = the truck board. TIDE (hydration) and the FUEL broths (FORGE/HUNT/WILD) aren't on the
-// current board, so they're off the live menu — their DRINKS entries stay only so old orders render.
+// Full standard line: Activate coffees + specialties, the two hydrations, and the Fuel broths.
 export const MENU: MenuCategory[] = [
   { name: "Activation", wn: "Before the work", rows: ["rise", "flow", "dusk", "kingme", "maple"] },
-  { name: "Hydration", wn: "During the work", rows: ["aide"] },
+  { name: "Hydration", wn: "During the work", rows: ["tide", "aide"] },
+  { name: "Fuel", wn: "After the work", rows: ["forge", "hunt", "wild"] },
 ];

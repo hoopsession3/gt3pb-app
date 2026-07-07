@@ -20,8 +20,8 @@ const TYPOS: [RegExp, string][] = [
   [/\borgin\b/i, "origin"], [/\boriginn?\b(?<!origin)/i, "origin"], [/\bintenton\w*/i, "intentionally"],
   [/\bhydraton\b/i, "hydration"], [/\bseperate/i, "separate"], [/\bdefinately\b/i, "definitely"],
   [/\bspeciality\b/i, "specialty"], [/\boccassion/i, "occasion"],
-  // brand product name — it's "Nature Aide", never "Nature Aid" / "Nature's Aid"
-  [/\bnature'?s? aid\b/i, "Nature Aide"],
+  // brand product name — it's "Nature's Aide", never "Nature Aide" / "Nature Aid" / "Nature's Aid"
+  [/\bnature'?s? aid\b/i, "Nature's Aide"], [/\bnature aide\b/i, "Nature's Aide"],
 ];
 
 export function lintCaption(text: string): LintFinding[] {
@@ -30,7 +30,7 @@ export function lintCaption(text: string): LintFinding[] {
   if (!t) return out;
   for (const [re, fix] of TYPOS) { const m = t.match(re); if (m) { out.push({ level: "warn", tag: "spelling", msg: `Likely typo "${m[0]}" → "${fix}".` }); break; } }
   for (const re of HEALTH) { const m = t.match(re); if (m) { out.push({ level: "warn", tag: "claim", msg: `Possible health claim — "${m[0]}". GT3 doesn't make medical/nutrition claims.` }); break; } }
-  if (/\b(no|zero|without)\b[^.!?\n]*\bsugar\b/i.test(t) || /\bsugar[- ]?free\b/i.test(t)) out.push({ level: "warn", tag: "disclosure", msg: "Says no/zero sugar — disclose the sweetener (organic local honey in Tide, organic maple in Nature Aide / Salted Maple, and other sweetened items)." });
+  if (/\b(no|zero|without)\b[^.!?\n]*\bsugar\b/i.test(t) || /\bsugar[- ]?free\b/i.test(t)) out.push({ level: "warn", tag: "disclosure", msg: "Says no/zero sugar — disclose the sweetener (organic local honey in Tide, organic maple in Nature's Aide / Salted Maple Latte, and other sweetened items)." });
   const smell = [...new Set(SMELL.filter((re) => re.test(t)).map((re) => (t.match(re)![0]).toLowerCase()))];
   if (smell.length) out.push({ level: "info", tag: "voice", msg: `"ChatGPT smell": ${smell.join(", ")} — cut for the GT3 voice.` });
   const first = (t.split("\n")[0] || "").trim();
