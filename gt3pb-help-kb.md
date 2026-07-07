@@ -21,7 +21,8 @@ the change isn't done.
 | Menu | `/menu` | Full line — Activation, Hydration, Fuel (prices per truck board) |
 | Reserve (order-ahead) | `/reserve` | 3/6/12 packs + flavor mix, next-stop pickup |
 | Truck | `/truck` | Live location / route |
-| Account (3mpire) | `/3mpire` | Membership ring, credit, **leave a review**, order history |
+| Account (3mpire) | `/3mpire` | **Scannable GT3 membership card (unique per-member QR)**, ring, credit, **leave a review**, order history |
+| Operator scan | `/scan?m=<code>` | Staff-only: scan a member's card QR → their stamps → **add a stamp** for a walk-up |
 | Truck display | `/display` | Full-screen loop for a tablet/TV: menu · brand · guest reviews |
 
 ## Crew console sections (`/admin`) — mirror these in the Section Guide
@@ -36,6 +37,13 @@ the change isn't done.
   review can be **approved as-is** or **✨ Simplified** — an AI editor (Haiku, `/api/reviews/simplify`)
   trims it to a display-ready line and **removes any health/medical claim** without inventing praise;
   the operator accepts the suggestion or keeps the original.
+
+## UI standards
+- **Collapsible sections** = the `Panel` primitive (`app/admin/page.tsx`) — tappable header + chevron,
+  remembers open/closed per id. Use it for any new stacked crew section (Money and the Now management
+  panels already do). Keep specialized accordions that carry extra affordances (the Prep `row()` with
+  icons/subtitles, the KDS stage groups with live counts) — they're intentionally not plain Panels.
+- **Quiet by default**: in a stacked section, open only the primary panel; collapse the rest.
 
 ## Loyalty
 - `profiles.points`, +1 per drink on pickup (migration `0012`). Stamp card = a view of that; "10th on

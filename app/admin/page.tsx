@@ -999,7 +999,7 @@ function PrepViewSheet({ dir, setDir, onClose }: { dir: "asc" | "desc"; setDir: 
 type PrepTarget = { kind: "event" | "stop"; id: string };
 
 function PrepCard({ title, when, location, live, r, onOpen }: { title: string; when: string; location: string | null; live: boolean; r: Readiness; onOpen: () => void }) {
-  const status = r.total === 0 ? "Not started" : r.done === r.total ? "Ready to roll" : `Loaded ${r.done}/${r.total}`;
+  const status = r.total === 0 ? "Not started" : r.done === r.total ? "✓ Ready to roll" : `Loaded ${r.done}/${r.total}`;
   const cls = r.total === 0 ? "none" : r.done === r.total ? "ok" : r.crit ? "miss" : "mid";
   const pct = r.total ? Math.round((r.done / r.total) * 100) : 0;
   return (
@@ -4212,6 +4212,24 @@ function SectionGuide({ allowed, current, onGo, onClose }: { allowed: OpSection[
   );
 }
 
+// Collapsible panel — tames a long section into tidy, tappable cards. Remembers open/closed per id,
+// and hides the wrapped panel's own title (the Panel supplies it) while keeping its actions.
+function Panel({ title, id, defaultOpen = false, children }: { title: string; id: string; defaultOpen?: boolean; children: ReactNode }) {
+  const storeKey = `gt3-mpanel-${id}`;
+  const [open, setOpen] = useState(defaultOpen);
+  useEffect(() => { try { const v = localStorage.getItem(storeKey); if (v !== null) setOpen(v === "1"); } catch { /* ignore */ } }, [storeKey]);
+  const toggle = () => setOpen((o) => { const n = !o; try { localStorage.setItem(storeKey, n ? "1" : "0"); } catch { /* ignore */ } return n; });
+  return (
+    <section className={`mpanel${open ? " open" : ""}`}>
+      <button type="button" className="mpanel-h" onClick={toggle} aria-expanded={open}>
+        <span className="mpanel-t">{title}</span>
+        <span className="mpanel-chev" aria-hidden="true">›</span>
+      </button>
+      {open && <div className="mpanel-body">{children}</div>}
+    </section>
+  );
+}
+
 export default function AdminPage() {
   const { ready, enabled, user, profile } = useAuth();
   const { section, setSection, back, canGoBack } = useOperatorSection();
@@ -4319,8 +4337,8 @@ export default function AdminPage() {
         <>
           {canManage && <AlertsInbox userId={user?.id ?? null} />}
           <MyTasks userId={user?.id ?? null} />
-          {canManage && <EventHUD />}
-          {canManage && <LiveControl />}
+          {canManage && <Panel id="live" title="Live truck" defaultOpen><LiveControl /></Panel>}
+          {canManage && <Panel id="hud" title="Event heads-up"><EventHUD /></Panel>}
           <EnableAlerts userId={user?.id ?? null} />
           <Kitchen />
           <EightySix />
@@ -4368,16 +4386,16 @@ export default function AdminPage() {
 
       {sec === "money" && isAdmin && (
         <>
-          <MenuManager />
-          <Reports />
-          <SnapshotReport />
-          <EventPnlReport />
-          <ProductCatalog />
-          <CogsCalculator />
-          <PlanEditor />
-          <Subscribers />
-          <SubInterest />
-          <OrdersHistory />
+          <Panel id="menu" title="Menu & products" defaultOpen><MenuManager /></Panel>
+          <Panel id="sales" title="Sales"><Reports /></Panel>
+          <Panel id="snapshot" title="Business snapshot"><SnapshotReport /></Panel>
+          <Panel id="pnl" title="Per-event P&L"><EventPnlReport /></Panel>
+          <Panel id="econ" title="Product economics"><ProductCatalog /></Panel>
+          <Panel id="cogs" title="COGS calculator"><CogsCalculator /></Panel>
+          <Panel id="plans" title="Membership plans"><PlanEditor /></Panel>
+          <Panel id="subs" title="Subscribers"><Subscribers /></Panel>
+          <Panel id="subint" title="Subscription interest"><SubInterest /></Panel>
+          <Panel id="orders" title="Order history"><OrdersHistory /></Panel>
         </>
       )}
 

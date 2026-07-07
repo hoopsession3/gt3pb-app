@@ -39,6 +39,7 @@ in order (Vercel does NOT run migrations — `supabase db push` or your runner):
 | 0127 | `menu_reprice_board` | à-la-carte reprice to the truck board ($10/$14) |
 | 0128 | `restore_tide_broth` | Tide $12 + broths $10 back in the catalog |
 | 0129 | `reviews` | guest reviews table (feeds the truck display) |
+| 0132 | `membership_scan` | staff RPCs: look up a member by card code + add a stamp |
 
 Confirm on prod (all should return rows / non-null):
 ```sql
