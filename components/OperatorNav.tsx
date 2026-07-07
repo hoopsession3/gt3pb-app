@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import BottomNav from "./BottomNav";
 import { supabase } from "@/lib/supabase";
@@ -12,21 +12,42 @@ import { supabase } from "@/lib/supabase";
 
 export type OpSection = "day" | "now" | "ask" | "prep" | "plan" | "studio" | "money" | "team";
 
-const Ctx = createContext<{ section: OpSection; setSection: (s: OpSection) => void }>({ section: "day", setSection: () => {} });
+const Ctx = createContext<{ section: OpSection; setSection: (s: OpSection) => void; back: () => boolean; canGoBack: boolean }>({ section: "day", setSection: () => {}, back: () => false, canGoBack: false });
 export const useOperatorSection = () => useContext(Ctx);
+
+const VALID = new Set<OpSection>(["day", "now", "prep", "plan", "studio", "money", "team"]);
 
 export function OperatorSectionProvider({ children }: { children: React.ReactNode }) {
   const [section, setSectionState] = useState<OpSection>("day");
+  // In-crew back stack: every section change records where we were, so the console's
+  // back button retraces the previous section instead of dumping the user out of crew mode.
+  // A ref (read synchronously) is the source of truth; `depth` state just re-renders the chevron.
+  const sectionRef = useRef<OpSection>("day");
+  const historyRef = useRef<OpSection[]>([]);
+  const [depth, setDepth] = useState(0);
   useEffect(() => {
     const s = typeof window !== "undefined" ? localStorage.getItem("gt3-op-section") : null;
     // "ask" is no longer a tab (it floats via QuickDock) — fall through to the default.
-    if (s === "day" || s === "now" || s === "prep" || s === "plan" || s === "studio" || s === "money" || s === "team") setSectionState(s);
+    if (s && VALID.has(s as OpSection)) { sectionRef.current = s as OpSection; setSectionState(s as OpSection); }
   }, []);
   const setSection = useCallback((s: OpSection) => {
+    if (s !== sectionRef.current) { historyRef.current.push(sectionRef.current); setDepth(historyRef.current.length); }
+    sectionRef.current = s;
     setSectionState(s);
     if (typeof window !== "undefined") localStorage.setItem("gt3-op-section", s);
   }, []);
-  return <Ctx.Provider value={{ section, setSection }}>{children}</Ctx.Provider>;
+  // Step back to the previously-viewed section (no new history entry). Returns false when the
+  // stack is empty — the caller then leaves crew mode (‹ back to /3mpire).
+  const back = useCallback((): boolean => {
+    const prev = historyRef.current.pop();
+    setDepth(historyRef.current.length);
+    if (prev === undefined) return false;
+    sectionRef.current = prev;
+    setSectionState(prev);
+    if (typeof window !== "undefined") localStorage.setItem("gt3-op-section", prev);
+    return true;
+  }, []);
+  return <Ctx.Provider value={{ section, setSection, back, canGoBack: depth > 0 }}>{children}</Ctx.Provider>;
 }
 
 // raw role read so the expanded roles (operator/event_manager/contractor) resolve
