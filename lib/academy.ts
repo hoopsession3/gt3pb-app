@@ -70,6 +70,9 @@ export const MODULES: Module[] = [
   {
     slug: "welcome-gt3", section: "welcome", title: "Welcome to GT3", estMin: 8,
     summary: "Who we are, why we exist, and what we believe.",
+    whyItMatters: "You can't carry a standard you can't explain. This is the lesson that makes every other lesson make sense — the why underneath the what. Learn it and the rest is detail; skip it and you're only following steps you'll drop the moment they're inconvenient.",
+    objectives: ["Say what GT3 is and why it exists in one breath", "Name the two brands and the single shared standard", "State the values that decide the calls no SOP covers"],
+    founderInsight: "We didn't start GT3 to sell coffee. We started it because we couldn't buy a bottle we'd hand someone we love without reading the label first. Every choice after that — the sourcing, the price, the app in your hand — is that one refusal, scaled.",
     body: [
       { h: "The company", p: "GT3 is a portfolio of premium, performance-oriented consumer brands — built lean, scalable, and structured to last. Two brands run off one shared backbone: GT3 Brew (functional coffee) and GT3 Performance Bar (the mobile bar you work)." },
       { h: "Founder story", p: "GT3 is owner-operated by Ryan and Kayla Thompkins. It started with a simple refusal: not to serve anything we wouldn't drink ourselves. Every recipe, vendor, and standard traces back to that." },
@@ -87,6 +90,9 @@ export const MODULES: Module[] = [
   {
     slug: "brand-pure-signal", section: "brand", title: "Brand Standards — Pure Signal. No Noise.", estMin: 7,
     summary: "Our north-star standard and how it drives every decision.",
+    whyItMatters: "'Pure Signal. No Noise.' isn't a slogan to repeat — it's the filter every decision runs through. Once you can tell signal from noise, you'll make the right call on the thing no checklist ever covered.",
+    objectives: ["Define signal and noise in your own words", "Use the standard to settle a product, service, or ops call", "Explain the idea to a guest without reciting the line at them"],
+    founderInsight: "The hard part of this business isn't what to add — it's what to leave out. A short menu we can stand behind beats a long one we can't. Noise is easy and cheap; signal is a discipline you choose again every single day.",
     body: [
       { h: "What it means", p: "\"Pure Signal. No Noise.\" is the GT3 Brew brand line. Signal is the real, felt effect of a clean product made from whole food. Noise is everything fake that gets in the way — additives, shortcuts, hype, and claims we can't back up." },
       { h: "How it drives product decisions", p: "If an ingredient or step doesn't add signal, it doesn't go in. Whole-food inputs, cold extraction, made to order. We would rather have a shorter menu we can stand behind than a long one we can't." },
@@ -133,6 +139,9 @@ export const MODULES: Module[] = [
   {
     slug: "customer-experience", section: "cx", title: "Customer Experience", estMin: 9,
     summary: "How we greet, educate, explain, and create a memorable bar.",
+    whyItMatters: "The product earns the first sip; how you make someone feel earns the next visit — and the friend they bring. On a busy day you ARE the brand, and the standard is only ever as good as what the last guest walked away feeling.",
+    objectives: ["Greet and read a guest in the first few seconds", "Explain any drink in one plain, true line", "Answer 'why so expensive' with value, never apology"],
+    founderInsight: "I'll take a guest who felt genuinely looked after over a technically perfect pour every time. Get the feeling right and they forgive a busy day; get it wrong and the best coffee in the city won't bring them back.",
     body: [
       { h: "Greet", p: "Eye contact, a real hello within a few seconds. \"First time with us?\" opens the door to educate. Warm and unhurried even when the line is long." },
       { h: "Educate, don't lecture", p: "Read the guest. A regular wants their order fast; a newcomer wants a quick why. Offer the one-line version first: \"Rise is our clean cold-brew to start the day\" — go deeper only if they're curious." },
@@ -150,6 +159,9 @@ export const MODULES: Module[] = [
   {
     slug: "primal-nutrition", section: "nutrition", title: "Primal Nutrition — the why behind the ingredients", estMin: 10,
     summary: "Why our ingredients, sourcing, prep and process matter — without medical claims.",
+    whyItMatters: "Guests can taste care, but they can't see it — your words are how the work behind the bottle becomes real to them. Explain our choices with confidence and zero claims, and the price and the trust both take care of themselves.",
+    objectives: ["Explain why an ingredient, source, or step is there — in plain language", "Describe care without ever making a health claim", "Say 'estimated until lab-verified' like you mean it"],
+    founderInsight: "'Primal' isn't a diet to me — it's a filter: would this ingredient make sense to someone a hundred years ago? If it's a powder with a chemistry-set name, it doesn't go in. We let the whole food do the work and we never oversell what it does.",
     body: [
       { h: "The goal", p: "This is not medical advice and you should never give any. The goal is to explain our choices confidently in plain language so guests understand the care behind the bottle." },
       { h: "Why ingredients matter", p: "We start with named whole foods — single-origin coffee, organic coconut, pasture-raised bones — not powders, isolates, or concentrates. You can point to where every part of the drink came from." },
@@ -168,6 +180,9 @@ export const MODULES: Module[] = [
   {
     slug: "product-knowledge", section: "product", title: "Product Knowledge — the full lineup", estMin: 12,
     summary: "Know every product cold: what it is, who it's for, and how to talk about it.",
+    whyItMatters: "A guest decides in seconds whether you actually know what you're handing them. Know every drink cold and the recommendation lands; fumble it and even a great product suddenly feels uncertain.",
+    objectives: ["Give the one-line version of any item on the menu", "Name the honest talking points and the sweetener in each", "Never quote a number or a benefit you're not sure of"],
+    founderInsight: "The tell of a great bar isn't a long menu memorized — it's someone who can hear two words from a guest and hand them the exact right bottle. Know the line cold so the recommendation feels like a friend's, not a script.",
     body: [
       { h: "How to use this", p: "Read every product card in the Academy (below this module), then take this check. You should be able to give the one-line version of any item and its honest talking points." },
       { h: "Activation line", p: "Rise, Flow, Dusk — all cold-extracted single-origin coffee. IMPORTANT: all three share one brew spec and the SAME caffeine (~210 mg / 10 oz). The difference is flavor and ingredient, not stimulant level. Dusk is a warm, spiced bottle — not a lower-caffeine option." },
@@ -183,6 +198,9 @@ export const MODULES: Module[] = [
   {
     slug: "event-ops", section: "ops", title: "Event Operations", estMin: 11,
     summary: "Run an event end to end: setup, run-of-show, compliance, breakdown.",
+    whyItMatters: "An event is a full bar built from nothing in an hour and torn down in twenty minutes — with no second chances in front of a live line. What you do before doors decides whether service feels calm or frantic.",
+    objectives: ["Pack from the generated list, not memory", "Clear compliance before the first pour", "Run setup, service, and breakdown to the same standard"],
+    founderInsight: "Every event that felt chaotic traces back to a shortcut before doors — a skipped pack check, an unconfirmed permit, a station set up wrong. Calm at peak is a decision you make during setup, not a personality trait.",
     body: [
       { h: "Before — the pack", p: "Every event has a generated pack list driven by its menu and rig. Pack from the list, not memory. Confirm power and water on site; if no water, the handwash station is mandatory." },
       { h: "Compliance", p: "Confirm the temporary food permit and any county requirements before the event (the app surfaces the jurisdiction's rules). No permit, no pour." },
@@ -199,6 +217,9 @@ export const MODULES: Module[] = [
   {
     slug: "inventory-ops", section: "ops", title: "Inventory & Par", estMin: 7,
     summary: "Keep the bar stocked and the books clean.",
+    whyItMatters: "Run out of your best seller at peak and you lose the sales AND the guests who walked; over-pack and you tie up cash and create waste. Par is how you thread that needle every time instead of guessing.",
+    objectives: ["Pull to an event's par instead of eyeballing", "Log every batch for traceability", "Close the low → flag → restock → log loop"],
+    founderInsight: "Inventory isn't busywork — it's the difference between a day that made money and a day that just looked busy. Every bottle you didn't have was a sale someone tried to hand you and couldn't.",
     body: [
       { h: "Par levels", p: "Every event has a par — the amount of each item you should leave with. Pull to par from the inventory DB; don't eyeball it." },
       { h: "Batch logging", p: "Every brew batch gets logged (GT3 Brew Lab Production) with its spec and signal score. Traceability is part of the standard and the due-diligence story." },
@@ -213,6 +234,9 @@ export const MODULES: Module[] = [
   {
     slug: "cart-ops", section: "ops", title: "Run the Cart", estMin: 8,
     summary: "Cart-only service: setup, flow, and safety.",
+    whyItMatters: "The cart is one person being the whole bar — greeter, barista, cashier, and restock at once. Master the lean rig and you can run a clean service solo; miss its limits and you'll promise a menu you can't pour.",
+    objectives: ["Know what the cart rig can and can't pour before committing a menu", "Run the one-person greet → make → hand-off → reset flow", "Hold cold items safely or don't serve them"],
+    founderInsight: "The cart is the whole business in miniature: if you can hold the standard alone, on a folding table, with a line building — you can hold it anywhere. Simple isn't lesser; it's the standard stripped to its bones.",
     body: [
       { h: "Cart rig", p: "The cart is the lean rig — cold brew on tap or bottles, limited menu, fast setup. Know what the cart can and can't pour before you commit to a menu." },
       { h: "Service flow", p: "One-person flow: greet → make → hand off → reset. Keep your station clean and your most-ordered items within reach." },
@@ -226,6 +250,9 @@ export const MODULES: Module[] = [
   {
     slug: "trailer-ops", section: "ops", title: "Run the Trailer", estMin: 9,
     summary: "Full trailer-plus-cart service for larger activations.",
+    whyItMatters: "The trailer is the full bar at full throughput — more menu, more power, more people, more that can go wrong. Scale magnifies both a sharp setup and a sloppy one, so roles and prep matter more here, not less.",
+    objectives: ["Bring the extra power and the COI naming the venue", "Split the crew into clear roles before doors", "Pre-batch and stage so no station runs dry mid-rush"],
+    founderInsight: "More equipment doesn't make a better bar — clearer roles do. The trailers that ran beautifully weren't the ones with the most gear; they were the ones where everyone knew their lane before the first guest showed up.",
     body: [
       { h: "Trailer rig", p: "The trailer is the full bar — nitro, full menu, more throughput. It needs more setup, power, and a COI naming the venue as additional insured." },
       { h: "Crew roles", p: "At trailer scale you split roles: line, restock, and a lead who owns the run-of-show and the numbers. Assign roles in the event crew roster before doors." },
