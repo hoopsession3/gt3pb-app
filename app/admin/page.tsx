@@ -4120,6 +4120,96 @@ function VendorPicker({ vendors, vendorId, onLink }: { vendors: Vendor[]; vendor
   );
 }
 
+// ───────────────────────── section metadata (shared by header + the guide) ─────────────────────────
+// Each section = one job at one moment. LABEL names it, WHEN says when to reach for it (header pill),
+// SUB is the one-liner, MORE explains it, INSIDE lists what lives there. Order = the shift timeline.
+const SEC_LABEL: Record<OpSection, string> = { day: "My Day", now: "Now", ask: "Ask GT3", prep: "Prep", plan: "Plan", studio: "Studio", money: "Money", team: "Team" };
+const SEC_WHEN: Record<OpSection, string> = {
+  day: "Start of shift", now: "During service", ask: "When you're stuck", prep: "Before the event",
+  plan: "Booking ahead", studio: "Promoting a drop", money: "The books", team: "People & roles",
+};
+const SEC_SUB: Record<OpSection, string> = {
+  day: "Your tasks, flags & what's on today.",
+  now: "Live sales, dispatch & the order pass.",
+  ask: "Recipes, gear, stock & how-to — from the GT3 playbook.",
+  prep: "Stock, readiness & the pack list for what's next.",
+  plan: "Calendar, events, vendors & bookings.",
+  studio: "Draft, schedule & post — brand & marketing.",
+  money: "Pricing, reserves & order history.",
+  team: "People, roles, access & training.",
+};
+const SEC_MORE: Record<OpSection, string> = {
+  day: "Your personal launchpad. Everything assigned to you and everything flagged for your attention, in one place — so the moment you clock in you know exactly what to do.",
+  now: "The live-shift command center. When the truck is serving, this is the only screen you need: orders land, you push them across the pass, and dispatch stays live.",
+  prep: "Get ready before you roll. Build the pack list, check stock and readiness, and sign off that the truck's loaded for the next event or stop.",
+  plan: "The forward calendar. Book events, manage vendors and venues, work incoming booking requests, and schedule brews — weeks and months out.",
+  studio: "Your marketing studio. Draft posts and flyers, keep them on-brand, plan the feed, and schedule everything around your drops.",
+  money: "The books. Set pricing, watch reserve revenue, and review order history — the numbers behind the operation.",
+  team: "Your people. Add crew, set roles and access, and manage training — who can see and do what.",
+  ask: "Your pocket brain. Ask anything about recipes, the why, gear, stock or how-to and get an answer from the GT3 playbook — from any screen.",
+};
+const SEC_INSIDE: Record<OpSection, string[]> = {
+  day: ["Your open tasks & due dates", "Alerts flagged for you", "What's on the calendar today", "Day-of brief — dress code & call time"],
+  now: ["The order pass (kitchen display)", "Live truck controls & GPS", "Order-ahead pickups", "Alerts inbox & live sales"],
+  prep: ["Per-event & per-stop pack lists", "Readiness & inspection checks", "Trailer load-out & gear", "Crew assignments & sign-off"],
+  plan: ["Company calendar", "Events & truck stops", "Vendors & venues", "Booking requests", "Brew schedule & reserves"],
+  studio: ["Post & flyer drafting", "Brand copy & front-end copy", "Feed planning grid", "Repurpose engine", "Publishing & scheduling"],
+  money: ["Menu & pack pricing", "Reserve / order-ahead revenue", "Order history", "Snapshot reports"],
+  team: ["Staff roster", "Roles & permissions", "Training & academy", "Manager approvals"],
+  ask: ["Recipes & the why", "Gear & stock how-to", "The GT3 playbook"],
+};
+
+// The interactive "when to use what" guide — every section the role can reach, each expandable to a
+// plain-language explainer + what's inside, with a one-tap "Go there" jump. Opened from the crew
+// eyebrow or the header WHEN pill.
+function SectionGuide({ allowed, current, onGo, onClose }: { allowed: OpSection[]; current: OpSection; onGo: (s: OpSection) => void; onClose: () => void }) {
+  const [open, setOpen] = useState<OpSection>(current);
+  return (
+    <>
+      <div className="prep-scrim" onClick={onClose} aria-hidden="true" />
+      <div className="guide-sheet" role="dialog" aria-modal="true" aria-label="Section guide — when to use what">
+        <div className="prep-sheet-grab" />
+        <div className="guide-top">
+          <div>
+            <div className="guide-t">When to use what</div>
+            <div className="guide-lede">Each section is one job at one moment. Tap to learn more, then jump straight there.</div>
+          </div>
+          <button type="button" className="guide-x" onClick={onClose} aria-label="Close">✕</button>
+        </div>
+        <div className="guide-list">
+          {allowed.map((s, i) => {
+            const isOpen = open === s;
+            const here = current === s;
+            return (
+              <div key={s} className={`guide-row${isOpen ? " open" : ""}${here ? " here" : ""}`}>
+                <button type="button" className="guide-row-h" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? ("" as OpSection) : s)}>
+                  <span className="guide-num">{i + 1}</span>
+                  <span className="guide-row-tt">
+                    <span className="guide-row-t">{SEC_LABEL[s]}{here && <span className="guide-here-dot">● here now</span>}</span>
+                    <span className="guide-row-sub">{SEC_SUB[s]}</span>
+                  </span>
+                  <span className="guide-when">{SEC_WHEN[s]}</span>
+                  <span className="guide-chev" aria-hidden>{isOpen ? "⌃" : "⌄"}</span>
+                </button>
+                {isOpen && (
+                  <div className="guide-body">
+                    <p className="guide-more">{SEC_MORE[s]}</p>
+                    <div className="guide-inside-h">What's inside</div>
+                    <ul className="guide-inside">{SEC_INSIDE[s].map((x) => <li key={x}>{x}</li>)}</ul>
+                    {here
+                      ? <div className="guide-here-note">You're in {SEC_LABEL[s]} now.</div>
+                      : <button type="button" className="guide-go" onClick={() => { onGo(s); onClose(); }}>Go to {SEC_LABEL[s]} ›</button>}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </>
+  );
+}
+
 export default function AdminPage() {
   const { ready, enabled, user, profile } = useAuth();
   const { section, setSection, back, canGoBack } = useOperatorSection();
@@ -4135,6 +4225,7 @@ export default function AdminPage() {
   const allowed = sectionsForRole(role);
   const sec: OpSection = allowed.includes(section) ? section : "now";
   const [planTab, setPlanTab] = useState<"calendar" | "notes" | "events" | "stops" | "brew" | "vendors" | "bookings" | "reserves">("calendar");
+  const [guideOpen, setGuideOpen] = useState(false);
   // deep-link from Studio's "Company calendar ↗" → land on the Plan calendar
   useEffect(() => {
     if (sec !== "plan" || typeof window === "undefined") return;
@@ -4170,30 +4261,6 @@ export default function AdminPage() {
     );
   }
 
-  const LABEL: Record<OpSection, string> = { day: "My Day", now: "Now", ask: "Ask GT3", prep: "Prep", plan: "Plan", studio: "Studio", money: "Money", team: "Team" };
-  // Each section = one job at one moment. SUB says what's inside; WHEN says when to reach for it
-  // (rendered as a pill on the header) so the crew never wonders which tab a task belongs in.
-  const SUB: Record<OpSection, string> = {
-    day: "Your tasks, flags & what's on today.",
-    now: "Live sales, dispatch & the order pass.",
-    ask: "Recipes, gear, stock & how-to — from the GT3 playbook.",
-    prep: "Stock, readiness & the pack list for what's next.",
-    plan: "Calendar, events, vendors & bookings.",
-    studio: "Draft, schedule & post — brand & marketing.",
-    money: "Pricing, reserves & order history.",
-    team: "People, roles, access & training.",
-  };
-  const WHEN: Record<OpSection, string> = {
-    day: "Start of shift",
-    now: "During service",
-    ask: "When you're stuck",
-    prep: "Before the event",
-    plan: "Booking ahead",
-    studio: "Promoting a drop",
-    money: "The books",
-    team: "People & roles",
-  };
-
   // Overview's jump links map onto the operator sections — and the Plan sub-tab when relevant,
   // so "Events" actually lands on Plan→Events instead of whatever tab was last open.
   const goSection = (t: string) => {
@@ -4206,17 +4273,20 @@ export default function AdminPage() {
   return (
     <section className="screen admin">
       <div className="toprow">
-        <div className="eyb">GT3PB · Crew</div>
+        {/* Eyebrow opens the section guide — "what each section is for + jump there". */}
+        <button type="button" className="eyb eyb-guide" onClick={() => setGuideOpen(true)} aria-haspopup="dialog">GT3PB · Crew <span className="eyb-i" aria-hidden>ⓘ</span></button>
         {/* Back = previous section within crew mode; only leaves for /3mpire when there's no
             section history to step back through. */}
         <button type="button" className="pf" aria-label={canGoBack ? "Back" : "Exit Crew Mode"} onClick={() => { if (!back()) router.push("/3mpire"); }}>‹</button>
       </div>
+      {guideOpen && <SectionGuide allowed={allowed} current={sec} onGo={setSection} onClose={() => setGuideOpen(false)} />}
       <div className="op-head">
         <div className="op-head-row">
-          <div className="op-head-t">{LABEL[sec]}</div>
-          <span className="op-head-when">{WHEN[sec]}</span>
+          <div className="op-head-t">{SEC_LABEL[sec]}</div>
+          {/* Tap the WHEN pill → the full section guide, opened on this section, with jump links. */}
+          <button type="button" className="op-head-when" onClick={() => setGuideOpen(true)} aria-haspopup="dialog" title="What each section is for">{SEC_WHEN[sec]}<span className="op-head-when-i" aria-hidden>ⓘ</span></button>
         </div>
-        <div className="op-head-s">{SUB[sec]}</div>
+        <div className="op-head-s">{SEC_SUB[sec]}</div>
       </div>
 
       {/* Secondary toggle — switches between the merged areas of a grouped bottom-nav tab
