@@ -3,6 +3,7 @@ const C = require("../.smoke/cogs.js");
 const I = require("../.smoke/ics.js");
 const CL = require("../.smoke/captionLint.js");
 const OA = require("../.smoke/orderAhead.js");
+const RV = require("../.smoke/reviews.js");
 let pass = 0, fail = 0;
 const ok = (name, cond, got) => { if (cond) { pass++; } else { fail++; console.log(`  ✗ ${name}` + (got !== undefined ? ` → got ${JSON.stringify(got)}` : "")); } };
 
@@ -170,6 +171,28 @@ ok("past cutoff → next Saturday Jul 11", satD2.getDate() === 11, satD2.toDateS
 ok("Saturday itself rolls forward", OA.nextDrop(new Date(2026, 6, 4, 10, 0)).sat.getDate() === 11);
 ok("dropIsOpen matches resolved sat", OA.dropIsOpen(satD.toISOString(), wedAM) === true);
 ok("dropIsOpen false for stale drop", OA.dropIsOpen(new Date(2026, 5, 27).toISOString(), wedAM) === false);
+
+// --- reviews: clean + anonymize (public-display safety) ---
+ok("anon full name → first + initial", RV.anonName("Marcus Thompson") === "Marcus T.", RV.anonName("Marcus Thompson"));
+ok("anon single name kept", RV.anonName("marcus") === "Marcus", RV.anonName("marcus"));
+ok("anon blank → A guest", RV.anonName("") === "A guest");
+ok("anon email → A guest", RV.anonName("me@x.com") === "A guest");
+ok("clean strips email", !/@/.test(RV.cleanBody("great, hit me me@x.com")), RV.cleanBody("great, hit me me@x.com"));
+ok("clean strips url", !/http/i.test(RV.cleanBody("see http://x.co now")));
+ok("clean strips phone", !/\d{3}/.test(RV.cleanBody("call 404-555-1212 great")));
+ok("clean masks profanity", /f•+/.test(RV.cleanBody("fuck yes best cold brew ever")), RV.cleanBody("fuck yes best cold brew ever"));
+ok("clean caps at 240", RV.cleanBody("a ".repeat(300)).length <= 241);
+ok("display rejects 3-star", RV.isDisplayable({ rating: 3, body: "it was fine coffee here" }) === false);
+ok("display accepts 5-star sentence", RV.isDisplayable({ rating: 5, body: "Smoothest cold brew in Atlanta." }) === true);
+ok("display rejects ALL CAPS spam", RV.isDisplayable({ rating: 5, body: "BEST BEST BEST BEST BEST" }) === false);
+ok("display rejects too short", RV.isDisplayable({ rating: 5, body: "good" }) === false);
+const rvPicked = RV.pickForDisplay([
+  { name: "Ana Ruiz", rating: 5, body: "Rise is my whole morning now." },
+  { name: "Ana Ruiz", rating: 5, body: "Rise is my whole morning now." }, // dup text
+  { name: "x", rating: 2, body: "meh, not for me at all" },
+], 12);
+ok("pick dedupes + filters low", rvPicked.length === 1, rvPicked.length);
+ok("pick anonymizes surname", rvPicked[0] && rvPicked[0].who === "Ana R.", rvPicked[0] && rvPicked[0].who);
 
 console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
 console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);

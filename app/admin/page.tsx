@@ -9,6 +9,7 @@ import { useOperatorSection, sectionsForRole, groupOfSection, SECTION_LABEL, typ
 import TrailerLoadout from "@/components/TrailerLoadout";
 import DropOps from "@/components/DropOps";
 import EightySix from "@/components/EightySix";
+import ReviewsAdmin from "@/components/ReviewsAdmin";
 import PackPlan from "@/components/PackPlan";
 import OrgChart from "@/components/OrgChart";
 import GearLibrary from "@/components/GearLibrary";
@@ -4144,7 +4145,7 @@ const SEC_MORE: Record<OpSection, string> = {
   now: "The live-shift command center. When the truck is serving, this is the only screen you need: orders land, you push them across the pass, and dispatch stays live.",
   prep: "Get ready before you roll. Build the pack list, check stock and readiness, and sign off that the truck's loaded for the next event or stop.",
   plan: "The forward calendar. Book events, manage vendors and venues, work incoming booking requests, and schedule brews — weeks and months out.",
-  studio: "Your marketing studio. Draft posts and flyers, keep them on-brand, plan the feed, and schedule everything around your drops.",
+  studio: "Your marketing studio. Draft posts and flyers, keep them on-brand, plan the feed, schedule around your drops, and moderate the guest reviews that feed the truck display.",
   money: "The books. Set pricing, watch reserve revenue, and review order history — the numbers behind the operation.",
   team: "Your people. Add crew, set roles and access, and manage training — who can see and do what.",
   ask: "Your pocket brain. Ask anything about recipes, the why, gear, stock or how-to and get an answer from the GT3 playbook — from any screen.",
@@ -4154,7 +4155,7 @@ const SEC_INSIDE: Record<OpSection, string[]> = {
   now: ["The order pass (kitchen display)", "Live truck controls & GPS", "Order-ahead pickups", "Alerts inbox & live sales"],
   prep: ["Per-event & per-stop pack lists", "Readiness & inspection checks", "Trailer load-out & gear", "Crew assignments & sign-off"],
   plan: ["Company calendar", "Events & truck stops", "Vendors & venues", "Booking requests", "Brew schedule & reserves"],
-  studio: ["Post & flyer drafting", "Brand copy & front-end copy", "Feed planning grid", "Repurpose engine", "Publishing & scheduling"],
+  studio: ["Post & flyer drafting", "Brand copy & front-end copy", "Feed planning grid", "Repurpose engine", "Publishing & scheduling", "Review Desk → the truck display (/display)"],
   money: ["Menu & pack pricing", "Reserve / order-ahead revenue", "Order history", "Snapshot reports"],
   team: ["Staff roster", "Roles & permissions", "Training & academy", "Manager approvals"],
   ask: ["Recipes & the why", "Gear & stock how-to", "The GT3 playbook"],
@@ -4363,7 +4364,7 @@ export default function AdminPage() {
         </>
       )}
 
-      {sec === "studio" && canManage && <Studio />}
+      {sec === "studio" && canManage && <><Studio /><ReviewsAdmin /></>}
 
       {sec === "money" && isAdmin && (
         <>

@@ -20,9 +20,9 @@ The order-ahead pivot + event lifecycle + editable copy + backend hardening **al
 - PR `claude/event-prep-ai` → `main` (#67). Merging triggers the Vercel **production** deploy automatically.
 - No asset or migration steps for this cut — it's code only.
 
-## 2. Migration ledger — confirm PROD is current (nothing new here)
-This PR adds none. But `main` has grown to **0126**; make sure the production Supabase project has
-the whole set applied (Vercel does NOT run migrations — `supabase db push` or your runner):
+## 2. Migration ledger — confirm PROD is current
+The set has grown to **0129**; make sure the production Supabase project has the whole set applied,
+in order (Vercel does NOT run migrations — `supabase db push` or your runner):
 
 | # | File | What |
 |---|---|---|
@@ -36,6 +36,9 @@ the whole set applied (Vercel does NOT run migrations — `supabase db push` or 
 | 0124 | `set_live_where` | fix "go live" unqualified-UPDATE rejection |
 | 0125 | `stop_completion` | truck-stop wrap step (mirrors event completion) |
 | 0126 | `drop_fulfillment` | reservation manage/cancel + planning wiring |
+| 0127 | `menu_reprice_board` | à-la-carte reprice to the truck board ($10/$14) |
+| 0128 | `restore_tide_broth` | Tide $12 + broths $10 back in the catalog |
+| 0129 | `reviews` | guest reviews table (feeds the truck display) |
 
 Confirm on prod (all should return rows / non-null):
 ```sql
