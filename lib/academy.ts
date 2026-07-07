@@ -812,19 +812,29 @@ export const PRODUCTS: Product[] = [
     faqs: [
       { q: "Why cold and not hot?", a: "Heat pulls bitterness and acidity fast; cold draws the coffee gently over hours for a rounder brew." },
     ],
+    voices: {
+      simple: "The base for everything — single-origin coffee drawn cold over ~18 hours. Smoother and less bitter than hot.",
+      gt3: "Cold extraction is the foundation of the whole Activation line: single-origin beans at 1:13 to mineral water, drawn cold over ~18 hours, then filtered. Heat rips bitterness out in minutes; cold draws the coffee gently, so what's left is round and smooth — extracted, not sweetened.",
+      founder: "We built the entire base on cold extraction for one reason: when you taste the difference, you stop needing me to sell it. One great base under Rise, Flow, Dusk and Nitro means the cup is the same in every city. That's not a shortcut — it's the whole point.",
+    },
     cookbook: { batch: "Standard Batch — GT3: 1:13 beans to mineral water, ~18-hr extraction.", brew: ["Weigh to 1:13", "Cold-extract ~18 hrs", "Filter; log batch + signal score"], serve: ["Use as the base for Rise/Flow/Dusk/Nitro"], storage: "Keep cold; honor the hold window.", quality: "Signal Score 8+; smoothness is the watch metric.", troubleshoot: [{ issue: "Low smoothness signal", fix: "Adjust grind/time toward spec; re-profile." }] },
   },
   {
     key: "salted_maple", name: "Salted Maple Latte", line: "Specialty", price: "$14",
     what: "Cold-extracted coffee with real maple and a pinch of salt, balanced — not a sugar bomb.",
     why: "A touch of comfort and sweetness done with a real ingredient.",
-    ingredients: ["Cold-extracted coffee", "Real maple", "Pinch of salt", "Milk or coconut base per build"],
+    ingredients: ["Cold-extracted coffee", "Organic A2 grass-fed goat milk", "Real organic maple", "Pinch of sea salt"],
     benefits: ["Balanced sweet-salty flavor", "Real maple, not flavored syrup", "Made to order"],
     customer: "The guest who wants a treat-leaning coffee but still real ingredients.",
     talking: ["Real maple and a pinch of salt — balanced, not a syrup bomb", "Disclose the maple as a sweetener", "Built on the same cold-brew base"],
     faqs: [
       { q: "Is it very sweet?", a: "It's balanced — real maple with salt to round it. Maple is the sweetener; we disclose it." },
     ],
+    voices: {
+      simple: "Cold-brew with A2 grass-fed goat milk, real maple, and a pinch of sea salt. Rich and smooth, not a sugar bomb.",
+      gt3: "Salted Maple Latte is built on the cold-brew base with organic A2 grass-fed goat milk, real organic maple, and a pinch of sea salt. The salt balances the maple so it reads rich and smooth — maple-forward, never cloying. Maple's the sweetener and we name it.",
+      founder: "This is the one that proves 'treat' and 'clean' aren't opposites. Real maple instead of flavored syrup, A2 goat milk instead of a mystery barista blend, a pinch of salt to keep it honest — indulgent without a single ingredient we'd have to hide.",
+    },
     cookbook: { batch: "Build to order on the cold-brew base.", brew: ["Pull cold-brew base", "Add measured real maple + pinch of salt", "Add milk/coconut base per build"], serve: ["Over ice, or served warm per build", "Made to order"], storage: "Make to order.", quality: "Sweet-salty balance; maple-forward, not cloying.", troubleshoot: [{ issue: "Too sweet", fix: "Cut maple to spec; add the salt pinch to balance." }] },
   },
   {
@@ -838,6 +848,11 @@ export const PRODUCTS: Product[] = [
     faqs: [
       { q: "Is it like a soup?", a: "It's a sippable broth — savory, warm, made from real bones simmered slow." },
     ],
+    voices: {
+      simple: "Slow-simmered bone broth from pasture-raised bones. Warm, savory, real — sip it like a drink.",
+      gt3: "Bone Broth is slow-simmered for hours from pasture-raised bones (beef, bison, or ostrich), strained and seasoned — no bouillon, no additives. Served hot as a savory, protein-forward option for the rebuild after the work.",
+      founder: "Broth is the oldest 'functional' food there is, and it needs no marketing — just hours on the stove and real bones. We call it warm, savory fuel and stop there; I won't promise your joints anything. The honesty is the product.",
+    },
     cookbook: { batch: "Slow-simmer batch per broth spec.", brew: ["Simmer pasture-raised bones for hours per spec", "Strain, season to spec", "Cool and hold safely"], serve: ["Serve hot in cup", "Hold hot at safe temp"], storage: "Hold hot; discard outside safe hold window.", quality: "Clear, rich, well-seasoned; no off-notes.", troubleshoot: [{ issue: "Greasy", fix: "Skim fat; strain again." }, { issue: "Flat", fix: "Season to spec; check simmer time." }] },
   },
   {
@@ -852,6 +867,11 @@ export const PRODUCTS: Product[] = [
       { q: "Dairy?", a: "None — the creaminess is the coconut meat." },
       { q: "Sugar?", a: "A touch of raw honey; the rest is coconut. We disclose the honey." },
     ],
+    voices: {
+      simple: "A creamier whole-coconut blend — coconut water and meat with a touch of honey. No dairy, blended to order.",
+      gt3: "Coconut Shake is our richer take on whole-coconut hydration — young coconut water blended with extra coconut meat for body, lightly sweetened with organic local honey. Creamy with zero dairy; the honey's the sweetener and we disclose it.",
+      founder: "Same idea as Tide, just fuller — the coconut meat does what dairy would, so it's creamy without any milk. The honey is local and named, always. Proof you can make something that feels like a shake out of nothing but real food.",
+    },
     cookbook: { batch: "Blend to order.", brew: ["Blend coconut water + extra coconut meat for body", "Add honey to spec"], serve: ["Serve cold immediately"], storage: "Make to order.", quality: "Creamy, smooth, no separation.", troubleshoot: [{ issue: "Too thin", fix: "Add coconut meat for body." }] },
   },
 ];
