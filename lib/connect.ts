@@ -24,3 +24,13 @@ export const CONNECT_GROUPS: ConnectGroup[] = [
     { label: "Events & catering", sub: "bring the bar", href: "https://app.gt3pb.com/book", badge: "✦" },
   ] },
 ];
+
+// Leadership-only — appended to the hub when signed in as owner/admin, so you can pull up the
+// investor brief mid-conversation. The partner one-pager is safe to show (no financials); the live
+// architecture map is the owner deep-dive.
+export const CONNECT_LEADERSHIP: ConnectGroup = {
+  q: "Investor brief", links: [
+    { label: "What we've built", sub: "partner one-pager", href: "/built/gt3-built-k7m9x4q2", badge: "★" },
+    { label: "The build, live", sub: "architecture + status", href: "/architecture", badge: "⌬" },
+  ],
+};

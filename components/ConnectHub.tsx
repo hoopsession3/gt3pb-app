@@ -3,13 +3,17 @@
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import Gt3Mark from "@/components/Gt3Mark";
-import { CONNECT_GROUPS, CONNECT_PRIMARY } from "@/lib/connect";
+import { useAuth, roleOf } from "@/components/AuthProvider";
+import { CONNECT_GROUPS, CONNECT_LEADERSHIP, CONNECT_PRIMARY } from "@/lib/connect";
 
 // CONNECT HUB — a floating, intent-driven "link tree." Pull it up anytime someone asks where to find
 // GT3: it asks what they're here for ("Wanna order?", "Learn the brew?", "Connect?") and drops down
 // the right links, plus a QR of the site to scan straight off the screen. Side-docked with a slow
 // raise so it's there when needed, never in the way.
 export default function ConnectHub() {
+  const { profile } = useAuth();
+  const isLeader = ["owner", "admin"].includes(roleOf(profile)); // owner/manager see the investor brief
+  const groups = isLeader ? [...CONNECT_GROUPS, CONNECT_LEADERSHIP] : CONNECT_GROUPS;
   const [open, setOpen] = useState(false);
   const [group, setGroup] = useState(0); // which intent is expanded
   const [qr, setQr] = useState("");
@@ -38,12 +42,13 @@ export default function ConnectHub() {
           <div className="chub-head"><Gt3Mark tone="cream" /><span className="chub-head-s">What are you here for?</span></div>
 
           <div className="chub-groups">
-            {CONNECT_GROUPS.map((g, i) => {
+            {groups.map((g, i) => {
               const on = group === i;
+              const lead = g === CONNECT_LEADERSHIP;
               return (
-                <div key={g.q} className={`chub-grp${on ? " on" : ""}`}>
+                <div key={g.q} className={`chub-grp${on ? " on" : ""}${lead ? " chub-grp-lead" : ""}`}>
                   <button type="button" className="chub-q" aria-expanded={on} onClick={() => setGroup(on ? -1 : i)}>
-                    <span>{g.q}</span><span className="chub-q-chev" aria-hidden>⌄</span>
+                    <span>{g.q}{lead && <span className="chub-lead-tag">owner</span>}</span><span className="chub-q-chev" aria-hidden>⌄</span>
                   </button>
                   {on && (
                     <div className="chub-links">
