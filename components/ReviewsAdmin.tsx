@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useApp } from "./AppProvider";
 import { cleanReview, isDisplayable } from "@/lib/reviews";
 
 // STAFF REVIEW DESK — approve member feedback and add reviews pulled from Google / Instagram / the
@@ -12,10 +13,43 @@ interface Row { id: string; name: string | null; rating: number; body: string | 
 const SOURCES = ["manual", "google", "instagram", "app"] as const;
 
 export default function ReviewsAdmin() {
+  const { toast } = useApp();
   const [rows, setRows] = useState<Row[]>([]);
   const [tab, setTab] = useState<"pending" | "live">("pending");
   const [adding, setAdding] = useState(false);
   const [f, setF] = useState<{ name: string; rating: number; body: string; source: string }>({ name: "", rating: 5, body: "", source: "google" });
+  // AI-simplified suggestion per row (id → cleaned quote), and which row is mid-request.
+  const [suggest, setSuggest] = useState<Record<string, string>>({});
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  // Ask the AI editor to trim + de-claim a review into a display-ready line. It never invents praise;
+  // it strips health/medical claims and noise. The suggestion is shown for the operator to accept.
+  const simplify = async (r: Row) => {
+    if (!r.body?.trim()) return;
+    setBusyId(r.id);
+    try {
+      const res = await fetch("/api/reviews/simplify", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: r.body }),
+      });
+      const d = await res.json();
+      if (!res.ok || !d.text) { toast(d.error || "Couldn't simplify — edit by hand", "error"); return; }
+      if (d.stillGenuine === false) { toast("Nothing display-safe left once the claim was removed — skip this one", "error"); return; }
+      setSuggest((s) => ({ ...s, [r.id]: d.text as string }));
+      if (d.droppedClaim) toast("Simplified — a health claim was removed", "success");
+    } catch { toast("Couldn't reach the editor — try again", "error"); }
+    finally { setBusyId(null); }
+  };
+
+  // Accept the AI suggestion: it becomes the review body and goes live in one move.
+  const acceptSuggestion = async (id: string) => {
+    if (!supabase) return;
+    const text = suggest[id];
+    await supabase.from("reviews").update({ body: text, approved: true }).eq("id", id);
+    setSuggest((s) => { const n = { ...s }; delete n[id]; return n; });
+    load();
+  };
+  const dismissSuggestion = (id: string) => setSuggest((s) => { const n = { ...s }; delete n[id]; return n; });
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -72,17 +106,31 @@ export default function ReviewsAdmin() {
       {shown.length === 0 && <div className="h-sub">{tab === "pending" ? "No reviews waiting." : "Nothing live yet — approve or add some."}</div>}
       {shown.map((r) => {
         const c = cleanReview(r); const okd = isDisplayable(r);
+        const sug = suggest[r.id];
         return (
           <div key={r.id} className="rva-row">
             <div className="rva-row-body">
               <div className="rva-row-meta">{"★".repeat(c.rating)}<span className="rva-src-tag">{r.source}</span>{!okd && <span className="rva-warn">below display bar</span>}</div>
               <div className="rva-row-q">“{c.text}”</div>
               <div className="rva-row-who">— {c.who}</div>
+              {sug && (
+                <div className="rva-sug">
+                  <span className="rva-sug-lbl">✨ Simplified</span>
+                  <div className="rva-sug-q">“{sug}”</div>
+                  <div className="rva-sug-actions">
+                    <button className="rva-act ok" onClick={() => acceptSuggestion(r.id)}>Use this + approve</button>
+                    <button className="rva-act" onClick={() => dismissSuggestion(r.id)}>Keep original</button>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="rva-row-actions">
               {r.approved
                 ? <button className="rva-act" onClick={() => setApproved(r.id, false)}>Hide</button>
-                : <button className="rva-act ok" onClick={() => setApproved(r.id, true)} disabled={!okd} title={okd ? "" : "Below the display bar"}>Approve</button>}
+                : <>
+                    <button className="rva-act ok" onClick={() => setApproved(r.id, true)} disabled={!okd} title={okd ? "" : "Below the display bar — simplify or edit it"}>Approve</button>
+                    <button className="rva-act ai" onClick={() => simplify(r)} disabled={busyId === r.id || !r.body?.trim()}>{busyId === r.id ? "…" : "✨ Simplify"}</button>
+                  </>}
               <button className="rva-act del" onClick={() => remove(r.id)} aria-label="Delete">✕</button>
             </div>
           </div>

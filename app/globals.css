@@ -3182,6 +3182,14 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .rva-act.ok{border-color:var(--ok);color:var(--ok)}
 .rva-act.ok:disabled{opacity:.4}
 .rva-act.del{color:var(--red-h);border-color:transparent;padding:7px 9px}
+.rva-act.ai{border-color:var(--gold2,#B8902F);color:var(--gold2,#B8902F)}
+.rva-act.ai:disabled{opacity:.5}
+/* AI-simplified suggestion, shown under the original for the operator to accept */
+.rva-sug{margin-top:8px;border-left:2px solid var(--gold2,#B8902F);background:rgba(184,144,47,.06);border-radius:0 8px 8px 0;padding:8px 12px}
+.rva-sug-lbl{font-family:'Inter';font-weight:700;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold2,#B8902F)}
+.rva-sug-q{font-size:13px;line-height:1.5;color:var(--cream,#F5F1E8);margin:4px 0 8px}
+.app.crew-day .rva-sug-q{color:#221f18}
+.rva-sug-actions{display:flex;gap:8px}
 
 /* ─────────── truck display loop (/display) ─────────── */
 .disp{position:fixed;inset:0;z-index:2000;background:linear-gradient(165deg,#15120D 0%,#1c1811 60%,#22160f 100%);color:var(--cream);display:flex;align-items:center;justify-content:center;overflow:hidden;padding:5vmin}
