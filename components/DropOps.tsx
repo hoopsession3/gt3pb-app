@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useApp } from "./AppProvider";
-import { FLAVORS, nextDrop, mixSummary, dollars, type GlassPath, type Mix } from "@/lib/orderAhead";
+import { FLAVORS, nextDrop, dropDateKey, mixSummary, dollars, type GlassPath, type Mix } from "@/lib/orderAhead";
 
 // DROP OPS — the order-ahead brew sheet + pickup checklist for Saturday's drop. Lives in the admin
 // "Now" section right under the kitchen pass (and pops out of reservation alerts), so walk-up orders
@@ -30,9 +30,29 @@ export default function DropOps() {
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState<DropOrder[]>([]); // past drops — where fulfilled orders live on
   const [histOpen, setHistOpen] = useState(false);
-  const sat = nextDrop().sat;
-  const dropISO = sat.toISOString().slice(0, 10);
-  const satLabel = sat.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  // The drop = the truck's NEXT scheduled stop (same resolution as the reserve flow + /api/reserve),
+  // falling back to the Saturday cadence when the route is empty — the sheet and the reservations
+  // must always agree on which date "this drop" is.
+  const [drop, setDrop] = useState<{ iso: string; label: string }>(() => {
+    const s = nextDrop().sat;
+    return { iso: dropDateKey(s), label: s.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) };
+  });
+  useEffect(() => {
+    if (!supabase) return;
+    let liveFlag = true;
+    supabase.from("stops").select("starts_at").is("archived_at", null).neq("status", "done").not("starts_at", "is", null)
+      .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(1).maybeSingle()
+      .then(({ data }) => {
+        const at = (data as { starts_at?: string | null } | null)?.starts_at;
+        if (liveFlag && at) {
+          const d = new Date(at);
+          setDrop({ iso: dropDateKey(d), label: d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) });
+        }
+      });
+    return () => { liveFlag = false; };
+  }, []);
+  const dropISO = drop.iso;
+  const satLabel = drop.label;
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -109,7 +129,7 @@ export default function DropOps() {
     const wanted = FLAVORS.filter((f) => perF[f] > 0);
     const { data: recipes } = await supabase.from("brew_recipes")
       .select("id, name, product_slug, yield_factor").in("product_slug", wanted.map((f) => f.toLowerCase())).is("archived_at", null);
-    const brewD = new Date(sat); brewD.setDate(sat.getDate() - 1); // 18h cold extraction → brew Friday
+    const brewD = new Date(`${dropISO}T12:00:00`); brewD.setDate(brewD.getDate() - 1); // 18h cold extraction → brew the day before the drop
     const brewISO = brewD.toISOString().slice(0, 10);
     const ins = wanted.map((f) => {
       const r = (recipes ?? []).find((x) => x.product_slug === f.toLowerCase());
