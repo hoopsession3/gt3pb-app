@@ -23,6 +23,7 @@ interface Rec { state: string; sub: string; drinks: RecDrink[]; straight: string
 // each drink's job in the day's arc — the anticipatory "what this is for" a guest wants to see
 const ROLE: Record<DrinkId, string> = {
   rise: "Open the day clear", flow: "Carry the deep work", dusk: "Ease into the day",
+  kingme: "The same lift, nitro-smooth", maple: "A clean afternoon treat",
   tide: "Hydrate through it", aide: "Hydrate through it",
   forge: "Rebuild after", hunt: "Rebuild after", wild: "Rebuild after",
 };
@@ -95,6 +96,8 @@ function buildRec(a: Complete): Rec {
     rise:  "Single-origin coffee, cold-extracted ~18 hours, finished with organic coconut water. A clean, even lift to open the day — rounder and less bitter than hot. Same caffeine as Flow and Dusk (~210 mg/10 oz, estimated until lab-verified).",
     flow:  "The same cold-extraction base, infused with organic cacao nibs. Reads richer and steadier for heads-down work — no added sugar, same caffeine as the rest of the line.",
     dusk:  "Ceylon cinnamon and green cardamom over the same cold-extraction base. Warm and spiced for the back half of the day — same caffeine as Rise and Flow, not a wind-down.",
+    kingme: "Our FLOW brew served on nitrogen — a velvety, naturally creamy, subtly sweet texture from microbubbles, nothing added. Same clean cold-extraction base.",
+    maple: "Organic A2 grass-fed goat milk with organic maple and a pinch of sea salt. Rich, naturally sweet and smooth — a treat that still names every ingredient.",
     tide:  "Whole-food hydration — young coconut water blended with young organic Thai coconut meat and a touch of organic local honey (we always name it). Blended to order, never a powder or concentrate.",
     aide:  "Coconut water and mineral water with organic maple and a pinch of sea salt. Light, clean hydration for the middle of the work — real ingredients, not a powder.",
     forge: "Slow-simmered beef bone broth, pasture-raised. Deep, rich and mineral-forward — real food for the rebuild after training, not a supplement.",
@@ -106,6 +109,8 @@ function buildRec(a: Complete): Rec {
     rise:  "30 min before first task",
     flow:  "30 min before deep work or training",
     dusk:  "Morning or mid-morning window",
+    kingme: "30 min before deep work or training",
+    maple: "Morning or afternoon treat",
     tide:  "During work or training",
     aide:  "During work or training",
     forge: "Post-training · within 60 min",

@@ -2,7 +2,9 @@
 // Pillars: ACTIVATION (before) · HYDRATION (during) · FUEL (after).
 // Copy is ingredient-led: name → what it is (extraction + whole-food input) → why it exists.
 
-export type DrinkId = "rise" | "flow" | "dusk" | "tide" | "aide" | "forge" | "hunt" | "wild";
+// Live IDs = the truck board (rise/flow/dusk/kingme/maple/aide). tide/forge/hunt/wild are retained
+// so historical orders still render, but they're off the live MENU below.
+export type DrinkId = "rise" | "flow" | "dusk" | "kingme" | "maple" | "tide" | "aide" | "forge" | "hunt" | "wild";
 
 export interface DrinkDetail {
   n: string;
@@ -20,7 +22,7 @@ export interface DrinkDetail {
 
 export const DRINKS: Record<DrinkId, DrinkDetail> = {
   rise: {
-    n: "RISE", px: "$7", grad: "linear-gradient(140deg,#7a5c3a,#caa46d)", dot: "#C49A5E",
+    n: "RISE", px: "$10", grad: "linear-gradient(140deg,#7a5c3a,#caa46d)", dot: "#C49A5E",
     lines: ["Cold-extracted coffee in mineral water","Finished with Organic Coconut Water"],
     why: "A clean, even lift to start the morning.",
     tag: "Order here",
@@ -29,7 +31,7 @@ export const DRINKS: Record<DrinkId, DrinkDetail> = {
     when: "BEFORE", whenT: "Morning, before the first task.",
   },
   flow: {
-    n: "FLOW", px: "$7", grad: "linear-gradient(140deg,#3a2418,#6b4429)", dot: "#6B4429",
+    n: "FLOW", px: "$10", grad: "linear-gradient(140deg,#3a2418,#6b4429)", dot: "#6B4429",
     lines: ["Cold-extracted coffee in mineral water","Infused with Organic Cacao Nibs"],
     why: "Cacao to keep the focus going a little longer.",
     has: ["Single-origin cold extraction", "Mineral water base", "Organic cacao nibs"],
@@ -37,12 +39,29 @@ export const DRINKS: Record<DrinkId, DrinkDetail> = {
     when: "BEFORE", whenT: "Before deep, heads-down work.",
   },
   dusk: {
-    n: "DUSK", px: "$7", grad: "linear-gradient(140deg,#5a3826,#9c6b3f)", dot: "#9C6B3F",
+    n: "DUSK", px: "$10", grad: "linear-gradient(140deg,#5a3826,#9c6b3f)", dot: "#9C6B3F",
     lines: ["Cold-extracted coffee in mineral water","Ceylon Cinnamon · Green Cardamom"],
     why: "Cinnamon and cardamom for a warmer, spiced cup.",
     has: ["Single-origin cold extraction", "Mineral water base", "Ceylon cinnamon", "Green cardamom"],
     no: ["Sugar", "Dairy", "Syrups", "Preservatives"],
     when: "BEFORE", whenT: "Afternoon, when you want a warmer cup with the same lift.",
+  },
+  kingme: {
+    n: "KING ME", px: "$14", grad: "linear-gradient(140deg,#2b1c12,#5c4632)", dot: "#6B4429",
+    lines: ["FLOW brew served on nitrogen","Velvety, naturally creamy, subtly sweet"],
+    why: "A sensory phenomenon — texture and microbubbles, nothing added.",
+    tag: "Nitro",
+    has: ["FLOW cold-extraction", "Nitrogen infusion"],
+    no: ["Sugar", "Dairy", "Syrups", "Preservatives"],
+    when: "BEFORE", whenT: "The same clean lift, with a creamy nitro texture.",
+  },
+  maple: {
+    n: "SALTED MAPLE LATTE", px: "$14", grad: "linear-gradient(140deg,#5a3826,#b8902f)", dot: "#B8902F",
+    lines: ["Organic A2 grass-fed goat milk","Organic maple · Sea salt"],
+    why: "Rich, naturally sweet and smooth.",
+    has: ["Organic A2 grass-fed goat milk", "Organic maple syrup", "Sea salt"],
+    no: ["Refined sugar", "Seed oils", "Preservatives"],
+    when: "BEFORE", whenT: "An afternoon treat that still eats clean.",
   },
   tide: {
     n: "TIDE", px: "$8", grad: "linear-gradient(140deg,#2f7d74,#79c7bb)", dot: "#2F7D74",
@@ -53,7 +72,7 @@ export const DRINKS: Record<DrinkId, DrinkDetail> = {
     when: "DURING", whenT: "During work or training.",
   },
   aide: {
-    n: "NATURE AIDE", px: "$8", grad: "linear-gradient(140deg,#a97c3f,#c8a661)", dot: "#A97C3F",
+    n: "NATURE'S AIDE", px: "$10", grad: "linear-gradient(140deg,#a97c3f,#c8a661)", dot: "#A97C3F",
     lines: ["Coconut water + mineral water", "Organic maple · Sea salt"],
     why: "Light, balanced hydration for the middle of the work.",
     has: ["Coconut water", "Mineral water", "Organic maple syrup", "Sea salt"],
@@ -89,8 +108,9 @@ export const DRINKS: Record<DrinkId, DrinkDetail> = {
 // Menu pillars — permanent brand architecture.
 export interface MenuCategory { name: string; wn: string; rows: DrinkId[] }
 
+// Live menu = the truck board. TIDE (hydration) and the FUEL broths (FORGE/HUNT/WILD) aren't on the
+// current board, so they're off the live menu — their DRINKS entries stay only so old orders render.
 export const MENU: MenuCategory[] = [
-  { name: "Activation", wn: "Before the work", rows: ["rise", "flow", "dusk"] },
-  { name: "Hydration", wn: "During the work", rows: ["tide", "aide"] },
-  { name: "Fuel", wn: "After the work", rows: ["forge", "hunt", "wild"] },
+  { name: "Activation", wn: "Before the work", rows: ["rise", "flow", "dusk", "kingme", "maple"] },
+  { name: "Hydration", wn: "During the work", rows: ["aide"] },
 ];

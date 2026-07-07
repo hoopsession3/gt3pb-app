@@ -4273,11 +4273,18 @@ export default function AdminPage() {
   return (
     <section className="screen admin">
       <div className="toprow">
-        {/* Eyebrow opens the section guide — "what each section is for + jump there". */}
-        <button type="button" className="eyb eyb-guide" onClick={() => setGuideOpen(true)} aria-haspopup="dialog">GT3PB · Crew <span className="eyb-i" aria-hidden>ⓘ</span></button>
-        {/* Back = previous section within crew mode; only leaves for /3mpire when there's no
-            section history to step back through. */}
-        <button type="button" className="pf" aria-label={canGoBack ? "Back" : "Exit Crew Mode"} onClick={() => { if (!back()) router.push("/3mpire"); }}>‹</button>
+        {/* Mode switch — you're in Crew; tap Customer view to drop to the customer app ("/"). */}
+        <div className="modesw" role="group" aria-label="View mode">
+          <span className="modesw-seg on" aria-current="true">Crew</span>
+          <button type="button" className="modesw-seg" onClick={() => router.push("/")}>Customer view</button>
+        </div>
+        <div className="toprow-actions">
+          {/* Section guide — what each section is for + jump there. */}
+          <button type="button" className="crew-guide" onClick={() => setGuideOpen(true)} aria-haspopup="dialog"><span aria-hidden>ⓘ</span> Guide</button>
+          {/* Back = previous section within crew mode; only leaves for /3mpire when there's no
+              section history to step back through. */}
+          <button type="button" className="pf" aria-label={canGoBack ? "Back" : "Exit Crew Mode"} onClick={() => { if (!back()) router.push("/3mpire"); }}>‹</button>
+        </div>
       </div>
       {guideOpen && <SectionGuide allowed={allowed} current={sec} onGo={setSection} onClose={() => setGuideOpen(false)} />}
       <div className="op-head">
