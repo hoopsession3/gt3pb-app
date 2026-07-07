@@ -3275,3 +3275,5 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .mp-wallets{display:flex;flex-direction:column;gap:8px;margin-top:13px}
 .mp-wallets .mp-wallet{margin-top:0}
 .mp-wallet-g{background:#fff;color:#3c4043;border:1px solid #dadce0}
+/* app name "No Noise" under the brand lockup (guest front door) */
+.mast-brand .mast-app{font-family:'DM Mono',ui-monospace,monospace;font-size:8px;font-weight:500;letter-spacing:2.6px;text-transform:uppercase;color:var(--gold2,#C8A661);margin-top:3px}
