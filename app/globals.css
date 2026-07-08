@@ -3378,3 +3378,10 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .crumbs .crumb-lk{background:none;border:none;padding:0;cursor:pointer;color:var(--gold2);font:inherit}
 .crumbs .crumb-lk:hover{text-decoration:underline}
 .crumbs span[aria-current="page"]{color:var(--cream)}
+/* Offline chip — connectivity truth for the crew console. Amber = offline (writes queuing); green = back online, queue draining. Hidden entirely when online + empty. */
+.offchip{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--navh,68px) + 14px);z-index:78;display:flex;align-items:center;gap:8px;background:#33250f;border:1px solid var(--warn);color:var(--cream);border-radius:999px;padding:8px 14px;font-family:'Inter';font-size:12.5px;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,.45);white-space:nowrap}
+.offchip b{color:var(--warn);font-weight:800;letter-spacing:.04em;text-transform:uppercase;font-size:11px}
+.offchip.on{background:#13230f;border-color:var(--ok)}
+.offchip-dot{width:8px;height:8px;border-radius:50%;background:var(--warn);animation:offpulse 1.6s ease-in-out infinite;flex:0 0 auto}
+.offchip.on .offchip-dot{background:var(--ok)}
+@keyframes offpulse{0%,100%{opacity:1}50%{opacity:.3}}

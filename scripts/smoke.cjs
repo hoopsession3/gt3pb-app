@@ -5,6 +5,7 @@ const CL = require("../.smoke/captionLint.js");
 const OA = require("../.smoke/orderAhead.js");
 const RV = require("../.smoke/reviews.js");
 const RC = require("../.smoke/recents.js");
+const OF = require("../.smoke/offline.js");
 let pass = 0, fail = 0;
 const ok = (name, cond, got) => { if (cond) { pass++; } else { fail++; console.log(`  ✗ ${name}` + (got !== undefined ? ` → got ${JSON.stringify(got)}` : "")); } };
 
@@ -208,6 +209,23 @@ const rCap = Array.from({ length: 12 }).reduce((acc, _, i) => RC.addRecent(acc, 
 ok("addRecent caps at max", rCap.length === 8, rCap.length);
 const rTop = RC.topRecents([{ key: "a", kind: "event", id: "a", label: "A", at: 5 }, { key: "b", kind: "event", id: "b", label: "B", at: 9 }, { key: "c", kind: "event", id: "c", label: "", at: 20 }], 5);
 ok("topRecents sorts desc + drops blank", rTop.length === 2 && rTop[0].id === "b", rTop.map((x) => x.id));
+
+// --- offline queue: coalescing replay math ---
+const op1 = OF.orderStatusOp("o1", "preparing", 100);
+ok("orderStatusOp key", op1.key === "order_status:o1" && op1.value === "preparing");
+const q1 = OF.enqueueOp([], op1);
+ok("enqueue inserts", q1.length === 1);
+const q2 = OF.enqueueOp(q1, OF.orderStatusOp("o2", "ready", 200));
+ok("enqueue appends new target", q2.length === 2 && q2[1].id === "o2");
+const q3 = OF.enqueueOp(q2, OF.orderStatusOp("o1", "done", 300));
+ok("enqueue coalesces same target in place", q3.length === 2 && q3[0].id === "o1" && q3[0].value === "done", q3);
+const qCap = Array.from({ length: 210 }).reduce((acc, _, i) => OF.enqueueOp(acc, OF.orderStatusOp(`o${i}`, "done", i), 200), []);
+ok("enqueue caps at max (oldest dropped)", qCap.length === 200 && qCap[0].id === "o10", qCap.length);
+const qStale = OF.pruneStale([OF.orderStatusOp("old", "done", 0), OF.orderStatusOp("new", "done", 999_000)], 1_000_000, 60_000);
+ok("pruneStale drops expired ops", qStale.length === 1 && qStale[0].id === "new", qStale);
+ok("snapshot fresh is usable", OF.snapshotUsable(1_000, 61_000) === true);
+ok("snapshot too old is not", OF.snapshotUsable(1_000, 1_000 + 3 * 60 * 60 * 1000) === false);
+ok("snapshot from the future is not", OF.snapshotUsable(5_000, 1_000) === false);
 
 console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
 console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);

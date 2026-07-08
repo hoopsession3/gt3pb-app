@@ -20,6 +20,7 @@ import CommandPalette from "./CommandPalette";
 import SwipeBack from "./SwipeBack";
 import ScrollRestore from "./ScrollRestore";
 import ErrorReporter from "./ErrorReporter";
+import OfflineChip from "./OfflineChip";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -99,6 +100,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {inAdmin && <CommandPalette />}
         {inAdmin && <SwipeBack />}
         {inAdmin && <ScrollRestore />}
+        {inAdmin && <OfflineChip />}
         {customerSurface && <Concierge />}
         {inAdmin && <button type="button" className="theme-toggle" onClick={toggleTheme} aria-label={theme === "day" ? "Switch to dark" : "Switch to day"}>{theme === "day" ? "🌙" : "☀️"}</button>}
         {!isShare && <DisplayToggle />}

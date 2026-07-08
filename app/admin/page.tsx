@@ -8,6 +8,8 @@ import { useAuth, roleOf, type Profile } from "@/components/AuthProvider";
 import { useOperatorSection, sectionsForRole, groupOfSection, SECTION_LABEL, type OpSection } from "@/components/OperatorNav";
 import { CrumbProvider, Breadcrumbs, useCrumb } from "@/components/Crumbs";
 import { recordRecent } from "@/components/recents";
+import { queueOrderStatus, isNetworkError, saveSnapshot, readSnapshot, readQueue, OFFLINE_EVENT } from "@/components/offline";
+import { snapshotUsable } from "@/lib/offline";
 import TrailerLoadout from "@/components/TrailerLoadout";
 import DropOps from "@/components/DropOps";
 import EightySix from "@/components/EightySix";
@@ -104,6 +106,7 @@ function Kitchen() {
   const [doneOpen, setDoneOpen] = useState(false);
   const [, setTick] = useState(0);
   const [err, setErr] = useState("");
+  const [staleAt, setStaleAt] = useState(0); // >0 = board hydrated from the offline snapshot
   const seeded = useRef(false);
   const mutedRef = useRef(false);
   useEffect(() => { mutedRef.current = muted; }, [muted]);
@@ -116,9 +119,17 @@ function Kitchen() {
     const recentISO = new Date(Date.now() - RECENT_MS).toISOString();
     const { data, error } = await supabase.from("orders").select("*").neq("status", "void")
       .or(`status.neq.done,status_changed_at.gte.${recentISO}`).order("created_at");
-    if (error) { setErr(error.message); return; }
-    setErr("");
-    if (data) setOrders(data as Order[]);
+    if (error) {
+      // No signal on a fresh open → show the last-known board (clearly labeled) instead of an
+      // error over a blank pass. Taps still work; writes queue and sync when the signal returns.
+      if (!seeded.current && isNetworkError(error.message)) {
+        const snap = readSnapshot<Order[]>("gt3-kds-snap");
+        if (snap && snapshotUsable(snap.at, Date.now())) { setOrders(snap.data); setStaleAt(snap.at); seeded.current = true; return; }
+      }
+      setErr(error.message); return;
+    }
+    setErr(""); setStaleAt(0);
+    if (data) { setOrders(data as Order[]); saveSnapshot("gt3-kds-snap", data); }
     seeded.current = true;
   }, []);
   // Merge a single row into state (no refetch). Keeps recently-done; drops voids and
@@ -148,7 +159,11 @@ function Kitchen() {
     load();
     const tick = setInterval(() => setTick((n) => n + 1), 1000);   // live clocks/colours
     const recon = setInterval(() => load(), 15000);                // reconcile safety net
-    if (!supabase) return () => { clearInterval(tick); clearInterval(recon); };
+    // When the offline queue drains (OfflineChip replayed it), reconcile immediately so the
+    // board swaps from optimistic/snapshot state to server truth.
+    const onQueue = () => { if (readQueue().length === 0) load(); };
+    window.addEventListener(OFFLINE_EVENT, onQueue);
+    if (!supabase) return () => { clearInterval(tick); clearInterval(recon); window.removeEventListener(OFFLINE_EVENT, onQueue); };
     const ch = supabase
       .channel("admin-kds")
       .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, (p) => {
@@ -157,7 +172,7 @@ function Kitchen() {
         if (p.eventType === "INSERT" && row?.status === "new") announceNew(row);
       })
       .subscribe();
-    return () => { clearInterval(tick); clearInterval(recon); supabase?.removeChannel(ch); };
+    return () => { clearInterval(tick); clearInterval(recon); window.removeEventListener(OFFLINE_EVENT, onQueue); supabase?.removeChannel(ch); };
   }, [load, apply, announceNew]);
 
   // Instant: patch local state synchronously, fire the write, no refetch on success.
@@ -167,7 +182,12 @@ function Kitchen() {
     haptic(HAPTIC.tap);
     // Definer RPC so a 'server' can advance status without table-wide write access.
     const { error } = await supabase.rpc("staff_set_order_status", { p_order: o.id, p_status: to });
-    if (error) { setErr(error.message); toast(`Couldn't update — ${error.message}`, "error"); load(); }
+    if (error) {
+      // No signal ≠ stop service: keep the optimistic board, park the write for replay
+      // (coalesced per order — the final state wins), and say so calmly.
+      if (isNetworkError(error.message)) { queueOrderStatus(o.id, to); toast("No signal — saved, will sync", "info"); return; }
+      setErr(error.message); toast(`Couldn't update — ${error.message}`, "error"); load();
+    }
   };
   const advance = (o: Order) => move(o, NEXT[o.status]);
   const recall = (o: Order) => move(o, PREV[o.status]);
@@ -176,7 +196,10 @@ function Kitchen() {
     if (!supabase) return;
     apply(o, true);
     const { error } = await supabase.rpc("staff_set_order_status", { p_order: o.id, p_status: "void" });
-    if (error) { setErr(error.message); toast(`Couldn't void — ${error.message}`, "error"); load(); }
+    if (error) {
+      if (isNetworkError(error.message)) { queueOrderStatus(o.id, "void"); toast("No signal — void saved, will sync", "info"); return; }
+      setErr(error.message); toast(`Couldn't void — ${error.message}`, "error"); load();
+    }
   };
 
   const toggle = (k: string) => setCollapsed((p) => { const n = new Set(p); if (n.has(k)) n.delete(k); else n.add(k); return n; });
@@ -192,6 +215,11 @@ function Kitchen() {
       </div>
 
       {err && <div className="adm-attn" role="alert">Backend error: {err}</div>}
+      {staleAt > 0 && (
+        <div className="adm-attn" role="alert">
+          <b>Offline</b> — showing the last-known board (from {ago(new Date(staleAt).toISOString())}). Taps still work and will sync when the signal returns.
+        </div>
+      )}
       {late.length > 0 && (
         <div className="adm-attn" role="alert">
           <b>{late.map((o) => o.customer ?? "Guest").join(", ")}</b> waiting past 8 min — step over and reassure the guest.
