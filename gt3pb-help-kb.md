@@ -15,6 +15,9 @@ the change isn't done.
 3. **This index** — the top-level map + the deploy runbook (`gt3pb-deploy-v1.md`).
 
 ## Customer surfaces
+The customer-facing app is named **"No Noise"** (PWA manifest + home-screen install name + guest-header
+wordmark; canonical host `app.gt3pb.com`). "GT3 Performance Bar" stays the brand lockup above it.
+
 | Surface | Route | What |
 |---|---|---|
 | Home / Today | `/` | Greeting, your usual, **loyalty stamp card**, reserve pitch, day-builder |
@@ -24,6 +27,7 @@ the change isn't done.
 | Account (3mpire) | `/3mpire` | **Scannable GT3 membership card (unique per-member QR)**, ring, credit, **leave a review**, order history |
 | Operator scan | `/scan?m=<code>` | Staff-only: scan a member's card QR → their stamps → **add a stamp** for a walk-up |
 | Truck display | `/display` | Full-screen loop for a tablet/TV: menu · brand · guest reviews · connect (scan QR) |
+| Connect hub | every screen (side tab) | Floating intent link tree (`components/ConnectHub` + `lib/connect`): "Wanna order / Learn the brew / Connect / Book us" + scan QR. Signed in as owner/admin it adds the gold **Investor brief** group (→ `/built` one-pager, `/architecture`) |
 
 ## Crew console sections (`/admin`) — mirror these in the Section Guide
 - **My Day** (start of shift) · **Now** (during service) · **Prep** (before the event) ·
@@ -117,5 +121,5 @@ the change isn't done.
   us." No separate data.
 
 ## Migration ledger (apply in order on prod; all idempotent)
-Through **0131** — see `gt3pb-deploy-v1.md` for the full table + verify SQL. Newest:
-`0127` board reprice · `0128` restore Tide + broths · `0129` sold-out (86) · `0130` 86 lifecycle (stamp + 4am reset) · `0131` reviews table.
+Through **0132** — see `gt3pb-deploy-v1.md` for the full table + verify SQL. Newest:
+`0128` restore Tide + broths · `0129` sold-out (86) · `0130` 86 lifecycle (stamp + 4am reset) · `0131` reviews table · `0132` membership scan (`member_by_code` + `award_manual_point`).
