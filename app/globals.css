@@ -3329,3 +3329,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .tvl-connect-qr{flex:0 0 auto;text-align:center}
 .tvl-connect-qr img{width:34vmin;height:34vmin;background:#fff;border-radius:2vmin;padding:1.5vmin;display:block}
 .tvl-connect-qr span{display:block;font-family:'Inter';font-size:2vmin;letter-spacing:.05em;color:var(--cream-m);margin-top:2vmin}
+/* review prompt — dismissable header */
+.rvp-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.rvp-top .rvp-k{margin-bottom:0}
+.rvp-x{background:transparent;border:none;color:var(--cream-m);font-size:15px;line-height:1;cursor:pointer;padding:2px 4px;-webkit-appearance:none;appearance:none}
