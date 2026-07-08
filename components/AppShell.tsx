@@ -18,6 +18,7 @@ import DisplayToggle, { readDisplay, displayClass, DISPLAY_KEY } from "./Display
 import ConnectHub from "./ConnectHub";
 import CommandPalette from "./CommandPalette";
 import SwipeBack from "./SwipeBack";
+import ScrollRestore from "./ScrollRestore";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -94,6 +95,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {inAdmin && <QuickDock />}
         {inAdmin && <CommandPalette />}
         {inAdmin && <SwipeBack />}
+        {inAdmin && <ScrollRestore />}
         {customerSurface && <Concierge />}
         {inAdmin && <button type="button" className="theme-toggle" onClick={toggleTheme} aria-label={theme === "day" ? "Switch to dark" : "Switch to day"}>{theme === "day" ? "🌙" : "☀️"}</button>}
         {!isShare && <DisplayToggle />}
