@@ -85,7 +85,7 @@ member QR (`/scan`, RPCs in 0132).
 
 - **Now is the service console**, ordered by what you touch most mid-rush: alerts → **the pass** →
   **the drop** (reserves & packs pickup checklist — brew sheet, check-offs, move/cancel) → **86
-  board** → Live truck (go live, GPS, the cup-ordering dial) → Event heads-up → personal tasks.
+  board** → Live truck (go live + GPS; locations & the ordering dial: Plan › Truck stops) → Event heads-up → personal tasks.
   **Service mode** (button at top; Esc exits) is the pass + pickups full-screen, nothing else.
 - Two kinds of "reserves," on purpose: the Saturday **pack** reserves live in Now → the drop;
   **Plan → back office → Reserves** is the *limited small-batch reserve* product (claims).
