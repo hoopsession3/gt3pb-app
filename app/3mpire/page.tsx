@@ -29,6 +29,7 @@ function OrderHistory() {
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [showAll, setShowAll] = useState(false); // quiet by default: 4 rows, the rest fold
 
   useEffect(() => {
     if (!supabase || !user) { setLoaded(true); return; }
@@ -42,16 +43,21 @@ function OrderHistory() {
     <>
       <div className="dchapter"><span className="dchn">Recent Orders</span><span className="dchw">order again</span></div>
       <div className="dchrule" />
-      {orders.map((o) => (
-        <div className="hist" key={o.id}>
-          <div className="hist-top">
+      {(showAll ? orders : orders.slice(0, 4)).map((o) => (
+        <div className="hist-row" key={o.id}>
+          <div className="hist-row-l">
             <b>{o.items.map((i) => DRINKS[i as DrinkId]?.n ?? i).join(" · ")}</b>
-            <span className="hist-px">${(o.total_cents / 100).toFixed(2)}</span>
+            <span>{histDate(o.created_at)} · {o.paid ? "Paid" : "Pre-order"}</span>
           </div>
-          <div className="hist-meta">{histDate(o.created_at)} · {o.paid ? "Paid" : "Pre-order"}</div>
-          <button className="hist-again" onClick={() => reorder(o.items as DrinkId[])}>Order again</button>
+          <span className="hist-px">${(o.total_cents / 100).toFixed(2)}</span>
+          <button className="hist-redo" onClick={() => reorder(o.items as DrinkId[])} aria-label="Order this again">↻</button>
         </div>
       ))}
+      {orders.length > 4 && (
+        <button type="button" className="hist-more" onClick={() => setShowAll((v) => !v)} aria-expanded={showAll}>
+          {showAll ? "Fewer ▴" : `All ${orders.length} ▸`}
+        </button>
+      )}
     </>
   );
 }
@@ -126,8 +132,7 @@ function MpireReal() {
   const streak = profile?.streak_days ?? 1;
   const credit = ((profile?.credit_cents ?? 0) / 100).toFixed(2);
   const code = profile?.referral_code || "GT3PB-3MP";
-  const cuppas = Math.min(points, 10);
-  const ringRef = useRingFill(cuppas / 10);
+  const creditCents = profile?.credit_cents ?? 0;
 
   return (
     <section className="screen" id="s-mpire">
@@ -136,26 +141,15 @@ function MpireReal() {
         <AccountPill />
       </div>
 
+      {/* The card IS the hero — name, tier, stamps, code, QR, the free-pour promise. The old ring
+          card + stat tiles repeated all of it (name ×2, 5/10 ×3); everything they added now lives
+          in one quiet line, and credit only speaks up when there's actually credit. */}
       <MembershipCard />
-      <div className="memcard"><div className="min">
-        <div className="ring">
-          <svg width="88" height="88">
-            <circle cx="44" cy="44" r="37" fill="none" stroke="rgba(245,241,232,.1)" strokeWidth="8" />
-            <circle ref={ringRef} cx="44" cy="44" r="37" fill="none" stroke="#B82420" strokeWidth="8" strokeLinecap="round" strokeDasharray={RING} strokeDashoffset={RING} />
-          </svg>
-          <div className="rc">{cuppas}<small>OF 10</small></div>
-        </div>
-        <div className="mt">
-          <div className="eyb">★ {profile?.founding_member ? "Founding Member" : "Member"}</div>
-          <h2>{name}</h2>
-          <p>{10 - cuppas} cuppas from a free pour — your 10th is on us. A point on every drink.</p>
-        </div>
-      </div></div>
-
-      <div className="cells">
-        <div className="cell"><div className="cv gold">{points}</div><div className="cl">Points</div></div>
-        <div className="cell"><div className="cv ok">Day {streak}</div><div className="cl">Streak</div></div>
-        <div className="cell"><div className="cv">${credit}</div><div className="cl">Credit</div></div>
+      <div className="memline">
+        <span><b>{points}</b> pts</span>
+        <span className="memline-dot">·</span>
+        <span>day <b>{streak}</b> streak</span>
+        {creditCents > 0 && <><span className="memline-dot">·</span><span><b>${credit}</b> credit</span></>}
       </div>
 
       <ReviewPrompt />
