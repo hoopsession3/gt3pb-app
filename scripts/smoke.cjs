@@ -6,6 +6,7 @@ const OA = require("../.smoke/orderAhead.js");
 const RV = require("../.smoke/reviews.js");
 const RC = require("../.smoke/recents.js");
 const OF = require("../.smoke/offline.js");
+const PL = require("../.smoke/plan.js");
 let pass = 0, fail = 0;
 const ok = (name, cond, got) => { if (cond) { pass++; } else { fail++; console.log(`  ✗ ${name}` + (got !== undefined ? ` → got ${JSON.stringify(got)}` : "")); } };
 
@@ -226,6 +227,21 @@ ok("pruneStale drops expired ops", qStale.length === 1 && qStale[0].id === "new"
 ok("snapshot fresh is usable", OF.snapshotUsable(1_000, 61_000) === true);
 ok("snapshot too old is not", OF.snapshotUsable(1_000, 1_000 + 3 * 60 * 60 * 1000) === false);
 ok("snapshot from the future is not", OF.snapshotUsable(5_000, 1_000) === false);
+
+// --- plan gate: software billing entitlements ---
+ok("founder gets everything", PL.planAllows("founder", "ai_agents") === true);
+ok("pro gets AI", PL.planAllows("pro", "ai_agents") === true);
+ok("solo lacks AI", PL.planAllows("solo", "ai_agents") === false);
+ok("solo keeps reports", PL.planAllows("solo", "reports") === true);
+ok("unknown plan reads as most-restricted", PL.planAllows("hax", "ai_agents") === false && PL.planAllows(null, "reports") === true);
+const day = 24 * 60 * 60 * 1000;
+ok("founder always active", PL.planActive({ plan: "founder", billing_status: null, current_period_end: null }, 0) === true);
+ok("active is active", PL.planActive({ plan: "pro", billing_status: "active", current_period_end: null }, 0) === true);
+ok("past_due within grace", PL.planActive({ plan: "pro", billing_status: "past_due", current_period_end: new Date(0).toISOString() }, 6 * day) === true);
+ok("past_due beyond grace", PL.planActive({ plan: "pro", billing_status: "past_due", current_period_end: new Date(0).toISOString() }, 8 * day) === false);
+ok("canceled rides out the paid period", PL.planActive({ plan: "pro", billing_status: "canceled", current_period_end: new Date(2 * day).toISOString() }, day) === true);
+ok("canceled after period ends", PL.planActive({ plan: "pro", billing_status: "canceled", current_period_end: new Date(day).toISOString() }, 2 * day) === false);
+ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, current_period_end: null }, 0) === false);
 
 console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
 console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);

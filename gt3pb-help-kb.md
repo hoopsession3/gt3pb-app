@@ -64,6 +64,27 @@ the change isn't done.
   icons/subtitles, the KDS stage groups with live counts) — they're intentionally not plain Panels.
 - **Quiet by default**: in a stacked section, open only the primary panel; collapse the rest.
 
+## Reliability & trust (audit hardening, 2026-07-08)
+- **CI**: `.github/workflows/ci.yml` runs build + smoke on every push/PR — the hand gate, automated.
+- **Error visibility**: client errors (window errors, unhandled rejections, error-boundary hits)
+  ship to `/api/errors/report` → deduped into `client_errors` (0133); the FIRST occurrence of a new
+  error raises a crew-inbox alert (critical if a screen crashed). Telemetry is fail-silent — it can
+  never make the app worse. Reporter: `components/ErrorReporter.tsx`.
+- **Offline ops**: the pass keeps working with no signal. Status taps queue
+  (`lib/offline.ts` pure math + `components/offline.ts` engine, coalesced per order — final state
+  wins) and replay in order on reconnect; a fresh open renders the last-known board, labeled. The
+  `OfflineChip` (crew console) shows offline/queued/syncing truth and owns the replay triggers.
+  Customer pass shows "offline — last known". `sw.js` still never caches `/api` — snapshots are
+  app-level on purpose.
+- **Tenancy (R-002)**: 0134 enforces isolation at the DB — `stamp_tenant()` triggers on write +
+  restrictive `"tenant isolation"` RLS policies wherever RLS is on; anon resolves to the founding
+  GT3 tenant so public surfaces are unchanged. Service-role routes still need the
+  `tenantFromRequest()` sweep before tenant #2 (tracked in RISK_REGISTER R-002).
+- **Software billing (scaffold, dormant)**: 0135 adds `tenants.plan` + Stripe columns;
+  `/api/billing/checkout|portal|webhook` are live once `STRIPE_SECRET_KEY` / `STRIPE_PRICE_PRO` /
+  `STRIPE_WEBHOOK_SECRET` exist (Google-Wallet precedent). Feature gating = `lib/plan.ts`
+  (`planAllows` / `planActive`, smoke-tested). GT3 is the `founder` tenant: everything, never billed.
+
 ## Loyalty
 - `profiles.points`, +1 per drink on pickup (migration `0012`). Stamp card = a view of that; "10th on
   us." No separate data.

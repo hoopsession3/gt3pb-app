@@ -7,7 +7,7 @@ Add new risks at the top. Close one by setting **Status: Closed** with the date 
 |----|------|----------|--------|-------|
 | R-004 | Anthropic API key exposed in chat (rotation deferred) | Medium | Open (rotation pending) | Ryan |
 | R-001 | Unencrypted BI connection (Looker Studio → Supabase) | Medium | Accepted (temporary) | Ryan |
-| R-002 | Per-tenant RLS staged but not enforced | Medium | Open (staged) | Ryan |
+| R-002 | Per-tenant RLS staged but not enforced | Medium | Open (DB enforcement written — `0134` pending prod apply + route sweep) | Ryan |
 | R-003 | Audit-log trigger write volume / retention | Low–Medium | Closed (2026-07-05) | Ryan |
 
 ---
@@ -100,6 +100,21 @@ stamps `tenant_id` on writes, tenants could read or write each other's rows.
 **Plan / mitigation.** Before going multi-tenant: (1) make the app explicitly set `tenant_id` on
 every insert, (2) switch RLS policies to filter by `current_tenant()`, (3) verify isolation with
 two test tenants.
+
+**Progress (2026-07-08).** Migration `0134_tenant_enforcement` ships the DB half:
+- `stamp_tenant()` BEFORE INSERT triggers on every `tenant_id` table — the caller's profile tenant
+  wins on write (closes plan step 1 at the database; no app-code sweep needed).
+- A **restrictive** `"tenant isolation"` policy (`tenant_id = effective_tenant()`) on every
+  `tenant_id` table that already has RLS enabled — it ANDs onto the existing policies (closes step
+  2 for all PostgREST/client access). Anon resolves to the founding tenant, so public surfaces are
+  unchanged.
+- `tenants` self-row visibility (a tenant can't enumerate other customers).
+
+**Remaining to close:** (a) apply `0134` on prod, (b) sweep the `supabaseAdmin` service-role routes
+(`app/api/agents/*` etc.) to scope queries with `tenantFromRequest()` (`lib/apiAuth.ts`) — the
+service role bypasses RLS, (c) run the two-tenant verify in `0134`'s footer, (d) decide per-table
+on the RLS-off / no-`tenant_id` tables the verify queries list (incl. cross-tenant push fan-out in
+the edge function).
 
 **Close when:** tenant-scoped RLS is enforced and verified — **or** a decision to remain
 single-tenant is recorded here.
