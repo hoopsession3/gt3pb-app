@@ -4331,6 +4331,9 @@ export default function AdminPage() {
         );
       })()}
 
+      {/* Shared-axis transition: keying on `sec` remounts the body on each section change so it
+          fades+slides in. planTab changes keep the same key, so sub-tabs don't re-animate. */}
+      <div className="op-trans" key={sec}>
       {sec === "day" && <MyDay userId={user?.id ?? null} meName={profile?.display_name?.trim() || "Me"} isLeader={canManage} />}
 
       {sec === "now" && (
@@ -4409,6 +4412,7 @@ export default function AdminPage() {
           {isOwner && <Members />}
         </>
       )}
+      </div>
     </section>
   );
 }

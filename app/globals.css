@@ -3356,3 +3356,7 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .swipeback.armed .swipeback-chev{color:#15120d}
 .app.crew-day .swipeback{background:rgba(255,255,255,.92)}
 .app.crew-day .swipeback-chev{color:#15120d}
+/* Section transition — a subtle shared-axis fade+rise as the crew body swaps between sections. */
+.op-trans{animation:opTrans .22s cubic-bezier(.22,.61,.36,1)}
+@keyframes opTrans{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.op-trans{animation:none}}
