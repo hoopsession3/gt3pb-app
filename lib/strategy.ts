@@ -133,7 +133,7 @@ export const GOVERNANCE: StrategyBlock[] = [
     h: "When to overhaul",
     lines: [
       "On a trigger, not a mood: a play misses its projected ROI two review cycles running, a Phase-2 condition flips, or the market hands you a fact the doc doesn't have.",
-      "Review cadence: monthly against Money's actuals; the Phase 1→2 checklist is reviewed whenever any of its six conditions moves.",
+      "Review cadence: monthly against Money's actuals. The Phase 1→2 checklist lives as tracked Goals (Plan › Goals) — owners and managers log the numbers there, and a review means arguing with the board, not re-reading the paragraph.",
       "Overhauls keep the old play's log history — the point is to see what you believed before and why it changed.",
     ],
   },

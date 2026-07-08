@@ -27,7 +27,10 @@ const quarterGal = (g: number) => Math.max(0.25, Math.ceil(g * 4) / 4);
 // grab the old still-subscribed instance -> "cannot add callbacks after subscribe()" and an error
 // boundary. Unique name per subscription, same fix as lib/availability.
 let dropOpsChanSeq = 0;
-export default function DropOps() {
+// Two faces: `brief` is the Now screen's prep face (what to brew, what money, one progress line —
+// tapping it opens Service mode); full is the working face (checklist, upcoming, history) and
+// lives in Service mode only, so the same list never renders on two screens.
+export default function DropOps({ brief = false, onOpen }: { brief?: boolean; onOpen?: () => void } = {}) {
   const { toast } = useApp();
   const [rows, setRows] = useState<DropOrder[]>([]);
   const [batches, setBatches] = useState<PlannedBatch[]>([]);
@@ -230,11 +233,11 @@ export default function DropOps() {
               <button type="button" onClick={queueBrew} disabled={busy}>{busy ? "Queuing…" : "Queue brew batches"}</button>
             </div>
           ) : null}
-          <button type="button" className={`dops-prog${allDone ? " done" : ""}`} onClick={() => setListOpen(!showList)} aria-expanded={showList}>
+          <button type="button" className={`dops-prog${allDone ? " done" : ""}`} onClick={() => (brief ? onOpen?.() : setListOpen(!showList))} aria-expanded={brief ? undefined : showList}>
             <span>{allDone ? "✓ All picked up · bottles in" : <><b>{pickedCount}/{rows.length}</b> picked up{returns.length > 0 ? <> · <b>{bottlesInCount}/{returns.length}</b> bottles in</> : null}</>}</span>
-            <span>{showList ? "▾" : "▸"}</span>
+            <span>{brief ? "checklist in Service ▸" : showList ? "▾" : "▸"}</span>
           </button>
-          {showList && queue.map((o) => (
+          {!brief && showList && queue.map((o) => (
             <div className={`dops-order${o.picked_up ? " done" : ""}`} key={`cur-${o.id}`}>
               <div className="dops-top">
                 <span className="dops-name">{o.name}
@@ -261,7 +264,7 @@ export default function DropOps() {
       )}
       {/* Moved packs land here in the same breath — never off any surface. Grouped by date so a
           glance says what next week already owes. */}
-      {upcoming.length > 0 && (
+      {!brief && upcoming.length > 0 && (
         <div className="dops-up">
           {Object.entries(upcoming.reduce<Record<string, DropOrder[]>>((m, o) => { (m[o.drop_date] ??= []).push(o); return m; }, {})).map(([d, os]) => (
             <div key={d}>
@@ -279,7 +282,7 @@ export default function DropOps() {
           ))}
         </div>
       )}
-      {history.length > 0 && (
+      {!brief && history.length > 0 && (
         <div className="dops-hist">
           <button type="button" className="dops-hist-h" onClick={() => setHistOpen((v) => !v)} aria-expanded={histOpen}>
             Past drops · {new Set(history.map((o) => o.drop_date)).size} <span>{histOpen ? "▾" : "▸"}</span>

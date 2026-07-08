@@ -93,9 +93,12 @@ One rule, one source of truth, enforced at every layer so it can't be dodged or 
 - **Now is the service console**, ordered by what you touch most mid-rush: alerts → **the pass** →
   **the drop** (reserves & packs pickup checklist — brew sheet, check-offs, move/cancel) → **86
   board** → Live truck (go live + GPS; locations & the ordering dial: Plan › Truck stops) → Event heads-up → personal tasks.
-  **Service mode** (button at top; Esc exits) is the whole service on ONE screen: the pass is
-  the board (tickets flow two-up on wide screens), and a sticky rail keeps the pickup checklist,
-  the Sunday run sheet and the 86 board in reach — 86ing a flavor mid-rush is a tap, not an exit.
+  **Now is the glance, Service is the work.** Now shows alerts, the service pulse (live counts:
+  orders on the pass, items 86'd — the counts ARE the button), the drop's prep face (brew sheet +
+  window money) and Sunday delivery. **Service mode** (one tap; Esc exits) is the only place the
+  boards render: the pass (tickets flow two-up on wide screens) with a sticky rail — pickup
+  checklist and the 86 board — so nothing lives on two screens and 86ing a flavor mid-rush is a
+  tap, not an exit.
   **Moving a pack to the next drop** now targets the truck's next scheduled stop (route truth,
   +7 days only if the calendar is empty), and the moved pack stays visible under **Upcoming
   drops** with a one-tap "← This drop" way back — nothing ever leaves every surface.
@@ -218,6 +221,12 @@ pixel-exact brand 3).
   renders it; it never forks it. Strategy revs → `lib/strategy.ts` revs in the same PR.
 - **Deeper cuts**: `/architecture` (owner — the live system map) · `/built/…` (the partner
   one-pager, safe to show) · Money (where every play's actuals recompute daily).
+- **Goals — the strategy's scoreboard (0142, Plan › Goals)**: the six Phase 1→2 trigger
+  conditions from the locked doc live as tracked goals (events/mo, Loop %, Sunday orders,
+  bottles in circulation, bottles/mo, solo-ceiling net). Owners AND managers log progress as
+  numbers, every goal carries a live 💬 thread (posting pings the owners), and "review the
+  checklist" now means arguing with a board, not re-reading a paragraph. Business records:
+  audited + delete-guarded like everything else.
 - **Collaboration & governance (0140)**: every block and play on the Playbook carries a **live 💬
   thread** (the comments engine — posting pings the other owners through the alert ladder); the
   **guided builder** walks an owner through building or overhauling a play in seven coached steps
@@ -231,4 +240,4 @@ pixel-exact brand 3).
 ## Migration ledger
 Through **0140** — full table + verify SQL in `gt3pb-deploy-v1.md`. Newest:
 `0133` client errors · `0134` tenant enforcement (on prod) · `0135` software billing (dormant) ·
-`0136` reservation self-service · `0137` pre-order window dial · `0138` order eta comms · `0139` Sunday delivery · `0140` strategy collab (threads + decision log + drafts) · `0141` customer-record durability (audit catch-up + delete guards).
+`0136` reservation self-service · `0137` pre-order window dial · `0138` order eta comms · `0139` Sunday delivery · `0140` strategy collab (threads + decision log + drafts) · `0141` customer-record durability (audit catch-up + delete guards) · `0142` goals (the strategy's scoreboard, seeded with the six Phase 1→2 conditions).

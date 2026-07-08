@@ -12,6 +12,7 @@ import { queueOrderStatus, isNetworkError, saveSnapshot, readSnapshot, readQueue
 import { snapshotUsable } from "@/lib/offline";
 import TrailerLoadout from "@/components/TrailerLoadout";
 import DropOps from "@/components/DropOps";
+import Goals from "@/components/Goals";
 import EightySix from "@/components/EightySix";
 import ReviewsAdmin from "@/components/ReviewsAdmin";
 import DeliveryOps from "@/components/DeliveryOps";
@@ -304,6 +305,43 @@ function Kitchen() {
       </div>
       {active.length === 0 && done.length === 0 && <div className="h-sub">The pass is clear. New orders arrive here in realtime.</div>}
     </div>
+  );
+}
+
+// ───────────────────────── service pulse: the glance before the work ─────────────────────────
+// Now doesn't render the boards anymore — it renders their PULSE. One hero button carries the
+// live counts (orders on the pass, items 86'd) and opens Service mode, where the work happens.
+// Unique channel name per subscription (remount-safe, same class as the KDS fix).
+let pulseChanSeq = 0;
+function ServicePulse({ onEnter }: { onEnter: () => void }) {
+  const [pass, setPass] = useState<number | null>(null);
+  const [out, setOut] = useState(0);
+  const load = useCallback(async () => {
+    if (!supabase) return;
+    const [o, p] = await Promise.all([
+      supabase.from("orders").select("id", { count: "exact", head: true }).neq("status", "void").neq("status", "done"),
+      supabase.from("products").select("id", { count: "exact", head: true }).eq("active", true).eq("sold_out", true),
+    ]);
+    if (o.count !== null) setPass(o.count);
+    if (p.count !== null) setOut(p.count);
+  }, []);
+  useEffect(() => {
+    load();
+    if (!supabase) return;
+    const ch = supabase.channel(`svc-pulse-${++pulseChanSeq}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "products" }, () => load())
+      .subscribe();
+    return () => { supabase?.removeChannel(ch); };
+  }, [load]);
+  return (
+    <button type="button" className={`svc-enter${(pass ?? 0) > 0 ? " hot" : ""}`} onClick={onEnter}>
+      <span className="svc-enter-t">▶ Service mode</span>
+      <span className="svc-enter-s">
+        {pass === null ? "The pass, pickups & the 86 board — one screen"
+          : <>{pass > 0 ? <><b>{pass}</b> on the pass</> : "The pass is clear"}{out > 0 && <> · <b>{out}</b> 86&rsquo;d</>} — tap to work</>}
+      </span>
+    </button>
   );
 }
 
@@ -4220,7 +4258,7 @@ const SEC_SUB: Record<OpSection, string> = {
 };
 const SEC_MORE: Record<OpSection, string> = {
   day: "Your personal launchpad. Everything assigned to you and everything flagged for your attention, in one place — so the moment you clock in you know exactly what to do.",
-  now: "The live-shift command center. When the truck is serving, this is the only screen you need: orders land on the pass, reserved packs are checked off as they're picked up, and the 86 board keeps the menu honest. Tap Service mode for the full-screen version.",
+  now: "The glance before the work. Alerts land here, the service pulse shows what's waiting (orders on the pass, items 86'd), and one tap opens Service mode — the working screen with the pass, pickup checklist and 86 board. Prep lives here too: the drop's brew sheet and Sunday delivery.",
   prep: "Get ready before you roll. Build the pack list, check stock and readiness, and sign off that the truck's loaded for the next event or stop.",
   plan: "The forward calendar. Book events, manage vendors and venues, work incoming booking requests, and schedule brews — weeks and months out.",
   studio: "Your marketing studio. Draft posts and flyers, keep them on-brand, plan the feed, schedule around your drops, and moderate the guest reviews that feed the truck display.",
@@ -4230,7 +4268,7 @@ const SEC_MORE: Record<OpSection, string> = {
 };
 const SEC_INSIDE: Record<OpSection, string[]> = {
   day: ["Your open tasks & due dates", "Alerts flagged for you", "What's on the calendar today", "Day-of brief — dress code & call time"],
-  now: ["The order pass (kitchen display) — guests can ping it: on my way · outside · late", "Service mode — the pass, pickups & the 86 board on one screen", "The drop — reserves & packs pickup checklist", "Sunday delivery — run sheet, brew totals & driver outcomes", "86 board — live sold-out control", "Live truck: go live, GPS broadcast (locations & the cup-ordering dial live in Plan › Truck stops)", "Alerts inbox & live sales"],
+  now: ["Service pulse — live counts, one tap into the working screen", "Service mode — the pass (guests ping it: on my way · outside · late), pickup checklist & 86 board on ONE screen", "The drop — brew sheet & window money (the checklist lives in Service)", "Sunday delivery — run sheet, brew totals & driver outcomes", "Live truck: go live, GPS broadcast (locations & the cup-ordering dial live in Plan › Truck stops)", "Alerts inbox & live sales"],
   prep: ["Per-event & per-stop pack lists", "Readiness & inspection checks", "Trailer load-out & gear", "Crew assignments & sign-off"],
   plan: ["Company calendar", "Events & truck stops", "Vendors & venues", "Booking requests", "Brew schedule & reserves"],
   studio: ["Post & flyer drafting", "Brand copy & front-end copy", "Feed planning grid", "Repurpose engine", "Publishing & scheduling", "Review Desk → the truck display (/display): add or approve reviews; ✨ Simplify de-claims + trims one to display-safe"],
@@ -4322,7 +4360,7 @@ export default function AdminPage() {
   const canPrep = canManage || role === "operator" || role === "contractor";
   const allowed = sectionsForRole(role);
   const sec: OpSection = allowed.includes(section) ? section : "now";
-  const [planTab, setPlanTab] = useState<"calendar" | "notes" | "events" | "stops" | "brew" | "vendors" | "bookings" | "reserves">("calendar");
+  const [planTab, setPlanTab] = useState<"calendar" | "goals" | "notes" | "events" | "stops" | "brew" | "vendors" | "bookings" | "reserves">("calendar");
   const [guideOpen, setGuideOpen] = useState(false);
   // Service mode — full-screen KDS (pass + pickups). Esc exits; leaving Now exits.
   const [svc, setSvc] = useState(false);
@@ -4345,7 +4383,7 @@ export default function AdminPage() {
   useEffect(() => {
     if (sec !== "plan" || typeof window === "undefined") return;
     const t = localStorage.getItem("gt3-plan-tab");
-    if (t && (["calendar", "notes", "events", "stops", "brew", "vendors", "bookings", "reserves"] as const).includes(t as typeof planTab)) {
+    if (t && (["calendar", "goals", "notes", "events", "stops", "brew", "vendors", "bookings", "reserves"] as const).includes(t as typeof planTab)) {
       localStorage.removeItem("gt3-plan-tab"); setPlanTab(t as typeof planTab);
     }
   }, [sec]);
@@ -4439,20 +4477,16 @@ export default function AdminPage() {
 
       {sec === "now" && (
         <>
-          {/* Service flow, in service order: unacked alerts → the pass → the drop (reserves &
-              packs due) → the 86 board → dispatch panels → personal tasks. During a rush the
-              things you touch every minute are at the top; Service mode goes full screen. */}
+          {/* Now is the GLANCE + DISPATCH screen: unacked alerts → the service pulse (live counts,
+              one tap into the working screen) → the drop's prep face (what to brew, what money) →
+              Sunday delivery (folds until run day) → dispatch panels → personal tasks. The boards
+              themselves (pass, pickup checklist, 86) render in ONE place: Service mode. */}
           {canManage && <AlertsInbox userId={user?.id ?? null} />}
           {!svc && (
             <>
-              <button type="button" className="svc-enter" onClick={() => setSvc(true)}>
-                <span className="svc-enter-t">▶ Service mode</span>
-                <span className="svc-enter-s">The pass, pickups &amp; the 86 board — one screen, nothing else</span>
-              </button>
-              <Kitchen />
-              <DropOps />
+              <ServicePulse onEnter={() => setSvc(true)} />
+              <DropOps brief onOpen={() => setSvc(true)} />
               <DeliveryOps />
-              <EightySix />
             </>
           )}
           {canManage && <Panel id="live" title="Live truck" defaultOpen><LiveControl compact /></Panel>}
@@ -4475,7 +4509,6 @@ export default function AdminPage() {
             <div className="svc-main"><Kitchen /></div>
             <aside className="svc-rail" aria-label="Pickups & sold-out">
               <DropOps />
-              <DeliveryOps />
               <EightySix />
             </aside>
           </div>
@@ -4498,7 +4531,7 @@ export default function AdminPage() {
             {/* This week — what's hot at this stage */}
             {/* Ordered by operating rhythm (not alphabet): when → what → where → requests in →
                 production → notes. Back office (rarely touched) sits after the divider. */}
-            {([["calendar", "Calendar", 0], ["events", "Events", planCounts.events], ["stops", "Truck stops", 0], ["bookings", "Bookings", planCounts.bookings], ["brew", "Brew", 0], ["notes", "Notes", 0]] as const).map(([k, label, n]) => (
+            {([["calendar", "Calendar", 0], ["goals", "Goals", 0], ["events", "Events", planCounts.events], ["stops", "Truck stops", 0], ["bookings", "Bookings", planCounts.bookings], ["brew", "Brew", 0], ["notes", "Notes", 0]] as const).map(([k, label, n]) => (
               <button key={k} type="button" role="tab" aria-selected={planTab === k} className={`subnav-tab${planTab === k ? " on" : ""}`} onClick={() => setPlanTab(k)}>
                 {label}{n > 0 && <span className={`subnav-badge${k === "bookings" ? " hot" : ""}`}>{n}</span>}
               </button>
@@ -4510,6 +4543,7 @@ export default function AdminPage() {
             ))}
           </div>
           {planTab === "calendar" && <CompanyCalendar />}
+          {planTab === "goals" && <Goals />}
           {planTab === "brew" && <BrewPlanner />}
           {planTab === "notes" && <MeetingNotes />}
           {planTab === "events" && <EventsAdmin />}
