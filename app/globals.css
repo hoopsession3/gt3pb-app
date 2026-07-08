@@ -3073,6 +3073,24 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .co-closed-s{font-size:13px;line-height:1.55;color:var(--cream-m,rgba(245,241,232,.65));margin:0 0 10px}
 .co-closed-s b{color:inherit;font-weight:700}
 
+/* YOUR PACK — customer's own reservations on /reserve: track, change, cancel */
+.mypacks{margin:0 0 14px}
+.mypacks-h{font-family:'Inter';font-weight:600;letter-spacing:2px;text-transform:uppercase;font-size:11px;color:var(--gold);margin-bottom:8px}
+.mypack{border:1px solid var(--line2);border-radius:14px;padding:13px 14px;margin-bottom:10px;background:rgba(245,241,232,.04)}
+.mypack.done{opacity:.75}
+.mypack-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.mypack-top b{font-family:'Inter';font-weight:800;font-size:14.5px;color:var(--cream)}
+.mypack-pay{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--warn);border:1px solid var(--warn);border-radius:6px;padding:2px 7px}
+.mypack-pay.ok{color:var(--ok);border-color:var(--ok)}
+.mypack-mix{font-size:12.5px;color:var(--cream-m);margin-top:5px}
+.mypack-st{font-size:12px;color:var(--cream-d);margin-top:7px;line-height:1.45}
+.mypack.done .mypack-st{color:var(--ok)}
+.mypack-actions{display:flex;gap:8px;margin-top:11px}
+.mypack-actions button{background:transparent;border:1px solid var(--line2);border-radius:999px;color:var(--cream);font-family:'Inter';font-weight:700;font-size:12px;padding:8px 14px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.mypack-actions button.danger{color:#d98a86;border-color:rgba(217,138,134,.5)}
+.oa-editing{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--gold);border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:12.5px;color:var(--cream);background:rgba(200,166,97,.1)}
+.oa-editing button{background:none;border:none;color:var(--gold2);font-family:'Inter';font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;text-decoration:underline;-webkit-appearance:none;appearance:none}
+
 /* order-ahead pitch tags (MOST POPULAR / BEST VALUE) on the reserve card */
 .subpitch-pack{position:relative}
 .subpitch-tag{position:absolute;top:-8px;left:50%;transform:translateX(-50%);font-size:7.5px;letter-spacing:.06em;font-weight:700;color:var(--cream,#F5F1E8);background:var(--red,#B82420);padding:2px 6px;border-radius:20px;white-space:nowrap}
@@ -3403,3 +3421,9 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .svc-exit{background:transparent;border:1px solid var(--line2);border-radius:999px;color:var(--cream);font-family:'Inter';font-weight:700;font-size:12.5px;padding:8px 14px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .app.crew-day .svc-bar b{color:#7a5a1e}
 .app.crew-day .svc-exit{color:#1a1610;border-color:rgba(26,22,16,.25)}
+/* Ordering dial — when cup pre-orders open (Live truck panel) */
+.adm-lead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0 4px}
+.adm-lead-k{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--cream-m)}
+.adm-lead-opts{display:inline-flex;gap:6px;flex-wrap:wrap}
+.adm-lead-opt{background:transparent;border:1px solid var(--line2);border-radius:999px;color:var(--cream-m);font-family:'Inter';font-weight:700;font-size:11.5px;padding:6px 11px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.adm-lead-opt.on{background:rgba(200,166,97,.16);border-color:var(--gold);color:var(--cream)}

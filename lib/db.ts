@@ -51,6 +51,8 @@ export interface LiveStatus {
   truck_lat?: number | null;
   truck_lng?: number | null;
   pos_updated_at?: string | null;
+  // How many hours before a stop cup pre-orders open (0 = only while live). 0137.
+  preorder_lead_h?: number | null;
 }
 
 export interface Order {

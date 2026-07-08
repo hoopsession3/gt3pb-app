@@ -239,6 +239,11 @@ ok("8h after start: still open (missed live toggle)", OA.preorderWindow(T0 + 8 *
 ok("9h after start: closed", OA.preorderWindow(T0 + 9 * H, false, "2026-07-11T13:00:00Z").open === false);
 ok("no stop scheduled: closed", OA.preorderWindow(T0, false, null).reason === "none");
 ok("garbage date: closed", OA.preorderWindow(T0, false, "not-a-date").open === false);
+ok("lead 0 = strict live-only (even during stop)", OA.preorderWindow(T0 + H, false, "2026-07-11T13:00:00Z", 0).open === false);
+ok("lead 0 + live = open", OA.preorderWindow(T0 + H, true, "2026-07-11T13:00:00Z", 0).open === true);
+ok("lead 2h: 3h before closed", OA.preorderWindow(T0 - 3 * H, false, "2026-07-11T13:00:00Z", 2 * H).open === false);
+ok("lead 2h: 1h before open", OA.preorderWindow(T0 - 1 * H, false, "2026-07-11T13:00:00Z", 2 * H).open === true);
+ok("preorderLeadMs maps hours + defaults", OA.preorderLeadMs(2) === 2 * H && OA.preorderLeadMs(null) === OA.PREORDER_LEAD_MS && OA.preorderLeadMs(0) === 0);
 
 // --- plan gate: software billing entitlements ---
 ok("founder gets everything", PL.planAllows("founder", "ai_agents") === true);

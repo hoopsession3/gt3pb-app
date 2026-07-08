@@ -2478,6 +2478,23 @@ function LiveControl() {
           <span className={`adm-dot${live?.is_live ? " on" : ""}`} />
           <span><b>{live?.is_live ? "Live now" : "Offline"}</b>{live?.is_live && curStop ? <span className="adm-live-at"> · {curStop.name}</span> : null}</span>
         </div>
+        {/* The ordering dial (0137): when cup pre-orders open. Same rule everywhere — menu sheet,
+            checkout, and the charge API. Pack reserves are always open regardless. */}
+        <div className="adm-lead">
+          <span className="adm-lead-k">Cup orders open</span>
+          <div className="adm-lead-opts" role="radiogroup" aria-label="When cup pre-orders open">
+            {([[0, "Live only"], [2, "2h before"], [4, "4h before"], [8, "8h before"]] as const).map(([h, label]) => (
+              <button key={h} type="button" role="radio" aria-checked={(live?.preorder_lead_h ?? 4) === h}
+                className={`adm-lead-opt${(live?.preorder_lead_h ?? 4) === h ? " on" : ""}`}
+                onClick={async () => {
+                  setLive((l) => (l ? { ...l, preorder_lead_h: h } : l));
+                  const { error } = await supabase!.from("live_status").update({ preorder_lead_h: h }).eq("id", 1);
+                  if (error) { toast(`Couldn't save — ${error.message}`, "error"); load(); }
+                  else toast(h === 0 ? "Cups sell only while you're live" : `Cup orders open ${h}h before a stop`);
+                }}>{label}</button>
+            ))}
+          </div>
+        </div>
         {live?.is_live && <button className="adm-btn ghost" onClick={pause}>Go offline</button>}
       </div>
       {live?.is_live && (

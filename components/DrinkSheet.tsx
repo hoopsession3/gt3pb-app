@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { useApp } from "./AppProvider";
 import { useSheetDrag } from "@/lib/useSheetDrag";
 import { useAvailability } from "@/lib/availability";
+import { useOrderingOpen } from "./useOrderingOpen";
 import { DRINKS } from "@/lib/menu";
 
 const PILLAR: Record<"BEFORE" | "DURING" | "AFTER", string> = {
@@ -15,6 +17,10 @@ const PILLAR: Record<"BEFORE" | "DURING" | "AFTER", string> = {
 export default function DrinkSheet() {
   const { openId, closeDrink, isInCart, bump, toast } = useApp();
   const { soldOut } = useAvailability();
+  const router = useRouter();
+  // Ordering is gated at the FIRST touchpoint, not just checkout: outside the truck's window the
+  // add button routes to the pack reserve instead (same rule as checkout + /api/checkout).
+  const ordering = useOrderingOpen(!!openId);
   const d = openId ? DRINKS[openId] : null;
   const on = openId ? isInCart(openId) : false;
   const out = openId ? soldOut.has(openId) : false;
@@ -87,10 +93,23 @@ export default function DrinkSheet() {
                 <span className="sheet-when-v">{d.whenT}</span>
               </div>
 
-              <button className={`order-bar${out && !on ? " order-bar-86" : ""}`} disabled={out && !on} onClick={() => { if (out && !on) { toast("Sold out today — back on the next brew", "error"); return; } if (!on) toast("Added — keep building your order"); bump(openId); closeDrink(); }}>
-                {on ? "Remove from order" : out ? "Sold out today" : "Add to order"}
-              </button>
-              <div className="sheet-signoff">Made the moment you order, and you&apos;ll taste it.</div>
+              {!ordering.open && !on ? (
+                <>
+                  <button className="order-bar" onClick={() => { closeDrink(); router.push("/reserve"); }}>
+                    Truck&apos;s closed — reserve a pack ›
+                  </button>
+                  <div className="sheet-signoff">
+                    Cup orders open {ordering.nextAt ? <>closer to the next stop — <b>{new Date(ordering.nextAt).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}{ordering.nextName ? ` · ${ordering.nextName}` : ""}</b></> : "when the truck goes live"}. Packs are brewed to order anytime.
+                  </div>
+                </>
+              ) : (
+                <>
+                  <button className={`order-bar${out && !on ? " order-bar-86" : ""}`} disabled={out && !on} onClick={() => { if (out && !on) { toast("Sold out today — back on the next brew", "error"); return; } if (!on) toast("Added — keep building your order"); bump(openId); closeDrink(); }}>
+                    {on ? "Remove from order" : out ? "Sold out today" : "Add to order"}
+                  </button>
+                  <div className="sheet-signoff">Made the moment you order, and you&apos;ll taste it.</div>
+                </>
+              )}
             </>
           )}
         </div>
