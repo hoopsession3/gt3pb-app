@@ -23,6 +23,10 @@ type PlannedBatch = { id: string; recipe_name: string | null; batch_gal: number;
 const GAL_PER_BOTTLE = 10 / 128; // one bottle = one 10-oz serving (the brew spec's unit)
 const quarterGal = (g: number) => Math.max(0.25, Math.ceil(g * 4) / 4);
 
+// Channels are keyed by NAME and a fast remount (Service mode toggles this component) can
+// grab the old still-subscribed instance -> "cannot add callbacks after subscribe()" and an error
+// boundary. Unique name per subscription, same fix as lib/availability.
+let dropOpsChanSeq = 0;
 export default function DropOps() {
   const { toast } = useApp();
   const [rows, setRows] = useState<DropOrder[]>([]);
@@ -74,7 +78,7 @@ export default function DropOps() {
   useEffect(() => {
     load(); loadBatches(); loadHistory();
     if (!supabase) return;
-    const ch = supabase.channel("drop-ops")
+    const ch = supabase.channel(`drop-ops-${++dropOpsChanSeq}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "drop_orders" }, () => { load(); loadHistory(); })
       .on("postgres_changes", { event: "*", schema: "public", table: "brew_batches" }, () => loadBatches())
       .subscribe();

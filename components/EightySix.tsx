@@ -9,6 +9,9 @@ import { useApp } from "./AppProvider";
 // bring back. Realtime both ways; the flip stamps who/when (0130) and clears itself at 4am Eastern.
 type Prod = { id: string; slug: string; name: string; sold_out: boolean; sold_out_at: string | null };
 
+// Unique channel name per subscription — this component remounts with the Service-mode
+// toggle, and a reused name races removeChannel (same class as the availability crash).
+let esChanSeq = 0;
 export default function EightySix() {
   const { toast } = useApp();
   const [rows, setRows] = useState<Prod[]>([]);
@@ -20,7 +23,7 @@ export default function EightySix() {
   useEffect(() => {
     load();
     if (!supabase) return;
-    const ch = supabase.channel("eighty-six")
+    const ch = supabase.channel(`eighty-six-${++esChanSeq}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "products" }, () => load())
       .subscribe();
     return () => { supabase?.removeChannel(ch); };

@@ -97,6 +97,9 @@ function groupItems(items: string[]) {
 }
 const RECENT_MS = 30 * 60000; // picked-up orders linger 30 min for review / recall
 
+// Kitchen mounts in the Now list AND full-screen Service mode; a fixed channel name races
+// removeChannel on the toggle (realtime channels are keyed by name). Unique per subscription.
+let kdsChanSeq = 0;
 function Kitchen() {
   const { toast } = useApp();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -174,7 +177,7 @@ function Kitchen() {
     window.addEventListener(OFFLINE_EVENT, onQueue);
     if (!supabase) return () => { clearInterval(tick); clearInterval(recon); window.removeEventListener(OFFLINE_EVENT, onQueue); };
     const ch = supabase
-      .channel("admin-kds")
+      .channel(`admin-kds-${++kdsChanSeq}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, (p) => {
         const row = (p.eventType === "DELETE" ? p.old : p.new) as Order;
         apply(row, p.eventType === "DELETE");
