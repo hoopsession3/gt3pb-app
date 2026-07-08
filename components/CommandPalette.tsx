@@ -54,8 +54,11 @@ export default function CommandPalette() {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setOpen((o) => !o); setQ(""); setSel(0); }
       else if (e.key === "Escape") setOpen(false);
     };
+    // Touch entry point (mobile has no ⌘K): the Jump chip dispatches this to open the palette.
+    const onOpenEvt = () => { setOpen(true); setQ(""); setSel(0); };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("gt3-open-cmdk", onOpenEvt);
+    return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("gt3-open-cmdk", onOpenEvt); };
   }, []);
   useEffect(() => { setSel(0); }, [q]);
 

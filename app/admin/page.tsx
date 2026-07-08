@@ -4315,6 +4315,8 @@ export default function AdminPage() {
           <button type="button" className="modesw-seg" onClick={() => router.push("/")}>Customer view</button>
         </div>
         <div className="toprow-actions">
+          {/* Jump — touch entry to the command palette (⌘K on desktop; a tap target on mobile). */}
+          <button type="button" className="crew-jump" onClick={() => window.dispatchEvent(new Event("gt3-open-cmdk"))} aria-label="Jump to a section, recent, or action"><span aria-hidden>⌕</span> Jump<kbd className="crew-jump-k" aria-hidden>⌘K</kbd></button>
           {/* Section guide — what each section is for + jump there. */}
           <button type="button" className="crew-guide" onClick={() => setGuideOpen(true)} aria-haspopup="dialog"><span aria-hidden>ⓘ</span> Guide</button>
           {/* Back = previous section within crew mode; only leaves for /3mpire when there's no
