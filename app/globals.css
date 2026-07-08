@@ -3482,3 +3482,14 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 /* checkout upsell, one quiet line (the closed + post-pay states own the full pitch) */
 .co-upsell-line{display:block;width:100%;background:none;border:none;font-family:'Inter';font-size:12.5px;color:var(--cream-m);text-align:left;padding:10px 2px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .co-upsell-line b{color:var(--gold2,#C8A661);font-weight:650}
+
+/* one-hero-one-line stat shapes (de-noise sweep, crew) */
+.adm-hud-hero{display:flex;align-items:baseline;gap:8px;margin:4px 2px 2px}
+.adm-hud-hero b{font-family:'DM Mono',ui-monospace,monospace;font-weight:500;font-size:30px;color:var(--gold2,#B8902F)}
+.adm-hud-hero span{font-family:'Inter';font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--cream-m)}
+.adm-hud-line{font-family:'Inter';font-size:12.5px;line-height:1.5;color:var(--cream-m);margin:2px 2px 4px}
+.adm-hud-line b{font-family:'DM Mono',ui-monospace,monospace;font-weight:500}
+.rpt-hero{display:flex;align-items:baseline;gap:8px;margin:4px 2px 2px}
+.rpt-hero b{font-family:'DM Mono',ui-monospace,monospace;font-weight:500;font-size:26px;color:var(--gold2,#B8902F)}
+.rpt-hero span{font-family:'Inter';font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--cream-m)}
+.rpt-line{font-family:'Inter';font-size:12.5px;color:var(--cream-m);margin:2px 2px 12px}

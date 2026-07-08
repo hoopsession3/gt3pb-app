@@ -235,7 +235,7 @@ function Kitchen() {
       )}
       {late.length > 0 && (
         <div className="adm-attn" role="alert">
-          <b>{late.map((o) => o.customer ?? "Guest").join(", ")}</b> waiting past 8 min — step over and reassure the guest.
+          <b>{late.length} guest{late.length === 1 ? "" : "s"}</b> past 8 min — step over and reassure.
         </div>
       )}
 
@@ -442,9 +442,9 @@ function AlertsInbox({ userId }: { userId: string | null }) {
               <span className="alert-title">{a.title}</span>
               {a.body && <span className="alert-body">{a.body}</span>}
             </div>
+            {counts[a.id] ? <button type="button" className="alert-discuss" onClick={() => setOpenThread(openThread === a.id ? null : a.id)} aria-label="Discuss">💬<span className="cmt-count">{counts[a.id]}</span></button> : null}
             <button type="button" className="alert-open" onClick={() => gotoAlert(a)}>Open →</button>
-            <button type="button" className="alert-discuss" onClick={() => setOpenThread(openThread === a.id ? null : a.id)} aria-label="Discuss">💬{counts[a.id] ? <span className="cmt-count">{counts[a.id]}</span> : null}</button>
-            <button type="button" className="alert-ack" onClick={() => ack(a)}>Got it</button>
+            <button type="button" className="alert-ack" onClick={() => ack(a)} aria-label="Got it">✓</button>
           </div>
           {openThread === a.id && (
             <CommentThread subject={{ col: "alert_id", id: a.id }} notifyIds={[a.target_user_id, a.created_by]} label={a.title} meId={userId} meName={meName} />
@@ -941,7 +941,7 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
                 {f.body && <div className="myday-flag-x">{f.body}</div>}
               </div>
               <button type="button" className="myday-open" onClick={() => gotoFlag(f)}>Open →</button>
-              <button type="button" className="myday-ack" onClick={() => ack(f.id)}>Got it</button>
+              <button type="button" className="myday-ack" onClick={() => ack(f.id)} aria-label="Got it">✓</button>
             </div>
           ))}
         </>
@@ -3251,12 +3251,6 @@ function Members() {
   return (
     <div className="adm-sec tm">
       <div className="sec">Team · {members.length}</div>
-      <div className="tm-counts">
-        <span><b>{counts.lead}</b> leadership</span>
-        <span><b>{counts.crew}</b> crew</span>
-        <span><b>{counts.member}</b> members</span>
-        <span className="tm-live">● live</span>
-      </div>
       {members.length > 5 && (
         <input className="auth-input tm-search" placeholder="Search name, code, or role" value={q} onChange={(e) => setQ(e.target.value)} />
       )}
@@ -3332,22 +3326,10 @@ function EventHUD() {
   return (
     <div className="adm-sec adm-hud">
       <div className="sec">{ev.title}<span className="adm-pill due">LIVE</span></div>
-      <div className="adm-hud-row">
-        <div className="adm-hud-stat"><b>${(stats.cents / 100).toFixed(0)}</b><span>sales</span></div>
-        <div className="adm-hud-stat"><b>{stats.orders}</b><span>orders</span></div>
-        <div className="adm-hud-stat"><b>${(perHr / 100).toFixed(0)}</b><span>per hr</span></div>
-      </div>
-      {hasPlan && (
-        <>
-          <div className="wrule"><span>Plan vs actual</span></div>
-          <div className="adm-hud-row">
-            <div className="adm-hud-stat"><b className={pctOfPlan >= 100 ? "ok" : "gold"}>{pctOfPlan}%</b><span>of plan</span></div>
-            <div className="adm-hud-stat"><b className={netUp ? "ok" : "red"}>{usd(recon.actualNetCents)}</b><span>net now</span></div>
-            <div className="adm-hud-stat"><b className={netUp ? "ok" : "red"}>{pctInt(recon.actualRoiPct)}%</b><span>ROI now</span></div>
-          </div>
-          <div className="pnl-be">Plan {usd(proj.revenueCents)} rev · {usd(proj.netCents)} net{proj.breakEvenGuests != null ? ` · break-even ${Math.ceil(proj.breakEvenGuests)} guests` : ""}</div>
-        </>
-      )}
+      {/* One hero mid-service — sales — and one quiet line. The full plan-vs-actual story
+          (ROI, break-even, plan totals) lives in Money → Per-event P&L, not on the Now screen. */}
+      <div className="adm-hud-hero"><b>${(stats.cents / 100).toFixed(0)}</b><span>in sales</span></div>
+      <p className="adm-hud-line">{stats.orders} order{stats.orders === 1 ? "" : "s"} · ${(perHr / 100).toFixed(0)}/hr{hasPlan && <> · {pctOfPlan}% of plan · net <b className={netUp ? "ok" : "red"}>{usd(recon.actualNetCents)}</b></>}</p>
     </div>
   );
 }

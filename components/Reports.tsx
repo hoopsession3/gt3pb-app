@@ -49,16 +49,13 @@ export default function Reports() {
         <div className="rpt-hint">Loading…</div>
       ) : (
         <>
-          <div className="rpt-kpis">
-            <div className="rpt-kpi"><span className="rpt-k">Revenue</span><b>{usd(rev)}</b></div>
-            <div className="rpt-kpi"><span className="rpt-k">Orders</span><b>{orders.toLocaleString()}</b></div>
-            <div className="rpt-kpi"><span className="rpt-k">Avg order</span><b>{usd2(aov)}</b></div>
-            <div className="rpt-kpi"><span className="rpt-k">Est. margin</span><b>{usd(margin)}</b><span className="rpt-sub">{Math.round((1 - cogs) * 100)}% est.</span></div>
-          </div>
-
           {empty ? (
             <div className="rpt-hint">No sales recorded in the last {days} days. This fills in as orders come through.</div>
           ) : (
+            <>
+            {/* revenue is the hero; the rest is one quiet line (zero-tiles never render) */}
+            <div className="rpt-hero"><b>{usd(rev)}</b><span>revenue · {days}d</span></div>
+            <p className="rpt-line">{orders.toLocaleString()} orders · {usd2(aov)} avg · est. margin {usd(margin)} at {Math.round((1 - cogs) * 100)}%</p>
             <>
               {(rep?.by_event?.length ?? 0) > 0 && (
                 <div className="rpt-block">
@@ -96,6 +93,7 @@ export default function Reports() {
                   </div>
                 </div>
               )}
+            </>
             </>
           )}
           <div className="rpt-foot">Live from orders + Square. Margin = revenue × (1 − blended COGS {Math.round(cogs * 100)}%); set exact costs in Product economics.</div>

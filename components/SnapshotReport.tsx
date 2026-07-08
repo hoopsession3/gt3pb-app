@@ -77,8 +77,8 @@ export default function SnapshotReport() {
       <div className="rpt-block">
         <div className="rpt-bh">Subscribers</div>
         <div className="rpt-kpis">
-          <div className="rpt-kpi"><span className="rpt-k">MRR</span><b>{usd(subs.mrr_cents)}</b><span className="rpt-sub">{subs.active} active</span></div>
-          <div className="rpt-kpi"><span className="rpt-k">Past due</span><b>{subs.past_due.toLocaleString()}</b><span className="rpt-sub">{subs.paused} paused · {subs.total} total</span></div>
+          <div className="rpt-kpi"><span className="rpt-k">MRR</span><b>{usd(subs.mrr_cents)}</b><span className="rpt-sub">{subs.active} active of {subs.total}</span></div>
+          {subs.past_due > 0 && <div className="rpt-kpi"><span className="rpt-k">Past due</span><b>{subs.past_due.toLocaleString()}</b><span className="rpt-sub">{subs.paused} paused</span></div>}
         </div>
         {(subs.by_plan ?? []).map((p, i) => (
           <div key={i} className="rpt-bar">
