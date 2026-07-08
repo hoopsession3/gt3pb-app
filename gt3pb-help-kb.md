@@ -117,11 +117,21 @@ One rule, one source of truth, enforced at every layer so it can't be dodged or 
   Bookings (requests in) → Brew (production) → Notes, divider, back office (Vendors · Reserves).
   New tabs slot into the rhythm, not onto the end.
 
+## Customer notifications — off-app (SMS + email)
+
+The app never assumes the customer is watching it. Lifecycle facts go out by **SMS (Twilio) and
+email (Resend)**, server-side and best-effort (an order never fails because a provider hiccuped):
+reservation confirmed (phone + account email), Sunday delivery confirmed (with the empties
+reminder), **order ready** when the pass advances (account email — walk-ups carry no phone), and
+**delivered** when the driver logs the porch outcome. Until the provider keys land in Vercel
+(`RESEND_API_KEY` + `NOTIFY_FROM_EMAIL`, `TWILIO_ACCOUNT_SID` + `TWILIO_AUTH_TOKEN` +
+`TWILIO_FROM_NUMBER`), every send is a clean no-op — the machinery is live, silent, and waiting.
+
 ## Sunday delivery — operations (the porch run)
 - **Where**: Now → **Sunday delivery · run sheet** (appears only when a delivery day has orders).
   One summary line (bottles · refills/fresh · paid), the **Saturday brew line** (flavor totals +
   Performance combos like "2× RISE + MCT"), and the stop list — folded until the run day, sorted
-  by ZIP for a sane route.
+  by ZIP for a sane route. Stop **times are managed in the location editor** (Opens / Ends next to the date) — the truck page's OPEN reads straight from it.
 - **Statuses**: received → brewed → out for delivery → (delivered | held). Tap them as you go —
   it's how the owner watches the run without calling the driver.
 - **The swap (locked rule)**: refill customers agreed at checkout — checkbox, timestamped — that

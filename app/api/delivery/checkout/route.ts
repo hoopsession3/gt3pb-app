@@ -3,6 +3,7 @@ import { SQUARE_BASE, SQUARE_VERSION } from "@/lib/squareServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
+import { notifyCustomer } from "@/lib/notify";
 import {
   quoteDelivery, deliverySlotChoices, zipInZone, perfTotal, maxRefills,
   DELIVERY_PACKS, PERF_BASES, PERF_ADDINS, type PerfMix,
@@ -117,6 +118,15 @@ export async function POST(req: Request) {
       await raiseAlert({ severity: "critical", category: "money", title: "Paid DELIVERY didn't record — add it", body: `Card payment ${paymentId} succeeded but the delivery order didn't save. ${name}, ${packSize} bottles for ${slot.deliveryLabel}, ${street}, ${city} ${zip}. Add it by hand and confirm in Square.` });
       return NextResponse.json({ ok: true, paymentId, recorded: false, ref, deliveryLabel: slot.deliveryLabel, warn: `Payment received — ref ${ref}. We've alerted the crew to add your order.` });
     }
+
+    // Confirmation to the customer — the delivery phone + account email. Best-effort.
+    const { data: au } = await supabaseAdmin.auth.admin.getUserById(user.id);
+    await notifyCustomer({
+      phone: row.phone,
+      email: au?.user?.email ?? null,
+      subject: `GT3 — Sunday delivery confirmed (${slot.deliveryLabel})`,
+      message: `GT3: your ${packSize}-bottle delivery is set for ${slot.deliveryLabel} — $${(quote.totalCents / 100).toFixed(2)} paid.${quote.refillCount > 0 ? ` Set your ${quote.refillCount} rinsed empties out by 5 AM — no empties, no swap.` : ""} Fresh 7 days from delivery.`,
+    });
 
     await raiseAlert({
       severity: "fyi", category: "orders", title: "New Sunday delivery 🚚",

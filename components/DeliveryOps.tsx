@@ -65,6 +65,16 @@ export default function DeliveryOps() {
     load();
   };
   const outcome = async (o: DOrder, kind: "swap_completed" | "delivered_fresh_no_empties" | "held_no_empties") => {
+    // Delivered = the porch text ("your bottles are out"). Held-for-pickup gets crew handling
+    // instead. Fire-and-forget — the run sheet never waits on a provider.
+    if (kind !== "held_no_empties") {
+      void (async () => {
+        try {
+          const tok = (await supabase!.auth.getSession()).data.session?.access_token;
+          await fetch("/api/notify", { method: "POST", headers: { "Content-Type": "application/json", ...(tok ? { Authorization: `Bearer ${tok}` } : {}) }, body: JSON.stringify({ kind: "delivered", id: o.id }) });
+        } catch { /* best-effort */ }
+      })();
+    }
     if (!supabase) return;
     if (kind === "swap_completed") {
       const got = typeof window !== "undefined" ? window.prompt(`Empties picked up? (expected ${o.empties_expected})`, String(o.empties_expected)) : null;

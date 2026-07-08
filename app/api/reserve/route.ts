@@ -3,6 +3,7 @@ import { SQUARE_BASE, SQUARE_VERSION } from "@/lib/squareServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
+import { notifyCustomer } from "@/lib/notify";
 import { PRICING, FLAVORS, isPackSize, packTotal, toCents, mixComplete, mixSummary, nextDrop, dropForStop, dropDateKey, dollars, type GlassPath, type Mix } from "@/lib/orderAhead";
 
 // ORDER-AHEAD reserve — records a one-off Saturday-drop reservation. Price + cutoff are recomputed
@@ -102,6 +103,16 @@ export async function POST(req: Request) {
       await raiseAlert({ severity: "critical", category: paid ? "money" : "order", title, body: `${paid ? `A card payment succeeded (${paymentId}) but the` : "A pre-order"} reservation didn't save. ${name} · ${size}-pack ${glass} · ${mixSummary(mix)} · pickup ${dropDate}.${paid ? " Add it and confirm in Square." : " Add it to the drop."}` });
       return NextResponse.json({ ok: true, paid, recorded: false, ref, warn: `Reserved${ref ? ` — ref ${ref}` : ""}. We've alerted the crew; show this at pickup.` });
     }
+
+    // Confirmation to the customer — SMS (they gave a phone for exactly this) + account email.
+    // Best-effort: a provider hiccup never fails the reservation.
+    const { data: au } = await supabaseAdmin.auth.admin.getUserById(user.id);
+    await notifyCustomer({
+      phone,
+      email: au?.user?.email ?? null,
+      subject: `GT3 — ${size}-pack reserved for ${dropDate}`,
+      message: `GT3: your ${size}-pack (${mixSummary(mix)}) is reserved for pickup ${dropDate}${paid ? " — paid ✓" : ` — ${dollars(packTotal(size, glass as GlassPath))} at pickup`}. We brew it fresh for pickup day.${glass === "return" ? " Rinse your empties and bring them along." : ""}`,
+    });
 
     await raiseAlert({ severity: "fyi", category: "note", title: "New reservation 🎉", body: `${name} reserved a ${size}-pack (${mixSummary(mix)}) for ${dropDate} — ${dollars(packTotal(size, glass as GlassPath))}, ${glass === "return" ? "bringing bottles back" : "new glass"}${paid ? "" : " · pay at pickup"}.` });
     return NextResponse.json({ ok: true, id: inserted?.id ?? null, paid, recorded: true });

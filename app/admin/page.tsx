@@ -195,6 +195,16 @@ function Kitchen() {
     if (!to || !supabase) return;
     apply({ ...o, status: to, status_changed_at: new Date().toISOString() } as Order, false);
     haptic(HAPTIC.tap);
+    // Ready = tell the customer off-app too (SMS/email, env-gated server-side). Fire-and-forget:
+    // the board never waits on a notification provider.
+    if (to === "ready") {
+      void (async () => {
+        try {
+          const tok = (await supabase!.auth.getSession()).data.session?.access_token;
+          await fetch("/api/notify", { method: "POST", headers: { "Content-Type": "application/json", ...(tok ? { Authorization: `Bearer ${tok}` } : {}) }, body: JSON.stringify({ kind: "order_ready", id: o.id }) });
+        } catch { /* best-effort */ }
+      })();
+    }
     // Definer RPC so a 'server' can advance status without table-wide write access.
     const { error } = await supabase.rpc("staff_set_order_status", { p_order: o.id, p_status: to });
     if (error) {
@@ -2311,6 +2321,20 @@ function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive
               <input className="ev-input" type="date"
                 defaultValue={stop?.starts_at ? (() => { const d = new Date(stop.starts_at as string); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })() : ""}
                 onChange={(e) => { if (!e.target.value) { patch({ starts_at: null }, "Date cleared"); return; } const old = stop?.starts_at ? new Date(stop.starts_at as string) : null; const hh = old ? `${String(old.getHours()).padStart(2, "0")}:${String(old.getMinutes()).padStart(2, "0")}` : "11:00"; patch({ starts_at: new Date(`${e.target.value}T${hh}:00`).toISOString() }, "Date saved — it's on the calendar"); }} />
+              {/* The TIME is a first-class fact — it's the truck page's OPEN and the drop math's
+                  anchor. Date sets the day (keeps the time); these set the time (keep the day). */}
+              <div className="ev-2col" style={{ marginTop: 8 }}>
+                <label className="ev-timelbl">Opens
+                  <input className="ev-input" type="time"
+                    defaultValue={stop?.starts_at ? (() => { const d = new Date(stop.starts_at as string); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; })() : ""}
+                    onChange={(e) => { if (!e.target.value) return; const base = stop?.starts_at ? new Date(stop.starts_at as string) : new Date(); const [hh, mm] = e.target.value.split(":"); base.setHours(Number(hh), Number(mm), 0, 0); patch({ starts_at: base.toISOString() }, "Open time saved — guests see it on the truck page"); }} />
+                </label>
+                <label className="ev-timelbl">Ends
+                  <input className="ev-input" type="time"
+                    defaultValue={stop?.ends_at ? (() => { const d = new Date(stop.ends_at as string); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; })() : ""}
+                    onChange={(e) => { if (!e.target.value) { patch({ ends_at: null }, "End time cleared"); return; } const base = stop?.starts_at ? new Date(stop.starts_at as string) : new Date(); const [hh, mm] = e.target.value.split(":"); base.setHours(Number(hh), Number(mm), 0, 0); patch({ ends_at: base.toISOString() }, "End time saved"); }} />
+                </label>
+              </div>
               <input className="ev-input" defaultValue={row.service_dates ?? ""} placeholder="Recurring note (optional) — e.g. Saturdays · May 3 – Aug 30" maxLength={200} style={{ marginTop: 8 }} onBlur={(e) => { if ((e.target.value.trim() || null) !== (row.service_dates ?? null)) patch({ service_dates: e.target.value.trim() || null }, "Service dates saved"); }} />
             </div>
           ) : (

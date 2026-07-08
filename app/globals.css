@@ -3684,3 +3684,8 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .dops.zone-pickup{border-left:3px solid var(--gold2);padding-left:13px}
 .dops.zone-delivery{border-left:3px solid var(--ok);padding-left:13px}
 .zone-delivery .dops-kick{color:var(--ok)}
+
+/* stop editor: open/ends time row */
+.ev-2col{display:flex;gap:8px}
+.ev-2col label{flex:1}
+.ev-timelbl{display:flex;flex-direction:column;gap:4px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--cream-d)}
