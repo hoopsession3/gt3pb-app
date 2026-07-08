@@ -34,6 +34,25 @@ wordmark; canonical host `app.gt3pb.com`). "GT3 Performance Bar" stays the brand
   **Plan** (booking ahead) · **Studio** (marketing + **Review Desk → truck display**) ·
   **Money** (the books) · **Team** (people & roles) · **Ask GT3** (playbook, floats).
 
+## Crew console navigation (how to move around `/admin`)
+- **Sections are URL-backed** — switching section is a real history entry (`/admin?s=prep`), so the
+  phone/browser **Back button and swipe-back work**, and a `?s=` link deep-links to a section.
+  Owned by `OperatorSectionProvider` (`components/OperatorNav.tsx`); the console `‹` walks section
+  history first, only leaving crew mode (→ `/3mpire`) when there's none left.
+- **Swipe-back** — a left-edge drag walks section history (installed PWAs have no OS edge-swipe).
+  `components/SwipeBack.tsx`; only fires when there's history, never drops you out of crew by accident.
+- **Scroll is remembered per section** (`components/ScrollRestore.tsx`) — back into a long Prep/Money
+  list and you land where you were.
+- **Breadcrumbs** show in the section header for deep views (e.g. `Prep › Atlanta BeltLine`). Generic
+  mechanism (`components/Crumbs.tsx` → `useCrumb(id, label, go)`); wired into `PrepDetail`. Any new
+  drilldown opts in with one `useCrumb()` call.
+- **Jump / ⌘K** — command palette (`components/CommandPalette.tsx`): quick-jump to any role-allowed
+  section, recent event/stop, or action (scan, customer view). The **Jump** chip in the crew top bar
+  opens it on touch; ⌘K / Ctrl-K on desktop. Recents come from `lib/recents.ts` (record a visit with
+  `recordRecent(kind, id, label)` from `components/recents.ts`).
+- **A11y**: skip-to-content link, the section body is a focused labelled region on change, roving
+  arrow-keys in the nav tablist, and the palette returns focus to its trigger on close.
+
 ## Data the customer sees publicly is always cleaned
 - Guest reviews pass through `lib/reviews.ts` (anonymize to first name + initial, strip PII, mask
   profanity, drop <4★/spam) and must be **staff-approved** (Studio → Review Desk) before the display
@@ -48,6 +67,27 @@ wordmark; canonical host `app.gt3pb.com`). "GT3 Performance Bar" stays the brand
   panels already do). Keep specialized accordions that carry extra affordances (the Prep `row()` with
   icons/subtitles, the KDS stage groups with live counts) — they're intentionally not plain Panels.
 - **Quiet by default**: in a stacked section, open only the primary panel; collapse the rest.
+
+## Reliability & trust (audit hardening, 2026-07-08)
+- **CI**: `.github/workflows/ci.yml` runs build + smoke on every push/PR — the hand gate, automated.
+- **Error visibility**: client errors (window errors, unhandled rejections, error-boundary hits)
+  ship to `/api/errors/report` → deduped into `client_errors` (0133); the FIRST occurrence of a new
+  error raises a crew-inbox alert (critical if a screen crashed). Telemetry is fail-silent — it can
+  never make the app worse. Reporter: `components/ErrorReporter.tsx`.
+- **Offline ops**: the pass keeps working with no signal. Status taps queue
+  (`lib/offline.ts` pure math + `components/offline.ts` engine, coalesced per order — final state
+  wins) and replay in order on reconnect; a fresh open renders the last-known board, labeled. The
+  `OfflineChip` (crew console) shows offline/queued/syncing truth and owns the replay triggers.
+  Customer pass shows "offline — last known". `sw.js` still never caches `/api` — snapshots are
+  app-level on purpose.
+- **Tenancy (R-002)**: 0134 enforces isolation at the DB — `stamp_tenant()` triggers on write +
+  restrictive `"tenant isolation"` RLS policies wherever RLS is on; anon resolves to the founding
+  GT3 tenant so public surfaces are unchanged. Service-role routes still need the
+  `tenantFromRequest()` sweep before tenant #2 (tracked in RISK_REGISTER R-002).
+- **Software billing (scaffold, dormant)**: 0135 adds `tenants.plan` + Stripe columns;
+  `/api/billing/checkout|portal|webhook` are live once `STRIPE_SECRET_KEY` / `STRIPE_PRICE_PRO` /
+  `STRIPE_WEBHOOK_SECRET` exist (Google-Wallet precedent). Feature gating = `lib/plan.ts`
+  (`planAllows` / `planActive`, smoke-tested). GT3 is the `founder` tenant: everything, never billed.
 
 ## Loyalty
 - `profiles.points`, +1 per drink on pickup (migration `0012`). Stamp card = a view of that; "10th on

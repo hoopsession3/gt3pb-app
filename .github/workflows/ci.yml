@@ -1,0 +1,30 @@
+# CI — the same gate we run by hand before every ship: the app must build and the deterministic
+# core (lib/*.ts money/ops math) must pass its smoke assertions. Runs on every push and PR so a
+# red commit can't reach main unnoticed. No env needed: the app guards all Supabase/AI calls
+# behind runtime "enabled" checks, so `next build` succeeds without secrets.
+name: CI
+
+on:
+  push:
+    branches: ["main", "claude/**"]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Smoke (deterministic core)
+        run: npm run smoke

@@ -19,6 +19,11 @@
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 /* keyboard focus ring (WCAG 2.4.7) — gold on dark, dark on the cream Menu/sheets */
 :focus-visible{outline:2px solid var(--gold2);outline-offset:2px;border-radius:6px}
+/* Skip link — off-screen until focused, then a pill at top-left that jumps to #body. */
+.skip-link{position:fixed;top:8px;left:8px;z-index:200;transform:translateY(-150%);background:var(--gold);color:#15120d;font-family:'Inter';font-weight:700;font-size:13px;padding:9px 14px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.4);transition:transform .16s ease}
+.skip-link:focus{transform:none;outline:2px solid var(--cream);outline-offset:2px}
+#body:focus{outline:none}
+.op-trans:focus{outline:none}
 .paper :focus-visible,.menu :focus-visible{outline-color:#221F18}
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
@@ -1144,6 +1149,11 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .modesw-seg.on{background:var(--gold);color:#1a1610;cursor:default}
 .crew-guide{display:inline-flex;align-items:center;gap:5px;font-family:'Inter';font-weight:700;font-size:11.5px;letter-spacing:.02em;color:var(--gold2);background:transparent;border:1px solid var(--gold2);border-radius:999px;padding:6px 12px;line-height:1;cursor:pointer;-webkit-appearance:none;appearance:none}
 .crew-guide:hover,.crew-guide:active{background:rgba(200,166,97,.1)}
+.crew-jump{display:inline-flex;align-items:center;gap:5px;font-family:'Inter';font-weight:700;font-size:11.5px;letter-spacing:.02em;color:var(--cream-m);background:transparent;border:1px solid var(--line2);border-radius:999px;padding:6px 10px;line-height:1;cursor:pointer;-webkit-appearance:none;appearance:none}
+.crew-jump:hover,.crew-jump:active{background:rgba(245,241,232,.06);color:var(--cream)}
+.crew-jump .crew-jump-k{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.04em;color:var(--cream-d);border:1px solid var(--line);border-radius:4px;padding:1px 4px;margin-left:1px}
+/* No physical keyboard → hide the ⌘K hint; the chip is still the tap target. */
+@media (pointer:coarse){.crew-jump .crew-jump-k{display:none}}
 /* ── Section guide sheet ── */
 .guide-sheet{position:fixed;left:50%;top:calc(50% - var(--kb,0px) / 2);transform:translate(-50%,-50%);width:calc(100% - 32px);max-width:520px;max-height:min(88vh,calc(100dvh - var(--kb,0px) - 24px));overflow-y:auto;z-index:56;background:#15110d;border:1px solid var(--line2);border-radius:18px;padding:14px 16px calc(16px + env(safe-area-inset-bottom));box-shadow:0 24px 60px rgba(0,0,0,.6);animation:popcenter .18s ease}
 .app.crew-day .guide-sheet{background:#fff}
@@ -3329,3 +3339,49 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .tvl-connect-qr{flex:0 0 auto;text-align:center}
 .tvl-connect-qr img{width:34vmin;height:34vmin;background:#fff;border-radius:2vmin;padding:1.5vmin;display:block}
 .tvl-connect-qr span{display:block;font-family:'Inter';font-size:2vmin;letter-spacing:.05em;color:var(--cream-m);margin-top:2vmin}
+/* review prompt — dismissable header */
+.rvp-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.rvp-top .rvp-k{margin-bottom:0}
+.rvp-x{background:transparent;border:none;color:var(--cream-m);font-size:15px;line-height:1;cursor:pointer;padding:2px 4px;-webkit-appearance:none;appearance:none}
+/* chub-link works as <button> too (internal in-app nav) */
+button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-appearance:none;appearance:none}
+/* back on the bare partner-share page */
+.built-back{position:fixed;top:calc(env(safe-area-inset-top) + 12px);left:12px;z-index:40;display:inline-flex;align-items:center;background:rgba(20,18,14,.82);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);color:var(--cream,#F5F1E8);border:1px solid var(--line2,rgba(245,241,232,.2));border-radius:999px;padding:8px 14px;font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
+
+/* ─────────── command palette (⌘K quick-jump, crew) ─────────── */
+.cmdk-scrim{position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);display:flex;align-items:flex-start;justify-content:center;padding-top:14vh}
+.cmdk{width:min(520px,92vw);background:#15120d;border:1px solid var(--line2);border-radius:16px;box-shadow:0 30px 70px rgba(0,0,0,.6);overflow:hidden;animation:popcenter .16s ease}
+.app.crew-day .cmdk{background:#fff}
+.cmdk-in{width:100%;background:transparent;border:none;border-bottom:1px solid var(--line);color:var(--cream);font-family:'Inter';font-size:16px;padding:16px 18px;outline:none}
+.cmdk-list{max-height:min(52vh,380px);overflow-y:auto;padding:6px}
+.cmdk-item{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;background:transparent;border:none;border-radius:10px;padding:11px 12px;color:var(--cream);font-family:'Inter';font-size:14.5px;font-weight:600;cursor:pointer;text-align:left;-webkit-appearance:none;appearance:none}
+.cmdk-item.on{background:rgba(200,166,97,.14)}
+.cmdk-item em{font-family:'DM Mono',monospace;font-style:normal;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--cream-d)}
+.cmdk-empty{padding:16px;color:var(--cream-m);font-family:'Inter';font-size:14px;text-align:center}
+.cmdk-foot{padding:9px 14px;border-top:1px solid var(--line);font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.06em;color:var(--cream-d)}
+/* Swipe-back affordance — a chevron pill that tracks a left-edge drag; brightens (armed) once past the trigger. */
+.swipeback{position:fixed;left:0;top:50%;margin-top:-24px;z-index:79;width:48px;height:48px;border-radius:0 26px 26px 0;background:rgba(21,18,13,.86);border:1px solid var(--line2);border-left:none;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;pointer-events:none;box-shadow:0 8px 24px rgba(0,0,0,.4);transition:background .12s ease,border-color .12s ease}
+.swipeback.armed{background:var(--gold);border-color:var(--gold2)}
+.swipeback-chev{font-size:26px;line-height:1;color:var(--cream);font-weight:400;transform:translateX(-1px)}
+.swipeback.armed .swipeback-chev{color:#15120d}
+.app.crew-day .swipeback{background:rgba(255,255,255,.92)}
+.app.crew-day .swipeback-chev{color:#15120d}
+/* Section transition — a subtle shared-axis fade+rise as the crew body swaps between sections. */
+.op-trans{animation:opTrans .22s cubic-bezier(.22,.61,.36,1)}
+@keyframes opTrans{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.op-trans{animation:none}}
+/* Breadcrumbs — deep-view orientation in the section header (Prep › Atlanta BeltLine). */
+.crumbs{display:flex;flex-wrap:wrap;align-items:center;gap:2px;margin-bottom:7px;font-family:'Inter';font-size:11.5px;font-weight:600;letter-spacing:.02em}
+.crumbs .crumb{display:inline-flex;align-items:center;gap:2px}
+.crumbs .crumb-sep{font-style:normal;color:var(--cream-d);margin:0 4px}
+.crumbs .crumb-root{color:var(--cream-m)}
+.crumbs .crumb-lk{background:none;border:none;padding:0;cursor:pointer;color:var(--gold2);font:inherit}
+.crumbs .crumb-lk:hover{text-decoration:underline}
+.crumbs span[aria-current="page"]{color:var(--cream)}
+/* Offline chip — connectivity truth for the crew console. Amber = offline (writes queuing); green = back online, queue draining. Hidden entirely when online + empty. */
+.offchip{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--navh,68px) + 14px);z-index:78;display:flex;align-items:center;gap:8px;background:#33250f;border:1px solid var(--warn);color:var(--cream);border-radius:999px;padding:8px 14px;font-family:'Inter';font-size:12.5px;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,.45);white-space:nowrap}
+.offchip b{color:var(--warn);font-weight:800;letter-spacing:.04em;text-transform:uppercase;font-size:11px}
+.offchip.on{background:#13230f;border-color:var(--ok)}
+.offchip-dot{width:8px;height:8px;border-radius:50%;background:var(--warn);animation:offpulse 1.6s ease-in-out infinite;flex:0 0 auto}
+.offchip.on .offchip-dot{background:var(--ok)}
+@keyframes offpulse{0%,100%{opacity:1}50%{opacity:.3}}

@@ -6,6 +6,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useApp } from "@/components/AppProvider";
 import { useAuth, roleOf, type Profile } from "@/components/AuthProvider";
 import { useOperatorSection, sectionsForRole, groupOfSection, SECTION_LABEL, type OpSection } from "@/components/OperatorNav";
+import { CrumbProvider, Breadcrumbs, useCrumb } from "@/components/Crumbs";
+import { recordRecent } from "@/components/recents";
+import { queueOrderStatus, isNetworkError, saveSnapshot, readSnapshot, readQueue, OFFLINE_EVENT } from "@/components/offline";
+import { snapshotUsable } from "@/lib/offline";
 import TrailerLoadout from "@/components/TrailerLoadout";
 import DropOps from "@/components/DropOps";
 import EightySix from "@/components/EightySix";
@@ -102,6 +106,7 @@ function Kitchen() {
   const [doneOpen, setDoneOpen] = useState(false);
   const [, setTick] = useState(0);
   const [err, setErr] = useState("");
+  const [staleAt, setStaleAt] = useState(0); // >0 = board hydrated from the offline snapshot
   const seeded = useRef(false);
   const mutedRef = useRef(false);
   useEffect(() => { mutedRef.current = muted; }, [muted]);
@@ -114,9 +119,17 @@ function Kitchen() {
     const recentISO = new Date(Date.now() - RECENT_MS).toISOString();
     const { data, error } = await supabase.from("orders").select("*").neq("status", "void")
       .or(`status.neq.done,status_changed_at.gte.${recentISO}`).order("created_at");
-    if (error) { setErr(error.message); return; }
-    setErr("");
-    if (data) setOrders(data as Order[]);
+    if (error) {
+      // No signal on a fresh open → show the last-known board (clearly labeled) instead of an
+      // error over a blank pass. Taps still work; writes queue and sync when the signal returns.
+      if (!seeded.current && isNetworkError(error.message)) {
+        const snap = readSnapshot<Order[]>("gt3-kds-snap");
+        if (snap && snapshotUsable(snap.at, Date.now())) { setOrders(snap.data); setStaleAt(snap.at); seeded.current = true; return; }
+      }
+      setErr(error.message); return;
+    }
+    setErr(""); setStaleAt(0);
+    if (data) { setOrders(data as Order[]); saveSnapshot("gt3-kds-snap", data); }
     seeded.current = true;
   }, []);
   // Merge a single row into state (no refetch). Keeps recently-done; drops voids and
@@ -146,7 +159,11 @@ function Kitchen() {
     load();
     const tick = setInterval(() => setTick((n) => n + 1), 1000);   // live clocks/colours
     const recon = setInterval(() => load(), 15000);                // reconcile safety net
-    if (!supabase) return () => { clearInterval(tick); clearInterval(recon); };
+    // When the offline queue drains (OfflineChip replayed it), reconcile immediately so the
+    // board swaps from optimistic/snapshot state to server truth.
+    const onQueue = () => { if (readQueue().length === 0) load(); };
+    window.addEventListener(OFFLINE_EVENT, onQueue);
+    if (!supabase) return () => { clearInterval(tick); clearInterval(recon); window.removeEventListener(OFFLINE_EVENT, onQueue); };
     const ch = supabase
       .channel("admin-kds")
       .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, (p) => {
@@ -155,7 +172,7 @@ function Kitchen() {
         if (p.eventType === "INSERT" && row?.status === "new") announceNew(row);
       })
       .subscribe();
-    return () => { clearInterval(tick); clearInterval(recon); supabase?.removeChannel(ch); };
+    return () => { clearInterval(tick); clearInterval(recon); window.removeEventListener(OFFLINE_EVENT, onQueue); supabase?.removeChannel(ch); };
   }, [load, apply, announceNew]);
 
   // Instant: patch local state synchronously, fire the write, no refetch on success.
@@ -165,7 +182,12 @@ function Kitchen() {
     haptic(HAPTIC.tap);
     // Definer RPC so a 'server' can advance status without table-wide write access.
     const { error } = await supabase.rpc("staff_set_order_status", { p_order: o.id, p_status: to });
-    if (error) { setErr(error.message); toast(`Couldn't update — ${error.message}`, "error"); load(); }
+    if (error) {
+      // No signal ≠ stop service: keep the optimistic board, park the write for replay
+      // (coalesced per order — the final state wins), and say so calmly.
+      if (isNetworkError(error.message)) { queueOrderStatus(o.id, to); toast("No signal — saved, will sync", "info"); return; }
+      setErr(error.message); toast(`Couldn't update — ${error.message}`, "error"); load();
+    }
   };
   const advance = (o: Order) => move(o, NEXT[o.status]);
   const recall = (o: Order) => move(o, PREV[o.status]);
@@ -174,7 +196,10 @@ function Kitchen() {
     if (!supabase) return;
     apply(o, true);
     const { error } = await supabase.rpc("staff_set_order_status", { p_order: o.id, p_status: "void" });
-    if (error) { setErr(error.message); toast(`Couldn't void — ${error.message}`, "error"); load(); }
+    if (error) {
+      if (isNetworkError(error.message)) { queueOrderStatus(o.id, "void"); toast("No signal — void saved, will sync", "info"); return; }
+      setErr(error.message); toast(`Couldn't void — ${error.message}`, "error"); load();
+    }
   };
 
   const toggle = (k: string) => setCollapsed((p) => { const n = new Set(p); if (n.has(k)) n.delete(k); else n.add(k); return n; });
@@ -190,6 +215,11 @@ function Kitchen() {
       </div>
 
       {err && <div className="adm-attn" role="alert">Backend error: {err}</div>}
+      {staleAt > 0 && (
+        <div className="adm-attn" role="alert">
+          <b>Offline</b> — showing the last-known board (from {ago(new Date(staleAt).toISOString())}). Taps still work and will sync when the signal returns.
+        </div>
+      )}
       {late.length > 0 && (
         <div className="adm-attn" role="alert">
           <b>{late.map((o) => o.customer ?? "Guest").join(", ")}</b> waiting past 8 min — step over and reassure the guest.
@@ -1240,13 +1270,22 @@ function EventPrep({ onGo }: { onGo: (t: string) => void }) {
       const tgt = localStorage.getItem("gt3-prep-open");
       if (tgt) { localStorage.removeItem("gt3-prep-open"); const isStop = tgt.startsWith("stop:"); const id = tgt.includes(":") ? tgt.slice(tgt.indexOf(":") + 1) : tgt; setSelected({ kind: isStop ? "stop" : "event", id }); }
     } catch { /* ignore */ }
-    if (!supabase) return;
+    // ⌘K / recents jump: open the requested target even if we're already on the Prep list (the
+    // mount-time read above only fires on first render).
+    const onOpen = () => {
+      try {
+        const tgt = localStorage.getItem("gt3-prep-open");
+        if (tgt) { localStorage.removeItem("gt3-prep-open"); const isStop = tgt.startsWith("stop:"); const id = tgt.includes(":") ? tgt.slice(tgt.indexOf(":") + 1) : tgt; setSelected({ kind: isStop ? "stop" : "event", id }); }
+      } catch { /* ignore */ }
+    };
+    window.addEventListener("gt3-open-prep", onOpen);
+    if (!supabase) { return () => window.removeEventListener("gt3-open-prep", onOpen); }
     const ch = supabase.channel("admin-prep-index")
       .on("postgres_changes", { event: "*", schema: "public", table: "events" }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "stops" }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "event_tasks" }, () => load())
       .subscribe();
-    return () => { supabase?.removeChannel(ch); };
+    return () => { supabase?.removeChannel(ch); window.removeEventListener("gt3-open-prep", onOpen); };
   }, [load]);
 
   if (selected) return <PrepDetail target={selected} onBack={() => setSelected(null)} />;
@@ -1363,6 +1402,10 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   const [assignFor, setAssignFor] = useState<EventTask | null>(null);
   const [editTask, setEditTask] = useState<EventTask | null>(null);
   const [showSupplies, setShowSupplies] = useState(false);
+  // Breadcrumb: Prep › <this target>. Clicking the "Prep" root (or the name) steps back to the list.
+  useCrumb("prep-detail", name ?? (isEvent ? "Event" : "Location"), onBack);
+  // Recents: remember this event/stop so ⌘K can jump straight back to it later.
+  useEffect(() => { if (name) recordRecent(isEvent ? "event" : "stop", target.id, name); }, [name, isEvent, target.id]);
   const [openThread, setOpenThread] = useState<string | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [prepAIOpen, setPrepAIOpen] = useState(false);
@@ -4246,6 +4289,14 @@ export default function AdminPage() {
   const sec: OpSection = allowed.includes(section) ? section : "now";
   const [planTab, setPlanTab] = useState<"calendar" | "notes" | "events" | "stops" | "brew" | "vendors" | "bookings" | "reserves">("calendar");
   const [guideOpen, setGuideOpen] = useState(false);
+  // Focus the section region when you switch sections (skip the first render so we don't yank focus
+  // on initial load). Programmatic focus won't trigger :focus-visible, so there's no stray ring.
+  const opBodyRef = useRef<HTMLDivElement>(null);
+  const firstSecRef = useRef(true);
+  useEffect(() => {
+    if (firstSecRef.current) { firstSecRef.current = false; return; }
+    opBodyRef.current?.focus();
+  }, [section]);
   // deep-link from Studio's "Company calendar ↗" → land on the Plan calendar
   useEffect(() => {
     if (sec !== "plan" || typeof window === "undefined") return;
@@ -4291,6 +4342,7 @@ export default function AdminPage() {
   };
 
   return (
+    <CrumbProvider>
     <section className="screen admin">
       <div className="toprow">
         {/* Mode switch — you're in Crew; tap Customer view to drop to the customer app ("/"). */}
@@ -4299,6 +4351,8 @@ export default function AdminPage() {
           <button type="button" className="modesw-seg" onClick={() => router.push("/")}>Customer view</button>
         </div>
         <div className="toprow-actions">
+          {/* Jump — touch entry to the command palette (⌘K on desktop; a tap target on mobile). */}
+          <button type="button" className="crew-jump" onClick={() => window.dispatchEvent(new Event("gt3-open-cmdk"))} aria-label="Jump to a section, recent, or action"><span aria-hidden>⌕</span> Jump<kbd className="crew-jump-k" aria-hidden>⌘K</kbd></button>
           {/* Section guide — what each section is for + jump there. */}
           <button type="button" className="crew-guide" onClick={() => setGuideOpen(true)} aria-haspopup="dialog"><span aria-hidden>ⓘ</span> Guide</button>
           {/* Back = previous section within crew mode; only leaves for /3mpire when there's no
@@ -4308,6 +4362,8 @@ export default function AdminPage() {
       </div>
       {guideOpen && <SectionGuide allowed={allowed} current={sec} onGo={setSection} onClose={() => setGuideOpen(false)} />}
       <div className="op-head">
+        {/* Breadcrumb trail — only appears once a deep view registers a crumb (e.g. Prep › event). */}
+        <Breadcrumbs root={SEC_LABEL[sec]} />
         <div className="op-head-row">
           <div className="op-head-t">{SEC_LABEL[sec]}</div>
           {/* Tap the WHEN pill → the full section guide, opened on this section, with jump links. */}
@@ -4331,6 +4387,10 @@ export default function AdminPage() {
         );
       })()}
 
+      {/* Shared-axis transition: keying on `sec` remounts the body on each section change so it
+          fades+slides in. planTab changes keep the same key, so sub-tabs don't re-animate.
+          role=region + focus-on-change: keyboard/SR users land in the new section, not adrift. */}
+      <div className="op-trans" key={sec} ref={opBodyRef} tabIndex={-1} role="region" aria-label={`${SEC_LABEL[sec]} section`}>
       {sec === "day" && <MyDay userId={user?.id ?? null} meName={profile?.display_name?.trim() || "Me"} isLeader={canManage} />}
 
       {sec === "now" && (
@@ -4409,6 +4469,8 @@ export default function AdminPage() {
           {isOwner && <Members />}
         </>
       )}
+      </div>
     </section>
+    </CrumbProvider>
   );
 }

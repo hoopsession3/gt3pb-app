@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import type { Order } from "@/lib/db";
+import { saveSnapshot, readSnapshot, isNetworkError } from "./offline";
+import { snapshotUsable } from "@/lib/offline";
 
 // A live "your order" banner for signed-in members — preparing → ready in realtime,
 // no push permission required (RLS lets a member read only their own orders). Guests
@@ -20,16 +22,28 @@ export default function OrderStatus() {
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [canceling, setCanceling] = useState(false);
+  // Offline: a member who walks away from the truck (festival dead zones) still sees their
+  // last-known status, labeled as such, instead of the banner vanishing.
+  const [stale, setStale] = useState(false);
+  const loadedOnce = useRef(false);
 
   const load = useCallback(async () => {
     if (!supabase || !user) { setOrders([]); return; }
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("orders")
       .select("*")
       .eq("user_id", user.id)
       .in("status", ["new", "preparing", "ready"])
       .order("created_at", { ascending: false });
-    if (data) setOrders(data as Order[]);
+    if (data) {
+      setOrders(data as Order[]); setStale(false); loadedOnce.current = true;
+      saveSnapshot(`gt3-order-snap-${user.id}`, data);
+      return;
+    }
+    if (error && !loadedOnce.current && isNetworkError(error.message)) {
+      const snap = readSnapshot<Order[]>(`gt3-order-snap-${user.id}`);
+      if (snap && snapshotUsable(snap.at, Date.now(), 90 * 60 * 1000) && snap.data.length > 0) { setOrders(snap.data); setStale(true); }
+    }
   }, [user]);
 
   useEffect(() => {
@@ -73,7 +87,7 @@ export default function OrderStatus() {
       <span className="orderbar-dot" />
       <div className="orderbar-main">
         <b>{STATUS_LABEL[o.status] ?? "Your order"}</b>
-        <span>{items}{orders.length > 1 ? ` · +${orders.length - 1} more` : ""}</span>
+        <span>{items}{orders.length > 1 ? ` · +${orders.length - 1} more` : ""}{stale ? " · offline — last known" : ""}</span>
       </div>
       {o.status === "new" && (
         <button type="button" className="orderbar-cancel" onClick={cancel} disabled={canceling}>

@@ -4,6 +4,9 @@ const I = require("../.smoke/ics.js");
 const CL = require("../.smoke/captionLint.js");
 const OA = require("../.smoke/orderAhead.js");
 const RV = require("../.smoke/reviews.js");
+const RC = require("../.smoke/recents.js");
+const OF = require("../.smoke/offline.js");
+const PL = require("../.smoke/plan.js");
 let pass = 0, fail = 0;
 const ok = (name, cond, got) => { if (cond) { pass++; } else { fail++; console.log(`  ✗ ${name}` + (got !== undefined ? ` → got ${JSON.stringify(got)}` : "")); } };
 
@@ -193,6 +196,52 @@ const rvPicked = RV.pickForDisplay([
 ], 12);
 ok("pick dedupes + filters low", rvPicked.length === 1, rvPicked.length);
 ok("pick anonymizes surname", rvPicked[0] && rvPicked[0].who === "Ana R.", rvPicked[0] && rvPicked[0].who);
+
+// --- recents: MRU quick-jump list ---
+ok("recentKey composes", RC.recentKey("event", "e1") === "event:e1");
+const r0 = [];
+const r1 = RC.addRecent(r0, { key: "event:e1", kind: "event", id: "e1", label: "BeltLine", at: 1 });
+ok("addRecent inserts", r1.length === 1 && r1[0].id === "e1");
+const r2 = RC.addRecent(r1, { key: "stop:s1", kind: "stop", id: "s1", label: "Ponce", at: 2 });
+ok("addRecent prepends newest", r2[0].id === "s1" && r2.length === 2);
+const r3 = RC.addRecent(r2, { key: "event:e1", kind: "event", id: "e1", label: "BeltLine", at: 3 });
+ok("addRecent dedupes to front", r3.length === 2 && r3[0].id === "e1", r3.map((x) => x.id));
+const rCap = Array.from({ length: 12 }).reduce((acc, _, i) => RC.addRecent(acc, { key: `event:e${i}`, kind: "event", id: `e${i}`, label: `E${i}`, at: i }, 8), []);
+ok("addRecent caps at max", rCap.length === 8, rCap.length);
+const rTop = RC.topRecents([{ key: "a", kind: "event", id: "a", label: "A", at: 5 }, { key: "b", kind: "event", id: "b", label: "B", at: 9 }, { key: "c", kind: "event", id: "c", label: "", at: 20 }], 5);
+ok("topRecents sorts desc + drops blank", rTop.length === 2 && rTop[0].id === "b", rTop.map((x) => x.id));
+
+// --- offline queue: coalescing replay math ---
+const op1 = OF.orderStatusOp("o1", "preparing", 100);
+ok("orderStatusOp key", op1.key === "order_status:o1" && op1.value === "preparing");
+const q1 = OF.enqueueOp([], op1);
+ok("enqueue inserts", q1.length === 1);
+const q2 = OF.enqueueOp(q1, OF.orderStatusOp("o2", "ready", 200));
+ok("enqueue appends new target", q2.length === 2 && q2[1].id === "o2");
+const q3 = OF.enqueueOp(q2, OF.orderStatusOp("o1", "done", 300));
+ok("enqueue coalesces same target in place", q3.length === 2 && q3[0].id === "o1" && q3[0].value === "done", q3);
+const qCap = Array.from({ length: 210 }).reduce((acc, _, i) => OF.enqueueOp(acc, OF.orderStatusOp(`o${i}`, "done", i), 200), []);
+ok("enqueue caps at max (oldest dropped)", qCap.length === 200 && qCap[0].id === "o10", qCap.length);
+const qStale = OF.pruneStale([OF.orderStatusOp("old", "done", 0), OF.orderStatusOp("new", "done", 999_000)], 1_000_000, 60_000);
+ok("pruneStale drops expired ops", qStale.length === 1 && qStale[0].id === "new", qStale);
+ok("snapshot fresh is usable", OF.snapshotUsable(1_000, 61_000) === true);
+ok("snapshot too old is not", OF.snapshotUsable(1_000, 1_000 + 3 * 60 * 60 * 1000) === false);
+ok("snapshot from the future is not", OF.snapshotUsable(5_000, 1_000) === false);
+
+// --- plan gate: software billing entitlements ---
+ok("founder gets everything", PL.planAllows("founder", "ai_agents") === true);
+ok("pro gets AI", PL.planAllows("pro", "ai_agents") === true);
+ok("solo lacks AI", PL.planAllows("solo", "ai_agents") === false);
+ok("solo keeps reports", PL.planAllows("solo", "reports") === true);
+ok("unknown plan reads as most-restricted", PL.planAllows("hax", "ai_agents") === false && PL.planAllows(null, "reports") === true);
+const day = 24 * 60 * 60 * 1000;
+ok("founder always active", PL.planActive({ plan: "founder", billing_status: null, current_period_end: null }, 0) === true);
+ok("active is active", PL.planActive({ plan: "pro", billing_status: "active", current_period_end: null }, 0) === true);
+ok("past_due within grace", PL.planActive({ plan: "pro", billing_status: "past_due", current_period_end: new Date(0).toISOString() }, 6 * day) === true);
+ok("past_due beyond grace", PL.planActive({ plan: "pro", billing_status: "past_due", current_period_end: new Date(0).toISOString() }, 8 * day) === false);
+ok("canceled rides out the paid period", PL.planActive({ plan: "pro", billing_status: "canceled", current_period_end: new Date(2 * day).toISOString() }, day) === true);
+ok("canceled after period ends", PL.planActive({ plan: "pro", billing_status: "canceled", current_period_end: new Date(day).toISOString() }, 2 * day) === false);
+ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, current_period_end: null }, 0) === false);
 
 console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
 console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);

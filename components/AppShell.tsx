@@ -16,6 +16,11 @@ import Notifications from "./Notifications";
 import ServiceWorkerRegister from "./ServiceWorkerRegister";
 import DisplayToggle, { readDisplay, displayClass, DISPLAY_KEY } from "./DisplayToggle";
 import ConnectHub from "./ConnectHub";
+import CommandPalette from "./CommandPalette";
+import SwipeBack from "./SwipeBack";
+import ScrollRestore from "./ScrollRestore";
+import ErrorReporter from "./ErrorReporter";
+import OfflineChip from "./OfflineChip";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -79,7 +84,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <OperatorSectionProvider>
       <div className={`app${inAdmin && theme === "day" ? " crew-day" : ""}${disp ? ` ${disp}` : ""}`}>
-        <div className="body" ref={bodyRef} id="body">
+        {/* Skip link — first focusable element; keyboard users jump past the chrome to the content. */}
+        <a href="#body" className="skip-link">Skip to content</a>
+        <div className="body" ref={bodyRef} id="body" tabIndex={-1}>
           {children}
         </div>
         <DrinkSheet />
@@ -90,10 +97,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {inAdmin || isShare ? null : <CartBar />}
         {isShare ? null : inAdmin ? <OperatorNav /> : <BottomNav />}
         {inAdmin && <QuickDock />}
+        {inAdmin && <CommandPalette />}
+        {inAdmin && <SwipeBack />}
+        {inAdmin && <ScrollRestore />}
+        {inAdmin && <OfflineChip />}
         {customerSurface && <Concierge />}
         {inAdmin && <button type="button" className="theme-toggle" onClick={toggleTheme} aria-label={theme === "day" ? "Switch to dark" : "Switch to day"}>{theme === "day" ? "🌙" : "☀️"}</button>}
         {!isShare && <DisplayToggle />}
         {!isShare && <ConnectHub />}
+        <ErrorReporter />
         <ServiceWorkerRegister />
       </div>
     </OperatorSectionProvider>

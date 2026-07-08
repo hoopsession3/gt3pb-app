@@ -19,33 +19,58 @@ const VALID = new Set<OpSection>(["day", "now", "prep", "plan", "studio", "money
 
 export function OperatorSectionProvider({ children }: { children: React.ReactNode }) {
   const [section, setSectionState] = useState<OpSection>("day");
-  // In-crew back stack: every section change records where we were, so the console's
-  // back button retraces the previous section instead of dumping the user out of crew mode.
-  // A ref (read synchronously) is the source of truth; `depth` state just re-renders the chevron.
+  // URL-backed sections: a section change is a real browser-history entry (/admin?s=prep), so the
+  // native Back button, the phone's swipe-back, and deep-links all work. `depth` tracks how many
+  // section entries WE pushed this visit — the console back button uses it to know when to exit crew.
   const sectionRef = useRef<OpSection>("day");
-  const historyRef = useRef<OpSection[]>([]);
+  const depthRef = useRef(0);
   const [depth, setDepth] = useState(0);
+  const apply = (s: OpSection) => { sectionRef.current = s; setSectionState(s); try { localStorage.setItem("gt3-op-section", s); } catch { /* ignore */ } };
+
   useEffect(() => {
-    const s = typeof window !== "undefined" ? localStorage.getItem("gt3-op-section") : null;
-    // "ask" is no longer a tab (it floats via QuickDock) — fall through to the default.
-    if (s && VALID.has(s as OpSection)) { sectionRef.current = s as OpSection; setSectionState(s as OpSection); }
+    // Hydrate: a ?s= deep-link wins, else the last section you were on.
+    try {
+      let resolved: OpSection | null = null;
+      const q = new URL(window.location.href).searchParams.get("s");
+      if (q && VALID.has(q as OpSection)) { apply(q as OpSection); resolved = q as OpSection; }
+      else { const ls = localStorage.getItem("gt3-op-section"); if (ls && VALID.has(ls as OpSection)) { apply(ls as OpSection); resolved = ls as OpSection; } }
+      // Stamp the resolved section into the URL so the base history entry is addressable — native
+      // back returns HERE (not blank), the section is deep-linkable, and swipe-back has an anchor.
+      // replaceState (not push): we're labelling the entry we're already on, not adding one.
+      if (window.location.pathname.startsWith("/admin")) {
+        const cur = resolved ?? sectionRef.current;
+        if (new URL(window.location.href).searchParams.get("s") !== cur) window.history.replaceState({ gt3s: cur }, "", `/admin?s=${cur}`);
+      }
+    } catch { /* ignore */ }
+    // Back/forward (button or swipe): read the section out of the URL and apply it.
+    const onPop = () => {
+      try {
+        const q = new URL(window.location.href).searchParams.get("s");
+        if (q && VALID.has(q as OpSection) && q !== sectionRef.current) apply(q as OpSection);
+      } catch { /* ignore */ }
+      depthRef.current = Math.max(0, depthRef.current - 1);
+      setDepth(depthRef.current);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
   }, []);
+
   const setSection = useCallback((s: OpSection) => {
-    if (s !== sectionRef.current) { historyRef.current.push(sectionRef.current); setDepth(historyRef.current.length); }
-    sectionRef.current = s;
-    setSectionState(s);
-    if (typeof window !== "undefined") localStorage.setItem("gt3-op-section", s);
+    if (s === sectionRef.current) return;
+    apply(s);
+    try {
+      if (window.location.pathname.startsWith("/admin")) {
+        window.history.pushState({ gt3s: s }, "", `/admin?s=${s}`);
+        depthRef.current += 1; setDepth(depthRef.current);
+      }
+    } catch { /* ignore */ }
   }, []);
-  // Step back to the previously-viewed section (no new history entry). Returns false when the
-  // stack is empty — the caller then leaves crew mode (‹ back to /3mpire).
+
+  // Console back button: if we pushed section history, let the browser walk it back; otherwise the
+  // caller leaves crew mode (‹ → /3mpire). popstate applies the resulting section.
   const back = useCallback((): boolean => {
-    const prev = historyRef.current.pop();
-    setDepth(historyRef.current.length);
-    if (prev === undefined) return false;
-    sectionRef.current = prev;
-    setSectionState(prev);
-    if (typeof window !== "undefined") localStorage.setItem("gt3-op-section", prev);
-    return true;
+    if (depthRef.current > 0) { try { window.history.back(); } catch { /* ignore */ } return true; }
+    return false;
   }, []);
   return <Ctx.Provider value={{ section, setSection, back, canGoBack: depth > 0 }}>{children}</Ctx.Provider>;
 }
@@ -118,8 +143,23 @@ export default function OperatorNav() {
   // they can still navigate away from /admin.
   if (role === "member") return <BottomNav />;
   const groups = visibleGroups(role);
+  // Roving arrow-key nav for the tablist (WAI-ARIA): ←/→ move + activate, Home/End jump to ends.
+  const onNavKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!["ArrowRight", "ArrowLeft", "Home", "End"].includes(e.key)) return;
+    const tabs = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+    if (!tabs.length) return;
+    const cur = tabs.findIndex((t) => t === document.activeElement);
+    let next = cur;
+    if (e.key === "ArrowRight") next = cur < 0 ? 0 : (cur + 1) % tabs.length;
+    else if (e.key === "ArrowLeft") next = cur < 0 ? tabs.length - 1 : (cur - 1 + tabs.length) % tabs.length;
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = tabs.length - 1;
+    e.preventDefault();
+    tabs[next]?.focus();
+    tabs[next]?.click();
+  };
   return (
-    <div className="nav opnav" role="tablist" aria-label="Crew console">
+    <div className="nav opnav" role="tablist" aria-label="Crew console" onKeyDown={onNavKey}>
       {groups.map(({ group, members, label }) => {
         const on = members.includes(section);
         return (
