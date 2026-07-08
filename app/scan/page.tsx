@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
 import Gt3Mark from "@/components/Gt3Mark";
@@ -19,6 +19,7 @@ export default function ScanPage() {
 function ScanInner() {
   const { profile, ready, user } = useAuth();
   const params = useSearchParams();
+  const router = useRouter();
   const code = params.get("m") ?? "";
   const isStaff = ready && !!user && ["owner", "admin", "event_manager", "operator", "contractor", "server", "staff"].includes(roleOf(profile));
   const [member, setMember] = useState<Member | null>(null);
@@ -49,7 +50,10 @@ function ScanInner() {
 
   return (
     <section className="screen scanpg">
-      <div className="toprow"><div className="eyb">GT3 · Scan</div></div>
+      <div className="toprow">
+        <div className="eyb">GT3 · Scan</div>
+        <button type="button" className="pf" aria-label="Back to crew" onClick={() => router.push("/admin")}>‹</button>
+      </div>
       <div className="h-title">Member card</div>
       {!code && <div className="h-sub">No card code — scan a member&apos;s QR from their account.</div>}
       {state === "loading" && <div className="h-sub">Looking up…</div>}
