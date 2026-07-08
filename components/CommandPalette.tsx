@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "./AuthProvider";
 import { useOperatorSection, sectionsForRole, SECTION_LABEL, type OpSection } from "./OperatorNav";
+import { readTopRecents } from "./recents";
+import type { Recent } from "@/lib/recents";
 
 // COMMAND PALETTE — ⌘K / Ctrl-K quick-jump for the crew console. Type to jump to any role-allowed
 // section or run a quick action, keyboard-first (↑↓ ⏎ esc). The "this is a real product" flourish.
@@ -16,16 +18,31 @@ export default function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [sel, setSel] = useState(0);
+  const [recents, setRecents] = useState<Recent[]>([]);
+  // Recents are read fresh each time the palette opens (localStorage isn't reactive).
+  useEffect(() => { if (open) setRecents(readTopRecents(5)); }, [open]);
+
+  // Jump to a recently-viewed event/stop: stage it for the Prep index, switch there, and nudge it
+  // open (covers the already-on-Prep case where a mount read wouldn't re-fire).
+  const openPrepTarget = (r: Recent) => {
+    try { localStorage.setItem("gt3-prep-open", r.kind === "stop" ? `stop:${r.id}` : r.id); } catch { /* ignore */ }
+    setSection("prep");
+    window.dispatchEvent(new Event("gt3-open-prep"));
+  };
 
   const role = (profile?.role as string | undefined) ?? (profile?.is_admin ? "owner" : "member");
   const items: Item[] = useMemo(() => {
+    const recentItems: Item[] = recents
+      .filter((r) => r.kind === "event" || r.kind === "stop")
+      .map((r) => ({ id: `rec:${r.key}`, label: r.label, hint: "Recent", run: () => openPrepTarget(r) }));
     const secs: Item[] = sectionsForRole(role).map((s: OpSection) => ({ id: `sec:${s}`, label: SECTION_LABEL[s], hint: "Section", run: () => setSection(s) }));
     const actions: Item[] = [
       { id: "act:scan", label: "Scan a member card", hint: "Action", run: () => router.push("/scan") },
       { id: "act:cust", label: "Customer view", hint: "Action", run: () => router.push("/") },
     ];
-    return [...secs, ...actions];
-  }, [role, setSection, router]);
+    return [...recentItems, ...secs, ...actions];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role, setSection, router, recents]);
 
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase();

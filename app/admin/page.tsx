@@ -7,6 +7,7 @@ import { useApp } from "@/components/AppProvider";
 import { useAuth, roleOf, type Profile } from "@/components/AuthProvider";
 import { useOperatorSection, sectionsForRole, groupOfSection, SECTION_LABEL, type OpSection } from "@/components/OperatorNav";
 import { CrumbProvider, Breadcrumbs, useCrumb } from "@/components/Crumbs";
+import { recordRecent } from "@/components/recents";
 import TrailerLoadout from "@/components/TrailerLoadout";
 import DropOps from "@/components/DropOps";
 import EightySix from "@/components/EightySix";
@@ -1241,13 +1242,22 @@ function EventPrep({ onGo }: { onGo: (t: string) => void }) {
       const tgt = localStorage.getItem("gt3-prep-open");
       if (tgt) { localStorage.removeItem("gt3-prep-open"); const isStop = tgt.startsWith("stop:"); const id = tgt.includes(":") ? tgt.slice(tgt.indexOf(":") + 1) : tgt; setSelected({ kind: isStop ? "stop" : "event", id }); }
     } catch { /* ignore */ }
-    if (!supabase) return;
+    // ⌘K / recents jump: open the requested target even if we're already on the Prep list (the
+    // mount-time read above only fires on first render).
+    const onOpen = () => {
+      try {
+        const tgt = localStorage.getItem("gt3-prep-open");
+        if (tgt) { localStorage.removeItem("gt3-prep-open"); const isStop = tgt.startsWith("stop:"); const id = tgt.includes(":") ? tgt.slice(tgt.indexOf(":") + 1) : tgt; setSelected({ kind: isStop ? "stop" : "event", id }); }
+      } catch { /* ignore */ }
+    };
+    window.addEventListener("gt3-open-prep", onOpen);
+    if (!supabase) { return () => window.removeEventListener("gt3-open-prep", onOpen); }
     const ch = supabase.channel("admin-prep-index")
       .on("postgres_changes", { event: "*", schema: "public", table: "events" }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "stops" }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "event_tasks" }, () => load())
       .subscribe();
-    return () => { supabase?.removeChannel(ch); };
+    return () => { supabase?.removeChannel(ch); window.removeEventListener("gt3-open-prep", onOpen); };
   }, [load]);
 
   if (selected) return <PrepDetail target={selected} onBack={() => setSelected(null)} />;
@@ -1366,6 +1376,8 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   const [showSupplies, setShowSupplies] = useState(false);
   // Breadcrumb: Prep › <this target>. Clicking the "Prep" root (or the name) steps back to the list.
   useCrumb("prep-detail", name ?? (isEvent ? "Event" : "Location"), onBack);
+  // Recents: remember this event/stop so ⌘K can jump straight back to it later.
+  useEffect(() => { if (name) recordRecent(isEvent ? "event" : "stop", target.id, name); }, [name, isEvent, target.id]);
   const [openThread, setOpenThread] = useState<string | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [prepAIOpen, setPrepAIOpen] = useState(false);

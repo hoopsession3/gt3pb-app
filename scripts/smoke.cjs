@@ -4,6 +4,7 @@ const I = require("../.smoke/ics.js");
 const CL = require("../.smoke/captionLint.js");
 const OA = require("../.smoke/orderAhead.js");
 const RV = require("../.smoke/reviews.js");
+const RC = require("../.smoke/recents.js");
 let pass = 0, fail = 0;
 const ok = (name, cond, got) => { if (cond) { pass++; } else { fail++; console.log(`  ✗ ${name}` + (got !== undefined ? ` → got ${JSON.stringify(got)}` : "")); } };
 
@@ -193,6 +194,20 @@ const rvPicked = RV.pickForDisplay([
 ], 12);
 ok("pick dedupes + filters low", rvPicked.length === 1, rvPicked.length);
 ok("pick anonymizes surname", rvPicked[0] && rvPicked[0].who === "Ana R.", rvPicked[0] && rvPicked[0].who);
+
+// --- recents: MRU quick-jump list ---
+ok("recentKey composes", RC.recentKey("event", "e1") === "event:e1");
+const r0 = [];
+const r1 = RC.addRecent(r0, { key: "event:e1", kind: "event", id: "e1", label: "BeltLine", at: 1 });
+ok("addRecent inserts", r1.length === 1 && r1[0].id === "e1");
+const r2 = RC.addRecent(r1, { key: "stop:s1", kind: "stop", id: "s1", label: "Ponce", at: 2 });
+ok("addRecent prepends newest", r2[0].id === "s1" && r2.length === 2);
+const r3 = RC.addRecent(r2, { key: "event:e1", kind: "event", id: "e1", label: "BeltLine", at: 3 });
+ok("addRecent dedupes to front", r3.length === 2 && r3[0].id === "e1", r3.map((x) => x.id));
+const rCap = Array.from({ length: 12 }).reduce((acc, _, i) => RC.addRecent(acc, { key: `event:e${i}`, kind: "event", id: `e${i}`, label: `E${i}`, at: i }, 8), []);
+ok("addRecent caps at max", rCap.length === 8, rCap.length);
+const rTop = RC.topRecents([{ key: "a", kind: "event", id: "a", label: "A", at: 5 }, { key: "b", kind: "event", id: "b", label: "B", at: 9 }, { key: "c", kind: "event", id: "c", label: "", at: 20 }], 5);
+ok("topRecents sorts desc + drops blank", rTop.length === 2 && rTop[0].id === "b", rTop.map((x) => x.id));
 
 console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
 console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);
