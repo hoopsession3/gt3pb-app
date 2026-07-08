@@ -143,8 +143,23 @@ export default function OperatorNav() {
   // they can still navigate away from /admin.
   if (role === "member") return <BottomNav />;
   const groups = visibleGroups(role);
+  // Roving arrow-key nav for the tablist (WAI-ARIA): ←/→ move + activate, Home/End jump to ends.
+  const onNavKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!["ArrowRight", "ArrowLeft", "Home", "End"].includes(e.key)) return;
+    const tabs = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+    if (!tabs.length) return;
+    const cur = tabs.findIndex((t) => t === document.activeElement);
+    let next = cur;
+    if (e.key === "ArrowRight") next = cur < 0 ? 0 : (cur + 1) % tabs.length;
+    else if (e.key === "ArrowLeft") next = cur < 0 ? tabs.length - 1 : (cur - 1 + tabs.length) % tabs.length;
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = tabs.length - 1;
+    e.preventDefault();
+    tabs[next]?.focus();
+    tabs[next]?.click();
+  };
   return (
-    <div className="nav opnav" role="tablist" aria-label="Crew console">
+    <div className="nav opnav" role="tablist" aria-label="Crew console" onKeyDown={onNavKey}>
       {groups.map(({ group, members, label }) => {
         const on = members.includes(section);
         return (

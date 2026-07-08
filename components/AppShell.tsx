@@ -82,7 +82,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <OperatorSectionProvider>
       <div className={`app${inAdmin && theme === "day" ? " crew-day" : ""}${disp ? ` ${disp}` : ""}`}>
-        <div className="body" ref={bodyRef} id="body">
+        {/* Skip link — first focusable element; keyboard users jump past the chrome to the content. */}
+        <a href="#body" className="skip-link">Skip to content</a>
+        <div className="body" ref={bodyRef} id="body" tabIndex={-1}>
           {children}
         </div>
         <DrinkSheet />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "./AuthProvider";
 import { useOperatorSection, sectionsForRole, SECTION_LABEL, type OpSection } from "./OperatorNav";
@@ -21,6 +21,17 @@ export default function CommandPalette() {
   const [recents, setRecents] = useState<Recent[]>([]);
   // Recents are read fresh each time the palette opens (localStorage isn't reactive).
   useEffect(() => { if (open) setRecents(readTopRecents(5)); }, [open]);
+  // Focus return: remember what was focused when the palette opened, restore it on close so keyboard
+  // users aren't dumped at the top of the document.
+  const restoreRef = useRef<HTMLElement | null>(null);
+  const suppressRestore = useRef(false); // set when an item navigates — destination manages focus
+  useEffect(() => {
+    if (!open && restoreRef.current) {
+      const el = restoreRef.current; restoreRef.current = null;
+      if (!suppressRestore.current) requestAnimationFrame(() => el.focus?.());
+      suppressRestore.current = false;
+    }
+  }, [open]);
 
   // Jump to a recently-viewed event/stop: stage it for the Prep index, switch there, and nudge it
   // open (covers the already-on-Prep case where a mount read wouldn't re-fire).
@@ -51,11 +62,11 @@ export default function CommandPalette() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setOpen((o) => !o); setQ(""); setSel(0); }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setOpen((o) => { if (!o) restoreRef.current = (document.activeElement as HTMLElement) ?? null; return !o; }); setQ(""); setSel(0); }
       else if (e.key === "Escape") setOpen(false);
     };
     // Touch entry point (mobile has no ⌘K): the Jump chip dispatches this to open the palette.
-    const onOpenEvt = () => { setOpen(true); setQ(""); setSel(0); };
+    const onOpenEvt = () => { restoreRef.current = (document.activeElement as HTMLElement) ?? null; setOpen(true); setQ(""); setSel(0); };
     window.addEventListener("keydown", onKey);
     window.addEventListener("gt3-open-cmdk", onOpenEvt);
     return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("gt3-open-cmdk", onOpenEvt); };
@@ -63,7 +74,7 @@ export default function CommandPalette() {
   useEffect(() => { setSel(0); }, [q]);
 
   if (!open) return null;
-  const activate = (i: Item) => { i.run(); setOpen(false); };
+  const activate = (i: Item) => { suppressRestore.current = true; i.run(); setOpen(false); };
   const onInputKey = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowDown") { e.preventDefault(); setSel((s) => Math.min(s + 1, filtered.length - 1)); }
     else if (e.key === "ArrowUp") { e.preventDefault(); setSel((s) => Math.max(s - 1, 0)); }

@@ -4261,6 +4261,14 @@ export default function AdminPage() {
   const sec: OpSection = allowed.includes(section) ? section : "now";
   const [planTab, setPlanTab] = useState<"calendar" | "notes" | "events" | "stops" | "brew" | "vendors" | "bookings" | "reserves">("calendar");
   const [guideOpen, setGuideOpen] = useState(false);
+  // Focus the section region when you switch sections (skip the first render so we don't yank focus
+  // on initial load). Programmatic focus won't trigger :focus-visible, so there's no stray ring.
+  const opBodyRef = useRef<HTMLDivElement>(null);
+  const firstSecRef = useRef(true);
+  useEffect(() => {
+    if (firstSecRef.current) { firstSecRef.current = false; return; }
+    opBodyRef.current?.focus();
+  }, [section]);
   // deep-link from Studio's "Company calendar ↗" → land on the Plan calendar
   useEffect(() => {
     if (sec !== "plan" || typeof window === "undefined") return;
@@ -4352,8 +4360,9 @@ export default function AdminPage() {
       })()}
 
       {/* Shared-axis transition: keying on `sec` remounts the body on each section change so it
-          fades+slides in. planTab changes keep the same key, so sub-tabs don't re-animate. */}
-      <div className="op-trans" key={sec}>
+          fades+slides in. planTab changes keep the same key, so sub-tabs don't re-animate.
+          role=region + focus-on-change: keyboard/SR users land in the new section, not adrift. */}
+      <div className="op-trans" key={sec} ref={opBodyRef} tabIndex={-1} role="region" aria-label={`${SEC_LABEL[sec]} section`}>
       {sec === "day" && <MyDay userId={user?.id ?? null} meName={profile?.display_name?.trim() || "Me"} isLeader={canManage} />}
 
       {sec === "now" && (
