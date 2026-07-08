@@ -173,13 +173,21 @@ export default function DropOps() {
 
   return (
     <div className="dops">
-      <div className="dops-head"><span className="dops-kick">Reserves &amp; packs · pickup checklist</span><b>{satLabel}&rsquo;s drop{rows.length > 0 ? ` · ${rows.length} reserved` : ""}</b></div>
-      <div className="dops-stats">
-        <div className="dops-stat"><div className="sv">{bottles}</div><div className="sk">Brew</div></div>
-        <div className="dops-stat"><div className="sv">{glassBack}</div><div className="sk">Glass back</div></div>
-        <div className="dops-stat"><div className="sv">{dollars(Math.round(revenue))}</div><div className="sk">Revenue</div></div>
-      </div>
-      {dueAtWindow > 0 && <div className="dops-due">{dollars(dueAtWindow)} of that is pay-at-pickup — collect at the window.</div>}
+      <div className="dops-head"><span className="dops-kick">Reserves &amp; packs · pickup checklist</span><b>{satLabel}&rsquo;s drop{rows.length > 0 ? ` · ${rows.length} pack${rows.length === 1 ? "" : "s"} reserved` : ""}</b></div>
+      {/* One sentence with units instead of three bare KPI tiles ("6 BREW" told nobody anything).
+          It answers the drop's three questions in reading order: how much to make, what money
+          happens at the window, what glass comes back. */}
+      {rows.length > 0 && (
+        <p className="dops-sum">
+          <b>{bottles}</b> bottle{bottles === 1 ? "" : "s"} to brew
+          {dueAtWindow > 0
+            ? dueAtWindow === revenue
+              ? <> · <b>{dollars(dueAtWindow)}</b> to collect at the window</>
+              : <> · <b>{dollars(Math.round(revenue))}</b> total, <b>{dollars(dueAtWindow)}</b> still to collect at the window</>
+            : <> · <b>{dollars(Math.round(revenue))}</b> already paid</>}
+          {glassBack > 0 && <> · <b>{glassBack}</b> empties coming back</>}
+        </p>
+      )}
       {rows.length === 0 ? (
         <div className="dops-empty">No reservations yet for this drop.</div>
       ) : (

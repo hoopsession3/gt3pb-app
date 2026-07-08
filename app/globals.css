@@ -3474,3 +3474,7 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .hist-redo{flex:0 0 auto;width:34px;height:34px;border-radius:10px;background:transparent;border:1.5px solid var(--line2);color:var(--cream);font-size:15px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .hist-redo:active{transform:scale(.97)}
 .hist-more{display:block;width:100%;background:none;border:none;font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--cream-m);padding:10px 2px;cursor:pointer;text-align:left;-webkit-appearance:none;appearance:none}
+
+/* the drop's summary sentence — replaces the three bare KPI tiles (owner: "doesn't make sense") */
+.dops-sum{font-family:'Inter';font-size:13px;line-height:1.55;color:var(--cream-m);margin:2px 2px 14px}
+.dops-sum b{font-family:'DM Mono',ui-monospace,monospace;font-weight:500;color:var(--gold2,#B8902F)}
