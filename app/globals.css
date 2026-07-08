@@ -3349,3 +3349,10 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .cmdk-item em{font-family:'DM Mono',monospace;font-style:normal;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--cream-d)}
 .cmdk-empty{padding:16px;color:var(--cream-m);font-family:'Inter';font-size:14px;text-align:center}
 .cmdk-foot{padding:9px 14px;border-top:1px solid var(--line);font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.06em;color:var(--cream-d)}
+/* Swipe-back affordance — a chevron pill that tracks a left-edge drag; brightens (armed) once past the trigger. */
+.swipeback{position:fixed;left:0;top:50%;margin-top:-24px;z-index:79;width:48px;height:48px;border-radius:0 26px 26px 0;background:rgba(21,18,13,.86);border:1px solid var(--line2);border-left:none;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;pointer-events:none;box-shadow:0 8px 24px rgba(0,0,0,.4);transition:background .12s ease,border-color .12s ease}
+.swipeback.armed{background:var(--gold);border-color:var(--gold2)}
+.swipeback-chev{font-size:26px;line-height:1;color:var(--cream);font-weight:400;transform:translateX(-1px)}
+.swipeback.armed .swipeback-chev{color:#15120d}
+.app.crew-day .swipeback{background:rgba(255,255,255,.92)}
+.app.crew-day .swipeback-chev{color:#15120d}
