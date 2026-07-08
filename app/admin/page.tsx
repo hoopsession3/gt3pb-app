@@ -4234,7 +4234,7 @@ const SEC_INSIDE: Record<OpSection, string[]> = {
   prep: ["Per-event & per-stop pack lists", "Readiness & inspection checks", "Trailer load-out & gear", "Crew assignments & sign-off"],
   plan: ["Company calendar", "Events & truck stops", "Vendors & venues", "Booking requests", "Brew schedule & reserves"],
   studio: ["Post & flyer drafting", "Brand copy & front-end copy", "Feed planning grid", "Repurpose engine", "Publishing & scheduling", "Review Desk → the truck display (/display): add or approve reviews; ✨ Simplify de-claims + trims one to display-safe"],
-  money: ["Menu & pack pricing", "Reserve / order-ahead revenue", "Order history", "Snapshot reports"],
+  money: ["Sales · snapshot · per-event P&L", "Product economics & COGS", "Membership plans & subscribers", "Order history", "The Playbook (/playbook, owners) — every growth play + where its numbers land here"],
   team: ["Staff roster", "Roles & permissions", "Training & academy", "Manager approvals"],
   ask: ["Recipes & the why", "Gear & stock how-to", "The GT3 playbook"],
 };

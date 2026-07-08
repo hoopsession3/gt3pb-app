@@ -674,6 +674,29 @@ export const MODULES: Module[] = [
       { q: "When someone admits a mistake, you…", options: ["Punish it", "Reward the honesty and make it a lesson", "Ignore it"], correct: 1, why: "Punishing honesty teaches people to hide problems." },
     ],
   },
+  {
+    slug: "sunday-delivery-ops", section: "ops", title: "Sunday Delivery — the porch run", estMin: 8,
+    summary: "Order by Friday 6 PM, brew Saturday, porch drop Sunday 5–8 AM. The swap is the whole mechanic: empties out, fresh in, Loop price earned.",
+    whyItMatters: "Delivery is a promise made 48 hours in advance — the run sheet, the swap rule, and the pickup fallback are how we keep it without arguing on a porch at 6 AM.",
+    objectives: ["Run the Sunday route from the Now run sheet", "Log the right outcome at every stop", "Explain the empties rule to a customer without friction"],
+    body: [
+      { h: "The rhythm", p: "Customers order at /delivery by Friday 6 PM. Saturday you brew exactly what the run sheet's brew line says — flavors plus Performance combos. Sunday you load by 4:45 and run the list top to bottom (it sorts by ZIP)." },
+      { h: "The swap", p: "Refill orders promised their rinsed empties on the porch by 5 AM — they checked a box agreeing to it when they paid. Empties there: take them, drop the order, log ✓ Swap done with the ACTUAL count you picked up." },
+      { h: "No empties — two paths", p: "Fresh anyway: deliver in new glass, log the reason — we absorb the margin once, for a regular or a first miss. Hold: tap 'No empties — hold' and drive on. The order flips to the pickup queue, the crew inbox gets the alert, and the customer picks up at GT3PB 10 AM–2 PM. Never negotiate on the porch — the checkbox already had the conversation." },
+      { h: "Money is already done", p: "Every delivery order is PAID on order — there is no cash at the door, ever. A canceled paid order raises a refund alert; refunds happen in Square, by the owner." },
+      { h: "Count what comes back", p: "If they promised 8 and left 5, log 5. Short counts show on the order card and add up — the pattern matters more than any single miss." },
+    ],
+    mistakes: ["Arguing the empties rule at the door instead of logging the outcome", "Guessing the empties count instead of counting", "Skipping the status taps — received → brewed → out is how the owner sees the run without calling you", "Loading without checking the Performance combos line"],
+    scenarios: [
+      { situation: "Porch has 6 of the 8 promised empties", doThis: "Take the 6, deliver, log ✓ Swap done with count 6 — the card flags the short automatically." },
+      { situation: "No empties, customer texts 'just leave it'", doThis: "Fresh anyway + note, or hold — your call by history. Either way it's logged, never verbal." },
+    ],
+    founderInsight: "The porch swap is the loop made physical. We're not delivering coffee — we're collecting the reason the margin works.",
+    quiz: [
+      { q: "No empties on the porch. What never happens?", options: ["Log 'Fresh anyway' with a note", "Knock and negotiate", "Hold for pickup"], correct: 1 },
+      { q: "The customer paid…", options: ["At the door", "When they ordered — always", "At pickup"], correct: 1 },
+    ],
+  },
 ];
 
 // ─────────────────────────── product education + cookbook ───────────────────────────

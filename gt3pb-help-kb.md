@@ -71,10 +71,15 @@ One rule, one source of truth, enforced at every layer so it can't be dodged or 
 - **Cup orders**: live status banner (received → preparing → ready), self-cancel while still 'new'
   (`cancel_own_order`, 0118), offline shows "last known" instead of vanishing.
 
-## Loyalty
-`profiles.points`, +1 per drink on pickup (0012). The stamp card and the membership-card ring are
-views of that number — "10th on us." No separate data to reconcile. Walk-up stamps: staff scan the
-member QR (`/scan`, RPCs in 0132).
+## The membership economy (loyalty · referral · streak · credit)
+- **Stamps** — `profiles.points`, +1 per drink on pickup (0012). The stamp card and the
+  membership-card ring are views of that one number — "10th on us." Walk-up stamps: staff scan the
+  member QR (`/scan`, RPCs in 0132). *Strategy pilot (not yet built): 5 bottle RETURNS = one free
+  Performance drink — the delivery `empties_collected` log is its future data source.*
+- **Referral** — give $5, get $5 (`referral_events`): a friend joins with your code and makes their
+  first order → both sides get credit automatically. The 3MPIRE card shows friends joined + earned.
+- **Streak** — `profiles.streak_days`, consecutive-day visits; shown on the member stat line.
+- **Credit** — `profiles.credit_cents` (referral + goodwill); only renders when non-zero.
 
 ---
 
@@ -91,10 +96,36 @@ member QR (`/scan`, RPCs in 0132).
   **Service mode** (button at top; Esc exits) is the pass + pickups full-screen, nothing else.
 - Two kinds of "reserves," on purpose: the Saturday **pack** reserves live in Now → the drop;
   **Plan → back office → Reserves** is the *limited small-batch reserve* product (claims).
+- **Studio holds the brand machine**: the campaign generator (drafts in GT3 voice, checked by the
+  caption linter — which now enforces the strategy's locked banned-copy rules), Brand Kit (locked
+  logo art + uploads), Brand & Company calendars, the repurpose engine, and the **Review Desk**
+  (approve or ✨ Simplify guest reviews → the truck display).
+- **Money holds the whole ledger**: Sales (revenue/orders/AOV/margin by range) · Business snapshot
+  (incl. MRR + subscribers) · Per-event P&L (plan vs actual, ROI, break-even) · Product economics ·
+  COGS calculator · Membership plans · Subscribers · Order history. Every GTM play's actuals land
+  here — the Playbook page (below) links each play to where Money scores it.
 - **Tab order is operating rhythm, not alphabet** — bottom nav: Today → Plan → Studio → Money (the
   arc of a working day); Plan sub-tabs: Calendar (when) → Events (what) → Truck stops (where) →
   Bookings (requests in) → Brew (production) → Notes, divider, back office (Vendors · Reserves).
   New tabs slot into the rhythm, not onto the end.
+
+## Sunday delivery — operations (the porch run)
+- **Where**: Now → **Sunday delivery · run sheet** (appears only when a delivery day has orders).
+  One summary line (bottles · refills/fresh · paid), the **Saturday brew line** (flavor totals +
+  Performance combos like "2× RISE + MCT"), and the stop list — folded until the run day, sorted
+  by ZIP for a sane route.
+- **Statuses**: received → brewed → out for delivery → (delivered | held). Tap them as you go —
+  it's how the owner watches the run without calling the driver.
+- **The swap (locked rule)**: refill customers agreed at checkout — checkbox, timestamped — that
+  empties are out by 5 AM. Empties there → **✓ Swap done**, log the ACTUAL count (shorts flag on
+  the card). No empties → **Fresh anyway** (reason logged, margin absorbed once) or **No empties —
+  hold** → order flips to `held_for_pickup`, the crew inbox gets the pickup-queue alert, customer
+  collects at GT3PB 10 AM–2 PM. Payment already happened at order — never cash at the door.
+- **Cancels**: customers self-cancel until Friday 6 PM ET (`cancel_own_delivery`, 0139); a paid
+  cancel raises the standard refund alert. **Waitlist**: out-of-zone ZIPs capture email into
+  `delivery_waitlist` (staff-read).
+- **Trained where crew learns**: Academy → "Sunday Delivery — the porch run" (quizzed), and Ask GT3
+  answers from the same module. The customer flow is §1.
 
 ## Navigation (the "pay for this" layer)
 - **Sections are URL-backed** (`OperatorSectionProvider`, `components/OperatorNav.tsx`) — every
@@ -147,13 +178,32 @@ member QR (`/scan`, RPCs in 0132).
   `/api/billing/checkout|portal|webhook` wake when `STRIPE_SECRET_KEY` / `STRIPE_PRICE_PRO` /
   `STRIPE_WEBHOOK_SECRET` exist (the Google-Wallet precedent). Feature gating = `lib/plan.ts`
   (`planAllows` / `planActive`, smoke-tested). GT3 is the `founder` tenant: everything, never billed.
+- **Banned copy is enforced, not remembered** — the locked rules from
+  `GT3-Brew-Business-Strategy.md` (detox, "cleanest", meal replacement, wellness filler, Zenith,
+  the isn't-X-it's-Y flip…) live in `lib/captionLint` as a hard "banned" class: the Studio linter
+  flags them and the smoke suite asserts them on every push.
 - **Public data is always cleaned** — guest reviews pass through `lib/reviews.ts` (anonymize to
   first name + initial, strip PII, mask profanity, drop <4★/spam) and must be staff-approved
   (Studio → Review Desk) before the display shows them. ✨ Simplify (`/api/reviews/simplify`) trims
   a quote to display-ready and removes any health/medical claim without inventing praise.
 - **The deterministic core** — money/ops math lives in pure `lib/*.ts` (orderAhead, cogs, loadout,
-  reviews, recents, offline, plan) exercised by `npm run smoke` (142 assertions). If it computes a
+  reviews, recents, offline, plan, delivery) exercised by `npm run smoke` (162 assertions). If it computes a
   price, a window, or a queue, it's pure and tested — components only render it.
+
+# 4 · The strategy layer (owners)
+
+- **The Playbook** (`/playbook`, owner/admin only — also in the rail's Investor-brief group): the
+  whole strategy on one screen. The flywheel (how one guest compounds), the locked foundations
+  (two voices, pricing architecture, why the bottle comes back, daypart system, Phase 1→2 delivery
+  sequencing with the trigger checklist, the money path), and **all ten growth plays** with
+  projected ROI + the exact surface in the app that runs each one (ACTIVE / PLANNING / PHASE 2).
+- **Source of truth**: `GT3-Brew-Business-Strategy.md` (Rev 1.0, locked, in-repo). The Playbook
+  renders it; it never forks it. Strategy revs → `lib/strategy.ts` revs in the same PR.
+- **Deeper cuts**: `/architecture` (owner — the live system map) · `/built/…` (the partner
+  one-pager, safe to show) · Money (where every play's actuals recompute daily).
+- **Coming (Sprint B)**: goals tracker, KPI deltas (channel split, Loop %, return rate), the
+  rich-text strategies KB with permissions, GTM order-attribution. `GT3-Delivery-Audit.md` maps
+  exists-vs-build.
 
 ## Migration ledger
 Through **0139** — full table + verify SQL in `gt3pb-deploy-v1.md`. Newest:

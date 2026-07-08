@@ -33,6 +33,7 @@ export const CONNECT_GROUPS: ConnectGroup[] = [
 // architecture map is the owner deep-dive.
 export const CONNECT_LEADERSHIP: ConnectGroup = {
   q: "Investor brief", links: [
+    { label: "The playbook", sub: "strategy + every growth play", href: "/playbook", badge: "♟" },
     { label: "What we've built", sub: "partner one-pager", href: "/built/gt3-built-k7m9x4q2", badge: "★" },
     { label: "The build, live", sub: "architecture + status", href: "/architecture", badge: "⌬" },
   ],
