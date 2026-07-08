@@ -130,7 +130,9 @@ One rule, one source of truth, enforced at every layer so it can't be dodged or 
   hold** → order flips to `held_for_pickup`, the crew inbox gets the pickup-queue alert, customer
   collects at GT3PB 10 AM–2 PM. Payment already happened at order — never cash at the door.
 - **Cancels**: customers self-cancel until Friday 6 PM ET (`cancel_own_delivery`, 0139); a paid
-  cancel raises the standard refund alert. **Waitlist**: out-of-zone ZIPs capture email into
+  cancel raises the standard refund alert. **The day is the customer's choice**: reserve
+  offers the next few real stops as pickup days (server re-validates against the route + each
+  drop's cutoff), and delivery offers this Sunday or next — dates never pick themselves. **Waitlist**: out-of-zone ZIPs capture email into
   `delivery_waitlist` (staff-read).
 - **Trained where crew learns**: Academy → "Sunday Delivery — the porch run" (quizzed), and Ask GT3
   answers from the same module. The customer flow is §1.

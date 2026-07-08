@@ -3653,3 +3653,34 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .app.crew-day .opx-link-s{color:rgba(34,31,24,.6)}
 .app.crew-day .adm-member{color:#221f18}
 .app.crew-day .svc-enter-s b{color:#221f18}
+
+/* delivery landing — the hero the option deserves */
+.dl-hero{margin:6px 0 18px;padding:20px 18px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(160deg,rgba(200,166,97,.10),rgba(200,166,97,.02))}
+.dl-h-xl{font-size:34px;line-height:1.08;margin-bottom:10px}
+.dl-h-xl em{font-family:'Playfair Display',serif;font-style:italic;color:var(--red-h)}
+.dl-tiers{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.dl-tiers span{font-family:'Inter';font-size:11.5px;color:var(--cream-m);border:1px solid var(--line2);border-radius:999px;padding:7px 12px}
+.dl-tiers b{color:var(--gold2);margin-right:4px}
+.dl-zlead{font-weight:600;color:var(--cream)}
+.dl-ziprow-xl .auth-input{font-family:'DM Mono',monospace;font-size:19px;letter-spacing:.18em;text-align:center;padding:15px 10px}
+.dl-ziprow .handle{width:auto;flex:0 0 auto;padding:0 26px}
+
+/* pickup-day / which-Sunday pills (shared) */
+.oa-days,.dl-days{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.oa-day{flex:1;min-width:130px;display:flex;flex-direction:column;gap:3px;align-items:flex-start;text-align:left;background:none;border:1px solid var(--line2);border-radius:12px;padding:11px 13px;cursor:pointer;-webkit-appearance:none;appearance:none;color:var(--cream)}
+.oa-day b{font-family:'Inter';font-weight:750;font-size:13.5px}
+.oa-day span{font-family:'Inter';font-size:10.5px;color:var(--cream-m)}
+.oa-day.sel{border-color:var(--red);background:rgba(184,36,32,.10)}
+.oa-day.sel b{color:var(--red-h)}
+
+/* your packs — compact rows */
+.mypack-row{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;background:none;border:none;padding:0;cursor:pointer;-webkit-appearance:none;appearance:none;color:var(--cream);font-family:'Inter';font-size:13.5px;text-align:left}
+.mypack-row b{font-weight:700}
+.mypack-rt{display:flex;align-items:center;gap:9px;flex-shrink:0}
+.mypack-car{color:var(--cream-d);font-size:11px}
+.mypack.open .mypack-row{margin-bottom:7px}
+
+/* ops zones — pickup vs delivery are different rooms */
+.dops.zone-pickup{border-left:3px solid var(--gold2);padding-left:13px}
+.dops.zone-delivery{border-left:3px solid var(--ok);padding-left:13px}
+.zone-delivery .dops-kick{color:var(--ok)}

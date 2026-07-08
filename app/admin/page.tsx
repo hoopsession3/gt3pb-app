@@ -4281,6 +4281,13 @@ const SEC_INSIDE: Record<OpSection, string[]> = {
 // plain-language explainer + what's inside, with a one-tap "Go there" jump. Opened from the crew
 // eyebrow or the header WHEN pill.
 function SectionGuide({ allowed, current, onGo, onClose }: { allowed: OpSection[]; current: OpSection; onGo: (s: OpSection) => void; onClose: () => void }) {
+  // The sheet owns the scroll — the page behind must not move under a finger on the overlay.
+  useEffect(() => {
+    const b = document.getElementById("body") ?? document.body;
+    const prev = b.style.overflow;
+    b.style.overflow = "hidden";
+    return () => { b.style.overflow = prev; };
+  }, []);
   const [open, setOpen] = useState<OpSection>(current);
   return (
     <>

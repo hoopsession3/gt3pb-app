@@ -4,7 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
 import {
-  quoteDelivery, nextDeliverySlot, zipInZone, perfTotal, maxRefills,
+  quoteDelivery, deliverySlotChoices, zipInZone, perfTotal, maxRefills,
   DELIVERY_PACKS, PERF_BASES, PERF_ADDINS, type PerfMix,
 } from "@/lib/delivery";
 
@@ -23,6 +23,7 @@ type Body = {
   perfMix?: PerfMix;
   refillCount?: number;
   emptiesAck?: boolean;
+  deliveryDate?: string; // which Sunday — one of the two offered keys
 };
 
 export async function POST(req: Request) {
@@ -75,7 +76,9 @@ export async function POST(req: Request) {
 
   // Server-authoritative money + date.
   const quote = quoteDelivery(packSize, perf, refills, "direct");
-  const slot = nextDeliverySlot(Date.now());
+  // The customer picks which Sunday (this one or next); anything else falls back to the coming slot.
+  const choices = deliverySlotChoices(Date.now());
+  const slot = choices.find((c) => c.deliveryDateKey === b.deliveryDate) ?? choices[0];
 
   try {
     const res = await fetch(`${SQUARE_BASE}/v2/payments`, {

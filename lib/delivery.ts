@@ -85,6 +85,12 @@ export function nextDeliverySlot(nowMs: number): DeliverySlot {
   };
 }
 
+// Two Sundays on offer — the coming slot and the one after. "Manage when it arrives" without a
+// calendar; the server accepts only these two keys, so the choice can't drift into arbitrary dates.
+export function deliverySlotChoices(nowMs: number): [DeliverySlot, DeliverySlot] {
+  return [nextDeliverySlot(nowMs), nextDeliverySlot(nowMs + 7 * DAY)];
+}
+
 // ── Phase-1 zone (ZIP allowlist). Ryan verifies against the 20-mi radius before launch. ──
 export const DELIVERY_ZIPS: readonly string[] = [
   "29601", "29605", "29607", "29609", "29611", "29615", "29617", // Greenville

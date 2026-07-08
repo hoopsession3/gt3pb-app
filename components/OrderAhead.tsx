@@ -9,7 +9,7 @@ import { SQUARE_APP_ID, SQUARE_LOCATION_ID, squareClientReady, squareWebSdkUrl }
 import {
   PRICING, PACK_SIZES, PACK_TAG, PACK_HINT, FLAVORS, FLAVOR_DESC,
   packTotal, perBottle, saveAmount, newGlassTotal, mixTotal, mixComplete, mixFitsOrReset, mixSummary,
-  dollars, nextDrop, dropForStop, emptyMix, type GlassPath, type Mix, type Flavor,
+  dollars, nextDrop, dropForStop, dropDateKey, emptyMix, type GlassPath, type Mix, type Flavor,
 } from "@/lib/orderAhead";
 import { useSiteCopy } from "@/lib/copy";
 import MyPacks, { packMix, packDayLabel, type MyPack } from "./MyPacks";
@@ -48,7 +48,9 @@ export default function OrderAhead() {
   const [ready, setReady] = useState(false);
   const [err, setErr] = useState("");
   const [conf, setConf] = useState<{ id: string; size: number; glass: GlassPath; mix: Mix; total: number; sat: Date; name: string; paid: boolean } | null>(null);
-  const [stop, setStop] = useState<{ name: string | null; starts_at: string } | null>(null); // the truck's next stop = the pickup
+  // The next few stops = the pickup CHOICES (deduped by drop day). Default: the soonest.
+  const [stops, setStops] = useState<{ name: string | null; starts_at: string }[]>([]);
+  const [stopIdx, setStopIdx] = useState(0);
   const cardRef = useRef<any>(null);
   // "Change pack": the form is prefilled from an existing reservation; submitting the new one
   // cancels the old (0136) so there's never a double-brew. Cleared by "keep it as is".
@@ -63,16 +65,26 @@ export default function OrderAhead() {
 
   useEffect(() => { setNow(Date.now()); const iv = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(iv); }, []);
   useEffect(() => { setName((n) => n || profile?.display_name || ""); }, [profile?.display_name]);
-  // Pickup always follows the next scheduled stop. Load it; fall back to the Saturday drop if none.
+  // Pickup day is the customer's choice among the next scheduled stops (server re-validates).
   useEffect(() => {
     if (!supabase) return;
     let live = true;
     supabase.from("stops").select("name, starts_at").is("archived_at", null).neq("status", "done").not("starts_at", "is", null)
-      .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(1).maybeSingle()
-      .then(({ data }) => { if (live && data) setStop(data as { name: string | null; starts_at: string }); });
+      .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(6)
+      .then(({ data }) => {
+        if (!live || !data) return;
+        const seen = new Set<string>();
+        const uniq = (data as { name: string | null; starts_at: string }[]).filter((st) => {
+          const k = dropDateKey(new Date(st.starts_at));
+          if (seen.has(k)) return false;
+          seen.add(k); return true;
+        }).slice(0, 4);
+        setStops(uniq);
+      });
     return () => { live = false; };
   }, []);
 
+  const stop = stops[stopIdx] ?? null;
   const drop = useMemo(() => (stop?.starts_at ? dropForStop(stop.starts_at) : nextDrop(now ? new Date(now) : new Date())), [stop, now]);
   const total = packTotal(size, glass);
   const m = mixTotal(mix);
@@ -175,6 +187,23 @@ export default function OrderAhead() {
             {countdown && <div className="oa-count">{countdown}</div>}
             <div className="oa-fresh">{t("reserve.fresh")}</div>
 
+            {stops.length > 1 && (
+              <>
+                <div className="oa-slabel">Pickup day — your call</div>
+                <div className="oa-days">
+                  {stops.map((st, i) => {
+                    const d = dropForStop(st.starts_at);
+                    return (
+                      <button key={st.starts_at} type="button" className={`oa-day${i === stopIdx ? " sel" : ""}`} onClick={() => setStopIdx(i)}>
+                        <b>{dayName(d.sat)}</b>
+                        {st.name && <span>{st.name}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
             <div className="oa-slabel">How many bottles</div>
             <div className="oa-tiles">
               {PACK_SIZES.map((s) => (
@@ -259,7 +288,7 @@ export default function OrderAhead() {
               <div className="oa-rline"><span className="oa-rk">Pack</span><span className="oa-rv">{size} bottles</span></div>
               <div className="oa-rline"><span className="oa-rk">Flavors</span><span className="oa-rv">{mixSummary(mix)}</span></div>
               <div className="oa-rline"><span className="oa-rk">Glass</span><span className="oa-rv">{glass === "return" ? "Bringing bottles back" : "New glass"}</span></div>
-              <div className="oa-rline"><span className="oa-rk">Pickup</span><span className="oa-rv">{dayName(drop.sat)}</span></div>
+              <div className="oa-rline"><span className="oa-rk">Pickup</span><span className="oa-rv">{dayName(drop.sat)}{stop?.name ? ` · ${stop.name}` : ""}</span></div>
               <div className="oa-rline total"><span className="oa-rk">Total — one time</span><span className="oa-rv">{dollars(total)}</span></div>
             </div>
 

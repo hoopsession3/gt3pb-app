@@ -107,8 +107,8 @@ export default function DeliveryOps() {
   const dLabel = new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 
   return (
-    <div className="dops">
-      <div className="dops-head"><span className="dops-kick">Sunday delivery · run sheet</span><b>{dLabel} · {rows.length} order{rows.length === 1 ? "" : "s"}</b></div>
+    <div className="dops zone-delivery">
+      <div className="dops-head"><span className="dops-kick">🚚 Delivery · Sunday porch run</span><b>{dLabel} · {rows.length} order{rows.length === 1 ? "" : "s"}</b></div>
       <p className="dops-sum">
         <b>{bottles}</b> bottles ({refills} refills · {fresh} fresh) · <b>{dollars(revenue)}</b> paid on order
         {heldQueue.length > 0 && <> · <b className="dl-held">{heldQueue.length} held for pickup</b></>}

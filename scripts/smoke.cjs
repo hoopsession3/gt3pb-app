@@ -285,6 +285,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("delivery: third-party channel gets no refill tier", D.quoteDelivery(12, 0, 12, "doordash").refillCount === 0);
   ok("delivery: zone accepts 29607, rejects 29999", D.zipInZone("29607") && !D.zipInZone("29999"));
   ok("delivery: zone covers Taylors + Fountain Inn", D.zipInZone("29687") && D.zipInZone("29644"));
+  const chc = D.deliverySlotChoices(Date.UTC(2026, 6, 8, 16));
+  ok("delivery: two Sundays offered, a week apart",
+    (new Date(chc[1].deliveryDateKey + "T00:00:00Z") - new Date(chc[0].deliveryDateKey + "T00:00:00Z")) === 7 * 864e5);
   // cutoff math (ET): Wed Jul 8 2026 12:00 ET → this Sunday Jul 12; Fri 18:00 ET → next Sunday Jul 19; Sat + Sun roll too
   const T = (iso) => Date.parse(iso);
   ok("delivery: Wed before cutoff → this Sunday", D.nextDeliverySlot(T("2026-07-08T16:00:00Z")).deliveryDateKey === "2026-07-12");

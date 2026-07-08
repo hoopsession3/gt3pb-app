@@ -10,7 +10,7 @@ import SignIn from "@/components/SignIn";
 import { supabase } from "@/lib/supabase";
 import { SQUARE_APP_ID, SQUARE_LOCATION_ID, squareClientReady, squareWebSdkUrl } from "@/lib/square";
 import {
-  quoteDelivery, nextDeliverySlot, zipInZone, perfKey, perfTotal, maxRefills,
+  quoteDelivery, deliverySlotChoices, zipInZone, perfKey, perfTotal, maxRefills,
   DELIVERY_PACKS, DELIVERY_PRICING, PERF_BASES, PERF_ADDINS, type PerfMix, type PerfBase, type PerfAddin,
 } from "@/lib/delivery";
 
@@ -28,7 +28,9 @@ export default function DeliveryPage() {
   const { toast } = useApp();
   const { user, enabled } = useAuth();
   const router = useRouter();
-  const slot = useMemo(() => nextDeliverySlot(Date.now()), []);
+  const choices = useMemo(() => deliverySlotChoices(Date.now()), []);
+  const [when, setWhen] = useState(0); // 0 = this Sunday, 1 = next
+  const slot = choices[when];
 
   const [step, setStep] = useState<Step>("zone");
   const [zip, setZip] = useState("");
@@ -112,7 +114,7 @@ export default function DeliveryPage() {
         body: JSON.stringify({
           sourceId: result.token, name, phone, addressStreet: street, addressCity: city, addressZip: zip,
           accessInstructions: access, packSize: pack, riseCount: mix.rise, flowCount: mix.flow, duskCount: mix.dusk,
-          perfMix, refillCount: path === "loop" ? refills : 0, emptiesAck: ack,
+          perfMix, refillCount: path === "loop" ? refills : 0, emptiesAck: ack, deliveryDate: slot.deliveryDateKey,
         }),
       });
       const data = await res.json();
@@ -138,10 +140,17 @@ export default function DeliveryPage() {
 
       {step === "zone" && (
         <div className="dl-step">
-          <h2 className="dl-h">Get GT3 delivered Sunday morning.</h2>
-          <p className="dl-sub">Order. Set out your empties. Sunday morning we bring it fresh.</p>
-          <p className="dl-sub">Enter your ZIP to check delivery availability.</p>
-          <div className="dl-ziprow">
+          <div className="dl-hero">
+            <h2 className="dl-h dl-h-xl">Your week, <em>delivered.</em></h2>
+            <p className="dl-sub">Rise, Flow &amp; Dusk on the porch Sunday 5&ndash;8 AM &mdash; brewed Saturday, ready before the week starts.</p>
+            <div className="dl-tiers">
+              <span><b>$8</b> swap your empties</span>
+              <span><b>$10</b> new bottle</span>
+              <span><b>$14</b> Performance</span>
+            </div>
+          </div>
+          <p className="dl-sub dl-zlead">Enter your ZIP &mdash; we&rsquo;ll check your porch.</p>
+          <div className="dl-ziprow dl-ziprow-xl">
             <input className="auth-input" inputMode="numeric" maxLength={5} placeholder="ZIP code" value={zip} onChange={(e) => { setZip(e.target.value.replace(/\D/g, "")); setZoneState("ask"); }} aria-label="ZIP code" />
             <button type="button" className="handle" onClick={checkZone} disabled={zip.length !== 5}><span>Check</span></button>
           </div>
@@ -261,6 +270,14 @@ export default function DeliveryPage() {
             </>
           ) : (
             <>
+              <div className="dl-days">
+                {choices.map((c, i) => (
+                  <button key={c.deliveryDateKey} type="button" className={`oa-day${when === i ? " sel" : ""}`} onClick={() => setWhen(i)}>
+                    <b>{c.deliveryLabel.replace(", 5–8 AM", "")}</b>
+                    <span>{i === 0 ? "this Sunday" : "next Sunday"} · order by {c.cutoffLabel.replace(", 6:00 PM", " 6 PM")}</span>
+                  </button>
+                ))}
+              </div>
               <input className="auth-input" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} aria-label="Name" />
               <input className="auth-input" placeholder="Phone (for delivery-day texts)" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} aria-label="Phone" />
               <input className="auth-input" placeholder="Street address" value={street} onChange={(e) => setStreet(e.target.value)} aria-label="Street address" />

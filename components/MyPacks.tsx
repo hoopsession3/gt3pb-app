@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+
+let mpChanSeq = 0;
 import { useAuth } from "./AuthProvider";
 import { useApp } from "./AppProvider";
 import { supabase } from "@/lib/supabase";
@@ -27,6 +29,7 @@ export default function MyPacks({ onChange, refreshKey }: { onChange?: (p: MyPac
   const { toast } = useApp();
   const [rows, setRows] = useState<MyPack[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
+  const [open, setOpen] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!supabase || !user) { setRows([]); return; }
@@ -42,7 +45,7 @@ export default function MyPacks({ onChange, refreshKey }: { onChange?: (p: MyPac
     load();
     if (!supabase || !user) return;
     // Live: staff checking off pickup at the truck flips this card in front of the customer.
-    const ch = supabase.channel("my-packs")
+    const ch = supabase.channel(`my-packs-${++mpChanSeq}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "drop_orders", filter: `user_id=eq.${user.id}` }, () => load())
       .subscribe();
     return () => { supabase?.removeChannel(ch); };
@@ -64,27 +67,39 @@ export default function MyPacks({ onChange, refreshKey }: { onChange?: (p: MyPac
   };
 
   if (!user || rows.length === 0) return null;
+  // Compact by default — one line per pack, so the order form stays above the fold even with
+  // several packs reserved. Tap a row for the mix + the two self-service moves.
   return (
     <div className="mypacks">
       <div className="mypacks-h">Your pack{rows.length > 1 ? "s" : ""}</div>
-      {rows.map((p) => (
-        <div className={`mypack${p.picked_up ? " done" : ""}`} key={p.id}>
-          <div className="mypack-top">
-            <b>{p.size}-pack · {packDayLabel(p)}</b>
-            <span className={`mypack-pay${p.paid ? " ok" : ""}`}>{p.paid ? "PAID" : "pay at pickup"}</span>
+      {rows.map((p) => {
+        const isOpen = open === p.id;
+        return (
+          <div className={`mypack${p.picked_up ? " done" : ""}${isOpen ? " open" : ""}`} key={p.id}>
+            <button type="button" className="mypack-row" onClick={() => setOpen(isOpen ? null : p.id)} aria-expanded={isOpen}>
+              <b>{p.size}-pack · {packDayLabel(p)}</b>
+              <span className="mypack-rt">
+                <span className={`mypack-pay${p.paid ? " ok" : ""}`}>{p.picked_up ? "✓ PICKED UP" : p.paid ? "PAID" : "pay at pickup"}</span>
+                <span className="mypack-car">{isOpen ? "▾" : "▸"}</span>
+              </span>
+            </button>
+            {isOpen && (
+              <>
+                <div className="mypack-mix">{mixSummary(packMix(p)) || "—"} · {p.glass === "return" ? "bringing bottles back" : "new glass"} · {dollars(p.total_cents / 100)}</div>
+                <div className="mypack-st">
+                  {p.picked_up ? "✓ Picked up — enjoy" : `Reserved under ${p.name.split(" ")[0]} · #${p.id.slice(0, 6).toUpperCase()} — we brew it fresh for pickup day`}
+                </div>
+                {!p.picked_up && (
+                  <div className="mypack-actions">
+                    {onChange && <button type="button" onClick={() => onChange(p)}>Change pack or day</button>}
+                    <button type="button" className="danger" onClick={() => cancel(p)} disabled={busy === p.id}>{busy === p.id ? "Canceling…" : "Cancel"}</button>
+                  </div>
+                )}
+              </>
+            )}
           </div>
-          <div className="mypack-mix">{mixSummary(packMix(p)) || "—"} · {p.glass === "return" ? "bringing bottles back" : "new glass"} · {dollars(p.total_cents / 100)}</div>
-          <div className="mypack-st">
-            {p.picked_up ? "✓ Picked up — enjoy" : `Reserved under ${p.name.split(" ")[0]} · #${p.id.slice(0, 6).toUpperCase()} — we brew it fresh for pickup day`}
-          </div>
-          {!p.picked_up && (
-            <div className="mypack-actions">
-              {onChange && <button type="button" onClick={() => onChange(p)}>Change pack</button>}
-              <button type="button" className="danger" onClick={() => cancel(p)} disabled={busy === p.id}>{busy === p.id ? "Canceling…" : "Cancel"}</button>
-            </div>
-          )}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

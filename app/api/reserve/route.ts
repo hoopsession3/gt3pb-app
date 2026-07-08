@@ -3,7 +3,7 @@ import { SQUARE_BASE, SQUARE_VERSION } from "@/lib/squareServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
-import { PRICING, FLAVORS, isPackSize, packTotal, toCents, mixComplete, mixSummary, nextDrop, dropDateKey, dollars, type GlassPath, type Mix } from "@/lib/orderAhead";
+import { PRICING, FLAVORS, isPackSize, packTotal, toCents, mixComplete, mixSummary, nextDrop, dropForStop, dropDateKey, dollars, type GlassPath, type Mix } from "@/lib/orderAhead";
 
 // ORDER-AHEAD reserve — records a one-off Saturday-drop reservation. Price + cutoff are recomputed
 // SERVER-SIDE from lib/orderAhead (never trust the client), the charge is a Square ONE-TIME payment
@@ -45,16 +45,28 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "This drop is single-flavor — pick one flavor for the whole pack." }, { status: 400 });
   }
 
-  // Pickup follows the truck's NEXT scheduled stop (server-authoritative), falling back to the
-  // Saturday drop when the route is empty. The client's dropDate must match the current one, or we
-  // reject — regardless of what the client clock or a stale page said.
-  const { data: nextStop } = await supabaseAdmin.from("stops").select("starts_at")
+  // Pickup day is the customer's CHOICE — among the truck's real upcoming stops (server-
+  // authoritative; the Saturday cadence is the fallback when the route is empty). The client's
+  // dropDate must match one of them, and its drop must still be open, or we reject — regardless
+  // of what the client clock or a stale page said.
+  const { data: nextStops } = await supabaseAdmin.from("stops").select("starts_at")
     .is("archived_at", null).neq("status", "done").not("starts_at", "is", null)
-    .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(1).maybeSingle();
-  const dropDate = nextStop?.starts_at ? dropDateKey(new Date(nextStop.starts_at)) : dropDateKey(nextDrop().sat);
-  if (!body.dropDate || String(body.dropDate).slice(0, 10) !== dropDate) {
-    return NextResponse.json({ error: "That pickup just changed — refresh to see the next stop." }, { status: 409 });
+    .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(6);
+  const offered = new Map<string, Date>(); // dropDate key → its order cutoff
+  for (const st of nextStops ?? []) {
+    const at = (st as { starts_at: string }).starts_at;
+    offered.set(dropDateKey(new Date(at)), dropForStop(at).cutoff);
   }
+  if (offered.size === 0) { const fb = nextDrop(); offered.set(dropDateKey(fb.sat), fb.cutoff); }
+  const requested = String(body.dropDate ?? "").slice(0, 10);
+  const cutoff = offered.get(requested);
+  if (!cutoff) {
+    return NextResponse.json({ error: "That pickup day just changed — refresh to see the current stops." }, { status: 409 });
+  }
+  if (Date.now() > cutoff.getTime()) {
+    return NextResponse.json({ error: "That drop has closed — pick the next pickup day." }, { status: 400 });
+  }
+  const dropDate = requested;
 
   // Authoritative total — recomputed from the pricing grid, never the client amount.
   const amount = toCents(packTotal(size, glass as GlassPath));

@@ -204,8 +204,8 @@ export default function DropOps({ brief = false, onOpen }: { brief?: boolean; on
   const showList = listOpen ?? isDropDay;
 
   return (
-    <div className="dops">
-      <div className="dops-head"><span className="dops-kick">Reserves &amp; packs · pickup checklist</span><b>{satLabel}&rsquo;s drop{rows.length > 0 ? ` · ${rows.length} pack${rows.length === 1 ? "" : "s"} reserved` : ""}</b></div>
+    <div className="dops zone-pickup">
+      <div className="dops-head"><span className="dops-kick">🧺 Pickup · reserves &amp; packs</span><b>{satLabel}&rsquo;s drop{rows.length > 0 ? ` · ${rows.length} pack${rows.length === 1 ? "" : "s"} reserved` : ""}</b></div>
       {/* One sentence with units instead of three bare KPI tiles ("6 BREW" told nobody anything).
           It answers the drop's three questions in reading order: how much to make, what money
           happens at the window, what glass comes back. */}
