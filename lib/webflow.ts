@@ -20,7 +20,8 @@ async function wf(path: string, init?: RequestInit): Promise<any> {
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "accept-version": "2.0.0", ...(init?.headers || {}) },
   });
   if (!res.ok) throw new Error(`Webflow ${res.status}: ${(await res.text()).slice(0, 300)}`);
-  return res.json();
+  const txt = await res.text(); // DELETE /live returns 204 with no body
+  return txt ? JSON.parse(txt) : null;
 }
 
 // Create a published CMS item, then publish the site. Returns { itemId, slug }.
@@ -36,6 +37,16 @@ export async function webflowPublish(title: string, body: string): Promise<{ ite
   });
   await wf(`/sites/${siteId}/publish`, { method: "POST", body: JSON.stringify({ publishToWebflowSubdomain: true }) });
   return { itemId: item.id ?? item._id ?? "", slug };
+}
+
+// Take a piece OFF the live site: unpublish the live CMS item (it stays in Webflow as a draft,
+// so republishing later is one click), then republish the site — Webflow serves the last publish,
+// not the CMS state, so without this step the page would stay up.
+export async function webflowUnpublish(itemId: string): Promise<void> {
+  const collectionId = process.env.WEBFLOW_COLLECTION_ID!;
+  const siteId = process.env.WEBFLOW_SITE_ID!;
+  await wf(`/collections/${collectionId}/items/${itemId}/live`, { method: "DELETE" });
+  await wf(`/sites/${siteId}/publish`, { method: "POST", body: JSON.stringify({ publishToWebflowSubdomain: true }) });
 }
 
 // tiny deterministic hash for slug uniqueness (no Date/random in this codebase's edge paths)

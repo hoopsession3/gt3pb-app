@@ -411,6 +411,16 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
     if (j.ok) setPub((p) => ({ ...p, png: j.export_url })); else setPubErr(`Export: ${j.error}`);
     setPubBusy("");
   };
+  const unpublishSite = async () => {
+    if (!supabase || pubBusy) return;
+    if (!window.confirm("Take this off the live GT3 site? The design stays in Webflow as a draft.")) return;
+    setPubBusy("unpublish"); setPubErr("");
+    const j = await callStudio("/api/studio/publish", { content_id: id, action: "unpublish" });
+    if (j.ok) { setPub((p) => ({ ...p, live: null })); setStatus("approved"); loadVersions(); }
+    else setPubErr(`Unpublish: ${j.error}`);
+    setPubBusy("");
+  };
+
   const publish = async () => {
     if (!supabase || pubBusy) return;
     if (!window.confirm("Publish this to the live GT3 site?")) return;
@@ -683,6 +693,8 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
           </span>
         )}
         {(status === "approved" || status === "scheduled") && <button type="button" className="studio-act" onClick={() => setStage("published", {}, "published")}>Mark published</button>}
+        {status === "scheduled" && <button type="button" className="studio-act ghost" onClick={() => setStage("approved", { scheduled_for: null }, "unscheduled")}>↩ Unschedule</button>}
+        {status === "published" && <button type="button" className="studio-act ghost" onClick={() => setStage("approved", {}, "unpublished")}>↩ Unpublish</button>}
         <button type="button" className="studio-act" onClick={() => setKitOpen(true)}>📦 Post kit</button>
         <button type="button" className="studio-act ghost" onClick={() => setShowVers((s) => !s)}>History ({versions.length})</button>
         <button type="button" className="studio-act ghost" onClick={async () => { if (supabase && window.confirm("Delete this piece? This can't be undone.")) { await supabase.from("content_items").delete().eq("id", id); onClose(); } }}>Delete</button>
@@ -701,6 +713,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
           <div className="studio-pub-row">
             <button type="button" className="studio-act primary" onClick={publish} disabled={!!pubBusy}>{pubBusy === "publish" ? "Publishing…" : "🌐 Publish to site"}</button>
             {pub.live && <a className="studio-act ghost" href={pub.live.startsWith("http") ? pub.live : undefined} target="_blank" rel="noreferrer">Live ↗ {pub.live.startsWith("http") ? "" : `(${pub.live})`}</a>}
+            {pub.live && <button type="button" className="studio-act ghost" onClick={unpublishSite} disabled={!!pubBusy}>{pubBusy === "unpublish" ? "Removing…" : "↩ Take off site"}</button>}
           </div>
           {pubErr && <p className="insp-foot">{pubErr}</p>}
         </div>
