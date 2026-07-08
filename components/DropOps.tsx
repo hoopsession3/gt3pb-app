@@ -34,6 +34,7 @@ export default function DropOps() {
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState<DropOrder[]>([]); // past drops — where fulfilled orders live on
   const [histOpen, setHistOpen] = useState(false);
+  const [listOpen, setListOpen] = useState<boolean | null>(null); // null = open on drop day only
   // The drop = the truck's NEXT scheduled stop (same resolution as the reserve flow + /api/reserve),
   // falling back to the Saturday cadence when the route is empty — the sheet and the reservations
   // must always agree on which date "this drop" is.
@@ -164,6 +165,11 @@ export default function DropOps() {
   const bottlesInCount = returns.filter((o) => o.bottles_returned).length;
   const queue = [...rows].sort((a, b) => Number(a.picked_up) - Number(b.picked_up));
   const allDone = rows.length > 0 && pickedCount === rows.length && bottlesInCount === returns.length;
+  // The name-by-name checklist is window work — it matters ON drop day. On prep days it's noise
+  // under the brew sheet, so the progress line doubles as a fold: open on the drop's date (or by
+  // tap any time), collapsed otherwise. Same pattern as "Past drops" below.
+  const isDropDay = rows.length > 0 && rows[0].drop_date === new Date().toISOString().slice(0, 10);
+  const showList = listOpen ?? isDropDay;
 
   return (
     <div className="dops">
@@ -187,10 +193,11 @@ export default function DropOps() {
               <button type="button" onClick={queueBrew} disabled={busy}>{busy ? "Queuing…" : "Queue brew batches"}</button>
             </div>
           ) : null}
-          <div className={`dops-prog${allDone ? " done" : ""}`}>
-            {allDone ? "✓ All picked up · bottles in" : <><b>{pickedCount}/{rows.length}</b> picked up{returns.length > 0 ? <> · <b>{bottlesInCount}/{returns.length}</b> bottles in</> : null}</>}
-          </div>
-          {queue.map((o) => (
+          <button type="button" className={`dops-prog${allDone ? " done" : ""}`} onClick={() => setListOpen(!showList)} aria-expanded={showList}>
+            <span>{allDone ? "✓ All picked up · bottles in" : <><b>{pickedCount}/{rows.length}</b> picked up{returns.length > 0 ? <> · <b>{bottlesInCount}/{returns.length}</b> bottles in</> : null}</>}</span>
+            <span>{showList ? "▾" : "▸"}</span>
+          </button>
+          {showList && queue.map((o) => (
             <div className={`dops-order${o.picked_up ? " done" : ""}`} key={`cur-${o.id}`}>
               <div className="dops-top">
                 <span className="dops-name">{o.name}
