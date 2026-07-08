@@ -7,10 +7,12 @@ export interface ConnectGroup { q: string; links: ConnectLink[] }
 export const CONNECT_PRIMARY = "https://gt3pb.com"; // what the scan QR points at
 
 export const CONNECT_GROUPS: ConnectGroup[] = [
+  // Internal routes are RELATIVE ("/reserve") so the hub navigates in-app (clean) instead of opening
+  // an in-app browser tab. External links (socials, the marketing site) stay absolute and open out.
   { q: "Wanna order?", links: [
-    { label: "Reserve a drop", sub: "order ahead", href: "https://app.gt3pb.com/reserve", badge: "◆" },
-    { label: "See the menu", sub: "what's pouring", href: "https://app.gt3pb.com/menu", badge: "≡" },
-    { label: "Find the truck", sub: "where we are", href: "https://app.gt3pb.com/truck", badge: "◎" },
+    { label: "Reserve a drop", sub: "order ahead", href: "/reserve", badge: "◆" },
+    { label: "See the menu", sub: "what's pouring", href: "/menu", badge: "≡" },
+    { label: "Find the truck", sub: "where we are", href: "/truck", badge: "◎" },
   ] },
   { q: "Learn the brew?", links: [
     { label: "Read the chemistry", sub: "why it's clean", href: "https://gt3pb.com", badge: "⌘" },
@@ -21,7 +23,7 @@ export const CONNECT_GROUPS: ConnectGroup[] = [
     { label: "TikTok", sub: "@gt3pb", href: "https://tiktok.com/@gt3pb", badge: "TT" },
   ] },
   { q: "Wanna book us?", links: [
-    { label: "Events & catering", sub: "bring the bar", href: "https://app.gt3pb.com/book", badge: "✦" },
+    { label: "Events & catering", sub: "bring the bar", href: "/book", badge: "✦" },
   ] },
 ];
 

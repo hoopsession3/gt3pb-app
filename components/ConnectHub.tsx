@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import QRCode from "qrcode";
 import Gt3Mark from "@/components/Gt3Mark";
 import { useAuth, roleOf } from "@/components/AuthProvider";
@@ -14,6 +15,7 @@ export default function ConnectHub() {
   const { profile } = useAuth();
   const isLeader = ["owner", "admin"].includes(roleOf(profile)); // owner/manager see the investor brief
   const groups = isLeader ? [...CONNECT_GROUPS, CONNECT_LEADERSHIP] : CONNECT_GROUPS;
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [group, setGroup] = useState(0); // which intent is expanded
   const [qr, setQr] = useState("");
@@ -52,13 +54,21 @@ export default function ConnectHub() {
                   </button>
                   {on && (
                     <div className="chub-links">
-                      {g.links.map((l) => (
-                        <a key={l.href + l.label} className="chub-link" href={l.href} target="_blank" rel="noopener noreferrer">
-                          <span className="chub-badge">{l.badge}</span>
-                          <span className="chub-link-t"><b>{l.label}</b>{l.sub && <span>{l.sub}</span>}</span>
-                          <span className="chub-go" aria-hidden>↗</span>
-                        </a>
-                      ))}
+                      {g.links.map((l) => {
+                        const internal = l.href.startsWith("/");
+                        const inner = (
+                          <>
+                            <span className="chub-badge">{l.badge}</span>
+                            <span className="chub-link-t"><b>{l.label}</b>{l.sub && <span>{l.sub}</span>}</span>
+                            <span className="chub-go" aria-hidden>{internal ? "›" : "↗"}</span>
+                          </>
+                        );
+                        return internal ? (
+                          <button key={l.href + l.label} type="button" className="chub-link" onClick={() => { setOpen(false); router.push(l.href); }}>{inner}</button>
+                        ) : (
+                          <a key={l.href + l.label} className="chub-link" href={l.href} target="_blank" rel="noopener noreferrer">{inner}</a>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { BUSINESS, BUILD_STATS, STATUS_LABEL } from "@/lib/architecture";
 import Watermark from "@/components/Watermark";
+import BuiltBack from "@/components/BuiltBack";
 
 // Read-only PARTNER share of "what we've built" — capabilities + build footprint only. NO financials
 // (revenue/inventory/members stay owner-only on /architecture), no auth, no DB; pure manifest data.
@@ -30,6 +31,7 @@ export default async function BuiltShare({ params }: { params: Promise<{ key: st
   return (
     <section className="screen arch">
       <Watermark variant="share" />
+      <BuiltBack />
       <div className="toprow"><div className="eyb">GT3PB · Performance Bar</div></div>
       <div className="h-title">What we&apos;ve built</div>
       <div className="h-sub">A complete operating system for the business — customer storefront, every back-of-house workflow, the brand studio, and an AI layer that proposes work for people to approve. Built by a two-person team with an AI build pipeline.</div>
