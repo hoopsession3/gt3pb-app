@@ -233,6 +233,9 @@ export default function OrderAhead() {
                   {complete ? `Reserve for ${dayName(drop.sat).split(",")[0]} ›` : "Pick your flavors"}
                 </button>
                 <div className="oa-window" style={{ whiteSpace: "pre-line" }}>{t("reserve.window")}</div>
+                <button type="button" className="co-upsell-line" onClick={() => router.push("/delivery")}>
+                  Want it on your porch instead? <b>Sunday delivery ›</b>
+                </button>
               </>
             ) : (
               <>

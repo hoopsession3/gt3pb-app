@@ -32,6 +32,7 @@ wordmark; canonical host `app.gt3pb.com`). "GT3 Performance Bar" stays the brand
 | Account (3mpire) | `/3mpire` | **Scannable membership card (unique per-member QR)**, ring, credit, leave a review, order history |
 | Operator scan | `/scan?m=<code>` | Staff-only: scan a member's card QR → their stamps → add a stamp for a walk-up |
 | Truck display | `/display` | Full-screen loop for a tablet/TV: menu · brand · guest reviews · connect (scan QR) |
+| Sunday delivery | `/delivery` | Zone check → pack (12/24/36) → build → refill swap (empties ack) → address → pay on order. Cutoff Fri 6 PM ET, porch drop Sun 5–8 AM. Loop tier = direct channel only (`lib/delivery`) |
 
 **The floating rail** (`components/FloatRail.tsx`) is the one home for every floating tab —
 **Display** (text size · contrast), **Connect** (the intent link tree from `lib/connect`; owner/admin
@@ -155,6 +156,6 @@ member QR (`/scan`, RPCs in 0132).
   price, a window, or a queue, it's pure and tested — components only render it.
 
 ## Migration ledger
-Through **0138** — full table + verify SQL in `gt3pb-deploy-v1.md`. Newest:
+Through **0139** — full table + verify SQL in `gt3pb-deploy-v1.md`. Newest:
 `0133` client errors · `0134` tenant enforcement (on prod) · `0135` software billing (dormant) ·
-`0136` reservation self-service · `0137` pre-order window dial · `0138` order eta comms.
+`0136` reservation self-service · `0137` pre-order window dial · `0138` order eta comms · `0139` Sunday delivery (orders + waitlist + cancel RPC).

@@ -259,6 +259,27 @@ ok("past_due beyond grace", PL.planActive({ plan: "pro", billing_status: "past_d
 ok("canceled rides out the paid period", PL.planActive({ plan: "pro", billing_status: "canceled", current_period_end: new Date(2 * day).toISOString() }, day) === true);
 ok("canceled after period ends", PL.planActive({ plan: "pro", billing_status: "canceled", current_period_end: new Date(day).toISOString() }, 2 * day) === false);
 ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, current_period_end: null }, 0) === false);
+// ── delivery (Phase 1) — the debrief's QA samples verbatim ──
+{
+  const D = require("../.smoke/delivery.js");
+  const q = (p, perf, r) => D.quoteDelivery(p, perf, r, "direct");
+  ok("delivery: 12 pack, 8 refill + 4 new = $114", q(12, 0, 8).totalCents === 114_00);
+  ok("delivery: 12 pack, all 12 refills = $106", q(12, 0, 12).totalCents === 106_00);
+  ok("delivery: 12 pack, 8 new + 4 perf = $146", q(12, 4, 0).totalCents === 146_00);
+  ok("delivery: 24 pack, 16 refill + 6 new + 2 perf, fee waived = $216", q(24, 2, 16).totalCents === 216_00);
+  ok("delivery: refills clamp to total − perf", q(12, 4, 12).refillCount === 8);
+  ok("delivery: fee waived exactly at 24", q(24, 0, 0).deliveryFeeCents === 0 && q(12, 0, 0).deliveryFeeCents === 10_00);
+  ok("delivery: third-party channel gets no refill tier", D.quoteDelivery(12, 0, 12, "doordash").refillCount === 0);
+  ok("delivery: zone accepts 29607, rejects 29999", D.zipInZone("29607") && !D.zipInZone("29999"));
+  // cutoff math (ET): Wed Jul 8 2026 12:00 ET → this Sunday Jul 12; Fri 18:00 ET → next Sunday Jul 19; Sat + Sun roll too
+  const T = (iso) => Date.parse(iso);
+  ok("delivery: Wed before cutoff → this Sunday", D.nextDeliverySlot(T("2026-07-08T16:00:00Z")).deliveryDateKey === "2026-07-12");
+  ok("delivery: Fri 5:59 PM ET → this Sunday", D.nextDeliverySlot(T("2026-07-10T21:59:00Z")).deliveryDateKey === "2026-07-12");
+  ok("delivery: Fri 6:00 PM ET → next Sunday", D.nextDeliverySlot(T("2026-07-10T22:00:00Z")).deliveryDateKey === "2026-07-19");
+  ok("delivery: Saturday → next Sunday", D.nextDeliverySlot(T("2026-07-11T15:00:00Z")).deliveryDateKey === "2026-07-19");
+  ok("delivery: Sunday orders for the following Sunday", D.nextDeliverySlot(T("2026-07-12T15:00:00Z")).deliveryDateKey === "2026-07-19");
+}
+
 
 console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
 console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);

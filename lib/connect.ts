@@ -10,6 +10,7 @@ export const CONNECT_GROUPS: ConnectGroup[] = [
   // Internal routes are RELATIVE ("/reserve") so the hub navigates in-app (clean) instead of opening
   // an in-app browser tab. External links (socials, the marketing site) stay absolute and open out.
   { q: "Wanna order?", links: [
+    { label: "Sunday delivery", sub: "order by Fri 6 PM", href: "/delivery", badge: "🚚" },
     { label: "Reserve a drop", sub: "order ahead", href: "/reserve", badge: "◆" },
     { label: "See the menu", sub: "what's pouring", href: "/menu", badge: "≡" },
     { label: "Find the truck", sub: "where we are", href: "/truck", badge: "◎" },

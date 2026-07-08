@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "smoke": "rm -rf .smoke && tsc lib/loadout.ts lib/cogs.ts lib/ics.ts lib/captionLint.ts lib/orderAhead.ts lib/reviews.ts lib/recents.ts lib/offline.ts lib/plan.ts --outDir .smoke --target es2020 --module commonjs --skipLibCheck --moduleResolution node && node scripts/smoke.cjs && rm -rf .smoke"
+    "smoke": "rm -rf .smoke && tsc lib/loadout.ts lib/cogs.ts lib/ics.ts lib/captionLint.ts lib/orderAhead.ts lib/reviews.ts lib/recents.ts lib/offline.ts lib/plan.ts lib/delivery.ts --outDir .smoke --target es2020 --module commonjs --skipLibCheck --moduleResolution node && node scripts/smoke.cjs && rm -rf .smoke"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",

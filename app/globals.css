@@ -3509,3 +3509,41 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:pointer;text-align:left;-webkit-appearance:none;appearance:none}
 .gen-sci-caret{margin-left:auto;color:var(--cream-m);font-size:15px;transition:transform .2s;flex:0 0 auto}
 .gen-sci-caret.open{transform:rotate(90deg)}
+
+/* ─────────── Sunday delivery flow (/delivery) — Voice 2, house dark shell ─────────── */
+.dl-deadline{font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.08em;color:var(--cream-m);border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin:4px 0 16px}
+.dl-deadline b{color:var(--gold2,#C8A661);font-weight:500}
+.dl-step{display:flex;flex-direction:column;gap:12px}
+.dl-h{font-family:'Playfair Display',serif;font-style:italic;font-size:24px;line-height:1.15;margin:0}
+.dl-sub{font-family:'Inter';font-size:13px;line-height:1.5;color:var(--cream-m);margin:0}
+.dl-sub.ok{color:#7FA86B}
+.dl-sub em{font-style:normal;color:var(--cream-d)}
+.dl-note{font-family:'Inter';font-size:12px;color:var(--cream-m);margin:0}
+.dl-ziprow{display:flex;gap:8px}
+.dl-ziprow .auth-input{flex:1}
+.dl-zip{flex:0 0 90px !important;opacity:.7}
+.dl-out{border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.dl-ctr{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.dl-ctr.sm{border-style:dashed;padding:8px 12px}
+.dl-ctr-n{font-family:'Inter';font-weight:700;font-size:13.5px;color:var(--cream)}
+.dl-ctr-n em{display:block;font-style:normal;font-weight:500;font-size:11px;color:var(--cream-m)}
+.dl-ctr-b{display:flex;align-items:center;gap:14px}
+.dl-ctr-b.lone{align-self:flex-start}
+.dl-ctr-b button{width:34px;height:34px;border-radius:10px;background:transparent;border:1.5px solid var(--line2);color:var(--cream);font-size:17px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.dl-ctr-b button:disabled{opacity:.35}
+.dl-ctr-b b{font-family:'DM Mono',ui-monospace,monospace;font-weight:500;font-size:16px;min-width:22px;text-align:center}
+.dl-perf{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line);padding-top:12px}
+.dl-card{display:flex;flex-direction:column;gap:6px;text-align:left;background:rgba(255,255,255,.02);border:1px solid var(--line);border-radius:14px;padding:14px;cursor:pointer;-webkit-appearance:none;appearance:none;color:var(--cream)}
+.dl-card.on{border-color:var(--gold2,#C8A661);background:rgba(200,166,97,.06)}
+.dl-card b{font-family:'Inter';font-weight:700;font-size:14.5px}
+.dl-card span{font-family:'Inter';font-size:12.5px;line-height:1.5;color:var(--cream-m)}
+.dl-loop{display:flex;flex-direction:column;gap:10px;padding:0 4px}
+.dl-callout{font-family:'Inter';font-size:12.5px;line-height:1.55;color:var(--cream);background:rgba(184,36,32,.08);border:1px solid rgba(184,36,32,.35);border-radius:12px;padding:11px 13px;margin:0}
+.dl-ack{display:flex;align-items:flex-start;gap:10px;font-family:'Inter';font-size:12.5px;line-height:1.5;color:var(--cream);cursor:pointer}
+.dl-ack input{margin-top:2px;accent-color:var(--red,#B82420);width:18px;height:18px;flex:0 0 auto}
+.dl-quote{display:flex;flex-direction:column;gap:4px;font-family:'Inter';font-size:12.5px;color:var(--cream-m);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.dl-quote b{font-family:'DM Mono',ui-monospace,monospace;font-weight:500;color:var(--gold2,#C8A661)}
+.dl-quote-t{border-top:1px solid var(--line);padding-top:6px;margin-top:4px;color:var(--cream)}
+.dl-err{font-family:'Inter';font-size:12.5px;color:#e08b88;margin:0}
+.dl-back{align-self:flex-start;background:none;border:none;font-family:'Inter';font-weight:600;font-size:12px;color:var(--cream-m);padding:14px 2px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.dl-held{color:#e08b88;font-style:normal}
