@@ -5,9 +5,9 @@ Add new risks at the top. Close one by setting **Status: Closed** with the date 
 
 | ID | Risk | Severity | Status | Owner |
 |----|------|----------|--------|-------|
-| R-004 | Anthropic API key exposed in chat (rotation deferred) | Medium | Open (rotation pending) | Ryan |
-| R-001 | Unencrypted BI connection (Looker Studio → Supabase) | Medium | Accepted (temporary) | Ryan |
-| R-002 | Per-tenant RLS staged but not enforced | Medium | Open (DB enforcement written — `0134` pending prod apply + route sweep) | Ryan |
+| R-004 | Anthropic API key exposed in chat (rotation deferred) | Medium | Open (rotation staged 2026-07-07 — new-key paste is the owner's step) | Ryan |
+| R-001 | Unencrypted BI connection (Looker Studio → Supabase) | Medium | Accepted (temporary — reviewed 2026-07-07, Power BI not ready; interim restriction deferred by owner) | Ryan |
+| R-002 | Per-tenant RLS staged but not enforced | Medium | Open (DB half DONE — `0134` applied to prod 2026-07-07: 52 stamp triggers + 52 restrictive policies, zero RLS-off exceptions; remaining: service-role route sweep) | Ryan |
 | R-003 | Audit-log trigger write volume / retention | Low–Medium | Closed (2026-07-05) | Ryan |
 
 ---
@@ -16,7 +16,7 @@ Add new risks at the top. Close one by setting **Status: Closed** with the date 
 
 - **Opened:** 2026-06-23
 - **Severity:** Medium
-- **Status:** Open (rotation pending — key intentionally left active for now)
+- **Status:** Open (rotation staged 2026-07-07 — assistant does not handle key values; owner pastes the new key, then this closes)
 - **Owner:** Ryan
 
 **Description.** During setup of the in-app AI agents, a live Anthropic API key (`sk-ant-…`) was
