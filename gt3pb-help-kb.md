@@ -117,6 +117,18 @@ One rule, one source of truth, enforced at every layer so it can't be dodged or 
   Bookings (requests in) → Brew (production) → Notes, divider, back office (Vendors · Reserves).
   New tabs slot into the rhythm, not onto the end.
 
+## Train the AI (Team → Train the AI, owner)
+
+The freeform agents (Operator "Ask GT3", the guest Concierge) used to answer from a fixed
+knowledge file with no way to correct a wrong answer. Now the owner writes a **correction**
+(title + the right fact, optionally with a photo of the recipe card / receipt as proof); it's
+injected as an **authoritative override** at the top of that agent's prompt, so it beats the
+built-in knowledge and the agent can't contradict it. Every agent answer is **logged**, and any
+wrong one becomes a one-tap correction. Recipe questions now ground in the real `brew_recipes`
+data and the agent refuses ("not on file — check with Ryan") instead of inventing a number — the
+fix for the phantom "200 g cacao". This is grounding, not model fine-tuning. Corrections scope to
+one agent or **All agents**; toggle on/off; delete anytime (the audit log keeps the history).
+
 ## Customer notifications — off-app (SMS + email)
 
 The app never assumes the customer is watching it. Lifecycle facts go out by **SMS (Twilio) and
@@ -140,7 +152,7 @@ reminder), **order ready** when the pass advances (account email — walk-ups ca
   hold** → order flips to `held_for_pickup`, the crew inbox gets the pickup-queue alert, customer
   collects at GT3PB 10 AM–2 PM. Payment already happened at order — never cash at the door.
 - **Cancels**: customers self-cancel until Friday 6 PM ET (`cancel_own_delivery`, 0139); a paid
-  cancel raises the standard refund alert. **The day is the customer's choice**: reserve
+  cancel raises the standard refund alert. **Delivery's $14 premium bottle is the **Salted Latte** (one add, replaced the old MCT/butter matrix). The day is the customer's choice**: reserve
   offers the next few real stops as pickup days (server re-validates against the route + each
   drop's cutoff), and delivery offers this Sunday or next — dates never pick themselves. **Waitlist**: out-of-zone ZIPs capture email into
   `delivery_waitlist` (staff-read).
@@ -252,4 +264,4 @@ pixel-exact brand 3).
 ## Migration ledger
 Through **0140** — full table + verify SQL in `gt3pb-deploy-v1.md`. Newest:
 `0133` client errors · `0134` tenant enforcement (on prod) · `0135` software billing (dormant) ·
-`0136` reservation self-service · `0137` pre-order window dial · `0138` order eta comms · `0139` Sunday delivery · `0140` strategy collab (threads + decision log + drafts) · `0141` customer-record durability (audit catch-up + delete guards) · `0142` goals (the strategy's scoreboard, seeded with the six Phase 1→2 conditions).
+`0136` reservation self-service · `0137` pre-order window dial · `0138` order eta comms · `0139` Sunday delivery · `0140` strategy collab (threads + decision log + drafts) · `0141` customer-record durability (audit catch-up + delete guards) · `0142` goals (scoreboard) · `0143` AI training (owner corrections + agent grounding + conversation log + `training` media bucket).

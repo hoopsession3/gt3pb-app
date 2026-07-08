@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ClaudeMsg } from "@/lib/anthropic";
 import { menuKnowledge } from "@/lib/conciergeKb";
+import { ownerCorrections } from "@/lib/agentKnowledge";
 
 export const runtime = "nodejs";
 
@@ -68,7 +69,8 @@ export async function POST(req: Request) {
     plans = (pl.data ?? []).map((p: any) => `- ${p.label}: $${((p.price_cents ?? 0) / 100).toFixed(2)} every ${p.period_days} days`).join("\n");
   }
 
-  const system = `${SYSTEM}
+  const corrections = await ownerCorrections("concierge");
+  const system = `${SYSTEM}${corrections ? `\n\n${corrections}` : ""}
 
 === MENU (canonical copy; use these descriptions verbatim in spirit) ===
 ${menuKnowledge()}

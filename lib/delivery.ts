@@ -13,18 +13,19 @@ export const DELIVERY_PACKS: readonly DeliveryPackSize[] = [12, 24, 36] as const
 export const DELIVERY_PRICING = {
   refill: 8_00,        // Loop tier — into a returned bottle (direct channel only)
   fresh: 10_00,        // new sealed bottle
-  performance: 14_00,  // always a fresh bottle
+  performance: 14_00,  // premium bottle ($14) — the Salted Latte add. Always a fresh bottle.
   feeCents: 10_00,     // flat delivery fee…
   feeWaivedAt: 24,     // …waived at 24+ bottles
 } as const;
 
-export const PERF_BASES = ["rise", "flow", "dusk"] as const;
-export const PERF_ADDINS = ["mct_oil", "grass_fed_butter"] as const;
-export type PerfBase = (typeof PERF_BASES)[number];
-export type PerfAddin = (typeof PERF_ADDINS)[number];
-/** counts per base+addin combo, e.g. { "rise|mct_oil": 2 } */
+// The $14 premium bottle. Replaces the old MCT/butter "performance" matrix with one clean add:
+// the Salted Latte. The DB column stays `performance_count` (the count of $14 bottles) so history
+// and the money math are unchanged — only the product the count represents changed.
+export const SALTED_LATTE = { key: "salted_latte", label: "Salted Latte", price: DELIVERY_PRICING.performance } as const;
+
+// PerfMix stays a count map (now keyed by SALTED_LATTE.key). Older orders may carry legacy
+// "base|addin" keys; perfTotal sums any values, so both render correctly.
 export type PerfMix = Record<string, number>;
-export const perfKey = (b: PerfBase, a: PerfAddin) => `${b}|${a}`;
 export const perfTotal = (mix: PerfMix) => Object.values(mix).reduce((s, n) => s + (n || 0), 0);
 
 export const refillAllowed = (channel: DeliveryChannel) => channel === "direct";

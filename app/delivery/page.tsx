@@ -10,8 +10,8 @@ import SignIn from "@/components/SignIn";
 import { supabase } from "@/lib/supabase";
 import { SQUARE_APP_ID, SQUARE_LOCATION_ID, squareClientReady, squareWebSdkUrl } from "@/lib/square";
 import {
-  quoteDelivery, deliverySlotChoices, zipInZone, perfKey, perfTotal, maxRefills,
-  DELIVERY_PACKS, DELIVERY_PRICING, PERF_BASES, PERF_ADDINS, type PerfMix, type PerfBase, type PerfAddin,
+  quoteDelivery, deliverySlotChoices, zipInZone, maxRefills,
+  DELIVERY_PACKS, DELIVERY_PRICING, SALTED_LATTE,
 } from "@/lib/delivery";
 
 // SUNDAY DELIVERY — the debrief's 6-step flow on the house patterns: the Reserve flow's pack
@@ -21,8 +21,7 @@ import {
 
 type Step = "zone" | "size" | "build" | "return" | "details" | "pay" | "done";
 const dollars = (c: number) => `$${(c / 100).toFixed(c % 100 === 0 ? 0 : 2)}`;
-const BASE_LABEL: Record<PerfBase, string> = { rise: "RISE", flow: "FLOW", dusk: "DUSK" };
-const ADDIN_LABEL: Record<PerfAddin, string> = { mct_oil: "MCT oil", grass_fed_butter: "Grass-fed butter" };
+const BASE_LABEL: Record<"rise" | "flow" | "dusk", string> = { rise: "RISE", flow: "FLOW", dusk: "DUSK" };
 
 export default function DeliveryPage() {
   const { toast } = useApp();
@@ -40,8 +39,8 @@ export default function DeliveryPage() {
 
   const [pack, setPack] = useState<number | null>(null);
   const [mix, setMix] = useState<Record<"rise" | "flow" | "dusk", number>>({ rise: 0, flow: 0, dusk: 0 });
-  const [perfMix, setPerfMix] = useState<PerfMix>({});
-  const perf = perfTotal(perfMix);
+  const [salted, setSalted] = useState(0); // count of $14 Salted Latte bottles
+  const perf = salted;
   const picked = mix.rise + mix.flow + mix.dusk + perf;
 
   const [path, setPath] = useState<"loop" | "new" | null>(null);
@@ -88,8 +87,7 @@ export default function DeliveryPage() {
 
   const bump = (k: "rise" | "flow" | "dusk", d: number) =>
     setMix((m) => ({ ...m, [k]: Math.max(0, m[k] + d) }));
-  const bumpPerf = (b: PerfBase, a: PerfAddin, d: number) =>
-    setPerfMix((m) => { const k = perfKey(b, a); const v = Math.max(0, (m[k] || 0) + d); const n = { ...m, [k]: v }; if (!v) delete n[k]; return n; });
+  const bumpSalted = (d: number) => setSalted((v) => Math.max(0, v + d));
 
   const checkZone = () => {
     if (zipInZone(zip)) { setZoneState("in"); setStep("size"); }
@@ -114,7 +112,7 @@ export default function DeliveryPage() {
         body: JSON.stringify({
           sourceId: result.token, name, phone, addressStreet: street, addressCity: city, addressZip: zip,
           accessInstructions: access, packSize: pack, riseCount: mix.rise, flowCount: mix.flow, duskCount: mix.dusk,
-          perfMix, refillCount: path === "loop" ? refills : 0, emptiesAck: ack, deliveryDate: slot.deliveryDateKey,
+          perfMix: { [SALTED_LATTE.key]: salted }, refillCount: path === "loop" ? refills : 0, emptiesAck: ack, deliveryDate: slot.deliveryDateKey,
         }),
       });
       const data = await res.json();
@@ -211,17 +209,15 @@ export default function DeliveryPage() {
             </div>
           ))}
           <div className="dl-perf">
-            <div className="dl-ctr-n">PERFORMANCE UPGRADE <em>{dollars(DELIVERY_PRICING.performance)} / bottle · always fresh</em></div>
-            {PERF_BASES.map((b) => PERF_ADDINS.map((a) => (
-              <div className="dl-ctr sm" key={perfKey(b, a)}>
-                <span className="dl-ctr-n">{BASE_LABEL[b]} + {ADDIN_LABEL[a]}</span>
-                <div className="dl-ctr-b">
-                  <button type="button" onClick={() => bumpPerf(b, a, -1)} disabled={!perfMix[perfKey(b, a)]} aria-label="Fewer">−</button>
-                  <b>{perfMix[perfKey(b, a)] || 0}</b>
-                  <button type="button" onClick={() => bumpPerf(b, a, 1)} disabled={picked >= pack} aria-label="More">+</button>
-                </div>
+            <div className="dl-ctr-n">{SALTED_LATTE.label.toUpperCase()} <em>{dollars(SALTED_LATTE.price)} / bottle · always fresh</em></div>
+            <div className="dl-ctr sm">
+              <span className="dl-ctr-n">{SALTED_LATTE.label}</span>
+              <div className="dl-ctr-b">
+                <button type="button" onClick={() => bumpSalted(-1)} disabled={!salted} aria-label="Fewer">−</button>
+                <b>{salted}</b>
+                <button type="button" onClick={() => bumpSalted(1)} disabled={picked >= pack} aria-label="More">+</button>
               </div>
-            )))}
+            </div>
           </div>
           <button type="button" className="oa-cta" disabled={picked !== pack} onClick={() => setStep("return")}>
             {picked === pack ? "Bottles →" : `Pick ${pack - picked} more`}
@@ -262,7 +258,7 @@ export default function DeliveryPage() {
           <div className="dl-quote">
             {quote.refillCount > 0 && <span><b>{quote.refillCount}</b> refills · {dollars(quote.refillCount * DELIVERY_PRICING.refill)}</span>}
             {quote.newCount > 0 && <span><b>{quote.newCount}</b> new · {dollars(quote.newCount * DELIVERY_PRICING.fresh)}</span>}
-            {quote.performanceCount > 0 && <span><b>{quote.performanceCount}</b> performance · {dollars(quote.performanceCount * DELIVERY_PRICING.performance)}</span>}
+            {quote.performanceCount > 0 && <span><b>{quote.performanceCount}</b> {SALTED_LATTE.label} · {dollars(quote.performanceCount * SALTED_LATTE.price)}</span>}
             <span>delivery · {quote.deliveryFeeCents === 0 ? "on us" : dollars(quote.deliveryFeeCents)}</span>
             <span className="dl-quote-t">total <b>{dollars(quote.totalCents)}</b></span>
           </div>

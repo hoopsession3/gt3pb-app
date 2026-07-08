@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useApp } from "./AppProvider";
-import { PERF_BASES, PERF_ADDINS, perfKey, type PerfMix } from "@/lib/delivery";
+import { type PerfMix } from "@/lib/delivery";
 
 // SUNDAY DELIVERY OPS — the crew side of the delivery debrief, in DropOps' shape: one summary
 // sentence (units, one hero thought), the Saturday brew totals (incl. Performance combos), and a
@@ -27,8 +27,6 @@ const STATUS_LABEL: Record<string, string> = {
   delivered: "Delivered", held_for_pickup: "HELD — pickup", issue: "Issue",
 };
 const dollars = (c: number) => `$${(c / 100).toFixed(2)}`;
-const BASE_LABEL: Record<string, string> = { rise: "RISE", flow: "FLOW", dusk: "DUSK" };
-const ADDIN_LABEL: Record<string, string> = { mct_oil: "MCT", grass_fed_butter: "butter" };
 
 let dlChanSeq = 0;
 export default function DeliveryOps() {
@@ -105,11 +103,7 @@ export default function DeliveryOps() {
   const revenue = rows.reduce((a, o) => a + o.total_cents, 0);
   const perF = { RISE: 0, FLOW: 0, DUSK: 0 } as Record<string, number>;
   rows.forEach((o) => { perF.RISE += o.rise_count; perF.FLOW += o.flow_count; perF.DUSK += o.dusk_count; });
-  const perfCombos: Record<string, number> = {};
-  rows.forEach((o) => PERF_BASES.forEach((b) => PERF_ADDINS.forEach((a) => {
-    const c = o.performance_mix?.[perfKey(b, a)] || 0;
-    if (c) perfCombos[`${BASE_LABEL[b]} + ${ADDIN_LABEL[a]}`] = (perfCombos[`${BASE_LABEL[b]} + ${ADDIN_LABEL[a]}`] || 0) + c;
-  })));
+  const saltedTotal = rows.reduce((a, o) => a + o.performance_count, 0);
   const heldQueue = rows.filter((o) => o.status === "held_for_pickup");
   const doneCount = rows.filter((o) => o.status === "delivered" || o.status === "held_for_pickup").length;
   const isRunDay = date === new Date().toISOString().slice(0, 10);
@@ -124,7 +118,7 @@ export default function DeliveryOps() {
         {heldQueue.length > 0 && <> · <b className="dl-held">{heldQueue.length} held for pickup</b></>}
       </p>
       <div className="dops-brew">Brew: <b>{(["RISE", "FLOW", "DUSK"] as const).filter((f) => perF[f] > 0).map((f) => `${perF[f]}× ${f}`).join(" · ") || "—"}</b>
-        {Object.keys(perfCombos).length > 0 && <> · Performance: <b>{Object.entries(perfCombos).map(([k, n]) => `${n}× ${k}`).join(" · ")}</b></>}
+        {saltedTotal > 0 && <> · Salted Latte: <b>{saltedTotal}</b></>}
       </div>
       <button type="button" className="dops-prog" onClick={() => setListOpen(!showList)} aria-expanded={showList}>
         <span><b>{doneCount}/{rows.length}</b> stops done</span>
@@ -140,7 +134,7 @@ export default function DeliveryOps() {
             <span className="dops-total">{dollars(o.total_cents)} ✓</span>
           </div>
           <div className="dops-meta">
-            <b>{o.pack_size} bottles</b> — {[o.rise_count && `${o.rise_count}× RISE`, o.flow_count && `${o.flow_count}× FLOW`, o.dusk_count && `${o.dusk_count}× DUSK`, o.performance_count && `${o.performance_count}× PERF`].filter(Boolean).join(" · ")}
+            <b>{o.pack_size} bottles</b> — {[o.rise_count && `${o.rise_count}× RISE`, o.flow_count && `${o.flow_count}× FLOW`, o.dusk_count && `${o.dusk_count}× DUSK`, o.performance_count && `${o.performance_count}× Salted Latte`].filter(Boolean).join(" · ")}
             <br />{o.address_street}, {o.address_city} {o.address_zip}{o.access_instructions ? <> · <em>{o.access_instructions}</em></> : null}
             {o.phone ? <> · <a className="dops-tel" href={`tel:${o.phone.replace(/[^\d+]/g, "")}`}>{o.phone}</a></> : null}
             {o.empties_collected != null && o.empties_collected !== o.empties_expected && (

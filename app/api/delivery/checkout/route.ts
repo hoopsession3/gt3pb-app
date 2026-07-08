@@ -6,7 +6,7 @@ import { raiseAlert } from "@/lib/serverAlerts";
 import { notifyCustomer } from "@/lib/notify";
 import {
   quoteDelivery, deliverySlotChoices, zipInZone, perfTotal, maxRefills,
-  DELIVERY_PACKS, PERF_BASES, PERF_ADDINS, type PerfMix,
+  DELIVERY_PACKS, SALTED_LATTE, type PerfMix,
 } from "@/lib/delivery";
 
 // SUNDAY DELIVERY CHARGE — payment on order, no COD (the debrief's rule). The server is the only
@@ -54,15 +54,9 @@ export async function POST(req: Request) {
   const packSize = n(b.packSize);
   if (!(DELIVERY_PACKS as readonly number[]).includes(packSize)) return NextResponse.json({ error: "Pick a pack size" }, { status: 400 });
 
-  // Performance mix: only known base|addin keys, counts sane.
-  const perfMix: PerfMix = {};
-  if (b.perfMix && typeof b.perfMix === "object") {
-    for (const base of PERF_BASES) for (const addin of PERF_ADDINS) {
-      const k = `${base}|${addin}`;
-      const c = n((b.perfMix as Record<string, unknown>)[k]);
-      if (c > 0) perfMix[k] = c;
-    }
-  }
+  // The $14 premium bottle — Salted Latte. One count; the DB column stays performance_count.
+  const saltedCount = n((b.perfMix as Record<string, unknown> | undefined)?.[SALTED_LATTE.key]);
+  const perfMix: PerfMix = saltedCount > 0 ? { [SALTED_LATTE.key]: saltedCount } : {};
   const perf = perfTotal(perfMix);
   const rise = n(b.riseCount), flow = n(b.flowCount), dusk = n(b.duskCount);
   if (rise + flow + dusk + perf !== packSize) {

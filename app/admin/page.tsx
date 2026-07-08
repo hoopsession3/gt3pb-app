@@ -13,6 +13,7 @@ import { snapshotUsable } from "@/lib/offline";
 import TrailerLoadout from "@/components/TrailerLoadout";
 import DropOps from "@/components/DropOps";
 import Goals from "@/components/Goals";
+import AiTraining from "@/components/AiTraining";
 import EightySix from "@/components/EightySix";
 import ReviewsAdmin from "@/components/ReviewsAdmin";
 import DeliveryOps from "@/components/DeliveryOps";
@@ -4609,6 +4610,7 @@ export default function AdminPage() {
             <span className="opx-link-s">Training, certifications &amp; the cookbook →</span>
           </Link>
           <OrgChart />
+          {isOwner && <AiTraining />}
           {isOwner && <Members />}
         </>
       )}

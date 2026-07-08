@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { staffFromRequest } from "@/lib/apiAuth";
+import { staffFromRequest, userFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ClaudeMsg } from "@/lib/anthropic";
 import { academyKnowledge } from "@/lib/operatorKb";
+import { ownerCorrections, brewRecipeFacts, logConvo } from "@/lib/agentKnowledge";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -48,10 +49,18 @@ export async function POST(req: Request) {
     rules = (c.data ?? []).map((x: any) => `- [${x.state ?? "ANY"}${x.county ? `/${x.county}` : ""}] (${x.kind}${x.critical ? ", CRITICAL" : ""}) ${x.label}${x.link ? ` — ${x.link}` : ""}`).join("\n");
   }
 
-  const system = `${SYSTEM}\n\n=== GT3 KNOWLEDGE ===\n${academyKnowledge()}\n\n=== ASSETS / GEAR WE HAVE ===\n${assets || "(none loaded)"}\n\n=== INVENTORY ON HAND ===\n${inv || "(none loaded)"}\n\n=== PERMIT / INSPECTION REQUIREMENTS BY JURISDICTION (researched; [STATE/County], ANY = universal) ===\n${rules || "(none loaded)"}\nWhen asked about permits or an inspection for a place, use the rows matching that state/county PLUS the ANY rows. If we have NO rows for that jurisdiction, say it isn't researched yet, give the universal items, and tell them to confirm with that county's health department (and flag Ryan to research it). For an inspection ask, lead with what the inspector will check, then a short prep checklist. Always remind them to confirm with the authority for the specific date.`;
+  // Owner corrections (authoritative) + the real brew recipes go at the TOP — a correction beats
+  // anything in the static knowledge, and recipe quantities come from data, never invention.
+  const [corrections, brewFacts] = await Promise.all([ownerCorrections("operator"), brewRecipeFacts()]);
+
+  const system = `${SYSTEM}${corrections ? `\n\n${corrections}` : ""}${brewFacts ? `\n\n${brewFacts}` : ""}\n\n=== GT3 KNOWLEDGE ===\n${academyKnowledge()}\n\n=== ASSETS / GEAR WE HAVE ===\n${assets || "(none loaded)"}\n\n=== INVENTORY ON HAND ===\n${inv || "(none loaded)"}\n\n=== PERMIT / INSPECTION REQUIREMENTS BY JURISDICTION (researched; [STATE/County], ANY = universal) ===\n${rules || "(none loaded)"}\nWhen asked about permits or an inspection for a place, use the rows matching that state/county PLUS the ANY rows. If we have NO rows for that jurisdiction, say it isn't researched yet, give the universal items, and tell them to confirm with that county's health department (and flag Ryan to research it). For an inspection ask, lead with what the inspector will check, then a short prep checklist. Always remind them to confirm with the authority for the specific date.`;
 
   try {
     const r = await callClaude({ model: MODELS.sonnet, maxTokens: 700, temperature: 0.3, system, messages: trimmed });
+    // Log the exchange so the owner can review answers and turn a wrong one into a correction.
+    const lastQ = [...trimmed].reverse().find((m) => m.role === "user")?.content ?? "";
+    const u = await userFromRequest(req);
+    void logConvo("operator", lastQ, r.text, u?.id ?? null, null);
     return NextResponse.json({ ok: true, reply: r.text });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });
