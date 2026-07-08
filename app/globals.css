@@ -3689,3 +3689,6 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .ev-2col{display:flex;gap:8px}
 .ev-2col label{flex:1}
 .ev-timelbl{display:flex;flex-direction:column;gap:4px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--cream-d)}
+
+/* delivery: FREE DELIVERY is a standing incentive, not a selected-state label — always visible */
+.oa-tile .oa-tag.on{opacity:1}

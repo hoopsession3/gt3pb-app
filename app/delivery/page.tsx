@@ -171,12 +171,24 @@ export default function DeliveryPage() {
       {step === "size" && (
         <div className="dl-step">
           <h2 className="dl-h">You&rsquo;re in. Let&rsquo;s build your pack.</h2>
-          <div className="oa-sizes">
+
+          <div className="oa-slabel">Which Sunday</div>
+          <div className="dl-days">
+            {choices.map((c, i) => (
+              <button key={c.deliveryDateKey} type="button" className={`oa-day${when === i ? " sel" : ""}`} onClick={() => setWhen(i)}>
+                <b>{c.deliveryLabel.replace(", 5–8 AM", "")}</b>
+                <span>{i === 0 ? "this Sunday" : "next Sunday"} · order by {c.cutoffLabel.replace(", 6:00 PM", " 6 PM")}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="oa-slabel">How many bottles</div>
+          <div className="oa-tiles">
             {DELIVERY_PACKS.map((s) => (
-              <button key={s} type="button" className={`oa-size${pack === s ? " on" : ""}`} onClick={() => { setPack(s); setStep("build"); }}>
-                {s === 24 && <span className="oa-tag">FREE DELIVERY</span>}
+              <button key={s} type="button" className={`oa-tile${pack === s ? " sel" : ""}`} onClick={() => { setPack(s); setStep("build"); }}>
+                {s === 24 && <span className="oa-tag on">FREE DELIVERY</span>}
                 <div className="oa-c">{s}</div><div className="oa-u">BOTTLES</div>
-                <div className="oa-p">{s === 12 ? "starting minimum" : s === 24 ? "delivery on us" : "bulk order"}</div>
+                <div className="oa-p">{s === 12 ? "minimum" : s === 24 ? "delivery on us" : "bulk"}</div>
               </button>
             ))}
           </div>
@@ -270,14 +282,6 @@ export default function DeliveryPage() {
             </>
           ) : (
             <>
-              <div className="dl-days">
-                {choices.map((c, i) => (
-                  <button key={c.deliveryDateKey} type="button" className={`oa-day${when === i ? " sel" : ""}`} onClick={() => setWhen(i)}>
-                    <b>{c.deliveryLabel.replace(", 5–8 AM", "")}</b>
-                    <span>{i === 0 ? "this Sunday" : "next Sunday"} · order by {c.cutoffLabel.replace(", 6:00 PM", " 6 PM")}</span>
-                  </button>
-                ))}
-              </div>
               <input className="auth-input" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} aria-label="Name" />
               <input className="auth-input" placeholder="Phone (for delivery-day texts)" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} aria-label="Phone" />
               <input className="auth-input" placeholder="Street address" value={street} onChange={(e) => setStreet(e.target.value)} aria-label="Street address" />
