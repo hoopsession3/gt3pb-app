@@ -92,5 +92,7 @@ export const DELIVERY_ZIPS: readonly string[] = [
   "29680", "29681",                                              // Simpsonville
   "29662",                                                       // Mauldin
   "29690",                                                       // Travelers Rest
+  "29687",                                                       // Taylors
+  "29644",                                                       // Fountain Inn
 ] as const;
 export const zipInZone = (zip: string) => DELIVERY_ZIPS.includes(zip.trim().slice(0, 5));
