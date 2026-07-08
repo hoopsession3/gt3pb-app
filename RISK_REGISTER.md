@@ -85,7 +85,7 @@ The data sensitivity is what keeps the consequence non-trivial.
 
 - **Opened:** 2026-06-23
 - **Severity:** Medium (latent — no live exposure while single-tenant)
-- **Status:** Open (staged)
+- **Status:** Open (DB half DONE — `0134` applied to prod 2026-07-07; remaining: service-role route sweep)
 - **Owner:** Ryan
 
 **Description.** Migration `0040` laid the multi-tenant foundation (`tenants` table, `tenant_id`
@@ -110,11 +110,13 @@ two test tenants.
   unchanged.
 - `tenants` self-row visibility (a tenant can't enumerate other customers).
 
-**Remaining to close:** (a) apply `0134` on prod, (b) sweep the `supabaseAdmin` service-role routes
-(`app/api/agents/*` etc.) to scope queries with `tenantFromRequest()` (`lib/apiAuth.ts`) — the
-service role bypasses RLS, (c) run the two-tenant verify in `0134`'s footer, (d) decide per-table
-on the RLS-off / no-`tenant_id` tables the verify queries list (incl. cross-tenant push fan-out in
-the edge function).
+**Applied to prod 2026-07-07:** `0134` ran clean — **52 stamp triggers + 52 restrictive policies,
+zero RLS-off exceptions** in the verify queries.
+
+**Remaining to close:** (a) sweep the `supabaseAdmin` service-role routes (`app/api/agents/*` etc.)
+to scope queries with `tenantFromRequest()` (`lib/apiAuth.ts`) — the service role bypasses RLS,
+(b) run the two-tenant smoke in `0134`'s footer with a scratch tenant, (c) decide per-table on any
+tables still lacking `tenant_id` (incl. cross-tenant push fan-out in the edge function).
 
 **Close when:** tenant-scoped RLS is enforced and verified — **or** a decision to remain
 single-tenant is recorded here.

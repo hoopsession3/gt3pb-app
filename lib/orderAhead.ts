@@ -98,11 +98,17 @@ export const dropDateKey = (d: Date): string => d.toISOString().slice(0, 10);
 export const PREORDER_LEAD_MS = 4 * 60 * 60 * 1000;
 export const PREORDER_TAIL_MS = 8 * 60 * 60 * 1000;
 export type PreorderWindow = { open: boolean; reason: "live" | "window" | "early" | "none" };
-export function preorderWindow(nowMs: number, isLive: boolean, nextStartISO: string | null | undefined): PreorderWindow {
+// `leadMs` is the operator's dial (live_status.preorder_lead_h, 0137): how long before a stop cup
+// orders open. leadMs <= 0 means STRICT live-only — no window at all, the go-live toggle is the
+// gate (the tail exists to survive a missed toggle, so strict mode drops it too).
+export function preorderWindow(nowMs: number, isLive: boolean, nextStartISO: string | null | undefined, leadMs: number = PREORDER_LEAD_MS): PreorderWindow {
   if (isLive) return { open: true, reason: "live" };
+  if (leadMs <= 0) return { open: false, reason: "none" };
   if (!nextStartISO) return { open: false, reason: "none" };
   const start = Date.parse(nextStartISO);
   if (!Number.isFinite(start)) return { open: false, reason: "none" };
-  if (nowMs >= start - PREORDER_LEAD_MS && nowMs <= start + PREORDER_TAIL_MS) return { open: true, reason: "window" };
+  if (nowMs >= start - leadMs && nowMs <= start + PREORDER_TAIL_MS) return { open: true, reason: "window" };
   return { open: false, reason: "early" };
 }
+export const preorderLeadMs = (hours: number | null | undefined): number =>
+  typeof hours === "number" && Number.isFinite(hours) ? Math.max(0, hours) * 60 * 60 * 1000 : PREORDER_LEAD_MS;

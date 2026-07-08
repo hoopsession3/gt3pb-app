@@ -51,6 +51,8 @@ export interface LiveStatus {
   truck_lat?: number | null;
   truck_lng?: number | null;
   pos_updated_at?: string | null;
+  // How many hours before a stop cup pre-orders open (0 = only while live). 0137.
+  preorder_lead_h?: number | null;
 }
 
 export interface Order {
@@ -64,6 +66,9 @@ export interface Order {
   status: "new" | "preparing" | "ready" | "done" | "void";
   created_at: string;
   status_changed_at: string;
+  // Customer → pass signal ("I'm on the way / outside / running late"), set via set_order_eta (0138).
+  eta_status?: "on_way" | "outside" | "late" | null;
+  eta_at?: string | null;
 }
 
 export interface BookingRequest {

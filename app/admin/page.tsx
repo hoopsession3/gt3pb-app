@@ -154,6 +154,15 @@ function Kitchen() {
     setFlash((p) => new Set(p).add(row.id));
     setTimeout(() => setFlash((p) => { const n = new Set(p); n.delete(row.id); return n; }), 6000);
   }, []);
+  // "I'm OUTSIDE" rings the pass once per order — the customer is at the window, call the name.
+  const rungOutside = useRef<Set<string>>(new Set());
+  const announceOutside = useCallback((row: Order) => {
+    if (!seeded.current || !row.eta_status || row.eta_status !== "outside" || rungOutside.current.has(row.id)) return;
+    rungOutside.current.add(row.id);
+    if (!mutedRef.current) { chime(); haptic(HAPTIC.alert); }
+    setFlash((p) => new Set(p).add(row.id));
+    setTimeout(() => setFlash((p) => { const n = new Set(p); n.delete(row.id); return n; }), 6000);
+  }, []);
 
   useEffect(() => {
     load();
@@ -170,10 +179,11 @@ function Kitchen() {
         const row = (p.eventType === "DELETE" ? p.old : p.new) as Order;
         apply(row, p.eventType === "DELETE");
         if (p.eventType === "INSERT" && row?.status === "new") announceNew(row);
+        if (p.eventType === "UPDATE" && row) announceOutside(row);
       })
       .subscribe();
     return () => { clearInterval(tick); clearInterval(recon); window.removeEventListener(OFFLINE_EVENT, onQueue); supabase?.removeChannel(ch); };
-  }, [load, apply, announceNew]);
+  }, [load, apply, announceNew, announceOutside]);
 
   // Instant: patch local state synchronously, fire the write, no refetch on success.
   const move = async (o: Order, to: Order["status"] | null) => {
@@ -248,6 +258,11 @@ function Kitchen() {
                       <span className={`adm-age ${sev}`}>{ago(o.created_at)}</span>
                     </div>
                     <div className="adm-items">{groupItems(o.items).map((g) => `${g.qty > 1 ? g.qty + "× " : ""}${DRINKS[g.id as DrinkId]?.n ?? g.id}`).join(" · ")}</div>
+                    {o.eta_status && (
+                      <span className={`kds-eta ${o.eta_status}`}>
+                        {o.eta_status === "outside" ? "📍 OUTSIDE — call the name" : o.eta_status === "on_way" ? "🏃 On the way" : "⏰ Running late"}
+                      </span>
+                    )}
                     <div className="meta">#{o.id.slice(0, 4).toUpperCase()} · ${(o.total_cents / 100).toFixed(2)} · <span className={o.paid ? "pd" : "unp"}>{o.paid ? "PAID" : "pre-order"}</span> · <span className="kds-stagetime">{ago(o.status_changed_at)} in stage</span></div>
                     <div className="adm-actions-row">
                       {PREV[o.status] && <button className="adm-recall" onClick={() => recall(o)} aria-label="Move back a stage">↩</button>}
@@ -2478,6 +2493,23 @@ function LiveControl() {
           <span className={`adm-dot${live?.is_live ? " on" : ""}`} />
           <span><b>{live?.is_live ? "Live now" : "Offline"}</b>{live?.is_live && curStop ? <span className="adm-live-at"> · {curStop.name}</span> : null}</span>
         </div>
+        {/* The ordering dial (0137): when cup pre-orders open. Same rule everywhere — menu sheet,
+            checkout, and the charge API. Pack reserves are always open regardless. */}
+        <div className="adm-lead">
+          <span className="adm-lead-k">Cup orders open</span>
+          <div className="adm-lead-opts" role="radiogroup" aria-label="When cup pre-orders open">
+            {([[0, "Live only"], [2, "2h before"], [4, "4h before"], [8, "8h before"]] as const).map(([h, label]) => (
+              <button key={h} type="button" role="radio" aria-checked={(live?.preorder_lead_h ?? 4) === h}
+                className={`adm-lead-opt${(live?.preorder_lead_h ?? 4) === h ? " on" : ""}`}
+                onClick={async () => {
+                  setLive((l) => (l ? { ...l, preorder_lead_h: h } : l));
+                  const { error } = await supabase!.from("live_status").update({ preorder_lead_h: h }).eq("id", 1);
+                  if (error) { toast(`Couldn't save — ${error.message}`, "error"); load(); }
+                  else toast(h === 0 ? "Cups sell only while you're live" : `Cup orders open ${h}h before a stop`);
+                }}>{label}</button>
+            ))}
+          </div>
+        </div>
         {live?.is_live && <button className="adm-btn ghost" onClick={pause}>Go offline</button>}
       </div>
       {live?.is_live && (
@@ -4195,7 +4227,7 @@ const SEC_MORE: Record<OpSection, string> = {
 };
 const SEC_INSIDE: Record<OpSection, string[]> = {
   day: ["Your open tasks & due dates", "Alerts flagged for you", "What's on the calendar today", "Day-of brief — dress code & call time"],
-  now: ["The order pass (kitchen display)", "Live truck controls & GPS", "Order-ahead pickups", "Alerts inbox & live sales"],
+  now: ["The order pass (kitchen display) — guests can ping it: on my way · outside · late", "Service mode — full-screen pass + pickups", "The drop — reserves & packs pickup checklist", "86 board — live sold-out control", "Live truck: go live, GPS & the cup-ordering dial", "Alerts inbox & live sales"],
   prep: ["Per-event & per-stop pack lists", "Readiness & inspection checks", "Trailer load-out & gear", "Crew assignments & sign-off"],
   plan: ["Company calendar", "Events & truck stops", "Vendors & venues", "Booking requests", "Brew schedule & reserves"],
   studio: ["Post & flyer drafting", "Brand copy & front-end copy", "Feed planning grid", "Repurpose engine", "Publishing & scheduling", "Review Desk → the truck display (/display): add or approve reviews; ✨ Simplify de-claims + trims one to display-safe"],

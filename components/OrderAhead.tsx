@@ -12,6 +12,7 @@ import {
   dollars, nextDrop, dropForStop, emptyMix, type GlassPath, type Mix, type Flavor,
 } from "@/lib/orderAhead";
 import { useSiteCopy } from "@/lib/copy";
+import MyPacks, { packMix, packDayLabel, type MyPack } from "./MyPacks";
 
 // ORDER-AHEAD — customer reserve flow (reserve → details → confirmed). One-off Saturday-drop
 // pre-orders: no subscription, no deposit, no recurring billing. All money math + the cutoff come
@@ -49,6 +50,16 @@ export default function OrderAhead() {
   const [conf, setConf] = useState<{ id: string; size: number; glass: GlassPath; mix: Mix; total: number; sat: Date; name: string; paid: boolean } | null>(null);
   const [stop, setStop] = useState<{ name: string | null; starts_at: string } | null>(null); // the truck's next stop = the pickup
   const cardRef = useRef<any>(null);
+  // "Change pack": the form is prefilled from an existing reservation; submitting the new one
+  // cancels the old (0136) so there's never a double-brew. Cleared by "keep it as is".
+  const [replacing, setReplacing] = useState<MyPack | null>(null);
+  const [packsKey, setPacksKey] = useState(""); // bump to refresh the Your-pack list after changes
+  const startChange = (p: MyPack) => {
+    setSize(p.size); setGlass(p.glass); setMix(packMix(p));
+    setName(p.name); setPhone(p.phone ?? "");
+    setReplacing(p); setView("reserve"); setErr("");
+    try { document.getElementById("body")?.scrollTo({ top: 0, behavior: "smooth" }); } catch { /* ignore */ }
+  };
 
   useEffect(() => { setNow(Date.now()); const iv = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(iv); }, []);
   useEffect(() => { setName((n) => n || profile?.display_name || ""); }, [profile?.display_name]);
@@ -114,8 +125,16 @@ export default function OrderAhead() {
       if (!res.ok) { setErr(data.error || "Something went wrong — try again."); return; }
       setConf({ id: (data.id || data.ref || "").toString(), size, glass, mix: { ...mix }, total, sat: drop.sat, name: name.trim(), paid: !!data.paid });
       setView("confirmed");
+      // A "change pack" lands as new reservation + cancel of the old (never a silent double-brew).
+      if (replacing && supabase) {
+        const old = replacing; setReplacing(null);
+        const { data: ok } = await supabase.rpc("cancel_own_reservation", { p_id: old.id });
+        if (ok === true) toast("Pack updated — your old reservation was canceled");
+        else toast("New pack is in, but the old one couldn't be canceled — cancel it under Your pack.", "error");
+      }
+      setPacksKey(String(Math.random()));
     } catch { setBusy(false); setErr("Nothing was charged — try again."); }
-  }, [name, phone, size, glass, mix, drop, total]);
+  }, [name, phone, size, glass, mix, drop, total, replacing, toast]);
 
   const pay = useCallback(async () => {
     setErr("");
@@ -135,10 +154,19 @@ export default function OrderAhead() {
 
   return (
     <div className="oa">
+      {/* Your upcoming reservations — track, change, cancel. Lives above the form so coming back
+          after reserving shows YOUR pack first, not a blank order form. */}
+      <MyPacks onChange={startChange} refreshKey={packsKey} />
       <div className="oa-card">
         {/* ============ RESERVE ============ */}
         {view === "reserve" && (
           <div className="oa-view on">
+            {replacing && (
+              <div className="oa-editing">
+                Editing your {replacing.size}-pack for {packDayLabel(replacing)} — reserving again replaces it.
+                <button type="button" onClick={() => setReplacing(null)}>Keep it as is</button>
+              </div>
+            )}
             <div className="oa-kicker">{t("reserve.kicker").toUpperCase()}</div>
             <div className="oa-head">{t("reserve.headline")}</div>
             <div className="oa-cutoff"><span className="oa-dot" /><span>{t("reserve.cutoff")

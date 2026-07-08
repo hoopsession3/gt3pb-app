@@ -21,7 +21,7 @@ The order-ahead pivot + event lifecycle + editable copy + backend hardening **al
 - No asset or migration steps for this cut — it's code only.
 
 ## 2. Migration ledger — confirm PROD is current
-The set has grown to **0135**; make sure the production Supabase project has the whole set applied,
+The set has grown to **0138**; make sure the production Supabase project has the whole set applied,
 in order (Vercel does NOT run migrations — `supabase db push` or your runner):
 
 | # | File | What |
@@ -45,6 +45,9 @@ in order (Vercel does NOT run migrations — `supabase db push` or your runner):
 | 0133 | `client_errors` | client error telemetry (deduped) + first-occurrence crew alert |
 | 0134 | `tenant_enforcement` | tenant isolation: stamping triggers + restrictive RLS (R-002 DB half) |
 | 0135 | `software_billing` | tenants.plan + Stripe columns (operator billing scaffold, dormant) |
+| 0136 | `reservation_self_service` | cancel_own_reservation RPC (member cancels own pack) |
+| 0137 | `preorder_window_setting` | live_status.preorder_lead_h — the cup-ordering dial |
+| 0138 | `order_eta_comms` | orders.eta_status + set_order_eta ("on my way / outside / late") |
 
 Confirm on prod (all should return rows / non-null):
 ```sql
@@ -62,6 +65,9 @@ select count(*) from pg_trigger where tgname = 'stamp_tenant_tg';               
 select count(*) from pg_policy  where polname = 'tenant isolation';                     -- > 15
 select column_name from information_schema.columns where table_name='tenants'
   and column_name in ('plan','billing_status','stripe_customer_id');                    -- 3 rows
+-- 0136–0138:
+select proname from pg_proc where proname in ('cancel_own_reservation','set_order_eta'); -- 2 rows
+select preorder_lead_h from public.live_status;                                          -- 4 (default)
 ```
 If any come back empty, apply the missing migrations in order, then re-check.
 

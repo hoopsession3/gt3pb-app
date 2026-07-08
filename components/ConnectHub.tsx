@@ -36,7 +36,7 @@ export default function ConnectHub() {
     <div className={`chub${open ? " open" : ""}`} ref={ref}>
       <button type="button" className="chub-tab" onClick={() => setOpen((o) => !o)} aria-haspopup="dialog" aria-expanded={open} aria-label="Connect with GT3">
         <span className="chub-tab-i" aria-hidden>{open ? "×" : "✳"}</span>
-        <span className="chub-tab-l">Connect</span>
+        <span className="rail-txt"><b>Connect</b><i>links · socials · order</i></span>
       </button>
 
       {open && (
