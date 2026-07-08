@@ -33,6 +33,7 @@ export default function DropOps() {
   const [batches, setBatches] = useState<PlannedBatch[]>([]);
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState<DropOrder[]>([]); // past drops — where fulfilled orders live on
+  const [upcoming, setUpcoming] = useState<DropOrder[]>([]); // future drops — moved packs stay visible here
   const [histOpen, setHistOpen] = useState(false);
   const [listOpen, setListOpen] = useState<boolean | null>(null); // null = open on drop day only
   // The drop = the truck's NEXT scheduled stop (same resolution as the reserve flow + /api/reserve),
@@ -75,16 +76,24 @@ export default function DropOps() {
       .order("drop_date", { ascending: false }).order("created_at").limit(200);
     setHistory((data as DropOrder[]) ?? []);
   }, [dropISO]);
+  // Future drops must render SOMEWHERE — before this, "→ Next drop" moved a pack into a week no
+  // query covered and it vanished from every surface until that date arrived.
+  const loadUpcoming = useCallback(async () => {
+    if (!supabase) return;
+    const { data } = await supabase.from("drop_orders").select("*").gt("drop_date", dropISO)
+      .is("canceled_at", null).order("drop_date").order("created_at").limit(100);
+    setUpcoming((data as DropOrder[]) ?? []);
+  }, [dropISO]);
 
   useEffect(() => {
-    load(); loadBatches(); loadHistory();
+    load(); loadBatches(); loadHistory(); loadUpcoming();
     if (!supabase) return;
     const ch = supabase.channel(`drop-ops-${++dropOpsChanSeq}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "drop_orders" }, () => { load(); loadHistory(); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "drop_orders" }, () => { load(); loadHistory(); loadUpcoming(); })
       .on("postgres_changes", { event: "*", schema: "public", table: "brew_batches" }, () => loadBatches())
       .subscribe();
     return () => { supabase?.removeChannel(ch); };
-  }, [load, loadBatches, loadHistory]);
+  }, [load, loadBatches, loadHistory, loadUpcoming]);
 
   const toggle = async (id: string, key: "picked_up" | "bottles_returned", val: boolean) => {
     if (!supabase) return;
@@ -92,17 +101,36 @@ export default function DropOps() {
     await supabase.from("drop_orders").update({ [key]: val }).eq("id", id);
   };
 
-  // Move a reservation to the following Saturday (customer can't make it — nothing is lost).
+  // Move a reservation to the NEXT drop (customer can't make it — nothing is lost). "Next" means
+  // the truck's next scheduled stop after this drop — route truth, same resolution as the sheet
+  // itself — falling back to +7 days only when nothing is on the calendar yet. The moved pack
+  // stays visible under "Upcoming drops" below, with a one-tap way back.
   const pushNextWeek = async (o: DropOrder) => {
     if (!supabase) return;
-    const d = new Date(`${o.drop_date}T12:00:00`); d.setDate(d.getDate() + 7);
-    const nextISO = d.toISOString().slice(0, 10);
+    const { data: st } = await supabase.from("stops").select("starts_at").is("archived_at", null).neq("status", "done")
+      .not("starts_at", "is", null).gt("starts_at", `${o.drop_date}T23:59:59`)
+      .order("starts_at", { ascending: true }).limit(1).maybeSingle();
+    const at = (st as { starts_at?: string | null } | null)?.starts_at;
+    let d: Date;
+    if (at) { d = new Date(at); } else { d = new Date(`${o.drop_date}T12:00:00`); d.setDate(d.getDate() + 7); }
+    const nextISO = dropDateKey(d);
     const nextLabel = d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
     if (typeof window !== "undefined" && !window.confirm(`Move ${o.name}'s ${o.size}-pack to ${nextLabel}'s drop?`)) return;
     setRows((r) => r.filter((x) => x.id !== o.id)); // optimistic — it leaves this drop
     const { error } = await supabase.from("drop_orders").update({ drop_date: nextISO }).eq("id", o.id);
     if (error) { toast(`Couldn't move it — ${error.message}`, "error"); load(); return; }
-    toast(`Moved to ${nextLabel}'s drop`);
+    toast(`Moved to ${nextLabel} — it's under Upcoming drops`);
+    loadUpcoming();
+  };
+
+  // The way back — pull an upcoming pack onto this drop.
+  const pullBack = async (o: DropOrder) => {
+    if (!supabase) return;
+    setUpcoming((u) => u.filter((x) => x.id !== o.id)); // optimistic
+    const { error } = await supabase.from("drop_orders").update({ drop_date: dropISO }).eq("id", o.id);
+    if (error) { toast(`Couldn't move it — ${error.message}`, "error"); loadUpcoming(); return; }
+    toast(`Back on ${satLabel}'s drop`);
+    load();
   };
 
   // Cancel keeps the row (audit trail) and drops it from the sheet; a paid cancel flags the refund.
@@ -112,7 +140,8 @@ export default function DropOps() {
       ? `Cancel ${o.name}'s PAID ${o.size}-pack (${dollars(o.total_cents / 100)})?\n\nThe card refund is done in Square — the crew inbox gets a flag.`
       : `Cancel ${o.name}'s ${o.size}-pack (pay at pickup — nothing was charged)?`;
     if (typeof window !== "undefined" && !window.confirm(msg)) return;
-    setRows((r) => r.filter((x) => x.id !== o.id)); // optimistic
+    setRows((r) => r.filter((x) => x.id !== o.id)); // optimistic — current or upcoming, wherever it lives
+    setUpcoming((u) => u.filter((x) => x.id !== o.id));
     const { error } = await supabase.from("drop_orders").update({ canceled_at: new Date().toISOString() }).eq("id", o.id);
     if (error) { toast(`Couldn't cancel — ${error.message}`, "error"); load(); return; }
     if (o.paid) {
@@ -229,6 +258,26 @@ export default function DropOps() {
             </div>
           ))}
         </>
+      )}
+      {/* Moved packs land here in the same breath — never off any surface. Grouped by date so a
+          glance says what next week already owes. */}
+      {upcoming.length > 0 && (
+        <div className="dops-up">
+          {Object.entries(upcoming.reduce<Record<string, DropOrder[]>>((m, o) => { (m[o.drop_date] ??= []).push(o); return m; }, {})).map(([d, os]) => (
+            <div key={d}>
+              <div className="dops-up-h">Upcoming · {new Date(`${d}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} · {os.reduce((a, o) => a + o.size, 0)} bottles</div>
+              {os.map((o) => (
+                <div className="dops-up-row" key={o.id}>
+                  <span><b>{o.name}</b> — {o.size}-pack{o.paid ? " · paid ✓" : ""}</span>
+                  <span className="dops-up-act">
+                    <button type="button" className="dops-mini" onClick={() => pullBack(o)}>← This drop</button>
+                    <button type="button" className="dops-mini danger" onClick={() => cancel(o)}>Cancel</button>
+                  </span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
       )}
       {history.length > 0 && (
         <div className="dops-hist">

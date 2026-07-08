@@ -3599,3 +3599,24 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .st-review p{margin:5px 0 0;color:var(--cream-m)}
 .st-build b{color:var(--gold2,#C8A661)}
 .st-draft{border-style:dashed}
+
+/* service mode: one working surface — pass main, sticky rail (pickups + delivery + 86) */
+.svc-grid{display:grid;grid-template-columns:minmax(0,1fr)}
+@media(min-width:940px){
+  .svc-grid{grid-template-columns:minmax(0,1fr) minmax(320px,380px);gap:0 22px;align-items:start}
+  .svc-rail{position:sticky;top:46px;max-height:calc(100dvh - 64px);overflow-y:auto;border-left:1px solid var(--line);padding-left:18px;overscroll-behavior:contain}
+}
+@media(min-width:1240px){
+  .svc-main .kds-stage{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px}
+  .svc-main .kds-stage-h,.svc-main .kds-empty,.svc-main .adm-attn{grid-column:1/-1}
+}
+/* in service, rush-irrelevant detail goes quiet: how-86-works copy, past drops */
+.svc-full .es-note{display:none}
+.svc-full .dops-hist{display:none}
+
+/* upcoming drops — moved packs stay visible, with the way back */
+.dops-up{margin-top:14px;border-top:1px dashed var(--line);padding-top:10px;display:flex;flex-direction:column;gap:8px}
+.dops-up-h{font-family:'DM Mono',monospace;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold2);margin-bottom:4px}
+.dops-up-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);font-family:'Inter';font-size:12.5px;color:var(--cream)}
+.dops-up-row:last-child{border-bottom:none}
+.dops-up-act{display:flex;gap:8px;flex-shrink:0}

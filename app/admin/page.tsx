@@ -4230,7 +4230,7 @@ const SEC_MORE: Record<OpSection, string> = {
 };
 const SEC_INSIDE: Record<OpSection, string[]> = {
   day: ["Your open tasks & due dates", "Alerts flagged for you", "What's on the calendar today", "Day-of brief — dress code & call time"],
-  now: ["The order pass (kitchen display) — guests can ping it: on my way · outside · late", "Service mode — full-screen pass + pickups", "The drop — reserves & packs pickup checklist", "Sunday delivery — run sheet, brew totals & driver outcomes", "86 board — live sold-out control", "Live truck: go live, GPS broadcast (locations & the cup-ordering dial live in Plan › Truck stops)", "Alerts inbox & live sales"],
+  now: ["The order pass (kitchen display) — guests can ping it: on my way · outside · late", "Service mode — the pass, pickups & the 86 board on one screen", "The drop — reserves & packs pickup checklist", "Sunday delivery — run sheet, brew totals & driver outcomes", "86 board — live sold-out control", "Live truck: go live, GPS broadcast (locations & the cup-ordering dial live in Plan › Truck stops)", "Alerts inbox & live sales"],
   prep: ["Per-event & per-stop pack lists", "Readiness & inspection checks", "Trailer load-out & gear", "Crew assignments & sign-off"],
   plan: ["Company calendar", "Events & truck stops", "Vendors & venues", "Booking requests", "Brew schedule & reserves"],
   studio: ["Post & flyer drafting", "Brand copy & front-end copy", "Feed planning grid", "Repurpose engine", "Publishing & scheduling", "Review Desk → the truck display (/display): add or approve reviews; ✨ Simplify de-claims + trims one to display-safe"],
@@ -4447,7 +4447,7 @@ export default function AdminPage() {
             <>
               <button type="button" className="svc-enter" onClick={() => setSvc(true)}>
                 <span className="svc-enter-t">▶ Service mode</span>
-                <span className="svc-enter-s">Full-screen pass + pickups — nothing else on screen</span>
+                <span className="svc-enter-s">The pass, pickups &amp; the 86 board — one screen, nothing else</span>
               </button>
               <Kitchen />
               <DropOps />
@@ -4461,16 +4461,24 @@ export default function AdminPage() {
           <EnableAlerts userId={user?.id ?? null} />
         </>
       )}
-      {/* SERVICE MODE — the KDS as its own surface: the pass and the pickup checklist, full screen,
-          above the nav. Exit with the button or Esc; leaving the Now section exits too. */}
+      {/* SERVICE MODE — the KDS as ONE working surface: the pass is the board (tickets flow 2-up
+          on wide screens), and a sticky rail keeps pickups, the Sunday run sheet and the 86 board
+          in reach without ever leaving the screen — 86ing a flavor mid-rush is a tap, not an exit.
+          Exit with the button or Esc; leaving the Now section exits too. */}
       {svc && sec === "now" && (
         <div className="svc-full" role="dialog" aria-modal="true" aria-label="Service mode">
           <div className="svc-bar">
             <b>Service</b>
             <button type="button" className="svc-exit" onClick={() => setSvc(false)}>✕ Exit service</button>
           </div>
-          <Kitchen />
-          <DropOps />
+          <div className="svc-grid">
+            <div className="svc-main"><Kitchen /></div>
+            <aside className="svc-rail" aria-label="Pickups & sold-out">
+              <DropOps />
+              <DeliveryOps />
+              <EightySix />
+            </aside>
+          </div>
         </div>
       )}
 

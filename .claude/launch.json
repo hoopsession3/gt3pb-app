@@ -1,6 +1,6 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "gt3pb", "runtimeExecutable": "npm", "runtimeArgs": ["start"], "port": 3000 }
+    { "name": "gt3pb-prodlocal", "runtimeExecutable": "npm", "runtimeArgs": ["run", "start", "--", "-p", "3799"], "port": 3799 }
   ]
 }

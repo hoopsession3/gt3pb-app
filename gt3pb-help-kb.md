@@ -93,7 +93,12 @@ One rule, one source of truth, enforced at every layer so it can't be dodged or 
 - **Now is the service console**, ordered by what you touch most mid-rush: alerts → **the pass** →
   **the drop** (reserves & packs pickup checklist — brew sheet, check-offs, move/cancel) → **86
   board** → Live truck (go live + GPS; locations & the ordering dial: Plan › Truck stops) → Event heads-up → personal tasks.
-  **Service mode** (button at top; Esc exits) is the pass + pickups full-screen, nothing else.
+  **Service mode** (button at top; Esc exits) is the whole service on ONE screen: the pass is
+  the board (tickets flow two-up on wide screens), and a sticky rail keeps the pickup checklist,
+  the Sunday run sheet and the 86 board in reach — 86ing a flavor mid-rush is a tap, not an exit.
+  **Moving a pack to the next drop** now targets the truck's next scheduled stop (route truth,
+  +7 days only if the calendar is empty), and the moved pack stays visible under **Upcoming
+  drops** with a one-tap "← This drop" way back — nothing ever leaves every surface.
 - Two kinds of "reserves," on purpose: the Saturday **pack** reserves live in Now → the drop;
   **Plan → back office → Reserves** is the *limited small-batch reserve* product (claims).
 - **Studio holds the brand machine**: the campaign generator (drafts in GT3 voice, checked by the
