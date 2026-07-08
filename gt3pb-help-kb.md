@@ -71,8 +71,10 @@ the change isn't done.
   one signal — 🏃 on my way · 📍 I'm outside · ⏰ running late. The pass shows it on the order card;
   **OUTSIDE rings the KDS once** (call the name). Tapping the active chip clears it.
 - **Order notifications** are managed in the profile sheet (permission state + enable button).
-- **Floating tabs** live on ONE right-edge rail (Ask us → Connect → AA, bottom-up, uniform tucked
-  tabs). The left edge stays clear for crew swipe-back; nothing overlaps the order banner.
+- **Floating tabs** live on ONE right-edge rail (`components/FloatRail.tsx`: Display · Connect ·
+  Ask us). The rail is **movable** (drag the ≡ grip, position persists), **collapsible** (› folds it
+  to a slim ‹ handle, persists), and **insightful expanded** (each tab = icon + label + what it
+  does). Left edge stays clear for crew swipe-back.
 
 ## Data the customer sees publicly is always cleaned
 - Guest reviews pass through `lib/reviews.ts` (anonymize to first name + initial, strip PII, mask

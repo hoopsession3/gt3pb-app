@@ -17,6 +17,7 @@ import ServiceWorkerRegister from "./ServiceWorkerRegister";
 import DisplayToggle, { readDisplay, displayClass, DISPLAY_KEY } from "./DisplayToggle";
 import ConnectHub from "./ConnectHub";
 import CommandPalette from "./CommandPalette";
+import FloatRail from "./FloatRail";
 import SwipeBack from "./SwipeBack";
 import ScrollRestore from "./ScrollRestore";
 import ErrorReporter from "./ErrorReporter";
@@ -101,10 +102,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {inAdmin && <SwipeBack />}
         {inAdmin && <ScrollRestore />}
         {inAdmin && <OfflineChip />}
-        {customerSurface && <Concierge />}
         {inAdmin && <button type="button" className="theme-toggle" onClick={toggleTheme} aria-label={theme === "day" ? "Switch to dark" : "Switch to day"}>{theme === "day" ? "🌙" : "☀️"}</button>}
-        {!isShare && <DisplayToggle />}
-        {!isShare && <ConnectHub />}
+        {/* Every floating tab lives on ONE movable, collapsible right-edge rail. */}
+        {!isShare && (
+          <FloatRail>
+            <DisplayToggle />
+            <ConnectHub />
+            {customerSurface && <Concierge />}
+          </FloatRail>
+        )}
         <ErrorReporter />
         <ServiceWorkerRegister />
       </div>

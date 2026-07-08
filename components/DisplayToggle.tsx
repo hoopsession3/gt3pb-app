@@ -68,7 +68,8 @@ export default function DisplayToggle() {
         </div>
       )}
       <button type="button" className="rdg-fab" onClick={() => setOpen((o) => !o)} aria-haspopup="dialog" aria-expanded={open} aria-label="Display & text size">
-        <span className="rdg-a" style={{ fontSize: 12 }}>A</span><span className="rdg-a" style={{ fontSize: 18 }}>A</span>
+        <span className="rdg-aa" aria-hidden><span className="rdg-a" style={{ fontSize: 12 }}>A</span><span className="rdg-a" style={{ fontSize: 18 }}>A</span></span>
+        <span className="rail-txt"><b>Display</b><i>text size · contrast</i></span>
       </button>
     </div>
   );

@@ -36,7 +36,7 @@ export default function Concierge() {
   return (
     <>
       <button type="button" className={`conc-fab${open ? " hide" : ""}`} onClick={() => setOpen(true)} aria-label="Ask the GT3 concierge">
-        <span className="conc-fab-i">☕</span><span className="conc-fab-t">Ask us</span>
+        <span className="conc-fab-i">☕</span><span className="rail-txt"><b>Ask us</b><i>menu · hours · booking</i></span>
       </button>
 
       {open && (
