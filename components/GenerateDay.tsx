@@ -162,6 +162,7 @@ export default function GenerateDay() {
   const [energy,   setEnergy]   = useState<Energy | null>(null);
   const [flags,    setFlags]    = useState<Set<Flag>>(new Set());
   const [rec,      setRec]      = useState<Rec | null>(null);
+  const [openSci,  setOpenSci]  = useState<string | null>(null); // one card's science open at a time
   const [busy,     setBusy]     = useState(false);
 
   const toggleFlag = (f: Flag) =>
@@ -210,14 +211,15 @@ export default function GenerateDay() {
           const dk = DRINKS[d.id];
           return (
             <div key={d.id} className="gen-card" style={{ borderLeft: `3px solid ${dk.dot}` }}>
-              <div className="gen-card-top">
+              <button type="button" className="gen-card-top" onClick={() => setOpenSci(openSci === d.id ? null : d.id)} aria-expanded={openSci === d.id}>
                 <div className="gen-swatch" style={{ color: dk.dot, borderColor: dk.dot }}>{dk.n.charAt(0)}</div>
                 <div className="gen-card-meta">
                   <div className="gen-card-name">{dk.n}</div>
                 </div>
                 <div className="gen-badge">{dk.when}</div>
-              </div>
-              <p className="gen-science">{d.science}</p>
+                <span className={`gen-sci-caret${openSci === d.id ? " open" : ""}`} aria-hidden>›</span>
+              </button>
+              {openSci === d.id && <p className="gen-science">{d.science}</p>}
             </div>
           );
         })}

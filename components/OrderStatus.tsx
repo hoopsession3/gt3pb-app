@@ -23,6 +23,7 @@ export default function OrderStatus() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [canceling, setCanceling] = useState(false);
   const [etaBusy, setEtaBusy] = useState(false);
+  const [etaOpen, setEtaOpen] = useState(false); // chips fold until asked for
   // Offline: a member who walks away from the truck (festival dead zones) still sees their
   // last-known status, labeled as such, instead of the banner vanishing.
   const [stale, setStale] = useState(false);
@@ -110,15 +111,23 @@ export default function OrderStatus() {
         )}
         <span className="orderbar-tag">#{o.id.slice(0, 4).toUpperCase()}</span>
       </div>
-      {/* Talk to the truck — one tap, the pass sees it instantly. Active chip taps off. */}
-      <div className="orderbar-eta" role="group" aria-label="Tell the truck">
-        {([["on_way", "🏃 On my way"], ["outside", "📍 I'm outside"], ["late", "⏰ Running late"]] as const).map(([k, label]) => (
-          <button key={k} type="button" className={`eta-chip${o.eta_status === k ? " on" : ""}`} disabled={etaBusy} onClick={() => setEta(k)} aria-pressed={o.eta_status === k}>
-            {label}
-          </button>
-        ))}
-        {o.eta_status && <span className="eta-sent">✓ the truck sees it</span>}
-      </div>
+      {/* Talk to the truck — folded until asked for; once set, it collapses to the answer. */}
+      {etaOpen ? (
+        <div className="orderbar-eta" role="group" aria-label="Tell the truck">
+          {([["on_way", "🏃 On my way"], ["outside", "📍 I'm outside"], ["late", "⏰ Running late"]] as const).map(([k, label]) => (
+            <button key={k} type="button" className={`eta-chip${o.eta_status === k ? " on" : ""}`} disabled={etaBusy} onClick={async () => { await setEta(k); setEtaOpen(false); }} aria-pressed={o.eta_status === k}>
+              {label}
+            </button>
+          ))}
+        </div>
+      ) : o.eta_status ? (
+        <div className="orderbar-eta collapsed">
+          <span className="eta-set">{({ on_way: "🏃 On my way", outside: "📍 I'm outside", late: "⏰ Running late" } as const)[o.eta_status]} ✓</span>
+          <button type="button" className="eta-change" onClick={() => setEtaOpen(true)}>change</button>
+        </div>
+      ) : (
+        <button type="button" className="eta-tell" onClick={() => setEtaOpen(true)}>Tell the truck ›</button>
+      )}
     </div>
   );
 }

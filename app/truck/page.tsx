@@ -194,7 +194,8 @@ function TruckLive() {
       <div className="dchrule" />
 
       {!loaded && <Skeleton variant="row" count={4} />}
-      {stops.map((s) => {
+      {/* the featured stop is the header hero — it never repeats as row one */}
+      {stops.filter((s) => s.id !== liveStop?.id).map((s) => {
         const rowLive = isLive && s.id === live?.current_stop_id;
         const isOpen = openStop === s.id;
         return (
@@ -266,7 +267,6 @@ function TruckDemo() {
         sub="Saturday Market — the full bar on board"
         when="SAT"
         openLabel="til 3p"
-        eta="Greenville · Sun"
         next="Greenville Run Club — Sun 10–2"
         onOrder={() => router.push("/menu")}
       />

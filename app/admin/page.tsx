@@ -2296,8 +2296,9 @@ function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive
 }
 
 // ───────────────────────── live truck control ─────────────────────────
-function LiveControl() {
+function LiveControl({ compact = false }: { compact?: boolean }) {
   const { toast } = useApp();
+  const router = useRouter();
   const { setSection } = useOperatorSection();
   const openPrep = (id: string) => { try { localStorage.setItem("gt3-prep-open", `stop:${id}`); } catch { /* ignore */ } setSection("prep"); };
   const [stops, setStops] = useState<Stop[]>([]);
@@ -2489,7 +2490,7 @@ function LiveControl() {
 
   return (
     <div className="adm-sec">
-      <div className="sec">Live truck <button className="adm-btn" style={{ marginLeft: "auto" }} onClick={addStop}>+ Add location</button></div>
+      <div className="sec">Live truck {!compact && <button className="adm-btn" style={{ marginLeft: "auto" }} onClick={addStop}>+ Add location</button>}</div>
       {err && <div className="adm-attn" role="alert">Backend error: {err}</div>}
       <div className="adm-live">
         <div className="adm-live-status">
@@ -2497,8 +2498,9 @@ function LiveControl() {
           <span><b>{live?.is_live ? "Live now" : "Offline"}</b>{live?.is_live && curStop ? <span className="adm-live-at"> · {curStop.name}</span> : null}</span>
         </div>
         {/* The ordering dial (0137): when cup pre-orders open. Same rule everywhere — menu sheet,
-            checkout, and the charge API. Pack reserves are always open regardless. */}
-        <div className="adm-lead">
+            checkout, and the charge API. Pack reserves are always open regardless. Prep-day work,
+            so it lives in Plan › Truck stops; the Now panel stays go-live/offline/broadcast only. */}
+        {!compact && <div className="adm-lead">
           <span className="adm-lead-k">Cup orders open</span>
           <div className="adm-lead-opts" role="radiogroup" aria-label="When cup pre-orders open">
             {([[0, "Live only"], [2, "2h before"], [4, "4h before"], [8, "8h before"]] as const).map(([h, label]) => (
@@ -2512,7 +2514,7 @@ function LiveControl() {
                 }}>{label}</button>
             ))}
           </div>
-        </div>
+        </div>}
         {live?.is_live && <button className="adm-btn ghost" onClick={pause}>Go offline</button>}
       </div>
       {live?.is_live && (
@@ -2534,6 +2536,22 @@ function LiveControl() {
         </>
       )}
 
+      {compact ? (
+        <>
+          {!live?.is_live && active.length > 0 && (
+            <div className="adm-golist">
+              {active.map((s) => (
+                <div className="adm-gorow" key={s.id}>
+                  <span className="adm-gorow-n">{s.name || "Untitled location"}</span>
+                  <button className="adm-btn primary" onClick={() => goLive(s.id)}>Go live here</button>
+                </div>
+              ))}
+            </div>
+          )}
+          <button type="button" className="adm-golink" onClick={() => router.push("/admin?s=plan&t=stops")}>Locations &amp; ordering dial · Plan › Truck stops ›</button>
+        </>
+      ) : (
+      <>
       <div className="ev-list" style={{ marginTop: 12 }}>
         {active.map((s, i) => (
           <LocationEditor
@@ -2568,6 +2586,8 @@ function LiveControl() {
             </div>
           ))}
         </div>
+      )}
+      </>
       )}
     </div>
   );
@@ -4003,18 +4023,15 @@ function Overview({ onGo, onOpenTarget }: { onGo: (t: string) => void; onOpenTar
   return (
     <div className="adm-sec">
       <div className="sec">At a glance</div>
-      <div className="bo-cards">
-        <button className="bo-card" onClick={() => onGo("events")}>
-          <b>{s.eventsUp}</b><span>events</span>
-          {s.nextEvent && <em className="bo-card-sub">{s.nextEvent.label ? `${s.nextEvent.label} · ` : ""}{s.nextEvent.title}</em>}
-        </button>
-        <button className="bo-card" onClick={openStop}>
-          <b>{s.stopsUp}</b><span>truck stops</span>
-          {s.nextStop && <em className="bo-card-sub">{s.nextStop.label ? `${s.nextStop.label} · ` : ""}{s.nextStop.name}</em>}
-        </button>
-        <button className={`bo-card${s.news ? " hot" : ""}`} onClick={() => onGo("bookings")}><b>{s.news}</b><span>news</span></button>
-        <button className={`bo-card${pastTasks ? " alert" : ""}${showOverdue ? " on" : ""}`} onClick={() => pastTasks ? setShowOverdue((o) => !o) : undefined} aria-expanded={showOverdue}><b>{pastTasks}</b><span>tasks past due</span></button>
-      </div>
+      {/* One quiet line instead of the tile farm — zero-tiles never render; anything that
+          needs a reply lives in "Needs you" below (which only speaks when > 0). */}
+      <p className="bo-line">
+        <button type="button" onClick={() => onGo("events")}><b>{s.eventsUp}</b> event{s.eventsUp === 1 ? "" : "s"}</button>
+        {" · "}
+        <button type="button" onClick={openStop}><b>{s.stopsUp}</b> truck stop{s.stopsUp === 1 ? "" : "s"}</button>
+        {" coming up"}
+        {(s.nextEvent || s.nextStop) && <> — next: <b>{s.nextEvent ? `${s.nextEvent.label ? `${s.nextEvent.label} · ` : ""}${s.nextEvent.title}` : `${s.nextStop!.label ? `${s.nextStop!.label} · ` : ""}${s.nextStop!.name}`}</b></>}
+      </p>
       {showOverdue && pastTasks > 0 && (
         <div className="bo-overdue">
           {overdue.slice(0, 8).map((t) => (
@@ -4436,7 +4453,7 @@ export default function AdminPage() {
               <EightySix />
             </>
           )}
-          {canManage && <Panel id="live" title="Live truck" defaultOpen><LiveControl /></Panel>}
+          {canManage && <Panel id="live" title="Live truck" defaultOpen><LiveControl compact /></Panel>}
           {canManage && <Panel id="hud" title="Event heads-up"><EventHUD /></Panel>}
           <MyTasks userId={user?.id ?? null} />
           <EnableAlerts userId={user?.id ?? null} />
