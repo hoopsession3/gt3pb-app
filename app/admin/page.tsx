@@ -4229,7 +4229,7 @@ const SEC_MORE: Record<OpSection, string> = {
 };
 const SEC_INSIDE: Record<OpSection, string[]> = {
   day: ["Your open tasks & due dates", "Alerts flagged for you", "What's on the calendar today", "Day-of brief — dress code & call time"],
-  now: ["The order pass (kitchen display) — guests can ping it: on my way · outside · late", "Service mode — full-screen pass + pickups", "The drop — reserves & packs pickup checklist", "86 board — live sold-out control", "Live truck: go live, GPS & the cup-ordering dial", "Alerts inbox & live sales"],
+  now: ["The order pass (kitchen display) — guests can ping it: on my way · outside · late", "Service mode — full-screen pass + pickups", "The drop — reserves & packs pickup checklist", "86 board — live sold-out control", "Live truck: go live, GPS broadcast (locations & the cup-ordering dial live in Plan › Truck stops)", "Alerts inbox & live sales"],
   prep: ["Per-event & per-stop pack lists", "Readiness & inspection checks", "Trailer load-out & gear", "Crew assignments & sign-off"],
   plan: ["Company calendar", "Events & truck stops", "Vendors & venues", "Booking requests", "Brew schedule & reserves"],
   studio: ["Post & flyer drafting", "Brand copy & front-end copy", "Feed planning grid", "Repurpose engine", "Publishing & scheduling", "Review Desk → the truck display (/display): add or approve reviews; ✨ Simplify de-claims + trims one to display-safe"],
