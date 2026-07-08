@@ -111,6 +111,34 @@ export const GTM_PLAYS: GtmPlay[] = [
     inApp: "LIVE — Studio: campaign generator (banned-copy linted), brand calendar, review desk → truck display; referral give-$5-get-$5 is the built-in referral engine." },
 ];
 
+export const GOVERNANCE: StrategyBlock[] = [
+  {
+    h: "Who changes what",
+    lines: [
+      "The locked doc (GT3-Brew-Business-Strategy.md) is owner-only. It changes by PR — the banned-copy lint and the smoke suite run on every change, so a rev can't ship copy or math the rules forbid.",
+      "Managers read everything and can comment on any block or play. Staff see the plays' status, never the money path.",
+      "The Playbook page renders the doc; it never forks it. If this page and the doc disagree, the doc wins and the page is a bug.",
+    ],
+  },
+  {
+    h: "How a change happens",
+    lines: [
+      "Talk it through on the block's thread (💬) — that's the live room, and the other owners get pinged.",
+      "Build or overhaul the play with the guided builder — drafts are visible to everyone, adopted by an owner only.",
+      "Log the decision. Append-only, no edits, no deletes — the log is the institution's memory. No strategic call without a log line.",
+      "Adopting a draft that changes locked numbers or copy = a doc rev (PR) in the same breath.",
+    ],
+  },
+  {
+    h: "When to overhaul",
+    lines: [
+      "On a trigger, not a mood: a play misses its projected ROI two review cycles running, a Phase-2 condition flips, or the market hands you a fact the doc doesn't have.",
+      "Review cadence: monthly against Money's actuals; the Phase 1→2 checklist is reviewed whenever any of its six conditions moves.",
+      "Overhauls keep the old play's log history — the point is to see what you believed before and why it changed.",
+    ],
+  },
+];
+
 export const FLYWHEEL: string[] = [
   "A guest meets GT3 at an event or the truck (markets, gyms, corporate — the GTM plays fill this).",
   "They join — membership card, stamps, referral code. The app makes them known.",

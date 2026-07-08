@@ -201,11 +201,17 @@ One rule, one source of truth, enforced at every layer so it can't be dodged or 
   renders it; it never forks it. Strategy revs → `lib/strategy.ts` revs in the same PR.
 - **Deeper cuts**: `/architecture` (owner — the live system map) · `/built/…` (the partner
   one-pager, safe to show) · Money (where every play's actuals recompute daily).
+- **Collaboration & governance (0140)**: every block and play on the Playbook carries a **live 💬
+  thread** (the comments engine — posting pings the other owners through the alert ladder); the
+  **guided builder** walks an owner through building or overhauling a play in seven coached steps
+  (saved as visible DRAFTs in the debrief's GTM shape); and the **decision log** is append-only by
+  construction — no update/delete policies exist, so the institution's memory can't be rewritten.
+  Rule: no strategic call without a log line.
 - **Coming (Sprint B)**: goals tracker, KPI deltas (channel split, Loop %, return rate), the
   rich-text strategies KB with permissions, GTM order-attribution. `GT3-Delivery-Audit.md` maps
   exists-vs-build.
 
 ## Migration ledger
-Through **0139** — full table + verify SQL in `gt3pb-deploy-v1.md`. Newest:
+Through **0140** — full table + verify SQL in `gt3pb-deploy-v1.md`. Newest:
 `0133` client errors · `0134` tenant enforcement (on prod) · `0135` software billing (dormant) ·
-`0136` reservation self-service · `0137` pre-order window dial · `0138` order eta comms · `0139` Sunday delivery (orders + waitlist + cancel RPC).
+`0136` reservation self-service · `0137` pre-order window dial · `0138` order eta comms · `0139` Sunday delivery · `0140` strategy collab (threads + decision log + drafts).
