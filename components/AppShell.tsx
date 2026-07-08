@@ -22,6 +22,7 @@ import SwipeBack from "./SwipeBack";
 import ScrollRestore from "./ScrollRestore";
 import ErrorReporter from "./ErrorReporter";
 import OfflineChip from "./OfflineChip";
+import MarketingSplash from "./MarketingSplash";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -111,6 +112,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             {customerSurface && <Concierge />}
           </FloatRail>
         )}
+        {customerSurface && <MarketingSplash />}
         <ErrorReporter />
         <ServiceWorkerRegister />
       </div>

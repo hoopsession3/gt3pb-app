@@ -39,9 +39,19 @@ export default function DeliveryPage() {
 
   const [pack, setPack] = useState<number | null>(null);
   const [mix, setMix] = useState<Record<"rise" | "flow" | "dusk", number>>({ rise: 0, flow: 0, dusk: 0 });
-  const [salted, setSalted] = useState(0); // count of $14 Salted Latte bottles
-  const perf = salted;
+  // The $14 premium adds are DYNAMIC — whatever the owner flags bulk-orderable (Money → Menu).
+  // Falls back to the static Salted Latte until 0144's bulk columns land, so the flow never breaks.
+  const [bulkItems, setBulkItems] = useState<{ slug: string; name: string }[]>([{ slug: SALTED_LATTE.key, name: SALTED_LATTE.label }]);
+  const [premiums, setPremiums] = useState<Record<string, number>>({}); // slug → count
+  const perf = Object.values(premiums).reduce((s, n) => s + (n || 0), 0);
   const picked = mix.rise + mix.flow + mix.dusk + perf;
+  useEffect(() => {
+    if (!supabase) return;
+    let live = true;
+    supabase.from("products").select("slug, name").eq("bulk_orderable", true).eq("bulk_tier", "premium").eq("active", true).eq("sold_out", false).order("bulk_sort")
+      .then(({ data }) => { if (live && data && data.length) setBulkItems(data as { slug: string; name: string }[]); });
+    return () => { live = false; };
+  }, []);
 
   const [path, setPath] = useState<"loop" | "new" | null>(null);
   const [refills, setRefills] = useState(0);
@@ -87,7 +97,7 @@ export default function DeliveryPage() {
 
   const bump = (k: "rise" | "flow" | "dusk", d: number) =>
     setMix((m) => ({ ...m, [k]: Math.max(0, m[k] + d) }));
-  const bumpSalted = (d: number) => setSalted((v) => Math.max(0, v + d));
+  const bumpPremium = (slug: string, d: number) => setPremiums((m) => { const v = Math.max(0, (m[slug] || 0) + d); const n = { ...m, [slug]: v }; if (!v) delete n[slug]; return n; });
 
   const checkZone = () => {
     if (zipInZone(zip)) { setZoneState("in"); setStep("size"); }
@@ -112,7 +122,7 @@ export default function DeliveryPage() {
         body: JSON.stringify({
           sourceId: result.token, name, phone, addressStreet: street, addressCity: city, addressZip: zip,
           accessInstructions: access, packSize: pack, riseCount: mix.rise, flowCount: mix.flow, duskCount: mix.dusk,
-          perfMix: { [SALTED_LATTE.key]: salted }, refillCount: path === "loop" ? refills : 0, emptiesAck: ack, deliveryDate: slot.deliveryDateKey,
+          perfMix: premiums, refillCount: path === "loop" ? refills : 0, emptiesAck: ack, deliveryDate: slot.deliveryDateKey,
         }),
       });
       const data = await res.json();
@@ -208,17 +218,21 @@ export default function DeliveryPage() {
               </div>
             </div>
           ))}
-          <div className="dl-perf">
-            <div className="dl-ctr-n">{SALTED_LATTE.label.toUpperCase()} <em>{dollars(SALTED_LATTE.price)} / bottle · always fresh</em></div>
-            <div className="dl-ctr sm">
-              <span className="dl-ctr-n">{SALTED_LATTE.label}</span>
-              <div className="dl-ctr-b">
-                <button type="button" onClick={() => bumpSalted(-1)} disabled={!salted} aria-label="Fewer">−</button>
-                <b>{salted}</b>
-                <button type="button" onClick={() => bumpSalted(1)} disabled={picked >= pack} aria-label="More">+</button>
-              </div>
+          {bulkItems.length > 0 && (
+            <div className="dl-perf">
+              <div className="dl-ctr-n">PREMIUM <em>{dollars(SALTED_LATTE.price)} / bottle · always fresh</em></div>
+              {bulkItems.map((it) => (
+                <div className="dl-ctr sm" key={it.slug}>
+                  <span className="dl-ctr-n">{it.name}</span>
+                  <div className="dl-ctr-b">
+                    <button type="button" onClick={() => bumpPremium(it.slug, -1)} disabled={!premiums[it.slug]} aria-label={`Fewer ${it.name}`}>−</button>
+                    <b>{premiums[it.slug] || 0}</b>
+                    <button type="button" onClick={() => bumpPremium(it.slug, 1)} disabled={picked >= pack} aria-label={`More ${it.name}`}>+</button>
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
+          )}
           <button type="button" className="oa-cta" disabled={picked !== pack} onClick={() => setStep("return")}>
             {picked === pack ? "Bottles →" : `Pick ${pack - picked} more`}
           </button>

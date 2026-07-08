@@ -6,7 +6,7 @@ import { raiseAlert } from "@/lib/serverAlerts";
 import { notifyCustomer } from "@/lib/notify";
 import {
   quoteDelivery, deliverySlotChoices, zipInZone, perfTotal, maxRefills,
-  DELIVERY_PACKS, SALTED_LATTE, type PerfMix,
+  DELIVERY_PACKS, type PerfMix,
 } from "@/lib/delivery";
 
 // SUNDAY DELIVERY CHARGE — payment on order, no COD (the debrief's rule). The server is the only
@@ -54,9 +54,15 @@ export async function POST(req: Request) {
   const packSize = n(b.packSize);
   if (!(DELIVERY_PACKS as readonly number[]).includes(packSize)) return NextResponse.json({ error: "Pick a pack size" }, { status: 400 });
 
-  // The $14 premium bottle — Salted Latte. One count; the DB column stays performance_count.
-  const saltedCount = n((b.perfMix as Record<string, unknown> | undefined)?.[SALTED_LATTE.key]);
-  const perfMix: PerfMix = saltedCount > 0 ? { [SALTED_LATTE.key]: saltedCount } : {};
+  // Premium ($14) adds are dynamic — any slug the owner flagged bulk-orderable. Sum the counts;
+  // the total is bounded by the packSize check below, and each is priced at the $14 tier.
+  const perfMix: PerfMix = {};
+  if (b.perfMix && typeof b.perfMix === "object") {
+    for (const [slug, v] of Object.entries(b.perfMix as Record<string, unknown>)) {
+      const c = n(v);
+      if (c > 0 && /^[a-z0-9_-]{1,40}$/.test(slug)) perfMix[slug] = c;
+    }
+  }
   const perf = perfTotal(perfMix);
   const rise = n(b.riseCount), flow = n(b.flowCount), dusk = n(b.duskCount);
   if (rise + flow + dusk + perf !== packSize) {

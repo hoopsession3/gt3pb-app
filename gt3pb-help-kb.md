@@ -117,6 +117,18 @@ One rule, one source of truth, enforced at every layer so it can't be dodged or 
   Bookings (requests in) → Brew (production) → Notes, divider, back office (Vendors · Reserves).
   New tabs slot into the rhythm, not onto the end.
 
+## The app splash + dynamic bulk-order menu (0144)
+
+**Splash**: the app opens to a marketing card for guests — leads with the pack pitch, shown **once
+per app open** (per session; reopening shows it again, navigating within a session doesn't re-nag),
+closeable three ways (X, tap-outside, "Maybe later"). It's **owner-editable** with no deploy —
+**Studio → App splash** sets the headline, benefit line, button label + link, and the live toggle.
+Renders nothing when no promo is active. **Dynamic bulk-order**: any menu item can be flagged
+**Available for bulk / delivery pack** in Money → Menu & products, with a tier — *brew* (the
+refillable daypart core, Loop \$8 / new \$10) or *premium* (a flat \$14 add like the Salted Latte).
+The delivery pack builder's premium adds are driven by this flag (cohesive products → UI → DB), so
+the owner adds a new \$14 bottle without code. Falls back to the static Salted Latte pre-migration.
+
 ## Train the AI (Team → Train the AI, owner)
 
 The freeform agents (Operator "Ask GT3", the guest Concierge) used to answer from a fixed
@@ -264,4 +276,4 @@ pixel-exact brand 3).
 ## Migration ledger
 Through **0140** — full table + verify SQL in `gt3pb-deploy-v1.md`. Newest:
 `0133` client errors · `0134` tenant enforcement (on prod) · `0135` software billing (dormant) ·
-`0136` reservation self-service · `0137` pre-order window dial · `0138` order eta comms · `0139` Sunday delivery · `0140` strategy collab (threads + decision log + drafts) · `0141` customer-record durability (audit catch-up + delete guards) · `0142` goals (scoreboard) · `0143` AI training (owner corrections + agent grounding + conversation log + `training` media bucket).
+`0136` reservation self-service · `0137` pre-order window dial · `0138` order eta comms · `0139` Sunday delivery · `0140` strategy collab (threads + decision log + drafts) · `0141` customer-record durability (audit catch-up + delete guards) · `0142` goals (scoreboard) · `0143` AI training · `0144` marketing splash (promos) + dynamic bulk-order flag on products.

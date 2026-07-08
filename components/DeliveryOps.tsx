@@ -103,7 +103,12 @@ export default function DeliveryOps() {
   const revenue = rows.reduce((a, o) => a + o.total_cents, 0);
   const perF = { RISE: 0, FLOW: 0, DUSK: 0 } as Record<string, number>;
   rows.forEach((o) => { perF.RISE += o.rise_count; perF.FLOW += o.flow_count; perF.DUSK += o.dusk_count; });
-  const saltedTotal = rows.reduce((a, o) => a + o.performance_count, 0);
+  // Premium ($14) adds are dynamic (whatever's flagged bulk-orderable) — sum by slug so the crew
+  // brews the right ones. Legacy orders with base|addin keys still sum into the total.
+  const prettySlug = (s: string) => s.replace(/[-_|]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  const premiumMix: Record<string, number> = {};
+  rows.forEach((o) => Object.entries(o.performance_mix || {}).forEach(([k, n]) => { if (n) premiumMix[prettySlug(k)] = (premiumMix[prettySlug(k)] || 0) + (n as number); }));
+  const premiumTotal = rows.reduce((a, o) => a + o.performance_count, 0);
   const heldQueue = rows.filter((o) => o.status === "held_for_pickup");
   const doneCount = rows.filter((o) => o.status === "delivered" || o.status === "held_for_pickup").length;
   const isRunDay = date === new Date().toISOString().slice(0, 10);
@@ -118,7 +123,7 @@ export default function DeliveryOps() {
         {heldQueue.length > 0 && <> · <b className="dl-held">{heldQueue.length} held for pickup</b></>}
       </p>
       <div className="dops-brew">Brew: <b>{(["RISE", "FLOW", "DUSK"] as const).filter((f) => perF[f] > 0).map((f) => `${perF[f]}× ${f}`).join(" · ") || "—"}</b>
-        {saltedTotal > 0 && <> · Salted Latte: <b>{saltedTotal}</b></>}
+        {premiumTotal > 0 && <> · Premium: <b>{Object.keys(premiumMix).length ? Object.entries(premiumMix).map(([k, n]) => `${n}× ${k}`).join(" · ") : premiumTotal}</b></>}
       </div>
       <button type="button" className="dops-prog" onClick={() => setListOpen(!showList)} aria-expanded={showList}>
         <span><b>{doneCount}/{rows.length}</b> stops done</span>
@@ -134,7 +139,7 @@ export default function DeliveryOps() {
             <span className="dops-total">{dollars(o.total_cents)} ✓</span>
           </div>
           <div className="dops-meta">
-            <b>{o.pack_size} bottles</b> — {[o.rise_count && `${o.rise_count}× RISE`, o.flow_count && `${o.flow_count}× FLOW`, o.dusk_count && `${o.dusk_count}× DUSK`, o.performance_count && `${o.performance_count}× Salted Latte`].filter(Boolean).join(" · ")}
+            <b>{o.pack_size} bottles</b> — {[o.rise_count && `${o.rise_count}× RISE`, o.flow_count && `${o.flow_count}× FLOW`, o.dusk_count && `${o.dusk_count}× DUSK`, o.performance_count && `${Object.entries(o.performance_mix || {}).map(([k, n]) => `${n}× ${prettySlug(k)}`).join(" · ") || `${o.performance_count}× premium`}`].filter(Boolean).join(" · ")}
             <br />{o.address_street}, {o.address_city} {o.address_zip}{o.access_instructions ? <> · <em>{o.access_instructions}</em></> : null}
             {o.phone ? <> · <a className="dops-tel" href={`tel:${o.phone.replace(/[^\d+]/g, "")}`}>{o.phone}</a></> : null}
             {o.empties_collected != null && o.empties_collected !== o.empties_expected && (

@@ -3711,3 +3711,33 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .ai-convo-q{display:flex;justify-content:space-between;gap:10px;width:100%;background:none;border:none;padding:8px 0;text-align:left;cursor:pointer;-webkit-appearance:none;appearance:none;color:var(--cream);font-family:'Inter';font-size:12.5px;border-bottom:1px solid var(--line)}
 .ai-convo-a{padding:8px 0 12px;font-family:'Inter';font-size:12.5px;color:var(--cream-m);line-height:1.55;display:flex;flex-direction:column;gap:8px;align-items:flex-start}
 .st-discuss.danger{color:var(--red-h)}
+
+/* marketing splash — the card the app opens to. One centered card on every screen (never
+   stretched), safe-area aware, scrolls inside itself if the copy is long. */
+.promo-scrim{position:fixed;inset:0;z-index:120;display:flex;align-items:center;justify-content:center;padding:calc(20px + env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom));background:rgba(8,7,5,.74);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);animation:promo-in .28s ease}
+@keyframes promo-in{from{opacity:0}to{opacity:1}}
+@keyframes promo-rise{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
+.promo-card{position:relative;width:100%;max-width:420px;max-height:calc(100dvh - 40px);overflow-y:auto;-webkit-overflow-scrolling:touch;background:radial-gradient(120% 90% at 50% 0%,#211b12 0%,#15110b 60%,#100d08 100%);border:1px solid var(--gold,#a97c3f);border-radius:22px;box-shadow:0 30px 70px rgba(0,0,0,.55),inset 0 1px 0 rgba(245,241,232,.06);animation:promo-rise .34s cubic-bezier(.2,.7,.3,1)}
+@media(min-width:1024px){ .promo-card{max-width:440px} }
+@media(prefers-reduced-motion:reduce){ .promo-scrim,.promo-card{animation:none} }
+.promo-x{position:absolute;top:12px;right:12px;z-index:2;width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,.35);border:1px solid var(--line2);color:var(--cream);font-size:14px;line-height:1;cursor:pointer;-webkit-appearance:none;appearance:none;display:flex;align-items:center;justify-content:center}
+.promo-x:hover{background:rgba(0,0,0,.55)}
+.promo-img{height:158px;background-size:cover;background-position:center;border-bottom:1px solid var(--line)}
+.promo-body{padding:26px 22px 22px}
+.promo-eyb{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold2,#c8a661);margin-bottom:12px}
+.promo-eyb span{color:var(--red-h,#d64b46)}
+.promo-h{font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:30px;line-height:1.06;color:var(--cream);margin-bottom:11px;text-wrap:balance;letter-spacing:-.01em}
+.promo-p{font-family:'Inter';font-size:14px;line-height:1.6;color:var(--cream-m);margin-bottom:16px}
+.promo-chips{display:flex;flex-direction:column;gap:7px;margin-bottom:20px}
+.promo-chips span{font-family:'Inter';font-size:12.5px;color:var(--cream-m);padding-left:20px;position:relative}
+.promo-chips span::before{content:"›";position:absolute;left:4px;top:0;color:var(--gold2,#c8a661);font-weight:700}
+.promo-chips b{color:var(--cream);font-weight:700}
+.promo-acts{display:flex;flex-direction:column;gap:6px}
+.promo-cta{background:var(--red);color:#fff;border:none;border-radius:14px;padding:15px;font-family:'Inter';font-weight:750;font-size:15.5px;letter-spacing:.01em;cursor:pointer;-webkit-appearance:none;appearance:none;transition:transform .12s ease,background .12s ease}
+.promo-cta:hover{background:var(--red-h,#d64b46)}
+.promo-cta:active{transform:scale(.985)}
+.promo-skip{background:none;border:none;color:var(--cream-d);font-family:'Inter';font-size:12.5px;padding:8px;cursor:pointer}
+.promo-skip:hover{color:var(--cream-m)}
+@media(min-width:600px){ .promo-h{font-size:33px} .promo-body{padding:30px 26px 24px} }
+/* crew-day (light) — the splash is guest-only so it stays dark; but guard the chips just in case */
+.app.crew-day .promo-h,.app.crew-day .promo-chips b{color:var(--cream)}

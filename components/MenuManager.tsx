@@ -9,7 +9,7 @@ import { supabase } from "@/lib/supabase";
 // consumes), and toggle active. Price here is what the app charges — card AND cash.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-type Product = { id: string; slug: string; name: string; line: string | null; price_cents: number; active: boolean; sold_out: boolean; sold_out_at: string | null; sort: number; what: string | null; why: string | null; ingredients: string[]; excludes: string[]; timing: string | null; square_item_id: string | null };
+type Product = { id: string; slug: string; name: string; line: string | null; price_cents: number; active: boolean; sold_out: boolean; sold_out_at: string | null; sort: number; what: string | null; why: string | null; ingredients: string[]; excludes: string[]; timing: string | null; square_item_id: string | null; bulk_orderable?: boolean; bulk_tier?: string | null };
 type Inv = { id: string; name: string; unit: string | null };
 type Comp = { id: string; inventory_item_id: string; qty_per_serving: number | null; unit: string | null };
 
@@ -64,6 +64,7 @@ function ProductRow({ p, inv, open, onToggle, onSaved, toast }: { p: Product; in
     const { error } = await supabase.from("products").update({
       name: d.name.trim(), line: d.line, price_cents: Math.round(Number(d.price_cents) || 0), active: d.active, what: d.what, why: d.why,
       ingredients: (d.ingredients || []), excludes: (d.excludes || []), timing: d.timing, slug: d.slug.trim(),
+      bulk_orderable: !!d.bulk_orderable, bulk_tier: d.bulk_tier || "premium",
     }).eq("id", p.id);
     if (error) toast(`Error: ${error.message}`, "error"); else { toast("Saved"); onSaved(); }
   };
@@ -124,6 +125,17 @@ function ProductRow({ p, inv, open, onToggle, onSaved, toast }: { p: Product; in
           <label className="prod-f"><span>Ingredients (comma)</span><input value={(d.ingredients || []).join(", ")} onChange={(e) => setD({ ...d, ingredients: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })} /></label>
           <label className="prod-f"><span>Free of (comma)</span><input value={(d.excludes || []).join(", ")} onChange={(e) => setD({ ...d, excludes: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })} /></label>
           <label className="prod-toggle"><input type="checkbox" checked={d.active} onChange={(e) => setD({ ...d, active: e.target.checked })} /> On the menu</label>
+          {/* Bulk order = show this item in the delivery pack builder. 'brew' = the refillable
+              daypart core (Loop $8 / new $10); 'premium' = a flat $14 add like the Salted Latte. */}
+          <label className="prod-toggle"><input type="checkbox" checked={!!d.bulk_orderable} onChange={(e) => setD({ ...d, bulk_orderable: e.target.checked })} /> Available for bulk / delivery pack</label>
+          {d.bulk_orderable && (
+            <label className="prod-f"><span>Bulk tier</span>
+              <select value={d.bulk_tier || "premium"} onChange={(e) => setD({ ...d, bulk_tier: e.target.value })}>
+                <option value="premium">Premium add ($14)</option>
+                <option value="brew">Brew (refillable core — Loop $8 / new $10)</option>
+              </select>
+            </label>
+          )}
 
           <div className="prod-recipe">
             <div className="insp-lbl">Recipe — inventory a serving uses</div>
