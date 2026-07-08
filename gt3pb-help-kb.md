@@ -30,6 +30,25 @@ the change isn't done.
   **Plan** (booking ahead) · **Studio** (marketing + **Review Desk → truck display**) ·
   **Money** (the books) · **Team** (people & roles) · **Ask GT3** (playbook, floats).
 
+## Crew console navigation (how to move around `/admin`)
+- **Sections are URL-backed** — switching section is a real history entry (`/admin?s=prep`), so the
+  phone/browser **Back button and swipe-back work**, and a `?s=` link deep-links to a section.
+  Owned by `OperatorSectionProvider` (`components/OperatorNav.tsx`); the console `‹` walks section
+  history first, only leaving crew mode (→ `/3mpire`) when there's none left.
+- **Swipe-back** — a left-edge drag walks section history (installed PWAs have no OS edge-swipe).
+  `components/SwipeBack.tsx`; only fires when there's history, never drops you out of crew by accident.
+- **Scroll is remembered per section** (`components/ScrollRestore.tsx`) — back into a long Prep/Money
+  list and you land where you were.
+- **Breadcrumbs** show in the section header for deep views (e.g. `Prep › Atlanta BeltLine`). Generic
+  mechanism (`components/Crumbs.tsx` → `useCrumb(id, label, go)`); wired into `PrepDetail`. Any new
+  drilldown opts in with one `useCrumb()` call.
+- **Jump / ⌘K** — command palette (`components/CommandPalette.tsx`): quick-jump to any role-allowed
+  section, recent event/stop, or action (scan, customer view). The **Jump** chip in the crew top bar
+  opens it on touch; ⌘K / Ctrl-K on desktop. Recents come from `lib/recents.ts` (record a visit with
+  `recordRecent(kind, id, label)` from `components/recents.ts`).
+- **A11y**: skip-to-content link, the section body is a focused labelled region on change, roving
+  arrow-keys in the nav tablist, and the palette returns focus to its trigger on close.
+
 ## Data the customer sees publicly is always cleaned
 - Guest reviews pass through `lib/reviews.ts` (anonymize to first name + initial, strip PII, mask
   profanity, drop <4★/spam) and must be **staff-approved** (Studio → Review Desk) before the display
