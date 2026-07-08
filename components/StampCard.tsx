@@ -20,7 +20,7 @@ export default function StampCard() {
     <section className={`stamp${gotFree ? " won" : near ? " near" : ""}`} aria-label="Loyalty card">
       <div className="stamp-top">
         <span className="stamp-k">Your card</span>
-        <span className="stamp-badge">{gotFree ? "🎉 Card full" : free > 0 ? `${free} free earned` : "10th is on us"}</span>
+        <span className="stamp-badge">{gotFree ? "🎉 Card full" : free > 0 ? `${free} free ${free === 1 ? "drink" : "drinks"} earned` : "10th is on us"}</span>
       </div>
       <div className="stamp-grid" role="img" aria-label={`${inCard} of ${GOAL} stamps`}>
         {Array.from({ length: GOAL }).map((_, i) => (

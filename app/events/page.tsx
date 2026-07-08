@@ -77,7 +77,7 @@ function RsvpRow({ ev }: { ev: EventRow }) {
           onClick={() => hasDetail && setOpen((o) => !o)} onKeyDown={(e) => { if (hasDetail && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setOpen((o) => !o); } }}>
           <b>{ev.title}{ev.member_only && <span className="motag">Members</span>}</b>
           <span>{ev.blurb ?? ev.location_text ?? ""}</span>
-          {ev.going_count != null && <span className="go">● {ev.going_count} going</span>}
+          {ev.going_count != null && ev.going_count > 0 && <span className="go">● {ev.going_count} going</span>}
         </div>
         {hasDetail && <span className={`ev-caret${open ? " open" : ""}`} aria-hidden="true">›</span>}
         <button className={`rsvp${going ? " in" : ""}`} onClick={onClick}>{going ? "Going ✓" : "I'm in"}</button>

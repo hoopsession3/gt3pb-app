@@ -43,7 +43,7 @@ export default function Concierge() {
         <div className="conc-scrim" onClick={() => setOpen(false)}>
           <div className="conc-panel" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="GT3 concierge">
             <div className="conc-head">
-              <div className="conc-head-l"><span className="conc-badge">GT3</span><div><div className="conc-title">Concierge</div><div className="conc-sub">Menu · hours · booking</div></div></div>
+              <div className="conc-head-l"><span className="conc-badge">GT3</span><div><div className="conc-title">Concierge</div></div></div>
               <button type="button" className="conc-x" onClick={() => setOpen(false)} aria-label="Close">✕</button>
             </div>
 
@@ -58,7 +58,7 @@ export default function Concierge() {
             </div>
 
             <form className="conc-inbar" onSubmit={(e) => { e.preventDefault(); send(input); }}>
-              <input className="conc-in" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask about the menu, hours, booking…" aria-label="Message" />
+              <input className="conc-in" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Type a question…" aria-label="Message" />
               <button type="submit" className="conc-send" disabled={busy || !input.trim()} aria-label="Send">↑</button>
             </form>
             <div className="conc-foot">Answers come from our menu &amp; schedule. For allergies or medical questions, ask the crew at the window.</div>

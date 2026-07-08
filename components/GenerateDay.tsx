@@ -204,8 +204,6 @@ export default function GenerateDay() {
             </div>
           ))}
         </div>
-        <div className="gen-story">{rec.story}</div>
-
         <div className="sec">Your stack · what&apos;s in it</div>
 
         {rec.drinks.map((d) => {
@@ -216,7 +214,6 @@ export default function GenerateDay() {
                 <div className="gen-swatch" style={{ color: dk.dot, borderColor: dk.dot }}>{dk.n.charAt(0)}</div>
                 <div className="gen-card-meta">
                   <div className="gen-card-name">{dk.n}</div>
-                  <div className="gen-card-time">{d.timing}</div>
                 </div>
                 <div className="gen-badge">{dk.when}</div>
               </div>
@@ -229,7 +226,7 @@ export default function GenerateDay() {
 
         <button className="handle" onClick={addStack} style={{ marginTop: 18 }}>
           <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2"><path d="M5 12l5 5L20 7" /></svg>
-          <span>Add my stack<span className="sm">{rec.drinks.map((d) => DRINKS[d.id].n).join(" · ")}</span></span>
+          <span>Add my stack</span>
         </button>
 
         <button

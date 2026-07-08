@@ -15,8 +15,7 @@ export default function CartBar() {
       onClick={openCheckout}
       aria-label={`Review order, ${cartCount} ${cartCount === 1 ? "item" : "items"}, $${(cents / 100).toFixed(2)}`}
     >
-      <span className="cartbar-n">{cartCount}</span>
-      <span className="cartbar-l">Review order</span>
+      <span className="cartbar-l">Review <b>{cartCount}</b> drink{cartCount === 1 ? "" : "s"}</span>
       <span className="cartbar-p">${(cents / 100).toFixed(2)}</span>
     </button>
   );

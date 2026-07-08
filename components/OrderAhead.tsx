@@ -230,7 +230,7 @@ export default function OrderAhead() {
             {user ? (
               <>
                 <button type="button" className="oa-cta" disabled={!complete} onClick={() => setView("details")}>
-                  {complete ? `Reserve — ${dollars(total)} for ${dayName(drop.sat).split(",")[0]}` : "Pick your flavors"}
+                  {complete ? `Reserve for ${dayName(drop.sat).split(",")[0]} ›` : "Pick your flavors"}
                 </button>
                 <div className="oa-window" style={{ whiteSpace: "pre-line" }}>{t("reserve.window")}</div>
               </>
@@ -286,7 +286,7 @@ export default function OrderAhead() {
             <div className="oa-head">See you {dayName(conf.sat).split(",")[0]}, {conf.name.split(" ")[0]}.</div>
             <div className="oa-review">
               {conf.id && <div className="oa-rline"><span className="oa-rk">Order</span><span className="oa-rv">#{conf.id.slice(0, 6).toUpperCase()}</span></div>}
-              <div className="oa-rline"><span className="oa-rk">Pack</span><span className="oa-rv">{conf.size} — {mixSummary(conf.mix)}</span></div>
+              <div className="oa-rline"><span className="oa-rk">Pack</span><span className="oa-rv">{conf.size} bottles — {mixSummary(conf.mix)}</span></div>
               <div className="oa-rline"><span className="oa-rk">Pickup</span><span className="oa-rv">{dayName(conf.sat)}</span></div>
               <div className="oa-rline total"><span className="oa-rk">{conf.paid ? "Paid" : "Pay at pickup"}</span><span className="oa-rv">{dollars(conf.total)}</span></div>
             </div>

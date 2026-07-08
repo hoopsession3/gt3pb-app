@@ -13,7 +13,7 @@ import { PACK_SIZES, PACK_TAG, packTotal, newGlassTotal, dollars } from "@/lib/o
 import { clickable } from "@/lib/a11y";
 
 export default function MenuScreen() {
-  const { openDrink, isInCart, cartCount, toast } = useApp();
+  const { openDrink, isInCart, cartCount } = useApp();
   const t = useSiteCopy();
   const { soldOut } = useAvailability();
   const [prices, setPrices] = useState<Record<string, number>>({});
@@ -113,7 +113,7 @@ export default function MenuScreen() {
         {PACK_SIZES.map((s) => (
           <div className="mpack-row" key={s}>
             <span className="mpack-n"><b>{s}</b> bottles{PACK_TAG[s] ? <em className="mpack-tag">{PACK_TAG[s]}</em> : null}</span>
-            <span className="mpack-px"><b>{dollars(packTotal(s, "return"))}</b> bring-back · {dollars(newGlassTotal(s))} new glass</span>
+            <span className="mpack-px"><b>{dollars(packTotal(s, "return"))}</b> bring-back</span>
           </div>
         ))}
         <div className="mpack-note">{t("menu.packs_note")}</div>
@@ -123,12 +123,6 @@ export default function MenuScreen() {
       <div className="menu-integrity">{t("menu.integrity")}</div>
       <div className="menu-mto">{t("menu.mto")}</div>
 
-      {/* Empty-state hint only; once items are added the floating CartBar takes over. */}
-      {cartCount === 0 && (
-        <button className="order-bar" onClick={() => toast("Tap a drink to read it, then add to your order")}>
-          Order here · tap a drink
-        </button>
-      )}
     </section>
   );
 }

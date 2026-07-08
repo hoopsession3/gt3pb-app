@@ -36,7 +36,7 @@ export const COPY_META: CopyMeta[] = [
   { key: "pitch.kicker", group: "Reserve card", label: "Kicker", default: "Order Ahead" },
   { key: "pitch.headline", group: "Reserve card", label: "Headline", default: "The bottles you love, brewed to order." },
   { key: "pitch.body", group: "Reserve card", label: "Body", multiline: true,
-    default: "Reserve a Saturday drop — 3, 6, or 12 bottles, brewed to order and ready when you reach the window. No plan, no commitment." },
+    default: "Reserve a Saturday drop — brewed to order and ready when you reach the window. No plan, no commitment." },
   { key: "pitch.cta", group: "Reserve card", label: "Button", default: "Reserve this week's drop" },
   { key: "pitch.fine", group: "Reserve card", label: "Fine print", multiline: true,
     default: "Order by Wed 6 PM · pickup Saturday · bring bottles back for the best price." },

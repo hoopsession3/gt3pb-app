@@ -205,13 +205,13 @@ export default function Checkout() {
                 </div>
               ))}
 
-              {/* The pack reserve, explained — what it is, when you get it, why reserve. Numbers
-                  come from lib/orderAhead's pricing grid so this copy can never drift from truth. */}
-              <button type="button" className="co-upsell" onClick={() => router.push("/reserve")}>
-                <span className="co-upsell-t">Bottles for your week — brewed to order</span>
-                <span className="co-upsell-s">Reserve a 3, 6 or 12-pack and it&apos;s waiting at Saturday&apos;s stop. Bring the bottles back and save {`$${saveAmount(6)}`} on a 6-pack (${PRICING.returnPacks[6]} vs ${PRICING.newPerBottle * 6}).</span>
-                <b>Reserve a pack ›</b>
-              </button>
+              {/* One quiet line — the closed state and the post-pay screen own the full pack pitch
+                  in their moments; while paying, the cart is the hero. */}
+              {ordering.open && (
+                <button type="button" className="co-upsell-line" onClick={() => router.push("/reserve")}>
+                  Bottles for your week? <b>Reserve a Saturday pack ›</b>
+                </button>
+              )}
 
               {!ordering.open ? (
                 <div className="co-closed">

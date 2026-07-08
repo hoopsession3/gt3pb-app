@@ -225,19 +225,21 @@ function MpireDemo() {
             <circle cx="44" cy="44" r="37" fill="none" stroke="rgba(245,241,232,.1)" strokeWidth="8" />
             <circle ref={ringRef} cx="44" cy="44" r="37" fill="none" stroke="#B82420" strokeWidth="8" strokeLinecap="round" strokeDasharray={RING} strokeDashoffset={RING} />
           </svg>
-          <div className="rc">7<small>OF 10</small></div>
+          <div className="rc">7<small>OF 10 STAMPS</small></div>
         </div>
         <div className="mt">
           <div className="eyb">★ Founding Member</div>
           <h2>Ryan T.</h2>
-          <p>3 cuppas from a free pour — your 10th is on us. A point on every drink.</p>
+          <p>Your 10th pour is on us. A point on every drink.</p>
         </div>
       </div></div>
 
-      <div className="cells">
-        <div className="cell"><div className="cv gold">142</div><div className="cl">Points</div></div>
-        <div className="cell"><div className="cv ok">Day 8</div><div className="cl">Streak</div></div>
-        <div className="cell"><div className="cv">$14.00</div><div className="cl">Credit</div></div>
+      <div className="memline">
+        <span><b>142</b> pts</span>
+        <span className="memline-dot">·</span>
+        <span>day <b>8</b> streak</span>
+        <span className="memline-dot">·</span>
+        <span><b>$14.00</b> credit</span>
       </div>
 
       <ReferralCard code="RYAN-3MP" />
