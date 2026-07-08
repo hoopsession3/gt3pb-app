@@ -66,6 +66,9 @@ export interface Order {
   status: "new" | "preparing" | "ready" | "done" | "void";
   created_at: string;
   status_changed_at: string;
+  // Customer → pass signal ("I'm on the way / outside / running late"), set via set_order_eta (0138).
+  eta_status?: "on_way" | "outside" | "late" | null;
+  eta_at?: string | null;
 }
 
 export interface BookingRequest {

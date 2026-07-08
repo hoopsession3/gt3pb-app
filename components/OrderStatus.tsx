@@ -22,6 +22,7 @@ export default function OrderStatus() {
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [canceling, setCanceling] = useState(false);
+  const [etaBusy, setEtaBusy] = useState(false);
   // Offline: a member who walks away from the truck (festival dead zones) still sees their
   // last-known status, labeled as such, instead of the banner vanishing.
   const [stale, setStale] = useState(false);
@@ -71,6 +72,18 @@ export default function OrderStatus() {
   const items = o.items.map((i) => DRINKS[i as DrinkId]?.n ?? i).join(" · ");
   const paid = Boolean((o as Order & { paid?: boolean }).paid);
 
+  // Customer → pass quick replies ("I'm on the way / outside / running late"). One tap writes
+  // eta_status via the definer RPC (owner-only, active orders only); the KDS shows it live and
+  // OUTSIDE rings the pass so the crew calls the name. Tapping the active chip clears it.
+  const setEta = async (eta: "on_way" | "outside" | "late") => {
+    if (!supabase || etaBusy) return;
+    setEtaBusy(true);
+    const next = o.eta_status === eta ? null : eta;
+    const { data } = await supabase.rpc("set_order_eta", { p_order: o.id, p_eta: next });
+    setEtaBusy(false);
+    if (data === true) load();
+  };
+
   // Self-service cancel — allowed only while the order is still 'new' (not yet on the pass). The RPC
   // re-checks owner + status server-side; a paid order flags staff for the Square refund.
   const cancel = async () => {
@@ -83,18 +96,29 @@ export default function OrderStatus() {
   };
 
   return (
-    <div className={`orderbar st-${o.status}`} role="status" aria-live="polite">
-      <span className="orderbar-dot" />
-      <div className="orderbar-main">
-        <b>{STATUS_LABEL[o.status] ?? "Your order"}</b>
-        <span>{items}{orders.length > 1 ? ` · +${orders.length - 1} more` : ""}{stale ? " · offline — last known" : ""}</span>
+    <div className={`orderbar-wrap st-${o.status}`}>
+      <div className={`orderbar st-${o.status}`} role="status" aria-live="polite">
+        <span className="orderbar-dot" />
+        <div className="orderbar-main">
+          <b>{STATUS_LABEL[o.status] ?? "Your order"}</b>
+          <span>{items}{orders.length > 1 ? ` · +${orders.length - 1} more` : ""}{stale ? " · offline — last known" : ""}</span>
+        </div>
+        {o.status === "new" && (
+          <button type="button" className="orderbar-cancel" onClick={cancel} disabled={canceling}>
+            {canceling ? "Canceling…" : "Cancel"}
+          </button>
+        )}
+        <span className="orderbar-tag">#{o.id.slice(0, 4).toUpperCase()}</span>
       </div>
-      {o.status === "new" && (
-        <button type="button" className="orderbar-cancel" onClick={cancel} disabled={canceling}>
-          {canceling ? "Canceling…" : "Cancel"}
-        </button>
-      )}
-      <span className="orderbar-tag">#{o.id.slice(0, 4).toUpperCase()}</span>
+      {/* Talk to the truck — one tap, the pass sees it instantly. Active chip taps off. */}
+      <div className="orderbar-eta" role="group" aria-label="Tell the truck">
+        {([["on_way", "🏃 On my way"], ["outside", "📍 I'm outside"], ["late", "⏰ Running late"]] as const).map(([k, label]) => (
+          <button key={k} type="button" className={`eta-chip${o.eta_status === k ? " on" : ""}`} disabled={etaBusy} onClick={() => setEta(k)} aria-pressed={o.eta_status === k}>
+            {label}
+          </button>
+        ))}
+        {o.eta_status && <span className="eta-sent">✓ the truck sees it</span>}
+      </div>
     </div>
   );
 }

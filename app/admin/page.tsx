@@ -154,6 +154,15 @@ function Kitchen() {
     setFlash((p) => new Set(p).add(row.id));
     setTimeout(() => setFlash((p) => { const n = new Set(p); n.delete(row.id); return n; }), 6000);
   }, []);
+  // "I'm OUTSIDE" rings the pass once per order — the customer is at the window, call the name.
+  const rungOutside = useRef<Set<string>>(new Set());
+  const announceOutside = useCallback((row: Order) => {
+    if (!seeded.current || !row.eta_status || row.eta_status !== "outside" || rungOutside.current.has(row.id)) return;
+    rungOutside.current.add(row.id);
+    if (!mutedRef.current) { chime(); haptic(HAPTIC.alert); }
+    setFlash((p) => new Set(p).add(row.id));
+    setTimeout(() => setFlash((p) => { const n = new Set(p); n.delete(row.id); return n; }), 6000);
+  }, []);
 
   useEffect(() => {
     load();
@@ -170,10 +179,11 @@ function Kitchen() {
         const row = (p.eventType === "DELETE" ? p.old : p.new) as Order;
         apply(row, p.eventType === "DELETE");
         if (p.eventType === "INSERT" && row?.status === "new") announceNew(row);
+        if (p.eventType === "UPDATE" && row) announceOutside(row);
       })
       .subscribe();
     return () => { clearInterval(tick); clearInterval(recon); window.removeEventListener(OFFLINE_EVENT, onQueue); supabase?.removeChannel(ch); };
-  }, [load, apply, announceNew]);
+  }, [load, apply, announceNew, announceOutside]);
 
   // Instant: patch local state synchronously, fire the write, no refetch on success.
   const move = async (o: Order, to: Order["status"] | null) => {
@@ -248,6 +258,11 @@ function Kitchen() {
                       <span className={`adm-age ${sev}`}>{ago(o.created_at)}</span>
                     </div>
                     <div className="adm-items">{groupItems(o.items).map((g) => `${g.qty > 1 ? g.qty + "× " : ""}${DRINKS[g.id as DrinkId]?.n ?? g.id}`).join(" · ")}</div>
+                    {o.eta_status && (
+                      <span className={`kds-eta ${o.eta_status}`}>
+                        {o.eta_status === "outside" ? "📍 OUTSIDE — call the name" : o.eta_status === "on_way" ? "🏃 On the way" : "⏰ Running late"}
+                      </span>
+                    )}
                     <div className="meta">#{o.id.slice(0, 4).toUpperCase()} · ${(o.total_cents / 100).toFixed(2)} · <span className={o.paid ? "pd" : "unp"}>{o.paid ? "PAID" : "pre-order"}</span> · <span className="kds-stagetime">{ago(o.status_changed_at)} in stage</span></div>
                     <div className="adm-actions-row">
                       {PREV[o.status] && <button className="adm-recall" onClick={() => recall(o)} aria-label="Move back a stage">↩</button>}

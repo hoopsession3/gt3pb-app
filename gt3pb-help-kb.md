@@ -62,6 +62,18 @@ the change isn't done.
 - **A11y**: skip-to-content link, the section body is a focused labelled region on change, roving
   arrow-keys in the nav tablist, and the palette returns focus to its trigger on close.
 
+## Customer self-service (the loop closes both ways)
+- **Your pack** (`components/MyPacks.tsx`, on `/reserve`): members see upcoming reservations live
+  (pickup check-off flips it in realtime), can **Change** (prefills the form; the new reservation
+  cancels the old via `cancel_own_reservation`, 0136) or **Cancel** (paid cancel raises the refund
+  alert in the crew inbox).
+- **Talk to the truck** (`OrderStatus` quick replies → `set_order_eta`, 0138): active orders carry
+  one signal — 🏃 on my way · 📍 I'm outside · ⏰ running late. The pass shows it on the order card;
+  **OUTSIDE rings the KDS once** (call the name). Tapping the active chip clears it.
+- **Order notifications** are managed in the profile sheet (permission state + enable button).
+- **Floating tabs** live on ONE right-edge rail (Ask us → Connect → AA, bottom-up, uniform tucked
+  tabs). The left edge stays clear for crew swipe-back; nothing overlaps the order banner.
+
 ## Data the customer sees publicly is always cleaned
 - Guest reviews pass through `lib/reviews.ts` (anonymize to first name + initial, strip PII, mask
   profanity, drop <4★/spam) and must be **staff-approved** (Studio → Review Desk) before the display

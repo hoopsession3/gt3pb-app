@@ -363,7 +363,24 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 @keyframes cartup{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 
 /* Customer "your order" live status — above the nav, members only */
+.orderbar-wrap{flex:0 0 auto;display:flex;flex-direction:column;z-index:31}
 .orderbar{flex:0 0 auto;display:flex;align-items:center;gap:12px;margin:0 12px 10px;padding:13px 16px;border-radius:15px;background:var(--card);border:1px solid var(--line2);box-shadow:0 -2px 22px rgba(0,0,0,.4);z-index:31;animation:cartup .22s ease}
+/* talk-to-the-truck quick replies under the order banner */
+.orderbar-eta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:-4px 14px 10px;animation:cartup .22s ease}
+.eta-chip{background:var(--card);border:1px solid var(--line2);border-radius:999px;color:var(--cream-m);font-family:'Inter';font-weight:700;font-size:11.5px;padding:7px 11px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.eta-chip.on{border-color:var(--gold2);color:var(--cream);background:rgba(200,166,97,.14)}
+.eta-chip:disabled{opacity:.6}
+.eta-sent{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.04em;color:var(--ok)}
+/* the same signal on the pass */
+.kds-eta{display:inline-flex;margin-top:6px;font-family:'Inter';font-weight:800;font-size:11px;letter-spacing:.04em;border-radius:8px;padding:4px 8px;border:1px solid var(--line2);color:var(--cream-m)}
+.kds-eta.outside{background:rgba(184,36,32,.16);border-color:var(--red-h);color:#ffb3af;animation:offpulse 1.4s ease-in-out infinite}
+.kds-eta.on_way{color:var(--gold2);border-color:var(--gold)}
+.kds-eta.late{color:var(--warn);border-color:var(--warn)}
+/* notifications block in the profile sheet */
+.prof-notif{margin-top:14px;border:1px solid var(--line);border-radius:12px;padding:12px}
+.prof-notif-t{font-family:'Inter';font-weight:700;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--cream-m);margin-bottom:8px}
+.prof-notif-s{font-size:12.5px;line-height:1.5;color:var(--cream-m)}
+.prof-notif-s.on{color:var(--ok)}
 .orderbar-dot{flex:0 0 auto;width:10px;height:10px;border-radius:50%;background:var(--gold2)}
 .orderbar.st-preparing .orderbar-dot{background:var(--gold2);box-shadow:0 0 0 4px rgba(184,144,47,.18)}
 .orderbar.st-ready{border-color:rgba(106,160,92,.55);background:rgba(106,160,92,.12)}
@@ -2046,12 +2063,15 @@ select.note-in{-webkit-appearance:none;appearance:none}
 /* ── Readability controls (global Aa toggle) — prefixed rdg* to avoid the .disp (dispatch) class ── */
 /* accessibility control — docked to the left edge, tucked, with a slow raise-in; slides fully out
    on hover/focus so it's there when a user needs it, out of the way when they don't. */
-.rdg{position:fixed;left:0;bottom:calc(var(--navh,68px) + 118px);z-index:61;animation:rail-raise .9s ease both}
-.rdg-fab{width:48px;height:46px;border-radius:0 14px 14px 0;border:1px solid var(--line2);border-left:none;background:var(--card);color:var(--cream);cursor:pointer;display:flex;align-items:baseline;justify-content:center;gap:1px;box-shadow:0 6px 16px rgba(0,0,0,.22);-webkit-appearance:none;appearance:none;transform:translateX(-32%);transition:transform .45s cubic-bezier(.2,.9,.2,1)}
+/* THE RAIL — every floating tab lives on ONE right-edge rail with one visual language: uniform
+   height, tucked until hover/tap, consistent 54px rhythm (Ask us → Connect → AA, bottom-up).
+   Nothing overlaps the order banner or cart bar, and the left edge stays clear for swipe-back. */
+.rdg{position:fixed;right:0;left:auto;bottom:calc(var(--navh,68px) + 204px);z-index:61;animation:rail-raise .9s ease both;display:flex;justify-content:flex-end}
+.rdg-fab{width:48px;height:44px;border-radius:14px 0 0 14px;border:1px solid var(--line2);border-right:none;background:var(--card);color:var(--cream);cursor:pointer;display:flex;align-items:baseline;justify-content:center;gap:1px;box-shadow:0 6px 16px rgba(0,0,0,.22);-webkit-appearance:none;appearance:none;transform:translateX(30%);transition:transform .45s cubic-bezier(.2,.9,.2,1)}
 .rdg:hover .rdg-fab,.rdg:focus-within .rdg-fab{transform:translateX(0)}
 @keyframes rail-raise{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:none}}
 .rdg-a{font-family:'Fraunces',serif;font-weight:600;line-height:1}
-.rdg-panel{position:absolute;bottom:54px;left:0;width:214px;background:var(--card);border:1px solid var(--line2);border-radius:14px;padding:12px;box-shadow:0 12px 30px rgba(0,0,0,.4);display:flex;flex-direction:column;gap:8px}
+.rdg-panel{position:absolute;bottom:52px;right:0;left:auto;width:214px;background:var(--card);border:1px solid var(--line2);border-radius:14px;padding:12px;box-shadow:0 12px 30px rgba(0,0,0,.4);display:flex;flex-direction:column;gap:8px}
 .app.crew-day .rdg-panel,.app.crew-day .rdg-fab{background:#fff}
 .rdg-row-h{font-family:var(--mono);font-size:9px;letter-spacing:1.2px;text-transform:uppercase;color:var(--bronze)}
 .rdg-sizes{display:flex;gap:6px}
@@ -2279,7 +2299,8 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .prog-build-l{font-family:'Inter';font-size:10.5px;line-height:1.3;color:var(--cream-m)}
 .app.crew-day .prog-build-card{background:#fff}
 /* ── Guest concierge (customer-facing AI host) ── */
-.conc-fab{position:fixed;right:16px;bottom:84px;z-index:55;display:flex;align-items:center;gap:7px;background:#15140f;color:#f4ead6;border:1px solid #B8902F;border-radius:999px;padding:10px 15px;font-family:'Inter';font-weight:700;font-size:14px;box-shadow:0 6px 22px rgba(0,0,0,.32);cursor:pointer}
+.conc-fab{position:fixed;right:0;bottom:calc(var(--navh,68px) + 96px);z-index:61;display:flex;align-items:center;gap:7px;height:44px;background:#15140f;color:#f4ead6;border:1px solid #B8902F;border-right:none;border-radius:14px 0 0 14px;padding:0 13px 0 15px;font-family:'Inter';font-weight:800;font-size:12.5px;letter-spacing:.03em;box-shadow:0 10px 26px rgba(0,0,0,.4);cursor:pointer;-webkit-appearance:none;appearance:none;transform:translateX(calc(100% - 48px));transition:transform .5s cubic-bezier(.2,.9,.2,1);animation:rail-raise .9s ease both}
+.conc-fab:hover,.conc-fab:focus-visible{transform:translateX(0)}
 .conc-fab.hide{display:none}
 .conc-fab-i{font-size:16px}
 .conc-scrim{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;padding-bottom:var(--kb,0px);box-sizing:border-box}
@@ -3318,8 +3339,8 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .mast-brand .mast-app{font-family:'DM Mono',ui-monospace,monospace;font-size:8px;font-weight:500;letter-spacing:2.6px;text-transform:uppercase;color:var(--gold2,#C8A661);margin-top:3px}
 
 /* ─────────── Connect hub (intent-driven link tree, side-docked) ─────────── */
-.chub{position:fixed;right:0;bottom:calc(var(--navh,68px) + 118px);z-index:62;display:flex;justify-content:flex-end}
-.chub-tab{display:flex;align-items:center;gap:7px;background:linear-gradient(135deg,#1c1811,#2a1c12);color:#f4ead6;border:1px solid var(--gold2,#B8902F);border-right:none;border-radius:14px 0 0 14px;padding:11px 13px 11px 15px;font-family:'Inter';font-weight:800;font-size:12.5px;letter-spacing:.03em;cursor:pointer;box-shadow:0 10px 26px rgba(0,0,0,.4);-webkit-appearance:none;appearance:none;transform:translateX(38%);transition:transform .5s cubic-bezier(.2,.9,.2,1),box-shadow .3s;animation:rail-raise .9s ease both}
+.chub{position:fixed;right:0;bottom:calc(var(--navh,68px) + 150px);z-index:62;display:flex;justify-content:flex-end}
+.chub-tab{display:flex;align-items:center;gap:7px;height:44px;background:linear-gradient(135deg,#1c1811,#2a1c12);color:#f4ead6;border:1px solid var(--gold2,#B8902F);border-right:none;border-radius:14px 0 0 14px;padding:0 13px 0 15px;font-family:'Inter';font-weight:800;font-size:12.5px;letter-spacing:.03em;cursor:pointer;box-shadow:0 10px 26px rgba(0,0,0,.4);-webkit-appearance:none;appearance:none;transform:translateX(calc(100% - 48px));transition:transform .5s cubic-bezier(.2,.9,.2,1),box-shadow .3s;animation:rail-raise .9s ease both}
 .chub-tab:hover,.chub-tab:focus-visible,.chub.open .chub-tab{transform:translateX(0);box-shadow:0 12px 30px rgba(184,144,47,.28)}
 .chub-tab-i{font-size:15px;line-height:1;color:var(--gold2,#C8A661)}
 .chub-tab-l{white-space:nowrap}
