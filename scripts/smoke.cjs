@@ -259,6 +259,19 @@ ok("past_due beyond grace", PL.planActive({ plan: "pro", billing_status: "past_d
 ok("canceled rides out the paid period", PL.planActive({ plan: "pro", billing_status: "canceled", current_period_end: new Date(2 * day).toISOString() }, day) === true);
 ok("canceled after period ends", PL.planActive({ plan: "pro", billing_status: "canceled", current_period_end: new Date(day).toISOString() }, 2 * day) === false);
 ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, current_period_end: null }, 0) === false);
+// ── banned copy (strategy Rev 1.0) — the linter must catch every locked rule ──
+{
+  const CL2 = require("../.smoke/captionLint.js");
+  const hit = (txt) => CL2.lintCaption(txt).some((f) => f.tag === "banned");
+  ok("lint: detox banned", hit("a gentle detox for your week"));
+  ok("lint: cleanest banned", hit("the cleanest cup in town"));
+  ok("lint: meal replacement banned", hit("a great meal replacement"));
+  ok("lint: wellness journey banned", hit("start your wellness journey"));
+  ok("lint: zenith banned", hit("try our Zenith blend"));
+  ok("lint: contrast flip banned", hit("This isn't coffee — it's a ritual"));
+  ok("lint: clean copy passes", !hit("Cold-extracted 16 hours. Single-origin. Poured into glass."));
+}
+
 // ── delivery (Phase 1) — the debrief's QA samples verbatim ──
 {
   const D = require("../.smoke/delivery.js");

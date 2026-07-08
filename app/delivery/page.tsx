@@ -139,6 +139,7 @@ export default function DeliveryPage() {
       {step === "zone" && (
         <div className="dl-step">
           <h2 className="dl-h">Get GT3 delivered Sunday morning.</h2>
+          <p className="dl-sub">Order. Set out your empties. Sunday morning we bring it fresh.</p>
           <p className="dl-sub">Enter your ZIP to check delivery availability.</p>
           <div className="dl-ziprow">
             <input className="auth-input" inputMode="numeric" maxLength={5} placeholder="ZIP code" value={zip} onChange={(e) => { setZip(e.target.value.replace(/\D/g, "")); setZoneState("ask"); }} aria-label="ZIP code" />
@@ -306,6 +307,7 @@ export default function DeliveryPage() {
             <span>{done.label}</span>
             <span>{street}, {city} {zip}</span>
             {refills > 0 && <span>Rinse and set out <b>{refills} empties</b> on the porch before 5 AM Sunday.</span>}
+            <span>Fresh 7 days from delivery.</span>
           </div>
           {done.warn && <p className="dl-err" role="alert">{done.warn}</p>}
           <button type="button" className="handle" onClick={() => router.push("/3mpire")}><span>Track it in your account</span></button>

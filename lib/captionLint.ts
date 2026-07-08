@@ -10,6 +10,12 @@ const HEALTH = [
   /\banti-?inflammatory\b/i, /\bboosts?\s+(your\s+)?immun/i, /\blowers?\s+(your\s+)?(blood|cholesterol)/i,
   /\btreats?\b/i, /\bprevents?\s+(disease|illness|sickness)/i, /\bmedicinal\b/i, /\bcortisol\b/i,
 ];
+// Locked banned copy (GT3-Brew-Business-Strategy.md Rev 1.0) — these never ship in any GT3 voice.
+const BANNED = [
+  /\bdetox\w*/i, /\bcleanest\b/i, /\bmeal replacement\b/i, /\bwellness journey\b/i,
+  /\bmindful(ness)?\b/i, /\bintentionality\b/i, /\bzenith\b/i, /\bcold brew company\b/i,
+  /\bisn'?t (just )?[^.!?\n]{2,40}[,—-]\s*it'?s\b/i, // the "isn't X — it's Y" contrast flip
+];
 const SMELL = [
   /\belevate\b/i, /\bunleash\b/i, /\bindulge\b/i, /\bgame[- ]?changer\b/i, /look no further/i,
   /it'?s not just/i, /whether you'?re/i, /\bdiscover\b/i, /\bperfect for\b/i, /\blevel up\b/i, /\bexperience the\b/i,
@@ -29,6 +35,7 @@ export function lintCaption(text: string): LintFinding[] {
   const t = (text || "").trim();
   if (!t) return out;
   for (const [re, fix] of TYPOS) { const m = t.match(re); if (m) { out.push({ level: "warn", tag: "spelling", msg: `Likely typo "${m[0]}" → "${fix}".` }); break; } }
+  for (const re of BANNED) { const m = t.match(re); if (m) { out.push({ level: "warn", tag: "banned", msg: `Banned copy (strategy Rev 1.0) — "${m[0]}". This never ships in any GT3 voice.` }); break; } }
   for (const re of HEALTH) { const m = t.match(re); if (m) { out.push({ level: "warn", tag: "claim", msg: `Possible health claim — "${m[0]}". GT3 doesn't make medical/nutrition claims.` }); break; } }
   if (/\b(no|zero|without)\b[^.!?\n]*\bsugar\b/i.test(t) || /\bsugar[- ]?free\b/i.test(t)) out.push({ level: "warn", tag: "disclosure", msg: "Says no/zero sugar — disclose the sweetener (organic local honey in Tide, organic maple in Nature's Aide / Salted Maple Latte, and other sweetened items)." });
   const smell = [...new Set(SMELL.filter((re) => re.test(t)).map((re) => (t.match(re)![0]).toLowerCase()))];

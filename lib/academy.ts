@@ -76,7 +76,7 @@ export const MODULES: Module[] = [
     body: [
       { h: "The company", p: "GT3 is a portfolio of premium, performance-oriented consumer brands — built lean, scalable, and structured to last. Two brands run off one shared backbone: GT3 Brew (functional coffee) and GT3 Performance Bar (the mobile bar you work)." },
       { h: "Founder story", p: "GT3 is owner-operated by Ryan and Kayla Thompkins. It started with a simple refusal: not to serve anything we wouldn't drink ourselves. Every recipe, vendor, and standard traces back to that." },
-      { h: "Mission", p: "Make the cleanest, most honest beverages — every input a named whole food, every claim something we can stand behind — and serve them at the moments people actually need them." },
+      { h: "Mission", p: "Make the most honest beverages we can — every input a named whole food, every claim something we can stand behind — and serve them at the moments people actually need them." },
       { h: "Vision", p: "Grow GT3 from one owner-operated bar into a multi-city, multi-brand operation that anyone can run to the same standard — because the standard is written down, not in someone's head." },
       { h: "Brand pillars", p: "1) Signal over noise — measured, not hyped. 2) Whole-food, made to order. 3) Premium experiential. 4) Due-diligence-ready: clean and transferable." },
       { h: "Core values", p: "Honesty in the bottle. Respect for the ingredient. Lean and repeatable. Best-for-you — the customer's outcome leads." },
