@@ -174,7 +174,7 @@ function TruckLive() {
         <div className="mast-brand mast-dark">
           <Gt3Mark tone="cream" />
           <span className="pb">Performance Bar</span>
-          <span className="mast-app">No Noise</span>
+          <span className="mast-app">Only the best for you</span>
         </div>
         <AccountPill />
       </div>
@@ -256,7 +256,7 @@ function TruckDemo() {
         <div className="mast-brand mast-dark">
           <Gt3Mark tone="cream" />
           <span className="pb">Performance Bar</span>
-          <span className="mast-app">No Noise</span>
+          <span className="mast-app">Only the best for you</span>
         </div>
         <AccountPill />
       </div>

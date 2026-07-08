@@ -195,6 +195,18 @@ One rule, one source of truth, enforced at every layer so it can't be dodged or 
   reviews, recents, offline, plan, delivery) exercised by `npm run smoke` (162 assertions). If it computes a
   price, a window, or a queue, it's pure and tested — components only render it.
 
+## Customer records — complete and never lost (0141)
+
+Two guarantees, enforced by the database itself. **Complete**: every insert, update and delete on
+a customer table (profiles, orders, drop/delivery orders, waitlist, RSVPs, referrals, check-ins,
+reviews, leads) writes the full before/after row to `audit_log` — an overwritten phone number is
+always recoverable. **Never lost**: hard DELETE is blocked on those tables for every role —
+client, service-role and the SQL console included — so cancel/archive is the only path. The proof
+lives in prod: a raw `delete` raises `Hard deletes are blocked… customer records are never lost`.
+Deliberate maintenance (a legal erasure request) uses a session hatch, documented in the
+migration. The home-screen app is **GT3 — Only the best for you** (icon: the GT3 mark with the
+pixel-exact brand 3).
+
 # 4 · The strategy layer (owners)
 
 - **The Playbook** (`/playbook`, owner/admin only — also in the rail's Investor-brief group): the
@@ -219,4 +231,4 @@ One rule, one source of truth, enforced at every layer so it can't be dodged or 
 ## Migration ledger
 Through **0140** — full table + verify SQL in `gt3pb-deploy-v1.md`. Newest:
 `0133` client errors · `0134` tenant enforcement (on prod) · `0135` software billing (dormant) ·
-`0136` reservation self-service · `0137` pre-order window dial · `0138` order eta comms · `0139` Sunday delivery · `0140` strategy collab (threads + decision log + drafts).
+`0136` reservation self-service · `0137` pre-order window dial · `0138` order eta comms · `0139` Sunday delivery · `0140` strategy collab (threads + decision log + drafts) · `0141` customer-record durability (audit catch-up + delete guards).

@@ -3,10 +3,10 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
-    name: "GT3 — No Noise",
-    short_name: "No Noise",
+    name: "GT3 — Only the best for you",
+    short_name: "GT3",
     description:
-      "No Noise — your GT3 home. Cold-extracted coffee, whole-food hydration, and slow-simmered fuel, prepared to order.",
+      "Only the best for you — cold-extracted coffee, whole-food hydration, and slow-simmered fuel, prepared to order.",
     start_url: "/",
     scope: "/",
     display: "standalone",
