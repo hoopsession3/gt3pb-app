@@ -115,6 +115,8 @@ member QR (`/scan`, RPCs in 0132).
   chevron, remembers open/closed per id. Specialized accordions that carry extra affordances (Prep
   rows, KDS stage groups) are intentionally not Panels.
 - **Quiet by default**: open only the primary panel in a stacked section; collapse the rest.
+  The drop's name-by-name pickup checklist folds behind its progress line and opens itself only
+  on the drop's date (window work) — prep days show just the counts; tap the line to peek any time.
 - **Floating affordances** live in the rail (see §1); crew-only floats (theme toggle, QuickDock ✦)
   keep their corners but must never overlap rail, order banner, or cart bar.
 
