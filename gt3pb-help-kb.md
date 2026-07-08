@@ -13,6 +13,7 @@ touched a surface below and didn't update its help, the change isn't done.
    `lib/operatorKb.ts`. Operational or product change → reflect it here; keep it claim-safe and
    priced to the truck board.
 3. **This index** — the top-level map + the deploy runbook (`gt3pb-deploy-v1.md`) + the risk
+   Delivery build: read `GT3-Delivery-Audit.md` FIRST — what already exists vs the Cowork debrief.
    register (`RISK_REGISTER.md`).
 
 ---
