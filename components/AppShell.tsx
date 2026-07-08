@@ -16,6 +16,7 @@ import Notifications from "./Notifications";
 import ServiceWorkerRegister from "./ServiceWorkerRegister";
 import DisplayToggle, { readDisplay, displayClass, DISPLAY_KEY } from "./DisplayToggle";
 import ConnectHub from "./ConnectHub";
+import CommandPalette from "./CommandPalette";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -90,6 +91,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {inAdmin || isShare ? null : <CartBar />}
         {isShare ? null : inAdmin ? <OperatorNav /> : <BottomNav />}
         {inAdmin && <QuickDock />}
+        {inAdmin && <CommandPalette />}
         {customerSurface && <Concierge />}
         {inAdmin && <button type="button" className="theme-toggle" onClick={toggleTheme} aria-label={theme === "day" ? "Switch to dark" : "Switch to day"}>{theme === "day" ? "🌙" : "☀️"}</button>}
         {!isShare && <DisplayToggle />}
