@@ -87,3 +87,22 @@ export function dropForStop(startsAtISO: string): { sat: Date; cutoff: Date } {
 }
 // the drop-date string both sides agree on (UTC date slice), so client display and server validation match
 export const dropDateKey = (d: Date): string => d.toISOString().slice(0, 10);
+
+// ── à-la-carte pre-order window ──
+// A cup pre-order promises "ready in ~8 min", which is only true when there's a truck to make it.
+// Rule: pre-orders are accepted while the truck is LIVE, or inside the window around the next
+// scheduled stop — from 4h before its start (crew is heading in / on site) until 8h after (a
+// service day), so a missed "go live" toggle doesn't strand customers. Outside that, the app
+// offers the pack reserve instead. Pure + injectable clock; enforced client-side (the sheet) AND
+// server-side (/api/checkout) with this same function.
+export const PREORDER_LEAD_MS = 4 * 60 * 60 * 1000;
+export const PREORDER_TAIL_MS = 8 * 60 * 60 * 1000;
+export type PreorderWindow = { open: boolean; reason: "live" | "window" | "early" | "none" };
+export function preorderWindow(nowMs: number, isLive: boolean, nextStartISO: string | null | undefined): PreorderWindow {
+  if (isLive) return { open: true, reason: "live" };
+  if (!nextStartISO) return { open: false, reason: "none" };
+  const start = Date.parse(nextStartISO);
+  if (!Number.isFinite(start)) return { open: false, reason: "none" };
+  if (nowMs >= start - PREORDER_LEAD_MS && nowMs <= start + PREORDER_TAIL_MS) return { open: true, reason: "window" };
+  return { open: false, reason: "early" };
+}

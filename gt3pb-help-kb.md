@@ -29,6 +29,19 @@ the change isn't done.
 - **My Day** (start of shift) · **Now** (during service) · **Prep** (before the event) ·
   **Plan** (booking ahead) · **Studio** (marketing + **Review Desk → truck display**) ·
   **Money** (the books) · **Team** (people & roles) · **Ask GT3** (playbook, floats).
+- **Now is the service console**, in service order: alerts → **the pass** → **the drop
+  (reserves & packs pickup checklist — DropOps)** → 86 board → Live truck / Event heads-up →
+  personal tasks. **Service mode** (button at top, Esc to exit) goes full-screen with just the
+  pass + pickups. Note: "Reserves" under Plan → back office is the *limited small-batch reserve*
+  product (claims) — the Saturday **pack** reserves live in Now/the drop.
+- **Tab order is operating rhythm, not alphabet** — bottom nav: Today → Plan → Studio → Money
+  (the arc of a working day); Plan sub-tabs: Calendar (when) → Events (what) → Truck stops
+  (where) → Bookings (requests in) → Brew (production) → Notes, divider, back office
+  (Vendors · Reserves).
+- **Cup pre-orders are window-gated** (`lib/orderAhead.preorderWindow`, enforced in the checkout
+  sheet AND `/api/checkout`): accepted while the truck is live or from 4h before the next stop's
+  start to 8h after. Outside the window the sheet explains when ordering opens and routes to the
+  pack reserve ("ready in ~8 min" must stay true).
 
 ## Crew console navigation (how to move around `/admin`)
 - **Sections are URL-backed** — switching section is a real history entry (`/admin?s=prep`), so the

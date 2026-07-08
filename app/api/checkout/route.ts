@@ -4,6 +4,7 @@ import { SQUARE_BASE, SQUARE_VERSION } from "@/lib/squareServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
+import { preorderWindow } from "@/lib/orderAhead";
 
 // Authoritative prices from Square Catalog; fall back to the locked catalog if unavailable.
 async function priceMap(token: string): Promise<Record<string, number>> {
@@ -53,6 +54,24 @@ export async function POST(req: Request) {
       .map((p) => DRINKS[p.slug as DrinkId]?.n ?? p.slug);
     if (blocked.length) {
       return NextResponse.json({ error: `${blocked.join(" · ")} just sold out — remove ${blocked.length === 1 ? "it" : "them"} and try again.` }, { status: 409 });
+    }
+  }
+
+  // Cups are only sold when there's a truck to make them: live, or inside the window around the
+  // next stop (4h before -> 8h after start — lib/orderAhead.preorderWindow; the sheet enforces the
+  // same rule, this is the authoritative check before any charge). If these reads fail the gate
+  // closes — better to refuse an order than charge a card we can't record.
+  {
+    const [{ data: ls }, { data: st }] = await Promise.all([
+      supabaseAdmin.from("live_status").select("is_live").maybeSingle(),
+      supabaseAdmin.from("stops").select("starts_at").is("archived_at", null).neq("status", "done").not("starts_at", "is", null)
+        .gte("starts_at", new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString())
+        .order("starts_at", { ascending: true }).limit(1).maybeSingle(),
+    ]);
+    const isLive = !!(ls as { is_live?: boolean } | null)?.is_live;
+    const nextStart = (st as { starts_at?: string | null } | null)?.starts_at ?? null;
+    if (!preorderWindow(Date.now(), isLive, nextStart).open) {
+      return NextResponse.json({ error: "The truck isn't pouring right now — cup orders open 4 hours before the next stop. Reserve a pack instead." }, { status: 409 });
     }
   }
 

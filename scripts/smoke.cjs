@@ -228,6 +228,18 @@ ok("snapshot fresh is usable", OF.snapshotUsable(1_000, 61_000) === true);
 ok("snapshot too old is not", OF.snapshotUsable(1_000, 1_000 + 3 * 60 * 60 * 1000) === false);
 ok("snapshot from the future is not", OF.snapshotUsable(5_000, 1_000) === false);
 
+// --- pre-order window: cups only when there's a truck to make them ---
+const H = 60 * 60 * 1000;
+const T0 = Date.parse("2026-07-11T13:00:00Z"); // stop starts 13:00Z
+ok("live is always open", OA.preorderWindow(0, true, null).open === true);
+ok("5h before stop: closed (reserve instead)", OA.preorderWindow(T0 - 5 * H, false, "2026-07-11T13:00:00Z").open === false);
+ok("4h before stop: open", OA.preorderWindow(T0 - 4 * H, false, "2026-07-11T13:00:00Z").open === true);
+ok("during the stop: open", OA.preorderWindow(T0 + 2 * H, false, "2026-07-11T13:00:00Z").open === true);
+ok("8h after start: still open (missed live toggle)", OA.preorderWindow(T0 + 8 * H, false, "2026-07-11T13:00:00Z").open === true);
+ok("9h after start: closed", OA.preorderWindow(T0 + 9 * H, false, "2026-07-11T13:00:00Z").open === false);
+ok("no stop scheduled: closed", OA.preorderWindow(T0, false, null).reason === "none");
+ok("garbage date: closed", OA.preorderWindow(T0, false, "not-a-date").open === false);
+
 // --- plan gate: software billing entitlements ---
 ok("founder gets everything", PL.planAllows("founder", "ai_agents") === true);
 ok("pro gets AI", PL.planAllows("pro", "ai_agents") === true);
