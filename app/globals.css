@@ -3360,3 +3360,11 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .op-trans{animation:opTrans .22s cubic-bezier(.22,.61,.36,1)}
 @keyframes opTrans{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.op-trans{animation:none}}
+/* Breadcrumbs — deep-view orientation in the section header (Prep › Atlanta BeltLine). */
+.crumbs{display:flex;flex-wrap:wrap;align-items:center;gap:2px;margin-bottom:7px;font-family:'Inter';font-size:11.5px;font-weight:600;letter-spacing:.02em}
+.crumbs .crumb{display:inline-flex;align-items:center;gap:2px}
+.crumbs .crumb-sep{font-style:normal;color:var(--cream-d);margin:0 4px}
+.crumbs .crumb-root{color:var(--cream-m)}
+.crumbs .crumb-lk{background:none;border:none;padding:0;cursor:pointer;color:var(--gold2);font:inherit}
+.crumbs .crumb-lk:hover{text-decoration:underline}
+.crumbs span[aria-current="page"]{color:var(--cream)}

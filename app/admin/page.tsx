@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useApp } from "@/components/AppProvider";
 import { useAuth, roleOf, type Profile } from "@/components/AuthProvider";
 import { useOperatorSection, sectionsForRole, groupOfSection, SECTION_LABEL, type OpSection } from "@/components/OperatorNav";
+import { CrumbProvider, Breadcrumbs, useCrumb } from "@/components/Crumbs";
 import TrailerLoadout from "@/components/TrailerLoadout";
 import DropOps from "@/components/DropOps";
 import EightySix from "@/components/EightySix";
@@ -1363,6 +1364,8 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   const [assignFor, setAssignFor] = useState<EventTask | null>(null);
   const [editTask, setEditTask] = useState<EventTask | null>(null);
   const [showSupplies, setShowSupplies] = useState(false);
+  // Breadcrumb: Prep › <this target>. Clicking the "Prep" root (or the name) steps back to the list.
+  useCrumb("prep-detail", name ?? (isEvent ? "Event" : "Location"), onBack);
   const [openThread, setOpenThread] = useState<string | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [prepAIOpen, setPrepAIOpen] = useState(false);
@@ -4291,6 +4294,7 @@ export default function AdminPage() {
   };
 
   return (
+    <CrumbProvider>
     <section className="screen admin">
       <div className="toprow">
         {/* Mode switch — you're in Crew; tap Customer view to drop to the customer app ("/"). */}
@@ -4308,6 +4312,8 @@ export default function AdminPage() {
       </div>
       {guideOpen && <SectionGuide allowed={allowed} current={sec} onGo={setSection} onClose={() => setGuideOpen(false)} />}
       <div className="op-head">
+        {/* Breadcrumb trail — only appears once a deep view registers a crumb (e.g. Prep › event). */}
+        <Breadcrumbs root={SEC_LABEL[sec]} />
         <div className="op-head-row">
           <div className="op-head-t">{SEC_LABEL[sec]}</div>
           {/* Tap the WHEN pill → the full section guide, opened on this section, with jump links. */}
@@ -4414,5 +4420,6 @@ export default function AdminPage() {
       )}
       </div>
     </section>
+    </CrumbProvider>
   );
 }
