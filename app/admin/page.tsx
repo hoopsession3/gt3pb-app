@@ -4175,7 +4175,7 @@ const SEC_WHEN: Record<OpSection, string> = {
 };
 const SEC_SUB: Record<OpSection, string> = {
   day: "Your tasks, flags & what's on today.",
-  now: "Live sales, dispatch & the order pass.",
+  now: "The pass, pack pickups & the 86 board — live service.",
   ask: "Recipes, gear, stock & how-to — from the GT3 playbook.",
   prep: "Stock, readiness & the pack list for what's next.",
   plan: "Calendar, events, vendors & bookings.",
@@ -4185,7 +4185,7 @@ const SEC_SUB: Record<OpSection, string> = {
 };
 const SEC_MORE: Record<OpSection, string> = {
   day: "Your personal launchpad. Everything assigned to you and everything flagged for your attention, in one place — so the moment you clock in you know exactly what to do.",
-  now: "The live-shift command center. When the truck is serving, this is the only screen you need: orders land, you push them across the pass, and dispatch stays live.",
+  now: "The live-shift command center. When the truck is serving, this is the only screen you need: orders land on the pass, reserved packs are checked off as they're picked up, and the 86 board keeps the menu honest. Tap Service mode for the full-screen version.",
   prep: "Get ready before you roll. Build the pack list, check stock and readiness, and sign off that the truck's loaded for the next event or stop.",
   plan: "The forward calendar. Book events, manage vendors and venues, work incoming booking requests, and schedule brews — weeks and months out.",
   studio: "Your marketing studio. Draft posts and flyers, keep them on-brand, plan the feed, schedule around your drops, and moderate the guest reviews that feed the truck display.",
@@ -4289,6 +4289,15 @@ export default function AdminPage() {
   const sec: OpSection = allowed.includes(section) ? section : "now";
   const [planTab, setPlanTab] = useState<"calendar" | "notes" | "events" | "stops" | "brew" | "vendors" | "bookings" | "reserves">("calendar");
   const [guideOpen, setGuideOpen] = useState(false);
+  // Service mode — full-screen KDS (pass + pickups). Esc exits; leaving Now exits.
+  const [svc, setSvc] = useState(false);
+  useEffect(() => {
+    if (!svc) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setSvc(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [svc]);
+  useEffect(() => { if (section !== "now") setSvc(false); }, [section]);
   // Focus the section region when you switch sections (skip the first render so we don't yank focus
   // on initial load). Programmatic focus won't trigger :focus-visible, so there's no stray ring.
   const opBodyRef = useRef<HTMLDivElement>(null);
@@ -4395,15 +4404,38 @@ export default function AdminPage() {
 
       {sec === "now" && (
         <>
+          {/* Service flow, in service order: unacked alerts → the pass → the drop (reserves &
+              packs due) → the 86 board → dispatch panels → personal tasks. During a rush the
+              things you touch every minute are at the top; Service mode goes full screen. */}
           {canManage && <AlertsInbox userId={user?.id ?? null} />}
-          <MyTasks userId={user?.id ?? null} />
+          {!svc && (
+            <>
+              <button type="button" className="svc-enter" onClick={() => setSvc(true)}>
+                <span className="svc-enter-t">▶ Service mode</span>
+                <span className="svc-enter-s">Full-screen pass + pickups — nothing else on screen</span>
+              </button>
+              <Kitchen />
+              <DropOps />
+              <EightySix />
+            </>
+          )}
           {canManage && <Panel id="live" title="Live truck" defaultOpen><LiveControl /></Panel>}
           {canManage && <Panel id="hud" title="Event heads-up"><EventHUD /></Panel>}
+          <MyTasks userId={user?.id ?? null} />
           <EnableAlerts userId={user?.id ?? null} />
-          <Kitchen />
-          <EightySix />
-          <DropOps />
         </>
+      )}
+      {/* SERVICE MODE — the KDS as its own surface: the pass and the pickup checklist, full screen,
+          above the nav. Exit with the button or Esc; leaving the Now section exits too. */}
+      {svc && sec === "now" && (
+        <div className="svc-full" role="dialog" aria-modal="true" aria-label="Service mode">
+          <div className="svc-bar">
+            <b>Service</b>
+            <button type="button" className="svc-exit" onClick={() => setSvc(false)}>✕ Exit service</button>
+          </div>
+          <Kitchen />
+          <DropOps />
+        </div>
       )}
 
       {sec === "ask" && <OperatorAssistant />}
@@ -4420,7 +4452,9 @@ export default function AdminPage() {
         <>
           <div className="subnav" role="tablist" aria-label="Plan">
             {/* This week — what's hot at this stage */}
-            {([["calendar", "Calendar", 0], ["events", "Events", planCounts.events], ["stops", "Truck stops", 0], ["brew", "Brew", 0], ["bookings", "Bookings", planCounts.bookings], ["notes", "Notes", 0]] as const).map(([k, label, n]) => (
+            {/* Ordered by operating rhythm (not alphabet): when → what → where → requests in →
+                production → notes. Back office (rarely touched) sits after the divider. */}
+            {([["calendar", "Calendar", 0], ["events", "Events", planCounts.events], ["stops", "Truck stops", 0], ["bookings", "Bookings", planCounts.bookings], ["brew", "Brew", 0], ["notes", "Notes", 0]] as const).map(([k, label, n]) => (
               <button key={k} type="button" role="tab" aria-selected={planTab === k} className={`subnav-tab${planTab === k ? " on" : ""}`} onClick={() => setPlanTab(k)}>
                 {label}{n > 0 && <span className={`subnav-badge${k === "bookings" ? " hot" : ""}`}>{n}</span>}
               </button>

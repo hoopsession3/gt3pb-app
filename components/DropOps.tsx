@@ -163,7 +163,7 @@ export default function DropOps() {
 
   return (
     <div className="dops">
-      <div className="dops-head"><span className="dops-kick">Order-ahead · pickup checklist</span><b>{satLabel}&rsquo;s drop</b></div>
+      <div className="dops-head"><span className="dops-kick">Reserves &amp; packs · pickup checklist</span><b>{satLabel}&rsquo;s drop{rows.length > 0 ? ` · ${rows.length} reserved` : ""}</b></div>
       <div className="dops-stats">
         <div className="dops-stat"><div className="sv">{bottles}</div><div className="sk">Brew</div></div>
         <div className="dops-stat"><div className="sv">{glassBack}</div><div className="sk">Glass back</div></div>

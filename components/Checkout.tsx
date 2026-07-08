@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabase";
 import { subscribePush } from "@/lib/push";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import { useAvailability } from "@/lib/availability";
+import { preorderWindow, saveAmount, PRICING, type PreorderWindow } from "@/lib/orderAhead";
 import { SQUARE_APP_ID, SQUARE_LOCATION_ID, squareClientReady, squareWebSdkUrl } from "@/lib/square";
 import { useSheetDrag } from "@/lib/useSheetDrag";
 import Skeleton from "./Skeleton";
@@ -50,6 +51,28 @@ export default function Checkout() {
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+
+  // "Ready in ~8 min" is only true when there's a truck to make it. Pre-orders are accepted while
+  // the truck is live or within the window around the next stop (4h before → 8h after start —
+  // lib/orderAhead.preorderWindow, also enforced in /api/checkout). Outside that, the sheet offers
+  // the pack reserve instead of taking an order nobody's there to pour.
+  const [win, setWin] = useState<PreorderWindow>({ open: true, reason: "live" }); // optimistic until checked
+  const [nextStop, setNextStop] = useState<{ at: string; name: string | null } | null>(null);
+  useEffect(() => {
+    if (!open || !supabase) return;
+    (async () => {
+      const [{ data: ls }, { data: st }] = await Promise.all([
+        supabase!.from("live_status").select("is_live").maybeSingle(),
+        supabase!.from("stops").select("name, starts_at").is("archived_at", null).neq("status", "done").not("starts_at", "is", null)
+          .gte("starts_at", new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString()) // an in-progress stop still counts
+          .order("starts_at", { ascending: true }).limit(1).maybeSingle(),
+      ]);
+      const isLive = !!(ls as { is_live?: boolean } | null)?.is_live;
+      const s = st as { name?: string | null; starts_at?: string | null } | null;
+      setNextStop(s?.starts_at ? { at: s.starts_at, name: s.name ?? null } : null);
+      setWin(preorderWindow(Date.now(), isLive, s?.starts_at ?? null));
+    })();
+  }, [open]);
 
   const lines = Object.entries(cart) as [DrinkId, number][];
   const items = lines.flatMap(([id, q]) => Array(q).fill(id)) as DrinkId[]; // flat list for the charge + order record
@@ -198,11 +221,26 @@ export default function Checkout() {
                 </div>
               ))}
 
+              {/* The pack reserve, explained — what it is, when you get it, why reserve. Numbers
+                  come from lib/orderAhead's pricing grid so this copy can never drift from truth. */}
               <button type="button" className="co-upsell" onClick={() => router.push("/reserve")}>
-                Taking some home? <b>Reserve a Saturday pack ›</b>
+                <span className="co-upsell-t">Bottles for your week — brewed to order</span>
+                <span className="co-upsell-s">Reserve a 3, 6 or 12-pack and it&apos;s waiting at Saturday&apos;s stop. Bring the bottles back and save {`$${saveAmount(6)}`} on a 6-pack (${PRICING.returnPacks[6]} vs ${PRICING.newPerBottle * 6}).</span>
+                <b>Reserve a pack ›</b>
               </button>
 
-              {squareClientReady ? (
+              {!win.open ? (
+                <div className="co-closed">
+                  <div className="co-closed-t">☕ The truck isn&apos;t pouring right now</div>
+                  <p className="co-closed-s">
+                    Cup pre-orders open <b>4 hours before we&apos;re on site</b> — that&apos;s how &ldquo;ready in ~8 minutes&rdquo; stays true.
+                    {nextStop ? <> Next stop: <b>{new Date(nextStop.at).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}{nextStop.name ? ` · ${nextStop.name}` : ""}</b>.</> : <> Nothing&apos;s on the schedule yet — check the truck page for the next stop.</>}
+                  </p>
+                  <p className="co-closed-s">Want it locked in anyway? A <b>pack reserve</b> is brewed to your order and waiting at the next drop.</p>
+                  <button type="button" className="handle" onClick={() => { onClose(); router.push("/reserve"); }}><span>Reserve a pack instead</span></button>
+                  <div className="signoff">Your cart stays right here for when we&apos;re pouring.</div>
+                </div>
+              ) : squareClientReady ? (
                 <>
                   <div className="co-line"><span>Subtotal</span><span>${(totalCents / 100).toFixed(2)}</span></div>
                   <div className="spec-label" style={{ marginTop: 16 }}>Add a tip</div>

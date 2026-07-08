@@ -3063,8 +3063,15 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .mpack-cta{display:block;text-align:center;font-family:'Inter';font-weight:700;font-size:13.5px;color:#F4EFE3;background:#B82420;border-radius:12px;padding:13px;text-decoration:none}
 
 /* checkout drawer: quiet pack cross-sell */
-.co-upsell{display:block;width:100%;text-align:left;background:none;border:1px dashed var(--hair,rgba(245,241,232,.18));border-radius:10px;color:var(--cream-m,rgba(245,241,232,.6));font-family:'Inter';font-size:12px;padding:10px 12px;margin:10px 0 4px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.co-upsell{display:block;width:100%;text-align:left;background:none;border:1px dashed var(--hair,rgba(245,241,232,.18));border-radius:10px;color:var(--cream-m,rgba(245,241,232,.6));font-family:'Inter';font-size:12px;padding:12px 14px;margin:10px 0 4px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .co-upsell b{color:var(--gold2,#B8902F);font-weight:700}
+.co-upsell .co-upsell-t{display:block;font-weight:700;font-size:13px;color:var(--cream,#F5F1E8);margin-bottom:3px}
+.co-upsell .co-upsell-s{display:block;line-height:1.5;margin-bottom:6px}
+/* checkout closed — the truck isn't pouring; explain the window + route to the pack reserve */
+.co-closed{margin-top:14px;border:1px solid var(--hair,rgba(245,241,232,.18));border-radius:12px;padding:16px 14px}
+.co-closed-t{font-family:'Inter';font-weight:800;font-size:14.5px;margin-bottom:8px}
+.co-closed-s{font-size:13px;line-height:1.55;color:var(--cream-m,rgba(245,241,232,.65));margin:0 0 10px}
+.co-closed-s b{color:inherit;font-weight:700}
 
 /* order-ahead pitch tags (MOST POPULAR / BEST VALUE) on the reserve card */
 .subpitch-pack{position:relative}
@@ -3379,9 +3386,20 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .crumbs .crumb-lk:hover{text-decoration:underline}
 .crumbs span[aria-current="page"]{color:var(--cream)}
 /* Offline chip — connectivity truth for the crew console. Amber = offline (writes queuing); green = back online, queue draining. Hidden entirely when online + empty. */
-.offchip{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--navh,68px) + 14px);z-index:78;display:flex;align-items:center;gap:8px;background:#33250f;border:1px solid var(--warn);color:var(--cream);border-radius:999px;padding:8px 14px;font-family:'Inter';font-size:12.5px;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,.45);white-space:nowrap}
+.offchip{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--navh,68px) + 14px);z-index:86;display:flex;align-items:center;gap:8px;background:#33250f;border:1px solid var(--warn);color:var(--cream);border-radius:999px;padding:8px 14px;font-family:'Inter';font-size:12.5px;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,.45);white-space:nowrap}
 .offchip b{color:var(--warn);font-weight:800;letter-spacing:.04em;text-transform:uppercase;font-size:11px}
 .offchip.on{background:#13230f;border-color:var(--ok)}
 .offchip-dot{width:8px;height:8px;border-radius:50%;background:var(--warn);animation:offpulse 1.6s ease-in-out infinite;flex:0 0 auto}
 .offchip.on .offchip-dot{background:var(--ok)}
 @keyframes offpulse{0%,100%{opacity:1}50%{opacity:.3}}
+/* Service mode — the KDS as its own full-screen surface (audit: "KDS needs its own mode"). */
+.svc-enter{display:flex;flex-direction:column;gap:2px;width:100%;text-align:left;background:linear-gradient(135deg,rgba(200,166,97,.16),rgba(200,166,97,.05));border:1px solid var(--gold);border-radius:14px;padding:13px 16px;margin:0 0 16px;cursor:pointer;-webkit-appearance:none;appearance:none;color:var(--cream)}
+.svc-enter-t{font-family:'Inter';font-weight:800;font-size:14.5px;letter-spacing:.02em;color:var(--gold2)}
+.svc-enter-s{font-family:'Inter';font-size:11.5px;color:var(--cream-m)}
+.svc-full{position:fixed;inset:0;z-index:85;background:#0f0e0b;overflow-y:auto;padding:14px 16px calc(24px + env(safe-area-inset-bottom));overscroll-behavior:contain}
+.app.crew-day .svc-full{background:#f3efe6}
+.svc-bar{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;background:inherit;padding:6px 0 10px;border-bottom:1px solid var(--line)}
+.svc-bar b{font-family:'Inter';font-weight:800;letter-spacing:2px;text-transform:uppercase;font-size:12px;color:var(--gold)}
+.svc-exit{background:transparent;border:1px solid var(--line2);border-radius:999px;color:var(--cream);font-family:'Inter';font-weight:700;font-size:12.5px;padding:8px 14px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.app.crew-day .svc-bar b{color:#7a5a1e}
+.app.crew-day .svc-exit{color:#1a1610;border-color:rgba(26,22,16,.25)}
