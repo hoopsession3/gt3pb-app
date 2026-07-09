@@ -8,8 +8,8 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://app.gt3pb.com"),
   title: "GT3 Performance Bar — Only the best for you",
   description: "Whole-food functional beverages. Nothing toxic. Only the best for you — order, reserve, and your membership.",
-  applicationName: "GT3",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "GT3" },
+  applicationName: "GT3PB",
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "GT3PB" },
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [{ url: "/icon.svg", type: "image/svg+xml" }, { url: "/icon-192.png", sizes: "192x192", type: "image/png" }],
