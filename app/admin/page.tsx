@@ -31,6 +31,7 @@ import { supabase } from "@/lib/supabase";
 import AskGT3 from "@/components/AskGT3";
 import Studio from "@/components/Studio";
 import MenuManager from "@/components/MenuManager";
+import PaymentSettings from "@/components/PaymentSettings";
 import PlanEditor from "@/components/PlanEditor";
 import CompanyCalendar from "@/components/CompanyCalendar";
 import EventDayPlanner from "@/components/EventDayPlanner";
@@ -4372,7 +4373,7 @@ const SEC_INSIDE: Record<OpSection, string[]> = {
   prep: ["Per-event & per-stop pack lists", "Readiness & inspection checks", "Trailer load-out & gear", "Crew assignments & sign-off"],
   plan: ["Company calendar", "Events & truck stops", "Vendors & venues", "Booking requests", "Brew schedule & reserves"],
   studio: ["Post & flyer drafting", "Brand copy & front-end copy", "Feed planning grid", "Repurpose engine", "Publishing & scheduling", "Review Desk → the truck display (/display): add or approve reviews; ✨ Simplify de-claims + trims one to display-safe"],
-  money: ["Sales · snapshot · per-event P&L", "Product economics & COGS", "Membership plans & subscribers", "Order history", "The Playbook (/playbook, owners) — every growth play + where its numbers land here"],
+  money: ["Checkout & payments — card status + the pay-at-pickup toggle (governs cup, reserve & delivery)", "Sales · snapshot · per-event P&L", "Product economics & COGS", "Membership plans & subscribers", "Order history", "The Playbook (/playbook, owners) — every growth play + where its numbers land here"],
   team: ["Staff roster", "Roles & permissions", "Training & academy", "Manager approvals"],
   ask: ["Recipes & the why", "Gear & stock how-to", "The GT3 playbook"],
 };
@@ -4671,7 +4672,8 @@ export default function AdminPage() {
 
       {sec === "money" && isAdmin && (
         <>
-          <Panel id="menu" title="Menu & products" defaultOpen><MenuManager /></Panel>
+          <Panel id="pay" title="Checkout & payments" defaultOpen><PaymentSettings /></Panel>
+          <Panel id="menu" title="Menu & products"><MenuManager /></Panel>
           <Panel id="sales" title="Sales"><Reports /></Panel>
           <Panel id="snapshot" title="Business snapshot"><SnapshotReport /></Panel>
           <Panel id="pnl" title="Per-event P&L"><EventPnlReport /></Panel>

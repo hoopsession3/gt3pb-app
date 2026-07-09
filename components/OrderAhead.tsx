@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
+import { usePayAtPickup } from "./usePayAtPickup";
 import { supabase } from "@/lib/supabase";
 import { SQUARE_APP_ID, SQUARE_LOCATION_ID, squareClientReady, squareWebSdkUrl } from "@/lib/square";
 import {
@@ -35,6 +36,7 @@ type View = "reserve" | "details" | "confirmed";
 export default function OrderAhead() {
   const { toast } = useApp();
   const { user, profile } = useAuth();
+  const payLater = usePayAtPickup();
   const router = useRouter();
   const t = useSiteCopy();
   const [view, setView] = useState<View>("reserve");
@@ -292,7 +294,7 @@ export default function OrderAhead() {
               <div className="oa-rline total"><span className="oa-rk">Total — one time</span><span className="oa-rv">{dollars(total)}</span></div>
             </div>
 
-            {squareClientReady ? (
+            {squareClientReady && (
               <>
                 <div className="oa-slabel">Card</div>
                 <div id="oa-card" className="oa-sqwrap" />
@@ -300,12 +302,20 @@ export default function OrderAhead() {
                 <button type="button" className="oa-cta" onClick={pay} disabled={!ready || busy}>{busy ? "Charging…" : ready ? `Pay ${dollars(total)} with Square` : "Loading card…"}</button>
                 <div className="oa-window">One-time payment. Nothing recurring, ever.</div>
               </>
-            ) : (
+            )}
+            {/* Pay-at-pickup path — governed by the operator's Money-section toggle. Shows on its own
+                when Square is off, or as the secondary "reserve now, pay later" when card is on. */}
+            {payLater.on && (
               <>
-                {err && <div className="oa-err">{err}</div>}
-                <button type="button" className="oa-cta" onClick={() => submit(null)} disabled={busy}>{busy ? "Reserving…" : `Reserve ${dollars(total)} — pay at pickup`}</button>
-                <div className="oa-window">Card checkout switches on soon. For now, reserve here and pay at the window on pickup day.</div>
+                {!squareClientReady && err && <div className="oa-err">{err}</div>}
+                <button type="button" className={squareClientReady ? "oa-paylater" : "oa-cta"} onClick={() => submit(null)} disabled={busy}>
+                  {busy ? "Reserving…" : squareClientReady ? "or reserve now — pay at pickup" : `Reserve ${dollars(total)} — pay at pickup`}
+                </button>
+                {!squareClientReady && <div className="oa-window">Reserve here and pay at the window on pickup day.</div>}
               </>
+            )}
+            {!squareClientReady && !payLater.on && (
+              <div className="oa-window">Checkout isn&rsquo;t switched on yet — card payments arrive with the Square keys.</div>
             )}
           </div>
         )}

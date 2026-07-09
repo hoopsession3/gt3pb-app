@@ -3482,6 +3482,25 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 /* checkout upsell, one quiet line (the closed + post-pay states own the full pitch) */
 .co-upsell-line{display:block;width:100%;background:none;border:none;font-family:'Inter';font-size:12.5px;color:var(--cream-m);text-align:left;padding:10px 2px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .co-upsell-line b{color:var(--gold2,#C8A661);font-weight:650}
+/* secondary pay-at-pickup action under a card path (checkout sheet + reserve + delivery) */
+.co-paylater,.oa-paylater{display:block;width:100%;background:none;border:none;margin-top:10px;font-family:'Inter';font-size:13px;color:var(--cream-m);text-align:center;padding:10px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.co-paylater b,.oa-paylater b{color:var(--cream);font-weight:700}
+.co-paylater:disabled,.oa-paylater:disabled{opacity:.5}
+/* Money → Checkout & payments */
+.paysettings{display:flex;flex-direction:column;gap:14px}
+.pay-row{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.pay-row-t{font-family:'Inter';font-weight:800;font-size:14px;color:var(--cream)}
+.pay-row-s{font-family:'Inter';font-size:12px;line-height:1.5;color:var(--cream-m);margin-top:4px;max-width:34ch}
+.pay-status{flex:0 0 auto;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--cream-d);border:1px solid var(--line2);border-radius:999px;padding:4px 9px}
+.pay-status.on{color:var(--ok);border-color:var(--ok)}
+.pay-toggle{flex:0 0 auto;position:relative;width:50px;height:28px;border-radius:999px;border:1px solid var(--line2);background:rgba(245,241,232,.08);cursor:pointer;-webkit-appearance:none;appearance:none;transition:background .16s}
+.pay-toggle.on{background:var(--ok);border-color:var(--ok)}
+.pay-toggle-knob{position:absolute;top:2px;left:2px;width:22px;height:22px;border-radius:50%;background:#fff;transition:transform .16s}
+.pay-toggle.on .pay-toggle-knob{transform:translateX(22px)}
+.pay-toggle:disabled{opacity:.6}
+.pay-note{font-family:'Inter';font-size:12px;line-height:1.5;color:var(--ok);border-top:1px solid var(--line);padding-top:12px}
+.pay-note.warn{color:var(--warn)}
+.app.crew-day .pay-row-t{color:#1a1610}
 
 /* one-hero-one-line stat shapes (de-noise sweep, crew) */
 .adm-hud-hero{display:flex;align-items:baseline;gap:8px;margin:4px 2px 2px}

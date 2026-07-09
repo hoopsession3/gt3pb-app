@@ -10,6 +10,7 @@ import { DRINKS, type DrinkId } from "@/lib/menu";
 import { useAvailability } from "@/lib/availability";
 import { saveAmount, PRICING } from "@/lib/orderAhead";
 import { useOrderingOpen } from "./useOrderingOpen";
+import { usePayAtPickup } from "./usePayAtPickup";
 import { SQUARE_APP_ID, SQUARE_LOCATION_ID, squareClientReady, squareWebSdkUrl } from "@/lib/square";
 import { useSheetDrag } from "@/lib/useSheetDrag";
 import Skeleton from "./Skeleton";
@@ -57,6 +58,9 @@ export default function Checkout() {
   // (useOrderingOpen → lib/orderAhead.preorderWindow, operator-adjustable lead, also enforced in
   // /api/checkout): outside the window the sheet offers the pack reserve instead.
   const ordering = useOrderingOpen(open);
+  // Operator's pay-later switch (Money section). Governs whether the "pay at the truck" pre-order
+  // path is offered — on its own when Square is off, or alongside the card when Square is on.
+  const payLater = usePayAtPickup(open);
 
   const lines = Object.entries(cart) as [DrinkId, number][];
   const items = lines.flatMap(([id, q]) => Array(q).fill(id)) as DrinkId[]; // flat list for the charge + order record
@@ -132,6 +136,19 @@ export default function Checkout() {
     }, 250);
     return () => clearInterval(iv);
   }, [open]);
+
+  // Pay-at-pickup: record the order UNPAID and hand off — the guest pays at the truck. Shared by the
+  // standalone pickup button and the "or pay at pickup" secondary action when card is also offered.
+  const sendPreOrder = async () => {
+    if (blocked86.length > 0) { toast("Remove the sold-out items first", "error"); return; }
+    if (!customer) { toast("Add a name for pickup", "error"); return; }
+    if (items.length === 0) return;
+    await enableAlerts();
+    const { error } = await recordPreOrder();
+    if (error) { toast("That didn't go through — give it another tap", "error"); return; }
+    toast(`${items.length} drink${items.length === 1 ? "" : "s"} pre-ordered — ready in ~8 min`);
+    checkout(); onClose();
+  };
 
   const pay = async () => {
     setErr("");
@@ -247,29 +264,31 @@ export default function Checkout() {
                     <button className="handle" onClick={pay} disabled={!ready || busy || items.length === 0 || !customer || blocked86.length > 0}>
                       <span>{busy ? "Charging…" : blocked86.length > 0 ? "Remove sold-out items" : !customer ? "Add a name above" : ready ? `Pay $${total}` : "Loading card…"}</span>
                     </button>
+                    {/* Card is primary; pay-at-pickup is the secondary path when the operator allows it. */}
+                    {payLater.on && (
+                      <button type="button" className="co-paylater" onClick={sendPreOrder} disabled={busy || items.length === 0 || !customer || blocked86.length > 0}>
+                        or <b>pay at the truck</b> — send pre-order
+                      </button>
+                    )}
                     <div className="signoff">Secured by Square · skip the line at pickup.</div>
                   </div>
                 </>
-              ) : (
+              ) : payLater.on ? (
                 <>
                   {blocked86.length > 0 && <div className="co-86">{blocked86.join(" · ")} just sold out — remove {blocked86.length === 1 ? "it" : "them"} with the − button to continue.</div>}
                   <div className="co-line co-total"><span>Total</span><span>${(totalCents / 100).toFixed(2)}</span></div>
                   <div className="honest" style={{ marginTop: 16 }}>
-                    Card checkout switches on soon. For now this is a <b>pre-order</b> — we&apos;ll have it ready and you pay at the truck.
+                    This is a <b>pre-order</b> — we&apos;ll have it ready and you pay at the truck.
                   </div>
-                  <button className="handle" onClick={async () => {
-                    if (blocked86.length > 0) { toast("Remove the sold-out items first", "error"); return; }
-                    if (!customer) { toast("Add a name for pickup", "error"); return; }
-                    if (items.length === 0) return;
-                    await enableAlerts();
-                    const { error } = await recordPreOrder();
-                    if (error) { toast("That didn't go through — give it another tap", "error"); return; }
-                    toast(`${items.length} drink${items.length === 1 ? "" : "s"} pre-ordered — ready in ~8 min`);
-                    checkout(); onClose();
-                  }} disabled={!customer || items.length === 0 || blocked86.length > 0}>
+                  <button className="handle" onClick={sendPreOrder} disabled={!customer || items.length === 0 || blocked86.length > 0}>
                     <span>{blocked86.length > 0 ? "Remove sold-out items" : "Send pre-order"}</span>
                   </button>
                 </>
+              ) : (
+                <div className="co-closed">
+                  <div className="co-closed-t">Checkout isn&apos;t switched on yet</div>
+                  <p className="co-closed-s">Card payments arrive with the Square keys, and pay-at-the-truck is turned off right now. Come see us at the window.</p>
+                </div>
               )}
             </>
           ) : null}

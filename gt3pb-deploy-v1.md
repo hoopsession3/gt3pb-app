@@ -75,6 +75,31 @@ If any come back empty, apply the missing migrations in order, then re-check.
 - `SQUARE_ACCESS_TOKEN` and `NEXT_PUBLIC_SQUARE_LOCATION_ID` present.
   (Absent → checkout + `/api/reserve` fall back to pay-at-pickup — fine, not an error.)
 
+### Connect Square (turn on card checkout) — exact steps
+Do this in the Square Dashboard, then Vercel. ~10 minutes. Nothing in the app changes; card
+checkout switches itself on the moment the 4 keys are live.
+1. **developer.squareup.com** → sign in → **Create App** ("GT3 No Noise") → open it.
+2. Top of the app page, flip the mode toggle to **Production** (sandbox is for test cards only).
+3. **Credentials** → copy the **Production Application ID** (`sq0idp-…`) and the **Production
+   Access token** (`EAAA…` — treat it like a password).
+4. **Locations** (left nav) → copy the **Location ID** of the truck (`L…`).
+5. In **Vercel → the project → Settings → Environment Variables** (Production scope), add:
+   - `NEXT_PUBLIC_SQUARE_APP_ID` = the Application ID (`sq0idp-…`)
+   - `NEXT_PUBLIC_SQUARE_LOCATION_ID` = the Location ID (`L…`)
+   - `NEXT_PUBLIC_SQUARE_ENV` = `production`
+   - `SQUARE_ACCESS_TOKEN` = the Access token (`EAAA…`) — **server-only, do NOT prefix NEXT_PUBLIC**
+6. **Redeploy** (Deployments → ⋯ → Redeploy) so the new env is picked up.
+7. Verify on the live app: open a drink → add → checkout — a **card field** now appears. Run one
+   real card for a small order, then refund it in the Square dashboard.
+   (`SUBSCRIPTIONS_ON` and the Stripe `*_BILLING` keys are separate and stay off — unrelated.)
+
+### Pay at pickup (test the whole order flow BEFORE Square)
+`live_status.pay_at_pickup` (0145, default ON) is toggled in **crew → Money → Checkout & payments**.
+With it ON and Square not yet connected, place a real order end-to-end: it records as an **unpaid
+pre-order / pay-on-delivery** and lands on the pass (cup) or the delivery board — so you can taste
+the full customer→crew loop today. With Square connected, card is primary and pay-at-pickup is the
+secondary "pay in person" option (toggle it off to force card-only).
+
 ## 4. Post-deploy smoke (on the live prod URL) — new this cut
 - Crew console: tap the `GT3PB · Crew ⓘ` eyebrow (or a header WHEN pill) → Section Guide opens;
   hit "Go to <Section> ›" and it jumps there. Navigate a couple of sections, then the top-left `‹`

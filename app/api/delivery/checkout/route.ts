@@ -30,9 +30,7 @@ type Body = {
 export async function POST(req: Request) {
   const token = process.env.SQUARE_ACCESS_TOKEN;
   const locationId = process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID;
-  if (!token || !locationId || !supabaseAdmin) {
-    return NextResponse.json({ error: "Checkout isn't switched on yet." }, { status: 503 });
-  }
+  if (!supabaseAdmin) return NextResponse.json({ error: "Checkout isn't switched on yet." }, { status: 503 });
 
   // Delivery is a member surface — the order needs an owner for self-service + notifications.
   const user = await userFromRequest(req);
@@ -41,6 +39,18 @@ export async function POST(req: Request) {
   let b: Body;
   try { b = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
 
+  // A card token means "charge now"; no token means pay-on-delivery — allowed only when the operator
+  // has the pay-at-pickup switch on (live_status.pay_at_pickup, 0145). The charge path additionally
+  // needs Square configured. This is the authoritative gate; the page mirrors it for the UI.
+  const wantsCharge = !!b.sourceId;
+  if (wantsCharge && (!token || !locationId)) return NextResponse.json({ error: "Card checkout isn't switched on yet." }, { status: 503 });
+  if (!wantsCharge) {
+    const { data: ls } = await supabaseAdmin.from("live_status").select("pay_at_pickup").maybeSingle();
+    if ((ls as { pay_at_pickup?: boolean } | null)?.pay_at_pickup === false) {
+      return NextResponse.json({ error: "Pay-on-delivery is turned off — card payment arrives with the Square keys." }, { status: 503 });
+    }
+  }
+
   const s = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
   const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0);
 
@@ -48,7 +58,7 @@ export async function POST(req: Request) {
   const street = s(b.addressStreet, 160);
   const city = s(b.addressCity, 80);
   const zip = s(b.addressZip, 10);
-  if (!b.sourceId || !name || !street || !city || !zip) return NextResponse.json({ error: "Missing delivery details" }, { status: 400 });
+  if (!name || !street || !city || !zip) return NextResponse.json({ error: "Missing delivery details" }, { status: 400 });
   if (!zipInZone(zip)) return NextResponse.json({ error: "That ZIP isn't in the delivery zone." }, { status: 400 });
 
   const packSize = n(b.packSize);
@@ -82,20 +92,26 @@ export async function POST(req: Request) {
   const slot = choices.find((c) => c.deliveryDateKey === b.deliveryDate) ?? choices[0];
 
   try {
-    const res = await fetch(`${SQUARE_BASE}/v2/payments`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "Square-Version": SQUARE_VERSION },
-      body: JSON.stringify({
-        source_id: b.sourceId,
-        idempotency_key: crypto.randomUUID(),
-        amount_money: { amount: quote.totalCents, currency: "USD" },
-        location_id: locationId,
-        note: `GT3 Sunday delivery ${slot.deliveryDateKey}`,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) return NextResponse.json({ error: data?.errors?.[0]?.detail || "Payment declined" }, { status: 400 });
-    const paymentId = data?.payment?.id ?? null;
+    // Charge now (card) or defer (pay-on-delivery) — the money math + record are identical; only the
+    // payment fields differ.
+    let paymentId: string | null = null;
+    if (wantsCharge) {
+      const res = await fetch(`${SQUARE_BASE}/v2/payments`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "Square-Version": SQUARE_VERSION },
+        body: JSON.stringify({
+          source_id: b.sourceId,
+          idempotency_key: crypto.randomUUID(),
+          amount_money: { amount: quote.totalCents, currency: "USD" },
+          location_id: locationId,
+          note: `GT3 Sunday delivery ${slot.deliveryDateKey}`,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) return NextResponse.json({ error: data?.errors?.[0]?.detail || "Payment declined" }, { status: 400 });
+      paymentId = data?.payment?.id ?? null;
+    }
+    const paid = wantsCharge;
 
     const row = {
       user_id: user.id, channel: "direct", delivery_date: slot.deliveryDateKey, delivery_window: "5–8 AM",
@@ -108,15 +124,16 @@ export async function POST(req: Request) {
       bottle_subtotal_cents: quote.bottleSubtotalCents, delivery_fee_cents: quote.deliveryFeeCents,
       tax_cents: 0, total_cents: quote.totalCents,
       empty_ack_at: refills > 0 ? new Date().toISOString() : null,
-      payment_method: "square", payment_status: "paid", status: "received",
+      payment_method: paid ? "square" : "pay_on_delivery", payment_status: paid ? "paid" : "unpaid", status: "received",
       empties_expected: quote.refillCount,
     };
     let { error: insErr } = await supabaseAdmin.from("delivery_orders").insert(row);
     if (insErr) ({ error: insErr } = await supabaseAdmin.from("delivery_orders").insert(row));
     if (insErr) {
       const ref = (paymentId || "").slice(-6).toUpperCase();
-      await raiseAlert({ severity: "critical", category: "money", title: "Paid DELIVERY didn't record — add it", body: `Card payment ${paymentId} succeeded but the delivery order didn't save. ${name}, ${packSize} bottles for ${slot.deliveryLabel}, ${street}, ${city} ${zip}. Add it by hand and confirm in Square.` });
-      return NextResponse.json({ ok: true, paymentId, recorded: false, ref, deliveryLabel: slot.deliveryLabel, warn: `Payment received — ref ${ref}. We've alerted the crew to add your order.` });
+      // A paid card that didn't record is a money emergency; an unpaid pay-on-delivery is just a lost lead.
+      await raiseAlert({ severity: paid ? "critical" : "important", category: paid ? "money" : "orders", title: paid ? "Paid DELIVERY didn't record — add it" : "DELIVERY order didn't record — add it", body: `${paid ? `Card payment ${paymentId} succeeded but the` : "A pay-on-delivery"} delivery order didn't save. ${name}, ${packSize} bottles for ${slot.deliveryLabel}, ${street}, ${city} ${zip}. Add it by hand${paid ? " and confirm in Square" : ""}.` });
+      return NextResponse.json({ ok: true, paymentId, recorded: false, ref, deliveryLabel: slot.deliveryLabel, warn: `${paid ? `Payment received — ref ${ref}. ` : "Order received. "}We've alerted the crew to add your order.` });
     }
 
     // Confirmation to the customer — the delivery phone + account email. Best-effort.
@@ -125,12 +142,12 @@ export async function POST(req: Request) {
       phone: row.phone,
       email: au?.user?.email ?? null,
       subject: `GT3 — Sunday delivery confirmed (${slot.deliveryLabel})`,
-      message: `GT3: your ${packSize}-bottle delivery is set for ${slot.deliveryLabel} — $${(quote.totalCents / 100).toFixed(2)} paid.${quote.refillCount > 0 ? ` Set your ${quote.refillCount} rinsed empties out by 5 AM — no empties, no swap.` : ""} Fresh 7 days from delivery.`,
+      message: `GT3: your ${packSize}-bottle delivery is set for ${slot.deliveryLabel} — $${(quote.totalCents / 100).toFixed(2)}${paid ? " paid" : " due on delivery"}.${quote.refillCount > 0 ? ` Set your ${quote.refillCount} rinsed empties out by 5 AM — no empties, no swap.` : ""} Fresh 7 days from delivery.`,
     });
 
     await raiseAlert({
       severity: "fyi", category: "orders", title: "New Sunday delivery 🚚",
-      body: `${name} — ${packSize} bottles (${quote.refillCount} refill · ${quote.newCount} new${perf ? ` · ${perf} performance` : ""}) · $${(quote.totalCents / 100).toFixed(2)} paid · ${slot.deliveryLabel} · ${city} ${zip}.`,
+      body: `${name} — ${packSize} bottles (${quote.refillCount} refill · ${quote.newCount} new${perf ? ` · ${perf} performance` : ""}) · $${(quote.totalCents / 100).toFixed(2)} ${paid ? "paid" : "due on delivery"} · ${slot.deliveryLabel} · ${city} ${zip}.`,
       link: "/admin?s=now",
     });
     return NextResponse.json({ ok: true, paymentId, recorded: true, deliveryLabel: slot.deliveryLabel, deliveryDateKey: slot.deliveryDateKey, totalCents: quote.totalCents });
