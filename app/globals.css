@@ -2635,6 +2635,11 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .brew-score-b{width:28px;height:28px;border-radius:8px;background:transparent;border:1px solid var(--line2);color:var(--cream-m);font-family:'Inter';font-weight:700;font-size:13px;cursor:pointer}
 .brew-score-b.on{background:var(--ok);border-color:var(--ok);color:#11210d}
 .brew-pack-btn{margin-top:9px;width:100%;background:transparent;border:1px solid var(--line2);border-radius:9px;padding:9px;color:var(--cream);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.brew-adjust-link{margin-top:8px;background:none;border:none;color:var(--gold2);font-family:'Inter';font-weight:600;font-size:12.5px;cursor:pointer;padding:2px 0;text-align:left;display:block}
+.brew-adjust-sep{height:1px;background:var(--line);margin:16px 0 12px}
+.brew-adjust-danger,.brew-adjust-undo{display:block;width:100%;text-align:center;padding:11px;border-radius:11px;font-family:'Inter';font-weight:650;font-size:13.5px;cursor:pointer;-webkit-appearance:none;appearance:none;margin-top:9px}
+.brew-adjust-danger{background:rgba(184,36,32,.14);border:1px solid rgba(184,36,32,.42);color:#e07b76}
+.brew-adjust-undo{background:none;border:1px solid var(--line2);color:var(--cream-m)}
 .brew-recipe{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:12px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .brew-recipe-main{display:flex;flex-direction:column;gap:3px}
 .brew-recipe-main b{font-family:'Inter';font-weight:700;font-size:14.5px;color:var(--cream)}

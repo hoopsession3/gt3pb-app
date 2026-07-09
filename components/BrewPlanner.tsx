@@ -40,6 +40,7 @@ export default function BrewPlanner() {
   const [pack, setPack] = useState<Batch | null>(null);
   const [logBatch, setLogBatch] = useState<Batch | null>(null);
   const [starting, setStarting] = useState<Batch | null>(null);
+  const [adjust, setAdjust] = useState<Batch | null>(null);
   const [view, setView] = useState<"schedule" | "log">("schedule");
   const [now, setNow] = useState(() => Date.now());
 
@@ -87,6 +88,29 @@ export default function BrewPlanner() {
     setBatches((p) => p.map((x) => x.id === b.id ? { ...x, status: "brewing", brew_started_at: startIso, ready_at: readyIso, coffee_lot: lot, brewer } : x));
     setNow(Date.now());
     await supabase.from("brew_batches").update({ status: "brewing", brew_started_at: startIso, ready_at: readyIso, coffee_lot: lot, brewer, alerted_soon: false, alerted_ready: false, alerted_started: false, alerted_overextract: false, alerted_hold_soon: false, alerted_hold_expired: false }).eq("id", b.id);
+  };
+  // BREW FLEXIBILITY — the real brew rarely starts exactly when you tap Start. Fix the actual start
+  // time (ready recomputes from it), stop early to bottle now, or undo a start entirely. Maximum
+  // flexibility, inline — no navigating away, no re-planning.
+  const saveBrewTime = async (b: Batch, startLocal: string) => {
+    if (!supabase || !startLocal) return;
+    const hrs = Number(b.extraction_hours) || 20;
+    const startIso = new Date(startLocal).toISOString();
+    const readyIso = new Date(new Date(startLocal).getTime() + hrs * 3600000).toISOString();
+    setBatches((p) => p.map((x) => x.id === b.id ? { ...x, brew_started_at: startIso, ready_at: readyIso } : x));
+    setNow(Date.now());
+    await supabase.from("brew_batches").update({ brew_started_at: startIso, ready_at: readyIso, alerted_soon: false, alerted_ready: false }).eq("id", b.id);
+  };
+  const stopBrew = async (b: Batch) => {
+    if (!supabase) return;
+    const nowIso = new Date().toISOString();
+    setBatches((p) => p.map((x) => x.id === b.id ? { ...x, status: "ready", ready_at: nowIso } : x));
+    await supabase.from("brew_batches").update({ status: "ready", ready_at: nowIso, alerted_ready: true }).eq("id", b.id);
+  };
+  const undoStart = async (b: Batch) => {
+    if (!supabase) return;
+    setBatches((p) => p.map((x) => x.id === b.id ? { ...x, status: "planned", brew_started_at: null, ready_at: null } : x));
+    await supabase.from("brew_batches").update({ status: "planned", brew_started_at: null, ready_at: null, alerted_soon: false, alerted_ready: false, alerted_started: false }).eq("id", b.id);
   };
 
   // schedule view = what's upcoming / in progress; the log view = every batch ever, the permanent record
@@ -157,6 +181,9 @@ export default function BrewPlanner() {
                     </div>
                   );
                 })()}
+                {b.status === "brewing" && (
+                  <button type="button" className="brew-adjust-link" onClick={() => setAdjust(b)}>Adjust brew time · stop early ›</button>
+                )}
                 {(b.status === "ready" || b.status === "kegged") && (
                   <>
                     <div className="brew-score">Signal Score
@@ -189,6 +216,7 @@ export default function BrewPlanner() {
       {pack && <BottleLoadout batch={pack} onClose={() => setPack(null)} />}
       {logBatch && <BatchLog batch={logBatch} events={events} stops={stops} onClose={() => setLogBatch(null)} onSaved={() => { setLogBatch(null); load(); }} />}
       {starting && <StartBrewSheet batch={starting} onClose={() => setStarting(null)} onStart={async (extras) => { await startBrew(starting, extras); setStarting(null); }} />}
+      {adjust && <BrewAdjust batch={adjust} onClose={() => setAdjust(null)} onSaveTime={saveBrewTime} onStop={stopBrew} onUndo={undoStart} />}
     </div>
   );
 }
@@ -220,6 +248,40 @@ function StartBrewSheet({ batch, onClose, onStart }: { batch: Batch; onClose: ()
 
 // Brew production log — the permanent record for one batch. Edit the traceability fields (coffee lot,
 // brewer), the Signal Score, taste notes, OG, and status. This is the "GT3 Brew Lab Production" sheet.
+function toLocalInput(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso); const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+// Inline brew adjuster — reachable from a brewing card. Fix the real start time, stop & bottle now,
+// or undo the start. Uses the qd-sheet popout (bulletproof scroll on all devices).
+function BrewAdjust({ batch, onClose, onSaveTime, onStop, onUndo }: { batch: Batch; onClose: () => void; onSaveTime: (b: Batch, startLocal: string) => Promise<void>; onStop: (b: Batch) => Promise<void>; onUndo: (b: Batch) => Promise<void> }) {
+  const [start, setStart] = useState(() => toLocalInput(batch.brew_started_at || batch.brew_date));
+  const [busy, setBusy] = useState(false);
+  const hrs = Number(batch.extraction_hours) || 20;
+  const readyPreview = start ? new Date(new Date(start).getTime() + hrs * 3600000) : null;
+  const run = async (fn: () => Promise<void>) => { setBusy(true); await fn(); onClose(); };
+  return (
+    <div className="qd-scrim" onClick={onClose}>
+      <div className="qd-sheet dp-form" onClick={(e) => e.stopPropagation()}>
+        <div className="qd-tabs"><b style={{ fontFamily: "Inter", fontSize: 15 }}>Adjust brew · {batch.recipe_name}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>
+        <div className="qd-body">
+          <label className="prod-f"><span>When it actually started brewing</span><input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} /></label>
+          {readyPreview && <div className="brew-spec">Ready ~{readyPreview.toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })} · {hrs}h extraction</div>}
+          <div className="prod-actions" style={{ marginTop: 12 }}>
+            <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
+            <button type="button" className="note-save" disabled={busy || !start} onClick={() => run(() => onSaveTime(batch, start))}>Save brew time</button>
+          </div>
+          <div className="brew-adjust-sep" />
+          <button type="button" className="brew-adjust-danger" disabled={busy} onClick={() => run(() => onStop(batch))}>⏹ Stop &amp; bottle now</button>
+          <button type="button" className="brew-adjust-undo" disabled={busy} onClick={() => run(() => onUndo(batch))}>↩ Undo start — back to planned</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function BatchLog({ batch, events, stops, onClose, onSaved }: { batch: Batch; events: Ev[]; stops: St[]; onClose: () => void; onSaved: () => void }) {
   const [f, setF] = useState<Batch>(batch);
   const [busy, setBusy] = useState(false);

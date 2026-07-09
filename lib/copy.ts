@@ -44,7 +44,7 @@ export const COPY_META: CopyMeta[] = [
   { key: "reserve.kicker", group: "Reserve flow", label: "Kicker", default: "Order Ahead" },
   { key: "reserve.headline", group: "Reserve flow", label: "Headline", multiline: true, default: "Tell us you're coming, we'll brew it to order." },
   { key: "reserve.cutoff", group: "Reserve flow", label: "Cutoff line (uses {cutoff} and {pickup})", default: "Order by {cutoff} · pickup {pickup}" },
-  { key: "reserve.fresh", group: "Reserve flow", label: "Fresh line", multiline: true, default: "Brewed to order, no preservatives — fresh 7 days from pickup." },
+  { key: "reserve.fresh", group: "Reserve flow", label: "Fresh line", multiline: true, default: "Clean caffeine, whole-food botanicals — brewed to order, fresh 7 days." },
   { key: "reserve.window", group: "Reserve flow", label: "Footer / walk-up prices", multiline: true, default: "No commitment, no plan — just this drop.\nAt the window: $10 new · $8 bring-back · single bottle $10" },
   { key: "reserve.confirm_return", group: "Reserve flow", label: "Confirmation — bringing bottles back (uses {size})", multiline: true, default: "Don't forget your empties. Rinse them out and bring all {size} — that's what your pack price is built on. Fresh 7 days from pickup." },
   { key: "reserve.confirm_new", group: "Reserve flow", label: "Confirmation — new glass", multiline: true, default: "Your bottles are yours to keep — or bring them back next drop and unlock pack pricing. Fresh 7 days from pickup." },

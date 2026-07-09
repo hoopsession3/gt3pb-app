@@ -300,7 +300,7 @@ export default function OrderAhead() {
               <div className="oa-rline"><span className="oa-rk">Flavors</span><span className="oa-rv">{mixSummary(mix)}</span></div>
               <div className="oa-rline"><span className="oa-rk">Glass</span><span className="oa-rv">{glass === "return" ? "Bringing bottles back" : "New glass"}</span></div>
               <div className="oa-rline"><span className="oa-rk">Pickup</span><span className="oa-rv">{dayName(drop.sat)}{stop?.name ? ` · ${stop.name}` : ""}</span></div>
-              <div className="oa-rline total"><span className="oa-rk">Total — one time</span><span className="oa-rv">{dollars(total)}</span></div>
+              <div className="oa-rline total"><span className="oa-rk">Total</span><span className="oa-rv">{dollars(total)}</span></div>
             </div>
 
             {squareClientReady && (
