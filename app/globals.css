@@ -3686,6 +3686,20 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .gen-sci-caret{margin-left:auto;color:var(--cream-m);font-size:15px;transition:transform .2s;flex:0 0 auto}
 .gen-sci-caret.open{transform:rotate(90deg)}
 
+/* ─────────── Order funnel — one screen, Pickup|Delivery toggle (shared cart) ─────────── */
+.of{display:flex;flex-direction:column}
+/* Segmented fulfillment toggle: flipping it keeps the pack — that's the whole point, so it reads
+   as one control, not two links. Active segment lifts on a red-tinted plate; the other stays quiet. */
+.of-seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:5px;margin:0 0 16px;border:1px solid var(--line2);border-radius:16px;background:rgba(245,241,232,.03)}
+.of-seg button{display:flex;flex-direction:column;align-items:center;gap:2px;padding:11px 8px 10px;border:1px solid transparent;border-radius:12px;background:none;cursor:pointer;-webkit-appearance:none;appearance:none;text-align:center;transition:transform .12s cubic-bezier(.2,.7,.3,1),background .16s,border-color .16s}
+.of-seg button:active{transform:scale(.97)}
+.of-seg button b{font-family:'Inter';font-weight:800;font-size:14px;letter-spacing:.01em;color:var(--cream-m)}
+.of-seg button span{font-family:'Inter';font-size:10.5px;color:var(--cream-d);line-height:1.2}
+.of-seg button.on{background:var(--oa-red-tint);border-color:var(--oa-red);box-shadow:0 0 34px -12px rgba(184,36,32,.5)}
+.of-seg button.on b{color:var(--cream)}
+.of-seg button.on span{color:var(--gold2)}
+.oa-cta.ghost{background:none;border:1px solid var(--line2);color:var(--cream);margin-top:12px}
+
 /* ─────────── Sunday delivery flow (/delivery) — Voice 2, house dark shell ─────────── */
 .dl-deadline{font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.08em;color:var(--cream-m);border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin:4px 0 16px}
 .dl-deadline b{color:var(--gold2,#C8A661);font-weight:500}

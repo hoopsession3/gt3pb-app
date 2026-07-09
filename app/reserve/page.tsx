@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import AccountPill from "@/components/AccountPill";
 import Watermark from "@/components/Watermark";
 import Gt3Mark from "@/components/Gt3Mark";
-import OrderAhead from "@/components/OrderAhead";
+import OrderFunnel from "@/components/OrderFunnel";
 import { useSiteCopy } from "@/lib/copy";
 
 // Order-ahead / reserve-your-drop screen. One-off Saturday pre-orders — no subscription, no plan.
@@ -23,7 +23,7 @@ export default function ReserveScreen() {
         </div>
         <AccountPill />
       </div>
-      <OrderAhead />
+      <OrderFunnel initialMode="pickup" />
 
       <div className="dchapter"><span className="dchn">What We Make</span><span className="dchw">three acts</span></div>
       <div className="dchrule" />
