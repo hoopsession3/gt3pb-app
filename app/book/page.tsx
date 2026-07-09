@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { useApp } from "@/components/AppProvider";
+import AccountPill from "@/components/AccountPill";
 import { supabase } from "@/lib/supabase";
 
 // "Book the bar" intake — captures B2B/event requests into Supabase (admins manage them
@@ -40,7 +40,7 @@ export default function BookScreen() {
   if (done) {
     return (
       <section className="screen bookwrap" id="s-book">
-        <div className="toprow"><div className="eyb">B2B · Book the bar</div><Link className="pf" href="/3mpire">R</Link></div>
+        <div className="toprow"><div className="eyb">B2B · Book the bar</div><AccountPill /></div>
         <div className="bookcard">
           <div className="eyb">Request received</div>
           <h2>We&apos;re on it.</h2>
@@ -53,7 +53,7 @@ export default function BookScreen() {
 
   return (
     <section className="screen bookwrap" id="s-book">
-      <div className="toprow"><div className="eyb">B2B · Book the bar</div><Link className="pf" href="/3mpire">R</Link></div>
+      <div className="toprow"><div className="eyb">B2B · Book the bar</div><AccountPill /></div>
       <div className="bookcard">
         <div className="eyb">Bring GT3PB to your event</div>
         <h2>Book the bar.</h2>
