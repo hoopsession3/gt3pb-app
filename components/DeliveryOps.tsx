@@ -125,6 +125,7 @@ export default function DeliveryOps() {
       <div className="dops-brew">Brew: <b>{(["RISE", "FLOW", "DUSK"] as const).filter((f) => perF[f] > 0).map((f) => `${perF[f]}× ${f}`).join(" · ") || "—"}</b>
         {premiumTotal > 0 && <> · Premium: <b>{Object.keys(premiumMix).length ? Object.entries(premiumMix).map(([k, n]) => `${n}× ${k}`).join(" · ") : premiumTotal}</b></>}
       </div>
+      <a className="dops-driver-link" href="/driver">🚗 Open the driver run — map &amp; turn-by-turn →</a>
       <button type="button" className="dops-prog" onClick={() => setListOpen(!showList)} aria-expanded={showList}>
         <span><b>{doneCount}/{rows.length}</b> stops done</span>
         <span>{showList ? "▾" : "▸"}</span>
