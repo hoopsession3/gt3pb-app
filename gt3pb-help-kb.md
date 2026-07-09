@@ -285,4 +285,4 @@ pixel-exact brand 3).
 ## Migration ledger
 Through **0140** — full table + verify SQL in `gt3pb-deploy-v1.md`. Newest:
 `0133` client errors · `0134` tenant enforcement (on prod) · `0135` software billing (dormant) ·
-`0136` reservation self-service · `0137` pre-order window dial · `0138` order eta comms · `0139` Sunday delivery · `0140` strategy collab (threads + decision log + drafts) · `0141` customer-record durability (audit catch-up + delete guards) · `0142` goals (scoreboard) · `0143` AI training · `0144` marketing splash (promos) + dynamic bulk-order flag on products.
+`0136` reservation self-service · `0137` pre-order window dial · `0138` order eta comms · `0139` Sunday delivery · `0140` strategy collab (threads + decision log + drafts) · `0141` customer-record durability (audit catch-up + delete guards) · `0142` goals (scoreboard) · `0143` AI training · `0144` marketing splash + bulk-order flag · `0145` brew reminder skips a planned batch when a sibling for the same need is already brewing · `0146` content campaign/theme tag.

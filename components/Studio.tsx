@@ -18,7 +18,7 @@ import { lintCaption } from "@/lib/captionLint";
 type Media = { url: string; type: string; focal?: { x: number; y: number } };
 type Item = {
   id: string; kind: string; channel: string; title: string; hook: string | null; caption: string | null;
-  hashtags: string[]; status: string; review_note: string | null; scheduled_for: string | null;
+  hashtags: string[]; status: string; review_note: string | null; scheduled_for: string | null; campaign?: string | null;
   updated_at: string; updated_by: string | null; event_id?: string | null; created_by?: string | null;
   canva_design_id?: string | null; canva_edit_url?: string | null; export_url?: string | null; published_url?: string | null;
   media_url?: string | null; media_type?: string | null; media?: Media[] | null; grid_sort?: number | null;
@@ -174,6 +174,7 @@ export default function Studio() {
                     <span className="studio-card-ch">{it.channel}</span>
                   </div>
                   <div className="studio-card-t">{it.title || "Untitled"}</div>
+                  {it.campaign && <span className="studio-card-camp">{it.campaign}</span>}
                   {it.caption && <div className="studio-card-c">{it.caption}</div>}
                   <div className="studio-card-f">{it.scheduled_for ? `📅 ${fmtDate(it.scheduled_for)}` : `Edited ${fmtDate(it.updated_at)}`}</div>
                 </button>
@@ -189,6 +190,7 @@ export default function Studio() {
 function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name: string }; onClose: () => void }) {
   const [item, setItem] = useState<Item | null>(null);
   const [title, setTitle] = useState(""); const [hook, setHook] = useState(""); const [caption, setCaption] = useState("");
+  const [campaign, setCampaign] = useState(""); const [campaigns, setCampaigns] = useState<string[]>([]);
   const [tags, setTags] = useState(""); const [status, setStatus] = useState("draft");
   const [sched, setSched] = useState(""); const [note, setNote] = useState("");
   const [eventId, setEventId] = useState<string>(""); const [evs, setEvs] = useState<{ id: string; title: string | null; day: string | null; day_label: string | null }[]>([]);
@@ -227,11 +229,12 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   useEffect(() => {
     if (!supabase) return;
     let cancelled = false;
+    supabase.from("content_items").select("campaign").not("campaign", "is", null).then(({ data }) => { setCampaigns([...new Set(((data as { campaign: string }[]) ?? []).map((r) => r.campaign).filter(Boolean))]); });
     supabase.from("content_items").select("*").eq("id", id).single().then(({ data }) => {
       if (cancelled || !data) return;
       const it = data as Item;
       setItem(it); setTitle(it.title || ""); setHook(it.hook || ""); setCaption(it.caption || "");
-      setTags((it.hashtags || []).join(", ")); setStatus(it.status); setNote(it.review_note || "");
+      setTags((it.hashtags || []).join(", ")); setStatus(it.status); setNote(it.review_note || ""); setCampaign(it.campaign || "");
       setSched(it.scheduled_for ? new Date(it.scheduled_for).toISOString().slice(0, 16) : "");
       setPub({ edit: it.canva_edit_url ?? null, png: it.export_url ?? null, live: it.published_url ?? null });
       const ml = Array.isArray((it as any).media) && (it as any).media.length
@@ -524,6 +527,8 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
       <div className="studio-meta">
         <select className="insp-in" value={item.kind} onChange={(e) => setMeta("kind", e.target.value)}>{KINDS.map((k) => <option key={k} value={k}>{k}</option>)}</select>
         <select className="insp-in" value={item.channel} onChange={(e) => setMeta("channel", e.target.value)}>{CHANNELS.map((c) => <option key={c} value={c}>{c}</option>)}</select>
+        <input className="insp-in" list="studio-campaigns" value={campaign} onChange={(e) => setCampaign(e.target.value)} onBlur={() => { const v = campaign.trim() || null; if (v !== (item.campaign ?? null)) persist({ campaign: v }); }} placeholder="Campaign / theme" maxLength={60} />
+        <datalist id="studio-campaigns">{campaigns.map((c) => <option key={c} value={c} />)}</datalist>
         <select className="insp-in" value={stopId ? `s:${stopId}` : eventId ? `e:${eventId}` : ""} onChange={(e) => {
           const v = e.target.value;
           if (v.startsWith("s:")) { const sid = v.slice(2); setStopId(sid); setEventId(""); persist({ stop_id: sid, event_id: null }); }
