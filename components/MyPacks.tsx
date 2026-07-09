@@ -14,11 +14,22 @@ import { mixSummary, dollars, emptyMix, type Mix, type GlassPath } from "@/lib/o
 // change it (prefills the form; the new reservation replaces this one) or cancel it (definer RPC,
 // 0136; a paid cancel routes the refund flag to the crew inbox). Renders nothing when signed out
 // or when there's nothing upcoming — the reserve form stays the hero.
+export type PackStage = "reserved" | "preparing" | "ready" | "en_route" | "picked_up";
 export type MyPack = {
   id: string; name: string; phone: string | null; size: number; glass: GlassPath;
   mix: Partial<Mix>; total_cents: number; paid: boolean; drop_date: string;
-  picked_up: boolean; bottles_returned: boolean; canceled_at: string | null;
+  picked_up: boolean; bottles_returned: boolean; stage?: PackStage | null; canceled_at: string | null;
 };
+
+// What the customer sees for each stage the crew sets — plain, reassuring, present-tense.
+const STAGE_VIEW: Record<PackStage, { label: string; note: string }> = {
+  reserved: { label: "Reserved", note: "we brew it fresh for drop day" },
+  preparing: { label: "Preparing", note: "we're brewing your pack now" },
+  ready: { label: "Ready", note: "brewed and waiting for you" },
+  en_route: { label: "On the way", note: "your pack is heading out" },
+  picked_up: { label: "Picked up", note: "enjoy — see you at the next drop" },
+};
+const PACK_STEPS: PackStage[] = ["preparing", "ready", "en_route", "picked_up"];
 
 export const packDayLabel = (p: { drop_date: string }): string =>
   new Date(`${p.drop_date}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
@@ -86,9 +97,24 @@ export default function MyPacks({ onChange, refreshKey }: { onChange?: (p: MyPac
             {isOpen && (
               <>
                 <div className="mypack-mix">{mixSummary(packMix(p)) || "—"} · {p.glass === "return" ? "bringing bottles back" : "new glass"} · {dollars(p.total_cents / 100)}</div>
-                <div className="mypack-st">
-                  {p.picked_up ? "✓ Picked up — enjoy" : `Reserved under ${p.name.split(" ")[0]} · #${p.id.slice(0, 6).toUpperCase()} — we brew it fresh for pickup day`}
-                </div>
+                {/* Live fulfillment tracker — the crew's stage, shown to the customer. */}
+                {(() => {
+                  const stage = (p.stage ?? (p.picked_up ? "picked_up" : "reserved")) as PackStage;
+                  const view = STAGE_VIEW[stage] ?? STAGE_VIEW.reserved;
+                  const curIdx = PACK_STEPS.indexOf(stage); // -1 while 'reserved'
+                  return (
+                    <>
+                      <div className="mypack-track" role="img" aria-label={`Status: ${view.label}`}>
+                        {PACK_STEPS.map((s, i) => (
+                          <span key={s} className={`mypack-dot${i <= curIdx ? " on" : ""}${i === curIdx ? " now" : ""}`} title={STAGE_VIEW[s].label} />
+                        ))}
+                      </div>
+                      <div className="mypack-st">
+                        <b>{view.label}</b> — {view.note}{stage === "reserved" ? ` · #${p.id.slice(0, 6).toUpperCase()}` : ""}
+                      </div>
+                    </>
+                  );
+                })()}
                 {!p.picked_up && (
                   <div className="mypack-actions">
                     {onChange && <button type="button" onClick={() => onChange(p)}>Change pack or day</button>}

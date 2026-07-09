@@ -13,12 +13,23 @@ import { FLAVORS, nextDrop, dropDateKey, mixSummary, dollars, type GlassPath, ty
 // Planning: one tap turns the brew sheet into planned brew_batches rows for Friday — sized from the
 // bottle counts (production is spec'd in 10-oz servings, 0079), linked to the drop by drop_date, and
 // picked up by the existing brew windows/timers from there.
+type PackStage = "reserved" | "preparing" | "ready" | "en_route" | "picked_up";
 type DropOrder = {
   id: string; name: string; phone: string | null; size: number; glass: GlassPath;
   mix: Mix; total_cents: number; paid: boolean; drop_date: string; picked_up: boolean; bottles_returned: boolean;
-  canceled_at?: string | null;
+  stage?: PackStage | null; canceled_at?: string | null;
 };
 type PlannedBatch = { id: string; recipe_name: string | null; batch_gal: number; status: string };
+
+// The fulfillment path a reserved pack walks; the crew advances it, the customer sees it live.
+const PACK_STAGES: { key: PackStage; label: string; next: string }[] = [
+  { key: "reserved", label: "Reserved", next: "Start preparing" },
+  { key: "preparing", label: "Preparing", next: "Mark ready" },
+  { key: "ready", label: "Ready", next: "Hand off →" },
+  { key: "en_route", label: "En route", next: "Mark picked up" },
+  { key: "picked_up", label: "Picked up", next: "" },
+];
+const stageIndex = (s: PackStage | null | undefined) => Math.max(0, PACK_STAGES.findIndex((x) => x.key === (s ?? "reserved")));
 
 const GAL_PER_BOTTLE = 10 / 128; // one bottle = one 10-oz serving (the brew spec's unit)
 const quarterGal = (g: number) => Math.max(0.25, Math.ceil(g * 4) / 4);
@@ -102,6 +113,13 @@ export default function DropOps({ brief = false, onOpen }: { brief?: boolean; on
     if (!supabase) return;
     setRows((r) => r.map((o) => (o.id === id ? { ...o, [key]: val } : o))); // optimistic
     await supabase.from("drop_orders").update({ [key]: val }).eq("id", id);
+  };
+  // Advance (or jump) a pack's fulfillment stage. The DB trigger keeps picked_up in sync, and the
+  // customer's pack card updates live (drop_orders is realtime).
+  const setStage = async (id: string, stage: PackStage) => {
+    if (!supabase) return;
+    setRows((r) => r.map((o) => (o.id === id ? { ...o, stage, picked_up: stage === "picked_up" } : o))); // optimistic
+    await supabase.from("drop_orders").update({ stage }).eq("id", id);
   };
 
   // Move a reservation to the NEXT drop (customer can't make it — nothing is lost). "Next" means
@@ -246,18 +264,39 @@ export default function DropOps({ brief = false, onOpen }: { brief?: boolean; on
                 <span className="dops-total">{dollars(o.total_cents / 100)} {o.paid ? "✓" : <em className="dops-owe">due</em>}</span>
               </div>
               <div className="dops-meta"><b>{o.size}-pack</b> — {mixSummary(o.mix)}{o.phone ? <><br /><a className="dops-tel" href={`tel:${o.phone.replace(/[^\d+]/g, "")}`}>{o.phone}</a></> : null}</div>
-              <div className="dops-actions">
-                <button type="button" className={`dops-check${o.picked_up ? " done" : ""}`} onClick={() => toggle(o.id, "picked_up", !o.picked_up)}>{o.picked_up ? "✓ Picked up" : "Picked up"}</button>
-                {o.glass === "return" && (
-                  <button type="button" className={`dops-check${o.bottles_returned ? " done" : ""}`} onClick={() => toggle(o.id, "bottles_returned", !o.bottles_returned)}>{o.bottles_returned ? "✓ Bottles in" : "Bottles in"}</button>
-                )}
-                {!o.picked_up && (
+              {/* Fulfillment stepper — tap a stage to jump, or the primary button to advance one.
+                  Reserved → Preparing → Ready → En route → Picked up; the customer sees it live. */}
+              {(() => {
+                const cur = stageIndex(o.stage);
+                const nextLabel = PACK_STAGES[cur]?.next;
+                return (
                   <>
-                    <button type="button" className="dops-mini" onClick={() => pushNextWeek(o)}>→ Next drop</button>
-                    <button type="button" className="dops-mini danger" onClick={() => cancel(o)}>Cancel</button>
+                    <div className="dops-stages" role="group" aria-label="Pack stage">
+                      {PACK_STAGES.slice(1).map((st, i) => {
+                        const idx = i + 1; // slice(1) skips 'reserved'
+                        const on = cur === idx, done = cur > idx;
+                        return (
+                          <button key={st.key} type="button" className={`dops-stage${on ? " on" : ""}${done ? " done" : ""}`} aria-current={on} onClick={() => setStage(o.id, st.key)}>
+                            {done ? "✓ " : ""}{st.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="dops-actions">
+                      {nextLabel && <button type="button" className="dops-check adv" onClick={() => setStage(o.id, PACK_STAGES[cur + 1].key)}>{nextLabel}</button>}
+                      {o.glass === "return" && (
+                        <button type="button" className={`dops-check${o.bottles_returned ? " done" : ""}`} onClick={() => toggle(o.id, "bottles_returned", !o.bottles_returned)}>{o.bottles_returned ? "✓ Bottles in" : "Bottles in"}</button>
+                      )}
+                      {!o.picked_up && (
+                        <>
+                          <button type="button" className="dops-mini" onClick={() => pushNextWeek(o)}>→ Next drop</button>
+                          <button type="button" className="dops-mini danger" onClick={() => cancel(o)}>Cancel</button>
+                        </>
+                      )}
+                    </div>
                   </>
-                )}
-              </div>
+                );
+              })()}
             </div>
           ))}
         </>
