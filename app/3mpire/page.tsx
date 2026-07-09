@@ -9,6 +9,8 @@ import SignIn from "@/components/SignIn";
 import AccountPill from "@/components/AccountPill";
 import ReviewPrompt from "@/components/ReviewPrompt";
 import MembershipCard from "@/components/MembershipCard";
+import MyPacks from "@/components/MyPacks";
+import MyDeliveries from "@/components/MyDeliveries";
 import { supabase } from "@/lib/supabase";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import type { Order } from "@/lib/db";
@@ -153,6 +155,13 @@ function MpireReal() {
       </div>
 
       <ReviewPrompt />
+
+      {/* Your orders — the fulfillment tracker the delivery success screen promises ("track it in
+          your account"). Packs and deliveries share one card, live. Each self-hides when empty, so
+          a brand-new member sees nothing here. Reserves stay on /events (their own mechanic). */}
+      <MyPacks />
+      <MyDeliveries />
+
       <OrderHistory />
 
       <ReferralCard code={code} />

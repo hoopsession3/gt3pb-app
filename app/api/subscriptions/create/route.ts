@@ -13,6 +13,12 @@ export async function POST(req: Request) {
   if (!subsConfigured() || !token || !locationId || !supabaseAdmin) {
     return NextResponse.json({ error: "Subscriptions aren't switched on yet." }, { status: 503 });
   }
+  // Owner's go-live switch (0150): even with Square configured, subscriptions stay dark until the
+  // owner flips subscriptions_enabled on (Money → Payments). Server-side authority, not just UI.
+  const { data: ls } = await supabaseAdmin.from("live_status").select("subscriptions_enabled").maybeSingle();
+  if ((ls as { subscriptions_enabled?: boolean } | null)?.subscriptions_enabled !== true) {
+    return NextResponse.json({ error: "Subscriptions aren't available yet." }, { status: 503 });
+  }
   const user = await userFromRequest(req);
   if (!user) return NextResponse.json({ error: "Sign in to subscribe." }, { status: 401 });
 

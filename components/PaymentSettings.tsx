@@ -14,12 +14,17 @@ import { squareClientReady } from "@/lib/square";
 export default function PaymentSettings() {
   const { toast } = useApp();
   const [payAtPickup, setPayAtPickup] = useState<boolean | null>(null);
+  const [subsOn, setSubsOn] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    const { data } = await supabase.from("live_status").select("pay_at_pickup").maybeSingle();
+    // select("*") is resilient to the subscriptions_enabled column not being applied yet — a missing
+    // column just reads as undefined (off) instead of erroring out the whole settings load.
+    const { data } = await supabase.from("live_status").select("*").maybeSingle();
     setPayAtPickup((data as { pay_at_pickup?: boolean } | null)?.pay_at_pickup !== false);
+    // Default OFF — subscriptions are dark until the owner switches them on (0150).
+    setSubsOn((data as { subscriptions_enabled?: boolean } | null)?.subscriptions_enabled === true);
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -32,6 +37,17 @@ export default function PaymentSettings() {
     setBusy(false);
     if (error) { toast(`Couldn't save — ${error.message}`, "error"); load(); return; }
     toast(next ? "Pay-at-pickup is ON — customers can order and pay in person" : "Pay-at-pickup is OFF — card only");
+  };
+
+  const toggleSubs = async () => {
+    if (!supabase || busy || subsOn === null) return;
+    const next = !subsOn;
+    setBusy(true);
+    setSubsOn(next); // optimistic
+    const { error } = await supabase.from("live_status").update({ subscriptions_enabled: next }).eq("id", 1);
+    setBusy(false);
+    if (error) { toast(`Couldn't save — ${error.message}`, "error"); load(); return; }
+    toast(next ? "Subscriptions are ON — customers can start a recurring pack" : "Subscriptions are OFF — hidden from customers");
   };
 
   return (
@@ -67,6 +83,30 @@ export default function PaymentSettings() {
           className={`pay-toggle${payAtPickup ? " on" : ""}`}
           disabled={busy || payAtPickup === null}
           onClick={toggle}
+        >
+          <span className="pay-toggle-knob" />
+        </button>
+      </div>
+
+      {/* Subscriptions — the owner's go-live switch (0150). Default OFF: the launch push is packs,
+          reserves, and bulk packs for pickup + delivery. Flip on when Square plans are ready. */}
+      <div className="pay-row">
+        <div className="pay-row-l">
+          <div className="pay-row-t">Subscriptions <span className="pay-row-tag">{subsOn ? "live" : "hidden"}</span></div>
+          <div className="pay-row-s">
+            Offer <b>recurring coffee packs</b> to customers. Off by default — the launch push is
+            packs, reserves, and bulk packs for pickup + delivery. Leave off until you&apos;re ready
+            to go live with recurring billing.
+          </div>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={subsOn === true}
+          aria-label="Subscriptions"
+          className={`pay-toggle${subsOn ? " on" : ""}`}
+          disabled={busy || subsOn === null}
+          onClick={toggleSubs}
         >
           <span className="pay-toggle-knob" />
         </button>
