@@ -7,10 +7,10 @@ import { squareClientReady } from "@/lib/square";
 
 // PAYMENTS — the owner's checkout controls, in the Money section. Two facts, one switch:
 //   • Card checkout is on when the Square keys are set in the host env (read-only status here).
-//   • Pay-at-pickup is the owner's dial (live_status.pay_at_pickup, 0145) — offer a pay-later path
-//     (pay at the truck / on delivery) with or without Square. Governs the cup checkout, the pack
-//     reserve, and Sunday delivery, all from this one toggle. Default ON so a real order can be
-//     placed and tasted end-to-end before Square is even connected.
+//   • Pay-at-pickup is the owner's dial (live_status.pay_at_pickup, 0145) — offer a pay-in-person
+//     path for PICKUP orders (a cup at the truck, or a pack picked up at a stop), with or without
+//     Square. Default ON so a real order can be placed and tasted end-to-end before Square is even
+//     connected. NOTE: this does NOT touch Sunday delivery — delivery is always prepaid on the card.
 export default function PaymentSettings() {
   const { toast } = useApp();
   const [payAtPickup, setPayAtPickup] = useState<boolean | null>(null);
@@ -52,10 +52,11 @@ export default function PaymentSettings() {
       {/* Pay-at-pickup — the owner's toggle. */}
       <div className="pay-row">
         <div className="pay-row-l">
-          <div className="pay-row-t">Pay at pickup / on delivery</div>
+          <div className="pay-row-t">Pay at pickup <span className="pay-row-tag">pickup only</span></div>
           <div className="pay-row-s">
-            Let customers place an order now and pay in person — at the truck window or when a delivery
-            arrives. Works with or without Square. Turn it off to require a card.
+            Let customers place a <b>pickup</b> order now and pay in person — a cup at the truck, or a
+            pack picked up at a stop. Works with or without Square. Turn it off to require a card.
+            <br />Sunday <b>delivery is always prepaid</b> on the card — this switch doesn&apos;t affect it.
           </div>
         </div>
         <button

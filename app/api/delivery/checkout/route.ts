@@ -30,7 +30,11 @@ type Body = {
 export async function POST(req: Request) {
   const token = process.env.SQUARE_ACCESS_TOKEN;
   const locationId = process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID;
-  if (!supabaseAdmin) return NextResponse.json({ error: "Checkout isn't switched on yet." }, { status: 503 });
+  // DELIVERY IS ALWAYS PAID ON ORDER — no cash on delivery. Card + Square are required; the
+  // pay-at-pickup switch does NOT apply to delivery (it's a pickup-only option).
+  if (!token || !locationId || !supabaseAdmin) {
+    return NextResponse.json({ error: "Checkout isn't switched on yet." }, { status: 503 });
+  }
 
   // Delivery is a member surface — the order needs an owner for self-service + notifications.
   const user = await userFromRequest(req);
@@ -39,18 +43,6 @@ export async function POST(req: Request) {
   let b: Body;
   try { b = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
 
-  // A card token means "charge now"; no token means pay-on-delivery — allowed only when the operator
-  // has the pay-at-pickup switch on (live_status.pay_at_pickup, 0145). The charge path additionally
-  // needs Square configured. This is the authoritative gate; the page mirrors it for the UI.
-  const wantsCharge = !!b.sourceId;
-  if (wantsCharge && (!token || !locationId)) return NextResponse.json({ error: "Card checkout isn't switched on yet." }, { status: 503 });
-  if (!wantsCharge) {
-    const { data: ls } = await supabaseAdmin.from("live_status").select("pay_at_pickup").maybeSingle();
-    if ((ls as { pay_at_pickup?: boolean } | null)?.pay_at_pickup === false) {
-      return NextResponse.json({ error: "Pay-on-delivery is turned off — card payment arrives with the Square keys." }, { status: 503 });
-    }
-  }
-
   const s = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
   const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0);
 
@@ -58,7 +50,7 @@ export async function POST(req: Request) {
   const street = s(b.addressStreet, 160);
   const city = s(b.addressCity, 80);
   const zip = s(b.addressZip, 10);
-  if (!name || !street || !city || !zip) return NextResponse.json({ error: "Missing delivery details" }, { status: 400 });
+  if (!b.sourceId || !name || !street || !city || !zip) return NextResponse.json({ error: "Missing delivery details" }, { status: 400 });
   if (!zipInZone(zip)) return NextResponse.json({ error: "That ZIP isn't in the delivery zone." }, { status: 400 });
 
   const packSize = n(b.packSize);
@@ -92,26 +84,22 @@ export async function POST(req: Request) {
   const slot = choices.find((c) => c.deliveryDateKey === b.deliveryDate) ?? choices[0];
 
   try {
-    // Charge now (card) or defer (pay-on-delivery) — the money math + record are identical; only the
-    // payment fields differ.
-    let paymentId: string | null = null;
-    if (wantsCharge) {
-      const res = await fetch(`${SQUARE_BASE}/v2/payments`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "Square-Version": SQUARE_VERSION },
-        body: JSON.stringify({
-          source_id: b.sourceId,
-          idempotency_key: crypto.randomUUID(),
-          amount_money: { amount: quote.totalCents, currency: "USD" },
-          location_id: locationId,
-          note: `GT3 Sunday delivery ${slot.deliveryDateKey}`,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) return NextResponse.json({ error: data?.errors?.[0]?.detail || "Payment declined" }, { status: 400 });
-      paymentId = data?.payment?.id ?? null;
-    }
-    const paid = wantsCharge;
+    // Delivery always charges on order — no cash on delivery.
+    const res = await fetch(`${SQUARE_BASE}/v2/payments`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "Square-Version": SQUARE_VERSION },
+      body: JSON.stringify({
+        source_id: b.sourceId,
+        idempotency_key: crypto.randomUUID(),
+        amount_money: { amount: quote.totalCents, currency: "USD" },
+        location_id: locationId,
+        note: `GT3 Sunday delivery ${slot.deliveryDateKey}`,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) return NextResponse.json({ error: data?.errors?.[0]?.detail || "Payment declined" }, { status: 400 });
+    const paymentId: string | null = data?.payment?.id ?? null;
+    const paid = true;
 
     const row = {
       user_id: user.id, channel: "direct", delivery_date: slot.deliveryDateKey, delivery_window: "5–8 AM",

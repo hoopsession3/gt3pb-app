@@ -35,7 +35,7 @@ function Dispatch({ live, place, sub, when, openLabel, eta, next, onOrder }: {
         <div className="fact"><span className="fk">{live ? "Status" : "Day"}</span><span className={`fv${live ? " ok" : ""}`}>{live ? "Live" : when || "Soon"}</span></div>
         <div className="fact"><span className="fk">Open</span><span className="fv">{openLabel || "—"}</span></div>
         {/* Only a real, data-backed third fact — no invented "wait" time. */}
-        {eta && <div className="fact"><span className="fk">{live ? "Next stop" : "ETA"}</span><span className="fv">{eta}</span></div>}
+        {eta && <div className="fact"><span className="fk">{live ? "Next stop" : "Arrives"}</span><span className="fv">{eta}</span></div>}
       </div>
       {next && <p className="disp-next">Next · <b>{next}</b></p>}
       <button type="button" className="t-order" onClick={onOrder}>Pre-order · skip the line</button>

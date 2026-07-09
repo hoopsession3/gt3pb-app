@@ -174,6 +174,10 @@ ok("past cutoff → next Saturday Jul 11", satD2.getDate() === 11, satD2.toDateS
 ok("Saturday itself rolls forward", OA.nextDrop(new Date(2026, 6, 4, 10, 0)).sat.getDate() === 11);
 ok("dropIsOpen matches resolved sat", OA.dropIsOpen(satD.toISOString(), wedAM) === true);
 ok("dropIsOpen false for stale drop", OA.dropIsOpen(new Date(2026, 5, 27).toISOString(), wedAM) === false);
+// pack pickup ordering closes 24h before the stop (brew lead)
+const stopAt = "2026-07-11T17:00:00Z";
+ok("pickup cutoff is 24h before the stop", OA.dropForStop(stopAt).cutoff.getTime() === Date.parse(stopAt) - 24 * 60 * 60 * 1000);
+ok("STOP_LEAD_MS is 24h", OA.STOP_LEAD_MS === 24 * 60 * 60 * 1000);
 
 // --- reviews: clean + anonymize (public-display safety) ---
 ok("anon full name → first + initial", RV.anonName("Marcus Thompson") === "Marcus T.", RV.anonName("Marcus Thompson"));

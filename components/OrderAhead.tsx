@@ -72,11 +72,13 @@ export default function OrderAhead() {
     if (!supabase) return;
     let live = true;
     supabase.from("stops").select("name, starts_at").is("archived_at", null).neq("status", "done").not("starts_at", "is", null)
-      .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(6)
+      .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(8)
       .then(({ data }) => {
         if (!live || !data) return;
         const seen = new Set<string>();
+        // Only stops still OPEN for a pack pickup — ordering closes 24h before the stop (brew lead).
         const uniq = (data as { name: string | null; starts_at: string }[]).filter((st) => {
+          if (dropForStop(st.starts_at).cutoff.getTime() <= Date.now()) return false; // inside 24h — closed
           const k = dropDateKey(new Date(st.starts_at));
           if (seen.has(k)) return false;
           seen.add(k); return true;
@@ -181,6 +183,13 @@ export default function OrderAhead() {
                 <button type="button" onClick={() => setReplacing(null)}>Keep it as is</button>
               </div>
             )}
+            {/* Make the fulfillment mode unmistakable: this is PICKUP (grab it at a stop), not
+                delivery. A one-tap pointer to Sunday delivery sits right beside it. */}
+            <div className="oa-mode">
+              <span className="oa-mode-b">🏪 Pickup</span>
+              <span className="oa-mode-s">Order ahead, grab it at a truck stop.</span>
+              <button type="button" className="oa-mode-alt" onClick={() => router.push("/delivery")}>Want it delivered? →</button>
+            </div>
             <div className="oa-kicker">{t("reserve.kicker").toUpperCase()}</div>
             <div className="oa-head">{t("reserve.headline")}</div>
             <div className="oa-cutoff"><span className="oa-dot" /><span>{t("reserve.cutoff")
