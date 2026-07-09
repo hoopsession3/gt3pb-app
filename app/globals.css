@@ -158,8 +158,7 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 .disp-facts .fv.ok{color:var(--ok)}
 .disp-next{font-family:'Inter';font-size:12px;letter-spacing:.2px;color:var(--cream-m);margin:16px 0 0}
 .disp-next b{color:var(--cream);font-weight:600}
-.t-order{width:100%;margin-top:18px;border:none;cursor:pointer;font-family:'Inter';font-weight:650;letter-spacing:.3px;font-size:14px;padding:15px;border-radius:13px;background:var(--red);color:#fff}
-.t-order:active{transform:scale(.99)}
+.t-order{margin-top:18px}
 .t-ghost{width:100%;border:1px solid var(--line2);cursor:pointer;font-family:'Inter';font-weight:600;letter-spacing:.3px;font-size:13px;padding:13px;border-radius:12px;background:transparent;color:var(--cream-m)}
 .empty{border:1px dashed var(--line2);border-radius:16px;padding:26px 18px;text-align:center;margin-top:14px}
 .empty-t{font-family:'Fraunces';font-style:italic;font-size:15px;color:var(--cream)}
@@ -190,8 +189,6 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 .pillar .px p{font-family:'Fraunces';font-style:italic;font-size:13px;line-height:1.5;color:var(--cream-m);margin:3px 0 0}
 /* front-door primary "Start your order" CTA */
 .arr-cta{margin-top:22px}
-.arr-order{width:100%;border:none;cursor:pointer;font-family:'Inter';font-weight:700;font-size:16.5px;letter-spacing:.2px;color:#fff;background:var(--red);border-radius:15px;padding:18px;box-shadow:0 8px 22px rgba(184,36,32,.34)}
-.arr-order:active{transform:scale(.99)}
 .arr-order-sub{text-align:center;font-family:'Inter';font-size:12px;color:var(--cream-m);margin-top:9px}
 /* subscription pitch (storytelling) */
 .subpitch{margin-top:26px;border-radius:20px;padding:22px;background:linear-gradient(165deg,#1a160f,#100d09);border:1px solid rgba(184,144,47,.3);box-shadow:0 10px 30px rgba(0,0,0,.36)}
@@ -207,8 +204,6 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 .subpitch-pack b{font-family:'Archivo Black';font-size:22px;line-height:1}
 .subpitch-pack span{font-family:'Inter';font-weight:600;font-size:8px;letter-spacing:1px;text-transform:uppercase;color:var(--cream-m)}
 .subpitch-pack em{font-family:'DM Mono';font-style:normal;font-size:12px;margin-top:5px;color:var(--gold2)}
-.subpitch-cta{width:100%;border:none;cursor:pointer;font-family:'Inter';font-weight:650;font-size:14.5px;color:#fff;background:var(--red);border-radius:13px;padding:15px}
-.subpitch-cta:active{transform:scale(.99)}
 .subpitch-fine{text-align:center;font-family:'Inter';font-size:11px;color:var(--cream-m);margin-top:11px}
 
 /* ===== MENU ===== */
@@ -317,8 +312,7 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 .sub-pack-cap{font-family:'Inter';font-weight:600;font-size:8.5px;letter-spacing:1px;text-transform:uppercase;color:var(--cream-m)}
 .sub-pack-price{font-family:'DM Mono';font-weight:500;font-size:13px;margin-top:5px;color:var(--cream)}
 .sub-pack-each{font-family:'Inter';font-size:9px;color:var(--cream-m)}
-.sub-cta{width:100%;margin-top:2px;font-family:'Inter';font-weight:650;font-size:14px;letter-spacing:.3px;color:#fff;background:var(--red);border:none;border-radius:13px;padding:14px;cursor:pointer}
-.sub-cta:disabled{background:rgba(245,241,232,.12);color:var(--cream-m);cursor:default}
+.sub-cta{margin-top:2px}
 .sub-cardfield{background:rgba(0,0,0,.22);border:1px solid var(--line2);border-radius:12px;padding:12px;margin-bottom:10px;min-height:52px}
 .sub-link{display:block;width:100%;margin-top:8px;text-align:center;font-family:'Inter';font-weight:600;font-size:12px;color:var(--cream-m);background:none;border:none;cursor:pointer}
 .rows{margin-top:8px}
@@ -3019,8 +3013,14 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .oa-per{font-size:13px;color:var(--oa-cream-dim)}
 .oa-save{margin-left:auto;align-self:center;font-size:11px;font-weight:700;letter-spacing:.04em;color:#cfe6c0;background:rgba(127,168,107,.16);border:1px solid rgba(127,168,107,.4);padding:4px 10px;border-radius:20px}
 .oa-subnote{font-size:12px;color:var(--oa-cream-dim);margin-top:8px;line-height:1.5}.oa-subnote b{color:var(--oa-cream)}
-.oa-cta{width:100%;background:var(--oa-red);color:var(--oa-cream);border:none;border-radius:14px;padding:16px;font-size:15.5px;font-weight:700;cursor:pointer;transition:.16s;font-family:inherit}
-.oa-cta:active{transform:scale(.99)}.oa-cta:disabled{opacity:.35;cursor:default}
+/* The one full-width red primary-CTA style. subpitch-cta/sub-cta/t-order/arr-order/mpack-cta were
+   copy-pasted duplicates of this exact look with only tiny variance in padding/radius/font-size —
+   aliased here via :is() instead of five near-identical blocks, so any future tweak to the primary
+   CTA only needs to happen once. Markup/class names at call sites are UNCHANGED (pure CSS
+   convergence). mpack-cta is an <a>, not a <button> — see its own display/text-decoration rule below. */
+:is(.oa-cta,.subpitch-cta,.sub-cta,.t-order,.arr-order,.mpack-cta){width:100%;background:var(--oa-red);color:var(--oa-cream);border:none;border-radius:14px;padding:16px;font-size:15.5px;font-weight:700;cursor:pointer;transition:.16s;font-family:inherit}
+:is(.oa-cta,.subpitch-cta,.sub-cta,.t-order,.arr-order,.mpack-cta):active{transform:scale(.99)}
+:is(.oa-cta,.subpitch-cta,.sub-cta,.t-order,.arr-order,.mpack-cta):disabled{opacity:.35;cursor:default}
 .oa-window{text-align:center;font-size:11.5px;color:var(--oa-cream-faint);margin-top:12px;line-height:1.6}.oa-window b{color:var(--oa-cream-dim);font-weight:600}
 .oa-field{margin-bottom:14px}
 .oa-field label{display:block;font-size:10.5px;letter-spacing:.16em;color:var(--oa-cream-faint);font-weight:600;text-transform:uppercase;margin-bottom:7px}
@@ -3243,7 +3243,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .mpack-px{font-family:'Inter';font-size:12.5px;color:#6f6a59;text-align:right}
 .mpack-px b{color:#221f18;font-family:'DM Mono',monospace;font-size:13.5px}
 .mpack-note{font-family:'Inter';font-size:12px;line-height:1.55;color:#6f6a59;margin:10px 0 12px}
-.mpack-cta{display:block;text-align:center;font-family:'Inter';font-weight:700;font-size:13.5px;color:#F4EFE3;background:#B82420;border-radius:12px;padding:13px;text-decoration:none}
+.mpack-cta{display:block;text-align:center;text-decoration:none}
 
 /* checkout drawer: quiet pack cross-sell */
 .co-upsell{display:block;width:100%;text-align:left;background:none;border:1px dashed var(--hair,rgba(245,241,232,.18));border-radius:10px;color:var(--cream-m,rgba(245,241,232,.6));font-family:'Inter';font-size:12px;padding:12px 14px;margin:10px 0 4px;cursor:pointer;-webkit-appearance:none;appearance:none}
