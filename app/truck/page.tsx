@@ -35,7 +35,7 @@ function Dispatch({ live, place, sub, when, openLabel, eta, next, onOrder }: {
         <div className="fact"><span className="fk">{live ? "Status" : "Day"}</span><span className={`fv${live ? " ok" : ""}`}>{live ? "Live" : when || "Soon"}</span></div>
         <div className="fact"><span className="fk">Open</span><span className="fv">{openLabel || "—"}</span></div>
         {/* Only a real, data-backed third fact — no invented "wait" time. */}
-        {eta && <div className="fact"><span className="fk">{live ? "Next stop" : "Arrives"}</span><span className="fv">{eta}</span></div>}
+        {eta && <div className="fact"><span className="fk">Next stop</span><span className="fv">{eta}</span></div>}
       </div>
       {next && <p className="disp-next">Next · <b>{next}</b></p>}
       <button type="button" className="t-order" onClick={onOrder}>Pre-order · skip the line</button>
@@ -51,12 +51,12 @@ function stopLabel(n: Stop | undefined): string | null {
 // The stop AFTER the one being featured. When live, walk past the live stop; when idle, it's simply
 // the second stop on the (date-ordered) road ahead — live_status.current_stop_id can be stale from
 // the last session and must not steer this while the truck is offline.
-function nextLabelFrom(stops: Stop[], isLive: boolean, liveId?: string | null) {
+function nextStop(stops: Stop[], isLive: boolean, liveId?: string | null): Stop | undefined {
   if (isLive && liveId) {
     const idx = stops.findIndex((s) => s.id === liveId);
-    return stopLabel((idx >= 0 ? stops.slice(idx + 1) : stops.slice(1)).find((s) => s.id !== liveId));
+    return (idx >= 0 ? stops.slice(idx + 1) : stops.slice(1)).find((s) => s.id !== liveId);
   }
-  return stopLabel(stops[1]);
+  return stops[1];
 }
 
 // Day abbrev / time for a stop — prefer the hand-set labels, else derive from the real date (starts_at)
@@ -157,6 +157,7 @@ function TruckLive() {
   // Single source of truth = live_status.is_live + current_stop_id. Never derive
   // "live" from a stop's own status (it desyncs when the truck goes offline).
   const liveStop = (isLive && stops.find((s) => s.id === live?.current_stop_id)) || stops[0];
+  const upcoming = nextStop(stops, isLive, live?.current_stop_id);
   // Memoize on `stops` only, so a realtime position update (which changes `live`, not
   // `stops`) doesn't rebuild the whole map — the truck dot just moves.
   const points: RoutePoint[] = useMemo(() => stops
@@ -185,8 +186,8 @@ function TruckLive() {
         sub={liveStop ? descFor(liveStop) : ""}
         when={liveStop ? [whenDay(liveStop), whenDate(liveStop)].filter(Boolean).join(" ") : ""}
         openLabel={liveStop ? fmt12(whenTime(liveStop)) ?? "" : ""}
-        eta={fmt12(live?.next_eta)}
-        next={nextLabelFrom(stops, isLive, live?.current_stop_id)}
+        eta={upcoming ? fmt12(whenTime(upcoming)) : null}
+        next={stopLabel(upcoming)}
         onOrder={() => router.push("/menu")}
       />
 

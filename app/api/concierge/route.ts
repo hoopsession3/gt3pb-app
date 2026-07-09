@@ -50,7 +50,7 @@ export async function POST(req: Request) {
   if (supabaseAdmin) {
     const [pr, ls, ev, pl] = await Promise.all([
       supabaseAdmin.from("products").select("slug, name, price_cents, active").eq("active", true),
-      supabaseAdmin.from("live_status").select("is_live, next_eta, current_stop_id").eq("id", 1).maybeSingle(),
+      supabaseAdmin.from("live_status").select("is_live, current_stop_id").eq("id", 1).maybeSingle(),
       supabaseAdmin.from("events").select("title, day_label, day, start_time, location_text, member_only").is("archived_at", null).gte("day", today).order("day").limit(8),
       supabaseAdmin.from("subscription_plans").select("label, price_cents, period_days, active").eq("active", true).order("price_cents"),
     ]);
@@ -61,9 +61,21 @@ export async function POST(req: Request) {
         const { data: s } = await supabaseAdmin.from("stops").select("name, location_text").eq("id", (ls.data as any).current_stop_id).maybeSingle();
         if (s) where = `${(s as any).name}${(s as any).location_text ? ` — ${(s as any).location_text}` : ""}`;
       }
+      let next = "";
+      if (!(ls.data as any).is_live) {
+        // The truck's own schedule, not a hand-typed ETA field — the next stop that hasn't
+        // started yet, in date order, same source of truth the Truck page reads.
+        const { data: n } = await supabaseAdmin.from("stops").select("name, starts_at")
+          .is("archived_at", null).neq("status", "done").gte("starts_at", new Date().toISOString())
+          .order("starts_at").limit(1).maybeSingle();
+        if (n && (n as any).starts_at) {
+          const d = new Date((n as any).starts_at);
+          next = `${(n as any).name}, ${d.toLocaleDateString(undefined, { weekday: "short" })} ${d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+        }
+      }
       live = (ls.data as any).is_live
         ? `The truck is OPEN now${where ? ` at ${where}` : ""}.`
-        : `The truck is not currently open${(ls.data as any).next_eta ? `. Next: ${(ls.data as any).next_eta}` : ""}.`;
+        : `The truck is not currently open${next ? `. Next: ${next}` : ""}.`;
     }
     events = (ev.data ?? []).filter((e: any) => !e.member_only).map((e: any) => `- ${e.title ?? "Event"}${e.day_label ? ` (${e.day_label})` : e.day ? ` (${e.day})` : ""}${e.start_time ? ` ${e.start_time}` : ""}${e.location_text ? ` — ${e.location_text}` : ""}`).join("\n");
     plans = (pl.data ?? []).map((p: any) => `- ${p.label}: $${((p.price_cents ?? 0) / 100).toFixed(2)} every ${p.period_days} days`).join("\n");

@@ -46,6 +46,9 @@ export interface LiveStatus {
   id: number;
   current_stop_id: string | null;
   is_live: boolean;
+  // Deprecated: a hand-typed field with no write path anywhere in the app — it went stale and
+  // stayed stale. "Next stop" ETA is now computed live from stops.starts_at (see app/truck/page.tsx
+  // nextStop() and app/api/concierge/route.ts). Column kept only so old rows don't error; not read.
   next_eta: string | null;
   // Live truck GPS — set from the truck's phone via admin_set_truck_pos, cleared on offline.
   truck_lat?: number | null;
