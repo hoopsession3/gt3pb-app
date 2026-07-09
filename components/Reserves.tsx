@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
 import Skeleton from "./Skeleton";
+import Sheet from "./Sheet";
+import SignIn from "./SignIn";
 import type { Reserve, ReserveClaim } from "@/lib/db";
 
 // Live limited drops. Stock + claims are server-authoritative (claim_reserve RPC);
@@ -13,11 +14,14 @@ import type { Reserve, ReserveClaim } from "@/lib/db";
 export default function Reserves() {
   const { toast } = useApp();
   const { user } = useAuth();
-  const router = useRouter();
   const [reserves, setReserves] = useState<Reserve[]>([]);
   const [claims, setClaims] = useState<Record<string, ReserveClaim>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  // Signed-out tap opens sign-in right here instead of redirecting to /3mpire and losing the intent;
+  // once signed in, the reserve that was tapped claims automatically.
+  const [signInOpen, setSignInOpen] = useState(false);
+  const pendingClaim = useRef<Reserve | null>(null);
 
   const load = useCallback(async () => {
     if (!supabase) { setLoaded(true); return; }
@@ -46,7 +50,7 @@ export default function Reserves() {
   }, [load, user]);
 
   const claim = async (r: Reserve) => {
-    if (!user) { toast("Sign in to reserve yours"); router.push("/3mpire"); return; }
+    if (!user) { pendingClaim.current = r; setSignInOpen(true); return; }
     if (!supabase || busy) return;
     setBusy(r.id);
     const { error } = await supabase.rpc("claim_reserve", { p_reserve: r.id, p_qty: 1 });
@@ -62,6 +66,13 @@ export default function Reserves() {
     toast("Reserved ✓ — pay at the truck on pickup");
     load();
   };
+
+  // Sign-in completed while the sheet was open for a tapped reserve — claim it automatically instead
+  // of the old redirect-to-/3mpire-and-lose-the-intent pattern.
+  useEffect(() => {
+    if (user && pendingClaim.current) { const r = pendingClaim.current; pendingClaim.current = null; setSignInOpen(false); claim(r); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   const cancel = async (r: Reserve) => {
     const cl = claims[r.id];
@@ -107,6 +118,11 @@ export default function Reserves() {
           </div>
         );
       })}
+      <Sheet open={signInOpen} onClose={() => { pendingClaim.current = null; setSignInOpen(false); }} labelledBy="reserve-signin-title">
+        <div className="oa-kicker" id="reserve-signin-title">SIGN IN TO RESERVE</div>
+        {pendingClaim.current && <h2 className="dl-h">{pendingClaim.current.name}</h2>}
+        <SignIn />
+      </Sheet>
     </>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import { useAuth } from "@/components/AuthProvider";
 import AccountPill from "@/components/AccountPill";
@@ -8,6 +8,8 @@ import Reserves from "@/components/Reserves";
 import Skeleton from "@/components/Skeleton";
 import EmptyState from "@/components/EmptyState";
 import AddToCalendar from "@/components/AddToCalendar";
+import Sheet from "@/components/Sheet";
+import SignIn from "@/components/SignIn";
 import { calFromEvent } from "@/lib/ics";
 import { supabase } from "@/lib/supabase";
 import type { EventRow } from "@/lib/db";
@@ -38,6 +40,10 @@ function RsvpRow({ ev }: { ev: EventRow }) {
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
   const hasDetail = Boolean(ev.location_text || ev.blurb || ev.start_time);
+  // Signed-out tap opens sign-in right here instead of a dead-end toast; once signed in, the RSVP
+  // that was tapped fires automatically — no second tap, no redirect away and back.
+  const [signInOpen, setSignInOpen] = useState(false);
+  const pendingRsvp = useRef(false);
 
   // Hydrate from the DB so a refresh/return reflects the real RSVP (no phantom re-taps).
   useEffect(() => {
@@ -46,9 +52,8 @@ function RsvpRow({ ev }: { ev: EventRow }) {
       .then(({ data }) => { if (data) setGoing(true); });
   }, [ev.id, user]);
 
-  const onClick = async () => {
-    if (busy) return;
-    if (!supabase || !user) { toast("Sign in to RSVP"); return; }
+  const toggle = async () => {
+    if (!supabase || !user) return;
     const next = !going;
     setGoing(next); // optimistic
     setBusy(true);
@@ -67,6 +72,18 @@ function RsvpRow({ ev }: { ev: EventRow }) {
       toast("RSVP removed");
     }
     setBusy(false);
+  };
+
+  // Sign-in completed while the sheet was open for THIS row's tap — resume the RSVP automatically.
+  useEffect(() => {
+    if (user && pendingRsvp.current) { pendingRsvp.current = false; setSignInOpen(false); toggle(); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  const onClick = () => {
+    if (busy) return;
+    if (!supabase || !user) { pendingRsvp.current = true; setSignInOpen(true); return; }
+    toggle();
   };
 
   return (
@@ -91,6 +108,11 @@ function RsvpRow({ ev }: { ev: EventRow }) {
           <div style={{ marginTop: 10 }}><AddToCalendar ev={calFromEvent({ id: ev.id, title: ev.title, day: ev.day, start_time: ev.start_time, end_time: ev.end_time, location_text: ev.location_text, blurb: ev.blurb })} /></div>
         </div>
       )}
+      <Sheet open={signInOpen} onClose={() => { pendingRsvp.current = false; setSignInOpen(false); }} labelledBy={`rsvp-signin-${ev.id}`}>
+        <div className="oa-kicker" id={`rsvp-signin-${ev.id}`}>SIGN IN TO RSVP</div>
+        <h2 className="dl-h">{ev.title}</h2>
+        <SignIn />
+      </Sheet>
     </div>
   );
 }
