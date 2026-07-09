@@ -30,11 +30,13 @@
 }
 html,body{height:100%}
 body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream);
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility;
   display:flex;align-items:flex-start;justify-content:center;min-height:100dvh}
 
 /* ---- real-app shell (replaces .phone mockup frame) ---- */
 .app{width:100%;max-width:480px;height:100vh;height:100dvh;
-  background:radial-gradient(125% 55% at 50% -8%, #1c1812 0%, #100d09 46%, #070605 100%);
+  /* material depth: a barely-there film grain over the warm radial light → matte glass, not flat black */
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.05'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23g)'/%3E%3C/svg%3E") repeat,radial-gradient(125% 55% at 50% -8%, #1c1812 0%, #100d09 46%, #070605 100%);
   position:relative;overflow:hidden;display:flex;flex-direction:column}
 @media(min-width:520px){
   body{align-items:center;padding:18px}
@@ -2640,6 +2642,14 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .brew-adjust-danger,.brew-adjust-undo{display:block;width:100%;text-align:center;padding:11px;border-radius:11px;font-family:'Inter';font-weight:650;font-size:13.5px;cursor:pointer;-webkit-appearance:none;appearance:none;margin-top:9px}
 .brew-adjust-danger{background:rgba(184,36,32,.14);border:1px solid rgba(184,36,32,.42);color:#e07b76}
 .brew-adjust-undo{background:none;border:1px solid var(--line2);color:var(--cream-m)}
+
+/* ============ LUXURY LAYER · tactile press + aligned figures (grain lives on .app bg) ============ */
+/* a crisp mechanical give on tap — the visual half of haptics; reads premium even where iOS mutes vibration */
+.oa-tile,.oa-day,.oa-pill,.oa-cta,.note-save,.note-arch,.brew-start,.brew-pack-btn,.oa-step button,.dl-ctr-b button,.dl-card,.spl-cta,.handle,.brew-adjust-danger,.brew-adjust-undo,.qd-tab{transition:transform .11s cubic-bezier(.2,.7,.3,1),filter .15s ease,background-color .15s ease}
+.oa-tile:active,.oa-day:active,.oa-pill:active,.oa-cta:active,.note-save:active,.note-arch:active,.brew-start:active,.brew-pack-btn:active,.oa-step button:active,.dl-ctr-b button:active,.dl-card:active,.spl-cta:active,.handle:active,.brew-adjust-danger:active,.brew-adjust-undo:active,.qd-tab:active{transform:scale(.965)}
+.oa-cta:active,.spl-cta:active,.note-save:active{filter:brightness(1.06)}
+/* figures line up + never jitter — Stripe/Apple-grade number setting */
+.oa-big,.oa-per,.oa-save,.oa-fcount,.oa-count,.dl-quote,.dl-quote-t,.dl-tiers,.brew-timer,.spl-price,.oa-price-row,.dl-deadline{font-variant-numeric:tabular-nums}
 .brew-recipe{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:12px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .brew-recipe-main{display:flex;flex-direction:column;gap:3px}
 .brew-recipe-main b{font-family:'Inter';font-weight:700;font-size:14.5px;color:var(--cream)}

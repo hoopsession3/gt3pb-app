@@ -9,6 +9,7 @@ import AccountPill from "@/components/AccountPill";
 import SignIn from "@/components/SignIn";
 import { supabase } from "@/lib/supabase";
 import { SQUARE_APP_ID, SQUARE_LOCATION_ID, squareClientReady, squareWebSdkUrl } from "@/lib/square";
+import { haptic, HAPTIC } from "@/lib/haptics";
 import {
   quoteDelivery, deliverySlotChoices, zipInZone, maxRefills,
   DELIVERY_PACKS, DELIVERY_PRICING, SALTED_LATTE,
@@ -121,9 +122,11 @@ export default function DeliveryPage() {
     return () => { dead = true; if (iv) clearInterval(iv); cardRef.current?.destroy?.(); cardRef.current = null; setCardReady(false); };
   }, [step]);
 
-  const bump = (k: "rise" | "flow" | "dusk", d: number) =>
+  const bump = (k: "rise" | "flow" | "dusk", d: number) => {
+    haptic(HAPTIC.tap);
     setMix((m) => ({ ...m, [k]: Math.max(0, m[k] + d) }));
-  const bumpPremium = (slug: string, d: number) => setPremiums((m) => { const v = Math.max(0, (m[slug] || 0) + d); const n = { ...m, [slug]: v }; if (!v) delete n[slug]; return n; });
+  };
+  const bumpPremium = (slug: string, d: number) => { haptic(HAPTIC.tap); setPremiums((m) => { const v = Math.max(0, (m[slug] || 0) + d); const n = { ...m, [slug]: v }; if (!v) delete n[slug]; return n; }); };
 
   const checkZone = () => {
     if (zipInZone(zip)) { setZoneState("in"); setStep("size"); }
@@ -154,6 +157,7 @@ export default function DeliveryPage() {
       const data = await res.json();
       setBusy(false);
       if (!res.ok) { setErr(data.error || "Payment failed"); return; }
+      haptic(HAPTIC.success);
       setDone({ label: data.deliveryLabel, total: data.totalCents ?? quote.totalCents, warn: data.warn });
       setStep("done");
     } catch { setBusy(false); setErr("Payment service unavailable"); }

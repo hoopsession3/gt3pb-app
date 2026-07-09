@@ -13,6 +13,7 @@ import {
   dollars, nextDrop, dropForStop, dropDateKey, emptyMix, type GlassPath, type Mix, type Flavor,
 } from "@/lib/orderAhead";
 import { useSiteCopy } from "@/lib/copy";
+import { haptic, HAPTIC } from "@/lib/haptics";
 import MyPacks, { packMix, packDayLabel, type MyPack } from "./MyPacks";
 
 // ORDER-AHEAD — customer reserve flow (reserve → details → confirmed). One-off Saturday-drop
@@ -103,12 +104,12 @@ export default function OrderAhead() {
 
   // pack size change: an overfull mix resets (reference behavior, verified in lib/orderAhead)
   const pickSize = (s: number) => { setSize(s); setMix((prev) => mixFitsOrReset(prev, s)); };
-  const stepFlavor = (f: Flavor, dir: 1 | -1) => setMix((prev) => {
+  const stepFlavor = (f: Flavor, dir: 1 | -1) => { haptic(HAPTIC.tap); setMix((prev) => {
     const next = prev[f] + dir;
     if (next < 0) return prev;
     if (dir > 0 && mixTotal(prev) >= size) return prev;
     return { ...prev, [f]: next };
-  });
+  }); };
 
   // Square card mounts when we reach the details view.
   useEffect(() => {
@@ -139,6 +140,7 @@ export default function OrderAhead() {
       });
       const data = await res.json(); setBusy(false);
       if (!res.ok) { setErr(data.error || "Something went wrong — try again."); return; }
+      haptic(HAPTIC.success);
       setConf({ id: (data.id || data.ref || "").toString(), size, glass, mix: { ...mix }, total, sat: drop.sat, name: name.trim(), paid: !!data.paid });
       setView("confirmed");
       // A "change pack" lands as new reservation + cancel of the old (never a silent double-brew).
