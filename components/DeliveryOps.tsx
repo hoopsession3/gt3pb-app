@@ -141,7 +141,10 @@ export default function DeliveryOps() {
           <div className="dops-meta">
             <b>{o.pack_size} bottles</b> — {[o.rise_count && `${o.rise_count}× RISE`, o.flow_count && `${o.flow_count}× FLOW`, o.dusk_count && `${o.dusk_count}× DUSK`, o.performance_count && `${Object.entries(o.performance_mix || {}).map(([k, n]) => `${n}× ${prettySlug(k)}`).join(" · ") || `${o.performance_count}× premium`}`].filter(Boolean).join(" · ")}
             <br />{o.address_street}, {o.address_city} {o.address_zip}{o.access_instructions ? <> · <em>{o.access_instructions}</em></> : null}
-            {o.phone ? <> · <a className="dops-tel" href={`tel:${o.phone.replace(/[^\d+]/g, "")}`}>{o.phone}</a></> : null}
+            <div className="dops-drive">
+              <a className="dops-nav" href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${o.address_street}, ${o.address_city} ${o.address_zip}`)}`} target="_blank" rel="noopener noreferrer">🧭 Navigate</a>
+              {o.phone ? <a className="dops-tel" href={`tel:${o.phone.replace(/[^\d+]/g, "")}`}>📞 Call {o.name.split(" ")[0]}</a> : null}
+            </div>
             {o.empties_collected != null && o.empties_collected !== o.empties_expected && (
               <><br /><em className="dl-held">Empties short: {o.empties_collected}/{o.empties_expected}</em></>
             )}

@@ -3054,6 +3054,12 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .dops-prog.done{color:#7FA86B}
 .dops-order.done{opacity:.5}
 .dops-tel{color:var(--gold2,#B8902F);text-decoration:none;font-weight:600}
+/* driver actions — big, thumb-sized taps: Navigate opens the maps app, Call dials */
+.dops-drive{display:flex;gap:8px;margin-top:9px}
+.dops-drive a{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:11px 10px;border-radius:11px;font-family:'Inter';font-weight:700;font-size:13.5px;text-decoration:none;-webkit-tap-highlight-color:transparent;transition:transform .11s cubic-bezier(.2,.7,.3,1)}
+.dops-drive a:active{transform:scale(.965)}
+.dops-nav{background:var(--gold);color:#1a1409}
+.dops-drive .dops-tel{background:rgba(245,241,232,.06);border:1px solid var(--line2);color:var(--cream)}
 /* fulfillment + planning */
 .dops-due{font-size:11.5px;color:var(--gold2,#B8902F);font-weight:600;margin:-6px 2px 12px}
 .dops-owe{font-style:normal;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#d9903f;border:1px solid rgba(217,144,63,.45);border-radius:20px;padding:1px 6px;margin-left:4px;vertical-align:1px}
