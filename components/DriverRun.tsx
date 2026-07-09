@@ -19,7 +19,7 @@ type DOrder = {
   pack_size: number; rise_count: number; flow_count: number; dusk_count: number;
   performance_count: number; performance_mix: PerfMix; refill_count: number; new_count: number;
   total_cents: number; payment_status: string; status: string;
-  driver_outcome: string | null; empties_expected: number; empties_collected: number | null;
+  driver_outcome: string | null; empties_expected: number; empties_collected: number | null; driver_note: string | null;
   delivery_date: string; canceled_at: string | null;
 };
 
