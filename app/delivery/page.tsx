@@ -187,7 +187,7 @@ export default function DeliveryPage() {
         <div className="dl-step">
           <div className="dl-hero">
             <h2 className="dl-h dl-h-xl">Your week, <em>delivered.</em></h2>
-            <p className="dl-sub">Cold-extracted Rise, Flow &amp; Dusk &mdash; brewed Saturday, on your porch by sunrise Sunday. Smooth, clean, ready to pour before Monday even starts.</p>
+            <p className="dl-sub">Cold-extracted Rise, Flow &amp; Dusk &mdash; on your porch by sunrise Sunday. Smooth, low-acid, and perfect for 7 days.</p>
             <div className="dl-tiers">
               <span><b>{dollars(DELIVERY_PRICING.refill)}</b> swap your empties</span>
               <span><b>{dollars(DELIVERY_PRICING.fresh)}</b> new bottle</span>

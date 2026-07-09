@@ -339,7 +339,7 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
   transform:translateY(110%);transition:transform .32s cubic-bezier(.3,.9,.3,1),visibility 0s linear .32s;visibility:hidden;max-height:84%;overflow-y:auto;border-top:1px solid var(--line2)}
 .sheet.open{transform:translateY(0);visibility:visible;transition:transform .32s cubic-bezier(.3,.9,.3,1),visibility 0s}.sheet::-webkit-scrollbar{display:none}
 .grab{width:42px;height:4px;background:var(--line2);border:none;padding:0;cursor:pointer;border-radius:3px;margin:11px auto 2px;display:block}
-.sin{padding:8px 22px 26px}
+.sin{padding:8px 22px calc(26px + env(safe-area-inset-bottom))}
 .sheet-hero{height:96px;border-radius:20px;display:flex;align-items:flex-end;padding:15px;margin:10px 0 16px;position:relative;overflow:hidden}
 .sheet-hero b{font-family:'Archivo Black';font-size:26px;color:#fff;position:relative;z-index:2;text-transform:uppercase;letter-spacing:-.5px}
 .sheet-hero .px{position:absolute;top:14px;right:15px;z-index:2;font-family:'DM Mono';font-weight:500;font-size:14px;color:#fff;background:rgba(0,0,0,.3);padding:4px 10px;border-radius:20px}
@@ -1740,13 +1740,13 @@ select.note-in{-webkit-appearance:none;appearance:none}
    calendar) reads through or competes with them. Bottom padding tracks the keyboard so the
    centered sheet stays fully above it. */
 .qd-scrim{position:fixed;inset:0;z-index:59;background:rgba(0,0,0,.55);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);display:flex;align-items:center;justify-content:center;padding:16px 16px calc(16px + var(--kb,0px));box-sizing:border-box}
-.qd-sheet{width:100%;max-width:560px;max-height:min(88vh,calc(100dvh - var(--kb,0px) - 32px));display:flex;flex-direction:column;background:var(--bg,#161310);border:1px solid var(--line);border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,.6);animation:qdup .18s ease}
+.qd-sheet{width:100%;max-width:560px;max-height:min(88vh,calc(100dvh - var(--kb,0px) - 32px));display:flex;flex-direction:column;background:var(--bg,#161310);border:1px solid var(--line);border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,.6);animation:qdup .18s ease;overflow:hidden}
 @keyframes qdup{from{transform:translateY(10px) scale(.98);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}
 .qd-tabs{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
 .qd-tab{background:rgba(255,255,255,.05);border:1px solid var(--line2);border-radius:999px;padding:8px 14px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .qd-tab.on{background:rgba(169,124,63,.18);border-color:var(--gold2);color:var(--gold2)}
 .qd-x{margin-left:auto;background:none;border:none;color:var(--cream-m);font-size:18px;cursor:pointer;padding:4px 8px}
-.qd-body{padding:14px;overflow-y:auto}
+.qd-body{flex:1 1 auto;min-height:0;padding:14px 14px calc(18px + env(safe-area-inset-bottom));overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .qd-note-row{display:flex;gap:8px;align-items:flex-start}
 .qd-note textarea{flex:1;width:100%;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:13px 15px;color:var(--cream);font-family:'Inter';font-size:16px;line-height:1.5;resize:vertical;-webkit-appearance:none;appearance:none}
 .qd-note textarea:focus{outline:none;border-color:var(--gold2)}
@@ -2250,7 +2250,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .dp-draft{background:linear-gradient(135deg,#a97c3f,#caa35f);border:none;color:#1a1409}
 /* edit / draft sub-sheets sit above the planner */
 .qd-scrim.dp-scrim2{z-index:62;align-items:center;padding:14px}
-.qd-sheet.dp-form{max-width:520px;border-radius:18px;max-height:86vh}
+.qd-sheet.dp-form{max-width:520px;border-radius:18px;max-height:min(88vh,calc(100dvh - var(--kb,0px) - 24px))}
 .dp-kinds,.dp-draftlist{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
 .dp-kchip{display:flex;align-items:center;gap:4px;background:transparent;border:1px solid var(--line2);border-radius:999px;padding:6px 10px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:12px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .dp-kchip.on{background:rgba(169,124,63,.14);border-color:var(--c,var(--gold2));color:var(--cream)}
