@@ -79,7 +79,7 @@ export default function DriverRun() {
     return () => { cancelled = true; };
   }, [rows]);
 
-  const doneOf = (o: DOrder) => o.status === "delivered" || o.status === "held_for_pickup";
+  const doneOf = (o: DOrder) => o.status === "delivered" || o.status === "held_for_pickup" || o.status === "issue";
   const firstOpenIdx = rows.findIndex((o) => !doneOf(o));
   const doneCount = rows.filter(doneOf).length;
 
@@ -114,6 +114,19 @@ export default function DriverRun() {
     await supabase.from("alerts").insert({ severity: "important", category: "orders", title: "Delivery held — pickup queue", body: `${o.name} — no empties out. ${o.pack_size} bottles held at GT3PB for pickup 10 AM – 2 PM. ${o.phone ?? ""}`.trim(), link: "/admin?s=now" });
     setOpenId(null); toast("Held for pickup — crew alerted"); load();
   };
+  const notHome = async (o: DOrder) => {
+    if (!supabase) return; haptic(HAPTIC.alert);
+    const at = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    await supabase.from("delivery_orders").update({ status: "issue", driver_outcome: null, empties_collected: 0, driver_note: `Not home — ${at}` }).eq("id", o.id);
+    await supabase.from("alerts").insert({ severity: "important", category: "orders", title: "Delivery — customer not home", body: `${o.name} wasn't home for the ${o.pack_size}-bottle drop${o.refill_count > 0 ? " (swap not completed)" : ""}. ${o.address_street}, ${o.address_city}. ${o.phone ?? ""}`.trim(), link: "/admin?s=now" });
+    setOpenId(null); toast("Logged — not home; crew alerted"); load();
+  };
+  // Roll a stop back to open — undo a mis-tap. Ties to the order: clears the outcome + reopens it.
+  const rollback = async (o: DOrder) => {
+    if (!supabase) return; haptic(HAPTIC.tap);
+    await supabase.from("delivery_orders").update({ status: "out_for_delivery", driver_outcome: null, empties_collected: null, driver_note: null }).eq("id", o.id);
+    load();
+  };
 
   if (!date) return <div className="driver-empty">No delivery run scheduled. When Sunday orders land, your route shows up here.</div>;
   if (rows.length === 0) return <div className="driver-empty">No stops on {new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })} yet.</div>;
@@ -141,9 +154,9 @@ export default function DriverRun() {
           const addr = `${o.address_street}, ${o.address_city} ${o.address_zip}`;
           const open = openId === o.id;
           return (
-            <div className={`driver-stop${done ? " done" : ""}${i === firstOpenIdx ? " next" : ""}`} key={o.id}>
+            <div className={`driver-stop${done ? " done" : ""}${o.status === "issue" ? " issue" : ""}${i === firstOpenIdx ? " next" : ""}`} key={o.id}>
               <div className="driver-stop-top">
-                <span className="driver-seq">{done ? "✓" : i + 1}</span>
+                <span className="driver-seq">{done ? (o.status === "issue" ? "!" : "✓") : i + 1}</span>
                 <div className="driver-who">
                   <b>{o.name}{o.refill_count > 0 && <span className="driver-swap">SWAP ×{o.refill_count}</span>}{o.status === "held_for_pickup" && <span className="driver-held">HELD</span>}</b>
                   <span>{o.pack_size} bottles · {packSummary(o)}</span>
@@ -171,11 +184,13 @@ export default function DriverRun() {
                           </div>
                           <button type="button" className="driver-out-ok" onClick={() => swapDone(o)}>✓ Swapped &amp; delivered</button>
                           <button type="button" className="driver-out-mid" onClick={() => deliveredFresh(o)}>Delivered fresh — no empties out</button>
-                          <button type="button" className="driver-out-hold" onClick={() => hold(o)}>⚠ Nobody home / no empties — hold for pickup</button>
+                          <button type="button" className="driver-out-nothome" onClick={() => notHome(o)}>🚪 Not home</button>
+                          <button type="button" className="driver-out-hold" onClick={() => hold(o)}>⚠ No empties out — hold for pickup</button>
                         </>
                       ) : (
                         <>
                           <button type="button" className="driver-out-ok" onClick={() => deliveredFresh(o)}>✓ Delivered</button>
+                          <button type="button" className="driver-out-nothome" onClick={() => notHome(o)}>🚪 Not home</button>
                           <button type="button" className="driver-out-hold" onClick={() => hold(o)}>⚠ Couldn&rsquo;t deliver — hold for pickup</button>
                         </>
                       )}
@@ -183,7 +198,12 @@ export default function DriverRun() {
                   )}
                 </>
               )}
-              {done && <div className="driver-doneline">{o.status === "held_for_pickup" ? "Held for pickup" : "Delivered"}{o.empties_collected != null && o.refill_count > 0 ? ` · ${o.empties_collected}/${o.empties_expected} empties` : ""}</div>}
+              {done && (
+                <div className="driver-donerow">
+                  <span className="driver-doneline">{o.status === "held_for_pickup" ? "Held for pickup" : o.status === "issue" ? (o.driver_note || "Not home — follow up") : "Delivered"}{o.empties_collected != null && o.refill_count > 0 && o.status === "delivered" ? ` · ${o.empties_collected}/${o.empties_expected} empties` : ""}</span>
+                  <button type="button" className="driver-undo" onClick={() => rollback(o)}>↩ Undo</button>
+                </div>
+              )}
             </div>
           );
         })}
