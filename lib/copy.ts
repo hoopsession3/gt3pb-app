@@ -36,7 +36,7 @@ export const COPY_META: CopyMeta[] = [
   { key: "pitch.kicker", group: "Reserve card", label: "Kicker", default: "Order Ahead" },
   { key: "pitch.headline", group: "Reserve card", label: "Headline", default: "The bottles you love, brewed to order." },
   { key: "pitch.body", group: "Reserve card", label: "Body", multiline: true,
-    default: "Reserve a Saturday drop — brewed to order and ready when you reach the window. No plan, no commitment." },
+    default: "Reserve a Saturday drop — ready the moment you reach the window. No plan, no commitment." },
   { key: "pitch.cta", group: "Reserve card", label: "Button", default: "Reserve this week's drop" },
   { key: "pitch.fine", group: "Reserve card", label: "Fine print", multiline: true,
     default: "Order by Wed 6 PM · pickup Saturday · bring bottles back for the best price." },
@@ -50,7 +50,7 @@ export const COPY_META: CopyMeta[] = [
   { key: "reserve.confirm_new", group: "Reserve flow", label: "Confirmation — new glass", multiline: true, default: "Your bottles are yours to keep — or bring them back next drop and unlock pack pricing. Fresh 7 days from pickup." },
   // ── Menu header ──
   { key: "menu.statement", group: "Menu", label: "Menu statement", multiline: true,
-    default: "We draw the coffee cold, blend the hydration from whole coconut, and simmer the broth slow — the long way, on purpose — then make every cup the moment you order it." },
+    default: "Drawn cold, simmered slow, blended from whole ingredients — every cup made the moment you order." },
   { key: "menu.order_line", group: "Menu", label: "Order prompt",
     default: "Order here, and it'll be waiting when you reach the window." },
   // ── Reserve (the signed-out storefront's story page) ──
