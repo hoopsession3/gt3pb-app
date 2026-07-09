@@ -3,7 +3,7 @@ import { chargeCard } from "@/lib/squareServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
-import { notifyCustomer } from "@/lib/notify";
+import { notifyCustomer, accountEmail } from "@/lib/notify";
 import { PRICING, FLAVORS, isPackSize, packTotal, toCents, mixComplete, mixSummary, nextDrop, dropForStop, dropDateKey, dollars, type GlassPath, type Mix } from "@/lib/orderAhead";
 
 // ORDER-AHEAD reserve — records a one-off Saturday-drop reservation. Price + cutoff are recomputed
@@ -98,10 +98,9 @@ export async function POST(req: Request) {
 
     // Confirmation to the customer — SMS (they gave a phone for exactly this) + account email.
     // Best-effort: a provider hiccup never fails the reservation.
-    const { data: au } = await supabaseAdmin.auth.admin.getUserById(user.id);
     await notifyCustomer({
       phone,
-      email: au?.user?.email ?? null,
+      email: await accountEmail(user.id),
       subject: `GT3 — ${size}-pack reserved for ${dropDate}`,
       message: `GT3: your ${size}-pack (${mixSummary(mix)}) is reserved for pickup ${dropDate}${paid ? " — paid ✓" : ` — ${dollars(packTotal(size, glass as GlassPath))} at pickup`}. We brew it fresh for pickup day.${glass === "return" ? " Rinse your empties and bring them along." : ""}`,
     });

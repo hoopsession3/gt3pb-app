@@ -3,7 +3,7 @@ import { chargeCard } from "@/lib/squareServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
-import { notifyCustomer } from "@/lib/notify";
+import { notifyCustomer, accountEmail } from "@/lib/notify";
 import {
   quoteDelivery, deliverySlotChoices, zipInZone, perfTotal, maxRefills,
   DELIVERY_PACKS, type PerfMix,
@@ -116,10 +116,9 @@ export async function POST(req: Request) {
     }
 
     // Confirmation to the customer — the delivery phone + account email. Best-effort.
-    const { data: au } = await supabaseAdmin.auth.admin.getUserById(user.id);
     await notifyCustomer({
       phone: row.phone,
-      email: au?.user?.email ?? null,
+      email: await accountEmail(user.id),
       subject: `GT3 — Sunday delivery confirmed (${slot.deliveryLabel})`,
       message: `GT3: your ${packSize}-bottle delivery is set for ${slot.deliveryLabel} — $${(quote.totalCents / 100).toFixed(2)}${paid ? " paid" : " due on delivery"}.${quote.refillCount > 0 ? ` Set your ${quote.refillCount} rinsed empties out by 5 AM — no empties, no swap.` : ""} Fresh 7 days from delivery.`,
     });

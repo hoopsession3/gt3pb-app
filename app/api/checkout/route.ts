@@ -4,6 +4,7 @@ import { SQUARE_BASE, SQUARE_VERSION, chargeCard } from "@/lib/squareServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
+import { notifyCustomer, accountEmail } from "@/lib/notify";
 import { preorderWindow, preorderLeadMs } from "@/lib/orderAhead";
 
 // Square Catalog as a secondary sync — used ONLY for items missing from `products` (a catalog gap),
@@ -130,6 +131,11 @@ export async function POST(req: Request) {
     const orderRow = { items, total_cents: subtotal, paid: false, payment_id: null, customer, user_id: user?.id ?? null, customer_id: customerId, status: "new" };
     const { error: insErr } = await supabaseAdmin.from("orders").insert(orderRow);
     if (insErr) return NextResponse.json({ error: "That didn't go through — give it another tap" }, { status: 500 });
+    // Confirmation email — cup orders carry no phone (a quick on-the-spot order, not a form), so this
+    // is account-email-only and only for signed-in members; guests just have the on-screen confirm.
+    if (user?.id) {
+      await notifyCustomer({ email: await accountEmail(user.id), subject: "GT3 — order in", message: `GT3: your order is in — ready in ~8 min. $${(subtotal / 100).toFixed(2)} at pickup.` });
+    }
     return NextResponse.json({ ok: true, amount: subtotal, recorded: true });
   }
 
@@ -154,6 +160,9 @@ export async function POST(req: Request) {
       const ref = (paymentId || "").slice(-6).toUpperCase();
       await raiseAlert({ severity: "critical", category: "money", title: "Paid order didn't record — add it", body: `A card payment succeeded (${paymentId}) but the order didn't save. ${customer ? `Name: ${customer}. ` : ""}Items: ${items.join(", ")}. Add it to the pass and confirm in Square.` });
       return NextResponse.json({ ok: true, paymentId, amount, recorded: false, ref, warn: `Payment received${ref ? ` — ref ${ref}` : ""}. We've alerted the crew to add your order; show this ref at the window.` }, { status: 200 });
+    }
+    if (user?.id) {
+      await notifyCustomer({ email: await accountEmail(user.id), subject: "GT3 — order in", message: `GT3: your order is in — ready in ~8 min. $${(amount / 100).toFixed(2)} paid.` });
     }
     return NextResponse.json({ ok: true, paymentId, amount, recorded: true });
   } catch {

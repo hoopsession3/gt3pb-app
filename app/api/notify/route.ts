@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { staffFromRequest } from "@/lib/apiAuth";
-import { notifyCustomer, emailEnabled, smsEnabled } from "@/lib/notify";
+import { notifyCustomer, emailEnabled, smsEnabled, accountEmail } from "@/lib/notify";
 
 // LIFECYCLE PINGS the crew fires from the boards — the customer can't be expected to sit in the
 // app. order_ready: the pass advanced an order to Ready (walk-up/pre-orders carry no phone, so
@@ -18,19 +18,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "kind + id required" }, { status: 400 });
   }
 
-  const emailOf = async (userId: string | null): Promise<string | null> => {
-    if (!userId) return null;
-    const { data } = await supabaseAdmin!.auth.admin.getUserById(userId);
-    return data?.user?.email ?? null;
-  };
-
   try {
     if (kind === "order_ready") {
       const { data: o } = await supabaseAdmin.from("orders").select("id, customer, user_id").eq("id", id).maybeSingle();
       if (!o) return NextResponse.json({ ok: false, error: "not found" }, { status: 404 });
       const first = (o.customer || "").split(" ")[0];
       const sent = await notifyCustomer({
-        email: await emailOf(o.user_id),
+        email: await accountEmail(o.user_id),
         subject: "GT3 — your order is ready",
         message: `GT3: ${first ? `${first}, ` : ""}your order is ready at the window — come grab it while it's fresh.`,
       });
@@ -43,7 +37,7 @@ export async function POST(req: Request) {
     const first = (d.name || "").split(" ")[0];
     const sent = await notifyCustomer({
       phone: d.phone,
-      email: await emailOf(d.user_id),
+      email: await accountEmail(d.user_id),
       subject: "GT3 — delivered",
       message: `GT3: ${first ? `${first}, ` : ""}your bottles are on the porch${Number(d.refill_count) > 0 ? " — we took your empties" : ""}. Fresh 7 days from today.`,
     });

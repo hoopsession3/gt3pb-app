@@ -4,6 +4,16 @@
 // TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN + TWILIO_FROM_NUMBER (SMS).
 // Voice: plain, short, lifecycle facts — never marketing.
 
+import { supabaseAdmin } from "./supabaseAdmin";
+
+// The three notifyCustomer() call sites each looked up the account email the same way
+// (auth.admin.getUserById → .user?.email) — one lookup instead of three copies.
+export async function accountEmail(userId: string | null): Promise<string | null> {
+  if (!userId || !supabaseAdmin) return null;
+  const { data } = await supabaseAdmin.auth.admin.getUserById(userId);
+  return data?.user?.email ?? null;
+}
+
 export const emailEnabled = (): boolean =>
   !!(process.env.RESEND_API_KEY && process.env.NOTIFY_FROM_EMAIL);
 export const smsEnabled = (): boolean =>
