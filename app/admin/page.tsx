@@ -3325,6 +3325,13 @@ function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; is
   const [pts, setPts] = useState(m.points);
   const [credit, setCredit] = useState((m.credit_cents / 100).toFixed(2));
   const [founding, setFounding] = useState(m.founding_member);
+  const [isDriver, setIsDriver] = useState(!!m.is_driver);
+  const toggleDriver = async () => {
+    const next = !isDriver; setIsDriver(next);
+    const { error } = await supabase!.rpc("admin_set_driver", { member: m.id, val: next });
+    if (error) { setIsDriver(!next); toast(`Error: ${error.message}`); }
+    else toast(next ? `${m.display_name ?? "Member"} tagged as driver 🚗` : "Driver tag removed");
+  };
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
   // Keep the loyalty inputs honest if a realtime reload changes them underneath us.
@@ -3366,6 +3373,7 @@ function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; is
           <span className="adm-ref">{m.referral_code || "—"}</span>
         </div>
         <span className={`tm-badge tone-${meta.tone}`}>{meta.label}</span>
+        {isDriver && <span className="tm-driver" title="Delivery driver">🚗</span>}
       </div>
       <label className="tm-rolepick">
         <select className="adm-role" value={role} onChange={(e) => setRole(e.target.value)} aria-label={`Role for ${m.display_name ?? "member"}`}>
@@ -3380,6 +3388,7 @@ function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; is
           <label>Points<input type="number" min={0} value={pts} onChange={(e) => setPts(Math.max(0, parseInt(e.target.value) || 0))} /></label>
           <label>Credit $<input type="text" inputMode="decimal" value={credit} onChange={(e) => setCredit(e.target.value)} /></label>
           <label className="adm-check"><input type="checkbox" checked={founding} onChange={(e) => setFounding(e.target.checked)} />Founding</label>
+          {role !== "member" && <label className="adm-check"><input type="checkbox" checked={isDriver} onChange={toggleDriver} />🚗 Driver</label>}
           <button className={`adm-btn${dirty ? " primary" : ""}`} onClick={save} disabled={!dirty || busy}>{busy ? "…" : "Save"}</button>
         </div>
       )}

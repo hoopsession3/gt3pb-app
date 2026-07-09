@@ -13,6 +13,7 @@ export interface Profile {
   credit_cents: number;
   founding_member: boolean;
   is_admin: boolean;
+  is_driver?: boolean;
   role?: "member" | "server" | "admin" | "owner";
   referred_by: string | null;
   avatar_url?: string | null;
