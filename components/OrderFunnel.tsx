@@ -256,7 +256,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
       setStep("done");
       if (replacing && supabase) {
         const old = replacing; setReplacing(null);
-        const { data: ok } = await supabase.rpc("cancel_own_reservation", { p_id: old.id });
+        const { data: ok } = await supabase.rpc("cancel_any_order", { p_channel: "pickup", p_id: old.id });
         toast(ok === true ? "Pack updated — your old reservation was canceled" : "New pack is in, but the old one couldn't be canceled — cancel it under Your pack.", ok === true ? undefined : "error");
       }
       setPacksKey((k) => k + "x");

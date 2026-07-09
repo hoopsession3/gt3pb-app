@@ -70,7 +70,7 @@ export default function MyPacks({ onChange, refreshKey }: { onChange?: (p: MyPac
       : `Cancel your ${p.size}-pack for ${day}? Nothing was charged.`;
     if (typeof window !== "undefined" && !window.confirm(msg)) return;
     setBusy(p.id);
-    const { data, error } = await supabase.rpc("cancel_own_reservation", { p_id: p.id });
+    const { data, error } = await supabase.rpc("cancel_any_order", { p_channel: "pickup", p_id: p.id });
     setBusy(null);
     if (error || data !== true) { toast("Couldn't cancel — it may already be picked up. Ask at the truck.", "error"); load(); return; }
     toast(p.paid ? "Canceled — refund on the way" : "Reservation canceled");

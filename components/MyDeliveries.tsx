@@ -75,7 +75,7 @@ export default function MyDeliveries() {
       : `Cancel your ${p.pack_size}-bottle delivery for ${dayLabel(p.delivery_date)}?`;
     if (typeof window !== "undefined" && !window.confirm(msg)) return;
     setBusy(p.id);
-    const { data, error } = await supabase.rpc("cancel_own_delivery", { p_id: p.id });
+    const { data, error } = await supabase.rpc("cancel_any_order", { p_channel: "delivery", p_id: p.id });
     setBusy(null);
     if (error || data !== true) { toast("Too late to cancel online — it's already being brewed. Text us and we'll help.", "error"); load(); return; }
     toast(p.payment_status === "paid" ? "Canceled — refund on the way" : "Delivery canceled");

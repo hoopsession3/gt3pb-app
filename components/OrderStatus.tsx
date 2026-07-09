@@ -91,7 +91,7 @@ export default function OrderStatus() {
     if (!supabase || canceling) return;
     if (!window.confirm(paid ? "Cancel this order? Your refund will follow shortly." : "Cancel this order?")) return;
     setCanceling(true);
-    const { data, error } = await supabase.rpc("cancel_own_order", { p_order: o.id });
+    const { data, error } = await supabase.rpc("cancel_any_order", { p_channel: "cup", p_id: o.id });
     setCanceling(false);
     if (!error && data) load();
   };
