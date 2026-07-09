@@ -9,7 +9,6 @@ import AccountPill from "@/components/AccountPill";
 import SignIn from "@/components/SignIn";
 import { supabase } from "@/lib/supabase";
 import { SQUARE_APP_ID, SQUARE_LOCATION_ID, squareClientReady, squareWebSdkUrl } from "@/lib/square";
-import { usePayAtPickup } from "@/components/usePayAtPickup";
 import {
   quoteDelivery, deliverySlotChoices, zipInZone, maxRefills,
   DELIVERY_PACKS, DELIVERY_PRICING, SALTED_LATTE,
@@ -66,32 +65,7 @@ export default function DeliveryPage() {
 
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const [done, setDone] = useState<{ label: string; total: number; warn?: string; paid?: boolean } | null>(null);
-  const payLater = usePayAtPickup();
-
-  // Pay-on-delivery — same order, no card token. Server records it unpaid and confirms.
-  const payOnDelivery = async () => {
-    setErr("");
-    if (!pack || !quote) return;
-    setBusy(true);
-    try {
-      const accessToken = (await supabase?.auth.getSession())?.data.session?.access_token;
-      const res = await fetch("/api/delivery/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
-        body: JSON.stringify({
-          name, phone, addressStreet: street, addressCity: city, addressZip: zip,
-          accessInstructions: access, packSize: pack, riseCount: mix.rise, flowCount: mix.flow, duskCount: mix.dusk,
-          perfMix: premiums, refillCount: path === "loop" ? refills : 0, emptiesAck: ack, deliveryDate: slot.deliveryDateKey,
-        }),
-      });
-      const data = await res.json();
-      setBusy(false);
-      if (!res.ok) { setErr(data.error || "Couldn't place the order"); return; }
-      setDone({ label: data.deliveryLabel, total: data.totalCents ?? quote.totalCents, warn: data.warn, paid: false });
-      setStep("done");
-    } catch { setBusy(false); setErr("Order service unavailable"); }
-  };
+  const [done, setDone] = useState<{ label: string; total: number; warn?: string } | null>(null);
 
   const quote = useMemo(
     () => (pack ? quoteDelivery(pack, perf, path === "loop" ? refills : 0, "direct") : null),
@@ -154,7 +128,7 @@ export default function DeliveryPage() {
       const data = await res.json();
       setBusy(false);
       if (!res.ok) { setErr(data.error || "Payment failed"); return; }
-      setDone({ label: data.deliveryLabel, total: data.totalCents ?? quote.totalCents, warn: data.warn, paid: true });
+      setDone({ label: data.deliveryLabel, total: data.totalCents ?? quote.totalCents, warn: data.warn });
       setStep("done");
     } catch { setBusy(false); setErr("Payment service unavailable"); }
   };
@@ -167,6 +141,13 @@ export default function DeliveryPage() {
       <div className="toprow">
         <div className="eyb">Sunday Delivery</div>
         <AccountPill />
+      </div>
+
+      {/* Mode banner — DELIVERY (to your door, prepaid), clearly distinct from pickup. */}
+      <div className="oa-mode">
+        <span className="oa-mode-b">🚚 Delivery</span>
+        <span className="oa-mode-s">To your door Sunday — prepaid on order.</span>
+        <button type="button" className="oa-mode-alt" onClick={() => router.push("/reserve")}>Rather pick up? →</button>
       </div>
 
       {/* the persistent deadline line — the one fact every step needs */}
@@ -342,27 +323,17 @@ export default function DeliveryPage() {
             <span>{pack} bottles · {slot.deliveryLabel}</span>
             <span className="dl-quote-t">total <b>{dollars(quote.totalCents)}</b></span>
           </div>
-          {squareClientReady && (
+          {/* Delivery is always paid on order — card required, no cash on delivery. */}
+          {squareClientReady ? (
             <>
+              <p className="dl-sub">Paid now, on your card — delivery is prepaid.</p>
               <div id="dl-card" className="sq-card" />
               {err && <p className="dl-err" role="alert">{err}</p>}
               <button type="button" className="oa-cta" disabled={!cardReady || busy} onClick={pay}>
                 {busy ? "Charging…" : `Pay ${dollars(quote.totalCents)}`}
               </button>
             </>
-          )}
-          {/* Pay-on-delivery — governed by the operator's Money-section toggle; the only path when
-              Square is off, or a secondary "pay at the door" when card is on. */}
-          {payLater.on && (
-            <>
-              {!squareClientReady && err && <p className="dl-err" role="alert">{err}</p>}
-              <button type="button" className={squareClientReady ? "oa-paylater" : "oa-cta"} disabled={busy} onClick={payOnDelivery}>
-                {busy ? "Placing…" : squareClientReady ? "or pay on delivery" : `Reserve ${dollars(quote.totalCents)} — pay on delivery`}
-              </button>
-              {!squareClientReady && <p className="dl-sub">Pay the driver when it arrives Sunday morning.</p>}
-            </>
-          )}
-          {!squareClientReady && !payLater.on && (
+          ) : (
             <p className="dl-sub">Checkout isn&rsquo;t switched on yet — card payments arrive with the Square keys.</p>
           )}
         </div>
@@ -372,7 +343,7 @@ export default function DeliveryPage() {
         <div className="dl-step">
           <h2 className="dl-h">You&rsquo;re in. We&rsquo;ll be there before sunrise Sunday.</h2>
           <div className="dl-quote">
-            <span>{pack} bottles · {done.paid === false ? "due on delivery" : "paid"} <b>{dollars(done.total)}</b></span>
+            <span>{pack} bottles · paid <b>{dollars(done.total)}</b></span>
             <span>{done.label}</span>
             <span>{street}, {city} {zip}</span>
             {refills > 0 && <span>Rinse and set out <b>{refills} empties</b> on the porch before 5 AM Sunday.</span>}

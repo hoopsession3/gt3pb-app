@@ -52,20 +52,31 @@ One rule, one source of truth, enforced at every layer so it can't be dodged or 
 - Enforced three times with the same function (`lib/orderAhead.preorderWindow`): the **menu drink
   sheet** (Add becomes "Truck's closed — reserve a pack ›"), the **checkout sheet** (explains when
   ordering opens, names the next stop), and **`/api/checkout`** (authoritative, before any charge).
-- **Pack reserves are always open** — brewed to order for the next drop; the closed states route
-  people there instead of dead-ending them.
+- **Pack pickup reserves close 24h before the stop** — a pack is brewed to order, so ordering shuts
+  a full day ahead (`lib/orderAhead.STOP_LEAD_MS = 24h`, in `dropForStop`). The reserve UI only
+  offers stops still open (filters those inside 24h) and `/api/reserve` re-enforces the cutoff.
+  Pickup day is dynamic — the truck's real upcoming stops.
+
+## Pickup vs delivery — two clearly separate paths
+- **Pickup** (`/reserve`, `OrderAhead`) — order ahead, **grab it at a truck stop**. 24h cutoff.
+  Pay by card **or** pay-at-pickup (operator toggle). Banner: 🏪 Pickup, with a one-tap "Want it
+  delivered? →" to `/delivery`.
+- **Delivery** (`/delivery`) — **to your door Sunday, always prepaid on the card**. No cash on
+  delivery; if Square isn't connected the flow shows "Checkout isn't switched on yet". Banner:
+  🚚 Delivery, with "Rather pick up? →" to `/reserve`.
+- Every ordering surface carries the mode banner so a customer never confuses the two; the crew
+  sees them on separate boards (Now → the drop = pickup packs; DeliveryOps = Sunday delivery).
 
 ## Payment paths — how customers pay (Money → Checkout & payments)
-Two independent switches, both surfaced in the crew Money section (`components/PaymentSettings.tsx`):
+Two independent controls, both surfaced in the crew Money section (`components/PaymentSettings.tsx`):
 - **Card checkout** is on when the **Square env keys** are set on the host (read-only status). The
   exact keys to connect Square are in `gt3pb-deploy-v1.md`.
-- **Pay at pickup / on delivery** is the owner's toggle (`live_status.pay_at_pickup`, 0145,
-  default ON). Read everywhere by `usePayAtPickup()`; the cup **checkout**, the pack **reserve**,
-  and **Sunday delivery** all offer a pay-later path when it's on — on its own when Square is off,
-  or as the secondary action beside the card when Square is on. Delivery's card-less path is
-  enforced server-side in `/api/delivery/checkout` (records `payment_method='pay_on_delivery'`,
-  `payment_status='unpaid'`). **Default-ON means a real order can be placed and tasted end-to-end
-  before Square is even connected.** If BOTH are off, no order can be placed (by design).
+- **Pay at pickup** is the owner's toggle (`live_status.pay_at_pickup`, 0145, default ON), **PICKUP
+  ONLY**. Read by `usePayAtPickup()`; the cup **checkout** and the pack **reserve** offer a
+  pay-in-person path when it's on — alone when Square is off, or as the secondary action beside the
+  card when Square is on. **Sunday delivery ignores this switch — delivery is always prepaid.**
+  Default-ON means a real pickup order can be placed and tasted end-to-end before Square is even
+  connected. If Square is off AND pay-at-pickup is off, no pickup order can be placed (by design).
 
 ## Customer self-service — the loop closes both ways
 - **Your pack** (`components/MyPacks.tsx`, top of `/reserve`): members see upcoming reservations

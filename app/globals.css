@@ -2943,6 +2943,13 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .oa-card{background:linear-gradient(180deg,#23211B,#2A2820);border:1px solid rgba(184,144,47,.28);border-radius:22px;padding:22px 18px 18px;box-shadow:0 18px 40px rgba(0,0,0,.45)}
 .oa-view{display:none}.oa-view.on{display:block}
 .oa-kicker{font-size:11px;letter-spacing:.24em;color:var(--oa-gold);font-weight:600;margin-bottom:12px}
+/* fulfillment mode banner — makes PICKUP vs DELIVERY unmistakable, with a one-tap switch to the other */
+.oa-mode{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;border:1px solid var(--line2,rgba(245,241,232,.2));border-radius:12px;padding:10px 13px;margin:0 0 16px}
+.oa-mode-b{font-family:'Inter';font-weight:800;font-size:13.5px;letter-spacing:.02em}
+.oa-mode-s{flex:1;min-width:120px;font-family:'Inter';font-size:11.5px;color:var(--cream-m,rgba(245,241,232,.65))}
+.oa-mode-alt{background:none;border:none;font-family:'Inter';font-weight:700;font-size:11.5px;color:var(--oa-gold,#C8A661);cursor:pointer;white-space:nowrap;-webkit-appearance:none;appearance:none}
+/* pickup-only tag on the Money pay-at-pickup row */
+.pay-row-tag{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--gold2,#C8A661);border:1px solid var(--gold2,#C8A661);border-radius:5px;padding:1px 5px;margin-left:6px;vertical-align:middle}
 .oa-head{font-family:'Fraunces',Georgia,serif;font-style:italic;font-weight:600;font-size:26px;line-height:1.13;letter-spacing:-.01em;margin-bottom:12px}
 .oa-slabel{font-size:10.5px;letter-spacing:.2em;color:var(--oa-cream-faint);font-weight:600;text-transform:uppercase;margin:0 2px 10px}
 .oa-cutoff{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--oa-cream-dim);background:rgba(127,168,107,.12);border:1px solid rgba(127,168,107,.3);border-radius:14px;padding:9px 12px;margin-bottom:8px;line-height:1.4}

@@ -77,10 +77,11 @@ export function dropIsOpen(dropDateISO: string, now: Date = new Date()): boolean
   return dropDateISO.slice(0, 10) === sat.toISOString().slice(0, 10);
 }
 
-// The pickup always follows the truck's NEXT scheduled stop: pickup = that stop's date, and ordering
-// closes a few hours before it so there's time to brew to order. Used when a stop is scheduled; the
-// Saturday nextDrop() above is the fallback when the route is empty.
-const STOP_LEAD_MS = 3 * 60 * 60 * 1000; // close ordering 3h before the stop
+// A pack pickup always follows the truck's NEXT scheduled stop: pickup = that stop's date, and
+// ordering closes **24 hours before** it — the packs are brewed to order, so a full day's lead is
+// what lets the crew brew and bottle for the drop. Used when a stop is scheduled; the Saturday
+// nextDrop() above is the fallback when the route is empty.
+export const STOP_LEAD_MS = 24 * 60 * 60 * 1000; // close pack pickup orders 24h before the stop
 export function dropForStop(startsAtISO: string): { sat: Date; cutoff: Date } {
   const pickup = new Date(startsAtISO);
   return { sat: pickup, cutoff: new Date(pickup.getTime() - STOP_LEAD_MS) };
