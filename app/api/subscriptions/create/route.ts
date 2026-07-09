@@ -43,8 +43,10 @@ export async function POST(req: Request) {
   // partial unique index subscriptions_one_active(user_id) rejects a concurrent or
   // existing active/paused/pending/past_due subscription, so only one request ever
   // reaches Square — no duplicate billable subscriptions.
+  // Canonical customer link (0151), so a subscription counts toward the same person as their orders.
+  const canonCustomerId = (await supabaseAdmin.rpc("resolve_customer", { p_user_id: user.id, p_phone: null, p_email: null, p_name: null })).data as string | null;
   const { data: pending, error: claimErr } = await supabaseAdmin
-    .from("subscriptions").insert({ user_id: user.id, plan: `coffee_${pack}`, status: "pending" }).select("id").single();
+    .from("subscriptions").insert({ user_id: user.id, customer_id: canonCustomerId, plan: `coffee_${pack}`, status: "pending" }).select("id").single();
   if (claimErr || !pending) {
     return NextResponse.json({ error: "You already have a subscription." }, { status: 409 });
   }

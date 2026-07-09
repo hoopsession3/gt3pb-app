@@ -94,7 +94,10 @@ export async function POST(req: Request) {
       paid = true;
     }
 
-    const row = { user_id: user.id, name, phone, size, glass, mix, total_cents: amount, paid, payment_id: paymentId, drop_date: dropDate };
+    // Canonical customer link (0151) — member-only route, so user.id is the strong key; phone folds
+    // any prior guest orders on the same number into this record.
+    const customerId = (await supabaseAdmin.rpc("resolve_customer", { p_user_id: user.id, p_phone: phone || null, p_email: null, p_name: name })).data as string | null;
+    const row = { user_id: user.id, customer_id: customerId, name, phone, size, glass, mix, total_cents: amount, paid, payment_id: paymentId, drop_date: dropDate };
     let { data: inserted, error: insErr } = await supabaseAdmin.from("drop_orders").insert(row).select("id").single();
     if (insErr) ({ data: inserted, error: insErr } = await supabaseAdmin.from("drop_orders").insert(row).select("id").single()); // retry once
     if (insErr) {

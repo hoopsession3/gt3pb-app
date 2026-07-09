@@ -101,8 +101,10 @@ export async function POST(req: Request) {
     const paymentId: string | null = data?.payment?.id ?? null;
     const paid = true;
 
+    // Canonical customer link (0151) — member route; phone folds prior guest/pickup orders in.
+    const customerId = (await supabaseAdmin.rpc("resolve_customer", { p_user_id: user.id, p_phone: s(b.phone, 30) || null, p_email: null, p_name: name })).data as string | null;
     const row = {
-      user_id: user.id, channel: "direct", delivery_date: slot.deliveryDateKey, delivery_window: "5–8 AM",
+      user_id: user.id, customer_id: customerId, channel: "direct", delivery_date: slot.deliveryDateKey, delivery_window: "5–8 AM",
       name, phone: s(b.phone, 30) || null,
       address_street: street, address_city: city, address_zip: zip,
       access_instructions: s(b.accessInstructions, 400) || null,

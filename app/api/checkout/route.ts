@@ -107,7 +107,12 @@ export async function POST(req: Request) {
     // are consistent across paid and pre-order paths.
     const user = await userFromRequest(req); // null for guest checkout
     const customer = typeof body.customer === "string" && body.customer.trim() ? body.customer.trim().slice(0, 80) : null;
-    const orderRow = { items, total_cents: subtotal, paid: true, payment_id: paymentId, customer, user_id: user?.id ?? null, status: "new" };
+    // Link to the canonical customer (0151) when we know who this is — a signed-in cup order. Guest
+    // walk-ups (no account, no phone/email) stay anonymous rather than minting a name-only row.
+    const customerId = user?.id
+      ? ((await supabaseAdmin.rpc("resolve_customer", { p_user_id: user.id, p_phone: null, p_email: null, p_name: customer })).data as string | null)
+      : null;
+    const orderRow = { items, total_cents: subtotal, paid: true, payment_id: paymentId, customer, user_id: user?.id ?? null, customer_id: customerId, status: "new" };
     let { error: insErr } = await supabaseAdmin.from("orders").insert(orderRow);
     if (insErr) {
       // Charge succeeded but recording failed. Retry once — a transient DB blip must not cost the
