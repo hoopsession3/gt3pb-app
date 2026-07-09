@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import AssignTaskSheet from "@/components/AssignTaskSheet";
 import Sheet from "@/components/Sheet";
+import ProgressRing from "@/components/ProgressRing";
 
 // BREW — recipes + a back-scheduled batch plan. Pick a recipe, set the batch size in GALLONS (the
 // recipe scales exactly to it and hits its OG/Signal-Score spec), tie it to the event it's for, and
@@ -175,11 +176,18 @@ export default function BrewPlanner() {
                 {b.status === "brewing" && b.ready_at && (() => {
                   const ms = new Date(b.ready_at).getTime() - now;
                   const done = ms <= 0; const soon = !done && ms <= 3600000;
+                  const startMs = b.brew_started_at ? new Date(b.brew_started_at).getTime() : null;
+                  const totalMs = startMs && b.ready_at ? new Date(b.ready_at).getTime() - startMs : null;
+                  const pct = done ? 1 : (startMs && totalMs && totalMs > 0 ? (now - startMs) / totalMs : 0);
                   return (
                     <div className={`brew-timer${done ? " done" : soon ? " soon" : ""}`}>
-                      <span className="brew-timer-dot" />
-                      <b>{done ? "⏰ Time to bottle" : remain(b.ready_at, now)}</b>
-                      <span>{done ? `${b.recipe_name || "Brew"} · ${b.batch_gal} gal — filter, finish, bottle` : `${b.batch_gal} gal brewing · ready ${fmtTs(b.ready_at)}${soon ? " · almost there" : ""}`}</span>
+                      <ProgressRing pct={pct} size={50} stroke={4.5} color={done ? "var(--ok)" : soon ? "var(--red-h)" : "var(--gold2)"}>
+                        <span className="brew-ring-pct">{done ? "🍾" : `${Math.round(pct * 100)}%`}</span>
+                      </ProgressRing>
+                      <div className="brew-timer-txt">
+                        <b>{done ? "⏰ Time to bottle" : remain(b.ready_at, now)}</b>
+                        <span>{done ? `${b.recipe_name || "Brew"} · ${b.batch_gal} gal — filter, finish, bottle` : `${b.batch_gal} gal brewing · ready ${fmtTs(b.ready_at)}${soon ? " · almost there" : ""}`}</span>
+                      </div>
                     </div>
                   );
                 })()}
