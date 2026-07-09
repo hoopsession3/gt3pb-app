@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useApp } from "./AppProvider";
 import { type PerfMix } from "@/lib/delivery";
+import AssignTaskSheet from "./AssignTaskSheet";
 
 // SUNDAY DELIVERY OPS — the crew side of the delivery debrief, in DropOps' shape: one summary
 // sentence (units, one hero thought), the Saturday brew totals (incl. Performance combos), and a
@@ -34,6 +35,7 @@ export default function DeliveryOps() {
   const [rows, setRows] = useState<DOrder[]>([]);
   const [date, setDate] = useState<string | null>(null);
   const [listOpen, setListOpen] = useState<boolean | null>(null);
+  const [assign, setAssign] = useState(false);
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -126,6 +128,8 @@ export default function DeliveryOps() {
         {premiumTotal > 0 && <> · Premium: <b>{Object.keys(premiumMix).length ? Object.entries(premiumMix).map(([k, n]) => `${n}× ${k}`).join(" · ") : premiumTotal}</b></>}
       </div>
       <a className="dops-driver-link" href="/driver">🚗 Open the driver run — map &amp; turn-by-turn →</a>
+      <button type="button" className="dops-assign-link" onClick={() => setAssign(true)}>📋 Assign this run to a driver →</button>
+      {assign && <AssignTaskSheet defaultTitle={`Sunday delivery run — ${rows.length} stop${rows.length === 1 ? "" : "s"} · ${bottles} bottles`} dueOn={date} category="ops" onClose={() => setAssign(false)} />}
       <button type="button" className="dops-prog" onClick={() => setListOpen(!showList)} aria-expanded={showList}>
         <span><b>{doneCount}/{rows.length}</b> stops done</span>
         <span>{showList ? "▾" : "▸"}</span>

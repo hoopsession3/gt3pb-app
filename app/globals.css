@@ -3065,6 +3065,8 @@ select.note-in{-webkit-appearance:none;appearance:none}
 /* ============ DRIVER RUN — one-handed, at the wheel ============ */
 .dops-driver-link{display:block;margin-top:10px;text-align:center;padding:12px;border-radius:12px;background:var(--gold);color:#1a1409;font-family:'Inter';font-weight:800;font-size:14px;text-decoration:none;transition:transform .11s cubic-bezier(.2,.7,.3,1)}
 .dops-driver-link:active{transform:scale(.97)}
+.dops-assign-link{display:block;width:100%;margin-top:8px;text-align:center;padding:11px;border-radius:12px;background:transparent;border:1px solid var(--gold2);color:var(--gold2);font-family:'Inter';font-weight:700;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none;transition:transform .11s cubic-bezier(.2,.7,.3,1)}
+.dops-assign-link:active{transform:scale(.97)}
 .driver{padding-bottom:26px}
 .driver-empty{padding:40px 22px;text-align:center;color:var(--cream-m);font-family:'Inter';font-size:14px;line-height:1.6}
 .driver-head{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
