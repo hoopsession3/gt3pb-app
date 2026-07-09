@@ -11,6 +11,14 @@
 @font-face{font-family:'DM Mono';font-style:normal;font-weight:500;font-display:swap;src:url(/fonts/dm-mono-500.woff2) format('woff2');}
 
 :root{--red:#B82420;--red-d:#9d1d1a;--red-h:#d64b46;--cream:#F5F1E8;--cream-m:rgba(245,241,232,.72);--cream-d:rgba(245,241,232,.48);--cream2:#EFE7D6;
+  /* --oa-* used to be scoped to the old .oa wrapper (see "ORDER-AHEAD" block below) — that wrapper
+     is gone from every customer-facing screen except AskGT3 now (OrderFunnel etc. use .of), so every
+     .oa-cta/.oa-tile/.of-seg rule referencing var(--oa-red) etc. was silently resolving to nothing:
+     the primary "Build your pack" CTA rendered with a fully transparent background in production.
+     Promoted to :root so they resolve everywhere; identical values, so AskGT3's .oa block below is
+     now a harmless redundant re-declaration, not a behavior change. */
+  --oa-cream:#F5F1E8;--oa-cream-dim:rgba(245,241,232,.60);--oa-cream-faint:rgba(245,241,232,.34);
+  --oa-gold:#B8902F;--oa-red:#B82420;--oa-red-tint:rgba(184,36,32,.15);--oa-hair:rgba(245,241,232,.14);--oa-green:#7FA86B;
   --char:#15120d;--char2:#1a1610;--char3:#100e0a;--card:#191510;--ink:#000;
   --gold:#a97c3f;--gold2:#c8a661;--bronze:#a97c3f;--line:rgba(245,241,232,.12);--line2:rgba(245,241,232,.2);--ok:#6aa05c;--warn:#cf9a4a;
   --mono:'DM Mono',ui-monospace,monospace}
