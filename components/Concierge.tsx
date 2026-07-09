@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Sheet from "./Sheet";
 
 // GUEST CONCIERGE — a friendly floating host on the customer app. Answers menu/visit/booking/
 // membership questions by calling the public /api/concierge route (grounded + claim-safe). No login.
+// Built on the canonical Sheet (was its own hand-rolled scrim/panel/scroll-body before — same visual
+// contract, just duplicated by hand instead of shared, which is exactly what Sheet exists to prevent).
 
 type Msg = { role: "user" | "assistant"; content: string };
 const GREETING = "Hey — I'm the GT3 concierge. Ask me what's good to order, where the truck is, or how to book us for an event.";
@@ -39,32 +42,30 @@ export default function Concierge() {
         <span className="conc-fab-i">☕</span><span className="rail-txt"><b>Ask us</b><i>menu · hours · booking</i></span>
       </button>
 
-      {open && (
-        <div className="conc-scrim" onClick={() => setOpen(false)}>
-          <div className="conc-panel" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="GT3 concierge">
-            <div className="conc-head">
-              <div className="conc-head-l"><span className="conc-badge">GT3</span><div><div className="conc-title">Concierge</div></div></div>
-              <button type="button" className="conc-x" onClick={() => setOpen(false)} aria-label="Close">✕</button>
-            </div>
-
-            <div className="conc-body" ref={bodyRef}>
-              {msgs.map((m, i) => <div key={i} className={`conc-msg ${m.role}`}>{m.content}</div>)}
-              {busy && <div className="conc-msg assistant conc-typing"><span /><span /><span /></div>}
-              {msgs.length === 1 && (
-                <div className="conc-chips">
-                  {CHIPS.map((c) => <button key={c} type="button" className="conc-chip" onClick={() => send(c)}>{c}</button>)}
-                </div>
-              )}
-            </div>
-
+      <Sheet open={open} onClose={() => setOpen(false)} labelledBy="concierge-title" bodyRef={bodyRef}
+        header={
+          <div className="conc-head">
+            <div className="conc-head-l"><span className="conc-badge">GT3</span><div><div className="conc-title" id="concierge-title">Concierge</div></div></div>
+            <button type="button" className="conc-x" onClick={() => setOpen(false)} aria-label="Close">✕</button>
+          </div>
+        }
+        footer={
+          <>
             <form className="conc-inbar" onSubmit={(e) => { e.preventDefault(); send(input); }}>
               <input className="conc-in" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Type a question…" aria-label="Message" />
               <button type="submit" className="conc-send" disabled={busy || !input.trim()} aria-label="Send">↑</button>
             </form>
             <div className="conc-foot">Answers come from our menu &amp; schedule. For allergies or medical questions, ask the crew at the window.</div>
+          </>
+        }>
+        {msgs.map((m, i) => <div key={i} className={`conc-msg ${m.role}`}>{m.content}</div>)}
+        {busy && <div className="conc-msg assistant conc-typing"><span /><span /><span /></div>}
+        {msgs.length === 1 && (
+          <div className="conc-chips">
+            {CHIPS.map((c) => <button key={c} type="button" className="conc-chip" onClick={() => send(c)}>{c}</button>)}
           </div>
-        </div>
-      )}
+        )}
+      </Sheet>
     </>
   );
 }

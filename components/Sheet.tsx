@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 
 // THE canonical popout. One implementation, so the scroll contract, safe-area, keyboard-awareness,
 // spring-in, and swipe-to-dismiss are guaranteed identical everywhere — no per-sheet drift. Bottom
@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 // Structure: scrim (flex) > panel (flex column) > grab · [header] · body (the only scroll region) ·
 // [footer]. Respects prefers-reduced-motion via the global guard.
 export default function Sheet({
-  open, onClose, header, footer, children, className = "", labelledBy,
+  open, onClose, header, footer, children, className = "", labelledBy, bodyRef,
 }: {
   open: boolean;
   onClose: () => void;
@@ -17,6 +17,10 @@ export default function Sheet({
   children: ReactNode;
   className?: string;
   labelledBy?: string;
+  // Optional ref onto the scroll body — for a sheet that needs to control its own scroll position
+  // (e.g. auto-scrolling a chat transcript to the latest message). Every sheet shares this one scroll
+  // region by contract; this just exposes a handle to it instead of a per-sheet nested scroll div.
+  bodyRef?: RefObject<HTMLDivElement | null>;
 }) {
   const [drag, setDrag] = useState(0);
   const startY = useRef<number | null>(null);
@@ -57,7 +61,7 @@ export default function Sheet({
         style={panelStyle} onClick={(e) => e.stopPropagation()}>
         <div className="sheet2-grab" {...dragZone} />
         {header && <div className="sheet2-head" {...dragZone}>{header}</div>}
-        <div className="sheet2-body">{children}</div>
+        <div className="sheet2-body" ref={bodyRef}>{children}</div>
         {footer && <div className="sheet2-foot">{footer}</div>}
       </div>
     </div>
