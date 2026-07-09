@@ -2957,7 +2957,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
   --oa-gold:#B8902F;--oa-red:#B82420;--oa-red-tint:rgba(184,36,32,.15);--oa-hair:rgba(245,241,232,.14);--oa-green:#7FA86B;
   width:100%;max-width:430px;margin:0 auto;padding:8px 2px 40px;color:var(--oa-cream)}
 .oa-card{background:linear-gradient(180deg,#23211B,#2A2820);border:1px solid rgba(184,144,47,.28);border-radius:22px;padding:22px 18px 18px;box-shadow:0 18px 40px rgba(0,0,0,.45)}
-.oa-view{display:none}.oa-view.on{display:block}
+.oa-view{display:none}.oa-view.on{display:block;animation:stepGlide .42s cubic-bezier(.2,.85,.25,1)}
 .oa-kicker{font-size:11px;letter-spacing:.24em;color:var(--oa-gold);font-weight:600;margin-bottom:12px}
 /* fulfillment mode banner — makes PICKUP vs DELIVERY unmistakable, with a one-tap switch to the other */
 .oa-mode{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;border:1px solid var(--line2,rgba(245,241,232,.2));border-radius:12px;padding:10px 13px;margin:0 0 16px}
@@ -3674,7 +3674,9 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 /* ─────────── Sunday delivery flow (/delivery) — Voice 2, house dark shell ─────────── */
 .dl-deadline{font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.08em;color:var(--cream-m);border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin:4px 0 16px}
 .dl-deadline b{color:var(--gold2,#C8A661);font-weight:500}
-.dl-step{display:flex;flex-direction:column;gap:12px}
+.dl-step{display:flex;flex-direction:column;gap:12px;animation:stepGlide .42s cubic-bezier(.2,.85,.25,1)}
+/* funnel steps settle into place instead of hard-cutting — the 'glide through gears' feel */
+@keyframes stepGlide{from{opacity:0;transform:translateY(14px) scale(.992)}to{opacity:1;transform:none}}
 .dl-h{font-family:'Inter','Helvetica Neue',Arial,sans-serif;font-style:normal;font-weight:800;font-size:24px;line-height:1.15;margin:0}
 .dl-sub{font-family:'Inter';font-size:13px;line-height:1.5;color:var(--cream-m);margin:0}
 .dl-sub.ok{color:#7FA86B}
