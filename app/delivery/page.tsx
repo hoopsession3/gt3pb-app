@@ -76,23 +76,49 @@ export default function DeliveryPage() {
   // Square card mount — same lifecycle as the checkout sheet.
   const cardRef = useRef<{ tokenize: () => Promise<{ status: string; token?: string }>; destroy?: () => void } | null>(null);
   const [cardReady, setCardReady] = useState(false);
+  // The card mount must survive the SDK loading a beat late: keep re-attempting the WHOLE attach
+  // (payments → card → attach) until window.Square exists and the iframe mounts — the old version
+  // bailed once and never retried. And surface any Square error instead of leaving a silent blank box.
   useEffect(() => {
     if (step !== "pay" || !squareClientReady) return;
     let dead = false;
-    (async () => {
+    let attaching = false;
+    let polls = 0;
+    let iv: ReturnType<typeof setInterval> | undefined;
+    const tryMount = async (): Promise<boolean> => {
+      if (dead || cardRef.current || attaching) return true;
+      const Square = (window as unknown as { Square?: { payments: (a: string, l: string) => { card: () => Promise<{ attach: (sel: string) => Promise<void>; tokenize: () => Promise<{ status: string; token?: string }>; destroy?: () => void }> } } }).Square;
+      if (!Square) return false; // SDK script still loading — keep polling
+      attaching = true;
       try {
-        const Square = (window as unknown as { Square?: { payments: (a: string, l: string) => { card: () => Promise<{ attach: (sel: string) => Promise<void>; tokenize: () => Promise<{ status: string; token?: string }>; destroy?: () => void }> } } }).Square;
-        if (!Square) return;
         const payments = Square.payments(SQUARE_APP_ID, SQUARE_LOCATION_ID);
         const card = await payments.card();
-        if (dead) { card.destroy?.(); return; }
+        if (dead) { card.destroy?.(); return true; }
         await card.attach("#dl-card");
         cardRef.current = card;
         setCardReady(true);
-      } catch { /* SDK not ready — the retry interval below covers it */ }
+        setErr("");
+        return true;
+      } catch (e) {
+        setErr(`Card form couldn't load — ${e instanceof Error ? e.message : "Square error"}. Retrying…`);
+        return false;
+      } finally {
+        attaching = false;
+      }
+    };
+    (async () => {
+      if (await tryMount()) return;
+      iv = setInterval(async () => {
+        polls += 1;
+        if (dead || cardRef.current) { if (iv) clearInterval(iv); return; }
+        if (await tryMount()) { if (iv) clearInterval(iv); return; }
+        if (polls >= 25) { // ~7.5s — the SDK never showed up
+          if (iv) clearInterval(iv);
+          if (!cardRef.current) setErr("Card form didn't load. Refresh and try again — if it keeps happening, tell us.");
+        }
+      }, 300);
     })();
-    const iv = setInterval(() => { if (cardRef.current && document.querySelector("#dl-card iframe")) { setCardReady(true); clearInterval(iv); } }, 250);
-    return () => { dead = true; clearInterval(iv); cardRef.current?.destroy?.(); cardRef.current = null; setCardReady(false); };
+    return () => { dead = true; if (iv) clearInterval(iv); cardRef.current?.destroy?.(); cardRef.current = null; setCardReady(false); };
   }, [step]);
 
   const bump = (k: "rise" | "flow" | "dusk", d: number) =>
@@ -143,25 +169,29 @@ export default function DeliveryPage() {
         <AccountPill />
       </div>
 
-      {/* Mode banner — DELIVERY (to your door, prepaid), clearly distinct from pickup. */}
+      {/* Mode banner — DELIVERY (prepaid, to your door), clearly distinct from pickup. Kept short:
+          the hero owns the timing pitch, so the banner is just mode + the prepaid fact. */}
       <div className="oa-mode">
         <span className="oa-mode-b">🚚 Delivery</span>
-        <span className="oa-mode-s">To your door Sunday — prepaid on order.</span>
+        <span className="oa-mode-s">Prepaid — brought to your door.</span>
         <button type="button" className="oa-mode-alt" onClick={() => router.push("/reserve")}>Rather pick up? →</button>
       </div>
 
-      {/* the persistent deadline line — the one fact every step needs */}
-      <div className="dl-deadline">Drop closes <b>{slot.cutoffLabel}</b> · delivery <b>{slot.deliveryLabel}</b></div>
+      {/* the deadline line — the one fact every ordering step needs, but not the landing (no Sunday
+          chosen yet, and the hero already carries the timing). Shown from the size step onward. */}
+      {step !== "zone" && (
+        <div className="dl-deadline">Drop closes <b>{slot.cutoffLabel}</b> · delivery <b>{slot.deliveryLabel}</b></div>
+      )}
 
       {step === "zone" && (
         <div className="dl-step">
           <div className="dl-hero">
             <h2 className="dl-h dl-h-xl">Your week, <em>delivered.</em></h2>
-            <p className="dl-sub">Rise, Flow &amp; Dusk on the porch Sunday 5&ndash;8 AM &mdash; brewed Saturday, ready before the week starts.</p>
+            <p className="dl-sub">Cold-extracted Rise, Flow &amp; Dusk &mdash; brewed Saturday, on your porch by sunrise Sunday. Smooth, clean, ready to pour before Monday even starts.</p>
             <div className="dl-tiers">
-              <span><b>$8</b> swap your empties</span>
-              <span><b>$10</b> new bottle</span>
-              <span><b>$14</b> Performance</span>
+              <span><b>{dollars(DELIVERY_PRICING.refill)}</b> swap your empties</span>
+              <span><b>{dollars(DELIVERY_PRICING.fresh)}</b> new bottle</span>
+              <span><b>{dollars(SALTED_LATTE.price)}</b> {bulkItems[0]?.name ?? SALTED_LATTE.label}</span>
             </div>
           </div>
           <p className="dl-sub dl-zlead">Enter your ZIP &mdash; we&rsquo;ll check your porch.</p>
