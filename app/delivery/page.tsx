@@ -85,6 +85,7 @@ export default function DeliveryPage() {
     if (step !== "pay" || !squareClientReady) return;
     let dead = false;
     let attaching = false;
+    let hardError = false; // Square loaded but rejected — retrying won't help; keep the real reason on screen
     let polls = 0;
     let iv: ReturnType<typeof setInterval> | undefined;
     const tryMount = async (): Promise<boolean> => {
@@ -102,8 +103,12 @@ export default function DeliveryPage() {
         setErr("");
         return true;
       } catch (e) {
-        setErr(`Card form couldn't load — ${e instanceof Error ? e.message : "Square error"}. Retrying…`);
-        return false;
+        // The SDK is present but couldn't build the card (bad app/location id, CSP, config). Surface
+        // the real message and stop — returning true ends the poll loop so the generic fallback below
+        // never clobbers this more useful error.
+        hardError = true;
+        setErr(`Card form error — ${e instanceof Error ? e.message : "Square rejected the request"}. Check the app is live, then refresh.`);
+        return true;
       } finally {
         attaching = false;
       }
@@ -112,11 +117,11 @@ export default function DeliveryPage() {
       if (await tryMount()) return;
       iv = setInterval(async () => {
         polls += 1;
-        if (dead || cardRef.current) { if (iv) clearInterval(iv); return; }
+        if (dead || cardRef.current || hardError) { if (iv) clearInterval(iv); return; }
         if (await tryMount()) { if (iv) clearInterval(iv); return; }
-        if (polls >= 25) { // ~7.5s — the SDK never showed up
+        if (polls >= 25) { // ~7.5s — the SDK never showed up at all
           if (iv) clearInterval(iv);
-          if (!cardRef.current) setErr("Card form didn't load. Refresh and try again — if it keeps happening, tell us.");
+          if (!cardRef.current && !hardError) setErr("Card form didn't load. Refresh and try again — if it keeps happening, tell us.");
         }
       }, 300);
     })();

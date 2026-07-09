@@ -9,16 +9,22 @@ const isProd = process.env.NODE_ENV === "production";
 //   - OneSignal web push
 //   - Supabase realtime (wss)
 // In dev we relax script-src ('unsafe-eval') because Next's dev runtime needs it.
+// Square Web Payments SDK is finicky about CSP: it loads square.js, fetches config from
+// web.squarecdn.com, spawns a blob: worker for tokenization, renders the card as an iframe, and
+// reports to its own Sentry. Missing any of these silently kills the card form (window.Square never
+// appears). The full squarecdn wildcard + worker/child blob: cover it.
+const SQ = "https://web.squarecdn.com https://sandbox.web.squarecdn.com https://*.squarecdn.com https://js.squareup.com";
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isProd ? "" : " 'unsafe-eval'"} https://web.squarecdn.com https://sandbox.web.squarecdn.com https://js.squareup.com https://cdn.onesignal.com https://onesignal.com https://*.onesignal.com`,
-  "style-src 'self' 'unsafe-inline'",
+  `script-src 'self' 'unsafe-inline'${isProd ? "" : " 'unsafe-eval'"} ${SQ} https://cdn.onesignal.com https://onesignal.com https://*.onesignal.com`,
+  "style-src 'self' 'unsafe-inline' https://web.squarecdn.com https://*.squarecdn.com",
   "img-src 'self' data: blob: https:",
-  "font-src 'self' data:",
+  "font-src 'self' data: https://*.squarecdn.com",
   // OneSignal hits the apex onesignal.com too — a *.onesignal.com wildcard does NOT match the apex.
-  "connect-src 'self' https://connect.squareup.com https://connect.squareupsandbox.com https://pci-connect.squareup.com https://pci-connect.squareupsandbox.com https://*.supabase.co wss://*.supabase.co https://onesignal.com https://*.onesignal.com wss://*.onesignal.com https://api.resend.com https://nominatim.openstreetmap.org",
-  "frame-src 'self' https://web.squarecdn.com https://sandbox.web.squarecdn.com https://connect.squareup.com https://connect.squareupsandbox.com",
-  "worker-src 'self'",
+  "connect-src 'self' https://connect.squareup.com https://connect.squareupsandbox.com https://pci-connect.squareup.com https://pci-connect.squareupsandbox.com https://web.squarecdn.com https://*.squarecdn.com https://o160250.ingest.sentry.io https://*.supabase.co wss://*.supabase.co https://onesignal.com https://*.onesignal.com wss://*.onesignal.com https://api.resend.com https://nominatim.openstreetmap.org",
+  `frame-src 'self' ${SQ} https://connect.squareup.com https://connect.squareupsandbox.com`,
+  "worker-src 'self' blob:",
+  "child-src 'self' blob:",
   "manifest-src 'self'",
   "base-uri 'self'",
   "form-action 'self'",
