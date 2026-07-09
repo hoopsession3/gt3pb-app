@@ -336,7 +336,7 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 .scrim{position:absolute;inset:0;background:rgba(0,0,0,.6);opacity:0;pointer-events:none;transition:.25s;z-index:40}
 .scrim.open{opacity:1;pointer-events:auto}
 .sheet{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(180deg,#15120d,#0b0906);border-radius:28px 28px 0 0;z-index:41;
-  transform:translateY(110%);transition:transform .32s cubic-bezier(.3,.9,.3,1),visibility 0s linear .32s;visibility:hidden;max-height:84%;overflow-y:auto;border-top:1px solid var(--line2)}
+  transform:translateY(110%);transition:transform .32s cubic-bezier(.3,.9,.3,1),visibility 0s linear .32s;visibility:hidden;max-height:min(84%,calc(100dvh - var(--kb,0px) - 40px));overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;border-top:1px solid var(--line2)}
 .sheet.open{transform:translateY(0);visibility:visible;transition:transform .32s cubic-bezier(.3,.9,.3,1),visibility 0s}.sheet::-webkit-scrollbar{display:none}
 .grab{width:42px;height:4px;background:var(--line2);border:none;padding:0;cursor:pointer;border-radius:3px;margin:11px auto 2px;display:block}
 .sin{padding:8px 22px calc(26px + env(safe-area-inset-bottom))}
@@ -1236,7 +1236,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 /* centered pop-up animation that keeps the translate(-50%,-50%) centering through the tween */
 @keyframes popcenter{from{opacity:0;transform:translate(-50%,-46%) scale(.985)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
 /* top shifts up by half the keyboard inset so a centered pop-up re-centers in the area above the keyboard */
-.prep-sheet{position:fixed;left:50%;top:calc(50% - var(--kb,0px) / 2);transform:translate(-50%,-50%);width:calc(100% - 32px);max-width:520px;max-height:min(86vh,calc(100dvh - var(--kb,0px) - 24px));overflow-y:auto;z-index:56;background:#15110d;border:1px solid var(--line2);border-radius:18px;padding:14px 18px calc(16px + env(safe-area-inset-bottom));box-shadow:0 24px 60px rgba(0,0,0,.6);animation:popcenter .18s ease}
+.prep-sheet{position:fixed;left:50%;top:calc(50dvh - var(--kb,0px) / 2);transform:translate(-50%,-50%);width:calc(100% - 32px);max-width:520px;max-height:calc(100dvh - var(--kb,0px) - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 28px);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;z-index:56;background:#15110d;border:1px solid var(--line2);border-radius:18px;padding:14px 18px calc(16px + env(safe-area-inset-bottom));box-shadow:0 24px 60px rgba(0,0,0,.6);animation:popcenter .18s ease}
 .prep-sheet-grab{width:38px;height:4px;border-radius:2px;background:var(--line2);margin:4px auto 14px}
 .prep-sheet-h{font-family:'Inter';font-weight:600;font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--cream-m);margin-bottom:10px}
 .prep-sheet-opts{display:flex;gap:9px}
@@ -1636,7 +1636,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 /* ── input sheet (focused guided entry; keeps context above visible) ── */
 .isheet-scrim{position:fixed;inset:0;background:rgba(0,0,0,.42);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:60;animation:isheet-fade .15s ease}
 @keyframes isheet-fade{from{opacity:0}to{opacity:1}}
-.isheet{position:fixed;left:50%;top:calc(50% - var(--kb,0px) / 2);transform:translate(-50%,-50%);width:calc(100% - 32px);max-width:520px;max-height:min(86vh,calc(100dvh - var(--kb,0px) - 24px));overflow-y:auto;z-index:61;background:#16130c;border-radius:20px;border:1px solid var(--line2);padding:10px 16px calc(14px + env(safe-area-inset-bottom));box-shadow:0 24px 60px rgba(0,0,0,.6);animation:popcenter .2s cubic-bezier(.2,.8,.2,1)}
+.isheet{position:fixed;left:50%;top:calc(50dvh - var(--kb,0px) / 2);transform:translate(-50%,-50%);width:calc(100% - 32px);max-width:520px;max-height:calc(100dvh - var(--kb,0px) - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 28px);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;z-index:61;background:#16130c;border-radius:20px;border:1px solid var(--line2);padding:10px 16px calc(14px + env(safe-area-inset-bottom));box-shadow:0 24px 60px rgba(0,0,0,.6);animation:popcenter .2s cubic-bezier(.2,.8,.2,1)}
 @keyframes isheet-up{from{transform:translateY(100%)}to{transform:translateY(0)}}
 .isheet-grab{width:38px;height:4px;border-radius:2px;background:var(--line2);margin:6px auto 10px}
 .isheet-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
