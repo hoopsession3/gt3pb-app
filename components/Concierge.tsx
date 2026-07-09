@@ -39,7 +39,9 @@ export default function Concierge() {
   return (
     <>
       <button type="button" className={`conc-fab${open ? " hide" : ""}`} onClick={() => setOpen(true)} aria-label="Ask the GT3 concierge">
-        <span className="conc-fab-i">☕</span><span className="rail-txt"><b>Ask us</b><i>menu · hours · booking</i></span>
+        {/* The real brand "3" (public/brand/gt3-3.png, the same pixel-exact glyph Gt3Mark uses) — not
+            an emoji standing in for it. */}
+        <img className="conc-fab-i" src="/brand/gt3-3.png" alt="" aria-hidden="true" /><span className="rail-txt"><b>Ask us</b><i>menu · hours · booking</i></span>
       </button>
 
       <Sheet open={open} onClose={() => setOpen(false)} labelledBy="concierge-title" bodyRef={bodyRef}

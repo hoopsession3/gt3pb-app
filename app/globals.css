@@ -2324,7 +2324,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .conc-fab{position:relative;display:flex;align-items:center;gap:9px;min-width:172px;height:46px;background:#15140f;color:#f4ead6;border:1px solid #B8902F;border-right:none;border-radius:14px 0 0 14px;padding:0 14px;box-shadow:0 10px 26px rgba(0,0,0,.4);cursor:pointer;-webkit-appearance:none;appearance:none;animation:rail-raise .9s ease both}
 .conc-fab .rail-txt i{color:rgba(244,234,214,.5)}
 .conc-fab.hide{display:none}
-.conc-fab-i{font-size:16px}
+.conc-fab-i{height:20px;width:auto;display:block;flex:none}
 .conc-scrim{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;padding-bottom:var(--kb,0px);box-sizing:border-box}
 .conc-panel{width:100%;max-width:480px;height:min(76vh,640px);display:flex;flex-direction:column;background:#1b1a14;border:1px solid #36332a;border-radius:18px 18px 0 0;box-shadow:0 -12px 40px rgba(0,0,0,.5);overflow:hidden;animation:qdup .18s ease}
 .conc-head{display:flex;align-items:center;gap:10px;padding:13px 15px;border-bottom:1px solid #2c2a22}
