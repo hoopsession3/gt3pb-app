@@ -55,6 +55,18 @@ One rule, one source of truth, enforced at every layer so it can't be dodged or 
 - **Pack reserves are always open** — brewed to order for the next drop; the closed states route
   people there instead of dead-ending them.
 
+## Payment paths — how customers pay (Money → Checkout & payments)
+Two independent switches, both surfaced in the crew Money section (`components/PaymentSettings.tsx`):
+- **Card checkout** is on when the **Square env keys** are set on the host (read-only status). The
+  exact keys to connect Square are in `gt3pb-deploy-v1.md`.
+- **Pay at pickup / on delivery** is the owner's toggle (`live_status.pay_at_pickup`, 0145,
+  default ON). Read everywhere by `usePayAtPickup()`; the cup **checkout**, the pack **reserve**,
+  and **Sunday delivery** all offer a pay-later path when it's on — on its own when Square is off,
+  or as the secondary action beside the card when Square is on. Delivery's card-less path is
+  enforced server-side in `/api/delivery/checkout` (records `payment_method='pay_on_delivery'`,
+  `payment_status='unpaid'`). **Default-ON means a real order can be placed and tasted end-to-end
+  before Square is even connected.** If BOTH are off, no order can be placed (by design).
+
 ## Customer self-service — the loop closes both ways
 - **Your pack** (`components/MyPacks.tsx`, top of `/reserve`): members see upcoming reservations
   live — staff checking them off at the truck flips the card to "picked up" in front of them.
@@ -282,7 +294,18 @@ pixel-exact brand 3).
   rich-text strategies KB with permissions, GTM order-attribution. `GT3-Delivery-Audit.md` maps
   exists-vs-build.
 
+## Pack lifecycle & one alerts home
+- **Pack fulfillment stages** (`0146`) — a reserved pack walks **Reserved → Preparing → Ready →
+  En route → Picked up**, advanced from the drop board (Now → the drop / Service, `DropOps`): tap a
+  stage to jump or the primary button to advance one. A DB trigger keeps the legacy `picked_up`
+  bool in sync so counts/history are unchanged. The customer sees the stage **live** on their pack
+  card (`MyPacks` — a dot tracker + present-tense status), no refresh.
+- **Alerts have ONE home.** The full flags-&-pings inbox lives in **My Day** (its defined job). The
+  **Now** section shows only a compact strip ("N alerts need you · Open in My Day →",
+  `AlertsInbox compact`) so the same cards never render in two places. The nav badge still carries
+  the global critical count.
+
 ## Migration ledger
-Through **0140** — full table + verify SQL in `gt3pb-deploy-v1.md`. Newest:
+Through **0146** — full table + verify SQL in `gt3pb-deploy-v1.md`. `0145` pay_at_pickup toggle · `0146` pack lifecycle. Earlier newest:
 `0133` client errors · `0134` tenant enforcement (on prod) · `0135` software billing (dormant) ·
 `0136` reservation self-service · `0137` pre-order window dial · `0138` order eta comms · `0139` Sunday delivery · `0140` strategy collab (threads + decision log + drafts) · `0141` customer-record durability (audit catch-up + delete guards) · `0142` goals (scoreboard) · `0143` AI training · `0144` marketing splash + bulk-order flag · `0145` brew reminder skips a planned batch when a sibling for the same need is already brewing · `0146` content campaign/theme tag.

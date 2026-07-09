@@ -31,6 +31,7 @@ import { supabase } from "@/lib/supabase";
 import AskGT3 from "@/components/AskGT3";
 import Studio from "@/components/Studio";
 import MenuManager from "@/components/MenuManager";
+import PaymentSettings from "@/components/PaymentSettings";
 import PlanEditor from "@/components/PlanEditor";
 import CompanyCalendar from "@/components/CompanyCalendar";
 import EventDayPlanner from "@/components/EventDayPlanner";
@@ -496,7 +497,7 @@ function DropSheet({ onClose }: { onClose: () => void }) {
 
 // The "don't-miss" inbox — unacknowledged alerts for me (or all-leadership), critical first.
 // Realtime, so a new alert lands at the top of the Now screen the instant it's raised.
-function AlertsInbox({ userId }: { userId: string | null }) {
+function AlertsInbox({ userId, compact = false }: { userId: string | null; compact?: boolean }) {
   const { profile } = useAuth();
   const { setSection } = useOperatorSection();
   const meName = profile?.display_name?.trim() || "Me";
@@ -551,6 +552,18 @@ function AlertsInbox({ userId }: { userId: string | null }) {
   const rank = (s: string) => (s === "critical" ? 0 : s === "important" ? 1 : 2);
   const sorted = [...mine].sort((a, b) => rank(a.severity) - rank(b.severity));
   const crit = mine.filter((a) => a.severity === "critical").length;
+
+  // Compact strip (used in Now) — alerts have ONE home, the My Day inbox. During service Now shows
+  // just a one-line pointer so the same cards don't render in two places; tap jumps to My Day.
+  if (compact) {
+    return (
+      <button type="button" className={`alerts-strip${crit ? " crit" : ""}`} onClick={() => setSection("day")}>
+        <span className="alerts-strip-i" aria-hidden>{crit ? "⚠️" : "🔔"}</span>
+        <span className="alerts-strip-t"><b>{mine.length} {mine.length === 1 ? "alert needs" : "alerts need"} you</b>{crit ? ` · ${crit} critical` : ""}</span>
+        <span className="alerts-strip-go">Open in My Day →</span>
+      </button>
+    );
+  }
 
   return (
     <div className="adm-sec">
@@ -4372,7 +4385,7 @@ const SEC_INSIDE: Record<OpSection, string[]> = {
   prep: ["Per-event & per-stop pack lists", "Readiness & inspection checks", "Trailer load-out & gear", "Crew assignments & sign-off"],
   plan: ["Company calendar", "Events & truck stops", "Vendors & venues", "Booking requests", "Brew schedule & reserves"],
   studio: ["Post & flyer drafting", "Brand copy & front-end copy", "Feed planning grid", "Repurpose engine", "Publishing & scheduling", "Review Desk → the truck display (/display): add or approve reviews; ✨ Simplify de-claims + trims one to display-safe"],
-  money: ["Sales · snapshot · per-event P&L", "Product economics & COGS", "Membership plans & subscribers", "Order history", "The Playbook (/playbook, owners) — every growth play + where its numbers land here"],
+  money: ["Checkout & payments — card status + the pay-at-pickup toggle (governs cup, reserve & delivery)", "Sales · snapshot · per-event P&L", "Product economics & COGS", "Membership plans & subscribers", "Order history", "The Playbook (/playbook, owners) — every growth play + where its numbers land here"],
   team: ["Staff roster", "Roles & permissions", "Training & academy", "Manager approvals"],
   ask: ["Recipes & the why", "Gear & stock how-to", "The GT3 playbook"],
 };
@@ -4588,7 +4601,7 @@ export default function AdminPage() {
               one tap into the working screen) → the drop's prep face (what to brew, what money) →
               Sunday delivery (folds until run day) → dispatch panels → personal tasks. The boards
               themselves (pass, pickup checklist, 86) render in ONE place: Service mode. */}
-          {canManage && <AlertsInbox userId={user?.id ?? null} />}
+          {canManage && <AlertsInbox userId={user?.id ?? null} compact />}
           {!svc && (
             <>
               <ServicePulse onEnter={() => setSvc(true)} />
@@ -4671,7 +4684,8 @@ export default function AdminPage() {
 
       {sec === "money" && isAdmin && (
         <>
-          <Panel id="menu" title="Menu & products" defaultOpen><MenuManager /></Panel>
+          <Panel id="pay" title="Checkout & payments" defaultOpen><PaymentSettings /></Panel>
+          <Panel id="menu" title="Menu & products"><MenuManager /></Panel>
           <Panel id="sales" title="Sales"><Reports /></Panel>
           <Panel id="snapshot" title="Business snapshot"><SnapshotReport /></Panel>
           <Panel id="pnl" title="Per-event P&L"><EventPnlReport /></Panel>
