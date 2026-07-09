@@ -8,8 +8,6 @@
 /* ---- self-hosted fonts (Type System v1: Inter is the workhorse) ---- */
 @font-face{font-family:'Inter';font-style:normal;font-weight:100 900;font-display:swap;src:url(/fonts/inter-variable.woff2) format('woff2');}
 @font-face{font-family:'Archivo Black';font-style:normal;font-weight:400;font-display:swap;src:url(/fonts/archivo-black-400.woff2) format('woff2');}
-@font-face{font-family:'Playfair Display';font-style:italic;font-weight:600;font-display:swap;src:url(/fonts/playfair-display-600-italic.woff2) format('woff2');}
-@font-face{font-family:'Playfair Display';font-style:italic;font-weight:700;font-display:swap;src:url(/fonts/playfair-display-700-italic.woff2) format('woff2');}
 @font-face{font-family:'DM Mono';font-style:normal;font-weight:500;font-display:swap;src:url(/fonts/dm-mono-500.woff2) format('woff2');}
 
 :root{--red:#B82420;--red-d:#9d1d1a;--red-h:#d64b46;--cream:#F5F1E8;--cream-m:rgba(245,241,232,.72);--cream-d:rgba(245,241,232,.48);--cream2:#EFE7D6;

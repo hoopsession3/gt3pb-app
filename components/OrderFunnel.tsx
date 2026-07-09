@@ -7,7 +7,7 @@ import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { usePayAtPickup } from "./usePayAtPickup";
 import SignIn from "@/components/SignIn";
-import CountUp from "@/components/CountUp";
+import OrderConfirm from "@/components/OrderConfirm";
 import MyPacks, { packMix, packDayLabel, type MyPack } from "./MyPacks";
 import { supabase } from "@/lib/supabase";
 import { SQUARE_APP_ID, SQUARE_LOCATION_ID, squareClientReady, squareWebSdkUrl } from "@/lib/square";
@@ -616,33 +616,29 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
 
       {/* ── DONE ── */}
       {step === "done" && done && (
-        <div className="dl-step dl-done">
-          <div className="dl-crest"><span>✓</span></div>
-          <h2 className="dl-h dl-done-h">{done.paid ? "You're in." : "You're reserved."}</h2>
-          <p className="dl-done-sub">{mode === "delivery" ? "We'll be there before sunrise Sunday." : `See you ${dayName(drop.sat).split(",")[0]}${name ? `, ${name.split(" ")[0]}` : ""}.`}</p>
-          <div className="dl-done-total"><CountUp cents={done.total} /></div>
-          <div className="dl-receipt">
-            <div className="dl-receipt-row"><span>Pack</span><b>{count} bottles</b></div>
-            {mode === "delivery" ? (
-              <>
-                <div className="dl-receipt-row"><span>Delivery</span><b>{done.label}</b></div>
-                <div className="dl-receipt-row"><span>Address</span><b>{street}, {city} {zip}</b></div>
-                {bringBack && refills > 0 && <div className="dl-receipt-row"><span>Empties</span><b>{refills} out by 5 AM Sun</b></div>}
-                <div className="dl-receipt-row"><span>Fresh</span><b>7 days from delivery</b></div>
-              </>
-            ) : (
-              <>
-                {done.ref && <div className="dl-receipt-row"><span>Order</span><b>#{done.ref.slice(0, 6).toUpperCase()}</b></div>}
-                <div className="dl-receipt-row"><span>Pickup</span><b>{done.label}{stop?.name ? ` · ${stop.name}` : ""}</b></div>
-                <div className="dl-receipt-row"><span>{done.paid ? "Paid" : "Pay at pickup"}</span><b>{dollars(done.total)}</b></div>
-              </>
-            )}
-          </div>
-          {done.warn && <p className="dl-err" role="alert">{done.warn}</p>}
-          <button type="button" className="oa-cta" style={{ marginTop: 16 }} onClick={mode === "delivery" ? () => router.push("/3mpire") : resetOrder}>
-            {mode === "delivery" ? "Track it in your account" : "Reserve another"}
-          </button>
-        </div>
+        <OrderConfirm
+          title={done.paid ? "You're in." : "You're reserved."}
+          sub={mode === "delivery" ? "We'll be there before sunrise Sunday." : `See you ${dayName(drop.sat).split(",")[0]}${name ? `, ${name.split(" ")[0]}` : ""}.`}
+          totalCents={done.total}
+          warn={done.warn}
+          rows={[
+            { label: "Pack", value: `${count} bottles` },
+            ...(mode === "delivery"
+              ? [
+                  { label: "Delivery", value: done.label ?? "" },
+                  { label: "Address", value: `${street}, ${city} ${zip}` },
+                  ...(bringBack && refills > 0 ? [{ label: "Empties", value: `${refills} out by 5 AM Sun` }] : []),
+                  { label: "Fresh", value: "7 days from delivery" },
+                ]
+              : [
+                  ...(done.ref ? [{ label: "Order", value: `#${done.ref.slice(0, 6).toUpperCase()}` }] : []),
+                  { label: "Pickup", value: `${done.label}${stop?.name ? ` · ${stop.name}` : ""}` },
+                  { label: done.paid ? "Paid" : "Pay at pickup", value: dollars(done.total) },
+                ]),
+          ]}
+          ctaLabel={mode === "delivery" ? "Track it in your account" : "Reserve another"}
+          onCta={mode === "delivery" ? () => router.push("/3mpire") : resetOrder}
+        />
       )}
 
       {/* back — hidden on the first shopping step + on done */}

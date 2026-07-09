@@ -12,7 +12,8 @@ import { saveAmount, PRICING } from "@/lib/orderAhead";
 import { useOrderingOpen } from "./useOrderingOpen";
 import { usePayAtPickup } from "./usePayAtPickup";
 import { SQUARE_APP_ID, SQUARE_LOCATION_ID, squareClientReady, squareWebSdkUrl } from "@/lib/square";
-import { useSheetDrag } from "@/lib/useSheetDrag";
+import Sheet from "./Sheet";
+import OrderConfirm from "./OrderConfirm";
 import Skeleton from "./Skeleton";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -39,10 +40,12 @@ function loadSquare(): Promise<any> {
 
 export default function Checkout() {
   const { cart, inc, dec, toast, checkout, coOpen: open, closeCheckout: onClose } = useApp();
-  const { sheetRef, handlers } = useSheetDrag(onClose);
   const router = useRouter();
-  const [doneView, setDoneView] = useState(false); // post-pay subscription upsell
-  useEffect(() => { if (!open) setDoneView(false); }, [open]);
+  // The confirmation moment — same shape as pickup/delivery's OrderConfirm. Lines/name are captured
+  // at success time because checkout() clears the cart right after (lines would otherwise read empty
+  // by the time the confirm screen renders).
+  const [done, setDone] = useState<{ paid: boolean; total: number; lines: [DrinkId, number][]; name: string } | null>(null);
+  useEffect(() => { if (!open) setDone(null); }, [open]);
   const { user, profile } = useAuth();
   const [prices, setPrices] = useState<Record<string, number>>({});
   // Prices for the displayed total (the actual charge is computed server-side).
@@ -149,6 +152,8 @@ export default function Checkout() {
 
   // Pay-at-pickup: record the order UNPAID and hand off — the guest pays at the truck. Shared by the
   // standalone pickup button and the "or pay at pickup" secondary action when card is also offered.
+  // Used to just toast-and-close with no confirmation screen at all; now shows the same OrderConfirm
+  // the paid path gets.
   const sendPreOrder = async () => {
     if (blocked86.length > 0) { toast("Remove the sold-out items first", "error"); return; }
     if (!customer) { toast("Add a name for pickup", "error"); return; }
@@ -156,8 +161,10 @@ export default function Checkout() {
     await enableAlerts();
     const { error } = await recordPreOrder();
     if (error) { toast("That didn't go through — give it another tap", "error"); return; }
+    const capturedLines = [...lines], capturedName = customer, capturedTotal = totalCents;
     toast(`${items.length} drink${items.length === 1 ? "" : "s"} pre-ordered — ready in ~8 min`);
-    checkout(); onClose();
+    checkout();
+    setDone({ paid: false, total: capturedTotal, lines: capturedLines, name: capturedName });
   };
 
   const pay = async () => {
@@ -182,9 +189,10 @@ export default function Checkout() {
       const data = await res.json();
       setBusy(false);
       if (!res.ok) { setErr(data.error || "Payment failed"); return; }
+      const capturedLines = [...lines], capturedName = customer;
       toast(data.warn || `Paid $${total} — order in. Ready in ~8 min.`);
       checkout(); // clears cart
-      setDoneView(true); // show the subscription upsell instead of closing
+      setDone({ paid: true, total: grandCents, lines: capturedLines, name: capturedName });
     } catch {
       setBusy(false);
       setErr("Payment failed — nothing was charged. Try again.");
@@ -192,22 +200,25 @@ export default function Checkout() {
   };
 
   return (
-    <>
-      <div className={`scrim${open ? " open" : ""}`} onClick={onClose} aria-hidden="true" />
-      <div ref={sheetRef} className={`sheet paper${open ? " open" : ""}`} role="dialog" aria-modal="true" aria-label="Checkout">
-        <button type="button" className="grab" aria-label="Close" onClick={onClose} {...handlers} />
-        <div className="sin">
-          {open && doneView ? (
-            <div className="co-done">
-              <div className="co-done-check" aria-hidden="true">✓</div>
-              <div className="co-done-conf">Order in — ready in ~8 min</div>
-              <h3>Skip the line next time?</h3>
-              <p>Reserve a Saturday drop — brewed to order, ready when you reach the window.</p>
-              <button type="button" className="subpitch-cta" onClick={() => { onClose(); router.push("/reserve"); }}>Reserve a drop</button>
-              <button type="button" className="sub-link" onClick={onClose}>Not now</button>
-            </div>
-          ) : open ? (
-            <>
+    <Sheet open={open} onClose={onClose} className="paper" labelledBy="checkout-title"
+      header={<div className="oa-kicker" id="checkout-title">Checkout</div>}>
+      {done ? (
+        <OrderConfirm
+          title="Order in."
+          sub={done.paid ? "Ready in ~8 min — we'll have it waiting at the window." : "Ready in ~8 min — pay at the truck when you arrive."}
+          totalCents={done.total}
+          rows={[
+            ...done.lines.map(([id, q]) => ({ label: DRINKS[id].n, value: `${q}×` })),
+            { label: "For", value: done.name },
+            { label: done.paid ? "Paid" : "Pay at pickup", value: `$${(done.total / 100).toFixed(2)}` },
+          ]}
+          ctaLabel="Reserve a Saturday pack →"
+          onCta={() => { onClose(); router.push("/reserve"); }}
+          secondaryLabel="Not now"
+          onSecondary={onClose}
+        />
+      ) : (
+        <>
               <div className="spec-label">Name for pickup</div>
               <input
                 className="co-name"
@@ -301,9 +312,7 @@ export default function Checkout() {
                 </div>
               )}
             </>
-          ) : null}
-        </div>
-      </div>
-    </>
+      )}
+    </Sheet>
   );
 }
