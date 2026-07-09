@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import AssignTaskSheet from "@/components/AssignTaskSheet";
+import Sheet from "@/components/Sheet";
 
 // BREW — recipes + a back-scheduled batch plan. Pick a recipe, set the batch size in GALLONS (the
 // recipe scales exactly to it and hits its OG/Signal-Score spec), tie it to the event it's for, and
@@ -264,10 +265,7 @@ function BrewAdjust({ batch, onClose, onSaveTime, onStop, onUndo }: { batch: Bat
   const readyPreview = start ? new Date(new Date(start).getTime() + hrs * 3600000) : null;
   const run = async (fn: () => Promise<void>) => { setBusy(true); await fn(); onClose(); };
   return (
-    <div className="qd-scrim" onClick={onClose}>
-      <div className="qd-sheet dp-form" onClick={(e) => e.stopPropagation()}>
-        <div className="qd-tabs"><b style={{ fontFamily: "Inter", fontSize: 15 }}>Adjust brew · {batch.recipe_name}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>
-        <div className="qd-body">
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Adjust brew · {batch.recipe_name}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
           <label className="prod-f"><span>When it actually started brewing</span><input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} /></label>
           {readyPreview && <div className="brew-spec">Ready ~{readyPreview.toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })} · {hrs}h extraction</div>}
           <div className="prod-actions" style={{ marginTop: 12 }}>
@@ -277,9 +275,7 @@ function BrewAdjust({ batch, onClose, onSaveTime, onStop, onUndo }: { batch: Bat
           <div className="brew-adjust-sep" />
           <button type="button" className="brew-adjust-danger" disabled={busy} onClick={() => run(() => onStop(batch))}>⏹ Stop &amp; bottle now</button>
           <button type="button" className="brew-adjust-undo" disabled={busy} onClick={() => run(() => onUndo(batch))}>↩ Undo start — back to planned</button>
-        </div>
-      </div>
-    </div>
+    </Sheet>
   );
 }
 

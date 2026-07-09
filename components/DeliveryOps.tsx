@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useApp } from "./AppProvider";
 import { type PerfMix } from "@/lib/delivery";
 import AssignTaskSheet from "./AssignTaskSheet";
+import Sheet from "./Sheet";
 
 // SUNDAY DELIVERY OPS — the crew side of the delivery debrief, in DropOps' shape: one summary
 // sentence (units, one hero thought), the Saturday brew totals (incl. Performance combos), and a
@@ -182,13 +183,7 @@ function DeliveryPackout({ bottles, orders, refills, onClose }: { bottles: numbe
   const gelPacks = coolers * 5;                               // 4–6 per cooler; 5 is the safe middle
   const returnBins = refills > 0 ? Math.max(1, Math.ceil(refills / 30)) : 0;
   return (
-    <div className="qd-scrim" onClick={onClose}>
-      <div className="qd-sheet dp" onClick={(e) => e.stopPropagation()}>
-        <div className="dp-head">
-          <div className="dp-head-l"><div className="dp-eyebrow">📦 Vehicle packout · Sunday run</div><div className="dp-title">{bottles} bottles · {orders} stop{orders === 1 ? "" : "s"}</div></div>
-          <button type="button" className="qd-x" onClick={onClose}>✕</button>
-        </div>
-        <div className="dp-body">
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}><div><div className="dp-eyebrow">📦 Vehicle packout · Sunday run</div><div className="dp-title">{bottles} bottles · {orders} stop{orders === 1 ? "" : "s"}</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
           <div className="brew-spec"><b>{coolers}</b> hard cooler{coolers === 1 ? "" : "s"} (24–48 qt) · <b>{gelPacks}</b> gel packs (pre-frozen){returnBins > 0 ? <> · <b>{returnBins}</b> empties bin{returnBins === 1 ? "" : "s"}</> : ""}</div>
           <div className="brew-block-h">Pack them in</div>
           <div className="brew-ing">
@@ -203,8 +198,6 @@ function DeliveryPackout({ bottles, orders, refills, onClose }: { bottles: numbe
             <li>Run the AC — keep the cabin ≤ 65°F and the coolers out of direct sun.</li>
             <li>Stops are ordered by ZIP on the driver run — pull them in that order so glass rides cold to the last porch.</li>
           </ul>
-        </div>
-      </div>
-    </div>
+    </Sheet>
   );
 }

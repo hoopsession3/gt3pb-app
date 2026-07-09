@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/AuthProvider";
+import Sheet from "@/components/Sheet";
 
 // REUSABLE buildout → task. Drop this after any buildout (bottle loadout, delivery loadout, event
 // prep) to offer "Create a task? Assign to…" without leaving the flow. It writes to the existing
@@ -68,10 +69,7 @@ export default function AssignTaskSheet({
   );
 
   return (
-    <div className="qd-scrim" onClick={onClose}>
-      <div className="qd-sheet dp-form" onClick={(e) => e.stopPropagation()}>
-        <div className="qd-tabs"><b style={{ fontFamily: "Inter", fontSize: 15 }}>{createdId ? "Task assigned ✓" : "Create a task?"}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>
-        <div className="qd-body">
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{createdId ? "Task assigned ✓" : "Create a task?"}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
           {!createdId ? (
             <>
               <label className="prod-f"><span>Task</span><input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={140} /></label>
@@ -93,8 +91,6 @@ export default function AssignTaskSheet({
               </div>
             </>
           )}
-        </div>
-      </div>
-    </div>
+    </Sheet>
   );
 }

@@ -3067,6 +3067,23 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .dops-driver-link:active{transform:scale(.97)}
 .dops-assign-link{display:block;width:100%;margin-top:8px;text-align:center;padding:11px;border-radius:12px;background:transparent;border:1px solid var(--gold2);color:var(--gold2);font-family:'Inter';font-weight:700;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none;transition:transform .11s cubic-bezier(.2,.7,.3,1)}
 .dops-assign-link:active{transform:scale(.97)}
+
+/* ============ <Sheet> — THE canonical popout (one structure, everywhere) ============ */
+/* Bottom sheet on phones, centered modal ≥520px. Scroll contract + safe-area + swipe-to-dismiss baked in. */
+.sheet2-scrim{position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.55);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);display:flex;align-items:flex-end;justify-content:center;box-sizing:border-box;animation:sheet2fade .2s ease}
+@keyframes sheet2fade{from{opacity:0}to{opacity:1}}
+.sheet2{width:100%;max-width:560px;max-height:calc(100dvh - var(--kb,0px) - env(safe-area-inset-top) - 10px);display:flex;flex-direction:column;background:var(--bg,#161310);border:1px solid var(--line);border-bottom:none;border-radius:22px 22px 0 0;box-shadow:0 -14px 50px rgba(0,0,0,.6);overflow:hidden;animation:sheet2up .3s cubic-bezier(.2,.85,.25,1);will-change:transform}
+@keyframes sheet2up{from{transform:translateY(30px);opacity:.4}to{transform:translateY(0);opacity:1}}
+.sheet2-grab{flex:0 0 auto;height:24px;display:flex;align-items:center;justify-content:center;cursor:grab;touch-action:none}
+.sheet2-grab::before{content:"";width:40px;height:4px;border-radius:3px;background:var(--line2)}
+.sheet2-head{flex:0 0 auto;padding:2px 18px 12px;touch-action:none}
+.sheet2-body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:0 18px calc(18px + env(safe-area-inset-bottom))}
+.sheet2-foot{flex:0 0 auto;padding:12px 18px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--bg,#161310)}
+@media(min-width:520px){
+  .sheet2-scrim{align-items:center;padding:16px}
+  .sheet2{border:1px solid var(--line);border-radius:20px;max-height:min(88vh,calc(100dvh - var(--kb,0px) - 32px));box-shadow:0 24px 60px rgba(0,0,0,.6);animation:sheet2pop .22s cubic-bezier(.2,.8,.2,1)}
+}
+@keyframes sheet2pop{from{transform:translateY(10px) scale(.98);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}
 .driver{padding-bottom:26px}
 .driver-empty{padding:40px 22px;text-align:center;color:var(--cream-m);font-family:'Inter';font-size:14px;line-height:1.6}
 .driver-head{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
