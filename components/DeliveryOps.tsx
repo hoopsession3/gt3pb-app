@@ -36,6 +36,7 @@ export default function DeliveryOps() {
   const [date, setDate] = useState<string | null>(null);
   const [listOpen, setListOpen] = useState<boolean | null>(null);
   const [assign, setAssign] = useState(false);
+  const [packout, setPackout] = useState(false);
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -129,7 +130,9 @@ export default function DeliveryOps() {
       </div>
       <a className="dops-driver-link" href="/driver">🚗 Open the driver run — map &amp; turn-by-turn →</a>
       <button type="button" className="dops-assign-link" onClick={() => setAssign(true)}>📋 Assign this run to a driver →</button>
+      <button type="button" className="dops-assign-link" onClick={() => setPackout(true)}>📦 Vehicle packout plan →</button>
       {assign && <AssignTaskSheet defaultTitle={`Sunday delivery run — ${rows.length} stop${rows.length === 1 ? "" : "s"} · ${bottles} bottles`} dueOn={date} category="ops" onClose={() => setAssign(false)} />}
+      {packout && <DeliveryPackout bottles={bottles} orders={rows.length} refills={refills} onClose={() => setPackout(false)} />}
       <button type="button" className="dops-prog" onClick={() => setListOpen(!showList)} aria-expanded={showList}>
         <span><b>{doneCount}/{rows.length}</b> stops done</span>
         <span>{showList ? "▾" : "▸"}</span>
@@ -168,6 +171,40 @@ export default function DeliveryOps() {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// Deterministic vehicle packout for the whole Sunday run — scales the cooler/ice plan from the
+// bottle loadout to the day's total bottles. Uses the qd-sheet · dp-body popout (bulletproof scroll).
+function DeliveryPackout({ bottles, orders, refills, onClose }: { bottles: number; orders: number; refills: number; onClose: () => void }) {
+  const coolers = Math.max(1, Math.ceil(bottles / 24));      // ~24 glass bottles upright per hard cooler
+  const gelPacks = coolers * 5;                               // 4–6 per cooler; 5 is the safe middle
+  const returnBins = refills > 0 ? Math.max(1, Math.ceil(refills / 30)) : 0;
+  return (
+    <div className="qd-scrim" onClick={onClose}>
+      <div className="qd-sheet dp" onClick={(e) => e.stopPropagation()}>
+        <div className="dp-head">
+          <div className="dp-head-l"><div className="dp-eyebrow">📦 Vehicle packout · Sunday run</div><div className="dp-title">{bottles} bottles · {orders} stop{orders === 1 ? "" : "s"}</div></div>
+          <button type="button" className="qd-x" onClick={onClose}>✕</button>
+        </div>
+        <div className="dp-body">
+          <div className="brew-spec"><b>{coolers}</b> hard cooler{coolers === 1 ? "" : "s"} (24–48 qt) · <b>{gelPacks}</b> gel packs (pre-frozen){returnBins > 0 ? <> · <b>{returnBins}</b> empties bin{returnBins === 1 ? "" : "s"}</> : ""}</div>
+          <div className="brew-block-h">Pack them in</div>
+          <div className="brew-ing">
+            <div className="brew-ing-row"><b>{coolers}×</b><span>Hard cooler with dividers or foam sleeves — GT3 glass upright, no clinking. ~24 bottles per cooler.</span></div>
+            <div className="brew-ing-row"><b>{gelPacks}×</b><span>Gel/ice packs ONLY (no loose ice on glass), pre-frozen overnight. 2 flat on the floor, 1–2 on the caps per cooler.</span></div>
+            {returnBins > 0 && <div className="brew-ing-row"><b>{returnBins}×</b><span>Empties bin/crate for the {refills} bottles coming back on today&rsquo;s swaps.</span></div>}
+          </div>
+          <div className="brew-block-h">Before you pull off</div>
+          <ul className="brew-checks">
+            <li>Pre-chill the coolers ~1 hr; target internal temp ≤ 38°F.</li>
+            <li>Load coolers low and flat in the cargo area, braced so nothing slides on the drive.</li>
+            <li>Run the AC — keep the cabin ≤ 65°F and the coolers out of direct sun.</li>
+            <li>Stops are ordered by ZIP on the driver run — pull them in that order so glass rides cold to the last porch.</li>
+          </ul>
+        </div>
+      </div>
     </div>
   );
 }
