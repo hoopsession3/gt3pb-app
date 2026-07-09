@@ -4,30 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
-import { SUBSCRIPTIONS_ON, SUB_NAME, SUB_CADENCE, SUB_PACKS, SQUARE_APP_ID, SQUARE_LOCATION_ID, squareClientReady, squareWebSdkUrl } from "@/lib/square";
+import { SUBSCRIPTIONS_ON, SUB_NAME, SUB_CADENCE, SUB_PACKS, squareClientReady } from "@/lib/square";
 import type { Subscription } from "@/lib/db";
-
-/* eslint-disable @typescript-eslint/no-explicit-any */
-declare global { interface Window { Square?: any } }
-
-function loadSquare(): Promise<any> {
-  return new Promise((resolve, reject) => {
-    if (window.Square) return resolve(window.Square);
-    const existing = document.querySelector<HTMLScriptElement>("script[data-square]");
-    if (existing) {
-      existing.addEventListener("load", () => resolve(window.Square));
-      existing.addEventListener("error", reject);
-      return;
-    }
-    const s = document.createElement("script");
-    s.src = squareWebSdkUrl;
-    s.async = true;
-    s.dataset.square = "1";
-    s.onload = () => resolve(window.Square);
-    s.onerror = reject;
-    document.head.appendChild(s);
-  });
-}
+import PaymentCard, { type PaymentCardHandle } from "./PaymentCard";
 
 // Member subscription: Square owns billing; we read the status mirror and drive
 // create/manage through the server routes. The owner enables it via env once the
@@ -42,7 +21,7 @@ export default function SubscriptionCard() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [pack, setPack] = useState<"6" | "12" | "18">("12");
-  const cardRef = useRef<any>(null);
+  const paymentRef = useRef<PaymentCardHandle>(null);
 
   const load = useCallback(async () => {
     if (!supabase || !user) { setLoaded(true); return; }
@@ -61,32 +40,14 @@ export default function SubscriptionCard() {
     return () => { supabase?.removeChannel(ch); };
   }, [load, user]);
 
-  // mount the Square card field when the subscribe form opens
-  useEffect(() => {
-    if (!open || !squareClientReady) return;
-    let card: any; let cancelled = false;
-    (async () => {
-      try {
-        const Square = await loadSquare();
-        if (cancelled) return;
-        const payments = Square.payments(SQUARE_APP_ID, SQUARE_LOCATION_ID);
-        card = await payments.card();
-        await card.attach("#sq-sub-card");
-        cardRef.current = card;
-        if (!cancelled) setReady(true);
-      } catch { if (!cancelled) setErr("Couldn't load the card form. Try again."); }
-    })();
-    return () => { cancelled = true; setReady(false); cardRef.current?.destroy?.(); cardRef.current = null; };
-  }, [open]);
-
   const authToken = async () => (await supabase!.auth.getSession()).data.session?.access_token || "";
 
   const start = async () => {
     setErr("");
-    if (!cardRef.current) return;
+    if (!ready) return;
     setBusy(true);
     try {
-      const result = await cardRef.current.tokenize();
+      const result = await paymentRef.current!.tokenize();
       if (result.status !== "OK") { setErr("Card details look off — check and retry."); setBusy(false); return; }
       const res = await fetch("/api/subscriptions/create", {
         method: "POST",
@@ -174,7 +135,7 @@ export default function SubscriptionCard() {
         <button type="button" className="sub-cta" onClick={() => setOpen(true)}>Subscribe — {selected.size} bottles</button>
       ) : (
         <>
-          <div id="sq-sub-card" className="sub-cardfield" />
+          <PaymentCard ref={paymentRef} className="sub-cardfield" onReady={setReady} onError={(m) => setErr(m ?? "")} />
           {err && <div className="auth-err">{err}</div>}
           <button type="button" className="sub-cta" onClick={start} disabled={!ready || busy}>
             {busy ? "Starting…" : ready ? `Start ${selected.size}-pack · ${selected.price}` : "Loading card…"}

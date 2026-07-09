@@ -11,32 +11,11 @@ import { useAvailability } from "@/lib/availability";
 import { saveAmount, PRICING } from "@/lib/orderAhead";
 import { useOrderingOpen } from "./useOrderingOpen";
 import { usePayAtPickup } from "./usePayAtPickup";
-import { SQUARE_APP_ID, SQUARE_LOCATION_ID, squareClientReady, squareWebSdkUrl } from "@/lib/square";
+import { squareClientReady } from "@/lib/square";
 import Sheet from "./Sheet";
 import OrderConfirm from "./OrderConfirm";
 import Skeleton from "./Skeleton";
-
-/* eslint-disable @typescript-eslint/no-explicit-any */
-declare global { interface Window { Square?: any } }
-
-function loadSquare(): Promise<any> {
-  return new Promise((resolve, reject) => {
-    if (window.Square) return resolve(window.Square);
-    const existing = document.querySelector<HTMLScriptElement>("script[data-square]");
-    if (existing) {
-      existing.addEventListener("load", () => resolve(window.Square));
-      existing.addEventListener("error", reject);
-      return;
-    }
-    const s = document.createElement("script");
-    s.src = squareWebSdkUrl;
-    s.async = true;
-    s.dataset.square = "1";
-    s.onload = () => resolve(window.Square);
-    s.onerror = reject;
-    document.head.appendChild(s);
-  });
-}
+import PaymentCard, { type PaymentCardHandle } from "./PaymentCard";
 
 export default function Checkout() {
   const { cart, inc, dec, toast, checkout, coOpen: open, closeCheckout: onClose } = useApp();
@@ -52,7 +31,7 @@ export default function Checkout() {
   useEffect(() => {
     fetch("/api/menu").then((r) => r.json()).then((d) => setPrices(d.prices || {})).catch(() => {});
   }, []);
-  const cardRef = useRef<any>(null);
+  const paymentRef = useRef<PaymentCardHandle>(null);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -114,42 +93,6 @@ export default function Checkout() {
     }
   };
 
-  // Mount the Square card form when the sheet opens (only if Square is configured).
-  useEffect(() => {
-    if (!open || !squareClientReady) return;
-    let card: any;
-    let cancelled = false;
-    (async () => {
-      try {
-        const Square = await loadSquare();
-        if (cancelled) return;
-        const payments = Square.payments(SQUARE_APP_ID, SQUARE_LOCATION_ID);
-        card = await payments.card();
-        await card.attach("#sq-card");
-        cardRef.current = card;
-        if (!cancelled) setReady(true);
-      } catch {
-        if (!cancelled) setErr("Couldn't load the card form. Try again.");
-      }
-    })();
-    return () => {
-      cancelled = true;
-      setReady(false);
-      cardRef.current?.destroy?.();
-      cardRef.current = null;
-    };
-  }, [open]);
-
-  // Robust readiness: enable Pay once the card field is actually visible (survives
-  // dev StrictMode double-mount and any attach-timing races).
-  useEffect(() => {
-    if (!open || !squareClientReady) return;
-    const iv = setInterval(() => {
-      if (cardRef.current && document.querySelector("#sq-card iframe")) { setReady(true); clearInterval(iv); }
-    }, 250);
-    return () => clearInterval(iv);
-  }, [open]);
-
   // Pay-at-pickup: record the order UNPAID and hand off — the guest pays at the truck. Shared by the
   // standalone pickup button and the "or pay at pickup" secondary action when card is also offered.
   // Used to just toast-and-close with no confirmation screen at all; now shows the same OrderConfirm
@@ -170,11 +113,11 @@ export default function Checkout() {
   const pay = async () => {
     setErr("");
     if (!customer) { setErr("Add a name for pickup"); return; }
-    if (!cardRef.current) return;
+    if (!ready) return;
     setBusy(true);
     try {
       await enableAlerts();
-      const result = await cardRef.current.tokenize();
+      const result = await paymentRef.current!.tokenize();
       if (result.status !== "OK") {
         setErr("Card details look off — check and retry.");
         setBusy(false);
@@ -275,7 +218,7 @@ export default function Checkout() {
                   </div>
                   <div className="spec-label" style={{ marginTop: 16 }}>Card</div>
                   <div className="sq-wrap">
-                    <div id="sq-card" className="sq-card" />
+                    <PaymentCard ref={paymentRef} className="sq-card" onReady={setReady} onError={(m) => setErr(m ?? "")} />
                     {!ready && <div className="sk sq-sk-bar" />}
                   </div>
                   {err && <div className="auth-err">{err}</div>}

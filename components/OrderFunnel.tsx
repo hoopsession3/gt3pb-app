@@ -2,15 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Script from "next/script";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { usePayAtPickup } from "./usePayAtPickup";
 import SignIn from "@/components/SignIn";
 import OrderConfirm from "@/components/OrderConfirm";
+import PaymentCard, { type PaymentCardHandle } from "./PaymentCard";
 import MyPacks, { packMix, packDayLabel, type MyPack } from "./MyPacks";
 import { supabase } from "@/lib/supabase";
-import { SQUARE_APP_ID, SQUARE_LOCATION_ID, squareClientReady, squareWebSdkUrl } from "@/lib/square";
+import { squareClientReady } from "@/lib/square";
 import { haptic, HAPTIC } from "@/lib/haptics";
 import {
   PACK_SIZES, PACK_TAG, PACK_HINT, FLAVOR_DESC,
@@ -144,42 +144,10 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
       .then(({ data }) => setUsual((data?.[0] as MyPack) ?? null));
   }, [user, packsKey]);
 
-  // ── Square card mount (unified — the robust retry+surface lifecycle) ──
-  const cardRef = useRef<{ tokenize: () => Promise<{ status: string; token?: string }>; destroy?: () => void } | null>(null);
+  // Square card — mounted by the shared <PaymentCard> only while step==="pay" is in the tree; React's
+  // own mount/unmount lifecycle handles attach/teardown across step changes, so no effect needed here.
+  const paymentRef = useRef<PaymentCardHandle>(null);
   const [cardReady, setCardReady] = useState(false);
-  useEffect(() => {
-    if (step !== "pay" || !squareClientReady) return;
-    let dead = false, attaching = false, hardError = false, polls = 0;
-    let iv: ReturnType<typeof setInterval> | undefined;
-    const tryMount = async (): Promise<boolean> => {
-      if (dead || cardRef.current || attaching) return true;
-      const Square = (window as unknown as { Square?: { payments: (a: string, l: string) => { card: () => Promise<{ attach: (sel: string) => Promise<void>; tokenize: () => Promise<{ status: string; token?: string }>; destroy?: () => void }> } } }).Square;
-      if (!Square) return false;
-      attaching = true;
-      try {
-        const payments = Square.payments(SQUARE_APP_ID, SQUARE_LOCATION_ID);
-        const card = await payments.card();
-        if (dead) { card.destroy?.(); return true; }
-        await card.attach("#of-card");
-        cardRef.current = card; setCardReady(true); setErr("");
-        return true;
-      } catch (e) {
-        hardError = true;
-        setErr(`Card form error — ${e instanceof Error ? e.message : "Square rejected the request"}. Check the app is live, then refresh.`);
-        return true;
-      } finally { attaching = false; }
-    };
-    (async () => {
-      if (await tryMount()) return;
-      iv = setInterval(async () => {
-        polls += 1;
-        if (dead || cardRef.current || hardError) { if (iv) clearInterval(iv); return; }
-        if (await tryMount()) { if (iv) clearInterval(iv); return; }
-        if (polls >= 25) { if (iv) clearInterval(iv); if (!cardRef.current && !hardError) setErr("Card form didn't load. Refresh and try again — if it keeps happening, tell us."); }
-      }, 300);
-    })();
-    return () => { dead = true; if (iv) clearInterval(iv); cardRef.current?.destroy?.(); cardRef.current = null; setCardReady(false); };
-  }, [step]);
 
   // ── the toggle: preserve the cart, snap count, route sanely ──
   const switchMode = (next: Mode) => {
@@ -265,10 +233,10 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
 
   const payDelivery = async () => {
     setErr("");
-    if (!cardRef.current || !count || !deliveryQuote) return;
+    if (!cardReady || !count || !deliveryQuote) return;
     setBusy(true);
     try {
-      const result = await cardRef.current.tokenize();
+      const result = await paymentRef.current!.tokenize();
       if (result.status !== "OK" || !result.token) { setErr("Card details look off — check and retry."); setBusy(false); return; }
       const accessToken = (await supabase?.auth.getSession())?.data.session?.access_token;
       const res = await fetch("/api/delivery/checkout", {
@@ -290,10 +258,10 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
   const payPickupCard = async () => {
     setErr("");
     if (!name.trim() || !phone.trim()) { setErr("Name and phone are required for the pickup text."); return; }
-    if (!cardRef.current) return;
+    if (!cardReady) return;
     setBusy(true);
     try {
-      const result = await cardRef.current.tokenize();
+      const result = await paymentRef.current!.tokenize();
       if (result.status !== "OK" || !result.token) { setErr("Card details look off — check and retry."); setBusy(false); return; }
       await submitPickup(result.token);
     } catch { setErr("Payment failed — nothing was charged. Try again."); setBusy(false); }
@@ -331,8 +299,6 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
 
   return (
     <div className="of">
-      {squareClientReady && <Script src={squareWebSdkUrl} strategy="afterInteractive" />}
-
       {showToggle && Toggle}
 
       {mode === "pickup" && step === "size" && (
@@ -589,7 +555,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
           {squareClientReady ? (
             <>
               <p className="dl-sub">{mode === "delivery" ? "One charge now — nothing due at the door." : "Pay now, or reserve and pay at pickup."}</p>
-              <div id="of-card" className="sq-card" />
+              <PaymentCard ref={paymentRef} className="sq-card" onReady={setCardReady} onError={(m) => setErr(m ?? "")} />
               {err && <p className="dl-err" role="alert">{err}</p>}
               <button type="button" className="oa-cta" disabled={!cardReady || busy} onClick={mode === "delivery" ? payDelivery : payPickupCard}>
                 {busy ? "Charging…" : `Pay ${dollars(totalCents)}`}

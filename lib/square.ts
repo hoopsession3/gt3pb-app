@@ -11,6 +11,35 @@ export const squareWebSdkUrl =
     ? "https://web.squarecdn.com/v1/square.js"
     : "https://sandbox.web.squarecdn.com/v1/square.js";
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+declare global { interface Window { Square?: any } }
+
+// One cached script-load promise instead of three copy-pasted loaders (Checkout, OrderFunnel via
+// next/script, SubscriptionCard each grew their own). Concurrent callers (e.g. two payment surfaces
+// mounting close together) share the same in-flight load instead of racing to inject the tag twice.
+let squareLoad: Promise<any> | null = null;
+export function loadSquareSdk(): Promise<any> {
+  if (typeof window === "undefined") return Promise.reject(new Error("no window"));
+  if (window.Square) return Promise.resolve(window.Square);
+  if (squareLoad) return squareLoad;
+  squareLoad = new Promise((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>("script[data-square]");
+    if (existing) {
+      existing.addEventListener("load", () => resolve(window.Square));
+      existing.addEventListener("error", reject);
+      return;
+    }
+    const s = document.createElement("script");
+    s.src = squareWebSdkUrl;
+    s.async = true;
+    s.dataset.square = "1";
+    s.onload = () => resolve(window.Square);
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+  return squareLoad;
+}
+
 // Subscriptions: a coffee pack (6 / 12 / 18) on a cadence. The owner flips
 // NEXT_PUBLIC_SUBSCRIPTIONS_ON=1 once the Square plans + webhook are configured.
 // Real price/cadence live in the Square plan variations; labels here are display-only.
