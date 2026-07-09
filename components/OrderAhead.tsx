@@ -59,6 +59,7 @@ export default function OrderAhead() {
   // "Change pack": the form is prefilled from an existing reservation; submitting the new one
   // cancels the old (0136) so there's never a double-brew. Cleared by "keep it as is".
   const [replacing, setReplacing] = useState<MyPack | null>(null);
+  const [usual, setUsual] = useState<MyPack | null>(null);
   const [packsKey, setPacksKey] = useState(""); // bump to refresh the Your-pack list after changes
   const startChange = (p: MyPack) => {
     setSize(p.size); setGlass(p.glass); setMix(packMix(p));
@@ -69,6 +70,23 @@ export default function OrderAhead() {
 
   useEffect(() => { setNow(Date.now()); const iv = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(iv); }, []);
   useEffect(() => { setName((n) => n || profile?.display_name || ""); }, [profile?.display_name]);
+  // "Your usual" — the member's most recent pack, offered as a one-tap reload (the doorman who
+  // knows your order). Refreshes after a new reservation lands.
+  useEffect(() => {
+    if (!supabase || !user) { setUsual(null); return; }
+    supabase.from("drop_orders").select("*").eq("user_id", user.id).is("canceled_at", null)
+      .order("created_at", { ascending: false }).limit(1)
+      .then(({ data }) => setUsual((data?.[0] as MyPack) ?? null));
+  }, [user, packsKey]);
+  const reorderUsual = () => {
+    if (!usual) return;
+    haptic(HAPTIC.tap);
+    setSize(usual.size); setGlass(usual.glass); setMix(packMix(usual));
+    setName((n) => n || usual.name); setPhone((p) => p || usual.phone || "");
+    setReplacing(null); setErr("");
+    toast("Your usual — loaded");
+    try { document.getElementById("body")?.scrollTo({ top: 0, behavior: "smooth" }); } catch { /* ignore */ }
+  };
   // Pickup day is the customer's choice among the next scheduled stops (server re-validates).
   useEffect(() => {
     if (!supabase) return;
@@ -193,6 +211,13 @@ export default function OrderAhead() {
               <span className="oa-mode-s">Order ahead, grab it at a truck stop.</span>
               <button type="button" className="oa-mode-alt" onClick={() => router.push("/delivery")}>Want it delivered? →</button>
             </div>
+            {usual && !replacing && (
+              <button type="button" className="oa-usual" onClick={reorderUsual}>
+                <span className="oa-usual-k">↺ Your usual</span>
+                <span className="oa-usual-v">{usual.size} bottles · {mixSummary(packMix(usual))} · {usual.glass === "return" ? "bring-back" : "new glass"}</span>
+                <span className="oa-usual-go">Load →</span>
+              </button>
+            )}
             <div className="oa-kicker">{t("reserve.kicker").toUpperCase()}</div>
             <div className="oa-head">{t("reserve.headline")}</div>
             <div className="oa-cutoff"><span className="oa-dot" /><span>{t("reserve.cutoff")

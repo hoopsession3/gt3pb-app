@@ -2966,6 +2966,12 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .oa-kicker{font-size:11px;letter-spacing:.24em;color:var(--oa-gold);font-weight:600;margin-bottom:12px}
 /* fulfillment mode banner — makes PICKUP vs DELIVERY unmistakable, with a one-tap switch to the other */
 .oa-mode{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;border:1px solid var(--line2,rgba(245,241,232,.2));border-radius:12px;padding:10px 13px;margin:0 0 16px}
+/* "Your usual" — one-tap reload of the member's most recent pack */
+.oa-usual{display:flex;align-items:center;gap:10px;width:100%;margin:-6px 0 16px;padding:12px 14px;border-radius:13px;background:rgba(200,166,97,.1);border:1px solid var(--gold2);cursor:pointer;-webkit-appearance:none;appearance:none;text-align:left;transition:transform .11s cubic-bezier(.2,.7,.3,1)}
+.oa-usual:active{transform:scale(.98)}
+.oa-usual-k{font-family:'Inter';font-weight:800;font-size:13px;color:var(--gold2);flex:0 0 auto}
+.oa-usual-v{font-family:'Inter';font-size:12px;color:var(--cream-m);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.oa-usual-go{font-family:'Inter';font-weight:700;font-size:12px;color:var(--gold2);flex:0 0 auto}
 .oa-mode-b{font-family:'Inter';font-weight:800;font-size:13.5px;letter-spacing:.02em}
 .oa-mode-s{flex:1;min-width:120px;font-family:'Inter';font-size:11.5px;color:var(--cream-m,rgba(245,241,232,.65))}
 .oa-mode-alt{background:none;border:none;font-family:'Inter';font-weight:700;font-size:11.5px;color:var(--oa-gold,#C8A661);cursor:pointer;white-space:nowrap;-webkit-appearance:none;appearance:none}
