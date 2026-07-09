@@ -6,8 +6,13 @@ import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { preorderWindow, preorderLeadMs } from "@/lib/orderAhead";
 
-// Authoritative prices from Square Catalog; fall back to the locked catalog if unavailable.
-async function priceMap(token: string): Promise<Record<string, number>> {
+// Square Catalog as a secondary sync — used ONLY for items missing from `products` (a catalog gap),
+// never as the primary source. products.price_cents is the one price authority (0062, and the same
+// order MenuManager writes to + /api/menu already serves to the client) — Square used to be checked
+// first here, which meant a reprice via Money > Menu could silently charge the OLD Square/hardcoded
+// price. lib/menu.ts's px stays as the final fallback (revenue continuity beats a hard fail if both
+// products and Square are unreachable) but is never preferred over a real price.
+async function squarePriceMap(token: string): Promise<Record<string, number>> {
   try {
     const res = await fetch(`${SQUARE_BASE}/v2/catalog/list?types=ITEM`, {
       headers: { Authorization: `Bearer ${token}`, "Square-Version": SQUARE_VERSION },
@@ -45,16 +50,18 @@ export async function POST(req: Request) {
 
   // Availability is enforced HERE, not just on the screen: a stale cart or tampered client can't
   // buy an 86'd or delisted item. Checked before any charge. Missing product rows fail open (a
-  // catalog gap must not brick checkout).
+  // catalog gap must not brick checkout). Same query also carries price_cents — the one price
+  // authority — so this single read covers both jobs.
+  const productPrices: Record<string, number> = {};
   {
     const uniq = [...new Set(items)];
-    const { data: avail } = await supabaseAdmin.from("products").select("slug, sold_out, active").in("slug", uniq);
-    const blocked = ((avail ?? []) as { slug: string; sold_out: boolean | null; active: boolean | null }[])
-      .filter((p) => p.sold_out || p.active === false)
-      .map((p) => DRINKS[p.slug as DrinkId]?.n ?? p.slug);
+    const { data: avail } = await supabaseAdmin.from("products").select("slug, sold_out, active, price_cents").in("slug", uniq);
+    const rows = (avail ?? []) as { slug: string; sold_out: boolean | null; active: boolean | null; price_cents: number | null }[];
+    const blocked = rows.filter((p) => p.sold_out || p.active === false).map((p) => DRINKS[p.slug as DrinkId]?.n ?? p.slug);
     if (blocked.length) {
       return NextResponse.json({ error: `${blocked.join(" · ")} just sold out — remove ${blocked.length === 1 ? "it" : "them"} and try again.` }, { status: 409 });
     }
+    for (const p of rows) if (typeof p.price_cents === "number" && p.price_cents > 0) productPrices[p.slug] = p.price_cents;
   }
 
   // Cups are only sold when there's a truck to make them: live, or inside the window around the
@@ -75,12 +82,15 @@ export async function POST(req: Request) {
     }
   }
 
-  // Server computes the authoritative goods subtotal (never trust a client amount).
-  const prices = await priceMap(token);
+  // Server computes the authoritative goods subtotal (never trust a client amount). products.
+  // price_cents first (the one price authority); Square Catalog only for a slug missing from
+  // products (a catalog gap); lib/menu.ts's px only if both are unreachable.
+  const needsSquare = items.some((id) => productPrices[id] == null);
+  const squarePrices = needsSquare ? await squarePriceMap(token) : {};
   let subtotal = 0;
   for (const id of items) {
     if (!DRINKS[id]) return NextResponse.json({ error: `Unknown item: ${id}` }, { status: 400 });
-    subtotal += prices[id] ?? Math.round(parseFloat(DRINKS[id].px.replace("$", "")) * 100);
+    subtotal += productPrices[id] ?? squarePrices[id] ?? Math.round(parseFloat(DRINKS[id].px.replace("$", "")) * 100);
   }
   // Tip is additive and capped at the subtotal as a fat-finger guard.
   const tip = typeof tipCents === "number" && Number.isFinite(tipCents) && tipCents > 0 ? Math.min(Math.round(tipCents), subtotal) : 0;

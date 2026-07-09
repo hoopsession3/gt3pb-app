@@ -19,9 +19,21 @@ export default function DisplayPage() {
   const [reviews, setReviews] = useState<CleanReview[]>([]);
   const [step, setStep] = useState(0);
   const [qr, setQr] = useState("");
+  // Live prices (products.price_cents, the one authority — same /api/menu the ordering screens use)
+  // so a reprice via Money > Menu shows up on this public board, not just the frozen lib/menu.ts copy.
+  const [prices, setPrices] = useState<Record<string, number>>({});
+  const priceLabel = (id: keyof typeof DRINKS) => (prices[id] != null ? `$${(prices[id] / 100).toFixed(0)}` : DRINKS[id].px);
 
   useEffect(() => {
     QRCode.toDataURL(CONNECT_PRIMARY, { margin: 1, width: 640, color: { dark: "#15120D", light: "#ffffff" } }).then(setQr).catch(() => setQr(""));
+  }, []);
+
+  useEffect(() => {
+    let live = true;
+    const load = () => fetch("/api/menu").then((r) => r.json()).then((d) => { if (live) setPrices(d.prices || {}); }).catch(() => {});
+    load();
+    const t = setInterval(load, 5 * 60 * 1000); // this screen never reloads — keep the board fresh across a shift
+    return () => { live = false; clearInterval(t); };
   }, []);
 
   useEffect(() => {
@@ -53,7 +65,7 @@ export default function DisplayPage() {
               <div key={cat.name} className="tvl-cat">
                 <div className="tvl-cat-h">{cat.name}<span>{cat.wn}</span></div>
                 {cat.rows.map((id) => (
-                  <div key={id} className="tvl-row"><span className="tvl-row-n">{DRINKS[id].n}</span><em className="tvl-row-p">{DRINKS[id].px}</em></div>
+                  <div key={id} className="tvl-row"><span className="tvl-row-n">{DRINKS[id].n}</span><em className="tvl-row-p">{priceLabel(id)}</em></div>
                 ))}
               </div>
             ))}

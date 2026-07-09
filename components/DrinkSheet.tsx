@@ -15,7 +15,7 @@ const PILLAR: Record<"BEFORE" | "DURING" | "AFTER", string> = {
 };
 
 export default function DrinkSheet() {
-  const { openId, closeDrink, isInCart, bump, toast } = useApp();
+  const { openId, closeDrink, isInCart, bump, toast, priceCents } = useApp();
   const { soldOut } = useAvailability();
   const router = useRouter();
   // Ordering is gated at the FIRST touchpoint, not just checkout: outside the truck's window the
@@ -43,7 +43,9 @@ export default function DrinkSheet() {
           <div className="sheet-mark">
             <span className="sheet-dot" style={{ background: d.dot }} />
             <span className="sheet-name" id="drink-sheet-title">{d.n}</span>
-            <span className="sheet-px">{d.px}</span>
+            {/* Live price (products.price_cents via AppProvider), not the frozen lib/menu.ts value —
+                so the very first price a customer sees always matches what checkout charges. */}
+            <span className="sheet-px">${(priceCents(openId) / 100).toFixed(priceCents(openId) % 100 === 0 ? 0 : 2)}</span>
           </div>
 
           <div className="sheet-lines">

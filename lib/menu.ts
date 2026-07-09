@@ -6,7 +6,8 @@ export type DrinkId = "rise" | "flow" | "dusk" | "kingme" | "maple" | "tide" | "
 
 export interface DrinkDetail {
   n: string;
-  px: string;
+  px: string;             // last-resort fallback only — products.price_cents is the price authority (0062);
+                           // every live price display/charge reads that first, via /api/menu or a direct query
   grad: string;          // retained for swatches elsewhere (Today / generator)
   dot: string;           // tasting-dot color — the only color in the menu list
   lines: string[];       // what it is: extraction + whole-food input
