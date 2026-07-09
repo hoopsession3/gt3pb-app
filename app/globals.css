@@ -3733,3 +3733,14 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .spl-skip{position:absolute;top:calc(20px + env(safe-area-inset-top));right:22px;z-index:3;-webkit-appearance:none;appearance:none;background:none;border:none;color:#6b6255;font-family:inherit;font-size:13px;letter-spacing:.04em;cursor:pointer;opacity:0;animation:spl-up 1s ease 1.3s forwards}
 .spl-skip:hover{color:var(--cream)}
 @media(prefers-reduced-motion:reduce){.spl-scrim,.spl-kick,.spl-head,.spl-sub,.spl-cta,.spl-foot,.spl-skip{animation:none;opacity:1;transform:none}}
+
+/* content approval sheet (review a post from the notification) */
+.capprove{display:flex;flex-direction:column;gap:11px;padding:2px 2px 6px}
+.capprove-meta{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--gold2)}
+.capprove-t{font-family:'Inter';font-weight:800;font-size:17px;color:var(--cream);line-height:1.2}
+.capprove-tags{font-family:'Inter';font-size:12px;color:var(--gold2);word-break:break-word}
+.capprove-acts{display:flex;gap:10px;align-items:center;margin-top:2px}
+.capprove-acts .oa-cta{flex:1;margin-top:0}
+/* App splash — what's live now */
+.promo-now{font-family:'Inter';font-size:12.5px;color:var(--cream-m);border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin-bottom:12px}
+.promo-now b{color:var(--cream)}

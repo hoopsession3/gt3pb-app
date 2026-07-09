@@ -117,6 +117,15 @@ One rule, one source of truth, enforced at every layer so it can't be dodged or 
   Bookings (requests in) → Brew (production) → Notes, divider, back office (Vendors · Reserves).
   New tabs slot into the rhythm, not onto the end.
 
+## Approve posts from the notification (no calendar detour)
+
+A "content ready for review" alert now opens an **approval sheet right in the inbox** — like the
+reservation drop card — instead of jumping to the (noisy) calendar. Edit the caption to revise,
+**Approve** (saves the edit) or **Request changes** with a note; the creator is notified and the
+alert **clears** once you act. Studio's flow is de-noised: the content workspace leads, and the
+**App splash** (the guest pop-up editor) + **Customer reviews** collapse into labelled panels. The
+App splash panel now states what's showing now — a custom promo, or the built-in "Own your week."
+
 ## The app splash + dynamic bulk-order menu (0144)
 
 **Splash**: the app opens to a marketing card for guests — leads with the pack pitch, shown **once

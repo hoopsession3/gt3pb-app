@@ -354,7 +354,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
     if (!supabase) return;
     const t = (title || "Untitled").slice(0, 80);
     if (next === "review") {
-      await supabase.from("alerts").insert({ severity: "important", category: "note", title: `🎨 Content ready for review — ${t}`.slice(0, 180), body: `${me.name} submitted "${t}" for approval.`.slice(0, 300), link: "/admin" });
+      await supabase.from("alerts").insert({ severity: "important", category: "note", title: `🎨 Content ready for review — ${t}`.slice(0, 180), body: `${me.name} submitted "${t}" for approval.`.slice(0, 300), link: `/admin?post=${id}` });
     } else if (next === "approved" && item?.created_by && item.created_by !== me.id) {
       await supabase.from("alerts").insert({ severity: "fyi", category: "note", title: `✅ Approved — ${t}`.slice(0, 180), body: `${me.name} approved "${t}". Ready to schedule/publish.`.slice(0, 300), link: "/admin", target_user_id: item.created_by });
     } else if (next === "changes" && item?.created_by && item.created_by !== me.id) {

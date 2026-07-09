@@ -410,6 +410,74 @@ function scrollToAnchor(anchor?: string) {
   setTimeout(() => document.getElementById(anchor)?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
 }
 
+// Content-review alerts are handled IN PLACE (like reservations) — no jump to the noisy calendar.
+function alertIsContentReview(title: string | null | undefined): boolean {
+  return /content ready for review/i.test(title || "");
+}
+function postIdFromLink(link: string | null | undefined): string | null {
+  const m = /[?&]post=([a-f0-9-]{6,})/i.exec(link || "");
+  return m ? m[1] : null;
+}
+
+// Pop-out sheet to approve or revise a post right from the notification. Edit the caption, approve
+// (saves the edit), or request changes with a note. Acting notifies the creator and clears the alert.
+function ContentApprovalSheet({ contentId, meName, meId, onClose, onActioned }: { contentId: string; meName: string; meId: string | null; onClose: () => void; onActioned: () => void }) {
+  const { toast } = useApp();
+  type Post = { id: string; title: string; caption: string | null; hashtags: string[] | null; status: string; kind: string; channel: string; created_by: string | null };
+  const [item, setItem] = useState<Post | null>(null);
+  const [caption, setCaption] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.from("content_items").select("id, title, caption, hashtags, status, kind, channel, created_by").eq("id", contentId).maybeSingle()
+      .then(({ data }) => { if (data) { setItem(data as Post); setCaption((data as Post).caption || ""); } });
+  }, [contentId]);
+
+  const decide = async (status: "approved" | "changes") => {
+    if (!supabase || busy) return;
+    if (status === "changes" && !note.trim()) { toast("Add a quick note on what to change", "error"); return; }
+    setBusy(true);
+    const patch: Record<string, unknown> = { status };
+    if (caption !== (item?.caption ?? "")) patch.caption = caption;           // revise inline
+    if (status === "changes") patch.review_note = note.trim();
+    await supabase.from("content_items").update(patch).eq("id", contentId);
+    const t = (item?.title || "Untitled").slice(0, 80);
+    if (item?.created_by && item.created_by !== meId) {
+      await supabase.from("alerts").insert(status === "approved"
+        ? { severity: "fyi", category: "note", title: `✅ Approved — ${t}`.slice(0, 180), body: `${meName} approved "${t}". Ready to schedule/publish.`.slice(0, 300), link: `/admin?post=${contentId}`, target_user_id: item.created_by }
+        : { severity: "important", category: "note", title: `✏️ Changes requested — ${t}`.slice(0, 180), body: note.trim().slice(0, 300), link: `/admin?post=${contentId}`, target_user_id: item.created_by });
+    }
+    setBusy(false);
+    toast(status === "approved" ? "Approved" : "Changes requested");
+    onActioned(); // acks the review alert so it clears
+  };
+
+  return (
+    <>
+      <div className="prep-scrim" onClick={onClose} aria-hidden="true" />
+      <div className="prep-sheet drop-sheet" role="dialog" aria-modal="true" aria-label="Review post">
+        <div className="prep-sheet-grab" />
+        <div className="drop-sheet-h"><span>Review post</span><button type="button" className="drop-sheet-x" onClick={onClose} aria-label="Close">✕</button></div>
+        {!item ? <div className="dops-empty">Loading…</div> : (
+          <div className="capprove">
+            <div className="capprove-meta">{item.kind} · {item.channel}{item.status ? ` · ${item.status}` : ""}</div>
+            <div className="capprove-t">{item.title}</div>
+            <label className="prod-f"><span>Caption — edit here to revise</span><textarea rows={5} value={caption} onChange={(e) => setCaption(e.target.value)} /></label>
+            {item.hashtags?.length ? <div className="capprove-tags">{item.hashtags.map((h) => `#${h}`).join(" ")}</div> : null}
+            <input className="ev-input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="What to change (only if requesting changes)" />
+            <div className="capprove-acts">
+              <button type="button" className="oa-cta" disabled={busy} onClick={() => decide("approved")}>{busy ? "…" : "✓ Approve"}</button>
+              <button type="button" className="studio-act" disabled={busy} onClick={() => decide("changes")}>Request changes</button>
+            </div>
+            <p className="insp-foot">Approving saves your caption edits. Once you act, this alert clears.</p>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
 // Pop-out card for reservation alerts — the full DropOps manager (brew totals, pickup checklist,
 // bottles-in toggles) in a centered sheet, so a flag can be handled without leaving the screen.
 function DropSheet({ onClose }: { onClose: () => void }) {
@@ -467,8 +535,10 @@ function AlertsInbox({ userId }: { userId: string | null }) {
   // Respond immediately: reservation alerts pop the drop sheet right here; everything else jumps
   // to the screen that owns it.
   const [dropSheet, setDropSheet] = useState(false);
+  const [reviewPost, setReviewPost] = useState<{ id: string; alert: Alert } | null>(null);
   const gotoAlert = (a: Alert) => {
     if (alertIsReservation(a.title)) { setDropSheet(true); return; }
+    if (alertIsContentReview(a.title)) { const pid = postIdFromLink(a.link); if (pid) { setReviewPost({ id: pid, alert: a }); return; } }
     const d = alertDest(a.category, a.title);
     if (d.planTab) { try { localStorage.setItem("gt3-plan-tab", d.planTab); } catch { /* ignore */ } }
     setSection(d.section);
@@ -485,6 +555,7 @@ function AlertsInbox({ userId }: { userId: string | null }) {
   return (
     <div className="adm-sec">
       {dropSheet && <DropSheet onClose={() => setDropSheet(false)} />}
+      {reviewPost && <ContentApprovalSheet contentId={reviewPost.id} meName={meName} meId={userId} onClose={() => setReviewPost(null)} onActioned={() => { ack(reviewPost.alert); setReviewPost(null); }} />}
       <div className="sec">Alerts <span className={`adm-pill${crit ? " due" : ""}`}>{mine.length}{crit ? ` · ${crit} critical` : ""}</span>{mine.length > 1 && <button type="button" className="alert-clearall" onClick={() => clearAll(mine.map((a) => a.id))}>Clear all</button>}</div>
       {sorted.map((a) => (
         <div key={a.id} className={`alert sev-${a.severity}`}>
@@ -917,14 +988,14 @@ function DayBrief({ ownerCol, ownerId, isAdmin }: { ownerCol: "event_id" | "stop
 }
 
 function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: string; isLeader: boolean }) {
-  const [flags, setFlags] = useState<{ id: string; severity: string; title: string; body: string | null; category: string | null }[]>([]);
+  const [flags, setFlags] = useState<{ id: string; severity: string; title: string; body: string | null; category: string | null; link: string | null }[]>([]);
   const { setSection } = useOperatorSection();
   const [today, setToday] = useState<{ id: string; title: string | null; day_label: string | null; is_live: boolean | null; dress_code?: string | null; crew_brief?: string | null }[]>([]);
 
   const loadFlags = useCallback(async () => {
     if (!supabase || !userId || !isLeader) { setFlags([]); return; }
     // your own pings AND leadership broadcasts (no specific target) — e.g. content approvals route here
-    const { data } = await supabase.from("alerts").select("id, severity, title, body, category").or(`target_user_id.eq.${userId},target_user_id.is.null`).is("ack_at", null).order("created_at", { ascending: false }).limit(20);
+    const { data } = await supabase.from("alerts").select("id, severity, title, body, category, link").or(`target_user_id.eq.${userId},target_user_id.is.null`).is("ack_at", null).order("created_at", { ascending: false }).limit(20);
     // dedupe identical pings (same title+body can arrive from more than one source)
     const seen = new Set<string>();
     setFlags(((data as typeof flags) ?? []).filter((f) => { const k = `${f.title}|${f.body ?? ""}`; if (seen.has(k)) return false; seen.add(k); return true; }));
@@ -945,8 +1016,10 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
   const ack = async (id: string) => { setFlags((f) => f.filter((x) => x.id !== id)); await supabase?.from("alerts").update({ ack_at: new Date().toISOString(), ack_by: userId }).eq("id", id); };
   const clearFlags = async () => { const ids = flags.map((f) => f.id); if (!supabase || !ids.length) return; setFlags([]); await supabase.from("alerts").update({ ack_at: new Date().toISOString(), ack_by: userId }).in("id", ids); };
   const [dropSheet, setDropSheet] = useState(false);
-  const gotoFlag = (f: { category: string | null; title: string }) => {
+  const [reviewPost, setReviewPost] = useState<{ id: string; alertId: string } | null>(null);
+  const gotoFlag = (f: { id: string; category: string | null; title: string; link: string | null }) => {
     if (alertIsReservation(f.title)) { setDropSheet(true); return; }  // pop the drop card in place
+    if (alertIsContentReview(f.title)) { const pid = postIdFromLink(f.link); if (pid) { setReviewPost({ id: pid, alertId: f.id }); return; } }
     const d = alertDest(f.category, f.title);
     if (d.planTab) { try { localStorage.setItem("gt3-plan-tab", d.planTab); } catch { /* ignore */ } }
     setSection(d.section);
@@ -959,6 +1032,7 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
   return (
     <>
       {dropSheet && <DropSheet onClose={() => setDropSheet(false)} />}
+      {reviewPost && <ContentApprovalSheet contentId={reviewPost.id} meName={meName} meId={userId} onClose={() => setReviewPost(null)} onActioned={() => { ack(reviewPost.alertId); setReviewPost(null); }} />}
       <div className="myday-hero">
         <div className="myday-greet">{greet}{first && first !== "Me" ? `, ${first}` : ""}</div>
         <div className="myday-date">{new Date().toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}</div>
@@ -4587,7 +4661,13 @@ export default function AdminPage() {
         </>
       )}
 
-      {sec === "studio" && canManage && <><PromoEditor /><Studio /><ReviewsAdmin /></>}
+      {sec === "studio" && canManage && (
+        <>
+          <Studio />
+          <Panel id="splash" title="App splash · the pop-up guests see"><PromoEditor /></Panel>
+          <Panel id="reviews" title="Customer reviews"><ReviewsAdmin /></Panel>
+        </>
+      )}
 
       {sec === "money" && isAdmin && (
         <>

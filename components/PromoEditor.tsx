@@ -42,7 +42,8 @@ export default function PromoEditor() {
   return (
     <div className="adm-sec" id="promo-editor">
       <div className="sec">App splash {d.active && <span className="adm-pill">live</span>}</div>
-      <p className="h-sub" style={{ marginBottom: 12 }}>The marketing card the app opens to for guests — closeable, shown once a day. Edit it anytime; it changes live.</p>
+      <p className="h-sub" style={{ marginBottom: 10 }}>The <b>pop-up guests see when they open the app</b> — shown once per open, closeable. Set one here to override the built-in splash; leave it off and guests see the default.</p>
+      <div className="promo-now">Showing now: <b>{row?.active ? `“${row.headline}”` : "the built-in “Own your week.” splash"}</b></div>
       <div className="goal-new">
         <input className="auth-input" value={d.headline} onChange={(e) => setD({ ...d, headline: e.target.value })} placeholder="Headline — e.g. Save more with a pack." maxLength={80} />
         <textarea className="auth-input" rows={3} value={d.body ?? ""} onChange={(e) => setD({ ...d, body: e.target.value })} placeholder="The benefit, in a sentence or two." maxLength={400} />
