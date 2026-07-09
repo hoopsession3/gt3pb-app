@@ -10,6 +10,7 @@ import OrderConfirm from "@/components/OrderConfirm";
 import PaymentCard, { type PaymentCardHandle } from "./PaymentCard";
 import MyPacks, { packMix, packDayLabel, type MyPack } from "./MyPacks";
 import { supabase } from "@/lib/supabase";
+import { authedFetch } from "@/lib/authedFetch";
 import { squareClientReady } from "@/lib/square";
 import { haptic, HAPTIC } from "@/lib/haptics";
 import {
@@ -211,10 +212,9 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
     if (!count) return;
     setBusy(true);
     try {
-      const accessToken = (await supabase?.auth.getSession())?.data.session?.access_token;
-      const res = await fetch("/api/reserve", {
+      const res = await authedFetch("/api/reserve", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sourceId: sourceId ?? undefined, name: name.trim(), phone: phone.trim(), size: count, glass: (bringBack ? "return" : "new") as GlassPath, mix: { RISE: mix.rise, FLOW: mix.flow, DUSK: mix.dusk }, dropDate: drop.sat.toISOString() }),
       });
       const data = await res.json(); setBusy(false);
@@ -238,10 +238,9 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
     try {
       const result = await paymentRef.current!.tokenize();
       if (result.status !== "OK" || !result.token) { setErr("Card details look off — check and retry."); setBusy(false); return; }
-      const accessToken = (await supabase?.auth.getSession())?.data.session?.access_token;
-      const res = await fetch("/api/delivery/checkout", {
+      const res = await authedFetch("/api/delivery/checkout", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sourceId: result.token, name, phone, addressStreet: street, addressCity: city, addressZip: zip,
           accessInstructions: access, packSize: count, riseCount: mix.rise, flowCount: mix.flow, duskCount: mix.dusk,

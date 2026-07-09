@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
+import { authedFetch } from "@/lib/authedFetch";
 import { SUBSCRIPTIONS_ON, SUB_NAME, SUB_CADENCE, SUB_PACKS, squareClientReady } from "@/lib/square";
 import type { Subscription } from "@/lib/db";
 import PaymentCard, { type PaymentCardHandle } from "./PaymentCard";
@@ -40,8 +41,6 @@ export default function SubscriptionCard() {
     return () => { supabase?.removeChannel(ch); };
   }, [load, user]);
 
-  const authToken = async () => (await supabase!.auth.getSession()).data.session?.access_token || "";
-
   const start = async () => {
     setErr("");
     if (!ready) return;
@@ -49,9 +48,9 @@ export default function SubscriptionCard() {
     try {
       const result = await paymentRef.current!.tokenize();
       if (result.status !== "OK") { setErr("Card details look off — check and retry."); setBusy(false); return; }
-      const res = await fetch("/api/subscriptions/create", {
+      const res = await authedFetch("/api/subscriptions/create", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${await authToken()}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sourceId: result.token, pack }),
       });
       const data = await res.json();
@@ -66,8 +65,8 @@ export default function SubscriptionCard() {
   const manage = async (action: "pause" | "resume" | "cancel") => {
     if (action === "cancel" && typeof window !== "undefined" && !window.confirm("Cancel your subscription?")) return;
     setBusy(true);
-    const res = await fetch("/api/subscriptions/manage", {
-      method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${await authToken()}` },
+    const res = await authedFetch("/api/subscriptions/manage", {
+      method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action }),
     });
     const data = await res.json();

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
-import { supabase } from "@/lib/supabase";
+import { authedFetch } from "@/lib/authedFetch";
 import { subscribePush } from "@/lib/push";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import { useAvailability } from "@/lib/availability";
@@ -79,10 +79,9 @@ export default function Checkout() {
   // directly from the client. `orders` no longer has a client write door at all.
   const recordPreOrder = async (): Promise<{ error: { message: string } | null }> => {
     try {
-      const accessToken = (await supabase?.auth.getSession())?.data.session?.access_token;
-      const res = await fetch("/api/checkout", {
+      const res = await authedFetch("/api/checkout", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items, customer }),
       });
       const data = await res.json();
@@ -123,10 +122,9 @@ export default function Checkout() {
         setBusy(false);
         return;
       }
-      const accessToken = (await supabase?.auth.getSession())?.data.session?.access_token;
-      const res = await fetch("/api/checkout", {
+      const res = await authedFetch("/api/checkout", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sourceId: result.token, items, tipCents, customer }),
       });
       const data = await res.json();

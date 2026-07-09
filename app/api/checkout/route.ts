@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { DRINKS, type DrinkId } from "@/lib/menu";
-import { SQUARE_BASE, SQUARE_VERSION } from "@/lib/squareServer";
+import { SQUARE_BASE, SQUARE_VERSION, chargeCard } from "@/lib/squareServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
@@ -134,20 +134,9 @@ export async function POST(req: Request) {
   }
 
   try {
-    const res = await fetch(`${SQUARE_BASE}/v2/payments`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "Square-Version": SQUARE_VERSION },
-      body: JSON.stringify({
-        source_id: sourceId,
-        idempotency_key: crypto.randomUUID(),
-        amount_money: { amount, currency: "USD" },
-        location_id: locationId,
-        note: "GT3PB pre-order",
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) return NextResponse.json({ error: data?.errors?.[0]?.detail || "Payment declined" }, { status: 400 });
-    const paymentId = data?.payment?.id ?? null;
+    const charge = await chargeCard({ token: token!, locationId: locationId!, sourceId: sourceId!, amountCents: amount, note: "GT3PB pre-order" });
+    if (!charge.ok) return NextResponse.json({ error: charge.error }, { status: 400 });
+    const paymentId = charge.paymentId;
 
     // Record the paid order server-side (paid + payment_id are trustworthy here).
     // total_cents is the GOODS subtotal (tip excluded) so history + the referral floor

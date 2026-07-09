@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { SQUARE_BASE, SQUARE_VERSION } from "@/lib/squareServer";
+import { chargeCard } from "@/lib/squareServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
@@ -77,20 +77,9 @@ export async function POST(req: Request) {
     let paymentId: string | null = null;
     let paid = false;
     if (wantsCharge) {
-      const res = await fetch(`${SQUARE_BASE}/v2/payments`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "Square-Version": SQUARE_VERSION },
-        body: JSON.stringify({
-          source_id: body.sourceId,
-          idempotency_key: crypto.randomUUID(),
-          amount_money: { amount, currency: "USD" },
-          location_id: locationId,
-          note: `GT3PB order-ahead · ${size}-pack · ${glass} · pickup ${dropDate}`,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) return NextResponse.json({ error: data?.errors?.[0]?.detail || "Payment declined" }, { status: 400 });
-      paymentId = data?.payment?.id ?? null;
+      const charge = await chargeCard({ token: token!, locationId: locationId!, sourceId: body.sourceId!, amountCents: amount, note: `GT3PB order-ahead · ${size}-pack · ${glass} · pickup ${dropDate}` });
+      if (!charge.ok) return NextResponse.json({ error: charge.error }, { status: 400 });
+      paymentId = charge.paymentId;
       paid = true;
     }
 

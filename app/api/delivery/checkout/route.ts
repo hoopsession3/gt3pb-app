@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { SQUARE_BASE, SQUARE_VERSION } from "@/lib/squareServer";
+import { chargeCard } from "@/lib/squareServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
@@ -85,20 +85,9 @@ export async function POST(req: Request) {
 
   try {
     // Delivery always charges on order — no cash on delivery.
-    const res = await fetch(`${SQUARE_BASE}/v2/payments`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "Square-Version": SQUARE_VERSION },
-      body: JSON.stringify({
-        source_id: b.sourceId,
-        idempotency_key: crypto.randomUUID(),
-        amount_money: { amount: quote.totalCents, currency: "USD" },
-        location_id: locationId,
-        note: `GT3 Sunday delivery ${slot.deliveryDateKey}`,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) return NextResponse.json({ error: data?.errors?.[0]?.detail || "Payment declined" }, { status: 400 });
-    const paymentId: string | null = data?.payment?.id ?? null;
+    const charge = await chargeCard({ token, locationId, sourceId: b.sourceId!, amountCents: quote.totalCents, note: `GT3 Sunday delivery ${slot.deliveryDateKey}` });
+    if (!charge.ok) return NextResponse.json({ error: charge.error }, { status: 400 });
+    const paymentId = charge.paymentId;
     const paid = true;
 
     // Canonical customer link (0151) — member route; phone folds prior guest/pickup orders in.

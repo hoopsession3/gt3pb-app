@@ -14,6 +14,32 @@ export function squareHeaders(token: string) {
   };
 }
 
+// The one-time-card-charge shape three routes (checkout, delivery checkout, reserve) each built by
+// hand: POST /v2/payments with a fresh idempotency key, parse the decline vs. success shape. Does
+// NOT catch network/parse exceptions — those propagate to the caller's own try/catch exactly as they
+// did before this was extracted, so a transient failure still surfaces as the caller's existing
+// "Payment service unavailable" 502 rather than silently becoming a 400 "declined" through here.
+// (subscriptions/create is a different Square flow — customer + card vaulting + subscription — not
+// a single charge, so it isn't a candidate for this helper.)
+export async function chargeCard(opts: {
+  token: string; locationId: string; sourceId: string; amountCents: number; note: string;
+}): Promise<{ ok: true; paymentId: string | null } | { ok: false; error: string }> {
+  const res = await fetch(`${SQUARE_BASE}/v2/payments`, {
+    method: "POST",
+    headers: squareHeaders(opts.token),
+    body: JSON.stringify({
+      source_id: opts.sourceId,
+      idempotency_key: crypto.randomUUID(),
+      amount_money: { amount: opts.amountCents, currency: "USD" },
+      location_id: opts.locationId,
+      note: opts.note,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) return { ok: false, error: data?.errors?.[0]?.detail || "Payment declined" };
+  return { ok: true, paymentId: data?.payment?.id ?? null };
+}
+
 // One Square Subscription Plan Variation per coffee pack (6 / 12 / 18). The owner
 // creates three plan variations in Square (each with its cadence + price) and sets these.
 export const SQUARE_PLAN_BY_PACK: Record<string, string> = {
