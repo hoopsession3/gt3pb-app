@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
+import Sheet from "@/components/Sheet";
 
 // EVENT PREP AI — tell it about a specific event and it builds a tailored prep / to-do list,
 // grounded in the event's config + run of show, current inventory, gear, jurisdiction compliance,
@@ -67,14 +68,7 @@ export default function EventPrepAI({ ownerType, ownerId, title, onClose, onAdde
   const keepCount = tasks?.filter((t) => !t._skip).length ?? 0;
 
   return (
-    <div className="qd-scrim" onClick={onClose}>
-      <div className="qd-sheet dp" onClick={(e) => e.stopPropagation()}>
-        <div className="dp-head">
-          <div className="dp-head-l"><div className="dp-eyebrow">AI prep · grounded in your data</div><div className="dp-title">{title || "Event"} — prep list</div></div>
-          <button type="button" className="qd-x" onClick={onClose}>✕</button>
-        </div>
-
-        <div className="dp-body">
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow">AI prep · grounded in your data</div><div className="dp-title">{title || "Event"} — prep list</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
           {done !== null ? (
             <div className="eg-done">
               <div className="eg-done-h">✓ Added {done} item{done === 1 ? "" : "s"} to this event&apos;s prep</div>
@@ -110,8 +104,6 @@ export default function EventPrepAI({ ownerType, ownerId, title, onClose, onAdde
               </div>
             </>
           )}
-        </div>
-      </div>
-    </div>
+    </Sheet>
   );
 }

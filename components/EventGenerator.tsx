@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Markdown from "./Markdown";
+import Sheet from "@/components/Sheet";
 
 // EVENT GENERATOR — say hey, feed it notes: the agent drafts the events + a team collaboration note
 // (your house format) + an action-item to-do list, all linked. You get a quick review, untick
@@ -45,14 +46,7 @@ export default function EventGenerator({ onClose, onCreated, initialNotes }: { o
   const ev = plan?.events ?? [];
 
   return (
-    <div className="qd-scrim" onClick={onClose}>
-      <div className="qd-sheet dp" onClick={(e) => e.stopPropagation()}>
-        <div className="dp-head">
-          <div className="dp-head-l"><div className="dp-eyebrow">AI · from your notes</div><div className="dp-title">Create an event from your notes</div></div>
-          <button type="button" className="qd-x" onClick={onClose}>✕</button>
-        </div>
-
-        <div className="dp-body">
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow">AI · from your notes</div><div className="dp-title">Create an event from your notes</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
           {done ? (
             <div className="eg-done">
               <div className="eg-done-h">✓ Done — here&apos;s what I made</div>
@@ -109,8 +103,6 @@ export default function EventGenerator({ onClose, onCreated, initialNotes }: { o
               </div>
             </>
           )}
-        </div>
-      </div>
-    </div>
+    </Sheet>
   );
 }

@@ -4383,17 +4383,7 @@ function SectionGuide({ allowed, current, onGo, onClose }: { allowed: OpSection[
   }, []);
   const [open, setOpen] = useState<OpSection>(current);
   return (
-    <>
-      <div className="prep-scrim" onClick={onClose} aria-hidden="true" />
-      <div className="guide-sheet" role="dialog" aria-modal="true" aria-label="Section guide — when to use what">
-        <div className="prep-sheet-grab" />
-        <div className="guide-top">
-          <div>
-            <div className="guide-t">When to use what</div>
-            <div className="guide-lede">Each section is one job at one moment. Tap to learn more, then jump straight there.</div>
-          </div>
-          <button type="button" className="guide-x" onClick={onClose} aria-label="Close">✕</button>
-        </div>
+    <Sheet open onClose={onClose} labelledBy="section-guide-title" header={<div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}><div><div className="guide-t" id="section-guide-title">When to use what</div><div className="guide-lede">Each section is one job at one moment. Tap to learn more, then jump straight there.</div></div><button type="button" className="guide-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close">✕</button></div>}>
         <div className="guide-list">
           {allowed.map((s, i) => {
             const isOpen = open === s;
@@ -4423,8 +4413,7 @@ function SectionGuide({ allowed, current, onGo, onClose }: { allowed: OpSection[
             );
           })}
         </div>
-      </div>
-    </>
+    </Sheet>
   );
 }
 

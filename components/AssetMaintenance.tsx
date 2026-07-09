@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import Sheet from "@/components/Sheet";
 
 // ASSET MAINTENANCE — upkeep log for the gear. Each asset shows its last service and what's due next
 // (or overdue); tap to see the full history and log a new service/repair/clean/inspection. Staff-gated
@@ -128,10 +129,7 @@ function LogSheet({ asset, onClose, onSaved }: { asset: Asset; onClose: () => vo
     setBusy(false); onSaved();
   };
   return (
-    <div className="qd-scrim" onClick={onClose}>
-      <div className="qd-sheet dp-form" onClick={(e) => e.stopPropagation()}>
-        <div className="qd-tabs"><b style={{ fontFamily: "Inter", fontSize: 15 }}>Log · {asset.name}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>
-        <div className="qd-body">
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Log · {asset.name}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
           <div className="ts-chips">
             {KINDS.map((k) => <button key={k} type="button" className={`ts-chip${kind === k ? " on" : ""}`} onClick={() => setKind(k)}>{KIND_ICON[k]} {k}</button>)}
           </div>
@@ -147,8 +145,6 @@ function LogSheet({ asset, onClose, onSaved }: { asset: Asset; onClose: () => vo
             <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
             <button type="button" className="note-save" onClick={save} disabled={busy || !summary.trim()}>{busy ? "Saving…" : "Log it"}</button>
           </div>
-        </div>
-      </div>
-    </div>
+    </Sheet>
   );
 }
