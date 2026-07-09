@@ -15,7 +15,7 @@ export default function ReserveScreen() {
   const t = useSiteCopy();
   return (
     <section className="screen" id="s-reserve">
-      <Watermark variant="menu" />
+      <Watermark variant="landing" />
       <div className="toprow">
         <div className="mast-brand mast-dark">
           <Gt3Mark tone="cream" />

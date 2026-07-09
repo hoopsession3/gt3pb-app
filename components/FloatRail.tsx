@@ -12,7 +12,11 @@ const MIN_KEY = "gt3-rail-min";
 
 export default function FloatRail({ children }: { children: React.ReactNode }) {
   const [bottom, setBottom] = useState(170);
-  const [min, setMin] = useState(false);
+  // Folded by default — a first-time visitor gets one compact "‹" tab, not three stacked panels
+  // sitting over whatever's on the page below (on /3mpire the expanded rail used to land right on
+  // top of the "Become a member" button). A tap reveals the full insightful labels same as always;
+  // an explicit prior choice (open or folded) is still honored below once localStorage has one.
+  const [min, setMin] = useState(true);
   const [dragging, setDragging] = useState(false);
   const bottomRef = useRef(170);
   bottomRef.current = bottom;
@@ -25,7 +29,10 @@ export default function FloatRail({ children }: { children: React.ReactNode }) {
     try {
       const p = Number(localStorage.getItem(POS_KEY));
       if (Number.isFinite(p) && p > 0) setBottom(clamp(p));
-      setMin(localStorage.getItem(MIN_KEY) === "1");
+      // No stored preference yet → leave the folded default alone; only override once someone has
+      // actually toggled it (open or folded), so a first visit never flashes open then snaps shut.
+      const storedMin = localStorage.getItem(MIN_KEY);
+      if (storedMin !== null) setMin(storedMin === "1");
     } catch { /* ignore */ }
   }, []);
 
