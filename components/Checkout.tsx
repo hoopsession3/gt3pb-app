@@ -92,13 +92,23 @@ export default function Checkout() {
       }
     } catch { /* */ }
   };
-  // Pre-orders (pay at the truck) are recorded client-side as UNPAID. Paid card orders
-  // are recorded server-side in /api/checkout — `paid` is not client-writable (RLS).
-  const recordPreOrder = async () => {
-    if (!supabase) return { error: { message: "We're offline right now — try again in a moment." } };
-    return supabase.from("orders").insert({
-      items, total_cents: totalCents, paid: false, payment_id: null, customer, user_id: user?.id ?? null, status: "new",
-    });
+  // Pre-orders (pay at the truck) go through /api/checkout now too (no sourceId = pay-at-pickup) —
+  // same availability + ordering-window checks the paid path always had, instead of inserting
+  // directly from the client. `orders` no longer has a client write door at all.
+  const recordPreOrder = async (): Promise<{ error: { message: string } | null }> => {
+    try {
+      const accessToken = (await supabase?.auth.getSession())?.data.session?.access_token;
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
+        body: JSON.stringify({ items, customer }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { error: { message: data?.error || "That didn't go through — try again." } };
+      return { error: null };
+    } catch {
+      return { error: { message: "We're offline right now — try again in a moment." } };
+    }
   };
 
   // Mount the Square card form when the sheet opens (only if Square is configured).

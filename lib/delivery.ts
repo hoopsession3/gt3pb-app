@@ -6,16 +6,18 @@
 // Channel note (Phase 2-proofing): the Loop/refill tier exists ONLY on the direct channel — a
 // third-party driver can't verify empties. `refillAllowed(channel)` is the single gate.
 
+import { FRESH_PER_BOTTLE_CENTS, FLAT_BRING_BACK_CENTS } from "./bottlePricing";
+
 export type DeliveryChannel = "direct" | "uber_eats" | "doordash" | "instacart";
 export type DeliveryPackSize = 12 | 24 | 36;
 export const DELIVERY_PACKS: readonly DeliveryPackSize[] = [12, 24, 36] as const;
 
 export const DELIVERY_PRICING = {
-  refill: 8_00,        // Loop tier — into a returned bottle (direct channel only)
-  fresh: 10_00,        // new sealed bottle
-  performance: 14_00,  // premium bottle ($14) — the Salted Latte add. Always a fresh bottle.
-  feeCents: 10_00,     // flat delivery fee…
-  feeWaivedAt: 24,     // …waived at 24+ bottles
+  refill: FLAT_BRING_BACK_CENTS,       // Loop tier — into a returned bottle (direct channel only). Same flat rate as pickup's walk-up bring-back (lib/bottlePricing.ts) — no pack-size discount here; see that file for why.
+  fresh: FRESH_PER_BOTTLE_CENTS,       // new sealed bottle — same rate as every other channel
+  performance: 14_00,                  // premium bottle ($14) — the Salted Latte add. Always a fresh bottle.
+  feeCents: 10_00,                     // flat delivery fee…
+  feeWaivedAt: 24,                     // …waived at 24+ bottles
 } as const;
 
 // The $14 premium bottle. Replaces the old MCT/butter "performance" matrix with one clean add:

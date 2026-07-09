@@ -7,13 +7,15 @@
 // at a flat $10. The 70% margin floor lives in this grid: no promo codes, no rounding, no extra
 // discounts anywhere.
 
+import { FRESH_PER_BOTTLE_CENTS, FLAT_BRING_BACK_CENTS, PICKUP_PACK_BRING_BACK_DOLLARS } from "./bottlePricing";
+
 export const PRICING = {
-  // order-ahead + bring bottles back
-  returnPacks: { 3: 22.5, 6: 42.0, 12: 78.0 } as Record<number, number>,
-  // order-ahead, new glass — flat per bottle, NO pack discount
-  newPerBottle: 10.0,
-  // walk-up reference copy (in-person at the truck)
-  walkup: { newGlass: 10, bringBack: 8, single: 10 },
+  // order-ahead + bring bottles back — pickup's own bulk-discount schedule (see lib/bottlePricing.ts)
+  returnPacks: PICKUP_PACK_BRING_BACK_DOLLARS as Record<number, number>,
+  // order-ahead, new glass — flat per bottle, NO pack discount. Same rate as every other channel.
+  newPerBottle: FRESH_PER_BOTTLE_CENTS / 100,
+  // walk-up reference copy (in-person at the truck) — same flat rates as delivery's fresh/refill.
+  walkup: { newGlass: FRESH_PER_BOTTLE_CENTS / 100, bringBack: FLAT_BRING_BACK_CENTS / 100, single: FRESH_PER_BOTTLE_CENTS / 100 },
   // [FLAG] false → single-flavor packs only (steppers collapse to one choice). Default true.
   allowFlavorMix: true,
 } as const;

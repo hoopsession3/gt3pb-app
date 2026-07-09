@@ -32,21 +32,33 @@ async function squarePriceMap(token: string): Promise<Record<string, number>> {
 }
 
 export async function POST(req: Request) {
-  const token = process.env.SQUARE_ACCESS_TOKEN;
-  const locationId = process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID;
-  // Paid orders are recorded server-side with the service role, so a client can never
-  // forge a paid order (the orders RLS only allows paid=false inserts). Both are required.
-  if (!token || !locationId || !supabaseAdmin) {
+  // Every write into `orders` goes through here now — paid (Square) AND pay-at-pickup (unpaid).
+  // Pay-at-pickup used to insert directly from the client (RLS-gated to unpaid rows only); moving
+  // it here means the SAME availability + ordering-window checks the paid path already enforces now
+  // apply to it too, and the client INSERT door on `orders` can close (0156) — the last order table
+  // with a client write path becomes server-only, like every sibling table.
+  if (!supabaseAdmin) {
     return NextResponse.json({ error: "Checkout isn't switched on yet." }, { status: 503 });
   }
 
   let body: { sourceId?: string; items?: DrinkId[]; tipCents?: number; customer?: string };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
   const { sourceId, items, tipCents } = body;
-  if (!sourceId || !Array.isArray(items) || items.length === 0) {
+  if (!Array.isArray(items) || items.length === 0) {
     return NextResponse.json({ error: "Empty order" }, { status: 400 });
   }
   if (items.length > 25) return NextResponse.json({ error: "Order too large" }, { status: 400 });
+
+  // sourceId present = paying by card now (Square required). Absent = pay-at-pickup (no Square
+  // call at all — the crew charges in person at the window).
+  const token = process.env.SQUARE_ACCESS_TOKEN;
+  const locationId = process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID;
+  const paying = !!sourceId;
+  if (paying && (!token || !locationId)) {
+    return NextResponse.json({ error: "Card checkout isn't switched on yet." }, { status: 503 });
+  }
+  const customer = typeof body.customer === "string" && body.customer.trim() ? body.customer.trim().slice(0, 80) : null;
+  if (!paying && !customer) return NextResponse.json({ error: "Add a name for pickup" }, { status: 400 });
 
   // Availability is enforced HERE, not just on the screen: a stale cart or tampered client can't
   // buy an 86'd or delisted item. Checked before any charge. Missing product rows fail open (a
@@ -82,19 +94,44 @@ export async function POST(req: Request) {
     }
   }
 
+  // Pay-at-pickup is the owner's dial (live_status.pay_at_pickup, 0147) — server-authoritative now
+  // that this path runs through the API at all, matching the subscriptions_enabled pattern (0150).
+  if (!paying) {
+    const { data: ls2 } = await supabaseAdmin.from("live_status").select("pay_at_pickup").maybeSingle();
+    if ((ls2 as { pay_at_pickup?: boolean } | null)?.pay_at_pickup === false) {
+      return NextResponse.json({ error: "Pay at pickup isn't available right now — pay by card instead." }, { status: 409 });
+    }
+  }
+
   // Server computes the authoritative goods subtotal (never trust a client amount). products.
   // price_cents first (the one price authority); Square Catalog only for a slug missing from
-  // products (a catalog gap); lib/menu.ts's px only if both are unreachable.
+  // products (a catalog gap) AND only when a Square token exists (pay-at-pickup can run with no
+  // Square configured at all); lib/menu.ts's px only if both are unreachable.
   const needsSquare = items.some((id) => productPrices[id] == null);
-  const squarePrices = needsSquare ? await squarePriceMap(token) : {};
+  const squarePrices = needsSquare && token ? await squarePriceMap(token) : {};
   let subtotal = 0;
   for (const id of items) {
     if (!DRINKS[id]) return NextResponse.json({ error: `Unknown item: ${id}` }, { status: 400 });
     subtotal += productPrices[id] ?? squarePrices[id] ?? Math.round(parseFloat(DRINKS[id].px.replace("$", "")) * 100);
   }
-  // Tip is additive and capped at the subtotal as a fat-finger guard.
-  const tip = typeof tipCents === "number" && Number.isFinite(tipCents) && tipCents > 0 ? Math.min(Math.round(tipCents), subtotal) : 0;
+  // Tip is additive and capped at the subtotal as a fat-finger guard. Pay-at-pickup has no tip yet
+  // (nothing charged here to attach it to) — the field is ignored on that path.
+  const tip = paying && typeof tipCents === "number" && Number.isFinite(tipCents) && tipCents > 0 ? Math.min(Math.round(tipCents), subtotal) : 0;
   const amount = subtotal + tip;
+
+  // Canonical customer link (0151) + who's ordering — shared by both branches below.
+  const user = await userFromRequest(req); // null for guest checkout
+  const customerId = user?.id
+    ? ((await supabaseAdmin.rpc("resolve_customer", { p_user_id: user.id, p_phone: null, p_email: null, p_name: customer })).data as string | null)
+    : null;
+
+  if (!paying) {
+    // Pay-at-pickup: record unpaid, no Square call — the crew charges in person at the window.
+    const orderRow = { items, total_cents: subtotal, paid: false, payment_id: null, customer, user_id: user?.id ?? null, customer_id: customerId, status: "new" };
+    const { error: insErr } = await supabaseAdmin.from("orders").insert(orderRow);
+    if (insErr) return NextResponse.json({ error: "That didn't go through — give it another tap" }, { status: 500 });
+    return NextResponse.json({ ok: true, amount: subtotal, recorded: true });
+  }
 
   try {
     const res = await fetch(`${SQUARE_BASE}/v2/payments`, {
@@ -115,13 +152,6 @@ export async function POST(req: Request) {
     // Record the paid order server-side (paid + payment_id are trustworthy here).
     // total_cents is the GOODS subtotal (tip excluded) so history + the referral floor
     // are consistent across paid and pre-order paths.
-    const user = await userFromRequest(req); // null for guest checkout
-    const customer = typeof body.customer === "string" && body.customer.trim() ? body.customer.trim().slice(0, 80) : null;
-    // Link to the canonical customer (0151) when we know who this is — a signed-in cup order. Guest
-    // walk-ups (no account, no phone/email) stay anonymous rather than minting a name-only row.
-    const customerId = user?.id
-      ? ((await supabaseAdmin.rpc("resolve_customer", { p_user_id: user.id, p_phone: null, p_email: null, p_name: customer })).data as string | null)
-      : null;
     const orderRow = { items, total_cents: subtotal, paid: true, payment_id: paymentId, customer, user_id: user?.id ?? null, customer_id: customerId, status: "new" };
     let { error: insErr } = await supabaseAdmin.from("orders").insert(orderRow);
     if (insErr) {
