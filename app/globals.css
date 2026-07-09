@@ -3084,6 +3084,25 @@ select.note-in{-webkit-appearance:none;appearance:none}
   .sheet2{border:1px solid var(--line);border-radius:20px;max-height:min(88vh,calc(100dvh - var(--kb,0px) - 32px));box-shadow:0 24px 60px rgba(0,0,0,.6);animation:sheet2pop .22s cubic-bezier(.2,.8,.2,1)}
 }
 @keyframes sheet2pop{from{transform:translateY(10px) scale(.98);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}
+
+/* ============ CONFIRMATION MOMENT — the order-placed payoff ============ */
+.dl-done{text-align:center;animation:dlDoneIn .5s cubic-bezier(.2,.8,.2,1)}
+@keyframes dlDoneIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.dl-crest{width:74px;height:74px;margin:10px auto 14px;border-radius:50%;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 28%,#caa35f,#a97c3f 72%);box-shadow:0 10px 28px rgba(169,124,63,.42)}
+.dl-crest span{font-size:36px;line-height:1;color:#1a1409;font-weight:800;position:relative;z-index:2;animation:dlCheck .5s cubic-bezier(.2,1.5,.3,1) .14s both}
+@keyframes dlCheck{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+/* the red→gold light sweeps across the crest once */
+.dl-crest::after{content:"";position:absolute;inset:-45%;background:linear-gradient(115deg,transparent 32%,rgba(184,36,32,.55) 45%,rgba(245,241,232,.78) 50%,rgba(184,36,32,.55) 55%,transparent 68%);transform:translateX(-120%);animation:dlSweep 1.15s ease .32s 1 both}
+@keyframes dlSweep{to{transform:translateX(120%)}}
+.dl-done-h{font-size:30px}
+.dl-done-sub{color:var(--cream-m);font-family:'Inter';font-size:14px;margin-top:4px}
+.dl-done-total{font-family:'Archivo Black';font-size:46px;letter-spacing:-1px;line-height:1;margin:18px 0 2px;color:var(--cream)}
+.dl-done-total::before{content:"paid";display:block;font-family:var(--mono);font-weight:500;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--gold2);margin-bottom:5px}
+.dl-receipt{margin:16px auto 0;max-width:340px;background:rgba(245,241,232,.04);border:1px solid var(--line);border-radius:14px;padding:4px 16px;text-align:left}
+.dl-receipt-row{display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:11px 0;border-bottom:1px dashed var(--line)}
+.dl-receipt-row:last-child{border-bottom:none}
+.dl-receipt-row>span{font-family:var(--mono);font-size:9.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--cream-d);flex:0 0 auto}
+.dl-receipt-row>b{font-family:'Inter';font-weight:600;font-size:13px;color:var(--cream);text-align:right;font-variant-numeric:tabular-nums}
 .driver{padding-bottom:26px}
 .driver-empty{padding:40px 22px;text-align:center;color:var(--cream-m);font-family:'Inter';font-size:14px;line-height:1.6}
 .driver-head{display:flex;align-items:center;justify-content:space-between;margin-top:8px}

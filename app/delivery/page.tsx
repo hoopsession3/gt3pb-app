@@ -10,6 +10,7 @@ import SignIn from "@/components/SignIn";
 import { supabase } from "@/lib/supabase";
 import { SQUARE_APP_ID, SQUARE_LOCATION_ID, squareClientReady, squareWebSdkUrl } from "@/lib/square";
 import { haptic, HAPTIC } from "@/lib/haptics";
+import CountUp from "@/components/CountUp";
 import {
   quoteDelivery, deliverySlotChoices, zipInZone, maxRefills,
   DELIVERY_PACKS, DELIVERY_PRICING, SALTED_LATTE,
@@ -373,17 +374,20 @@ export default function DeliveryPage() {
       )}
 
       {step === "done" && done && (
-        <div className="dl-step">
-          <h2 className="dl-h">You&rsquo;re in. We&rsquo;ll be there before sunrise Sunday.</h2>
-          <div className="dl-quote">
-            <span>{pack} bottles · paid <b>{dollars(done.total)}</b></span>
-            <span>{done.label}</span>
-            <span>{street}, {city} {zip}</span>
-            {refills > 0 && <span>Rinse and set out <b>{refills} empties</b> on the porch before 5 AM Sunday.</span>}
-            <span>Fresh 7 days from delivery.</span>
+        <div className="dl-step dl-done">
+          <div className="dl-crest"><span>✓</span></div>
+          <h2 className="dl-h dl-done-h">You&rsquo;re in.</h2>
+          <p className="dl-done-sub">We&rsquo;ll be there before sunrise Sunday.</p>
+          <div className="dl-done-total"><CountUp cents={done.total} /></div>
+          <div className="dl-receipt">
+            <div className="dl-receipt-row"><span>Pack</span><b>{pack} bottles</b></div>
+            <div className="dl-receipt-row"><span>Delivery</span><b>{done.label}</b></div>
+            <div className="dl-receipt-row"><span>Address</span><b>{street}, {city} {zip}</b></div>
+            {refills > 0 && <div className="dl-receipt-row"><span>Empties</span><b>{refills} out by 5 AM Sun</b></div>}
+            <div className="dl-receipt-row"><span>Fresh</span><b>7 days from delivery</b></div>
           </div>
           {done.warn && <p className="dl-err" role="alert">{done.warn}</p>}
-          <button type="button" className="handle" onClick={() => router.push("/3mpire")}><span>Track it in your account</span></button>
+          <button type="button" className="oa-cta" style={{ marginTop: 16 }} onClick={() => router.push("/3mpire")}>Track it in your account</button>
           <div className="signoff">Pure Signal. No Noise.</div>
         </div>
       )}

@@ -14,6 +14,7 @@ import {
 } from "@/lib/orderAhead";
 import { useSiteCopy } from "@/lib/copy";
 import { haptic, HAPTIC } from "@/lib/haptics";
+import CountUp from "@/components/CountUp";
 import MyPacks, { packMix, packDayLabel, type MyPack } from "./MyPacks";
 
 // ORDER-AHEAD — customer reserve flow (reserve → details → confirmed). One-off Saturday-drop
@@ -334,14 +335,14 @@ export default function OrderAhead() {
         {/* ============ CONFIRMED ============ */}
         {view === "confirmed" && conf && (
           <div className="oa-view on">
-            <div className="oa-cicon">✓</div>
+            <div className="dl-crest"><span>✓</span></div>
             <div className="oa-kicker">RESERVED</div>
             <div className="oa-head">See you {dayName(conf.sat).split(",")[0]}, {conf.name.split(" ")[0]}.</div>
             <div className="oa-review">
               {conf.id && <div className="oa-rline"><span className="oa-rk">Order</span><span className="oa-rv">#{conf.id.slice(0, 6).toUpperCase()}</span></div>}
               <div className="oa-rline"><span className="oa-rk">Pack</span><span className="oa-rv">{conf.size} bottles — {mixSummary(conf.mix)}</span></div>
               <div className="oa-rline"><span className="oa-rk">Pickup</span><span className="oa-rv">{dayName(conf.sat)}</span></div>
-              <div className="oa-rline total"><span className="oa-rk">{conf.paid ? "Paid" : "Pay at pickup"}</span><span className="oa-rv">{dollars(conf.total)}</span></div>
+              <div className="oa-rline total"><span className="oa-rk">{conf.paid ? "Paid" : "Pay at pickup"}</span><CountUp cents={conf.total} className="oa-rv" /></div>
             </div>
             <div className="oa-remind">
               {conf.glass === "return"
