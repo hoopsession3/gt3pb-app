@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useApp } from "@/components/AppProvider";
 import { useAuth } from "@/components/AuthProvider";
 import AccountPill from "@/components/AccountPill";
@@ -119,6 +120,7 @@ function RsvpRow({ ev }: { ev: EventRow }) {
 
 // ───────────────────────── live ─────────────────────────
 function EventsLive() {
+  const router = useRouter();
   const [events, setEvents] = useState<EventRow[]>([]);
   const [loaded, setLoaded] = useState(false);
 
@@ -149,6 +151,15 @@ function EventsLive() {
       {!loaded && <Skeleton variant="row" count={3} />}
       {events.map((ev) => <RsvpRow key={ev.id} ev={ev} />)}
       {loaded && events.length === 0 && <EmptyState title="No events this week" sub="New pours and run-club meetups drop here — check back soon." />}
+
+      {/* Always-relevant closing beat — true whether this week is packed or slow, so the page
+          never just trails off into empty space on a quiet week. */}
+      <div className="dchapter"><span className="dchn">Bring Us To You</span><span className="dchw">private events</span></div>
+      <div className="dchrule" />
+      <p className="empty-s" style={{ margin: "2px 2px 14px", textAlign: "left" }}>Pours, run clubs, launches — we set up anywhere.</p>
+      <button type="button" className="co-upsell-line" onClick={() => router.push("/book")}>
+        Book the bar for your event <b>→</b>
+      </button>
     </section>
   );
 }
