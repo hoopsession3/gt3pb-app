@@ -177,9 +177,9 @@ export default function DeliveryPage() {
         <button type="button" className="oa-mode-alt" onClick={() => router.push("/reserve")}>Rather pick up? →</button>
       </div>
 
-      {/* the deadline line — the one fact every ordering step needs, but not the landing (no Sunday
-          chosen yet, and the hero already carries the timing). Shown from the size step onward. */}
-      {step !== "zone" && (
+      {/* the deadline line — the one fact the build steps need. Not on the landing (hero carries the
+          timing), not on size (the day picker shows each Sunday's cutoff), not on done (order's placed). */}
+      {(step === "build" || step === "return" || step === "details" || step === "pay") && (
         <div className="dl-deadline">Drop closes <b>{slot.cutoffLabel}</b> · delivery <b>{slot.deliveryLabel}</b></div>
       )}
 
@@ -215,7 +215,7 @@ export default function DeliveryPage() {
 
       {step === "size" && (
         <div className="dl-step">
-          <h2 className="dl-h">You&rsquo;re in. Let&rsquo;s build your pack.</h2>
+          <h2 className="dl-h">We deliver to you. Pick a Sunday and a size.</h2>
 
           <div className="oa-slabel">Which Sunday</div>
           <div className="dl-days">
@@ -233,11 +233,11 @@ export default function DeliveryPage() {
               <button key={s} type="button" className={`oa-tile${pack === s ? " sel" : ""}`} onClick={() => { setPack(s); setStep("build"); }}>
                 {s === 24 && <span className="oa-tag on">FREE DELIVERY</span>}
                 <div className="oa-c">{s}</div><div className="oa-u">BOTTLES</div>
-                <div className="oa-p">{s === 12 ? "minimum" : s === 24 ? "delivery on us" : "bulk"}</div>
+                <div className="oa-p">{s === 12 ? "starter" : s === 24 ? "stock up" : "bulk"}</div>
               </button>
             ))}
           </div>
-          <p className="dl-note">Delivery {dollars(DELIVERY_PRICING.feeCents)} flat — on us at {DELIVERY_PRICING.feeWaivedAt}+ bottles.</p>
+          <p className="dl-note">Delivery {dollars(DELIVERY_PRICING.feeCents)} flat — free at {DELIVERY_PRICING.feeWaivedAt}+ bottles.</p>
         </div>
       )}
 
@@ -293,10 +293,10 @@ export default function DeliveryPage() {
               </div>
               {refills > 0 && (
                 <>
-                  <p className="dl-callout">Bringing them back? Set your rinsed empties on the porch by 5 AM Sunday. No empties, no swap — you&rsquo;ll pick up at GT3PB that day.</p>
+                  <p className="dl-callout">Set your rinsed empties on the porch by <b>5 AM Sunday</b>. No empties out, no swap — you&rsquo;ll pick up at GT3PB instead.</p>
                   <label className="dl-ack">
                     <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} />
-                    <span>I&rsquo;ll have my empties out by 5 AM Sunday morning. If not, I&rsquo;ll pick up at GT3PB.</span>
+                    <span>Got it — empties out by 5 AM Sunday.</span>
                   </label>
                 </>
               )}
@@ -337,7 +337,6 @@ export default function DeliveryPage() {
                 <input className="auth-input dl-zip" value={zip} readOnly aria-label="ZIP (from your zone check)" />
               </div>
               <input className="auth-input" placeholder="Gate code / access notes (optional)" value={access} onChange={(e) => setAccess(e.target.value)} aria-label="Access instructions" />
-              <p className="dl-note">Your order will arrive <b>{slot.deliveryLabel}</b>.</p>
               <button type="button" className="oa-cta" disabled={!name.trim() || !street.trim() || !city.trim()} onClick={() => setStep("pay")}>
                 Payment →
               </button>
@@ -350,13 +349,13 @@ export default function DeliveryPage() {
         <div className="dl-step">
           <h2 className="dl-h">Lock it in.</h2>
           <div className="dl-quote">
-            <span>{pack} bottles · {slot.deliveryLabel}</span>
+            <span>{pack} bottles</span>
             <span className="dl-quote-t">total <b>{dollars(quote.totalCents)}</b></span>
           </div>
           {/* Delivery is always paid on order — card required, no cash on delivery. */}
           {squareClientReady ? (
             <>
-              <p className="dl-sub">Paid now, on your card — delivery is prepaid.</p>
+              <p className="dl-sub">One charge now — nothing due at the door.</p>
               <div id="dl-card" className="sq-card" />
               {err && <p className="dl-err" role="alert">{err}</p>}
               <button type="button" className="oa-cta" disabled={!cardReady || busy} onClick={pay}>
