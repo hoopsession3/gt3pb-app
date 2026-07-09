@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import { useOperatorSection } from "./OperatorNav";
 import EventDayPlanner from "./EventDayPlanner";
+import Sheet from "@/components/Sheet";
 
 // COMPANY CALENDAR — one pane for everything dated: truck events, admin/ops work, scheduled content
 // (from Studio), and free-standing to-dos. Category-colored, filterable, click-through to source.
@@ -194,20 +195,15 @@ export default function CompanyCalendar() {
           </button>
         </div>
         {filterSheet && (
-          <>
-            <div className="prep-scrim" onClick={() => setFilterSheet(false)} aria-hidden="true" />
-            <div className="prep-sheet" role="dialog" aria-modal="true" aria-label="Filter the calendar">
-              <div className="prep-sheet-grab" />
-              <div className="prep-sheet-h">Show on the calendar</div>
-              <div className="prep-sheet-opts">
-                {FILTERS.map((f) => (
-                  <button key={f} type="button" className={`prep-sheet-opt${filter === f ? " on" : ""}`} onClick={() => { setFilter(f); setFilterSheet(false); }}>
-                    {f === "all" ? "Everything" : `${CAT[f].icon} ${CAT[f].label}`}
-                  </button>
-                ))}
-              </div>
+          <Sheet open onClose={() => setFilterSheet(false)} header={<div style={{ display: "flex", alignItems: "center" }}><div className="prep-sheet-h">Show on the calendar</div></div>}>
+            <div className="prep-sheet-opts">
+              {FILTERS.map((f) => (
+                <button key={f} type="button" className={`prep-sheet-opt${filter === f ? " on" : ""}`} onClick={() => { setFilter(f); setFilterSheet(false); }}>
+                  {f === "all" ? "Everything" : `${CAT[f].icon} ${CAT[f].label}`}
+                </button>
+              ))}
             </div>
-          </>
+          </Sheet>
         )}
         {(view === "month" || view === "week") && <div className="cal-dow">{DOW.map((d) => <div key={d} className="cal-dow-c">{d}</div>)}</div>}
       </div>
@@ -296,10 +292,8 @@ function DayView({ dayKey, items, events, onClose, onAdd, onSaved }: { dayKey: s
   const heading = d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   const sub: Record<Item["kind"], string> = { event: "event", stop: "on-the-ground op", todo: "to-do", content: "content", task: "task due" };
   return (
-    <div className="qd-scrim" onClick={onClose}>
-      <div className="qd-sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="qd-tabs"><b style={{ fontFamily: "Inter", fontSize: 15 }}>{heading}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>
-        <div className="qd-body">
+    <>
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{heading}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
           {items.length === 0 && archived.length === 0 && <div className="oa-empty" style={{ padding: "18px 8px" }}>Nothing scheduled this day. Tap Add to put something here.</div>}
           <div className="dv-list">
             {items.map((it) => (
@@ -324,10 +318,9 @@ function DayView({ dayKey, items, events, onClose, onAdd, onSaved }: { dayKey: s
             )}
           </div>
           <div className="prod-actions" style={{ marginTop: 14 }}><span /><button type="button" className="note-save" onClick={onAdd}>+ Add to this day</button></div>
-        </div>
-      </div>
-      {edit && <CalEdit kind={edit.kind} id={edit.id} events={events} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); onSaved(); }} />}
-    </div>
+    </Sheet>
+    {edit && <CalEdit kind={edit.kind} id={edit.id} events={events} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); onSaved(); }} />}
+    </>
   );
 }
 
@@ -404,10 +397,7 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: Item["kind"]; i
         onClose={() => setPlanOpen(false)}
       />
     )}
-    <div className="qd-scrim dp-scrim2" onClick={onClose}>
-      <div className="qd-sheet dp-form" onClick={(e) => e.stopPropagation()}>
-        <div className="qd-tabs"><b style={{ fontFamily: "Inter", fontSize: 15 }}>Edit {cfg.noun}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>
-        <div className="qd-body">
+    <Sheet open onClose={onClose} className="dp-form" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Edit {cfg.noun}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
           <input className="note-in" value={f[cfg.nameCol] ?? ""} onChange={(e) => set(cfg.nameCol, e.target.value)} placeholder={`${cfg.noun[0].toUpperCase() + cfg.noun.slice(1)} name`} autoFocus />
           <div className="prod-grid" style={{ marginTop: 10 }}>
             <label className="prod-f"><span>Date</span><input type="date" value={dateVal} onChange={(e) => onDate(e.target.value)} /></label>
@@ -456,9 +446,7 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: Item["kind"]; i
               <button type="button" className="note-save" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
             </div>
           </div>
-        </div>
-      </div>
-    </div>
+    </Sheet>
     </>
   );
 }
@@ -562,16 +550,7 @@ function AddSheet({ day, events, onClose, onDone }: { day: string; events: Ev[];
     onDone();
   };
   return (
-    <div className="qd-scrim" onClick={onClose}>
-      <div className="qd-sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="qd-tabs">
-          <button type="button" className={`qd-tab${kind === "todo" ? " on" : ""}`} onClick={() => setKind("todo")}>To-do</button>
-          <button type="button" className={`qd-tab${kind === "stop" ? " on" : ""}`} onClick={() => setKind("stop")}>🚚 Truck stop</button>
-          <button type="button" className={`qd-tab${kind === "event" ? " on" : ""}`} onClick={() => setKind("event")}>Event</button>
-          <span style={{ marginLeft: "auto", fontFamily: "Inter", fontSize: 13, color: "var(--cream-m)" }}>{day}</span>
-          <button type="button" className="qd-x" onClick={onClose}>✕</button>
-        </div>
-        <div className="qd-body">
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><button type="button" className={`qd-tab${kind === "todo" ? " on" : ""}`} onClick={() => setKind("todo")}>To-do</button><button type="button" className={`qd-tab${kind === "stop" ? " on" : ""}`} onClick={() => setKind("stop")}>🚚 Truck stop</button><button type="button" className={`qd-tab${kind === "event" ? " on" : ""}`} onClick={() => setKind("event")}>Event</button><span style={{ marginLeft: "auto", fontFamily: "Inter", fontSize: 13, color: "var(--cream-m)" }}>{day}</span><button type="button" className="qd-x" onClick={onClose}>✕</button></div>}>
           <input className="note-in" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={kind === "todo" ? "What needs doing?" : kind === "stop" ? "Stop name — e.g. Saturday Market" : "Event name"} autoFocus />
           {kind === "stop" ? (
             <>
@@ -596,8 +575,6 @@ function AddSheet({ day, events, onClose, onDone }: { day: string; events: Ev[];
             <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
             <button type="button" className="note-save" onClick={save} disabled={!title.trim()}>Add</button>
           </div>
-        </div>
-      </div>
-    </div>
+    </Sheet>
   );
 }

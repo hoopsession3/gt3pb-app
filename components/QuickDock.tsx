@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
 import AskGT3 from "./AskGT3";
+import Sheet from "@/components/Sheet";
 
 // QuickDock — a floating, always-accessible launcher for the crew's two most-used quick actions:
 // Ask GT3 (the pocket-brain chat) and a fast Note capture (jot/speak → saved as a meeting note to
@@ -35,18 +36,9 @@ export default function QuickDock() {
       </button>
 
       {open && (
-        <div className="qd-scrim" onClick={() => setOpen(false)}>
-          <div className="qd-sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Quick actions">
-            <div className="qd-tabs">
-              <button type="button" className={`qd-tab${mode === "ask" ? " on" : ""}`} onClick={() => setMode("ask")}>✦ Ask GT3</button>
-              {isLeadership && <button type="button" className={`qd-tab${mode === "note" ? " on" : ""}`} onClick={() => setMode("note")}>✎ Quick note</button>}
-              <button type="button" className="qd-x" onClick={() => setOpen(false)} aria-label="Close">✕</button>
-            </div>
-            <div className="qd-body">
-              {mode === "ask" ? <AskGT3 /> : <QuickNote userId={user?.id ?? null} onSaved={() => setOpen(false)} />}
-            </div>
-          </div>
-        </div>
+        <Sheet open onClose={() => setOpen(false)} header={<div style={{ display: "flex", alignItems: "center" }}><button type="button" className={`qd-tab${mode === "ask" ? " on" : ""}`} onClick={() => setMode("ask")}>✦ Ask GT3</button>{isLeadership && <button type="button" className={`qd-tab${mode === "note" ? " on" : ""}`} onClick={() => setMode("note")}>✎ Quick note</button>}<button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setOpen(false)} aria-label="Close">✕</button></div>}>
+          {mode === "ask" ? <AskGT3 /> : <QuickNote userId={user?.id ?? null} onSaved={() => setOpen(false)} />}
+        </Sheet>
       )}
     </>
   );

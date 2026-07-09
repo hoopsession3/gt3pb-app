@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import Sheet from "@/components/Sheet";
 
 // EVENT DAY PLANNER — a multi-day, time-by-time run of show for one event. Pick how many days the
 // event runs, then build each day block by block: leave home 9:00, drive, arrive Airbnb (address +
@@ -137,15 +138,14 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
   const doneCount = dayItems.filter((i) => i.done).length;
 
   return (
-    <div className="qd-scrim" onClick={onClose}>
-      <div className="qd-sheet dp" onClick={(e) => e.stopPropagation()}>
-        <div className="dp-head">
-          <div className="dp-head-l">
-            <div className="dp-eyebrow">Run of show</div>
-            <div className="dp-title">{title || "Event"} — daily schedule</div>
-          </div>
-          <button type="button" className="qd-x" onClick={onClose}>✕</button>
+    <>
+      <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}>
+        <div className="dp-head-l">
+          <div className="dp-eyebrow">Run of show</div>
+          <div className="dp-title">{title || "Event"} — daily schedule</div>
         </div>
+        <button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button>
+      </div>}>
 
         <div className="dp-daysctl">
           <span>Runs</span>
@@ -222,7 +222,7 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
             <button type="button" className="dp-draft" onClick={() => setDrafting(true)}>✨ Draft this day with AI</button>
           </div>
         </div>
-      </div>
+      </Sheet>
 
       {editing && (
         <ItemForm
@@ -235,7 +235,7 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
         <DraftPanel ownerType={ownerType} eventId={eventId} dayIndex={active} onClose={() => setDrafting(false)}
           onAdd={async (rows) => { for (const r of rows) await addItem(r); setDrafting(false); }} />
       )}
-    </div>
+    </>
   );
 }
 
@@ -244,10 +244,7 @@ function ItemForm({ item, onClose, onSave }: { item: Item | null; onClose: () =>
   const [f, setF] = useState<Partial<Item>>(item ?? { title: "", kind: "other", start_time: "", end_time: "", location: "", address: "", details: "", who: "" });
   const set = (k: keyof Item, v: any) => setF((p) => ({ ...p, [k]: v }));
   return (
-    <div className="qd-scrim dp-scrim2" onClick={onClose}>
-      <div className="qd-sheet dp-form" onClick={(e) => e.stopPropagation()}>
-        <div className="qd-tabs"><b style={{ fontFamily: "Inter", fontSize: 15 }}>{item ? "Edit block" : "New block"}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>
-        <div className="qd-body">
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{item ? "Edit block" : "New block"}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
           <input className="note-in" value={f.title ?? ""} onChange={(e) => set("title", e.target.value)} placeholder="What's happening? e.g. Arrive Airbnb" autoFocus />
           <div className="dp-kinds">
             {KINDS.map((k) => (
@@ -266,9 +263,7 @@ function ItemForm({ item, onClose, onSave }: { item: Item | null; onClose: () =>
             <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
             <button type="button" className="note-save" onClick={() => onSave(f)} disabled={!f.title?.trim()}>{item ? "Save" : "Add block"}</button>
           </div>
-        </div>
-      </div>
-    </div>
+    </Sheet>
   );
 }
 
@@ -294,10 +289,7 @@ function DraftPanel({ ownerType = "event", eventId, dayIndex, onClose, onAdd }: 
   };
 
   return (
-    <div className="qd-scrim dp-scrim2" onClick={onClose}>
-      <div className="qd-sheet dp-form" onClick={(e) => e.stopPropagation()}>
-        <div className="qd-tabs"><b style={{ fontFamily: "Inter", fontSize: 15 }}>✨ Draft day {dayIndex}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>
-        <div className="qd-body">
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>✨ Draft day {dayIndex}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
           {!rows && (
             <>
               <div className="dp-hint">A few notes — where you&apos;re leaving from, when the event opens, where you&apos;re staying — and AI proposes the day. You approve what to keep.</div>
@@ -327,8 +319,6 @@ function DraftPanel({ ownerType = "event", eventId, dayIndex, onClose, onAdd }: 
               </div>
             </>
           )}
-        </div>
-      </div>
-    </div>
+    </Sheet>
   );
 }

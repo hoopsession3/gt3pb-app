@@ -239,10 +239,7 @@ function StartBrewSheet({ batch, onClose, onStart }: { batch: Batch; onClose: ()
   const [busy, setBusy] = useState(false);
   const hrs = Number(batch.extraction_hours) || 20;
   return (
-    <div className="qd-scrim" onClick={onClose}>
-      <div className="qd-sheet dp-form" onClick={(e) => e.stopPropagation()}>
-        <div className="qd-tabs"><b style={{ fontFamily: "Inter", fontSize: 15 }}>Start brew · {batch.recipe_name}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>
-        <div className="qd-body">
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Start brew · {batch.recipe_name}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
           <div className="brew-spec">{batch.batch_gal} gal{batch.vessel ? ` · ${batch.vessel}` : ""} · {hrs}h cold extraction → ready ~{new Date(Date.now() + hrs * 3600000).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}</div>
           <label className="prod-f"><span>Coffee lot — origin · roast date (for traceability)</span><input value={lot} onChange={(e) => setLot(e.target.value)} placeholder="e.g. Colombia single-origin · roasted 6/20" autoFocus /></label>
           <label className="prod-f" style={{ marginTop: 8 }}><span>Brewer</span><input value={brewer} onChange={(e) => setBrewer(e.target.value)} placeholder="Ryan / Kayla" /></label>
@@ -250,9 +247,7 @@ function StartBrewSheet({ batch, onClose, onStart }: { batch: Batch; onClose: ()
             <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
             <button type="button" className="note-save" onClick={async () => { setBusy(true); await onStart({ coffee_lot: lot, brewer }); }} disabled={busy}>{busy ? "Starting…" : `▶ Start the ${hrs}h brew`}</button>
           </div>
-        </div>
-      </div>
-    </div>
+    </Sheet>
   );
 }
 
@@ -318,10 +313,7 @@ function BatchLog({ batch, events, stops, onClose, onSaved }: { batch: Batch; ev
     setBusy(false); onSaved();
   };
   return (
-    <div className="qd-scrim" onClick={onClose}>
-      <div className="qd-sheet dp-form" onClick={(e) => e.stopPropagation()}>
-        <div className="qd-tabs"><b style={{ fontFamily: "Inter", fontSize: 15 }}>Batch log · {batch.recipe_name}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>
-        <div className="qd-body">
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Batch log · {batch.recipe_name}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
           <div className="brew-spec">{batch.batch_gal} gal{batch.vessel ? ` · ${batch.vessel}` : ""}{batch.target_spec ? ` · ${batch.target_spec}` : ""}<br />Brewed {fmtTs(batch.brew_started_at)} → ready {fmtTs(batch.ready_at)}</div>
           <div className="prod-grid">
             <label className="prod-f"><span>Status</span>
@@ -349,9 +341,7 @@ function BatchLog({ batch, events, stops, onClose, onSaved }: { batch: Batch; ev
             <button type="button" className="note-save" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save log"}</button>
             </div>
           </div>
-        </div>
-      </div>
-    </div>
+    </Sheet>
   );
 }
 
@@ -407,13 +397,8 @@ function BottleLoadout({ batch, onClose }: { batch: Batch; onClose: () => void }
   };
 
   return (
-    <div className="qd-scrim" onClick={onClose}>
-      <div className="qd-sheet dp" onClick={(e) => e.stopPropagation()}>
-        <div className="dp-head">
-          <div className="dp-head-l"><div className="dp-eyebrow">📦 Bottle loadout · pack &amp; transport</div><div className="dp-title">{batch.recipe_name || "Batch"} · {batch.batch_gal} gal</div></div>
-          <button type="button" className="qd-x" onClick={onClose}>✕</button>
-        </div>
-        <div className="dp-body">
+    <>
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow">📦 Bottle loadout · pack &amp; transport</div><div className="dp-title">{batch.recipe_name || "Batch"} · {batch.batch_gal} gal</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
           {!res ? (
             <>
               <div className="dp-hint">Split the {batch.batch_gal} gal between keg and bottles — I&apos;ll work out the counts, UVDTF labels, and the pack plan.</div>
@@ -448,8 +433,7 @@ function BottleLoadout({ batch, onClose }: { batch: Batch; onClose: () => void }
               </div>
             </>
           )}
-        </div>
-      </div>
+    </Sheet>
       {assignTask && (
         <AssignTaskSheet
           defaultTitle={`Pack out: ${batch.recipe_name || "Batch"} · ${res?.bottles ?? prevBottles}×${res?.bottle_oz ?? oz}oz${res?.uvdtf_labels ? ` + ${res.uvdtf_labels} labels` : ""}`}
@@ -459,7 +443,7 @@ function BottleLoadout({ batch, onClose }: { batch: Batch; onClose: () => void }
           onClose={() => setAssignTask(false)}
         />
       )}
-    </div>
+    </>
   );
 }
 
@@ -512,13 +496,7 @@ function BrewSheet({ recipe, events, stops, vessels, onClose, onDone }: { recipe
   };
 
   return (
-    <div className="qd-scrim" onClick={onClose}>
-      <div className="qd-sheet dp" onClick={(e) => e.stopPropagation()}>
-        <div className="dp-head">
-          <div className="dp-head-l"><div className="dp-eyebrow">🍺 Brew · exact scale to spec</div><div className="dp-title">{recipe.name}</div></div>
-          <button type="button" className="qd-x" onClick={onClose}>✕</button>
-        </div>
-        <div className="dp-body">
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow">🍺 Brew · exact scale to spec</div><div className="dp-title">{recipe.name}</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
           {saved ? (
             <div className="eg-done">
               <div className="eg-done-h">✓ Batch added to the brew schedule</div>
@@ -590,8 +568,6 @@ function BrewSheet({ recipe, events, stops, vessels, onClose, onDone }: { recipe
               </div>
             </>
           )}
-        </div>
-      </div>
-    </div>
+    </Sheet>
   );
 }

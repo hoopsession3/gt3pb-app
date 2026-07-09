@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import Sheet from "@/components/Sheet";
 
 // PACK PLAN — the whole event/stop's pack-out in one view: take every batch brewing for it, split each
 // between KEGS (poured on tap) and 10/16oz BOTTLES (grab-and-go in the cooler), and allocate the keg
@@ -73,13 +74,7 @@ export default function PackPlan({ ownerType, ownerId, title, onClose }: { owner
   const allBottle = () => setKegGal(Object.fromEntries(batches.map((b) => [b.id, "0"])));
 
   return (
-    <div className="qd-scrim" onClick={onClose}>
-      <div className="qd-sheet dp" onClick={(e) => e.stopPropagation()}>
-        <div className="dp-head">
-          <div className="dp-head-l"><div className="dp-eyebrow">📦 Pack-out plan · kegs vs bottles</div><div className="dp-title">{title || "Event"} — {totalGal} gal across {batches.length} batch{batches.length === 1 ? "" : "es"}</div></div>
-          <button type="button" className="qd-x" onClick={onClose}>✕</button>
-        </div>
-        <div className="dp-body">
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow">📦 Pack-out plan · kegs vs bottles</div><div className="dp-title">{title || "Event"} — {totalGal} gal across {batches.length} batch{batches.length === 1 ? "" : "es"}</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
           {!loaded ? <div className="dp-hint">Loading…</div> : batches.length === 0 ? (
             <div className="dp-hint">No batches tied to this {ownerType} yet. Plan a batch in Brew and tie it here, then come back to split it between kegs and bottles.</div>
           ) : (
@@ -117,8 +112,6 @@ export default function PackPlan({ ownerType, ownerId, title, onClose }: { owner
               <div className="prod-actions" style={{ marginTop: 14 }}><span /><button type="button" className="note-save" onClick={onClose}>Done</button></div>
             </>
           )}
-        </div>
-      </div>
-    </div>
+    </Sheet>
   );
 }

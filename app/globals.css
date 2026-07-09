@@ -335,7 +335,7 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 .bookcard p{font-size:12.5px;color:var(--cream-m);line-height:1.5;max-width:300px}
 
 /* sheet */
-.scrim{position:absolute;inset:0;background:rgba(0,0,0,.6);opacity:0;pointer-events:none;transition:.25s;z-index:40}
+.scrim{position:absolute;inset:0;background:radial-gradient(60% 40% at 50% 82%,rgba(200,166,97,.13),transparent 66%),rgba(0,0,0,.6);opacity:0;pointer-events:none;transition:.25s;z-index:40}
 .scrim.open{opacity:1;pointer-events:auto}
 .sheet{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(180deg,#15120d,#0b0906);border-radius:28px 28px 0 0;z-index:41;
   transform:translateY(110%);transition:transform .32s cubic-bezier(.3,.9,.3,1),visibility 0s linear .32s;visibility:hidden;max-height:min(84%,calc(100dvh - var(--kb,0px) - 40px));overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;border-top:1px solid var(--line2)}
@@ -585,8 +585,8 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .sq-wrap{position:relative;margin-top:4px}
 .sq-sk-bar{position:absolute;inset:0;border-radius:13px}
 /* sticky pay footer so Total + Pay stay visible while the order scrolls */
-.sheet.paper .co-foot{position:sticky;bottom:0;background:#F4EFE3;padding-top:12px;margin-top:8px}
-.sheet.paper .co-foot::before{content:"";position:absolute;left:0;right:0;top:-20px;height:20px;background:linear-gradient(transparent,#F4EFE3);pointer-events:none}
+:is(.sheet,.sheet2).paper .co-foot{position:sticky;bottom:0;background:#F4EFE3;padding-top:12px;margin-top:8px}
+:is(.sheet,.sheet2).paper .co-foot::before{content:"";position:absolute;left:0;right:0;top:-20px;height:20px;background:linear-gradient(transparent,#F4EFE3);pointer-events:none}
 
 /* ---- admin / back office ---- */
 .adm-sec{margin-top:8px}
@@ -1040,8 +1040,8 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .order-bar:active{transform:scale(.99)}
 
 /* cream detail sheet — a card lifted off the menu */
-.sheet.paper{background:#F4EFE3;border-top:1px solid rgba(34,31,24,.14)}
-.sheet.paper .grab{background:rgba(34,31,24,.22)}
+:is(.sheet,.sheet2).paper{background:#F4EFE3;border-top:1px solid rgba(34,31,24,.14)}
+:is(.sheet,.sheet2).paper .grab{background:rgba(34,31,24,.22)}
 .sheet-pillar{font-family:'Inter';font-weight:600;font-size:9.5px;letter-spacing:2px;text-transform:uppercase;color:#9A7A2A;margin-top:6px}
 .sheet-mark{display:flex;align-items:baseline;gap:11px;margin-top:12px}
 .sheet-dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;transform:translateY(-2px)}
@@ -1060,38 +1060,38 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .sheet-when{display:flex;gap:12px;align-items:baseline;background:rgba(34,31,24,.04);border:1px solid rgba(34,31,24,.1);border-radius:13px;padding:13px 15px;margin-top:18px}
 .sheet-when-k{font-family:'Inter';font-weight:600;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#9A7A2A;flex:0 0 auto}
 .sheet-when-v{font-family:'Fraunces';font-size:13.5px;color:#2c291d}
-.sheet.paper .order-bar{margin-top:18px}
+:is(.sheet,.sheet2).paper .order-bar{margin-top:18px}
 .sheet-signoff{text-align:center;font-family:'Fraunces';font-style:italic;font-size:13px;color:#6f6a59;margin-top:18px}
 
 /* cream checkout — recolour the legacy dark internals (scoped to the paper sheet) */
-.sheet.paper .spec-label{color:#9A7A2A}
-.sheet.paper .co-line{color:#221F18;border-bottom-color:rgba(34,31,24,.12)}
-.sheet.paper .co-line span:last-child{color:#5f5a49}
-.sheet.paper .co-total span{color:#221F18!important}
-.sheet.paper .sq-card{background:rgba(34,31,24,.04);border-color:rgba(34,31,24,.16)}
-.sheet.paper .signoff{color:#6f6a59}
-.sheet.paper .honest{background:rgba(184,36,32,.07);border-color:rgba(184,36,32,.2);color:#3a2b22}
-.sheet.paper .honest b{color:#221F18}
-.sheet.paper .auth-err{color:#9a4742;background:rgba(184,36,32,.08);border-color:rgba(184,36,32,.28)}
-.sheet.paper .tip-row{display:flex;gap:7px;margin:2px 0 6px}
-.sheet.paper .tip-opt{flex:1;font-family:'Inter';font-weight:600;font-size:13px;padding:11px 0;border-radius:11px;border:1px solid rgba(34,31,24,.16);background:transparent;color:#5f5a49;cursor:pointer}
-.sheet.paper .tip-opt.on{background:#221F18;border-color:#221F18;color:#F4EFE3}
-.sheet.paper .tip-opt:active{transform:scale(.97)}
-.sheet.paper .co-qty{display:flex;align-items:center;gap:9px}
-.sheet.paper .co-step{width:34px;height:34px;border-radius:9px;border:1px solid rgba(34,31,24,.22);background:transparent;color:#221F18;font-size:18px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:0 0 auto;position:relative}
-.sheet.paper .co-step::before{content:"";position:absolute;inset:-6px}
-.sheet.paper .co-step:active{transform:scale(.95)}
-.sheet.paper .co-qty b{font-family:'DM Mono';font-weight:500;min-width:12px;text-align:center;color:#221F18}
-.sheet.paper .co-name{width:100%;margin-top:8px;background:#fff;border:1px solid rgba(34,31,24,.2);border-radius:12px;padding:13px 14px;color:#221F18;font-family:'Inter';font-size:16px;outline:none}
-.sheet.paper .co-name:focus{border-color:#221F18}
-.sheet.paper .co-name::placeholder{color:#9a9482}
+:is(.sheet,.sheet2).paper .spec-label{color:#9A7A2A}
+:is(.sheet,.sheet2).paper .co-line{color:#221F18;border-bottom-color:rgba(34,31,24,.12)}
+:is(.sheet,.sheet2).paper .co-line span:last-child{color:#5f5a49}
+:is(.sheet,.sheet2).paper .co-total span{color:#221F18!important}
+:is(.sheet,.sheet2).paper .sq-card{background:rgba(34,31,24,.04);border-color:rgba(34,31,24,.16)}
+:is(.sheet,.sheet2).paper .signoff{color:#6f6a59}
+:is(.sheet,.sheet2).paper .honest{background:rgba(184,36,32,.07);border-color:rgba(184,36,32,.2);color:#3a2b22}
+:is(.sheet,.sheet2).paper .honest b{color:#221F18}
+:is(.sheet,.sheet2).paper .auth-err{color:#9a4742;background:rgba(184,36,32,.08);border-color:rgba(184,36,32,.28)}
+:is(.sheet,.sheet2).paper .tip-row{display:flex;gap:7px;margin:2px 0 6px}
+:is(.sheet,.sheet2).paper .tip-opt{flex:1;font-family:'Inter';font-weight:600;font-size:13px;padding:11px 0;border-radius:11px;border:1px solid rgba(34,31,24,.16);background:transparent;color:#5f5a49;cursor:pointer}
+:is(.sheet,.sheet2).paper .tip-opt.on{background:#221F18;border-color:#221F18;color:#F4EFE3}
+:is(.sheet,.sheet2).paper .tip-opt:active{transform:scale(.97)}
+:is(.sheet,.sheet2).paper .co-qty{display:flex;align-items:center;gap:9px}
+:is(.sheet,.sheet2).paper .co-step{width:34px;height:34px;border-radius:9px;border:1px solid rgba(34,31,24,.22);background:transparent;color:#221F18;font-size:18px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:0 0 auto;position:relative}
+:is(.sheet,.sheet2).paper .co-step::before{content:"";position:absolute;inset:-6px}
+:is(.sheet,.sheet2).paper .co-step:active{transform:scale(.95)}
+:is(.sheet,.sheet2).paper .co-qty b{font-family:'DM Mono';font-weight:500;min-width:12px;text-align:center;color:#221F18}
+:is(.sheet,.sheet2).paper .co-name{width:100%;margin-top:8px;background:#fff;border:1px solid rgba(34,31,24,.2);border-radius:12px;padding:13px 14px;color:#221F18;font-family:'Inter';font-size:16px;outline:none}
+:is(.sheet,.sheet2).paper .co-name:focus{border-color:#221F18}
+:is(.sheet,.sheet2).paper .co-name::placeholder{color:#9a9482}
 /* post-pay success + subscription upsell */
-.sheet.paper .co-done{text-align:center;padding:14px 4px 8px}
+:is(.sheet,.sheet2).paper .co-done{text-align:center;padding:14px 4px 8px}
 .co-done-check{width:50px;height:50px;margin:0 auto 12px;border-radius:50%;background:#2f7a34;color:#fff;font-size:26px;display:flex;align-items:center;justify-content:center}
-.sheet.paper .co-done-conf{font-family:'Inter';font-weight:600;font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;color:#2f7a34;margin-bottom:14px}
-.sheet.paper .co-done h3{font-family:'Fraunces';font-weight:400;font-size:23px;letter-spacing:-.2px;color:#221F18}
-.sheet.paper .co-done p{font-family:'Fraunces';font-style:italic;font-size:14.5px;line-height:1.5;color:#5f5a49;margin:10px auto 18px;max-width:300px}
-.sheet.paper .co-done .sub-link{color:#5f5a49}
+:is(.sheet,.sheet2).paper .co-done-conf{font-family:'Inter';font-weight:600;font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;color:#2f7a34;margin-bottom:14px}
+:is(.sheet,.sheet2).paper .co-done h3{font-family:'Fraunces';font-weight:400;font-size:23px;letter-spacing:-.2px;color:#221F18}
+:is(.sheet,.sheet2).paper .co-done p{font-family:'Fraunces';font-style:italic;font-size:14.5px;line-height:1.5;color:#5f5a49;margin:10px auto 18px;max-width:300px}
+:is(.sheet,.sheet2).paper .co-done .sub-link{color:#5f5a49}
 
 /* ===================================================================
    ARRIVAL — de-gated first-time front door (welcome before sign-in)
@@ -1235,7 +1235,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .prep-card-bar{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(245,241,232,.06)}
 .prep-card-bar span{display:block;height:100%;background:var(--gold2)}
 .prep-card.live .prep-card-bar span{background:var(--red)}
-.prep-scrim{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:55}
+.prep-scrim{position:fixed;inset:0;background:radial-gradient(58% 44% at 50% 50%,rgba(200,166,97,.13),transparent 68%),rgba(0,0,0,.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:55}
 /* centered pop-up animation that keeps the translate(-50%,-50%) centering through the tween */
 @keyframes popcenter{from{opacity:0;transform:translate(-50%,-46%) scale(.985)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
 /* top shifts up by half the keyboard inset so a centered pop-up re-centers in the area above the keyboard */
@@ -1637,7 +1637,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .adm-task-wrap,.note-fu-wrap{display:block}
 
 /* ── input sheet (focused guided entry; keeps context above visible) ── */
-.isheet-scrim{position:fixed;inset:0;background:rgba(0,0,0,.42);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:60;animation:isheet-fade .15s ease}
+.isheet-scrim{position:fixed;inset:0;background:radial-gradient(58% 44% at 50% 50%,rgba(200,166,97,.12),transparent 68%),rgba(0,0,0,.42);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:60;animation:isheet-fade .15s ease}
 @keyframes isheet-fade{from{opacity:0}to{opacity:1}}
 .isheet{position:fixed;left:50%;top:calc(50dvh - var(--kb,0px) / 2);transform:translate(-50%,-50%);width:calc(100% - 32px);max-width:520px;max-height:calc(100dvh - var(--kb,0px) - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 28px);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;z-index:61;background:#16130c;border-radius:20px;border:1px solid var(--line2);padding:10px 16px calc(14px + env(safe-area-inset-bottom));box-shadow:0 24px 60px rgba(0,0,0,.6);animation:popcenter .2s cubic-bezier(.2,.8,.2,1)}
 @keyframes isheet-up{from{transform:translateY(100%)}to{transform:translateY(0)}}
@@ -1742,7 +1742,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 /* Sheets are centered pop-ups that blur the screen behind, so nothing in the page (nav, FAB,
    calendar) reads through or competes with them. Bottom padding tracks the keyboard so the
    centered sheet stays fully above it. */
-.qd-scrim{position:fixed;inset:0;z-index:59;background:rgba(0,0,0,.55);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);display:flex;align-items:center;justify-content:center;padding:16px 16px calc(16px + var(--kb,0px));box-sizing:border-box}
+.qd-scrim{position:fixed;inset:0;z-index:59;background:radial-gradient(58% 44% at 50% 50%,rgba(200,166,97,.13),transparent 68%),rgba(0,0,0,.55);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);display:flex;align-items:center;justify-content:center;padding:16px 16px calc(16px + var(--kb,0px));box-sizing:border-box}
 .qd-sheet{width:100%;max-width:560px;max-height:min(88vh,calc(100dvh - var(--kb,0px) - 32px));display:flex;flex-direction:column;background:var(--bg,#161310);border:1px solid var(--line);border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,.6);animation:qdup .18s ease;overflow:hidden}
 @keyframes qdup{from{transform:translateY(10px) scale(.98);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}
 .qd-tabs{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
@@ -3081,18 +3081,22 @@ select.note-in{-webkit-appearance:none;appearance:none}
 
 /* ============ <Sheet> — THE canonical popout (one structure, everywhere) ============ */
 /* Bottom sheet on phones, centered modal ≥520px. Scroll contract + safe-area + swipe-to-dismiss baked in. */
-.sheet2-scrim{position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.55);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);display:flex;align-items:flex-end;justify-content:center;box-sizing:border-box;animation:sheet2fade .2s ease}
+.sheet2-scrim{position:fixed;inset:0;z-index:80;background:radial-gradient(58% 44% at 50% 60%,rgba(200,166,97,.14),transparent 68%),rgba(0,0,0,.55);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);display:flex;align-items:flex-end;justify-content:center;box-sizing:border-box;animation:sheet2fade .2s ease}
 @keyframes sheet2fade{from{opacity:0}to{opacity:1}}
-.sheet2{width:100%;max-width:560px;max-height:calc(100dvh - var(--kb,0px) - env(safe-area-inset-top) - 10px);display:flex;flex-direction:column;background:var(--bg,#161310);border:1px solid var(--line);border-bottom:none;border-radius:22px 22px 0 0;box-shadow:0 -14px 50px rgba(0,0,0,.6);overflow:hidden;animation:sheet2up .3s cubic-bezier(.2,.85,.25,1);will-change:transform}
+.sheet2{width:100%;max-width:560px;max-height:calc(100dvh - var(--kb,0px) - env(safe-area-inset-top) - 10px);display:flex;flex-direction:column;background:var(--bg,#161310);border:1px solid var(--line);border-bottom:none;border-radius:22px 22px 0 0;box-shadow:0 -14px 50px rgba(0,0,0,.6),0 0 55px -6px rgba(200,166,97,.34);overflow:hidden;animation:sheet2up .3s cubic-bezier(.2,.85,.25,1);will-change:transform}
 @keyframes sheet2up{from{transform:translateY(30px);opacity:.4}to{transform:translateY(0);opacity:1}}
 .sheet2-grab{flex:0 0 auto;height:24px;display:flex;align-items:center;justify-content:center;cursor:grab;touch-action:none}
 .sheet2-grab::before{content:"";width:40px;height:4px;border-radius:3px;background:var(--line2)}
 .sheet2-head{flex:0 0 auto;padding:2px 18px 12px;touch-action:none}
 .sheet2-body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:0 18px calc(18px + env(safe-area-inset-bottom))}
 .sheet2-foot{flex:0 0 auto;padding:12px 18px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--bg,#161310)}
+/* .paper — the cream "printed menu" look for the drink sheet, carried onto <Sheet> */
+.sheet2.paper{background:#F4EFE3;color:#221F18;border-color:rgba(34,31,24,.14)}
+.sheet2.paper .sheet2-grab::before{background:rgba(34,31,24,.22)}
+.sheet2.paper .sheet2-foot{background:#F4EFE3;border-top-color:rgba(34,31,24,.12)}
 @media(min-width:520px){
   .sheet2-scrim{align-items:center;padding:16px}
-  .sheet2{border:1px solid var(--line);border-radius:20px;max-height:min(88vh,calc(100dvh - var(--kb,0px) - 32px));box-shadow:0 24px 60px rgba(0,0,0,.6);animation:sheet2pop .22s cubic-bezier(.2,.8,.2,1)}
+  .sheet2{border:1px solid var(--line);border-radius:20px;max-height:min(88vh,calc(100dvh - var(--kb,0px) - 32px));box-shadow:0 24px 60px rgba(0,0,0,.6),0 0 55px -6px rgba(200,166,97,.34);animation:sheet2pop .22s cubic-bezier(.2,.8,.2,1)}
 }
 @keyframes sheet2pop{from{transform:translateY(10px) scale(.98);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}
 

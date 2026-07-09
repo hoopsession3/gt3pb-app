@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
+import Sheet from "@/components/Sheet";
 
 // INVENTORY AI — describe an item and it drafts a COMPLETE inventory record (every attribute filled /
 // inferred). Review + tweak ANY field, then add it to the stock register. Reuses the .gl-* / .dp-*
@@ -48,14 +49,7 @@ export default function InventoryAI({ onClose, onAdded }: { onClose: () => void;
   const set = (k: keyof Item, v: any) => setItem((p) => p ? { ...p, [k]: v } : p);
 
   return (
-    <div className="qd-scrim" onClick={onClose}>
-      <div className="qd-sheet dp" onClick={(e) => e.stopPropagation()}>
-        <div className="dp-head">
-          <div className="dp-head-l"><div className="dp-eyebrow">AI inventory · drafts every attribute</div><div className="dp-title">Add an item</div></div>
-          <button type="button" className="qd-x" onClick={onClose}>✕</button>
-        </div>
-
-        <div className="dp-body">
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow">AI inventory · drafts every attribute</div><div className="dp-title">Add an item</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
           {done ? (
             <div className="eg-done">
               <div className="eg-done-h">✓ Added &ldquo;{item?.name}&rdquo; to inventory</div>
@@ -95,8 +89,6 @@ export default function InventoryAI({ onClose, onAdded }: { onClose: () => void;
               </div>
             </>
           )}
-        </div>
-      </div>
-    </div>
+    </Sheet>
   );
 }

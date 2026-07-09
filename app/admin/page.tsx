@@ -27,6 +27,7 @@ import SnapshotReport from "@/components/SnapshotReport";
 import EventPnlReport from "@/components/EventPnlReport";
 import SignIn from "@/components/SignIn";
 import InputSheet from "@/components/InputSheet";
+import Sheet from "@/components/Sheet";
 import { supabase } from "@/lib/supabase";
 import AskGT3 from "@/components/AskGT3";
 import Studio from "@/components/Studio";
@@ -455,11 +456,7 @@ function ContentApprovalSheet({ contentId, meName, meId, onClose, onActioned }: 
   };
 
   return (
-    <>
-      <div className="prep-scrim" onClick={onClose} aria-hidden="true" />
-      <div className="prep-sheet drop-sheet" role="dialog" aria-modal="true" aria-label="Review post">
-        <div className="prep-sheet-grab" />
-        <div className="drop-sheet-h"><span>Review post</span><button type="button" className="drop-sheet-x" onClick={onClose} aria-label="Close">✕</button></div>
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><span>Review post</span><button type="button" className="drop-sheet-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close">✕</button></div>}>
         {!item ? <div className="dops-empty">Loading…</div> : (
           <div className="capprove">
             <div className="capprove-meta">{item.kind} · {item.channel}{item.status ? ` · ${item.status}` : ""}</div>
@@ -474,8 +471,7 @@ function ContentApprovalSheet({ contentId, meName, meId, onClose, onActioned }: 
             <p className="insp-foot">Approving saves your caption edits. Once you act, this alert clears.</p>
           </div>
         )}
-      </div>
-    </>
+    </Sheet>
   );
 }
 
@@ -483,15 +479,10 @@ function ContentApprovalSheet({ contentId, meName, meId, onClose, onActioned }: 
 // bottles-in toggles) in a centered sheet, so a flag can be handled without leaving the screen.
 function DropSheet({ onClose }: { onClose: () => void }) {
   return (
-    <>
-      <div className="prep-scrim" onClick={onClose} aria-hidden="true" />
-      <div className="prep-sheet drop-sheet" role="dialog" aria-modal="true" aria-label="This week's drop">
-        <div className="prep-sheet-grab" />
-        <div className="drop-sheet-h"><span>This week&rsquo;s drop</span><button type="button" className="drop-sheet-x" onClick={onClose} aria-label="Close">✕</button></div>
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><span>This week&rsquo;s drop</span><button type="button" className="drop-sheet-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close">✕</button></div>}>
         <DropOps />
         <button type="button" className="drop-sheet-done" onClick={onClose}>Done</button>
-      </div>
-    </>
+    </Sheet>
   );
 }
 
@@ -1168,17 +1159,12 @@ function whenBucket(day: string | null | undefined): { key: number; label: strin
 // Pull-up sheet to categorize the card view (date/when sort direction).
 function PrepViewSheet({ dir, setDir, onClose }: { dir: "asc" | "desc"; setDir: (d: "asc" | "desc") => void; onClose: () => void }) {
   return (
-    <>
-      <div className="prep-scrim" onClick={onClose} aria-hidden="true" />
-      <div className="prep-sheet" role="dialog" aria-modal="true" aria-label="Card view options">
-        <div className="prep-sheet-grab" />
-        <div className="prep-sheet-h">Group by · date / when</div>
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}>Group by · date / when</div>}>
         <div className="prep-sheet-opts">
           <button className={`prep-sheet-opt${dir === "asc" ? " on" : ""}`} onClick={() => { setDir("asc"); onClose(); }}>Soonest first</button>
           <button className={`prep-sheet-opt${dir === "desc" ? " on" : ""}`} onClick={() => { setDir("desc"); onClose(); }}>Latest first</button>
         </div>
-      </div>
-    </>
+    </Sheet>
   );
 }
 
@@ -2081,11 +2067,7 @@ function AssignSheet({ task, staff, crewIds, meId, meName, onPick, onClose }: {
     </button>
   );
   return (
-    <>
-      <div className="prep-scrim" onClick={onClose} aria-hidden="true" />
-      <div className="prep-sheet assign-sheet" role="dialog" aria-modal="true" aria-label={`Assign ${task.label}`}>
-        <div className="prep-sheet-grab" />
-        <div className="assign-sheet-h">Assign · <b>{task.label}</b></div>
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}>Assign · <b>{task.label}</b></div>}>
         {meId && (
           <button type="button" className={`assign-row me${task.assignee === meId ? " on" : ""}`} onClick={() => onPick(meId)}>
             <span className="assign-av">{(meName.trim().charAt(0) || "M").toUpperCase()}</span>
@@ -2103,8 +2085,7 @@ function AssignSheet({ task, staff, crewIds, meId, meName, onPick, onClose }: {
             <span className="assign-av none">—</span><span className="assign-name">Unassign</span>
           </button>
         )}
-      </div>
-    </>
+    </Sheet>
   );
 }
 
@@ -2146,11 +2127,7 @@ function TaskEditSheet({ task, onClose, onSaved }: { task: EventTask; onClose: (
     toast("Task deleted"); onSaved();
   };
   return (
-    <>
-      <div className="prep-scrim" onClick={onClose} aria-hidden="true" />
-      <div className="prep-sheet" role="dialog" aria-modal="true" aria-label={`Edit ${task.label}`}>
-        <div className="prep-sheet-grab" />
-        <div className="assign-sheet-h">Edit task</div>
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}>Edit task</div>}>
         <input className="ev-input" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Task" maxLength={300} autoFocus />
         <div className="prod-grid" style={{ marginTop: 10 }}>
           <label className="prod-f"><span>Section</span><input value={section} onChange={(e) => setSection(e.target.value)} placeholder="Task" maxLength={60} /></label>
@@ -2178,8 +2155,7 @@ function TaskEditSheet({ task, onClose, onSaved }: { task: EventTask; onClose: (
             <button type="button" className="note-save" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
           </div>
         </div>
-      </div>
-    </>
+    </Sheet>
   );
 }
 
@@ -2254,12 +2230,8 @@ function SupplyPicker({ ev, title, have, onAdd, onClose }: {
   };
 
   return (
-    <>
-      <div className="prep-scrim" onClick={onClose} aria-hidden="true" />
-      <div className="prep-sheet assign-sheet supply-sheet" role="dialog" aria-modal="true" aria-label="Add supplies">
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}>Supplies for · <b>{title}</b></div>}>
         <div className="supply-head">
-          <div className="prep-sheet-grab" />
-          <div className="assign-sheet-h">Supplies for · <b>{title}</b></div>
           <input className="subpitch-email" style={{ marginBottom: 0 }} placeholder="Search inventory + gear…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search supplies" autoFocus />
           {ql && !exactMatch && (
             <button type="button" className="assign-row me" style={{ marginTop: 8 }} onClick={addCustom}>
@@ -2282,8 +2254,7 @@ function SupplyPicker({ ev, title, have, onAdd, onClose }: {
         <button className="handle supply-add" onClick={confirm} disabled={selCount === 0}>
           <span>{selCount > 0 ? `Add ${selCount} to checklist` : "Select items to add"}</span>
         </button>
-      </div>
-    </>
+    </Sheet>
   );
 }
 

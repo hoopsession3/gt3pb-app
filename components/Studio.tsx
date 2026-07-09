@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
+import Sheet from "@/components/Sheet";
 import BrandCalendar from "./BrandCalendar";
 import BrandKit from "./BrandKit";
 import RoadFlyer from "./RoadFlyer";
@@ -607,10 +608,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
       </div>
 
       {libOpen && (
-        <div className="qd-scrim" onClick={() => setLibOpen(false)}>
-          <div className="qd-sheet" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
-            <div className="qd-tabs"><b style={{ fontFamily: "Inter", fontSize: 15 }}>Media library</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setLibOpen(false)}>✕</button></div>
-            <div className="qd-body">
+        <Sheet open onClose={() => setLibOpen(false)} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Media library</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setLibOpen(false)}>✕</button></div>}>
               {lib.length === 0 ? <div className="oa-empty">No media yet — uploads from any piece show here to reuse.</div> : (
                 <div className="lib-grid">
                   {lib.map((m, i) => (
@@ -621,16 +619,11 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
                   ))}
                 </div>
               )}
-            </div>
-          </div>
-        </div>
+        </Sheet>
       )}
 
       {kitOpen && (
-        <div className="qd-scrim" onClick={() => setKitOpen(false)}>
-          <div className="qd-sheet" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
-            <div className="qd-tabs"><b style={{ fontFamily: "Inter", fontSize: 15 }}>📦 Post kit</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setKitOpen(false)}>✕</button></div>
-            <div className="qd-body">
+        <Sheet open onClose={() => setKitOpen(false)} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>📦 Post kit</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setKitOpen(false)}>✕</button></div>}>
               <div className="kit-row"><span className="kit-h">Caption</span><button className="kit-copy" onClick={() => copyText(caption)}>Copy</button></div>
               <div className="kit-box" style={{ whiteSpace: "pre-wrap" }}>{caption || "—"}</div>
               {tags.trim() && <><div className="kit-row"><span className="kit-h">Hashtags</span><button className="kit-copy" onClick={() => copyText(tags.split(",").map((t) => `#${t.trim()}`).join(" "))}>Copy</button></div><div className="kit-box">{tags.split(",").map((t) => `#${t.trim()}`).join(" ")}</div></>}
@@ -638,9 +631,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
               <div className="kit-row"><span className="kit-h">Best time to post</span></div>
               <div className="kit-box">{bestTime(item.channel)}</div>
               <div className="pnl-note" style={{ marginTop: 8 }}>Copy the caption, download the media, post in {item.channel}. (Auto-publish needs a connected business account.)</div>
-            </div>
-          </div>
-        </div>
+        </Sheet>
       )}
 
       <input className="studio-title" value={title} onChange={(e) => edit("title", e.target.value)} placeholder="Title" />

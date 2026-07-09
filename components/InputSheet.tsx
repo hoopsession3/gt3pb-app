@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Sheet from "@/components/Sheet";
 
 // Best-in-class focused entry — a bottom sheet for a single value (the iOS "Add account number"
 // pattern). It sits at the bottom over a LIGHT scrim, so the reference info above stays readable
@@ -32,15 +33,7 @@ export default function InputSheet({
   const done = () => { if (!busy) onDone(); };
 
   return (
-    <>
-      <div className="isheet-scrim" onClick={onClose} aria-hidden="true" />
-      <div className="isheet" role="dialog" aria-modal="true" aria-label={title}>
-        <div className="isheet-grab" />
-        <div className="isheet-head">
-          <button type="button" className="isheet-x" onClick={onClose}>Close</button>
-          <span className="isheet-title">{title}</span>
-          <button type="button" className="isheet-done" onClick={done} disabled={busy || !value.trim()}>{busy ? "…" : doneLabel}</button>
-        </div>
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><button type="button" className="isheet-x" onClick={onClose}>Close</button><span className="isheet-title">{title}</span><button type="button" className="isheet-done" onClick={done} disabled={busy || !value.trim()}>{busy ? "…" : doneLabel}</button></div>}>
         {multiline ? (
           <textarea ref={ref} className="isheet-in isheet-area" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} maxLength={maxLength} rows={3} />
         ) : (
@@ -59,7 +52,6 @@ export default function InputSheet({
             {showHelp && <div className="isheet-help-detail">{help.detail}</div>}
           </>
         )}
-      </div>
-    </>
+    </Sheet>
   );
 }

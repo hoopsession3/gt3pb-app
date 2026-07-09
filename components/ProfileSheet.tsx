@@ -5,6 +5,7 @@ import { useAuth } from "./AuthProvider";
 import { useApp } from "./AppProvider";
 import { supabase } from "@/lib/supabase";
 import { subscribePush } from "@/lib/push";
+import Sheet from "@/components/Sheet";
 
 // Your GT3 profile — photo, name, title, bio. Team culture: a face + a line on who you are, feeding
 // the org chart in Leadership. Avatar goes to the 'avatars' bucket under your own uid folder.
@@ -58,10 +59,7 @@ export default function ProfileSheet({ onClose }: { onClose: () => void }) {
 
   const initial = (name || profile?.display_name || user?.email || "?").trim().charAt(0).toUpperCase();
   return (
-    <div className="qd-scrim" onClick={onClose}>
-      <div className="qd-sheet" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
-        <div className="qd-tabs"><b style={{ fontFamily: "Inter", fontSize: 15 }}>Your profile</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>
-        <div className="qd-body">
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Your profile</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
           <div className="prof-av-row">
             <div className="prof-av" style={avatar ? { backgroundImage: `url(${avatar})` } : undefined} aria-hidden>{!avatar && initial}</div>
             <div className="prof-av-ctl">
@@ -88,8 +86,6 @@ export default function ProfileSheet({ onClose }: { onClose: () => void }) {
             <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
             <button type="button" className="note-save" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save profile"}</button>
           </div>
-        </div>
-      </div>
-    </div>
+    </Sheet>
   );
 }
