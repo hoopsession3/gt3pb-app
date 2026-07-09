@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import AssignTaskSheet from "@/components/AssignTaskSheet";
 
 // BREW — recipes + a back-scheduled batch plan. Pick a recipe, set the batch size in GALLONS (the
 // recipe scales exactly to it and hits its OG/Signal-Score spec), tie it to the event it's for, and
@@ -376,6 +377,7 @@ function BottleLoadout({ batch, onClose }: { batch: Batch; onClose: () => void }
   const [err, setErr] = useState<string | null>(null);
   const [res, setRes] = useState<any | null>(null);
   const [kegInv, setKegInv] = useState<{ cap: number; qty: number }[]>([]);
+  const [assignTask, setAssignTask] = useState(false);
 
   useEffect(() => {
     supabase?.from("kegs").select("capacity_gal, qty").is("archived_at", null)
@@ -435,7 +437,8 @@ function BottleLoadout({ batch, onClose }: { batch: Batch; onClose: () => void }
               {res.layout?.length > 0 && (<><div className="brew-block-h">How to pack a cooler</div><ol className="ts-steps">{res.layout.map((s: string, i: number) => <li key={i}>{s}</li>)}</ol></>)}
               {res.vehicle && <div className="brew-when">🚗 {res.vehicle}</div>}
               {res.checklist?.length > 0 && (<><div className="brew-block-h">Before you pull off</div><ul className="brew-checks">{res.checklist.map((s: string, i: number) => <li key={i}>{s}</li>)}</ul></>)}
-              <div className="prod-actions" style={{ marginTop: 14 }}>
+              <button type="button" className="brew-pack-btn" style={{ marginTop: 12 }} onClick={() => setAssignTask(true)}>📋 Assign this pack-out as a task →</button>
+              <div className="prod-actions" style={{ marginTop: 12 }}>
                 <button type="button" className="note-arch" onClick={() => setRes(null)}>‹ Change</button>
                 <button type="button" className="note-save" onClick={onClose}>Done</button>
               </div>
@@ -443,6 +446,15 @@ function BottleLoadout({ batch, onClose }: { batch: Batch; onClose: () => void }
           )}
         </div>
       </div>
+      {assignTask && (
+        <AssignTaskSheet
+          defaultTitle={`Pack out: ${batch.recipe_name || "Batch"} · ${res?.bottles ?? prevBottles}×${res?.bottle_oz ?? oz}oz${res?.uvdtf_labels ? ` + ${res.uvdtf_labels} labels` : ""}`}
+          eventId={batch.event_id}
+          dueOn={batch.needed_by ? batch.needed_by.slice(0, 10) : null}
+          category="ops"
+          onClose={() => setAssignTask(false)}
+        />
+      )}
     </div>
   );
 }
