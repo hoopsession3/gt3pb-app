@@ -3397,6 +3397,14 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .calcard-m{flex:1;min-width:0;background:none;border:none;text-align:left;cursor:pointer;color:var(--cream);padding:0;-webkit-appearance:none;appearance:none}
 .calcard-m b{display:block;font-family:'Inter';font-weight:650;font-size:13.5px}
 .calcard-m span{display:block;font-size:11px;color:var(--cream-m);margin-top:2px}
+/* driver dash — the wheel view: next run + one big go */
+.drv-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:4px}
+.drv-card.today{border-color:rgba(127,168,107,.5)}
+.drv-top{display:flex;align-items:baseline;gap:9px;margin-bottom:12px}
+.drv-top b{font-family:'Inter';font-weight:800;font-size:16px;color:var(--cream)}
+.drv-top span{font-size:12px;color:var(--cream-m)}
+.drv-go{display:block;text-align:center;background:var(--red-h);color:#fff;border-radius:12px;padding:14px;font-family:'Inter';font-weight:700;font-size:14px;text-decoration:none}
+
 /* lane sheet (nav ⋯ More) — open a lane, pin up to 3 to your bar */
 .lane-hint{font-size:12px;color:var(--cream-m);margin:2px 0 12px}
 .lane-row{display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:12px;background:var(--card);padding:4px 10px 4px 4px;margin-bottom:8px}

@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { useRealtimeTable } from "@/lib/realtime";
@@ -49,7 +48,6 @@ const qStart = (cursor: Date) => Math.floor(cursor.getMonth() / 3) * 3;
 
 export default function CompanyCalendar() {
   const { setSection } = useOperatorSection();
-  const router = useRouter();
   const { profile } = useAuth();
   const isOwner = roleOf(profile) === "owner";
   const now = new Date();
@@ -158,11 +156,8 @@ export default function CompanyCalendar() {
     await supabase.from(SRC[kind].table).update({ [SRC[kind].dateCol]: null }).eq("id", id);
     load();
   };
-  // Business-rhythm rollups deep-link to the surface that owns them (same pattern as Studio's
-  // "Company calendar ↗" hand-off). setSection for cross-section jumps — OperatorNav only reads
-  // ?s= on mount/popstate, so a bare router.push wouldn't switch; brew stays a URL push because
-  // we're already inside Plan and setSection would no-op.
-  const openBrew = () => { try { localStorage.setItem("gt3-plan-tab", "brew"); } catch { /* ignore */ } router.push("/admin?s=plan"); };
+  // Business-rhythm rollups deep-link to the lane page that owns them.
+  const openBrew = () => setSection("brew");
   const openNow = () => setSection("now");
 
   const streams = useWorkStreams();

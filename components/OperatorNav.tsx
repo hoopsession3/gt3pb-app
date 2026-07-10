@@ -13,12 +13,12 @@ import { supabase } from "@/lib/supabase";
 // shared (context) so the nav (rendered in the shell) and the page content stay
 // in sync; persisted so you return to the same section.
 
-export type OpSection = "day" | "now" | "ask" | "prep" | "plan" | "studio" | "money" | "customers" | "team";
+export type OpSection = "day" | "now" | "ask" | "prep" | "plan" | "studio" | "brew" | "garage" | "goals" | "driver" | "money" | "customers" | "team";
 
 const Ctx = createContext<{ section: OpSection; setSection: (s: OpSection) => void; back: () => boolean; canGoBack: boolean; groupId: string | null; setGroupId: (g: string | null) => void }>({ section: "day", setSection: () => {}, back: () => false, canGoBack: false, groupId: null, setGroupId: () => {} });
 export const useOperatorSection = () => useContext(Ctx);
 
-const VALID = new Set<OpSection>(["day", "now", "prep", "plan", "studio", "money", "customers", "team"]);
+const VALID = new Set<OpSection>(["day", "now", "prep", "plan", "studio", "brew", "garage", "goals", "driver", "money", "customers", "team"]);
 
 export function OperatorSectionProvider({ children }: { children: React.ReactNode }) {
   const [section, setSectionState] = useState<OpSection>("day");
@@ -87,12 +87,12 @@ export function OperatorSectionProvider({ children }: { children: React.ReactNod
 
 // which sections each role gets — and in what order (Ask floats via QuickDock, so it's not here)
 const ROLE_SECTIONS: Record<string, OpSection[]> = {
-  server: ["day", "now"],
-  contractor: ["day", "now", "prep"],
-  operator: ["day", "now", "prep"],
-  event_manager: ["day", "now", "prep", "plan", "studio"],
-  admin: ["day", "now", "prep", "plan", "studio", "money", "customers", "team"],
-  owner: ["day", "now", "prep", "plan", "studio", "money", "customers", "team"],
+  server: ["day", "now", "driver"],
+  contractor: ["day", "now", "prep", "garage", "driver"],
+  operator: ["day", "now", "prep", "brew", "garage", "driver"],
+  event_manager: ["day", "now", "prep", "plan", "studio", "goals", "driver"],
+  admin: ["day", "now", "prep", "plan", "studio", "brew", "garage", "goals", "driver", "money", "customers", "team"],
+  owner: ["day", "now", "prep", "plan", "studio", "brew", "garage", "goals", "driver", "money", "customers", "team"],
 };
 export const sectionsForRole = (role: string): OpSection[] => ROLE_SECTIONS[role] ?? ["now"];
 
@@ -101,10 +101,7 @@ export const sectionsForRole = (role: string): OpSection[] => ROLE_SECTIONS[role
 // lane filter, alert routing, the org chart, and this bar — no hand-rolled grouping to drift.
 export type NavGroup = { id: string; label: string; icon: string; members: OpSection[]; color?: string };
 const TODAY_GROUP: NavGroup = { id: "today", label: "Today", icon: "day", members: ["day", "now"] };
-// Where a lane LANDS when tapped: its first section, plus a sub-tab preset where the lane's home
-// is a tab inside a mega-section (Production lives in Plan › Brew).
-const ENTRY_TAB: Record<string, string> = { production: "brew", events: "events" };
-const MAX_PINS = 3;
+const MAX_PINS = 4; // total tabs on the bar (Today counts — it's pinnable like any lane)
 const isSection = (x: string): x is OpSection => (VALID as Set<string>).has(x) || x === "ask";
 export function streamGroups(streams: WorkStream[], role: string): NavGroup[] {
   const allowed = sectionsForRole(role);
@@ -112,19 +109,21 @@ export function streamGroups(streams: WorkStream[], role: string): NavGroup[] {
     .map((s) => ({ id: s.key, label: s.label, icon: s.icon || s.key, color: s.color, members: s.sections.filter((x): x is OpSection => isSection(x) && allowed.includes(x as OpSection)) }))
     .filter((g) => g.members.length > 0);
 }
-// Role defaults until the user pins their own lanes.
+// Role defaults until the user pins their own bar. Explicit pins are respected exactly —
+// an unpinned lane was unpinned on purpose, so nothing auto-fills behind the user's back.
 const DEFAULT_PINS: Record<string, string[]> = {
-  owner: ["service", "brand", "business"],
-  admin: ["service", "brand", "business"],
-  event_manager: ["events", "service", "brand"],
-  operator: ["service", "production", "events"],
-  contractor: ["service", "production", "events"],
-  server: ["service"],
+  owner: ["today", "service", "brand", "business"],
+  admin: ["today", "service", "brand", "business"],
+  event_manager: ["today", "events", "service", "brand"],
+  operator: ["today", "service", "production", "events"],
+  contractor: ["today", "service", "production"],
+  server: ["today", "service"],
 };
 export function orderByPins(groups: NavGroup[], pins: string[] | null | undefined, role: string): { pinned: NavGroup[]; overflow: NavGroup[] } {
-  const want = (pins?.length ? pins : DEFAULT_PINS[role] ?? []).filter((k) => groups.some((g) => g.id === k));
+  const def = (DEFAULT_PINS[role] ?? ["today"]).filter((k) => groups.some((g) => g.id === k));
+  let want = (pins?.length ? pins : def).filter((k) => groups.some((g) => g.id === k));
+  if (!want.length) want = def.length ? def : [groups[0]?.id].filter(Boolean) as string[]; // floor: never an empty bar
   const pinned = want.slice(0, MAX_PINS).map((k) => groups.find((g) => g.id === k)!) as NavGroup[];
-  for (const g of groups) if (pinned.length < MAX_PINS && !pinned.includes(g)) pinned.push(g);
   const overflow = groups.filter((g) => !pinned.includes(g));
   return { pinned, overflow };
 }
@@ -147,11 +146,15 @@ const ICONS: Record<OpSection, React.ReactNode> = {
   studio: <><path d="M12 3l2.1 4.9 5.3.4-4 3.5 1.2 5.2L12 14.7 7.4 17.4l1.2-5.2-4-3.5 5.3-.4z" /></>,
   prep: <><rect x="6" y="4" width="12" height="17" rx="2" /><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1" /><path d="M9 12l2 2 4-4" /></>,
   plan: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></>,
+  brew: <><path d="M12 3c3 3.8 5.5 6.7 5.5 10a5.5 5.5 0 0 1-11 0C6.5 9.7 9 6.8 12 3z" /><path d="M9.5 13.5a2.5 2.5 0 0 0 2.5 2.5" /></>,
+  garage: <><path d="M3 10l9-6 9 6" /><path d="M5 9.5V20h14V9.5" /><rect x="8.5" y="13" width="7" height="7" /></>,
+  goals: <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1.4" /></>,
+  driver: <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="2.4" /><path d="M12 3v6.6M4.2 16.5l6-3M19.8 16.5l-6-3" /></>,
   money: <><circle cx="12" cy="12" r="9" /><path d="M12 7v10M9.5 9.5c0-1 1-1.6 2.5-1.6s2.5.6 2.5 1.6-1 1.5-2.5 1.5-2.5.5-2.5 1.5 1 1.6 2.5 1.6 2.5-.6 2.5-1.6" /></>,
   customers: <><rect x="3" y="5" width="18" height="15" rx="2" /><circle cx="9" cy="11" r="2.2" /><path d="M5.8 17c.5-1.7 1.7-2.6 3.2-2.6s2.7.9 3.2 2.6M15 9.5h4M15 13h4" /></>,
   team: <><circle cx="9" cy="8" r="3" /><path d="M3 20c0-3 3-5 6-5s6 2 6 5" /><path d="M16 5.2a3 3 0 0 1 0 5.6M21 20c0-2.4-1.8-4-4-4.6" /></>,
 };
-const LABELS: Record<OpSection, string> = { day: "My Day", now: "Now", ask: "Ask", prep: "Prep", plan: "Plan", studio: "Studio", money: "Money", customers: "Customers", team: "Team" };
+const LABELS: Record<OpSection, string> = { day: "My Day", now: "Now", ask: "Ask", prep: "Prep", plan: "Plan", studio: "Studio", brew: "Brew", garage: "Garage", goals: "Goals", driver: "Drive", money: "Money", customers: "Customers", team: "Team" };
 export const SECTION_LABEL = LABELS;
 
 
@@ -171,16 +174,15 @@ export default function OperatorNav() {
   // members / signed-out: no operator console — fall back to the customer nav so
   // they can still navigate away from /admin.
   if (role === "member") return <BottomNav />;
-  const laneGroups = streamGroups(streams, role);
-  const { pinned, overflow } = orderByPins(laneGroups, profile?.nav_pins, role);
-  const groups: NavGroup[] = [TODAY_GROUP, ...pinned];
-  const activeGroup = (groupId && [...groups, ...overflow].find((g) => g.id === groupId && g.members.includes(section)))
-    || [...groups, ...overflow].find((g) => g.members.includes(section))
-    || TODAY_GROUP;
+  const allowed = sectionsForRole(role);
+  const todayGroup: NavGroup = { ...TODAY_GROUP, members: TODAY_GROUP.members.filter((m) => allowed.includes(m)) };
+  const allGroups = [todayGroup, ...streamGroups(streams, role)].filter((g) => g.members.length > 0);
+  const { pinned: groups, overflow } = orderByPins(allGroups, profile?.nav_pins, role);
+  const activeGroup = (groupId && allGroups.find((g) => g.id === groupId && g.members.includes(section)))
+    || allGroups.find((g) => g.members.includes(section))
+    || allGroups[0];
   const openGroup = (g: NavGroup) => {
     setGroupId(g.id);
-    const tab = ENTRY_TAB[g.id];
-    if (tab) { try { localStorage.setItem("gt3-plan-tab", tab); } catch { /* ignore */ } }
     setSection(g.members[0]);
     setMoreOpen(false);
   };
@@ -211,14 +213,12 @@ export default function OperatorNav() {
           </button>
         );
       })}
-      {overflow.length > 0 && (
-        <button role="tab" aria-selected={overflow.some((g) => g.id === activeGroup.id)} className={`tab${overflow.some((g) => g.id === activeGroup.id) ? " on" : ""}`} onClick={() => setMoreOpen(true)}>
-          <span className="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>{STREAM_ICONS.more}</svg></span>
-          <span className="tl">More</span>
-        </button>
-      )}
+      <button role="tab" aria-selected={overflow.some((g) => g.id === activeGroup.id)} className={`tab${overflow.some((g) => g.id === activeGroup.id) ? " on" : ""}`} onClick={() => setMoreOpen(true)}>
+        <span className="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>{STREAM_ICONS.more}</svg></span>
+        <span className="tl">More</span>
+      </button>
     </div>
-    {moreOpen && <MoreSheet lanes={laneGroups} pins={pinned.map((g) => g.id)} activeId={activeGroup.id} onOpen={openGroup} onClose={() => setMoreOpen(false)} canPin={Boolean(user)} />}
+    {moreOpen && <MoreSheet lanes={allGroups} pins={groups.map((g) => g.id)} activeId={activeGroup.id} onOpen={openGroup} onClose={() => setMoreOpen(false)} canPin={Boolean(user)} />}
     </>
   );
 }
@@ -230,18 +230,18 @@ function MoreSheet({ lanes, pins, activeId, onOpen, onClose, canPin }: { lanes: 
   const [local, setLocal] = useState<string[]>(pins);
   const toggle = async (key: string) => {
     if (!supabase || !user) return;
-    const next = local.includes(key) ? local.filter((k) => k !== key) : [...local, key].slice(-3);
+    const next = local.includes(key) ? local.filter((k) => k !== key) : [...local, key].slice(-MAX_PINS);
     setLocal(next);
     await supabase.from("profiles").update({ nav_pins: next }).eq("id", user.id);
     refreshProfile();
   };
   return (
     <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><span className="isheet-title">Your lanes</span><button type="button" className="isheet-x" style={{ marginLeft: "auto" }} onClick={onClose}>Close</button></div>}>
-      <div className="lane-hint">Tap a lane to open it. Pin up to 3 to your bar — Today always rides first.</div>
+      <div className="lane-hint">Tap a lane to open it. Pin up to 4 to your bar — unpin anything, it stays here.</div>
       {lanes.map((g) => (
         <div key={g.id} className={`lane-row${activeId === g.id ? " on" : ""}`}>
           <button type="button" className="lane-open" onClick={() => onOpen(g)}>
-            <span className="cc-dot" style={{ background: g.color }} />
+            <span className="cc-dot" style={{ background: g.color ?? "var(--gold2)" }} />
             <b>{g.label}</b>
             <span className="lane-secs">{g.members.map((m) => SECTION_LABEL[m]).join(" · ")}</span>
           </button>
