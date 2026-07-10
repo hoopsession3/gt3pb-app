@@ -2774,7 +2774,9 @@ function MeetingNotes() {
   const [cSummary, setCSummary] = useState("");
   const [cBody, setCBody] = useState("");
   const [cActions, setCActions] = useState<{ title: string; category: string; critical: boolean }[]>([]);
-  const [cLink, setCLink] = useState(""); // "" | event:<id> | stop:<id>
+  const [cLink, setCLink] = useState(""); // "" | event:<id> | stop:<id> | opp:<id>
+  const [cVis, setCVis] = useState<"private" | "team" | "collab">("collab");
+  const [noteOpps, setNoteOpps] = useState<{ id: string; label: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [summarizing, setSummarizing] = useState(false);
   const [query, setQuery] = useState("");
@@ -2813,6 +2815,8 @@ function MeetingNotes() {
     if (!supabase) return;
     supabase.from("events").select("id, title").is("archived_at", null).order("day", { ascending: false }).then(({ data }) => setEvents((data as { id: string; title: string }[]) ?? []));
     supabase.from("stops").select("id, name").is("archived_at", null).neq("status", "done").then(({ data }) => setNoteStops((data as { id: string; name: string | null }[]) ?? []));
+    supabase.from("opportunities").select("id, stage, vendors(name)").not("stage", "in", "(won,lost)").then(({ data }) =>
+      setNoteOpps((((data ?? []) as unknown) as { id: string; vendors: { name: string } | null }[]).map((o) => ({ id: o.id, label: o.vendors?.name ?? "Opportunity" }))));
     supabase.from("profiles").select("id, display_name, role").neq("role", "member").then(({ data }) => setStaff((data as { id: string; display_name: string | null; role?: string | null }[]) ?? []));
   }, [load]);
   useRealtimeTable("meeting_notes", load);
@@ -2822,9 +2826,11 @@ function MeetingNotes() {
     setSaving(true);
     const linkEvent = cLink.startsWith("event:") ? cLink.slice(6) : null;
     const linkStop = cLink.startsWith("stop:") ? cLink.slice(5) : null;
+    const linkOpp = cLink.startsWith("opp:") ? cLink.slice(4) : null;
     const { data, error } = await supabase.from("meeting_notes").insert({
       title: cTitle.trim(), met_on: cDate, summary: cSummary.trim() || null,
-      body: cBody.trim() || null, event_id: linkEvent, stop_id: linkStop, created_by: meId,
+      body: cBody.trim() || null, event_id: linkEvent, stop_id: linkStop, opportunity_id: linkOpp,
+      visibility: cVis, created_by: meId,
     }).select("id").single();
     // Follow-ups ride the ONE task engine. Linked note → tasks file under the event/stop (so they
     // land on its prep checklist); no link → note-owned as before. origin_note_id (0167) is pure
@@ -2870,6 +2876,16 @@ function MeetingNotes() {
               <optgroup label="Truck stops">
                 {noteStops.map((s) => <option key={s.id} value={`stop:${s.id}`}>{s.name || "Untitled location"}</option>)}
               </optgroup>
+              <optgroup label="Pipeline">
+                {noteOpps.map((o) => <option key={o.id} value={`opp:${o.id}`}>{o.label}</option>)}
+              </optgroup>
+            </select>
+          </div>
+          <div className="note-row">
+            <select className="note-in" value={cVis} onChange={(e) => setCVis(e.target.value as typeof cVis)} aria-label="Who can see this note">
+              <option value="collab">🤝 Collaborative — everyone reads &amp; comments</option>
+              <option value="team">👥 Team — everyone reads, no comments</option>
+              <option value="private">🔒 Private — just me</option>
             </select>
           </div>
           <textarea className="note-area" placeholder="Recap / summary — paste from your notes app, or ✨ generate below…" value={cSummary} onChange={(e) => setCSummary(e.target.value)} rows={cSummary.length > 200 ? 10 : 3} />
@@ -3044,7 +3060,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
       <button type="button" className="note-head" onClick={onToggle} aria-expanded={open}>
         <div className="note-head-main">
           <span className="note-title">{note.title}{note.source === "email" && <span className="note-src">email</span>}</span>
-          <span className="note-meta">{fmtNoteDate(note.met_on)}{eventTitle ? ` · ${eventTitle}` : ""}{items.length ? ` · ${openCount}/${items.length} follow-ups` : ""}</span>
+          <span className="note-meta">{fmtNoteDate(note.met_on)}{eventTitle ? ` · ${eventTitle}` : ""}{note.visibility === "private" ? " · 🔒 private" : note.visibility === "team" ? " · 👥 team" : ""}{items.length ? ` · ${openCount}/${items.length} follow-ups` : ""}</span>
         </div>
         <span className={`note-chev${open ? " open" : ""}`} aria-hidden="true">›</span>
       </button>
@@ -4712,7 +4728,7 @@ export default function AdminPage() {
 
       {sec === "pipeline" && canPrep && <PipelinePanel isAdmin={isAdmin} />}
       {sec === "stops" && canManage && <LiveControl manage />}
-      {sec === "notes" && canManage && <MeetingNotes />}
+      {sec === "notes" && <MeetingNotes />}
       {sec === "brew" && canPrep && <BrewPlanner />}
       {sec === "garage" && canPrep && <GarageSection />}
       {sec === "goals" && canManage && <Goals />}

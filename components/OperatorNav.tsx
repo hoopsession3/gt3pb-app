@@ -88,9 +88,9 @@ export function OperatorSectionProvider({ children }: { children: React.ReactNod
 
 // which sections each role gets — and in what order (Ask floats via QuickDock, so it's not here)
 const ROLE_SECTIONS: Record<string, OpSection[]> = {
-  server: ["day", "now", "driver"],
-  contractor: ["day", "now", "prep", "garage", "driver"],
-  operator: ["day", "now", "prep", "brew", "garage", "pipeline", "driver"],
+  server: ["day", "now", "notes", "driver"],
+  contractor: ["day", "now", "prep", "garage", "notes", "driver"],
+  operator: ["day", "now", "prep", "brew", "garage", "pipeline", "notes", "driver"],
   event_manager: ["day", "now", "prep", "plan", "pipeline", "studio", "goals", "notes", "stops", "driver"],
   admin: ["day", "now", "prep", "plan", "pipeline", "studio", "brew", "garage", "goals", "notes", "stops", "driver", "money", "customers", "team"],
   owner: ["day", "now", "prep", "plan", "pipeline", "studio", "brew", "garage", "goals", "notes", "stops", "driver", "money", "customers", "team"],

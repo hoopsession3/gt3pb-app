@@ -96,6 +96,13 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   const [staff, setStaff] = useState<Staff[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);   // expanded opportunity
+  const [oppNotes, setOppNotes] = useState<{ id: string; title: string; met_on: string; visibility?: string }[]>([]);
+  useEffect(() => {
+    if (!openId || !supabase) { setOppNotes([]); return; }
+    supabase.from("meeting_notes").select("id, title, met_on, visibility").eq("opportunity_id", openId)
+      .order("met_on", { ascending: false }).limit(8)
+      .then(({ data }) => setOppNotes((data as typeof oppNotes) ?? []));
+  }, [openId]);
   const [threadId, setThreadId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
@@ -357,6 +364,14 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
             </label>
           </div>
           {o.stage === "lost" && o.lost_reason && <div className="pipe-lost">Lost: {o.lost_reason}</div>}
+          {oppNotes.length > 0 && (
+            <div className="pipe-notes">
+              <b>Notes</b>
+              {oppNotes.map((n) => (
+                <span key={n.id} className="pipe-note">📝 {n.title} · {new Date(n.met_on + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}{n.visibility === "private" ? " · 🔒" : n.visibility === "team" ? " · 👥" : ""}</span>
+              ))}
+            </div>
+          )}
           <button type="button" className="st-discuss" onClick={() => setThreadId(threadId === o.id ? null : o.id)} aria-expanded={threadId === o.id}>💬 {threadId === o.id ? "Close" : "Discuss"}</button>
           {threadId === o.id && <StrategyThread k={`opp:${o.id}`} label={`Pipeline: ${o.vendors?.name ?? "opportunity"}`} />}
         </div>

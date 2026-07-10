@@ -153,6 +153,8 @@ export interface EventTask {
 // meeting_note_id, so they flow through My Tasks + push exactly like event/stop tasks.
 export interface MeetingNote {
   stop_id?: string | null;
+  opportunity_id?: string | null;
+  visibility?: "private" | "team" | "collab";
   id: string;
   title: string;
   met_on: string;          // ISO date

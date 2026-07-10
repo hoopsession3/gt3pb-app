@@ -4232,3 +4232,34 @@ button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:
 
 /* studio: campaign/theme tag on a content card (kept light — one chip, not a taxonomy) */
 .studio-card-camp{display:inline-block;margin-top:6px;font-family:'DM Mono',monospace;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--gold2);border:1px solid var(--line2);border-radius:999px;padding:2px 9px}
+
+/* ── A11y fix pack (audit 2026-07): day-mode contrast + large-Display overflow ─────────────────
+   Dark-glass fields/chips that never flipped for crew-day: white fields, warm-ink text, readable
+   placeholders; status colors deepened so they hold contrast on cream. */
+.app.crew-day .ev-input,
+.app.crew-day .ev-f input,.app.crew-day .ev-f select,
+.app.crew-day .adm-fields input[type=number],.app.crew-day .adm-fields input[type=text],.app.crew-day .adm-fields select,
+.app.crew-day .gl-f input,.app.crew-day .gl-f select,.app.crew-day .gl-f textarea,
+.app.crew-day .isheet-in{background:#fff;color:#221F18;border-color:rgba(34,31,24,.24)}
+.app.crew-day .isheet-in::placeholder{color:rgba(34,31,24,.55)}
+.app.crew-day .adm-hud-stat,.app.crew-day .tm-av,.app.crew-day .alert-ack,.app.crew-day .offchip,.app.crew-day .sw-update{background:#fff}
+.app.crew-day .gauge,.app.crew-day .adm-ready-bar,.app.crew-day .ev-golive{background:rgba(34,31,24,.05)}
+.app.crew-day .note-new{background:rgba(34,31,24,.04)}
+.app.crew-day .adm-attn{color:#7a2622}
+.app.crew-day .adm-attn b{color:#221F18}
+.app.crew-day .kds-eta.outside{color:#8f1d1a}
+.app.crew-day .adm-act.done{color:#3f6b2f}
+.app.crew-day .dops-stage.done{color:#3f6b2f;border-color:#7FA86B}
+.app.crew-day .ev-inv-x span{color:#8f1d1a}
+/* Fixed-track grids and nowrap buttons overflow 320px viewports at rd-t2/t3 zoom — let them compress. */
+.cogs-head,.cogs-row{grid-template-columns:minmax(0,1fr) minmax(44px,64px) minmax(44px,64px) minmax(40px,56px)}
+.adm-hud-stat{min-width:0}
+.adm-hud-stat b{font-size:clamp(16px,6vw,25px);overflow:hidden;text-overflow:ellipsis}
+.adm-btn{white-space:normal}
+.cat-row .ev-f{flex:0 1 64px;min-width:44px}
+.app:is(.rd-t2,.rd-t3) .ev-grid{grid-template-columns:repeat(2,1fr)}
+/* Pipeline: linked notes fold on an expanded opportunity */
+.pipe-notes{display:flex;flex-direction:column;gap:5px;margin-top:9px;padding:10px 12px;border:1px solid var(--line);border-radius:11px;background:rgba(0,0,0,.14)}
+.app.crew-day .pipe-notes{background:rgba(34,31,24,.04)}
+.pipe-notes b{font-family:var(--mono);font-size:9.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--cream-m)}
+.pipe-note{font-family:'Inter';font-size:12.5px;color:var(--cream)}
