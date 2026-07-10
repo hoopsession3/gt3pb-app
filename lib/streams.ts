@@ -23,7 +23,7 @@ export type WorkStream = {
 
 export const DEFAULT_STREAMS: WorkStream[] = [
   { key: "service", icon: "service",    label: "Service",    color: "#5b9a6b", categories: ["stop", "drop", "delivery", "order", "prep"],    sections: ["now", "prep", "stops", "driver"],              owner_role: "operator",      owner_user_id: null, sort: 1 },
-  { key: "events", icon: "events",     label: "Events",     color: "#6fa8dc", categories: ["event", "booking", "ops"],                      sections: ["plan", "prep"],             owner_role: "event_manager", owner_user_id: null, sort: 2 },
+  { key: "events", icon: "events",     label: "Events",     color: "#6fa8dc", categories: ["event", "booking", "ops"],                      sections: ["plan", "pipeline", "prep"],             owner_role: "event_manager", owner_user_id: null, sort: 2 },
   { key: "production", icon: "production", label: "Production", color: "#c9a227", categories: ["brew", "inventory"],                            sections: ["brew", "garage"],                     owner_role: "operator",      owner_user_id: null, sort: 3 },
   { key: "brand", icon: "brand",      label: "Brand",      color: "#2bb3a3", categories: ["content"],                                      sections: ["studio"],                   owner_role: "admin",         owner_user_id: null, sort: 4 },
   { key: "business", icon: "business",   label: "Business",   color: "#8b5cf6", categories: ["money", "admin", "strategy", "task", "system"], sections: ["money", "customers", "team", "goals", "notes"], owner_role: "owner",       owner_user_id: null, sort: 5 },

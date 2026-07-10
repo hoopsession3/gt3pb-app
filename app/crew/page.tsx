@@ -29,6 +29,7 @@ import PackPlan from "@/components/PackPlan";
 import OrgChart from "@/components/OrgChart";
 import CrmPanel from "@/components/CrmPanel";
 import DriverDash from "@/components/DriverDash";
+import PipelinePanel from "@/components/PipelinePanel";
 import GearLibrary from "@/components/GearLibrary";
 import InventoryLibrary from "@/components/InventoryLibrary";
 import Reports from "@/components/Reports";
@@ -4310,10 +4311,10 @@ function VendorPicker({ vendors, vendorId, onLink }: { vendors: Vendor[]; vendor
 // ───────────────────────── section metadata (shared by header + the guide) ─────────────────────────
 // Each section = one job at one moment. LABEL names it, WHEN says when to reach for it (header pill),
 // SUB is the one-liner, MORE explains it, INSIDE lists what lives there. Order = the shift timeline.
-const SEC_LABEL: Record<OpSection, string> = { day: "My Day", now: "Live Ops", ask: "Ask GT3", prep: "Readiness", plan: "Plan", studio: "Studio", brew: "Brew", garage: "Assets", goals: "Goals", driver: "Delivery", stops: "Route", notes: "Notes", money: "Money", customers: "Customers", team: "Team" };
+const SEC_LABEL: Record<OpSection, string> = { day: "My Day", now: "Live Ops", ask: "Ask GT3", prep: "Readiness", plan: "Plan", pipeline: "Pipeline", studio: "Studio", brew: "Brew", garage: "Assets", goals: "Goals", driver: "Delivery", stops: "Route", notes: "Notes", money: "Money", customers: "Customers", team: "Team" };
 const SEC_WHEN: Record<OpSection, string> = {
   day: "Start of shift", now: "During service", ask: "When you're stuck", prep: "Before the event",
-  plan: "Booking ahead", studio: "Promoting a drop", brew: "Production days", garage: "Assets & stock", goals: "Steering the quarter", driver: "Delivery days", stops: "Route planning", notes: "After a meeting", money: "The books", customers: "Your regulars", team: "People & roles",
+  plan: "Booking ahead", pipeline: "Working the leads", studio: "Promoting a drop", brew: "Production days", garage: "Assets & stock", goals: "Steering the quarter", driver: "Delivery days", stops: "Route planning", notes: "After a meeting", money: "The books", customers: "Your regulars", team: "People & roles",
 };
 const SEC_SUB: Record<OpSection, string> = {
   day: "Your tasks, flags & what's on today.",
@@ -4321,6 +4322,7 @@ const SEC_SUB: Record<OpSection, string> = {
   ask: "Recipes, gear, stock & how-to — from the GT3 playbook.",
   prep: "Stock, readiness & the pack list for what's next.",
   plan: "Calendar, events, bookings & vendors.",
+  pipeline: "The sales funnel — accounts, deals, reps & next steps.",
   stops: "The route — locations, dates & the ordering dial.",
   notes: "Meeting notes — follow-ups become tasks.",
   studio: "Draft, schedule & post — brand & marketing.",
@@ -4337,6 +4339,7 @@ const SEC_MORE: Record<OpSection, string> = {
   now: "The glance before the work. Alerts land here, the service pulse shows what's waiting (orders on the pass, items 86'd), and one tap opens Service mode — the working screen with the pass, pickup checklist and 86 board. Prep lives here too: the drop's brew sheet and Sunday delivery.",
   prep: "Get ready before you roll. Build the pack list, check stock and readiness, and sign off that the truck's loaded for the next event or stop.",
   plan: "The forward calendar. Book events, work incoming booking requests, and manage vendors and venues — weeks and months out.",
+  pipeline: "The sales board. Every account with its deal (from the owner's catalog, matched to the account type), its rep, its stage and its next step — argued out on the thread, won or lost on the record.",
   stops: "Route planning: create and order locations, set dates and windows, pin addresses on the map, and set when cup orders open. Going live happens in Live Ops.",
   notes: "The meeting record. Paste a recap, tag follow-ups, assign them — they land in everyone's tasks with a ping.",
   studio: "Your marketing studio. Draft posts and flyers, keep them on-brand, plan the feed, schedule around your drops, and moderate the guest reviews that feed the truck display.",
@@ -4354,6 +4357,7 @@ const SEC_INSIDE: Record<OpSection, string[]> = {
   now: ["Service pulse — live counts, one tap into the working screen", "Service mode — the pass (guests ping it: on my way · outside · late), pickup checklist & 86 board on ONE screen", "The drop — brew sheet & window money (the checklist lives in Service)", "Delivery run — run sheet, brew totals & driver outcomes", "Live truck: go live, GPS broadcast (locations & the ordering dial live on the Stops page)", "Alerts inbox & live sales"],
   prep: ["Per-event & per-stop pack lists", "Readiness & inspection checks", "Crew assignments & sign-off", "Load-out & gear moved to Production › Garage"],
   plan: ["Company calendar", "Events", "Booking requests", "Vendors & venues"],
+  pipeline: ["Prospect → first attempt → talking → proposal → won", "Deal catalog — owner-set, per account type", "Rep assignment with a ping", "Per-deal discussion threads"],
   stops: ["Location list & route order", "Dates, windows & addresses", "The cup-ordering dial", "Going live lives in Live Ops"],
   notes: ["Meeting recaps", "Follow-ups → assigned tasks", "GT3-format summaries"],
   studio: ["Post & flyer drafting", "Brand copy & front-end copy", "Feed planning grid", "Repurpose engine", "Publishing & scheduling", "Review Desk → the truck display (/display): add or approve reviews; ✨ Simplify de-claims + trims one to display-safe"],
@@ -4664,6 +4668,7 @@ export default function AdminPage() {
         </>
       )}
 
+      {sec === "pipeline" && canPrep && <PipelinePanel isAdmin={isAdmin} />}
       {sec === "stops" && canManage && <LiveControl manage />}
       {sec === "notes" && canManage && <MeetingNotes />}
       {sec === "brew" && canPrep && <BrewPlanner />}
