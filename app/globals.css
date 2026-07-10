@@ -4374,3 +4374,24 @@ select.note-vis{background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xm
 .rdg-size{height:44px}
 .subpitch-tag{font-size:9px}
 .ig-ph span{font-size:9px}
+
+/* ── Pack cards: payment state is a FLAG, not a whisper ──────────────────────────────────────
+   The card carries a left status stripe + a solid flag chip: green = money settled, gold = due
+   at the window, dim = done. One glance tells the crew and the customer where money stands. */
+.mypack{border-left:3px solid var(--line2);position:relative}
+.mypack.pay-paid{border-left-color:var(--ok)}
+.mypack.pay-due{border-left-color:var(--gold2)}
+.mypack.pay-done{border-left-color:var(--line2);opacity:.72}
+.mypack-main{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.mypack-main b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mypack-sub{font-family:'DM Mono',monospace;font-size:10.5px;letter-spacing:.04em;color:var(--cream-m);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mypack-flag{font-family:'DM Mono',monospace;font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;border-radius:999px;padding:4px 9px;white-space:nowrap;flex:0 0 auto}
+.mypack-flag.paid{background:rgba(106,160,92,.16);color:#9fd18f;border:1px solid rgba(106,160,92,.45)}
+.mypack-flag.due{background:rgba(200,166,97,.12);color:var(--gold2);border:1px solid rgba(200,166,97,.4)}
+.mypack-flag.done{background:rgba(245,241,232,.06);color:var(--cream-d);border:1px solid var(--line2)}
+.app.crew-day .mypack-flag.paid,body.light .mypack-flag.paid{color:#3f6b2f}
+.app.crew-day .mypack-flag.due,body.light .mypack-flag.due{color:#6e4c1e}
+/* the day-group header reads as a section, and the page's three jobs get breathing room */
+.mypack-dayh{padding-top:6px;border-top:1px solid var(--line);margin-top:2px}
+.mypack-day:first-of-type .mypack-dayh{border-top:none;padding-top:0;margin-top:0}
+.mypacks{margin-bottom:22px}

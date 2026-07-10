@@ -128,11 +128,14 @@ export default function MyPacks({ onChange, refreshKey }: { onChange?: (p: MyPac
           {group.map((p) => {
         const isOpen = open === p.id;
         return (
-          <div className={`mypack${p.picked_up ? " done" : ""}${isOpen ? " open" : ""}`} key={p.id}>
+          <div className={`mypack pay-${p.picked_up ? "done" : p.paid ? "paid" : "due"}${isOpen ? " open" : ""}`} key={p.id}>
             <button type="button" className="mypack-row" onClick={() => setOpen(isOpen ? null : p.id)} aria-expanded={isOpen}>
-              <b>{p.size}-pack{group.length > 1 ? ` · ${mixSummary(packMix(p)) || "your mix"}` : ` · ${packDayLabel(p)}`}</b>
+              <span className="mypack-main">
+                <b>{p.size}-pack{group.length > 1 ? "" : ` · ${packDayLabel(p)}`}</b>
+                <span className="mypack-sub">{mixSummary(packMix(p)) || "your mix"} · #{p.id.slice(0, 6).toUpperCase()}</span>
+              </span>
               <span className="mypack-rt">
-                <span className={`mypack-pay${p.paid ? " ok" : ""}`}>{p.picked_up ? "✓ PICKED UP" : p.paid ? "PAID" : "pay at pickup"}</span>
+                <span className={`mypack-flag ${p.picked_up ? "done" : p.paid ? "paid" : "due"}`}>{p.picked_up ? "✓ picked up" : p.paid ? "✓ paid" : "$ at pickup"}</span>
                 <span className="mypack-car">{isOpen ? "▾" : "▸"}</span>
               </span>
             </button>
