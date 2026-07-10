@@ -7,6 +7,7 @@ import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { raiseAlertClient } from "@/lib/clientAlerts";
 import { StrategyThread } from "./StrategyCollab";
+import ProposalDesk from "./ProposalDesk";
 import CountUp from "./CountUp";
 
 // PIPELINE — the sales funnel (0165). Vendor (the account) × deal (from the owner's catalog,
@@ -382,6 +383,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
               ))}
             </div>
           )}
+          <ProposalDesk oppId={o.id} vendorName={o.vendors?.name ?? null} isAdmin={isAdmin} />
           <button type="button" className="st-discuss" onClick={() => setThreadId(threadId === o.id ? null : o.id)} aria-expanded={threadId === o.id}>💬 {threadId === o.id ? "Close" : "Discuss"}</button>
           {threadId === o.id && <StrategyThread k={`opp:${o.id}`} label={`Pipeline: ${o.vendors?.name ?? "opportunity"}`} link="/crew?s=pipeline" />}
         </div>

@@ -4542,3 +4542,46 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 .digest-item-b{font-family:'Inter';font-size:12px;color:var(--cream-m);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .digest-item-x{flex:0 0 auto;width:40px;background:transparent;border:none;border-left:1px solid var(--line);color:var(--cream-m);cursor:pointer;font-size:13px;-webkit-appearance:none;appearance:none}
 .digest-clear{align-self:flex-start;margin-top:2px;font-family:'Inter';font-weight:600;font-size:12.5px;padding:7px 14px;border-radius:999px;border:1px solid var(--line2);background:transparent;color:var(--cream-m);cursor:pointer;-webkit-appearance:none;appearance:none}
+
+/* ═══ PROPOSAL DESK (Pipeline) — the co-authored reach-out strategy + its lifecycle + the append-only
+   trail to the owner's decision (S·1 / 0180, 2026-07). Lives inside an opportunity. ═══ */
+.pd{margin:12px 0 0;padding:14px;border:1px solid var(--line);border-radius:13px;background:rgba(245,241,232,.02)}
+.pd-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.pd-title{font-family:'Inter';font-weight:700;font-size:13.5px;color:var(--cream)}
+.pd-status{font-family:var(--mono);font-weight:500;font-size:10px;letter-spacing:1.4px;text-transform:uppercase;padding:4px 10px;border-radius:999px;border:1px solid var(--line2);color:var(--cream-m)}
+.pd-status.s-in_review{color:var(--gold2);border-color:rgba(200,166,97,.4);background:rgba(200,166,97,.08)}
+.pd-status.s-sent{color:#79a0c8;border-color:rgba(121,160,200,.4);background:rgba(121,160,200,.08)}
+.pd-status.s-negotiating{color:var(--warn);border-color:rgba(207,154,74,.4);background:rgba(207,154,74,.08)}
+.pd-status.s-won{color:var(--oa-green,#7FA86B);border-color:rgba(122,168,107,.45);background:rgba(122,168,107,.1)}
+.pd-status.s-lost{color:#c98;border-color:rgba(184,36,32,.4);background:rgba(184,36,32,.08)}
+.pd-steps{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.pd-step{font-family:var(--mono);font-size:9.5px;letter-spacing:.8px;text-transform:uppercase;padding:4px 8px;border-radius:6px;border:1px solid var(--line);color:var(--cream-m);opacity:.6}
+.pd-step.past{opacity:.9;border-color:rgba(122,168,107,.35);color:var(--oa-green,#7FA86B)}
+.pd-step.on{opacity:1;border-color:var(--gold2);color:var(--cream);background:rgba(200,166,97,.1)}
+.pd-step-arrow{color:var(--cream-m);opacity:.5;font-size:11px}
+.pd-step.decide{border-style:dashed}
+.pd-strategy{width:100%;font-family:'Inter';font-size:14px;line-height:1.55;color:var(--cream);background:rgba(0,0,0,.18);border:1px solid var(--line);border-radius:10px;padding:11px 12px;resize:vertical;-webkit-appearance:none;appearance:none}
+.pd-strategy::placeholder{color:var(--cream-m);opacity:.7}
+.pd-meta{display:flex;gap:12px;margin:5px 2px 0;font-family:var(--mono);font-size:10px;letter-spacing:.4px;color:var(--cream-m)}
+.pd-saving{color:var(--gold2)}
+.pd-start,.pd-adv{font-family:'Inter';font-weight:650;font-size:13px;padding:9px 16px;border-radius:999px;border:none;background:var(--oa-red);color:#fff;cursor:pointer;-webkit-appearance:none;appearance:none}
+.pd-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px}
+.pd-back,.pd-reopen{font-family:'Inter';font-weight:600;font-size:12.5px;padding:8px 14px;border-radius:999px;border:1px solid var(--line2);background:transparent;color:var(--cream-m);cursor:pointer;-webkit-appearance:none;appearance:none}
+.pd-decide{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-left:auto}
+.pd-decide .auth-input{min-width:150px;flex:1}
+.pd-won{font-family:'Inter';font-weight:700;font-size:12.5px;padding:8px 14px;border-radius:999px;border:1px solid rgba(122,168,107,.5);background:rgba(122,168,107,.14);color:var(--oa-green,#7FA86B);cursor:pointer;-webkit-appearance:none;appearance:none}
+.pd-lost{font-family:'Inter';font-weight:700;font-size:12.5px;padding:8px 14px;border-radius:999px;border:1px solid rgba(184,36,32,.45);background:rgba(184,36,32,.1);color:#d98;cursor:pointer;-webkit-appearance:none;appearance:none}
+.pd-hint{width:100%;font-family:'Inter';font-size:12.5px;color:var(--cream-m);margin:2px 0 0}
+.pd-decided{margin-top:12px;padding:11px 13px;border-radius:11px;font-family:'Inter';font-size:13px;color:var(--cream)}
+.pd-decided.won{border:1px solid rgba(122,168,107,.4);background:rgba(122,168,107,.08)}
+.pd-decided.lost{border:1px solid rgba(184,36,32,.35);background:rgba(184,36,32,.07)}
+.pd-decided-note{font-style:italic;color:var(--cream-m);margin:4px 0 0}
+.pd-reopen{margin-top:8px}
+.pd-trail{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+.pd-trail-h{font-family:var(--mono);font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:var(--gold2);background:transparent;border:none;cursor:pointer;padding:0;-webkit-appearance:none;appearance:none}
+.pd-trail-list{list-style:none;margin:10px 0 0;display:flex;flex-direction:column;gap:11px}
+.pd-ev{display:flex;gap:10px}
+.pd-ev-dot{flex:0 0 auto;width:8px;height:8px;border-radius:50%;background:var(--gold2);margin-top:5px;box-shadow:0 0 0 3px rgba(200,166,97,.12)}
+.pd-ev-t{font-family:'Inter';font-weight:600;font-size:13px;color:var(--cream);display:block}
+.pd-ev-w{font-family:var(--mono);font-size:10px;color:var(--cream-m)}
+.pd-ev-note{font-family:'Inter';font-style:italic;font-size:12.5px;color:var(--cream-m);margin:3px 0 0}
