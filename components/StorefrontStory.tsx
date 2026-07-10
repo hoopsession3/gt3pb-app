@@ -18,6 +18,8 @@ export default function StorefrontStory() {
       <div className="pillar"><span className="pdot" style={{ background: "#3f7d6e" }} /><div className="px"><b>{t("home.pillar2_t")}</b><p>{t("home.pillar2_d")}</p></div></div>
       <div className="pillar"><span className="pdot" style={{ background: "#B82420" }} /><div className="px"><b>{t("home.pillar3_t")}</b><p>{t("home.pillar3_d")}</p></div></div>
 
+      <button className="craft-link" onClick={() => router.push("/craft")}>Our craft — the how &rarr;</button>
+
       <div className="arr-cta">
         <button className="arr-order" onClick={() => router.push("/menu")}>{t("reserve.order_bar")}</button>
         <div className="arr-order-sub">{t("home.cta_sub")}</div>

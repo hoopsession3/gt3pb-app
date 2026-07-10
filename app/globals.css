@@ -4447,3 +4447,41 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 .status-photo-row{display:flex;gap:8px;align-items:stretch;margin:4px 0 2px}
 .status-photo-btn{flex:1;padding:12px 14px;border-radius:12px;border:1px dashed rgba(200,166,97,.5);background:rgba(200,166,97,.06);color:var(--gold2);font-family:'Inter';font-weight:650;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .status-photo-clear{flex:0 0 auto;width:46px;border-radius:12px;border:1px solid var(--line2);background:transparent;color:var(--cream-m);cursor:pointer;-webkit-appearance:none;appearance:none;font-size:14px}
+
+/* ═══ OUR CRAFT (/craft) — the process manifesto: art & chemistry, zero-toxicity materials, the
+   molecule=GT3. Editorial dark canvas; Fraunces italic display, DM Mono telemetry labels, red-italic
+   emphasis. Every claim stays in the process/materials register (S·9, 2026-07). ═══ */
+.screen.craft{max-width:720px;margin:0 auto}
+.craft-hero{margin:22px 0 8px;text-align:center}
+.craft-eye{font-family:var(--mono);font-weight:500;font-size:11px;letter-spacing:3.2px;text-transform:uppercase;color:var(--gold2)}
+.craft-h1{font-family:'Fraunces';font-weight:600;font-size:clamp(38px,11vw,60px);line-height:.98;letter-spacing:-.5px;color:var(--oa-cream);margin:16px 0 0}
+.craft-h1 i{font-style:italic;color:var(--oa-red)}
+.craft-lede{font-family:'Inter';font-weight:400;font-size:16px;line-height:1.62;color:var(--oa-cream-dim,rgba(245,241,232,.6));max-width:52ch;margin:20px auto 0}
+.craft-mol{margin:30px auto 6px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.craft-mol img{width:min(260px,64vw);height:auto;filter:drop-shadow(0 6px 30px rgba(200,166,97,.14))}
+.craft-mol-cap{font-family:var(--mono);font-size:10.5px;letter-spacing:2.4px;text-transform:uppercase;color:rgba(245,241,232,.4)}
+
+.craft-sec{margin:44px 0 0;padding-top:28px;border-top:1px solid var(--line)}
+.craft-sec-n{font-family:var(--mono);font-weight:500;font-size:11px;letter-spacing:2.8px;text-transform:uppercase;color:var(--gold2)}
+.craft-sec-h{font-family:'Fraunces';font-weight:600;font-size:clamp(25px,6.5vw,34px);line-height:1.06;letter-spacing:-.3px;color:var(--oa-cream);margin:12px 0 0}
+.craft-body{font-family:'Inter';font-weight:400;font-size:15.5px;line-height:1.64;color:var(--oa-cream-dim,rgba(245,241,232,.62));max-width:60ch;margin:16px 0 0}
+.craft-body i{font-style:italic;color:var(--gold2)}
+
+.craft-steps{list-style:none;margin:22px 0 0;display:flex;flex-direction:column;gap:18px}
+.craft-step{display:flex;gap:16px;align-items:flex-start}
+.craft-step-n{flex:0 0 auto;width:40px;height:40px;border-radius:50%;border:1px solid rgba(200,166,97,.4);background:rgba(200,166,97,.06);display:flex;align-items:center;justify-content:center;font-family:'Fraunces';font-style:italic;font-size:19px;color:var(--gold2)}
+.craft-step-x b{display:block;font-family:'Inter';font-weight:650;font-size:16px;color:var(--oa-cream);margin-top:7px}
+.craft-step-x p{font-family:'Inter';font-weight:400;font-size:14.5px;line-height:1.58;color:rgba(245,241,232,.58);margin:6px 0 0;max-width:52ch}
+.craft-step-x p i{font-style:italic;color:var(--gold2)}
+
+.craft-mats{display:flex;flex-wrap:wrap;gap:8px;margin:20px 0 0}
+.craft-mat{font-family:var(--mono);font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:rgba(245,241,232,.72);padding:8px 13px;border:1px solid var(--line2);border-radius:999px;background:rgba(245,241,232,.03)}
+
+.craft-close{margin:48px 0 0;padding-top:30px;border-top:1px solid var(--line);text-align:center}
+.craft-close-line{font-family:'Fraunces';font-style:italic;font-size:22px;color:var(--gold2)}
+.craft-cta{display:flex;gap:10px;justify-content:center;margin:22px 0 4px;flex-wrap:wrap}
+.craft-cta-b{font-family:'Inter';font-weight:650;font-size:14px;padding:13px 22px;border-radius:999px;border:1px solid transparent;background:var(--oa-red);color:#fff;cursor:pointer;-webkit-appearance:none;appearance:none}
+.craft-cta-b.ghost{background:transparent;border-color:var(--line2);color:var(--oa-cream)}
+
+/* the "Read our craft" link from the storefront story */
+.craft-link{display:inline-flex;align-items:center;gap:6px;margin:22px 0 0;font-family:var(--mono);font-weight:500;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--gold2);background:transparent;border:none;cursor:pointer;-webkit-appearance:none;appearance:none;padding:0}
