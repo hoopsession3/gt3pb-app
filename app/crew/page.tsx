@@ -18,6 +18,7 @@ import { CrumbProvider, Breadcrumbs, useCrumb } from "@/components/Crumbs";
 import { recordRecent } from "@/components/recents";
 import { queueOrderStatus, isNetworkError, saveSnapshot, readSnapshot, readQueue, OFFLINE_EVENT } from "@/components/offline";
 import { snapshotUsable } from "@/lib/offline";
+import MenuRigChips, { MENU_RIG_COLUMNS, type MenuRigPatch, type MenuRigValue } from "@/components/MenuRigChips";
 import TrailerLoadout from "@/components/TrailerLoadout";
 import DropOps from "@/components/DropOps";
 import Goals from "@/components/Goals";
@@ -483,9 +484,11 @@ function ContentApprovalSheet({ contentId, meName, meId, onClose, onActioned }: 
 // Pop-out card for reservation alerts — the full DropOps manager (brew totals, pickup checklist,
 // bottles-in toggles) in a centered sheet, so a flag can be handled without leaving the screen.
 function DropSheet({ onClose }: { onClose: () => void }) {
+  const { profile } = useAuth();
+  const canPlan = (profile?.is_admin ?? false) || ["owner", "admin", "event_manager"].includes(profile?.role ?? "");
   return (
     <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><span>This week&rsquo;s drop</span><button type="button" className="drop-sheet-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close">✕</button></div>}>
-        <DropOps />
+        <DropOps canPlan={canPlan} />
         <button type="button" className="drop-sheet-done" onClick={onClose}>Done</button>
     </Sheet>
   );
@@ -857,20 +860,21 @@ function IncidentLog({ ownerCol, ownerId }: { ownerCol: "event_id" | "stop_id"; 
 }
 
 // MENU & RIG — the same menu/site flags an event carries, on the prep hub for events AND stops, so
-// "Generate pack list from menu" builds the right kit either way. Self-contained load/save.
+// "Generate pack list from menu" builds the right kit either way. Self-contained load/save;
+// the chips themselves are the shared MenuRigChips (one option set with Plan › Events).
 function MenuEditor({ ownerType, ownerId, isAdmin, onChanged }: { ownerType: "event" | "stop"; ownerId: string; isAdmin: boolean; onChanged: () => void }) {
   const table = ownerType === "event" ? "events" : "stops";
-  const [f, setF] = useState<Record<string, boolean | string | null> | null>(null);
+  const [f, setF] = useState<MenuRigValue | null>(null);
   const [open, setOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    const { data } = await supabase.from(table).select("rig, power_available, water_available, menu_nitro, menu_nature_aid, menu_salted_maple, menu_bottles, menu_broth").eq("id", ownerId).maybeSingle();
-    setF((data as unknown as Record<string, boolean | string | null>) ?? {});
+    const { data } = await supabase.from(table).select(MENU_RIG_COLUMNS).eq("id", ownerId).maybeSingle();
+    setF((data as MenuRigValue | null) ?? {});
   }, [table, ownerId]);
   useEffect(() => { load(); }, [load]);
 
-  const save = async (patch: Record<string, boolean | string | null>) => {
+  const save = async (patch: MenuRigPatch) => {
     if (!supabase || !f) return;
     setF({ ...f, ...patch });
     await supabase.from(table).update(patch).eq("id", ownerId);
@@ -878,35 +882,15 @@ function MenuEditor({ ownerType, ownerId, isAdmin, onChanged }: { ownerType: "ev
   };
   if (!isAdmin || !f) return null;
 
-  const MENU = [
-    { k: "menu_nitro", label: "Nitro" }, { k: "menu_bottles", label: "Bottles" },
-    { k: "menu_nature_aid", label: "Nature Aide" }, { k: "menu_salted_maple", label: "Salted Maple" }, { k: "menu_broth", label: "Bone broth" },
-  ];
-  const tri = (v: boolean | null | undefined) => (v === true ? "yes" : v === false ? "no" : "—");
-  const cycleSite = (k: "power_available" | "water_available") => { const cur = f[k]; save({ [k]: cur === true ? false : cur === false ? null : true }); };
-
   return (
     <div className="menued">
       <button type="button" className="prep-collapse" style={{ marginTop: 10 }} onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        <span className="prep-collapse-l"><b>🍹 Menu &amp; rig</b><span>what we&apos;re pouring · rig · power &amp; water</span></span>
+        <span className="prep-collapse-l"><b>🍹 Menu &amp; setup</b><span>what we&apos;re pouring · the rig · power &amp; water</span></span>
         <span className={`ev-chev${open ? " open" : ""}`}>›</span>
       </button>
       {open && (
         <div className="menued-body">
-          <div className="menued-h">What we&apos;re pouring</div>
-          <div className="ts-chips">
-            {MENU.map((m) => <button key={m.k} type="button" className={`ts-chip${f[m.k] ? " on" : ""}`} onClick={() => save({ [m.k]: !f[m.k] })}>{f[m.k] ? "✓ " : ""}{m.label}</button>)}
-          </div>
-          <div className="menued-h" style={{ marginTop: 10 }}>Rig</div>
-          <div className="ts-chips">
-            {[{ k: "cart", label: "🛻 Cart" }, { k: "trailer_only", label: "🚚 Trailer only" }, { k: "trailer_plus_cart", label: "🚚 Trailer + cart" }].map((r) => (
-              <button key={r.k} type="button" className={`ts-chip${f.rig === r.k ? " on" : ""}`} onClick={() => save({ rig: r.k })}>{r.label}</button>
-            ))}
-          </div>
-          <div className="menued-site">
-            <button type="button" className="menued-tog" onClick={() => cycleSite("power_available")}>Power on site · <b>{tri(f.power_available as boolean)}</b></button>
-            <button type="button" className="menued-tog" onClick={() => cycleSite("water_available")}>Water on site · <b>{tri(f.water_available as boolean)}</b></button>
-          </div>
+          <MenuRigChips variant="ts" value={f} onPatch={save} />
         </div>
       )}
     </div>
@@ -967,7 +951,7 @@ function DayBrief({ ownerCol, ownerId, isAdmin }: { ownerCol: "event_id" | "stop
   );
 }
 
-function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: string; isLeader: boolean }) {
+function MyDay({ userId, meName, isLeader, canPrep, canBrew }: { userId: string | null; meName: string; isLeader: boolean; canPrep: boolean; canBrew: boolean }) {
   // Flags ride the one shared hook (same source as the Now strip + nav badge). Crew see their own
   // pings + broadcasts now too — the old isLeader gate predates the staff-wide alerts RLS (0157).
   const { flags } = useMyAlerts(userId);
@@ -1027,13 +1011,13 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
       {(rhythm.stops.length > 0 || rhythm.dropPacks > 0 || rhythm.porches > 0 || rhythm.brews.length > 0) && (
         <div className="myday-rhythm">
           {rhythm.stops.map((s) => (
-            <button key={s.id} type="button" className="myday-chip" style={{ borderLeftColor: laneColor("stop") }} onClick={() => { try { localStorage.setItem("gt3-prep-open", `stop:${s.id}`); } catch { /* ignore */ } setSection("prep"); }}>
+            <button key={s.id} type="button" className="myday-chip" style={{ borderLeftColor: laneColor("stop") }} onClick={() => { if (!canPrep) { setSection("now"); return; } try { localStorage.setItem("gt3-prep-open", `stop:${s.id}`); } catch { /* ignore */ } setSection("prep"); }}>
               🚚 {s.name || "Truck stop"}{s.starts_at ? ` · ${new Date(s.starts_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""} ›
             </button>
           ))}
           {rhythm.dropPacks > 0 && <button type="button" className="myday-chip" style={{ borderLeftColor: laneColor("drop") }} onClick={() => setSection("now")}>📦 Drop today · {rhythm.dropPacks} pack{rhythm.dropPacks === 1 ? "" : "s"} ›</button>}
           {rhythm.porches > 0 && <button type="button" className="myday-chip" style={{ borderLeftColor: laneColor("delivery") }} onClick={() => { window.location.href = "/driver"; }}>🚗 Delivery run · {rhythm.porches} porch{rhythm.porches === 1 ? "" : "es"} ›</button>}
-          {rhythm.brews.map((b) => (
+          {canBrew && rhythm.brews.map((b) => (
             <button key={b.id} type="button" className={`myday-chip${b.warn ? " warn" : ""}`} style={{ borderLeftColor: laneColor("brew") }} onClick={() => setSection("brew")}>
               ☕ Brew · {b.recipe_name} {b.batch_gal} gal{b.warn ? " — start now" : ""} ›
             </button>
@@ -1045,11 +1029,12 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
       {flags.length === 0 ? (
         <>
           <div className="sec">Flags &amp; pings for you</div>
-          <div className="myday-clear">✓ Nothing needs you right now.</div>
+          <div className="myday-clear">✓ Nothing needs you right now. {"New here? The ⓘ Guide up top explains every tab."}</div>
         </>
       ) : (
         <AlertsInbox userId={userId} title="Flags & pings for you" />
       )}
+      <button type="button" className="myday-jot" onClick={() => window.dispatchEvent(new Event("gt3-quick-note"))}>✎ Note to self — jot a thought, only you see it</button>
       {isLeader && <NeedsYou />}
       <MyTasks userId={userId} />
       {/* Lead-the-week tools sit BELOW the urgent lane — the operating loop reads top-down:
@@ -1737,7 +1722,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
     // The menu/rig/site row that drives packListFor — the event row, or the stop's own menu columns.
     let menuRow = ev as EventRow | null;
     if (!isEvent) {
-      const { data: s } = await supabase.from("stops").select("rig, power_available, water_available, menu_nitro, menu_nature_aid, menu_salted_maple, menu_bottles, menu_broth").eq("id", target.id).maybeSingle();
+      const { data: s } = await supabase.from("stops").select(MENU_RIG_COLUMNS).eq("id", target.id).maybeSingle();
       menuRow = (s as unknown as EventRow) ?? null;
     }
     if (!menuRow) return;
@@ -1754,7 +1739,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
     const pack = packListFor(menuRow).map((p, i) => ({ [ownerCol]: target.id, label: p.label, section: p.section, critical: !!p.critical, warn: !!p.warn, kind: "pack", link: null, sort: i }));
     const comp = isEvent && ev ? (await complianceFor(ev, supabase)).map((p, i) => ({ event_id: ev.id, label: p.label, section: p.section, critical: !!p.critical, warn: !!p.warn, kind: "task", link: p.link ?? null, sort: 100 + i })) : [];
     const rows = [...pack, ...comp];
-    if (!rows.length) { setGenerating(false); toast(`Set the ${isEvent ? "event" : "stop"}'s rig + menu first — tap Menu & rig`, "error"); return; }
+    if (!rows.length) { setGenerating(false); toast(`Set the ${isEvent ? "event" : "stop"}'s menu + rig first — tap Menu & setup`, "error"); return; }
     const { error } = await supabase.from("event_tasks").insert(rows);
     setGenerating(false);
     toast(error ? `Error: ${error.message}` : `Generated ${pack.length} pack${comp.length ? ` + ${comp.length} compliance` : ""} items`);
@@ -2836,12 +2821,14 @@ function MeetingNotes() {
   const [cBody, setCBody] = useState("");
   const [cActions, setCActions] = useState<{ title: string; category: string; critical: boolean }[]>([]);
   const [cLink, setCLink] = useState(""); // "" | event:<id> | stop:<id> | opp:<id>
-  const [cVis, setCVis] = useState<"private" | "team" | "collab">("collab");
+  const [cVis, setCVis] = useState<"private" | "team" | "collab">("private");
+  const [visTouched, setVisTouched] = useState(false);
   const [noteOpps, setNoteOpps] = useState<{ id: string; label: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [summarizing, setSummarizing] = useState(false);
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<"active" | "archived">("active");
+  const [mineOnly, setMineOnly] = useState(false);
 
   const summarize = async () => {
     if (!supabase || summarizing) return;
@@ -2907,7 +2894,7 @@ function MeetingNotes() {
     if (error) { toast(`Error: ${error.message}`, "error"); return; }
     const dest = linkEvent ? "the event's prep list" : linkStop ? "the stop's prep list" : "the note";
     toast(`Note saved${cActions.length ? ` · ${cActions.length} task${cActions.length === 1 ? "" : "s"} → ${dest}` : ""}`);
-    setCTitle(""); setCSummary(""); setCBody(""); setCLink(""); setCActions([]); setComposing(false);
+    setCTitle(""); setCSummary(""); setCBody(""); setCLink(""); setCVis("private"); setVisTouched(false); setCActions([]); setComposing(false);
     load();
   };
   const remove = async (n: MeetingNote) => {
@@ -2929,7 +2916,7 @@ function MeetingNotes() {
           <input className="note-in" placeholder="What&rsquo;s this note about?" value={cTitle} onChange={(e) => setCTitle(e.target.value)} />
           <div className="note-row">
             <input type="date" className="note-in" value={cDate} onChange={(e) => setCDate(e.target.value)} aria-label="Date" />
-            <select className="note-in" value={cLink} onChange={(e) => setCLink(e.target.value)} aria-label="Link to an event or truck stop">
+            <select className="note-in" value={cLink} onChange={(e) => { setCLink(e.target.value); if (!visTouched) setCVis(e.target.value ? "collab" : "private"); }} aria-label="Link to an event or truck stop">
               <option value="">No link</option>
               <optgroup label="Events">
                 {events.map((ev) => <option key={ev.id} value={`event:${ev.id}`}>{ev.title}</option>)}
@@ -2943,10 +2930,10 @@ function MeetingNotes() {
             </select>
           </div>
           <div className="note-row">
-            <select className="note-in" value={cVis} onChange={(e) => setCVis(e.target.value as typeof cVis)} aria-label="Who can see this note">
-              <option value="collab">🤝 Collaborative — everyone reads &amp; comments</option>
-              <option value="team">👥 Team — everyone reads, no comments</option>
-              <option value="private">🔒 Private — just me</option>
+            <select className="note-in note-vis" value={cVis} onChange={(e) => { setCVis(e.target.value as typeof cVis); setVisTouched(true); }} aria-label="Who can see this note">
+              <option value="private">🔒 Just me</option>
+              <option value="team">👥 Team — everyone reads</option>
+              <option value="collab">🤝 Team + comments</option>
             </select>
           </div>
           <textarea className="note-area" placeholder="The note — a thought, a plan, a recap…" value={cSummary} onChange={(e) => setCSummary(e.target.value)} rows={cSummary.length > 200 ? 10 : 3} />
@@ -2969,12 +2956,14 @@ function MeetingNotes() {
         const archivedCount = notes.filter((n) => n.archived_at).length;
         const q = query.trim().toLowerCase();
         const shown = notes.filter((n) => (tab === "archived" ? n.archived_at : !n.archived_at))
+          .filter((n) => !mineOnly || n.created_by === meId)
           .filter((n) => !q || n.title.toLowerCase().includes(q) || (n.summary || "").toLowerCase().includes(q) || (events.find((e) => e.id === n.event_id)?.title || "").toLowerCase().includes(q) || (noteStops.find((s) => s.id === n.stop_id)?.name || "").toLowerCase().includes(q));
         return (
           <>
             <div className="note-filter">
               <input className="note-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search notes…" />
               <div className="note-tabs">
+                <button type="button" className={`note-tab${mineOnly ? " on" : ""}`} onClick={() => setMineOnly((v) => !v)}>Mine</button>
                 <button type="button" className={`note-tab${tab === "active" ? " on" : ""}`} onClick={() => setTab("active")}>Active</button>
                 <button type="button" className={`note-tab${tab === "archived" ? " on" : ""}`} onClick={() => setTab("archived")}>Archived{archivedCount ? ` ${archivedCount}` : ""}</button>
               </div>
@@ -2985,6 +2974,7 @@ function MeetingNotes() {
                 staff={staff} meId={meId} meName={meName} isAdmin={isAdmin}
                 eventTitle={events.find((e) => e.id === n.event_id)?.title ?? (n.stop_id ? `Stop · ${noteStops.find((s) => s.id === n.stop_id)?.name ?? "location"}` : null)} onDelete={() => remove(n)}
                 onArchive={() => archive(n, !n.archived_at)}
+                onVisibility={(v) => setNotes((prev) => prev.map((x) => (x.id === n.id ? { ...x, visibility: v } : x)))}
               />
             ))}
             {shown.length === 0 && !composing && <div className="h-sub">{q ? "No notes match your search." : tab === "archived" ? "No archived notes." : "No notes yet — tap “New note” after your next sit-down."}</div>}
@@ -2995,7 +2985,7 @@ function MeetingNotes() {
   );
 }
 
-function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, eventTitle, onDelete, onArchive }: {
+function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, eventTitle, onDelete, onArchive, onVisibility }: {
   note: MeetingNote;
   open: boolean;
   onToggle: () => void;
@@ -3006,6 +2996,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
   eventTitle: string | null;
   onDelete: () => void;
   onArchive: () => void;
+  onVisibility?: (v: "private" | "team" | "collab") => void;
 }) {
   const { user, profile } = useAuth();
   const { toast } = useApp();
@@ -3033,6 +3024,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
 
   const staffName = (uid: string) => staff.find((s) => s.id === uid)?.display_name?.trim() || (uid === meId ? meName : "Unnamed crew");
   const firstNameOf = (uid: string) => staffName(uid).split(" ")[0];
+  const authorName = note.created_by ? (note.created_by === meId ? "you" : firstNameOf(note.created_by)) : null;
 
   const add = async () => {
     if (!supabase || !newItem.trim()) return;
@@ -3121,12 +3113,28 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
       <button type="button" className="note-head" onClick={onToggle} aria-expanded={open}>
         <div className="note-head-main">
           <span className="note-title">{note.title}{note.source === "email" && <span className="note-src">email</span>}</span>
-          <span className="note-meta">{fmtNoteDate(note.met_on)}{eventTitle ? ` · ${eventTitle}` : ""}{note.visibility === "private" ? " · 🔒 private" : note.visibility === "team" ? " · 👥 team" : ""}{items.length ? ` · ${openCount}/${items.length} follow-ups` : ""}</span>
+          <span className="note-meta">{fmtNoteDate(note.met_on)}{authorName ? ` · ${authorName}` : ""}{eventTitle ? ` · ${eventTitle}` : ""}{note.visibility === "private" ? " · 🔒 private" : note.visibility === "team" ? " · 👥 team" : ""}{items.length ? ` · ${openCount}/${items.length} follow-ups` : ""}</span>
         </div>
         <span className={`note-chev${open ? " open" : ""}`} aria-hidden="true">›</span>
       </button>
       {open && (
         <div className="note-body">
+          {(note.created_by === meId || isAdmin) && (
+            <div className="note-vis-row">
+              <span>Who sees this</span>
+              <select className="note-in note-vis" value={note.visibility ?? "collab"} onChange={async (e) => {
+                if (!supabase) return;
+                const v = e.target.value as "private" | "team" | "collab";
+                const { error } = await supabase.from("meeting_notes").update({ visibility: v }).eq("id", note.id);
+                toast(error ? `Couldn't change — ${error.message}` : v === "private" ? "Now just for you" : v === "team" ? "Team can read it now" : "Team can read & comment now");
+                if (!error) onVisibility?.(v);
+              }} aria-label="Who can see this note">
+                <option value="private">🔒 Just me</option>
+                <option value="team">👥 Team — everyone reads</option>
+                <option value="collab">🤝 Team + comments</option>
+              </select>
+            </div>
+          )}
           {note.summary && <Markdown source={note.summary} className="note-summary" />}
           {note.body && <details className="note-full"><summary>Full notes</summary><p>{note.body}</p></details>}
           <div className="note-fu-h">Follow-ups
@@ -3466,10 +3474,10 @@ type RoleKey = "owner" | "admin" | "event_manager" | "operator" | "contractor" |
 const ROLE_META: Record<RoleKey, { label: string; tier: "lead" | "crew" | "member"; scope: string; tone: string }> = {
   owner:         { label: "Owner",         tier: "lead",   scope: "Full access — every section",    tone: "red" },
   admin:         { label: "Admin",         tier: "lead",   scope: "Full access — every section",    tone: "red" },
-  event_manager: { label: "Event Manager", tier: "lead",   scope: "Now · Prep · Plan",              tone: "gold" },
-  operator:      { label: "Operator",      tier: "crew",   scope: "Now · Prep",                     tone: "cream" },
-  contractor:    { label: "Contractor",    tier: "crew",   scope: "Now · Prep — event hire",        tone: "cream" },
-  server:        { label: "Server",        tier: "crew",   scope: "Now — order pass only",          tone: "cream" },
+  event_manager: { label: "Event Manager", tier: "lead",   scope: "Everything but Money & Team",    tone: "gold" },
+  operator:      { label: "Operator",      tier: "crew",   scope: "Service · Prep · Brew · Garage · Pipeline · Notes · Drive", tone: "cream" },
+  contractor:    { label: "Contractor",    tier: "crew",   scope: "Service · Prep · Garage · Notes · Drive", tone: "cream" },
+  server:        { label: "Server",        tier: "crew",   scope: "My Day · Live Ops · Notes · Drive", tone: "cream" },
   member:        { label: "Member",        tier: "member", scope: "Customer — loyalty only",        tone: "muted" },
 };
 const ROLE_ORDER: RoleKey[] = ["owner", "admin", "event_manager", "operator", "contractor", "server", "member"];
@@ -3777,15 +3785,6 @@ function ProductCatalog() {
   );
 }
 
-// Menu pours that drive the pack list — rendered as tap-to-toggle chips, not cramped checkboxes.
-const EVENT_MENU: { key: "menu_nitro" | "menu_nature_aid" | "menu_salted_maple" | "menu_bottles" | "menu_broth"; label: string }[] = [
-  { key: "menu_nitro", label: "Nitro" },
-  { key: "menu_nature_aid", label: "Nature Aide" },
-  { key: "menu_salted_maple", label: "Salted Maple" },
-  { key: "menu_bottles", label: "Bottles" },
-  { key: "menu_broth", label: "Broth" },
-];
-
 // Event Brief — computed prep intelligence (demand → brew/pack → ingredient pull →
 // crew check → readiness → risk flags). Turns the menu/attendance config into knowledge.
 function BriefPanel({ e, proj, inventory }: { e: EventRow; proj: Projection; inventory: InventoryResp }) {
@@ -4001,11 +4000,6 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
           <div className="ev-group">
             <div className="ev-group-h">Crew prep · pack signal</div>
             <div className="ev-grid">
-              <label className="ev-f wide">Rig
-                <select defaultValue={e.rig ?? ""} onChange={(ev) => onUpdate({ rig: (ev.target.value || null) as EventRow["rig"] })}>
-                  <option value="">— pick —</option><option value="cart_only">Cart only</option><option value="trailer_only">Trailer only</option><option value="trailer_plus_cart">Trailer + cart</option>
-                </select>
-              </label>
               <label className="ev-f">State<input maxLength={20} placeholder="GA" defaultValue={e.state ?? ""} onBlur={(ev) => onUpdate({ state: ev.target.value.trim() || null })} /></label>
               <label className="ev-f">County<input maxLength={40} placeholder="Fulton" defaultValue={e.county ?? ""} onBlur={(ev) => onUpdate({ county: ev.target.value.trim() || null })} /></label>
             </div>
@@ -4015,18 +4009,9 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
               <label className="ev-f">Crew<input type="number" min={0} defaultValue={e.staff_count ?? 0} onBlur={(ev) => onUpdate({ staff_count: Math.max(0, parseInt(ev.target.value) || 0) })} /></label>
             </div>
 
-            <div className="ev-sub-h">Menu pouring</div>
-            <div className="ev-chips">
-              {EVENT_MENU.map((m) => (
-                <button key={m.key} className={`ev-chip${e[m.key] ? " on" : ""}`} aria-pressed={!!e[m.key]} onClick={() => onUpdate({ [m.key]: !e[m.key] } as Partial<EventRow>)}>{m.label}</button>
-              ))}
-            </div>
-
-            <div className="ev-sub-h">On site</div>
-            <div className="ev-chips">
-              <button className={`ev-chip${e.power_available ? " on" : ""}`} aria-pressed={!!e.power_available} onClick={() => onUpdate({ power_available: !e.power_available })}>Power</button>
-              <button className={`ev-chip${e.water_available ? " on" : ""}`} aria-pressed={!!e.water_available} onClick={() => onUpdate({ water_available: !e.water_available })}>Water</button>
-            </div>
+            {/* Menu, rig & site flags — the shared chip set (one option list with the prep hub's
+                Menu & rig editor). Patches flow through the same events update as every field here. */}
+            <MenuRigChips variant="ev" value={e} onPatch={onUpdate} />
           </div>
 
           <BriefPanel e={e} proj={proj} inventory={inventory} />
@@ -4097,7 +4082,9 @@ function EventsAdmin() {
     if (!error) load();
   };
   const addEvent = async () => {
-    const { data, error } = await supabase!.from("events").insert({ title: "New event", day_label: "SAT", sort: events.length }).select("id").single();
+    // Born dated (next Saturday) — a dateless event is invisible to the calendar, which reads as "it vanished".
+    const nextSat = (() => { const d = new Date(); d.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7 || 7)); return localYMD(d); })();
+    const { data, error } = await supabase!.from("events").insert({ title: "New event", day_label: "SAT", day: nextSat, sort: events.length }).select("id").single();
     toast(error ? `Error: ${error.message}` : "Event added");
     if (!error) { if (data) setOpenId((data as { id: string }).id); load(); } // open the new one for editing
   };
@@ -4599,9 +4586,19 @@ export default function AdminPage() {
   const canManage = isAdmin || role === "event_manager";
   const canPrep = canManage || role === "operator" || role === "contractor";
   const allowed = sectionsForRole(role);
-  const sec: OpSection = allowed.includes(section) ? section : "now";
+  // Fallback for a section this role can't open is My Day (home), not Live Ops — a server tapping
+  // a prep deep-link should land somewhere that explains itself, and the URL/localStorage must not
+  // keep re-teleporting her on every cold open.
+  const sec: OpSection = allowed.includes(section) ? section : "day";
   const [planTab, setPlanTab] = useState<"calendar" | "events" | "vendors" | "bookings">("calendar");
   const [guideOpen, setGuideOpen] = useState(false);
+  // First-run: the guide explains the console's language (Live Ops, Readiness, Route) — open it
+  // once for a brand-new staffer instead of hoping she finds the ⓘ pill.
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem("gt3-guide-seen")) { localStorage.setItem("gt3-guide-seen", "1"); setGuideOpen(true); }
+    } catch { /* ignore */ }
+  }, []);
   // Service mode — full-screen KDS (pass + pickups). Esc exits; leaving Now exits.
   const [svc, setSvc] = useState(false);
   useEffect(() => {
@@ -4647,9 +4644,10 @@ export default function AdminPage() {
   if (role === "member") {
     return (
       <section className="screen">
-        <div className="toprow"><div className="eyb">Admin</div><Link className="pf" href="/">‹</Link></div>
+        <div className="toprow"><div className="eyb">Crew</div><Link className="pf" href="/">‹</Link></div>
         <div className="h-title">Staff only.</div>
-        <div className="h-sub">This area is for GT3PB staff. If that&apos;s you, ask the owner to add you.</div>
+        <div className="h-sub">This area is for GT3PB staff. If that&apos;s you, ask the owner to add you — then tap below.</div>
+        <button type="button" className="note-save" style={{ marginTop: 14 }} onClick={() => window.location.reload()}>I&apos;ve been added — check again</button>
       </section>
     );
   }
@@ -4714,7 +4712,7 @@ export default function AdminPage() {
           fades+slides in. planTab changes keep the same key, so sub-tabs don't re-animate.
           role=region + focus-on-change: keyboard/SR users land in the new section, not adrift. */}
       <div className="op-trans" key={sec} ref={opBodyRef} tabIndex={-1} role="region" aria-label={`${SEC_LABEL[sec]} section`}>
-      {sec === "day" && <MyDay userId={user?.id ?? null} meName={profile?.display_name?.trim() || "Me"} isLeader={canManage} />}
+      {sec === "day" && <MyDay userId={user?.id ?? null} meName={profile?.display_name?.trim() || "Me"} isLeader={canManage} canPrep={canPrep} canBrew={canManage || role === "operator"} />}
 
       {sec === "now" && (
         <>
@@ -4722,14 +4720,14 @@ export default function AdminPage() {
               one tap into the working screen) → the drop's prep face (what to brew, what money) →
               Sunday delivery (folds until run day) → dispatch panels → personal tasks. The boards
               themselves (pass, pickup checklist, 86) render in ONE place: Service mode. */}
-          {canManage && <AlertsInbox userId={user?.id ?? null} compact />}
+          <AlertsInbox userId={user?.id ?? null} compact />
           {!svc && (
             <>
               <ServicePulse onEnter={() => setSvc(true)} />
               {/* The truck instrument rides directly under the pulse — going live IS the first act
                   of service, not a panel below the fold. */}
               {canManage && <LiveControl compact />}
-              <DropOps brief onOpen={() => setSvc(true)} />
+              <DropOps brief onOpen={() => setSvc(true)} canPlan={canManage} />
               <DeliveryOps />
             </>
           )}
@@ -4751,7 +4749,7 @@ export default function AdminPage() {
           <div className="svc-grid">
             <div className="svc-main"><Kitchen /></div>
             <aside className="svc-rail" aria-label="Pickups & sold-out">
-              <DropOps />
+              <DropOps canPlan={canManage} />
               <EightySix />
             </aside>
           </div>

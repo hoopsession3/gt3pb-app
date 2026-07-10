@@ -39,9 +39,11 @@ const VLABEL: Record<View, string> = { list: "Agenda", board: "Board", cards: "C
 type Stop = { id: string; name: string; location_text: string | null; starts_at: string | null; status: string | null };
 type Brew = { id: string; recipe_name: string | null; batch_gal: number | null; status: string; brew_date: string | null; ready_at: string | null; latest_start_at: string | null };
 type Item = { id: string; title: string; cat: string; kind: "event" | "content" | "todo" | "stop" | "task" | "brew" | "drop" | "delivery"; done?: boolean; warn?: boolean; meta?: string; go: () => void; toggle?: () => void };
-// kinds that back a SRC row and can be edited/dragged here; brew/drop/delivery are read-only rollups
+// kinds that back a SRC row and can be edited/dragged here; brew/drop/delivery are read-only rollups.
+// "task" is deliberately NOT editable here — CalEdit had no task branch, so a tap+Save fell into
+// the content form and renamed the task/wiped its due date. Tasks route to their prep hub (it.go).
 type EditKind = "event" | "content" | "todo" | "stop" | "task";
-const isEditable = (k: Item["kind"]): k is EditKind => k in SRC;
+const isEditable = (k: Item["kind"]): k is EditKind => k !== "task" && k in SRC;
 const DRAG = new Set<Item["kind"]>(["event", "stop", "content", "todo"]); // event_task + rollups stay put
 
 function gridMonth(cursor: Date): Date[] { const s = new Date(cursor.getFullYear(), cursor.getMonth(), 1); s.setDate(1 - s.getDay()); return Array.from({ length: 42 }, (_, i) => { const d = new Date(s); d.setDate(s.getDate() + i); return d; }); }

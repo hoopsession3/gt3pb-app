@@ -108,6 +108,9 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [econ, setEcon] = useState<Econ>(null);
   const [lineFilter, setLineFilter] = useState<string>("all");
+  // Reps open on THEIR accounts (managers see the whole board) — "work your accounts" needs a view,
+  // not a scan of everyone's cards.
+  const [mineOnly, setMineOnly] = useState(!isAdmin);
   const [no, setNo] = useState({ vendorId: "", newVendor: "", newType: "gym", dealId: "", repId: "", value: "", nextStep: "" });
   const [nd, setNd] = useState({ title: "", vendor_type: "gym", price_label: "", blurb: "", model: "rev_share", rate: "", amount: "", line: "wholesale" });
   const [editId, setEditId] = useState<string | null>(null);    // deal being edited in the catalog
@@ -175,7 +178,12 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
     await patch(o.id, p);
     const label = STAGES.find((s) => s.key === stage)?.label ?? stage;
     logActivity(o.id, `→ ${label}${stage === "lost" && p.lost_reason ? ` — ${p.lost_reason}` : ""}`);
-    if (stage === "won") toast("Won — nice. Book it in Plan › Events when dates land.");
+    if (stage === "won") {
+      const line = o.deals?.line;
+      toast(line === "wholesale" || line === "standing" ? "Won — nice. Set up the recurring delivery in Live Ops › Delivery."
+        : line === "truck_stop" ? "Won — nice. Add the location in Route when dates land."
+        : "Won — nice. Book it in Plan › Events when dates land.");
+    }
   };
 
   const assignRep = async (o: Opp, uid: string) => {
@@ -313,6 +321,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
 
   const newVendorType = no.vendorId ? (vendors.find((v) => v.id === no.vendorId)?.vendor_type ?? null) : no.newType;
   const openOpps = opps.filter((o) => o.stage !== "won" && o.stage !== "lost");
+  const mineCount = openOpps.filter((o) => o.rep_id === user?.id).length;
   const wonValue = opps.filter((o) => o.stage === "won").reduce((s, o) => s + (o.value_cents ?? 0), 0);
   const overdue = (o: Opp) => o.next_step_at && o.next_step_at < new Date().toISOString().slice(0, 10) && o.stage !== "won" && o.stage !== "lost";
 
@@ -373,7 +382,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
             </div>
           )}
           <button type="button" className="st-discuss" onClick={() => setThreadId(threadId === o.id ? null : o.id)} aria-expanded={threadId === o.id}>💬 {threadId === o.id ? "Close" : "Discuss"}</button>
-          {threadId === o.id && <StrategyThread k={`opp:${o.id}`} label={`Pipeline: ${o.vendors?.name ?? "opportunity"}`} />}
+          {threadId === o.id && <StrategyThread k={`opp:${o.id}`} label={`Pipeline: ${o.vendors?.name ?? "opportunity"}`} link="/crew?s=pipeline" />}
         </div>
       )}
     </div>
@@ -490,6 +499,9 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
         if (present.length < 2) return null;
         return (
           <div className="pipe-lines">
+            <button type="button" className={`ts-chip${mineOnly ? " on" : ""}`} onClick={() => setMineOnly(true)}>My accounts{mineCount ? ` · ${mineCount}` : ""}</button>
+            <button type="button" className={`ts-chip${!mineOnly ? " on" : ""}`} onClick={() => setMineOnly(false)}>Everyone</button>
+            <span className="pipe-lines-div" aria-hidden />
             <button type="button" className={`ts-chip${lineFilter === "all" ? " on" : ""}`} onClick={() => setLineFilter("all")}>All lines</button>
             {present.map((l) => (
               <button key={l} type="button" className={`ts-chip${lineFilter === l ? " on" : ""}`} onClick={() => setLineFilter(l)}>{lineLabel(l) ?? l}</button>
@@ -502,7 +514,9 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
       {loaded && opps.length === 0 && <div className="h-sub">Nothing in the pipeline yet — add the first account below.</div>}
 
       {STAGES.map((s) => {
-        const rows = opps.filter((o) => o.stage === s.key && (lineFilter === "all" || o.deals?.line === lineFilter));
+        const rows = opps
+          .filter((o) => o.stage === s.key && (lineFilter === "all" || o.deals?.line === lineFilter) && (!mineOnly || o.rep_id === user?.id))
+          .sort((a, b) => (a.next_step_at ?? "9999").localeCompare(b.next_step_at ?? "9999"));
         if (rows.length === 0) return null;
         return (
           <div key={s.key} className="pipe-stage">

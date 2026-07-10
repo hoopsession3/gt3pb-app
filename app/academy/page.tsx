@@ -323,7 +323,7 @@ function Quiz({ qs, pass, onPass, onCancel }: { qs: QuizQ[]; pass: number; onPas
                 disabled={graded} onClick={() => setAns((a) => ({ ...a, [i]: j }))}>{o}</button>
             );
           })}
-          {graded && q.why && ans[i] !== q.correct && <div className="ac-why">{q.why}</div>}
+          {graded && q.why && ans[i] !== q.correct && <div className="ac-qwhy">{q.why}</div>}
         </div>
       ))}
       {!graded ? (

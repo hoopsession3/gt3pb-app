@@ -23,7 +23,7 @@ export default function FloatRail({ children }: { children: React.ReactNode }) {
   const drag = useRef<{ startY: number; startBottom: number } | null>(null);
 
   const clamp = (b: number) =>
-    Math.min(Math.max(b, 88), Math.round((typeof window !== "undefined" ? window.innerHeight : 800) * 0.7));
+    Math.min(Math.max(b, 150), Math.round((typeof window !== "undefined" ? window.innerHeight : 800) * 0.7)); // floor 150 = nav 68 + 16 + 54 FAB + 12 clearance
 
   useEffect(() => {
     try {

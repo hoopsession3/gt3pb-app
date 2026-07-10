@@ -5,7 +5,8 @@ import { useAuth } from "./AuthProvider";
 import { useApp } from "./AppProvider";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
-import { mixSummary, dollars, emptyMix, type Mix, type GlassPath } from "@/lib/orderAhead";
+import { mixSummary, dollars, emptyMix, dropForStop, nextDrop, dropDateKey, type Mix, type GlassPath } from "@/lib/orderAhead";
+import { authedFetch } from "@/lib/authedFetch";
 
 // YOUR PACK — the customer's own reservations, right on /reserve. Reserving is only half the
 // product: coming back should show what you've got coming, live (staff checking you off at the
@@ -40,6 +41,44 @@ export default function MyPacks({ onChange, refreshKey }: { onChange?: (p: MyPac
   const [rows, setRows] = useState<MyPack[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
+  const [moving, setMoving] = useState<string | null>(null); // pack id showing the day picker
+  // The same upcoming-drop days the order form offers (real stops, still open) — so "move it"
+  // can only land on a day the truck will actually be out.
+  const [days, setDays] = useState<{ key: string; label: string }[]>([]);
+  useEffect(() => {
+    if (!supabase || !user) return;
+    supabase.from("stops").select("starts_at").is("archived_at", null).neq("status", "done").not("starts_at", "is", null)
+      .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(8)
+      .then(({ data }) => {
+        const seen = new Set<string>();
+        const opts: { key: string; label: string }[] = [];
+        for (const st of (data ?? []) as { starts_at: string }[]) {
+          const d = dropForStop(st.starts_at);
+          if (d.cutoff.getTime() <= Date.now()) continue;
+          const key = st.starts_at.slice(0, 10);
+          if (seen.has(key)) continue; seen.add(key);
+          opts.push({ key, label: packDayLabel({ drop_date: key }) });
+        }
+        // Same fallback the reserve API uses: no scheduled stops → the Saturday cadence.
+        if (opts.length === 0 && (data ?? []).length === 0) {
+          const fb = nextDrop();
+          opts.push({ key: dropDateKey(fb.sat), label: packDayLabel({ drop_date: dropDateKey(fb.sat) }) });
+        }
+        setDays(opts.slice(0, 4));
+      });
+  }, [user]);
+
+  const moveDay = async (p: MyPack, toDate: string) => {
+    if (busy) return;
+    setBusy(p.id);
+    try {
+      const res = await authedFetch("/api/reserve/move", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id, toDate }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { toast(data.error || "Couldn't move it — try again.", "error"); return; }
+      toast(`Moved to ${packDayLabel({ drop_date: toDate })} — see you then.`);
+      setMoving(null); load();
+    } finally { setBusy(null); }
+  };
 
   const load = useCallback(async () => {
     if (!supabase || !user) { setRows([]); return; }
@@ -71,19 +110,32 @@ export default function MyPacks({ onChange, refreshKey }: { onChange?: (p: MyPac
   };
 
   if (!user || rows.length === 0) return null;
-  // Compact by default — one line per pack, so the order form stays above the fold even with
-  // several packs reserved. Tap a row for the mix + the two self-service moves.
+  // Grouped by PICKUP DAY — three packs for one Saturday read as one plan ("Sat · 3 packs · 18
+  // bottles"), not three look-alike rows. Tap a row for the mix + the self-service moves.
+  const byDay = new Map<string, MyPack[]>();
+  for (const p of rows) { const g = byDay.get(p.drop_date) ?? []; g.push(p); byDay.set(p.drop_date, g); }
   return (
     <div className="mypacks">
       <div className="mypacks-h">Your pack{rows.length > 1 ? "s" : ""}</div>
-      {rows.map((p) => {
+      {[...byDay.entries()].map(([day, group]) => (
+        <div key={day} className="mypack-day">
+          {group.length > 1 && (
+            <div className="mypack-dayh">
+              <b>{packDayLabel({ drop_date: day })}</b>
+              <span>{group.length} packs · {group.reduce((s, x) => s + x.size, 0)} bottles · {group.filter((x) => x.paid).length ? `${group.filter((x) => x.paid).length} paid` : ""}{group.some((x) => !x.paid) ? `${group.filter((x) => x.paid).length ? " · " : ""}${group.filter((x) => !x.paid).length} at pickup` : ""}</span>
+            </div>
+          )}
+          {group.map((p) => {
         const isOpen = open === p.id;
         return (
-          <div className={`mypack${p.picked_up ? " done" : ""}${isOpen ? " open" : ""}`} key={p.id}>
+          <div className={`mypack pay-${p.picked_up ? "done" : p.paid ? "paid" : "due"}${isOpen ? " open" : ""}`} key={p.id}>
             <button type="button" className="mypack-row" onClick={() => setOpen(isOpen ? null : p.id)} aria-expanded={isOpen}>
-              <b>{p.size}-pack · {packDayLabel(p)}</b>
+              <span className="mypack-main">
+                <b>{p.size}-pack{group.length > 1 ? "" : ` · ${packDayLabel(p)}`}</b>
+                <span className="mypack-sub">{mixSummary(packMix(p)) || "your mix"} · #{p.id.slice(0, 6).toUpperCase()}</span>
+              </span>
               <span className="mypack-rt">
-                <span className={`mypack-pay${p.paid ? " ok" : ""}`}>{p.picked_up ? "✓ PICKED UP" : p.paid ? "PAID" : "pay at pickup"}</span>
+                <span className={`mypack-flag ${p.picked_up ? "done" : p.paid ? "paid" : "due"}`}>{p.picked_up ? "✓ picked up" : p.paid ? "✓ paid" : "$ at pickup"}</span>
                 <span className="mypack-car">{isOpen ? "▾" : "▸"}</span>
               </span>
             </button>
@@ -109,16 +161,33 @@ export default function MyPacks({ onChange, refreshKey }: { onChange?: (p: MyPac
                   );
                 })()}
                 {!p.picked_up && (
-                  <div className="mypack-actions">
-                    {onChange && <button type="button" onClick={() => onChange(p)}>Change pack or day</button>}
-                    <button type="button" className="danger" onClick={() => cancel(p)} disabled={busy === p.id}>{busy === p.id ? "Canceling…" : "Cancel"}</button>
-                  </div>
+                  <>
+                    <div className="mypack-actions">
+                      {days.some((d) => d.key !== p.drop_date) && (
+                        <button type="button" onClick={() => setMoving(moving === p.id ? null : p.id)} aria-expanded={moving === p.id}>Move day</button>
+                      )}
+                      {onChange && <button type="button" onClick={() => onChange(p)}>Change the pack</button>}
+                      <button type="button" className="danger" onClick={() => cancel(p)} disabled={busy === p.id}>{busy === p.id ? "Canceling…" : "Cancel"}</button>
+                    </div>
+                    {moving === p.id && (
+                      <div className="mypack-move">
+                        <span>Pick the new day — everything else stays the same.</span>
+                        <div className="mypack-move-days">
+                          {days.filter((d) => d.key !== p.drop_date).map((d) => (
+                            <button key={d.key} type="button" disabled={busy === p.id} onClick={() => moveDay(p, d.key)}>{d.label}</button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </>
             )}
           </div>
         );
-      })}
+          })}
+        </div>
+      ))}
     </div>
   );
 }
