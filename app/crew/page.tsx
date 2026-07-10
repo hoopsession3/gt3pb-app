@@ -500,6 +500,55 @@ function DropSheet({ onClose }: { onClose: () => void }) {
 
 // The "don't-miss" inbox — unacknowledged alerts for me (or all-leadership), critical first.
 // Realtime, so a new alert lands at the top of the Now screen the instant it's raised.
+// Notification management (0177) — mute a category's non-critical pings, set a quiet window. Own-row
+// prefs, realtime. Criticals always come through; this only quiets the rest.
+const NOTIF_CATS: { key: string; label: string }[] = [
+  { key: "order", label: "Orders & the pass" },
+  { key: "money", label: "Money & refunds" },
+  { key: "brew", label: "Brew ladder" },
+  { key: "prep", label: "Prep & tasks" },
+  { key: "content", label: "Studio / content" },
+  { key: "strategy", label: "Pipeline & strategy" },
+];
+function NotifPrefsSheet({ userId, onClose }: { userId: string | null; onClose: () => void }) {
+  const { toast } = useApp();
+  const [muted, setMuted] = useState<string[]>([]);
+  const [qs, setQs] = useState<string>("");
+  const [qe, setQe] = useState<string>("");
+  useEffect(() => {
+    if (!supabase || !userId) return;
+    supabase.from("notif_prefs").select("muted_categories, quiet_start, quiet_end").eq("user_id", userId).maybeSingle()
+      .then(({ data }) => { const p = data as { muted_categories?: string[]; quiet_start?: number | null; quiet_end?: number | null } | null; if (p) { setMuted(p.muted_categories ?? []); setQs(p.quiet_start != null ? String(p.quiet_start) : ""); setQe(p.quiet_end != null ? String(p.quiet_end) : ""); } });
+  }, [userId]);
+  const save = async (nextMuted: string[], nqs: string, nqe: string) => {
+    if (!supabase || !userId) return;
+    await supabase.from("notif_prefs").upsert({ user_id: userId, muted_categories: nextMuted,
+      quiet_start: nqs === "" ? null : Math.max(0, Math.min(23, parseInt(nqs, 10) || 0)),
+      quiet_end: nqe === "" ? null : Math.max(0, Math.min(23, parseInt(nqe, 10) || 0)), updated_at: new Date().toISOString() });
+  };
+  const toggle = (k: string) => { const next = muted.includes(k) ? muted.filter((x) => x !== k) : [...muted, k]; setMuted(next); save(next, qs, qe); };
+  return (
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Notifications</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close">✕</button></div>}>
+      <p className="h-sub" style={{ marginTop: 0 }}>Quiet the categories you don&rsquo;t need. Critical alerts always come through.</p>
+      <div className="notif-cats">
+        {NOTIF_CATS.map((c) => (
+          <button key={c.key} type="button" className={`notif-cat${muted.includes(c.key) ? " muted" : ""}`} onClick={() => toggle(c.key)} aria-pressed={muted.includes(c.key)}>
+            <span>{c.label}</span><span className="notif-cat-s">{muted.includes(c.key) ? "🔕 Muted" : "🔔 On"}</span>
+          </button>
+        ))}
+      </div>
+      <div className="notif-quiet">
+        <span className="adm-prep-label">Quiet hours (optional)</span>
+        <div className="notif-quiet-r">
+          <label>From<input inputMode="numeric" placeholder="22" value={qs} onChange={(e) => setQs(e.target.value)} onBlur={() => { save(muted, qs, qe); toast("Saved"); }} /></label>
+          <label>to<input inputMode="numeric" placeholder="7" value={qe} onChange={(e) => setQe(e.target.value)} onBlur={() => { save(muted, qs, qe); toast("Saved"); }} /></label>
+          <span className="notif-quiet-h">hour of day, 0&ndash;23</span>
+        </div>
+      </div>
+    </Sheet>
+  );
+}
+
 function AlertsInbox({ userId, compact = false, title = "Alerts" }: { userId: string | null; compact?: boolean; title?: string }) {
   const { profile } = useAuth();
   const { setSection } = useOperatorSection();
@@ -507,7 +556,8 @@ function AlertsInbox({ userId, compact = false, title = "Alerts" }: { userId: st
   // One source of truth for "what needs me" — the same hook drives My Day's flags and the nav
   // badge, so the three counters that used to disagree now agree by construction. Ack semantics
   // live in the hook: row-ack for targeted alerts, per-user read for broadcasts (0157).
-  const { flags: mine, critCount: crit, ack, clearAll } = useMyAlerts(userId);
+  const { flags: mine, critCount: crit, ack, clearAll, snooze } = useMyAlerts(userId);
+  const [prefsOpen, setPrefsOpen] = useState(false);
   const streams = useWorkStreams();
   const myLane = (cat: string | null) => streams.some((s) => s.owner_user_id === userId && s.categories.includes(normalizeCategory(cat)));
   const [openThread, setOpenThread] = useState<string | null>(null);
@@ -548,7 +598,8 @@ function AlertsInbox({ userId, compact = false, title = "Alerts" }: { userId: st
     <div className="adm-sec">
       {dropSheet && <DropSheet onClose={() => setDropSheet(false)} />}
       {reviewPost && <ContentApprovalSheet contentId={reviewPost.id} meName={meName} meId={userId} onClose={() => setReviewPost(null)} onActioned={() => { ack(reviewPost.alert); setReviewPost(null); }} />}
-      <div className="sec">{title} <span className={`adm-pill${crit ? " due" : ""}`}>{mine.length}{crit ? ` · ${crit} critical` : ""}</span>{mine.length > 1 && <button type="button" className="alert-clearall" onClick={() => clearAll()}>Clear all</button>}</div>
+      <div className="sec">{title} <span className={`adm-pill${crit ? " due" : ""}`}>{mine.length}{crit ? ` · ${crit} critical` : ""}</span>{mine.length > 1 && <button type="button" className="alert-clearall" onClick={() => clearAll()}>Clear all</button>}<button type="button" className="alert-prefs-btn" onClick={() => setPrefsOpen(true)} aria-label="Notification settings">⚙</button></div>
+      {prefsOpen && <NotifPrefsSheet userId={userId} onClose={() => setPrefsOpen(false)} />}
       {sorted.map((a) => (
         <div key={a.id} className={`alert sev-${a.severity}`}>
           <div className="alert-row">
@@ -558,6 +609,7 @@ function AlertsInbox({ userId, compact = false, title = "Alerts" }: { userId: st
             </div>
             {counts[a.id] ? <button type="button" className="alert-discuss" onClick={() => setOpenThread(openThread === a.id ? null : a.id)} aria-label="Discuss">💬<span className="cmt-count">{counts[a.id]}</span></button> : null}
             <button type="button" className={alertHasInlineAction(a.kind) ? "alert-open ghost" : "alert-open"} onClick={() => gotoAlert(a)}>{alertHasInlineAction(a.kind) ? "Open" : "Open →"}</button>
+            {a.severity !== "critical" && <button type="button" className="alert-snz" onClick={() => snooze(a, new Date(Date.now() + 3600_000))} aria-label="Snooze 1 hour" title="Snooze 1 hour">⏰</button>}
             <button type="button" className="alert-ack" onClick={() => ack(a)} aria-label="Got it">✓</button>
           </div>
           {alertHasInlineAction(a.kind) && <AlertAction flag={a} meId={userId} onResolved={() => ack(a)} />}
