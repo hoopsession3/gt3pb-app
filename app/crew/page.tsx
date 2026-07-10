@@ -3177,16 +3177,35 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
 }
 
 // ───────────────────────── booking requests ─────────────────────────
+// Inbound (this tab) and outbound (Business › Pipeline) are two lead funnels that BRIDGE, not
+// merge (July 2026 redundancy audit): a request can be promoted into a pursuit, and won
+// private-event deals surface down here — every event booking visible in one room either way.
+type WonPipelineDeal = {
+  id: string; value_cents: number | null; won_at: string | null;
+  vendors: { name: string } | null; deals: { title: string; line: string | null } | null;
+};
 function Bookings() {
   const { toast } = useApp();
+  const { user } = useAuth();
+  const { setSection } = useOperatorSection();
   const [reqs, setReqs] = useState<BookingRequest[]>([]);
+  const [wonDeals, setWonDeals] = useState<WonPipelineDeal[]>([]);
+  const [promoting, setPromoting] = useState<string | null>(null);
   const load = useCallback(async () => {
     if (!supabase) return;
     const { data } = await supabase.from("booking_requests").select("*").order("created_at", { ascending: false });
     if (data) setReqs(data as BookingRequest[]);
   }, []);
-  useEffect(() => { load(); }, [load]);
-  useRealtimeTable("booking_requests", load);
+  const loadWon = useCallback(async () => {
+    if (!supabase) return;
+    const { data } = await supabase.from("opportunities")
+      .select("id, value_cents, won_at, vendors(name), deals!inner(title, line)")
+      .eq("stage", "won").eq("deals.line", "private_event")
+      .order("won_at", { ascending: false, nullsFirst: false }).limit(20);
+    if (data) setWonDeals(data as unknown as WonPipelineDeal[]);
+  }, []);
+  useEffect(() => { load(); loadWon(); }, [load, loadWon]);
+  useRealtimeTable(["booking_requests", "opportunities"], () => { load(); loadWon(); });
 
   const setStatus = async (id: string, status: BookingRequest["status"]) => {
     const { error } = await supabase!.from("booking_requests").update({ status }).eq("id", id);
@@ -3204,6 +3223,53 @@ function Bookings() {
     if (error) { toast(`Couldn't create the event — ${error.message}`, "error"); return; }
     toast("Added to Events as a lead — it's on the calendar now");
     if (r.status === "new") setStatus(r.id, "contacted");
+  };
+  // The bridge, outbound direction: one tap turns a request into a pursuit on the pipeline —
+  // account from the requester (reused if we already know them), stage "talking" (they opened
+  // the conversation), and the request context as the first pursuit-trail entry. The request
+  // itself stays here, linked, so the button can't double-promote.
+  const promote = async (r: BookingRequest) => {
+    if (!supabase || !user || promoting) return;
+    setPromoting(r.id);
+    try {
+      const nm = r.name?.trim() || r.email?.trim() || "Booking request";
+      const { data: byName } = await supabase.from("vendors").select("id")
+        .ilike("name", nm.replace(/[\\%_]/g, "\\$&")).limit(1);
+      let vendorId: string | undefined = byName?.[0]?.id;
+      if (!vendorId && r.email) {
+        const { data: byEmail } = await supabase.from("vendors").select("id").eq("poc_email", r.email).limit(1);
+        vendorId = byEmail?.[0]?.id;
+      }
+      if (!vendorId) {
+        const { data, error } = await supabase.from("vendors").insert({
+          name: nm, vendor_type: "venue", poc_name: r.name, poc_email: r.email, poc_phone: r.phone,
+          location_text: r.location_text ?? null,
+        }).select("id").single();
+        if (error) { toast(`Couldn't create the account — ${error.message}`, "error"); return; }
+        vendorId = (data as { id: string }).id;
+      }
+      const { data: opp, error: oppErr } = await supabase.from("opportunities").insert({
+        vendor_id: vendorId, stage: "talking", source: "inbound",
+        next_step: "Reply to their request", created_by: user.id,
+      }).select("id").single();
+      if (oppErr) { toast(`Couldn't open the opportunity — ${oppErr.message}`, "error"); return; }
+      const oppId = (opp as { id: string }).id;
+      const when = [r.event_date, r.headcount ? `${r.headcount} ppl` : null, r.location_text].filter(Boolean).join(" · ");
+      const who = [r.name, r.email, r.phone].filter(Boolean).join(" · ");
+      const ctx = [
+        "Inbound booking request — promoted from Plan › Bookings.",
+        when && `Event: ${when}`,
+        who && `Contact: ${who}`,
+        r.notes?.trim() && `Notes: ${r.notes.trim().slice(0, 400)}`,
+      ].filter(Boolean).join("\n");
+      const { error: cErr } = await supabase.from("comments").insert({ strategy_key: `opp:${oppId}`, body: ctx, author_id: user.id });
+      if (cErr) toast(`Opportunity's up, but the context note didn't save — ${cErr.message}`, "error");
+      const { error: linkErr } = await supabase.from("booking_requests")
+        .update({ opportunity_id: oppId, ...(r.status === "new" ? { status: "contacted" } : {}) }).eq("id", r.id);
+      if (linkErr) toast(`Opportunity's up, but the request didn't link — ${linkErr.message}`, "error");
+      else toast("Promoted — the pursuit lives in Business › Pipeline now");
+      load(); loadWon();
+    } finally { setPromoting(null); }
   };
   const del = async (r: BookingRequest) => {
     if (typeof window !== "undefined" && !window.confirm(`Delete the booking request from ${r.name ?? "this contact"}? This can't be undone.`)) return;
@@ -3233,11 +3299,34 @@ function Bookings() {
               <button key={s} className={r.status === s ? "on" : ""} onClick={() => setStatus(r.id, s)}>{s}</button>
             ))}
             <button className="adm-req-mk" onClick={() => makeEvent(r)}>→ Make it an event</button>
+            {r.opportunity_id ? (
+              <button className="adm-req-mk" onClick={() => setSection("pipeline")}>On the pipeline →</button>
+            ) : (
+              <button className="adm-req-mk" onClick={() => promote(r)} disabled={promoting === r.id}>{promoting === r.id ? "Promoting…" : "→ Promote to Pipeline"}</button>
+            )}
             <button className="adm-req-del" onClick={() => del(r)} aria-label={`Delete booking request from ${r.name ?? "contact"}`}>✕</button>
           </div>
         </div>
       ))}
       {reqs.length === 0 && <div className="h-sub">No requests yet — they land here from the Book the bar form.</div>}
+      {wonDeals.length > 0 && (
+        <>
+          <div className="sec" style={{ marginTop: 20 }}>Won on the pipeline<span className="adm-pill">{wonDeals.length}</span></div>
+          <p className="h-sub">Private-event deals the crew closed outbound. Book the dates in Events when they land.</p>
+          {wonDeals.map((w) => (
+            <div className="adm-req" key={w.id}>
+              <div className="adm-member-top">
+                <b>{w.vendors?.name ?? "Account"}</b>
+                <span className="adm-ref">{w.won_at ? `won ${new Date(w.won_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : "won"}</span>
+              </div>
+              <div className="meta">{w.deals?.title ?? "Private event"}{w.value_cents != null && <> · ${(w.value_cents / 100).toLocaleString()}</>}</div>
+              <div className="adm-status">
+                <button className="adm-req-mk" onClick={() => setSection("pipeline")}>Open in Pipeline →</button>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
     </div>
   );
 }

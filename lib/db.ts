@@ -84,6 +84,7 @@ export interface BookingRequest {
   location_text: string | null;
   notes: string | null;
   status: "new" | "contacted" | "booked" | "declined";
+  opportunity_id?: string | null; // set when promoted to the pipeline (0171) — the bridge, not a merge
   created_at: string;
 }
 
