@@ -23,7 +23,7 @@ export const MENU_FLAGS: { key: MenuKey; label: string }[] = [
 ];
 
 // The load-out space math keys off "trailer" in the value (lib/loadout.ts rigToBox), so these
-// route automatically. Older rows may still hold 'cart' — read as Cart, always written canonical.
+// route automatically.
 export const RIG_OPTIONS: { key: RigKey; label: string }[] = [
   { key: "cart_only", label: "🛻 Cart" },
   { key: "trailer_only", label: "🚚 Trailer only" },
@@ -33,7 +33,7 @@ export const RIG_OPTIONS: { key: RigKey; label: string }[] = [
 // The exact column list these chips read/write — use for every supabase select of these flags.
 export const MENU_RIG_COLUMNS = `rig, power_available, water_available, ${MENU_FLAGS.map((m) => m.key).join(", ")}`;
 
-// Read side stays loose (rig: string) so legacy 'cart' rows and untyped stop rows fit;
+// Read side stays loose (rig: string) so untyped stop rows fit;
 // the patch side is strict so writes can only be canonical values.
 export type MenuRigValue = { rig?: string | null; power_available?: boolean | null; water_available?: boolean | null } & {
   [K in MenuKey]?: boolean | null;
@@ -56,7 +56,7 @@ export default function MenuRigChips({ value, onPatch, variant }: {
   variant: keyof typeof SKIN;
 }) {
   const c = SKIN[variant];
-  const rigOn = (k: RigKey) => value.rig === k || (k === "cart_only" && value.rig === "cart");
+  const rigOn = (k: RigKey) => value.rig === k;
   // yes → no → unknown: "no" is a real answer (packListFor gates the EcoFlow / water kit on it),
   // "—" means nobody has asked the venue yet. Never collapse the two.
   const cycleTri = (k: "power_available" | "water_available") => {
