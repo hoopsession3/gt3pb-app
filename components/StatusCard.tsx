@@ -14,7 +14,6 @@ import { haptic, HAPTIC } from "@/lib/haptics";
 // their referral code on it. Brand-locked art only (the "3" mark + the caffeine molecule from /brand).
 
 const W = 1080, H = 1350;
-const GOLD = "#C8A661", GOLD_DEEP = "#B8902F", CREAM = "#F5F1E8", CREAM_M = "rgba(245,241,232,.66)";
 
 type Finish = "gold" | "steel" | "carbon" | "redline";
 const FINISHES: { key: Finish; label: string }[] = [
@@ -24,6 +23,16 @@ const FINISHES: { key: Finish; label: string }[] = [
   { key: "redline", label: "Redline" },
 ];
 const MOTTO_DEFAULT = "Pure Signal, No Noise";
+
+// The shared PNG mirrors the member-card side in the member's chosen finish (matches the .fc-scene
+// tokens). ink/accent/edge + a texture for the metallic finishes.
+type Paint = { grd: [string, string, string]; ink: string; inkDim: string; accent: string; accentDeep: string; edge: string; edge2: string; tex: "none" | "brush" | "carbon" };
+const FINISH_PAINT: Record<Finish, Paint> = {
+  gold:    { grd: ["#171208", "#0c0906", "#120d08"], ink: "#F5F1E8", inkDim: "rgba(245,241,232,.62)", accent: "#C8A661", accentDeep: "#B8902F", edge: "rgba(200,166,97,.6)",  edge2: "rgba(200,166,97,.22)", tex: "none" },
+  steel:   { grd: ["#3b414a", "#2a2f36", "#20242a"], ink: "#EEF1F4", inkDim: "rgba(238,241,244,.62)", accent: "#C3CCD6", accentDeep: "#8E99A4", edge: "rgba(224,230,236,.62)", edge2: "rgba(224,230,236,.24)", tex: "brush" },
+  carbon:  { grd: ["#191919", "#141414", "#101010"], ink: "#F5F1E8", inkDim: "rgba(245,241,232,.6)",  accent: "#C8A661", accentDeep: "#B8902F", edge: "rgba(200,166,97,.5)",  edge2: "rgba(200,166,97,.18)", tex: "carbon" },
+  redline: { grd: ["#171010", "#0a0707", "#140c0c"], ink: "#F5F1E8", inkDim: "rgba(245,241,232,.6)",  accent: "#E0453F", accentDeep: "#B8241F", edge: "rgba(184,36,32,.6)",  edge2: "rgba(184,36,32,.24)", tex: "none" },
+};
 
 export default function StatusCard({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { profile, user } = useAuth();
@@ -64,68 +73,70 @@ export default function StatusCard({ open, onClose }: { open: boolean; onClose: 
   const pickFinish = (f: Finish) => { setFinish(f); haptic(HAPTIC.tap); try { localStorage.setItem("gt3-card-finish", f); } catch { /* ignore */ } };
   const saveMotto = (v: string) => { const m = v.trim().slice(0, 30) || MOTTO_DEFAULT; setMotto(m); setEditMotto(false); try { localStorage.setItem("gt3-card-motto", m); } catch { /* ignore */ } };
 
-  // ── the shareable PNG (unchanged behavior; now reflects their motto) ──
+  // ── the shareable PNG = the MEMBER-CARD side, in their chosen finish (matches the card they hold) ──
   const draw = useCallback(async () => {
     const cv = canvasRef.current; if (!cv) return;
     const ctx = cv.getContext("2d"); if (!ctx) return;
     try { await (document as unknown as { fonts?: { ready?: Promise<unknown> } }).fonts?.ready; } catch { /* fonts optional */ }
-    const photo = photoRef.current;
+    const p = FINISH_PAINT[finish];
 
+    // ground
     const bg = ctx.createLinearGradient(0, 0, 0, H);
-    bg.addColorStop(0, "#12100b"); bg.addColorStop(0.55, "#0b0906"); bg.addColorStop(1, "#100d09");
+    bg.addColorStop(0, p.grd[0]); bg.addColorStop(0.55, p.grd[1]); bg.addColorStop(1, p.grd[2]);
     ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
 
-    if (photo) {
-      const inset = 46, iw = W - inset * 2, ih = H - inset * 2;
-      const r = Math.max(iw / photo.width, ih / photo.height);
-      const pw = photo.width * r, ph = photo.height * r;
-      ctx.save();
-      ctx.beginPath(); ctx.rect(inset, inset, iw, ih); ctx.clip();
-      ctx.drawImage(photo, inset + (iw - pw) / 2, inset + (ih - ph) / 2, pw, ph);
-      const top = ctx.createLinearGradient(0, inset, 0, inset + 300);
-      top.addColorStop(0, "rgba(11,9,6,.82)"); top.addColorStop(1, "rgba(11,9,6,0)");
-      ctx.fillStyle = top; ctx.fillRect(inset, inset, iw, 300);
-      const bot = ctx.createLinearGradient(0, H - inset - 560, 0, H - inset);
-      bot.addColorStop(0, "rgba(8,6,4,0)"); bot.addColorStop(0.5, "rgba(8,6,4,.72)"); bot.addColorStop(1, "rgba(8,6,4,.96)");
-      ctx.fillStyle = bot; ctx.fillRect(inset, H - inset - 560, iw, 560);
+    // finish grain — brushed steel / carbon weave
+    if (p.tex === "brush") {
+      ctx.save(); ctx.lineWidth = 1;
+      for (let x = -H; x < W; x += 5) {
+        ctx.strokeStyle = Math.round(x) % 15 === 0 ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.05)";
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x + H * 0.5, H); ctx.stroke();
+      }
       ctx.restore();
-    } else {
-      const aura = ctx.createRadialGradient(W / 2, 470, 40, W / 2, 470, 560);
-      aura.addColorStop(0, "rgba(200,166,97,.18)"); aura.addColorStop(1, "rgba(200,166,97,0)");
-      ctx.fillStyle = aura; ctx.fillRect(0, 0, W, H);
+    } else if (p.tex === "carbon") {
+      ctx.save(); ctx.lineWidth = 1.2;
+      for (let x = -H; x < W; x += 8) { ctx.strokeStyle = "rgba(255,255,255,.035)"; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x + H, H); ctx.stroke(); }
+      for (let x = 0; x < W + H; x += 8) { ctx.strokeStyle = "rgba(0,0,0,.06)"; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x - H, H); ctx.stroke(); }
+      ctx.restore();
     }
 
-    ctx.strokeStyle = "rgba(200,166,97,.62)"; ctx.lineWidth = 3; ctx.strokeRect(46, 46, W - 92, H - 92);
-    ctx.strokeStyle = "rgba(200,166,97,.22)"; ctx.lineWidth = 1; ctx.strokeRect(60, 60, W - 120, H - 120);
-
-    ctx.textAlign = "center"; ctx.fillStyle = CREAM_M;
-    ctx.font = "500 30px 'DM Mono', ui-monospace, monospace";
-    ctx.fillText("G T 3   P E R F O R M A N C E   B A R", W / 2, 152);
-
+    // faint caffeine-molecule watermark (ties it to the craft brand)
     await new Promise<void>((resolve) => {
       const img = new Image();
-      img.onload = () => { const s = photo ? 96 : 300; ctx.drawImage(img, W / 2 - s / 2, photo ? 186 : 300, s, s); resolve(); };
-      img.onerror = () => { if (!photo) { ctx.fillStyle = CREAM; ctx.font = "700 300px 'Inter', sans-serif"; ctx.fillText("3", W / 2, 590); } resolve(); };
-      img.src = "/brand/3-outline.svg";
+      img.onload = () => { ctx.save(); ctx.globalAlpha = 0.08; const s = 640; ctx.drawImage(img, W / 2 - s / 2, 470, s, s * 250 / 300); ctx.restore(); resolve(); };
+      img.onerror = () => resolve();
+      img.src = "/brand/caffeine-gt3.svg";
     });
 
-    const grad = ctx.createLinearGradient(0, 890, 0, 970);
-    grad.addColorStop(0, GOLD); grad.addColorStop(1, GOLD_DEEP);
-    ctx.fillStyle = grad; ctx.font = `800 ${founding ? 74 : 78}px 'Inter', sans-serif`;
-    ctx.fillText(tierLine, W / 2, 970);
+    // machined edge
+    ctx.strokeStyle = p.edge; ctx.lineWidth = 3; ctx.strokeRect(46, 46, W - 92, H - 92);
+    ctx.strokeStyle = p.edge2; ctx.lineWidth = 1; ctx.strokeRect(60, 60, W - 120, H - 120);
 
-    ctx.strokeStyle = "rgba(200,166,97,.55)"; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(W / 2 - 90, 1018); ctx.lineTo(W / 2 + 90, 1018); ctx.stroke();
+    ctx.textAlign = "center";
+    ctx.fillStyle = p.inkDim; ctx.font = "500 30px 'DM Mono', ui-monospace, monospace";
+    ctx.fillText("G T 3   ·   P E R F O R M A N C E   B A R", W / 2, 250);
 
-    ctx.fillStyle = CREAM; ctx.font = "650 56px 'Inter', sans-serif"; ctx.fillText(name, W / 2, 1096);
-    ctx.fillStyle = CREAM_M; ctx.font = "500 25px 'DM Mono', ui-monospace, monospace";
-    ctx.fillText(`MEMBER SINCE ${sinceYear}  ·  ${motto.toUpperCase()}`, W / 2, 1142);
+    // tier — the status
+    const tg = ctx.createLinearGradient(0, 540, 0, 650);
+    tg.addColorStop(0, p.accent); tg.addColorStop(1, p.accentDeep);
+    ctx.fillStyle = tg; ctx.font = `800 ${founding ? 84 : 90}px 'Inter', sans-serif`;
+    ctx.fillText(tierLine, W / 2, 630);
 
-    ctx.fillStyle = GOLD; ctx.font = "600 29px 'DM Mono', ui-monospace, monospace";
-    ctx.fillText(code ? `app.gt3pb.com  ·  JOIN WITH ${code}` : "app.gt3pb.com  ·  join the drop", W / 2, 1236);
+    ctx.strokeStyle = p.edge; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(W / 2 - 90, 688); ctx.lineTo(W / 2 + 90, 688); ctx.stroke();
+
+    ctx.fillStyle = p.ink; ctx.font = "650 64px 'Inter', sans-serif"; ctx.fillText(name, W / 2, 792);
+    ctx.fillStyle = p.inkDim; ctx.font = "500 26px 'DM Mono', ui-monospace, monospace";
+    ctx.fillText(`MEMBER SINCE ${sinceYear}`, W / 2, 846);
+
+    ctx.fillStyle = p.accent; ctx.font = "italic 600 46px 'Fraunces', serif"; ctx.fillText(motto, W / 2, 960);
+
+    // the join code — the viral hook
+    ctx.fillStyle = p.accent; ctx.font = "600 30px 'DM Mono', ui-monospace, monospace";
+    ctx.fillText(code ? `JOIN WITH ${code}   ·   app.gt3pb.com` : "app.gt3pb.com   ·   join the drop", W / 2, 1250);
 
     setReady(true);
-  }, [founding, name, code, sinceYear, tierLine, motto]);
+  }, [founding, name, code, sinceYear, tierLine, motto, finish]);
 
   useEffect(() => { if (open) { setReady(false); draw(); } }, [open, draw]);
   useEffect(() => () => { if (spinTimer.current) clearTimeout(spinTimer.current); }, []);
