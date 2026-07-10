@@ -3159,7 +3159,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .dl-done-h{font-size:30px}
 .dl-done-sub{color:var(--cream-m);font-family:'Inter';font-size:14px;margin-top:4px}
 .dl-done-total{font-family:'Archivo Black';font-size:46px;letter-spacing:-1px;line-height:1;margin:18px 0 2px;color:var(--cream)}
-.dl-done-total::before{content:"paid";display:block;font-family:var(--mono);font-weight:500;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--gold2);margin-bottom:5px}
+.dl-done-total::before{content:attr(data-eyebrow);display:block;font-family:var(--mono);font-weight:500;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--gold2);margin-bottom:5px}
 .dl-receipt{margin:16px auto 0;max-width:340px;background:rgba(245,241,232,.04);border:1px solid var(--line);border-radius:14px;padding:4px 16px;text-align:left}
 .dl-receipt-row{display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:11px 0;border-bottom:1px dashed var(--line)}
 .dl-receipt-row:last-child{border-bottom:none}

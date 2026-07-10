@@ -10,11 +10,12 @@ export type ReceiptRow = { label: string; value: string };
 // with no total or receipt, pickup/delivery already had this exact shape (OrderFunnel's dl-done).
 // One component now, reused by all three — the "you're in" moment reads identically everywhere.
 export default function OrderConfirm({
-  title, sub, totalCents, rows, warn, ctaLabel, onCta, secondaryLabel, onSecondary,
+  title, sub, totalCents, totalLabel = "paid", rows, warn, ctaLabel, onCta, secondaryLabel, onSecondary,
 }: {
   title: string;
   sub?: string;
   totalCents: number;
+  totalLabel?: string; // eyebrow over the big number — "paid" ONLY when money actually moved
   rows: ReceiptRow[];
   warn?: string;
   ctaLabel: string;
@@ -27,7 +28,7 @@ export default function OrderConfirm({
       <div className="dl-crest"><span>✓</span></div>
       <h2 className="dl-h dl-done-h">{title}</h2>
       {sub && <p className="dl-done-sub">{sub}</p>}
-      <div className="dl-done-total"><CountUp cents={totalCents} /></div>
+      <div className="dl-done-total" data-eyebrow={totalLabel}><CountUp cents={totalCents} /></div>
       {rows.length > 0 && (
         <div className="dl-receipt">
           {rows.map((r, i) => <div className="dl-receipt-row" key={i}><span>{r.label}</span><b>{r.value}</b></div>)}

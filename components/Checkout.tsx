@@ -148,6 +148,7 @@ export default function Checkout() {
           title="Order in."
           sub={done.paid ? "Ready in ~8 min — we'll have it waiting at the window." : "Ready in ~8 min — pay at the truck when you arrive."}
           totalCents={done.total}
+          totalLabel={done.paid ? "paid" : "due at the truck"}
           rows={[
             ...done.lines.map(([id, q]) => ({ label: DRINKS[id].n, value: `${q}×` })),
             { label: "For", value: done.name },

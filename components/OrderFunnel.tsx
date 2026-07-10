@@ -585,6 +585,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
           title={done.paid ? "You're in." : "You're reserved."}
           sub={mode === "delivery" ? "We'll be there before sunrise Sunday." : `See you ${dayName(drop.sat).split(",")[0]}${name ? `, ${name.split(" ")[0]}` : ""}.`}
           totalCents={done.total}
+          totalLabel={done.paid ? "paid" : "due at pickup"}
           warn={done.warn}
           rows={[
             { label: "Pack", value: `${count} bottles` },
