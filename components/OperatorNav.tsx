@@ -11,12 +11,12 @@ import { supabase } from "@/lib/supabase";
 // shared (context) so the nav (rendered in the shell) and the page content stay
 // in sync; persisted so you return to the same section.
 
-export type OpSection = "day" | "now" | "ask" | "prep" | "plan" | "studio" | "money" | "team";
+export type OpSection = "day" | "now" | "ask" | "prep" | "plan" | "studio" | "money" | "customers" | "team";
 
 const Ctx = createContext<{ section: OpSection; setSection: (s: OpSection) => void; back: () => boolean; canGoBack: boolean }>({ section: "day", setSection: () => {}, back: () => false, canGoBack: false });
 export const useOperatorSection = () => useContext(Ctx);
 
-const VALID = new Set<OpSection>(["day", "now", "prep", "plan", "studio", "money", "team"]);
+const VALID = new Set<OpSection>(["day", "now", "prep", "plan", "studio", "money", "customers", "team"]);
 
 export function OperatorSectionProvider({ children }: { children: React.ReactNode }) {
   const [section, setSectionState] = useState<OpSection>("day");
@@ -85,8 +85,8 @@ const ROLE_SECTIONS: Record<string, OpSection[]> = {
   contractor: ["day", "now", "prep"],
   operator: ["day", "now", "prep"],
   event_manager: ["day", "now", "prep", "plan", "studio"],
-  admin: ["day", "now", "prep", "plan", "studio", "money", "team"],
-  owner: ["day", "now", "prep", "plan", "studio", "money", "team"],
+  admin: ["day", "now", "prep", "plan", "studio", "money", "customers", "team"],
+  owner: ["day", "now", "prep", "plan", "studio", "money", "customers", "team"],
 };
 export const sectionsForRole = (role: string): OpSection[] => ROLE_SECTIONS[role] ?? ["now"];
 
@@ -97,7 +97,7 @@ export const NAV_GROUPS: NavGroup[] = [
   { id: "today", label: "Today", icon: "day", members: ["day", "now"] },
   { id: "plan", label: "Plan", icon: "plan", members: ["plan", "prep"] },
   { id: "studio", label: "Studio", icon: "studio", members: ["studio"] },
-  { id: "money", label: "Money", icon: "money", members: ["money", "team"] },
+  { id: "money", label: "Money", icon: "money", members: ["money", "customers", "team"] },
 ];
 export const groupOfSection = (s: OpSection): NavGroup | undefined => NAV_GROUPS.find((g) => g.members.includes(s));
 
@@ -109,9 +109,10 @@ const ICONS: Record<OpSection, React.ReactNode> = {
   prep: <><rect x="6" y="4" width="12" height="17" rx="2" /><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1" /><path d="M9 12l2 2 4-4" /></>,
   plan: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></>,
   money: <><circle cx="12" cy="12" r="9" /><path d="M12 7v10M9.5 9.5c0-1 1-1.6 2.5-1.6s2.5.6 2.5 1.6-1 1.5-2.5 1.5-2.5.5-2.5 1.5 1 1.6 2.5 1.6 2.5-.6 2.5-1.6" /></>,
+  customers: <><rect x="3" y="5" width="18" height="15" rx="2" /><circle cx="9" cy="11" r="2.2" /><path d="M5.8 17c.5-1.7 1.7-2.6 3.2-2.6s2.7.9 3.2 2.6M15 9.5h4M15 13h4" /></>,
   team: <><circle cx="9" cy="8" r="3" /><path d="M3 20c0-3 3-5 6-5s6 2 6 5" /><path d="M16 5.2a3 3 0 0 1 0 5.6M21 20c0-2.4-1.8-4-4-4.6" /></>,
 };
-const LABELS: Record<OpSection, string> = { day: "My Day", now: "Now", ask: "Ask", prep: "Prep", plan: "Plan", studio: "Studio", money: "Money", team: "Team" };
+const LABELS: Record<OpSection, string> = { day: "My Day", now: "Now", ask: "Ask", prep: "Prep", plan: "Plan", studio: "Studio", money: "Money", customers: "Customers", team: "Team" };
 export const SECTION_LABEL = LABELS;
 
 // The role-visible groups, with each group's visible members and a smart label (use the single

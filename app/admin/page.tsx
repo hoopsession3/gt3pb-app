@@ -25,6 +25,7 @@ import ReviewsAdmin from "@/components/ReviewsAdmin";
 import DeliveryOps from "@/components/DeliveryOps";
 import PackPlan from "@/components/PackPlan";
 import OrgChart from "@/components/OrgChart";
+import CrmPanel from "@/components/CrmPanel";
 import GearLibrary from "@/components/GearLibrary";
 import InventoryLibrary from "@/components/InventoryLibrary";
 import Reports from "@/components/Reports";
@@ -1006,8 +1007,6 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
           ))}
         </div>
       )}
-      {isLeader && <ChiefOfStaff />}
-      {isLeader && <SmartIntake />}
       {(
         <>
           <div className="sec">Flags &amp; pings for you{flags.length ? ` · ${flags.length}` : ""}{flags.length > 1 && <button type="button" className="alert-clearall" onClick={clearFlags}>Clear all</button>}</div>
@@ -1026,6 +1025,10 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
         </>
       )}
       <MyTasks userId={userId} />
+      {/* Lead-the-week tools sit BELOW the urgent lane — the operating loop reads top-down:
+          what needs me now (flags) → what I'm doing today (tasks) → then lead the week. */}
+      {isLeader && <ChiefOfStaff />}
+      {isLeader && <SmartIntake />}
     </>
   );
 }
@@ -2530,6 +2533,41 @@ function LiveControl({ compact = false }: { compact?: boolean }) {
     <div className="adm-sec">
       <div className="sec">Live truck {!compact && <button className="adm-btn" style={{ marginLeft: "auto" }} onClick={addStop}>+ Add location</button>}</div>
       {err && <div className="adm-attn" role="alert">Backend error: {err}</div>}
+      {compact ? (
+        /* THE TRUCK INSTRUMENT — one panel, not a stack of floating cards (owner call). Row 1 is
+           the state (LED · live-at/offline · the one primary action); the stop list and broadcast
+           controls are rows of the same instrument, not separate cards. */
+        <div className={`liveinst${live?.is_live ? " on" : ""}`}>
+          <div className="liveinst-row main">
+            <span className={`adm-dot${live?.is_live ? " on" : ""}`} />
+            <div className="liveinst-state">
+              <b>{live?.is_live ? "LIVE" : "OFFLINE"}</b>
+              <span>{live?.is_live ? (curStop?.name ?? "on location") : (active[0] ? `next · ${active[0].name}` : "no stops scheduled")}</span>
+            </div>
+            {live?.is_live
+              ? <button className="adm-btn ghost" onClick={pause}>Go offline</button>
+              : (active[0] && <button className="adm-btn primary" onClick={() => goLive(active[0].id)}>Go live</button>)}
+          </div>
+          {live?.is_live ? (
+            <div className="liveinst-row">
+              {!broadcasting && !live?.pos_updated_at && <span className="liveinst-warn">Map dot off —</span>}
+              <span className="liveinst-sub">{broadcasting ? "● Broadcasting — dot moves with you" : posLabel}</span>
+              {broadcasting
+                ? <button className="adm-btn ghost" onClick={stopBroadcast}>Stop</button>
+                : <span style={{ display: "flex", gap: 8 }}><button className="adm-btn ghost" onClick={pinHere} disabled={posBusy}>{posBusy ? "Pinning…" : "Pin once"}</button><button className="adm-btn primary" onClick={startBroadcast}>Broadcast</button></span>}
+            </div>
+          ) : (
+            active.slice(1).map((s) => (
+              <div className="liveinst-row" key={s.id}>
+                <span className="liveinst-sub">{s.name || "Untitled location"}</span>
+                <button className="adm-btn ghost" onClick={() => goLive(s.id)}>Go live here</button>
+              </div>
+            ))
+          )}
+          <button type="button" className="adm-golink" onClick={() => router.push("/admin?s=plan&t=stops")}>Locations &amp; ordering dial · Plan › Truck stops ›</button>
+        </div>
+      ) : (
+      <>
       <div className="adm-live">
         <div className="adm-live-status">
           <span className={`adm-dot${live?.is_live ? " on" : ""}`} />
@@ -2574,22 +2612,6 @@ function LiveControl({ compact = false }: { compact?: boolean }) {
         </>
       )}
 
-      {compact ? (
-        <>
-          {!live?.is_live && active.length > 0 && (
-            <div className="adm-golist">
-              {active.map((s) => (
-                <div className="adm-gorow" key={s.id}>
-                  <span className="adm-gorow-n">{s.name || "Untitled location"}</span>
-                  <button className="adm-btn primary" onClick={() => goLive(s.id)}>Go live here</button>
-                </div>
-              ))}
-            </div>
-          )}
-          <button type="button" className="adm-golink" onClick={() => router.push("/admin?s=plan&t=stops")}>Locations &amp; ordering dial · Plan › Truck stops ›</button>
-        </>
-      ) : (
-      <>
       <div className="ev-list" style={{ marginTop: 12 }}>
         {active.map((s, i) => (
           <LocationEditor
@@ -3164,10 +3186,9 @@ const ROLE_META: Record<RoleKey, { label: string; tier: "lead" | "crew" | "membe
   member:        { label: "Member",        tier: "member", scope: "Customer — loyalty only",        tone: "muted" },
 };
 const ROLE_ORDER: RoleKey[] = ["owner", "admin", "event_manager", "operator", "contractor", "server", "member"];
-const TIERS: { key: "lead" | "crew" | "member"; title: string; hint: string }[] = [
+const TIERS: { key: "lead" | "crew"; title: string; hint: string }[] = [
   { key: "lead", title: "Leadership", hint: "Run the business" },
   { key: "crew", title: "Crew", hint: "Work the shifts" },
-  { key: "member", title: "Members", hint: "Customers" },
 ];
 const rawRole = (m: { role?: string | null }): RoleKey => {
   const r = m.role as RoleKey;
@@ -3257,6 +3278,7 @@ function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; is
 
 function Members() {
   const { user } = useAuth();
+  const { setSection } = useOperatorSection();
   const [members, setMembers] = useState<Profile[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [q, setQ] = useState("");
@@ -3275,17 +3297,22 @@ function Members() {
   useRealtimeTable("profiles", load);
 
   const ql = q.trim().toLowerCase();
-  const shown = members.filter((m) =>
+  const staff = members.filter((m) => rawRole(m) !== "member");
+  const shown = staff.filter((m) =>
     !ql || (m.display_name ?? "").toLowerCase().includes(ql) || (m.referral_code ?? "").toLowerCase().includes(ql) || ROLE_META[rawRole(m)].label.toLowerCase().includes(ql)
   );
-  const counts = { lead: 0, crew: 0, member: 0 };
-  members.forEach((m) => { counts[ROLE_META[rawRole(m)].tier]++; });
-  const ownerCount = members.filter((m) => rawRole(m) === "owner").length;
+  const customerCount = members.length - staff.length;
+  const ownerCount = staff.filter((m) => rawRole(m) === "owner").length;
 
   return (
     <div className="adm-sec tm">
-      <div className="sec">Team · {members.length}</div>
-      {members.length > 5 && (
+      <div className="sec">Team · {staff.length}</div>
+      {customerCount > 0 && (
+        <button type="button" className="team-crm-link" onClick={() => setSection("customers")}>
+          {customerCount} customer account{customerCount === 1 ? "" : "s"} moved to <b>Customers</b> — the CRM. This roster is leadership &amp; crew. ›
+        </button>
+      )}
+      {staff.length > 5 && (
         <input className="auth-input tm-search" placeholder="Search name, code, or role" value={q} onChange={(e) => setQ(e.target.value)} />
       )}
       {TIERS.map((tier) => {
@@ -3300,8 +3327,8 @@ function Members() {
           </div>
         );
       })}
-      {loaded && members.length === 0 && <div className="h-sub">No one here yet — people appear when they sign in.</div>}
-      {loaded && members.length > 0 && shown.length === 0 && <div className="h-sub">No match for &ldquo;{q}&rdquo;.</div>}
+      {loaded && staff.length === 0 && <div className="h-sub">No one here yet — people appear when they sign in.</div>}
+      {loaded && staff.length > 0 && shown.length === 0 && <div className="h-sub">No match for &ldquo;{q}&rdquo;.</div>}
     </div>
   );
 }
@@ -4024,8 +4051,15 @@ function Overview({ onGo, onOpenTarget }: { onGo: (t: string) => void; onOpenTar
   return (
     <div className="adm-sec">
       <div className="sec">At a glance</div>
-      {/* One quiet line instead of the tile farm — zero-tiles never render; anything that
-          needs a reply lives in "Needs you" below (which only speaks when > 0). */}
+      {/* Action FIRST: anything needing a reply leads the section (owner call — booking replies
+          were below the fold). The quiet counts line follows. */}
+      {(s.news > 0 || pastTasks > 0) && (
+        <div className="bo-needs" style={{ marginTop: 0 }}>
+          <div className="adm-prep-label">Needs you</div>
+          {s.news > 0 && <button className="bo-need" onClick={() => onGo("bookings")}>{s.news} new booking {s.news === 1 ? "request" : "requests"} to reply to ›</button>}
+          {pastTasks > 0 && <button className="bo-need alert" onClick={() => setShowOverdue(true)}>{pastTasks} team {pastTasks === 1 ? "task" : "tasks"} past due — knock them out ›</button>}
+        </div>
+      )}
       <p className="bo-line">
         <button type="button" onClick={() => onGo("events")}><b>{s.eventsUp}</b> event{s.eventsUp === 1 ? "" : "s"}</button>
         {" · "}
@@ -4068,13 +4102,6 @@ function Overview({ onGo, onOpenTarget }: { onGo: (t: string) => void; onOpenTar
         </>
       )}
 
-      {(s.news > 0 || pastTasks > 0) && (
-        <div className="bo-needs">
-          <div className="adm-prep-label">Needs you</div>
-          {s.news > 0 && <button className="bo-need" onClick={() => onGo("bookings")}>{s.news} new booking {s.news === 1 ? "request" : "requests"} to reply to ›</button>}
-          {pastTasks > 0 && <button className="bo-need alert" onClick={() => setShowOverdue(true)}>{pastTasks} team {pastTasks === 1 ? "task" : "tasks"} past due — knock them out ›</button>}
-        </div>
-      )}
     </div>
   );
 }
@@ -4203,10 +4230,10 @@ function VendorPicker({ vendors, vendorId, onLink }: { vendors: Vendor[]; vendor
 // ───────────────────────── section metadata (shared by header + the guide) ─────────────────────────
 // Each section = one job at one moment. LABEL names it, WHEN says when to reach for it (header pill),
 // SUB is the one-liner, MORE explains it, INSIDE lists what lives there. Order = the shift timeline.
-const SEC_LABEL: Record<OpSection, string> = { day: "My Day", now: "Now", ask: "Ask GT3", prep: "Prep", plan: "Plan", studio: "Studio", money: "Money", team: "Team" };
+const SEC_LABEL: Record<OpSection, string> = { day: "My Day", now: "Now", ask: "Ask GT3", prep: "Prep", plan: "Plan", studio: "Studio", money: "Money", customers: "Customers", team: "Team" };
 const SEC_WHEN: Record<OpSection, string> = {
   day: "Start of shift", now: "During service", ask: "When you're stuck", prep: "Before the event",
-  plan: "Booking ahead", studio: "Promoting a drop", money: "The books", team: "People & roles",
+  plan: "Booking ahead", studio: "Promoting a drop", money: "The books", customers: "Your regulars", team: "People & roles",
 };
 const SEC_SUB: Record<OpSection, string> = {
   day: "Your tasks, flags & what's on today.",
@@ -4216,6 +4243,7 @@ const SEC_SUB: Record<OpSection, string> = {
   plan: "Calendar, events, vendors & bookings.",
   studio: "Draft, schedule & post — brand & marketing.",
   money: "Pricing, reserves & order history.",
+  customers: "Every customer — orders, loyalty & contact info.",
   team: "People, roles, access & training.",
 };
 const SEC_MORE: Record<OpSection, string> = {
@@ -4225,6 +4253,7 @@ const SEC_MORE: Record<OpSection, string> = {
   plan: "The forward calendar. Book events, manage vendors and venues, work incoming booking requests, and schedule brews — weeks and months out.",
   studio: "Your marketing studio. Draft posts and flyers, keep them on-brand, plan the feed, schedule around your drops, and moderate the guest reviews that feed the truck display.",
   money: "The books. Set pricing, watch reserve revenue, and review order history — the numbers behind the operation.",
+  customers: "Your customer book. Every person who's ordered — cup, pickup or delivery, with or without an account — with their history, loyalty and contact info in one place.",
   team: "Your people. Add crew, set roles and access, and manage training — who can see and do what.",
   ask: "Your pocket brain. Ask anything about recipes, the why, gear, stock or how-to and get an answer from the GT3 playbook — from any screen.",
 };
@@ -4234,6 +4263,7 @@ const SEC_INSIDE: Record<OpSection, string[]> = {
   prep: ["Per-event & per-stop pack lists", "Readiness & inspection checks", "Trailer load-out & gear", "Crew assignments & sign-off"],
   plan: ["Company calendar", "Events & truck stops", "Vendors & venues", "Booking requests", "Brew schedule & reserves"],
   studio: ["Post & flyer drafting", "Brand copy & front-end copy", "Feed planning grid", "Repurpose engine", "Publishing & scheduling", "Review Desk → the truck display (/display): add or approve reviews; ✨ Simplify de-claims + trims one to display-safe"],
+  customers: ["Customer list — guests & members", "Cross-channel order history (cup · pickup · delivery)", "Loyalty — points & credit", "Contact info for outreach"],
   money: ["Checkout & payments — card status + the pay-at-pickup toggle (governs cup, reserve & delivery)", "Sales · snapshot · per-event P&L", "Product economics & COGS", "Membership plans & subscribers", "Order history", "The Playbook (/playbook, owners) — every growth play + where its numbers land here"],
   team: ["Staff roster", "Roles & permissions", "Training & academy", "Manager approvals"],
   ask: ["Recipes & the why", "Gear & stock how-to", "The GT3 playbook"],
@@ -4443,11 +4473,13 @@ export default function AdminPage() {
           {!svc && (
             <>
               <ServicePulse onEnter={() => setSvc(true)} />
+              {/* The truck instrument rides directly under the pulse — going live IS the first act
+                  of service, not a panel below the fold. */}
+              {canManage && <LiveControl compact />}
               <DropOps brief onOpen={() => setSvc(true)} />
               <DeliveryOps />
             </>
           )}
-          {canManage && <Panel id="live" title="Live truck" defaultOpen><LiveControl compact /></Panel>}
           {canManage && <Panel id="hud" title="Event heads-up"><EventHUD /></Panel>}
           <MyTasks userId={user?.id ?? null} />
           <EnableAlerts userId={user?.id ?? null} />
@@ -4535,6 +4567,8 @@ export default function AdminPage() {
           <Panel id="orders" title="Order history"><OrdersHistory /></Panel>
         </>
       )}
+
+      {sec === "customers" && isAdmin && <CrmPanel />}
 
       {sec === "team" && isAdmin && (
         <>

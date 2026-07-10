@@ -212,7 +212,10 @@ export default function CompanyCalendar() {
               <div key={k} role="button" tabIndex={0} className={`cal-cell${dim ? " dim" : ""}${k === todayKey ? " today" : ""}${over === k ? " over" : ""}`} onClick={() => setDayOpen(k)}
                 onDragOver={(e) => { e.preventDefault(); setOver(k); }} onDragLeave={() => setOver((o) => o === k ? null : o)} onDrop={() => { setOver(null); const id = dragId.current; dragId.current = null; if (id) reschedule(id, k); }}>
                 <div className="cal-cell-h"><span className="cal-date">{d.getDate()}</span><button type="button" className="cal-add" onClick={(e) => { e.stopPropagation(); setAddDay(k); }} aria-label="Add">+</button></div>
-                <div className="cal-items">{items.map((it) => <Chip key={`${it.kind}-${it.id}`} it={it} />)}</div>
+                <div className="cal-marks">
+                  {[...new Set(items.map((it) => it.cat))].slice(0, 4).map((c) => <span key={c} className="cal-mark" style={{ background: CAT[c]?.color }} />)}
+                  {items.length > 0 && <span className="cal-mark-n">{items.length}</span>}
+                </div>
               </div>
             );
           })}

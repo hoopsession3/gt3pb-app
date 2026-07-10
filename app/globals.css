@@ -3345,6 +3345,52 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .mp3{display:inline-flex;align-items:baseline}
 .mp3-3{height:.76em;width:auto;display:inline-block;margin-right:1px;transform:translateY(.05em)}
 
+/* month-grid density marks — one dot per category + a count; the tap-through day sheet holds detail */
+.cal-marks{display:flex;align-items:center;gap:3px;padding:1px 3px 4px;min-height:14px}
+.cal-mark{width:6px;height:6px;border-radius:50%;flex:0 0 auto}
+.cal-mark-n{margin-left:auto;font-family:'DM Mono',ui-monospace,monospace;font-size:10px;line-height:1;color:var(--cream-m)}
+
+/* THE TRUCK INSTRUMENT (Now) — one panel, rows of one machine: state LED + the single primary
+   action, then broadcast/stop rows. Replaces the floating white-card stack (owner call). */
+.liveinst{background:var(--char2);border:1px solid var(--line2);border-radius:16px;padding:2px 14px;margin:0 0 14px}
+.liveinst.on{border-color:rgba(127,168,107,.5);box-shadow:0 0 34px -16px rgba(127,168,107,.55)}
+.liveinst-row{display:flex;align-items:center;gap:11px;padding:11px 0;border-top:1px solid var(--line)}
+.liveinst-row.main{border-top:none}
+.liveinst-state{flex:1;min-width:0}
+.liveinst{color:var(--cream)}
+.liveinst-state b{display:block;font-family:'DM Mono',ui-monospace,monospace;font-size:13px;letter-spacing:.16em}
+.liveinst-state span{display:block;font-size:12px;color:var(--cream-m);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.liveinst-sub{flex:1;min-width:0;font-size:12.5px;color:var(--cream-m)}
+.liveinst-warn{flex:0 0 auto;font-size:11.5px;color:var(--warn);font-weight:650}
+.liveinst .adm-golink{display:block;width:100%;text-align:left;margin:0;padding:11px 0;border-top:1px solid var(--line)}
+.app.crew-day .liveinst{background:#fff;color:#221F18}
+.app.crew-day .liveinst.on{border-color:rgba(69,122,50,.55)}
+
+/* CRM (Customers) — the identity spine's first surface. Rows are customers (canonical, resolve_
+   customer-backed), not member profiles; expanding a row shows cross-channel history (all_orders'
+   first reader) + loyalty when the human has an account. */
+.crm-search{width:100%;background:var(--char2);border:1px solid var(--line2);border-radius:12px;padding:12px 14px;color:var(--cream);font-family:'Inter';font-size:16px;outline:none;margin-bottom:12px}
+.app.crew-day .crm-search{background:#fff;color:#221F18}
+.crm-row{border:1px solid var(--line);border-radius:14px;background:var(--card);margin-bottom:9px;overflow:hidden}
+.crm-head{display:flex;align-items:center;gap:11px;width:100%;background:none;border:none;padding:13px 14px;cursor:pointer;text-align:left;color:var(--cream);-webkit-appearance:none;appearance:none}
+.crm-name{flex:1;min-width:0}
+.crm-name b{display:block;font-family:'Inter';font-weight:650;font-size:14.5px}
+.crm-name span{display:block;font-size:11.5px;color:var(--cream-m);margin-top:1px;font-family:'DM Mono',ui-monospace,monospace}
+.crm-badge{flex:0 0 auto;font-family:'Inter';font-weight:650;font-size:9px;letter-spacing:.8px;text-transform:uppercase;padding:3px 9px;border-radius:20px;border:1px solid var(--line2);color:var(--cream-m)}
+.crm-badge.member{color:var(--ok);border-color:rgba(127,168,107,.45)}
+.crm-body{padding:2px 14px 13px;border-top:1px solid var(--line)}
+.crm-ord{display:flex;align-items:baseline;gap:9px;padding:8px 0;border-bottom:1px dashed var(--line);font-size:12.5px;color:var(--cream-m)}
+.crm-ord b{color:var(--cream);font-family:'DM Mono',ui-monospace,monospace;font-size:12px}
+.crm-ord .ch{flex:0 0 auto;font-family:'Inter';font-weight:650;font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:var(--gold2);min-width:58px}
+.crm-ord .px{margin-left:auto;font-family:'DM Mono',ui-monospace,monospace;color:var(--cream)}
+.crm-loy{display:flex;align-items:center;gap:10px;margin-top:11px}
+.crm-loy label{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--cream-m)}
+.crm-loy input{width:74px;background:var(--char2);border:1px solid var(--line2);border-radius:9px;padding:7px 9px;color:var(--cream);font-family:'DM Mono',ui-monospace,monospace;font-size:13px}
+.app.crew-day .crm-loy input{background:#fff;color:#221F18}
+.crm-note{font-size:11.5px;color:var(--cream-d);margin-top:8px}
+.team-crm-link{display:block;width:100%;text-align:left;background:none;border:1px dashed var(--line2);border-radius:12px;padding:12px 14px;color:var(--cream-m);font-family:'Inter';font-size:12.5px;cursor:pointer;margin:4px 0 16px;-webkit-appearance:none;appearance:none}
+.team-crm-link b{color:var(--gold2)}
+
 /* order-history search box */
 .adm-search{width:100%;background:rgba(0,0,0,.28);border:1.5px solid var(--hair,rgba(245,241,232,.14));border-radius:12px;padding:11px 14px;color:var(--cream,#F5F1E8);font-size:14px;font-family:'Inter',sans-serif;margin:2px 0 12px}
 .app.crew-day .adm-search{background:rgba(0,0,0,.05);color:#221f18}
