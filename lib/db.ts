@@ -155,6 +155,7 @@ export interface EventTask {
 export interface MeetingNote {
   stop_id?: string | null;
   opportunity_id?: string | null;
+  vendor_id?: string | null;
   visibility?: "private" | "team" | "collab";
   id: string;
   title: string;

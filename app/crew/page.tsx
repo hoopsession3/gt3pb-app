@@ -2829,11 +2829,12 @@ function MeetingNotes() {
   const [cDate, setCDate] = useState(() => localToday());
   const [cSummary, setCSummary] = useState("");
   const [cBody, setCBody] = useState("");
-  const [cActions, setCActions] = useState<{ title: string; category: string; critical: boolean }[]>([]);
+  const [cActions, setCActions] = useState<{ title: string; category: string; critical: boolean; assignee?: string | null }[]>([]);
   const [cLink, setCLink] = useState(""); // "" | event:<id> | stop:<id> | opp:<id>
   const [cVis, setCVis] = useState<"private" | "team" | "collab">("private");
   const [visTouched, setVisTouched] = useState(false);
   const [noteOpps, setNoteOpps] = useState<{ id: string; label: string }[]>([]);
+  const [noteVendors, setNoteVendors] = useState<{ id: string; name: string | null }[]>([]);
   const [saving, setSaving] = useState(false);
   const [summarizing, setSummarizing] = useState(false);
   const [query, setQuery] = useState("");
@@ -2875,6 +2876,7 @@ function MeetingNotes() {
     supabase.from("stops").select("id, name").is("archived_at", null).neq("status", "done").then(({ data }) => setNoteStops((data as { id: string; name: string | null }[]) ?? []));
     supabase.from("opportunities").select("id, stage, vendors(name)").not("stage", "in", "(won,lost)").then(({ data }) =>
       setNoteOpps((((data ?? []) as unknown) as { id: string; vendors: { name: string } | null }[]).map((o) => ({ id: o.id, label: o.vendors?.name ?? "Opportunity" }))));
+    supabase.from("vendors").select("id, name").is("archived_at", null).order("name").then(({ data }) => setNoteVendors((data as { id: string; name: string | null }[]) ?? []));
     supabase.from("profiles").select("id, display_name, role").neq("role", "member").then(({ data }) => setStaff((data as { id: string; display_name: string | null; role?: string | null }[]) ?? []));
   }, [load]);
   useRealtimeTable("meeting_notes", load);
@@ -2885,10 +2887,11 @@ function MeetingNotes() {
     const linkEvent = cLink.startsWith("event:") ? cLink.slice(6) : null;
     const linkStop = cLink.startsWith("stop:") ? cLink.slice(5) : null;
     const linkOpp = cLink.startsWith("opp:") ? cLink.slice(4) : null;
+    const linkVendor = cLink.startsWith("vendor:") ? cLink.slice(7) : null;
     const { data, error } = await supabase.from("meeting_notes").insert({
       title: cTitle.trim(), met_on: cDate, summary: cSummary.trim() || null,
       body: cBody.trim() || null, event_id: linkEvent, stop_id: linkStop, opportunity_id: linkOpp,
-      visibility: cVis, created_by: meId,
+      vendor_id: linkVendor, visibility: cVis, created_by: meId,
     }).select("id").single();
     // Follow-ups ride the ONE task engine. Linked note → tasks file under the event/stop (so they
     // land on its prep checklist); no link → note-owned as before. origin_note_id (0167) is pure
@@ -2896,9 +2899,18 @@ function MeetingNotes() {
     const noteId = (data as { id: string } | null)?.id;
     if (!error && noteId && cActions.length) {
       const owner = linkEvent ? { event_id: linkEvent } : linkStop ? { stop_id: linkStop } : { meeting_note_id: noteId };
-      await supabase.from("event_tasks").insert(cActions.map((a, i) => ({
-        ...owner, origin_note_id: noteId, label: a.title, kind: "task", section: "Follow-up", critical: a.critical, sort: 1000 + i,
-      })));
+      const { data: made } = await supabase.from("event_tasks").insert(cActions.map((a, i) => ({
+        ...owner, origin_note_id: noteId, label: a.title, kind: "task", section: "Follow-up",
+        critical: a.critical, assignee: a.assignee ?? null, sort: 1000 + i,
+      }))).select("id, label, assignee");
+      // Assigned follow-ups ping their partner — the alert carries kind task_assigned, so it lands
+      // in their My Day and is completable right on the card (0174). No leaving the note to delegate.
+      const meFirst = (profile?.display_name || "A teammate").split(" ")[0];
+      for (const t of ((made ?? []) as { id: string; label: string; assignee: string | null }[])) {
+        if (t.assignee) raiseAlert({ severity: "critical", category: "task", kind: "task_assigned", subject_id: t.id,
+          title: `${meFirst} assigned you: ${t.label}`.slice(0, 180), body: `From the note "${cTitle.trim()}"`.slice(0, 300),
+          target_user_id: t.assignee, created_by: meId });
+      }
     }
     setSaving(false);
     if (error) { toast(`Error: ${error.message}`, "error"); return; }
@@ -2919,47 +2931,61 @@ function MeetingNotes() {
       <div className="sec">Notes <span className="adm-pill">{notes.length}</span></div>
       <div className="h-sub note-intro">For yourself or the team — pick who sees each one (🔒 just me · 👥 team · 🤝 team + comments). Tag follow-ups and they land in My&nbsp;Tasks with a notification. Meeting recap? Paste the transcript and ✨ summarize.</div>
 
-      {!composing ? (
-        <button type="button" className="note-new" onClick={() => setComposing(true)}>+ New note</button>
-      ) : (
-        <div className="note-composer">
-          <input className="note-in" placeholder="What&rsquo;s this note about?" value={cTitle} onChange={(e) => setCTitle(e.target.value)} />
-          <div className="note-row">
-            <input type="date" className="note-in" value={cDate} onChange={(e) => setCDate(e.target.value)} aria-label="Date" />
-            <select className="note-in" value={cLink} onChange={(e) => { setCLink(e.target.value); if (!visTouched) setCVis(e.target.value ? "collab" : "private"); }} aria-label="Link to an event or truck stop">
-              <option value="">No link</option>
-              <optgroup label="Events">
-                {events.map((ev) => <option key={ev.id} value={`event:${ev.id}`}>{ev.title}</option>)}
-              </optgroup>
-              <optgroup label="Truck stops">
-                {noteStops.map((s) => <option key={s.id} value={`stop:${s.id}`}>{s.name || "Untitled location"}</option>)}
-              </optgroup>
-              <optgroup label="Pipeline">
-                {noteOpps.map((o) => <option key={o.id} value={`opp:${o.id}`}>{o.label}</option>)}
-              </optgroup>
-            </select>
-          </div>
-          <div className="note-row">
-            <select className="note-in note-vis" value={cVis} onChange={(e) => { setCVis(e.target.value as typeof cVis); setVisTouched(true); }} aria-label="Who can see this note">
-              <option value="private">🔒 Just me</option>
-              <option value="team">👥 Team — everyone reads</option>
-              <option value="collab">🤝 Team + comments</option>
-            </select>
-          </div>
-          <textarea className="note-area" placeholder="The note — a thought, a plan, a recap…" value={cSummary} onChange={(e) => setCSummary(e.target.value)} rows={cSummary.length > 200 ? 10 : 3} />
-          <textarea className="note-area" placeholder="Paste the full transcript here — then ✨ summarize" value={cBody} onChange={(e) => setCBody(e.target.value)} rows={4} />
-          <button type="button" className="note-suggest note-sum" onClick={summarize} disabled={summarizing}>{summarizing ? "Summarizing…" : "✨ Summarize transcript → title · recap · tasks"}</button>
-          {cActions.length > 0 && (
-            <div className="note-tasks-prev">
-              <b>{cActions.length} follow-up task{cActions.length === 1 ? "" : "s"}</b> will be created when you save:
-              <ul>{cActions.map((a, i) => <li key={i}>{a.critical ? "⚠️ " : ""}{a.title}</li>)}</ul>
+      <button type="button" className="note-new" onClick={() => setComposing(true)}>✎ New note</button>
+      {composing && (
+        <Sheet open onClose={() => { setComposing(false); setCActions([]); }} className="note-lux"
+          header={<div className="note-lux-head"><span className="note-lux-eyb">New note</span><button type="button" className="qd-x" onClick={() => { setComposing(false); setCActions([]); }} aria-label="Close">✕</button></div>}
+          footer={<div className="note-actions"><button type="button" className="note-cancel" onClick={() => { setComposing(false); setCActions([]); }}>Cancel</button><button type="button" className="note-save" disabled={!cTitle.trim() || saving} onClick={save}>{saving ? "Saving…" : "Save note"}</button></div>}>
+          <div className="note-composer">
+            <input className="note-in note-lux-title" placeholder="What&rsquo;s this note about?" value={cTitle} onChange={(e) => setCTitle(e.target.value)} autoFocus />
+            <div className="note-row">
+              <input type="date" className="note-in" value={cDate} onChange={(e) => setCDate(e.target.value)} aria-label="Date" />
+              <select className="note-in" value={cLink} onChange={(e) => { setCLink(e.target.value); if (!visTouched) setCVis(e.target.value ? "collab" : "private"); }} aria-label="Attach to">
+                <option value="">Attach to&hellip; (nothing)</option>
+                <optgroup label="Events">
+                  {events.map((ev) => <option key={ev.id} value={`event:${ev.id}`}>{ev.title}</option>)}
+                </optgroup>
+                <optgroup label="Truck stops">
+                  {noteStops.map((s) => <option key={s.id} value={`stop:${s.id}`}>{s.name || "Untitled location"}</option>)}
+                </optgroup>
+                <optgroup label="Pipeline">
+                  {noteOpps.map((o) => <option key={o.id} value={`opp:${o.id}`}>{o.label}</option>)}
+                </optgroup>
+                <optgroup label="Partners">
+                  {noteVendors.map((v) => <option key={v.id} value={`vendor:${v.id}`}>{v.name || "Partner"}</option>)}
+                </optgroup>
+              </select>
             </div>
-          )}
-          <div className="note-actions">
-            <button type="button" className="note-cancel" onClick={() => { setComposing(false); setCActions([]); }}>Cancel</button>
-            <button type="button" className="note-save" disabled={!cTitle.trim() || saving} onClick={save}>{saving ? "Saving…" : "Save note"}</button>
+            <div className="note-vis-chips" role="radiogroup" aria-label="Who can see this note">
+              {([["private","🔒 Just me"],["team","👥 Team"],["collab","🤝 Team + comments"]] as const).map(([v,l]) => (
+                <button key={v} type="button" role="radio" aria-checked={cVis === v} className={`note-vischip${cVis === v ? " on" : ""}`} onClick={() => { setCVis(v); setVisTouched(true); }}>{l}</button>
+              ))}
+            </div>
+            <textarea className="note-area" placeholder="The note — a thought, a plan, a recap…" value={cSummary} onChange={(e) => setCSummary(e.target.value)} rows={cSummary.length > 200 ? 10 : 3} />
+            <details className="note-transcript">
+              <summary>Have a transcript? Paste it and ✨ summarize</summary>
+              <textarea className="note-area" placeholder="Paste the full transcript here…" value={cBody} onChange={(e) => setCBody(e.target.value)} rows={4} />
+              <button type="button" className="note-suggest note-sum" onClick={summarize} disabled={summarizing}>{summarizing ? "Summarizing…" : "✨ Summarize → title · recap · tasks"}</button>
+            </details>
+            <div className="note-fu-h">Follow-ups
+              <button type="button" className="note-fu-add" onClick={() => setCActions((a) => [...a, { title: "", category: "task", critical: false, assignee: null }])}>+ Add</button>
+            </div>
+            {cActions.length === 0 && <div className="note-fu-empty">No follow-ups yet — add one and assign it to a partner, or ✨ summarize a transcript to pull them out.</div>}
+            {cActions.map((a, i) => (
+              <div className="note-fu-edit" key={i}>
+                <input className="note-in" placeholder="Follow-up task…" value={a.title} onChange={(e) => setCActions((arr) => arr.map((x, j) => j === i ? { ...x, title: e.target.value } : x))} />
+                <div className="note-fu-edit-r">
+                  <select className="note-in" value={a.assignee ?? ""} onChange={(e) => setCActions((arr) => arr.map((x, j) => j === i ? { ...x, assignee: e.target.value || null } : x))} aria-label="Assign to">
+                    <option value="">Unassigned</option>
+                    {staff.map((m) => <option key={m.id} value={m.id}>{m.display_name?.trim() || "Crew"}</option>)}
+                  </select>
+                  <button type="button" className={`note-fu-crit${a.critical ? " on" : ""}`} onClick={() => setCActions((arr) => arr.map((x, j) => j === i ? { ...x, critical: !x.critical } : x))} aria-pressed={a.critical} title="Mark critical">⚠️</button>
+                  <button type="button" className="note-fu-del" onClick={() => setCActions((arr) => arr.filter((_, j) => j !== i))} aria-label="Remove">✕</button>
+                </div>
+              </div>
+            ))}
           </div>
-        </div>
+        </Sheet>
       )}
 
       {(() => {
@@ -2982,7 +3008,7 @@ function MeetingNotes() {
               <MeetingNoteCard
                 key={n.id} note={n} open={openId === n.id} onToggle={() => setOpenId(openId === n.id ? null : n.id)}
                 staff={staff} meId={meId} meName={meName} isAdmin={isAdmin}
-                eventTitle={events.find((e) => e.id === n.event_id)?.title ?? (n.stop_id ? `Stop · ${noteStops.find((s) => s.id === n.stop_id)?.name ?? "location"}` : null)} onDelete={() => remove(n)}
+                eventTitle={events.find((e) => e.id === n.event_id)?.title ?? (n.stop_id ? `📍 ${noteStops.find((s) => s.id === n.stop_id)?.name ?? "location"}` : n.vendor_id ? `🤝 ${noteVendors.find((v) => v.id === n.vendor_id)?.name ?? "Partner"}` : n.opportunity_id ? `💼 ${noteOpps.find((o) => o.id === n.opportunity_id)?.label ?? "Opportunity"}` : null)} onDelete={() => remove(n)}
                 onArchive={() => archive(n, !n.archived_at)}
                 onVisibility={(v) => setNotes((prev) => prev.map((x) => (x.id === n.id ? { ...x, visibility: v } : x)))}
               />
