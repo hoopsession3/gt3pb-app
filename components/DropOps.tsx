@@ -40,7 +40,7 @@ const stageIndex = (s: PackStage | null | undefined) => Math.max(0, PACK_STAGES.
 // Two faces: `brief` is the Now screen's prep face (what to brew, what money, one progress line —
 // tapping it opens Service mode); full is the working face (checklist, upcoming, history) and
 // lives in Service mode only, so the same list never renders on two screens.
-export default function DropOps({ brief = false, onOpen }: { brief?: boolean; onOpen?: () => void } = {}) {
+export default function DropOps({ brief = false, onOpen, canPlan = false }: { brief?: boolean; onOpen?: () => void; canPlan?: boolean } = {}) {
   const { toast } = useApp();
   const [rows, setRows] = useState<DropOrder[]>([]);
   const [batches, setBatches] = useState<PlannedBatch[]>([]);
@@ -242,7 +242,7 @@ export default function DropOps({ brief = false, onOpen }: { brief?: boolean; on
           ) : bottles > 0 ? (
             <div className="dops-plan">
               <span>Friday&rsquo;s brew: {FLAVORS.filter((f) => perF[f] > 0).map((f) => `${gallonsForBottles(perF[f], null)} gal ${f}`).join(" · ")}</span>
-              <button type="button" onClick={queueBrew} disabled={busy}>{busy ? "Queuing…" : "Queue brew batches"}</button>
+              {canPlan && <button type="button" onClick={queueBrew} disabled={busy}>{busy ? "Queuing…" : "Queue brew batches"}</button>}
             </div>
           ) : null}
           <button type="button" className={`dops-prog${allDone ? " done" : ""}`} onClick={() => (brief ? onOpen?.() : setListOpen(!showList))} aria-expanded={brief ? undefined : showList}>

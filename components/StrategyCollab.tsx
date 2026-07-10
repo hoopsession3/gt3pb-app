@@ -18,7 +18,7 @@ import { GTM_PLAYS, type GtmPlay } from "@/lib/strategy";
 
 // ── live thread ──
 type C = { id: string; body: string; author_id: string | null; created_at: string };
-export function StrategyThread({ k, label }: { k: string; label: string }) {
+export function StrategyThread({ k, label, link = "/playbook" }: { k: string; label: string; link?: string }) {
   const { toast } = useApp();
   const { user, profile } = useAuth();
   const [rows, setRows] = useState<C[]>([]);
@@ -45,7 +45,7 @@ export function StrategyThread({ k, label }: { k: string; label: string }) {
     // ping the other owners/crews so collaboration is live even when the page isn't open
     const meFirst = (profile?.display_name || "Owner").split(" ")[0];
     staff.filter((s) => (s.role === "owner" || s.role === "admin") && s.id !== user?.id).forEach((s) =>
-      raiseAlertClient({ severity: "important", category: "strategy", title: `${meFirst} on the playbook`, body: `${label}: ${body.slice(0, 140)}`, link: "/playbook", targetUserId: s.id }));
+      raiseAlertClient({ severity: "important", category: "strategy", title: `${meFirst} on ${label.slice(0, 60)}`, body: `${label}: ${body.slice(0, 140)}`, link, targetUserId: s.id }));
   };
   return (
     <div className="st-thread">

@@ -52,7 +52,11 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
   // ── shared cart (survives the mode flip) ──
   const [count, setCount] = useState<number | null>(initialMode === "pickup" ? 6 : null);
   const [mix, setMix] = useState<Record<Flav, number>>({ rise: 0, flow: 0, dusk: 0 });
-  const [bringBack, setBringBack] = useState(true); // bring mine back (best price) vs need new
+  // First-timers see the price they'll actually pay (new glass); signed-in members default to
+  // bring-back. The glass step can only make it cheaper — never a mid-funnel surprise.
+  const [bringBack, setBringBack] = useState(false);
+  const glassTouched = useRef(false);
+  useEffect(() => { if (user && !glassTouched.current) setBringBack(true); }, [user]);
 
   // ── delivery-only ──
   const choices = useMemo(() => deliverySlotChoices(Date.now()), []);
@@ -191,14 +195,14 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
 
   // pickup: change / reload
   const startChange = (p: MyPack) => {
-    setMode("pickup"); setCount(p.size); setBringBack(p.glass === "return");
+    setMode("pickup"); setCount(p.size); glassTouched.current = true; setBringBack(p.glass === "return");
     const pm = packMix(p); setMix({ rise: pm.RISE || 0, flow: pm.FLOW || 0, dusk: pm.DUSK || 0 });
     setName(p.name); setPhone(p.phone ?? ""); setReplacing(p); setStep("size"); setErr("");
     try { document.getElementById("body")?.scrollTo({ top: 0, behavior: "smooth" }); } catch { /* ignore */ }
   };
   const reorderUsual = () => {
     if (!usual) return; haptic(HAPTIC.tap);
-    setCount(usual.size); setBringBack(usual.glass === "return");
+    setCount(usual.size); glassTouched.current = true; setBringBack(usual.glass === "return");
     const pm = packMix(usual); setMix({ rise: pm.RISE || 0, flow: pm.FLOW || 0, dusk: pm.DUSK || 0 });
     setName((n) => n || usual.name); setPhone((p) => p || usual.phone || "");
     setReplacing(null); setErr(""); toast("Your usual — loaded");
@@ -359,7 +363,9 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
       {step === "size" && (
         <div className="dl-step">
           <h2 className="dl-h">{mode === "delivery" ? "We deliver to you. Pick a Sunday and a size." : "Order ahead. Pick a day and a size."}</h2>
+          {mode === "pickup" && <p className="dl-sub">Cold-extracted Rise, Flow &amp; Dusk — smooth, low-acid bottles for your week. Reserve now, grab them at the truck.</p>}
 
+          {mode === "pickup" && <p className="dl-pricemode">{bringBack ? "Prices with bring-back empties — need new glass? It\u2019s $10 a bottle, picked at the next step." : "New-glass prices — bring your empties back next drop and pay less."}</p>}
           {mode === "delivery" ? (
             <>
               <div className="oa-slabel">Which Sunday</div>
@@ -450,7 +456,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
           <h2 className="dl-h">Your bottles.</h2>
           {mode === "delivery" ? (
             <>
-              <button type="button" className={`dl-card${bringBack ? " on" : ""}`} onClick={() => { setBringBack(true); setRefills((r) => Math.min(refillCap, r || refillCap)); }}>
+              <button type="button" className={`dl-card${bringBack ? " on" : ""}`} onClick={() => { glassTouched.current = true; setBringBack(true); setRefills((r) => Math.min(refillCap, r || refillCap)); }}>
                 <b>Bringing mine back — best price</b>
                 <span>Rinse your empties, set them out. We swap them for your new order. {dollars(DELIVERY_PRICING.refill)}/bottle instead of {dollars(DELIVERY_PRICING.fresh)}.</span>
               </button>
@@ -470,7 +476,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
                   )}
                 </div>
               )}
-              <button type="button" className={`dl-card${!bringBack ? " on" : ""}`} onClick={() => { setBringBack(false); setRefills(0); setAck(false); }}>
+              <button type="button" className={`dl-card${!bringBack ? " on" : ""}`} onClick={() => { glassTouched.current = true; setBringBack(false); setRefills(0); setAck(false); }}>
                 <b>Need all new</b>
                 <span>Sealed bottles delivered fresh. {dollars(DELIVERY_PRICING.fresh)}/bottle.</span>
               </button>
@@ -486,7 +492,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
             </>
           ) : (
             <>
-              <button type="button" className={`dl-card${bringBack ? " on" : ""}`} onClick={() => setBringBack(true)}>
+              <button type="button" className={`dl-card${bringBack ? " on" : ""}`} onClick={() => { glassTouched.current = true; setBringBack(true); }}>
                 <b>Bringing mine back — best price</b>
                 <span>Pack pricing. Rinse your empties and bring them Saturday. ${perBottle(count, "return").toFixed(2)}/bottle.</span>
               </button>
@@ -588,6 +594,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
           totalCents={done.total}
           totalLabel={done.paid ? "paid" : "due at pickup"}
           warn={done.warn}
+          note={mode === "pickup" ? (bringBack ? `Don\u2019t forget your empties — rinse and bring all ${count}; that\u2019s what your pack price is built on. Fresh 7 days from pickup.` : "Bottles are yours to keep — or bring them back next drop and unlock pack pricing. Fresh 7 days from pickup.") : undefined}
           rows={[
             { label: "Pack", value: `${count} bottles` },
             ...(mode === "delivery"

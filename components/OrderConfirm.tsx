@@ -10,7 +10,7 @@ export type ReceiptRow = { label: string; value: string };
 // with no total or receipt, pickup/delivery already had this exact shape (OrderFunnel's dl-done).
 // One component now, reused by all three — the "you're in" moment reads identically everywhere.
 export default function OrderConfirm({
-  title, sub, totalCents, totalLabel = "paid", rows, warn, ctaLabel, onCta, secondaryLabel, onSecondary,
+  title, sub, totalCents, totalLabel = "paid", rows, warn, note, ctaLabel, onCta, secondaryLabel, onSecondary,
 }: {
   title: string;
   sub?: string;
@@ -18,6 +18,7 @@ export default function OrderConfirm({
   totalLabel?: string; // eyebrow over the big number — "paid" ONLY when money actually moved
   rows: ReceiptRow[];
   warn?: string;
+  note?: string; // quiet what-to-do-next line (e.g. bring your empties) — informational, not an alert
   ctaLabel: string;
   onCta: () => void;
   secondaryLabel?: string;
@@ -35,6 +36,7 @@ export default function OrderConfirm({
         </div>
       )}
       {warn && <p className="dl-err" role="alert">{warn}</p>}
+      {note && <p className="dl-note">{note}</p>}
       <button type="button" className="oa-cta" style={{ marginTop: 16 }} onClick={onCta}>{ctaLabel}</button>
       {secondaryLabel && onSecondary && <button type="button" className="sub-link" onClick={onSecondary}>{secondaryLabel}</button>}
     </div>

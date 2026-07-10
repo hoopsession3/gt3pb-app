@@ -18,6 +18,13 @@ export default function QuickDock() {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"ask" | "note">("ask");
 
+  // My Day's "✎ Note to self" chip (and anything else) can summon the note pane directly.
+  useEffect(() => {
+    const onNote = () => { setMode("note"); setOpen(true); };
+    window.addEventListener("gt3-quick-note", onNote);
+    return () => window.removeEventListener("gt3-quick-note", onNote);
+  }, []);
+
   // close on Escape
   useEffect(() => {
     if (!open) return;

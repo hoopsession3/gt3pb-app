@@ -235,16 +235,19 @@ export default function OperatorNav() {
 function MoreSheet({ lanes, pins, activeId, onOpen, onClose, canPin }: { lanes: NavGroup[]; pins: string[]; activeId: string; onOpen: (g: NavGroup) => void; onClose: () => void; canPin: boolean }) {
   const { user, refreshProfile } = useAuth();
   const [local, setLocal] = useState<string[]>(pins);
+  const [full, setFull] = useState(false);
   const toggle = async (key: string) => {
     if (!supabase || !user) return;
-    const next = local.includes(key) ? local.filter((k) => k !== key) : [...local, key].slice(-MAX_PINS);
+    // Never silently evict a pin (the old slice(-MAX) quietly dropped Today) — say the bar is full.
+    if (!local.includes(key) && local.length >= MAX_PINS) { setFull(true); setTimeout(() => setFull(false), 2500); return; }
+    const next = local.includes(key) ? local.filter((k) => k !== key) : [...local, key];
     setLocal(next);
     await supabase.from("profiles").update({ nav_pins: next }).eq("id", user.id);
     refreshProfile();
   };
   return (
     <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><span className="isheet-title">Your lanes</span><button type="button" className="isheet-x" style={{ marginLeft: "auto" }} onClick={onClose}>Close</button></div>}>
-      <div className="lane-hint">Tap a lane to open it. Pin up to 4 to your bar — unpin anything, it stays here.</div>
+      <div className="lane-hint">{full ? "Your bar is full (4) — unpin one first." : local.length === 0 ? "Nothing pinned — your bar shows the standard set for your role. Pin lanes to make it yours." : "Tap a lane to open it. Pin up to 4 to your bar — unpin anything, it stays here."}</div>
       {lanes.map((g) => (
         <div key={g.id} className={`lane-row${activeId === g.id ? " on" : ""}`}>
           <button type="button" className="lane-open" onClick={() => onOpen(g)}>
