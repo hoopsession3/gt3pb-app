@@ -1,4 +1,4 @@
--- 0171 — BOOKINGS ↔ PIPELINE BRIDGE. Paste into Supabase → SQL Editor → Run. Idempotent.
+-- 0172 — BOOKINGS ↔ PIPELINE BRIDGE. Paste into Supabase → SQL Editor → Run. Idempotent.
 --
 -- The July 2026 redundancy audit named Plan › Bookings (inbound requests) and Business › Pipeline
 -- (outbound pursuit) two parallel lead funnels that should BRIDGE, not merge. This is the bridge's
