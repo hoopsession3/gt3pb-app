@@ -1,20 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useAuth, roleOf, LEADERSHIP_ROLES } from "./AuthProvider";
+import { useAuth, roleOf } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
 import AskGT3 from "./AskGT3";
 import Sheet from "@/components/Sheet";
 
 // QuickDock — a floating, always-accessible launcher for the crew's two most-used quick actions:
-// Ask GT3 (the pocket-brain chat) and a fast Note capture (jot/speak → saved as a meeting note to
-// expand later). Lives in the app shell so it's reachable from any crew page without hunting tabs.
-// Staff-only; Note is leadership-only (meeting_notes is leadership-owned). Public/customers never see it.
+// Ask GT3 (the pocket-brain chat) and a fast Note capture (jot/speak → a real note, private by
+// default). Lives in the app shell so it's reachable from any crew page without hunting tabs.
+// Staff-only (0170 opened notes to all staff — RLS owns who reads what, not this button).
 export default function QuickDock() {
   const { profile, user } = useAuth();
   const role = roleOf(profile);
   const isStaff = role !== "member";
-  const isLeadership = LEADERSHIP_ROLES.includes(role);
 
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"ask" | "note">("ask");
@@ -36,7 +35,7 @@ export default function QuickDock() {
       </button>
 
       {open && (
-        <Sheet open onClose={() => setOpen(false)} header={<div style={{ display: "flex", alignItems: "center" }}><button type="button" className={`qd-tab${mode === "ask" ? " on" : ""}`} onClick={() => setMode("ask")}>✦ Ask GT3</button>{isLeadership && <button type="button" className={`qd-tab${mode === "note" ? " on" : ""}`} onClick={() => setMode("note")}>✎ Quick note</button>}<button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setOpen(false)} aria-label="Close">✕</button></div>}>
+        <Sheet open onClose={() => setOpen(false)} header={<div style={{ display: "flex", alignItems: "center" }}><button type="button" className={`qd-tab${mode === "ask" ? " on" : ""}`} onClick={() => setMode("ask")}>✦ Ask GT3</button><button type="button" className={`qd-tab${mode === "note" ? " on" : ""}`} onClick={() => setMode("note")}>✎ Quick note</button><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setOpen(false)} aria-label="Close">✕</button></div>}>
           {mode === "ask" ? <AskGT3 /> : <QuickNote userId={user?.id ?? null} onSaved={() => setOpen(false)} />}
         </Sheet>
       )}
@@ -44,9 +43,16 @@ export default function QuickDock() {
   );
 }
 
-// Quick note capture — type or speak a line, save it as a meeting note (lands in Plan to expand later).
+// Quick note capture — type or speak a line, pick who sees it (just you by default), save.
+// Lands in Business › Notes to expand later.
+const QN_VIS = [
+  { v: "private", label: "🔒 Just me" },
+  { v: "team", label: "👥 Team" },
+  { v: "collab", label: "🤝 Team + comments" },
+] as const;
 function QuickNote({ userId, onSaved }: { userId: string | null; onSaved: () => void }) {
   const [text, setText] = useState("");
+  const [vis, setVis] = useState<"private" | "team" | "collab">("private");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
   const [listening, setListening] = useState(false);
@@ -73,10 +79,10 @@ function QuickNote({ userId, onSaved }: { userId: string | null; onSaved: () => 
     const firstLine = t.split("\n")[0].trim();
     const title = (firstLine.length > 80 ? `${firstLine.slice(0, 78)}…` : firstLine) || "Quick note";
     const body = t.length > firstLine.length ? t : null;
-    const { error } = await supabase.from("meeting_notes").insert({ title, body, source: "manual", created_by: userId });
+    const { error } = await supabase.from("meeting_notes").insert({ title, body, source: "manual", created_by: userId, visibility: vis });
     setSaving(false);
     if (error) { setMsg("Couldn't save — try again."); return; }
-    setText(""); setMsg("Saved to Plan ▸ Notes");
+    setText(""); setMsg(vis === "private" ? "Saved — just for you, under Business › Notes" : "Saved to Business › Notes");
     setTimeout(onSaved, 700);
   };
 
@@ -86,8 +92,13 @@ function QuickNote({ userId, onSaved }: { userId: string | null; onSaved: () => 
         <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Jot it down — a thought, a to-do, a reminder…" rows={4} autoFocus />
         {SR && <button type="button" className={`oa-mic${listening ? " on" : ""}`} onClick={mic} aria-label="Speak your note">🎙</button>}
       </div>
+      <div className="qd-note-vis" role="radiogroup" aria-label="Who can see this note">
+        {QN_VIS.map((o) => (
+          <button key={o.v} type="button" role="radio" aria-checked={vis === o.v} className={`qd-vis-chip${vis === o.v ? " on" : ""}`} onClick={() => setVis(o.v)}>{o.label}</button>
+        ))}
+      </div>
       <div className="qd-note-foot">
-        <span className="qd-note-msg">{msg || "Saves as a note in Plan — expand it there later."}</span>
+        <span className="qd-note-msg">{msg || "Saves under Business › Notes — expand it there later."}</span>
         <button type="button" className="oa-send" onClick={save} disabled={saving || !text.trim()}>{saving ? "Saving…" : "Save note"}</button>
       </div>
     </div>

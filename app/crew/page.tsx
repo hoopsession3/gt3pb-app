@@ -2919,16 +2919,16 @@ function MeetingNotes() {
 
   return (
     <div className="adm-sec">
-      <div className="sec">Meeting notes <span className="adm-pill">{notes.length}</span></div>
-      <div className="h-sub note-intro">Your talking points, in the app. Paste a recap, tag follow-ups, assign them — they land in everyone&apos;s My&nbsp;Tasks with a notification.</div>
+      <div className="sec">Notes <span className="adm-pill">{notes.length}</span></div>
+      <div className="h-sub note-intro">For yourself or the team — pick who sees each one (🔒 just me · 👥 team · 🤝 team + comments). Tag follow-ups and they land in My&nbsp;Tasks with a notification. Meeting recap? Paste the transcript and ✨ summarize.</div>
 
       {!composing ? (
         <button type="button" className="note-new" onClick={() => setComposing(true)}>+ New note</button>
       ) : (
         <div className="note-composer">
-          <input className="note-in" placeholder="What did you meet about?" value={cTitle} onChange={(e) => setCTitle(e.target.value)} />
+          <input className="note-in" placeholder="What&rsquo;s this note about?" value={cTitle} onChange={(e) => setCTitle(e.target.value)} />
           <div className="note-row">
-            <input type="date" className="note-in" value={cDate} onChange={(e) => setCDate(e.target.value)} aria-label="Meeting date" />
+            <input type="date" className="note-in" value={cDate} onChange={(e) => setCDate(e.target.value)} aria-label="Date" />
             <select className="note-in" value={cLink} onChange={(e) => setCLink(e.target.value)} aria-label="Link to an event or truck stop">
               <option value="">No link</option>
               <optgroup label="Events">
@@ -2949,7 +2949,7 @@ function MeetingNotes() {
               <option value="private">🔒 Private — just me</option>
             </select>
           </div>
-          <textarea className="note-area" placeholder="Recap / summary — paste from your notes app, or ✨ generate below…" value={cSummary} onChange={(e) => setCSummary(e.target.value)} rows={cSummary.length > 200 ? 10 : 3} />
+          <textarea className="note-area" placeholder="The note — a thought, a plan, a recap…" value={cSummary} onChange={(e) => setCSummary(e.target.value)} rows={cSummary.length > 200 ? 10 : 3} />
           <textarea className="note-area" placeholder="Paste the full transcript here — then ✨ summarize" value={cBody} onChange={(e) => setCBody(e.target.value)} rows={4} />
           <button type="button" className="note-suggest note-sum" onClick={summarize} disabled={summarizing}>{summarizing ? "Summarizing…" : "✨ Summarize transcript → title · recap · tasks"}</button>
           {cActions.length > 0 && (
@@ -4374,7 +4374,7 @@ function VendorPicker({ vendors, vendorId, onLink }: { vendors: Vendor[]; vendor
 const SEC_LABEL: Record<OpSection, string> = { day: "My Day", now: "Live Ops", ask: "Ask GT3", prep: "Readiness", plan: "Plan", pipeline: "Pipeline", studio: "Studio", brew: "Brew", garage: "Assets", goals: "Goals", driver: "Delivery", stops: "Route", notes: "Notes", money: "Money", customers: "Customers", team: "Team" };
 const SEC_WHEN: Record<OpSection, string> = {
   day: "Start of shift", now: "During service", ask: "When you're stuck", prep: "Before the event",
-  plan: "Booking ahead", pipeline: "Working the leads", studio: "Promoting a drop", brew: "Production days", garage: "Assets & stock", goals: "Steering the quarter", driver: "Delivery days", stops: "Route planning", notes: "After a meeting", money: "The books", customers: "Your regulars", team: "People & roles",
+  plan: "Booking ahead", pipeline: "Working the leads", studio: "Promoting a drop", brew: "Production days", garage: "Assets & stock", goals: "Steering the quarter", driver: "Delivery days", stops: "Route planning", notes: "Any time", money: "The books", customers: "Your regulars", team: "People & roles",
 };
 const SEC_SUB: Record<OpSection, string> = {
   day: "Your tasks, flags, needs-you & what's on today.",
@@ -4384,7 +4384,7 @@ const SEC_SUB: Record<OpSection, string> = {
   plan: "Calendar, events, bookings & vendors.",
   pipeline: "The sales funnel — accounts, deals, reps & next steps.",
   stops: "The route — locations, dates & the ordering dial.",
-  notes: "Meeting notes — follow-ups become tasks.",
+  notes: "Notes — private or shared; follow-ups become tasks.",
   studio: "Draft, schedule & post — brand & marketing.",
   brew: "Schedule, start & log brews — sized to what's reserved.",
   garage: "Load-out & tow, gear, maintenance & inventory.",
@@ -4401,7 +4401,7 @@ const SEC_MORE: Record<OpSection, string> = {
   plan: "The forward calendar. Book events, work incoming booking requests, and manage vendors and venues — weeks and months out.",
   pipeline: "The sales board. Every account with its deal (from the owner's catalog, matched to the account type), its rep, its stage and its next step — argued out on the thread, won or lost on the record.",
   stops: "Route planning: create and order locations, link vendors, go live, and set when cup orders open. A stop's name, date and address are edited in ONE place — its prep hub, one tap away.",
-  notes: "The meeting record. Paste a recap, tag follow-ups, assign them — they land in everyone's tasks with a ping.",
+  notes: "Every note, yours and the team's. Jot one for yourself (🔒 just me), share one with the crew, or file a meeting recap — tag follow-ups and they land in people's tasks with a ping. The ✦ button jots one from any screen.",
   studio: "Your marketing studio. Draft posts and flyers, keep them on-brand, plan the feed, schedule around your drops, and moderate the guest reviews that feed the truck display.",
   brew: "Production's home. Schedule brews sized to demand, hit start-by deadlines, log every batch — with coverage, serve-by and stock checks right on the card.",
   garage: "The physical operation: trailer load-out & tow plan, the gear library, asset maintenance, and inventory with pars.",
@@ -4419,7 +4419,7 @@ const SEC_INSIDE: Record<OpSection, string[]> = {
   plan: ["Company calendar", "Events", "Booking requests", "Vendors & venues"],
   pipeline: ["Prospect → first attempt → talking → proposal → won", "Deal catalog — owner-set, per account type", "Rep assignment with a ping", "Per-deal discussion threads"],
   stops: ["Location list & route order", "Go live at any location", "The cup-ordering dial", "Names, dates & addresses are edited in the prep hub"],
-  notes: ["Meeting recaps", "Follow-ups → assigned tasks", "GT3-format summaries"],
+  notes: ["Private notes — 🔒 just for you", "Team notes & meeting recaps", "Follow-ups → assigned tasks", "✨ Transcript → summary"],
   studio: ["Post & flyer drafting", "Brand copy & front-end copy", "Feed planning grid", "Repurpose engine", "Publishing & scheduling", "Review Desk → the truck display (/display): add or approve reviews; ✨ Simplify de-claims + trims one to display-safe"],
   brew: ["Brew schedule with start-by deadlines", "Coverage — makes vs reserved", "Serve-by freshness windows", "Batch log & recipes"],
   garage: ["Load-out & tow plan", "Gear library — manuals & specs", "Asset maintenance & what's due", "Inventory — stock, costs & pars"],
