@@ -112,28 +112,33 @@ export default function StatusCard({ open, onClose }: { open: boolean; onClose: 
     ctx.strokeStyle = p.edge; ctx.lineWidth = 3; ctx.strokeRect(46, 46, W - 92, H - 92);
     ctx.strokeStyle = p.edge2; ctx.lineWidth = 1; ctx.strokeRect(60, 60, W - 120, H - 120);
 
+    const lsp = (v: string) => { try { (ctx as CanvasRenderingContext2D & { letterSpacing?: string }).letterSpacing = v; } catch { /* older canvas */ } };
     ctx.textAlign = "center";
     ctx.fillStyle = p.inkDim; ctx.font = "500 30px 'DM Mono', ui-monospace, monospace";
-    ctx.fillText("G T 3   ·   P E R F O R M A N C E   B A R", W / 2, 250);
+    ctx.fillText("G T 3   ·   P E R F O R M A N C E   B A R", W / 2, 240);
 
-    // tier — the status
-    const tg = ctx.createLinearGradient(0, 540, 0, 650);
-    tg.addColorStop(0, p.accent); tg.addColorStop(1, p.accentDeep);
-    ctx.fillStyle = tg; ctx.font = `800 ${founding ? 84 : 90}px 'Inter', sans-serif`;
-    ctx.fillText(tierLine, W / 2, 630);
+    // "I PERFORM" — first person; the card is theirs, and this is their statement
+    const ig = ctx.createLinearGradient(0, 408, 0, 512);
+    ig.addColorStop(0, p.accent); ig.addColorStop(1, p.accentDeep);
+    lsp("8px"); ctx.fillStyle = ig; ctx.font = "800 96px 'Inter', sans-serif";
+    ctx.fillText("I PERFORM", W / 2, 500); lsp("0px");
 
     ctx.strokeStyle = p.edge; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(W / 2 - 90, 688); ctx.lineTo(W / 2 + 90, 688); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(W / 2 - 90, 566); ctx.lineTo(W / 2 + 90, 566); ctx.stroke();
 
-    ctx.fillStyle = p.ink; ctx.font = "650 64px 'Inter', sans-serif"; ctx.fillText(name, W / 2, 792);
-    ctx.fillStyle = p.inkDim; ctx.font = "500 26px 'DM Mono', ui-monospace, monospace";
-    ctx.fillText(`MEMBER SINCE ${sinceYear}`, W / 2, 846);
+    ctx.fillStyle = p.ink; ctx.font = "650 66px 'Inter', sans-serif"; ctx.fillText(name, W / 2, 672);
 
-    ctx.fillStyle = p.accent; ctx.font = "italic 600 46px 'Fraunces', serif"; ctx.fillText(motto, W / 2, 960);
+    // their member status — in gold
+    lsp("5px"); ctx.fillStyle = p.accent; ctx.font = "600 34px 'Inter', sans-serif";
+    ctx.fillText(tierLine, W / 2, 744); lsp("0px");
 
-    // the join code — the viral hook
+    ctx.fillStyle = p.inkDim; ctx.font = "500 25px 'DM Mono', ui-monospace, monospace";
+    ctx.fillText(`MEMBER SINCE ${sinceYear}`, W / 2, 798);
+
+    ctx.fillStyle = p.accent; ctx.font = "italic 600 46px 'Fraunces', serif"; ctx.fillText(motto, W / 2, 912);
+
     ctx.fillStyle = p.accent; ctx.font = "600 30px 'DM Mono', ui-monospace, monospace";
-    ctx.fillText(code ? `JOIN WITH ${code}   ·   app.gt3pb.com` : "app.gt3pb.com   ·   join the drop", W / 2, 1250);
+    ctx.fillText(code ? `JOIN WITH ${code}   ·   app.gt3pb.com` : "app.gt3pb.com", W / 2, 1252);
 
     setReady(true);
   }, [founding, name, code, sinceYear, tierLine, motto, finish]);
@@ -214,9 +219,10 @@ export default function StatusCard({ open, onClose }: { open: boolean; onClose: 
             <div className="fc-face fc-back">
               <span className="fc-back-molecule" aria-hidden />
               <span className="fc-eyebrow">G T 3 · PERFORMANCE BAR</span>
-              <span className="fc-tier">{tierLine}</span>
+              <span className="fc-perform">I Perform</span>
               <span className="fc-rule" />
               <span className="fc-bname">{name}</span>
+              <span className="fc-status">{tierLine}</span>
               <span className="fc-since">MEMBER SINCE {sinceYear}</span>
               <span className="fc-motto">{motto}</span>
               <span className="fc-code">{code ? `JOIN WITH ${code}` : "app.gt3pb.com"}</span>

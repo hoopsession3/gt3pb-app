@@ -4617,10 +4617,11 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 
 /* BACK — the member card */
 .fc-back-molecule{position:absolute;inset:0;backface-visibility:hidden;background:url(/brand/caffeine-gt3.svg) center 62% / 62% no-repeat;opacity:.06}
-.fc-eyebrow{font-family:var(--mono);font-size:9.5px;letter-spacing:2.6px;color:var(--fc-ink);opacity:.7;margin-bottom:14px}
-.fc-tier{font-family:'Inter';font-weight:800;font-size:21px;letter-spacing:.4px;color:var(--fc-accent);line-height:1.05}
-.fc-rule{width:64px;height:2px;background:var(--fc-edge);margin:11px 0}
+.fc-eyebrow{font-family:var(--mono);font-size:9.5px;letter-spacing:2.6px;color:var(--fc-ink);opacity:.7;margin-bottom:16px}
+.fc-perform{font-family:'Inter';font-weight:800;font-size:30px;letter-spacing:2.5px;text-transform:uppercase;color:var(--fc-accent);line-height:1}
+.fc-rule{width:64px;height:2px;background:var(--fc-edge);margin:12px 0}
 .fc-bname{font-family:'Inter';font-weight:650;font-size:22px;color:var(--fc-ink)}
+.fc-status{font-family:'Inter';font-weight:600;font-size:11.5px;letter-spacing:2.8px;text-transform:uppercase;color:var(--fc-accent);margin-top:7px}
 .fc-since{font-family:var(--mono);font-size:9px;letter-spacing:1.6px;color:var(--fc-ink);opacity:.6;margin-top:4px}
 .fc-motto{font-family:'Fraunces',serif;font-style:italic;font-size:14px;color:var(--fc-accent);margin-top:12px;max-width:90%}
 .fc-code{position:absolute;bottom:20px;left:0;right:0;font-family:var(--mono);font-weight:500;font-size:11px;letter-spacing:1.2px;color:var(--fc-accent);opacity:.92}
