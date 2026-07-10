@@ -152,6 +152,7 @@ export interface EventTask {
 // (event_manager/admin/owner), tenant-scoped. Follow-ups become event_tasks owned by
 // meeting_note_id, so they flow through My Tasks + push exactly like event/stop tasks.
 export interface MeetingNote {
+  stop_id?: string | null;
   id: string;
   title: string;
   met_on: string;          // ISO date

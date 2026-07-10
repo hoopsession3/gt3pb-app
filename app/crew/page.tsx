@@ -1161,6 +1161,31 @@ function PrepViewSheet({ dir, setDir, onClose }: { dir: "asc" | "desc"; setDir: 
 
 type PrepTarget = { kind: "event" | "stop"; id: string };
 
+// The meetings behind this event/stop — titles + a first line, no click required to know what's
+// there; the jump opens the full Notes page.
+function NotesForTarget({ ownerCol, ownerId }: { ownerCol: "event_id" | "stop_id"; ownerId: string }) {
+  const { setSection } = useOperatorSection();
+  const [notes, setNotes] = useState<{ id: string; title: string; met_on: string; summary: string | null }[]>([]);
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.from("meeting_notes").select("id, title, met_on, summary").eq(ownerCol, ownerId).is("archived_at", null)
+      .order("met_on", { ascending: false }).limit(5)
+      .then(({ data }) => setNotes((data as { id: string; title: string; met_on: string; summary: string | null }[]) ?? []));
+  }, [ownerCol, ownerId]);
+  if (notes.length === 0) return null;
+  return (
+    <div className="pnotes">
+      <div className="dv-sub">Meeting notes · {notes.length}</div>
+      {notes.map((n) => (
+        <button key={n.id} type="button" className="pnotes-row" onClick={() => setSection("notes")}>
+          <b>{n.title}</b>
+          <span>{fmtNoteDate(n.met_on)}{n.summary ? ` — ${n.summary.slice(0, 90)}${n.summary.length > 90 ? "…" : ""}` : ""}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function PrepCard({ title, when, location, live, r, onOpen }: { title: string; when: string; location: string | null; live: boolean; r: Readiness; onOpen: () => void }) {
   const status = r.total === 0 ? "Not started" : r.done === r.total ? "✓ Ready to roll" : `Loaded ${r.done}/${r.total}`;
   const cls = r.total === 0 ? "none" : r.done === r.total ? "ok" : r.crit ? "miss" : "mid";
@@ -1443,7 +1468,7 @@ function EventPrep({ onGo }: { onGo: (t: string) => void }) {
           <div className="prep-group-h">Truck locations <span>{stops.length}</span></div>
           <div className="prep-cards">
             {stops.map((s) => (
-              <PrepCard key={s.id} title={s.name} when={s.id === liveStopId ? "Live now" : (s.when_label ?? "Stop")} location={s.location_text} live={s.id === liveStopId}
+              <PrepCard key={s.id} title={s.name} when={s.id === liveStopId ? "Live now" : [(s as { starts_at?: string | null }).starts_at ? new Date((s as { starts_at?: string | null }).starts_at as string).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : null, s.when_label].filter(Boolean).join(" · ") || "Unscheduled"} location={s.location_text} live={s.id === liveStopId}
                 r={ready[s.id] ?? { done: 0, total: 0, crit: 0 }} onOpen={() => setSelected({ kind: "stop", id: s.id })} />
             ))}
           </div>
@@ -1455,7 +1480,7 @@ function EventPrep({ onGo }: { onGo: (t: string) => void }) {
           <div className="prep-group-h">{g.label} <span>{g.items.length}</span></div>
           <div className="prep-cards">
             {g.items.map((ev) => (
-              <PrepCard key={ev.id} title={ev.title} when={[ev.day_label, ev.start_time].filter(Boolean).join(" · ")} location={ev.location_text} live={!!ev.is_live}
+              <PrepCard key={ev.id} title={ev.title} when={[ev.day ? new Date(`${ev.day}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : ev.day_label, ev.start_time].filter(Boolean).join(" · ") || "Unscheduled"} location={ev.location_text} live={!!ev.is_live}
                 r={ready[ev.id] ?? { done: 0, total: 0, crit: 0 }} onOpen={() => setSelected({ kind: "event", id: ev.id })} />
             ))}
           </div>
@@ -1898,6 +1923,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
 
       {/* How the crew shows up — dress code + call details. Leadership edits; assigned crew read it. */}
       <DayBrief ownerCol={ownerCol as "event_id" | "stop_id"} ownerId={target.id} isAdmin={isAdmin} />
+      <NotesForTarget ownerCol={ownerCol as "event_id" | "stop_id"} ownerId={target.id} />
 
       {/* Nuke / reset — wipe the prep + schedule built for this event/stop and start clean. */}
       {isAdmin && total > 0 && (
@@ -2313,7 +2339,10 @@ function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive
   };
 
   const showPoc = kind === "vendor" || !stop?.vendor_id;
-  const sub = [row.poc_name, row.service_dates, hasCoords ? "pinned" : "no pin"].filter(Boolean).join("  ·  ");
+  const stopWhen = kind === "stop" && (row as { starts_at?: string | null }).starts_at
+    ? new Date((row as { starts_at?: string | null }).starts_at as string).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+    : null;
+  const sub = [stopWhen, row.poc_name, row.service_dates, hasCoords ? "pinned" : "no pin"].filter(Boolean).join("  ·  ");
   const tag = kind === "stop" ? `Location ${String(index + 1).padStart(2, "0")}${isCur ? " · Live" : ""}` : `Vendor ${String(index + 1).padStart(2, "0")}`;
   return (
     <div className={`ev-card${isCur ? " live" : ""}${open ? " open" : ""}`}>
@@ -2736,6 +2765,7 @@ function MeetingNotes() {
   const meName = profile?.display_name?.trim() || "Me";
   const [notes, setNotes] = useState<MeetingNote[]>([]);
   const [events, setEvents] = useState<{ id: string; title: string }[]>([]);
+  const [noteStops, setNoteStops] = useState<{ id: string; name: string | null }[]>([]);
   const [staff, setStaff] = useState<{ id: string; display_name: string | null; role?: string | null }[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
   const [composing, setComposing] = useState(false);
@@ -2744,7 +2774,7 @@ function MeetingNotes() {
   const [cSummary, setCSummary] = useState("");
   const [cBody, setCBody] = useState("");
   const [cActions, setCActions] = useState<{ title: string; category: string; critical: boolean }[]>([]);
-  const [cEvent, setCEvent] = useState("");
+  const [cLink, setCLink] = useState(""); // "" | event:<id> | stop:<id>
   const [saving, setSaving] = useState(false);
   const [summarizing, setSummarizing] = useState(false);
   const [query, setQuery] = useState("");
@@ -2782,6 +2812,7 @@ function MeetingNotes() {
     load();
     if (!supabase) return;
     supabase.from("events").select("id, title").is("archived_at", null).order("day", { ascending: false }).then(({ data }) => setEvents((data as { id: string; title: string }[]) ?? []));
+    supabase.from("stops").select("id, name").is("archived_at", null).neq("status", "done").then(({ data }) => setNoteStops((data as { id: string; name: string | null }[]) ?? []));
     supabase.from("profiles").select("id, display_name, role").neq("role", "member").then(({ data }) => setStaff((data as { id: string; display_name: string | null; role?: string | null }[]) ?? []));
   }, [load]);
   useRealtimeTable("meeting_notes", load);
@@ -2789,21 +2820,27 @@ function MeetingNotes() {
   const save = async () => {
     if (!supabase || !cTitle.trim() || saving) return;
     setSaving(true);
+    const linkEvent = cLink.startsWith("event:") ? cLink.slice(6) : null;
+    const linkStop = cLink.startsWith("stop:") ? cLink.slice(5) : null;
     const { data, error } = await supabase.from("meeting_notes").insert({
       title: cTitle.trim(), met_on: cDate, summary: cSummary.trim() || null,
-      body: cBody.trim() || null, event_id: cEvent || null, created_by: meId,
+      body: cBody.trim() || null, event_id: linkEvent, stop_id: linkStop, created_by: meId,
     }).select("id").single();
-    // AI-extracted action items become the note's follow-up tasks (My Tasks / note follow-ups).
+    // Follow-ups ride the ONE task engine. Linked note → tasks file under the event/stop (so they
+    // land on its prep checklist); no link → note-owned as before. origin_note_id (0167) is pure
+    // attribution — the note always knows the tasks it spawned, wherever they live.
     const noteId = (data as { id: string } | null)?.id;
     if (!error && noteId && cActions.length) {
+      const owner = linkEvent ? { event_id: linkEvent } : linkStop ? { stop_id: linkStop } : { meeting_note_id: noteId };
       await supabase.from("event_tasks").insert(cActions.map((a, i) => ({
-        meeting_note_id: noteId, label: a.title, kind: "task", section: "Follow-up", critical: a.critical, sort: 1000 + i,
+        ...owner, origin_note_id: noteId, label: a.title, kind: "task", section: "Follow-up", critical: a.critical, sort: 1000 + i,
       })));
     }
     setSaving(false);
     if (error) { toast(`Error: ${error.message}`, "error"); return; }
-    toast(`Note saved${cActions.length ? ` · ${cActions.length} task${cActions.length === 1 ? "" : "s"} added` : ""}`);
-    setCTitle(""); setCSummary(""); setCBody(""); setCEvent(""); setCActions([]); setComposing(false);
+    const dest = linkEvent ? "the event's prep list" : linkStop ? "the stop's prep list" : "the note";
+    toast(`Note saved${cActions.length ? ` · ${cActions.length} task${cActions.length === 1 ? "" : "s"} → ${dest}` : ""}`);
+    setCTitle(""); setCSummary(""); setCBody(""); setCLink(""); setCActions([]); setComposing(false);
     load();
   };
   const remove = async (n: MeetingNote) => {
@@ -2825,9 +2862,14 @@ function MeetingNotes() {
           <input className="note-in" placeholder="What did you meet about?" value={cTitle} onChange={(e) => setCTitle(e.target.value)} />
           <div className="note-row">
             <input type="date" className="note-in" value={cDate} onChange={(e) => setCDate(e.target.value)} aria-label="Meeting date" />
-            <select className="note-in" value={cEvent} onChange={(e) => setCEvent(e.target.value)} aria-label="Link to event">
-              <option value="">No event link</option>
-              {events.map((ev) => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
+            <select className="note-in" value={cLink} onChange={(e) => setCLink(e.target.value)} aria-label="Link to an event or truck stop">
+              <option value="">No link</option>
+              <optgroup label="Events">
+                {events.map((ev) => <option key={ev.id} value={`event:${ev.id}`}>{ev.title}</option>)}
+              </optgroup>
+              <optgroup label="Truck stops">
+                {noteStops.map((s) => <option key={s.id} value={`stop:${s.id}`}>{s.name || "Untitled location"}</option>)}
+              </optgroup>
             </select>
           </div>
           <textarea className="note-area" placeholder="Recap / summary — paste from your notes app, or ✨ generate below…" value={cSummary} onChange={(e) => setCSummary(e.target.value)} rows={cSummary.length > 200 ? 10 : 3} />
@@ -2850,7 +2892,7 @@ function MeetingNotes() {
         const archivedCount = notes.filter((n) => n.archived_at).length;
         const q = query.trim().toLowerCase();
         const shown = notes.filter((n) => (tab === "archived" ? n.archived_at : !n.archived_at))
-          .filter((n) => !q || n.title.toLowerCase().includes(q) || (n.summary || "").toLowerCase().includes(q) || (events.find((e) => e.id === n.event_id)?.title || "").toLowerCase().includes(q));
+          .filter((n) => !q || n.title.toLowerCase().includes(q) || (n.summary || "").toLowerCase().includes(q) || (events.find((e) => e.id === n.event_id)?.title || "").toLowerCase().includes(q) || (noteStops.find((s) => s.id === n.stop_id)?.name || "").toLowerCase().includes(q));
         return (
           <>
             <div className="note-filter">
@@ -2864,7 +2906,7 @@ function MeetingNotes() {
               <MeetingNoteCard
                 key={n.id} note={n} open={openId === n.id} onToggle={() => setOpenId(openId === n.id ? null : n.id)}
                 staff={staff} meId={meId} meName={meName} isAdmin={isAdmin}
-                eventTitle={events.find((e) => e.id === n.event_id)?.title ?? null} onDelete={() => remove(n)}
+                eventTitle={events.find((e) => e.id === n.event_id)?.title ?? (n.stop_id ? `Stop · ${noteStops.find((s) => s.id === n.stop_id)?.name ?? "location"}` : null)} onDelete={() => remove(n)}
                 onArchive={() => archive(n, !n.archived_at)}
               />
             ))}
@@ -2901,7 +2943,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    const { data } = await supabase.from("event_tasks").select("*").eq("meeting_note_id", note.id).order("sort");
+    const { data } = await supabase.from("event_tasks").select("*").or(`meeting_note_id.eq.${note.id},origin_note_id.eq.${note.id}`).order("sort");
     const rows = (data as EventTask[]) ?? [];
     setItems(rows);
     setCounts(await commentCounts("event_task_id", rows.map((r) => r.id)));

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useApp } from "./AppProvider";
@@ -70,6 +70,8 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [no, setNo] = useState({ vendorId: "", newVendor: "", newType: "gym", dealId: "", repId: "", value: "", nextStep: "" });
   const [nd, setNd] = useState({ title: "", vendor_type: "gym", price_label: "", blurb: "", model: "rev_share", rate: "", amount: "" });
+  const [editId, setEditId] = useState<string | null>(null);    // deal being edited in the catalog
+  const [ed, setEd] = useState({ title: "", vendor_type: "gym", price_label: "", blurb: "", model: "rev_share", rate: "", amount: "" });
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -154,7 +156,76 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   };
   const toggleDeal = async (d: Deal) => {
     if (!supabase) return;
-    await supabase.from("deals").update({ active: !d.active }).eq("id", d.id);
+    setDeals((prev) => prev.map((x) => (x.id === d.id ? { ...x, active: !d.active } : x)));
+    const { error } = await supabase.from("deals").update({ active: !d.active, updated_at: new Date().toISOString() }).eq("id", d.id);
+    if (error) toast(`Couldn't save — ${error.message}`, "error");
+    load();
+  };
+
+  const openEditDeal = (d: Deal) => {
+    if (editId === d.id) { setEditId(null); return; }
+    setEditId(d.id);
+    setEd({
+      title: d.title, vendor_type: d.vendor_type, price_label: d.price_label ?? "", blurb: d.blurb ?? "",
+      model: d.model, rate: d.rate_pct != null ? String(d.rate_pct) : "", amount: d.monthly_cents != null ? String(d.monthly_cents / 100) : "",
+    });
+  };
+
+  const saveDeal = async () => {
+    if (!supabase || !editId || !ed.title.trim()) return;
+    const rate = ed.rate ? Number(ed.rate) : null;
+    const amount = ed.amount ? Math.round(Number(ed.amount) * 100) : null;
+    const fields = {
+      title: ed.title.trim(), vendor_type: ed.vendor_type, model: ed.model,
+      rate_pct: (ed.model === "rev_share" || ed.model === "discount") ? rate : null,
+      monthly_cents: (ed.model === "monthly" || ed.model === "flat") ? amount : null,
+      price_label: ed.price_label.trim() || null, blurb: ed.blurb.trim() || null,
+    };
+    setDeals((prev) => prev.map((x) => (x.id === editId ? { ...x, ...fields } : x)));
+    const { error } = await supabase.from("deals").update({ ...fields, updated_at: new Date().toISOString() }).eq("id", editId);
+    if (error) { toast(`Couldn't save — ${error.message}`, "error"); load(); return; }
+    if (fields.rate_pct != null && fields.rate_pct > MARGIN_FLOOR_GIVE) toast(`Heads up — that gives away ${fields.rate_pct}%, past the 80% margin floor`, "error");
+    setEditId(null);
+    toast("Deal updated"); load();
+  };
+
+  const deleteDeal = async (d: Deal) => {
+    if (!supabase) return;
+    if (typeof window !== "undefined" && !window.confirm("Remove this deal from the table? Opportunities that used it keep their record.")) return;
+    if (editId === d.id) setEditId(null);
+    setDeals((prev) => prev.filter((x) => x.id !== d.id));
+    const { error } = await supabase.from("deals").delete().eq("id", d.id);
+    if (error) toast(`Couldn't remove — ${error.message}`, "error");
+    else toast("Off the table");
+    load();
+  };
+
+  // Swap sort with the neighbor inside the same vendor-type group. If the two sorts happen to
+  // match (legacy rows), fall back to the list positions so the swap actually holds.
+  const moveDeal = async (d: Deal, dir: -1 | 1) => {
+    if (!supabase) return;
+    const group = deals.filter((x) => x.vendor_type === d.vendor_type);
+    const i = group.findIndex((x) => x.id === d.id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= group.length) return;
+    const other = group[j];
+    const mySort = d.sort === other.sort ? j : other.sort;
+    const theirSort = d.sort === other.sort ? i : d.sort;
+    setDeals((prev) => {
+      const next = [...prev];
+      const pi = next.findIndex((x) => x.id === d.id);
+      const pj = next.findIndex((x) => x.id === other.id);
+      if (pi < 0 || pj < 0) return prev;
+      next[pi] = { ...other, sort: theirSort };
+      next[pj] = { ...d, sort: mySort };
+      return next;
+    });
+    const stamp = new Date().toISOString();
+    const [a, b] = await Promise.all([
+      supabase.from("deals").update({ sort: mySort, updated_at: stamp }).eq("id", d.id),
+      supabase.from("deals").update({ sort: theirSort, updated_at: stamp }).eq("id", other.id),
+    ]);
+    if (a.error || b.error) toast(`Couldn't reorder — ${(a.error ?? b.error)!.message}`, "error");
     load();
   };
 
@@ -224,7 +295,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
       {isAdmin && (
         <>
           <button type="button" className="prep-collapse" onClick={() => setCatalogOpen((v) => !v)} aria-expanded={catalogOpen}>
-            <span className="prep-collapse-l"><b>🗂 Deal catalog · {deals.filter((d) => d.active).length} live</b><span>what reps can offer — per account type; inactive deals disappear from their pickers</span></span>
+            <span className="prep-collapse-l"><b>🗂 Deal catalog · {deals.filter((d) => d.active).length} live · {deals.filter((d) => !d.active).length} off</b><span>what reps can offer — per account type; inactive deals disappear from their pickers</span></span>
             <span className={`ev-chev${catalogOpen ? " open" : ""}`}>›</span>
           </button>
           {catalogOpen && (
@@ -232,11 +303,51 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
               {VENDOR_TYPES.filter((t) => deals.some((d) => d.vendor_type === t)).map((t) => (
                 <div key={t}>
                   <div className="dv-sub" style={{ margin: "8px 0 4px", textTransform: "capitalize" }}>{t}</div>
-                  {deals.filter((d) => d.vendor_type === t).map((d) => (
-                    <div key={d.id} className={`pipe-dealrow${d.active ? "" : " off"}`}>
-                      <span className="pipe-dealrow-t"><b>{d.title}</b>{dealTerms(d) && ` · ${dealTerms(d)}`}{belowFloor(d) && <span className="pipe-floor">below 80% floor</span>}{d.blurb && <i> — {d.blurb}</i>}</span>
-                      <button type="button" className="lane-pin" onClick={() => toggleDeal(d)}>{d.active ? "Live" : "Off"}</button>
-                    </div>
+                  {deals.filter((d) => d.vendor_type === t).map((d, i, group) => (
+                    <Fragment key={d.id}>
+                      <div className={`pipe-dealrow${d.active ? "" : " off"}`}>
+                        <button type="button" className="pipe-dealrow-t" onClick={() => openEditDeal(d)} aria-expanded={editId === d.id}><b>{d.title}</b>{dealTerms(d) && ` · ${dealTerms(d)}`}{belowFloor(d) && <span className="pipe-floor">below 80% floor</span>}{d.blurb && <i> — {d.blurb}</i>}</button>
+                        <span className="pipe-ordwrap">
+                          <button type="button" className="pipe-ord" onClick={() => moveDeal(d, -1)} disabled={i === 0} aria-label={`Move ${d.title} up`}>↑</button>
+                          <button type="button" className="pipe-ord" onClick={() => moveDeal(d, 1)} disabled={i === group.length - 1} aria-label={`Move ${d.title} down`}>↓</button>
+                        </span>
+                        <button type="button" className="lane-pin" onClick={() => toggleDeal(d)}>{d.active ? "Live" : "Off"}</button>
+                        <button type="button" className="pipe-del" onClick={() => deleteDeal(d)} aria-label={`Remove ${d.title}`}>✕</button>
+                      </div>
+                      {editId === d.id && (
+                        <div className="pipe-dealedit">
+                          <div className="pipe-grid">
+                            <label>Title<input value={ed.title} onChange={(e) => setEd({ ...ed, title: e.target.value })} maxLength={80} /></label>
+                            <label>For
+                              <select value={ed.vendor_type} onChange={(e) => setEd({ ...ed, vendor_type: e.target.value })}>
+                                {VENDOR_TYPES.map((vt) => <option key={vt} value={vt}>{vt}</option>)}
+                              </select>
+                            </label>
+                            <label>Model
+                              <select value={ed.model} onChange={(e) => setEd({ ...ed, model: e.target.value })}>
+                                {DEAL_MODELS.map((m) => <option key={m.key} value={m.key}>{m.label} — {m.hint}</option>)}
+                              </select>
+                            </label>
+                            {(ed.model === "rev_share" || ed.model === "discount") && (
+                              <label>{ed.model === "rev_share" ? "Their cut %" : "Discount %"} <i>{ed.rate && Number(ed.rate) > MARGIN_FLOOR_GIVE ? "— below the 80% floor" : ed.model === "rev_share" && ed.rate ? `— we keep ${100 - Number(ed.rate)}%` : ""}</i>
+                                <input inputMode="decimal" value={ed.rate} onChange={(e) => setEd({ ...ed, rate: e.target.value })} placeholder="10" />
+                              </label>
+                            )}
+                            {(ed.model === "monthly" || ed.model === "flat") && (
+                              <label>{ed.model === "monthly" ? "$ / month" : "Flat $"}<input inputMode="decimal" value={ed.amount} onChange={(e) => setEd({ ...ed, amount: e.target.value })} placeholder="500" /></label>
+                            )}
+                            {ed.model === "custom" && (
+                              <label>Terms<input value={ed.price_label} onChange={(e) => setEd({ ...ed, price_label: e.target.value })} placeholder="Describe the structure" maxLength={40} /></label>
+                            )}
+                            <label>One-liner<input value={ed.blurb} onChange={(e) => setEd({ ...ed, blurb: e.target.value })} placeholder="What the account gets" maxLength={120} /></label>
+                          </div>
+                          <div className="st-log-btns">
+                            <button type="button" className="dops-mini" onClick={saveDeal} disabled={!ed.title.trim()}>Save changes</button>
+                            <button type="button" className="st-discuss" onClick={() => setEditId(null)}>Cancel</button>
+                          </div>
+                        </div>
+                      )}
+                    </Fragment>
                   ))}
                 </div>
               ))}

@@ -1566,7 +1566,19 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .note-area{width:100%;background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:11px;padding:12px 13px;color:var(--cream);font-family:'Inter';font-size:15px;line-height:1.5;outline:none;resize:vertical;min-height:64px}
 .note-area:focus{border-color:var(--gold2)}
 .note-area::placeholder{color:rgba(245,241,232,.32)}
-.note-actions{display:flex;gap:10px;justify-content:flex-end}
+.note-actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+.note-actions button{flex:0 1 auto;min-width:0}
+/* the composer on the light theme: white fields, dark ink, readable placeholders (was translucent
+   black over cream — the gray-mud screenshot) */
+.app.crew-day .note-in,.app.crew-day .note-area{background:#fff;color:#221F18;border-color:rgba(34,31,24,.18)}
+.app.crew-day .note-in::placeholder,.app.crew-day .note-area::placeholder{color:rgba(34,31,24,.55)}
+.note-composer{max-width:100%}
+/* meeting notes inside the prep hub — summary visible without a tap */
+.pnotes{margin:12px 0 4px}
+.pnotes-row{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:10px 12px;margin-top:7px;cursor:pointer;color:var(--cream);-webkit-appearance:none;appearance:none}
+.pnotes-row b{display:block;font-family:'Inter';font-weight:650;font-size:12.5px}
+.pnotes-row span{display:block;font-size:11.5px;color:var(--cream-m);margin-top:2px}
+.app.crew-day .pnotes-row{background:#fff}
 .note-cancel{background:none;border:1.5px solid var(--line2);border-radius:11px;padding:11px 18px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13.5px;cursor:pointer;-webkit-appearance:none;appearance:none}
 /* .note-save's box/fill lives in the shared :is(.adm-btn.primary,.note-save) rule (see .adm-btn). */
 .note-save:disabled{opacity:.4}
@@ -4036,6 +4048,16 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .pipe-dealrow-t i{font-style:normal;color:var(--cream-m)}
 .pipe-floor{margin-left:6px;font-family:'Inter';font-weight:700;font-size:8.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--red-h);border:1px solid rgba(184,36,32,.4);border-radius:12px;padding:2px 7px}
 .app.crew-day .pipe-card{background:#fff}
+
+/* Deal catalog management (PipelinePanel) — tap-to-edit, reorder, remove */
+button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:left;font-family:inherit;cursor:pointer;-webkit-appearance:none;appearance:none}
+.pipe-ordwrap{display:flex;gap:3px;flex:0 0 auto}
+.pipe-ord{flex:0 0 auto;width:24px;height:24px;padding:0;line-height:1;background:none;border:1px solid var(--line2);border-radius:8px;color:var(--cream-m);font-size:11px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.pipe-ord:disabled{opacity:.3;cursor:default}
+.pipe-del{flex:0 0 auto;background:none;border:none;padding:2px 4px;color:var(--cream-d);font-size:12px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.pipe-del:hover{color:var(--red-h)}
+.pipe-dealedit{border-top:1px dashed var(--line);padding:10px 0 12px}
+.pipe-dealedit .st-log-btns{margin-top:8px}
 
 /* card-connection check — plain verdicts from the Square health route */
 .pay-health{border:1px solid var(--line);border-radius:12px;padding:6px 12px;margin:10px 0 4px}

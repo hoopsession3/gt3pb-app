@@ -8,7 +8,7 @@ import { authedFetch } from "@/lib/authedFetch";
 import { subscribePush } from "@/lib/push";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import { useAvailability } from "@/lib/availability";
-import { saveAmount, PRICING } from "@/lib/orderAhead";
+import { perBottle, PRICING } from "@/lib/orderAhead";
 import { useOrderingOpen } from "./useOrderingOpen";
 import { usePayAtPickup } from "./usePayAtPickup";
 import { squareClientReady } from "@/lib/square";
@@ -64,6 +64,24 @@ export default function Checkout() {
   const tipCents = Math.round(totalCents * tipPct);
   const grandCents = totalCents + tipCents;
   const total = (grandCents / 100).toFixed(2);
+
+  // The upsell line's numbers come straight from the pricing grid (lib/orderAhead) — the 6-pack
+  // bring-back per-bottle price against the $10 cup at the truck, % rounded down. Nothing is
+  // hardcoded here, so a grid change updates the copy on its own; if the math ever can't produce
+  // a sane pair, `null` quietly falls back to the original line.
+  const packUpsell = (() => {
+    try {
+      const size = 6;
+      const per = perBottle(size, "return");
+      const cup = PRICING.walkup.single;
+      if (!Number.isFinite(per) || !Number.isFinite(cup) || per <= 0 || per >= cup) return null;
+      const pct = Math.floor(((cup - per) / cup) * 100);
+      if (pct < 1) return null;
+      return { size, per: `$${per.toFixed(2)}`, pct };
+    } catch {
+      return null;
+    }
+  })();
 
   // Enable order-status alerts (must run inside a click — a user gesture).
   const enableAlerts = async () => {
@@ -189,7 +207,11 @@ export default function Checkout() {
                   in their moments; while paying, the cart is the hero. */}
               {ordering.open && (
                 <button type="button" className="co-upsell-line" onClick={() => router.push("/reserve")}>
-                  Bottles for your week? <b>Reserve a Saturday pack ›</b>
+                  {packUpsell ? (
+                    <>Bottles for your week? <b>Reserve a Saturday {packUpsell.size}-pack — bottles from {packUpsell.per}, save {packUpsell.pct}% ›</b></>
+                  ) : (
+                    <>Bottles for your week? <b>Reserve a Saturday pack ›</b></>
+                  )}
                 </button>
               )}
 
