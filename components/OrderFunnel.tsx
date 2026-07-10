@@ -332,19 +332,19 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
 
       {mode === "pickup" && step === "size" && (
         <>
-          <MyPacks onChange={startChange} refreshKey={packsKey} />
-          {replacing && (
-            <div className="oa-editing">
-              Editing your {replacing.size}-pack for {packDayLabel(replacing)} — reserving again replaces it.
-              <button type="button" onClick={() => setReplacing(null)}>Keep it as is</button>
-            </div>
-          )}
           {usual && !replacing && (
             <button type="button" className="oa-usual" onClick={reorderUsual}>
               <span className="oa-usual-k">↺ Your usual</span>
               <span className="oa-usual-v">{usual.size} bottles · {usual.glass === "return" ? "bring-back" : "new glass"}</span>
               <span className="oa-usual-go">Load →</span>
             </button>
+          )}
+          <MyPacks onChange={startChange} refreshKey={packsKey} />
+          {replacing && (
+            <div className="oa-editing">
+              Editing your {replacing.size}-pack for {packDayLabel(replacing)} — reserving again replaces it.
+              <button type="button" onClick={() => setReplacing(null)}>Keep it as is</button>
+            </div>
           )}
         </>
       )}
@@ -388,7 +388,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
       {/* ── SIZE ── */}
       {step === "size" && (
         <div className="dl-step">
-          <h2 className="dl-h">{mode === "delivery" ? "We deliver to you. Pick a Sunday and a size." : "Order ahead. Pick a day and a size."}</h2>
+          <h2 className="dl-h">{mode === "delivery" ? "We deliver to you. Pick a Sunday and a size." : stops.length > 1 ? "Order ahead. Pick a day and a size." : `Order ahead for ${dayName(drop.sat).split(",")[0]}. Pick a size.`}</h2>
           {mode === "pickup" && <p className="dl-sub">Cold-extracted Rise, Flow &amp; Dusk — smooth, low-acid bottles for your week. Reserve now, grab them at the truck.</p>}
 
           {mode === "pickup" && <p className="dl-pricemode">{bringBack ? "Prices with bring-back empties — need new glass? It\u2019s $10 a bottle, picked at the next step." : "New-glass prices — bring your empties back next drop and pay less."}</p>}
