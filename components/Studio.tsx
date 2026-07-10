@@ -7,7 +7,10 @@ import { authedFetch } from "@/lib/authedFetch";
 import { useRealtimeTable } from "@/lib/realtime";
 import { uploadToBucket } from "@/lib/uploads";
 import { raiseAlertClient } from "@/lib/clientAlerts";
+import { GTM_PLAYS } from "@/lib/strategy";
 import Sheet from "@/components/Sheet";
+
+type CLink = { id: string; event_id: string | null; stop_id: string | null; play_key: string | null };
 import BrandCalendar from "./BrandCalendar";
 import BrandKit from "./BrandKit";
 import RoadFlyer from "./RoadFlyer";
@@ -194,6 +197,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   const [sched, setSched] = useState(""); const [note, setNote] = useState("");
   const [eventId, setEventId] = useState<string>(""); const [evs, setEvs] = useState<{ id: string; title: string | null; day: string | null; day_label: string | null }[]>([]);
   const [stopId, setStopId] = useState<string>(""); const [stops, setStops] = useState<{ id: string; name: string | null; starts_at: string | null; when_label: string | null }[]>([]);
+  const [links, setLinks] = useState<CLink[]>([]); // many-to-many: events + stops + plays (0169)
   const [peers, setPeers] = useState<{ id: string; name: string }[]>([]);
   const [savedAt, setSavedAt] = useState<string>("");
   const [versions, setVersions] = useState<Version[]>([]);
@@ -243,6 +247,8 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
       setEventId(it.event_id ?? "");
       setStopId((it as any).stop_id ?? "");
     });
+    supabase.from("content_links").select("id, event_id, stop_id, play_key").eq("content_id", id)
+      .then(({ data }) => { if (!cancelled) setLinks((data as CLink[]) ?? []); });
     loadVersions();
     return () => { cancelled = true; };
   }, [id, loadVersions]);
@@ -521,17 +527,48 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
         <select className="insp-in" value={item.channel} onChange={(e) => setMeta("channel", e.target.value)}>{CHANNELS.map((c) => <option key={c} value={c}>{c}</option>)}</select>
         <input className="insp-in" list="studio-campaigns" value={campaign} onChange={(e) => setCampaign(e.target.value)} onBlur={() => { const v = campaign.trim() || null; if (v !== (item.campaign ?? null)) persist({ campaign: v }); }} placeholder="Campaign / theme" maxLength={60} />
         <datalist id="studio-campaigns">{campaigns.map((c) => <option key={c} value={c} />)}</datalist>
-        <select className="insp-in" value={stopId ? `s:${stopId}` : eventId ? `e:${eventId}` : ""} onChange={(e) => {
-          const v = e.target.value;
-          if (v.startsWith("s:")) { const sid = v.slice(2); setStopId(sid); setEventId(""); persist({ stop_id: sid, event_id: null }); }
-          else if (v.startsWith("e:")) { const eid = v.slice(2); setEventId(eid); setStopId(""); persist({ event_id: eid, stop_id: null }); }
-          else { setEventId(""); setStopId(""); persist({ event_id: null, stop_id: null }); }
-        }} title="Link this piece to an event or truck stop (optional)">
-          <option value="">🔗 Not linked</option>
+        {/* Additive links (0169): one piece can promote an event, run at a stop, AND serve a play —
+            each link is a taxonomy edge for reporting. The FIRST event/stop also fills the legacy
+            primary columns so the calendar + campaign flows keep working unchanged. */}
+        <select className="insp-in" value="" onChange={async (e) => {
+          const v = e.target.value; if (!v || !supabase) return;
+          const row: Record<string, string> = { content_id: id };
+          if (v.startsWith("e:")) row.event_id = v.slice(2);
+          else if (v.startsWith("s:")) row.stop_id = v.slice(2);
+          else if (v.startsWith("p:")) row.play_key = v.slice(2);
+          const { data, error } = await supabase.from("content_links").insert(row).select("id, event_id, stop_id, play_key").single();
+          if (error) return; // duplicate link or RLS — nothing to add either way
+          setLinks((p) => [...p, data as CLink]);
+          if (row.event_id && !eventId) { setEventId(row.event_id); persist({ event_id: row.event_id }); }
+          if (row.stop_id && !stopId) { setStopId(row.stop_id); persist({ stop_id: row.stop_id }); }
+        }} title="Link this piece to events, truck stops, or strategy plays">
+          <option value="">🔗 ＋ Link to…</option>
           {evs.length > 0 && <optgroup label="Events">{evs.map((ev) => <option key={ev.id} value={`e:${ev.id}`}>🎪 {ev.day_label || ev.day || ""} · {ev.title || "Event"}</option>)}</optgroup>}
           {stops.length > 0 && <optgroup label="Truck stops">{stops.map((s) => <option key={s.id} value={`s:${s.id}`}>🚚 {stopWhen(s)} · {s.name || "Stop"}</option>)}</optgroup>}
+          <optgroup label="Strategy plays">{GTM_PLAYS.map((pl) => <option key={pl.name} value={`p:${pl.name}`}>🎯 {pl.name}</option>)}</optgroup>
         </select>
       </div>
+
+      {links.length > 0 && (
+        <div className="studio-links">
+          {links.map((l) => {
+            const label = l.event_id ? `🎪 ${evs.find((e2) => e2.id === l.event_id)?.title ?? "Event"}`
+              : l.stop_id ? `🚚 ${stops.find((s2) => s2.id === l.stop_id)?.name ?? "Stop"}`
+              : `🎯 ${l.play_key}`;
+            return (
+              <span key={l.id} className="studio-link-chip">{label}
+                <button type="button" aria-label={`Unlink ${label}`} onClick={async () => {
+                  if (!supabase) return;
+                  setLinks((p) => p.filter((x) => x.id !== l.id));
+                  await supabase.from("content_links").delete().eq("id", l.id);
+                  if (l.event_id && l.event_id === eventId) { setEventId(""); persist({ event_id: null }); }
+                  if (l.stop_id && l.stop_id === stopId) { setStopId(""); persist({ stop_id: null }); }
+                }}>✕</button>
+              </span>
+            );
+          })}
+        </div>
+      )}
 
       {linkedStop && (
         <div className="studio-rel">
