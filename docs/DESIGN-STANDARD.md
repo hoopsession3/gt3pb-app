@@ -61,3 +61,32 @@ copies of an idea.
     then push. Report failures plainly.
 16. **Audits raise this bar.** Every audit finding that generalizes becomes a line here, and the
     fix sweeps ALL instances — never just the reported one.
+
+## Locked 2026-07-10 — the day of the great consolidation (rules 17–24; do not go back)
+
+17. **One writer per outcome, one editor per identity, one glance screen.** Delivery outcomes are
+    written ONLY in /driver. A stop/event's identity + lifecycle is edited ONLY in its prep hub
+    (Route and the calendar deep-link to it — `gt3-prep-open` + `setSection("prep")`). My Day is
+    THE start-of-shift glance: needs-you, flags with threads, tasks, note capture. Any surface
+    that duplicates one of these jobs is a bug, not a convenience.
+18. **Relations over boolean columns** (0173's lesson): if a fact is "which X" and an X table
+    exists, model the join (`event_menu_items`), never per-X flag columns. A new product/deal/play
+    must appear everywhere by INSERT, not by migration.
+19. **The comments table is THE thread engine** (strategy_key or one XOR id); event_tasks is THE
+    task engine (one-owner XOR + origin attribution); alerts are THE ping spine (INSERT is the
+    whole contract — 0157 fans out). New collaboration features compose these, never fork them.
+20. **Visibility is RLS, never UI.** Note tiers (private/team/collab) are policies; comments
+    inherit their subject's visibility via RESTRICTIVE policies. Hiding a button is not security.
+21. **The motion voice.** Two easing tokens (`--ease`, `--ease-enter`) + `--spring` for sheets —
+    no new cubic-beziers. Three shadow tokens per theme. Arrivals stagger (seatIn), sheets exit
+    the way they entered (the canonical Sheet owns gesture exits), state that matters settles
+    (paid flag) or breathes (LIVE dot) — nothing else moves uninvited. Reduced-motion always wins.
+22. **Brand moments are locked assets.** The pour-fill "3" (mask over /public/brand/3-outline.svg,
+    never redrawn), the green checkered flag under paid confirmations, HAPTIC.arm on go-live,
+    HAPTIC.paid on a live paid-flip. New moments come from the brand kit, not from invention.
+23. **Money state is a flag, not a whisper**: stripe + solid chip (green paid / gold due / dim
+    done) with `data-`driven copy — never hardcoded "paid". Customer-facing prices show the number
+    the CUSTOMER will actually pay first (bring-back vs new-glass defaults by session).
+24. **Co-work protocol.** Concurrent sessions each own disjoint files; migration numbers are
+    claimed against MAIN AND open branches before writing; branches merge main INTO themselves and
+    re-gate before landing; every session's tree must be committed-or-clean before handoff.
