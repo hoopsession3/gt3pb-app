@@ -45,7 +45,10 @@ export default function CompanyCalendar() {
   const isOwner = roleOf(profile) === "owner";
   const now = new Date();
   const todayKey = key(now);
-  const [view, setView] = useState<View>(() => { if (typeof window !== "undefined") { const v = localStorage.getItem(VIEW_KEY) as View; if (v) return v; } return "month"; });
+  // Default is LIST, not the month grid — on a phone the 30-day grid is a wall of tiny cells that
+  // shows almost no data (owner call, 2026-07-09: "we lose sight… it's small and shows not much").
+  // List reads like an agenda: dense, dated, actionable. A chosen view still persists.
+  const [view, setView] = useState<View>(() => { if (typeof window !== "undefined") { const v = localStorage.getItem(VIEW_KEY) as View; if (v) return v; } return "list"; });
   const setV = (v: View) => { setView(v); if (typeof window !== "undefined") localStorage.setItem(VIEW_KEY, v); };
   const [cursor, setCursor] = useState(() => new Date(now.getFullYear(), now.getMonth(), now.getDate())); // always open on today (right week AND month)
   const setCur = (d: Date) => setCursor(d);

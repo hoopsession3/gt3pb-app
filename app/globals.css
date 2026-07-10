@@ -648,7 +648,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .tm-you{font-family:'Inter';font-weight:600;font-size:8px;letter-spacing:.6px;text-transform:uppercase;color:var(--cream-d);background:rgba(245,241,232,.08);padding:2px 6px;border-radius:5px;flex:0 0 auto}
 .tm-driver{flex:0 0 auto;font-size:12px;line-height:1;background:rgba(200,166,97,.14);border:1px solid var(--gold2);border-radius:6px;padding:3px 6px}
 .tm-badge{font-family:'Inter';font-weight:650;font-size:9px;letter-spacing:.8px;text-transform:uppercase;padding:4px 10px;border-radius:20px;flex:0 0 auto;border:1px solid var(--line2);color:var(--cream-m);white-space:nowrap}
-.tm-badge.tone-red{background:rgba(214,75,70,.15);border-color:rgba(214,75,70,.42);color:var(--red-h)}
+.tm-badge.tone-red{background:rgba(214,75,70,.1);border-color:rgba(214,75,70,.42);color:#eb8b86}
 .tm-badge.tone-gold{background:rgba(168,124,63,.16);border-color:rgba(168,124,63,.42);color:var(--gold2)}
 .tm-rolepick{display:flex;flex-direction:column;gap:6px}
 .tm-rolepick .adm-role{width:100%}
@@ -885,7 +885,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .adm-status button.on{background:rgba(184,144,47,.18);border-color:var(--gold2);color:var(--gold2)}
 .adm-status .adm-req-del{margin-left:auto;color:var(--red);border-color:rgba(184,36,32,.35);font-weight:700}
 .adm-pill{font-family:'Inter';font-weight:650;font-size:8px;letter-spacing:1px;text-transform:uppercase;padding:2px 7px;border-radius:5px;background:rgba(184,144,47,.16);color:var(--gold2);margin-left:7px;vertical-align:middle}
-.adm-pill.due{background:rgba(184,36,32,.18);color:var(--red)}
+.adm-pill.due{background:rgba(184,36,32,.13);color:var(--red-h)}
 .sub-renew.soon{color:var(--gold2)}
 .sub-renew.due{color:var(--red);font-weight:600}
 /* kitchen orders */
@@ -947,7 +947,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .auth-label span{color:rgba(245,241,232,.32);letter-spacing:.5px}
 .auth-input{width:100%;background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:14px;padding:15px 16px;color:var(--cream);font-family:'Inter';font-size:16px;outline:none;transition:border-color .15s,box-shadow .15s}
 .auth-input:focus{border-color:rgba(184,144,47,.55);box-shadow:0 0 0 3px rgba(184,144,47,.1)}
-.auth-input::placeholder{color:rgba(245,241,232,.28)}
+.auth-input::placeholder{color:rgba(245,241,232,.5)}
 .auth-code{font-family:'DM Mono';letter-spacing:8px;text-align:center;font-size:22px}
 .auth-err{margin-top:12px;font-size:12.5px;color:#e0918c;background:rgba(184,36,32,.12);border:1px solid rgba(184,36,32,.28);border-radius:11px;padding:10px 13px;line-height:1.4}
 .auth-fine{font-size:11.5px;color:rgba(245,241,232,.4);line-height:1.55;margin-top:auto;padding-top:26px;padding-bottom:14px;opacity:0;animation:authRise .7s ease 1.7s both}
@@ -1322,7 +1322,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .mytask.crit .mytask-label{color:#ecb4b1}
 .mytask-ev{display:block;font-size:11.5px;color:var(--cream-m);margin-top:2px}
 .mytask-pri{flex:0 0 auto;font-family:'Inter';font-weight:650;font-size:9.5px;letter-spacing:.4px;text-transform:uppercase;padding:3px 8px;border-radius:20px}
-.mytask-pri.crit{color:var(--red);background:rgba(184,36,32,.16)}
+.mytask-pri.crit{color:var(--red-h);background:rgba(184,36,32,.12)}
 .mytask-pri.over{color:#fff;background:var(--red)}
 .mytask-pri.warn{color:var(--warn);background:rgba(207,154,74,.14)}
 
@@ -2023,13 +2023,35 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .app.crew-day{
   background:linear-gradient(180deg,#F7F2E8 0%,#EFE7D8 55%,#E9E0CF 100%);
   --bg:#F4EEE2;
-  --cream:#221F18; --cream-m:rgba(34,31,24,.66); --cream-d:rgba(34,31,24,.44); --cream2:#3a352b;
+  /* Text tokens sit at a measured legibility floor (automated WCAG crawl of the signed-in console,
+     2026-07-09): secondary/tertiary ink lifted, gold/bronze text roles deepened past 4.5:1 on the
+     cream ground. Gold is also a pill BACKGROUND in day — those pills carry white text (below). */
+  --cream:#221F18; --cream-m:rgba(34,31,24,.74); --cream-d:rgba(34,31,24,.56); --cream2:#3a352b;
   --card:#FFFFFF; --char:#F1EADB; --char2:#F1EADB; --char3:#ECE4D3;
   --line:rgba(34,31,24,.13); --line2:rgba(34,31,24,.22);
-  --gold:#9a6a2c; --gold2:#86581f; --bronze:#9a6a2c;
+  --gold:#86581f; --gold2:#6e4c1e; --bronze:#7d5622; --ok:#457a32;
 }
 /* bottom nav + sticky headers (these reference --bg or hardcoded dark) */
 .app.crew-day .nav{background:rgba(247,242,232,.92);border-top:1px solid var(--line2)}
+/* ── Day-mode legibility floor ──
+   Every rule below traces to an automated WCAG contrast crawl of the signed-in console
+   (2026-07-09). Two failure families: gold pills whose day background darkened past what ink text
+   can sit on (→ white labels), and classes that hardcode dark-theme colors (pink crit text, cream
+   chip text, light-blue link, light-red pills) that never flipped for the cream ground. */
+.app.crew-day :is(.modesw-seg.on,.grp-seg.on,.subnav-tab.on,.studio-view.on,.cos-tg.on,.rdy-run,.skip-link,.cal-nudge button,.myday-open){color:#fff}
+.app.crew-day .subnav-tab.on .subnav-badge{background:rgba(255,255,255,.2);color:#fff}
+.app.crew-day :is(.mytask.crit .mytask-label,.adm-task.crit .task-label,.alert.sev-critical .alert-title,.note-del){color:#8f1d1a}
+.app.crew-day :is(.adm-pill.due,.mytask-pri.crit){color:#8f1d1a}
+.app.crew-day .tm-badge.tone-red{background:rgba(184,36,32,.1);color:#8f1d1a}
+.app.crew-day .ai-agent{color:#221F18}
+.app.crew-day .ai-agent.sel{color:#8f1d1a}
+.app.crew-day .pay-note{color:#3f7a30}
+.app.crew-day .dp-item-addr{color:#2d6ca8}
+.app.crew-day .auth-input{background:#fff;border-color:rgba(34,31,24,.24);color:#221F18}
+.app.crew-day .auth-input::placeholder{color:rgba(34,31,24,.62)}
+/* tiny-type roles (8–11px) need the secondary ink tier — tertiary measures under 4.5 at this size
+   (both themes: the same physics applies on the dark ground) */
+:is(.tm-scope,.tm-you,.pay-status,.ol-state.off){color:var(--cream-m)}
 .app.crew-day .opnav{border-top:1px solid var(--gold)}
 .app.crew-day .opnav .tab.on .tl,.app.crew-day .opnav .tab.on .ti{color:var(--gold)}
 .app.crew-day .cal-sticky{background:var(--bg)}
@@ -2267,7 +2289,9 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .dp-draftmain{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;font-family:'Inter';font-size:13.5px;color:var(--cream)}
 .dp-draftmain span{font-size:12px;color:var(--cream-m)}
 .app.crew-day .dp-tab,.app.crew-day .dp-item,.app.crew-day .dp-empty,.app.crew-day .dp-draftrow{background:#fff}
-.app.crew-day .dp-draft{color:#fff}
+/* keep the base near-black label — the gold gradient bg doesn't change in day, so white text here
+   was the contrast bug (audit finding), not the fix */
+.app.crew-day .dp-draft{color:#1a1409}
 
 /* ── Markdown (AI meeting summaries / structured recaps) ── */
 .md{font-family:'Inter';color:var(--cream)}
@@ -3228,9 +3252,14 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .prod-headrow .prod-head{flex:1;min-width:0}
 .prod-86btn{flex:none;font-family:'Inter';font-weight:700;font-size:11px;letter-spacing:.06em;color:#c98e8e;background:none;border:1.5px solid rgba(200,90,90,.45);border-radius:10px;padding:8px 12px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .prod-86btn.on{color:#0e0d0b;background:#7FA86B;border-color:#7FA86B}
+/* timing dot on a menu row — BEFORE gold · DURING teal · AFTER red, same palette as the customer
+   pillars; hollow when no timing is set */
+.prod-dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;background:transparent;border:1px solid var(--line2)}
+.prod-dot[data-on]{border:none}
 .prod-86tag{font-size:8.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#a13c34;border:1px solid rgba(161,60,52,.4);border-radius:20px;padding:2px 7px;margin-left:8px;vertical-align:1px}
 .app.crew-day .prod-86btn{color:#a13c34}
-.app.crew-day .prod-86btn.on{color:#fff}
+/* .on keeps the base near-black — the green bg is constant across themes; white here failed 3:1 */
+.app.crew-day .prod-86btn.on{color:#0e0d0b}
 /* the 86 board on Now — chips, tap to flip */
 .es-note{font-family:'Inter';font-size:11.5px;color:var(--muted);margin:-2px 0 10px}
 .es-row{display:flex;flex-wrap:wrap;gap:8px}

@@ -306,20 +306,20 @@ function LoadMap({ lo }: { lo: Loadout }) {
       <line x1="236" y1="46" x2="236" y2="110" stroke="#2a2219" strokeDasharray="3 3" />
       <rect x="200" y="37" width="20" height="6" rx="2" fill="#a97c3f" />
       <rect x="200" y="113" width="20" height="6" rx="2" fill="#a97c3f" />
-      <text x="110" y="34" textAnchor="middle" style={{ fill: "#cbb89a", fontFamily: "'DM Mono',monospace", fontSize: 9, letterSpacing: 0.5 }}>NOSE</text>
-      <text x="193" y="34" textAnchor="middle" style={{ fill: "#cbb89a", fontFamily: "'DM Mono',monospace", fontSize: 9, letterSpacing: 0.5 }}>OVER AXLE</text>
-      <text x="278" y="34" textAnchor="middle" style={{ fill: "#cbb89a", fontFamily: "'DM Mono',monospace", fontSize: 9, letterSpacing: 0.5 }}>TAIL</text>
+      <text x="110" y="34" textAnchor="middle" style={{ fill: "var(--cream-m)", fontFamily: "'DM Mono',monospace", fontSize: 9, letterSpacing: 0.5 }}>NOSE</text>
+      <text x="193" y="34" textAnchor="middle" style={{ fill: "var(--cream-m)", fontFamily: "'DM Mono',monospace", fontSize: 9, letterSpacing: 0.5 }}>OVER AXLE</text>
+      <text x="278" y="34" textAnchor="middle" style={{ fill: "var(--cream-m)", fontFamily: "'DM Mono',monospace", fontSize: 9, letterSpacing: 0.5 }}>TAIL</text>
       <text x="110" y="82" textAnchor="middle" style={{ fill: "#f5f1e8", fontFamily: "'Inter',sans-serif", fontSize: 13, fontWeight: 600 }}>{lo.items.filter(i => i.zone === "nose").reduce((s, i) => s + i.lb, 0)}</text>
       <text x="193" y="82" textAnchor="middle" style={{ fill: "#f5f1e8", fontFamily: "'Inter',sans-serif", fontSize: 13, fontWeight: 600 }}>{lo.items.filter(i => i.zone === "axle").reduce((s, i) => s + i.lb, 0)}</text>
       <text x="278" y="82" textAnchor="middle" style={{ fill: "#f5f1e8", fontFamily: "'Inter',sans-serif", fontSize: 13, fontWeight: 600 }}>{lo.items.filter(i => i.zone === "tail").reduce((s, i) => s + i.lb, 0)}</text>
-      <text x="110" y="98" textAnchor="middle" style={{ fill: "#7c7468", fontFamily: "'Inter',sans-serif", fontSize: 9 }}>lb</text>
-      <text x="193" y="98" textAnchor="middle" style={{ fill: "#7c7468", fontFamily: "'Inter',sans-serif", fontSize: 9 }}>lb</text>
-      <text x="278" y="98" textAnchor="middle" style={{ fill: "#7c7468", fontFamily: "'Inter',sans-serif", fontSize: 9 }}>lb</text>
+      <text x="110" y="98" textAnchor="middle" style={{ fill: "#9b9284", fontFamily: "'Inter',sans-serif", fontSize: 9 }}>lb</text>
+      <text x="193" y="98" textAnchor="middle" style={{ fill: "#9b9284", fontFamily: "'Inter',sans-serif", fontSize: 9 }}>lb</text>
+      <text x="278" y="98" textAnchor="middle" style={{ fill: "#9b9284", fontFamily: "'Inter',sans-serif", fontSize: 9 }}>lb</text>
       <rect x="70" y="156" width="250" height="8" rx="4" fill="#241a12" />
       <rect x={gx(10)} y="156" width={gx(15) - gx(10)} height="8" rx="4" fill="#2f5d4f" />
       <rect x={mark - 1.5} y="151" width="3" height="18" rx="1.5" fill={inRange ? "#c8a661" : "#b82420"} />
-      <text x="70" y="146" style={{ fill: "#cbb89a", fontFamily: "'DM Mono',monospace", fontSize: 9 }}>TONGUE {lo.tonguePct}% · target 10–15%</text>
-      <text x="320" y="182" textAnchor="end" style={{ fill: "#7c7468", fontFamily: "'Inter',sans-serif", fontSize: 9 }}>≈ {lo.tongueLb} lb on the hitch</text>
+      <text x="70" y="146" style={{ fill: "var(--cream-m)", fontFamily: "'DM Mono',monospace", fontSize: 9 }}>TONGUE {lo.tonguePct}% · target 10–15%</text>
+      <text x="320" y="182" textAnchor="end" style={{ fill: "var(--cream-m)", fontFamily: "'Inter',sans-serif", fontSize: 9 }}>≈ {lo.tongueLb} lb on the hitch</text>
     </svg>
   );
 }

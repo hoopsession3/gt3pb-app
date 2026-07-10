@@ -101,7 +101,9 @@ function ProductRow({ p, inv, open, onToggle, onSaved, toast }: { p: Product; in
     <div className={`prod${open ? " open" : ""}`}>
       <div className="prod-headrow">
         <button type="button" className="prod-head" onClick={onToggle}>
-          <span className="prod-dot" style={{ background: p.timing ? undefined : undefined }} />
+          {/* was `p.timing ? undefined : undefined` — both branches identical, so the live timing
+              field never rendered anything. Daypart colors match the customer pillars. */}
+          <span className="prod-dot" data-on={p.timing || undefined} style={{ background: { BEFORE: "#B8902F", DURING: "#3f7d6e", AFTER: "#B82420" }[(p.timing || "").trim().toUpperCase()] }} />
           <span className="prod-n">{p.name}{!p.active && <span className="prod-off">off</span>}{p.active && p.sold_out && <span className="prod-86tag">SOLD OUT{p.sold_out_at ? ` · ${new Date(p.sold_out_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}</span>}</span>
           <span className="prod-line">{p.line}</span>
           <span className="prod-px">${(p.price_cents / 100).toFixed(2)}</span>
