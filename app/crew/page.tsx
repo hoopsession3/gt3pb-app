@@ -890,7 +890,7 @@ function MenuEditor({ ownerType, ownerId, isAdmin, onChanged }: { ownerType: "ev
       </button>
       {open && (
         <div className="menued-body">
-          <MenuRigChips variant="ts" value={f} onPatch={save} />
+          <MenuRigChips variant="ts" value={f} onPatch={save} ownerType={ownerType} ownerId={ownerId} />
         </div>
       )}
     </div>
@@ -1736,7 +1736,11 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       await supabase.from("event_tasks").delete().eq(ownerCol, target.id);
     }
     // Pack list (rig/menu) for both; compliance (state/county) for events, which carry a jurisdiction.
-    const pack = packListFor(menuRow).map((p, i) => ({ [ownerCol]: target.id, label: p.label, section: p.section, critical: !!p.critical, warn: !!p.warn, kind: "pack", link: null, sort: i }));
+    // Menu comes from the 0173 relation (real product slugs) when it has rows; the legacy menu_*
+    // booleans on the row remain the fallback for owners whose relation was never written.
+    const { data: mi } = await supabase.from("event_menu_items").select("product_slug").eq(ownerCol, target.id);
+    const menuSlugs = new Set(((mi as { product_slug: string }[] | null) ?? []).map((r) => r.product_slug));
+    const pack = packListFor(menuRow, menuSlugs.size ? menuSlugs : null).map((p, i) => ({ [ownerCol]: target.id, label: p.label, section: p.section, critical: !!p.critical, warn: !!p.warn, kind: "pack", link: null, sort: i }));
     const comp = isEvent && ev ? (await complianceFor(ev, supabase)).map((p, i) => ({ event_id: ev.id, label: p.label, section: p.section, critical: !!p.critical, warn: !!p.warn, kind: "task", link: p.link ?? null, sort: 100 + i })) : [];
     const rows = [...pack, ...comp];
     if (!rows.length) { setGenerating(false); toast(`Set the ${isEvent ? "event" : "stop"}'s menu + rig first — tap Menu & setup`, "error"); return; }
@@ -4011,7 +4015,7 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
 
             {/* Menu, rig & site flags — the shared chip set (one option list with the prep hub's
                 Menu & rig editor). Patches flow through the same events update as every field here. */}
-            <MenuRigChips variant="ev" value={e} onPatch={onUpdate} />
+            <MenuRigChips variant="ev" value={e} onPatch={onUpdate} ownerType="event" ownerId={e.id} />
           </div>
 
           <BriefPanel e={e} proj={proj} inventory={inventory} />
