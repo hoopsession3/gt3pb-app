@@ -2,7 +2,7 @@ import { supabase } from "./supabase";
 import type { AlertCategory, AlertSeverity } from "./alertKinds";
 
 // THE client-side alert producer. Components used to hand-build raw `alerts` inserts (six different
-// payload shapes across DropOps/DeliveryOps/DriverRun/Studio/StrategyCollab/admin) — and none of
+// payload shapes across DropOps/DeliveryOps/DriverRun/Studio/StrategyCollab/crew) — and none of
 // them fanned out to push/Teams, because fan-out lived only in the server helper's direct invoke.
 // Fan-out is now a database trigger on the alerts INSERT itself (migration 0157), so one insert —
 // from anywhere — is the whole job. Best-effort by contract: an operational write must never fail
@@ -22,7 +22,7 @@ export async function raiseAlertClient(a: {
       category: a.category,
       title: a.title.slice(0, 180),
       body: (a.body ?? "").slice(0, 300) || null,
-      link: a.link ?? "/admin",
+      link: a.link ?? "/crew",
       target_user_id: a.targetUserId ?? null,
     });
   } catch { /* best-effort */ }

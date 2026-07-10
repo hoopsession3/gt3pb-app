@@ -52,7 +52,7 @@ export async function POST(req: Request) {
         stripe_customer_id: typeof o.customer === "string" ? o.customer : null,
         stripe_subscription_id: typeof o.subscription === "string" ? o.subscription : null,
       }).eq("id", o.client_reference_id);
-      await raiseAlert({ severity: "important", category: "money", title: "New software subscription", body: `Tenant ${o.client_reference_id} subscribed.`, link: "/admin" });
+      await raiseAlert({ severity: "important", category: "money", title: "New software subscription", body: `Tenant ${o.client_reference_id} subscribed.`, link: "/crew" });
     }
 
     if ((evt.type === "customer.subscription.updated" || evt.type === "customer.subscription.deleted") && o.id) {
@@ -63,7 +63,7 @@ export async function POST(req: Request) {
         ...(typeof endS === "number" ? { current_period_end: new Date(endS * 1000).toISOString() } : {}),
       }).eq("stripe_subscription_id", o.id);
       if (status === "past_due" || status === "canceled") {
-        await raiseAlert({ severity: "important", category: "money", title: `Software subscription ${status}`, body: `Stripe subscription ${o.id} is ${status}.`, link: "/admin" });
+        await raiseAlert({ severity: "important", category: "money", title: `Software subscription ${status}`, body: `Stripe subscription ${o.id} is ${status}.`, link: "/crew" });
       }
     }
   } catch { /* malformed body from a verified sender — ack and move on */ }

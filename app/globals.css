@@ -3397,6 +3397,9 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .calcard-m{flex:1;min-width:0;background:none;border:none;text-align:left;cursor:pointer;color:var(--cream);padding:0;-webkit-appearance:none;appearance:none}
 .calcard-m b{display:block;font-family:'Inter';font-weight:650;font-size:13.5px}
 .calcard-m span{display:block;font-size:11px;color:var(--cream-m);margin-top:2px}
+/* lane badges — unacked flags rolled up category → lane (Today keeps the red critical count) */
+.nav-badge.lane{background:var(--gold2);color:#fff}
+
 /* driver dash — the wheel view: next run + one big go */
 .drv-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:4px}
 .drv-card.today{border-color:rgba(127,168,107,.5)}
@@ -4004,9 +4007,9 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 
 /* goals — the strategy's scoreboard (Plan › Goals) */
 .goal-card{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:13px 15px;margin-bottom:10px}
-.goal-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
-.goal-title{font-family:'Inter';font-weight:700;font-size:14px;color:var(--cream)}
-.goal-play{font-family:'DM Mono',monospace;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--gold2);text-align:right;flex-shrink:0}
+.goal-top{display:flex;align-items:baseline;gap:10px}
+.goal-title{flex:1;min-width:0;font-family:'Inter';font-weight:700;font-size:14px;color:var(--cream)}
+.goal-play{flex:0 1 auto;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:'DM Mono',monospace;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--gold2);text-align:right}
 .goal-metric{font-family:'Inter';font-size:11.5px;color:var(--cream-m);margin:2px 0 0}
 .goal-bar{height:6px;border-radius:999px;background:rgba(127,127,127,.18);overflow:hidden;margin:10px 0 6px}
 .goal-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--gold),var(--gold2));border-radius:999px;transition:width .4s ease}

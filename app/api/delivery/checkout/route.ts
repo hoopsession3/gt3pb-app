@@ -126,7 +126,7 @@ export async function POST(req: Request) {
     await raiseAlert({
       severity: "fyi", category: "order", title: "New Sunday delivery 🚚",
       body: `${name} — ${packSize} bottles (${quote.refillCount} refill · ${quote.newCount} new${perf ? ` · ${perf} performance` : ""}) · $${(quote.totalCents / 100).toFixed(2)} ${paid ? "paid" : "due on delivery"} · ${slot.deliveryLabel} · ${city} ${zip}.`,
-      link: "/admin?s=now",
+      link: "/crew?s=now",
     });
     return NextResponse.json({ ok: true, paymentId, recorded: true, deliveryLabel: slot.deliveryLabel, deliveryDateKey: slot.deliveryDateKey, totalCents: quote.totalCents });
   } catch {

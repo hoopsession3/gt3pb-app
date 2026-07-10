@@ -6,7 +6,7 @@ import { uploadToBucket } from "@/lib/uploads";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 
-// TRAIN THE AI (Team → Train the AI, owner/admin) — the correction loop for the freeform agents.
+// TRAIN THE AI (Team → Train the AI, owner/crew) — the correction loop for the freeform agents.
 // The owner writes the truth once (with an optional photo of the recipe card / receipt as proof),
 // it's injected as an AUTHORITATIVE override into that agent's prompt (lib/agentKnowledge), and
 // the agent obeys it forever. Every agent answer is logged below, so a wrong one — like the Brew

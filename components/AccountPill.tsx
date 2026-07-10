@@ -62,7 +62,7 @@ export default function AccountPill() {
               <div className="acct-who"><b>{name}</b><span>{ROLE_LABEL[role] ?? "Member"}</span></div>
               <button className="acct-item" role="menuitem" onClick={() => { setOpen(false); setEditProfile(true); }}>Edit profile</button>
               <button className="acct-item" role="menuitem" onClick={() => go("/3mpire")}>Your 3MPIRE</button>
-              {staff && <button className="acct-item crew" role="menuitem" onClick={() => go("/admin")}>Switch to Crew Mode</button>}
+              {staff && <button className="acct-item crew" role="menuitem" onClick={() => go("/crew")}>Switch to Crew Mode</button>}
               <button className="acct-item danger" role="menuitem" onClick={() => { setOpen(false); signOut(); toast("Signed out"); }}>Sign out</button>
             </>
           ) : (

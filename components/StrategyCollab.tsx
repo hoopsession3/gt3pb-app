@@ -10,7 +10,7 @@ import { GTM_PLAYS, type GtmPlay } from "@/lib/strategy";
 
 // STRATEGY COLLABORATION — three small tools that make the playbook a working document:
 //  · StrategyThread — live discussion on any block/play (the comments engine + strategy_key, 0140);
-//    posting pings the other owners/admins through the alert ladder, so "live" means live.
+//    posting pings the other owners/crews through the alert ladder, so "live" means live.
 //  · DecisionLog — append-only governance ledger: no strategic call without a log line. It cannot
 //    be edited or deleted (no RLS policies for it, on purpose) — history is history.
 //  · PlayBuilder — the guided walkthrough for building a new play or overhauling one: seven steps,
@@ -42,7 +42,7 @@ export function StrategyThread({ k, label }: { k: string; label: string }) {
     const { error } = await supabase.from("comments").insert({ strategy_key: k, body, author_id: user?.id ?? null });
     if (error) { toast(`Error: ${error.message}`, "error"); return; }
     setText(""); load();
-    // ping the other owners/admins so collaboration is live even when the page isn't open
+    // ping the other owners/crews so collaboration is live even when the page isn't open
     const meFirst = (profile?.display_name || "Owner").split(" ")[0];
     staff.filter((s) => (s.role === "owner" || s.role === "admin") && s.id !== user?.id).forEach((s) =>
       raiseAlertClient({ severity: "important", category: "strategy", title: `${meFirst} on the playbook`, body: `${label}: ${body.slice(0, 140)}`, link: "/playbook", targetUserId: s.id }));

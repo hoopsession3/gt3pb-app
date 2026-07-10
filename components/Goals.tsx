@@ -82,9 +82,7 @@ export default function Goals() {
   return (
     <div className="adm-sec" id="goals">
       <div className="sec">Goals{active.length > 0 && <span className="adm-pill">{active.length}</span>}</div>
-      <p className="h-sub" style={{ marginBottom: 12 }}>
-        The strategy&rsquo;s scoreboard — the Phase 1→2 conditions live here. Log the numbers, argue on the thread; the doc revs when a goal changes what&rsquo;s true.
-      </p>
+      <p className="h-sub" style={{ marginBottom: 12 }}>Every goal is a number with a bar. Log progress; talk it out on the thread.</p>
 
       {!loaded && <div className="dops-empty">Loading the board…</div>}
       {loaded && rows.length === 0 && <div className="dops-empty">No goals yet — put a number on the wall.</div>}
@@ -101,7 +99,7 @@ export default function Goals() {
             {g.metric && <p className="goal-metric">{g.metric}</p>}
             <div className={`goal-bar${reached ? " hit" : ""}`}><i style={{ width: `${pct}%` }} /></div>
             <div className="goal-nums">
-              <span><b>{g.current_value}</b>{g.unit && ` ${g.unit}`} of <b>{g.target_value}</b>{g.unit && ` ${g.unit}`}</span>
+              <span><b>{g.current_value}</b> of <b>{g.target_value}</b>{g.unit && ` ${g.unit}`}</span>
               <span>{g.due_date ? `by ${new Date(`${g.due_date}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : g.source ? "standing" : ""}</span>
             </div>
             <div className="goal-actions">

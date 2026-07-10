@@ -89,7 +89,7 @@ export default function DeliveryOps() {
       await raiseAlertClient({
         severity: "important", category: "order", title: "Delivery held — pickup queue",
         body: `${o.name} — no empties out. ${o.pack_size} bottles held at GT3PB for pickup 10 AM – 2 PM. ${o.phone ?? ""}`.trim(),
-        link: "/admin?s=now",
+        link: "/crew?s=now",
       });
       toast("Held for pickup — crew alerted");
     }

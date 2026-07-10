@@ -12,11 +12,11 @@ function reqOrigin(req: Request): string {
 }
 
 // Microsoft redirects the browser here with ?code&state. We validate state (CSRF) against what
-// /connect issued, exchange the code for tokens, store them (service role), then bounce to /admin.
+// /connect issued, exchange the code for tokens, store them (service role), then bounce to /crew.
 // Top-level redirect, so we return a plain 302 — no bearer is available here; state is the guard.
 export async function GET(req: Request) {
   const origin = reqOrigin(req);
-  const back = (note: string) => new Response(null, { status: 302, headers: { Location: `${origin}/admin?outlook=${note}` } });
+  const back = (note: string) => new Response(null, { status: 302, headers: { Location: `${origin}/crew?outlook=${note}` } });
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");

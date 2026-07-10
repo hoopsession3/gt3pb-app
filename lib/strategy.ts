@@ -1,5 +1,5 @@
 // THE PLAYBOOK — owner-facing strategy, structured. Single source: GT3-Brew-Business-Strategy.md
-// (Rev 1.0, locked) + what the app already executes. Rendered at /playbook (owner/admin only).
+// (Rev 1.0, locked) + what the app already executes. Rendered at /playbook (owner/crew only).
 // Rule: every number here traces to the locked doc — nothing invented, nothing aspirational
 // dressed as fact. When the strategy doc revs, this file revs with it, same PR.
 

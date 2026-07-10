@@ -60,10 +60,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     return () => { vv.removeEventListener("resize", update); vv.removeEventListener("scroll", update); document.removeEventListener("focusin", onFocusIn); };
   }, []);
 
-  // Employee Mode: inside /admin the customer 5-tab nav is replaced by the
+  // Employee Mode: inside /crew the customer 5-tab nav is replaced by the
   // role-scoped operator console nav (OperatorNav falls back to the customer nav
   // for non-staff so they can still navigate away).
-  const inAdmin = pathname.startsWith("/admin");
+  const inAdmin = pathname.startsWith("/crew");
   // Read-only partner "what we've built" share page — a bare surface: no nav, no concierge, no commerce.
   const isShare = pathname.startsWith("/built");
   // Guest concierge shows on the customer-facing surfaces only (not the crew console, architecture, academy, or a share page).

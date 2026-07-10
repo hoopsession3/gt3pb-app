@@ -3,22 +3,23 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useAuth, roleOf, LEADERSHIP_ROLES } from "./AuthProvider";
 import { useMyAlerts } from "@/lib/useMyAlerts";
-import { useWorkStreams, type WorkStream } from "@/lib/streams";
+import { useWorkStreams, streamOfCategory, type WorkStream } from "@/lib/streams";
+import { normalizeCategory } from "@/lib/alertKinds";
 import Sheet from "./Sheet";
 import BottomNav from "./BottomNav";
 import { supabase } from "@/lib/supabase";
 
 // Employee Mode — a dedicated operator console nav that replaces the customer
-// 5-tab nav while you're in /admin. Sections are role-scoped and the choice is
+// 5-tab nav while you're in /crew. Sections are role-scoped and the choice is
 // shared (context) so the nav (rendered in the shell) and the page content stay
 // in sync; persisted so you return to the same section.
 
-export type OpSection = "day" | "now" | "ask" | "prep" | "plan" | "studio" | "brew" | "garage" | "goals" | "driver" | "money" | "customers" | "team";
+export type OpSection = "day" | "now" | "ask" | "prep" | "plan" | "studio" | "brew" | "garage" | "goals" | "driver" | "stops" | "notes" | "money" | "customers" | "team";
 
 const Ctx = createContext<{ section: OpSection; setSection: (s: OpSection) => void; back: () => boolean; canGoBack: boolean; groupId: string | null; setGroupId: (g: string | null) => void }>({ section: "day", setSection: () => {}, back: () => false, canGoBack: false, groupId: null, setGroupId: () => {} });
 export const useOperatorSection = () => useContext(Ctx);
 
-const VALID = new Set<OpSection>(["day", "now", "prep", "plan", "studio", "brew", "garage", "goals", "driver", "money", "customers", "team"]);
+const VALID = new Set<OpSection>(["day", "now", "prep", "plan", "studio", "brew", "garage", "goals", "driver", "stops", "notes", "money", "customers", "team"]);
 
 export function OperatorSectionProvider({ children }: { children: React.ReactNode }) {
   const [section, setSectionState] = useState<OpSection>("day");
@@ -26,7 +27,7 @@ export function OperatorSectionProvider({ children }: { children: React.ReactNod
   // ambiguity. Null = resolve from the section (first lane that contains it).
   const [groupId, setGroupId] = useState<string | null>(() => { try { return localStorage.getItem("gt3-op-group"); } catch { return null; } });
   const setGroup = useCallback((g: string | null) => { setGroupId(g); try { if (g) localStorage.setItem("gt3-op-group", g); } catch { /* ignore */ } }, []);
-  // URL-backed sections: a section change is a real browser-history entry (/admin?s=prep), so the
+  // URL-backed sections: a section change is a real browser-history entry (/crew?s=prep), so the
   // native Back button, the phone's swipe-back, and deep-links all work. `depth` tracks how many
   // section entries WE pushed this visit — the console back button uses it to know when to exit crew.
   const sectionRef = useRef<OpSection>("day");
@@ -44,9 +45,9 @@ export function OperatorSectionProvider({ children }: { children: React.ReactNod
       // Stamp the resolved section into the URL so the base history entry is addressable — native
       // back returns HERE (not blank), the section is deep-linkable, and swipe-back has an anchor.
       // replaceState (not push): we're labelling the entry we're already on, not adding one.
-      if (window.location.pathname.startsWith("/admin")) {
+      if (window.location.pathname.startsWith("/crew")) {
         const cur = resolved ?? sectionRef.current;
-        if (new URL(window.location.href).searchParams.get("s") !== cur) window.history.replaceState({ gt3s: cur }, "", `/admin?s=${cur}`);
+        if (new URL(window.location.href).searchParams.get("s") !== cur) window.history.replaceState({ gt3s: cur }, "", `/crew?s=${cur}`);
       }
     } catch { /* ignore */ }
     // Back/forward (button or swipe): read the section out of the URL and apply it.
@@ -66,8 +67,8 @@ export function OperatorSectionProvider({ children }: { children: React.ReactNod
     if (s === sectionRef.current) return;
     apply(s);
     try {
-      if (window.location.pathname.startsWith("/admin")) {
-        window.history.pushState({ gt3s: s }, "", `/admin?s=${s}`);
+      if (window.location.pathname.startsWith("/crew")) {
+        window.history.pushState({ gt3s: s }, "", `/crew?s=${s}`);
         depthRef.current += 1; setDepth(depthRef.current);
       }
     } catch { /* ignore */ }
@@ -90,9 +91,9 @@ const ROLE_SECTIONS: Record<string, OpSection[]> = {
   server: ["day", "now", "driver"],
   contractor: ["day", "now", "prep", "garage", "driver"],
   operator: ["day", "now", "prep", "brew", "garage", "driver"],
-  event_manager: ["day", "now", "prep", "plan", "studio", "goals", "driver"],
-  admin: ["day", "now", "prep", "plan", "studio", "brew", "garage", "goals", "driver", "money", "customers", "team"],
-  owner: ["day", "now", "prep", "plan", "studio", "brew", "garage", "goals", "driver", "money", "customers", "team"],
+  event_manager: ["day", "now", "prep", "plan", "studio", "goals", "notes", "stops", "driver"],
+  admin: ["day", "now", "prep", "plan", "studio", "brew", "garage", "goals", "notes", "stops", "driver", "money", "customers", "team"],
+  owner: ["day", "now", "prep", "plan", "studio", "brew", "garage", "goals", "notes", "stops", "driver", "money", "customers", "team"],
 };
 export const sectionsForRole = (role: string): OpSection[] => ROLE_SECTIONS[role] ?? ["now"];
 
@@ -150,11 +151,13 @@ const ICONS: Record<OpSection, React.ReactNode> = {
   garage: <><path d="M3 10l9-6 9 6" /><path d="M5 9.5V20h14V9.5" /><rect x="8.5" y="13" width="7" height="7" /></>,
   goals: <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1.4" /></>,
   driver: <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="2.4" /><path d="M12 3v6.6M4.2 16.5l6-3M19.8 16.5l-6-3" /></>,
+  stops: <><path d="M12 21s-6.5-5.4-6.5-10a6.5 6.5 0 0 1 13 0c0 4.6-6.5 10-6.5 10z" /><circle cx="12" cy="10.6" r="2.3" /></>,
+  notes: <><rect x="5" y="3.5" width="14" height="17" rx="2" /><path d="M9 8h6M9 12h6M9 16h4" /></>,
   money: <><circle cx="12" cy="12" r="9" /><path d="M12 7v10M9.5 9.5c0-1 1-1.6 2.5-1.6s2.5.6 2.5 1.6-1 1.5-2.5 1.5-2.5.5-2.5 1.5 1 1.6 2.5 1.6 2.5-.6 2.5-1.6" /></>,
   customers: <><rect x="3" y="5" width="18" height="15" rx="2" /><circle cx="9" cy="11" r="2.2" /><path d="M5.8 17c.5-1.7 1.7-2.6 3.2-2.6s2.7.9 3.2 2.6M15 9.5h4M15 13h4" /></>,
   team: <><circle cx="9" cy="8" r="3" /><path d="M3 20c0-3 3-5 6-5s6 2 6 5" /><path d="M16 5.2a3 3 0 0 1 0 5.6M21 20c0-2.4-1.8-4-4-4.6" /></>,
 };
-const LABELS: Record<OpSection, string> = { day: "My Day", now: "Now", ask: "Ask", prep: "Prep", plan: "Plan", studio: "Studio", brew: "Brew", garage: "Garage", goals: "Goals", driver: "Drive", money: "Money", customers: "Customers", team: "Team" };
+const LABELS: Record<OpSection, string> = { day: "My Day", now: "Now", ask: "Ask", prep: "Prep", plan: "Plan", studio: "Studio", brew: "Brew", garage: "Garage", goals: "Goals", driver: "Drive", stops: "Stops", notes: "Notes", money: "Money", customers: "Customers", team: "Team" };
 export const SECTION_LABEL = LABELS;
 
 
@@ -167,12 +170,12 @@ export default function OperatorNav() {
   // hook), so the numbers agree. The old query here counted EVERYONE's criticals, including alerts
   // targeted at someone else.
   const { user } = useAuth();
-  const { critCount } = useMyAlerts(user?.id ?? null, role !== "member");
+  const { critCount, flags } = useMyAlerts(user?.id ?? null, role !== "member");
   const streams = useWorkStreams();
   const { groupId, setGroupId } = useOperatorSection();
   const [moreOpen, setMoreOpen] = useState(false);
   // members / signed-out: no operator console — fall back to the customer nav so
-  // they can still navigate away from /admin.
+  // they can still navigate away from /crew.
   if (role === "member") return <BottomNav />;
   const allowed = sectionsForRole(role);
   const todayGroup: NavGroup = { ...TODAY_GROUP, members: TODAY_GROUP.members.filter((m) => allowed.includes(m)) };
@@ -186,6 +189,9 @@ export default function OperatorNav() {
     setSection(g.members[0]);
     setMoreOpen(false);
   };
+  // Lane badges — the same unacked flags My Day shows, rolled up category → lane.
+  const laneCounts: Record<string, number> = {};
+  for (const f of flags) { const lane = streamOfCategory(normalizeCategory(f.category), streams); if (lane) laneCounts[lane.key] = (laneCounts[lane.key] || 0) + 1; }
   // Roving arrow-key nav for the tablist (WAI-ARIA): ←/→ move + activate, Home/End jump to ends.
   const onNavKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (!["ArrowRight", "ArrowLeft", "Home", "End"].includes(e.key)) return;
@@ -208,7 +214,7 @@ export default function OperatorNav() {
         const on = activeGroup.id === g.id;
         return (
           <button key={g.id} role="tab" aria-selected={on} className={`tab${on ? " on" : ""}`} onClick={() => { if (!on) openGroup(g); }}>
-            <span className="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>{g.id === "today" ? ICONS.day : streamIcon(g.icon)}</svg>{g.id === "today" && critCount > 0 && <span className="nav-badge" aria-label={`${critCount} critical alert${critCount === 1 ? "" : "s"}`}>{critCount}</span>}</span>
+            <span className="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>{g.id === "today" ? ICONS.day : streamIcon(g.icon)}</svg>{g.id === "today" && critCount > 0 && <span className="nav-badge" aria-label={`${critCount} critical alert${critCount === 1 ? "" : "s"}`}>{critCount}</span>}{g.id !== "today" && (laneCounts[g.id] ?? 0) > 0 && <span className="nav-badge lane" aria-label={`${laneCounts[g.id]} open alert${laneCounts[g.id] === 1 ? "" : "s"} in ${g.label}`}>{laneCounts[g.id]}</span>}</span>
             <span className="tl">{g.label}</span>
           </button>
         );

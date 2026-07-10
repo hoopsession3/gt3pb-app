@@ -6,7 +6,7 @@ import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { COPY_META } from "@/lib/copy";
 
-// SITE COPY EDITOR — owners/admins edit the storefront's front-end text from inside the app. Each
+// SITE COPY EDITOR — owners/crews edit the storefront's front-end text from inside the app. Each
 // editable string shows its current value (override or default); Save writes an override, Reset
 // removes it (back to the default). Public storefronts read the change live (realtime). Gated to
 // admins/owners (RLS enforces it server-side regardless).

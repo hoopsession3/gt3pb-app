@@ -21,7 +21,7 @@ export async function POST(req: Request) {
   const res = await fetch("https://api.stripe.com/v1/billing_portal/sessions", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ customer: t.stripe_customer_id, return_url: `${origin}/admin` }).toString(),
+    body: new URLSearchParams({ customer: t.stripe_customer_id, return_url: `${origin}/crew` }).toString(),
   });
   const session = (await res.json()) as { url?: string; error?: { message?: string } };
   if (!res.ok || !session.url) return NextResponse.json({ error: session.error?.message ?? "Stripe error." }, { status: 502 });

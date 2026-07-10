@@ -39,6 +39,12 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // The crew console moved from /admin to /crew (it was never "admin" — it's where the crew
+  // works). Permanent redirect keeps every old link alive: PWA shortcuts, bookmarks, and the
+  // /admin?s=… links stored inside historical alerts (query strings are preserved).
+  async redirects() {
+    return [{ source: "/admin", destination: "/crew", permanent: true }];
+  },
   async headers() {
     return [
       { source: "/(.*)", headers: securityHeaders },

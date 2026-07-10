@@ -28,7 +28,7 @@ export const CONNECT_GROUPS: ConnectGroup[] = [
   ] },
 ];
 
-// Leadership-only — appended to the hub when signed in as owner/admin, so you can pull up the
+// Leadership-only — appended to the hub when signed in as owner/crew, so you can pull up the
 // investor brief mid-conversation. The partner one-pager is safe to show (no financials); the live
 // architecture map is the owner deep-dive.
 export const CONNECT_LEADERSHIP: ConnectGroup = {

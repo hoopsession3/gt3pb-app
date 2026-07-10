@@ -52,7 +52,7 @@ function ScanInner() {
     <section className="screen scanpg">
       <div className="toprow">
         <div className="eyb">GT3 · Scan</div>
-        <button type="button" className="pf" aria-label="Back to crew" onClick={() => router.push("/admin")}>‹</button>
+        <button type="button" className="pf" aria-label="Back to crew" onClick={() => router.push("/crew")}>‹</button>
       </div>
       <div className="h-title">Member card</div>
       {!code && <div className="h-sub">No card code — scan a member&apos;s QR from their account.</div>}

@@ -29,8 +29,8 @@ export async function POST(req: Request) {
     "line_items[0][price]": price,
     "line_items[0][quantity]": "1",
     client_reference_id: tenant,
-    success_url: `${origin}/admin?billing=success`,
-    cancel_url: `${origin}/admin?billing=canceled`,
+    success_url: `${origin}/crew?billing=success`,
+    cancel_url: `${origin}/crew?billing=canceled`,
     ...(t.stripe_customer_id ? { customer: t.stripe_customer_id } : {}),
   });
   const res = await fetch("https://api.stripe.com/v1/checkout/sessions", {

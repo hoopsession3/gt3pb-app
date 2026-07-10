@@ -373,7 +373,7 @@ async function raiseAlert(a: {
   if (!supabase) return;
   await supabase.from("alerts").insert({
     severity: a.severity ?? "important", category: a.category, title: a.title,
-    body: a.body ?? null, link: a.link ?? "/admin", target_user_id: a.target_user_id ?? null,
+    body: a.body ?? null, link: a.link ?? "/crew", target_user_id: a.target_user_id ?? null,
     created_by: a.created_by ?? null,
   });
 }
@@ -450,8 +450,8 @@ function ContentApprovalSheet({ contentId, meName, meId, onClose, onActioned }: 
     const t = (item?.title || "Untitled").slice(0, 80);
     if (item?.created_by && item.created_by !== meId) {
       await raiseAlert(status === "approved"
-        ? { severity: "fyi", category: "content", title: `✅ Approved — ${t}`.slice(0, 180), body: `${meName} approved "${t}". Ready to schedule/publish.`.slice(0, 300), link: `/admin?post=${contentId}`, target_user_id: item.created_by }
-        : { severity: "important", category: "content", title: `✏️ Changes requested — ${t}`.slice(0, 180), body: note.trim().slice(0, 300), link: `/admin?post=${contentId}`, target_user_id: item.created_by });
+        ? { severity: "fyi", category: "content", title: `✅ Approved — ${t}`.slice(0, 180), body: `${meName} approved "${t}". Ready to schedule/publish.`.slice(0, 300), link: `/crew?post=${contentId}`, target_user_id: item.created_by }
+        : { severity: "important", category: "content", title: `✏️ Changes requested — ${t}`.slice(0, 180), body: note.trim().slice(0, 300), link: `/crew?post=${contentId}`, target_user_id: item.created_by });
     }
     setBusy(false);
     toast(status === "approved" ? "Approved" : "Changes requested");
@@ -2628,7 +2628,7 @@ function LiveControl({ compact = false }: { compact?: boolean }) {
                 : <span style={{ display: "flex", gap: 8 }}><button className="adm-btn ghost" onClick={pinHere} disabled={posBusy}>{posBusy ? "Pinning…" : "Pin once"}</button><button className="adm-btn primary" onClick={startBroadcast}>Broadcast</button></span>}
             </div>
           ) : null}
-          <button type="button" className="adm-golink" onClick={() => router.push("/admin?s=plan&t=stops")}>{active.length > 1 ? `${active.length - 1} more location${active.length > 2 ? "s" : ""} · ` : ""}Locations &amp; ordering dial · Plan › Truck stops ›</button>
+          <button type="button" className="adm-golink" onClick={() => setSection("stops")}>{active.length > 1 ? `${active.length - 1} more location${active.length > 2 ? "s" : ""} · ` : ""}Locations &amp; ordering dial · Stops ›</button>
         </div>
       ) : (
       <>
@@ -2725,7 +2725,7 @@ const fmtNoteDate = (iso: string) => {
 
 // Meeting notes live in Supabase (operational, relational, tenant-scoped) — not Notion. A note's
 // follow-ups become event_tasks owned by meeting_note_id, so they ride the same assign + My Tasks +
-// push engine as event/stop prep. Leadership-only (RLS gates to event_manager/admin/owner).
+// push engine as event/stop prep. Leadership-only (RLS gates to event_manager/crew/owner).
 function MeetingNotes() {
   const { user, profile } = useAuth();
   const { toast } = useApp();
@@ -4309,17 +4309,19 @@ function VendorPicker({ vendors, vendorId, onLink }: { vendors: Vendor[]; vendor
 // ───────────────────────── section metadata (shared by header + the guide) ─────────────────────────
 // Each section = one job at one moment. LABEL names it, WHEN says when to reach for it (header pill),
 // SUB is the one-liner, MORE explains it, INSIDE lists what lives there. Order = the shift timeline.
-const SEC_LABEL: Record<OpSection, string> = { day: "My Day", now: "Now", ask: "Ask GT3", prep: "Prep", plan: "Plan", studio: "Studio", brew: "Brew", garage: "Garage", goals: "Goals", driver: "Drive", money: "Money", customers: "Customers", team: "Team" };
+const SEC_LABEL: Record<OpSection, string> = { day: "My Day", now: "Now", ask: "Ask GT3", prep: "Prep", plan: "Plan", studio: "Studio", brew: "Brew", garage: "Garage", goals: "Goals", driver: "Drive", stops: "Stops", notes: "Notes", money: "Money", customers: "Customers", team: "Team" };
 const SEC_WHEN: Record<OpSection, string> = {
   day: "Start of shift", now: "During service", ask: "When you're stuck", prep: "Before the event",
-  plan: "Booking ahead", studio: "Promoting a drop", brew: "Production days", garage: "Stock & gear", goals: "Steering the quarter", driver: "Run days", money: "The books", customers: "Your regulars", team: "People & roles",
+  plan: "Booking ahead", studio: "Promoting a drop", brew: "Production days", garage: "Stock & gear", goals: "Steering the quarter", driver: "Run days", stops: "Where the truck goes", notes: "After a meeting", money: "The books", customers: "Your regulars", team: "People & roles",
 };
 const SEC_SUB: Record<OpSection, string> = {
   day: "Your tasks, flags & what's on today.",
   now: "The pass, pack pickups & the 86 board — live service.",
   ask: "Recipes, gear, stock & how-to — from the GT3 playbook.",
   prep: "Stock, readiness & the pack list for what's next.",
-  plan: "Calendar, events, vendors & bookings.",
+  plan: "Calendar, events, bookings & vendors.",
+  stops: "Truck stops, the route & the cup-ordering dial.",
+  notes: "Meeting notes — follow-ups become tasks.",
   studio: "Draft, schedule & post — brand & marketing.",
   brew: "Schedule, start & log brews — sized to what's reserved.",
   garage: "Load-out & tow, gear, maintenance & inventory.",
@@ -4333,7 +4335,9 @@ const SEC_MORE: Record<OpSection, string> = {
   day: "Your personal launchpad. Everything assigned to you and everything flagged for your attention, in one place — so the moment you clock in you know exactly what to do.",
   now: "The glance before the work. Alerts land here, the service pulse shows what's waiting (orders on the pass, items 86'd), and one tap opens Service mode — the working screen with the pass, pickup checklist and 86 board. Prep lives here too: the drop's brew sheet and Sunday delivery.",
   prep: "Get ready before you roll. Build the pack list, check stock and readiness, and sign off that the truck's loaded for the next event or stop.",
-  plan: "The forward calendar. Book events, manage vendors and venues, work incoming booking requests, and schedule brews — weeks and months out.",
+  plan: "The forward calendar. Book events, work incoming booking requests, and manage vendors and venues — weeks and months out.",
+  stops: "Where the truck goes: create and order stops, set dates and windows, pin addresses on the map, and run the go-live control.",
+  notes: "The meeting record. Paste a recap, tag follow-ups, assign them — they land in everyone's tasks with a ping.",
   studio: "Your marketing studio. Draft posts and flyers, keep them on-brand, plan the feed, schedule around your drops, and moderate the guest reviews that feed the truck display.",
   brew: "Production's home. Schedule brews sized to demand, hit start-by deadlines, log every batch — with coverage, serve-by and stock checks right on the card.",
   garage: "The physical operation: trailer load-out & tow plan, the gear library, asset maintenance, and inventory with pars.",
@@ -4346,16 +4350,18 @@ const SEC_MORE: Record<OpSection, string> = {
 };
 const SEC_INSIDE: Record<OpSection, string[]> = {
   day: ["Your open tasks & due dates", "Alerts flagged for you", "What's on the calendar today", "Day-of brief — dress code & call time"],
-  now: ["Service pulse — live counts, one tap into the working screen", "Service mode — the pass (guests ping it: on my way · outside · late), pickup checklist & 86 board on ONE screen", "The drop — brew sheet & window money (the checklist lives in Service)", "Sunday delivery — run sheet, brew totals & driver outcomes", "Live truck: go live, GPS broadcast (locations & the cup-ordering dial live in Plan › Truck stops)", "Alerts inbox & live sales"],
-  prep: ["Per-event & per-stop pack lists", "Readiness & inspection checks", "Trailer load-out & gear", "Crew assignments & sign-off"],
-  plan: ["Company calendar", "Events & truck stops", "Vendors & venues", "Booking requests", "Brew schedule & reserves"],
+  now: ["Service pulse — live counts, one tap into the working screen", "Service mode — the pass (guests ping it: on my way · outside · late), pickup checklist & 86 board on ONE screen", "The drop — brew sheet & window money (the checklist lives in Service)", "Sunday delivery — run sheet, brew totals & driver outcomes", "Live truck: go live, GPS broadcast (locations & the ordering dial live on the Stops page)", "Alerts inbox & live sales"],
+  prep: ["Per-event & per-stop pack lists", "Readiness & inspection checks", "Crew assignments & sign-off", "Load-out & gear moved to Production › Garage"],
+  plan: ["Company calendar", "Events", "Booking requests", "Vendors & venues"],
+  stops: ["Stop list & route order", "Dates, windows & addresses", "Go live from any stop", "The cup-ordering dial"],
+  notes: ["Meeting recaps", "Follow-ups → assigned tasks", "GT3-format summaries"],
   studio: ["Post & flyer drafting", "Brand copy & front-end copy", "Feed planning grid", "Repurpose engine", "Publishing & scheduling", "Review Desk → the truck display (/display): add or approve reviews; ✨ Simplify de-claims + trims one to display-safe"],
   brew: ["Brew schedule with start-by deadlines", "Coverage — makes vs reserved", "Serve-by freshness windows", "Batch log & recipes"],
   garage: ["Load-out & tow plan", "Gear library — manuals & specs", "Asset maintenance & what's due", "Inventory — stock, costs & pars"],
   goals: ["Company goals & owners", "Progress check-ins", "Discussion threads"],
   driver: ["Next run — porches & zips", "Driver mode — map & run list", "Outcomes land back in Now › Sunday delivery"],
   customers: ["Customer list — guests & members", "Cross-channel order history (cup · pickup · delivery)", "Loyalty — points & credit", "Contact info for outreach"],
-  money: ["Checkout & payments — card status + the pay-at-pickup toggle (governs cup, reserve & delivery)", "Sales · snapshot · per-event P&L", "Product economics & COGS", "Membership plans & subscribers", "Order history", "The Playbook (/playbook, owners) — every growth play + where its numbers land here"],
+  money: ["Checkout & payments — card status + the pay-at-pickup toggle (governs cup, reserve & delivery)", "Sales · snapshot · per-event P&L", "Product economics & COGS", "Membership plans & subscribers", "Order history", "The Playbook (/playbook, owners) — every growth play + where its numbers land here", "Reserve drops — configure the limited drops"],
   team: ["Staff roster", "Roles & permissions", "Training & academy", "Manager approvals"],
   ask: ["Recipes & the why", "Gear & stock how-to", "The GT3 playbook"],
 };
@@ -4440,7 +4446,7 @@ export default function AdminPage() {
   const canPrep = canManage || role === "operator" || role === "contractor";
   const allowed = sectionsForRole(role);
   const sec: OpSection = allowed.includes(section) ? section : "now";
-  const [planTab, setPlanTab] = useState<"calendar" | "notes" | "events" | "stops" | "vendors" | "bookings" | "reserves">("calendar");
+  const [planTab, setPlanTab] = useState<"calendar" | "events" | "vendors" | "bookings">("calendar");
   const [guideOpen, setGuideOpen] = useState(false);
   // Service mode — full-screen KDS (pass + pickups). Esc exits; leaving Now exits.
   const [svc, setSvc] = useState(false);
@@ -4463,7 +4469,7 @@ export default function AdminPage() {
   useEffect(() => {
     if (sec !== "plan" || typeof window === "undefined") return;
     const t = localStorage.getItem("gt3-plan-tab");
-    if (t && (["calendar", "notes", "events", "stops", "vendors", "bookings", "reserves"] as const).includes(t as typeof planTab)) {
+    if (t && (["calendar", "events", "vendors", "bookings"] as const).includes(t as typeof planTab)) {
       localStorage.removeItem("gt3-plan-tab"); setPlanTab(t as typeof planTab);
     }
   }, [sec]);
@@ -4497,7 +4503,7 @@ export default function AdminPage() {
   // Overview's jump links map onto the operator sections — and the Plan sub-tab when relevant,
   // so "Events" actually lands on Plan→Events instead of whatever tab was last open.
   const goSection = (t: string) => {
-    const map: Record<string, OpSection> = { events: "plan", vendors: "plan", bookings: "plan", money: "money", members: "team", stops: "prep", tasks: "day" };
+    const map: Record<string, OpSection> = { events: "plan", vendors: "plan", bookings: "plan", money: "money", members: "team", stops: "stops", tasks: "day" };
     const tab: Record<string, typeof planTab> = { events: "events", bookings: "bookings", vendors: "vendors" };
     if (tab[t]) setPlanTab(tab[t]);
     setSection(map[t] ?? "prep");
@@ -4614,24 +4620,21 @@ export default function AdminPage() {
             {/* This week — what's hot at this stage */}
             {/* Ordered by operating rhythm (not alphabet): when → what → where → requests in →
                 production → notes. Back office (rarely touched) sits after the divider. */}
-            {([["calendar", "Calendar", 0], ["events", "Events", planCounts.events], ["stops", "Truck stops", 0], ["bookings", "Bookings", planCounts.bookings], ["notes", "Notes", 0]] as const).map(([k, label, n]) => (
+            {([["calendar", "Calendar", 0], ["events", "Events", planCounts.events], ["bookings", "Bookings", planCounts.bookings]] as const).map(([k, label, n]) => (
               <button key={k} type="button" role="tab" aria-selected={planTab === k} className={`subnav-tab${planTab === k ? " on" : ""}`} onClick={() => setPlanTab(k)}>
                 {label}{n > 0 && <span className={`subnav-badge${k === "bookings" ? " hot" : ""}`}>{n}</span>}
               </button>
             ))}
             <span className="subnav-div" aria-hidden />
             {/* Back office — rarely touched */}
-            {([["vendors", "Vendors"], ["reserves", "Reserves"]] as const).map(([k, label]) => (
+            {([["vendors", "Vendors"]] as const).map(([k, label]) => (
               <button key={k} type="button" role="tab" aria-selected={planTab === k} className={`subnav-tab back${planTab === k ? " on" : ""}`} onClick={() => setPlanTab(k)}>{label}</button>
             ))}
           </div>
           {planTab === "calendar" && <CompanyCalendar />}
-          {planTab === "notes" && <MeetingNotes />}
           {planTab === "events" && <EventsAdmin />}
-          {planTab === "stops" && <LiveControl />}
           {planTab === "vendors" && <VendorsAdmin />}
           {planTab === "bookings" && <Bookings />}
-          {planTab === "reserves" && <ReservesAdmin />}
         </>
       )}
 
@@ -4655,10 +4658,13 @@ export default function AdminPage() {
           <Panel id="plans" title="Membership plans"><PlanEditor /></Panel>
           <Panel id="subs" title="Subscribers"><Subscribers /></Panel>
           <Panel id="subint" title="Subscription interest"><SubInterest /></Panel>
+          <Panel id="resv" title="Reserve drops"><ReservesAdmin /></Panel>
           <Panel id="orders" title="Order history"><OrdersHistory /></Panel>
         </>
       )}
 
+      {sec === "stops" && canManage && <LiveControl />}
+      {sec === "notes" && canManage && <MeetingNotes />}
       {sec === "brew" && canPrep && <BrewPlanner />}
       {sec === "garage" && canPrep && <GarageSection />}
       {sec === "goals" && canManage && <Goals />}

@@ -23,7 +23,7 @@ export async function raiseAlert(a: {
       category: a.category,
       title: a.title.slice(0, 180),
       body: a.body.slice(0, 300),
-      link: a.link ?? "/admin",
+      link: a.link ?? "/crew",
       target_user_id: a.targetUserId ?? null,
     });
   } catch { /* best effort — alerting must never break a money/order write */ }

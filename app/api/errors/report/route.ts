@@ -64,7 +64,7 @@ export async function POST(req: Request) {
       category: "system",
       title: fatal ? "App error — a screen crashed" : "App error (new)",
       body: `${message.slice(0, 200)}${path ? ` · ${path}` : ""}`,
-      link: "/admin",
+      link: "/crew",
     });
   } catch { /* telemetry never throws */ }
   return done;

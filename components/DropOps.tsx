@@ -165,7 +165,7 @@ export default function DropOps({ brief = false, onOpen }: { brief?: boolean; on
         severity: "important", category: "money",
         title: "Canceled a PAID reservation — refund needed",
         body: `${o.name} · ${o.size}-pack · ${dollars(o.total_cents / 100)} for ${satLabel}'s drop. Refund it in Square.`,
-        link: "/admin",
+        link: "/crew",
       });
     }
     toast("Reservation canceled");
