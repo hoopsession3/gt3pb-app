@@ -643,6 +643,7 @@ function CommentThread({ subject, notifyIds, label, meId, meName }: {
 type MyTaskRow = EventTask & {
   events: { title: string | null; day: string | null; is_live: boolean | null } | null;
   meeting_notes: { title: string | null } | null;
+  goals: { title: string | null } | null;
 };
 
 // MY DAY — the personal rollup: what's on today, the flags & pings aimed at YOU (alerts targeted
@@ -1083,7 +1084,7 @@ function MyTasks({ userId }: { userId: string | null }) {
     if (!supabase || !userId) { setTasks([]); setLoaded(true); return; }
     const { data } = await supabase
       .from("event_tasks")
-      .select("*, events(title, day, is_live), meeting_notes(title)")
+      .select("*, events(title, day, is_live), meeting_notes(title), goals(title)")
       .eq("assignee", userId)
       .eq("done", false)
       .order("sort");
@@ -1120,7 +1121,7 @@ function MyTasks({ userId }: { userId: string | null }) {
           </button>
           <div className="mytask-main">
             <span className="mytask-label">{t.label}</span>
-            <span className="mytask-ev">{t.meeting_notes ? `Follow-up · ${t.meeting_notes.title ?? "Meeting"}` : `${t.events?.title ?? "Event"}${t.events?.is_live ? " · LIVE" : t.events?.day ? ` · ${whenBucket(t.events.day).label}` : ""}`}{t.due_at ? ` · due ${dueLabel(t.due_at)}` : ""}</span>
+            <span className="mytask-ev">{t.meeting_notes ? `Follow-up · ${t.meeting_notes.title ?? "Meeting"}` : t.goals ? `Goal · ${t.goals.title ?? "Goal"}` : `${t.events?.title ?? "Event"}${t.events?.is_live ? " · LIVE" : t.events?.day ? ` · ${whenBucket(t.events.day).label}` : ""}`}{t.due_at ? ` · due ${dueLabel(t.due_at)}` : ""}</span>
           </div>
           {isOver(t) ? <span className="mytask-pri over">Overdue</span> : t.critical ? <span className="mytask-pri crit">Critical</span> : t.warn ? <span className="mytask-pri warn">Important</span> : null}
         </div>

@@ -4006,6 +4006,16 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .dops-up-act{display:flex;gap:8px;flex-shrink:0}
 
 /* goals — the strategy's scoreboard (Plan › Goals) */
+/* card-connection check — plain verdicts from the Square health route */
+.pay-health{border:1px solid var(--line);border-radius:12px;padding:6px 12px;margin:10px 0 4px}
+.pay-health-row{display:flex;align-items:baseline;gap:8px;padding:6px 0;border-top:1px solid var(--line);font-size:12px}
+.pay-health-row:first-child{border-top:none}
+.pay-health-ok{flex:0 0 auto;color:var(--ok);font-weight:700}
+.pay-health-row.bad .pay-health-ok{color:var(--red-h)}
+.pay-health-row b{flex:0 0 auto;font-family:'Inter';font-weight:650;font-size:12px;color:var(--cream)}
+.pay-health-note{color:var(--cream-m);min-width:0;overflow-wrap:anywhere}
+.pay-health-row.bad .pay-health-note{color:var(--cream)}
+
 /* goal tracker (0163) — lane groups, live-metric tag, initiative breakdown */
 .goal-lane{margin-bottom:16px}
 .goal-lane-h{display:flex;align-items:center;gap:7px;margin:0 0 8px 2px}
@@ -4020,6 +4030,10 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .goal-init-x{flex:0 0 auto;background:none;border:none;color:var(--cream-d);font-size:11px;cursor:pointer;padding:2px 4px;-webkit-appearance:none;appearance:none}
 .goal-init.add{gap:8px}
 .goal-init.add .auth-input{flex:1;padding:8px 10px;font-size:13px}
+.goal-init-who{flex:0 0 auto;font-family:'DM Mono',ui-monospace,monospace;font-size:9.5px;color:var(--cream-m)}
+.goal-init-meta{display:flex;gap:7px;margin:2px 0 6px 30px}
+.goal-init-meta select,.goal-init-meta input{background:var(--char2);border:1px solid var(--line2);border-radius:8px;padding:5px 8px;color:var(--cream-m);font-family:'Inter';font-size:11px}
+.app.crew-day .goal-init-meta select,.app.crew-day .goal-init-meta input{background:#fff;color:#221F18}
 .goal-lane-pick{margin-left:auto;background:var(--char2);border:1px solid var(--line2);border-radius:9px;padding:5px 8px;color:var(--cream-m);font-family:'Inter';font-size:10.5px}
 .app.crew-day .goal-lane-pick{background:#fff;color:#221F18}
 

@@ -7,14 +7,15 @@ import { useApp } from "./AppProvider";
 import { useAuth, roleOf, LEADERSHIP_ROLES } from "./AuthProvider";
 import { useWorkStreams } from "@/lib/streams";
 import { METRIC_SOURCES, computeMetric } from "@/lib/goalMetrics";
+import { raiseAlertClient } from "@/lib/clientAlerts";
 import { StrategyThread } from "./StrategyCollab";
 
-// GOALS — the true tracker (0163). Three layers, top down:
-//   lane → goal → initiatives.
-// Every goal rolls up to a work stream, so the board reads like the org chart. A goal is a number
-// with a bar; a metric-bound goal reads its number LIVE from real orders (it can't drift from
-// reality); initiatives are the concrete moves that get it there — checkable, attributable,
-// arguable on the thread.
+// GOALS — the true tracker (0163/0164). Three layers, top down:
+//   lane → goal → moves.
+// Every goal rolls up to a work stream; a metric-bound goal reads its number LIVE from real
+// orders. Moves are event_tasks rows owned by goal_id (0049's meeting-note precedent), so an
+// assigned move pings its owner, lands in their My Tasks, rides the task-due ladder, and shows
+// on the calendar — the ONE task engine, not a second one.
 
 type Goal = {
   id: string; title: string; metric: string | null; unit: string;
@@ -23,14 +24,16 @@ type Goal = {
   author_name: string | null; updated_at: string;
   stream_key: string | null; metric_source: string | null;
 };
-type Initiative = { id: string; goal_id: string; title: string; done: boolean; sort: number };
+type Move = { id: string; goal_id: string; label: string; done: boolean; assignee: string | null; due_at: string | null; sort: number };
+type Staff = { id: string; display_name: string | null };
 
 export default function Goals() {
   const { toast } = useApp();
   const { user, profile } = useAuth();
   const streams = useWorkStreams();
   const [rows, setRows] = useState<Goal[]>([]);
-  const [inits, setInits] = useState<Initiative[]>([]);
+  const [inits, setInits] = useState<Move[]>([]);
+  const [staff, setStaff] = useState<Staff[]>([]);
   const [live, setLive] = useState<Record<string, number>>({});   // metric_source → live value
   const [loaded, setLoaded] = useState(false);
   const [open, setOpen] = useState<string | null>(null);          // which thread is open
@@ -44,17 +47,19 @@ export default function Goals() {
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    const [g, i] = await Promise.all([
+    const [g, i, st] = await Promise.all([
       supabase.from("goals").select("*").neq("status", "archived")
         .order("status").order("due_date", { ascending: true, nullsFirst: false }).order("created_at"),
-      supabase.from("goal_initiatives").select("id, goal_id, title, done, sort").order("sort").order("created_at"),
+      supabase.from("event_tasks").select("id, goal_id, label, done, assignee, due_at, sort").not("goal_id", "is", null).order("sort").order("created_at"),
+      supabase.from("profiles").select("id, display_name").neq("role", "member").order("display_name"),
     ]);
     if (g.data) setRows(g.data as Goal[]);
-    if (i.data) setInits(i.data as Initiative[]);
+    if (i.data) setInits(i.data as Move[]);
+    if (st.data) setStaff(st.data as Staff[]);
     setLoaded(true);
   }, []);
   useEffect(() => { load(); }, [load]);
-  useRealtimeTable(["goals", "goal_initiatives"], load);
+  useRealtimeTable(["goals", "event_tasks"], load);
 
   // Live metrics: compute each bound source once, show it, and (leadership only) write it back so
   // reports and escalation read the same number the board shows.
@@ -102,22 +107,40 @@ export default function Goals() {
 
   const addInitiative = async (goalId: string) => {
     if (!supabase || !initTitle.trim()) return;
-    const title = initTitle.trim();
+    const label = initTitle.trim();
     setInitTitle("");
-    const { error } = await supabase.from("goal_initiatives").insert({ goal_id: goalId, title, sort: inits.filter((i) => i.goal_id === goalId).length });
+    const { error } = await supabase.from("event_tasks").insert({ goal_id: goalId, label, kind: "task", sort: inits.filter((i) => i.goal_id === goalId).length });
     if (error) { toast(`Couldn't add — ${error.message}`, "error"); return; }
     load();
   };
-  const toggleInitiative = async (i: Initiative) => {
+  const toggleInitiative = async (i: Move) => {
     if (!supabase) return;
-    setInits((p) => p.map((x) => (x.id === i.id ? { ...x, done: !x.done } : x)));
-    await supabase.from("goal_initiatives").update({ done: !i.done }).eq("id", i.id);
+    const next = !i.done;
+    setInits((p) => p.map((x) => (x.id === i.id ? { ...x, done: next } : x)));
+    await supabase.from("event_tasks").update({ done: next, done_by: next ? user?.id ?? null : null, done_at: next ? new Date().toISOString() : null }).eq("id", i.id);
   };
-  const removeInitiative = async (i: Initiative) => {
+  const removeInitiative = async (i: Move) => {
     if (!supabase) return;
     setInits((p) => p.filter((x) => x.id !== i.id));
-    await supabase.from("goal_initiatives").delete().eq("id", i.id);
+    await supabase.from("event_tasks").delete().eq("id", i.id);
   };
+  // Assigning a move works exactly like assigning prep: the owner gets a targeted ping and the
+  // move appears in THEIR My Tasks (same rows, same engine).
+  const assignMove = async (i: Move, goalTitle: string, uid: string) => {
+    if (!supabase) return;
+    setInits((p) => p.map((x) => (x.id === i.id ? { ...x, assignee: uid || null } : x)));
+    await supabase.from("event_tasks").update({ assignee: uid || null }).eq("id", i.id);
+    if (uid && uid !== user?.id) {
+      raiseAlertClient({ severity: "critical", category: "task", title: `Assigned to you: ${i.label}`.slice(0, 140), body: `Goal: ${goalTitle}`, link: "/crew?s=day", targetUserId: uid });
+    }
+  };
+  const dueMove = async (i: Move, v: string) => {
+    if (!supabase) return;
+    const due_at = v ? new Date(`${v}T23:59:59`).toISOString() : null;
+    setInits((p) => p.map((x) => (x.id === i.id ? { ...x, due_at } : x)));
+    await supabase.from("event_tasks").update({ due_at }).eq("id", i.id);
+  };
+  const firstName = (uid: string | null) => (staff.find((s) => s.id === uid)?.display_name || "").trim().split(/\s+/)[0] || null;
 
   const addGoal = async () => {
     if (!supabase || !user) return;
@@ -168,10 +191,24 @@ export default function Goals() {
         {(goalInits.length > 0 || initFor === g.id) && (
           <div className="goal-inits">
             {goalInits.map((i) => (
-              <div className={`goal-init${i.done ? " done" : ""}`} key={i.id}>
-                <button type="button" className="goal-init-ck" onClick={() => canLead && toggleInitiative(i)} aria-pressed={i.done} disabled={!canLead}>{i.done ? "✓" : "○"}</button>
-                <span className="goal-init-t">{i.title}</span>
-                {canLead && <button type="button" className="goal-init-x" onClick={() => removeInitiative(i)} aria-label={`Remove ${i.title}`}>✕</button>}
+              <div key={i.id}>
+                <div className={`goal-init${i.done ? " done" : ""}`}>
+                  <button type="button" className="goal-init-ck" onClick={() => (canLead || i.assignee === user?.id) && toggleInitiative(i)} aria-pressed={i.done} disabled={!canLead && i.assignee !== user?.id}>{i.done ? "✓" : "○"}</button>
+                  <span className="goal-init-t">{i.label}</span>
+                  {!canLead && (i.assignee || i.due_at) && (
+                    <span className="goal-init-who">{[firstName(i.assignee), i.due_at ? `due ${new Date(i.due_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : null].filter(Boolean).join(" · ")}</span>
+                  )}
+                  {canLead && <button type="button" className="goal-init-x" onClick={() => removeInitiative(i)} aria-label={`Remove ${i.label}`}>✕</button>}
+                </div>
+                {canLead && !i.done && (
+                  <div className="goal-init-meta">
+                    <select value={i.assignee ?? ""} onChange={(e) => assignMove(i, g.title, e.target.value)} aria-label={`Owner of ${i.label}`}>
+                      <option value="">No owner</option>
+                      {staff.map((s) => <option key={s.id} value={s.id}>{s.display_name || "Unnamed"}</option>)}
+                    </select>
+                    <input type="date" value={i.due_at ? i.due_at.slice(0, 10) : ""} onChange={(e) => dueMove(i, e.target.value)} aria-label={`Due date for ${i.label}`} />
+                  </div>
+                )}
               </div>
             ))}
             {initFor === g.id && (

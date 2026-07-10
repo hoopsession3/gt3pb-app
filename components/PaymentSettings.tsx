@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useApp } from "./AppProvider";
 import { squareClientReady } from "@/lib/square";
+import { authedFetch } from "@/lib/authedFetch";
 
 // PAYMENTS — the owner's checkout controls, in the Money section. Two facts, one switch:
 //   • Card checkout is on when the Square keys are set in the host env (read-only status here).
@@ -14,6 +15,8 @@ import { squareClientReady } from "@/lib/square";
 export default function PaymentSettings() {
   const { toast } = useApp();
   const [payAtPickup, setPayAtPickup] = useState<boolean | null>(null);
+  const [health, setHealth] = useState<{ name: string; ok: boolean; note: string }[] | null>(null);
+  const [checking, setChecking] = useState(false);
   const [subsOn, setSubsOn] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -27,6 +30,18 @@ export default function PaymentSettings() {
     setSubsOn((data as { subscriptions_enabled?: boolean } | null)?.subscriptions_enabled === true);
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  // Asks Square directly (server token, owner-gated route) and names the exact mismatch —
+  // the Web SDK's init failure is one generic sentence with zero visibility.
+  const runCheck = async () => {
+    setChecking(true); setHealth(null);
+    try {
+      const res = await authedFetch("/api/square/health");
+      const j = await res.json();
+      setHealth(j.checks ?? [{ name: "Check", ok: false, note: j.error || "Couldn't run the check." }]);
+    } catch { setHealth([{ name: "Check", ok: false, note: "Couldn't reach the server — try again." }]); }
+    setChecking(false);
+  };
 
   const toggle = async () => {
     if (!supabase || busy || payAtPickup === null) return;
@@ -64,6 +79,18 @@ export default function PaymentSettings() {
         </div>
         <span className={`pay-status${squareClientReady ? " on" : ""}`}>{squareClientReady ? "Connected" : "Off"}</span>
       </div>
+      <button type="button" className="adm-regen" onClick={runCheck} disabled={checking}>{checking ? "Checking with Square…" : "🩺 Check card connection"}</button>
+      {health && (
+        <div className="pay-health">
+          {health.map((c) => (
+            <div key={c.name} className={`pay-health-row${c.ok ? "" : " bad"}`}>
+              <span className="pay-health-ok">{c.ok ? "✓" : "✕"}</span>
+              <b>{c.name}</b>
+              <span className="pay-health-note">{c.note}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Pay-at-pickup — the owner's toggle. */}
       <div className="pay-row">
