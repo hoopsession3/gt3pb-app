@@ -23,6 +23,8 @@ export type MyFlag = {
   link: string | null;
   target_user_id: string | null;
   created_by: string | null;
+  kind: string | null;         // 0174 action contract — names the inline handler
+  subject_id: string | null;   // the row that handler acts on
 };
 
 export function useMyAlerts(userId: string | null, enabled = true) {
@@ -32,7 +34,7 @@ export function useMyAlerts(userId: string | null, enabled = true) {
     if (!supabase || !userId) { setFlags([]); return; }
     const [{ data: alerts }, { data: reads }] = await Promise.all([
       supabase.from("alerts")
-        .select("id, severity, title, body, category, link, target_user_id, created_by")
+        .select("id, severity, title, body, category, link, target_user_id, created_by, kind, subject_id")
         .or(`target_user_id.eq.${userId},target_user_id.is.null`)
         .is("ack_at", null)
         .order("created_at", { ascending: false })

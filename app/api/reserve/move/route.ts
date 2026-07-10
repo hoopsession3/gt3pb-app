@@ -56,7 +56,7 @@ export async function POST(req: Request) {
 
   // FYI the crew: the drop rollups recalc live, but brew planning likes to know a pack walked.
   await raiseAlert({
-    severity: "fyi", category: "order", title: "Pack moved to another drop",
+    severity: "fyi", category: "order", kind: "pack_moved", subjectId: id, title: "Pack moved to another drop",
     body: `${order.name} moved a ${order.size}-pack (${order.paid ? "paid" : "pay at pickup"}) from ${order.drop_date} to ${toDate}.`,
     link: "/crew?s=now",
   });

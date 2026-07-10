@@ -131,7 +131,7 @@ export default function Goals() {
     setInits((p) => p.map((x) => (x.id === i.id ? { ...x, assignee: uid || null } : x)));
     await supabase.from("event_tasks").update({ assignee: uid || null }).eq("id", i.id);
     if (uid && uid !== user?.id) {
-      raiseAlertClient({ severity: "critical", category: "task", title: `Assigned to you: ${i.label}`.slice(0, 140), body: `Goal: ${goalTitle}`, link: "/crew?s=day", targetUserId: uid });
+      raiseAlertClient({ severity: "critical", category: "task", kind: "task_assigned", subjectId: i.id, title: `Assigned to you: ${i.label}`.slice(0, 140), body: `Goal: ${goalTitle}`, link: "/crew?s=day", targetUserId: uid });
     }
   };
   const dueMove = async (i: Move, v: string) => {

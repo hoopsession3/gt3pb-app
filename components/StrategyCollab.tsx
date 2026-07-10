@@ -45,7 +45,7 @@ export function StrategyThread({ k, label, link = "/playbook" }: { k: string; la
     // ping the other owners/crews so collaboration is live even when the page isn't open
     const meFirst = (profile?.display_name || "Owner").split(" ")[0];
     staff.filter((s) => (s.role === "owner" || s.role === "admin") && s.id !== user?.id).forEach((s) =>
-      raiseAlertClient({ severity: "important", category: "strategy", title: `${meFirst} on ${label.slice(0, 60)}`, body: `${label}: ${body.slice(0, 140)}`, link, targetUserId: s.id }));
+      raiseAlertClient({ severity: "important", category: "strategy", kind: "thread_reply", subjectId: k.startsWith("opp:") || k.startsWith("goal:") ? k.slice(k.indexOf(":") + 1) : undefined, title: `${meFirst} on ${label.slice(0, 60)}`, body: `${label}: ${body.slice(0, 140)}`, link, targetUserId: s.id }));
   };
   return (
     <div className="st-thread">

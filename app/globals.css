@@ -1577,7 +1577,8 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .cmt-add .note-in{flex:1;font-size:15px;padding:10px 11px}
 .task-discuss,.alert-discuss{flex:0 0 auto;background:none;border:none;font-size:15px;line-height:1;padding:6px;cursor:pointer;-webkit-appearance:none;appearance:none;opacity:.75}
 .task-discuss:active,.alert-discuss:active{opacity:1}
-.alert-row{display:flex;align-items:center;gap:10px}
+.alert-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.alert-main{flex:1 1 62%;min-width:150px}
 .adm-task-wrap,.note-fu-wrap{display:block}
 
 /* ── input sheet (focused guided entry; keeps context above visible) ── */
@@ -4355,3 +4356,12 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 @supports (animation-timing-function: linear(0,1)){
   .sheet2:not(.out){animation-timing-function:var(--spring)}
 }
+
+/* 0174 — handle an alert on the card (My Day cockpit) */
+.alert-act{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:9px;padding-top:9px;border-top:1px solid var(--line)}
+.alert-act-ctx{font-family:'DM Mono',monospace;font-size:10.5px;letter-spacing:.03em;color:var(--cream-m);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.alert-act-do{flex:0 0 auto;background:var(--ok);border:none;border-radius:10px;padding:10px 16px;color:#fff;font-family:'Inter';font-weight:700;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none;min-height:42px;transition:transform .12s var(--ease),filter .15s var(--ease)}
+.alert-act-do:active{transform:scale(.97)}
+.alert-act-do:disabled{opacity:.7;cursor:default}
+.alert-open.ghost{background:transparent;border:1px solid var(--line2);color:var(--cream-m);font-weight:600}
+.app.crew-day .alert-open.ghost{color:#221F18;border-color:rgba(34,31,24,.24)}

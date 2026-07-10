@@ -96,7 +96,7 @@ export async function POST(req: Request) {
     if (insErr) {
       const ref = (paymentId || "").slice(-6).toUpperCase();
       const title = paid ? "Paid reservation didn't record — add it" : "Reservation didn't record — add it";
-      await raiseAlert({ severity: "critical", category: paid ? "money" : "order", title, body: `${paid ? `A card payment succeeded (${paymentId}) but the` : "A pre-order"} reservation didn't save. ${name} · ${size}-pack ${glass} · ${mixSummary(mix)} · pickup ${dropDate}.${paid ? " Add it and confirm in Square." : " Add it to the drop."}` });
+      await raiseAlert({ severity: "critical", category: paid ? "money" : "order", kind: "ops_incident", title, body: `${paid ? `A card payment succeeded (${paymentId}) but the` : "A pre-order"} reservation didn't save. ${name} · ${size}-pack ${glass} · ${mixSummary(mix)} · pickup ${dropDate}.${paid ? " Add it and confirm in Square." : " Add it to the drop."}` });
       return NextResponse.json({ ok: true, paid, recorded: false, ref, warn: `Reserved${ref ? ` — ref ${ref}` : ""}. We've alerted the crew; show this at pickup.` });
     }
 
@@ -109,7 +109,7 @@ export async function POST(req: Request) {
       message: `GT3: your ${size}-pack (${mixSummary(mix)}) is reserved for pickup ${dropDate}${paid ? " — paid ✓" : ` — ${dollars(packTotal(size, glass as GlassPath))} at pickup`}. We brew it fresh for pickup day.${glass === "return" ? " Rinse your empties and bring them along." : ""}`,
     });
 
-    await raiseAlert({ severity: "fyi", category: "order", title: "New reservation 🎉", body: `${name} reserved a ${size}-pack (${mixSummary(mix)}) for ${dropDate} — ${dollars(packTotal(size, glass as GlassPath))}, ${glass === "return" ? "bringing bottles back" : "new glass"}${paid ? "" : " · pay at pickup"}.` });
+    await raiseAlert({ severity: "fyi", category: "order", kind: "reservation_new", subjectId: inserted?.id ?? undefined, title: "New reservation 🎉", body: `${name} reserved a ${size}-pack (${mixSummary(mix)}) for ${dropDate} — ${dollars(packTotal(size, glass as GlassPath))}, ${glass === "return" ? "bringing bottles back" : "new glass"}${paid ? "" : " · pay at pickup"}.` });
     return NextResponse.json({ ok: true, id: inserted?.id ?? null, paid, recorded: true });
   } catch {
     return NextResponse.json({ error: "Reservation service unavailable" }, { status: 502 });

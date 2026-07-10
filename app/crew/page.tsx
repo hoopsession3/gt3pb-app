@@ -42,6 +42,7 @@ import InputSheet from "@/components/InputSheet";
 import Sheet from "@/components/Sheet";
 import { NumberRoll } from "@/components/CountUp";
 import PourFill from "@/components/PourFill";
+import AlertAction, { alertHasInlineAction } from "@/components/AlertAction";
 import { supabase } from "@/lib/supabase";
 import AskGT3 from "@/components/AskGT3";
 import Studio from "@/components/Studio";
@@ -374,12 +375,13 @@ const isLeader = (role: string | null | undefined) => (LEADERSHIP_ROLES as reado
 async function raiseAlert(a: {
   severity?: "critical" | "important" | "fyi"; category: AlertCategory; title: string;
   body?: string; link?: string; target_user_id?: string | null; created_by?: string | null;
+  kind?: string; subject_id?: string | null; // 0174 action contract
 }) {
   if (!supabase) return;
   await supabase.from("alerts").insert({
     severity: a.severity ?? "important", category: a.category, title: a.title,
     body: a.body ?? null, link: a.link ?? "/crew", target_user_id: a.target_user_id ?? null,
-    created_by: a.created_by ?? null,
+    created_by: a.created_by ?? null, kind: a.kind ?? null, subject_id: a.subject_id ?? null,
   });
 }
 void raiseAlertClient; // components outside this file use the lib helper; admin keeps created_by
@@ -455,8 +457,8 @@ function ContentApprovalSheet({ contentId, meName, meId, onClose, onActioned }: 
     const t = (item?.title || "Untitled").slice(0, 80);
     if (item?.created_by && item.created_by !== meId) {
       await raiseAlert(status === "approved"
-        ? { severity: "fyi", category: "content", title: `✅ Approved — ${t}`.slice(0, 180), body: `${meName} approved "${t}". Ready to schedule/publish.`.slice(0, 300), link: `/crew?post=${contentId}`, target_user_id: item.created_by }
-        : { severity: "important", category: "content", title: `✏️ Changes requested — ${t}`.slice(0, 180), body: note.trim().slice(0, 300), link: `/crew?post=${contentId}`, target_user_id: item.created_by });
+        ? { severity: "fyi", category: "content", kind: "content_approved", subject_id: contentId, title: `✅ Approved — ${t}`.slice(0, 180), body: `${meName} approved "${t}". Ready to schedule/publish.`.slice(0, 300), link: `/crew?post=${contentId}`, target_user_id: item.created_by }
+        : { severity: "important", category: "content", kind: "content_changes", subject_id: contentId, title: `✏️ Changes requested — ${t}`.slice(0, 180), body: note.trim().slice(0, 300), link: `/crew?post=${contentId}`, target_user_id: item.created_by });
     }
     setBusy(false);
     toast(status === "approved" ? "Approved" : "Changes requested");
@@ -555,9 +557,10 @@ function AlertsInbox({ userId, compact = false, title = "Alerts" }: { userId: st
               {a.body && <span className="alert-body">{a.body}</span>}
             </div>
             {counts[a.id] ? <button type="button" className="alert-discuss" onClick={() => setOpenThread(openThread === a.id ? null : a.id)} aria-label="Discuss">💬<span className="cmt-count">{counts[a.id]}</span></button> : null}
-            <button type="button" className="alert-open" onClick={() => gotoAlert(a)}>Open →</button>
+            <button type="button" className={alertHasInlineAction(a.kind) ? "alert-open ghost" : "alert-open"} onClick={() => gotoAlert(a)}>{alertHasInlineAction(a.kind) ? "Open" : "Open →"}</button>
             <button type="button" className="alert-ack" onClick={() => ack(a)} aria-label="Got it">✓</button>
           </div>
+          {alertHasInlineAction(a.kind) && <AlertAction flag={a} meId={userId} onResolved={() => ack(a)} />}
           {openThread === a.id && (
             <CommentThread subject={{ col: "alert_id", id: a.id }} notifyIds={[a.target_user_id, a.created_by]} label={a.title} meId={userId} meName={meName} />
           )}
@@ -615,7 +618,7 @@ function CommentThread({ subject, notifyIds, label, meId, meName }: {
     const recips = Array.from(new Set([...notifyIds, ...mentionIds])).filter((id): id is string => !!id && id !== meId);
     const meFirst = meName.split(" ")[0] || "Someone";
     recips.forEach((rid) => raiseAlert({
-      severity: "important", category: "task",
+      severity: "important", category: "task", kind: `thread_reply_${subject.col === "event_task_id" ? "task" : subject.col === "meeting_note_id" ? "note" : "alert"}`, subject_id: subject.id,
       title: `${meFirst} replied`, body: `${label}: ${sent.slice(0, 140)}`,
       target_user_id: rid, created_by: meId,
     }));
@@ -1791,7 +1794,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       // bypassed the spine) is gone with it.
       if (next !== user?.id) {
         raiseAlert({
-          severity: "critical", category: "task",
+          severity: "critical", category: "task", kind: "task_assigned", subject_id: t.id,
           title: `${profile?.display_name?.split(" ")[0] || "A manager"} assigned you: ${t.label}`,
           body: name ? `On ${isEvent ? "event" : "location"} · ${name}` : undefined,
           target_user_id: next, created_by: user?.id ?? null,
@@ -3092,7 +3095,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
       // Staff-wide alerts (0157): every assignee gets the flag; the trigger delivers the push.
       if (next !== user?.id) {
         raiseAlert({
-          severity: "critical", category: "task",
+          severity: "critical", category: "task", kind: "task_assigned", subject_id: t.id,
           title: `${profile?.display_name?.split(" ")[0] || "A manager"} assigned you: ${t.label}`,
           body: `Follow-up · ${note.title}`, target_user_id: next, created_by: user?.id ?? null,
         });
@@ -3102,7 +3105,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
   // Promote a follow-up to a can't-miss alert (the "flag this" the talking-point becomes urgent).
   const flag = async (t: EventTask) => {
     await raiseAlert({
-      severity: "critical", category: "task",
+      severity: "critical", category: "task", kind: "task_assigned", subject_id: t.id,
       title: `Flagged: ${t.label}`, body: `From meeting · ${note.title}`,
       target_user_id: t.assignee ?? null, created_by: user?.id ?? null,
     });

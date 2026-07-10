@@ -15,6 +15,8 @@ export async function raiseAlert(a: {
   body: string;
   link?: string;
   targetUserId?: string | null;
+  kind?: string;        // 0174 action contract — names the inline handler
+  subjectId?: string;   // the row the kind acts on (polymorphic by kind)
 }): Promise<void> {
   if (!supabaseAdmin) return;
   try {
@@ -25,6 +27,8 @@ export async function raiseAlert(a: {
       body: a.body.slice(0, 300),
       link: a.link ?? "/crew",
       target_user_id: a.targetUserId ?? null,
+      kind: a.kind ?? null,
+      subject_id: a.subjectId ?? null,
     });
   } catch { /* best effort — alerting must never break a money/order write */ }
 }

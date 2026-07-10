@@ -361,7 +361,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
     if (next === "review") {
       await raiseAlertClient({ severity: "important", category: "content", title: `🎨 Content ready for review — ${t}`, body: `${me.name} submitted "${t}" for approval.`, link: `/crew?post=${id}` });
     } else if (next === "approved" && item?.created_by && item.created_by !== me.id) {
-      await raiseAlertClient({ severity: "fyi", category: "content", title: `✅ Approved — ${t}`, body: `${me.name} approved "${t}". Ready to schedule/publish.`, link: "/crew", targetUserId: item.created_by });
+      await raiseAlertClient({ severity: "fyi", category: "content", kind: "content_approved", subjectId: item.id, title: `✅ Approved — ${t}`, body: `${me.name} approved "${t}". Ready to schedule/publish.`, link: "/crew", targetUserId: item.created_by });
     } else if (next === "changes" && item?.created_by && item.created_by !== me.id) {
       await raiseAlertClient({ severity: "important", category: "content", title: `✏️ Changes requested — ${t}`, body: extra.review_note ? String(extra.review_note) : `${me.name} requested changes on "${t}".`, link: "/crew", targetUserId: item.created_by });
     }

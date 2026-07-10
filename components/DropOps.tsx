@@ -162,7 +162,7 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
     if (error) { toast(`Couldn't cancel — ${error.message}`, "error"); load(); return; }
     if (o.paid) {
       await raiseAlertClient({
-        severity: "important", category: "money",
+        severity: "important", category: "money", kind: "refund_needed", subjectId: o.id,
         title: "Canceled a PAID reservation — refund needed",
         body: `${o.name} · ${o.size}-pack · ${dollars(o.total_cents / 100)} for ${satLabel}'s drop. Refund it in Square.`,
         link: "/crew",
