@@ -4436,8 +4436,8 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 .mp-flex{width:100%;margin-top:12px;padding:12px 14px;border-radius:12px;border:1px solid rgba(200,166,97,.4);background:linear-gradient(135deg,rgba(200,166,97,.14),rgba(184,144,47,.06));color:var(--gold2);font-family:'Inter';font-weight:700;font-size:13.5px;cursor:pointer;-webkit-appearance:none;appearance:none;box-shadow:0 0 22px -8px rgba(200,166,97,.6);transition:transform .15s var(--ease)}
 .mp-flex:active{transform:scale(.98)}
 .sheet2.status-lux{box-shadow:0 -14px 50px rgba(0,0,0,.65),0 0 90px -12px rgba(200,166,97,.55),inset 0 1px 0 rgba(200,166,97,.22);border-color:rgba(200,166,97,.3)}
-.status-canvas-wrap{display:flex;justify-content:center;padding:4px 0 8px}
-.status-canvas{width:100%;max-width:300px;height:auto;border-radius:16px;box-shadow:0 20px 50px rgba(0,0,0,.5),0 0 40px -10px rgba(200,166,97,.4)}
+/* the share PNG is rasterized off-screen now; the visible card is the interactive one below */
+.status-canvas-export{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;left:-9999px}
 .status-hint{font-family:'Inter';font-size:12.5px;line-height:1.6;color:var(--cream-m);text-align:center;margin:4px 6px 0}
 .status-hint b{color:var(--gold2)}
 .status-share{width:100%;padding:15px;border-radius:14px;border:none;background:linear-gradient(135deg,var(--gold2),var(--gold));color:#1a1610;font-family:'Inter';font-weight:800;font-size:15px;cursor:pointer;-webkit-appearance:none;appearance:none;box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 8px 24px -6px rgba(200,166,97,.6)}
@@ -4585,3 +4585,69 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 .pd-ev-t{font-family:'Inter';font-weight:600;font-size:13px;color:var(--cream);display:block}
 .pd-ev-w{font-family:var(--mono);font-size:10px;color:var(--cream-m)}
 .pd-ev-note{font-family:'Inter';font-style:italic;font-size:12.5px;color:var(--cream-m);margin:3px 0 0}
+
+/* ═══ THE GT3 CARD — dual-sided, tiltable, spinning. Tap → machined-steel glint sweep + a 540° whirl
+   to the other face; drag to tilt it in the hand; idle sway at rest. Four finishes + a custom motto,
+   so it's theirs. LV-object aesthetic (S·8+, 2026-07). ═══ */
+.fc-scene{--fc-ground:linear-gradient(160deg,#171208,#0c0906 60%,#120d08);--fc-ink:#F5F1E8;--fc-accent:#C8A661;--fc-edge:rgba(200,166,97,.6);--fc-edge2:rgba(200,166,97,.2);--fc-metal:rgba(255,244,214,.7);
+  width:min(300px,76vw);aspect-ratio:300/430;margin:6px auto 4px;perspective:1500px}
+.fc-scene.f-steel{--fc-ground:repeating-linear-gradient(115deg,#2c3138,#363c44 2px,#2a2f36 4px,#31373f 7px),linear-gradient(160deg,#3a4048,#20242a);--fc-ink:#EEF1F4;--fc-accent:#C3CCD6;--fc-edge:rgba(224,230,236,.65);--fc-edge2:rgba(224,230,236,.22);--fc-metal:rgba(255,255,255,.85)}
+.fc-scene.f-carbon{--fc-ground:repeating-linear-gradient(45deg,#141414,#141414 3px,#1c1c1c 3px,#1c1c1c 6px),repeating-linear-gradient(-45deg,#161616,#161616 3px,#1e1e1e 3px,#1e1e1e 6px);--fc-ink:#F5F1E8;--fc-accent:#C8A661;--fc-edge:rgba(200,166,97,.5);--fc-edge2:rgba(200,166,97,.16);--fc-metal:rgba(255,244,214,.6)}
+.fc-scene.f-redline{--fc-ground:linear-gradient(160deg,#171010,#0a0707 60%,#140c0c);--fc-ink:#F5F1E8;--fc-accent:#E0453F;--fc-edge:rgba(184,36,32,.6);--fc-edge2:rgba(184,36,32,.24);--fc-metal:rgba(255,220,218,.7)}
+
+.fc-tilt{position:relative;width:100%;height:100%;transform-style:preserve-3d;transform:rotateX(var(--tx,0deg)) rotateY(var(--ty,0deg));transition:transform .35s ease}
+.fc-tilt.idle{animation:fcSway 8s ease-in-out infinite}
+@keyframes fcSway{0%,100%{transform:rotateY(-5deg) rotateX(2.5deg)}50%{transform:rotateY(5deg) rotateX(-1.5deg)}}
+
+.fc-card{position:relative;width:100%;height:100%;padding:0;border:none;background:transparent;cursor:pointer;transform-style:preserve-3d;transform:rotateY(var(--turn,0deg));transition:transform 1.15s cubic-bezier(.2,.72,.16,1);-webkit-tap-highlight-color:transparent}
+.fc-face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;border-radius:20px;overflow:hidden;background:var(--fc-ground);
+  box-shadow:0 26px 60px -12px rgba(0,0,0,.75),0 0 0 1px var(--fc-edge2),inset 0 0 0 1px var(--fc-edge),inset 0 0 0 5px rgba(0,0,0,.25),inset 0 0 0 6px var(--fc-edge2)}
+.fc-back{transform:rotateY(180deg);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:26px 22px;gap:2px}
+
+/* FRONT — the portrait */
+.fc-photo{position:absolute;inset:6px;width:calc(100% - 12px);height:calc(100% - 12px);object-fit:cover;border-radius:15px}
+.fc-mark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+.fc-mark img{width:56%;filter:drop-shadow(0 8px 30px rgba(200,166,97,.28));opacity:.92}
+.fc-front-scrim{position:absolute;inset:6px;border-radius:15px;background:linear-gradient(180deg,rgba(8,6,4,.5) 0%,rgba(8,6,4,0) 26%,rgba(8,6,4,0) 52%,rgba(8,6,4,.82) 100%)}
+.fc-crest{position:absolute;top:16px;left:0;right:0;text-align:center;font-family:'Archivo Black',sans-serif;font-size:20px;color:var(--fc-accent);opacity:.9;text-shadow:0 2px 8px rgba(0,0,0,.6)}
+.fc-front-meta{position:absolute;left:20px;right:20px;bottom:22px;display:flex;flex-direction:column;align-items:center;gap:8px}
+.fc-ribbon{font-family:var(--mono);font-size:10px;letter-spacing:2.4px;text-transform:uppercase;color:var(--fc-accent);padding:5px 12px;border:1px solid var(--fc-edge);border-radius:999px;background:rgba(0,0,0,.35)}
+.fc-fname{font-family:'Inter';font-weight:700;font-size:26px;letter-spacing:.5px;color:var(--fc-ink);text-shadow:0 2px 10px rgba(0,0,0,.7)}
+.fc-flip-hint{position:absolute;top:16px;right:16px;font-family:var(--mono);font-size:9px;letter-spacing:1.2px;text-transform:uppercase;color:var(--fc-ink);opacity:.5}
+
+/* BACK — the member card */
+.fc-back-molecule{position:absolute;inset:0;backface-visibility:hidden;background:url(/brand/caffeine-gt3.svg) center 62% / 62% no-repeat;opacity:.06}
+.fc-eyebrow{font-family:var(--mono);font-size:9.5px;letter-spacing:2.6px;color:var(--fc-ink);opacity:.7;margin-bottom:14px}
+.fc-tier{font-family:'Inter';font-weight:800;font-size:21px;letter-spacing:.4px;color:var(--fc-accent);line-height:1.05}
+.fc-rule{width:64px;height:2px;background:var(--fc-edge);margin:11px 0}
+.fc-bname{font-family:'Inter';font-weight:650;font-size:22px;color:var(--fc-ink)}
+.fc-since{font-family:var(--mono);font-size:9px;letter-spacing:1.6px;color:var(--fc-ink);opacity:.6;margin-top:4px}
+.fc-motto{font-family:'Fraunces',serif;font-style:italic;font-size:14px;color:var(--fc-accent);margin-top:12px;max-width:90%}
+.fc-code{position:absolute;bottom:20px;left:0;right:0;font-family:var(--mono);font-weight:500;font-size:11px;letter-spacing:1.2px;color:var(--fc-accent);opacity:.92}
+
+/* the steel glint — sweeps across the visible card on a tap (over both faces, flat overlay) */
+.fc-card::after{content:"";position:absolute;inset:0;border-radius:20px;pointer-events:none;z-index:6;opacity:0;
+  background:linear-gradient(115deg,transparent 38%,var(--fc-metal) 50%,transparent 62%);transform:translateX(-120%)}
+.fc-card.spinning::after{animation:fcGlint 1.15s ease-out}
+@keyframes fcGlint{0%{transform:translateX(-120%);opacity:0}42%{opacity:.85}100%{transform:translateX(120%);opacity:0}}
+
+.fc-hint{text-align:center;font-family:var(--mono);font-size:10px;letter-spacing:1.4px;text-transform:uppercase;color:var(--cream-m);margin:12px 0 2px}
+
+/* make it theirs — finish chips + motto */
+.fc-finishes{display:flex;gap:7px;justify-content:center;margin:12px 0 0;flex-wrap:wrap}
+.fc-fin{display:inline-flex;align-items:center;gap:7px;padding:7px 12px 7px 8px;border-radius:999px;border:1px solid var(--line2);background:transparent;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:12px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.fc-fin.on{border-color:var(--gold2);color:var(--cream);background:rgba(200,166,97,.08)}
+.fc-fin-sw{width:15px;height:15px;border-radius:50%;border:1px solid rgba(255,255,255,.25)}
+.fin-gold .fc-fin-sw{background:linear-gradient(135deg,#C8A661,#8a5f22)}
+.fin-steel .fc-fin-sw{background:repeating-linear-gradient(115deg,#2c3138,#3a4048 2px,#2a2f36 4px)}
+.fin-carbon .fc-fin-sw{background:repeating-linear-gradient(45deg,#141414,#141414 2px,#242424 2px,#242424 4px)}
+.fin-redline .fc-fin-sw{background:linear-gradient(135deg,#E0453F,#7a1512)}
+.fc-motto-edit{display:flex;justify-content:center;margin:10px 0 2px}
+.fc-motto-btn{font-family:'Inter';font-size:12.5px;color:var(--gold2);background:transparent;border:none;cursor:pointer;padding:4px 0;-webkit-appearance:none;appearance:none}
+.fc-motto-edit .auth-input{max-width:280px;text-align:center}
+
+@media (prefers-reduced-motion:reduce){
+  .fc-tilt.idle{animation:none}
+  .fc-card{transition:transform .01s}
+  .fc-card.spinning::after{animation:none}
+}
