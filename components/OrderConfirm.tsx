@@ -36,7 +36,7 @@ export default function OrderConfirm({
         </div>
       )}
       {warn && <p className="dl-err" role="alert">{warn}</p>}
-      {note && <p className="dl-note">{note}</p>}
+      {note && <p className="dl-notebox">{note}</p>}
       <button type="button" className="oa-cta" style={{ marginTop: 16 }} onClick={onCta}>{ctaLabel}</button>
       {secondaryLabel && onSecondary && <button type="button" className="sub-link" onClick={onSecondary}>{secondaryLabel}</button>}
     </div>

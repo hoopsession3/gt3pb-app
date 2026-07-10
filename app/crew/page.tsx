@@ -885,7 +885,7 @@ function MenuEditor({ ownerType, ownerId, isAdmin, onChanged }: { ownerType: "ev
   return (
     <div className="menued">
       <button type="button" className="prep-collapse" style={{ marginTop: 10 }} onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        <span className="prep-collapse-l"><b>🍹 Menu &amp; rig</b><span>what we&apos;re pouring · rig · power &amp; water</span></span>
+        <span className="prep-collapse-l"><b>🍹 Menu &amp; setup</b><span>what we&apos;re pouring · the rig · power &amp; water</span></span>
         <span className={`ev-chev${open ? " open" : ""}`}>›</span>
       </button>
       {open && (
@@ -1739,7 +1739,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
     const pack = packListFor(menuRow).map((p, i) => ({ [ownerCol]: target.id, label: p.label, section: p.section, critical: !!p.critical, warn: !!p.warn, kind: "pack", link: null, sort: i }));
     const comp = isEvent && ev ? (await complianceFor(ev, supabase)).map((p, i) => ({ event_id: ev.id, label: p.label, section: p.section, critical: !!p.critical, warn: !!p.warn, kind: "task", link: p.link ?? null, sort: 100 + i })) : [];
     const rows = [...pack, ...comp];
-    if (!rows.length) { setGenerating(false); toast(`Set the ${isEvent ? "event" : "stop"}'s rig + menu first — tap Menu & rig`, "error"); return; }
+    if (!rows.length) { setGenerating(false); toast(`Set the ${isEvent ? "event" : "stop"}'s menu + rig first — tap Menu & setup`, "error"); return; }
     const { error } = await supabase.from("event_tasks").insert(rows);
     setGenerating(false);
     toast(error ? `Error: ${error.message}` : `Generated ${pack.length} pack${comp.length ? ` + ${comp.length} compliance` : ""} items`);

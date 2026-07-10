@@ -65,21 +65,22 @@ export default function MenuRigChips({ value, onPatch, variant }: {
   };
   return (
     <>
-      <div className={c.h}>What we&apos;re pouring</div>
+      {/* BEO framing: MENU is one section; SETUP & SITE is another. Never one grab-bag headline. */}
+      <div className={c.h}>Menu — what we&apos;re pouring</div>
       <div className={c.row}>
         {MENU_FLAGS.map((m) => (
           <button key={m.key} type="button" className={`${c.chip}${value[m.key] ? " on" : ""}`} aria-pressed={!!value[m.key]}
             onClick={() => onPatch({ [m.key]: !value[m.key] })}>{value[m.key] ? "✓ " : ""}{m.label}</button>
         ))}
       </div>
-      <div className={c.h}>Rig</div>
+      <div className={c.h}>Setup — the rig we bring</div>
       <div className={c.row}>
         {RIG_OPTIONS.map((r) => (
           <button key={r.key} type="button" className={`${c.chip}${rigOn(r.key) ? " on" : ""}`} aria-pressed={rigOn(r.key)}
             onClick={() => onPatch({ rig: rigOn(r.key) ? null : r.key })}>{r.label}</button>
         ))}
       </div>
-      <div className={c.h}>On site</div>
+      <div className={c.h}>Site — ask the venue</div>
       <div className={c.siteRow}>
         <button type="button" className={c.tog} onClick={() => cycleTri("power_available")}>Power · <b>{triLabel(value.power_available)}</b></button>
         <button type="button" className={c.tog} onClick={() => cycleTri("water_available")}>Water · <b>{triLabel(value.water_available)}</b></button>
