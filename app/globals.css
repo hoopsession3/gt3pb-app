@@ -4384,7 +4384,7 @@ select.note-vis{background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xm
 .mypack.pay-done{border-left-color:var(--line2);opacity:.72}
 .mypack-main{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
 .mypack-main b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mypack-sub{font-family:'DM Mono',monospace;font-size:10.5px;letter-spacing:.04em;color:var(--cream-m);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mypack-sub{font-family:'DM Mono',monospace;font-size:10.5px;letter-spacing:.04em;color:var(--cream-m);line-height:1.5}
 .mypack-flag{font-family:'DM Mono',monospace;font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;border-radius:999px;padding:4px 9px;white-space:nowrap;flex:0 0 auto}
 .mypack-flag.paid{background:rgba(106,160,92,.16);color:#9fd18f;border:1px solid rgba(106,160,92,.45)}
 .mypack-flag.due{background:rgba(200,166,97,.12);color:var(--gold2);border:1px solid rgba(200,166,97,.4)}
