@@ -329,8 +329,6 @@ function Kitchen() {
 // ───────────────────────── service pulse: the glance before the work ─────────────────────────
 // Now doesn't render the boards anymore — it renders their PULSE. One hero button carries the
 // live counts (orders on the pass, items 86'd) and opens Service mode, where the work happens.
-// Unique channel name per subscription (remount-safe, same class as the KDS fix).
-let pulseChanSeq = 0;
 function ServicePulse({ onEnter }: { onEnter: () => void }) {
   const [pass, setPass] = useState<number | null>(null);
   const [out, setOut] = useState(0);
@@ -343,15 +341,8 @@ function ServicePulse({ onEnter }: { onEnter: () => void }) {
     if (o.count !== null) setPass(o.count);
     if (p.count !== null) setOut(p.count);
   }, []);
-  useEffect(() => {
-    load();
-    if (!supabase) return;
-    const ch = supabase.channel(`svc-pulse-${++pulseChanSeq}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "products" }, () => load())
-      .subscribe();
-    return () => { supabase?.removeChannel(ch); };
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
+  useRealtimeTable(["orders", "products"], load);
   return (
     <button type="button" className={`svc-enter${(pass ?? 0) > 0 ? " hot" : ""}`} onClick={onEnter}>
       <span className="svc-enter-t">▶ Service mode</span>
@@ -589,11 +580,8 @@ function CommentThread({ subject, notifyIds, label, meId, meName }: {
     load();
     if (!supabase) return;
     supabase.from("profiles").select("id, display_name").neq("role", "member").then(({ data }) => setStaff((data as { id: string; display_name: string | null }[]) ?? []));
-    const ch = supabase.channel(`comments-${subject.col}-${subject.id}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "comments", filter: `${subject.col}=eq.${subject.id}` }, () => load())
-      .subscribe();
-    return () => { supabase?.removeChannel(ch); };
-  }, [load, subject.col, subject.id]);
+  }, [load]);
+  useRealtimeTable({ table: "comments", filter: `${subject.col}=eq.${subject.id}` }, load);
 
   const nameOf = (uid: string | null) => (uid && uid === meId ? "You" : (staff.find((s) => s.id === uid)?.display_name?.trim() || "Crew"));
   const firstOf = (uid: string | null) => nameOf(uid).split(" ")[0];
@@ -831,12 +819,8 @@ function IncidentLog({ ownerCol, ownerId }: { ownerCol: "event_id" | "stop_id"; 
     const { data } = await supabase.from("incident_log").select("id, problem, severity, resolved, created_at, symptom").eq(ownerCol, ownerId).order("created_at", { ascending: false });
     setRows((data as Inc[]) ?? []);
   }, [ownerCol, ownerId]);
-  useEffect(() => {
-    load();
-    if (!supabase) return;
-    const ch = supabase.channel(`inc-${ownerId}`).on("postgres_changes", { event: "*", schema: "public", table: "incident_log", filter: `${ownerCol}=eq.${ownerId}` }, () => load()).subscribe();
-    return () => { supabase?.removeChannel(ch); };
-  }, [load, ownerCol, ownerId]);
+  useEffect(() => { load(); }, [load]);
+  useRealtimeTable({ table: "incident_log", filter: `${ownerCol}=eq.${ownerId}` }, load);
   const toggle = async (r: Inc) => {
     if (!supabase) return;
     setRows((p) => p.map((x) => x.id === r.id ? { ...x, resolved: !x.resolved } : x));
@@ -1062,14 +1046,8 @@ function MyTasks({ userId }: { userId: string | null }) {
     setLoaded(true);
   }, [userId]);
 
-  useEffect(() => {
-    load();
-    if (!supabase || !userId) return;
-    const ch = supabase.channel("my-tasks")
-      .on("postgres_changes", { event: "*", schema: "public", table: "event_tasks", filter: `assignee=eq.${userId}` }, () => load())
-      .subscribe();
-    return () => { supabase?.removeChannel(ch); };
-  }, [load, userId]);
+  useEffect(() => { load(); }, [load]);
+  useRealtimeTable({ table: "event_tasks", filter: `assignee=eq.${userId}` }, load, { enabled: !!userId });
 
   const complete = async (t: MyTaskRow) => {
     if (!supabase) return;
@@ -1170,8 +1148,7 @@ function ReadinessAgent() {
     if (!supabase || busy) return;
     setBusy(true);
     try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const r = await fetch("/api/agents/readiness", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: "{}" });
+      const r = await authedFetch("/api/agents/readiness", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
       const j = await r.json();
       if (!j.ok) toast(String(j.error ?? "").includes("ANTHROPIC") ? "AI isn't switched on yet — add the API key" : `Error: ${j.error ?? r.status}`, "error");
       else if (j.skipped) { setRes(null); toast("No upcoming events to check"); }
@@ -1251,8 +1228,7 @@ function InspectionPrep() {
     if (!supabase || busy || !state.trim()) return;
     setBusy(true); setRes(null); setWait(null);
     try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const r = await fetch("/api/agents/inspection", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ state, county, event_id: eventId }) });
+      const r = await authedFetch("/api/agents/inspection", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state, county, event_id: eventId }) });
       const j = await r.json();
       if (!j.ok) { toast(String(j.error ?? "").includes("ANTHROPIC") ? "AI isn't switched on yet — add the API key" : `Error: ${j.error ?? r.status}`, "error"); setBusy(false); return; }
       if (j.status === "pending" && j.job_id) {
@@ -1387,14 +1363,9 @@ function EventPrep({ onGo }: { onGo: (t: string) => void }) {
       } catch { /* ignore */ }
     };
     window.addEventListener("gt3-open-prep", onOpen);
-    if (!supabase) { return () => window.removeEventListener("gt3-open-prep", onOpen); }
-    const ch = supabase.channel("admin-prep-index")
-      .on("postgres_changes", { event: "*", schema: "public", table: "events" }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "stops" }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "event_tasks" }, () => load())
-      .subscribe();
-    return () => { supabase?.removeChannel(ch); window.removeEventListener("gt3-open-prep", onOpen); };
+    return () => window.removeEventListener("gt3-open-prep", onOpen);
   }, [load]);
+  useRealtimeTable(["events", "stops", "event_tasks"], load);
 
   if (selected) return <PrepDetail target={selected} onBack={() => setSelected(null)} />;
 
@@ -1575,19 +1546,8 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
     setBrewBatches(rows.flatMap((r) => (Array.isArray(r.brew_batches) ? r.brew_batches : r.brew_batches ? [r.brew_batches] : []))
       .filter((b) => !seenB.has(b.id) && (seenB.add(b.id), true)));
   }, [target.id, isEvent, ownerCol, isAdmin]);
-  useEffect(() => {
-    load();
-    if (!supabase) return;
-    const ch = supabase.channel("admin-prepdetail")
-      .on("postgres_changes", { event: "*", schema: "public", table: "event_tasks" }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "event_staff" }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "event_approvals" }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "comments" }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "brew_batch_links" }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "brew_batches" }, () => load())
-      .subscribe();
-    return () => { supabase?.removeChannel(ch); };
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
+  useRealtimeTable(["event_tasks", "event_staff", "event_approvals", "comments", "brew_batch_links", "brew_batches"], load);
 
   // Clear, identifiable labels — staff often sign in without setting a name, so fall back
   // to something readable instead of an anonymous "—" that makes assignments look empty.
@@ -2415,15 +2375,8 @@ function LiveControl({ compact = false }: { compact?: boolean }) {
     load();
   };
 
-  useEffect(() => {
-    load();
-    if (!supabase) return;
-    const ch = supabase.channel("admin-live")
-      .on("postgres_changes", { event: "*", schema: "public", table: "live_status" }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "stops" }, () => load())
-      .subscribe();
-    return () => { supabase?.removeChannel(ch); };
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
+  useRealtimeTable(["live_status", "stops"], load);
 
   // Optimistic flip first (instant), then direct, RLS-protected writes — every UPDATE
   // carries an explicit filter so Supabase's "no UPDATE without WHERE" guard is happy,
@@ -2715,8 +2668,7 @@ function MeetingNotes() {
     if (!src) { toast("Add a transcript or recap first"); return; }
     setSummarizing(true);
     try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const r = await fetch("/api/agents/summarize", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ text: src }) });
+      const r = await authedFetch("/api/agents/summarize", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: src }) });
       const j = await r.json();
       if (j.ok) {
         setCSummary(j.summary);
@@ -2743,11 +2695,8 @@ function MeetingNotes() {
     if (!supabase) return;
     supabase.from("events").select("id, title").is("archived_at", null).order("day", { ascending: false }).then(({ data }) => setEvents((data as { id: string; title: string }[]) ?? []));
     supabase.from("profiles").select("id, display_name, role").neq("role", "member").then(({ data }) => setStaff((data as { id: string; display_name: string | null; role?: string | null }[]) ?? []));
-    const ch = supabase.channel("admin-notes")
-      .on("postgres_changes", { event: "*", schema: "public", table: "meeting_notes" }, () => load())
-      .subscribe();
-    return () => { supabase?.removeChannel(ch); };
   }, [load]);
+  useRealtimeTable("meeting_notes", load);
 
   const save = async () => {
     if (!supabase || !cTitle.trim() || saving) return;
@@ -2872,13 +2821,8 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
   useEffect(() => {
     if (!open) return;
     load();
-    if (!supabase) return;
-    const ch = supabase.channel(`note-items-${note.id}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "event_tasks", filter: `meeting_note_id=eq.${note.id}` }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "comments" }, () => load())
-      .subscribe();
-    return () => { supabase?.removeChannel(ch); };
-  }, [open, load, note.id]);
+  }, [open, load]);
+  useRealtimeTable([{ table: "event_tasks", filter: `meeting_note_id=eq.${note.id}` }, "comments"], load, { enabled: open });
 
   const staffName = (uid: string) => staff.find((s) => s.id === uid)?.display_name?.trim() || (uid === meId ? meName : "Unnamed crew");
   const firstNameOf = (uid: string) => staffName(uid).split(" ")[0];
@@ -2896,8 +2840,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
     if (!supabase || t.ai_proposal || resolving.has(t.id)) return;
     setResolving((s) => new Set(s).add(t.id));
     try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const r = await fetch("/api/agents/resolve", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ task_id: t.id }) });
+      const r = await authedFetch("/api/agents/resolve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ task_id: t.id }) });
       const j = await r.json();
       if (j.ok) setItems((p) => p.map((x) => (x.id === t.id ? { ...x, ai_proposal: j.proposal, ai_has_answer: j.have_answer } : x)));
       else if (!silent) toast(String(j.error ?? "").includes("ANTHROPIC") ? "AI isn't switched on yet — add the API key" : "Couldn't propose a completion — try again", "error");
@@ -2909,8 +2852,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
     if (!supabase || suggesting) return;
     setSuggesting(true);
     try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const r = await fetch("/api/agents/recap", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ note_id: note.id }) });
+      const r = await authedFetch("/api/agents/recap", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ note_id: note.id }) });
       const j = await r.json();
       if (!j.ok) toast(j.error === "AI not configured (set ANTHROPIC_API_KEY)" ? "AI isn't switched on yet — add the API key" : `Error: ${j.error ?? r.status}`, "error");
       else {
@@ -3036,14 +2978,8 @@ function Bookings() {
     const { data } = await supabase.from("booking_requests").select("*").order("created_at", { ascending: false });
     if (data) setReqs(data as BookingRequest[]);
   }, []);
-  useEffect(() => {
-    load();
-    if (!supabase) return;
-    const ch = supabase.channel("admin-bookings")
-      .on("postgres_changes", { event: "*", schema: "public", table: "booking_requests" }, () => load())
-      .subscribe();
-    return () => { supabase?.removeChannel(ch); };
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
+  useRealtimeTable("booking_requests", load);
 
   const setStatus = async (id: string, status: BookingRequest["status"]) => {
     const { error } = await supabase!.from("booking_requests").update({ status }).eq("id", id);
@@ -3172,12 +3108,8 @@ function Subscribers() {
       setNames(m);
     }
   }, []);
-  useEffect(() => {
-    load();
-    if (!supabase) return;
-    const ch = supabase.channel("admin-subs").on("postgres_changes", { event: "*", schema: "public", table: "subscriptions" }, () => load()).subscribe();
-    return () => { supabase?.removeChannel(ch); };
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
+  useRealtimeTable("subscriptions", load);
 
   // Fulfillment-first ordering: trouble (past_due) and soonest-due float to the top so
   // an admin sees "who do I prep next / who needs a nudge" at a glance.
@@ -3339,14 +3271,8 @@ function Members() {
     setMembers((ms) => ms.map((x) => (x.id === id ? { ...x, role: role as Profile["role"] } : x))), []);
   // Real-time: any role/loyalty change (this manager, another manager, or the affected user's
   // own session re-reading their access) lands here live — no refresh.
-  useEffect(() => {
-    load();
-    if (!supabase) return;
-    const ch = supabase.channel("admin-members")
-      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => load())
-      .subscribe();
-    return () => { supabase?.removeChannel(ch); };
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
+  useRealtimeTable("profiles", load);
 
   const ql = q.trim().toLowerCase();
   const shown = members.filter((m) =>
@@ -3411,17 +3337,12 @@ function EventHUD() {
   }, []);
   useEffect(() => {
     load();
-    if (!supabase) return;
-    const ch = supabase.channel("admin-eventhud")
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "event_sales" }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "events" }, () => load())
-      .subscribe();
     // Reconcile every 15s so Square POS walk-ups + the $/hr clock advance even if a
     // realtime event is missed (matches the KDS's reconcile).
     const recon = setInterval(load, 15000);
-    return () => { clearInterval(recon); supabase?.removeChannel(ch); };
+    return () => clearInterval(recon);
   }, [load]);
+  useRealtimeTable(["orders", "event_sales", "events"], load);
   if (!ev) return null;
   const hrs = stats.firstAt ? Math.max(0.25, (Date.now() - new Date(stats.firstAt).getTime()) / 3600000) : 0;
   const perHr = hrs ? stats.cents / hrs : 0;
@@ -3978,12 +3899,8 @@ function OrdersHistory() {
     if (data) setRows(data as Order[]);
     setLoaded(true);
   }, []);
-  useEffect(() => {
-    load();
-    if (!supabase) return;
-    const ch = supabase.channel("admin-history").on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => load()).subscribe();
-    return () => { supabase?.removeChannel(ch); };
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
+  useRealtimeTable("orders", load);
   const done = rows.filter((r) => r.status === "done").length;
   // Under pressure a manager needs to LOOK UP an order — filter by name, order #, item, or amount.
   const term = q.trim().toLowerCase();
@@ -4096,16 +4013,12 @@ function Overview({ onGo, onOpenTarget }: { onGo: (t: string) => void; onOpenTar
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     load();
-    if (!supabase) return;
-    const kick = () => { if (timer.current) clearTimeout(timer.current); timer.current = setTimeout(() => load(), 500); };
-    const ch = supabase.channel("admin-overview")
-      .on("postgres_changes", { event: "*", schema: "public", table: "booking_requests" }, kick)
-      .on("postgres_changes", { event: "*", schema: "public", table: "events" }, kick)
-      .on("postgres_changes", { event: "*", schema: "public", table: "stops" }, kick)
-      .on("postgres_changes", { event: "*", schema: "public", table: "event_tasks" }, kick)
-      .subscribe();
-    return () => { if (timer.current) clearTimeout(timer.current); supabase?.removeChannel(ch); };
+    return () => { if (timer.current) clearTimeout(timer.current); };
   }, [load]);
+  useRealtimeTable(["booking_requests", "events", "stops", "event_tasks"], () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => load(), 500);
+  });
   const pastTasks = overdue.length;
   const openStop = () => { if (s.nextStop && onOpenTarget) onOpenTarget("stop", s.nextStop.id); else onGo("stops"); };
   return (
@@ -4398,7 +4311,7 @@ export default function AdminPage() {
 
   // Derive role + nav constants before any conditional return (Rules of Hooks).
   // profiles.role: member/server/operator/event_manager/contractor/admin/owner (0031).
-  const role = (profile?.role as string | undefined) ?? (profile?.is_admin ? "owner" : "member");
+  const role = roleOf(profile);
   const isOwner = role === "owner";
   const isAdmin = role === "admin" || isOwner;
   const canManage = isAdmin || role === "event_manager";
