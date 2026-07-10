@@ -21,7 +21,9 @@
   --oa-gold:#B8902F;--oa-red:#B82420;--oa-red-tint:rgba(184,36,32,.15);--oa-hair:rgba(245,241,232,.14);--oa-green:#7FA86B;
   --char:#15120d;--char2:#1a1610;--char3:#100e0a;--card:#191510;--ink:#000;
   --gold:#a97c3f;--gold2:#c8a661;--bronze:#a97c3f;--line:rgba(245,241,232,.12);--line2:rgba(245,241,232,.2);--ok:#6aa05c;--warn:#cf9a4a;--muted:rgba(245,241,232,.6);
-  --mono:'DM Mono',ui-monospace,monospace}
+  --mono:'DM Mono',ui-monospace,monospace;
+  /* radius scale tokens (2026-07) — available for new work; existing rules keep their literal values */
+  --r-s:8px;--r-m:12px;--r-l:16px;--r-pill:999px}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 /* keyboard focus ring (WCAG 2.4.7) — gold on dark, dark on the cream Menu/sheets */
 :focus-visible{outline:2px solid var(--gold2);outline-offset:2px;border-radius:6px}
@@ -101,7 +103,7 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 .step .sx b{font-family:'Inter';font-weight:600;font-size:16px;letter-spacing:.2px;display:block}
 .step .sx span{font-size:12px;color:var(--cream-m);display:block;margin-top:2px;line-height:1.35}
 .step .tm{font-family:'DM Mono';font-weight:500;font-size:12px;color:var(--gold);flex:0 0 auto;text-align:right}
-.step .tm.now{color:var(--red)}
+.step .tm.now{color:var(--red-h)} /* brand red is a FILL color; as small TEXT on dark it sits under 3:1 — use the readable red */
 .honest{margin-top:16px;background:rgba(184,36,32,.08);border:1px solid rgba(184,36,32,.20);border-radius:14px;padding:14px 16px;font-size:12.5px;line-height:1.5;color:rgba(245,241,232,.82)}
 .honest b{color:var(--cream)}
 /* primary button */
@@ -393,9 +395,10 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 .orderbar-cancel:disabled{opacity:.5;cursor:default}
 
 /* Self-update prompt — appears when a new build is ready */
-.sw-update{position:fixed;left:12px;right:12px;bottom:calc(76px + env(safe-area-inset-bottom));display:flex;align-items:center;justify-content:center;gap:9px;padding:12px 16px;border:none;border-radius:13px;background:#15110d;border:1px solid var(--gold2);color:var(--gold2);font-family:'Inter';font-weight:650;font-size:13px;cursor:pointer;z-index:70;box-shadow:0 10px 30px rgba(0,0,0,.5);-webkit-appearance:none;appearance:none}
+/* bottom lifts above the FAB tier so fixed chrome never collides (CSS audit pack 2 2026-07) */
+.sw-update{position:fixed;left:12px;right:12px;bottom:calc(76px + 78px + env(safe-area-inset-bottom));display:flex;align-items:center;justify-content:center;gap:9px;padding:12px 16px;border:none;border-radius:13px;background:#15110d;border:1px solid var(--gold2);color:var(--gold2);font-family:'Inter';font-weight:650;font-size:13px;cursor:pointer;z-index:70;box-shadow:0 10px 30px rgba(0,0,0,.5);-webkit-appearance:none;appearance:none}
 .sw-update-dot{width:8px;height:8px;border-radius:50%;background:var(--gold2);box-shadow:0 0 0 4px rgba(184,144,47,.2)}
-.nav{flex:0 0 auto;display:flex;background:rgba(15,14,11,.92);backdrop-filter:blur(12px);border-top:1px solid var(--line);padding:9px 6px calc(10px + env(safe-area-inset-bottom));z-index:30}
+.nav{flex:0 0 auto;display:flex;background:rgba(15,14,11,.92);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--line);padding:9px 6px calc(10px + env(safe-area-inset-bottom));z-index:30}
 .tab{flex:1;min-height:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px 2px;color:var(--cream);opacity:.6;cursor:pointer;text-decoration:none;transition:opacity .15s,transform .1s;-webkit-appearance:none;appearance:none;background:none;border:none;font:inherit}
 .tab.on{opacity:1}.tab.on .ti{color:var(--red)}
 .tab:active{transform:scale(.94)}
@@ -591,11 +594,6 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .adm-live-at{color:var(--cream-m);font-weight:400}
 .adm-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--cream-m);margin-right:7px;vertical-align:middle;flex:0 0 auto}
 .adm-dot.on{background:#46c14a;box-shadow:0 0 0 3px rgba(70,193,74,.2)}
-.adm-stop{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-top:9px}
-.adm-stop.cur{border-color:rgba(184,36,32,.45);box-shadow:inset 3px 0 0 var(--red)}
-.adm-stopname{flex:1;min-width:0;background:transparent;border:none;border-bottom:1px solid var(--line);color:var(--cream);font-family:'Inter';font-weight:650;font-size:16px;padding:6px 0;outline:none}
-.adm-stopname:focus{border-bottom-color:var(--gold2)}
-.adm-stop-remove{margin-top:8px;font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:.3px;color:var(--cream-m);background:none;border:none;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
 /* KDS collapsible stages */
 .kds-stage{margin-top:14px}
 .kds-stage-h{width:100%;display:flex;align-items:center;gap:10px;background:none;border:none;border-bottom:1px solid var(--line2);padding:6px 2px 8px;cursor:pointer;color:var(--cream)}
@@ -607,14 +605,14 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .kds-stagetime{color:var(--gold2)}
 .adm-order.st-done{opacity:.72;border-left-color:var(--cream-m)}
 .adm-age.calm{color:var(--cream-m)}
-.adm-stop b{font-family:'Inter';font-weight:650;font-size:14px;display:block}
-.adm-stop span{font-size:11.5px;color:var(--cream-m)}
-.adm-btn{font-family:'Inter';font-weight:650;font-size:12px;letter-spacing:.2px;padding:9px 13px;border-radius:11px;border:1px solid var(--line2);background:#2a2820;color:var(--cream);cursor:pointer;flex:0 0 auto;white-space:nowrap}
+.adm-btn{font-family:'Inter';font-weight:650;font-size:12px;letter-spacing:.2px;padding:9px 13px;border-radius:11px;border:1px solid var(--line2);background:#2a2820;color:var(--cream);cursor:pointer;flex:0 0 auto;white-space:normal}
 /* THE red primary action button. .note-save (Plan notes / profile sheets) was a copy-paste of
    .adm-btn.primary's effective crew-console look with drifted weight/padding — converged via :is()
    (same approach as the :is(.oa-cta,…) CTA block); call-site class names are UNCHANGED. Size values
    match the .admin .adm-btn touch override below so the look is one thing everywhere. */
 :is(.adm-btn.primary,.note-save){background:var(--red);border:1px solid var(--red);color:#fff;font-family:'Inter';font-weight:650;font-size:13.5px;letter-spacing:.2px;padding:12px 16px;border-radius:12px;min-height:44px;cursor:pointer;white-space:nowrap;-webkit-appearance:none;appearance:none}
+/* long labels wrap instead of overflowing 320px viewports (CSS audit pack 2 2026-07) */
+:is(.adm-btn,.adm-btn.primary,.note-save){white-space:normal}
 .adm-btn.go{background:#2f7a34;border-color:#2f7a34;color:#fff}
 .adm-btn:disabled{opacity:.5;cursor:default}
 .adm-btn.on{background:var(--ok)}
@@ -622,7 +620,6 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .adm-member,.adm-event{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-top:9px}
 .adm-member-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
 .adm-member-top b{font-family:'Inter';font-weight:650;font-size:14px}
-.adm-tag{font-family:'Inter';font-weight:650;font-size:8px;letter-spacing:1px;text-transform:uppercase;color:var(--gold2);background:rgba(184,144,47,.16);padding:2px 6px;border-radius:5px;margin-left:7px;vertical-align:middle}
 .adm-substat{font-family:'Inter';font-weight:650;font-size:9px;letter-spacing:.6px;text-transform:uppercase;padding:3px 8px;border-radius:6px;background:rgba(245,241,232,.1);color:var(--cream-m)}
 .adm-substat.active{background:rgba(106,160,92,.18);color:var(--ok)}
 .adm-substat.paused{background:rgba(207,154,74,.18);color:var(--warn)}
@@ -661,11 +658,6 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .adm-fields select{background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:9px;padding:9px;color:var(--cream);font-family:'Inter';font-weight:600;font-size:14px;min-height:40px;outline:none}
 .adm-prep-label{font-family:'Inter';font-weight:650;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;color:var(--gold2);margin:12px 0 6px}
 .adm-hud .sec{display:flex;align-items:center}
-.adm-hud-row{display:flex;gap:10px;margin-top:8px}
-.adm-hud-stat{flex:1;background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:12px;padding:13px 8px;text-align:center}
-.adm-hud-stat b{display:block;font-family:'DM Mono';font-size:25px;line-height:1.1;color:var(--cream)}
-.adm-hud-stat span{font-family:var(--mono);font-weight:500;font-size:8px;letter-spacing:1.6px;text-transform:uppercase;color:var(--cream-d)}
-.adm-hud-stat b.ok{color:var(--ok)}.adm-hud-stat b.red{color:var(--red-h)}.adm-hud-stat b.gold{color:var(--gold2)}
 .adm-ready-bar{margin-top:8px;padding:11px 13px;border-radius:12px;background:rgba(0,0,0,.28);border:1px solid var(--line2);font-family:'Inter';font-size:13px;color:var(--cream)}
 .adm-ready-bar.ok{border-color:rgba(63,125,110,.5);background:rgba(63,125,110,.14)}
 .adm-ready-bar.miss{border-color:rgba(184,36,32,.4)}
@@ -674,13 +666,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .adm-crew-chip{font-family:'Inter';font-weight:600;font-size:11px;padding:5px 9px;border-radius:8px;background:rgba(184,144,47,.14);color:var(--gold2);border:none;cursor:pointer}
 .adm-prep-sec{margin-top:8px}
 .adm-task{display:flex;align-items:center;gap:8px;padding:7px 2px;border-bottom:1px solid var(--line)}
-.adm-task-check{display:flex;align-items:center;gap:9px;flex:1;font-family:'Inter';font-size:14px;color:var(--cream);cursor:pointer}
-.adm-task.done .adm-task-check span{text-decoration:line-through;color:var(--cream-m)}
-.adm-task.crit:not(.done) .adm-task-check span{color:var(--red);font-weight:600}
 .adm-task-link{flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:7px;background:rgba(184,144,47,.16);color:var(--gold2);text-decoration:none;font-size:14px;font-weight:700}
-.adm-task-assign{background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:8px;padding:4px 6px;color:var(--cream-m);font-family:'Inter';font-size:12px;max-width:104px}
-.adm-task-assign.set{border-color:var(--gold2);color:var(--gold2)}
-.adm-task.warn:not(.done) .adm-task-check span{color:var(--gold2);font-weight:600}
 .adm-regen{margin-top:8px;background:none;border:none;color:var(--gold2);font-family:'Inter';font-size:12px;cursor:pointer;padding:3px 0;letter-spacing:.2px}
 .adm-regen:disabled{opacity:.5;cursor:default}
 .adm-task-add{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
@@ -771,6 +757,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .ev-arch-btn:active{border-color:var(--gold2);color:var(--gold2)}
 .ev-arch-btn.del:active{border-color:var(--red);color:var(--red)}
 @media(max-width:380px){.ev-grid{grid-template-columns:repeat(2,1fr)}}
+.app:is(.rd-t2,.rd-t3) .ev-grid{grid-template-columns:repeat(2,1fr)}
 
 /* event economics — telemetry P&L / ROI panel */
 .ev-pnl-gauges{display:flex;gap:9px}
@@ -790,14 +777,15 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 /* product economics catalog rows (Money tab) */
 .cat-row{display:flex;align-items:flex-end;gap:9px;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:11px 13px;margin-top:8px}
 .cat-name{flex:1;min-width:0;font-family:'Inter';font-weight:650;font-size:13.5px;letter-spacing:-.2px;color:var(--cream);align-self:center}
-.cat-row .ev-f{flex:0 0 64px}
+.cat-row .ev-f{flex:0 1 64px;min-width:44px}
 .cat-margin{flex:0 0 auto;align-self:center;font-family:var(--mono);font-size:12px;color:var(--gold2);min-width:36px;text-align:right}
 /* COGS calculator */
 .cogs-tabs{display:flex;gap:6px;margin:4px 0 10px}
 .cogs-tab{flex:1;padding:8px;border-radius:10px;border:1px solid var(--line2);background:transparent;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:12px;cursor:pointer}
 .cogs-tab.on{border-color:var(--gold);background:rgba(184,144,47,.14);color:var(--gold)}
 .cogs-bm.ok{color:var(--ok)}.cogs-bm.gold{color:var(--gold2)}.cogs-bm.red{color:var(--red)}
-.cogs-head,.cogs-row{display:grid;grid-template-columns:1fr 64px 64px 56px;gap:6px;align-items:center}
+/* minmax tracks so the grid can compress on 320px viewports at rd-t2/t3 zoom (CSS audit pack 2026-07) */
+.cogs-head,.cogs-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(44px,64px) minmax(44px,64px) minmax(40px,56px);gap:6px;align-items:center}
 .cogs-head{padding:0 13px 4px;font-family:var(--mono);font-size:8.5px;letter-spacing:1px;text-transform:uppercase;color:var(--cream-d)}
 .cogs-head span:not(:first-child),.cogs-row .cogs-v{text-align:right}
 .cogs-wrap{margin-top:7px}
@@ -844,22 +832,8 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .ev-inv-x span{font-family:var(--mono);font-size:9.5px;letter-spacing:.3px;text-transform:uppercase;color:#e7b6b3}
 .ev-inv-link{flex:0 0 auto;font-family:'Inter';font-weight:650;font-size:11px;color:var(--gold2);text-decoration:none}
 
-/* back office — segmented nav + overview command center */
-.bo-nav{display:flex;gap:4px;overflow-x:auto;padding:4px;margin:2px 0 12px;background:rgba(0,0,0,.25);border:1px solid var(--line);border-radius:13px;-webkit-overflow-scrolling:touch}
-.bo-nav::-webkit-scrollbar{display:none}
-.bo-nav button{flex:1 0 auto;white-space:nowrap;padding:9px 14px;border:none;background:transparent;color:var(--cream-m);font-family:var(--mono);font-weight:500;font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;border-radius:9px;cursor:pointer;transition:background .12s,color .12s}
-.bo-nav button.on{background:var(--red);color:#fff}
-.bo-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:6px}
-.bo-card{background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:14px;padding:14px 6px;text-align:center;cursor:pointer;transition:border-color .12s}
-.bo-card:active{border-color:var(--gold2)}
-.bo-card b{display:block;font-family:'DM Mono';font-size:23px;line-height:1.1;color:var(--cream)}
-.bo-card span{font-family:var(--mono);font-weight:500;font-size:8px;letter-spacing:1.4px;text-transform:uppercase;color:var(--cream-d)}
-.bo-card-sub{display:block;margin-top:4px;font-family:'Inter';font-style:normal;font-weight:600;font-size:9.5px;line-height:1.25;color:var(--gold2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.bo-card.hot b{color:var(--gold2)}
-.bo-card.alert{border-color:rgba(184,36,32,.4)}
-.bo-card.alert b{color:var(--red)}
+/* back office — overview command center */
 .bo-live{margin-top:12px;padding:12px 14px;border-radius:12px;background:rgba(184,36,32,.1);border:1px solid rgba(184,36,32,.3);font-family:'Inter';font-size:14px;color:var(--cream);cursor:pointer}
-.bo-card.on{border-color:var(--gold2)}
 .bo-overdue{margin-top:10px;display:flex;flex-direction:column;gap:6px}
 .bo-overdue-row{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:10px 12px;border-radius:11px;background:rgba(184,36,32,.08);border:1px solid rgba(184,36,32,.25);cursor:pointer}
 .bo-overdue-l{flex:1;min-width:0;font-family:'Inter';font-weight:600;font-size:13px;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -873,7 +847,8 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 
 /* booking form */
 .b-row{display:flex;gap:10px}
-.b-row>div{flex:1}
+.b-row>div{flex:1;min-width:0}
+.b-row .auth-input{min-width:0}
 textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-height:1.45}
 /* admin booking requests */
 .adm-req{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-top:9px}
@@ -917,18 +892,6 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 @keyframes kdsflash{0%,100%{box-shadow:0 0 0 0 rgba(184,36,32,0)}50%{box-shadow:0 0 0 2px var(--red),0 0 22px rgba(184,36,32,.5)}}
 .adm-attn{background:rgba(210,69,63,.1);border:1px solid rgba(210,69,63,.32);border-radius:12px;padding:11px 14px;margin-top:9px;font-size:12.5px;line-height:1.45;color:#e7b6b3}
 .adm-attn b{color:#fff;font-weight:600}
-.adm-ready{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-top:12px}
-.adm-ready.ok{display:flex;align-items:center;gap:10px;background:rgba(70,193,74,.08);border-color:rgba(70,193,74,.22)}
-.adm-ready.ok span{font-size:12.5px;color:#bfc9b4}
-.adm-ready.ok b{color:#dfe7d6;font-weight:600}
-.adm-ready-dot{width:9px;height:9px;border-radius:50%;background:#46c14a;box-shadow:0 0 0 4px rgba(70,193,74,.16);flex:0 0 auto}
-.adm-ready-h{font-family:'Inter';font-weight:600;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold2);margin-bottom:9px}
-.adm-ready-chips{display:flex;flex-wrap:wrap;gap:7px}
-.adm-chip{font-family:'Inter';font-weight:600;font-size:12px;padding:8px 12px;border-radius:20px;border:1px solid var(--line2);background:transparent;color:var(--cream-m);cursor:pointer}
-.adm-chip.on{background:rgba(70,193,74,.14);border-color:rgba(70,193,74,.4);color:#8fce86}
-.adm-switch{display:flex;gap:6px;margin:14px 0 4px;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:4px}
-.adm-switch button{flex:1;font-family:var(--mono);font-weight:500;font-size:10.5px;letter-spacing:1.6px;text-transform:uppercase;padding:11px;border-radius:9px;border:none;cursor:pointer;background:transparent;color:var(--cream-m)}
-.adm-switch button.on{background:#241f15;color:var(--cream)}
 
 /* ---- sign-in / welcome (luxury) ---- */
 .auth{display:flex;flex-direction:column;min-height:100%;padding-top:calc(40px + env(safe-area-inset-top))}
@@ -1078,7 +1041,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 :is(.sheet,.sheet2).paper .tip-opt.on{background:#221F18;border-color:#221F18;color:#F4EFE3}
 :is(.sheet,.sheet2).paper .tip-opt:active{transform:scale(.97)}
 :is(.sheet,.sheet2).paper .co-qty{display:flex;align-items:center;gap:9px}
-:is(.sheet,.sheet2).paper .co-step{width:34px;height:34px;border-radius:9px;border:1px solid rgba(34,31,24,.22);background:transparent;color:#221F18;font-size:18px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:0 0 auto;position:relative}
+:is(.sheet,.sheet2).paper .co-step{width:44px;height:44px;border-radius:9px;border:1px solid rgba(34,31,24,.22);background:transparent;color:#221F18;font-size:18px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:0 0 auto;position:relative}
 :is(.sheet,.sheet2).paper .co-step::before{content:"";position:absolute;inset:-6px}
 :is(.sheet,.sheet2).paper .co-step:active{transform:scale(.95)}
 :is(.sheet,.sheet2).paper .co-qty b{font-family:'DM Mono';font-weight:500;min-width:12px;text-align:center;color:#221F18}
@@ -1092,26 +1055,6 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 :is(.sheet,.sheet2).paper .co-done h3{font-family:'Fraunces';font-weight:400;font-size:23px;letter-spacing:-.2px;color:#221F18}
 :is(.sheet,.sheet2).paper .co-done p{font-family:'Fraunces';font-style:italic;font-size:14.5px;line-height:1.5;color:#5f5a49;margin:10px auto 18px;max-width:300px}
 :is(.sheet,.sheet2).paper .co-done .sub-link{color:#5f5a49}
-
-/* ===================================================================
-   ARRIVAL — de-gated first-time front door (welcome before sign-in)
-   =================================================================== */
-.arr-brand{display:flex;flex-direction:column;line-height:1}
-.arr-brand .g3{font-family:'Archivo Black';font-size:22px;letter-spacing:.4px;color:var(--cream);line-height:1}
-.arr-brand .pb{font-family:'Inter';font-weight:600;font-size:8.5px;letter-spacing:3px;text-transform:uppercase;color:var(--cream-m);margin-top:5px}
-.arr-stmt{font-family:'Fraunces';font-weight:400;font-size:22px;line-height:1.42;color:var(--cream);margin-top:22px;letter-spacing:.1px}
-.arr-principles{font-family:'Inter';font-weight:600;font-size:9.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);margin-top:16px;line-height:1.95}
-.arr-craft{margin-top:2px}
-.arr-shot{aspect-ratio:16/10;background:#1c1a14;border:1px solid var(--line);border-radius:16px;display:flex;align-items:center;justify-content:center;color:rgba(245,241,232,.16)}
-.arr-shot svg{width:34px;height:34px}
-.arr-shot-cap{font-family:'Fraunces';font-style:italic;font-size:13px;color:var(--cream-m);margin-top:9px;line-height:1.4}
-.arr-shot-cap + .arr-shot{margin-top:18px}
-.arr-pillar{display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:14px 0;border-bottom:1px solid var(--line)}
-.arr-pillar b{font-family:'Inter';font-weight:700;font-size:15px;letter-spacing:.2px;color:var(--cream);flex:0 0 auto}
-.arr-pillar span{font-family:'Fraunces';font-style:italic;font-size:12.5px;color:var(--cream-m);text-align:right}
-.arr-join{margin-top:24px;background:#15120d;border:1px solid var(--line2);border-radius:18px;padding:20px}
-.arr-join b{display:block;font-family:'Inter';font-weight:700;font-size:17px;letter-spacing:-.3px;color:var(--cream);margin:6px 0 4px}
-.arr-join span{display:block;font-size:12.5px;color:var(--cream-m);line-height:1.5}
 
 /* ===================================================================
    REORDER — "your usual" (Today) + Recent orders history (3MPIRE)
@@ -1131,22 +1074,11 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .hist-again:active{transform:scale(.99)}
 
 /* ===================================================================
-   TRUCK — tap a stop to open its details (customer) + admin stop notes
+   TRUCK — tap a stop to open its details (customer)
    =================================================================== */
 .stop.open{border-bottom:none}
 .stop-detail{border-bottom:1px solid var(--line);padding:2px 2px 16px;animation:fade .2s}
 .stop-notes{font-family:'Inter';font-size:13px;color:var(--cream-m);line-height:1.55;margin:0}
-.adm-stopwrap{margin-top:9px}
-.adm-stopwrap .adm-stop{margin-top:0}
-.adm-notes{width:100%;margin-top:7px;background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:11px;padding:11px 12px;color:var(--cream);font-family:'Inter';font-size:16px;line-height:1.4;outline:none;resize:vertical}
-.adm-notes::placeholder{color:rgba(245,241,232,.34)}
-.adm-notes:focus{border-color:var(--gold2)}
-.adm-loc{display:flex;gap:8px;margin-top:7px}
-.adm-locinput{flex:1;min-width:0;background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:11px;padding:11px 12px;color:var(--cream);font-family:'Inter';font-size:16px;outline:none}
-.adm-locinput::placeholder{color:rgba(245,241,232,.34)}
-.adm-locinput:focus{border-color:var(--gold2)}
-.adm-loc-status{font-family:'Inter';font-size:11px;color:var(--warn);margin-top:6px;letter-spacing:.2px}
-.adm-loc-status.ok{color:var(--ok)}
 
 /* Employee Mode — operator console (distinct from the customer shell) */
 .opnav{border-top:1px solid var(--gold2)}
@@ -1164,7 +1096,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .eyb-i{font-size:10px;opacity:.6}
 /* mode switch (Crew ⇄ Customer) + Guide chip in the crew top bar */
 .toprow-actions{display:inline-flex;align-items:center;gap:8px}
-.modesw{display:inline-flex;align-items:center;gap:2px;background:var(--card);border:1px solid var(--line2);border-radius:999px;padding:2px}
+.modesw{display:inline-flex;align-items:center;gap:2px;background:var(--card);border:1px solid var(--line2);border-radius:999px;padding:2px;flex:0 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none}
 .modesw-seg{font-family:'DM Mono',ui-monospace,monospace;font-size:10px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--cream-m);background:transparent;border:none;border-radius:999px;padding:5px 11px 4px;line-height:1;cursor:pointer;-webkit-appearance:none;appearance:none;white-space:nowrap}
 .modesw-seg.on{background:var(--gold);color:#1a1610;cursor:default}
 .crew-guide{display:inline-flex;align-items:center;gap:5px;font-family:'Inter';font-weight:700;font-size:11.5px;letter-spacing:.02em;color:var(--gold2);background:transparent;border:1px solid var(--gold2);border-radius:999px;padding:6px 12px;line-height:1;cursor:pointer;-webkit-appearance:none;appearance:none}
@@ -1359,13 +1291,12 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .admin .adm-role{min-height:44px;padding:10px 14px;border-radius:11px;border:1px solid var(--line2);background:rgba(168,124,63,.08);color:var(--gold2);font-family:'Inter';font-weight:600;font-size:13.5px;-webkit-appearance:none;appearance:none;cursor:pointer}
 .admin .adm-crew-row{gap:8px}
 .admin .adm-crew-chip{font-size:13px;padding:9px 13px;border-radius:10px;min-height:40px;display:inline-flex;align-items:center;gap:7px}
-.admin .adm-chip{font-size:13px;padding:10px 14px;min-height:42px;display:inline-flex;align-items:center}
 .admin .adm-fields{gap:11px}
 .admin .adm-fields label{font-size:10px}
 .admin .adm-fields select{min-height:44px;padding:11px 12px;font-size:15px;border-radius:11px}
 .admin .adm-fields input[type=number],.admin .adm-fields input[type=text]{min-height:44px;padding:11px;border-radius:11px}
-.admin .adm-stop,.admin .adm-member,.admin .adm-event{padding:14px 16px;border-radius:16px;margin-top:10px}
-.admin .adm-ready,.admin .adm-ready-bar{padding:13px 15px;font-size:13.5px;border-radius:14px}
+.admin .adm-member,.admin .adm-event{padding:14px 16px;border-radius:16px;margin-top:10px}
+.admin .adm-ready-bar{padding:13px 15px;font-size:13.5px;border-radius:14px}
 .admin .adm-regen{font-size:13px;padding:9px 0;min-height:40px}
 .admin .adm-task-add{gap:9px}
 .admin .adm-task-add input{min-height:46px}
@@ -1374,10 +1305,11 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .admin .ev-golive{min-height:54px}
 .admin .op-head-t{font-size:28px}
 .admin .sec{font-size:12px}
+.admin .toprow{flex-wrap:wrap;row-gap:8px} /* wraps instead of overflowing 320px viewports at rd-t2/t3 zoom (CSS audit pack 2 2026-07) */
 /* pass 2 — KDS tickets, checkboxes, toggles, and legibility of tiny labels */
 .admin .adm-order{padding:14px 16px;border-radius:16px}
 .admin .adm-items{font-size:15px}
-.admin .kds-mute{min-height:38px;font-size:11px;padding:8px 12px}
+.admin .kds-mute{min-height:44px;font-size:11px;padding:8px 12px}
 .admin .kds-stage-name{font-size:12px}
 .admin .kds-stage-h{padding:10px 2px 10px}
 .admin .adm-act-more{width:44px;height:44px;font-size:22px}
@@ -1389,7 +1321,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .admin .ev-toggle.on .ev-toggle-knob{left:22px}
 .admin .ev-group-h{font-size:10px;letter-spacing:1.8px}
 .admin .ev-f{font-size:9.5px}
-.admin .adm-tag,.admin .adm-pill{font-size:9.5px;padding:3px 8px}
+.admin .adm-pill{font-size:9.5px;padding:3px 8px}
 .admin .adm-ref{font-size:12px}
 
 /* Account avatar — coconut mark + role-aware dropdown */
@@ -1417,7 +1349,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .tl-f{display:flex;flex-direction:column;gap:3px}
 .tl-f.wide{grid-column:1 / -1}
 .tl-f span{font-family:'DM Mono',monospace;font-size:9.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--cream-m)}
-.tl-f input{background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:8px;padding:8px 9px;color:var(--cream);font-family:'Inter';font-size:14px;outline:none}
+.tl-f input{background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:8px;padding:8px 9px;color:var(--cream);font-family:'Inter';font-size:14px;outline:none;width:100%;min-width:0}
 .tl-f input:focus{border-color:var(--gold2)}
 .tl-editform .adm-btn{grid-column:1 / -1}
 .tl-vlook{grid-column:1 / -1;display:flex;gap:6px;flex-wrap:wrap}
@@ -1557,11 +1489,11 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .note-row .note-in{flex:1;min-width:0}
 .note-in{width:100%;background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:11px;padding:12px 13px;color:var(--cream);font-family:'Inter';font-size:16px;outline:none}
 .note-in:focus{border-color:var(--gold2)}
-.note-in::placeholder{color:rgba(245,241,232,.32)}
+.note-in::placeholder{color:rgba(245,241,232,.5)} /* dark placeholders were 2.1-2.4:1 — readable without shouting */
 select.note-in{-webkit-appearance:none;appearance:none}
 .note-area{width:100%;background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:11px;padding:12px 13px;color:var(--cream);font-family:'Inter';font-size:15px;line-height:1.5;outline:none;resize:vertical;min-height:64px}
 .note-area:focus{border-color:var(--gold2)}
-.note-area::placeholder{color:rgba(245,241,232,.32)}
+.note-area::placeholder{color:rgba(245,241,232,.5)}
 .note-actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
 .note-actions button{flex:0 1 auto;min-width:0}
 /* the composer on the light theme: white fields, dark ink, readable placeholders (was translucent
@@ -1661,7 +1593,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .isheet-done:disabled{opacity:.4}
 .isheet-in{width:100%;background:rgba(0,0,0,.3);border:1px solid var(--line2);border-radius:12px;padding:16px;color:var(--cream);font-family:'Inter';font-size:22px;text-align:center;outline:none}
 .isheet-in:focus{border-color:var(--gold2)}
-.isheet-in::placeholder{color:rgba(245,241,232,.26)}
+.isheet-in::placeholder{color:rgba(245,241,232,.5)}
 .isheet-area{font-size:16px;text-align:left;line-height:1.5;resize:vertical;min-height:90px}
 .isheet-hint{font-family:'Inter';font-size:12.5px;color:var(--cream-m);text-align:center;margin-top:11px;line-height:1.45}
 .isheet-help{display:block;margin:12px auto 2px;background:none;border:none;color:var(--gold2);font-family:'Inter';font-weight:600;font-size:12.5px;cursor:pointer;-webkit-appearance:none;appearance:none}
@@ -1801,7 +1733,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .ig-ph{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:8px;text-align:center;border:1px dashed var(--line2);border-radius:2px}
 .ig-ph-cam{font-size:16px;opacity:.5;margin-bottom:1px}
 .ig-ph b{font-family:'Inter';font-weight:600;font-size:10.5px;line-height:1.2;color:var(--cream-m);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.ig-ph span{font-family:var(--mono);font-size:7.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--cream-d)}
+.ig-ph span{font-family:var(--mono);font-size:9px;letter-spacing:.5px;text-transform:uppercase;color:var(--cream-d)}
 .ig-tag{position:absolute;top:5px;right:5px;font-family:var(--mono);font-size:8px;letter-spacing:.4px;text-transform:uppercase;color:#fff;background:rgba(0,0,0,.6);border-radius:5px;padding:2px 5px}
 .ig-vid{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .ig-reel{position:absolute;top:5px;left:5px;font-size:11px;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.7)}
@@ -1930,7 +1862,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .cal-bar{display:flex;align-items:center;justify-content:space-between;padding:4px 0 10px}
 .cal-nav{display:flex;align-items:center;gap:10px}
 .cal-month{font-family:'Fraunces','Inter',serif;font-size:19px;color:var(--cream);min-width:9ch;text-align:center}
-.cal-arrow{background:var(--card);border:1px solid var(--line);border-radius:9px;width:34px;height:34px;color:var(--cream);font-size:18px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.cal-arrow{background:var(--card);border:1px solid var(--line);border-radius:9px;width:40px;height:40px;color:var(--cream);font-size:18px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .cal-today{background:rgba(255,255,255,.06);border:1px solid var(--line2);border-radius:9px;padding:8px 14px;color:var(--cream);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .cal-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;padding-bottom:6px}
 .cal-dow-c{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--cream-m);text-align:center}
@@ -2012,8 +1944,8 @@ select.note-in{-webkit-appearance:none;appearance:none}
 
 /* ── Notes: summarize + filter + archive ── */
 .note-sum{margin:2px 0 4px;width:100%;justify-content:center}
-.note-filter{display:flex;gap:8px;align-items:center;margin:6px 0 14px}
-.note-search{flex:1;min-width:0;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:11px 14px;color:var(--cream);font-family:'Inter';font-size:15px;-webkit-appearance:none;appearance:none}
+.note-filter{display:flex;gap:8px;align-items:center;margin:6px 0 14px;flex-wrap:wrap}
+.note-search{flex:1 1 100%;min-width:0;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:11px 14px;color:var(--cream);font-family:'Inter';font-size:15px;-webkit-appearance:none;appearance:none}
 .note-search:focus{border-color:var(--gold2)}
 .note-tabs{display:flex;gap:4px;flex:0 0 auto}
 .note-tab{background:transparent;border:1px solid var(--line2);border-radius:999px;padding:9px 14px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none;white-space:nowrap}
@@ -2090,10 +2022,58 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .app.crew-day .oa-log{background:#fff}
 .app.crew-day .oa-msg.assistant{background:#F4EEE2}
 /* dark-surfaced cards/buttons that had no light-theme override (read as gray/dark blobs in crew day) */
-.app.crew-day .bo-card{background:#fff}
 .app.crew-day .adm-btn:not(.primary):not(.go):not(.on){background:#fff;color:var(--cream);border-color:var(--line2)}
 /* checkerboard for transparent logos still reads on light */
 .app.crew-day .brand-asset-img{background:repeating-conic-gradient(#ece4d3 0% 25%, #f6f1e6 0% 50%) 50%/16px 16px}
+/* ── A11y fix pack (audit 2026-07): day-mode contrast ──
+   Dark-glass fields/chips that never flipped for crew-day: white fields, warm-ink text, readable
+   placeholders; status colors deepened so they hold contrast on cream. */
+.app.crew-day .ev-input,
+.app.crew-day .ev-f input,.app.crew-day .ev-f select,
+.app.crew-day .adm-fields input[type=number],.app.crew-day .adm-fields input[type=text],.app.crew-day .adm-fields select,
+.app.crew-day .gl-f input,.app.crew-day .gl-f select,.app.crew-day .gl-f textarea,
+.app.crew-day .isheet-in{background:#fff;color:#221F18;border-color:rgba(34,31,24,.24)}
+.app.crew-day .isheet-in::placeholder{color:rgba(34,31,24,.55)}
+.app.crew-day .tm-av,.app.crew-day .alert-ack,.app.crew-day .offchip,.app.crew-day .sw-update{background:#fff}
+.app.crew-day .gauge,.app.crew-day .adm-ready-bar,.app.crew-day .ev-golive{background:rgba(34,31,24,.05)}
+.app.crew-day .note-new{background:rgba(34,31,24,.04)}
+.app.crew-day .adm-attn{color:#7a2622}
+.app.crew-day .adm-attn b{color:#221F18}
+.app.crew-day .kds-eta.outside{color:#8f1d1a}
+.app.crew-day .adm-act.done{color:#3f6b2f}
+.app.crew-day .ev-inv-x span{color:#8f1d1a}
+/* Contrast pack 2 (2026-07): agent-verified misses */
+.app.crew-day .ev-fieldbtn{background:#fff;border-color:rgba(34,31,24,.24)}
+.app.crew-day .ev-fieldbtn-v{color:#221F18}
+.app.crew-day .ev-fieldbtn-v.ph{color:rgba(34,31,24,.5)}
+.app.crew-day .auth-paste-hint{color:rgba(34,31,24,.62)}
+.app.crew-day .auth-err{color:#8f1d1a;background:rgba(184,36,32,.08)}
+/* gold pills: day-mode gold deepens, so the dark label loses — keep the label light */
+.app.crew-day .note-tab.on{color:#F5F1E8}
+.app.crew-day .oa-msg.user{color:#F5F1E8}
+/* CSS audit pack 2 (2026-07): the recurring trap this fixes — .app.crew-day descendant rules (0,3,0)
+   silently beat .x.on state rules (0,2,0). Every .on/.done/.sel state a day override had killed
+   gets its fill back here. */
+.app.crew-day .ev-golive.on{background:rgba(184,36,32,.12);color:#8f1d1a}
+.app.crew-day .dp-tab.on{background:rgba(169,124,63,.14)}
+.app.crew-day .qd-tab.on{background:rgba(169,124,63,.18)}
+.app.crew-day .offchip.on{background:#f0f6ec}
+.app.crew-day .te-prio-b.normal.on{background:rgba(34,31,24,.08);color:#221F18}
+.app.crew-day .qd-fab.open{color:var(--cream)}
+/* day-mode contrast: status text + controls the packs missed */
+.app.crew-day :is(.dp-leave-h b,.dp-leave-btn){color:#2d6ca8}
+.app.crew-day .adm-age.late{color:#8f1d1a}
+.app.crew-day .adm-substat.past_due{color:#8f1d1a}
+.app.crew-day :is(.auth-label span,.auth-fine){color:rgba(34,31,24,.6)}
+.app.crew-day :is(.brew-toggle-b.on,.dops-nav,.dops-driver-link){color:#fff}
+.app.crew-day .pay-toggle{background:rgba(34,31,24,.16);border-color:rgba(34,31,24,.25)}
+.app.crew-day .ev-toggle-knob{background:#fff}
+.app.crew-day .note-fu-assign{background:rgba(34,31,24,.05)}
+.app.crew-day .cmt{background:rgba(34,31,24,.04)}
+.app.crew-day .isheet-help-detail{background:rgba(34,31,24,.04)}
+.app.crew-day .cal-chip{background:rgba(34,31,24,.04)}
+/* warn is a BACKGROUND in two spots — dark ink loses on the day-deepened amber */
+.app.crew-day :is(.am-flag,.driver-stop.issue .driver-seq){color:#fff}
 
 .theme-toggle{position:fixed;left:16px;bottom:calc(var(--navh,68px) + 16px);z-index:60;width:46px;height:46px;border-radius:50%;border:1px solid var(--line2);background:var(--card);color:var(--cream);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 16px rgba(0,0,0,.22);-webkit-appearance:none;appearance:none}
 
@@ -2125,7 +2105,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .app.crew-day .rdg-fab .rail-txt i{color:rgba(26,22,16,.55)}
 .rdg-row-h{font-family:var(--mono);font-size:9px;letter-spacing:1.2px;text-transform:uppercase;color:var(--bronze)}
 .rdg-sizes{display:flex;gap:6px}
-.rdg-size{flex:1;height:38px;border-radius:9px;border:1px solid var(--line2);background:transparent;color:var(--cream);font-family:'Fraunces',serif;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.rdg-size{flex:1;height:44px;border-radius:9px;border:1px solid var(--line2);background:transparent;color:var(--cream);font-family:'Fraunces',serif;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .rdg-size.on{border-color:var(--gold);background:rgba(184,144,47,.14);color:var(--gold)}
 .rdg-opt{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 11px;border-radius:10px;border:1px solid var(--line2);background:transparent;color:var(--cream);font-family:'Inter';font-size:13px;cursor:pointer}
 .rdg-opt.on{border-color:var(--gold);background:rgba(184,144,47,.14)}
@@ -2202,6 +2182,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .prod-f input,.prod-f textarea,.prod-addc select,.prod-addc input{background:var(--bg,#0d0b08);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--cream);font-family:'Inter';font-size:15px;-webkit-appearance:none;appearance:none}
 .app.crew-day .prod-f input,.app.crew-day .prod-f textarea,.app.crew-day .prod-addc select,.app.crew-day .prod-addc input{background:#fff}
 .prod-f input:focus,.prod-f textarea:focus{border-color:var(--gold2)}
+.prod-f input,.prod-f textarea,.prod-f select{width:100%;min-width:0}
 .prod-toggle{display:flex;align-items:center;gap:8px;margin-top:12px;font-family:'Inter';font-size:14px;color:var(--cream)}
 .prod-recipe{margin-top:14px;border-top:1px solid var(--line);padding-top:11px}
 .prod-comp{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;font-family:'Inter';font-size:13.5px;color:var(--cream);border-bottom:1px solid var(--line)}
@@ -2231,13 +2212,14 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .cc-filter{display:flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--line2);border-radius:999px;padding:6px 12px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:12.5px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .cc-filter.on{background:rgba(169,124,63,.14);border-color:var(--c,var(--gold2));color:var(--cream)}
 .cc-dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto}
-.cc-chip{display:flex;align-items:center;gap:4px;text-align:left;width:100%;background:rgba(255,255,255,.04);border:1px solid var(--line);border-left:3px solid #888;border-radius:5px;padding:2px 5px;color:var(--cream);font-family:'Inter';font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;-webkit-appearance:none;appearance:none}
+.cc-chip{display:flex;align-items:center;gap:4px;text-align:left;width:100%;background:rgba(255,255,255,.04);border:1px solid var(--line);border-left:3px solid #888;border-radius:5px;padding:4px 6px;min-height:26px;color:var(--cream);font-family:'Inter';font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;-webkit-appearance:none;appearance:none}
 .app.crew-day .cc-chip{background:rgba(34,31,24,.04)}
 .cc-chip.done{opacity:.5;text-decoration:line-through}
 .cc-check{flex:0 0 auto;font-size:11px;color:var(--cream-m);cursor:pointer}
 /* ── Brand: upload + editable assets ── */
 .brand-asset-wrap{position:relative}
-.brand-asset-x{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;border:none;background:rgba(0,0,0,.6);color:#fff;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2}
+.brand-asset-x{position:relative;top:4px;right:4px;width:22px;height:22px;border-radius:50%;border:none;background:rgba(0,0,0,.6);color:#fff;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2}
+.brand-asset-x::after{content:"";position:absolute;inset:-8px} /* 44px effective touch target (CSS audit pack 2 2026-07) */
 .brand-upload{cursor:pointer}
 .brand-up-plus{font-size:30px;color:var(--gold2);font-weight:300}
 .brand-upload .brand-asset-img{border-style:dashed}
@@ -2264,7 +2246,8 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .dp-item{display:flex;gap:9px;align-items:flex-start;background:var(--card);border:1px solid var(--line);border-left:3px solid var(--c,#888);border-radius:12px;padding:10px 11px}
 .dp-item.done{opacity:.55}
 .dp-item.done .dp-item-t{text-decoration:line-through}
-.dp-check{flex:0 0 auto;width:24px;height:24px;border-radius:50%;border:1px solid var(--line2);background:transparent;color:var(--c,var(--cream-m));font-size:13px;cursor:pointer;margin-top:1px}
+.dp-check{flex:0 0 auto;width:24px;height:24px;border-radius:50%;border:1px solid var(--line2);background:transparent;color:var(--c,var(--cream-m));font-size:13px;cursor:pointer;margin-top:1px;position:relative}
+.dp-check::after{content:"";position:absolute;inset:-8px} /* 44px effective touch target (CSS audit pack 2 2026-07) */
 .dp-time{flex:0 0 54px;font-family:'DM Mono';font-size:12.5px;color:var(--cream);line-height:1.3}
 .dp-time-e{display:block;font-size:10.5px;color:var(--cream-m)}
 .dp-item-main{flex:1;min-width:0}
@@ -2696,11 +2679,11 @@ select.note-in{-webkit-appearance:none;appearance:none}
 
 /* ============ LUXURY LAYER · tactile press + aligned figures (grain lives on .app bg) ============ */
 /* a crisp mechanical give on tap — the visual half of haptics; reads premium even where iOS mutes vibration */
-.oa-tile,.oa-day,.oa-pill,.oa-cta,.note-save,.note-arch,.brew-start,.brew-pack-btn,.oa-step button,.dl-ctr-b button,.dl-card,.spl-cta,.handle,.brew-adjust-danger,.brew-adjust-undo,.qd-tab{transition:transform .11s cubic-bezier(.2,.7,.3,1),filter .15s ease,background-color .15s ease}
-.oa-tile:active,.oa-day:active,.oa-pill:active,.oa-cta:active,.note-save:active,.note-arch:active,.brew-start:active,.brew-pack-btn:active,.oa-step button:active,.dl-ctr-b button:active,.dl-card:active,.spl-cta:active,.handle:active,.brew-adjust-danger:active,.brew-adjust-undo:active,.qd-tab:active{transform:scale(.965)}
+.oa-tile,.oa-day,.oa-cta,.note-save,.note-arch,.brew-start,.brew-pack-btn,.dl-ctr-b button,.dl-card,.spl-cta,.handle,.brew-adjust-danger,.brew-adjust-undo,.qd-tab{transition:transform .11s cubic-bezier(.2,.7,.3,1),filter .15s ease,background-color .15s ease}
+.oa-tile:active,.oa-day:active,.oa-cta:active,.note-save:active,.note-arch:active,.brew-start:active,.brew-pack-btn:active,.dl-ctr-b button:active,.dl-card:active,.spl-cta:active,.handle:active,.brew-adjust-danger:active,.brew-adjust-undo:active,.qd-tab:active{transform:scale(.965)}
 .oa-cta:active,.spl-cta:active,.note-save:active{filter:brightness(1.06)}
 /* figures line up + never jitter — Stripe/Apple-grade number setting */
-.oa-big,.oa-per,.oa-save,.oa-fcount,.oa-count,.dl-quote,.dl-quote-t,.dl-tiers,.brew-timer,.spl-price,.oa-price-row,.dl-deadline{font-variant-numeric:tabular-nums}
+.dl-quote,.dl-quote-t,.dl-tiers,.brew-timer,.spl-price,.dl-deadline{font-variant-numeric:tabular-nums}
 .brew-recipe{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:12px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .brew-recipe-main{display:flex;flex-direction:column;gap:3px}
 .brew-recipe-main b{font-family:'Inter';font-weight:700;font-size:14.5px;color:var(--cream)}
@@ -3004,62 +2987,30 @@ select.note-in{-webkit-appearance:none;appearance:none}
 
 /* ============ ORDER-AHEAD (Saturday drop / reserve) — ported from the approved reference ============ */
 /* legacy .oa wrapper retired — layout lives on AskGT3's .oa (line ~1704); the --oa-* tokens are :root's. */
-.oa-card{background:linear-gradient(180deg,#23211B,#2A2820);border:1px solid rgba(184,144,47,.28);border-radius:22px;padding:22px 18px 18px;box-shadow:0 18px 40px rgba(0,0,0,.45)}
-.oa-view{display:none}.oa-view.on{display:block;animation:stepGlide .42s cubic-bezier(.2,.85,.25,1)}
 /* The one small-caps gold label that opens a Sheet2 header (Checkout, sign-in prompts, …) — caps are
    enforced here, not typed by hand at each call site, so "Checkout" and "SIGN IN TO RESERVE" render
    with the same tracked, uppercase rhythm instead of drifting to whatever case the author happened
    to type. */
 .oa-kicker{font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--oa-gold);font-weight:600;margin-bottom:12px}
-/* fulfillment mode banner — makes PICKUP vs DELIVERY unmistakable, with a one-tap switch to the other */
-.oa-mode{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;border:1px solid var(--line2,rgba(245,241,232,.2));border-radius:12px;padding:10px 13px;margin:0 0 16px}
 /* "Your usual" — one-tap reload of the member's most recent pack */
 .oa-usual{display:flex;align-items:center;gap:10px;width:100%;margin:-6px 0 16px;padding:12px 14px;border-radius:13px;background:rgba(200,166,97,.1);border:1px solid var(--gold2);cursor:pointer;-webkit-appearance:none;appearance:none;text-align:left;transition:transform .11s cubic-bezier(.2,.7,.3,1)}
 .oa-usual:active{transform:scale(.98)}
 .oa-usual-k{font-family:'Inter';font-weight:800;font-size:13px;color:var(--gold2);flex:0 0 auto}
 .oa-usual-v{font-family:'Inter';font-size:12px;color:var(--cream-m);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .oa-usual-go{font-family:'Inter';font-weight:700;font-size:12px;color:var(--gold2);flex:0 0 auto}
-.oa-mode-b{font-family:'Inter';font-weight:800;font-size:13.5px;letter-spacing:.02em}
-.oa-mode-s{flex:1;min-width:120px;font-family:'Inter';font-size:11.5px;color:var(--cream-m,rgba(245,241,232,.65))}
-.oa-mode-alt{background:none;border:none;font-family:'Inter';font-weight:700;font-size:11.5px;color:var(--oa-gold,#C8A661);cursor:pointer;white-space:nowrap;-webkit-appearance:none;appearance:none}
 /* pickup-only tag on the Money pay-at-pickup row */
 .pay-row-tag{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--gold2,#C8A661);border:1px solid var(--gold2,#C8A661);border-radius:5px;padding:1px 5px;margin-left:6px;vertical-align:middle}
-.oa-head{font-family:'Fraunces',Georgia,serif;font-style:italic;font-weight:600;font-size:26px;line-height:1.13;letter-spacing:-.01em;margin-bottom:12px}
 .oa-slabel{font-size:10.5px;letter-spacing:.2em;color:var(--oa-cream-dim);font-weight:600;text-transform:uppercase;margin:0 2px 10px}
-.oa-cutoff{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--oa-cream-dim);background:rgba(127,168,107,.12);border:1px solid rgba(127,168,107,.3);border-radius:14px;padding:9px 12px;margin-bottom:8px;line-height:1.4}
-.oa-cutoff b{color:var(--oa-cream);font-weight:600}
-.oa-dot{width:7px;height:7px;border-radius:50%;background:var(--oa-green);flex:none}
-.oa-count{font-family:'DM Mono',monospace;font-size:11px;color:var(--oa-gold);margin:0 2px 6px}
-.oa-fresh{font-size:11.5px;color:var(--oa-cream-faint);margin:0 2px 18px;line-height:1.5}.oa-fresh b{color:var(--oa-gold);font-weight:600}
 .oa-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:7px}
 .oa-tile{border:1.5px solid var(--oa-hair);border-radius:14px;padding:15px 3px 12px;text-align:center;cursor:pointer;transition:.16s;position:relative;background:transparent;color:inherit;font-family:inherit}
 .oa-tile .oa-c{font-family:'Archivo Black',sans-serif;font-size:26px;line-height:1}
 .oa-tile .oa-u{font-size:8.5px;letter-spacing:.13em;color:var(--oa-cream-faint);margin-top:5px;font-weight:600}
 .oa-tile .oa-p{font-family:'DM Mono',monospace;font-size:14px;color:var(--oa-gold);margin-top:7px;font-weight:500}
 .oa-tile.sel{border-color:var(--oa-red);border-width:2px;background:var(--oa-red-tint)}
-.oa-tile .oa-tag{position:absolute;top:-8px;left:50%;transform:translateX(-50%);font-size:7.5px;letter-spacing:.08em;font-weight:700;color:var(--oa-cream);background:var(--oa-red);padding:2px 6px;border-radius:20px;white-space:nowrap;opacity:0;transition:.16s}
+.oa-tile .oa-tag{position:absolute;top:-8px;left:50%;transform:translateX(-50%);font-size:9px;letter-spacing:.08em;font-weight:700;color:var(--oa-cream);background:var(--oa-red);padding:2px 6px;border-radius:20px;white-space:nowrap;opacity:0;transition:.16s}
 .oa-tile.sel .oa-tag{opacity:1}
-.oa-hint{text-align:center;font-size:11px;color:var(--oa-cream-faint);margin:0 0 18px;font-style:italic}.oa-hint b{color:var(--oa-cream-dim);font-weight:600;font-style:normal}
-.oa-pills{display:flex;gap:8px;margin-bottom:18px}
-.oa-pill{flex:1;border:1.5px solid var(--oa-hair);border-radius:13px;padding:11px 6px;text-align:center;cursor:pointer;transition:.16s;background:transparent;color:inherit;font-family:inherit}
-.oa-pill .oa-pt{font-size:13px;font-weight:600}.oa-pill .oa-ps{font-size:10px;color:var(--oa-cream-faint);margin-top:3px;font-weight:500}
-.oa-pill.sel{border-color:var(--oa-gold);background:rgba(184,144,47,.12)}.oa-pill.sel .oa-ps{color:var(--oa-gold)}
-.oa-flavors{display:flex;flex-direction:column;gap:8px;margin-bottom:8px}
-.oa-frow{display:flex;align-items:center;gap:10px;border:1px solid var(--oa-hair);border-radius:13px;padding:10px 12px}
-.oa-frow .oa-fn{font-family:'Archivo Black',sans-serif;font-size:14px;letter-spacing:.02em;width:64px}
-.oa-frow .oa-fd{font-size:10.5px;color:var(--oa-cream-faint);flex:1;line-height:1.3}
-.oa-step{display:flex;align-items:center;gap:10px}
-.oa-step button{width:32px;height:32px;border-radius:10px;border:1.5px solid var(--oa-hair);background:transparent;color:var(--oa-cream);font-size:17px;font-weight:700;cursor:pointer;line-height:1}
-.oa-step button:disabled{opacity:.25;cursor:default}
-.oa-step .oa-n{font-family:'DM Mono',monospace;font-size:16px;width:20px;text-align:center}
-.oa-fcount{text-align:center;font-size:11px;margin:0 0 18px;color:var(--oa-cream-faint)}
-.oa-fcount b{font-family:'DM Mono',monospace;color:var(--oa-gold);font-weight:500}.oa-fcount.bad b{color:#e0a09c}
-.oa-summary{border-top:1px solid var(--oa-hair);padding-top:18px;margin-bottom:16px}
-.oa-price-row{display:flex;align-items:baseline;gap:10px}
-.oa-big{font-family:'DM Mono',monospace;font-size:38px;font-weight:500;letter-spacing:-.02em}
-.oa-per{font-size:13px;color:var(--oa-cream-dim)}
-.oa-save{margin-left:auto;align-self:center;font-size:11px;font-weight:700;letter-spacing:.04em;color:#cfe6c0;background:rgba(127,168,107,.16);border:1px solid rgba(127,168,107,.4);padding:4px 10px;border-radius:20px}
-.oa-subnote{font-size:12px;color:var(--oa-cream-dim);margin-top:8px;line-height:1.5}.oa-subnote b{color:var(--oa-cream)}
+/* delivery: FREE DELIVERY is a standing incentive, not a selected-state label — always visible */
+.oa-tile .oa-tag.on{opacity:1}
 /* The one full-width red primary-CTA style. subpitch-cta/sub-cta/t-order/arr-order/mpack-cta were
    copy-pasted duplicates of this exact look with only tiny variance in padding/radius/font-size —
    aliased here via :is() instead of five near-identical blocks, so any future tweak to the primary
@@ -3073,19 +3024,6 @@ select.note-in{-webkit-appearance:none;appearance:none}
 :is(.oa-cta,.subpitch-cta,.sub-cta,.t-order,.arr-order,.mpack-cta):disabled{opacity:.35;cursor:default;box-shadow:none;filter:none}
 .oa-cta.ghost{box-shadow:none}
 .oa-window{text-align:center;font-size:11.5px;color:var(--oa-cream-faint);margin-top:12px;line-height:1.6}.oa-window b{color:var(--oa-cream-dim);font-weight:600}
-.oa-field{margin-bottom:14px}
-.oa-field label{display:block;font-size:10.5px;letter-spacing:.16em;color:var(--oa-cream-dim);font-weight:600;text-transform:uppercase;margin-bottom:7px}
-.oa-field input{width:100%;background:rgba(0,0,0,.3);border:1.5px solid var(--oa-hair);border-radius:12px;padding:13px 14px;color:var(--oa-cream);font-size:15px;font-family:'Inter',sans-serif}
-.oa-field input:focus{border-color:var(--oa-gold)}
-.oa-review{border:1px solid var(--oa-hair);border-radius:14px;padding:14px 15px;margin:6px 0 18px}
-.oa-rline{display:flex;justify-content:space-between;font-size:13px;padding:5px 0}
-.oa-rline .oa-rk{color:var(--oa-cream-faint)}.oa-rline .oa-rv{color:var(--oa-cream);font-weight:600;text-align:right}
-.oa-rline.total{border-top:1px solid var(--oa-hair);margin-top:6px;padding-top:11px}.oa-rline.total .oa-rv{font-family:'DM Mono',monospace;font-size:17px;color:var(--oa-gold)}
-.oa-back{background:none;border:none;color:var(--oa-cream-faint);font-size:12.5px;font-weight:600;cursor:pointer;padding:4px 2px;margin-bottom:14px;font-family:'Inter',sans-serif}
-.oa-cicon{width:58px;height:58px;border-radius:50%;background:rgba(127,168,107,.15);border:1.5px solid rgba(127,168,107,.5);display:flex;align-items:center;justify-content:center;font-size:24px;margin:6px 0 18px;color:var(--oa-green)}
-.oa-remind{background:rgba(184,144,47,.08);border:1px solid rgba(184,144,47,.28);border-radius:13px;padding:12px 14px;font-size:12.5px;line-height:1.55;color:var(--oa-cream-dim)}.oa-remind b{color:var(--oa-gold);font-weight:600}
-.oa-sqwrap{background:rgba(0,0,0,.3);border:1.5px solid var(--oa-hair);border-radius:12px;padding:12px;margin-bottom:14px;min-height:52px}
-.oa-err{color:#e0a09c;font-size:12.5px;margin-bottom:12px}
 
 /* order-ahead OPS (admin "Now" — cohesive with the kitchen pass) */
 .dops{margin-top:14px}
@@ -3211,7 +3149,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .driver-emp{display:flex;align-items:center;justify-content:space-between;gap:10px;background:rgba(245,241,232,.04);border:1px solid var(--line);border-radius:11px;padding:10px 12px;font-family:'Inter';font-size:12.5px;color:var(--cream)}
 .driver-emp em{color:var(--cream-d);font-style:normal}
 .driver-emp-step{display:flex;align-items:center;gap:12px}
-.driver-emp-step button{width:32px;height:32px;border-radius:8px;border:1px solid var(--line2);background:rgba(245,241,232,.06);color:var(--cream);font-size:18px;font-weight:700;cursor:pointer}
+.driver-emp-step button{width:40px;height:40px;border-radius:8px;border:1px solid var(--line2);background:rgba(245,241,232,.06);color:var(--cream);font-size:18px;font-weight:700;cursor:pointer}
 .driver-emp-step b{font-family:'Inter';font-weight:800;font-size:17px;min-width:20px;text-align:center;font-variant-numeric:tabular-nums}
 .driver-out-ok,.driver-out-mid,.driver-out-hold,.driver-out-nothome{width:100%;padding:13px;border-radius:12px;font-family:'Inter';font-weight:750;font-size:14px;cursor:pointer;-webkit-appearance:none;appearance:none;transition:transform .11s cubic-bezier(.2,.7,.3,1)}
 .driver-out-ok:active,.driver-out-mid:active,.driver-out-hold:active,.driver-out-nothome:active{transform:scale(.97)}
@@ -3260,6 +3198,8 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .app.crew-day .dops-hist-meta b{color:#221f18}
 .app.crew-day .dops-hist-st.ok{color:#3f6b2f}
 .app.crew-day .dops-hist-st.cx{color:#a13c34}
+.app.crew-day .dops-stage.done{color:#3f6b2f;border-color:#7FA86B}
+.app.crew-day .dops-prog.done{color:#3f6b2f}
 
 /* 86 / sold out — one visual language everywhere */
 .entry-86{opacity:.55}
@@ -3313,10 +3253,25 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .co-closed-s b{color:inherit;font-weight:700}
 
 /* YOUR PACK — customer's own reservations on /reserve: track, change, cancel */
-.mypacks{margin:0 0 14px}
+.mypacks{margin:0 0 14px;margin-bottom:22px}
 .mypacks-h{font-family:'Inter';font-weight:600;letter-spacing:2px;text-transform:uppercase;font-size:11px;color:var(--gold);margin-bottom:8px}
-.mypack{border:1px solid var(--line2);border-radius:14px;padding:13px 14px;margin-bottom:10px;background:rgba(245,241,232,.04)}
+.mypack{border:1px solid var(--line2);border-radius:14px;padding:13px 14px;margin-bottom:10px;background:rgba(245,241,232,.04);border-left:3px solid var(--line2);position:relative}
 .mypack.done{opacity:.75}
+/* ── Pack cards: payment state is a FLAG, not a whisper ──
+   The card carries a left status stripe + a solid flag chip: green = money settled, gold = due
+   at the window, dim = done. One glance tells the crew and the customer where money stands. */
+.mypack.pay-paid{border-left-color:var(--ok)}
+.mypack.pay-due{border-left-color:var(--gold2)}
+.mypack.pay-done{border-left-color:var(--line2);opacity:.72}
+.mypack-main{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.mypack-main b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mypack-sub{font-family:'DM Mono',monospace;font-size:10.5px;letter-spacing:.04em;color:var(--cream-m);line-height:1.5}
+.mypack-flag{font-family:'DM Mono',monospace;font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;border-radius:999px;padding:4px 9px;white-space:nowrap;flex:0 0 auto}
+.mypack-flag.paid{background:rgba(106,160,92,.16);color:#9fd18f;border:1px solid rgba(106,160,92,.45)}
+.mypack-flag.due{background:rgba(200,166,97,.12);color:var(--gold2);border:1px solid rgba(200,166,97,.4)}
+.mypack-flag.done{background:rgba(245,241,232,.06);color:var(--cream-d);border:1px solid var(--line2)}
+.app.crew-day .mypack-flag.paid,body.light .mypack-flag.paid{color:#3f6b2f}
+.app.crew-day .mypack-flag.due,body.light .mypack-flag.due{color:#6e4c1e}
 .mypack-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .mypack-top b{font-family:'Inter';font-weight:800;font-size:14.5px;color:var(--cream)}
 .mypack-pay{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--warn);border:1px solid var(--warn);border-radius:6px;padding:2px 7px}
@@ -3338,7 +3293,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 
 /* order-ahead pitch tags (MOST POPULAR / BEST VALUE) on the reserve card */
 .subpitch-pack{position:relative}
-.subpitch-tag{position:absolute;top:-8px;left:50%;transform:translateX(-50%);font-size:7.5px;letter-spacing:.06em;font-weight:700;color:var(--cream,#F5F1E8);background:var(--red,#B82420);padding:2px 6px;border-radius:20px;white-space:nowrap}
+.subpitch-tag{position:absolute;top:-8px;left:50%;transform:translateX(-50%);font-size:9px;letter-spacing:.06em;font-weight:700;color:var(--cream,#F5F1E8);background:var(--red,#B82420);padding:2px 6px;border-radius:20px;white-space:nowrap}
 /* generated-stack anticipation timeline ("Your day, in order") */
 .gen-day{margin-top:4px}
 .gen-day .step .ic{font-family:'DM Mono',monospace;font-weight:600;font-size:14px;color:var(--gold2,#B8902F)}
@@ -3593,8 +3548,8 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .rva-add{background:rgba(255,255,255,.03);border:1px solid var(--line2);border-radius:12px;padding:12px;margin-bottom:12px}
 .rva-add-row{display:flex;gap:8px;margin-bottom:8px}
 .rva-in{width:100%;background:rgba(255,255,255,.04);border:1px solid var(--line2);border-radius:10px;color:var(--cream);font-family:'Inter';font-size:13px;padding:9px;margin-bottom:8px}
-.rva-src{flex:0 0 130px;margin-bottom:0}
-.rva-add-row .rva-in{margin-bottom:0}
+.rva-src{flex:0 1 130px;min-width:90px;margin-bottom:0}
+.rva-add-row .rva-in{margin-bottom:0;min-width:0}
 .rva-stars{display:flex;gap:5px;margin-bottom:8px}
 .rva-prev{font-family:'Inter';font-size:12px;color:var(--cream-m);font-style:italic;margin-bottom:9px;line-height:1.4}
 .rva-prev.bad{color:var(--warn)}
@@ -3793,7 +3748,7 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .crumbs .crumb-lk:hover{text-decoration:underline}
 .crumbs span[aria-current="page"]{color:var(--cream)}
 /* Offline chip — connectivity truth for the crew console. Amber = offline (writes queuing); green = back online, queue draining. Hidden entirely when online + empty. */
-.offchip{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--navh,68px) + 14px);z-index:86;display:flex;align-items:center;gap:8px;background:#33250f;border:1px solid var(--warn);color:var(--cream);border-radius:999px;padding:8px 14px;font-family:'Inter';font-size:12.5px;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,.45);white-space:nowrap}
+.offchip{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(76px + 78px + env(safe-area-inset-bottom));max-width:calc(100vw - 24px);z-index:86;display:flex;align-items:center;gap:8px;background:#33250f;border:1px solid var(--warn);color:var(--cream);border-radius:999px;padding:8px 14px;font-family:'Inter';font-size:12.5px;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,.45);white-space:nowrap}
 .offchip b{color:var(--warn);font-weight:800;letter-spacing:.04em;text-transform:uppercase;font-size:11px}
 .offchip.on{background:#13230f;border-color:var(--ok)}
 .offchip-dot{width:8px;height:8px;border-radius:50%;background:var(--warn);animation:offpulse 1.6s ease-in-out infinite;flex:0 0 auto}
@@ -3847,10 +3802,10 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .pay-row-s{font-family:'Inter';font-size:12px;line-height:1.5;color:var(--cream-m);margin-top:4px;max-width:34ch}
 .pay-status{flex:0 0 auto;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--cream-d);border:1px solid var(--line2);border-radius:999px;padding:4px 9px}
 .pay-status.on{color:var(--ok);border-color:var(--ok)}
-.pay-toggle{flex:0 0 auto;position:relative;width:50px;height:28px;border-radius:999px;border:1px solid var(--line2);background:rgba(245,241,232,.08);cursor:pointer;-webkit-appearance:none;appearance:none;transition:background .16s}
+.pay-toggle{flex:0 0 auto;position:relative;width:56px;height:32px;border-radius:999px;border:1px solid var(--line2);background:rgba(245,241,232,.08);cursor:pointer;-webkit-appearance:none;appearance:none;transition:background .16s}
 .pay-toggle.on{background:var(--ok);border-color:var(--ok)}
-.pay-toggle-knob{position:absolute;top:2px;left:2px;width:22px;height:22px;border-radius:50%;background:#fff;transition:transform .16s}
-.pay-toggle.on .pay-toggle-knob{transform:translateX(22px)}
+.pay-toggle-knob{position:absolute;top:2px;left:2px;width:26px;height:26px;border-radius:50%;background:#fff;transition:transform .16s}
+.pay-toggle.on .pay-toggle-knob{transform:translateX(24px)}
 .pay-toggle:disabled{opacity:.6}
 .pay-note{font-family:'Inter';font-size:12px;line-height:1.5;color:var(--ok);border-top:1px solid var(--line);padding-top:12px}
 .pay-note.warn{color:var(--warn)}
@@ -3876,9 +3831,6 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .rpt-line{font-family:'Inter';font-size:12.5px;color:var(--cream-m);margin:2px 2px 12px}
 
 /* structural de-noise: Now live-panel compact rows, Prep glance line, ETA fold, science fold */
-.adm-golist{display:flex;flex-direction:column;gap:8px;margin-top:12px}
-.adm-gorow{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid var(--line);border-radius:12px;padding:10px 12px}
-.adm-gorow-n{font-family:'Inter';font-weight:650;font-size:13.5px;color:var(--cream)}
 .adm-golink{display:block;width:100%;background:none;border:none;font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--cream-m);padding:12px 2px 2px;cursor:pointer;text-align:left;-webkit-appearance:none;appearance:none}
 .bo-line{font-family:'Inter';font-size:13px;line-height:1.6;color:var(--cream-m);margin:4px 2px 12px}
 .bo-line button{background:none;border:none;padding:0;font:inherit;color:inherit;cursor:pointer;-webkit-appearance:none;appearance:none}
@@ -3917,7 +3869,7 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .dl-sub em{font-style:normal;color:var(--cream-d)}
 .dl-note{font-family:'Inter';font-size:12px;color:var(--cream-m);margin:0}
 .dl-ziprow{display:flex;gap:8px}
-.dl-ziprow .auth-input{flex:1}
+.dl-ziprow .auth-input{flex:1;min-width:0}
 .dl-zip{flex:0 0 90px !important;opacity:.7}
 .dl-out{border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px}
 .dl-ctr{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:12px;padding:10px 12px}
@@ -3926,7 +3878,7 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .dl-ctr-n em{display:block;font-style:normal;font-weight:500;font-size:11px;color:var(--cream-m)}
 .dl-ctr-b{display:flex;align-items:center;gap:14px}
 .dl-ctr-b.lone{align-self:flex-start}
-.dl-ctr-b button{width:34px;height:34px;border-radius:10px;background:transparent;border:1.5px solid var(--line2);color:var(--cream);font-size:17px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.dl-ctr-b button{width:44px;height:44px;border-radius:10px;background:transparent;border:1.5px solid var(--line2);color:var(--cream);font-size:17px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .dl-ctr-b button:disabled{opacity:.35}
 .dl-ctr-b b{font-family:'DM Mono',ui-monospace,monospace;font-weight:500;font-size:16px;min-width:22px;text-align:center}
 .dl-perf{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line);padding-top:12px}
@@ -4050,7 +4002,7 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .pipe-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .pipe-grid label{display:flex;flex-direction:column;gap:4px;font-family:'Inter';font-weight:650;font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:var(--cream-m)}
 .pipe-grid label i{font-style:normal;text-transform:none;font-weight:500;color:var(--cream-d)}
-.pipe-grid input,.pipe-grid select{background:var(--char2);border:1px solid var(--line2);border-radius:9px;padding:9px 10px;color:var(--cream);font-family:'Inter';font-size:13px;font-weight:400;text-transform:none;letter-spacing:0}
+.pipe-grid input,.pipe-grid select{background:var(--char2);border:1px solid var(--line2);border-radius:9px;padding:9px 10px;color:var(--cream);font-family:'Inter';font-size:13px;font-weight:400;text-transform:none;letter-spacing:0;width:100%;min-width:0}
 .app.crew-day .pipe-grid input,.app.crew-day .pipe-grid select{background:#fff;color:#221F18}
 .pipe-lost{margin-top:8px;font-size:11.5px;color:var(--cream-m)}
 .pipe-catalog{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:10px 0 14px}
@@ -4067,7 +4019,7 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 /* Deal catalog management (PipelinePanel) — tap-to-edit, reorder, remove */
 button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:left;font-family:inherit;cursor:pointer;-webkit-appearance:none;appearance:none}
 .pipe-ordwrap{display:flex;gap:3px;flex:0 0 auto}
-.pipe-ord{flex:0 0 auto;width:24px;height:24px;padding:0;line-height:1;background:none;border:1px solid var(--line2);border-radius:8px;color:var(--cream-m);font-size:11px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.pipe-ord{flex:0 0 auto;width:28px;height:28px;padding:0;line-height:1;background:none;border:1px solid var(--line2);border-radius:8px;color:var(--cream-m);font-size:11px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .pipe-ord:disabled{opacity:.3;cursor:default}
 .pipe-del{flex:0 0 auto;background:none;border:none;padding:2px 4px;color:var(--cream-d);font-size:12px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .pipe-del:hover{color:var(--red-h)}
@@ -4093,7 +4045,8 @@ button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:
 .goal-inits{margin:10px 0 2px;border-top:1px dashed var(--line);padding-top:8px}
 .goal-init{display:flex;align-items:center;gap:8px;padding:4px 0}
 .goal-init.done .goal-init-t{opacity:.55;text-decoration:line-through}
-.goal-init-ck{flex:0 0 22px;height:22px;border:1px solid var(--line2);border-radius:7px;background:none;color:var(--ok);font-size:12px;line-height:1;cursor:pointer;-webkit-appearance:none;appearance:none}
+.goal-init-ck{flex:0 0 22px;height:22px;border:1px solid var(--line2);border-radius:7px;background:none;color:var(--ok);font-size:12px;line-height:1;cursor:pointer;-webkit-appearance:none;appearance:none;position:relative}
+.goal-init-ck::after{content:"";position:absolute;inset:-8px} /* 44px effective touch target (CSS audit pack 2 2026-07) */
 .goal-init-t{flex:1;min-width:0;font-family:'Inter';font-size:12.5px;color:var(--cream)}
 .goal-init-x{flex:0 0 auto;background:none;border:none;color:var(--cream-d);font-size:11px;cursor:pointer;padding:2px 4px;-webkit-appearance:none;appearance:none}
 .goal-init.add{gap:8px}
@@ -4145,11 +4098,11 @@ button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:
 .dl-tiers span{font-family:'Inter';font-size:11.5px;color:var(--cream-m);border:1px solid var(--line2);border-radius:999px;padding:7px 12px}
 .dl-tiers b{color:var(--gold2);margin-right:4px}
 .dl-zlead{font-weight:600;color:var(--cream)}
-.dl-ziprow-xl .auth-input{font-family:'DM Mono',monospace;font-size:19px;letter-spacing:.18em;text-align:center;padding:15px 10px}
+.dl-ziprow-xl .auth-input{font-family:'DM Mono',monospace;font-size:19px;letter-spacing:.18em;text-align:center;padding:15px 10px;min-width:0;width:100%}
 .dl-ziprow .handle{width:auto;flex:0 0 auto;padding:0 26px}
 
 /* pickup-day / which-Sunday pills (shared) */
-.oa-days,.dl-days{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.dl-days{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 .oa-day{flex:1;min-width:130px;display:flex;flex-direction:column;gap:3px;align-items:flex-start;text-align:left;background:none;border:1px solid var(--line2);border-radius:12px;padding:11px 13px;cursor:pointer;-webkit-appearance:none;appearance:none;color:var(--cream)}
 .oa-day b{font-family:'Inter';font-weight:750;font-size:13.5px}
 .oa-day span{font-family:'Inter';font-size:10.5px;color:var(--cream-m)}
@@ -4172,9 +4125,6 @@ button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:
 .ev-2col{display:flex;gap:8px}
 .ev-2col label{flex:1}
 .ev-timelbl{display:flex;flex-direction:column;gap:4px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--cream-d)}
-
-/* delivery: FREE DELIVERY is a standing incentive, not a selected-state label — always visible */
-.oa-tile .oa-tag.on{opacity:1}
 
 /* Train the AI (Team → owner) */
 .ai-agents{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
@@ -4212,6 +4162,7 @@ button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:
 .spl-cta{margin-top:40px;-webkit-appearance:none;appearance:none;border:none;background:var(--red);color:#fff;font-family:inherit;font-weight:700;font-size:16px;letter-spacing:.01em;padding:17px 40px;border-radius:999px;cursor:pointer;opacity:0;transform:translateY(14px);animation:spl-up 1.1s cubic-bezier(.16,1,.3,1) .9s forwards;transition:background .25s,transform .12s}
 .spl-cta:hover,.spl-cta:focus-visible{background:var(--red-h,#d64b46);outline:none}
 .spl-cta:active{transform:scale(.98)}
+.spl-cta:focus-visible{outline:2px solid var(--cream);outline-offset:3px} /* keyboard focus stays visible on the takeover (CSS audit pack 2026-07) */
 .spl-foot{margin-top:20px;font-size:12.5px;letter-spacing:.03em;color:#7d735f;opacity:0;animation:spl-up 1.1s ease 1.15s forwards}
 .spl-skip{position:absolute;top:calc(20px + env(safe-area-inset-top));right:22px;z-index:3;-webkit-appearance:none;appearance:none;background:none;border:none;color:#6b6255;font-family:inherit;font-size:13px;letter-spacing:.04em;cursor:pointer;opacity:0;animation:spl-up 1s ease 1.3s forwards}
 .spl-skip:hover{color:var(--cream)}
@@ -4231,31 +4182,6 @@ button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:
 /* studio: campaign/theme tag on a content card (kept light — one chip, not a taxonomy) */
 .studio-card-camp{display:inline-block;margin-top:6px;font-family:'DM Mono',monospace;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--gold2);border:1px solid var(--line2);border-radius:999px;padding:2px 9px}
 
-/* ── A11y fix pack (audit 2026-07): day-mode contrast + large-Display overflow ─────────────────
-   Dark-glass fields/chips that never flipped for crew-day: white fields, warm-ink text, readable
-   placeholders; status colors deepened so they hold contrast on cream. */
-.app.crew-day .ev-input,
-.app.crew-day .ev-f input,.app.crew-day .ev-f select,
-.app.crew-day .adm-fields input[type=number],.app.crew-day .adm-fields input[type=text],.app.crew-day .adm-fields select,
-.app.crew-day .gl-f input,.app.crew-day .gl-f select,.app.crew-day .gl-f textarea,
-.app.crew-day .isheet-in{background:#fff;color:#221F18;border-color:rgba(34,31,24,.24)}
-.app.crew-day .isheet-in::placeholder{color:rgba(34,31,24,.55)}
-.app.crew-day .adm-hud-stat,.app.crew-day .tm-av,.app.crew-day .alert-ack,.app.crew-day .offchip,.app.crew-day .sw-update{background:#fff}
-.app.crew-day .gauge,.app.crew-day .adm-ready-bar,.app.crew-day .ev-golive{background:rgba(34,31,24,.05)}
-.app.crew-day .note-new{background:rgba(34,31,24,.04)}
-.app.crew-day .adm-attn{color:#7a2622}
-.app.crew-day .adm-attn b{color:#221F18}
-.app.crew-day .kds-eta.outside{color:#8f1d1a}
-.app.crew-day .adm-act.done{color:#3f6b2f}
-.app.crew-day .dops-stage.done{color:#3f6b2f;border-color:#7FA86B}
-.app.crew-day .ev-inv-x span{color:#8f1d1a}
-/* Fixed-track grids and nowrap buttons overflow 320px viewports at rd-t2/t3 zoom — let them compress. */
-.cogs-head,.cogs-row{grid-template-columns:minmax(0,1fr) minmax(44px,64px) minmax(44px,64px) minmax(40px,56px)}
-.adm-hud-stat{min-width:0}
-.adm-hud-stat b{font-size:clamp(16px,6vw,25px);overflow:hidden;text-overflow:ellipsis}
-.adm-btn{white-space:normal}
-.cat-row .ev-f{flex:0 1 64px;min-width:44px}
-.app:is(.rd-t2,.rd-t3) .ev-grid{grid-template-columns:repeat(2,1fr)}
 /* Pipeline: linked notes fold on an expanded opportunity */
 .pipe-notes{display:flex;flex-direction:column;gap:5px;margin-top:9px;padding:10px 12px;border:1px solid var(--line);border-radius:11px;background:rgba(0,0,0,.14)}
 .app.crew-day .pipe-notes{background:rgba(34,31,24,.04)}
@@ -4272,6 +4198,7 @@ button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:
 .qd-vis-chip{font-family:'Inter';font-weight:600;font-size:12px;padding:7px 11px;border-radius:999px;border:1px solid var(--line2);background:rgba(0,0,0,.22);color:var(--cream-m);cursor:pointer;-webkit-appearance:none;appearance:none}
 .qd-vis-chip.on{border-color:var(--gold2);color:var(--gold2);background:rgba(184,144,47,.1)}
 .app.crew-day .qd-vis-chip{background:#fff}
+.app.crew-day .qd-vis-chip.on{background:rgba(184,144,47,.1)}
 .pipe-lines-div{width:1px;align-self:stretch;background:var(--line2);margin:0 3px;flex:0 0 auto}
 /* My Day: one-tap private note capture */
 .myday-jot{width:100%;margin-top:10px;padding:12px 14px;border-radius:12px;border:1.5px dashed var(--line2);background:transparent;color:var(--gold2);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;text-align:left;-webkit-appearance:none;appearance:none}
@@ -4287,7 +4214,9 @@ select.note-vis{background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xm
 .app.crew-day .dup-row,body.light .dup-row{background:rgba(34,31,24,.05);color:#221F18}
 .dup-nvm{width:100%;margin-top:9px;padding:12px;border-radius:12px;border:1px solid var(--line2);background:transparent;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13.5px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .mypack-day{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
-.mypack-dayh{display:flex;align-items:baseline;gap:9px;padding:2px 2px 0}
+/* the day-group header reads as a section, and the page's three jobs get breathing room */
+.mypack-dayh{display:flex;align-items:baseline;gap:9px;padding:2px 2px 0;padding-top:6px;border-top:1px solid var(--line);margin-top:2px}
+.mypack-day:first-of-type .mypack-dayh{border-top:none;padding-top:0;margin-top:0}
 .mypack-dayh b{font-family:'Inter';font-weight:700;font-size:13.5px;color:var(--cream)}
 .mypack-dayh span{font-family:var(--mono);font-size:10px;letter-spacing:.3px;text-transform:uppercase;color:var(--cream-m)}
 .mypack-move{display:flex;flex-direction:column;gap:8px;margin-top:9px;padding:11px 13px;border:1px dashed var(--line2);border-radius:11px}
@@ -4295,105 +4224,3 @@ select.note-vis{background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xm
 .mypack-move-days{display:flex;gap:7px;flex-wrap:wrap}
 .mypack-move-days button{font-family:'Inter';font-weight:650;font-size:12.5px;padding:9px 13px;border-radius:999px;border:1px solid var(--gold2);background:transparent;color:var(--gold2);cursor:pointer;-webkit-appearance:none;appearance:none}
 
-/* ── CSS audit pack (2026-07): touch targets, focus, tokens, prefixes ─────────────────────────
-   Money-path steppers + toggles reach the app's own 44px convention; badges reach readable size;
-   the splash CTA keeps a visible focus ring; .nav gets the -webkit- backdrop twin. */
-:is(.sheet,.sheet2).paper .co-step{width:44px;height:44px}
-.dl-ctr-b button{width:44px;height:44px}
-.pay-toggle{width:56px;height:32px}
-.pay-toggle-knob{width:26px;height:26px;top:2px}
-.pay-toggle.on .pay-toggle-knob{transform:translateX(24px)}
-.oa-tile .oa-tag{font-size:9px}
-.spl-cta:focus-visible{outline:2px solid var(--cream);outline-offset:3px}
-.nav{-webkit-backdrop-filter:blur(12px)}
-/* Contrast pack 2: agent-verified misses */
-.app.crew-day .ev-fieldbtn{background:#fff;border-color:rgba(34,31,24,.24)}
-.app.crew-day .ev-fieldbtn-v{color:#221F18}
-.app.crew-day .ev-fieldbtn-v.ph{color:rgba(34,31,24,.5)}
-.app.crew-day .auth-paste-hint{color:rgba(34,31,24,.62)}
-.app.crew-day .auth-err{color:#8f1d1a;background:rgba(184,36,32,.08)}
-/* gold pills: day-mode gold deepens, so the dark label loses — keep the label light */
-.app.crew-day .note-tab.on{color:#F5F1E8}
-.app.crew-day .oa-msg.user{color:#F5F1E8}
-/* brand red is a FILL color; as small TEXT on dark it sits under 3:1 — use the readable red */
-.spark .axis span.tdy{color:var(--red-h)}
-.step .tm.now{color:var(--red-h)}
-/* dark placeholders were 2.1-2.4:1 — readable without shouting */
-.note-in::placeholder,.note-area::placeholder{color:rgba(245,241,232,.5)}
-.isheet-in::placeholder{color:rgba(245,241,232,.5)}
-
-/* ── CSS audit pack 2 (2026-07): confirmed collisions, day-mode state fills, overflow, targets ──
-   The recurring trap this fixes: .app.crew-day descendant rules (0,3,0) silently beat .x.on state
-   rules (0,2,0). Every .on/.done/.sel state a day override had killed gets its fill back here. */
-.app.crew-day .ev-golive.on{background:rgba(184,36,32,.12);color:#8f1d1a}
-.app.crew-day .dops-prog.done{color:#3f6b2f}
-.app.crew-day .dp-tab.on{background:rgba(169,124,63,.14)}
-.app.crew-day .qd-tab.on{background:rgba(169,124,63,.18)}
-.app.crew-day .qd-vis-chip.on{background:rgba(184,144,47,.1)}
-.app.crew-day .offchip.on{background:#f0f6ec}
-.app.crew-day .te-prio-b.normal.on{background:rgba(34,31,24,.08);color:#221F18}
-.app.crew-day .qd-fab.open{color:var(--cream)}
-/* day-mode contrast: status text + controls the packs missed */
-.app.crew-day :is(.dp-leave-h b,.dp-leave-btn){color:#2d6ca8}
-.app.crew-day .adm-age.late{color:#8f1d1a}
-.app.crew-day .adm-substat.past_due{color:#8f1d1a}
-.app.crew-day :is(.auth-label span,.auth-fine){color:rgba(34,31,24,.6)}
-.app.crew-day :is(.brew-toggle-b.on,.dops-nav,.dops-driver-link){color:#fff}
-.app.crew-day .pay-toggle{background:rgba(34,31,24,.16);border-color:rgba(34,31,24,.25)}
-.app.crew-day .ev-toggle-knob{background:#fff}
-.app.crew-day .note-fu-assign{background:rgba(34,31,24,.05)}
-.app.crew-day .cmt{background:rgba(34,31,24,.04)}
-.app.crew-day .isheet-help-detail{background:rgba(34,31,24,.04)}
-.app.crew-day .cal-chip{background:rgba(34,31,24,.04)}
-/* overflow: min-width traps in form grids + non-wrapping rows (rd-t2/t3 on 320-390px) */
-.admin .toprow{flex-wrap:wrap;row-gap:8px}
-.modesw{flex:0 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none}
-.dl-ziprow .auth-input{min-width:0}
-.dl-ziprow-xl .auth-input{min-width:0;width:100%}
-.b-row>div{min-width:0}
-.b-row .auth-input{min-width:0}
-.prod-f input,.prod-f textarea,.prod-f select{width:100%;min-width:0}
-.pipe-grid input,.pipe-grid select{width:100%;min-width:0}
-.tl-f input{width:100%;min-width:0}
-.note-filter{flex-wrap:wrap}
-.note-search{flex:1 1 100%;min-width:0}
-:is(.adm-btn,.adm-btn.primary,.note-save){white-space:normal}
-.rva-add-row .rva-in{min-width:0}
-.rva-src{flex:0 1 130px;min-width:90px}
-/* fixed-chrome collisions: banner + offline chip lift above the FAB tier */
-.sw-update{bottom:calc(76px + 78px + env(safe-area-inset-bottom))}
-.offchip{bottom:calc(76px + 78px + env(safe-area-inset-bottom));max-width:calc(100vw - 24px)}
-/* touch targets: 44px effective areas on daily-use controls */
-.cc-chip{min-height:26px;padding:4px 6px}
-.driver-emp-step button{width:40px;height:40px}
-.pipe-ord{width:28px;height:28px}
-.goal-init-ck,.dp-check,.brand-asset-x{position:relative}
-.goal-init-ck::after,.dp-check::after,.brand-asset-x::after{content:"";position:absolute;inset:-8px}
-.admin .kds-mute{min-height:44px}
-.cal-arrow{width:40px;height:40px}
-.rdg-size{height:44px}
-.subpitch-tag{font-size:9px}
-.ig-ph span{font-size:9px}
-
-/* ── Pack cards: payment state is a FLAG, not a whisper ──────────────────────────────────────
-   The card carries a left status stripe + a solid flag chip: green = money settled, gold = due
-   at the window, dim = done. One glance tells the crew and the customer where money stands. */
-.mypack{border-left:3px solid var(--line2);position:relative}
-.mypack.pay-paid{border-left-color:var(--ok)}
-.mypack.pay-due{border-left-color:var(--gold2)}
-.mypack.pay-done{border-left-color:var(--line2);opacity:.72}
-.mypack-main{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
-.mypack-main b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mypack-sub{font-family:'DM Mono',monospace;font-size:10.5px;letter-spacing:.04em;color:var(--cream-m);line-height:1.5}
-.mypack-flag{font-family:'DM Mono',monospace;font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;border-radius:999px;padding:4px 9px;white-space:nowrap;flex:0 0 auto}
-.mypack-flag.paid{background:rgba(106,160,92,.16);color:#9fd18f;border:1px solid rgba(106,160,92,.45)}
-.mypack-flag.due{background:rgba(200,166,97,.12);color:var(--gold2);border:1px solid rgba(200,166,97,.4)}
-.mypack-flag.done{background:rgba(245,241,232,.06);color:var(--cream-d);border:1px solid var(--line2)}
-.app.crew-day .mypack-flag.paid,body.light .mypack-flag.paid{color:#3f6b2f}
-.app.crew-day .mypack-flag.due,body.light .mypack-flag.due{color:#6e4c1e}
-/* the day-group header reads as a section, and the page's three jobs get breathing room */
-.mypack-dayh{padding-top:6px;border-top:1px solid var(--line);margin-top:2px}
-.mypack-day:first-of-type .mypack-dayh{border-top:none;padding-top:0;margin-top:0}
-.mypacks{margin-bottom:22px}
-/* warn is a BACKGROUND in two spots — dark ink loses on the day-deepened amber */
-.app.crew-day :is(.am-flag,.driver-stop.issue .driver-seq){color:#fff}
