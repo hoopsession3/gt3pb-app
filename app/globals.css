@@ -3302,6 +3302,10 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .mast-dark .g3{color:var(--cream,#F5F1E8)}
 .mast-dark .pb{color:var(--cream-m,rgba(245,241,232,.55))}
 .g3-3{height:.76em;width:auto;display:inline-block;margin-left:1px;transform:translateY(.05em)}
+/* 3MPIRE lockup (components/Mpire.tsx) — the same real red "3" leading the word; identical
+   em metrics to .g3-3, already tuned for Archivo Black display type. */
+.mp3{display:inline-flex;align-items:baseline}
+.mp3-3{height:.76em;width:auto;display:inline-block;margin-right:1px;transform:translateY(.05em)}
 
 /* order-history search box */
 .adm-search{width:100%;background:rgba(0,0,0,.28);border:1.5px solid var(--hair,rgba(245,241,232,.14));border-radius:12px;padding:11px 14px;color:var(--cream,#F5F1E8);font-size:14px;font-family:'Inter',sans-serif;margin:2px 0 12px}

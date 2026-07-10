@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import Mpire from "./Mpire";
 import { useAuth } from "./AuthProvider";
 
 type Mode = "passwordless" | "password";
@@ -183,7 +184,9 @@ export default function SignIn() {
       {/* ── main form ── */}
       {step === "form" && (
         <>
-          <h1 className="auth-headline">{intent === "join" ? "Grow your 3MPIRE." : "Welcome back."}</h1>
+          {/* The 3 in 3MPIRE is the real brand glyph (Mpire → public/brand/gt3-3.png), not a font
+              character — display-scale brand words carry the mark, same law as the GT3 masthead. */}
+          <h1 className="auth-headline">{intent === "join" ? <>Grow your <Mpire />.</> : "Welcome back."}</h1>
           <p className="auth-sub">
             {intent === "join"
               ? <>Free to join — points on every pour, first taste of reserves, order-ahead perks.</>

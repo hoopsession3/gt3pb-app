@@ -72,7 +72,10 @@ export default function PaymentSettings() {
           <div className="pay-row-s">
             Let customers place a <b>pickup</b> order now and pay in person — a cup at the truck, or a
             pack picked up at a stop. Works with or without Square. Turn it off to require a card.
-            <br />Sunday <b>delivery is always prepaid</b> on the card — this switch doesn&apos;t affect it.
+            {/* {" "} after the </b>: Turbopack drops a plain same-line space when the text node
+                after an inline element wraps to the next source line — an explicit expression
+                survives the transform. (Rendered as "prepaidon"/"packsto" before this.) */}
+            <br />Sunday <b>delivery is always prepaid</b>{" "}on the card — this switch doesn&apos;t affect it.
           </div>
         </div>
         <button
@@ -94,7 +97,8 @@ export default function PaymentSettings() {
         <div className="pay-row-l">
           <div className="pay-row-t">Subscriptions <span className="pay-row-tag">{subsOn ? "live" : "hidden"}</span></div>
           <div className="pay-row-s">
-            Offer <b>recurring coffee packs</b> to customers. Off by default — the launch push is
+            {/* {" "} for the same Turbopack space-trim edge as the pay-at-pickup row above. */}
+            Offer <b>recurring coffee packs</b>{" "}to customers. Off by default — the launch push is
             packs, reserves, and bulk packs for pickup + delivery. Leave off until you&apos;re ready
             to go live with recurring billing.
           </div>
