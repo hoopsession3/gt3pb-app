@@ -30,10 +30,10 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const key = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const addDaysKey = (iso: string, n: number) => { const d = new Date(`${iso}T00:00:00`); d.setDate(d.getDate() + n); return key(d); };
 const VIEW_KEY = "gt3-company-cal-view";
-type View = "list" | "board" | "cards" | "rails" | "week" | "month" | "quarter" | "year";
-// board/cards/rails are "from today" views — no month cursor, one shared window
-const FLOW_VIEWS: View[] = ["list", "board", "cards", "rails"];
-const VLABEL: Record<View, string> = { list: "Agenda", board: "Board", cards: "Cards", rails: "Rails", week: "Week", month: "Month", quarter: "Quarter", year: "Year" };
+type View = "list" | "board" | "cards" | "week" | "month" | "quarter" | "year";
+// board/cards are "from today" views — no month cursor, one shared window
+const FLOW_VIEWS: View[] = ["list", "board", "cards"];
+const VLABEL: Record<View, string> = { list: "Agenda", board: "Board", cards: "Cards", week: "Week", month: "Month", quarter: "Quarter", year: "Year" };
 
 type Stop = { id: string; name: string; location_text: string | null; starts_at: string | null; status: string | null };
 type Brew = { id: string; recipe_name: string | null; batch_gal: number | null; status: string; brew_date: string | null; ready_at: string | null; latest_start_at: string | null };
@@ -57,7 +57,7 @@ export default function CompanyCalendar() {
   // Default is LIST, not the month grid — on a phone the 30-day grid is a wall of tiny cells that
   // shows almost no data (owner call, 2026-07-09: "we lose sight… it's small and shows not much").
   // List reads like an agenda: dense, dated, actionable. A chosen view still persists.
-  const [view, setView] = useState<View>(() => { if (typeof window !== "undefined") { const v = localStorage.getItem(VIEW_KEY) as View; if (v) return v; } return "list"; });
+  const [view, setView] = useState<View>(() => { if (typeof window !== "undefined") { const v = localStorage.getItem(VIEW_KEY) as View; if (v && v in VLABEL) return v; } return "list"; });
   const setV = (v: View) => { setView(v); if (typeof window !== "undefined") localStorage.setItem(VIEW_KEY, v); };
   const [cursor, setCursor] = useState(() => new Date(now.getFullYear(), now.getMonth(), now.getDate())); // always open on today (right week AND month)
   const setCur = (d: Date) => setCursor(d);
@@ -83,7 +83,7 @@ export default function CompanyCalendar() {
 
   // The date window to load + render, by view.
   const range = useMemo(() => {
-    if (view === "board" || view === "cards" || view === "rails") {
+    if (view === "board" || view === "cards") {
       const s = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 14);
       const e = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 60);
       return { start: s, end: e };
@@ -165,7 +165,9 @@ export default function CompanyCalendar() {
   const openBrew = () => { try { localStorage.setItem("gt3-plan-tab", "brew"); } catch { /* ignore */ } router.push("/admin?s=plan"); };
   const openNow = () => setSection("now");
 
-  const pass = (cat: string) => filter === "all" || filter === cat;
+  const streams = useWorkStreams();
+  const laneFilter = filter.startsWith("lane:") ? streams.find((s) => s.key === filter.slice(5)) : null;
+  const pass = (cat: string) => filter === "all" || filter === cat || Boolean(laneFilter?.categories.includes(cat));
   const byDay = useMemo(() => {
     const m: Record<string, Item[]> = {};
     const push = (k: string, it: Item) => { (m[k] ||= []).push(it); };
@@ -195,7 +197,7 @@ export default function CompanyCalendar() {
       for (const [dk, n] of Object.entries(agg)) push(dk, { id: `del-${dk}`, title: `Sunday run · ${n} porch${n === 1 ? "" : "es"}`, cat: "delivery", kind: "delivery", go: openNow });
     }
     return m;
-  }, [events, content, todos, stops, prepTasks, brews, drops, dels, filter]);
+  }, [events, content, todos, stops, prepTasks, brews, drops, dels, filter, streams]);
 
   // Flat date-sorted spine for Board / Cards / Rails.
   const flat = useMemo(() => {
@@ -239,11 +241,10 @@ export default function CompanyCalendar() {
     if (view === "list") return "Agenda";
     if (view === "board") return "Flow";
     if (view === "cards") return "Up next";
-    if (view === "rails") return "By lane";
     return `${MONTHS[cursor.getMonth()]} ${cursor.getFullYear()}`;
   })();
 
-  const VIEWS: View[] = ["list", "board", "cards", "rails", "week", "month", "quarter", "year"];
+  const VIEWS: View[] = ["list", "board", "cards", "week", "month", "quarter", "year"];
   const Chip = ({ it }: { it: Item }) => (
     <button type="button" draggable={DRAG.has(it.kind)} className={`cc-chip${it.done ? " done" : ""}`} style={{ borderLeftColor: CAT[it.cat]?.color }}
       onDragStart={() => { if (DRAG.has(it.kind) && isEditable(it.kind)) dragId.current = { kind: it.kind, id: it.id }; }} onClick={(e) => { e.stopPropagation(); it.go(); }} title={`${CAT[it.cat]?.label}: ${it.title}`}>
@@ -273,15 +274,23 @@ export default function CompanyCalendar() {
         <div className="cal-views">
           {VIEWS.map((v) => <button key={v} type="button" className={`cal-view${view === v ? " on" : ""}`} onClick={() => setV(v)}>{VLABEL[v]}</button>)}
           <button type="button" className={`cal-filterbtn${filter !== "all" ? " on" : ""}`} onClick={() => setFilterSheet(true)} aria-haspopup="dialog">
-            {filter === "all" ? "Filter" : <><span className="cc-dot" style={{ background: CAT[filter].color }} />{CAT[filter].label}</>}
+            {filter === "all" ? "Filter" : laneFilter ? <><span className="cc-dot" style={{ background: laneFilter.color }} />{laneFilter.label}</> : <><span className="cc-dot" style={{ background: CAT[filter].color }} />{CAT[filter].label}</>}
           </button>
         </div>
         {filterSheet && (
           <Sheet open onClose={() => setFilterSheet(false)} header={<div style={{ display: "flex", alignItems: "center" }}><div className="prep-sheet-h">Show on the calendar</div></div>}>
             <div className="prep-sheet-opts">
-              {FILTERS.map((f) => (
+              <button type="button" className={`prep-sheet-opt${filter === "all" ? " on" : ""}`} onClick={() => { setFilter("all"); setFilterSheet(false); }}>Everything</button>
+              <div className="dv-sub" style={{ margin: "10px 0 4px" }}>By lane</div>
+              {streams.map((s) => (
+                <button key={s.key} type="button" className={`prep-sheet-opt${filter === `lane:${s.key}` ? " on" : ""}`} onClick={() => { setFilter(`lane:${s.key}`); setFilterSheet(false); }}>
+                  <span className="cc-dot" style={{ background: s.color, marginRight: 6 }} />{s.label}
+                </button>
+              ))}
+              <div className="dv-sub" style={{ margin: "10px 0 4px" }}>By category</div>
+              {FILTERS.filter((f) => f !== "all").map((f) => (
                 <button key={f} type="button" className={`prep-sheet-opt${filter === f ? " on" : ""}`} onClick={() => { setFilter(f); setFilterSheet(false); }}>
-                  {f === "all" ? "Everything" : `${CAT[f].icon} ${CAT[f].label}`}
+                  {`${CAT[f].icon} ${CAT[f].label}`}
                 </button>
               ))}
             </div>
@@ -415,9 +424,6 @@ export default function CompanyCalendar() {
           </div>
         );
       })()}
-
-      {/* ── RAILS — one lane per work stream: what's next in each lane, who owns it ── */}
-      {view === "rails" && <RailsView flat={flat.filter(({ k }) => k >= todayKey)} onEdit={(kind, id) => setEdit({ kind, id })} />}
 
       {/* ── QUARTER / YEAR (mini-months, tap to open) ── */}
       {(view === "quarter" || view === "year") && (
@@ -642,55 +648,6 @@ function MiniMonth({ mDate, byDay, todayKey, onOpen }: { mDate: Date; byDay: Rec
         })}
       </div>
     </button>
-  );
-}
-
-// One lane per work stream (0159) — the org structure ON the calendar: each lane shows what's
-// next and who's accountable. Categories roll up via the stream's categories[] config.
-function RailsView({ flat, onEdit }: { flat: { k: string; it: Item }[]; onEdit: (kind: EditKind, id: string) => void }) {
-  const streams = useWorkStreams();
-  const [names, setNames] = useState<Record<string, string>>({});
-  useEffect(() => {
-    if (!supabase) return;
-    const ids = streams.map((s) => s.owner_user_id).filter(Boolean) as string[];
-    if (!ids.length) { setNames({}); return; }
-    supabase.from("profiles").select("id, display_name").in("id", ids).then(({ data }) => {
-      const m: Record<string, string> = {};
-      for (const p of ((data ?? []) as { id: string; display_name: string | null }[])) m[p.id] = (p.display_name || "").trim().split(/\s+/)[0];
-      setNames(m);
-    });
-  }, [streams]);
-  const laneOf = (cat: string) => streams.find((s) => s.categories.includes(cat));
-  const lanes = streams.map((s) => ({ s, items: flat.filter(({ it }) => laneOf(it.cat)?.key === s.key) }));
-  const other = flat.filter(({ it }) => !laneOf(it.cat));
-  const railItem = ({ k, it }: { k: string; it: Item }) => (
-    <button key={`${it.kind}-${it.id}-${k}`} type="button" className="wsrail-it" style={{ borderTopColor: CAT[it.cat]?.color }}
-      onClick={() => { if (isEditable(it.kind)) onEdit(it.kind, it.id); else it.go(); }}>
-      <span className="wsrail-d">{new Date(`${k}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}{it.warn ? " ⚠" : ""}</span>
-      <span className="wsrail-t">{it.done ? "✓ " : ""}{it.title}</span>
-    </button>
-  );
-  const lane = (keyStr: string, label: string, color: string, ownerName: string | null, items: { k: string; it: Item }[]) => (
-    <div key={keyStr} className="wsrail">
-      <div className="wsrail-h">
-        <span className="cc-dot" style={{ background: color }} />
-        <b>{label}</b>
-        {ownerName && <span className="wsrail-own">{ownerName}</span>}
-        <span className="wsrail-n">{items.length}</span>
-      </div>
-      {items.length === 0 ? <div className="wsrail-quiet">quiet — nothing coming up</div> : (
-        <div className="wsrail-scroll">
-          {items.slice(0, 8).map(railItem)}
-          {items.length > 8 && <span className="wsrail-more">+{items.length - 8} more</span>}
-        </div>
-      )}
-    </div>
-  );
-  return (
-    <div className="cal-rails">
-      {lanes.map(({ s, items }) => lane(s.key, s.label, s.color, (s.owner_user_id && names[s.owner_user_id]) || null, items))}
-      {other.length > 0 && lane("other", "Other", "#9a8f7c", null, other)}
-    </div>
   );
 }
 

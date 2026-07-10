@@ -12,7 +12,7 @@ import { useMyAlerts, type MyFlag } from "@/lib/useMyAlerts";
 import { localToday, etToday } from "@/lib/dates";
 import { useWorkStreams, streamOfCategory } from "@/lib/streams";
 import { useRealtimeTable } from "@/lib/realtime";
-import { useOperatorSection, sectionsForRole, groupOfSection, SECTION_LABEL, type OpSection } from "@/components/OperatorNav";
+import { useOperatorSection, sectionsForRole, streamGroups, SECTION_LABEL, type OpSection } from "@/components/OperatorNav";
 import { CrumbProvider, Breadcrumbs, useCrumb } from "@/components/Crumbs";
 import { recordRecent } from "@/components/recents";
 import { queueOrderStatus, isNetworkError, saveSnapshot, readSnapshot, readQueue, OFFLINE_EVENT } from "@/components/offline";
@@ -4390,8 +4390,9 @@ function Panel({ title, id, defaultOpen = false, children }: { title: string; id
 
 export default function AdminPage() {
   const { ready, enabled, user, profile } = useAuth();
-  const { section, setSection, back, canGoBack } = useOperatorSection();
+  const { section, setSection, back, canGoBack, groupId: navGroupId } = useOperatorSection();
   const router = useRouter();
+  const streams = useWorkStreams();
 
   // Derive role + nav constants before any conditional return (Rules of Hooks).
   // profiles.role: member/server/operator/event_manager/contractor/admin/owner (0031).
@@ -4496,15 +4497,16 @@ export default function AdminPage() {
         <div className="op-head-s">{SEC_SUB[sec]}</div>
       </div>
 
-      {/* Secondary toggle — switches between the merged areas of a grouped bottom-nav tab
-          (Today: My Day · Now · Plan: Plan · Prep · Money: Money · Team). */}
+      {/* Secondary toggle — the ACTIVE LANE's sections (a section can live in two lanes — prep is
+          Service's and Events' — so the tapped tab, tracked as groupId, wins the ambiguity). */}
       {(() => {
-        const grp = groupOfSection(sec);
-        const members = grp ? grp.members.filter((m) => allowed.includes(m)) : [];
+        const lanes = [{ id: "today", label: "Today", members: (["day", "now"] as OpSection[]).filter((m) => allowed.includes(m)) }, ...streamGroups(streams, role)];
+        const grp = (navGroupId && lanes.find((g) => g.id === navGroupId && g.members.includes(sec))) || lanes.find((g) => g.members.includes(sec));
+        const members = grp ? grp.members.filter((m: OpSection) => allowed.includes(m)) : [];
         if (members.length < 2) return null;
         return (
           <div className="grp-toggle" role="tablist" aria-label={grp!.label}>
-            {members.map((m) => (
+            {members.map((m: OpSection) => (
               <button key={m} type="button" role="tab" aria-selected={sec === m} className={`grp-seg${sec === m ? " on" : ""}`} onClick={() => setSection(m)}>{SECTION_LABEL[m]}</button>
             ))}
           </div>

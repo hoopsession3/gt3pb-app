@@ -19,6 +19,7 @@ export interface Profile {
   avatar_url?: string | null;
   title?: string | null;
   bio?: string | null;
+  nav_pins?: string[] | null;  // pinned work-stream keys for the crew bar (0160); null = role default
 }
 
 // THE role vocabulary — matches profiles.role (migration 0031). This helper went stale at 4 of the

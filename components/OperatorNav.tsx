@@ -1,8 +1,10 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { useAuth, roleOf } from "./AuthProvider";
+import { useAuth, roleOf, LEADERSHIP_ROLES } from "./AuthProvider";
 import { useMyAlerts } from "@/lib/useMyAlerts";
+import { useWorkStreams, type WorkStream } from "@/lib/streams";
+import Sheet from "./Sheet";
 import BottomNav from "./BottomNav";
 import { supabase } from "@/lib/supabase";
 
@@ -13,13 +15,17 @@ import { supabase } from "@/lib/supabase";
 
 export type OpSection = "day" | "now" | "ask" | "prep" | "plan" | "studio" | "money" | "customers" | "team";
 
-const Ctx = createContext<{ section: OpSection; setSection: (s: OpSection) => void; back: () => boolean; canGoBack: boolean }>({ section: "day", setSection: () => {}, back: () => false, canGoBack: false });
+const Ctx = createContext<{ section: OpSection; setSection: (s: OpSection) => void; back: () => boolean; canGoBack: boolean; groupId: string | null; setGroupId: (g: string | null) => void }>({ section: "day", setSection: () => {}, back: () => false, canGoBack: false, groupId: null, setGroupId: () => {} });
 export const useOperatorSection = () => useContext(Ctx);
 
 const VALID = new Set<OpSection>(["day", "now", "prep", "plan", "studio", "money", "customers", "team"]);
 
 export function OperatorSectionProvider({ children }: { children: React.ReactNode }) {
   const [section, setSectionState] = useState<OpSection>("day");
+  // The active nav GROUP (lane). Sections can belong to two lanes; the tapped tab wins the
+  // ambiguity. Null = resolve from the section (first lane that contains it).
+  const [groupId, setGroupId] = useState<string | null>(() => { try { return localStorage.getItem("gt3-op-group"); } catch { return null; } });
+  const setGroup = useCallback((g: string | null) => { setGroupId(g); try { if (g) localStorage.setItem("gt3-op-group", g); } catch { /* ignore */ } }, []);
   // URL-backed sections: a section change is a real browser-history entry (/admin?s=prep), so the
   // native Back button, the phone's swipe-back, and deep-links all work. `depth` tracks how many
   // section entries WE pushed this visit — the console back button uses it to know when to exit crew.
@@ -73,7 +79,7 @@ export function OperatorSectionProvider({ children }: { children: React.ReactNod
     if (depthRef.current > 0) { try { window.history.back(); } catch { /* ignore */ } return true; }
     return false;
   }, []);
-  return <Ctx.Provider value={{ section, setSection, back, canGoBack: depth > 0 }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ section, setSection, back, canGoBack: depth > 0, groupId, setGroupId: setGroup }}>{children}</Ctx.Provider>;
 }
 
 // roleOf (AuthProvider) knows all 7 roles now — the local fork this file kept "so the expanded
@@ -90,16 +96,49 @@ const ROLE_SECTIONS: Record<string, OpSection[]> = {
 };
 export const sectionsForRole = (role: string): OpSection[] => ROLE_SECTIONS[role] ?? ["now"];
 
-// Best-in-class bottom nav: 4 destinations grouped by JOB, not by feature. Each group opens to its
-// first visible member; a secondary toggle (in the page) switches between members of a group.
-export type NavGroup = { id: string; label: string; icon: OpSection; members: OpSection[] };
-export const NAV_GROUPS: NavGroup[] = [
-  { id: "today", label: "Today", icon: "day", members: ["day", "now"] },
-  { id: "plan", label: "Plan", icon: "plan", members: ["plan", "prep"] },
-  { id: "studio", label: "Studio", icon: "studio", members: ["studio"] },
-  { id: "money", label: "Money", icon: "money", members: ["money", "customers", "team"] },
-];
-export const groupOfSection = (s: OpSection): NavGroup | undefined => NAV_GROUPS.find((g) => g.members.includes(s));
+// The bar is a PROJECTION of work_streams (0159): Today (the cross-stream command center — time
+// axis, always first) + the user's pinned lanes (domain axis). One config drives the calendar's
+// lane filter, alert routing, the org chart, and this bar — no hand-rolled grouping to drift.
+export type NavGroup = { id: string; label: string; icon: string; members: OpSection[]; color?: string };
+const TODAY_GROUP: NavGroup = { id: "today", label: "Today", icon: "day", members: ["day", "now"] };
+// Where a lane LANDS when tapped: its first section, plus a sub-tab preset where the lane's home
+// is a tab inside a mega-section (Production lives in Plan › Brew).
+const ENTRY_TAB: Record<string, string> = { production: "brew", events: "events" };
+const MAX_PINS = 3;
+const isSection = (x: string): x is OpSection => (VALID as Set<string>).has(x) || x === "ask";
+export function streamGroups(streams: WorkStream[], role: string): NavGroup[] {
+  const allowed = sectionsForRole(role);
+  return streams
+    .map((s) => ({ id: s.key, label: s.label, icon: s.icon || s.key, color: s.color, members: s.sections.filter((x): x is OpSection => isSection(x) && allowed.includes(x as OpSection)) }))
+    .filter((g) => g.members.length > 0);
+}
+// Role defaults until the user pins their own lanes.
+const DEFAULT_PINS: Record<string, string[]> = {
+  owner: ["service", "brand", "business"],
+  admin: ["service", "brand", "business"],
+  event_manager: ["events", "service", "brand"],
+  operator: ["service", "production", "events"],
+  contractor: ["service", "production", "events"],
+  server: ["service"],
+};
+export function orderByPins(groups: NavGroup[], pins: string[] | null | undefined, role: string): { pinned: NavGroup[]; overflow: NavGroup[] } {
+  const want = (pins?.length ? pins : DEFAULT_PINS[role] ?? []).filter((k) => groups.some((g) => g.id === k));
+  const pinned = want.slice(0, MAX_PINS).map((k) => groups.find((g) => g.id === k)!) as NavGroup[];
+  for (const g of groups) if (pinned.length < MAX_PINS && !pinned.includes(g)) pinned.push(g);
+  const overflow = groups.filter((g) => !pinned.includes(g));
+  return { pinned, overflow };
+}
+
+// Lane icons — keyed by work_streams.icon so tenant lanes pick from this set.
+export const STREAM_ICONS: Record<string, React.ReactNode> = {
+  service: <path d="M13 2 4 14h7l-1 8 9-12h-7z" />,
+  events: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4M12 13.2l1.2 2.4 2.6.3-1.9 1.8.5 2.6-2.4-1.3-2.4 1.3.5-2.6-1.9-1.8 2.6-.3z" /></>,
+  production: <><path d="M12 3c3 3.8 5.5 6.7 5.5 10a5.5 5.5 0 0 1-11 0C6.5 9.7 9 6.8 12 3z" /><path d="M9.5 13.5a2.5 2.5 0 0 0 2.5 2.5" /></>,
+  brand: <path d="M12 3l2.1 4.9 5.3.4-4 3.5 1.2 5.2L12 14.7 7.4 17.4l1.2-5.2-4-3.5 5.3-.4z" />,
+  business: <><circle cx="12" cy="12" r="9" /><path d="M12 7v10M9.5 9.5c0-1 1-1.6 2.5-1.6s2.5.6 2.5 1.6-1 1.5-2.5 1.5-2.5.5-2.5 1.5 1 1.6 2.5 1.6 2.5-.6 2.5-1.6" /></>,
+  more: <><circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" /></>,
+};
+const streamIcon = (key: string) => STREAM_ICONS[key] ?? <circle cx="12" cy="12" r="4" />;
 
 const ICONS: Record<OpSection, React.ReactNode> = {
   day: <><circle cx="12" cy="12" r="4.2" /><path d="M12 2.5v2.4M12 19.1v2.4M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.2 19.8l1.7-1.7M18.1 5.9l1.7-1.7" /></>,
@@ -115,14 +154,7 @@ const ICONS: Record<OpSection, React.ReactNode> = {
 const LABELS: Record<OpSection, string> = { day: "My Day", now: "Now", ask: "Ask", prep: "Prep", plan: "Plan", studio: "Studio", money: "Money", customers: "Customers", team: "Team" };
 export const SECTION_LABEL = LABELS;
 
-// The role-visible groups, with each group's visible members and a smart label (use the single
-// member's name when a role only sees one of the group's areas).
-export function visibleGroups(role: string): { group: NavGroup; members: OpSection[]; label: string }[] {
-  const allowed = sectionsForRole(role);
-  return NAV_GROUPS
-    .map((group) => { const members = group.members.filter((m) => allowed.includes(m)); return { group, members, label: members.length === 1 ? LABELS[members[0]] : group.label }; })
-    .filter((x) => x.members.length > 0);
-}
+
 
 export default function OperatorNav() {
   const { profile } = useAuth();
@@ -133,10 +165,25 @@ export default function OperatorNav() {
   // targeted at someone else.
   const { user } = useAuth();
   const { critCount } = useMyAlerts(user?.id ?? null, role !== "member");
+  const streams = useWorkStreams();
+  const { groupId, setGroupId } = useOperatorSection();
+  const [moreOpen, setMoreOpen] = useState(false);
   // members / signed-out: no operator console — fall back to the customer nav so
   // they can still navigate away from /admin.
   if (role === "member") return <BottomNav />;
-  const groups = visibleGroups(role);
+  const laneGroups = streamGroups(streams, role);
+  const { pinned, overflow } = orderByPins(laneGroups, profile?.nav_pins, role);
+  const groups: NavGroup[] = [TODAY_GROUP, ...pinned];
+  const activeGroup = (groupId && [...groups, ...overflow].find((g) => g.id === groupId && g.members.includes(section)))
+    || [...groups, ...overflow].find((g) => g.members.includes(section))
+    || TODAY_GROUP;
+  const openGroup = (g: NavGroup) => {
+    setGroupId(g.id);
+    const tab = ENTRY_TAB[g.id];
+    if (tab) { try { localStorage.setItem("gt3-plan-tab", tab); } catch { /* ignore */ } }
+    setSection(g.members[0]);
+    setMoreOpen(false);
+  };
   // Roving arrow-key nav for the tablist (WAI-ARIA): ←/→ move + activate, Home/End jump to ends.
   const onNavKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (!["ArrowRight", "ArrowLeft", "Home", "End"].includes(e.key)) return;
@@ -153,16 +200,58 @@ export default function OperatorNav() {
     tabs[next]?.click();
   };
   return (
+    <>
     <div className="nav opnav" role="tablist" aria-label="Crew console" onKeyDown={onNavKey}>
-      {groups.map(({ group, members, label }) => {
-        const on = members.includes(section);
+      {groups.map((g) => {
+        const on = activeGroup.id === g.id;
         return (
-          <button key={group.id} role="tab" aria-selected={on} className={`tab${on ? " on" : ""}`} onClick={() => { if (!on) setSection(members[0]); }}>
-            <span className="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>{ICONS[group.icon]}</svg>{group.id === "today" && critCount > 0 && <span className="nav-badge" aria-label={`${critCount} critical alert${critCount === 1 ? "" : "s"}`}>{critCount}</span>}</span>
-            <span className="tl">{label}</span>
+          <button key={g.id} role="tab" aria-selected={on} className={`tab${on ? " on" : ""}`} onClick={() => { if (!on) openGroup(g); }}>
+            <span className="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>{g.id === "today" ? ICONS.day : streamIcon(g.icon)}</svg>{g.id === "today" && critCount > 0 && <span className="nav-badge" aria-label={`${critCount} critical alert${critCount === 1 ? "" : "s"}`}>{critCount}</span>}</span>
+            <span className="tl">{g.label}</span>
           </button>
         );
       })}
+      {overflow.length > 0 && (
+        <button role="tab" aria-selected={overflow.some((g) => g.id === activeGroup.id)} className={`tab${overflow.some((g) => g.id === activeGroup.id) ? " on" : ""}`} onClick={() => setMoreOpen(true)}>
+          <span className="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>{STREAM_ICONS.more}</svg></span>
+          <span className="tl">More</span>
+        </button>
+      )}
     </div>
+    {moreOpen && <MoreSheet lanes={laneGroups} pins={pinned.map((g) => g.id)} activeId={activeGroup.id} onOpen={openGroup} onClose={() => setMoreOpen(false)} canPin={Boolean(user)} />}
+    </>
+  );
+}
+
+// The rest of the lanes + "your bar" customization. Pins are per-user over tenant-defined lanes:
+// tap a lane to open it; tap the pin to put it on (or take it off) your bar. Today is always first.
+function MoreSheet({ lanes, pins, activeId, onOpen, onClose, canPin }: { lanes: NavGroup[]; pins: string[]; activeId: string; onOpen: (g: NavGroup) => void; onClose: () => void; canPin: boolean }) {
+  const { user, refreshProfile } = useAuth();
+  const [local, setLocal] = useState<string[]>(pins);
+  const toggle = async (key: string) => {
+    if (!supabase || !user) return;
+    const next = local.includes(key) ? local.filter((k) => k !== key) : [...local, key].slice(-3);
+    setLocal(next);
+    await supabase.from("profiles").update({ nav_pins: next }).eq("id", user.id);
+    refreshProfile();
+  };
+  return (
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><span className="isheet-title">Your lanes</span><button type="button" className="isheet-x" style={{ marginLeft: "auto" }} onClick={onClose}>Close</button></div>}>
+      <div className="lane-hint">Tap a lane to open it. Pin up to 3 to your bar — Today always rides first.</div>
+      {lanes.map((g) => (
+        <div key={g.id} className={`lane-row${activeId === g.id ? " on" : ""}`}>
+          <button type="button" className="lane-open" onClick={() => onOpen(g)}>
+            <span className="cc-dot" style={{ background: g.color }} />
+            <b>{g.label}</b>
+            <span className="lane-secs">{g.members.map((m) => SECTION_LABEL[m]).join(" · ")}</span>
+          </button>
+          {canPin && (
+            <button type="button" className={`lane-pin${local.includes(g.id) ? " on" : ""}`} onClick={() => toggle(g.id)} aria-pressed={local.includes(g.id)} aria-label={`${local.includes(g.id) ? "Unpin" : "Pin"} ${g.label}`}>
+              {local.includes(g.id) ? "Pinned" : "Pin"}
+            </button>
+          )}
+        </div>
+      ))}
+    </Sheet>
   );
 }
