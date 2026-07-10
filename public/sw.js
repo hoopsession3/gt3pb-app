@@ -1,7 +1,7 @@
 /* GT3PB service worker — offline shell + asset cache (runbook Phase 6).
    Native Web Push (VAPID) handlers below; opt-in happens after a couple visits.
    Bump CACHE on any shell/icon change so installed clients refresh cleanly. */
-const CACHE = "gt3pb-v23";
+const CACHE = "gt3pb-v24"; // v24: never cache non-ok responses (a cached 404 CSS = unstyled app forever)
 const SHELL = ["/", "/truck", "/menu", "/events", "/3mpire", "/book", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
@@ -38,8 +38,11 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(request)
         .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(request, copy));
+          // Only cache good responses — caching a 404/500 shell would serve a broken page offline.
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(request, copy));
+          }
           return res;
         })
         .catch(() => caches.match(request).then((r) => r || caches.match("/")))
@@ -53,8 +56,12 @@ self.addEventListener("fetch", (event) => {
       (cached) =>
         cached ||
         fetch(request).then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(request, copy));
+          // res.ok guard: a transient 404 on a fingerprinted css/js (deploy boundary) must never
+          // be cached — cache-first would then serve the 404 forever = the "unstyled app" bug.
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(request, copy));
+          }
           return res;
         })
     )

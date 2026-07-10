@@ -33,6 +33,19 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
+      <head>
+        {/* Style probe — heals the "raw HTML" render. If the app stylesheet failed to load
+            (stale PWA shell pointing at a purged fingerprinted CSS, a cached 404, a deploy-
+            boundary race), --cream never applies. One hard reload fetches fresh HTML with a
+            valid CSS link; the sessionStorage flag stops a loop when we're genuinely offline.
+            Inline + pre-hydration on purpose: a dead stylesheet throws no JS error, so the
+            error-boundary self-heal (app/error.tsx) never sees it. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `addEventListener("load",function(){try{if(getComputedStyle(document.documentElement).getPropertyValue("--cream").trim())return;if(sessionStorage.getItem("gt3-css-reload"))return;sessionStorage.setItem("gt3-css-reload","1");location.reload();}catch(e){}});`,
+          }}
+        />
+      </head>
       <body>
         <AuthProvider>
           <AppProvider>
