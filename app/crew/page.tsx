@@ -30,6 +30,7 @@ import DeliveryOps from "@/components/DeliveryOps";
 import PackPlan from "@/components/PackPlan";
 import OrgChart from "@/components/OrgChart";
 import CrmPanel from "@/components/CrmPanel";
+import CodesPanel from "@/components/CodesPanel";
 import DriverDash from "@/components/DriverDash";
 import PipelinePanel from "@/components/PipelinePanel";
 import GearLibrary from "@/components/GearLibrary";
@@ -4911,7 +4912,7 @@ export default function AdminPage() {
       {sec === "goals" && canManage && <Goals />}
       {sec === "driver" && <DriverDash isLead={canManage} />}
 
-      {sec === "customers" && isAdmin && <CrmPanel />}
+      {sec === "customers" && isAdmin && <><CrmPanel /><CodesPanel /></>}
 
       {sec === "team" && isAdmin && (
         <>

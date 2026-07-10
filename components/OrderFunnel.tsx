@@ -95,6 +95,28 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
   const [err, setErr] = useState("");
   const [done, setDone] = useState<{ total: number; label?: string; warn?: string; paid: boolean; ref?: string } | null>(null);
 
+  // ── discount code (0176 member_benefits, scope='code'). The server reprices authoritatively; this
+  // is a live PREVIEW so the customer sees the code land before they pay. Percent-off and free-refill
+  // codes discount the pack order; slug-targeted / set-price codes belong to the cups channel, so we
+  // accept them as valid but don't move the pack total (a gentle note explains).
+  type CodeBenefit = { kind: "percent_off" | "price_override" | "free_refill"; target: string | null; percent: number | null; value_cents: number | null; label: string };
+  const [code, setCode] = useState("");
+  const [codeOpen, setCodeOpen] = useState(false);
+  const [codeState, setCodeState] = useState<"idle" | "checking" | "ok" | "bad">("idle");
+  const [codeBenefit, setCodeBenefit] = useState<CodeBenefit | null>(null);
+  const codeClean = code.trim().toUpperCase().replace(/\s+/g, "");
+
+  const checkCode = useCallback(async () => {
+    if (!supabase || !codeClean) { setCodeState("idle"); setCodeBenefit(null); return; }
+    setCodeState("checking");
+    const { data } = await supabase.from("member_benefits")
+      .select("kind, target, percent, value_cents, label")
+      .eq("active", true).eq("scope", "code").ilike("code", codeClean).maybeSingle();
+    if (!data) { setCodeState("bad"); setCodeBenefit(null); return; }
+    setCodeBenefit(data as CodeBenefit); setCodeState("ok"); haptic(HAPTIC.tap);
+  }, [codeClean]);
+  const clearCode = () => { setCode(""); setCodeBenefit(null); setCodeState("idle"); };
+
   const perf = Object.values(premiums).reduce((s, n) => s + (n || 0), 0);
   const picked = mix.rise + mix.flow + mix.dusk + (mode === "delivery" ? perf : 0);
   const refillCap = count ? maxRefills(count, perf) : 0;
@@ -107,7 +129,18 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
   const stop = stops[stopIdx] ?? null;
   const drop = useMemo(() => (stop?.starts_at ? dropForStop(stop.starts_at) : nextDrop(now ? new Date(now) : new Date())), [stop, now]);
   const pickupTotalCents = count ? Math.round(packTotal(count, bringBack ? "return" : "new") * 100) : 0;
-  const totalCents = mode === "delivery" ? (deliveryQuote?.totalCents ?? 0) : pickupTotalCents;
+  const baseTotalCents = mode === "delivery" ? (deliveryQuote?.totalCents ?? 0) : pickupTotalCents;
+  // A valid code's effect on the shown order total — mirrors the server (lib/benefits): free-refill
+  // zeroes a bring-back pack; percent-off (whole order / straight-brew) discounts the total. Other
+  // kinds (set-price, slug-targeted) are cups-channel perks, so they don't move the pack total.
+  const codeDiscountCents = useMemo(() => {
+    if (mode !== "pickup" || codeState !== "ok" || !codeBenefit) return 0;  // pickup is the code-honoring channel today
+    const wholeOrder = codeBenefit.target === null || codeBenefit.target === "straight_brew";
+    if (codeBenefit.kind === "free_refill" && wholeOrder && bringBack) return baseTotalCents;
+    if (codeBenefit.kind === "percent_off" && wholeOrder && typeof codeBenefit.percent === "number") return Math.round(baseTotalCents * (codeBenefit.percent / 100));
+    return 0;
+  }, [codeState, codeBenefit, baseTotalCents, mode, bringBack]);
+  const totalCents = Math.max(0, baseTotalCents - codeDiscountCents);
   const countdown = useMemo(() => {
     if (mode !== "pickup" || !now) return "";
     const ms = drop.cutoff.getTime() - now; if (ms <= 0) return "";
@@ -225,12 +258,12 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
       const res = await authedFetch("/api/reserve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceId: sourceId ?? undefined, name: name.trim(), phone: phone.trim(), size: count, glass: (bringBack ? "return" : "new") as GlassPath, mix: { RISE: mix.rise, FLOW: mix.flow, DUSK: mix.dusk }, dropDate: dropDateKey(drop.sat) }),
+        body: JSON.stringify({ sourceId: sourceId ?? undefined, name: name.trim(), phone: phone.trim(), size: count, glass: (bringBack ? "return" : "new") as GlassPath, mix: { RISE: mix.rise, FLOW: mix.flow, DUSK: mix.dusk }, dropDate: dropDateKey(drop.sat), code: codeState === "ok" ? codeClean : undefined }),
       });
       const data = await res.json(); setBusy(false);
       if (!res.ok) { setErr(data.error || "Something went wrong — try again."); return; }
       haptic(HAPTIC.success);
-      setDone({ total: pickupTotalCents, paid: !!data.paid, ref: (data.id || data.ref || "").toString(), label: dayName(drop.sat) });
+      setDone({ total: totalCents, paid: !!data.paid, ref: (data.id || data.ref || "").toString(), label: dayName(drop.sat) });
       setStep("done");
       if (replacing && supabase) {
         const old = replacing; setReplacing(null);
@@ -239,7 +272,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
       }
       setPacksKey((k) => k + "x");
     } catch { setBusy(false); setErr("Nothing was charged — try again."); }
-  }, [name, phone, count, bringBack, mix, drop, pickupTotalCents, replacing, toast]);
+  }, [name, phone, count, bringBack, mix, drop, totalCents, codeState, codeClean, replacing, toast]);
 
   const payDelivery = async () => {
     setErr("");
@@ -593,8 +626,32 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
           <h2 className="dl-h">Lock it in.</h2>
           <div className="dl-quote">
             <span>{count} bottles{mode === "delivery" ? "" : ` · pickup ${dayName(drop.sat)}`}</span>
-            <span className="dl-quote-t">total <b>{dollars(totalCents)}</b></span>
+            <span className="dl-quote-t">{codeDiscountCents > 0 ? <><s className="dl-was">{dollars(baseTotalCents)}</s> <b>{dollars(totalCents)}</b></> : <>total <b>{dollars(totalCents)}</b></>}</span>
           </div>
+
+          {mode === "pickup" && (
+            <div className="oa-code">
+              {!codeOpen && codeState !== "ok" ? (
+                <button type="button" className="oa-code-toggle" onClick={() => setCodeOpen(true)}>Have a code?</button>
+              ) : codeState === "ok" && codeBenefit ? (
+                <div className="oa-code-ok">
+                  <span className="oa-code-tag">{codeClean}</span>
+                  <span className="oa-code-lbl">{codeDiscountCents > 0 ? `${dollars(codeDiscountCents)} off applied` : codeBenefit.label}</span>
+                  <button type="button" className="oa-code-x" onClick={clearCode} aria-label="Remove code">✕</button>
+                </div>
+              ) : (
+                <div className="oa-code-in">
+                  <input className="auth-input" value={code} onChange={(e) => { setCode(e.target.value); if (codeState !== "idle") setCodeState("idle"); }}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); checkCode(); } }}
+                    placeholder="Discount code" aria-label="Discount code" autoCapitalize="characters" />
+                  <button type="button" className="oa-code-apply" onClick={checkCode} disabled={!codeClean || codeState === "checking"}>{codeState === "checking" ? "…" : "Apply"}</button>
+                </div>
+              )}
+              {codeState === "bad" && <p className="oa-code-bad">That code isn&rsquo;t valid — check it and try again.</p>}
+              {codeState === "ok" && codeDiscountCents === 0 && <p className="oa-code-note">Saved — this one applies to cups at the bar, not this pack.</p>}
+            </div>
+          )}
+
           {squareClientReady ? (
             <>
               <p className="dl-sub">{mode === "delivery" ? "One charge now — nothing due at the door." : "Pay now, or reserve and pay at pickup."}</p>

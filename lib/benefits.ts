@@ -25,6 +25,25 @@ export function refillIsFree(benefits: Benefit[]): boolean {
   return benefits.some((b) => b.kind === "free_refill" && (b.target === "straight_brew" || b.target === null));
 }
 
+// Order-level percent-off (the whole pack/reserve order). A code minted as percent_off with target
+// null or 'straight_brew' discounts the order; price_override targets a specific slug (cups channel),
+// so it never applies here. Returns the deepest single percent (they don't stack). Pure.
+export function percentOffOrder(benefits: Benefit[]): number {
+  let pct = 0;
+  for (const b of benefits) {
+    if (b.kind !== "percent_off") continue;
+    if (b.target && b.target !== "straight_brew") continue;   // slug-targeted percent = cups only
+    if (typeof b.percent === "number") pct = Math.max(pct, Math.min(100, b.percent));
+  }
+  return pct;
+}
+
+// Apply an order-level percent-off to a total (cents), floored at 0.
+export function applyOrderPercent(totalCents: number, benefits: Benefit[]): number {
+  const pct = percentOffOrder(benefits);
+  return pct > 0 ? Math.max(0, Math.round(totalCents * (1 - pct / 100))) : totalCents;
+}
+
 // Apply price overrides / percent-off to a single product slug's base price (cents). Best benefit wins.
 export function priceForSlug(benefits: Benefit[], slug: string, baseCents: number): number {
   let best = baseCents;
