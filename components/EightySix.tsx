@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useApp } from "./AppProvider";
+import { haptic, HAPTIC } from "@/lib/haptics";
 
 // THE 86 BOARD — sell out of an item from where the rush actually happens (the Now screen, right
 // under the pass), not three taps deep in Money. One chip per active product: tap to 86, tap to
@@ -22,6 +23,7 @@ export default function EightySix() {
   useRealtimeTable("products", load);
 
   const flip = async (p: Prod) => {
+    haptic(HAPTIC.tap);
     if (!supabase) return;
     const next = !p.sold_out;
     setRows((r) => r.map((x) => (x.id === p.id ? { ...x, sold_out: next } : x))); // optimistic

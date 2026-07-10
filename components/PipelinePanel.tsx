@@ -7,6 +7,7 @@ import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { raiseAlertClient } from "@/lib/clientAlerts";
 import { StrategyThread } from "./StrategyCollab";
+import CountUp from "./CountUp";
 
 // PIPELINE — the sales funnel (0165). Vendor (the account) × deal (from the owner's catalog,
 // gated per vendor type) × rep × stage. The owner articulates what's on the table in the Deal
@@ -391,7 +392,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   return (
     <div className="adm-sec">
       <div className="sec">Pipeline{openOpps.length > 0 && <span className="adm-pill">{openOpps.length} open</span>}</div>
-      <p className="h-sub" style={{ marginBottom: 12 }}>Every account, its deal, its rep, its next step. Won so far: <b>{money(wonValue) || "$0"}</b>.</p>
+      <p className="h-sub" style={{ marginBottom: 12 }}>Every account, its deal, its rep, its next step. Won so far: <b><CountUp cents={wonValue} /></b>.</p>
 
       {/* The owner's table — what reps are allowed to offer, per account type. */}
       {isAdmin && (

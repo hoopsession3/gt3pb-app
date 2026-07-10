@@ -40,6 +40,8 @@ import EventPnlReport from "@/components/EventPnlReport";
 import SignIn from "@/components/SignIn";
 import InputSheet from "@/components/InputSheet";
 import Sheet from "@/components/Sheet";
+import { NumberRoll } from "@/components/CountUp";
+import PourFill from "@/components/PourFill";
 import { supabase } from "@/lib/supabase";
 import AskGT3 from "@/components/AskGT3";
 import Studio from "@/components/Studio";
@@ -355,7 +357,7 @@ function ServicePulse({ onEnter }: { onEnter: () => void }) {
       <span className="svc-enter-t">▶ Service mode</span>
       <span className="svc-enter-s">
         {pass === null ? "The pass, pickups & the 86 board — one screen"
-          : <>{pass > 0 ? <><b>{pass}</b> on the pass</> : "The pass is clear"}{out > 0 && <> · <b>{out}</b> 86&rsquo;d</>} — tap to work</>}
+          : <>{pass > 0 ? <><b><NumberRoll value={pass} ms={450} /></b> on the pass</> : "The pass is clear"}{out > 0 && <> · <b><NumberRoll value={out} ms={450} /></b> 86&rsquo;d</>} — tap to work</>}
       </span>
     </button>
   );
@@ -463,7 +465,7 @@ function ContentApprovalSheet({ contentId, meName, meId, onClose, onActioned }: 
 
   return (
     <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><span>Review post</span><button type="button" className="drop-sheet-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close">✕</button></div>}>
-        {!item ? <div className="dops-empty">Loading…</div> : (
+        {!item ? <div className="dops-empty"><PourFill size={38} label="Pulling it up…" /></div> : (
           <div className="capprove">
             <div className="capprove-meta">{item.kind} · {item.channel}{item.status ? ` · ${item.status}` : ""}</div>
             <div className="capprove-t">{item.title}</div>
@@ -1526,7 +1528,7 @@ function EventPrep({ onGo }: { onGo: (t: string) => void }) {
       <div className="sec">Prep
         <button className="adm-prep-view" onClick={() => setSheet(true)} aria-haspopup="dialog">View ⌄</button>
       </div>
-      {!loaded && <div className="h-sub">Loading…</div>}
+      {!loaded && <PourFill />}
       {loaded && events.length === 0 && stops.length === 0 && <div className="h-sub">Nothing to prep yet — add an event (Plan → Events) or a truck location (Now → Live truck).</div>}
 
       {stops.length > 0 && (
@@ -2537,6 +2539,7 @@ function LiveControl({ compact = false, manage = false }: { compact?: boolean; m
   // carries an explicit filter so Supabase's "no UPDATE without WHERE" guard is happy,
   // and it doesn't depend on the admin_set_live RPC (which ran a bare UPDATE).
   const goLive = async (stopId: string) => {
+    haptic(HAPTIC.arm);
     setLive((l) => ({ id: 1, current_stop_id: stopId, is_live: true, next_eta: l?.next_eta ?? null }));
     // Authoritative + atomic via the SECURITY-DEFINER RPC (demotes other stops, promotes this
     // one, upserts live_status) — same robustness path as go-offline, not piecemeal client writes.
@@ -3800,8 +3803,8 @@ function BriefPanel({ e, proj, inventory }: { e: EventRow; proj: Projection; inv
       <div className="ev-pnl-gauges">
         {/* "Planned", not "Ready" — this scores the plan inputs (menu, permit, crew, water,
             forecast). Prep readiness is the task list's "Loaded n/n"; two different facts. */}
-        <div className="gauge"><div className={`gv ${b.readiness >= 80 ? "ok" : b.readiness >= 50 ? "gold" : "red"}`}>{b.readiness}%</div><div className="gl">Planned</div></div>
-        <div className="gauge"><div className="gv">{b.projectedUnits}</div><div className="gl">Units</div></div>
+        <div className="gauge"><div className={`gv ${b.readiness >= 80 ? "ok" : b.readiness >= 50 ? "gold" : "red"}`}><NumberRoll value={b.readiness} suffix="%" /></div><div className="gl">Planned</div></div>
+        <div className="gauge"><div className="gv"><NumberRoll value={b.projectedUnits} /></div><div className="gl">Units</div></div>
         <div className="gauge"><div className={`gv ${b.crewOk ? "ok" : "red"}`}>{b.crewHave}/{b.crewNeeded || "–"}</div><div className="gl">Crew</div></div>
       </div>
 

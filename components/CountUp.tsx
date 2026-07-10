@@ -23,3 +23,25 @@ export default function CountUp({ cents, ms = 900, className }: { cents: number;
   }, [cents, ms]);
   return <span className={className} style={{ fontVariantNumeric: "tabular-nums" }}>${(v / 100).toFixed(2)}</span>;
 }
+
+// Integer roll for gauges/counters — same easing + reduced-motion contract as CountUp.
+export function NumberRoll({ value, ms = 700, suffix = "", className }: { value: number; ms?: number; suffix?: string; className?: string }) {
+  const [v, setV] = useState(0);
+  const raf = useRef(0);
+  useEffect(() => {
+    const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (reduce || value <= 0) { setV(value); return; }
+    let start: number | null = null;
+    const from = 0;
+    const tick = (t: number) => {
+      if (start === null) start = t;
+      const p = Math.min(1, (t - start) / ms);
+      const eased = 1 - Math.pow(1 - p, 3);
+      setV(Math.round(from + (value - from) * eased));
+      if (p < 1) raf.current = requestAnimationFrame(tick);
+    };
+    raf.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf.current);
+  }, [value, ms]);
+  return <span className={className} style={{ fontVariantNumeric: "tabular-nums" }}>{v}{suffix}</span>;
+}

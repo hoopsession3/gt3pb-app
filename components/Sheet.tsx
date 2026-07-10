@@ -24,13 +24,37 @@ export default function Sheet({
 }) {
   const [drag, setDrag] = useState(0);
   const startY = useRef<number | null>(null);
+  // Exit choreography: when `open` flips false, keep rendering ~220ms with the `out` class so the
+  // sheet leaves the way it arrived. Works for every close path since it watches the prop itself;
+  // the timeout (not animationend) guarantees unmount even under reduced-motion or missing CSS.
+  const [phase, setPhase] = useState<"closed" | "open" | "closing">(open ? "open" : "closed");
+  useEffect(() => {
+    if (open) { setPhase("open"); return; }
+    let t: ReturnType<typeof setTimeout> | null = null;
+    setPhase((p) => {
+      if (p !== "open") return p;
+      t = setTimeout(() => setPhase("closed"), 230);
+      return "closing";
+    });
+    return () => { if (t) clearTimeout(t); };
+  }, [open]);
+  // Most callers mount conditionally ({x && <Sheet open …>}), so the prop never flips — the sheet
+  // owns its own exit for the gesture paths: play the out animation, THEN tell the parent to
+  // unmount. Buttons inside children that close directly still work (they just skip the animation).
+  const closeT = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestClose = useCallback(() => {
+    if (closeT.current) return;
+    setPhase("closing");
+    closeT.current = setTimeout(() => { closeT.current = null; onClose(); }, 210);
+  }, [onClose]);
+  useEffect(() => () => { if (closeT.current) clearTimeout(closeT.current); }, []);
 
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") requestClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open, requestClose]);
 
   const start = useCallback((y: number) => { startY.current = y; }, []);
   const move = useCallback((y: number) => {
@@ -41,10 +65,10 @@ export default function Sheet({
   const end = useCallback(() => {
     if (startY.current == null) return;
     startY.current = null;
-    setDrag((d) => { if (d > 88) onClose(); return 0; }); // past the threshold → flick away
-  }, [onClose]);
+    setDrag((d) => { if (d > 88) requestClose(); return 0; }); // past the threshold → flick away
+  }, [requestClose]);
 
-  if (!open) return null;
+  if (phase === "closed") return null;
   // Only the grab handle + header are drag-to-dismiss zones — the body scrolls normally, no conflict.
   const dragZone = {
     onTouchStart: (e: React.TouchEvent) => start(e.touches[0].clientY),
@@ -55,9 +79,10 @@ export default function Sheet({
     ? { transform: `translateY(${drag}px)`, transition: "none", opacity: Math.max(0.5, 1 - drag / 420) }
     : undefined;
 
+  const out = phase === "closing" ? " out" : "";
   return (
-    <div className="sheet2-scrim" onClick={onClose}>
-      <div className={`sheet2 ${className}`} role="dialog" aria-modal="true" aria-labelledby={labelledBy}
+    <div className={`sheet2-scrim${out}`} onClick={requestClose}>
+      <div className={`sheet2 ${className}${out}`} role="dialog" aria-modal="true" aria-labelledby={labelledBy}
         style={panelStyle} onClick={(e) => e.stopPropagation()}>
         <div className="sheet2-grab" {...dragZone} />
         {header && <div className="sheet2-head" {...dragZone}>{header}</div>}

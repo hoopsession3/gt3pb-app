@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import { useApp } from "./AppProvider";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
 import { mixSummary, dollars, emptyMix, dropForStop, nextDrop, dropDateKey, type Mix, type GlassPath } from "@/lib/orderAhead";
 import { authedFetch } from "@/lib/authedFetch";
+import { haptic, HAPTIC } from "@/lib/haptics";
 
 // YOUR PACK — the customer's own reservations, right on /reserve. Reserving is only half the
 // product: coming back should show what you've got coming, live (staff checking you off at the
@@ -39,6 +40,7 @@ export default function MyPacks({ onChange, refreshKey }: { onChange?: (p: MyPac
   const { user } = useAuth();
   const { toast } = useApp();
   const [rows, setRows] = useState<MyPack[]>([]);
+  const rowsRef = useRef<MyPack[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [moving, setMoving] = useState<string | null>(null); // pack id showing the day picker
@@ -75,6 +77,7 @@ export default function MyPacks({ onChange, refreshKey }: { onChange?: (p: MyPac
       const res = await authedFetch("/api/reserve/move", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id, toDate }) });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { toast(data.error || "Couldn't move it — try again.", "error"); return; }
+      haptic(HAPTIC.success);
       toast(`Moved to ${packDayLabel({ drop_date: toDate })} — see you then.`);
       setMoving(null); load();
     } finally { setBusy(null); }
@@ -87,7 +90,11 @@ export default function MyPacks({ onChange, refreshKey }: { onChange?: (p: MyPac
     const { data } = await supabase.from("drop_orders").select("*")
       .eq("user_id", user.id).is("canceled_at", null).gte("drop_date", floor)
       .order("drop_date").order("created_at");
-    setRows((data as MyPack[]) ?? []);
+    const next = (data as MyPack[]) ?? [];
+    // The realtime money moment: a pack flipping to PAID while you watch gets the settle buzz.
+    if (rowsRef.current.some((prev) => { const cur = next.find((n) => n.id === prev.id); return cur && !prev.paid && cur.paid; })) haptic(HAPTIC.paid);
+    rowsRef.current = next;
+    setRows(next);
   }, [user]);
 
   useEffect(() => { load(); }, [load, refreshKey]);
