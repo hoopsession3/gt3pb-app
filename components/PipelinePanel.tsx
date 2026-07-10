@@ -24,11 +24,38 @@ const STAGES = [
 ] as const;
 type Stage = (typeof STAGES)[number]["key"];
 
-type Deal = { id: string; title: string; blurb: string | null; vendor_type: string; price_label: string | null; active: boolean; sort: number; model: string; rate_pct: number | null; monthly_cents: number | null };
+type Deal = { id: string; title: string; blurb: string | null; vendor_type: string; price_label: string | null; active: boolean; sort: number; model: string; rate_pct: number | null; monthly_cents: number | null; line: string };
 
-// The owner's rule: our margin never goes below 80% — a deal giving away more than 20% gets
-// flagged where it's written AND stays visible where reps pick it.
-const MARGIN_FLOOR_GIVE = 20;
+// LINES OF BUSINESS — every deal declares what kind of engagement it is (0168). The board
+// filters by line, and a won deal's line is the handoff signal (event → book it, truck_stop →
+// add the stop, wholesale → recurring delivery).
+export const DEAL_LINES = [
+  { key: "truck_stop", label: "Truck stop" },
+  { key: "private_event", label: "Private event" },
+  { key: "wholesale", label: "Wholesale" },
+  { key: "retail", label: "Retail placement" },
+  { key: "standing", label: "Standing service" },
+  { key: "other", label: "Other" },
+] as const;
+const lineLabel = (key: string | null | undefined) => DEAL_LINES.find((l) => l.key === key)?.label ?? null;
+
+// The owner's margin rules. When product economics (Money › Product economics, admin-only RLS)
+// are readable, the floor computes against REAL unit margins: what does this deal leave per
+// dollar after COGS. When they aren't (rep session, or no costed products), the flat give rule
+// stands in: never hand more than 20% of revenue to the account.
+const MARGIN_FLOOR_GIVE = 20;         // fallback: give ≤ 20% of revenue
+const RESIDUAL_MARGIN_FLOOR = 50;     // with COGS: the deal must leave ≥ 50% gross margin
+type Econ = { marginPct: number; costed: number } | null;
+// Residual gross margin (as % of realized revenue) after the deal's give.
+// rev_share r%: we keep (1 - r) of revenue, full cost stays ours → m' = (m - r) / 1
+// discount r%: price drops to P(1-r), cost unchanged → m' = 1 - (1 - m)/(1 - r/100)
+const residualMargin = (d: Deal, econ: Econ): number | null => {
+  if (!econ || d.rate_pct == null) return null;
+  const m = econ.marginPct, r = d.rate_pct;
+  if (d.model === "rev_share") return Math.round(m - r);
+  if (d.model === "discount") return r >= 100 ? -100 : Math.round(100 * (1 - (1 - m / 100) / (1 - r / 100)));
+  return null;
+};
 const DEAL_MODELS = [
   { key: "rev_share", label: "Revenue share", hint: "they take a % of sales" },
   { key: "discount", label: "Discount", hint: "% off list for the account" },
@@ -43,14 +70,18 @@ const dealTerms = (d: Deal): string => {
   return d.price_label ?? "";
 };
 const dealGive = (d: Deal): number | null => (d.model === "rev_share" || d.model === "discount") ? d.rate_pct : null;
-const belowFloor = (d: Deal): boolean => { const g = dealGive(d); return g != null && g > MARGIN_FLOOR_GIVE; };
+const belowFloor = (d: Deal, econ: Econ): boolean => {
+  const res = residualMargin(d, econ);
+  if (res != null) return res < RESIDUAL_MARGIN_FLOOR;           // real-COGS rule
+  const g = dealGive(d); return g != null && g > MARGIN_FLOOR_GIVE; // fallback flat rule
+};
 type Vendor = { id: string; name: string; vendor_type: string | null; archived_at?: string | null };
 type Opp = {
   id: string; vendor_id: string; deal_id: string | null; rep_id: string | null; stage: Stage;
   value_cents: number | null; next_step: string | null; next_step_at: string | null;
   lost_reason: string | null; created_at: string;
   vendors: { name: string; vendor_type: string | null } | null;
-  deals: { title: string } | null;
+  deals: { title: string; line?: string | null } | null;
 };
 type Staff = { id: string; display_name: string | null };
 
@@ -68,16 +99,18 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   const [threadId, setThreadId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
+  const [econ, setEcon] = useState<Econ>(null);
+  const [lineFilter, setLineFilter] = useState<string>("all");
   const [no, setNo] = useState({ vendorId: "", newVendor: "", newType: "gym", dealId: "", repId: "", value: "", nextStep: "" });
-  const [nd, setNd] = useState({ title: "", vendor_type: "gym", price_label: "", blurb: "", model: "rev_share", rate: "", amount: "" });
+  const [nd, setNd] = useState({ title: "", vendor_type: "gym", price_label: "", blurb: "", model: "rev_share", rate: "", amount: "", line: "wholesale" });
   const [editId, setEditId] = useState<string | null>(null);    // deal being edited in the catalog
-  const [ed, setEd] = useState({ title: "", vendor_type: "gym", price_label: "", blurb: "", model: "rev_share", rate: "", amount: "" });
+  const [ed, setEd] = useState({ title: "", vendor_type: "gym", price_label: "", blurb: "", model: "rev_share", rate: "", amount: "", line: "wholesale" });
 
   const load = useCallback(async () => {
     if (!supabase) return;
     const [o, d, v, st] = await Promise.all([
-      supabase.from("opportunities").select("id, vendor_id, deal_id, rep_id, stage, value_cents, next_step, next_step_at, lost_reason, created_at, vendors(name, vendor_type), deals(title)").order("created_at", { ascending: false }),
-      supabase.from("deals").select("id, title, blurb, vendor_type, price_label, active, sort, model, rate_pct, monthly_cents").order("sort").order("created_at"),
+      supabase.from("opportunities").select("id, vendor_id, deal_id, rep_id, stage, value_cents, next_step, next_step_at, lost_reason, created_at, vendors(name, vendor_type), deals(title, line)").order("created_at", { ascending: false }),
+      supabase.from("deals").select("id, title, blurb, vendor_type, price_label, active, sort, model, rate_pct, monthly_cents, line").order("sort").order("created_at"),
       supabase.from("vendors").select("id, name, vendor_type, archived_at").is("archived_at", null).order("name"),
       supabase.from("profiles").select("id, display_name").neq("role", "member").order("display_name"),
     ]);
@@ -88,6 +121,16 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
     setLoaded(true);
   }, []);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.from("product_economics").select("price_cents, unit_cost_cents, active").then(({ data }) => {
+      const rows = ((data ?? []) as { price_cents: number; unit_cost_cents: number | null; active: boolean }[])
+        .filter((r) => r.active && r.price_cents > 0 && r.unit_cost_cents != null);
+      if (!rows.length) return; // admin-only table or nothing costed → the flat give rule stands in
+      const marginPct = Math.round(100 * rows.reduce((s, r) => s + (r.price_cents - (r.unit_cost_cents as number)) / r.price_cents, 0) / rows.length);
+      setEcon({ marginPct, costed: rows.length });
+    });
+  }, []);
   useRealtimeTable(["opportunities", "deals", "vendors"], load);
 
   const firstName = (uid: string | null) => (staff.find((s) => s.id === uid)?.display_name || "").trim().split(/\s+/)[0] || null;
@@ -144,14 +187,18 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
     const rate = nd.rate ? Number(nd.rate) : null;
     const amount = nd.amount ? Math.round(Number(nd.amount) * 100) : null;
     const { error } = await supabase.from("deals").insert({
-      title: nd.title.trim(), vendor_type: nd.vendor_type, model: nd.model,
+      title: nd.title.trim(), vendor_type: nd.vendor_type, model: nd.model, line: nd.line,
       rate_pct: (nd.model === "rev_share" || nd.model === "discount") ? rate : null,
       monthly_cents: (nd.model === "monthly" || nd.model === "flat") ? amount : null,
       price_label: nd.price_label.trim() || null, blurb: nd.blurb.trim() || null, sort: deals.length,
     });
     if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
-    if (rate != null && rate > MARGIN_FLOOR_GIVE) toast(`Heads up — that gives away ${rate}%, past the 80% margin floor`, "error");
-    setNd({ title: "", vendor_type: "gym", price_label: "", blurb: "", model: "rev_share", rate: "", amount: "" });
+    if (rate != null) {
+      const res = econ ? residualMargin({ model: nd.model, rate_pct: rate } as Deal, econ) : null;
+      if (res != null && res < RESIDUAL_MARGIN_FLOOR) toast(`Heads up — that leaves ≈${res}% gross margin, below the ${RESIDUAL_MARGIN_FLOOR}% floor`, "error");
+      else if (res == null && rate > MARGIN_FLOOR_GIVE) toast(`Heads up — that gives away ${rate}%, past the 80% margin floor`, "error");
+    }
+    setNd({ title: "", vendor_type: "gym", price_label: "", blurb: "", model: "rev_share", rate: "", amount: "", line: "wholesale" });
     toast("Deal's on the table"); load();
   };
   const toggleDeal = async (d: Deal) => {
@@ -168,6 +215,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
     setEd({
       title: d.title, vendor_type: d.vendor_type, price_label: d.price_label ?? "", blurb: d.blurb ?? "",
       model: d.model, rate: d.rate_pct != null ? String(d.rate_pct) : "", amount: d.monthly_cents != null ? String(d.monthly_cents / 100) : "",
+      line: d.line || "other",
     });
   };
 
@@ -176,7 +224,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
     const rate = ed.rate ? Number(ed.rate) : null;
     const amount = ed.amount ? Math.round(Number(ed.amount) * 100) : null;
     const fields = {
-      title: ed.title.trim(), vendor_type: ed.vendor_type, model: ed.model,
+      title: ed.title.trim(), vendor_type: ed.vendor_type, model: ed.model, line: ed.line,
       rate_pct: (ed.model === "rev_share" || ed.model === "discount") ? rate : null,
       monthly_cents: (ed.model === "monthly" || ed.model === "flat") ? amount : null,
       price_label: ed.price_label.trim() || null, blurb: ed.blurb.trim() || null,
@@ -184,7 +232,11 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
     setDeals((prev) => prev.map((x) => (x.id === editId ? { ...x, ...fields } : x)));
     const { error } = await supabase.from("deals").update({ ...fields, updated_at: new Date().toISOString() }).eq("id", editId);
     if (error) { toast(`Couldn't save — ${error.message}`, "error"); load(); return; }
-    if (fields.rate_pct != null && fields.rate_pct > MARGIN_FLOOR_GIVE) toast(`Heads up — that gives away ${fields.rate_pct}%, past the 80% margin floor`, "error");
+    if (fields.rate_pct != null) {
+      const res = econ ? residualMargin({ model: fields.model, rate_pct: fields.rate_pct } as Deal, econ) : null;
+      if (res != null && res < RESIDUAL_MARGIN_FLOOR) toast(`Heads up — that leaves ≈${res}% gross margin, below the ${RESIDUAL_MARGIN_FLOOR}% floor`, "error");
+      else if (res == null && fields.rate_pct > MARGIN_FLOOR_GIVE) toast(`Heads up — that gives away ${fields.rate_pct}%, past the 80% margin floor`, "error");
+    }
     setEditId(null);
     toast("Deal updated"); load();
   };
@@ -239,7 +291,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
       <button type="button" className="pipe-head" onClick={() => setOpenId(openId === o.id ? null : o.id)} aria-expanded={openId === o.id}>
         <span className="pipe-name"><b>{o.vendors?.name ?? "Account"}</b>{o.vendors?.vendor_type && <i className="pipe-type">{o.vendors.vendor_type}</i>}</span>
         <span className="pipe-meta">
-          {o.deals?.title ? <span className="pipe-deal">{o.deals.title}</span> : <span className="pipe-deal none">no deal attached</span>}
+          {o.deals?.title ? <span className="pipe-deal">{o.deals.title}{lineLabel(o.deals.line) ? ` · ${lineLabel(o.deals.line)}` : ""}</span> : <span className="pipe-deal none">no deal attached</span>}
           {o.value_cents != null && <span className="pipe-val">{money(o.value_cents)}</span>}
           {o.rep_id && <span className="pipe-rep">{firstName(o.rep_id)}</span>}
         </span>
@@ -306,7 +358,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
                   {deals.filter((d) => d.vendor_type === t).map((d, i, group) => (
                     <Fragment key={d.id}>
                       <div className={`pipe-dealrow${d.active ? "" : " off"}`}>
-                        <button type="button" className="pipe-dealrow-t" onClick={() => openEditDeal(d)} aria-expanded={editId === d.id}><b>{d.title}</b>{dealTerms(d) && ` · ${dealTerms(d)}`}{belowFloor(d) && <span className="pipe-floor">below 80% floor</span>}{d.blurb && <i> — {d.blurb}</i>}</button>
+                        <button type="button" className="pipe-dealrow-t" onClick={() => openEditDeal(d)} aria-expanded={editId === d.id}><b>{d.title}</b>{lineLabel(d.line) && <em className="pipe-line">{lineLabel(d.line)}</em>}{dealTerms(d) && ` · ${dealTerms(d)}`}{(() => { const res = residualMargin(d, econ); return res != null ? ` · leaves ≈${res}% margin` : ""; })()}{belowFloor(d, econ) && <span className="pipe-floor">below the margin floor</span>}{d.blurb && <i> — {d.blurb}</i>}</button>
                         <span className="pipe-ordwrap">
                           <button type="button" className="pipe-ord" onClick={() => moveDeal(d, -1)} disabled={i === 0} aria-label={`Move ${d.title} up`}>↑</button>
                           <button type="button" className="pipe-ord" onClick={() => moveDeal(d, 1)} disabled={i === group.length - 1} aria-label={`Move ${d.title} down`}>↓</button>
@@ -326,6 +378,11 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
                             <label>Model
                               <select value={ed.model} onChange={(e) => setEd({ ...ed, model: e.target.value })}>
                                 {DEAL_MODELS.map((m) => <option key={m.key} value={m.key}>{m.label} — {m.hint}</option>)}
+                              </select>
+                            </label>
+                            <label>Line of business
+                              <select value={ed.line} onChange={(e) => setEd({ ...ed, line: e.target.value })}>
+                                {DEAL_LINES.map((l) => <option key={l.key} value={l.key}>{l.label}</option>)}
                               </select>
                             </label>
                             {(ed.model === "rev_share" || ed.model === "discount") && (
@@ -363,6 +420,11 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
                     {DEAL_MODELS.map((m) => <option key={m.key} value={m.key}>{m.label} — {m.hint}</option>)}
                   </select>
                 </label>
+                <label>Line of business
+                  <select value={nd.line} onChange={(e) => setNd({ ...nd, line: e.target.value })}>
+                    {DEAL_LINES.map((l) => <option key={l.key} value={l.key}>{l.label}</option>)}
+                  </select>
+                </label>
                 {(nd.model === "rev_share" || nd.model === "discount") && (
                   <label>{nd.model === "rev_share" ? "Their cut %" : "Discount %"} <i>{nd.rate && Number(nd.rate) > MARGIN_FLOOR_GIVE ? "— below the 80% floor" : nd.model === "rev_share" && nd.rate ? `— we keep ${100 - Number(nd.rate)}%` : ""}</i>
                     <input inputMode="decimal" value={nd.rate} onChange={(e) => setNd({ ...nd, rate: e.target.value })} placeholder="10" />
@@ -382,11 +444,24 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
         </>
       )}
 
+      {(() => {
+        const present = [...new Set(opps.map((o) => o.deals?.line).filter(Boolean))] as string[];
+        if (present.length < 2) return null;
+        return (
+          <div className="pipe-lines">
+            <button type="button" className={`ts-chip${lineFilter === "all" ? " on" : ""}`} onClick={() => setLineFilter("all")}>All lines</button>
+            {present.map((l) => (
+              <button key={l} type="button" className={`ts-chip${lineFilter === l ? " on" : ""}`} onClick={() => setLineFilter(l)}>{lineLabel(l) ?? l}</button>
+            ))}
+          </div>
+        );
+      })()}
+
       {!loaded && <div className="dops-empty">Loading the board…</div>}
       {loaded && opps.length === 0 && <div className="h-sub">Nothing in the pipeline yet — add the first account below.</div>}
 
       {STAGES.map((s) => {
-        const rows = opps.filter((o) => o.stage === s.key);
+        const rows = opps.filter((o) => o.stage === s.key && (lineFilter === "all" || o.deals?.line === lineFilter));
         if (rows.length === 0) return null;
         return (
           <div key={s.key} className="pipe-stage">
