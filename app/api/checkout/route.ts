@@ -3,6 +3,7 @@ import { DRINKS, type DrinkId } from "@/lib/menu";
 import { SQUARE_BASE, SQUARE_VERSION, chargeCard } from "@/lib/squareServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
+import { benefitsForUser, priceForSlug } from "@/lib/benefits";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { notifyCustomer, accountEmail } from "@/lib/notify";
 import { preorderWindow, preorderLeadMs } from "@/lib/orderAhead";
@@ -42,7 +43,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Checkout isn't switched on yet." }, { status: 503 });
   }
 
-  let body: { sourceId?: string; items?: DrinkId[]; tipCents?: number; customer?: string };
+  let body: { sourceId?: string; items?: DrinkId[]; tipCents?: number; customer?: string; code?: string };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
   const { sourceId, items, tipCents } = body;
   if (!Array.isArray(items) || items.length === 0) {
@@ -110,10 +111,15 @@ export async function POST(req: Request) {
   // Square configured at all); lib/menu.ts's px only if both are unreachable.
   const needsSquare = items.some((id) => productPrices[id] == null);
   const squarePrices = needsSquare && token ? await squarePriceMap(token) : {};
+  // Member benefits (0176): a founding member's tier perks (e.g. $8 latte) apply to the authoritative
+  // per-slug price. Server-resolved from the caller's tier — never trusts a client-sent discount.
+  const benefitUser = await userFromRequest(req);
+  const benefits = await benefitsForUser(benefitUser?.id ?? null, body.code);
   let subtotal = 0;
   for (const id of items) {
     if (!DRINKS[id]) return NextResponse.json({ error: `Unknown item: ${id}` }, { status: 400 });
-    subtotal += productPrices[id] ?? squarePrices[id] ?? Math.round(parseFloat(DRINKS[id].px.replace("$", "")) * 100);
+    const base = productPrices[id] ?? squarePrices[id] ?? Math.round(parseFloat(DRINKS[id].px.replace("$", "")) * 100);
+    subtotal += priceForSlug(benefits, id, base);
   }
   // Tip is additive and capped at the subtotal as a fat-finger guard. Pay-at-pickup has no tip yet
   // (nothing charged here to attach it to) — the field is ignored on that path.

@@ -3,6 +3,7 @@ import { chargeCard } from "@/lib/squareServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
+import { benefitsForUser, refillIsFree } from "@/lib/benefits";
 import { notifyCustomer, accountEmail } from "@/lib/notify";
 import { PRICING, FLAVORS, isPackSize, packTotal, toCents, mixComplete, mixSummary, nextDrop, dropForStop, dropDateKey, dollars, type GlassPath, type Mix } from "@/lib/orderAhead";
 
@@ -74,7 +75,14 @@ export async function POST(req: Request) {
   const dropDate = requested;
 
   // Authoritative total — recomputed from the pricing grid, never the client amount.
-  const amount = toCents(packTotal(size, glass as GlassPath));
+  let amount = toCents(packTotal(size, glass as GlassPath));
+  // Member benefits (0176): a founding member bringing bottles back gets straight-brew refills free.
+  // Order-ahead packs are always straight brew (RISE/FLOW/DUSK), so the refill benefit zeroes a
+  // return pack. Server-resolved from the caller's tier — the client can't forge it.
+  if (glass === "return") {
+    const benefits = await benefitsForUser(user.id, (body as { code?: string }).code);
+    if (refillIsFree(benefits)) amount = 0;
+  }
 
   try {
     // Charge only when a card token was supplied; otherwise it's a pay-at-pickup pre-order.

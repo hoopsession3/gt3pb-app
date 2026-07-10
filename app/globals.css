@@ -4402,3 +4402,17 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 .note-new{box-shadow:inset 0 1px 0 rgba(255,255,255,.1),0 0 20px -6px rgba(200,166,97,.4)}
 /* partner attach chip on note cards */
 .note-meta .note-partner{color:var(--gold2)}
+
+/* ── Founding members — tier control + perks (0176) ──────────────────────────────────────────── */
+.crm-badge.founding{background:linear-gradient(135deg,rgba(200,166,97,.24),rgba(184,144,47,.14));color:var(--gold2);border:1px solid var(--gold2);box-shadow:0 0 14px -4px rgba(200,166,97,.6)}
+.crm-tier{display:flex;align-items:center;gap:12px;margin-top:12px}
+.crm-tier-l{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--cream-m);flex:0 0 auto}
+.crm-tier-seg{display:flex;gap:6px}
+.crm-tier-b{font-family:'Inter';font-weight:650;font-size:12.5px;padding:8px 14px;border-radius:999px;border:1px solid var(--line2);background:transparent;color:var(--cream-m);cursor:pointer;-webkit-appearance:none;appearance:none;min-height:38px}
+.crm-tier-b.on{border-color:var(--gold2);color:var(--gold2);background:rgba(200,166,97,.1)}
+.crm-tier-b.gold.on{background:linear-gradient(135deg,rgba(200,166,97,.2),rgba(184,144,47,.1));box-shadow:0 0 18px -4px rgba(200,166,97,.6)}
+.app.crew-day .crm-tier-b{background:#fff}
+.app.crew-day .crm-tier-b.on{color:#6e4c1e}
+.crm-perks{list-style:none;margin:10px 0 0;padding:11px 13px;border:1px solid rgba(200,166,97,.3);border-radius:12px;background:rgba(200,166,97,.06)}
+.crm-perks li{font-family:'Inter';font-size:12.5px;color:var(--gold2);line-height:1.7}
+.app.crew-day .crm-perks li{color:#6e4c1e}

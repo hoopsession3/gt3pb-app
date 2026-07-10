@@ -16,6 +16,7 @@ type Customer = {
   name: string | null;
   phone: string | null;
   email: string | null;
+  tier: string | null;
   created_at: string;
 };
 type CrmOrder = {
@@ -39,6 +40,8 @@ function CrmDetail({ c }: { c: Customer }) {
   const [founding, setFounding] = useState(false);
   const [hasLoyalty, setHasLoyalty] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [tier, setTier] = useState<string>(c.tier ?? (c.user_id ? "member" : "guest"));
+  const [perks, setPerks] = useState<string[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -48,15 +51,17 @@ function CrmDetail({ c }: { c: Customer }) {
           .select("id, channel, total_cents, payment_status, fulfillment_status, created_at")
           .eq("customer_id", c.id).order("created_at", { ascending: false }).limit(200),
         c.user_id
-          ? supabase.from("profiles").select("points, credit_cents, is_founding").eq("id", c.user_id).maybeSingle()
+          ? supabase.from("profiles").select("points, credit_cents, founding_member").eq("id", c.user_id).maybeSingle()
           : Promise.resolve({ data: null }),
       ]);
       setOrders((ords as CrmOrder[]) ?? []);
-      const p = prof.data as { points: number | null; credit_cents: number | null; is_founding: boolean | null } | null;
+      supabase.from("member_benefits").select("label").eq("active", true).eq("scope", "tier").eq("tier", "founding")
+        .then(({ data }) => setPerks(((data ?? []) as { label: string }[]).map((b) => b.label)));
+      const p = prof.data as { points: number | null; credit_cents: number | null; founding_member: boolean | null } | null;
       if (p) {
         setPts(String(p.points ?? 0));
         setCredit(((p.credit_cents ?? 0) / 100).toFixed(2));
-        setFounding(Boolean(p.is_founding));
+        setFounding(Boolean(p.founding_member));
         setHasLoyalty(true);
       }
       setLoaded(true);
@@ -75,6 +80,15 @@ function CrmDetail({ c }: { c: Customer }) {
     setSaving(false);
     if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
     toast("Loyalty updated");
+  };
+
+  const setCustomerTier = async (t: string) => {
+    if (!supabase || !c.user_id) return;
+    setTier(t);
+    const { error } = await supabase.rpc("admin_set_customer_tier", { p_user: c.user_id, p_tier: t });
+    if (error) { toast(`Couldn't set tier — ${error.message}`, "error"); return; }
+    setFounding(t === "founding");
+    toast(t === "founding" ? "★ Founding member — perks are live" : `Set to ${t}`);
   };
 
   const lifetime = orders.filter((o) => o.payment_status === "paid").reduce((s, o) => s + (o.total_cents ?? 0), 0);
@@ -102,11 +116,24 @@ function CrmDetail({ c }: { c: Customer }) {
         </>
       )}
       {hasLoyalty && (
-        <div className="crm-loy">
-          <label>Points<input inputMode="numeric" value={pts} onChange={(e) => setPts(e.target.value)} /></label>
-          <label>Credit $<input inputMode="decimal" value={credit} onChange={(e) => setCredit(e.target.value)} /></label>
-          <button type="button" className="note-save" style={{ marginLeft: "auto" }} onClick={saveLoyalty} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
-        </div>
+        <>
+          <div className="crm-tier">
+            <span className="crm-tier-l">Tier</span>
+            <div className="crm-tier-seg" role="radiogroup" aria-label="Member tier">
+              {(["member", "founding"] as const).map((t) => (
+                <button key={t} type="button" role="radio" aria-checked={tier === t} className={`crm-tier-b${tier === t ? " on" : ""}${t === "founding" ? " gold" : ""}`} onClick={() => setCustomerTier(t)}>{t === "founding" ? "★ Founding" : "Member"}</button>
+              ))}
+            </div>
+          </div>
+          {tier === "founding" && perks.length > 0 && (
+            <ul className="crm-perks">{perks.map((pk, i) => <li key={i}>✓ {pk}</li>)}</ul>
+          )}
+          <div className="crm-loy">
+            <label>Points<input inputMode="numeric" value={pts} onChange={(e) => setPts(e.target.value)} /></label>
+            <label>Credit $<input inputMode="decimal" value={credit} onChange={(e) => setCredit(e.target.value)} /></label>
+            <button type="button" className="note-save" style={{ marginLeft: "auto" }} onClick={saveLoyalty} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
+          </div>
+        </>
       )}
       {loaded && !hasLoyalty && <div className="crm-note">Guest — no account yet, so no loyalty to manage.</div>}
     </div>
@@ -122,7 +149,7 @@ export default function CrmPanel() {
   const load = useCallback(async () => {
     if (!supabase) { setLoaded(true); return; }
     const { data } = await supabase.from("customers")
-      .select("id, user_id, name, phone, email, created_at")
+      .select("id, user_id, name, phone, email, tier, created_at")
       .order("created_at", { ascending: false }).limit(500);
     setRows((data as Customer[]) ?? []);
     setLoaded(true);
@@ -148,7 +175,7 @@ export default function CrmPanel() {
               <b>{c.name?.trim() || "No name yet"}</b>
               <span>{[c.phone, c.email].filter(Boolean).join(" · ") || "no contact info"}</span>
             </span>
-            <span className={`crm-badge${c.user_id ? " member" : ""}`}>{c.user_id ? "Member" : "Guest"}</span>
+            <span className={`crm-badge${c.tier === "founding" ? " founding" : c.user_id ? " member" : ""}`}>{c.tier === "founding" ? "★ Founding" : c.user_id ? (c.tier === "member" || !c.tier ? "Member" : c.tier) : "Guest"}</span>
             <span className={`ev-chev${openId === c.id ? " open" : ""}`} aria-hidden="true">›</span>
           </button>
           {openId === c.id && <CrmDetail c={c} />}
