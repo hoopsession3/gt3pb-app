@@ -7,7 +7,7 @@ import { useRealtimeTable } from "@/lib/realtime";
 import { etToday } from "@/lib/dates";
 
 // The driver's tab — the next run at a glance, one action: open driver mode (map + run list).
-// Run OPS (statuses, outcomes, pack-out) stay in Now › Sunday delivery; this is the wheel view.
+// Run OPS (statuses, outcomes, pack-out) stay in Live Ops; this is the wheel view.
 type Row = { id: string; delivery_date: string; status: string | null; address_zip: string | null };
 
 export default function DriverDash({ isLead }: { isLead: boolean }) {
@@ -43,7 +43,7 @@ export default function DriverDash({ isLead }: { isLead: boolean }) {
           <Link href="/driver" className="drv-go">🧭 Open driver mode — map &amp; run list</Link>
         </div>
       )}
-      {isLead && <div className="h-sub" style={{ marginTop: 10 }}>Run ops — statuses, outcomes &amp; pack-out — live in Now › Sunday delivery.</div>}
+      {isLead && <div className="h-sub" style={{ marginTop: 10 }}>Run ops — statuses, outcomes &amp; pack-out — live in Live Ops › Delivery.</div>}
     </div>
   );
 }

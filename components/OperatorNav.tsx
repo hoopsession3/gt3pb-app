@@ -157,7 +157,7 @@ const ICONS: Record<OpSection, React.ReactNode> = {
   customers: <><rect x="3" y="5" width="18" height="15" rx="2" /><circle cx="9" cy="11" r="2.2" /><path d="M5.8 17c.5-1.7 1.7-2.6 3.2-2.6s2.7.9 3.2 2.6M15 9.5h4M15 13h4" /></>,
   team: <><circle cx="9" cy="8" r="3" /><path d="M3 20c0-3 3-5 6-5s6 2 6 5" /><path d="M16 5.2a3 3 0 0 1 0 5.6M21 20c0-2.4-1.8-4-4-4.6" /></>,
 };
-const LABELS: Record<OpSection, string> = { day: "My Day", now: "Now", ask: "Ask", prep: "Prep", plan: "Plan", studio: "Studio", brew: "Brew", garage: "Garage", goals: "Goals", driver: "Drive", stops: "Stops", notes: "Notes", money: "Money", customers: "Customers", team: "Team" };
+const LABELS: Record<OpSection, string> = { day: "My Day", now: "Live Ops", ask: "Ask", prep: "Readiness", plan: "Plan", studio: "Studio", brew: "Brew", garage: "Assets", goals: "Goals", driver: "Delivery", stops: "Route", notes: "Notes", money: "Money", customers: "Customers", team: "Team" };
 export const SECTION_LABEL = LABELS;
 
 

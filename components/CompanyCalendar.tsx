@@ -189,7 +189,7 @@ export default function CompanyCalendar() {
     if (pass("delivery")) {
       const agg: Record<string, number> = {};
       for (const d of dels) agg[d.delivery_date] = (agg[d.delivery_date] || 0) + 1;
-      for (const [dk, n] of Object.entries(agg)) push(dk, { id: `del-${dk}`, title: `Sunday run · ${n} porch${n === 1 ? "" : "es"}`, cat: "delivery", kind: "delivery", go: openNow });
+      for (const [dk, n] of Object.entries(agg)) push(dk, { id: `del-${dk}`, title: `Delivery run · ${n} porch${n === 1 ? "" : "es"}`, cat: "delivery", kind: "delivery", go: openNow });
     }
     return m;
   }, [events, content, todos, stops, prepTasks, brews, drops, dels, filter, streams]);
@@ -452,7 +452,7 @@ function DayView({ dayKey, items, events, onClose, onAdd, onSaved }: { dayKey: s
   }, [dayKey]);
   const d = new Date(`${dayKey}T00:00:00`);
   const heading = d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-  const sub: Record<Item["kind"], string> = { event: "event", stop: "on-the-ground op", todo: "to-do", content: "content", task: "task due", brew: "brew day", drop: "pack pickup", delivery: "porch run" };
+  const sub: Record<Item["kind"], string> = { event: "event", stop: "on-the-ground op", todo: "to-do", content: "content", task: "task due", brew: "brew day", drop: "pack pickup", delivery: "delivery run" };
   const clash = items.some((i) => i.kind === "event") && items.some((i) => i.kind === "stop");
   const brewLate = items.some((i) => i.warn);
   return (

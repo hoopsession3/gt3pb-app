@@ -1041,7 +1041,7 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
             </button>
           ))}
           {rhythm.dropPacks > 0 && <button type="button" className="myday-chip" style={{ borderLeftColor: laneColor("drop") }} onClick={() => setSection("now")}>📦 Drop today · {rhythm.dropPacks} pack{rhythm.dropPacks === 1 ? "" : "s"} ›</button>}
-          {rhythm.porches > 0 && <button type="button" className="myday-chip" style={{ borderLeftColor: laneColor("delivery") }} onClick={() => setSection("now")}>🚗 Sunday run · {rhythm.porches} porch{rhythm.porches === 1 ? "" : "es"} ›</button>}
+          {rhythm.porches > 0 && <button type="button" className="myday-chip" style={{ borderLeftColor: laneColor("delivery") }} onClick={() => setSection("now")}>🚗 Delivery run · {rhythm.porches} porch{rhythm.porches === 1 ? "" : "es"} ›</button>}
           {rhythm.brews.map((b) => (
             <button key={b.id} type="button" className={`myday-chip${b.warn ? " warn" : ""}`} style={{ borderLeftColor: laneColor("brew") }} onClick={() => setSection("brew")}>
               ☕ Brew · {b.recipe_name} {b.batch_gal} gal{b.warn ? " — start now" : ""} ›
@@ -2415,7 +2415,7 @@ function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive
 }
 
 // ───────────────────────── live truck control ─────────────────────────
-function LiveControl({ compact = false }: { compact?: boolean }) {
+function LiveControl({ compact = false, manage = false }: { compact?: boolean; manage?: boolean }) {
   const { toast } = useApp();
   const router = useRouter();
   const { setSection } = useOperatorSection();
@@ -2633,10 +2633,10 @@ function LiveControl({ compact = false }: { compact?: boolean }) {
       ) : (
       <>
       <div className="adm-live">
-        <div className="adm-live-status">
+        {!manage && <div className="adm-live-status">
           <span className={`adm-dot${live?.is_live ? " on" : ""}`} />
           <span><b>{live?.is_live ? "Live now" : "Offline"}</b>{live?.is_live && curStop ? <span className="adm-live-at"> · {curStop.name}</span> : null}</span>
-        </div>
+        </div>}
         {/* The ordering dial (0137): when cup pre-orders open. Same rule everywhere — menu sheet,
             checkout, and the charge API. Pack reserves are always open regardless. Prep-day work,
             so it lives in Plan › Truck stops; the Now panel stays go-live/offline/broadcast only. */}
@@ -2655,9 +2655,9 @@ function LiveControl({ compact = false }: { compact?: boolean }) {
             ))}
           </div>
         </div>}
-        {live?.is_live && <button className="adm-btn ghost" onClick={pause}>Go offline</button>}
+        {!manage && live?.is_live && <button className="adm-btn ghost" onClick={pause}>Go offline</button>}
       </div>
-      {live?.is_live && (
+      {!manage && live?.is_live && (
         <>
           {!broadcasting && !live?.pos_updated_at && (
             <div className="adm-attn" role="alert">Customers can&apos;t see the truck on the map yet — tap <b>Broadcast live</b> so the dot tracks you.</div>
@@ -4309,10 +4309,10 @@ function VendorPicker({ vendors, vendorId, onLink }: { vendors: Vendor[]; vendor
 // ───────────────────────── section metadata (shared by header + the guide) ─────────────────────────
 // Each section = one job at one moment. LABEL names it, WHEN says when to reach for it (header pill),
 // SUB is the one-liner, MORE explains it, INSIDE lists what lives there. Order = the shift timeline.
-const SEC_LABEL: Record<OpSection, string> = { day: "My Day", now: "Now", ask: "Ask GT3", prep: "Prep", plan: "Plan", studio: "Studio", brew: "Brew", garage: "Garage", goals: "Goals", driver: "Drive", stops: "Stops", notes: "Notes", money: "Money", customers: "Customers", team: "Team" };
+const SEC_LABEL: Record<OpSection, string> = { day: "My Day", now: "Live Ops", ask: "Ask GT3", prep: "Readiness", plan: "Plan", studio: "Studio", brew: "Brew", garage: "Assets", goals: "Goals", driver: "Delivery", stops: "Route", notes: "Notes", money: "Money", customers: "Customers", team: "Team" };
 const SEC_WHEN: Record<OpSection, string> = {
   day: "Start of shift", now: "During service", ask: "When you're stuck", prep: "Before the event",
-  plan: "Booking ahead", studio: "Promoting a drop", brew: "Production days", garage: "Stock & gear", goals: "Steering the quarter", driver: "Run days", stops: "Where the truck goes", notes: "After a meeting", money: "The books", customers: "Your regulars", team: "People & roles",
+  plan: "Booking ahead", studio: "Promoting a drop", brew: "Production days", garage: "Assets & stock", goals: "Steering the quarter", driver: "Delivery days", stops: "Route planning", notes: "After a meeting", money: "The books", customers: "Your regulars", team: "People & roles",
 };
 const SEC_SUB: Record<OpSection, string> = {
   day: "Your tasks, flags & what's on today.",
@@ -4320,13 +4320,13 @@ const SEC_SUB: Record<OpSection, string> = {
   ask: "Recipes, gear, stock & how-to — from the GT3 playbook.",
   prep: "Stock, readiness & the pack list for what's next.",
   plan: "Calendar, events, bookings & vendors.",
-  stops: "Truck stops, the route & the cup-ordering dial.",
+  stops: "The route — locations, dates & the ordering dial.",
   notes: "Meeting notes — follow-ups become tasks.",
   studio: "Draft, schedule & post — brand & marketing.",
   brew: "Schedule, start & log brews — sized to what's reserved.",
   garage: "Load-out & tow, gear, maintenance & inventory.",
   goals: "Company goals & the scoreboard.",
-  driver: "Your delivery run — map, list & one big go button.",
+  driver: "The delivery run — map, list & one big go button.",
   money: "Pricing, reserves & order history.",
   customers: "Every customer — orders, loyalty & contact info.",
   team: "People, roles, access & training.",
@@ -4336,7 +4336,7 @@ const SEC_MORE: Record<OpSection, string> = {
   now: "The glance before the work. Alerts land here, the service pulse shows what's waiting (orders on the pass, items 86'd), and one tap opens Service mode — the working screen with the pass, pickup checklist and 86 board. Prep lives here too: the drop's brew sheet and Sunday delivery.",
   prep: "Get ready before you roll. Build the pack list, check stock and readiness, and sign off that the truck's loaded for the next event or stop.",
   plan: "The forward calendar. Book events, work incoming booking requests, and manage vendors and venues — weeks and months out.",
-  stops: "Where the truck goes: create and order stops, set dates and windows, pin addresses on the map, and run the go-live control.",
+  stops: "Route planning: create and order locations, set dates and windows, pin addresses on the map, and set when cup orders open. Going live happens in Live Ops.",
   notes: "The meeting record. Paste a recap, tag follow-ups, assign them — they land in everyone's tasks with a ping.",
   studio: "Your marketing studio. Draft posts and flyers, keep them on-brand, plan the feed, schedule around your drops, and moderate the guest reviews that feed the truck display.",
   brew: "Production's home. Schedule brews sized to demand, hit start-by deadlines, log every batch — with coverage, serve-by and stock checks right on the card.",
@@ -4350,10 +4350,10 @@ const SEC_MORE: Record<OpSection, string> = {
 };
 const SEC_INSIDE: Record<OpSection, string[]> = {
   day: ["Your open tasks & due dates", "Alerts flagged for you", "What's on the calendar today", "Day-of brief — dress code & call time"],
-  now: ["Service pulse — live counts, one tap into the working screen", "Service mode — the pass (guests ping it: on my way · outside · late), pickup checklist & 86 board on ONE screen", "The drop — brew sheet & window money (the checklist lives in Service)", "Sunday delivery — run sheet, brew totals & driver outcomes", "Live truck: go live, GPS broadcast (locations & the ordering dial live on the Stops page)", "Alerts inbox & live sales"],
+  now: ["Service pulse — live counts, one tap into the working screen", "Service mode — the pass (guests ping it: on my way · outside · late), pickup checklist & 86 board on ONE screen", "The drop — brew sheet & window money (the checklist lives in Service)", "Delivery run — run sheet, brew totals & driver outcomes", "Live truck: go live, GPS broadcast (locations & the ordering dial live on the Stops page)", "Alerts inbox & live sales"],
   prep: ["Per-event & per-stop pack lists", "Readiness & inspection checks", "Crew assignments & sign-off", "Load-out & gear moved to Production › Garage"],
   plan: ["Company calendar", "Events", "Booking requests", "Vendors & venues"],
-  stops: ["Stop list & route order", "Dates, windows & addresses", "Go live from any stop", "The cup-ordering dial"],
+  stops: ["Location list & route order", "Dates, windows & addresses", "The cup-ordering dial", "Going live lives in Live Ops"],
   notes: ["Meeting recaps", "Follow-ups → assigned tasks", "GT3-format summaries"],
   studio: ["Post & flyer drafting", "Brand copy & front-end copy", "Feed planning grid", "Repurpose engine", "Publishing & scheduling", "Review Desk → the truck display (/display): add or approve reviews; ✨ Simplify de-claims + trims one to display-safe"],
   brew: ["Brew schedule with start-by deadlines", "Coverage — makes vs reserved", "Serve-by freshness windows", "Batch log & recipes"],
@@ -4663,7 +4663,7 @@ export default function AdminPage() {
         </>
       )}
 
-      {sec === "stops" && canManage && <LiveControl />}
+      {sec === "stops" && canManage && <LiveControl manage />}
       {sec === "notes" && canManage && <MeetingNotes />}
       {sec === "brew" && canPrep && <BrewPlanner />}
       {sec === "garage" && canPrep && <GarageSection />}

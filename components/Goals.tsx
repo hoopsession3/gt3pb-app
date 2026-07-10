@@ -5,50 +5,82 @@ import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useApp } from "./AppProvider";
 import { useAuth, roleOf, LEADERSHIP_ROLES } from "./AuthProvider";
+import { useWorkStreams } from "@/lib/streams";
+import { METRIC_SOURCES, computeMetric } from "@/lib/goalMetrics";
 import { StrategyThread } from "./StrategyCollab";
 
-// GOALS — the strategy's scoreboard, worked live between owners and managers (Plan › Goals).
-// Seeded from the locked strategy doc: the six Phase 1→2 trigger conditions arrive as goals, so
-// the checklist the doc commits to is a living board, not a paragraph. Every goal carries a 💬
-// thread (same engine as the Playbook — posting pings the owners), leadership logs progress as
-// numbers, and the bar answers "are we there?" at a glance. Reviewed monthly against Money's
-// actuals, per governance. Data: goals (0142) — audited + delete-guarded like every business record.
+// GOALS — the true tracker (0163). Three layers, top down:
+//   lane → goal → initiatives.
+// Every goal rolls up to a work stream, so the board reads like the org chart. A goal is a number
+// with a bar; a metric-bound goal reads its number LIVE from real orders (it can't drift from
+// reality); initiatives are the concrete moves that get it there — checkable, attributable,
+// arguable on the thread.
 
 type Goal = {
   id: string; title: string; metric: string | null; unit: string;
   target_value: number; current_value: number; due_date: string | null;
   play: string | null; source: string | null; status: "active" | "hit" | "missed" | "archived";
   author_name: string | null; updated_at: string;
+  stream_key: string | null; metric_source: string | null;
 };
+type Initiative = { id: string; goal_id: string; title: string; done: boolean; sort: number };
 
 export default function Goals() {
   const { toast } = useApp();
   const { user, profile } = useAuth();
+  const streams = useWorkStreams();
   const [rows, setRows] = useState<Goal[]>([]);
+  const [inits, setInits] = useState<Initiative[]>([]);
+  const [live, setLive] = useState<Record<string, number>>({});   // metric_source → live value
   const [loaded, setLoaded] = useState(false);
-  const [open, setOpen] = useState<string | null>(null);     // which thread is open
-  const [logging, setLogging] = useState<string | null>(null); // which goal shows the log form
+  const [open, setOpen] = useState<string | null>(null);          // which thread is open
+  const [logging, setLogging] = useState<string | null>(null);
   const [logVal, setLogVal] = useState("");
+  const [initFor, setInitFor] = useState<string | null>(null);    // which goal shows the add-initiative input
+  const [initTitle, setInitTitle] = useState("");
   const [adding, setAdding] = useState(false);
-  const [ng, setNg] = useState({ title: "", target: "", unit: "", play: "", due: "" });
+  const [ng, setNg] = useState({ title: "", target: "", unit: "", play: "", due: "", stream: "business", source: "" });
   const canLead = LEADERSHIP_ROLES.includes(roleOf(profile)) || !!profile?.is_admin;
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    const { data } = await supabase.from("goals").select("*").neq("status", "archived")
-      .order("status").order("due_date", { ascending: true, nullsFirst: false }).order("created_at");
-    if (data) setRows(data as Goal[]);
+    const [g, i] = await Promise.all([
+      supabase.from("goals").select("*").neq("status", "archived")
+        .order("status").order("due_date", { ascending: true, nullsFirst: false }).order("created_at"),
+      supabase.from("goal_initiatives").select("id, goal_id, title, done, sort").order("sort").order("created_at"),
+    ]);
+    if (g.data) setRows(g.data as Goal[]);
+    if (i.data) setInits(i.data as Initiative[]);
     setLoaded(true);
   }, []);
   useEffect(() => { load(); }, [load]);
-  useRealtimeTable("goals", load);
+  useRealtimeTable(["goals", "goal_initiatives"], load);
+
+  // Live metrics: compute each bound source once, show it, and (leadership only) write it back so
+  // reports and escalation read the same number the board shows.
+  useEffect(() => {
+    const sources = [...new Set(rows.map((g) => g.metric_source).filter(Boolean))] as string[];
+    if (!sources.length) return;
+    Promise.all(sources.map(async (s) => [s, await computeMetric(s)] as const)).then((pairs) => {
+      const m: Record<string, number> = {};
+      for (const [s, v] of pairs) if (v != null) m[s] = v;
+      setLive(m);
+      if (canLead && supabase) {
+        for (const g of rows) {
+          const v = g.metric_source ? m[g.metric_source] : undefined;
+          if (v != null && v !== g.current_value) supabase.from("goals").update({ current_value: v }).eq("id", g.id);
+        }
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows.map((g) => `${g.id}:${g.metric_source}`).join("|")]);
 
   const logProgress = async (g: Goal) => {
     if (!supabase) return;
     const v = Number(logVal);
     if (!Number.isFinite(v)) { toast("Numbers only — the bar does the talking", "error"); return; }
     setLogging(null); setLogVal("");
-    setRows((r) => r.map((x) => (x.id === g.id ? { ...x, current_value: v } : x))); // optimistic
+    setRows((r) => r.map((x) => (x.id === g.id ? { ...x, current_value: v } : x)));
     const { error } = await supabase.from("goals").update({ current_value: v, updated_at: new Date().toISOString() }).eq("id", g.id);
     if (error) { toast(`Couldn't log it — ${error.message}`, "error"); load(); return; }
     toast(v >= g.target_value ? "Logged — that's the target. Mark it hit when it holds." : "Progress logged");
@@ -62,71 +94,158 @@ export default function Goals() {
     else if (status === "hit") toast("Goal hit — log the decision on the Playbook");
   };
 
+  const setStream = async (g: Goal, stream_key: string) => {
+    if (!supabase) return;
+    setRows((r) => r.map((x) => (x.id === g.id ? { ...x, stream_key } : x)));
+    await supabase.from("goals").update({ stream_key }).eq("id", g.id);
+  };
+
+  const addInitiative = async (goalId: string) => {
+    if (!supabase || !initTitle.trim()) return;
+    const title = initTitle.trim();
+    setInitTitle("");
+    const { error } = await supabase.from("goal_initiatives").insert({ goal_id: goalId, title, sort: inits.filter((i) => i.goal_id === goalId).length });
+    if (error) { toast(`Couldn't add — ${error.message}`, "error"); return; }
+    load();
+  };
+  const toggleInitiative = async (i: Initiative) => {
+    if (!supabase) return;
+    setInits((p) => p.map((x) => (x.id === i.id ? { ...x, done: !x.done } : x)));
+    await supabase.from("goal_initiatives").update({ done: !i.done }).eq("id", i.id);
+  };
+  const removeInitiative = async (i: Initiative) => {
+    if (!supabase) return;
+    setInits((p) => p.filter((x) => x.id !== i.id));
+    await supabase.from("goal_initiatives").delete().eq("id", i.id);
+  };
+
   const addGoal = async () => {
     if (!supabase || !user) return;
     const target = Number(ng.target);
     if (!ng.title.trim() || !Number.isFinite(target) || target <= 0) { toast("A goal needs a name and a real target", "error"); return; }
+    const src = ng.source || null;
     const { error } = await supabase.from("goals").insert({
-      title: ng.title.trim(), target_value: target, unit: ng.unit.trim(), play: ng.play.trim() || null,
-      due_date: ng.due || null, created_by: user.id,
-      author_name: profile?.display_name?.trim() || null,
+      title: ng.title.trim(), target_value: target,
+      unit: src ? METRIC_SOURCES[src].unit : ng.unit.trim(),
+      play: ng.play.trim() || null, due_date: ng.due || null,
+      stream_key: ng.stream, metric_source: src,
+      created_by: user.id, author_name: profile?.display_name?.trim() || null,
     });
     if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
-    setAdding(false); setNg({ title: "", target: "", unit: "", play: "", due: "" });
+    setAdding(false); setNg({ title: "", target: "", unit: "", play: "", due: "", stream: "business", source: "" });
     toast("On the board");
   };
 
   const active = rows.filter((g) => g.status === "active");
   const settled = rows.filter((g) => g.status !== "active");
+  const laneOf = (key: string | null) => streams.find((s) => s.key === (key || "business"));
+  const groups = streams
+    .map((s) => ({ s, goals: active.filter((g) => laneOf(g.stream_key)?.key === s.key) }))
+    .filter((grp) => grp.goals.length > 0);
+  const orphans = active.filter((g) => !laneOf(g.stream_key));
+
+  const card = (g: Goal) => {
+    const cur = (g.metric_source && live[g.metric_source] != null) ? live[g.metric_source] : g.current_value;
+    const pct = Math.max(0, Math.min(100, (cur / g.target_value) * 100));
+    const reached = cur >= g.target_value;
+    const goalInits = inits.filter((i) => i.goal_id === g.id);
+    const doneN = goalInits.filter((i) => i.done).length;
+    return (
+      <div className="goal-card" key={g.id}>
+        <div className="goal-top">
+          <span className="goal-title">{g.title}</span>
+          {g.metric_source && <span className="goal-live" title={METRIC_SOURCES[g.metric_source]?.hint}>live</span>}
+          {g.play && <span className="goal-play">{g.play}</span>}
+        </div>
+        {g.metric && <p className="goal-metric">{g.metric}</p>}
+        <div className={`goal-bar${reached ? " hit" : ""}`}><i style={{ width: `${pct}%` }} /></div>
+        <div className="goal-nums">
+          <span><b>{cur}</b> of <b>{g.target_value}</b>{g.unit && ` ${g.unit}`}</span>
+          <span>{goalInits.length > 0 && `${doneN}/${goalInits.length} moves · `}{g.due_date ? `by ${new Date(`${g.due_date}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : g.source ? "standing" : ""}</span>
+        </div>
+
+        {/* the breakdown — the concrete moves that accomplish this goal */}
+        {(goalInits.length > 0 || initFor === g.id) && (
+          <div className="goal-inits">
+            {goalInits.map((i) => (
+              <div className={`goal-init${i.done ? " done" : ""}`} key={i.id}>
+                <button type="button" className="goal-init-ck" onClick={() => canLead && toggleInitiative(i)} aria-pressed={i.done} disabled={!canLead}>{i.done ? "✓" : "○"}</button>
+                <span className="goal-init-t">{i.title}</span>
+                {canLead && <button type="button" className="goal-init-x" onClick={() => removeInitiative(i)} aria-label={`Remove ${i.title}`}>✕</button>}
+              </div>
+            ))}
+            {initFor === g.id && (
+              <div className="goal-init add">
+                <input className="auth-input" autoFocus value={initTitle} onChange={(e) => setInitTitle(e.target.value)} placeholder="A concrete move — e.g. Pitch 3 wholesale accounts"
+                  onKeyDown={(e) => { if (e.key === "Enter") addInitiative(g.id); if (e.key === "Escape") setInitFor(null); }} />
+                <button type="button" className="dops-mini" onClick={() => addInitiative(g.id)}>Add</button>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="goal-actions">
+          {canLead && !g.metric_source && (logging === g.id ? (
+            <span className="goal-log">
+              <input className="auth-input" inputMode="decimal" autoFocus value={logVal}
+                onChange={(e) => setLogVal(e.target.value)} placeholder={String(g.current_value)}
+                onKeyDown={(e) => { if (e.key === "Enter") logProgress(g); if (e.key === "Escape") setLogging(null); }} />
+              <button type="button" className="dops-mini" onClick={() => logProgress(g)}>Log</button>
+            </span>
+          ) : (
+            <button type="button" className="st-discuss" onClick={() => { setLogging(g.id); setLogVal(""); }}>＋ Log progress</button>
+          ))}
+          {canLead && <button type="button" className="st-discuss" onClick={() => { setInitFor(initFor === g.id ? null : g.id); setInitTitle(""); }}>{initFor === g.id ? "Done adding" : "＋ Break it down"}</button>}
+          {canLead && reached && <button type="button" className="st-discuss" onClick={() => setStatus(g, "hit")}>✓ Mark hit</button>}
+          <button type="button" className="st-discuss" onClick={() => setOpen(open === g.id ? null : g.id)} aria-expanded={open === g.id}>💬 {open === g.id ? "Close" : "Discuss"}</button>
+          {canLead && (
+            <select className="goal-lane-pick" value={laneOf(g.stream_key)?.key ?? "business"} onChange={(e) => setStream(g, e.target.value)} aria-label={`Lane for ${g.title}`}>
+              {streams.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+            </select>
+          )}
+        </div>
+        {open === g.id && <StrategyThread k={`goal:${g.id}`} label={`Goal: ${g.title}`} />}
+      </div>
+    );
+  };
 
   return (
     <div className="adm-sec" id="goals">
       <div className="sec">Goals{active.length > 0 && <span className="adm-pill">{active.length}</span>}</div>
-      <p className="h-sub" style={{ marginBottom: 12 }}>Every goal is a number with a bar. Log progress; talk it out on the thread.</p>
+      <p className="h-sub" style={{ marginBottom: 12 }}>Every goal is a number with a bar, filed to the lane that owns it. Break it into moves; talk it out on the thread.</p>
 
       {!loaded && <div className="dops-empty">Loading the board…</div>}
       {loaded && rows.length === 0 && <div className="dops-empty">No goals yet — put a number on the wall.</div>}
 
-      {active.map((g) => {
-        const pct = Math.max(0, Math.min(100, (g.current_value / g.target_value) * 100));
-        const reached = g.current_value >= g.target_value;
-        return (
-          <div className="goal-card" key={g.id}>
-            <div className="goal-top">
-              <span className="goal-title">{g.title}</span>
-              {g.play && <span className="goal-play">{g.play}</span>}
-            </div>
-            {g.metric && <p className="goal-metric">{g.metric}</p>}
-            <div className={`goal-bar${reached ? " hit" : ""}`}><i style={{ width: `${pct}%` }} /></div>
-            <div className="goal-nums">
-              <span><b>{g.current_value}</b> of <b>{g.target_value}</b>{g.unit && ` ${g.unit}`}</span>
-              <span>{g.due_date ? `by ${new Date(`${g.due_date}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : g.source ? "standing" : ""}</span>
-            </div>
-            <div className="goal-actions">
-              {canLead && (logging === g.id ? (
-                <span className="goal-log">
-                  <input className="auth-input" inputMode="decimal" autoFocus value={logVal}
-                    onChange={(e) => setLogVal(e.target.value)} placeholder={String(g.current_value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") logProgress(g); if (e.key === "Escape") setLogging(null); }} />
-                  <button type="button" className="dops-mini" onClick={() => logProgress(g)}>Log</button>
-                </span>
-              ) : (
-                <button type="button" className="st-discuss" onClick={() => { setLogging(g.id); setLogVal(""); }}>＋ Log progress</button>
-              ))}
-              {canLead && reached && <button type="button" className="st-discuss" onClick={() => setStatus(g, "hit")}>✓ Mark hit</button>}
-              <button type="button" className="st-discuss" onClick={() => setOpen(open === g.id ? null : g.id)} aria-expanded={open === g.id}>💬 {open === g.id ? "Close" : "Discuss"}</button>
-            </div>
-            {open === g.id && <StrategyThread k={`goal:${g.id}`} label={`Goal: ${g.title}`} />}
-          </div>
-        );
-      })}
+      {groups.map(({ s, goals }) => (
+        <div key={s.key} className="goal-lane">
+          <div className="goal-lane-h"><span className="cc-dot" style={{ background: s.color }} /><b>{s.label}</b><span className="goal-lane-n">{goals.length}</span></div>
+          {goals.map(card)}
+        </div>
+      ))}
+      {orphans.length > 0 && (
+        <div className="goal-lane">
+          <div className="goal-lane-h"><span className="cc-dot" style={{ background: "#9a8f7c" }} /><b>Unfiled</b><span className="goal-lane-n">{orphans.length}</span></div>
+          {orphans.map(card)}
+        </div>
+      )}
 
       {canLead && (adding ? (
         <div className="goal-new">
           <input className="auth-input" value={ng.title} onChange={(e) => setNg({ ...ng, title: e.target.value })} placeholder="The goal, plain English — e.g. Wholesale accounts signed" maxLength={80} />
           <div className="goal-new-row">
             <input className="auth-input" inputMode="decimal" value={ng.target} onChange={(e) => setNg({ ...ng, target: e.target.value })} placeholder="Target (number)" />
-            <input className="auth-input" value={ng.unit} onChange={(e) => setNg({ ...ng, unit: e.target.value })} placeholder="Unit — $/mo, %, orders" maxLength={16} />
+            {ng.source ? <input className="auth-input" value={METRIC_SOURCES[ng.source].unit} disabled aria-label="Unit (set by the live metric)" />
+              : <input className="auth-input" value={ng.unit} onChange={(e) => setNg({ ...ng, unit: e.target.value })} placeholder="Unit — $/mo, %, orders" maxLength={16} />}
+          </div>
+          <div className="goal-new-row">
+            <select className="auth-input" value={ng.stream} onChange={(e) => setNg({ ...ng, stream: e.target.value })} aria-label="Lane">
+              {streams.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+            </select>
+            <select className="auth-input" value={ng.source} onChange={(e) => setNg({ ...ng, source: e.target.value })} aria-label="How it's measured">
+              <option value="">Measured by hand (log progress)</option>
+              {Object.entries(METRIC_SOURCES).map(([k, m]) => <option key={k} value={k}>Live: {m.label}</option>)}
+            </select>
           </div>
           <div className="goal-new-row">
             <input className="auth-input" value={ng.play} onChange={(e) => setNg({ ...ng, play: e.target.value })} placeholder="Which play it serves (optional)" maxLength={60} />
@@ -140,7 +259,7 @@ export default function Goals() {
       ) : (
         <button type="button" className="dl-card st-build" onClick={() => setAdding(true)}>
           <b>＋ New goal</b>
-          <span>A number, a date, a play it serves — then work it on the thread.</span>
+          <span>A number, a lane, a date — measured live from the data where it can be.</span>
         </button>
       ))}
 

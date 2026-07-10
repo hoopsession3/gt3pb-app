@@ -4006,6 +4006,23 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .dops-up-act{display:flex;gap:8px;flex-shrink:0}
 
 /* goals — the strategy's scoreboard (Plan › Goals) */
+/* goal tracker (0163) — lane groups, live-metric tag, initiative breakdown */
+.goal-lane{margin-bottom:16px}
+.goal-lane-h{display:flex;align-items:center;gap:7px;margin:0 0 8px 2px}
+.goal-lane-h b{font-family:'Inter';font-weight:700;font-size:12.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--cream-m)}
+.goal-lane-n{font-family:'DM Mono',ui-monospace,monospace;font-size:10.5px;color:var(--cream-d)}
+.goal-live{flex:0 0 auto;font-family:'Inter';font-weight:700;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;color:var(--ok);border:1px solid rgba(127,168,107,.45);border-radius:12px;padding:2px 7px}
+.goal-inits{margin:10px 0 2px;border-top:1px dashed var(--line);padding-top:8px}
+.goal-init{display:flex;align-items:center;gap:8px;padding:4px 0}
+.goal-init.done .goal-init-t{opacity:.55;text-decoration:line-through}
+.goal-init-ck{flex:0 0 22px;height:22px;border:1px solid var(--line2);border-radius:7px;background:none;color:var(--ok);font-size:12px;line-height:1;cursor:pointer;-webkit-appearance:none;appearance:none}
+.goal-init-t{flex:1;min-width:0;font-family:'Inter';font-size:12.5px;color:var(--cream)}
+.goal-init-x{flex:0 0 auto;background:none;border:none;color:var(--cream-d);font-size:11px;cursor:pointer;padding:2px 4px;-webkit-appearance:none;appearance:none}
+.goal-init.add{gap:8px}
+.goal-init.add .auth-input{flex:1;padding:8px 10px;font-size:13px}
+.goal-lane-pick{margin-left:auto;background:var(--char2);border:1px solid var(--line2);border-radius:9px;padding:5px 8px;color:var(--cream-m);font-family:'Inter';font-size:10.5px}
+.app.crew-day .goal-lane-pick{background:#fff;color:#221F18}
+
 .goal-card{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:13px 15px;margin-bottom:10px}
 .goal-top{display:flex;align-items:baseline;gap:10px}
 .goal-title{flex:1;min-width:0;font-family:'Inter';font-weight:700;font-size:14px;color:var(--cream)}
