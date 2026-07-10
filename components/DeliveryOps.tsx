@@ -7,6 +7,7 @@ import { raiseAlertClient } from "@/lib/clientAlerts";
 import { authedFetch } from "@/lib/authedFetch";
 import { useApp } from "./AppProvider";
 import { type PerfMix } from "@/lib/delivery";
+import { etToday } from "@/lib/dates";
 import AssignTaskSheet from "./AssignTaskSheet";
 import Sheet from "./Sheet";
 
@@ -43,8 +44,9 @@ export default function DeliveryOps() {
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    // the next delivery day with anything on it (today counts — Sunday IS the run)
-    const today = new Date().toISOString().slice(0, 10);
+    // the next delivery day with anything on it (today counts — Sunday IS the run);
+    // delivery_date is an ET business-day key (lib/delivery.ts), so "today" must be ET too
+    const today = etToday();
     const { data } = await supabase.from("delivery_orders").select("*")
       .gte("delivery_date", today).is("canceled_at", null)
       .order("delivery_date").order("address_zip").limit(200);
@@ -110,7 +112,7 @@ export default function DeliveryOps() {
   const premiumTotal = rows.reduce((a, o) => a + o.performance_count, 0);
   const heldQueue = rows.filter((o) => o.status === "held_for_pickup");
   const doneCount = rows.filter((o) => o.status === "delivered" || o.status === "held_for_pickup").length;
-  const isRunDay = date === new Date().toISOString().slice(0, 10);
+  const isRunDay = date === etToday();
   const showList = listOpen ?? isRunDay;
   const dLabel = new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 

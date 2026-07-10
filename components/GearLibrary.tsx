@@ -27,7 +27,7 @@ const cuft = (a: AssetItem) => (a.lenIn && a.widthIn && a.heightIn ? Math.round(
 
 export default function GearLibrary() {
   const [resp, setResp] = useState<AssetsResp | null>(null);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true); // renders inside the Garage fold — default open so it's one fold, not two
   const [editing, setEditing] = useState<string | null>(null); // asset id, or "new", or null
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [busy, setBusy] = useState(false);

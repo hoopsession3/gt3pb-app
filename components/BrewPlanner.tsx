@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
+import { FLAVORS } from "@/lib/orderAhead";
 import AssignTaskSheet from "@/components/AssignTaskSheet";
 import Sheet from "@/components/Sheet";
 import ProgressRing from "@/components/ProgressRing";
@@ -13,9 +14,11 @@ import ProgressRing from "@/components/ProgressRing";
 // Signal Score when it's done — same high standard. Lives as a Plan sub-tab.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-type Recipe = { id: string; name: string; style: string | null; ratio: string | null; target_spec: string | null; base_water_gal: number; extraction_hours: number };
+type Recipe = { id: string; name: string; style: string | null; ratio: string | null; target_spec: string | null; base_water_gal: number; extraction_hours: number; yield_factor: number | null; product_slug: string | null };
 type Vessel = { id: string; name: string; capacity_gal: number; filter_type: string | null };
-type Batch = { id: string; recipe_name: string | null; batch_gal: number; brew_date: string | null; ready_at: string | null; event_id: string | null; stop_id: string | null; status: string; og: string | null; signal_score: number | null; target_spec: string | null; extraction_hours: number | null; brew_started_at: string | null; vessel: string | null; coffee_lot: string | null; brewer: string | null; taste_notes: string | null; created_at?: string | null; needed_by: string | null; latest_start_at: string | null };
+type ScaledIng = { name: string; qty: number | string; unit?: string | null };
+type Batch = { id: string; recipe_id: string | null; recipe_name: string | null; batch_gal: number; brew_date: string | null; ready_at: string | null; event_id: string | null; stop_id: string | null; status: string; og: string | null; signal_score: number | null; target_spec: string | null; extraction_hours: number | null; brew_started_at: string | null; vessel: string | null; coffee_lot: string | null; brewer: string | null; taste_notes: string | null; created_at?: string | null; needed_by: string | null; latest_start_at: string | null; drop_date: string | null; hold_hours: number | null; scaled: ScaledIng[] | null };
+type InvItem = { name: string; qty: number | null; unit: string | null };
 type Ev = { id: string; title: string | null; day: string | null; day_label: string | null };
 type St = { id: string; name: string; starts_at: string | null };
 
@@ -25,6 +28,36 @@ const STATUS: { key: string; label: string }[] = [
 ];
 const fmtDate = (s: string | null) => s ? new Date(`${s}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : "—";
 const fmtTs = (s: string | null) => s ? new Date(s).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric" }) : "—";
+// display-only: target_spec sometimes carries a " · Signal Score 8+" tail — drop it on the card (DB value untouched)
+const specLabel = (s: string | null) => (s ?? "").replace(/\s*·\s*Signal Score.*$/, "");
+// same yield math as the brew agent: 128 oz/gal, 10 oz serves
+const bottlesFor = (gal: number, yieldFactor: number | null | undefined) => Math.floor((gal * 128 * (yieldFactor ?? 1)) / 10);
+// Stock check for a planned batch — match scaled ingredients to inventory by normalized-name
+// containment both directions, keyed on the first significant word ("coffee" ties
+// "Coffee, coarse grind" to "Whole-bean coffee"). Returns null when there's nothing to say.
+const STOCK_STOP = new Set(["the", "and", "for", "with", "fresh", "cold", "whole", "raw", "organic", "filtered"]);
+const sigWord = (s: string) => (s.toLowerCase().match(/[a-z]+/g) ?? []).find((w) => w.length > 2 && !STOCK_STOP.has(w)) ?? "";
+const nameMatch = (a: string, b: string) => {
+  const sa = sigWord(a), sb = sigWord(b);
+  return !!sa && !!sb && (a.toLowerCase().includes(sb) || b.toLowerCase().includes(sa));
+};
+const stockShorts = (scaled: ScaledIng[] | null, inv: InvItem[]): string[] | null => {
+  const rows = Array.isArray(scaled) ? scaled.filter((i) => i?.name?.trim()) : [];
+  if (!rows.length || !inv.length) return null;
+  let matched = 0;
+  const shorts: string[] = [];
+  const u = (x?: string | null) => (x ?? "").toLowerCase().trim().replace(/s$/, "");
+  rows.forEach((ing) => {
+    const item = inv.find((i) => nameMatch(i.name, ing.name));
+    if (!item) return;
+    matched++;
+    // only compare quantities when the units agree — a gal-vs-g compare would mislead
+    if (u(ing.unit) !== u(item.unit) || item.qty == null || !(Number(ing.qty) > 0)) return;
+    const d = Number(ing.qty) - Number(item.qty);
+    if (d > 0) shorts.push(`Short ${+d.toFixed(1)}${u(ing.unit) ? ` ${u(ing.unit)}` : ""} ${sigWord(ing.name)}`);
+  });
+  return matched ? shorts : null;
+};
 // remaining time to a target, as "12h 04m" / "48m" / "ready"
 const remain = (target: string | null, now: number) => {
   if (!target) return "";
@@ -47,25 +80,41 @@ export default function BrewPlanner() {
   const [adjust, setAdjust] = useState<Batch | null>(null);
   const [view, setView] = useState<"schedule" | "log">("schedule");
   const [now, setNow] = useState(() => Date.now());
+  const [demand, setDemand] = useState<Record<string, Record<string, number>>>({}); // drop_date → flavor → bottles reserved
+  const [inv, setInv] = useState<InvItem[]>([]);
 
-  // Live clock — only ticks while something is actively brewing, so the countdown stays current.
-  const brewing = batches.some((b) => b.status === "brewing");
+  // Live clock — ticks while a brew countdown or serve-by window is on screen, so both stay current.
+  const ticking = batches.some((b) => b.status === "brewing" || b.status === "ready" || b.status === "kegged");
   useEffect(() => {
-    if (!brewing) return;
+    if (!ticking) return;
     const t = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(t);
-  }, [brewing]);
+  }, [ticking]);
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    const [{ data: r }, { data: b }, { data: e }, { data: v }, { data: st }] = await Promise.all([
-      supabase.from("brew_recipes").select("id, name, style, ratio, target_spec, base_water_gal, extraction_hours").is("archived_at", null).order("sort"),
-      supabase.from("brew_batches").select("id, recipe_name, batch_gal, brew_date, ready_at, event_id, stop_id, status, og, signal_score, target_spec, extraction_hours, brew_started_at, vessel, coffee_lot, brewer, taste_notes, created_at, needed_by, latest_start_at").order("created_at", { ascending: false }),
+    const [{ data: r }, { data: b }, { data: e }, { data: v }, { data: st }, { data: ii }] = await Promise.all([
+      supabase.from("brew_recipes").select("id, name, style, ratio, target_spec, base_water_gal, extraction_hours, yield_factor, product_slug").is("archived_at", null).order("sort"),
+      supabase.from("brew_batches").select("id, recipe_id, recipe_name, batch_gal, brew_date, ready_at, event_id, stop_id, status, og, signal_score, target_spec, extraction_hours, brew_started_at, vessel, coffee_lot, brewer, taste_notes, created_at, needed_by, latest_start_at, drop_date, hold_hours, scaled").order("created_at", { ascending: false }),
       supabase.from("events").select("id, title, day, day_label").is("archived_at", null).order("day"),
       supabase.from("brew_vessels").select("id, name, capacity_gal, filter_type").is("archived_at", null).order("sort"),
       supabase.from("stops").select("id, name, starts_at").is("archived_at", null).order("starts_at", { ascending: true, nullsFirst: false }),
+      supabase.from("inventory_items").select("name, qty, unit"),
     ]);
-    setRecipes((r as Recipe[]) ?? []); setBatches((b as Batch[]) ?? []); setEvents((e as Ev[]) ?? []); setVessels((v as Vessel[]) ?? []); setStops((st as St[]) ?? []);
+    const bb = (b as Batch[]) ?? [];
+    setRecipes((r as Recipe[]) ?? []); setBatches(bb); setEvents((e as Ev[]) ?? []); setVessels((v as Vessel[]) ?? []); setStops((st as St[]) ?? []);
+    setInv(((ii as InvItem[]) ?? []).filter((i) => i.name?.trim()));
+    // Demand for the drops these batches feed — per drop_date + flavor, same math as DropOps.
+    const dates = [...new Set(bb.filter((x) => x.status !== "served" && x.status !== "dumped" && x.drop_date).map((x) => x.drop_date!))];
+    const per: Record<string, Record<string, number>> = {};
+    if (dates.length) {
+      const { data: o } = await supabase.from("drop_orders").select("drop_date, mix, canceled_at").is("canceled_at", null).in("drop_date", dates);
+      ((o as { drop_date: string; mix: Record<string, number> | null }[]) ?? []).forEach((row) => {
+        const d = (per[row.drop_date] ??= { RISE: 0, FLOW: 0, DUSK: 0 });
+        FLAVORS.forEach((f) => { d[f] += row.mix?.[f] || 0; });
+      });
+    }
+    setDemand(per);
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -74,11 +123,6 @@ export default function BrewPlanner() {
     setBatches((p) => p.map((x) => x.id === id ? { ...x, status } : x));
     await supabase.from("brew_batches").update({ status }).eq("id", id);
     if (status === "served" || status === "dumped") load();
-  };
-  const logScore = async (id: string, score: number) => {
-    if (!supabase) return;
-    setBatches((p) => p.map((x) => x.id === id ? { ...x, signal_score: score } : x));
-    await supabase.from("brew_batches").update({ signal_score: score }).eq("id", id);
   };
   // Start the brew NOW — stamp the start, set ready_at = now + extraction_hours, capture the coffee
   // lot + brewer for traceability, reset alert flags.
@@ -153,6 +197,7 @@ export default function BrewPlanner() {
           {active.map((b) => {
             const ev = events.find((e) => e.id === b.event_id);
             const tgt = ev ? (ev.title || ev.day_label) : stops.find((s) => s.id === b.stop_id)?.name ?? null;
+            const spec = specLabel(b.target_spec);
             return (
               <div key={b.id} className={`brew-card st-${b.status}`}>
                 <div className="brew-card-top">
@@ -162,8 +207,27 @@ export default function BrewPlanner() {
                   </select>
                 </div>
                 <div className="brew-card-meta">
-                  {b.vessel ? `${b.vessel} · ` : ""}Brew {fmtDate(b.brew_date)} → ready {fmtTs(b.ready_at)}{tgt ? ` · for ${tgt}` : ""}{b.target_spec ? ` · ${b.target_spec}` : ""}
+                  {b.vessel ? `${b.vessel} · ` : ""}Brew {fmtDate(b.brew_date)} → ready {fmtTs(b.ready_at)}{tgt ? ` · for ${tgt}` : ""}{spec ? ` · ${spec}` : ""}
                 </div>
+
+                {(b.status === "planned" || b.status === "brewing") && (() => {
+                  // Coverage — will this run cover what's reserved for its drop?
+                  const rec = recipes.find((r) => r.id === b.recipe_id);
+                  const makes = bottlesFor(b.batch_gal, rec?.yield_factor);
+                  const flavor = rec?.product_slug?.toUpperCase(); // 'rise' → mix key 'RISE'
+                  const reserved = b.drop_date && flavor ? demand[b.drop_date]?.[flavor] : undefined;
+                  const short = reserved != null ? reserved - makes : 0;
+                  return (
+                    <div className={`brew-oprow${reserved == null ? "" : short > 0 ? " warn" : " ok"}`}>
+                      Makes ~{makes} bottles{reserved == null ? "" : ` · ${reserved} reserved — ${short > 0 ? `short ${short}` : "covers it"}`}
+                    </div>
+                  );
+                })()}
+                {b.status === "planned" && !b.brew_started_at && (() => {
+                  const shorts = stockShorts(b.scaled, inv);
+                  if (!shorts) return null;
+                  return <div className={`brew-oprow${shorts.length ? " warn" : " ok"}`}>{shorts.length ? shorts.join(" · ") : "Stock covers it"}</div>;
+                })()}
 
                 {b.status === "planned" && (
                   <>
@@ -197,11 +261,18 @@ export default function BrewPlanner() {
                 )}
                 {(b.status === "ready" || b.status === "kegged") && (
                   <>
-                    <div className="brew-score">Signal Score
-                      {[6, 7, 8, 9, 10].map((n) => (
-                        <button key={n} type="button" className={`brew-score-b${b.signal_score === n ? " on" : ""}`} onClick={() => logScore(b.id, n)}>{n}</button>
-                      ))}
-                    </div>
+                    {b.ready_at && (() => {
+                      // Serve-by — the same deadline the alert ladder (0084) pushes on; show it here before the push does.
+                      const serveBy = new Date(b.ready_at).getTime() + Number(b.hold_hours ?? 72) * 3600000;
+                      const ms = serveBy - now;
+                      const label = new Date(serveBy).toLocaleString(undefined, { weekday: "short", hour: "numeric" }).replace(",", "");
+                      const h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000);
+                      return (
+                        <div className={`brew-oprow${ms <= 0 ? " over" : ms < 12 * 3600000 ? " warn" : " ok"}`}>
+                          {ms <= 0 ? `Serve by ${label} — past its window` : `Serve by ${label} · ${h > 0 ? `${h}h` : `${m}m`} left`}
+                        </div>
+                      );
+                    })()}
                     <button type="button" className="brew-pack-btn" onClick={() => setPack(b)}>📦 Plan the bottle loadout</button>
                   </>
                 )}
@@ -216,7 +287,7 @@ export default function BrewPlanner() {
       <div className="brew-list">
         {recipes.map((r) => (
           <button key={r.id} type="button" className="brew-recipe" onClick={() => setPlan(r)}>
-            <span className="brew-recipe-main"><b>{r.name}</b><span>{[r.style, r.ratio, r.target_spec].filter(Boolean).join(" · ")}</span></span>
+            <span className="brew-recipe-main"><b>{r.name}</b><span>{[r.style, r.ratio, specLabel(r.target_spec)].filter(Boolean).join(" · ")}</span></span>
             <span className="brew-recipe-go">Plan ›</span>
           </button>
         ))}

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Sheet from "@/components/Sheet";
 import { useOperatorSection } from "./OperatorNav";
+import { CAL_CAT, CONTENT_STATUS as STC } from "@/lib/calendarTokens";
 
 // BRAND CALENDAR — the planning brain of Studio. Posts (scheduled content) + events roll onto one
 // month view so Ryan + Kayla see the whole picture and build FROM it.
@@ -17,7 +18,6 @@ import { useOperatorSection } from "./OperatorNav";
 type CItem = { id: string; title: string; status: string; channel: string; scheduled_for: string | null; event_id: string | null };
 type EvItem = { id: string; title: string | null; day: string; day_label: string | null };
 
-const STC: Record<string, string> = { draft: "#9a8f7c", review: "var(--gold2)", changes: "#d2554a", approved: "#7bbf6a", scheduled: "#6fa8dc", published: "#7bbf6a" };
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const key = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -167,8 +167,8 @@ function DayView({ dayKey, posts, evs, evTitle, onClose, onEdit, onOpenFull, onA
           {posts.length === 0 && evs.length === 0 && <div className="oa-empty" style={{ padding: "18px 8px" }}>Nothing this day. Tap + New piece to start one.</div>}
           <div className="dv-list">
             {evs.map((e) => (
-              <div key={e.id} className="dv-row" style={{ ["--c" as string]: "#6fa8dc" }}>
-                <span className="dv-dot" style={{ background: "#6fa8dc" }} />
+              <div key={e.id} className="dv-row" style={{ ["--c" as string]: CAL_CAT.event.color }}>
+                <span className="dv-dot" style={{ background: CAL_CAT.event.color }} />
                 <span className="dv-main"><b>📍 {e.title || e.day_label || "Event"}</b><span>event · plan content around it</span></span>
               </div>
             ))}

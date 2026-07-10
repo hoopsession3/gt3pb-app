@@ -15,7 +15,7 @@ import { squareClientReady } from "@/lib/square";
 import { haptic, HAPTIC } from "@/lib/haptics";
 import {
   PACK_SIZES, PACK_TAG, PACK_HINT, FLAVOR_DESC,
-  packTotal, perBottle, saveAmount, dropForStop, nextDrop, type GlassPath,
+  packTotal, perBottle, saveAmount, dropForStop, nextDrop, dropDateKey, type GlassPath,
 } from "@/lib/orderAhead";
 import {
   quoteDelivery, deliverySlotChoices, zipInZone, maxRefills,
@@ -215,7 +215,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
       const res = await authedFetch("/api/reserve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceId: sourceId ?? undefined, name: name.trim(), phone: phone.trim(), size: count, glass: (bringBack ? "return" : "new") as GlassPath, mix: { RISE: mix.rise, FLOW: mix.flow, DUSK: mix.dusk }, dropDate: drop.sat.toISOString() }),
+        body: JSON.stringify({ sourceId: sourceId ?? undefined, name: name.trim(), phone: phone.trim(), size: count, glass: (bringBack ? "return" : "new") as GlassPath, mix: { RISE: mix.rise, FLOW: mix.flow, DUSK: mix.dusk }, dropDate: dropDateKey(drop.sat) }),
       });
       const data = await res.json(); setBusy(false);
       if (!res.ok) { setErr(data.error || "Something went wrong — try again."); return; }

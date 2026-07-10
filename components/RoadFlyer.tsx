@@ -6,6 +6,7 @@ import { authedFetch } from "@/lib/authedFetch";
 import { uploadToBucket } from "@/lib/uploads";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
+import { localToday } from "@/lib/dates";
 
 // ROAD FLYER — the locked GT3 house graphics, drawn on a canvas so they're pixel-identical every
 // time. A five-slide set (Announce · Menu · Sub-menu · Details · Photo) that reads as ONE luxury
@@ -127,7 +128,7 @@ export default function RoadFlyer() {
 
   useEffect(() => {
     if (!supabase) return;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localToday(); // display filter — the operator's wall-clock day
     Promise.all([
       supabase.from("events").select("id,title,day,start_time,end_time,location_text").is("archived_at", null).gte("day", today).order("day").limit(20),
       supabase.from("stops").select("id,name,starts_at,when_label,time_label,location_text,address").is("archived_at", null).neq("status", "done").order("starts_at").limit(20),

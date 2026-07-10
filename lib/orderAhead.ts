@@ -8,6 +8,7 @@
 // discounts anywhere.
 
 import { FRESH_PER_BOTTLE_CENTS, FLAT_BRING_BACK_CENTS, PICKUP_PACK_BRING_BACK_DOLLARS } from "./bottlePricing";
+import { etDayKey } from "./dates";
 
 export const PRICING = {
   // order-ahead + bring bottles back — pickup's own bulk-discount schedule (see lib/bottlePricing.ts)
@@ -65,7 +66,9 @@ export const mixSummary = (mix: Mix): string => FLAVORS.filter((f) => mix[f] > 0
 // Saturday drop; ordering closes Wed 18:00 local (Saturday − 3 days). Past cutoff rolls to next week.
 // `now` is injectable so the server can pass its own clock and the smoke suite can pin a moment.
 export function nextDrop(now: Date = new Date()): { sat: Date; cutoff: Date } {
-  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // Anchored at NOON local so dropDateKey (ET day) lands on the same calendar day whether this
+  // runs on a UTC server or a US client — local midnight reads as the ET day before on Vercel.
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12);
   const daysToSat = (6 - d.getDay() + 7) % 7;
   const sat = new Date(d); sat.setDate(d.getDate() + daysToSat);
   const cutoff = new Date(sat); cutoff.setDate(sat.getDate() - 3); cutoff.setHours(18, 0, 0, 0);
@@ -76,7 +79,7 @@ export function nextDrop(now: Date = new Date()): { sat: Date; cutoff: Date } {
 // client that posts a stale/closed drop.
 export function dropIsOpen(dropDateISO: string, now: Date = new Date()): boolean {
   const { sat } = nextDrop(now);
-  return dropDateISO.slice(0, 10) === sat.toISOString().slice(0, 10);
+  return dropDateISO.slice(0, 10) === dropDateKey(sat);
 }
 
 // A pack pickup always follows the truck's NEXT scheduled stop: pickup = that stop's date, and
@@ -88,8 +91,10 @@ export function dropForStop(startsAtISO: string): { sat: Date; cutoff: Date } {
   const pickup = new Date(startsAtISO);
   return { sat: pickup, cutoff: new Date(pickup.getTime() - STOP_LEAD_MS) };
 }
-// the drop-date string both sides agree on (UTC date slice), so client display and server validation match
-export const dropDateKey = (d: Date): string => d.toISOString().slice(0, 10);
+// the drop-date string both sides agree on — the ET business day (lib/delivery.ts convention),
+// NOT a UTC slice: a stop at/after 8pm ET would land on the next UTC day and split the drop
+// sheet, reservations, and brew links across two dates.
+export const dropDateKey = (d: Date): string => etDayKey(d);
 
 // ── à-la-carte pre-order window ──
 // A cup pre-order promises "ready in ~8 min", which is only true when there's a truck to make it.

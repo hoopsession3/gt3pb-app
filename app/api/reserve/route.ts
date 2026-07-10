@@ -59,7 +59,11 @@ export async function POST(req: Request) {
     offered.set(dropDateKey(new Date(at)), dropForStop(at).cutoff);
   }
   if (offered.size === 0) { const fb = nextDrop(); offered.set(dropDateKey(fb.sat), fb.cutoff); }
-  const requested = String(body.dropDate ?? "").slice(0, 10);
+  // Accept a plain day key or a full ISO instant; an instant resolves through the same ET
+  // day-key rule the offered map uses (post-8pm-ET stops are otherwise off by one UTC day).
+  const raw = String(body.dropDate ?? "");
+  const parsed = new Date(raw);
+  const requested = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : Number.isNaN(parsed.getTime()) ? raw.slice(0, 10) : dropDateKey(parsed);
   const cutoff = offered.get(requested);
   if (!cutoff) {
     return NextResponse.json({ error: "That pickup day just changed — refresh to see the current stops." }, { status: 409 });

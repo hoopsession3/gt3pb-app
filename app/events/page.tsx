@@ -13,10 +13,19 @@ import Sheet from "@/components/Sheet";
 import SignIn from "@/components/SignIn";
 import { calFromEvent } from "@/lib/ics";
 import { supabase } from "@/lib/supabase";
+import { localToday } from "@/lib/dates";
 import type { EventRow } from "@/lib/db";
 
 function evTime(ev: EventRow) {
   return ev.end_time ? `${ev.start_time ?? ""}–${ev.end_time}` : ev.start_time ?? "";
+}
+
+// "Sat, Jul 12" from events.day — parsed as local calendar parts, NOT new Date(iso),
+// which reads as UTC midnight and shows yesterday for evening viewers.
+function evDate(ev: EventRow) {
+  if (!ev.day) return null;
+  const [y, m, d] = ev.day.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
 
 function ReserveCard() {
@@ -87,10 +96,12 @@ function RsvpRow({ ev }: { ev: EventRow }) {
     toggle();
   };
 
+  const dateStr = evDate(ev);
+
   return (
     <div className="ev-wrap">
       <div className={`ev${ev.member_only ? " mo" : ""}`}>
-        <div className="when"><b>{ev.day_label ?? ""}</b><span>{evTime(ev)}</span></div>
+        <div className="when"><b>{ev.day_label ?? ""}</b>{dateStr && <span className="ev-when-date">{dateStr}</span>}<span>{evTime(ev)}</span></div>
         <div className="info" role={hasDetail ? "button" : undefined} tabIndex={hasDetail ? 0 : undefined} aria-expanded={hasDetail ? open : undefined}
           onClick={() => hasDetail && setOpen((o) => !o)} onKeyDown={(e) => { if (hasDetail && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setOpen((o) => !o); } }}>
           <b>{ev.title}{ev.member_only && <span className="motag">Members</span>}</b>
@@ -103,7 +114,7 @@ function RsvpRow({ ev }: { ev: EventRow }) {
       {open && hasDetail && (
         <div className="ev-detail">
           {ev.location_text && <div className="ev-det-row"><span className="ev-det-k">Where</span><a className="ev-maplink" href={`https://maps.google.com/?q=${encodeURIComponent(ev.location_text)}`} target="_blank" rel="noreferrer">📍 {ev.location_text}</a></div>}
-          {(ev.start_time || ev.end_time) && <div className="ev-det-row"><span className="ev-det-k">When</span><span>{ev.day_label ? `${ev.day_label} · ` : ""}{evTime(ev)}</span></div>}
+          {(ev.start_time || ev.end_time) && <div className="ev-det-row"><span className="ev-det-k">When</span><span>{(dateStr ?? ev.day_label) ? `${dateStr ?? ev.day_label} · ` : ""}{evTime(ev)}</span></div>}
           {ev.blurb && <p className="ev-det-blurb">{ev.blurb}</p>}
           {ev.member_only && <div className="ev-det-note">Members only — sign in to RSVP.</div>}
           <div style={{ marginTop: 10 }}><AddToCalendar ev={calFromEvent({ id: ev.id, title: ev.title, day: ev.day, start_time: ev.start_time, end_time: ev.end_time, location_text: ev.location_text, blurb: ev.blurb })} /></div>
@@ -123,18 +134,24 @@ function EventsLive() {
   const router = useRouter();
   const [events, setEvents] = useState<EventRow[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [showPast, setShowPast] = useState(false);
 
   useEffect(() => {
     let active = true;
     (async () => {
       if (!supabase) return;
-      const { data } = await supabase.from("events").select("*").order("sort");
+      const { data } = await supabase.from("events").select("*")
+        .order("day", { ascending: true, nullsFirst: false }).order("sort");
       // hide archived events from guests (client-side so it's safe pre-migration 0032)
       if (active && data) setEvents((data as EventRow[]).filter((e) => !e.archived_at));
       if (active) setLoaded(true);
     })();
     return () => { active = false; };
   }, []);
+
+  const today = localToday();
+  const upcoming = events.filter((e) => !e.day || e.day >= today);
+  const past = events.filter((e) => e.day && e.day < today);
 
   return (
     <section className="screen" id="s-events">
@@ -149,8 +166,17 @@ function EventsLive() {
       <div className="dchapter"><span className="dchn">This Week</span><span className="dchw">save your spot</span></div>
       <div className="dchrule" />
       {!loaded && <Skeleton variant="row" count={3} />}
-      {events.map((ev) => <RsvpRow key={ev.id} ev={ev} />)}
-      {loaded && events.length === 0 && <EmptyState title="No events this week" sub="New pours and run-club meetups drop here — check back soon." />}
+      {upcoming.map((ev) => <RsvpRow key={ev.id} ev={ev} />)}
+      {loaded && upcoming.length === 0 && <EmptyState title="No events this week" sub="New pours and run-club meetups drop here — check back soon." />}
+
+      {past.length > 0 && (
+        <div className="ev-archived">
+          <button type="button" className="ev-arch-head" onClick={() => setShowPast((s) => !s)} aria-expanded={showPast}>
+            Past · {past.length}<span className={`ev-chev${showPast ? " open" : ""}`}>›</span>
+          </button>
+          {showPast && past.map((ev) => <RsvpRow key={ev.id} ev={ev} />)}
+        </div>
+      )}
 
       {/* Always-relevant closing beat — true whether this week is packed or slow, so the page
           never just trails off into empty space on a quiet week. */}

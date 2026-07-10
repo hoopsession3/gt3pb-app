@@ -149,6 +149,7 @@ export default function CrmPanel() {
               <span>{[c.phone, c.email].filter(Boolean).join(" · ") || "no contact info"}</span>
             </span>
             <span className={`crm-badge${c.user_id ? " member" : ""}`}>{c.user_id ? "Member" : "Guest"}</span>
+            <span className={`ev-chev${openId === c.id ? " open" : ""}`} aria-hidden="true">›</span>
           </button>
           {openId === c.id && <CrmDetail c={c} />}
         </div>

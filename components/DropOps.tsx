@@ -6,6 +6,7 @@ import { useRealtimeTable } from "@/lib/realtime";
 import { raiseAlertClient } from "@/lib/clientAlerts";
 import { useApp } from "./AppProvider";
 import { FLAVORS, nextDrop, dropDateKey, mixSummary, dollars, type GlassPath, type Mix } from "@/lib/orderAhead";
+import { dayKey, etToday } from "@/lib/dates";
 
 // DROP OPS — the order-ahead brew sheet + pickup checklist for Saturday's drop. Lives in the admin
 // "Now" section right under the kitchen pass (and pops out of reservation alerts), so walk-up orders
@@ -179,7 +180,7 @@ export default function DropOps({ brief = false, onOpen }: { brief?: boolean; on
     const { data: recipes } = await supabase.from("brew_recipes")
       .select("id, name, product_slug, yield_factor").in("product_slug", wanted.map((f) => f.toLowerCase())).is("archived_at", null);
     const brewD = new Date(`${dropISO}T12:00:00`); brewD.setDate(brewD.getDate() - 1); // 18h cold extraction → brew the day before the drop
-    const brewISO = brewD.toISOString().slice(0, 10);
+    const brewISO = dayKey(brewD); // local round-trip of the local-parsed date — a UTC slice could shift a day
     const ins = wanted.map((f) => {
       const r = (recipes ?? []).find((x) => x.product_slug === f.toLowerCase());
       const gal = quarterGal((perF[f] * GAL_PER_BOTTLE) / (Number(r?.yield_factor) || 0.92));
@@ -212,7 +213,7 @@ export default function DropOps({ brief = false, onOpen }: { brief?: boolean; on
   // The name-by-name checklist is window work — it matters ON drop day. On prep days it's noise
   // under the brew sheet, so the progress line doubles as a fold: open on the drop's date (or by
   // tap any time), collapsed otherwise. Same pattern as "Past drops" below.
-  const isDropDay = rows.length > 0 && rows[0].drop_date === new Date().toISOString().slice(0, 10);
+  const isDropDay = rows.length > 0 && rows[0].drop_date === etToday(); // drop_date is an ET business-day key
   const showList = listOpen ?? isDropDay;
 
   return (

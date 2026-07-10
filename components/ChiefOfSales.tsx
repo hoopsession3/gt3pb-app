@@ -54,15 +54,14 @@ export default function ChiefOfSales({ onLeads }: { onLeads?: () => void }) {
   const keepN = opps?.filter((o) => !o._skip).length ?? 0;
 
   return (
-    <div className="cos cos-sales">
-      <button type="button" className="cossales-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        <span className="cos-eyebrow">🎯 Chief of Sales</span>
-        <span className="cossales-sub">scout events &amp; opportunities → leads</span>
+    <div style={{ marginBottom: 16 }}>
+      <button type="button" className="prep-collapse" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <span className="prep-collapse-l"><b>🎯 Chief of Sales</b><span>Scouts events &amp; venues worth pitching — open before planning next month</span></span>
         <span className={`ev-chev${open ? " open" : ""}`} aria-hidden="true">›</span>
       </button>
 
       {open && (
-        <div style={{ marginTop: 12 }}>
+        <div className="cos cos-sales" style={{ marginTop: 10, marginBottom: 0 }}>
           {done !== null ? (
             <div className="eg-done">
               <div className="eg-done-h">✓ Added {done} lead{done === 1 ? "" : "s"} to Bookings</div>

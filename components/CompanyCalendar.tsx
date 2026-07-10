@@ -1,9 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { useRealtimeTable } from "@/lib/realtime";
+import { CAL_CAT as CAT } from "@/lib/calendarTokens";
+import { useWorkStreams } from "@/lib/streams";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import { useOperatorSection } from "./OperatorNav";
 import EventDayPlanner from "./EventDayPlanner";
@@ -19,12 +22,7 @@ type Content = { id: string; title: string; scheduled_for: string | null; status
 type Todo = { id: string; title: string; category: string; due_on: string | null; done: boolean; event_id: string | null; meeting_note_id: string | null };
 type PrepTask = { id: string; label: string; due_at: string | null; event_id: string | null; stop_id: string | null; meeting_note_id: string | null };
 
-const CAT: Record<string, { label: string; color: string; icon: string }> = {
-  stop: { label: "Truck", color: "#5b9a6b", icon: "🚚" }, event: { label: "Events", color: "#6fa8dc", icon: "📍" },
-  ops: { label: "Ops", color: "#e0892b", icon: "🛠️" }, admin: { label: "Admin", color: "#8b5cf6", icon: "📋" },
-  content: { label: "Content", color: "#2bb3a3", icon: "🎨" }, task: { label: "Tasks", color: "#c2603f", icon: "⏰" },
-};
-const FILTERS = ["all", "stop", "event", "ops", "admin", "content", "task"];
+const FILTERS = ["all", ...Object.keys(CAT)];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const MON3 = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -32,10 +30,18 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const key = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const addDaysKey = (iso: string, n: number) => { const d = new Date(`${iso}T00:00:00`); d.setDate(d.getDate() + n); return key(d); };
 const VIEW_KEY = "gt3-company-cal-view";
-type View = "list" | "week" | "month" | "quarter" | "year";
+type View = "list" | "board" | "cards" | "rails" | "week" | "month" | "quarter" | "year";
+// board/cards/rails are "from today" views — no month cursor, one shared window
+const FLOW_VIEWS: View[] = ["list", "board", "cards", "rails"];
+const VLABEL: Record<View, string> = { list: "Agenda", board: "Board", cards: "Cards", rails: "Rails", week: "Week", month: "Month", quarter: "Quarter", year: "Year" };
 
 type Stop = { id: string; name: string; location_text: string | null; starts_at: string | null; status: string | null };
-type Item = { id: string; title: string; cat: string; kind: "event" | "content" | "todo" | "stop" | "task"; done?: boolean; meta?: string; go: () => void; toggle?: () => void };
+type Brew = { id: string; recipe_name: string | null; batch_gal: number | null; status: string; brew_date: string | null; ready_at: string | null; latest_start_at: string | null };
+type Item = { id: string; title: string; cat: string; kind: "event" | "content" | "todo" | "stop" | "task" | "brew" | "drop" | "delivery"; done?: boolean; warn?: boolean; meta?: string; go: () => void; toggle?: () => void };
+// kinds that back a SRC row and can be edited/dragged here; brew/drop/delivery are read-only rollups
+type EditKind = "event" | "content" | "todo" | "stop" | "task";
+const isEditable = (k: Item["kind"]): k is EditKind => k in SRC;
+const DRAG = new Set<Item["kind"]>(["event", "stop", "content", "todo"]); // event_task + rollups stay put
 
 function gridMonth(cursor: Date): Date[] { const s = new Date(cursor.getFullYear(), cursor.getMonth(), 1); s.setDate(1 - s.getDay()); return Array.from({ length: 42 }, (_, i) => { const d = new Date(s); d.setDate(s.getDate() + i); return d; }); }
 function gridWeek(cursor: Date): Date[] { const s = new Date(cursor); s.setDate(cursor.getDate() - cursor.getDay()); return Array.from({ length: 7 }, (_, i) => { const d = new Date(s); d.setDate(s.getDate() + i); return d; }); }
@@ -43,6 +49,7 @@ const qStart = (cursor: Date) => Math.floor(cursor.getMonth() / 3) * 3;
 
 export default function CompanyCalendar() {
   const { setSection } = useOperatorSection();
+  const router = useRouter();
   const { profile } = useAuth();
   const isOwner = roleOf(profile) === "owner";
   const now = new Date();
@@ -59,17 +66,28 @@ export default function CompanyCalendar() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [stops, setStops] = useState<Stop[]>([]);
   const [prepTasks, setPrepTasks] = useState<PrepTask[]>([]);
+  const [brews, setBrews] = useState<Brew[]>([]);
+  const [drops, setDrops] = useState<{ drop_date: string; size: number }[]>([]);
+  const [dels, setDels] = useState<{ delivery_date: string }[]>([]);
   const [filter, setFilter] = useState<string>("all");
   const [filterSheet, setFilterSheet] = useState(false); // categories live behind one quiet chip
   const [addDay, setAddDay] = useState<string | null>(null);
   const [dayOpen, setDayOpen] = useState<string | null>(null); // a date → show that day's detail
+  const [backlogT, setBacklogT] = useState<Todo[]>([]);   // undated to-dos — Board's Unscheduled column
+  const [backlogC, setBacklogC] = useState<Content[]>([]); // unscheduled content, same column
+  const [edit, setEdit] = useState<{ kind: EditKind; id: string } | null>(null); // Cards/Rails edit in place
   const [stale, setStale] = useState(0); // overdue, unpublished, not-yet-tidied content
   const [tidying, setTidying] = useState(false);
-  const dragId = useRef<string | null>(null);
+  const dragId = useRef<{ kind: EditKind; id: string } | null>(null);
   const [over, setOver] = useState<string | null>(null);
 
   // The date window to load + render, by view.
   const range = useMemo(() => {
+    if (view === "board" || view === "cards" || view === "rails") {
+      const s = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 14);
+      const e = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 60);
+      return { start: s, end: e };
+    }
     if (view === "week") { const w = gridWeek(cursor); return { start: w[0], end: w[6] }; }
     if (view === "list") { const s = new Date(cursor.getFullYear(), cursor.getMonth(), 1); const e = new Date(s); e.setMonth(e.getMonth() + 3); e.setDate(0); return { start: s, end: e }; }
     if (view === "quarter") { const q = qStart(cursor); const s = new Date(cursor.getFullYear(), q, 1); const e = new Date(cursor.getFullYear(), q + 3, 0); return { start: s, end: e }; }
@@ -82,17 +100,24 @@ export default function CompanyCalendar() {
     const to = key(range.end);
     const eFrom = (() => { const d = new Date(range.start); d.setDate(d.getDate() - 31); return key(d); })(); // catch multi-day spillover
     const from = key(range.start);
-    const [e, c, t, s, pt] = await Promise.all([
+    const [e, c, t, s, pt, bb, dr, dv, bt, bc] = await Promise.all([
       supabase.from("events").select("id, title, day, day_label, is_live, category, plan_days, stage").is("archived_at", null).gte("day", eFrom).lte("day", to),
       supabase.from("content_items").select("id, title, scheduled_for, status").is("archived_at", null).not("scheduled_for", "is", null).gte("scheduled_for", `${from}T00:00:00`).lte("scheduled_for", `${to}T23:59:59`),
       supabase.from("todos").select("id, title, category, due_on, done, event_id, meeting_note_id").not("due_on", "is", null).gte("due_on", from).lte("due_on", to),
       supabase.from("stops").select("id, name, location_text, starts_at, status").not("starts_at", "is", null).neq("status", "done").gte("starts_at", `${from}T00:00:00`).lte("starts_at", `${to}T23:59:59`),
       supabase.from("event_tasks").select("id, label, due_at, event_id, stop_id, meeting_note_id").eq("done", false).eq("kind", "task").not("due_at", "is", null).gte("due_at", `${from}T00:00:00`).lte("due_at", `${to}T23:59:59`),
+      supabase.from("brew_batches").select("id, recipe_name, batch_gal, status, brew_date, ready_at, latest_start_at").not("status", "in", "(served,dumped)").not("brew_date", "is", null).gte("brew_date", from).lte("brew_date", to),
+      supabase.from("drop_orders").select("drop_date, size").is("canceled_at", null).gte("drop_date", from).lte("drop_date", to),
+      supabase.from("delivery_orders").select("delivery_date").is("canceled_at", null).gte("delivery_date", from).lte("delivery_date", to),
+      supabase.from("todos").select("id, title, category, due_on, done, event_id, meeting_note_id").is("due_on", null).eq("done", false).limit(30),
+      supabase.from("content_items").select("id, title, scheduled_for, status").is("archived_at", null).is("scheduled_for", null).neq("status", "published").limit(30),
     ]);
     setEvents((e.data as Ev[]) ?? []); setContent((c.data as Content[]) ?? []); setTodos((t.data as Todo[]) ?? []); setStops((s.data as Stop[]) ?? []); setPrepTasks((pt.data as PrepTask[]) ?? []);
+    setBrews((bb.data as Brew[]) ?? []); setDrops((dr.data as { drop_date: string; size: number }[]) ?? []); setDels((dv.data as { delivery_date: string }[]) ?? []);
+    setBacklogT((bt.data as Todo[]) ?? []); setBacklogC((bc.data as Content[]) ?? []);
   }, [range]);
   useEffect(() => { load(); }, [load]);
-  useRealtimeTable(["todos", "content_items", "events", "stops", "event_tasks"], load);
+  useRealtimeTable(["todos", "content_items", "events", "stops", "event_tasks", "brew_batches", "drop_orders", "delivery_orders"], load);
 
   const loadStale = useCallback(async () => { if (!supabase) return; const { data } = await supabase.rpc("stale_content_count"); setStale(typeof data === "number" ? data : 0); }, []);
   useEffect(() => { loadStale(); }, [loadStale]);
@@ -112,11 +137,33 @@ export default function CompanyCalendar() {
     setTodos((p) => p.map((x) => x.id === t.id ? { ...x, done: !x.done } : x));
     await supabase.from("todos").update({ done: !t.done, done_at: !t.done ? new Date().toISOString() : null }).eq("id", t.id);
   };
-  const reschedule = async (id: string, dayKey: string) => {
+  // Drag-to-reschedule for every editable kind — same rule as CalEdit's onDate: plain-date columns
+  // take the day key, timestamp columns keep their existing time-of-day.
+  const reschedule = async (kind: EditKind, id: string, dayKey: string) => {
     if (!supabase) return;
-    setTodos((p) => p.map((x) => x.id === id ? { ...x, due_on: dayKey } : x));
-    await supabase.from("todos").update({ due_on: dayKey }).eq("id", id);
+    const cfg = SRC[kind];
+    let val: string = dayKey;
+    if (cfg.dateIsTimestamp) {
+      const prev = kind === "stop" ? stops.find((x) => x.id === id)?.starts_at : content.find((x) => x.id === id)?.scheduled_for;
+      const old = prev ? new Date(prev) : null;
+      const hh = old ? `${pad(old.getHours())}:${pad(old.getMinutes())}` : cfg.defTime;
+      val = new Date(`${dayKey}T${hh}:00`).toISOString();
+    }
+    if (kind === "todo") setTodos((p) => p.map((x) => x.id === id ? { ...x, due_on: dayKey } : x));
+    await supabase.from(cfg.table).update({ [cfg.dateCol]: val }).eq("id", id);
+    load();
   };
+  const unschedule = async (kind: EditKind, id: string) => {
+    if (!supabase || (kind !== "todo" && kind !== "content")) return;
+    await supabase.from(SRC[kind].table).update({ [SRC[kind].dateCol]: null }).eq("id", id);
+    load();
+  };
+  // Business-rhythm rollups deep-link to the surface that owns them (same pattern as Studio's
+  // "Company calendar ↗" hand-off). setSection for cross-section jumps — OperatorNav only reads
+  // ?s= on mount/popstate, so a bare router.push wouldn't switch; brew stays a URL push because
+  // we're already inside Plan and setSection would no-op.
+  const openBrew = () => { try { localStorage.setItem("gt3-plan-tab", "brew"); } catch { /* ignore */ } router.push("/admin?s=plan"); };
+  const openNow = () => setSection("now");
 
   const pass = (cat: string) => filter === "all" || filter === cat;
   const byDay = useMemo(() => {
@@ -136,8 +183,45 @@ export default function CompanyCalendar() {
     for (const c of content) if (c.scheduled_for && pass("content")) push(key(new Date(c.scheduled_for)), { id: c.id, title: c.title || "Content", cat: "content", kind: "content", go: () => setSection("studio") });
     for (const t of todos) if (t.due_on && pass(t.category)) push(t.due_on, { id: t.id, title: t.title, cat: CAT[t.category] ? t.category : "ops", kind: "todo", done: t.done, go: () => { if (t.event_id) openEventPrep(t.event_id); else if (t.meeting_note_id) setSection("plan"); }, toggle: () => toggleTodo(t) });
     for (const t of prepTasks) if (t.due_at && pass("task")) push(key(new Date(t.due_at)), { id: t.id, title: t.label, cat: "task", kind: "task", go: () => { if (t.event_id) openEventPrep(t.event_id); else if (t.stop_id) openStopPrep(t.stop_id); else if (t.meeting_note_id) setSection("plan"); } });
+    if (pass("brew")) for (const b of brews) if (b.brew_date) push(b.brew_date, { id: b.id, title: `Brew · ${b.recipe_name || "Batch"} ${Number(b.batch_gal ?? 1)} gal`, cat: "brew", kind: "brew", warn: b.status === "planned" && !!b.latest_start_at && new Date(b.latest_start_at) < new Date(), go: openBrew });
+    if (pass("drop")) {
+      const agg: Record<string, number> = {};
+      for (const d of drops) agg[d.drop_date] = (agg[d.drop_date] || 0) + 1;
+      for (const [dk, n] of Object.entries(agg)) push(dk, { id: `drop-${dk}`, title: `Drop · ${n} pack${n === 1 ? "" : "s"}`, cat: "drop", kind: "drop", go: openNow });
+    }
+    if (pass("delivery")) {
+      const agg: Record<string, number> = {};
+      for (const d of dels) agg[d.delivery_date] = (agg[d.delivery_date] || 0) + 1;
+      for (const [dk, n] of Object.entries(agg)) push(dk, { id: `del-${dk}`, title: `Sunday run · ${n} porch${n === 1 ? "" : "es"}`, cat: "delivery", kind: "delivery", go: openNow });
+    }
     return m;
-  }, [events, content, todos, stops, prepTasks, filter]);
+  }, [events, content, todos, stops, prepTasks, brews, drops, dels, filter]);
+
+  // Flat date-sorted spine for Board / Cards / Rails.
+  const flat = useMemo(() => {
+    const out: { k: string; it: Item }[] = [];
+    for (const [k, its] of Object.entries(byDay)) for (const it of its) out.push({ k, it });
+    out.sort((a, b) => a.k.localeCompare(b.k));
+    return out;
+  }, [byDay]);
+  const backlogItems = useMemo(() => {
+    const out: Item[] = [];
+    for (const t of backlogT) if (pass(CAT[t.category] ? t.category : "ops")) out.push({ id: t.id, title: t.title, cat: CAT[t.category] ? t.category : "ops", kind: "todo", done: t.done, go: () => { if (t.event_id) openEventPrep(t.event_id); }, toggle: () => toggleTodo(t) });
+    for (const c of backlogC) if (pass("content")) out.push({ id: c.id, title: c.title || "Content", cat: "content", kind: "content", go: () => setSection("studio") });
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [backlogT, backlogC, filter]);
+
+  // Conflict signal — an event and a truck stop landing on the same day, or a brew past its
+  // latest start. The day gets a warn ring; DayView says it in one line.
+  const warnDays = useMemo(() => {
+    const s = new Set<string>();
+    for (const [k, its] of Object.entries(byDay)) {
+      const kinds = new Set(its.map((i) => i.kind));
+      if ((kinds.has("event") && kinds.has("stop")) || its.some((i) => i.warn)) s.add(k);
+    }
+    return s;
+  }, [byDay]);
 
   // header label + navigation step by view
   const nav = (dir: number) => {
@@ -153,13 +237,16 @@ export default function CompanyCalendar() {
     if (view === "quarter") return `Q${Math.floor(cursor.getMonth() / 3) + 1} ${cursor.getFullYear()}`;
     if (view === "year") return `${cursor.getFullYear()}`;
     if (view === "list") return "Agenda";
+    if (view === "board") return "Flow";
+    if (view === "cards") return "Up next";
+    if (view === "rails") return "By lane";
     return `${MONTHS[cursor.getMonth()]} ${cursor.getFullYear()}`;
   })();
 
-  const VIEWS: View[] = ["list", "week", "month", "quarter", "year"];
+  const VIEWS: View[] = ["list", "board", "cards", "rails", "week", "month", "quarter", "year"];
   const Chip = ({ it }: { it: Item }) => (
-    <button type="button" draggable={it.kind === "todo"} className={`cc-chip${it.done ? " done" : ""}`} style={{ borderLeftColor: CAT[it.cat]?.color }}
-      onDragStart={() => { if (it.kind === "todo") dragId.current = it.id; }} onClick={(e) => { e.stopPropagation(); it.go(); }} title={`${CAT[it.cat]?.label}: ${it.title}`}>
+    <button type="button" draggable={DRAG.has(it.kind)} className={`cc-chip${it.done ? " done" : ""}`} style={{ borderLeftColor: CAT[it.cat]?.color }}
+      onDragStart={() => { if (DRAG.has(it.kind) && isEditable(it.kind)) dragId.current = { kind: it.kind, id: it.id }; }} onClick={(e) => { e.stopPropagation(); it.go(); }} title={`${CAT[it.cat]?.label}: ${it.title}`}>
       {it.kind === "todo" && <span className="cc-check" onClick={(e) => { e.stopPropagation(); it.toggle?.(); }}>{it.done ? "✓" : "○"}</span>}
       <span className="cc-dot" style={{ background: CAT[it.cat]?.color }} />{it.title}
     </button>
@@ -167,7 +254,7 @@ export default function CompanyCalendar() {
 
   return (
     <div className="adm-sec cal">
-      <div className="cal-titlebar"><span className="cal-eyebrow">📅 Company calendar</span><span className="cal-titlesub">everything dated — events · truck · content · to-dos</span></div>
+      <div className="cal-titlebar"><span className="cal-eyebrow">📅 Company calendar</span><span className="cal-titlesub">everything dated — tap any day to open &amp; edit</span></div>
       {stale > 0 && (
         <div className="cal-nudge">
           <span><b>{stale}</b> post{stale === 1 ? "" : "s"} went past their date unpublished.</span>
@@ -177,14 +264,14 @@ export default function CompanyCalendar() {
       <div className="cal-sticky">
         <div className="cal-bar">
           <div className="cal-nav">
-            {view !== "list" && <button type="button" className="cal-arrow" onClick={() => nav(-1)} aria-label="Previous">‹</button>}
+            {!FLOW_VIEWS.includes(view) && <button type="button" className="cal-arrow" onClick={() => nav(-1)} aria-label="Previous">‹</button>}
             <span className="cal-month">{label}</span>
-            {view !== "list" && <button type="button" className="cal-arrow" onClick={() => nav(1)} aria-label="Next">›</button>}
+            {!FLOW_VIEWS.includes(view) && <button type="button" className="cal-arrow" onClick={() => nav(1)} aria-label="Next">›</button>}
           </div>
           <button type="button" className="cal-today" onClick={() => setCur(new Date(now.getFullYear(), now.getMonth(), now.getDate()))}>Today</button>
         </div>
         <div className="cal-views">
-          {VIEWS.map((v) => <button key={v} type="button" className={`cal-view${view === v ? " on" : ""}`} onClick={() => setV(v)}>{v[0].toUpperCase() + v.slice(1)}</button>)}
+          {VIEWS.map((v) => <button key={v} type="button" className={`cal-view${view === v ? " on" : ""}`} onClick={() => setV(v)}>{VLABEL[v]}</button>)}
           <button type="button" className={`cal-filterbtn${filter !== "all" ? " on" : ""}`} onClick={() => setFilterSheet(true)} aria-haspopup="dialog">
             {filter === "all" ? "Filter" : <><span className="cc-dot" style={{ background: CAT[filter].color }} />{CAT[filter].label}</>}
           </button>
@@ -209,8 +296,8 @@ export default function CompanyCalendar() {
           {gridMonth(cursor).map((d) => {
             const k = key(d); const items = byDay[k] || []; const dim = d.getMonth() !== cursor.getMonth();
             return (
-              <div key={k} role="button" tabIndex={0} className={`cal-cell${dim ? " dim" : ""}${k === todayKey ? " today" : ""}${over === k ? " over" : ""}`} onClick={() => setDayOpen(k)}
-                onDragOver={(e) => { e.preventDefault(); setOver(k); }} onDragLeave={() => setOver((o) => o === k ? null : o)} onDrop={() => { setOver(null); const id = dragId.current; dragId.current = null; if (id) reschedule(id, k); }}>
+              <div key={k} role="button" tabIndex={0} className={`cal-cell${dim ? " dim" : ""}${k === todayKey ? " today" : ""}${over === k ? " over" : ""}${warnDays.has(k) ? " heat" : ""}`} onClick={() => setDayOpen(k)}
+                onDragOver={(e) => { e.preventDefault(); setOver(k); }} onDragLeave={() => setOver((o) => o === k ? null : o)} onDrop={() => { setOver(null); const dg = dragId.current; dragId.current = null; if (dg) reschedule(dg.kind, dg.id, k); }}>
                 <div className="cal-cell-h"><span className="cal-date">{d.getDate()}</span><button type="button" className="cal-add" onClick={(e) => { e.stopPropagation(); setAddDay(k); }} aria-label="Add">+</button></div>
                 <div className="cal-marks">
                   {[...new Set(items.map((it) => it.cat))].slice(0, 4).map((c) => <span key={c} className="cal-mark" style={{ background: CAT[c]?.color }} />)}
@@ -228,8 +315,8 @@ export default function CompanyCalendar() {
           {gridWeek(cursor).map((d) => {
             const k = key(d); const items = byDay[k] || [];
             return (
-              <div key={k} className={`cal-wrow${k === todayKey ? " today" : ""}${over === k ? " over" : ""}`}
-                onDragOver={(e) => { e.preventDefault(); setOver(k); }} onDragLeave={() => setOver((o) => o === k ? null : o)} onDrop={() => { setOver(null); const id = dragId.current; dragId.current = null; if (id) reschedule(id, k); }}>
+              <div key={k} className={`cal-wrow${k === todayKey ? " today" : ""}${over === k ? " over" : ""}${warnDays.has(k) ? " heat" : ""}`}
+                onDragOver={(e) => { e.preventDefault(); setOver(k); }} onDragLeave={() => setOver((o) => o === k ? null : o)} onDrop={() => { setOver(null); const dg = dragId.current; dragId.current = null; if (dg) reschedule(dg.kind, dg.id, k); }}>
                 <div className="cal-wday" role="button" tabIndex={0} onClick={() => setDayOpen(k)}><b>{DOW[d.getDay()]}</b><span>{d.getDate()}</span><button type="button" className="cal-add wk" onClick={(e) => { e.stopPropagation(); setAddDay(k); }} aria-label="Add">+</button></div>
                 <div className="cal-witems">{items.length === 0 ? <span className="cal-wnone">—</span> : items.map((it) => <Chip key={`${it.kind}-${it.id}`} it={it} />)}</div>
               </div>
@@ -257,6 +344,81 @@ export default function CompanyCalendar() {
         );
       })()}
 
+      {/* ── BOARD — flow kanban by time bucket; drag a card between columns to reschedule ── */}
+      {view === "board" && (() => {
+        const wk = addDaysKey(todayKey, 7), nx = addDaysKey(todayKey, 14);
+        const buckets: Record<string, { k: string; it: Item }[]> = { overdue: [], today: [], week: [], next: [], later: [] };
+        for (const { k, it } of flat) {
+          if (k < todayKey) { if (!(it.kind === "todo" && it.done)) buckets.overdue.push({ k, it }); }
+          else if (k === todayKey) buckets.today.push({ k, it });
+          else if (k <= wk) buckets.week.push({ k, it });
+          else if (k <= nx) buckets.next.push({ k, it });
+          else buckets.later.push({ k, it });
+        }
+        const fmtK = (k: string) => { const d = new Date(`${k}T00:00:00`); return `${DOW[d.getDay()]} ${MON3[d.getMonth()]} ${d.getDate()}`; };
+        const cols: { id: string; label: string; drop: string | null; sub?: string }[] = [
+          { id: "overdue", label: "Overdue", drop: null },
+          { id: "today", label: "Today", drop: todayKey },
+          { id: "week", label: "This week", drop: addDaysKey(todayKey, 1), sub: `drop here → ${fmtK(addDaysKey(todayKey, 1))}` },
+          { id: "next", label: "Next week", drop: addDaysKey(todayKey, 8), sub: `drop here → ${fmtK(addDaysKey(todayKey, 8))}` },
+          { id: "later", label: "Later", drop: addDaysKey(todayKey, 21), sub: `drop here → ${fmtK(addDaysKey(todayKey, 21))}` },
+          { id: "backlog", label: "Unscheduled", drop: "unschedule", sub: "drop a to-do or post here to park it" },
+        ];
+        return (
+          <div className="cal-board">
+            {cols.map((col) => {
+              const rows = col.id === "backlog" ? backlogItems.map((it) => ({ k: "", it })) : buckets[col.id];
+              return (
+                <div key={col.id} className={`bd-col${over === `bd-${col.id}` ? " over" : ""}`}
+                  onDragOver={col.drop ? (e) => { e.preventDefault(); setOver(`bd-${col.id}`); } : undefined}
+                  onDragLeave={col.drop ? () => setOver((o) => o === `bd-${col.id}` ? null : o) : undefined}
+                  onDrop={col.drop ? () => { setOver(null); const dg = dragId.current; dragId.current = null; if (!dg) return; if (col.drop === "unschedule") unschedule(dg.kind, dg.id); else reschedule(dg.kind, dg.id, col.drop!); } : undefined}>
+                  <div className="bd-h"><b>{col.label}</b><span className="bd-n">{rows.length}</span></div>
+                  {col.sub && <div className="bd-sub">{col.sub}</div>}
+                  {rows.length === 0 ? <div className="bd-empty">{col.id === "overdue" ? "nothing slipped" : "clear"}</div> : rows.map(({ k, it }) => (
+                    <div key={`${it.kind}-${it.id}-${k}`} className="bd-card">
+                      {k && <span className="bd-date">{fmtK(k)}{it.warn ? " ⚠" : ""}</span>}
+                      <Chip it={it} />
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+
+      {/* ── CARDS — the next two months as detail cards; tap a card to edit in place ── */}
+      {view === "cards" && (() => {
+        const overdue = flat.filter(({ k, it }) => k < todayKey && !(it.kind === "todo" && it.done));
+        const up = flat.filter(({ k }) => k >= todayKey);
+        const card = ({ k, it }: { k: string; it: Item }) => {
+          const d = new Date(`${k}T00:00:00`);
+          return (
+            <div key={`${it.kind}-${it.id}-${k}`} className={`calcard${it.done ? " done" : ""}${it.warn ? " warn" : ""}`} style={{ borderLeftColor: CAT[it.cat]?.color }}>
+              <div className="calcard-d"><b>{d.getDate()}</b><span>{DOW[d.getDay()]}</span><span>{MON3[d.getMonth()]}</span></div>
+              <button type="button" className="calcard-m" onClick={() => { if (isEditable(it.kind)) setEdit({ kind: it.kind, id: it.id }); else it.go(); }}>
+                <b>{it.title}</b>
+                <span>{CAT[it.cat]?.label}{it.meta ? ` · ${it.meta}` : ""}{it.warn ? " · past latest start" : ""}{k === todayKey ? " · today" : ""}</span>
+              </button>
+              {it.kind === "todo"
+                ? <button type="button" className="dv-go" title="Mark done" onClick={() => it.toggle?.()}>{it.done ? "✓" : "○"}</button>
+                : <button type="button" className="dv-go" title="Open" onClick={() => it.go()}>↗</button>}
+            </div>
+          );
+        };
+        return (
+          <div className="cal-cards">
+            {overdue.length > 0 && <><div className="dv-sub" style={{ marginTop: 12 }}>Overdue · {overdue.length}</div>{overdue.map(card)}</>}
+            <div className="dv-sub" style={{ marginTop: 12 }}>Up next</div>
+            {up.length === 0 ? <div className="h-sub" style={{ marginTop: 10 }}>Nothing coming up in the next two months.</div> : up.map(card)}
+          </div>
+        );
+      })()}
+
+      {/* ── RAILS — one lane per work stream: what's next in each lane, who owns it ── */}
+      {view === "rails" && <RailsView flat={flat.filter(({ k }) => k >= todayKey)} onEdit={(kind, id) => setEdit({ kind, id })} />}
+
       {/* ── QUARTER / YEAR (mini-months, tap to open) ── */}
       {(view === "quarter" || view === "year") && (
         <div className={`cal-multi ${view}`}>
@@ -269,6 +431,7 @@ export default function CompanyCalendar() {
       {isOwner && <OutlookBar onSynced={load} />}
       {!isOwner && <div className="insp-foot" style={{ marginTop: 12 }}>📅 Outlook two-way sync is managed by the owner.</div>}
 
+      {edit && <CalEdit kind={edit.kind} id={edit.id} events={events} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load(); }} />}
       {dayOpen && <DayView dayKey={dayOpen} items={byDay[dayOpen] || []} events={events} onClose={() => setDayOpen(null)} onAdd={() => { const k = dayOpen; setDayOpen(null); setAddDay(k); }} onSaved={load} />}
       {addDay && <AddSheet day={addDay} events={events} onClose={() => setAddDay(null)} onDone={() => { setAddDay(null); load(); }} setSection={setSection} />}
     </div>
@@ -281,24 +444,36 @@ export default function CompanyCalendar() {
 // events show here (and only here) so a removed event is still reachable by opening its day.
 function DayView({ dayKey, items, events, onClose, onAdd, onSaved }: { dayKey: string; items: Item[]; events: Ev[]; onClose: () => void; onAdd: () => void; onSaved: () => void }) {
   const [archived, setArchived] = useState<{ id: string; title: string | null; day_label: string | null }[]>([]);
-  const [edit, setEdit] = useState<{ kind: Item["kind"]; id: string } | null>(null);
+  const [edit, setEdit] = useState<{ kind: EditKind; id: string } | null>(null);
   useEffect(() => {
     if (!supabase) return;
     supabase.from("events").select("id, title, day_label").not("archived_at", "is", null).eq("day", dayKey).then(({ data }) => setArchived((data as any[]) ?? []));
   }, [dayKey]);
   const d = new Date(`${dayKey}T00:00:00`);
   const heading = d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-  const sub: Record<Item["kind"], string> = { event: "event", stop: "on-the-ground op", todo: "to-do", content: "content", task: "task due" };
+  const sub: Record<Item["kind"], string> = { event: "event", stop: "on-the-ground op", todo: "to-do", content: "content", task: "task due", brew: "brew day", drop: "pack pickup", delivery: "porch run" };
+  const clash = items.some((i) => i.kind === "event") && items.some((i) => i.kind === "stop");
+  const brewLate = items.some((i) => i.warn);
   return (
     <>
     <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{heading}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
           {items.length === 0 && archived.length === 0 && <div className="oa-empty" style={{ padding: "18px 8px" }}>Nothing scheduled this day. Tap Add to put something here.</div>}
+          {clash && <div className="dv-heads">Heads up: event + truck stop share this day.</div>}
+          {brewLate && <div className="dv-heads">Heads up: a brew here is past its latest start.</div>}
           <div className="dv-list">
-            {items.map((it) => (
+            {items.map((it) => !isEditable(it.kind) ? (
+              // read-only rollup (brew / drop / delivery) — the rows live on their own surface; tap through
+              <div key={`${it.kind}-${it.id}`} className="dv-row" style={{ ["--c" as string]: CAT[it.cat]?.color }}>
+                <span className="dv-dot" style={{ background: CAT[it.cat]?.color }} />
+                <button type="button" className="dv-main dv-tap" onClick={() => { it.go(); onClose(); }}>
+                  <b>{it.title}</b><span>{CAT[it.cat]?.label} · {sub[it.kind]}{it.warn ? " · past latest start" : ""} · tap to open</span>
+                </button>
+              </div>
+            ) : (
               <div key={`${it.kind}-${it.id}`} className={`dv-row${it.done ? " done" : ""}`} style={{ ["--c" as string]: CAT[it.cat]?.color }}>
                 <span className="dv-dot" style={{ background: CAT[it.cat]?.color }} />
-                {/* every kind is editable in place — tap the card to open its editor */}
-                <button type="button" className="dv-main dv-tap" onClick={() => setEdit({ kind: it.kind, id: it.id })}>
+                {/* every editable kind edits in place — tap the card to open its editor */}
+                <button type="button" className="dv-main dv-tap" onClick={() => setEdit({ kind: it.kind as EditKind, id: it.id })}>
                   <b>{it.title}</b><span>{CAT[it.cat]?.label}{it.meta ? ` · ${it.meta}` : ` · ${sub[it.kind]}`} · tap to edit</span>
                 </button>
                 {it.kind === "todo"
@@ -326,14 +501,14 @@ function DayView({ dayKey, items, events, onClose, onAdd, onSaved }: { dayKey: s
 // source row that backs the chip — events / stops / todos / content_items — so the calendar is a true
 // command surface over the database, not a copy. The "Link to event" control on to-dos and content
 // writes the foreign key that relates those rows back to an event. Reachable wherever the item shows.
-const SRC: Record<Item["kind"], { table: string; nameCol: string; dateCol: string; dateIsTimestamp: boolean; defTime: string; noun: string }> = {
+const SRC: Record<EditKind, { table: string; nameCol: string; dateCol: string; dateIsTimestamp: boolean; defTime: string; noun: string }> = {
   event:   { table: "events",        nameCol: "title", dateCol: "day",           dateIsTimestamp: false, defTime: "11:00", noun: "event" },
   stop:    { table: "stops",         nameCol: "name",  dateCol: "starts_at",     dateIsTimestamp: true,  defTime: "11:00", noun: "truck stop" },
   todo:    { table: "todos",         nameCol: "title", dateCol: "due_on",        dateIsTimestamp: false, defTime: "09:00", noun: "to-do" },
   content: { table: "content_items", nameCol: "title", dateCol: "scheduled_for", dateIsTimestamp: true,  defTime: "09:00", noun: "content" },
   task:    { table: "event_tasks",   nameCol: "label", dateCol: "due_at",        dateIsTimestamp: true,  defTime: "23:59", noun: "task" },
 };
-function CalEdit({ kind, id, events, onClose, onSaved }: { kind: Item["kind"]; id: string; events: Ev[]; onClose: () => void; onSaved: () => void }) {
+function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: string; events: Ev[]; onClose: () => void; onSaved: () => void }) {
   const cfg = SRC[kind];
   const { setSection } = useOperatorSection();
   const [f, setF] = useState<any | null>(null);
@@ -470,6 +645,55 @@ function MiniMonth({ mDate, byDay, todayKey, onOpen }: { mDate: Date; byDay: Rec
   );
 }
 
+// One lane per work stream (0159) — the org structure ON the calendar: each lane shows what's
+// next and who's accountable. Categories roll up via the stream's categories[] config.
+function RailsView({ flat, onEdit }: { flat: { k: string; it: Item }[]; onEdit: (kind: EditKind, id: string) => void }) {
+  const streams = useWorkStreams();
+  const [names, setNames] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!supabase) return;
+    const ids = streams.map((s) => s.owner_user_id).filter(Boolean) as string[];
+    if (!ids.length) { setNames({}); return; }
+    supabase.from("profiles").select("id, display_name").in("id", ids).then(({ data }) => {
+      const m: Record<string, string> = {};
+      for (const p of ((data ?? []) as { id: string; display_name: string | null }[])) m[p.id] = (p.display_name || "").trim().split(/\s+/)[0];
+      setNames(m);
+    });
+  }, [streams]);
+  const laneOf = (cat: string) => streams.find((s) => s.categories.includes(cat));
+  const lanes = streams.map((s) => ({ s, items: flat.filter(({ it }) => laneOf(it.cat)?.key === s.key) }));
+  const other = flat.filter(({ it }) => !laneOf(it.cat));
+  const railItem = ({ k, it }: { k: string; it: Item }) => (
+    <button key={`${it.kind}-${it.id}-${k}`} type="button" className="wsrail-it" style={{ borderTopColor: CAT[it.cat]?.color }}
+      onClick={() => { if (isEditable(it.kind)) onEdit(it.kind, it.id); else it.go(); }}>
+      <span className="wsrail-d">{new Date(`${k}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}{it.warn ? " ⚠" : ""}</span>
+      <span className="wsrail-t">{it.done ? "✓ " : ""}{it.title}</span>
+    </button>
+  );
+  const lane = (keyStr: string, label: string, color: string, ownerName: string | null, items: { k: string; it: Item }[]) => (
+    <div key={keyStr} className="wsrail">
+      <div className="wsrail-h">
+        <span className="cc-dot" style={{ background: color }} />
+        <b>{label}</b>
+        {ownerName && <span className="wsrail-own">{ownerName}</span>}
+        <span className="wsrail-n">{items.length}</span>
+      </div>
+      {items.length === 0 ? <div className="wsrail-quiet">quiet — nothing coming up</div> : (
+        <div className="wsrail-scroll">
+          {items.slice(0, 8).map(railItem)}
+          {items.length > 8 && <span className="wsrail-more">+{items.length - 8} more</span>}
+        </div>
+      )}
+    </div>
+  );
+  return (
+    <div className="cal-rails">
+      {lanes.map(({ s, items }) => lane(s.key, s.label, s.color, (s.owner_user_id && names[s.owner_user_id]) || null, items))}
+      {other.length > 0 && lane("other", "Other", "#9a8f7c", null, other)}
+    </div>
+  );
+}
+
 // Owner-only Outlook connect / sync control.
 function OutlookBar({ onSynced }: { onSynced: () => void }) {
   const [st, setSt] = useState<{ configured: boolean; connected: boolean; account: string | null; last_sync: string | null; last_note: string | null } | null>(null);
@@ -539,7 +763,8 @@ function AddSheet({ day, events, onClose, onDone }: { day: string; events: Ev[];
     if (!supabase || !title.trim()) return;
     const { data: { user } } = await supabase.auth.getUser();
     if (kind === "todo") await supabase.from("todos").insert({ title: title.trim(), category: cat, due_on: day, event_id: eventId || null, created_by: user?.id ?? null });
-    else if (kind === "stop") await supabase.from("stops").insert({ name: title.trim(), location_text: where.trim() || null, starts_at: new Date(`${day}T11:00:00-04:00`).toISOString(), status: "upcoming", sort: 0 });
+    // local wall-clock 11am — a fixed -04:00 offset lands at 10am all winter
+    else if (kind === "stop") await supabase.from("stops").insert({ name: title.trim(), location_text: where.trim() || null, starts_at: new Date(`${day}T11:00:00`).toISOString(), status: "upcoming", sort: 0 });
     else await supabase.from("events").insert({ title: title.trim(), day, category: cat === "content" ? "event" : cat });
     onDone();
   };

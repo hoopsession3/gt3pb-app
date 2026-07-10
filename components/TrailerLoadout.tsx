@@ -7,6 +7,7 @@ import { useRealtimeTable } from "@/lib/realtime";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import { useApp } from "@/components/AppProvider";
 import { computeLoadout, towChecks, towChecklist, computeSpace, rigToBox, type TrailerProfile, type Loadout, type SpaceRig, type SpacePlan, type AssetDim } from "@/lib/loadout";
+import { localToday } from "@/lib/dates";
 
 const fmt = (n: number | null | undefined) => (n ?? 0).toLocaleString();
 const ZONE_LABEL: Record<string, string> = { nose: "Nose (front)", axle: "Over axle", tail: "Tail (rear)" };
@@ -39,7 +40,7 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
     if (lockTo) { setTargets([]); setSel(`${lockTo.kind === "stop" ? "s" : "e"}:${lockTo.id}`); return; }
     // Real events + truck stops (not archived test data); follow the live event, else the next
     // upcoming across both, else the first thing on the books — the loadout works for either owner.
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localToday(); // crew-facing "upcoming" — the operator's wall-clock day
     const [{ data: evs }, { data: sts }] = await Promise.all([
       supabase.from("events").select("id,title,is_live,day,sort").is("archived_at", null).order("day", { ascending: true, nullsFirst: false }).order("sort"),
       supabase.from("stops").select("id,name,starts_at,sort").is("archived_at", null).order("starts_at", { ascending: true, nullsFirst: false }).order("sort"),

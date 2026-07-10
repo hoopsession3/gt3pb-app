@@ -3350,6 +3350,89 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .cal-mark{width:6px;height:6px;border-radius:50%;flex:0 0 auto}
 .cal-mark-n{margin-left:auto;font-family:'DM Mono',ui-monospace,monospace;font-size:10px;line-height:1;color:var(--cream-m)}
 
+/* Brew card operational rows — coverage, serve-by, stock check */
+.brew-oprow{margin-top:9px;font-family:'Inter';font-size:12px;line-height:1.4;color:var(--cream-m);background:rgba(245,241,232,.05);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-variant-numeric:tabular-nums}
+.app.crew-day .brew-oprow{background:#fff;color:#6c6256}
+.brew-oprow.ok{border-color:rgba(43,179,163,.45);color:var(--cream)}
+.brew-oprow.warn{border-color:var(--warn);background:rgba(207,154,74,.14);color:var(--cream);font-weight:600}
+.brew-oprow.over{border-color:var(--red-h);background:rgba(184,36,32,.1);color:var(--red-h);font-weight:700}
+
+/* Events row: real derived date under the day stamp (app/events RsvpRow) */
+.ev .when .ev-when-date{display:block;font-family:'Inter';font-size:8.5px;letter-spacing:.2px;text-transform:none;color:var(--cream-m);line-height:1.25;margin:2px 0 1px}
+
+/* Calendar conflict signal — event + truck stop share a day, or a brew is past its latest start */
+.cal-cell.heat,.cal-wrow.heat{box-shadow:inset 0 0 0 1.5px var(--warn)}
+.dv-heads{font-family:'Inter';font-size:12.5px;color:var(--warn);background:rgba(207,154,74,.1);border:1px solid rgba(207,154,74,.3);border-radius:9px;padding:8px 11px;margin-bottom:10px}
+.app.crew-day .dv-heads{color:#8a6220;background:rgba(207,154,74,.16)}
+
+/* MY DAY RHYTHM — today's anchors (stop · drop · run · brew) as jump chips under the greeting */
+.myday-rhythm{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 14px}
+.myday-chip{background:var(--char2);border:1px solid var(--line2);border-left:3px solid var(--line2);border-radius:22px;padding:9px 14px;color:var(--cream);font-family:'Inter';font-weight:600;font-size:12.5px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.myday-chip.warn{border-color:rgba(214,75,70,.55);color:#ecb4b1}
+.app.crew-day .myday-chip{background:#fff;color:#221F18}
+.app.crew-day .myday-chip.warn{color:#8f1d1a}
+
+/* NEW CALENDAR VIEWS — Board (flow kanban) · Cards (up next) · Rails (by work stream) */
+.cal-views{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;flex-wrap:nowrap}
+.cal-views::-webkit-scrollbar{display:none}
+.cal-view{flex:0 0 auto}
+.cal-board{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x proximity;padding:12px 2px 6px;-webkit-overflow-scrolling:touch}
+.bd-col{flex:0 0 200px;scroll-snap-align:start;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px;min-height:130px}
+.bd-col.over{outline:1.5px solid var(--gold2)}
+.bd-h{display:flex;align-items:baseline;gap:6px}
+.bd-h b{font-family:'Inter';font-weight:700;font-size:12.5px;color:var(--cream)}
+.bd-n{font-family:'DM Mono',ui-monospace,monospace;font-size:10px;color:var(--cream-m)}
+.bd-sub{font-size:9.5px;color:var(--cream-d);margin:2px 0 8px;font-family:'DM Mono',ui-monospace,monospace}
+.bd-card{margin:0 0 7px}
+.bd-date{display:block;font-family:'DM Mono',ui-monospace,monospace;font-size:9px;color:var(--cream-d);margin:0 0 2px 2px}
+.bd-col .cc-chip{width:100%}
+.bd-empty{font-size:11px;color:var(--cream-d);padding:8px 2px}
+.cal-cards{margin-top:12px}
+.calcard{display:flex;align-items:center;gap:11px;background:var(--card);border:1px solid var(--line);border-left:3px solid var(--line2);border-radius:12px;padding:10px 12px;margin-bottom:8px}
+.calcard.done{opacity:.55}
+.calcard.warn{border-color:var(--warn)}
+.calcard-d{flex:0 0 36px;text-align:center}
+.calcard-d b{display:block;font-family:'Inter';font-weight:800;font-size:16px;color:var(--cream);line-height:1}
+.calcard-d span{display:block;font-family:'DM Mono',ui-monospace,monospace;font-size:8.5px;color:var(--cream-m);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+.calcard-m{flex:1;min-width:0;background:none;border:none;text-align:left;cursor:pointer;color:var(--cream);padding:0;-webkit-appearance:none;appearance:none}
+.calcard-m b{display:block;font-family:'Inter';font-weight:650;font-size:13.5px}
+.calcard-m span{display:block;font-size:11px;color:var(--cream-m);margin-top:2px}
+.cal-rails{margin-top:12px}
+.wsrail{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:11px 12px;margin-bottom:10px}
+.wsrail-h{display:flex;align-items:center;gap:7px}
+.wsrail-h b{font-family:'Inter';font-weight:700;font-size:13px;color:var(--cream)}
+.wsrail-own{font-family:'Inter';font-weight:650;font-size:9px;letter-spacing:.7px;text-transform:uppercase;color:var(--gold2);border:1px solid var(--line2);border-radius:14px;padding:2px 8px}
+.wsrail-n{margin-left:auto;font-family:'DM Mono',ui-monospace,monospace;font-size:10.5px;color:var(--cream-m)}
+.wsrail-quiet{font-size:11.5px;color:var(--cream-d);padding:8px 0 2px}
+.wsrail-scroll{display:flex;gap:8px;overflow-x:auto;padding:9px 0 3px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.wsrail-scroll::-webkit-scrollbar{display:none}
+.wsrail-it{flex:0 0 auto;max-width:172px;background:var(--char2);border:1px solid var(--line2);border-top:3px solid var(--line2);border-radius:10px;padding:8px 10px;text-align:left;cursor:pointer;color:var(--cream);-webkit-appearance:none;appearance:none}
+.app.crew-day .wsrail-it{background:#fff}
+.wsrail-d{display:block;font-family:'DM Mono',ui-monospace,monospace;font-size:9px;color:var(--cream-m)}
+.wsrail-t{display:block;font-family:'Inter';font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;max-width:150px}
+.wsrail-more{align-self:center;font-family:'DM Mono',ui-monospace,monospace;font-size:10px;color:var(--cream-m);flex:0 0 auto}
+
+/* work streams — ownership cards (OrgChart) + lane tags */
+.ws-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:9px;margin-bottom:8px}
+.ws-card{background:var(--card);border:1px solid var(--line);border-top:3px solid var(--line2);border-radius:12px;padding:11px 12px}
+.ws-name{font-family:'Inter';font-weight:700;font-size:13.5px;color:var(--cream)}
+.ws-cats{font-family:'DM Mono',ui-monospace,monospace;font-size:9.5px;color:var(--cream-d);margin:3px 0 8px;text-transform:uppercase;letter-spacing:.4px}
+.ws-owner{width:100%;background:var(--char2);border:1px solid var(--line2);border-radius:8px;padding:7px 8px;color:var(--cream);font-family:'Inter';font-size:12px}
+.app.crew-day .ws-owner{background:#fff;color:#221F18}
+.ws-ownerro{font-family:'Inter';font-size:12px;color:var(--cream-m)}
+.ws-note{font-size:11.5px;color:var(--cream-d);margin:0 0 16px}
+.myday-lane{font-family:'Inter';font-weight:650;font-size:8.5px;letter-spacing:.7px;text-transform:uppercase;color:var(--gold2);border:1px solid var(--line2);border-radius:14px;padding:2px 7px;margin-left:7px;vertical-align:2px}
+
+/* fold affordances — every expanded body eases in the same way, so "it opened" reads instantly */
+@keyframes fold-in{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+.menued-body,.garage-body,.tm-loyalty,.crm-body,.guide-row.open .guide-row-b{animation:fold-in .16s ease-out}
+.garage-chev{font-size:16px}
+.task-discuss-l{font-family:'Inter';font-weight:600;font-size:10.5px;color:var(--cream-m);margin-left:3px}
+.tm-more .ev-chev{font-size:13px}
+
+/* bookings → event: the convert action reads as the row's forward path */
+.adm-req-mk{background:none;border:1px solid var(--line2);border-radius:18px;padding:6px 12px;color:var(--gold2);font-family:'Inter';font-weight:650;font-size:11px;cursor:pointer;-webkit-appearance:none;appearance:none}
+
 /* THE TRUCK INSTRUMENT (Now) — one panel, rows of one machine: state LED + the single primary
    action, then broadcast/stop rows. Replaces the floating white-card stack (owner call). */
 .liveinst{background:var(--char2);border:1px solid var(--line2);border-radius:16px;padding:2px 14px;margin:0 0 14px}

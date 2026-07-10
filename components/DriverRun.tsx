@@ -10,6 +10,7 @@ import RouteMap, { type RoutePoint } from "./RouteMap";
 import { openAddress, fullRouteUrl, geocode } from "@/lib/maps";
 import { haptic, HAPTIC } from "@/lib/haptics";
 import { type PerfMix } from "@/lib/delivery";
+import { etToday } from "@/lib/dates";
 
 // DRIVER RUN — the Sunday porch run, built for one hand at the wheel. Stops ordered by ZIP → street
 // (a compact-zone route), pinned on the map, each a big card with Navigate / Call / one-tap outcome.
@@ -43,7 +44,7 @@ export default function DriverRun() {
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = etToday(); // delivery_date is an ET business-day key (lib/delivery.ts)
     const { data } = await supabase.from("delivery_orders").select("*")
       .gte("delivery_date", today).is("canceled_at", null).order("delivery_date").limit(200);
     const all = (data ?? []) as DOrder[];

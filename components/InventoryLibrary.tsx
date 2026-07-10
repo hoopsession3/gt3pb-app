@@ -26,7 +26,7 @@ const toDraft = (r: InvItem): Draft => ({
 
 export default function InventoryLibrary() {
   const [resp, setResp] = useState<InventoryResp | null>(null);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true); // renders inside the Garage fold — default open so it's one fold, not two
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [busy, setBusy] = useState(false);

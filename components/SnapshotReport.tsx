@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { fetchSnapshot, type Snapshot } from "@/lib/reports";
 import { supabase } from "@/lib/supabase";
-import { nextDrop } from "@/lib/orderAhead";
+import { nextDrop , dropDateKey} from "@/lib/orderAhead";
 
 // Business snapshot — inventory value + low-stock, subscriber health, loyalty. One staff-gated
 // RPC (report_snapshot). On-brand, dependency-free. Lives in the MONEY tab under Sales.
@@ -24,7 +24,7 @@ export default function SnapshotReport() {
     (async () => {
       if (!supabase) return;
       const since = new Date(Date.now() - 30 * 864e5).toISOString();
-      const sat = nextDrop().sat.toISOString().slice(0, 10);
+      const sat = dropDateKey(nextDrop().sat);
       const { data } = await supabase.from("drop_orders").select("total_cents, drop_date").gte("created_at", since);
       if (!live || !data) return;
       let drop = 0, dropN = 0, m30 = 0, m30N = 0;

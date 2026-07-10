@@ -9,6 +9,8 @@ import { raiseAlertClient } from "@/lib/clientAlerts";
 import { authedFetch } from "@/lib/authedFetch";
 import { normalizeCategory, type AlertCategory } from "@/lib/alertKinds";
 import { useMyAlerts, type MyFlag } from "@/lib/useMyAlerts";
+import { localToday, etToday } from "@/lib/dates";
+import { useWorkStreams, streamOfCategory } from "@/lib/streams";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useOperatorSection, sectionsForRole, groupOfSection, SECTION_LABEL, type OpSection } from "@/components/OperatorNav";
 import { CrumbProvider, Breadcrumbs, useCrumb } from "@/components/Crumbs";
@@ -879,9 +881,10 @@ function MenuEditor({ ownerType, ownerId, isAdmin, onChanged }: { ownerType: "ev
 
   return (
     <div className="menued">
-      <div className="adm-prep-actions" style={{ marginTop: 10 }}>
-        <button type="button" className="adm-regen" onClick={() => setOpen((o) => !o)}>🍹 Menu &amp; rig <span className={`ev-chev${open ? " open" : ""}`} aria-hidden="true">›</span></button>
-      </div>
+      <button type="button" className="prep-collapse" style={{ marginTop: 10 }} onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <span className="prep-collapse-l"><b>🍹 Menu &amp; rig</b><span>what we&apos;re pouring · rig · power &amp; water</span></span>
+        <span className={`ev-chev${open ? " open" : ""}`}>›</span>
+      </button>
       {open && (
         <div className="menued-body">
           <div className="menued-h">What we&apos;re pouring</div>
@@ -963,11 +966,33 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
   // pings + broadcasts now too — the old isLeader gate predates the staff-wide alerts RLS (0157).
   const { flags, ack: ackFlag, clearAll: clearFlags } = useMyAlerts(userId);
   const { setSection } = useOperatorSection();
+  const streams = useWorkStreams();
+  const laneColor = (cat: string) => streamOfCategory(cat, streams)?.color;
+  const myLane = (cat: string | null) => streams.some((s) => s.owner_user_id === userId && s.categories.includes(normalizeCategory(cat)));
   const [today, setToday] = useState<{ id: string; title: string | null; day_label: string | null; is_live: boolean | null; dress_code?: string | null; crew_brief?: string | null }[]>([]);
+  // The day's rhythm — the same anchors the company calendar carries. Events use the operator's
+  // wall-clock day; drop/delivery are BUSINESS days (ET) so a late evening doesn't flip them early.
+  const [rhythm, setRhythm] = useState<{ stops: { id: string; name: string | null; starts_at: string | null }[]; dropPacks: number; porches: number; brews: { id: string; recipe_name: string; batch_gal: number; warn: boolean }[] }>({ stops: [], dropPacks: 0, porches: 0, brews: [] });
   useEffect(() => {
     if (!supabase) return;
-    const d = new Date().toISOString().slice(0, 10);
+    const d = localToday();
     supabase.from("events").select("id, title, day_label, is_live, dress_code, crew_brief").eq("day", d).is("archived_at", null).then(({ data }) => setToday(data ?? []));
+    const dayStart = new Date(`${d}T00:00:00`);
+    const bd = etToday();
+    Promise.all([
+      supabase.from("stops").select("id, name, starts_at").is("archived_at", null).neq("status", "done").gte("starts_at", dayStart.toISOString()).lt("starts_at", new Date(dayStart.getTime() + 86400000).toISOString()),
+      supabase.from("drop_orders").select("id", { count: "exact", head: true }).eq("drop_date", bd).is("canceled_at", null),
+      supabase.from("delivery_orders").select("id", { count: "exact", head: true }).eq("delivery_date", bd).is("canceled_at", null),
+      supabase.from("brew_batches").select("id, recipe_name, batch_gal, latest_start_at").in("status", ["planned", "brewing"]).eq("brew_date", d),
+    ]).then(([st, dr, de, br]) => {
+      const now = new Date().toISOString();
+      setRhythm({
+        stops: ((st.data ?? []) as { id: string; name: string | null; starts_at: string | null }[]),
+        dropPacks: dr.count ?? 0,
+        porches: de.count ?? 0,
+        brews: ((br.data ?? []) as { id: string; recipe_name: string; batch_gal: number; latest_start_at: string | null }[]).map((b) => ({ id: b.id, recipe_name: b.recipe_name, batch_gal: b.batch_gal, warn: Boolean(b.latest_start_at && b.latest_start_at < now) })),
+      });
+    });
   }, []);
 
   const [dropSheet, setDropSheet] = useState(false);
@@ -1007,6 +1032,22 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
           ))}
         </div>
       )}
+      {(rhythm.stops.length > 0 || rhythm.dropPacks > 0 || rhythm.porches > 0 || rhythm.brews.length > 0) && (
+        <div className="myday-rhythm">
+          {rhythm.stops.map((s) => (
+            <button key={s.id} type="button" className="myday-chip" style={{ borderLeftColor: laneColor("stop") }} onClick={() => setSection("now")}>
+              🚚 {s.name || "Truck stop"}{s.starts_at ? ` · ${new Date(s.starts_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""} ›
+            </button>
+          ))}
+          {rhythm.dropPacks > 0 && <button type="button" className="myday-chip" style={{ borderLeftColor: laneColor("drop") }} onClick={() => setSection("now")}>📦 Drop today · {rhythm.dropPacks} pack{rhythm.dropPacks === 1 ? "" : "s"} ›</button>}
+          {rhythm.porches > 0 && <button type="button" className="myday-chip" style={{ borderLeftColor: laneColor("delivery") }} onClick={() => setSection("now")}>🚗 Sunday run · {rhythm.porches} porch{rhythm.porches === 1 ? "" : "es"} ›</button>}
+          {rhythm.brews.map((b) => (
+            <button key={b.id} type="button" className={`myday-chip${b.warn ? " warn" : ""}`} style={{ borderLeftColor: laneColor("brew") }} onClick={() => { try { localStorage.setItem("gt3-plan-tab", "brew"); } catch { /* ignore */ } setSection("plan"); }}>
+              ☕ Brew · {b.recipe_name} {b.batch_gal} gal{b.warn ? " — start now" : ""} ›
+            </button>
+          ))}
+        </div>
+      )}
       {(
         <>
           <div className="sec">Flags &amp; pings for you{flags.length ? ` · ${flags.length}` : ""}{flags.length > 1 && <button type="button" className="alert-clearall" onClick={clearFlags}>Clear all</button>}</div>
@@ -1015,7 +1056,7 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
           ) : flags.map((f) => (
             <div key={f.id} className={`myday-flag sev-${f.severity}`}>
               <div className="myday-flag-b">
-                <div className="myday-flag-t">{f.title}</div>
+                <div className="myday-flag-t">{f.title}{myLane(f.category) && <span className="myday-lane">your lane</span>}</div>
                 {f.body && <div className="myday-flag-x">{f.body}</div>}
               </div>
               <button type="button" className="myday-open" onClick={() => gotoFlag(f)}>Open →</button>
@@ -1205,7 +1246,7 @@ function InspectionPrep() {
 
   useEffect(() => {
     if (!open || !supabase) return;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localToday();
     supabase.from("events").select("id, title, day, day_label").is("archived_at", null).gte("day", today).order("day").limit(40)
       .then(({ data }) => setEvents(data ?? []));
   }, [open]);
@@ -1454,9 +1495,9 @@ function Garage({ events, stops, liveStopId, loaded }: { events: EventRow[]; sto
     <div className="garage">
       <div className="prep-group-h">The garage <span>rigs · gear · stock</span></div>
       {row("loadout", "🚚", "Load-out & tow plan", packSoon ? "event this week — check the load" : "quiet until an event is near", <TrailerLoadout />)}
-      {row("gear", "🧰", "Gear library", "", <GearLibrary />)}
-      {row("maint", "🔧", "Asset maintenance", "", <AssetMaintenance />)}
-      {row("inventory", "📦", "Inventory", "", <InventoryLibrary />)}
+      {row("gear", "🧰", "Gear library", "manuals · specs · how-tos", <GearLibrary />)}
+      {row("maint", "🔧", "Asset maintenance", "service log · what's due", <AssetMaintenance />)}
+      {row("inventory", "📦", "Inventory", "stock, costs & pars", <InventoryLibrary />)}
     </div>
   );
 }
@@ -1812,10 +1853,15 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
 
       {/* Load-out & tow + pack-out plan, scoped to this event/stop — part of the one hub. */}
       {isAdmin && (
-        <div className="adm-prep-actions" style={{ marginTop: 10 }}>
-          <button className="adm-regen" onClick={() => setLoadoutOpen((o) => !o)}>🚚 Load-out &amp; tow <span className={`ev-chev${loadoutOpen ? " open" : ""}`} aria-hidden="true">›</span></button>
-          <button className="adm-regen" onClick={() => setPackPlanOpen(true)}>📦 Pack-out plan · kegs vs bottles</button>
-        </div>
+        <>
+          <button type="button" className="prep-collapse" style={{ marginTop: 10 }} onClick={() => setLoadoutOpen((o) => !o)} aria-expanded={loadoutOpen}>
+            <span className="prep-collapse-l"><b>🚚 Load-out &amp; tow</b><span>space plan · tongue weight · the load checklist</span></span>
+            <span className={`ev-chev${loadoutOpen ? " open" : ""}`}>›</span>
+          </button>
+          <div className="adm-prep-actions" style={{ marginTop: 8 }}>
+            <button className="adm-regen" onClick={() => setPackPlanOpen(true)}>📦 Pack-out plan · kegs vs bottles</button>
+          </div>
+        </>
       )}
       {loadoutOpen && isAdmin && <TrailerLoadout lockTo={{ kind: target.kind, id: target.id }} />}
       {packPlanOpen && <PackPlan ownerType={target.kind} ownerId={target.id} title={name ?? ""} onClose={() => setPackPlanOpen(false)} />}
@@ -1919,7 +1965,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
                 </button>
                 <div className="task-right">
                   {t.link && <a className="adm-task-link" href={t.link} target="_blank" rel="noopener noreferrer" aria-label="Open reference / application">↗</a>}
-                  <button type="button" className="task-discuss" onClick={() => setOpenThread(openThread === t.id ? null : t.id)} aria-label={`Discuss ${t.label}`}>💬{counts[t.id] ? <span className="cmt-count">{counts[t.id]}</span> : null}</button>
+                  <button type="button" className="task-discuss" onClick={() => setOpenThread(openThread === t.id ? null : t.id)} aria-label={`Discuss ${t.label}`}>💬{counts[t.id] ? <span className="cmt-count">{counts[t.id]}</span> : <span className="task-discuss-l">Discuss</span>}</button>
                   {isAdmin && <button type="button" className="task-discuss" onClick={() => setEditTask(t)} aria-label={`Edit ${t.label}`} title="Edit task">✎</button>}
                   {isAdmin ? (
                     <button type="button" className={`task-assign${t.assignee ? " set" : ""}`} onClick={() => setAssignFor(t)} aria-label={t.assignee ? `Reassign ${t.label} — currently ${staffName(t.assignee)}` : `Assign ${t.label} to crew`}>
@@ -2556,15 +2602,8 @@ function LiveControl({ compact = false }: { compact?: boolean }) {
                 ? <button className="adm-btn ghost" onClick={stopBroadcast}>Stop</button>
                 : <span style={{ display: "flex", gap: 8 }}><button className="adm-btn ghost" onClick={pinHere} disabled={posBusy}>{posBusy ? "Pinning…" : "Pin once"}</button><button className="adm-btn primary" onClick={startBroadcast}>Broadcast</button></span>}
             </div>
-          ) : (
-            active.slice(1).map((s) => (
-              <div className="liveinst-row" key={s.id}>
-                <span className="liveinst-sub">{s.name || "Untitled location"}</span>
-                <button className="adm-btn ghost" onClick={() => goLive(s.id)}>Go live here</button>
-              </div>
-            ))
-          )}
-          <button type="button" className="adm-golink" onClick={() => router.push("/admin?s=plan&t=stops")}>Locations &amp; ordering dial · Plan › Truck stops ›</button>
+          ) : null}
+          <button type="button" className="adm-golink" onClick={() => router.push("/admin?s=plan&t=stops")}>{active.length > 1 ? `${active.length - 1} more location${active.length > 2 ? "s" : ""} · ` : ""}Locations &amp; ordering dial · Plan › Truck stops ›</button>
         </div>
       ) : (
       <>
@@ -2674,7 +2713,7 @@ function MeetingNotes() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [composing, setComposing] = useState(false);
   const [cTitle, setCTitle] = useState("");
-  const [cDate, setCDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [cDate, setCDate] = useState(() => localToday());
   const [cSummary, setCSummary] = useState("");
   const [cBody, setCBody] = useState("");
   const [cActions, setCActions] = useState<{ title: string; category: string; critical: boolean }[]>([]);
@@ -3008,6 +3047,18 @@ function Bookings() {
     toast(error ? `Error: ${error.message}` : `Marked ${status}`);
     if (!error) load();
   };
+  // One tap: the request becomes a lead on the calendar/prep/economics rails — no retyping.
+  const makeEvent = async (r: BookingRequest) => {
+    const day = /^\d{4}-\d{2}-\d{2}$/.test(r.event_date ?? "") ? r.event_date : null;
+    const day_label = day ? ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"][new Date(`${day}T12:00:00`).getDay()] : (r.event_date ?? null);
+    const { error } = await supabase!.from("events").insert({
+      title: r.name ? `${r.name} booking` : "Booking", stage: "lead", day, day_label,
+      location_text: r.location_text ?? null, blurb: r.notes?.slice(0, 300) ?? null,
+    });
+    if (error) { toast(`Couldn't create the event — ${error.message}`, "error"); return; }
+    toast("Added to Events as a lead — it's on the calendar now");
+    if (r.status === "new") setStatus(r.id, "contacted");
+  };
   const del = async (r: BookingRequest) => {
     if (typeof window !== "undefined" && !window.confirm(`Delete the booking request from ${r.name ?? "this contact"}? This can't be undone.`)) return;
     setReqs((p) => p.filter((x) => x.id !== r.id)); // optimistic
@@ -3035,6 +3086,7 @@ function Bookings() {
             {STATUSES.map((s) => (
               <button key={s} className={r.status === s ? "on" : ""} onClick={() => setStatus(r.id, s)}>{s}</button>
             ))}
+            <button className="adm-req-mk" onClick={() => makeEvent(r)}>→ Make it an event</button>
             <button className="adm-req-del" onClick={() => del(r)} aria-label={`Delete booking request from ${r.name ?? "contact"}`}>✕</button>
           </div>
         </div>
@@ -3261,7 +3313,7 @@ function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; is
         </select>
         <i className="tm-scope">{meta.scope}</i>
       </label>
-      <button className="tm-more" onClick={() => setOpen((o) => !o)} aria-expanded={open}>{open ? "Hide loyalty" : "Loyalty & credit"}</button>
+      <button className="tm-more" onClick={() => setOpen((o) => !o)} aria-expanded={open}>{open ? "Hide loyalty" : `Loyalty & credit · ${pts} pts`} <span className={`ev-chev${open ? " open" : ""}`} aria-hidden="true">›</span></button>
       {open && (
         <div className="adm-fields tm-loyalty">
           <label>Name<input value={name} onChange={(e) => setName(e.target.value)} placeholder="Display name" /></label>
@@ -3695,6 +3747,8 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
             <label className="ev-fld">Location / venue<input className="ev-input" maxLength={200} defaultValue={e.location_text ?? ""} placeholder="e.g. Duncan Town Square" aria-label="Location"
               onBlur={(ev) => (ev.target.value.trim() || null) !== e.location_text && onUpdate({ location_text: ev.target.value.trim() || null })} /></label>
             <div className="ev-grid">
+              <label className="ev-f">Date<input type="date" defaultValue={e.day ?? ""} aria-label="Event date"
+                onBlur={(ev) => { const v = ev.target.value || null; if (v !== (e.day ?? null)) { const upd: { day: string | null; day_label?: string } = { day: v }; if (v) upd.day_label = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"][new Date(`${v}T12:00:00`).getDay()]; onUpdate(upd); } }} /></label>
               <label className="ev-f">Day<input defaultValue={e.day_label ?? ""} placeholder="SAT" onBlur={(ev) => ev.target.value !== e.day_label && onUpdate({ day_label: ev.target.value })} /></label>
               <label className="ev-f">Start<input defaultValue={e.start_time ?? ""} placeholder="9:00" onBlur={(ev) => (ev.target.value.trim() || null) !== e.start_time && onUpdate({ start_time: ev.target.value.trim() || null })} /></label>
               <label className="ev-f">End<input defaultValue={e.end_time ?? ""} placeholder="2:00" onBlur={(ev) => (ev.target.value.trim() || null) !== e.end_time && onUpdate({ end_time: ev.target.value.trim() || null })} /></label>
@@ -4296,7 +4350,7 @@ function SectionGuide({ allowed, current, onGo, onClose }: { allowed: OpSection[
                     <span className="guide-row-sub">{SEC_SUB[s]}</span>
                   </span>
                   <span className="guide-when">{SEC_WHEN[s]}</span>
-                  <span className="guide-chev" aria-hidden>{isOpen ? "⌃" : "⌄"}</span>
+                  <span className={`guide-chev ev-chev${isOpen ? " open" : ""}`} aria-hidden>›</span>
                 </button>
                 {isOpen && (
                   <div className="guide-body">
@@ -4378,7 +4432,7 @@ export default function AdminPage() {
   const [planCounts, setPlanCounts] = useState<{ bookings: number; events: number }>({ bookings: 0, events: 0 });
   useEffect(() => {
     if (sec !== "plan" || !canManage || !supabase) return;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localToday();
     (async () => {
       const [b, e] = await Promise.all([
         supabase!.from("booking_requests").select("id", { count: "exact", head: true }).eq("status", "new"),
