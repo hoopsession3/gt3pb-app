@@ -540,6 +540,7 @@ function NotifPrefsSheet({ userId, onClose }: { userId: string | null; onClose: 
       </div>
       <div className="notif-quiet">
         <span className="adm-prep-label">Quiet hours (optional)</span>
+        <p className="h-sub" style={{ margin: "0 0 8px" }}>During these hours, non-critical alerts are held into a morning digest instead of pinging you — they surface on their own when quiet hours end. Critical alerts always come through.</p>
         <div className="notif-quiet-r">
           <label>From<input inputMode="numeric" placeholder="22" value={qs} onChange={(e) => setQs(e.target.value)} onBlur={() => { save(muted, qs, qe); toast("Saved"); }} /></label>
           <label>to<input inputMode="numeric" placeholder="7" value={qe} onChange={(e) => setQe(e.target.value)} onBlur={() => { save(muted, qs, qe); toast("Saved"); }} /></label>
@@ -557,8 +558,9 @@ function AlertsInbox({ userId, compact = false, title = "Alerts" }: { userId: st
   // One source of truth for "what needs me" — the same hook drives My Day's flags and the nav
   // badge, so the three counters that used to disagree now agree by construction. Ack semantics
   // live in the hook: row-ack for targeted alerts, per-user read for broadcasts (0157).
-  const { flags: mine, critCount: crit, ack, clearAll, snooze } = useMyAlerts(userId);
+  const { flags: mine, held, quietActive, critCount: crit, ack, clearAll, clearHeld, snooze } = useMyAlerts(userId);
   const [prefsOpen, setPrefsOpen] = useState(false);
+  const [digestOpen, setDigestOpen] = useState(false);
   const streams = useWorkStreams();
   const myLane = (cat: string | null) => streams.some((s) => s.owner_user_id === userId && s.categories.includes(normalizeCategory(cat)));
   const [openThread, setOpenThread] = useState<string | null>(null);
@@ -579,13 +581,14 @@ function AlertsInbox({ userId, compact = false, title = "Alerts" }: { userId: st
     scrollToAnchor(d.anchor);
   };
 
-  if (mine.length === 0) return null;
+  if (mine.length === 0 && held.length === 0) return null;
   const rank = (s: string) => (s === "critical" ? 0 : s === "important" ? 1 : 2);
   const sorted = [...mine].sort((a, b) => rank(a.severity) - rank(b.severity));
 
   // Compact strip (used in Now) — alerts have ONE home, the My Day inbox. During service Now shows
   // just a one-line pointer so the same cards don't render in two places; tap jumps to My Day.
   if (compact) {
+    if (mine.length === 0) return null;   // during quiet hours the held digest stays off the service strip
     return (
       <button type="button" className={`alerts-strip${crit ? " crit" : ""}`} onClick={() => setSection("day")}>
         <span className="alerts-strip-i" aria-hidden>{crit ? "⚠️" : "🔔"}</span>
@@ -599,8 +602,36 @@ function AlertsInbox({ userId, compact = false, title = "Alerts" }: { userId: st
     <div className="adm-sec">
       {dropSheet && <DropSheet onClose={() => setDropSheet(false)} />}
       {reviewPost && <ContentApprovalSheet contentId={reviewPost.id} meName={meName} meId={userId} onClose={() => setReviewPost(null)} onActioned={() => { ack(reviewPost.alert); setReviewPost(null); }} />}
-      <div className="sec">{title} <span className={`adm-pill${crit ? " due" : ""}`}>{mine.length}{crit ? ` · ${crit} critical` : ""}</span>{mine.length > 1 && <button type="button" className="alert-clearall" onClick={() => clearAll()}>Clear all</button>}<button type="button" className="alert-prefs-btn" onClick={() => setPrefsOpen(true)} aria-label="Notification settings">⚙</button></div>
+      <div className="sec">{title} {mine.length > 0 && <span className={`adm-pill${crit ? " due" : ""}`}>{mine.length}{crit ? ` · ${crit} critical` : ""}</span>}{mine.length > 1 && <button type="button" className="alert-clearall" onClick={() => clearAll()}>Clear all</button>}<button type="button" className="alert-prefs-btn" onClick={() => setPrefsOpen(true)} aria-label="Notification settings">⚙</button></div>
       {prefsOpen && <NotifPrefsSheet userId={userId} onClose={() => setPrefsOpen(false)} />}
+
+      {/* Quiet-hours digest (0177 + S·5b): non-criticals that arrived during your quiet window are
+          held off the glance and gathered here — the morning digest. They surface on their own when
+          quiet hours end; review or clear them anytime. Criticals never land here. */}
+      {held.length > 0 && (
+        <div className="digest">
+          <button type="button" className="digest-head" onClick={() => setDigestOpen((v) => !v)} aria-expanded={digestOpen}>
+            <span className="digest-i" aria-hidden>🌙</span>
+            <span className="digest-t"><b>Quiet hours</b> · {held.length} held · surfaces when quiet hours end</span>
+            <span className="digest-x">{digestOpen ? "Hide" : "Review"}</span>
+          </button>
+          {digestOpen && (
+            <div className="digest-body">
+              {held.map((a) => (
+                <div key={a.id} className={`digest-item sev-${a.severity}`}>
+                  <button type="button" className="digest-item-go" onClick={() => gotoAlert(a)}>
+                    <span className="digest-item-t">{a.title}</span>
+                    {a.body && <span className="digest-item-b">{a.body}</span>}
+                  </button>
+                  <button type="button" className="digest-item-x" onClick={() => ack(a)} aria-label={`Dismiss ${a.title}`}>✕</button>
+                </div>
+              ))}
+              <button type="button" className="digest-clear" onClick={() => clearHeld()}>Mark all read</button>
+            </div>
+          )}
+        </div>
+      )}
+
       {sorted.map((a) => (
         <div key={a.id} className={`alert sev-${a.severity}`}>
           <div className="alert-row">

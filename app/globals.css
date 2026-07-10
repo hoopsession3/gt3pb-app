@@ -4525,3 +4525,20 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 .oa-code-bad{font-family:'Inter';font-size:12.5px;color:var(--warn);margin:6px 0 0}
 .oa-code-note{font-family:'Inter';font-size:12.5px;color:var(--cream-m);margin:6px 0 0}
 .dl-was{color:var(--cream-m);opacity:.7;margin-right:6px;font-weight:400}
+
+/* ═══ QUIET-HOURS DIGEST (My Day) — non-criticals held during your quiet window, gathered as a
+   morning digest that surfaces when quiet hours end (S·5b, 2026-07). Calm, nocturnal styling. ═══ */
+.digest{margin:6px 0 12px;border:1px solid rgba(120,140,200,.28);border-radius:13px;background:linear-gradient(180deg,rgba(80,96,160,.08),rgba(80,96,160,.03));overflow:hidden}
+.digest-head{width:100%;display:flex;align-items:center;gap:10px;padding:12px 14px;background:transparent;border:none;cursor:pointer;text-align:left;-webkit-appearance:none;appearance:none}
+.digest-i{font-size:16px;flex:0 0 auto}
+.digest-t{flex:1;font-family:'Inter';font-size:13px;color:var(--cream-m)}
+.digest-t b{color:var(--cream);font-weight:650}
+.digest-x{flex:0 0 auto;font-family:'Inter';font-weight:650;font-size:12px;color:var(--gold2)}
+.digest-body{display:flex;flex-direction:column;gap:7px;padding:2px 12px 12px}
+.digest-item{display:flex;align-items:stretch;gap:8px;border:1px solid var(--line);border-radius:10px;background:rgba(245,241,232,.02);overflow:hidden}
+.digest-item.sev-critical{border-color:rgba(184,36,32,.4)}
+.digest-item-go{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;padding:10px 12px;background:transparent;border:none;text-align:left;cursor:pointer;-webkit-appearance:none;appearance:none}
+.digest-item-t{font-family:'Inter';font-weight:600;font-size:13.5px;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.digest-item-b{font-family:'Inter';font-size:12px;color:var(--cream-m);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.digest-item-x{flex:0 0 auto;width:40px;background:transparent;border:none;border-left:1px solid var(--line);color:var(--cream-m);cursor:pointer;font-size:13px;-webkit-appearance:none;appearance:none}
+.digest-clear{align-self:flex-start;margin-top:2px;font-family:'Inter';font-weight:600;font-size:12.5px;padding:7px 14px;border-radius:999px;border:1px solid var(--line2);background:transparent;color:var(--cream-m);cursor:pointer;-webkit-appearance:none;appearance:none}
