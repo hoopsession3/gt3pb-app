@@ -10,6 +10,7 @@ import { authedFetch } from "@/lib/authedFetch";
 import { normalizeCategory, type AlertCategory } from "@/lib/alertKinds";
 import { useMyAlerts, type MyFlag } from "@/lib/useMyAlerts";
 import { localToday, etToday } from "@/lib/dates";
+import { brewStartOverdue } from "@/lib/brewMath";
 import { useWorkStreams, streamOfCategory } from "@/lib/streams";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useOperatorSection, sectionsForRole, streamGroups, SECTION_LABEL, type OpSection } from "@/components/OperatorNav";
@@ -492,7 +493,7 @@ function DropSheet({ onClose }: { onClose: () => void }) {
 
 // The "don't-miss" inbox — unacknowledged alerts for me (or all-leadership), critical first.
 // Realtime, so a new alert lands at the top of the Now screen the instant it's raised.
-function AlertsInbox({ userId, compact = false }: { userId: string | null; compact?: boolean }) {
+function AlertsInbox({ userId, compact = false, title = "Alerts" }: { userId: string | null; compact?: boolean; title?: string }) {
   const { profile } = useAuth();
   const { setSection } = useOperatorSection();
   const meName = profile?.display_name?.trim() || "Me";
@@ -500,6 +501,8 @@ function AlertsInbox({ userId, compact = false }: { userId: string | null; compa
   // badge, so the three counters that used to disagree now agree by construction. Ack semantics
   // live in the hook: row-ack for targeted alerts, per-user read for broadcasts (0157).
   const { flags: mine, critCount: crit, ack, clearAll } = useMyAlerts(userId);
+  const streams = useWorkStreams();
+  const myLane = (cat: string | null) => streams.some((s) => s.owner_user_id === userId && s.categories.includes(normalizeCategory(cat)));
   const [openThread, setOpenThread] = useState<string | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const loadCounts = useCallback(async () => { setCounts(await commentCounts("alert_id", mine.map((r) => r.id))); }, [mine]);
@@ -538,12 +541,12 @@ function AlertsInbox({ userId, compact = false }: { userId: string | null; compa
     <div className="adm-sec">
       {dropSheet && <DropSheet onClose={() => setDropSheet(false)} />}
       {reviewPost && <ContentApprovalSheet contentId={reviewPost.id} meName={meName} meId={userId} onClose={() => setReviewPost(null)} onActioned={() => { ack(reviewPost.alert); setReviewPost(null); }} />}
-      <div className="sec">Alerts <span className={`adm-pill${crit ? " due" : ""}`}>{mine.length}{crit ? ` · ${crit} critical` : ""}</span>{mine.length > 1 && <button type="button" className="alert-clearall" onClick={() => clearAll()}>Clear all</button>}</div>
+      <div className="sec">{title} <span className={`adm-pill${crit ? " due" : ""}`}>{mine.length}{crit ? ` · ${crit} critical` : ""}</span>{mine.length > 1 && <button type="button" className="alert-clearall" onClick={() => clearAll()}>Clear all</button>}</div>
       {sorted.map((a) => (
         <div key={a.id} className={`alert sev-${a.severity}`}>
           <div className="alert-row">
             <div className="alert-main">
-              <span className="alert-title">{a.title}</span>
+              <span className="alert-title">{a.title}{myLane(a.category) && <span className="myday-lane">your lane</span>}</span>
               {a.body && <span className="alert-body">{a.body}</span>}
             </div>
             {counts[a.id] ? <button type="button" className="alert-discuss" onClick={() => setOpenThread(openThread === a.id ? null : a.id)} aria-label="Discuss">💬<span className="cmt-count">{counts[a.id]}</span></button> : null}
@@ -967,11 +970,10 @@ function DayBrief({ ownerCol, ownerId, isAdmin }: { ownerCol: "event_id" | "stop
 function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: string; isLeader: boolean }) {
   // Flags ride the one shared hook (same source as the Now strip + nav badge). Crew see their own
   // pings + broadcasts now too — the old isLeader gate predates the staff-wide alerts RLS (0157).
-  const { flags, ack: ackFlag, clearAll: clearFlags } = useMyAlerts(userId);
+  const { flags } = useMyAlerts(userId);
   const { setSection } = useOperatorSection();
   const streams = useWorkStreams();
   const laneColor = (cat: string) => streamOfCategory(cat, streams)?.color;
-  const myLane = (cat: string | null) => streams.some((s) => s.owner_user_id === userId && s.categories.includes(normalizeCategory(cat)));
   const [today, setToday] = useState<{ id: string; title: string | null; day_label: string | null; is_live: boolean | null; dress_code?: string | null; crew_brief?: string | null }[]>([]);
   // The day's rhythm — the same anchors the company calendar carries. Events use the operator's
   // wall-clock day; drop/delivery are BUSINESS days (ET) so a late evening doesn't flip them early.
@@ -986,36 +988,23 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
       supabase.from("stops").select("id, name, starts_at").is("archived_at", null).neq("status", "done").gte("starts_at", dayStart.toISOString()).lt("starts_at", new Date(dayStart.getTime() + 86400000).toISOString()),
       supabase.from("drop_orders").select("id", { count: "exact", head: true }).eq("drop_date", bd).is("canceled_at", null),
       supabase.from("delivery_orders").select("id", { count: "exact", head: true }).eq("delivery_date", bd).is("canceled_at", null),
-      supabase.from("brew_batches").select("id, recipe_name, batch_gal, latest_start_at").in("status", ["planned", "brewing"]).eq("brew_date", d),
+      supabase.from("brew_batches").select("id, recipe_name, batch_gal, latest_start_at, status").in("status", ["planned", "brewing"]).eq("brew_date", d),
     ]).then(([st, dr, de, br]) => {
-      const now = new Date().toISOString();
       setRhythm({
         stops: ((st.data ?? []) as { id: string; name: string | null; starts_at: string | null }[]),
         dropPacks: dr.count ?? 0,
         porches: de.count ?? 0,
-        brews: ((br.data ?? []) as { id: string; recipe_name: string; batch_gal: number; latest_start_at: string | null }[]).map((b) => ({ id: b.id, recipe_name: b.recipe_name, batch_gal: b.batch_gal, warn: Boolean(b.latest_start_at && b.latest_start_at < now) })),
+        brews: ((br.data ?? []) as { id: string; recipe_name: string; batch_gal: number; latest_start_at: string | null; status: string }[]).map((b) => ({ id: b.id, recipe_name: b.recipe_name, batch_gal: b.batch_gal, warn: brewStartOverdue(b) })),
       });
     });
   }, []);
 
-  const [dropSheet, setDropSheet] = useState(false);
-  const [reviewPost, setReviewPost] = useState<{ id: string; flag: MyFlag } | null>(null);
-  const gotoFlag = (f: MyFlag) => {
-    if (alertIsReservation(f.title)) { setDropSheet(true); return; }  // pop the drop card in place
-    if (alertIsContentReview(f.title)) { const pid = postIdFromLink(f.link); if (pid) { setReviewPost({ id: pid, flag: f }); return; } }
-    const d = alertDest(f.category, f.title);
-    if (d.planTab) { try { localStorage.setItem("gt3-plan-tab", d.planTab); } catch { /* ignore */ } }
-    setSection(d.section);
-    scrollToAnchor(d.anchor);
-  };
   const hr = new Date().getHours();
   const greet = hr < 12 ? "Good morning" : hr < 17 ? "Good afternoon" : "Good evening";
   const first = meName.split(" ")[0];
 
   return (
     <>
-      {dropSheet && <DropSheet onClose={() => setDropSheet(false)} />}
-      {reviewPost && <ContentApprovalSheet contentId={reviewPost.id} meName={meName} meId={userId} onClose={() => setReviewPost(null)} onActioned={() => { ackFlag(reviewPost.flag); setReviewPost(null); }} />}
       <div className="myday-hero">
         <div className="myday-greet">{greet}{first && first !== "Me" ? `, ${first}` : ""}</div>
         <div className="myday-date">{new Date().toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}</div>
@@ -1038,12 +1027,12 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
       {(rhythm.stops.length > 0 || rhythm.dropPacks > 0 || rhythm.porches > 0 || rhythm.brews.length > 0) && (
         <div className="myday-rhythm">
           {rhythm.stops.map((s) => (
-            <button key={s.id} type="button" className="myday-chip" style={{ borderLeftColor: laneColor("stop") }} onClick={() => setSection("now")}>
+            <button key={s.id} type="button" className="myday-chip" style={{ borderLeftColor: laneColor("stop") }} onClick={() => { try { localStorage.setItem("gt3-prep-open", `stop:${s.id}`); } catch { /* ignore */ } setSection("prep"); }}>
               🚚 {s.name || "Truck stop"}{s.starts_at ? ` · ${new Date(s.starts_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""} ›
             </button>
           ))}
           {rhythm.dropPacks > 0 && <button type="button" className="myday-chip" style={{ borderLeftColor: laneColor("drop") }} onClick={() => setSection("now")}>📦 Drop today · {rhythm.dropPacks} pack{rhythm.dropPacks === 1 ? "" : "s"} ›</button>}
-          {rhythm.porches > 0 && <button type="button" className="myday-chip" style={{ borderLeftColor: laneColor("delivery") }} onClick={() => setSection("now")}>🚗 Delivery run · {rhythm.porches} porch{rhythm.porches === 1 ? "" : "es"} ›</button>}
+          {rhythm.porches > 0 && <button type="button" className="myday-chip" style={{ borderLeftColor: laneColor("delivery") }} onClick={() => { window.location.href = "/driver"; }}>🚗 Delivery run · {rhythm.porches} porch{rhythm.porches === 1 ? "" : "es"} ›</button>}
           {rhythm.brews.map((b) => (
             <button key={b.id} type="button" className={`myday-chip${b.warn ? " warn" : ""}`} style={{ borderLeftColor: laneColor("brew") }} onClick={() => setSection("brew")}>
               ☕ Brew · {b.recipe_name} {b.batch_gal} gal{b.warn ? " — start now" : ""} ›
@@ -1051,23 +1040,17 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
           ))}
         </div>
       )}
-      {(
+      {/* ONE inbox face — the same AlertsInbox the Now strip points to, with its discussion
+          threads, rendered here instead of a hand-rolled twin that had already lost them. */}
+      {flags.length === 0 ? (
         <>
-          <div className="sec">Flags &amp; pings for you{flags.length ? ` · ${flags.length}` : ""}{flags.length > 1 && <button type="button" className="alert-clearall" onClick={clearFlags}>Clear all</button>}</div>
-          {flags.length === 0 ? (
-            <div className="myday-clear">✓ Nothing needs you right now.</div>
-          ) : flags.map((f) => (
-            <div key={f.id} className={`myday-flag sev-${f.severity}`}>
-              <div className="myday-flag-b">
-                <div className="myday-flag-t">{f.title}{myLane(f.category) && <span className="myday-lane">your lane</span>}</div>
-                {f.body && <div className="myday-flag-x">{f.body}</div>}
-              </div>
-              <button type="button" className="myday-open" onClick={() => gotoFlag(f)}>Open →</button>
-              <button type="button" className="myday-ack" onClick={() => ackFlag(f)} aria-label="Got it">✓</button>
-            </div>
-          ))}
+          <div className="sec">Flags &amp; pings for you</div>
+          <div className="myday-clear">✓ Nothing needs you right now.</div>
         </>
+      ) : (
+        <AlertsInbox userId={userId} title="Flags & pings for you" />
       )}
+      {isLeader && <NeedsYou />}
       <MyTasks userId={userId} />
       {/* Lead-the-week tools sit BELOW the urgent lane — the operating loop reads top-down:
           what needs me now (flags) → what I'm doing today (tasks) → then lead the week. */}
@@ -1077,7 +1060,93 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
   );
 }
 
-function MyTasks({ userId }: { userId: string | null }) {
+// ───────────────────────── needs you: the start-of-shift action list ─────────────────────────
+// Lives on MY DAY (leadership) — the console's one glance screen. Booking replies, past-due team
+// tasks and restock lows used to hide inside Readiness' Overview; the counts are the same queries,
+// now surfaced where the day starts. Quiet when there's nothing to act on.
+function NeedsYou() {
+  const { setSection } = useOperatorSection();
+  const [news, setNews] = useState(0);
+  const [overdue, setOverdue] = useState<OverdueTask[]>([]);
+  const [showOverdue, setShowOverdue] = useState(false);
+  const [low, setLow] = useState<InvItem[]>([]);
+  const load = useCallback(async () => {
+    if (!supabase) return;
+    const today = localYMD(new Date());
+    const nowIso = new Date().toISOString();
+    const [b, evs, st, tasks, invResp] = await Promise.all([
+      supabase.from("booking_requests").select("id", { count: "exact", head: true }).eq("status", "new"),
+      supabase.from("events").select("*").order("day"),
+      supabase.from("stops").select("id, name, starts_at, status, archived_at").order("starts_at"),
+      supabase.from("event_tasks").select("id, label, event_id, stop_id, done, kind, due_at").eq("done", false).eq("kind", "task"),
+      fetchInventory(),
+    ]);
+    const allEv = ((evs.data as EventRow[]) ?? []).filter((e) => !e.archived_at);
+    const allSt = ((st.data as Stop[]) ?? []).filter((x) => !x.archived_at);
+    const evName = new Map(allEv.map((e) => [e.id, e.title ?? "Event"]));
+    const stName = new Map(allSt.map((x) => [x.id, x.name ?? "Stop"]));
+    const dueEv = new Set(allEv.filter((e) => e.day && e.day < today).map((e) => e.id));
+    const dueSt = new Set(allSt.filter((x) => x.status === "done" || (x.starts_at && localYMD(new Date(x.starts_at)) < today)).map((x) => x.id));
+    const taskRows = (tasks.data as { id: string; label: string; event_id: string | null; stop_id: string | null; due_at: string | null }[]) ?? [];
+    const od: OverdueTask[] = [];
+    for (const t of taskRows) {
+      const isPast = t.due_at ? t.due_at < nowIso : ((t.event_id && dueEv.has(t.event_id)) || (t.stop_id && dueSt.has(t.stop_id)));
+      if (!isPast) continue;
+      if (t.event_id) od.push({ taskId: t.id, label: t.label, kind: "event", ownerId: t.event_id, ownerName: evName.get(t.event_id) ?? "Event" });
+      else if (t.stop_id) od.push({ taskId: t.id, label: t.label, kind: "stop", ownerId: t.stop_id, ownerName: stName.get(t.stop_id) ?? "Stop" });
+    }
+    setNews(b.count ?? 0);
+    setOverdue(od);
+    setLow(invResp.enabled ? rollupLowStock(invResp.items, allEv.filter((e) => e.day && e.day >= today)) : []);
+  }, []);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => { load(); return () => { if (timer.current) clearTimeout(timer.current); }; }, [load]);
+  useRealtimeTable(["booking_requests", "event_tasks"], () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => load(), 500);
+  });
+  const goBookings = () => { try { localStorage.setItem("gt3-plan-tab", "bookings"); } catch { /* ignore */ } setSection("plan"); };
+  const openTarget = (kind: "event" | "stop", id: string) => { try { localStorage.setItem("gt3-prep-open", kind === "stop" ? `stop:${id}` : id); } catch { /* ignore */ } setSection("prep"); };
+  if (news === 0 && overdue.length === 0 && low.length === 0) return null;
+  return (
+    <div className="adm-sec">
+      <div className="bo-needs" style={{ marginTop: 0 }}>
+        <div className="adm-prep-label">Needs you</div>
+        {news > 0 && <button className="bo-need" onClick={goBookings}>{news} new booking {news === 1 ? "request" : "requests"} to reply to ›</button>}
+        {overdue.length > 0 && <button className="bo-need alert" onClick={() => setShowOverdue((v) => !v)}>{overdue.length} team {overdue.length === 1 ? "task" : "tasks"} past due — knock them out ›</button>}
+      </div>
+      {showOverdue && overdue.length > 0 && (
+        <div className="bo-overdue">
+          {overdue.slice(0, 8).map((t) => (
+            <button key={t.taskId} className="bo-overdue-row" onClick={() => openTarget(t.kind, t.ownerId)}>
+              <span className="bo-overdue-l">{t.label}</span>
+              <span className="bo-overdue-o">{t.ownerName} ›</span>
+            </button>
+          ))}
+          {overdue.length > 8 && <div className="pnl-note">+ {overdue.length - 8} more past due.</div>}
+        </div>
+      )}
+      {low.length > 0 && (
+        <>
+          <div className="wrule"><span>Restock · {low.length} low for upcoming events</span></div>
+          <div className="ev-invlist">
+            {low.slice(0, 8).map((it, i) => (
+              <div key={i} className={`ev-inv-row${(it.qty ?? 0) <= 0 ? " out" : ""}`}>
+                <span className="ev-inv-n">{it.qty ?? "—"}</span>
+                <span className="ev-inv-x"><b>{it.name}</b><span>reorder at {it.reorderPoint ?? "—"}{it.unit ? ` ${it.unit}` : ""}</span></span>
+                {it.reorderLink && <a className="ev-inv-link" href={it.reorderLink} target="_blank" rel="noreferrer">Reorder ›</a>}
+              </div>
+            ))}
+            {low.length > 8 && <div className="pnl-note">+ {low.length - 8} more below reorder point.</div>}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function MyTasks({ userId, chip = false }: { userId: string | null; chip?: boolean }) {
+  const { setSection } = useOperatorSection();
   const [tasks, setTasks] = useState<MyTaskRow[]>([]);
   const [loaded, setLoaded] = useState(false);
 
@@ -1111,6 +1180,18 @@ function MyTasks({ userId }: { userId: string | null }) {
   const sorted = [...tasks].sort((a, b) => score(a) - score(b) || (a.due_at ?? a.events?.day ?? "9999").localeCompare(b.due_at ?? b.events?.day ?? "9999"));
   const crit = tasks.filter((t) => t.critical).length;
   const over = tasks.filter(isOver).length;
+
+  // Chip face (Live Ops): the full list has ONE home — My Day. During service this is a pointer,
+  // the same pattern the alerts strip uses.
+  if (chip) {
+    return (
+      <button type="button" className={`alerts-strip${crit || over ? " crit" : ""}`} onClick={() => setSection("day")}>
+        <span className="alerts-strip-i" aria-hidden>☑️</span>
+        <span className="alerts-strip-t"><b>{tasks.length} task{tasks.length === 1 ? "" : "s"} on your plate</b>{over ? ` · ${over} overdue` : crit ? ` · ${crit} critical` : ""}</span>
+        <span className="alerts-strip-go">Open in My Day →</span>
+      </button>
+    );
+  }
 
   return (
     <div className="adm-sec">
@@ -2327,18 +2408,7 @@ function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive
     toast(error ? `Error: ${error.message}` : kind === "stop" ? "Location deleted" : "Vendor deleted");
     if (!error) onChanged();
   };
-  // Wrap a finished stop right from the manager: completed_at fires the 0125 trigger (status→done,
-  // truck offline if this is the live stop) and archiving files it off the route + guest screens.
-  const completeStop = async () => {
-    if (kind !== "stop" || !supabase) return;
-    if (typeof window !== "undefined" && !window.confirm(`Complete ${row.name}?\n\nMarks it done and archives it off the route. Add an after-action recap from its prep hub anytime.`)) return;
-    const now = new Date().toISOString();
-    const { error } = await supabase.from("stops").update({ completed_at: now, archived_at: now }).eq("id", row.id);
-    toast(error ? `Error: ${error.message}` : "Stop completed + archived");
-    if (!error) onChanged();
-  };
-
-  const showPoc = kind === "vendor" || !stop?.vendor_id;
+  const showPoc = kind === "vendor";
   const stopWhen = kind === "stop" && (row as { starts_at?: string | null }).starts_at
     ? new Date((row as { starts_at?: string | null }).starts_at as string).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
     : null;
@@ -2369,9 +2439,19 @@ function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive
             </button>
           )}
 
+          {kind === "stop" ? (
+            /* Identity is the PREP HUB's job (one editor per stop — same rule the calendar
+               follows). Route shows the facts and one door to change them. */
+            <div className="ev-group">
+              <div className="ev-group-h">Location</div>
+              <div className="stop-coords ok" style={{ marginTop: 0 }}>{row.name || "Untitled location"}{stopWhen ? ` · ${stopWhen}` : " · no date"}</div>
+              <div className={`stop-coords${hasCoords ? " ok" : ""}`}>{hasCoords ? `Pinned · ${(row.lat as number).toFixed(4)}, ${(row.lng as number).toFixed(4)}` : "No pin yet — add the address in the prep hub for accurate directions"}</div>
+              {onOpenPrep && <button type="button" className="adm-btn" onClick={onOpenPrep}>Edit name, address &amp; times in the prep hub ›</button>}
+            </div>
+          ) : (
           <div className="ev-group">
-            <div className="ev-group-h">{kind === "stop" ? "Location" : "Venue"}</div>
-            <input className="ev-input" value={name} onChange={(e) => setName(e.target.value)} onBlur={saveName} maxLength={120} placeholder={kind === "stop" ? "Location name" : "Vendor / venue name"} />
+            <div className="ev-group-h">Venue</div>
+            <input className="ev-input" value={name} onChange={(e) => setName(e.target.value)} onBlur={saveName} maxLength={120} placeholder="Vendor / venue name" />
             <button type="button" className="ev-fieldbtn" onClick={() => setEditAddr(true)}>
               <span className="ev-fieldbtn-l">Address</span>
               <span className={`ev-fieldbtn-v${address.trim() ? "" : " ph"}`}>{address.trim() || "Tap to add — we'll pin it on the map"}</span>
@@ -2390,6 +2470,7 @@ function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive
               />
             )}
           </div>
+          )}
 
           {kind === "stop" && vendors && onLinkVendor && <VendorPicker vendors={vendors} vendorId={stop?.vendor_id} onLink={onLinkVendor} />}
 
@@ -2402,42 +2483,22 @@ function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive
             </div>
           )}
 
-          {kind === "stop" ? (
-            <div className="ev-group">
-              <div className="ev-group-h">Date on the calendar</div>
-              <input className="ev-input" type="date"
-                defaultValue={stop?.starts_at ? (() => { const d = new Date(stop.starts_at as string); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })() : ""}
-                onChange={(e) => { if (!e.target.value) { patch({ starts_at: null }, "Date cleared"); return; } const old = stop?.starts_at ? new Date(stop.starts_at as string) : null; const hh = old ? `${String(old.getHours()).padStart(2, "0")}:${String(old.getMinutes()).padStart(2, "0")}` : "11:00"; patch({ starts_at: new Date(`${e.target.value}T${hh}:00`).toISOString() }, "Date saved — it's on the calendar"); }} />
-              {/* The TIME is a first-class fact — it's the truck page's OPEN and the drop math's
-                  anchor. Date sets the day (keeps the time); these set the time (keep the day). */}
-              <div className="ev-2col" style={{ marginTop: 8 }}>
-                <label className="ev-timelbl">Opens
-                  <input className="ev-input" type="time"
-                    defaultValue={stop?.starts_at ? (() => { const d = new Date(stop.starts_at as string); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; })() : ""}
-                    onChange={(e) => { if (!e.target.value) return; const base = stop?.starts_at ? new Date(stop.starts_at as string) : new Date(); const [hh, mm] = e.target.value.split(":"); base.setHours(Number(hh), Number(mm), 0, 0); patch({ starts_at: base.toISOString() }, "Open time saved — guests see it on the truck page"); }} />
-                </label>
-                <label className="ev-timelbl">Ends
-                  <input className="ev-input" type="time"
-                    defaultValue={stop?.ends_at ? (() => { const d = new Date(stop.ends_at as string); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; })() : ""}
-                    onChange={(e) => { if (!e.target.value) { patch({ ends_at: null }, "End time cleared"); return; } const base = stop?.starts_at ? new Date(stop.starts_at as string) : new Date(); const [hh, mm] = e.target.value.split(":"); base.setHours(Number(hh), Number(mm), 0, 0); patch({ ends_at: base.toISOString() }, "End time saved"); }} />
-                </label>
-              </div>
-              <input className="ev-input" defaultValue={row.service_dates ?? ""} placeholder="Recurring note (optional) — e.g. Saturdays · May 3 – Aug 30" maxLength={200} style={{ marginTop: 8 }} onBlur={(e) => { if ((e.target.value.trim() || null) !== (row.service_dates ?? null)) patch({ service_dates: e.target.value.trim() || null }, "Service dates saved"); }} />
-            </div>
-          ) : (
+          {kind === "vendor" && (
             <div className="ev-group"><div className="ev-group-h">Dates of service</div><input className="ev-input" defaultValue={row.service_dates ?? ""} placeholder="e.g. Saturdays · May – Aug" maxLength={200} onBlur={(e) => { if ((e.target.value.trim() || null) !== (row.service_dates ?? null)) patch({ service_dates: e.target.value.trim() || null }, "Saved"); }} /></div>
           )}
 
-          <div className="ev-group">
-            <div className="ev-group-h">{kind === "stop" ? "Guest details" : "Notes"}</div>
-            <textarea className="ev-input ev-area" rows={2} maxLength={1000} defaultValue={row.notes ?? ""} placeholder={kind === "stop" ? "Parking, what's special, anything guests should know" : "Anything to remember about this vendor"} onBlur={(e) => { if (e.target.value !== (row.notes ?? "")) patch({ notes: e.target.value.trim() || null }, "Details saved"); }} />
-          </div>
+          {kind === "vendor" && (
+            <div className="ev-group">
+              <div className="ev-group-h">Notes</div>
+              <textarea className="ev-input ev-area" rows={2} maxLength={1000} defaultValue={row.notes ?? ""} placeholder="Anything to remember about this vendor" onBlur={(e) => { if (e.target.value !== (row.notes ?? "")) patch({ notes: e.target.value.trim() || null }, "Details saved"); }} />
+            </div>
+          )}
 
           <div className="ev-card-foot">
             {kind === "stop" && onOpenPrep && <button className="adm-btn" style={{ marginRight: "auto" }} onClick={onOpenPrep}>Open prep hub ›</button>}
-            {kind === "stop" && <button className="ev-archive ev-complete" onClick={completeStop}>✓ Complete</button>}
-            <button className="ev-archive" onClick={onArchive}>{kind === "stop" ? "Archive location" : "Archive"}</button>
-            <button className="ev-delete" onClick={remove}>Delete</button>
+            {kind === "stop" && onOpenPrep && <button className="ev-archive ev-complete" onClick={onOpenPrep}>✓ Wrap up in the hub ›</button>}
+            {kind === "vendor" && <button className="ev-archive" onClick={onArchive}>Archive</button>}
+            {kind === "vendor" && <button className="ev-delete" onClick={remove}>Delete</button>}
           </div>
         </div>
       )}
@@ -2648,7 +2709,7 @@ function LiveControl({ compact = false, manage = false }: { compact?: boolean; m
             </div>
             {live?.is_live
               ? <button className="adm-btn ghost" onClick={pause}>Go offline</button>
-              : (active[0] && <button className="adm-btn primary" onClick={() => goLive(active[0].id)}>Go live</button>)}
+              : (active[0] && <button className="adm-btn primary" onClick={() => goLive(active[0].id)}>Go live · {active[0].name || "next stop"}</button>)}
           </div>
           {live?.is_live ? (
             <div className="liveinst-row">
@@ -3645,7 +3706,9 @@ function BriefPanel({ e, proj, inventory }: { e: EventRow; proj: Projection; inv
     <div className="ev-group ev-brief">
       <div className="ev-group-h">Event brief · what to bring</div>
       <div className="ev-pnl-gauges">
-        <div className="gauge"><div className={`gv ${b.readiness >= 80 ? "ok" : b.readiness >= 50 ? "gold" : "red"}`}>{b.readiness}%</div><div className="gl">Ready</div></div>
+        {/* "Planned", not "Ready" — this scores the plan inputs (menu, permit, crew, water,
+            forecast). Prep readiness is the task list's "Loaded n/n"; two different facts. */}
+        <div className="gauge"><div className={`gv ${b.readiness >= 80 ? "ok" : b.readiness >= 50 ? "gold" : "red"}`}>{b.readiness}%</div><div className="gl">Planned</div></div>
         <div className="gauge"><div className="gv">{b.projectedUnits}</div><div className="gl">Units</div></div>
         <div className="gauge"><div className={`gv ${b.crewOk ? "ok" : "red"}`}>{b.crewHave}/{b.crewNeeded || "–"}</div><div className="gl">Crew</div></div>
       </div>
@@ -4123,26 +4186,20 @@ function Overview({ onGo, onOpenTarget }: { onGo: (t: string) => void; onOpenTar
   // Operator-first glance: what's coming (events, stops), what's new (booking requests),
   // and what's overdue (open team tasks past their due date / owner date). Each card jumps
   // to where you act on it. (Sales metrics — subs/waitlist — live in Money, not here.)
+  // Prep-only context now: what's coming + what's live. The ACTION rows (booking replies,
+  // overdue tasks, restock) moved to My Day's NeedsYou — the console has ONE glance screen.
   const [s, setS] = useState({
     eventsUp: 0, nextEvent: null as { title: string; label: string } | null,
     stopsUp: 0, nextStop: null as { name: string; label: string; id: string } | null,
-    news: 0, live: null as EventRow | null,
+    live: null as EventRow | null,
   });
-  const [overdue, setOverdue] = useState<OverdueTask[]>([]);
-  const [showOverdue, setShowOverdue] = useState(false);
-  const [low, setLow] = useState<InvItem[]>([]);
-  const [invEnabled, setInvEnabled] = useState(false);
   const load = useCallback(async () => {
     if (!supabase) return;
     const today = localYMD(new Date()); // operator-local date, not UTC
-    const nowIso = new Date().toISOString();
-    const [b, ev, evs, st, tasks, invResp] = await Promise.all([
-      supabase.from("booking_requests").select("id", { count: "exact", head: true }).eq("status", "new"),
+    const [ev, evs, st] = await Promise.all([
       supabase.from("events").select("*").eq("is_live", true).maybeSingle(),
       supabase.from("events").select("*").order("day"),
       supabase.from("stops").select("id, name, when_label, starts_at, status, archived_at").order("starts_at"),
-      supabase.from("event_tasks").select("id, label, event_id, stop_id, done, kind, due_at").eq("done", false).eq("kind", "task"),
-      fetchInventory(),
     ]);
     const allEv = ((evs.data as EventRow[]) ?? []).filter((e) => !e.archived_at);
     const upEv = allEv.filter((e) => e.day && e.day >= today);
@@ -4150,29 +4207,11 @@ function Overview({ onGo, onOpenTarget }: { onGo: (t: string) => void; onOpenTar
     const allSt = ((st.data as Stop[]) ?? []).filter((x) => !x.archived_at);
     const upSt = allSt.filter((x) => x.status !== "done");
     const ns = upSt.find((x) => x.status === "live") ?? upSt[0];
-    // name lookups for the overdue list
-    const evName = new Map(allEv.map((e) => [e.id, e.title ?? "Event"]));
-    const stName = new Map(allSt.map((x) => [x.id, x.name ?? "Stop"]));
-    // past due = owner already happened (strictly before today, operator-local)
-    const dueEv = new Set(allEv.filter((e) => e.day && e.day < today).map((e) => e.id));
-    const dueSt = new Set(allSt.filter((x) => x.status === "done" || (x.starts_at && localYMD(new Date(x.starts_at)) < today)).map((x) => x.id));
-    const taskRows = (tasks.data as { id: string; label: string; event_id: string | null; stop_id: string | null; due_at: string | null }[]) ?? [];
-    // explicit per-task due date wins; otherwise fall back to the owning event/stop having passed
-    const od: OverdueTask[] = [];
-    for (const t of taskRows) {
-      const isPast = t.due_at ? t.due_at < nowIso : ((t.event_id && dueEv.has(t.event_id)) || (t.stop_id && dueSt.has(t.stop_id)));
-      if (!isPast) continue;
-      if (t.event_id) od.push({ taskId: t.id, label: t.label, kind: "event", ownerId: t.event_id, ownerName: evName.get(t.event_id) ?? "Event" });
-      else if (t.stop_id) od.push({ taskId: t.id, label: t.label, kind: "stop", ownerId: t.stop_id, ownerName: stName.get(t.stop_id) ?? "Stop" });
-    }
-    setOverdue(od);
     setS({
       eventsUp: upEv.length, nextEvent: ne ? { title: ne.title ?? "Event", label: ne.day_label || ne.day || "" } : null,
       stopsUp: upSt.length, nextStop: ns ? { name: ns.name ?? "Stop", label: ns.when_label || "", id: ns.id } : null,
-      news: b.count ?? 0, live: (ev.data as EventRow) ?? null,
+      live: (ev.data as EventRow) ?? null,
     });
-    setInvEnabled(invResp.enabled);
-    setLow(rollupLowStock(invResp.items, upEv)); // low stock across upcoming events
   }, []);
   // Debounce realtime: a burst of task check-offs during prep should collapse into one reload,
   // not fire a full 6-query load() per row.
@@ -4181,24 +4220,14 @@ function Overview({ onGo, onOpenTarget }: { onGo: (t: string) => void; onOpenTar
     load();
     return () => { if (timer.current) clearTimeout(timer.current); };
   }, [load]);
-  useRealtimeTable(["booking_requests", "events", "stops", "event_tasks"], () => {
+  useRealtimeTable(["events", "stops"], () => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => load(), 500);
   });
-  const pastTasks = overdue.length;
   const openStop = () => { if (s.nextStop && onOpenTarget) onOpenTarget("stop", s.nextStop.id); else onGo("stops"); };
   return (
     <div className="adm-sec">
       <div className="sec">At a glance</div>
-      {/* Action FIRST: anything needing a reply leads the section (owner call — booking replies
-          were below the fold). The quiet counts line follows. */}
-      {(s.news > 0 || pastTasks > 0) && (
-        <div className="bo-needs" style={{ marginTop: 0 }}>
-          <div className="adm-prep-label">Needs you</div>
-          {s.news > 0 && <button className="bo-need" onClick={() => onGo("bookings")}>{s.news} new booking {s.news === 1 ? "request" : "requests"} to reply to ›</button>}
-          {pastTasks > 0 && <button className="bo-need alert" onClick={() => setShowOverdue(true)}>{pastTasks} team {pastTasks === 1 ? "task" : "tasks"} past due — knock them out ›</button>}
-        </div>
-      )}
       <p className="bo-line">
         <button type="button" onClick={() => onGo("events")}><b>{s.eventsUp}</b> event{s.eventsUp === 1 ? "" : "s"}</button>
         {" · "}
@@ -4206,39 +4235,12 @@ function Overview({ onGo, onOpenTarget }: { onGo: (t: string) => void; onOpenTar
         {" coming up"}
         {(s.nextEvent || s.nextStop) && <> — next: <b>{s.nextEvent ? `${s.nextEvent.label ? `${s.nextEvent.label} · ` : ""}${s.nextEvent.title}` : `${s.nextStop!.label ? `${s.nextStop!.label} · ` : ""}${s.nextStop!.name}`}</b></>}
       </p>
-      {showOverdue && pastTasks > 0 && (
-        <div className="bo-overdue">
-          {overdue.slice(0, 8).map((t) => (
-            <button key={t.taskId} className="bo-overdue-row" onClick={() => onOpenTarget?.(t.kind, t.ownerId)}>
-              <span className="bo-overdue-l">{t.label}</span>
-              <span className="bo-overdue-o">{t.ownerName} ›</span>
-            </button>
-          ))}
-          {pastTasks > 8 && <div className="pnl-note">+ {pastTasks - 8} more past due.</div>}
-        </div>
-      )}
       {s.live ? (
         <div className="bo-live" role="button" tabIndex={0} onClick={() => onOpenTarget ? onOpenTarget("event", s.live!.id) : onGo("events")} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (onOpenTarget ? onOpenTarget("event", s.live!.id) : onGo("events"))}>
           <span className="adm-pill due">LIVE</span> <b>{s.live.title}</b> — running now · tap for prep
         </div>
       ) : (
         <div className="h-sub" style={{ marginTop: 12 }}>No event live. Set one live under Events when you open.</div>
-      )}
-
-      {invEnabled && low.length > 0 && (
-        <>
-          <div className="wrule"><span>Restock · {low.length} low for upcoming events</span></div>
-          <div className="ev-invlist">
-            {low.slice(0, 8).map((it, i) => (
-              <div key={i} className={`ev-inv-row${(it.qty ?? 0) <= 0 ? " out" : ""}`}>
-                <span className="ev-inv-n">{it.qty ?? "—"}</span>
-                <span className="ev-inv-x"><b>{it.name}</b><span>reorder at {it.reorderPoint ?? "—"}{it.unit ? ` ${it.unit}` : ""}</span></span>
-                {it.reorderLink && <a className="ev-inv-link" href={it.reorderLink} target="_blank" rel="noreferrer">Reorder ›</a>}
-              </div>
-            ))}
-            {low.length > 8 && <div className="pnl-note">+ {low.length - 8} more below reorder point.</div>}
-          </div>
-        </>
       )}
 
     </div>
@@ -4375,7 +4377,7 @@ const SEC_WHEN: Record<OpSection, string> = {
   plan: "Booking ahead", pipeline: "Working the leads", studio: "Promoting a drop", brew: "Production days", garage: "Assets & stock", goals: "Steering the quarter", driver: "Delivery days", stops: "Route planning", notes: "After a meeting", money: "The books", customers: "Your regulars", team: "People & roles",
 };
 const SEC_SUB: Record<OpSection, string> = {
-  day: "Your tasks, flags & what's on today.",
+  day: "Your tasks, flags, needs-you & what's on today.",
   now: "The pass, pack pickups & the 86 board — live service.",
   ask: "Recipes, gear, stock & how-to — from the GT3 playbook.",
   prep: "Stock, readiness & the pack list for what's next.",
@@ -4393,12 +4395,12 @@ const SEC_SUB: Record<OpSection, string> = {
   team: "People, roles, access & training.",
 };
 const SEC_MORE: Record<OpSection, string> = {
-  day: "Your personal launchpad. Everything assigned to you and everything flagged for your attention, in one place — so the moment you clock in you know exactly what to do.",
+  day: "Your personal launchpad — the console's one glance screen. Everything assigned to you, everything flagged for your attention, and (for leadership) the needs-you list: booking replies, past-due team tasks and restock lows.",
   now: "The glance before the work. Alerts land here, the service pulse shows what's waiting (orders on the pass, items 86'd), and one tap opens Service mode — the working screen with the pass, pickup checklist and 86 board. Prep lives here too: the drop's brew sheet and Sunday delivery.",
   prep: "Get ready before you roll. Build the pack list, check stock and readiness, and sign off that the truck's loaded for the next event or stop.",
   plan: "The forward calendar. Book events, work incoming booking requests, and manage vendors and venues — weeks and months out.",
   pipeline: "The sales board. Every account with its deal (from the owner's catalog, matched to the account type), its rep, its stage and its next step — argued out on the thread, won or lost on the record.",
-  stops: "Route planning: create and order locations, set dates and windows, pin addresses on the map, and set when cup orders open. Going live happens in Live Ops.",
+  stops: "Route planning: create and order locations, link vendors, go live, and set when cup orders open. A stop's name, date and address are edited in ONE place — its prep hub, one tap away.",
   notes: "The meeting record. Paste a recap, tag follow-ups, assign them — they land in everyone's tasks with a ping.",
   studio: "Your marketing studio. Draft posts and flyers, keep them on-brand, plan the feed, schedule around your drops, and moderate the guest reviews that feed the truck display.",
   brew: "Production's home. Schedule brews sized to demand, hit start-by deadlines, log every batch — with coverage, serve-by and stock checks right on the card.",
@@ -4411,18 +4413,18 @@ const SEC_MORE: Record<OpSection, string> = {
   ask: "Your pocket brain. Ask anything about recipes, the why, gear, stock or how-to and get an answer from the GT3 playbook — from any screen.",
 };
 const SEC_INSIDE: Record<OpSection, string[]> = {
-  day: ["Your open tasks & due dates", "Alerts flagged for you", "What's on the calendar today", "Day-of brief — dress code & call time"],
-  now: ["Service pulse — live counts, one tap into the working screen", "Service mode — the pass (guests ping it: on my way · outside · late), pickup checklist & 86 board on ONE screen", "The drop — brew sheet & window money (the checklist lives in Service)", "Delivery run — run sheet, brew totals & driver outcomes", "Live truck: go live, GPS broadcast (locations & the ordering dial live on the Stops page)", "Alerts inbox & live sales"],
+  day: ["Your open tasks & due dates", "Alerts flagged for you — with discussion threads", "Needs you (leadership): booking replies, past-due tasks, restock", "What's on the calendar today", "Day-of brief — dress code & call time"],
+  now: ["Service pulse — live counts, one tap into the working screen", "Service mode — the pass (guests ping it: on my way · outside · late), pickup checklist & 86 board on ONE screen", "The drop — brew sheet & window money (the checklist lives in Service)", "Delivery run — run sheet, brew totals & packout (outcomes are logged in driver mode)", "Live truck: go live, GPS broadcast (locations & the ordering dial live on the Stops page)", "Alerts & your tasks — pointers into My Day"],
   prep: ["Per-event & per-stop pack lists", "Readiness & inspection checks", "Crew assignments & sign-off", "Load-out & gear moved to Production › Garage"],
   plan: ["Company calendar", "Events", "Booking requests", "Vendors & venues"],
   pipeline: ["Prospect → first attempt → talking → proposal → won", "Deal catalog — owner-set, per account type", "Rep assignment with a ping", "Per-deal discussion threads"],
-  stops: ["Location list & route order", "Dates, windows & addresses", "The cup-ordering dial", "Going live lives in Live Ops"],
+  stops: ["Location list & route order", "Go live at any location", "The cup-ordering dial", "Names, dates & addresses are edited in the prep hub"],
   notes: ["Meeting recaps", "Follow-ups → assigned tasks", "GT3-format summaries"],
   studio: ["Post & flyer drafting", "Brand copy & front-end copy", "Feed planning grid", "Repurpose engine", "Publishing & scheduling", "Review Desk → the truck display (/display): add or approve reviews; ✨ Simplify de-claims + trims one to display-safe"],
   brew: ["Brew schedule with start-by deadlines", "Coverage — makes vs reserved", "Serve-by freshness windows", "Batch log & recipes"],
   garage: ["Load-out & tow plan", "Gear library — manuals & specs", "Asset maintenance & what's due", "Inventory — stock, costs & pars"],
   goals: ["Company goals & owners", "Progress check-ins", "Discussion threads"],
-  driver: ["Next run — porches & zips", "Driver mode — map & run list", "Outcomes land back in Now › Sunday delivery"],
+  driver: ["Next run — porches & zips", "Driver mode — map & run list", "The ONE place outcomes are logged (swap · fresh · hold · not home)"],
   customers: ["Customer list — guests & members", "Cross-channel order history (cup · pickup · delivery)", "Loyalty — points & credit", "Contact info for outreach"],
   money: ["Checkout & payments — card status + the pay-at-pickup toggle (governs cup, reserve & delivery)", "Sales · snapshot · per-event P&L", "Product economics & COGS", "Membership plans & subscribers", "Order history", "The Playbook (/playbook, owners) — every growth play + where its numbers land here", "Reserve drops — configure the limited drops"],
   team: ["Staff roster", "Roles & permissions", "Training & academy", "Manager approvals"],
@@ -4643,7 +4645,7 @@ export default function AdminPage() {
             </>
           )}
           {canManage && <Panel id="hud" title="Event heads-up"><EventHUD /></Panel>}
-          <MyTasks userId={user?.id ?? null} />
+          <MyTasks userId={user?.id ?? null} chip />
           <EnableAlerts userId={user?.id ?? null} />
         </>
       )}

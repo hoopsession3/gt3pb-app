@@ -6,6 +6,7 @@ import { useRealtimeTable } from "@/lib/realtime";
 import { raiseAlertClient } from "@/lib/clientAlerts";
 import { useApp } from "./AppProvider";
 import { FLAVORS, nextDrop, dropDateKey, mixSummary, dollars, type GlassPath, type Mix } from "@/lib/orderAhead";
+import { gallonsForBottles, flavorDemand } from "@/lib/brewMath";
 import { dayKey, etToday } from "@/lib/dates";
 
 // DROP OPS — the order-ahead brew sheet + pickup checklist for Saturday's drop. Lives in the admin
@@ -34,8 +35,7 @@ const PACK_STAGES: { key: PackStage; label: string; next: string }[] = [
 ];
 const stageIndex = (s: PackStage | null | undefined) => Math.max(0, PACK_STAGES.findIndex((x) => x.key === (s ?? "reserved")));
 
-const GAL_PER_BOTTLE = 10 / 128; // one bottle = one 10-oz serving (the brew spec's unit)
-const quarterGal = (g: number) => Math.max(0.25, Math.ceil(g * 4) / 4);
+
 
 // Two faces: `brief` is the Now screen's prep face (what to brew, what money, one progress line —
 // tapping it opens Service mode); full is the working face (checklist, upcoming, history) and
@@ -183,7 +183,7 @@ export default function DropOps({ brief = false, onOpen }: { brief?: boolean; on
     const brewISO = dayKey(brewD); // local round-trip of the local-parsed date — a UTC slice could shift a day
     const ins = wanted.map((f) => {
       const r = (recipes ?? []).find((x) => x.product_slug === f.toLowerCase());
-      const gal = quarterGal((perF[f] * GAL_PER_BOTTLE) / (Number(r?.yield_factor) || 0.92));
+      const gal = gallonsForBottles(perF[f], r?.yield_factor);
       return {
         recipe_id: r?.id ?? null, recipe_name: r?.name ?? `GT3 ${f}`, batch_gal: gal,
         brew_date: brewISO, status: "planned", drop_date: dropISO,
@@ -201,8 +201,7 @@ export default function DropOps({ brief = false, onOpen }: { brief?: boolean; on
   const glassBack = rows.filter((o) => o.glass === "return").reduce((a, o) => a + o.size, 0);
   const revenue = rows.reduce((a, o) => a + o.total_cents, 0) / 100;
   const dueAtWindow = rows.filter((o) => !o.paid).reduce((a, o) => a + o.total_cents, 0) / 100;
-  const perF: Record<string, number> = { RISE: 0, FLOW: 0, DUSK: 0 };
-  rows.forEach((o) => FLAVORS.forEach((f) => { perF[f] += o.mix?.[f] || 0; }));
+  const perF: Record<string, number> = flavorDemand(rows, FLAVORS);
   // Under a Saturday rush the queue has to scan fast: unfulfilled float to the top, completed dim
   // out. Progress counters tell the lead where the drop stands at a glance.
   const returns = rows.filter((o) => o.glass === "return");
@@ -242,7 +241,7 @@ export default function DropOps({ brief = false, onOpen }: { brief?: boolean; on
             <div className="dops-plan queued">🫙 Brew plan queued: {batches.map((b) => `${b.recipe_name ?? "?"} — ${b.batch_gal} gal (${b.status})`).join(" · ")}</div>
           ) : bottles > 0 ? (
             <div className="dops-plan">
-              <span>Friday&rsquo;s brew: {FLAVORS.filter((f) => perF[f] > 0).map((f) => `${quarterGal((perF[f] * GAL_PER_BOTTLE) / 0.92)} gal ${f}`).join(" · ")}</span>
+              <span>Friday&rsquo;s brew: {FLAVORS.filter((f) => perF[f] > 0).map((f) => `${gallonsForBottles(perF[f], null)} gal ${f}`).join(" · ")}</span>
               <button type="button" onClick={queueBrew} disabled={busy}>{busy ? "Queuing…" : "Queue brew batches"}</button>
             </div>
           ) : null}

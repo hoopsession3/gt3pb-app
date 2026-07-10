@@ -5,6 +5,8 @@ import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { useRealtimeTable } from "@/lib/realtime";
 import { CAL_CAT as CAT } from "@/lib/calendarTokens";
+import { brewStartOverdue } from "@/lib/brewMath";
+import { etToday } from "@/lib/dates";
 import { useWorkStreams } from "@/lib/streams";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import { useOperatorSection } from "./OperatorNav";
@@ -180,7 +182,7 @@ export default function CompanyCalendar() {
     for (const c of content) if (c.scheduled_for && pass("content")) push(key(new Date(c.scheduled_for)), { id: c.id, title: c.title || "Content", cat: "content", kind: "content", go: () => setSection("studio") });
     for (const t of todos) if (t.due_on && pass(t.category)) push(t.due_on, { id: t.id, title: t.title, cat: CAT[t.category] ? t.category : "ops", kind: "todo", done: t.done, go: () => { if (t.event_id) openEventPrep(t.event_id); else if (t.meeting_note_id) setSection("plan"); }, toggle: () => toggleTodo(t) });
     for (const t of prepTasks) if (t.due_at && pass("task")) push(key(new Date(t.due_at)), { id: t.id, title: t.label, cat: "task", kind: "task", go: () => { if (t.event_id) openEventPrep(t.event_id); else if (t.stop_id) openStopPrep(t.stop_id); else if (t.meeting_note_id) setSection("notes"); else if (t.goal_id) setSection("goals"); } });
-    if (pass("brew")) for (const b of brews) if (b.brew_date) push(b.brew_date, { id: b.id, title: `Brew · ${b.recipe_name || "Batch"} ${Number(b.batch_gal ?? 1)} gal`, cat: "brew", kind: "brew", warn: b.status === "planned" && !!b.latest_start_at && new Date(b.latest_start_at) < new Date(), go: openBrew });
+    if (pass("brew")) for (const b of brews) if (b.brew_date) push(b.brew_date, { id: b.id, title: `Brew · ${b.recipe_name || "Batch"} ${Number(b.batch_gal ?? 1)} gal`, cat: "brew", kind: "brew", warn: brewStartOverdue(b), go: openBrew });
     if (pass("drop")) {
       const agg: Record<string, number> = {};
       for (const d of drops) agg[d.drop_date] = (agg[d.drop_date] || 0) + 1;
@@ -189,7 +191,7 @@ export default function CompanyCalendar() {
     if (pass("delivery")) {
       const agg: Record<string, number> = {};
       for (const d of dels) agg[d.delivery_date] = (agg[d.delivery_date] || 0) + 1;
-      for (const [dk, n] of Object.entries(agg)) push(dk, { id: `del-${dk}`, title: `Delivery run · ${n} porch${n === 1 ? "" : "es"}`, cat: "delivery", kind: "delivery", go: openNow });
+      for (const [dk, n] of Object.entries(agg)) push(dk, { id: `del-${dk}`, title: `Delivery run · ${n} porch${n === 1 ? "" : "es"}`, cat: "delivery", kind: "delivery", go: dk === etToday() ? () => { window.location.href = "/driver"; } : openNow });
     }
     return m;
   }, [events, content, todos, stops, prepTasks, brews, drops, dels, filter, streams]);
@@ -571,11 +573,20 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: s
         onClose={() => setPlanOpen(false)}
       />
     )}
-    <Sheet open onClose={onClose} className="dp-form" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Edit {cfg.noun}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
+    <Sheet open onClose={onClose} className="dp-form" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{kind === "stop" ? "Truck stop" : `Edit ${cfg.noun}`}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
+          {kind === "stop" ? (
+            /* Read-only: one editor per stop (the prep hub). The calendar shows the facts + doors. */
+            <div className="cal-stopcard">
+              <b>{f.name || "Untitled location"}</b>
+              <span>{dateVal ? new Date(`${dateVal}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : "No date"}{f.location_text ? ` · ${f.location_text}` : ""}</span>
+              <span className="cal-stopcard-hint">Name, date &amp; address are edited in the prep hub.</span>
+            </div>
+          ) : (
           <input className="note-in" value={f[cfg.nameCol] ?? ""} onChange={(e) => set(cfg.nameCol, e.target.value)} placeholder={`${cfg.noun[0].toUpperCase() + cfg.noun.slice(1)} name`} autoFocus />
+          )}
           <div className="prod-grid" style={{ marginTop: 10 }}>
-            <label className="prod-f"><span>Date</span><input type="date" value={dateVal} onChange={(e) => onDate(e.target.value)} /></label>
-            {(kind === "event" || kind === "stop") && <label className="prod-f"><span>Location</span><input value={f.location_text ?? ""} onChange={(e) => set("location_text", e.target.value)} placeholder="Where" /></label>}
+            {kind !== "stop" && <label className="prod-f"><span>Date</span><input type="date" value={dateVal} onChange={(e) => onDate(e.target.value)} /></label>}
+            {kind === "event" && <label className="prod-f"><span>Location</span><input value={f.location_text ?? ""} onChange={(e) => set("location_text", e.target.value)} placeholder="Where" /></label>}
             {kind === "todo" && (
               <label className="prod-f"><span>Category</span>
                 <select value={f.category ?? "ops"} onChange={(e) => set("category", e.target.value)}>
@@ -613,6 +624,11 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: s
               <button type="button" className="cal-tolink" style={{ marginLeft: 0 }} onClick={() => { try { localStorage.setItem("gt3-prep-open", kind === "stop" ? `stop:${id}` : id); } catch { /* ignore */ } setSection("prep"); onClose(); }}>Open full prep hub ↗</button>
             </div>
           )}
+          {kind === "stop" ? (
+            <div className="prod-actions" style={{ marginTop: 14, justifyContent: "flex-end" }}>
+              <button type="button" className="note-save" onClick={onClose}>Close</button>
+            </div>
+          ) : (
           <div className="prod-actions" style={{ marginTop: 14, justifyContent: "space-between" }}>
             <button type="button" className="note-arch" onClick={remove} disabled={saving}>{kind === "content" ? "Unschedule" : kind === "todo" ? "Delete" : "Remove"}</button>
             <div style={{ display: "flex", gap: 8 }}>
@@ -620,6 +636,7 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: s
               <button type="button" className="note-save" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
             </div>
           </div>
+          )}
     </Sheet>
     </>
   );

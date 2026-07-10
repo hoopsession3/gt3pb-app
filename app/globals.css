@@ -4263,3 +4263,9 @@ button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:
 .app.crew-day .pipe-notes{background:rgba(34,31,24,.04)}
 .pipe-notes b{font-family:var(--mono);font-size:9.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--cream-m)}
 .pipe-note{font-family:'Inter';font-size:12.5px;color:var(--cream)}
+/* Calendar: read-only stop card (identity edits live in the prep hub) */
+.cal-stopcard{display:flex;flex-direction:column;gap:4px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.14)}
+.app.crew-day .cal-stopcard{background:rgba(34,31,24,.04)}
+.cal-stopcard b{font-family:'Inter';font-weight:650;font-size:15px;color:var(--cream)}
+.cal-stopcard span{font-family:'Inter';font-size:12.5px;color:var(--cream-m)}
+.cal-stopcard-hint{font-size:11.5px;opacity:.75}

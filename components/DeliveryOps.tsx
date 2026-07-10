@@ -3,9 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
-import { raiseAlertClient } from "@/lib/clientAlerts";
-import { authedFetch } from "@/lib/authedFetch";
-import { useApp } from "./AppProvider";
 import { type PerfMix } from "@/lib/delivery";
 import { etToday } from "@/lib/dates";
 import AssignTaskSheet from "./AssignTaskSheet";
@@ -35,7 +32,6 @@ const STATUS_LABEL: Record<string, string> = {
 const dollars = (c: number) => `$${(c / 100).toFixed(2)}`;
 
 export default function DeliveryOps() {
-  const { toast } = useApp();
   const [rows, setRows] = useState<DOrder[]>([]);
   const [date, setDate] = useState<string | null>(null);
   const [listOpen, setListOpen] = useState<boolean | null>(null);
@@ -64,37 +60,9 @@ export default function DeliveryOps() {
     await supabase.from("delivery_orders").update({ status }).eq("id", o.id);
     load();
   };
-  const outcome = async (o: DOrder, kind: "swap_completed" | "delivered_fresh_no_empties" | "held_no_empties") => {
-    // Delivered = the porch text ("your bottles are out"). Held-for-pickup gets crew handling
-    // instead. Fire-and-forget — the run sheet never waits on a provider.
-    if (kind !== "held_no_empties") {
-      void (async () => {
-        try {
-          await authedFetch("/api/notify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "delivered", id: o.id }) });
-        } catch { /* best-effort */ }
-      })();
-    }
-    if (!supabase) return;
-    if (kind === "swap_completed") {
-      const got = typeof window !== "undefined" ? window.prompt(`Empties picked up? (expected ${o.empties_expected})`, String(o.empties_expected)) : null;
-      if (got == null) return;
-      await supabase.from("delivery_orders").update({ driver_outcome: kind, status: "delivered", empties_collected: Math.max(0, parseInt(got, 10) || 0) }).eq("id", o.id);
-    } else if (kind === "delivered_fresh_no_empties") {
-      const note = typeof window !== "undefined" ? window.prompt("No empties — delivering fresh anyway. Why? (logged)", "") : null;
-      if (note == null) return;
-      await supabase.from("delivery_orders").update({ driver_outcome: kind, status: "delivered", empties_collected: 0, driver_note: note.slice(0, 300) }).eq("id", o.id);
-      toast("Logged — margin absorbed this once");
-    } else {
-      await supabase.from("delivery_orders").update({ driver_outcome: kind, status: "held_for_pickup", empties_collected: 0 }).eq("id", o.id);
-      await raiseAlertClient({
-        severity: "important", category: "order", title: "Delivery held — pickup queue",
-        body: `${o.name} — no empties out. ${o.pack_size} bottles held at GT3PB for pickup 10 AM – 2 PM. ${o.phone ?? ""}`.trim(),
-        link: "/crew?s=now",
-      });
-      toast("Held for pickup — crew alerted");
-    }
-    load();
-  };
+  // Outcomes (swap done / fresh / hold / not home) are logged in DRIVER MODE only (/driver) —
+  // one writer, so the recorded flow can't drift between two button sets again. This card is the
+  // HQ monitor/debrief face: statuses, brew totals, packout, assign.
 
   if (!date || rows.length === 0) return null; // quiet until a delivery exists
 
@@ -160,11 +128,7 @@ export default function DeliveryOps() {
               <button type="button" className="dops-check" onClick={() => setStatus(o, STATUS_NEXT[o.status])}>→ {STATUS_LABEL[STATUS_NEXT[o.status]]}</button>
             )}
             {o.status === "out_for_delivery" && (
-              <>
-                <button type="button" className="dops-check" onClick={() => outcome(o, "swap_completed")}>✓ Swap done</button>
-                <button type="button" className="dops-mini" onClick={() => outcome(o, "delivered_fresh_no_empties")}>Fresh anyway</button>
-                <button type="button" className="dops-mini danger" onClick={() => outcome(o, "held_no_empties")}>No empties — hold</button>
-              </>
+              <a className="dops-mini" href="/driver">Log the outcome in driver mode →</a>
             )}
           </div>
         </div>

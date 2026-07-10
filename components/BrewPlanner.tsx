@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { FLAVORS } from "@/lib/orderAhead";
+import { bottlesFor, brewStartOverdue } from "@/lib/brewMath";
 import AssignTaskSheet from "@/components/AssignTaskSheet";
 import Sheet from "@/components/Sheet";
 import ProgressRing from "@/components/ProgressRing";
@@ -30,8 +31,7 @@ const fmtDate = (s: string | null) => s ? new Date(`${s}T00:00:00`).toLocaleDate
 const fmtTs = (s: string | null) => s ? new Date(s).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric" }) : "—";
 // display-only: target_spec sometimes carries a " · Signal Score 8+" tail — drop it on the card (DB value untouched)
 const specLabel = (s: string | null) => (s ?? "").replace(/\s*·\s*Signal Score.*$/, "");
-// same yield math as the brew agent: 128 oz/gal, 10 oz serves
-const bottlesFor = (gal: number, yieldFactor: number | null | undefined) => Math.floor((gal * 128 * (yieldFactor ?? 1)) / 10);
+
 // Stock check for a planned batch — match scaled ingredients to inventory by normalized-name
 // containment both directions, keyed on the first significant word ("coffee" ties
 // "Coffee, coarse grind" to "Whole-bean coffee"). Returns null when there's nothing to say.
@@ -232,7 +232,7 @@ export default function BrewPlanner() {
                 {b.status === "planned" && (
                   <>
                     {b.latest_start_at && (() => {
-                      const over = new Date(b.latest_start_at!).getTime() < now;
+                      const over = brewStartOverdue(b, now);
                       return <div className={`brew-startby${over ? " over" : ""}`}>{over ? "🚨 Past the latest start to be ready in time — start now" : `⏰ Start by ${fmtTs(b.latest_start_at)} to be ready in time`}</div>;
                     })()}
                     <button type="button" className="brew-start" onClick={() => setStarting(b)}>▶ Start brew ({Number(b.extraction_hours) || 20}h)</button>
