@@ -24,7 +24,26 @@ const STAGES = [
 ] as const;
 type Stage = (typeof STAGES)[number]["key"];
 
-type Deal = { id: string; title: string; blurb: string | null; vendor_type: string; price_label: string | null; active: boolean; sort: number };
+type Deal = { id: string; title: string; blurb: string | null; vendor_type: string; price_label: string | null; active: boolean; sort: number; model: string; rate_pct: number | null; monthly_cents: number | null };
+
+// The owner's rule: our margin never goes below 80% — a deal giving away more than 20% gets
+// flagged where it's written AND stays visible where reps pick it.
+const MARGIN_FLOOR_GIVE = 20;
+const DEAL_MODELS = [
+  { key: "rev_share", label: "Revenue share", hint: "they take a % of sales" },
+  { key: "discount", label: "Discount", hint: "% off list for the account" },
+  { key: "monthly", label: "Monthly", hint: "they pay a flat monthly" },
+  { key: "flat", label: "Flat", hint: "one-time amount" },
+  { key: "custom", label: "Custom", hint: "free-text terms" },
+] as const;
+const dealTerms = (d: Deal): string => {
+  if (d.model === "rev_share" && d.rate_pct != null) return `${d.rate_pct}% to them · we keep ${100 - d.rate_pct}%`;
+  if (d.model === "discount" && d.rate_pct != null) return `${d.rate_pct}% off list`;
+  if ((d.model === "monthly" || d.model === "flat") && d.monthly_cents != null) return `$${(d.monthly_cents / 100).toLocaleString()}${d.model === "monthly" ? "/mo" : " flat"}`;
+  return d.price_label ?? "";
+};
+const dealGive = (d: Deal): number | null => (d.model === "rev_share" || d.model === "discount") ? d.rate_pct : null;
+const belowFloor = (d: Deal): boolean => { const g = dealGive(d); return g != null && g > MARGIN_FLOOR_GIVE; };
 type Vendor = { id: string; name: string; vendor_type: string | null; archived_at?: string | null };
 type Opp = {
   id: string; vendor_id: string; deal_id: string | null; rep_id: string | null; stage: Stage;
@@ -50,13 +69,13 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   const [adding, setAdding] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [no, setNo] = useState({ vendorId: "", newVendor: "", newType: "gym", dealId: "", repId: "", value: "", nextStep: "" });
-  const [nd, setNd] = useState({ title: "", vendor_type: "gym", price_label: "", blurb: "" });
+  const [nd, setNd] = useState({ title: "", vendor_type: "gym", price_label: "", blurb: "", model: "rev_share", rate: "", amount: "" });
 
   const load = useCallback(async () => {
     if (!supabase) return;
     const [o, d, v, st] = await Promise.all([
       supabase.from("opportunities").select("id, vendor_id, deal_id, rep_id, stage, value_cents, next_step, next_step_at, lost_reason, created_at, vendors(name, vendor_type), deals(title)").order("created_at", { ascending: false }),
-      supabase.from("deals").select("id, title, blurb, vendor_type, price_label, active, sort").order("sort").order("created_at"),
+      supabase.from("deals").select("id, title, blurb, vendor_type, price_label, active, sort, model, rate_pct, monthly_cents").order("sort").order("created_at"),
       supabase.from("vendors").select("id, name, vendor_type, archived_at").is("archived_at", null).order("name"),
       supabase.from("profiles").select("id, display_name").neq("role", "member").order("display_name"),
     ]);
@@ -120,9 +139,17 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
 
   const addDeal = async () => {
     if (!supabase || !nd.title.trim()) return;
-    const { error } = await supabase.from("deals").insert({ title: nd.title.trim(), vendor_type: nd.vendor_type, price_label: nd.price_label.trim() || null, blurb: nd.blurb.trim() || null, sort: deals.length });
+    const rate = nd.rate ? Number(nd.rate) : null;
+    const amount = nd.amount ? Math.round(Number(nd.amount) * 100) : null;
+    const { error } = await supabase.from("deals").insert({
+      title: nd.title.trim(), vendor_type: nd.vendor_type, model: nd.model,
+      rate_pct: (nd.model === "rev_share" || nd.model === "discount") ? rate : null,
+      monthly_cents: (nd.model === "monthly" || nd.model === "flat") ? amount : null,
+      price_label: nd.price_label.trim() || null, blurb: nd.blurb.trim() || null, sort: deals.length,
+    });
     if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
-    setNd({ title: "", vendor_type: "gym", price_label: "", blurb: "" });
+    if (rate != null && rate > MARGIN_FLOOR_GIVE) toast(`Heads up — that gives away ${rate}%, past the 80% margin floor`, "error");
+    setNd({ title: "", vendor_type: "gym", price_label: "", blurb: "", model: "rev_share", rate: "", amount: "" });
     toast("Deal's on the table"); load();
   };
   const toggleDeal = async (d: Deal) => {
@@ -167,7 +194,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
             <label>Deal <i>(for {o.vendors?.vendor_type ?? "this type"})</i>
               <select value={o.deal_id ?? ""} onChange={(e) => patch(o.id, { deal_id: e.target.value || null })}>
                 <option value="">None yet</option>
-                {dealsFor(o.vendors?.vendor_type).map((d) => <option key={d.id} value={d.id}>{d.title}{d.price_label ? ` · ${d.price_label}` : ""}</option>)}
+                {dealsFor(o.vendors?.vendor_type).map((d) => <option key={d.id} value={d.id}>{d.title}{dealTerms(d) ? ` · ${dealTerms(d)}` : ""}</option>)}
               </select>
             </label>
             <label>Value $
@@ -207,7 +234,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
                   <div className="dv-sub" style={{ margin: "8px 0 4px", textTransform: "capitalize" }}>{t}</div>
                   {deals.filter((d) => d.vendor_type === t).map((d) => (
                     <div key={d.id} className={`pipe-dealrow${d.active ? "" : " off"}`}>
-                      <span className="pipe-dealrow-t"><b>{d.title}</b>{d.price_label && ` · ${d.price_label}`}{d.blurb && <i> — {d.blurb}</i>}</span>
+                      <span className="pipe-dealrow-t"><b>{d.title}</b>{dealTerms(d) && ` · ${dealTerms(d)}`}{belowFloor(d) && <span className="pipe-floor">below 80% floor</span>}{d.blurb && <i> — {d.blurb}</i>}</span>
                       <button type="button" className="lane-pin" onClick={() => toggleDeal(d)}>{d.active ? "Live" : "Off"}</button>
                     </div>
                   ))}
@@ -220,7 +247,22 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
                     {VENDOR_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </label>
-                <label>Terms<input value={nd.price_label} onChange={(e) => setNd({ ...nd, price_label: e.target.value })} placeholder="$500/mo · rev share 20%" maxLength={40} /></label>
+                <label>Model
+                  <select value={nd.model} onChange={(e) => setNd({ ...nd, model: e.target.value })}>
+                    {DEAL_MODELS.map((m) => <option key={m.key} value={m.key}>{m.label} — {m.hint}</option>)}
+                  </select>
+                </label>
+                {(nd.model === "rev_share" || nd.model === "discount") && (
+                  <label>{nd.model === "rev_share" ? "Their cut %" : "Discount %"} <i>{nd.rate && Number(nd.rate) > MARGIN_FLOOR_GIVE ? "— below the 80% floor" : nd.model === "rev_share" && nd.rate ? `— we keep ${100 - Number(nd.rate)}%` : ""}</i>
+                    <input inputMode="decimal" value={nd.rate} onChange={(e) => setNd({ ...nd, rate: e.target.value })} placeholder="10" />
+                  </label>
+                )}
+                {(nd.model === "monthly" || nd.model === "flat") && (
+                  <label>{nd.model === "monthly" ? "$ / month" : "Flat $"}<input inputMode="decimal" value={nd.amount} onChange={(e) => setNd({ ...nd, amount: e.target.value })} placeholder="500" /></label>
+                )}
+                {nd.model === "custom" && (
+                  <label>Terms<input value={nd.price_label} onChange={(e) => setNd({ ...nd, price_label: e.target.value })} placeholder="Describe the structure" maxLength={40} /></label>
+                )}
                 <label>One-liner<input value={nd.blurb} onChange={(e) => setNd({ ...nd, blurb: e.target.value })} placeholder="What the account gets" maxLength={120} /></label>
               </div>
               <button type="button" className="dops-mini" style={{ marginTop: 8 }} onClick={addDeal} disabled={!nd.title.trim()}>Put it on the table</button>
@@ -265,7 +307,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
             <label>Deal <i>({newVendorType ?? "pick a type"})</i>
               <select value={no.dealId} onChange={(e) => setNo({ ...no, dealId: e.target.value })}>
                 <option value="">Pick later</option>
-                {dealsFor(newVendorType).map((d) => <option key={d.id} value={d.id}>{d.title}{d.price_label ? ` · ${d.price_label}` : ""}</option>)}
+                {dealsFor(newVendorType).map((d) => <option key={d.id} value={d.id}>{d.title}{dealTerms(d) ? ` · ${dealTerms(d)}` : ""}</option>)}
               </select>
             </label>
             <label>Rep

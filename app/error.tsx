@@ -13,6 +13,15 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
   useEffect(() => {
     console.error(error);
     reportClientError({ message: `${error.message}${error.digest ? ` [${error.digest}]` : ""}`, stack: error.stack, fatal: true });
+    // Deploy-skew self-heal: a tab left open across a deploy can hold a page chunk whose shared
+    // module was rebuilt — surfacing as "x is not a function" / chunk-load failures (seen live:
+    // mixTotal on /reserve). One automatic hard reload fetches a coherent build; the session
+    // guard stops loops when the error is real.
+    const skew = /is not a function|ChunkLoadError|Loading chunk|Importing a module script failed|undefined is not an object \(evaluating/i.test(error.message ?? "");
+    if (skew && typeof window !== "undefined" && !sessionStorage.getItem("gt3-skew-reload")) {
+      try { sessionStorage.setItem("gt3-skew-reload", "1"); } catch { /* ignore */ }
+      window.location.reload();
+    }
   }, [error]);
   const reload = () => { if (typeof window !== "undefined") window.location.reload(); };
   return (
