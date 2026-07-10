@@ -9,6 +9,7 @@ import SignIn from "@/components/SignIn";
 import OrderConfirm from "@/components/OrderConfirm";
 import PaymentCard, { type PaymentCardHandle } from "./PaymentCard";
 import MyPacks, { packMix, packDayLabel, type MyPack } from "./MyPacks";
+import Sheet from "./Sheet";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { squareClientReady } from "@/lib/square";
@@ -62,6 +63,11 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
   const choices = useMemo(() => deliverySlotChoices(Date.now()), []);
   const [when, setWhen] = useState(0);
   const slot = choices[when];
+  // Same-day awareness: before payment we check the customer's record for anything already booked
+  // on the chosen day — packs AND deliveries — and confirm a 2nd/3rd order instead of silently
+  // stacking look-alikes. dupOk remembers the confirmation for THIS day only.
+  const [dupRows, setDupRows] = useState<{ kind: "pickup" | "delivery"; label: string }[] | null>(null);
+  const [dupOk, setDupOk] = useState<string | null>(null); // the day key the user confirmed
   const [zip, setZip] = useState("");
   const [zone, setZone] = useState<"ask" | "in" | "out">("ask");
   const [wlEmail, setWlEmail] = useState("");
@@ -268,6 +274,26 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
       if (result.status !== "OK" || !result.token) { setErr("Card details look off — check and retry."); setBusy(false); return; }
       await submitPickup(result.token);
     } catch { setErr("Payment failed — nothing was charged. Try again."); setBusy(false); }
+  };
+
+  const targetDayKey = () => (mode === "delivery" ? (slot?.deliveryDateKey ?? "") : dropDateKey(drop.sat));
+  const toPayment = async () => {
+    const key = targetDayKey();
+    if (!supabase || !user || !key || dupOk === key) { setStep("pay"); return; }
+    const [dr, de] = await Promise.all([
+      supabase.from("drop_orders").select("id, size, paid, picked_up").eq("user_id", user.id).eq("drop_date", key).is("canceled_at", null),
+      supabase.from("delivery_orders").select("id, pack_size, status").eq("user_id", user.id).eq("delivery_date", key).is("canceled_at", null),
+    ]);
+    const found: { kind: "pickup" | "delivery"; label: string }[] = [
+      ...(((dr.data ?? []) as { id: string; size: number; paid: boolean; picked_up: boolean }[])
+        .filter((o) => o.id !== replacing?.id && !o.picked_up)
+        .map((o) => ({ kind: "pickup" as const, label: `${o.size}-pack for pickup · ${o.paid ? "paid" : "pay at pickup"}` }))),
+      ...(((de.data ?? []) as { id: string; pack_size: number; status: string }[])
+        .filter((o) => o.status !== "delivered")
+        .map((o) => ({ kind: "delivery" as const, label: `${o.pack_size} bottles by delivery` }))),
+    ];
+    if (found.length === 0) { setStep("pay"); return; }
+    setDupRows(found);
   };
 
   const resetOrder = () => { setMix({ rise: 0, flow: 0, dusk: 0 }); setPremiums({}); setRefills(0); setAck(false); setErr(""); setDone(null); setStep(mode === "delivery" ? "size" : "size"); };
@@ -514,6 +540,18 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
       )}
 
       {/* ── DETAILS ── */}
+      {dupRows && (
+        <Sheet open onClose={() => setDupRows(null)} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Already on the books</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setDupRows(null)} aria-label="Close">✕</button></div>}>
+          <p className="dl-sub" style={{ marginTop: 0 }}>You already have {dupRows.length === 1 ? "an order" : `${dupRows.length} orders`} for <b>{mode === "delivery" ? (slot?.deliveryLabel ?? "that day") : dayName(drop.sat)}</b>:</p>
+          <div className="dup-list">
+            {dupRows.map((r, i) => <div key={i} className="dup-row">{r.kind === "pickup" ? "🛎" : "🚚"} {r.label}</div>)}
+          </div>
+          <button type="button" className="oa-cta" onClick={() => { setDupOk(targetDayKey()); setDupRows(null); setStep("pay"); }}>Yes — add this order too →</button>
+          <button type="button" className="dup-nvm" onClick={() => setDupRows(null)}>Never mind — keep what I have</button>
+          <p className="pnl-note" style={{ marginTop: 10 }}>Tip: your packs for one day roll up together under “Your packs” — you can also change a pack instead of adding one.</p>
+        </Sheet>
+      )}
+
       {step === "details" && (
         <div className="dl-step">
           <h2 className="dl-h">{mode === "delivery" ? "Where do we bring it?" : "Who's this drop for?"}</h2>
@@ -532,7 +570,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
                 <input className="auth-input dl-zip" value={zip} readOnly aria-label="ZIP (from your zone check)" />
               </div>
               <input className="auth-input" placeholder="Gate code / access notes (optional)" value={access} onChange={(e) => setAccess(e.target.value)} aria-label="Access instructions" />
-              <button type="button" className="oa-cta" disabled={!name.trim() || !street.trim() || !city.trim()} onClick={() => setStep("pay")}>Payment →</button>
+              <button type="button" className="oa-cta" disabled={!name.trim() || !street.trim() || !city.trim()} onClick={toPayment}>Payment →</button>
             </>
           ) : (
             <>
@@ -543,7 +581,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
                 <span>pickup {dayName(drop.sat)}{stop?.name ? ` · ${stop.name}` : ""}</span>
                 <span className="dl-quote-t">total <b>{dollars(pickupTotalCents)}</b></span>
               </div>
-              <button type="button" className="oa-cta" disabled={!name.trim() || !phone.trim()} onClick={() => setStep("pay")}>Payment →</button>
+              <button type="button" className="oa-cta" disabled={!name.trim() || !phone.trim()} onClick={toPayment}>Payment →</button>
             </>
           )}
         </div>
