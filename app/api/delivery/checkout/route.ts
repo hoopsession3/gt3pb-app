@@ -111,7 +111,7 @@ export async function POST(req: Request) {
     if (insErr) {
       const ref = (paymentId || "").slice(-6).toUpperCase();
       // A paid card that didn't record is a money emergency; an unpaid pay-on-delivery is just a lost lead.
-      await raiseAlert({ severity: paid ? "critical" : "important", category: paid ? "money" : "orders", title: paid ? "Paid DELIVERY didn't record — add it" : "DELIVERY order didn't record — add it", body: `${paid ? `Card payment ${paymentId} succeeded but the` : "A pay-on-delivery"} delivery order didn't save. ${name}, ${packSize} bottles for ${slot.deliveryLabel}, ${street}, ${city} ${zip}. Add it by hand${paid ? " and confirm in Square" : ""}.` });
+      await raiseAlert({ severity: paid ? "critical" : "important", category: paid ? "money" : "order", title: paid ? "Paid DELIVERY didn't record — add it" : "DELIVERY order didn't record — add it", body: `${paid ? `Card payment ${paymentId} succeeded but the` : "A pay-on-delivery"} delivery order didn't save. ${name}, ${packSize} bottles for ${slot.deliveryLabel}, ${street}, ${city} ${zip}. Add it by hand${paid ? " and confirm in Square" : ""}.` });
       return NextResponse.json({ ok: true, paymentId, recorded: false, ref, deliveryLabel: slot.deliveryLabel, warn: `${paid ? `Payment received — ref ${ref}. ` : "Order received. "}We've alerted the crew to add your order.` });
     }
 
@@ -124,7 +124,7 @@ export async function POST(req: Request) {
     });
 
     await raiseAlert({
-      severity: "fyi", category: "orders", title: "New Sunday delivery 🚚",
+      severity: "fyi", category: "order", title: "New Sunday delivery 🚚",
       body: `${name} — ${packSize} bottles (${quote.refillCount} refill · ${quote.newCount} new${perf ? ` · ${perf} performance` : ""}) · $${(quote.totalCents / 100).toFixed(2)} ${paid ? "paid" : "due on delivery"} · ${slot.deliveryLabel} · ${city} ${zip}.`,
       link: "/admin?s=now",
     });

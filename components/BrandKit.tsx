@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { uploadToBucket } from "@/lib/uploads";
 
 // BRAND KIT — GT3's logos, palette, fonts & voice, in the Studio. Seeded with the real brand;
 // leadership can edit voice/tagline, the wordmark, and the palette. The reference both of you
@@ -42,12 +43,11 @@ export default function BrandKit({ canEdit }: { canEdit: boolean }) {
     setUploading(true); setUpErr("");
     try {
       const path = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.]+/g, "-")}`;
-      const up = await supabase.storage.from("brand").upload(path, file, { upsert: false });
-      if (up.error) throw up.error;
-      const url = supabase.storage.from("brand").getPublicUrl(path).data.publicUrl;
+      const res = await uploadToBucket({ bucket: "brand", file, path });
+      if ("error" in res) throw new Error(res.error);
       const kind = /\.(jpg|jpeg)$/i.test(file.name) ? "photo" : "logo";
       const label = file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ").slice(0, 60) || "Logo";
-      const ins = await supabase.from("brand_assets").insert({ label, kind, url, sort: 900 });
+      const ins = await supabase.from("brand_assets").insert({ label, kind, url: res.url, sort: 900 });
       if (ins.error) throw ins.error;
       await loadAssets();
     } catch (e: any) { setUpErr(String(e?.message ?? "Upload failed").includes("Bucket not found") ? "Run migration 0064 (storage bucket) first." : `Upload: ${e?.message ?? e}`); }

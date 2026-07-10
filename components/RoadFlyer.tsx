@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { authedFetch } from "@/lib/authedFetch";
+import { uploadToBucket } from "@/lib/uploads";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 
@@ -112,9 +114,8 @@ export default function RoadFlyer() {
     setSuggesting(true);
     const fallback = () => { const h = heuristicPick(); const name = applyTemplate(h.id); toast(`✨ ${name}: ${h.reason}`); };
     try {
-      const token = supabase ? (await supabase.auth.getSession()).data.session?.access_token : null;
-      const r = await fetch("/api/agents/flyer-template", {
-        method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      const r = await authedFetch("/api/agents/flyer-template", {
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tile, headline1: f.headline1, headline2: f.headline2, place: f.place, date: f.date, time: f.time, text: tile === "menu" ? f.menu : tile === "submenu" ? f.submenu : tile === "details" ? f.details : "" }),
       });
       const j = await r.json();
@@ -148,11 +149,9 @@ export default function RoadFlyer() {
 
   const uploadPhoto = async (file: File) => {
     if (!supabase) return; setBusy(true);
-    const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
-    const path = `flyer/${new Date().getTime()}.${ext}`;
-    const up = await supabase.storage.from("content").upload(path, file, { upsert: true, cacheControl: "3600" });
-    if (up.error) { toast(`Upload failed — ${up.error.message}`, "error"); setBusy(false); return; }
-    setF((p) => ({ ...p, photo: supabase!.storage.from("content").getPublicUrl(path).data.publicUrl })); setBusy(false);
+    const res = await uploadToBucket({ bucket: "content", file, prefix: "flyer" });
+    if ("error" in res) { toast(`Upload failed — ${res.error}`, "error"); setBusy(false); return; }
+    setF((p) => ({ ...p, photo: res.url })); setBusy(false);
   };
 
   // ── theme-independent primitives ──
@@ -452,10 +451,9 @@ export default function RoadFlyer() {
     if (!supabase) return; setBusy(true);
     await draw(); const blob = await toBlob();
     if (!blob) { toast("Couldn't render — try a different photo.", "error"); setBusy(false); return; }
-    const path = `flyer/feed-${new Date().getTime()}.png`;
-    const up = await supabase.storage.from("content").upload(path, blob, { upsert: true, contentType: "image/png" });
-    if (up.error) { toast(`Save failed — ${up.error.message}`, "error"); setBusy(false); return; }
-    const mediaUrl = supabase.storage.from("content").getPublicUrl(path).data.publicUrl;
+    const res = await uploadToBucket({ bucket: "content", file: blob, path: `flyer/feed-${new Date().getTime()}.png`, upsert: true });
+    if ("error" in res) { toast(`Save failed — ${res.error}`, "error"); setBusy(false); return; }
+    const mediaUrl = res.url;
     const caption = tile === "menu" || tile === "submenu" ? "The pour list — every bottle made to order."
       : tile === "details" ? "Tasting notes — what's in the glass, and why."
       : f.place ? `Find us on the road — ${f.place}${f.date ? ` · ${f.date}` : ""}${f.time ? ` · ${f.time}` : ""}.` : "Find us on the road.";

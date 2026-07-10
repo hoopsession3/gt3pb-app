@@ -1,11 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-
-let mpChanSeq = 0;
 import { useAuth } from "./AuthProvider";
 import { useApp } from "./AppProvider";
 import { supabase } from "@/lib/supabase";
+import { useRealtimeTable } from "@/lib/realtime";
 import { mixSummary, dollars, emptyMix, type Mix, type GlassPath } from "@/lib/orderAhead";
 
 // YOUR PACK — the customer's own reservations, right on /reserve. Reserving is only half the
@@ -52,15 +51,9 @@ export default function MyPacks({ onChange, refreshKey }: { onChange?: (p: MyPac
     setRows((data as MyPack[]) ?? []);
   }, [user]);
 
-  useEffect(() => {
-    load();
-    if (!supabase || !user) return;
-    // Live: staff checking off pickup at the truck flips this card in front of the customer.
-    const ch = supabase.channel(`my-packs-${++mpChanSeq}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "drop_orders", filter: `user_id=eq.${user.id}` }, () => load())
-      .subscribe();
-    return () => { supabase?.removeChannel(ch); };
-  }, [load, user, refreshKey]);
+  useEffect(() => { load(); }, [load, refreshKey]);
+  // Live: staff checking off pickup at the truck flips this card in front of the customer.
+  useRealtimeTable({ table: "drop_orders", filter: `user_id=eq.${user?.id}` }, load, { enabled: !!user });
 
   const cancel = async (p: MyPack) => {
     if (!supabase || busy) return;

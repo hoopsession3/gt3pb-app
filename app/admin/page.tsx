@@ -4,7 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useApp } from "@/components/AppProvider";
-import { useAuth, roleOf, type Profile } from "@/components/AuthProvider";
+import { useAuth, roleOf, LEADERSHIP_ROLES, type Profile } from "@/components/AuthProvider";
+import { raiseAlertClient } from "@/lib/clientAlerts";
+import { authedFetch } from "@/lib/authedFetch";
+import { normalizeCategory, type AlertCategory } from "@/lib/alertKinds";
+import { useMyAlerts, type MyFlag } from "@/lib/useMyAlerts";
+import { useRealtimeTable } from "@/lib/realtime";
 import { useOperatorSection, sectionsForRole, groupOfSection, SECTION_LABEL, type OpSection } from "@/components/OperatorNav";
 import { CrumbProvider, Breadcrumbs, useCrumb } from "@/components/Crumbs";
 import { recordRecent } from "@/components/recents";
@@ -204,8 +209,7 @@ function Kitchen() {
     if (to === "ready") {
       void (async () => {
         try {
-          const tok = (await supabase!.auth.getSession()).data.session?.access_token;
-          await fetch("/api/notify", { method: "POST", headers: { "Content-Type": "application/json", ...(tok ? { Authorization: `Bearer ${tok}` } : {}) }, body: JSON.stringify({ kind: "order_ready", id: o.id }) });
+          await authedFetch("/api/notify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "order_ready", id: o.id }) });
         } catch { /* best-effort */ }
       })();
     }
@@ -360,25 +364,25 @@ function ServicePulse({ onEnter }: { onEnter: () => void }) {
 }
 
 // ───────────────────────── alerts: the "don't-miss" spine ─────────────────────────
-// Leadership = the tier that gets (and raises) can't-miss alerts. Matches the alerts RLS.
-const LEADERSHIP = ["event_manager", "admin", "owner"];
-const isLeader = (role: string | null | undefined) => LEADERSHIP.includes(role ?? "");
+// Leadership tier comes from the one shared definition (AuthProvider) — the audit found this list
+// re-typed seven ways with drift. Alerts themselves are staff-wide since 0157.
+const isLeader = (role: string | null | undefined) => (LEADERSHIP_ROLES as readonly string[]).includes(role ?? "");
 
-// Raise an alert: write the row (drives the in-app inbox via realtime) AND fire the dispatcher
-// Edge Function (Teams + web push), best-effort. Producers across the console call this.
+// Raise an alert. The INSERT is the whole contract — the alerts_push_fanout trigger (0157)
+// delivers push + Teams for every row, same as the server and pg_cron producers. Category is the
+// closed lib/alertKinds vocabulary, so misrouted "Open →" buttons are a type error now.
 async function raiseAlert(a: {
-  severity?: "critical" | "important" | "fyi"; category?: string; title: string;
+  severity?: "critical" | "important" | "fyi"; category: AlertCategory; title: string;
   body?: string; link?: string; target_user_id?: string | null; created_by?: string | null;
 }) {
   if (!supabase) return;
-  // Single delivery path: the alerts INSERT Database Webhook fans every alert out (Teams + web push) —
-  // the same path the cron/server producers use — so push fires exactly once. No direct invoke here.
   await supabase.from("alerts").insert({
-    severity: a.severity ?? "important", category: a.category ?? null, title: a.title,
+    severity: a.severity ?? "important", category: a.category, title: a.title,
     body: a.body ?? null, link: a.link ?? "/admin", target_user_id: a.target_user_id ?? null,
     created_by: a.created_by ?? null,
   });
 }
+void raiseAlertClient; // components outside this file use the lib helper; admin keeps created_by
 
 // How many comments hang off each subject — drives the count badge on a 💬 toggle so activity is
 // visible at a glance without opening every thread (organization/management at scale).
@@ -397,14 +401,18 @@ function alertIsReservation(title: string | null | undefined): boolean {
   return /reservation/i.test(title || "");
 }
 function alertDest(category: string | null | undefined, title?: string | null): { section: OpSection; planTab?: string; anchor?: string } {
-  const cat = category || "";
+  // normalizeCategory folds the legacy vocabulary (orders/billing/assignment/note/…) into the
+  // closed set, so historic rows route correctly too. The audit found the old router matched
+  // "order" (which nothing emitted) while every real order ping fell through to My Day.
+  const cat = normalizeCategory(category);
   if (cat === "order") return { section: "now", anchor: "kitchen-pass" };  // land ON the pass, even from the pass screen
   if (cat === "money") return { section: "money" };
   if (cat === "brew") return { section: "plan", planTab: "brew" };
-  if (cat.startsWith("booking")) return { section: "plan", planTab: "bookings" };
+  if (cat === "booking") return { section: "plan", planTab: "bookings" };
   if (cat === "prep") return { section: "prep" };
-  if (cat === "note" && /content ready|approved|changes requested/i.test(title || "")) return { section: "studio" };
-  return { section: "day" };
+  if (cat === "content" && !/content ready for review/i.test(title || "")) return { section: "studio" };
+  if (cat === "strategy") return { section: "plan", planTab: "goals" };
+  return { section: "day" }; // task + system → My Day (tasks live there)
 }
 // After a section switch React needs a beat to mount the destination before we can scroll to it.
 function scrollToAnchor(anchor?: string) {
@@ -446,9 +454,9 @@ function ContentApprovalSheet({ contentId, meName, meId, onClose, onActioned }: 
     await supabase.from("content_items").update(patch).eq("id", contentId);
     const t = (item?.title || "Untitled").slice(0, 80);
     if (item?.created_by && item.created_by !== meId) {
-      await supabase.from("alerts").insert(status === "approved"
-        ? { severity: "fyi", category: "note", title: `✅ Approved — ${t}`.slice(0, 180), body: `${meName} approved "${t}". Ready to schedule/publish.`.slice(0, 300), link: `/admin?post=${contentId}`, target_user_id: item.created_by }
-        : { severity: "important", category: "note", title: `✏️ Changes requested — ${t}`.slice(0, 180), body: note.trim().slice(0, 300), link: `/admin?post=${contentId}`, target_user_id: item.created_by });
+      await raiseAlert(status === "approved"
+        ? { severity: "fyi", category: "content", title: `✅ Approved — ${t}`.slice(0, 180), body: `${meName} approved "${t}". Ready to schedule/publish.`.slice(0, 300), link: `/admin?post=${contentId}`, target_user_id: item.created_by }
+        : { severity: "important", category: "content", title: `✏️ Changes requested — ${t}`.slice(0, 180), body: note.trim().slice(0, 300), link: `/admin?post=${contentId}`, target_user_id: item.created_by });
     }
     setBusy(false);
     toast(status === "approved" ? "Approved" : "Changes requested");
@@ -492,43 +500,20 @@ function AlertsInbox({ userId, compact = false }: { userId: string | null; compa
   const { profile } = useAuth();
   const { setSection } = useOperatorSection();
   const meName = profile?.display_name?.trim() || "Me";
-  const [alerts, setAlerts] = useState<Alert[]>([]);
+  // One source of truth for "what needs me" — the same hook drives My Day's flags and the nav
+  // badge, so the three counters that used to disagree now agree by construction. Ack semantics
+  // live in the hook: row-ack for targeted alerts, per-user read for broadcasts (0157).
+  const { flags: mine, critCount: crit, ack, clearAll } = useMyAlerts(userId);
   const [openThread, setOpenThread] = useState<string | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
-
-  const load = useCallback(async () => {
-    if (!supabase) return;
-    const { data } = await supabase.from("alerts").select("*").is("ack_at", null).order("created_at", { ascending: false }).limit(50);
-    const rows = (data as Alert[]) ?? [];
-    setAlerts(rows);
-    setCounts(await commentCounts("alert_id", rows.map((r) => r.id)));
-  }, []);
-  useEffect(() => {
-    load();
-    if (!supabase) return;
-    const ch = supabase.channel("admin-alerts")
-      .on("postgres_changes", { event: "*", schema: "public", table: "alerts" }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "comments" }, () => load())
-      .subscribe();
-    return () => { supabase?.removeChannel(ch); };
-  }, [load]);
-
-  const ack = async (a: Alert) => {
-    if (!supabase) return;
-    setAlerts((p) => p.filter((x) => x.id !== a.id)); // optimistic
-    await supabase.from("alerts").update({ ack_at: new Date().toISOString(), ack_by: userId }).eq("id", a.id);
-  };
-  // Clear cleanly: acknowledge everything shown in one tap.
-  const clearAll = async (ids: string[]) => {
-    if (!supabase || !ids.length) return;
-    setAlerts((p) => p.filter((x) => !ids.includes(x.id))); // optimistic
-    await supabase.from("alerts").update({ ack_at: new Date().toISOString(), ack_by: userId }).in("id", ids);
-  };
+  const loadCounts = useCallback(async () => { setCounts(await commentCounts("alert_id", mine.map((r) => r.id))); }, [mine]);
+  useEffect(() => { loadCounts(); }, [loadCounts]);
+  useRealtimeTable("comments", loadCounts);
   // Respond immediately: reservation alerts pop the drop sheet right here; everything else jumps
   // to the screen that owns it.
   const [dropSheet, setDropSheet] = useState(false);
-  const [reviewPost, setReviewPost] = useState<{ id: string; alert: Alert } | null>(null);
-  const gotoAlert = (a: Alert) => {
+  const [reviewPost, setReviewPost] = useState<{ id: string; alert: MyFlag } | null>(null);
+  const gotoAlert = (a: MyFlag) => {
     if (alertIsReservation(a.title)) { setDropSheet(true); return; }
     if (alertIsContentReview(a.title)) { const pid = postIdFromLink(a.link); if (pid) { setReviewPost({ id: pid, alert: a }); return; } }
     const d = alertDest(a.category, a.title);
@@ -537,12 +522,9 @@ function AlertsInbox({ userId, compact = false }: { userId: string | null; compa
     scrollToAnchor(d.anchor);
   };
 
-  // Show alerts addressed to me or to all-leadership (target null). RLS already scopes to leadership.
-  const mine = alerts.filter((a) => a.target_user_id == null || a.target_user_id === userId);
   if (mine.length === 0) return null;
   const rank = (s: string) => (s === "critical" ? 0 : s === "important" ? 1 : 2);
   const sorted = [...mine].sort((a, b) => rank(a.severity) - rank(b.severity));
-  const crit = mine.filter((a) => a.severity === "critical").length;
 
   // Compact strip (used in Now) — alerts have ONE home, the My Day inbox. During service Now shows
   // just a one-line pointer so the same cards don't render in two places; tap jumps to My Day.
@@ -560,7 +542,7 @@ function AlertsInbox({ userId, compact = false }: { userId: string | null; compa
     <div className="adm-sec">
       {dropSheet && <DropSheet onClose={() => setDropSheet(false)} />}
       {reviewPost && <ContentApprovalSheet contentId={reviewPost.id} meName={meName} meId={userId} onClose={() => setReviewPost(null)} onActioned={() => { ack(reviewPost.alert); setReviewPost(null); }} />}
-      <div className="sec">Alerts <span className={`adm-pill${crit ? " due" : ""}`}>{mine.length}{crit ? ` · ${crit} critical` : ""}</span>{mine.length > 1 && <button type="button" className="alert-clearall" onClick={() => clearAll(mine.map((a) => a.id))}>Clear all</button>}</div>
+      <div className="sec">Alerts <span className={`adm-pill${crit ? " due" : ""}`}>{mine.length}{crit ? ` · ${crit} critical` : ""}</span>{mine.length > 1 && <button type="button" className="alert-clearall" onClick={() => clearAll()}>Clear all</button>}</div>
       {sorted.map((a) => (
         <div key={a.id} className={`alert sev-${a.severity}`}>
           <div className="alert-row">
@@ -632,7 +614,7 @@ function CommentThread({ subject, notifyIds, label, meId, meName }: {
     const recips = Array.from(new Set([...notifyIds, ...mentionIds])).filter((id): id is string => !!id && id !== meId);
     const meFirst = meName.split(" ")[0] || "Someone";
     recips.forEach((rid) => raiseAlert({
-      severity: "important", category: "comment",
+      severity: "important", category: "task",
       title: `${meFirst} replied`, body: `${label}: ${sent.slice(0, 140)}`,
       target_user_id: rid, created_by: meId,
     }));
@@ -992,38 +974,22 @@ function DayBrief({ ownerCol, ownerId, isAdmin }: { ownerCol: "event_id" | "stop
 }
 
 function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: string; isLeader: boolean }) {
-  const [flags, setFlags] = useState<{ id: string; severity: string; title: string; body: string | null; category: string | null; link: string | null }[]>([]);
+  // Flags ride the one shared hook (same source as the Now strip + nav badge). Crew see their own
+  // pings + broadcasts now too — the old isLeader gate predates the staff-wide alerts RLS (0157).
+  const { flags, ack: ackFlag, clearAll: clearFlags } = useMyAlerts(userId);
   const { setSection } = useOperatorSection();
   const [today, setToday] = useState<{ id: string; title: string | null; day_label: string | null; is_live: boolean | null; dress_code?: string | null; crew_brief?: string | null }[]>([]);
-
-  const loadFlags = useCallback(async () => {
-    if (!supabase || !userId || !isLeader) { setFlags([]); return; }
-    // your own pings AND leadership broadcasts (no specific target) — e.g. content approvals route here
-    const { data } = await supabase.from("alerts").select("id, severity, title, body, category, link").or(`target_user_id.eq.${userId},target_user_id.is.null`).is("ack_at", null).order("created_at", { ascending: false }).limit(20);
-    // dedupe identical pings (same title+body can arrive from more than one source)
-    const seen = new Set<string>();
-    setFlags(((data as typeof flags) ?? []).filter((f) => { const k = `${f.title}|${f.body ?? ""}`; if (seen.has(k)) return false; seen.add(k); return true; }));
-  }, [userId, isLeader]);
-
-  useEffect(() => {
-    loadFlags();
-    if (!supabase || !userId) return;
-    const ch = supabase.channel("my-day-flags").on("postgres_changes", { event: "*", schema: "public", table: "alerts" }, () => loadFlags()).subscribe();
-    return () => { supabase?.removeChannel(ch); };
-  }, [loadFlags, userId]);
   useEffect(() => {
     if (!supabase) return;
     const d = new Date().toISOString().slice(0, 10);
     supabase.from("events").select("id, title, day_label, is_live, dress_code, crew_brief").eq("day", d).is("archived_at", null).then(({ data }) => setToday(data ?? []));
   }, []);
 
-  const ack = async (id: string) => { setFlags((f) => f.filter((x) => x.id !== id)); await supabase?.from("alerts").update({ ack_at: new Date().toISOString(), ack_by: userId }).eq("id", id); };
-  const clearFlags = async () => { const ids = flags.map((f) => f.id); if (!supabase || !ids.length) return; setFlags([]); await supabase.from("alerts").update({ ack_at: new Date().toISOString(), ack_by: userId }).in("id", ids); };
   const [dropSheet, setDropSheet] = useState(false);
-  const [reviewPost, setReviewPost] = useState<{ id: string; alertId: string } | null>(null);
-  const gotoFlag = (f: { id: string; category: string | null; title: string; link: string | null }) => {
+  const [reviewPost, setReviewPost] = useState<{ id: string; flag: MyFlag } | null>(null);
+  const gotoFlag = (f: MyFlag) => {
     if (alertIsReservation(f.title)) { setDropSheet(true); return; }  // pop the drop card in place
-    if (alertIsContentReview(f.title)) { const pid = postIdFromLink(f.link); if (pid) { setReviewPost({ id: pid, alertId: f.id }); return; } }
+    if (alertIsContentReview(f.title)) { const pid = postIdFromLink(f.link); if (pid) { setReviewPost({ id: pid, flag: f }); return; } }
     const d = alertDest(f.category, f.title);
     if (d.planTab) { try { localStorage.setItem("gt3-plan-tab", d.planTab); } catch { /* ignore */ } }
     setSection(d.section);
@@ -1036,7 +1002,7 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
   return (
     <>
       {dropSheet && <DropSheet onClose={() => setDropSheet(false)} />}
-      {reviewPost && <ContentApprovalSheet contentId={reviewPost.id} meName={meName} meId={userId} onClose={() => setReviewPost(null)} onActioned={() => { ack(reviewPost.alertId); setReviewPost(null); }} />}
+      {reviewPost && <ContentApprovalSheet contentId={reviewPost.id} meName={meName} meId={userId} onClose={() => setReviewPost(null)} onActioned={() => { ackFlag(reviewPost.flag); setReviewPost(null); }} />}
       <div className="myday-hero">
         <div className="myday-greet">{greet}{first && first !== "Me" ? `, ${first}` : ""}</div>
         <div className="myday-date">{new Date().toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}</div>
@@ -1058,7 +1024,7 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
       )}
       {isLeader && <ChiefOfStaff />}
       {isLeader && <SmartIntake />}
-      {isLeader && (
+      {(
         <>
           <div className="sec">Flags &amp; pings for you{flags.length ? ` · ${flags.length}` : ""}{flags.length > 1 && <button type="button" className="alert-clearall" onClick={clearFlags}>Clear all</button>}</div>
           {flags.length === 0 ? (
@@ -1070,7 +1036,7 @@ function MyDay({ userId, meName, isLeader }: { userId: string | null; meName: st
                 {f.body && <div className="myday-flag-x">{f.body}</div>}
               </div>
               <button type="button" className="myday-open" onClick={() => gotoFlag(f)}>Open →</button>
-              <button type="button" className="myday-ack" onClick={() => ack(f.id)} aria-label="Got it">✓</button>
+              <button type="button" className="myday-ack" onClick={() => ackFlag(f)} aria-label="Got it">✓</button>
             </div>
           ))}
         </>
@@ -1692,20 +1658,16 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
     toast(next ? `Assigned to ${firstNameOf(next)}` : "Unassigned");
     // Notify the newly-assigned member (best-effort; lights up once the push Edge Function is redeployed).
     if (next) {
-      // One push per recipient: a leader assignee gets a can't-miss alert (inbox + Teams + one web
-      // push via the alerts webhook); crew get the direct ping (alerts are leadership-scoped).
-      const assigneeRole = staff.find((s) => s.id === next)?.role ?? null;
-      if (next !== user?.id && isLeader(roleOf(profile)) && isLeader(assigneeRole)) {
+      // Alerts are staff-wide since 0157 — every assignee gets the flag, and the fan-out trigger
+      // delivers the push. The old leadership-only guard (and its direct push.invoke fallback that
+      // bypassed the spine) is gone with it.
+      if (next !== user?.id) {
         raiseAlert({
-          severity: "critical", category: "assignment",
+          severity: "critical", category: "task",
           title: `${profile?.display_name?.split(" ")[0] || "A manager"} assigned you: ${t.label}`,
           body: name ? `On ${isEvent ? "event" : "location"} · ${name}` : undefined,
           target_user_id: next, created_by: user?.id ?? null,
         });
-      } else {
-        supabase.functions
-          .invoke("push", { body: { table: "event_tasks", type: "UPDATE", record: { ...t, assignee: next }, old_record: { ...t, assignee: prev } } })
-          .catch(() => {});
       }
     }
   };
@@ -2979,26 +2941,20 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
     if (error) { toast(`Error: ${error.message}`, "error"); load(); return; }
     toast(next ? `Assigned to ${firstNameOf(next)}` : "Unassigned");
     if (next) {
-      // One push per recipient: a leader assignee gets a can't-miss alert (inbox + Teams + one web
-      // push via the alerts webhook); crew get the direct ping (alerts are leadership-scoped).
-      const assigneeRole = staff.find((s) => s.id === next)?.role ?? null;
-      if (next !== user?.id && isLeader(roleOf(profile)) && isLeader(assigneeRole)) {
+      // Staff-wide alerts (0157): every assignee gets the flag; the trigger delivers the push.
+      if (next !== user?.id) {
         raiseAlert({
-          severity: "critical", category: "assignment",
+          severity: "critical", category: "task",
           title: `${profile?.display_name?.split(" ")[0] || "A manager"} assigned you: ${t.label}`,
           body: `Follow-up · ${note.title}`, target_user_id: next, created_by: user?.id ?? null,
         });
-      } else {
-        supabase.functions
-          .invoke("push", { body: { table: "event_tasks", type: "UPDATE", record: { ...t, assignee: next }, old_record: { ...t, assignee: prev } } })
-          .catch(() => {});
       }
     }
   };
   // Promote a follow-up to a can't-miss alert (the "flag this" the talking-point becomes urgent).
   const flag = async (t: EventTask) => {
     await raiseAlert({
-      severity: "critical", category: "note",
+      severity: "critical", category: "task",
       title: `Flagged: ${t.label}`, body: `From meeting · ${note.title}`,
       target_user_id: t.assignee ?? null, created_by: user?.id ?? null,
     });

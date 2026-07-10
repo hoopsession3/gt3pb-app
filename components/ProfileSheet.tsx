@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import { useApp } from "./AppProvider";
 import { supabase } from "@/lib/supabase";
+import { uploadToBucket } from "@/lib/uploads";
 import { subscribePush } from "@/lib/push";
 import Sheet from "@/components/Sheet";
 
@@ -36,10 +37,9 @@ export default function ProfileSheet({ onClose }: { onClose: () => void }) {
     if (!supabase || !user) return;
     setBusy(true);
     const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
-    const path = `${user.id}/avatar.${ext || "jpg"}`;
-    const up = await supabase.storage.from("avatars").upload(path, file, { upsert: true, cacheControl: "3600" });
-    if (up.error) { toast(`Upload failed — ${up.error.message}`, "error"); setBusy(false); return; }
-    const url = `${supabase.storage.from("avatars").getPublicUrl(path).data.publicUrl}?v=${Date.now()}`;
+    const up = await uploadToBucket({ bucket: "avatars", file, path: `${user.id}/avatar.${ext || "jpg"}`, upsert: true });
+    if ("error" in up) { toast(`Upload failed — ${up.error}`, "error"); setBusy(false); return; }
+    const url = `${up.url}?v=${Date.now()}`;
     setAvatar(url);
     await supabase.from("profiles").update({ avatar_url: url }).eq("id", user.id);
     await refreshProfile();

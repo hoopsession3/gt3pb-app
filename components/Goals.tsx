@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useRealtimeTable } from "@/lib/realtime";
 import { useApp } from "./AppProvider";
-import { useAuth, roleOf } from "./AuthProvider";
+import { useAuth, roleOf, LEADERSHIP_ROLES } from "./AuthProvider";
 import { StrategyThread } from "./StrategyCollab";
 
 // GOALS — the strategy's scoreboard, worked live between owners and managers (Plan › Goals).
@@ -20,9 +21,6 @@ type Goal = {
   author_name: string | null; updated_at: string;
 };
 
-const LEAD_ROLES = ["owner", "admin", "event_manager"];
-
-let goalsChanSeq = 0;
 export default function Goals() {
   const { toast } = useApp();
   const { user, profile } = useAuth();
@@ -33,7 +31,7 @@ export default function Goals() {
   const [logVal, setLogVal] = useState("");
   const [adding, setAdding] = useState(false);
   const [ng, setNg] = useState({ title: "", target: "", unit: "", play: "", due: "" });
-  const canLead = LEAD_ROLES.includes(roleOf(profile) ?? "") || !!profile?.is_admin;
+  const canLead = LEADERSHIP_ROLES.includes(roleOf(profile)) || !!profile?.is_admin;
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -42,14 +40,8 @@ export default function Goals() {
     if (data) setRows(data as Goal[]);
     setLoaded(true);
   }, []);
-  useEffect(() => {
-    load();
-    if (!supabase) return;
-    const ch = supabase.channel(`goals-${++goalsChanSeq}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "goals" }, () => load())
-      .subscribe();
-    return () => { supabase?.removeChannel(ch); };
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
+  useRealtimeTable("goals", load);
 
   const logProgress = async (g: Goal) => {
     if (!supabase) return;

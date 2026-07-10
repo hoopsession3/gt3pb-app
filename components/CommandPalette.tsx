@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "./AuthProvider";
+import { useAuth, roleOf } from "./AuthProvider";
 import { useOperatorSection, sectionsForRole, SECTION_LABEL, type OpSection } from "./OperatorNav";
 import { readTopRecents } from "./recents";
 import type { Recent } from "@/lib/recents";
@@ -41,7 +41,7 @@ export default function CommandPalette() {
     window.dispatchEvent(new Event("gt3-open-prep"));
   };
 
-  const role = (profile?.role as string | undefined) ?? (profile?.is_admin ? "owner" : "member");
+  const role = roleOf(profile);
   const items: Item[] = useMemo(() => {
     const recentItems: Item[] = recents
       .filter((r) => r.kind === "event" || r.kind === "stop")

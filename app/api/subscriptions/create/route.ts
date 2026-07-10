@@ -105,7 +105,7 @@ export async function POST(req: Request) {
     }).eq("id", rowId);
 
     // Leadership visibility — new recurring revenue shouldn't be invisible.
-    await raiseAlert({ severity: "fyi", category: "note", title: "New subscriber 🎉", body: `A member started a ${pack}-pack coffee subscription. See Subscribers.` });
+    await raiseAlert({ severity: "fyi", category: "money", title: "New subscriber 🎉", body: `A member started a ${pack}-pack coffee subscription. See Subscribers.` });
     return NextResponse.json({ ok: true, status: mapSubStatus(sub?.status) });
   } catch (e) {
     if (squareSubId) {

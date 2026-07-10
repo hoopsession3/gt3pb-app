@@ -105,7 +105,7 @@ export async function POST(req: Request) {
       message: `GT3: your ${size}-pack (${mixSummary(mix)}) is reserved for pickup ${dropDate}${paid ? " — paid ✓" : ` — ${dollars(packTotal(size, glass as GlassPath))} at pickup`}. We brew it fresh for pickup day.${glass === "return" ? " Rinse your empties and bring them along." : ""}`,
     });
 
-    await raiseAlert({ severity: "fyi", category: "note", title: "New reservation 🎉", body: `${name} reserved a ${size}-pack (${mixSummary(mix)}) for ${dropDate} — ${dollars(packTotal(size, glass as GlassPath))}, ${glass === "return" ? "bringing bottles back" : "new glass"}${paid ? "" : " · pay at pickup"}.` });
+    await raiseAlert({ severity: "fyi", category: "order", title: "New reservation 🎉", body: `${name} reserved a ${size}-pack (${mixSummary(mix)}) for ${dropDate} — ${dollars(packTotal(size, glass as GlassPath))}, ${glass === "return" ? "bringing bottles back" : "new glass"}${paid ? "" : " · pay at pickup"}.` });
     return NextResponse.json({ ok: true, id: inserted?.id ?? null, paid, recorded: true });
   } catch {
     return NextResponse.json({ error: "Reservation service unavailable" }, { status: 502 });

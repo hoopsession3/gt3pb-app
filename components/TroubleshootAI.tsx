@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { authedFetch } from "@/lib/authedFetch";
 import Sheet from "@/components/Sheet";
 
 // TROUBLESHOOT AI — the field-ops first responder. Something's going wrong at the event/stop RIGHT
@@ -34,10 +35,8 @@ export default function TroubleshootAI({ ownerType, ownerId, title, onClose, onL
   const [diag, setDiag] = useState<Diag | null>(null);
   const [done, setDone] = useState<{ added: number } | null>(null);
 
-  const token = async () => (await supabase!.auth.getSession()).data.session?.access_token;
   const post = async (payload: any) => {
-    const t = await token();
-    const r = await fetch("/api/agents/troubleshoot", { method: "POST", headers: { "Content-Type": "application/json", ...(t ? { Authorization: `Bearer ${t}` } : {}) }, body: JSON.stringify({ [ownerKey]: ownerId, ...payload }) });
+    const r = await authedFetch("/api/agents/troubleshoot", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ [ownerKey]: ownerId, ...payload }) });
     return r.json();
   };
 

@@ -4,8 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import { useApp } from "./AppProvider";
 import { supabase } from "@/lib/supabase";
-
-let mdChanSeq = 0;
+import { useRealtimeTable } from "@/lib/realtime";
 
 // YOUR DELIVERIES — the customer's own Sunday-delivery orders, on /3mpire. The delivery success
 // screen promises "track it in your account"; this is what makes that true. Mirrors MyPacks exactly
@@ -58,15 +57,9 @@ export default function MyDeliveries() {
     setRows((data as MyDelivery[]) ?? []);
   }, [user]);
 
-  useEffect(() => {
-    load();
-    if (!supabase || !user) return;
-    // Live: crew flipping the order to brewed / out-for-delivery / delivered updates the card in front of the customer.
-    const ch = supabase.channel(`my-deliveries-${++mdChanSeq}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "delivery_orders", filter: `user_id=eq.${user.id}` }, () => load())
-      .subscribe();
-    return () => { supabase?.removeChannel(ch); };
-  }, [load, user]);
+  useEffect(() => { load(); }, [load]);
+  // Live: crew flipping the order to brewed / out-for-delivery / delivered updates the card in front of the customer.
+  useRealtimeTable({ table: "delivery_orders", filter: `user_id=eq.${user?.id}` }, load, { enabled: !!user });
 
   const cancel = async (p: MyDelivery) => {
     if (!supabase || busy) return;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useAuth } from "./AuthProvider";
+import { useAuth, roleOf, LEADERSHIP_ROLES } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
 import AskGT3 from "./AskGT3";
 import Sheet from "@/components/Sheet";
@@ -12,9 +12,9 @@ import Sheet from "@/components/Sheet";
 // Staff-only; Note is leadership-only (meeting_notes is leadership-owned). Public/customers never see it.
 export default function QuickDock() {
   const { profile, user } = useAuth();
-  const role = profile?.role ?? (profile?.is_admin ? "owner" : "member");
+  const role = roleOf(profile);
   const isStaff = role !== "member";
-  const isLeadership = ["event_manager", "admin", "owner"].includes(role);
+  const isLeadership = LEADERSHIP_ROLES.includes(role);
 
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"ask" | "note">("ask");

@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { authedFetch } from "@/lib/authedFetch";
+import { useRealtimeTable } from "@/lib/realtime";
 import Sheet from "@/components/Sheet";
 
 // EVENT DAY PLANNER — a multi-day, time-by-time run of show for one event. Pick how many days the
@@ -77,13 +79,7 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
     setItems((data as Item[]) ?? []);
   }, [eventId, ownerCol]);
   useEffect(() => { load(); }, [load]);
-  useEffect(() => {
-    if (!supabase) return;
-    const ch = supabase.channel(`dayplan-${eventId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "event_schedule_items", filter: `${ownerCol}=eq.${eventId}` }, () => load())
-      .subscribe();
-    return () => { supabase?.removeChannel(ch); };
-  }, [eventId, ownerCol, load]);
+  useRealtimeTable({ table: "event_schedule_items", filter: `${ownerCol}=eq.${eventId}` }, load);
 
   const dayDate = (di: number) => (eventDay ? isoAddDays(eventDay, di - 1) : null);
   const dayItems = useMemo(
@@ -119,8 +115,7 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
     if (!supabase || depBusy || dayItems.length === 0) return;
     setDepBusy(true);
     try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const r = await fetch("/api/agents/dayplan", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ [ownerCol]: eventId, day_index: active, summarize: true }) });
+      const r = await authedFetch("/api/agents/dayplan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ [ownerCol]: eventId, day_index: active, summarize: true }) });
       const j = await r.json();
       if (j.ok) {
         setDeparture({ leave_by: j.leave_by || "", summary: j.summary || "", risks: j.risks || [] });
@@ -279,8 +274,7 @@ function DraftPanel({ ownerType = "event", eventId, dayIndex, onClose, onAdd }: 
     if (!supabase) return;
     setLoading(true); setErr(null);
     try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const r = await fetch("/api/agents/dayplan", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ [ownerType === "stop" ? "stop_id" : "event_id"]: eventId, day_index: dayIndex, notes }) });
+      const r = await authedFetch("/api/agents/dayplan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ [ownerType === "stop" ? "stop_id" : "event_id"]: eventId, day_index: dayIndex, notes }) });
       const j = await r.json();
       if (!j.ok) { setErr(j.error || "Draft failed"); setRows(null); }
       else { setRows(j.items ?? []); setPick(Object.fromEntries((j.items ?? []).map((_: any, i: number) => [i, true]))); }

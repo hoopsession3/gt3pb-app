@@ -1,5 +1,5 @@
 import type { EventRow } from "./db";
-import { supabase } from "./supabase";
+import { authedFetch } from "./authedFetch";
 
 // Live inventory (from /api/inventory → GT3 — Inventory in Notion). Turns the Event
 // Brief's "ingredient pull" from an estimate into have-vs-need with low-stock flags.
@@ -24,8 +24,7 @@ export interface InventoryResp { enabled: boolean; items: InvItem[]; error?: str
 
 export async function fetchInventory(): Promise<InventoryResp> {
   try {
-    const token = supabase ? (await supabase.auth.getSession()).data.session?.access_token : null;
-    const r = await fetch("/api/inventory", { cache: "no-store", headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    const r = await authedFetch("/api/inventory", { cache: "no-store" });
     return (await r.json()) as InventoryResp;
   } catch {
     return { enabled: false, items: [] };

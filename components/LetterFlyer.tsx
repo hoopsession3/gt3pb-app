@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { uploadToBucket } from "@/lib/uploads";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 
@@ -323,10 +324,9 @@ export default function LetterFlyer() {
     if (!supabase) return; setBusy(true);
     await draw(); const blob = await toBlob();
     if (!blob) { toast("Couldn't render — try again.", "error"); setBusy(false); return; }
-    const path = `flyer/letter-${new Date().getTime()}.png`;
-    const up = await supabase.storage.from("content").upload(path, blob, { upsert: true, contentType: "image/png" });
-    if (up.error) { toast(`Save failed — ${up.error.message}`, "error"); setBusy(false); return; }
-    const mediaUrl = supabase.storage.from("content").getPublicUrl(path).data.publicUrl;
+    const res = await uploadToBucket({ bucket: "content", file: blob, path: `flyer/letter-${new Date().getTime()}.png`, upsert: true });
+    if ("error" in res) { toast(`Save failed — ${res.error}`, "error"); setBusy(false); return; }
+    const mediaUrl = res.url;
     const caption = `${f.headline}${f.body ? ` — ${f.body.split("\n")[0]}` : ""}`.slice(0, 300);
     const { error } = await supabase.from("content_items").insert({ title: f.headline || "Announcement", kind: "post", caption, media: [{ url: mediaUrl, type: "image" }], media_url: mediaUrl, media_type: "image", created_by: user?.id ?? null, updated_by: user?.id ?? null });
     setBusy(false);

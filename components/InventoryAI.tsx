@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { authedFetch } from "@/lib/authedFetch";
 import Sheet from "@/components/Sheet";
 
 // INVENTORY AI — describe an item and it drafts a COMPLETE inventory record (every attribute filled /
@@ -25,10 +26,8 @@ export default function InventoryAI({ onClose, onAdded }: { onClose: () => void;
   const [item, setItem] = useState<Item | null>(null);
   const [done, setDone] = useState(false);
 
-  const token = async () => (await supabase!.auth.getSession()).data.session?.access_token;
   const post = async (payload: any) => {
-    const t = await token();
-    const r = await fetch("/api/agents/inventory", { method: "POST", headers: { "Content-Type": "application/json", ...(t ? { Authorization: `Bearer ${t}` } : {}) }, body: JSON.stringify(payload) });
+    const r = await authedFetch("/api/agents/inventory", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     return r.json();
   };
 

@@ -1,7 +1,8 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { useAuth } from "./AuthProvider";
+import { useAuth, roleOf } from "./AuthProvider";
+import { useMyAlerts } from "@/lib/useMyAlerts";
 import BottomNav from "./BottomNav";
 import { supabase } from "@/lib/supabase";
 
@@ -75,9 +76,8 @@ export function OperatorSectionProvider({ children }: { children: React.ReactNod
   return <Ctx.Provider value={{ section, setSection, back, canGoBack: depth > 0 }}>{children}</Ctx.Provider>;
 }
 
-// raw role read so the expanded roles (operator/event_manager/contractor) resolve
-const rawRole = (p: { role?: string | null; is_admin?: boolean } | null): string =>
-  p?.role ?? (p?.is_admin ? "owner" : "member");
+// roleOf (AuthProvider) knows all 7 roles now — the local fork this file kept "so the expanded
+// roles resolve" predates that widening.
 
 // which sections each role gets — and in what order (Ask floats via QuickDock, so it's not here)
 const ROLE_SECTIONS: Record<string, OpSection[]> = {
@@ -126,19 +126,12 @@ export function visibleGroups(role: string): { group: NavGroup; members: OpSecti
 export default function OperatorNav() {
   const { profile } = useAuth();
   const { section, setSection } = useOperatorSection();
-  const role = rawRole(profile);
-  // unacked-critical badge so you can SEE (and reach) alerts from any screen — not just the Now inbox.
-  const [critCount, setCritCount] = useState(0);
-  useEffect(() => {
-    if (!supabase) return;
-    const load = async () => {
-      const { count } = await supabase!.from("alerts").select("id", { count: "exact", head: true }).is("ack_at", null).eq("severity", "critical");
-      setCritCount(count ?? 0);
-    };
-    load();
-    const ch = supabase.channel("nav-alert-badge").on("postgres_changes", { event: "*", schema: "public", table: "alerts" }, load).subscribe();
-    return () => { supabase?.removeChannel(ch); };
-  }, []);
+  const role = roleOf(profile);
+  // Unacked-critical badge — same counting rule as My Day's flags and the Now strip (one shared
+  // hook), so the numbers agree. The old query here counted EVERYONE's criticals, including alerts
+  // targeted at someone else.
+  const { user } = useAuth();
+  const { critCount } = useMyAlerts(user?.id ?? null, role !== "member");
   // members / signed-out: no operator console — fall back to the customer nav so
   // they can still navigate away from /admin.
   if (role === "member") return <BottomNav />;

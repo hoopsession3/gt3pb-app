@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { authedFetch } from "@/lib/authedFetch";
 import EventGenerator from "./EventGenerator";
 
 // Ask GT3 — the crew's grounded pocket-brain chat (recipes, the why, gear, stock, how-to).
@@ -51,8 +52,7 @@ export default function AskGT3() {
     const next: ChatMsg[] = [...msgs, { role: "user", content: q }];
     setMsgs(next); setInput(""); setBusy(true);
     try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const r = await fetch("/api/agents/operator", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ messages: next }) });
+      const r = await authedFetch("/api/agents/operator", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: next }) });
       const j = await r.json();
       const reply = j.ok ? (j.reply || "…")
         : String(j.error ?? "").includes("ANTHROPIC") ? "I'm not switched on yet — Ryan needs to add the API key, then I'll be ready."

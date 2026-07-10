@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useRealtimeTable } from "@/lib/realtime";
+import { raiseAlertClient } from "@/lib/clientAlerts";
 import { useApp } from "./AppProvider";
 import { FLAVORS, nextDrop, dropDateKey, mixSummary, dollars, type GlassPath, type Mix } from "@/lib/orderAhead";
 
@@ -34,10 +36,6 @@ const stageIndex = (s: PackStage | null | undefined) => Math.max(0, PACK_STAGES.
 const GAL_PER_BOTTLE = 10 / 128; // one bottle = one 10-oz serving (the brew spec's unit)
 const quarterGal = (g: number) => Math.max(0.25, Math.ceil(g * 4) / 4);
 
-// Channels are keyed by NAME and a fast remount (Service mode toggles this component) can
-// grab the old still-subscribed instance -> "cannot add callbacks after subscribe()" and an error
-// boundary. Unique name per subscription, same fix as lib/availability.
-let dropOpsChanSeq = 0;
 // Two faces: `brief` is the Now screen's prep face (what to brew, what money, one progress line —
 // tapping it opens Service mode); full is the working face (checklist, upcoming, history) and
 // lives in Service mode only, so the same list never renders on two screens.
@@ -101,13 +99,9 @@ export default function DropOps({ brief = false, onOpen }: { brief?: boolean; on
 
   useEffect(() => {
     load(); loadBatches(); loadHistory(); loadUpcoming();
-    if (!supabase) return;
-    const ch = supabase.channel(`drop-ops-${++dropOpsChanSeq}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "drop_orders" }, () => { load(); loadHistory(); loadUpcoming(); })
-      .on("postgres_changes", { event: "*", schema: "public", table: "brew_batches" }, () => loadBatches())
-      .subscribe();
-    return () => { supabase?.removeChannel(ch); };
   }, [load, loadBatches, loadHistory, loadUpcoming]);
+  useRealtimeTable("drop_orders", () => { load(); loadHistory(); loadUpcoming(); });
+  useRealtimeTable("brew_batches", loadBatches);
 
   const toggle = async (id: string, key: "picked_up" | "bottles_returned", val: boolean) => {
     if (!supabase) return;
@@ -166,7 +160,7 @@ export default function DropOps({ brief = false, onOpen }: { brief?: boolean; on
     const { error } = await supabase.from("drop_orders").update({ canceled_at: new Date().toISOString() }).eq("id", o.id);
     if (error) { toast(`Couldn't cancel — ${error.message}`, "error"); load(); return; }
     if (o.paid) {
-      await supabase.from("alerts").insert({
+      await raiseAlertClient({
         severity: "important", category: "money",
         title: "Canceled a PAID reservation — refund needed",
         body: `${o.name} · ${o.size}-pack · ${dollars(o.total_cents / 100)} for ${satLabel}'s drop. Refund it in Square.`,

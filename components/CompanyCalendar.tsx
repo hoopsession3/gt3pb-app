@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { authedFetch } from "@/lib/authedFetch";
+import { useRealtimeTable } from "@/lib/realtime";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import { useOperatorSection } from "./OperatorNav";
 import EventDayPlanner from "./EventDayPlanner";
@@ -90,17 +92,7 @@ export default function CompanyCalendar() {
     setEvents((e.data as Ev[]) ?? []); setContent((c.data as Content[]) ?? []); setTodos((t.data as Todo[]) ?? []); setStops((s.data as Stop[]) ?? []); setPrepTasks((pt.data as PrepTask[]) ?? []);
   }, [range]);
   useEffect(() => { load(); }, [load]);
-  useEffect(() => {
-    if (!supabase) return;
-    const ch = supabase.channel("company-cal")
-      .on("postgres_changes", { event: "*", schema: "public", table: "todos" }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "content_items" }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "events" }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "stops" }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "event_tasks" }, () => load())
-      .subscribe();
-    return () => { supabase?.removeChannel(ch); };
-  }, [load]);
+  useRealtimeTable(["todos", "content_items", "events", "stops", "event_tasks"], load);
 
   const loadStale = useCallback(async () => { if (!supabase) return; const { data } = await supabase.rpc("stale_content_count"); setStale(typeof data === "number" ? data : 0); }, []);
   useEffect(() => { loadStale(); }, [loadStale]);
@@ -481,11 +473,9 @@ function OutlookBar({ onSynced }: { onSynced: () => void }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
-  const token = async () => (await supabase!.auth.getSession()).data.session?.access_token;
   const refresh = useCallback(async () => {
     if (!supabase) return;
-    const t = await token();
-    const r = await fetch("/api/outlook/status", { headers: t ? { Authorization: `Bearer ${t}` } : {} });
+    const r = await authedFetch("/api/outlook/status");
     const j = await r.json(); if (j.ok) setSt(j);
   }, []);
   useEffect(() => { refresh(); }, [refresh]);
@@ -499,23 +489,21 @@ function OutlookBar({ onSynced }: { onSynced: () => void }) {
 
   const connect = async () => {
     setBusy("connect"); setMsg(null);
-    const t = await token();
-    const r = await fetch("/api/outlook/connect", { headers: t ? { Authorization: `Bearer ${t}` } : {} });
+    const r = await authedFetch("/api/outlook/connect");
     const j = await r.json();
     if (j.ok && j.url) window.location.href = j.url; else { setMsg(j.error || "Couldn't start Outlook connect."); setBusy(null); }
   };
   const sync = async () => {
     setBusy("sync"); setMsg(null);
-    const t = await token();
-    const r = await fetch("/api/outlook/sync", { method: "POST", headers: t ? { Authorization: `Bearer ${t}` } : {} });
+    const r = await authedFetch("/api/outlook/sync", { method: "POST" });
     const j = await r.json();
     setMsg(j.ok ? `Synced — ${j.note}.` : (j.error || "Sync failed."));
     setBusy(null); if (j.ok) { onSynced(); refresh(); }
   };
   const disconnect = async () => {
     if (typeof window !== "undefined" && !window.confirm("Disconnect Outlook?")) return;
-    setBusy("dc"); const t = await token();
-    await fetch("/api/outlook/disconnect", { method: "POST", headers: t ? { Authorization: `Bearer ${t}` } : {} });
+    setBusy("dc");
+    await authedFetch("/api/outlook/disconnect", { method: "POST" });
     setBusy(null); setMsg("Outlook disconnected."); refresh();
   };
 

@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
+import { authedFetch } from "@/lib/authedFetch";
+import { useRealtimeTable } from "@/lib/realtime";
+import { uploadToBucket } from "@/lib/uploads";
+import { raiseAlertClient } from "@/lib/clientAlerts";
 import Sheet from "@/components/Sheet";
 import BrandCalendar from "./BrandCalendar";
 import BrandKit from "./BrandKit";
@@ -67,13 +71,7 @@ export default function Studio() {
 
   useEffect(() => { load(); }, [load]);
   // Live board across users.
-  useEffect(() => {
-    if (!supabase) return;
-    const ch = supabase.channel("studio-board")
-      .on("postgres_changes", { event: "*", schema: "public", table: "content_items" }, () => load())
-      .subscribe();
-    return () => { supabase?.removeChannel(ch); };
-  }, [load]);
+  useRealtimeTable("content_items", load);
 
   const create = async (scheduledISO?: string, eventId?: string | null) => {
     if (!supabase) return;
@@ -296,11 +294,9 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
     setUploading(true);
     const added: { url: string; type: string }[] = [];
     for (const file of Array.from(files)) {
-      const ext = (file.name.split(".").pop() || "bin").toLowerCase().replace(/[^a-z0-9]/g, "");
-      const path = `${id}/${new Date().getTime()}-${added.length}.${ext}`;
-      const up = await supabase.storage.from("content").upload(path, file, { upsert: true, cacheControl: "3600" });
-      if (up.error) { setPubErr(`Upload: ${up.error.message}`); continue; }
-      added.push({ url: supabase.storage.from("content").getPublicUrl(path).data.publicUrl, type: file.type.startsWith("video") ? "video" : "image" });
+      const res = await uploadToBucket({ bucket: "content", file, prefix: id });
+      if ("error" in res) { setPubErr(`Upload: ${res.error}`); continue; }
+      added.push({ url: res.url, type: file.type.startsWith("video") ? "video" : "image" });
     }
     if (added.length) await saveMedia([...mediaList, ...added]);
     setUploading(false);
@@ -355,14 +351,13 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
     await persist({ status: next, ...extra });
     await snapshot(label ?? next);
     // approval notifications (→ alerts spine → in-app inbox + web push)
-    if (!supabase) return;
     const t = (title || "Untitled").slice(0, 80);
     if (next === "review") {
-      await supabase.from("alerts").insert({ severity: "important", category: "note", title: `🎨 Content ready for review — ${t}`.slice(0, 180), body: `${me.name} submitted "${t}" for approval.`.slice(0, 300), link: `/admin?post=${id}` });
+      await raiseAlertClient({ severity: "important", category: "content", title: `🎨 Content ready for review — ${t}`, body: `${me.name} submitted "${t}" for approval.`, link: `/admin?post=${id}` });
     } else if (next === "approved" && item?.created_by && item.created_by !== me.id) {
-      await supabase.from("alerts").insert({ severity: "fyi", category: "note", title: `✅ Approved — ${t}`.slice(0, 180), body: `${me.name} approved "${t}". Ready to schedule/publish.`.slice(0, 300), link: "/admin", target_user_id: item.created_by });
+      await raiseAlertClient({ severity: "fyi", category: "content", title: `✅ Approved — ${t}`, body: `${me.name} approved "${t}". Ready to schedule/publish.`, link: "/admin", targetUserId: item.created_by });
     } else if (next === "changes" && item?.created_by && item.created_by !== me.id) {
-      await supabase.from("alerts").insert({ severity: "important", category: "note", title: `✏️ Changes requested — ${t}`.slice(0, 180), body: (extra.review_note ? String(extra.review_note) : `${me.name} requested changes on "${t}".`).slice(0, 300), link: "/admin", target_user_id: item.created_by });
+      await raiseAlertClient({ severity: "important", category: "content", title: `✏️ Changes requested — ${t}`, body: extra.review_note ? String(extra.review_note) : `${me.name} requested changes on "${t}".`, link: "/admin", targetUserId: item.created_by });
     }
   };
 
@@ -387,8 +382,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
     if (!supabase || drafting || !brief.trim()) return;
     setDrafting(true); setOptions([]);
     try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const r = await fetch("/api/agents/caption", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ brief, kind: item?.kind, channel: item?.channel }) });
+      const r = await authedFetch("/api/agents/caption", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ brief, kind: item?.kind, channel: item?.channel }) });
       const j = await r.json();
       if (j.ok) setOptions(j.options ?? []);
     } catch { /* */ }
@@ -396,8 +390,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   };
 
   const callStudio = async (path: string, body: any) => {
-    const token = (await supabase!.auth.getSession()).data.session?.access_token;
-    const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) });
+    const r = await authedFetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     return r.json();
   };
   const makeCanva = async () => {
@@ -468,8 +461,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
     if (!window.confirm("Generate a teaser + day-of + recap for this event? Three drafts will be added to the calendar.")) return;
     setCampBusy(true); setPubErr("");
     try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const r = await fetch("/api/agents/campaign", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ event_id: eventId, channel: item?.channel }) });
+      const r = await authedFetch("/api/agents/campaign", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ event_id: eventId, channel: item?.channel }) });
       const j = await r.json();
       if (j.ok) onClose(); // back to the calendar to see the arc laid out
       else setPubErr(String(j.error ?? "").includes("ANTHROPIC") ? "AI isn't switched on yet — add the API key." : `Campaign: ${j.error}`);
@@ -482,8 +474,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
     if (!supabase || repBusy) return;
     setRepBusy(true); setPubErr("");
     try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const r = await fetch("/api/agents/repurpose", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ content_id: id, caption, title }) });
+      const r = await authedFetch("/api/agents/repurpose", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content_id: id, caption, title }) });
       const j = await r.json();
       if (j.ok) setRep(j); else setPubErr(`Repurpose: ${j.error}`);
     } catch { setPubErr("Couldn't reach the repurpose agent."); }

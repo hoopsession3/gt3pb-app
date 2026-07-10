@@ -13,7 +13,9 @@ import { CONNECT_GROUPS, CONNECT_LEADERSHIP, CONNECT_PRIMARY } from "@/lib/conne
 // raise so it's there when needed, never in the way.
 export default function ConnectHub() {
   const { profile } = useAuth();
-  const isLeader = ["owner", "admin"].includes(roleOf(profile)); // owner/manager see the investor brief
+  // Investor brief — deliberately owner/admin only, NOT the standard leadership tier
+  // (LEADERSHIP_ROLES includes event_manager, who shouldn't see it). Keep this list local.
+  const isLeader = ["owner", "admin"].includes(roleOf(profile));
   const groups = isLeader ? [...CONNECT_GROUPS, CONNECT_LEADERSHIP] : CONNECT_GROUPS;
   const router = useRouter();
   const [open, setOpen] = useState(false);

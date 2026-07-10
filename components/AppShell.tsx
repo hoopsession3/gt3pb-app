@@ -49,7 +49,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     vv.addEventListener("scroll", update);
     const onFocusIn = (e: FocusEvent) => {
       const el = e.target as HTMLElement | null;
-      if (el && el.matches?.("input, textarea, select") && el.closest(".qd-sheet, .isheet, .prep-sheet, .conc-sheet, .assign-sheet, .supply-sheet")) {
+      // .sheet2 = the canonical <Sheet> every popout renders; .qd-sheet = the documented
+      // password-gate exception (see the popout scroll contract). The five legacy sheet
+      // classes this used to list no longer exist in the DOM.
+      if (el && el.matches?.("input, textarea, select") && el.closest(".sheet2, .qd-sheet")) {
         setTimeout(() => el.scrollIntoView({ block: "center", behavior: "smooth" }), 280);
       }
     };

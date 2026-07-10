@@ -2,6 +2,8 @@
 
 import { useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { authedFetch } from "@/lib/authedFetch";
+import { uploadToBucket } from "@/lib/uploads";
 
 // SMART INTAKE — drop any file (photo of gear, a permit, a receipt, a manual). It's read by the
 // intake agent, which proposes where it belongs: an asset, an inventory consumable, or a stored
@@ -26,10 +28,8 @@ export default function SmartIntake() {
   const [p, setP] = useState<any | null>(null);        // editable proposal
   const [done, setDone] = useState<string | null>(null);
 
-  const token = async () => (await supabase!.auth.getSession()).data.session?.access_token;
   const api = async (payload: any) => {
-    const t = await token();
-    const r = await fetch("/api/agents/intake", { method: "POST", headers: { "Content-Type": "application/json", ...(t ? { Authorization: `Bearer ${t}` } : {}) }, body: JSON.stringify(payload) });
+    const r = await authedFetch("/api/agents/intake", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     return r.json();
   };
 
@@ -38,8 +38,8 @@ export default function SmartIntake() {
     setErr(null); setDone(null); setScan(null); setP(null);
     setBusy("Uploading…");
     const path = rand(file.name);
-    const up = await supabase.storage.from("intake").upload(path, file, { upsert: false });
-    if (up.error) { setErr(`Upload failed: ${up.error.message}`); setBusy(null); return; }
+    const res = await uploadToBucket({ bucket: "intake", file, path });
+    if ("error" in res) { setErr(`Upload failed: ${res.error}`); setBusy(null); return; }
     setBusy("Reading the file…");
     const j = await api({ path, name: file.name, mime: file.type }).catch((e) => ({ ok: false, error: String(e?.message ?? e) }));
     setBusy(null);

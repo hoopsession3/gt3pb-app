@@ -21,11 +21,23 @@ export interface Profile {
   bio?: string | null;
 }
 
+// THE role vocabulary — matches profiles.role (migration 0031). This helper went stale at 4 of the
+// 7 real roles, which is why five surfaces forked their own copies (AccountPill, OperatorNav,
+// CommandPalette, QuickDock, admin) — those forks re-import this now.
+export type Role = "member" | "server" | "contractor" | "operator" | "event_manager" | "admin" | "owner";
+export const ALL_ROLES: Role[] = ["member", "server", "contractor", "operator", "event_manager", "admin", "owner"];
+// Tier lists, defined ONCE (the audit found "leadership" typed seven ways with drift — one list
+// dropped event_manager, one included a role that doesn't exist).
+export const LEADERSHIP_ROLES: Role[] = ["event_manager", "admin", "owner"];
+export const STAFF_ROLES: Role[] = ["server", "contractor", "operator", "event_manager", "admin", "owner"];
+export const isLeadership = (p: { role?: string | null; is_admin?: boolean } | null) => LEADERSHIP_ROLES.includes(roleOf(p) as Role);
+export const isStaff = (p: { role?: string | null; is_admin?: boolean } | null) => STAFF_ROLES.includes(roleOf(p) as Role);
+
 // Effective role with a graceful fallback for profiles loaded before the roles
 // migration ran (legacy admins read as owner).
-export function roleOf(p: { role?: string | null; is_admin?: boolean } | null): "member" | "server" | "admin" | "owner" {
-  const r = p?.role;
-  if (r === "server" || r === "admin" || r === "owner") return r;
+export function roleOf(p: { role?: string | null; is_admin?: boolean } | null): Role {
+  const r = p?.role as Role | null | undefined;
+  if (r && ALL_ROLES.includes(r)) return r;
   return p?.is_admin ? "owner" : "member";
 }
 

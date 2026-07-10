@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "./AuthProvider";
+import { useAuth, roleOf } from "./AuthProvider";
 import { useApp } from "./AppProvider";
 import ProfileSheet from "./ProfileSheet";
 
@@ -10,8 +10,6 @@ import ProfileSheet from "./ProfileSheet";
 // coconut hydration) makes it jump out, and the bronze caret signals "there are options."
 // Quick actions live here (reachable from any page); the full hub is the 3MPIRE tab.
 
-const rawRole = (p: { role?: string | null; is_admin?: boolean } | null): string =>
-  p?.role ?? (p?.is_admin ? "owner" : "member");
 const ROLE_LABEL: Record<string, string> = {
   owner: "Owner", admin: "Admin", event_manager: "Event manager",
   operator: "Operator", contractor: "Contractor", server: "Server", member: "Member",
@@ -44,7 +42,7 @@ export default function AccountPill() {
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
 
-  const role = rawRole(profile);
+  const role = roleOf(profile);
   const staff = !!user && role !== "member";
   const name = profile?.display_name || user?.email || "Guest";
   const go = (href: string) => { setOpen(false); router.push(href); };

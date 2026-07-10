@@ -17,12 +17,11 @@ export interface AssetItem {
 }
 export interface AssetsResp { enabled: boolean; items: AssetItem[]; error?: string }
 
-import { supabase } from "./supabase";
+import { authedFetch } from "./authedFetch";
 
 export async function fetchAssets(): Promise<AssetsResp> {
   try {
-    const token = supabase ? (await supabase.auth.getSession()).data.session?.access_token : null;
-    const r = await fetch("/api/assets", { cache: "no-store", headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    const r = await authedFetch("/api/assets", { cache: "no-store" });
     return (await r.json()) as AssetsResp;
   } catch {
     return { enabled: false, items: [] };

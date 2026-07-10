@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useRealtimeTable } from "@/lib/realtime";
 
 // Dynamic org chart — reads every crew profile and lays them out by role tier (owner → admin →
 // event manager → operators → contractors). Updates live as people set their photo/title/role.
@@ -23,12 +24,8 @@ export default function OrgChart() {
     const { data } = await supabase.from("profiles").select("id, display_name, title, avatar_url, role").neq("role", "member").order("display_name");
     setPeople((data as P[]) ?? []);
   }, []);
-  useEffect(() => {
-    load();
-    if (!supabase) return;
-    const ch = supabase.channel("orgchart").on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => load()).subscribe();
-    return () => { supabase?.removeChannel(ch); };
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
+  useRealtimeTable("profiles", load);
 
   const card = (p: P) => (
     <div key={p.id} className="org-card">

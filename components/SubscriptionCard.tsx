@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
+import { useRealtimeTable } from "@/lib/realtime";
 import { authedFetch } from "@/lib/authedFetch";
 import { SUBSCRIPTIONS_ON, SUB_NAME, SUB_CADENCE, SUB_PACKS, squareClientReady } from "@/lib/square";
 import type { Subscription } from "@/lib/db";
@@ -33,13 +34,7 @@ export default function SubscriptionCard() {
   }, [user]);
   useEffect(() => { load(); }, [load]);
 
-  useEffect(() => {
-    if (!supabase || !user) return;
-    const ch = supabase.channel("subs-self")
-      .on("postgres_changes", { event: "*", schema: "public", table: "subscriptions", filter: `user_id=eq.${user.id}` }, () => load())
-      .subscribe();
-    return () => { supabase?.removeChannel(ch); };
-  }, [load, user]);
+  useRealtimeTable({ table: "subscriptions", filter: `user_id=eq.${user?.id}` }, load, { enabled: !!user });
 
   const start = async () => {
     setErr("");

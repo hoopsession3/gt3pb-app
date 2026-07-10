@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { fetchAssets, type AssetItem, type AssetsResp } from "@/lib/assets";
 import { supabase } from "@/lib/supabase";
+import EmptyState from "./EmptyState";
 
 // Gear & manuals — the GT3 asset register, read from Postgres (system-of-record). Staff can
 // add / edit / delete inline; writes go straight to the `assets` table (RLS: staff-write).
@@ -138,6 +139,8 @@ export default function GearLibrary() {
           {editing === "new" && form}
           {resp.error ? (
             <div className="gl-hint">Couldn&apos;t reach the asset register: {resp.error}</div>
+          ) : items.length === 0 ? (
+            editing !== "new" && <EmptyState title="No gear registered yet" sub="Add your first piece — manuals, specs & maintenance live here." />
           ) : (
             BRAND_ORDER.map((b) => {
               const list = items.filter((i) => (i.brand ?? "Shared") === b);

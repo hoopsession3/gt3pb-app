@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useAuth, roleOf } from "@/components/AuthProvider";
+import { useAuth, roleOf, STAFF_ROLES } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
 import Gt3Mark from "@/components/Gt3Mark";
 
@@ -21,7 +21,7 @@ function ScanInner() {
   const params = useSearchParams();
   const router = useRouter();
   const code = params.get("m") ?? "";
-  const isStaff = ready && !!user && ["owner", "admin", "event_manager", "operator", "contractor", "server", "staff"].includes(roleOf(profile));
+  const isStaff = ready && !!user && STAFF_ROLES.includes(roleOf(profile));
   const [member, setMember] = useState<Member | null>(null);
   const [state, setState] = useState<"idle" | "loading" | "notfound" | "added">("idle");
 

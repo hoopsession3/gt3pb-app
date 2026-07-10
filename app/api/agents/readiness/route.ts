@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { staffFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { raiseAlert } from "@/lib/serverAlerts";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 
 export const runtime = "nodejs";
@@ -75,12 +76,9 @@ export async function POST(req: Request) {
   const severity = ["critical", "important", "fyi"].includes(out.severity) ? out.severity : "important";
   const body = out.gaps?.length ? out.gaps.map((g) => `• ${g.item}: ${g.detail}`).join("\n") : "All stocked for what's coming.";
   // Raise it on the spine (only when there's something to act on — don't ping for "all good").
+  // Fan-out is the alerts INSERT trigger (0157) — no direct invoke here.
   if (severity !== "fyi") {
-    const { data: alert } = await supabaseAdmin.from("alerts").insert({ severity, category: "prep", title: `Readiness: ${out.headline}`.slice(0, 200), body, link: "/admin" }).select("*").single();
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL, key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (alert && url && key) {
-      fetch(`${url}/functions/v1/push`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` }, body: JSON.stringify({ table: "alerts", type: "INSERT", record: alert }) }).catch(() => {});
-    }
+    await raiseAlert({ severity: severity as "critical" | "important", category: "prep", title: `Readiness: ${out.headline}`.slice(0, 180), body });
   }
   return NextResponse.json({ ok: true, headline: out.headline, severity, gaps: out.gaps ?? [] });
 }

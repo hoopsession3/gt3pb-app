@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { authedFetch } from "@/lib/authedFetch";
+import { useRealtimeTable } from "@/lib/realtime";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import { useApp } from "@/components/AppProvider";
 import { computeLoadout, towChecks, towChecklist, computeSpace, rigToBox, type TrailerProfile, type Loadout, type SpaceRig, type SpacePlan, type AssetDim } from "@/lib/loadout";
@@ -70,16 +72,8 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
     });
   }, [sel]);
 
-  useEffect(() => {
-    load();
-    if (!supabase) return;
-    const ch = supabase.channel("trailer-loadout")
-      .on("postgres_changes", { event: "*", schema: "public", table: "trailer_profile" }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "event_tasks" }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "stops" }, () => load())
-      .subscribe();
-    return () => { supabase?.removeChannel(ch); };
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
+  useRealtimeTable(["trailer_profile", "event_tasks", "stops"], load);
 
   if (!tp) return null;
 
@@ -93,10 +87,9 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
     setPlanning(true);
     try {
       const [t, id] = sel.split(":");
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const r = await fetch("/api/agents/spaceplan", {
+      const r = await authedFetch("/api/agents/spaceplan", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(t === "s" ? { stop_id: id } : { event_id: id }),
       });
       const j = await r.json();
@@ -119,9 +112,8 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
     if (!supabase || !veh.q.trim() || veh.busy) return;
     setVeh((v) => ({ ...v, busy: true }));
     try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const r = await fetch("/api/agents/vehiclespec", {
-        method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      const r = await authedFetch("/api/agents/vehiclespec", {
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ vehicle: veh.q.trim(), passengers: veh.pax }),
       });
       const j = await r.json();

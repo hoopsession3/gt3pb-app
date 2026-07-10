@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useRealtimeTable } from "@/lib/realtime";
+import { raiseAlertClient } from "@/lib/clientAlerts";
+import { authedFetch } from "@/lib/authedFetch";
 import { useApp } from "./AppProvider";
 import RouteMap, { type RoutePoint } from "./RouteMap";
 import { openAddress, fullRouteUrl, geocode } from "@/lib/maps";
@@ -29,7 +32,6 @@ const packSummary = (o: DOrder) => [
   o.performance_count && (Object.entries(o.performance_mix || {}).map(([k, n]) => `${n}× ${prettySlug(k)}`).join(" · ") || `${o.performance_count}× premium`),
 ].filter(Boolean).join(" · ");
 
-let drvSeq = 0;
 export default function DriverRun() {
   const { toast } = useApp();
   const [rows, setRows] = useState<DOrder[]>([]);
@@ -53,13 +55,8 @@ export default function DriverRun() {
     setRows(run);
   }, []);
 
-  useEffect(() => {
-    load();
-    if (!supabase) return;
-    const ch = supabase.channel(`driver-run-${++drvSeq}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "delivery_orders" }, () => load()).subscribe();
-    return () => { supabase?.removeChannel(ch); };
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
+  useRealtimeTable("delivery_orders", load);
 
   // Geocode each address once, sequentially (Nominatim asks ≤1/sec); results cache in localStorage so
   // every run after the first is instant. The map fills in progressively as pins resolve.
@@ -93,8 +90,8 @@ export default function DriverRun() {
   ), [rows, coords]);
 
   const notifyDelivered = (o: DOrder) => { void (async () => {
-    try { const tok = (await supabase!.auth.getSession()).data.session?.access_token;
-      await fetch("/api/notify", { method: "POST", headers: { "Content-Type": "application/json", ...(tok ? { Authorization: `Bearer ${tok}` } : {}) }, body: JSON.stringify({ kind: "delivered", id: o.id }) });
+    try {
+      await authedFetch("/api/notify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "delivered", id: o.id }) });
     } catch { /* best-effort */ }
   })(); };
 
@@ -111,14 +108,14 @@ export default function DriverRun() {
   const hold = async (o: DOrder) => {
     if (!supabase) return; haptic(HAPTIC.alert);
     await supabase.from("delivery_orders").update({ driver_outcome: "held_no_empties", status: "held_for_pickup", empties_collected: 0 }).eq("id", o.id);
-    await supabase.from("alerts").insert({ severity: "important", category: "orders", title: "Delivery held — pickup queue", body: `${o.name} — no empties out. ${o.pack_size} bottles held at GT3PB for pickup 10 AM – 2 PM. ${o.phone ?? ""}`.trim(), link: "/admin?s=now" });
+    await raiseAlertClient({ severity: "important", category: "order", title: "Delivery held — pickup queue", body: `${o.name} — no empties out. ${o.pack_size} bottles held at GT3PB for pickup 10 AM – 2 PM. ${o.phone ?? ""}`.trim(), link: "/admin?s=now" });
     setOpenId(null); toast("Held for pickup — crew alerted"); load();
   };
   const notHome = async (o: DOrder) => {
     if (!supabase) return; haptic(HAPTIC.alert);
     const at = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
     await supabase.from("delivery_orders").update({ status: "issue", driver_outcome: null, empties_collected: 0, driver_note: `Not home — ${at}` }).eq("id", o.id);
-    await supabase.from("alerts").insert({ severity: "important", category: "orders", title: "Delivery — customer not home", body: `${o.name} wasn't home for the ${o.pack_size}-bottle drop${o.refill_count > 0 ? " (swap not completed)" : ""}. ${o.address_street}, ${o.address_city}. ${o.phone ?? ""}`.trim(), link: "/admin?s=now" });
+    await raiseAlertClient({ severity: "important", category: "order", title: "Delivery — customer not home", body: `${o.name} wasn't home for the ${o.pack_size}-bottle drop${o.refill_count > 0 ? " (swap not completed)" : ""}. ${o.address_street}, ${o.address_city}. ${o.phone ?? ""}`.trim(), link: "/admin?s=now" });
     setOpenId(null); toast("Logged — not home; crew alerted"); load();
   };
   // Roll a stop back to open — undo a mis-tap. Ties to the order: clears the outcome + reopens it.

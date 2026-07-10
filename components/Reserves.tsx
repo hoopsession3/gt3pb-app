@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
+import { useRealtimeTable } from "@/lib/realtime";
 import Skeleton from "./Skeleton";
 import Sheet from "./Sheet";
 import SignIn from "./SignIn";
@@ -40,14 +41,7 @@ export default function Reserves() {
 
   // Realtime: live stock + sold-out flips, plus the member's own claim changes
   // (hold expiry / admin release) so the "Reserved" badge never goes stale.
-  useEffect(() => {
-    if (!supabase) return;
-    const ch = supabase.channel("reserves-live")
-      .on("postgres_changes", { event: "*", schema: "public", table: "reserves" }, () => load());
-    if (user) ch.on("postgres_changes", { event: "*", schema: "public", table: "reserve_claims", filter: `user_id=eq.${user.id}` }, () => load());
-    ch.subscribe();
-    return () => { supabase?.removeChannel(ch); };
-  }, [load, user]);
+  useRealtimeTable(user ? ["reserves", { table: "reserve_claims", filter: `user_id=eq.${user.id}` }] : "reserves", load);
 
   const claim = async (r: Reserve) => {
     if (!user) { pendingClaim.current = r; setSignInOpen(true); return; }

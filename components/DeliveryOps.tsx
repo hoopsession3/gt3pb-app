@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useRealtimeTable } from "@/lib/realtime";
+import { raiseAlertClient } from "@/lib/clientAlerts";
+import { authedFetch } from "@/lib/authedFetch";
 import { useApp } from "./AppProvider";
 import { type PerfMix } from "@/lib/delivery";
 import AssignTaskSheet from "./AssignTaskSheet";
@@ -30,7 +33,6 @@ const STATUS_LABEL: Record<string, string> = {
 };
 const dollars = (c: number) => `$${(c / 100).toFixed(2)}`;
 
-let dlChanSeq = 0;
 export default function DeliveryOps() {
   const { toast } = useApp();
   const [rows, setRows] = useState<DOrder[]>([]);
@@ -52,14 +54,8 @@ export default function DeliveryOps() {
     setRows(all.filter((o) => o.delivery_date === d));
   }, []);
 
-  useEffect(() => {
-    load();
-    if (!supabase) return;
-    const ch = supabase.channel(`delivery-ops-${++dlChanSeq}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "delivery_orders" }, () => load())
-      .subscribe();
-    return () => { supabase?.removeChannel(ch); };
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
+  useRealtimeTable("delivery_orders", load);
 
   const setStatus = async (o: DOrder, status: string) => {
     if (!supabase) return;
@@ -72,8 +68,7 @@ export default function DeliveryOps() {
     if (kind !== "held_no_empties") {
       void (async () => {
         try {
-          const tok = (await supabase!.auth.getSession()).data.session?.access_token;
-          await fetch("/api/notify", { method: "POST", headers: { "Content-Type": "application/json", ...(tok ? { Authorization: `Bearer ${tok}` } : {}) }, body: JSON.stringify({ kind: "delivered", id: o.id }) });
+          await authedFetch("/api/notify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "delivered", id: o.id }) });
         } catch { /* best-effort */ }
       })();
     }
@@ -89,8 +84,8 @@ export default function DeliveryOps() {
       toast("Logged — margin absorbed this once");
     } else {
       await supabase.from("delivery_orders").update({ driver_outcome: kind, status: "held_for_pickup", empties_collected: 0 }).eq("id", o.id);
-      await supabase.from("alerts").insert({
-        severity: "important", category: "orders", title: "Delivery held — pickup queue",
+      await raiseAlertClient({
+        severity: "important", category: "order", title: "Delivery held — pickup queue",
         body: `${o.name} — no empties out. ${o.pack_size} bottles held at GT3PB for pickup 10 AM – 2 PM. ${o.phone ?? ""}`.trim(),
         link: "/admin?s=now",
       });

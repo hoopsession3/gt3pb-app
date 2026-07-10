@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
+import { authedFetch } from "@/lib/authedFetch";
 import { ARCHITECTURE, ARCH_OVERVIEW, DATABASES, BUSINESS, BUSINESS_OVERVIEW, BUILD_STATS, MANAGE_LABEL, STATUS_LABEL, sotUrl, type ArchLayer, type ArchComponent, type ArchStatus } from "@/lib/architecture";
 
 // Owner-only system architecture map. High level → layer → component. Manifest-backed, with LIVE
@@ -32,11 +33,9 @@ export default function ArchitecturePage() {
   useEffect(() => {
     if (!isOwner || !supabase) return;
     (async () => {
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const h = token ? { Authorization: `Bearer ${token}` } : undefined;
       const [s, k] = await Promise.all([
-        fetch("/api/architecture/status", { headers: h }).then((r) => r.json()).catch(() => null),
-        fetch("/api/architecture/stats", { headers: h }).then((r) => r.json()).catch(() => null),
+        authedFetch("/api/architecture/status").then((r) => r.json()).catch(() => null),
+        authedFetch("/api/architecture/stats").then((r) => r.json()).catch(() => null),
       ]);
       if (s?.ok) setLive(s.status);
       if (k?.ok) setKpis(k.kpis);

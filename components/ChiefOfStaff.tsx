@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { authedFetch } from "@/lib/authedFetch";
 
 // CHIEF OF STAFF — the executive-assistant briefing. Pick a horizon (week / month / quarter) and it
 // reads the whole org and tells you what to focus on and in what order: headline, ranked priorities,
@@ -25,8 +26,7 @@ export default function ChiefOfStaff() {
     if (!supabase || busy) return;
     setBusy(true); setErr(null);
     try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const r = await fetch("/api/agents/chief", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ period: p }) });
+      const r = await authedFetch("/api/agents/chief", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ period: p }) });
       const j = await r.json();
       if (!j.ok) setErr(j.error || "Couldn't build the briefing."); else setRes(j);
     } catch (e: any) { setErr(String(e?.message ?? e)); }

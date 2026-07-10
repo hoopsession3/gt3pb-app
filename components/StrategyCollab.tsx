@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useRealtimeTable } from "@/lib/realtime";
+import { raiseAlertClient } from "@/lib/clientAlerts";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { GTM_PLAYS, type GtmPlay } from "@/lib/strategy";
@@ -13,8 +15,6 @@ import { GTM_PLAYS, type GtmPlay } from "@/lib/strategy";
 //    be edited or deleted (no RLS policies for it, on purpose) — history is history.
 //  · PlayBuilder — the guided walkthrough for building a new play or overhauling one: seven steps,
 //    each with one coaching line, saved as a DRAFT in the debrief's GTM record shape.
-
-let stChanSeq = 0;
 
 // ── live thread ──
 type C = { id: string; body: string; author_id: string | null; created_at: string };
@@ -33,12 +33,8 @@ export function StrategyThread({ k, label }: { k: string; label: string }) {
     load();
     if (!supabase) return;
     supabase.from("profiles").select("id, display_name, role").neq("role", "member").then(({ data }) => setStaff((data as typeof staff) ?? []));
-    const ch = supabase.channel(`strategy-${++stChanSeq}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "comments", filter: `strategy_key=eq.${k}` }, () => load())
-      .subscribe();
-    return () => { supabase?.removeChannel(ch); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [load, k]);
+  }, [load]);
+  useRealtimeTable({ table: "comments", filter: `strategy_key=eq.${k}` }, load);
   const nameOf = (uid: string | null) => (uid === user?.id ? "You" : (staff.find((s) => s.id === uid)?.display_name?.trim().split(" ")[0] || "Crew"));
   const send = async () => {
     if (!supabase || !text.trim()) return;
@@ -49,7 +45,7 @@ export function StrategyThread({ k, label }: { k: string; label: string }) {
     // ping the other owners/admins so collaboration is live even when the page isn't open
     const meFirst = (profile?.display_name || "Owner").split(" ")[0];
     staff.filter((s) => (s.role === "owner" || s.role === "admin") && s.id !== user?.id).forEach((s) =>
-      supabase!.from("alerts").insert({ severity: "important", category: "strategy", title: `${meFirst} on the playbook`, body: `${label}: ${body.slice(0, 140)}`, link: "/playbook", target_user_id: s.id, created_by: user?.id ?? null }));
+      raiseAlertClient({ severity: "important", category: "strategy", title: `${meFirst} on the playbook`, body: `${label}: ${body.slice(0, 140)}`, link: "/playbook", targetUserId: s.id }));
   };
   return (
     <div className="st-thread">

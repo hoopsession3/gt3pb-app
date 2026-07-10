@@ -61,7 +61,7 @@ export async function POST(req: Request) {
     // best-effort by contract, so a failure here can't break the report path.
     await raiseAlert({
       severity: fatal ? "critical" : "important",
-      category: "app_error",
+      category: "system",
       title: fatal ? "App error — a screen crashed" : "App error (new)",
       body: `${message.slice(0, 200)}${path ? ` · ${path}` : ""}`,
       link: "/admin",

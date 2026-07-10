@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { authedFetch } from "@/lib/authedFetch";
 import AssignTaskSheet from "@/components/AssignTaskSheet";
 import Sheet from "@/components/Sheet";
 import ProgressRing from "@/components/ProgressRing";
@@ -388,8 +389,7 @@ function BottleLoadout({ batch, onClose }: { batch: Batch; onClose: () => void }
     if (!supabase || busy) return;
     setBusy(true); setErr(null);
     try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const r = await fetch("/api/agents/loadout", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ batch_id: batch.id, bottle_oz: oz, keg_gal: kg, vehicle }) });
+      const r = await authedFetch("/api/agents/loadout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ batch_id: batch.id, bottle_oz: oz, keg_gal: kg, vehicle }) });
       const j = await r.json();
       if (!j.ok) setErr(j.error || "Couldn't plan the loadout."); else setRes(j);
     } catch (e: any) { setErr(String(e?.message ?? e)); }
@@ -466,12 +466,10 @@ function BrewSheet({ recipe, events, stops, vessels, onClose, onDone }: { recipe
   const [res, setRes] = useState<any | null>(null);
   const [saved, setSaved] = useState(false);
 
-  const token = async () => (await supabase!.auth.getSession()).data.session?.access_token;
   const call = async (payload: any) => {
-    const t = await token();
     const [tt, tid] = (targets[0] || "").split(":"); // primary target drives the back-schedule date
     const owner = targets[0] ? (tt === "s" ? { stop_id: tid } : { event_id: tid }) : {};
-    const r = await fetch("/api/agents/brew", { method: "POST", headers: { "Content-Type": "application/json", ...(t ? { Authorization: `Bearer ${t}` } : {}) }, body: JSON.stringify({ recipe_id: recipe.id, batch_gal: Number(gal) || 1, ...owner, vessel: vesselLabel, ...payload }) });
+    const r = await authedFetch("/api/agents/brew", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recipe_id: recipe.id, batch_gal: Number(gal) || 1, ...owner, vessel: vesselLabel, ...payload }) });
     return r.json();
   };
   const planIt = async () => {

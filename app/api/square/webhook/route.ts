@@ -6,23 +6,6 @@ import { raiseAlert } from "@/lib/serverAlerts";
 
 export const runtime = "nodejs"; // needs node crypto + raw body
 
-// Raise a money alert: drop it in the in-app inbox, then fan out via the push dispatcher
-// (Teams + web push). Best-effort — a payment write must never fail because alerting did.
-async function raisePaymentAlert(title: string, body: string) {
-  if (!supabaseAdmin) return;
-  const { data } = await supabaseAdmin.from("alerts").insert({ severity: "critical", category: "money", title, body, link: "/admin" }).select("*").single();
-  if (!data) return;
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL, key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return;
-  try {
-    await fetch(`${url}/functions/v1/push`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-      body: JSON.stringify({ table: "alerts", type: "INSERT", record: data }),
-    });
-  } catch { /* best effort */ }
-}
-
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Square subscription/invoice webhook. Verifies the HMAC over the raw body BEFORE
 // any DB write, then updates the read-only mirror via the service role. The mirror
@@ -73,7 +56,7 @@ export async function POST(req: Request) {
       const subId = evt?.data?.object?.invoice?.subscription_id;
       if (subId) ({ error: err } = await supabaseAdmin.from("subscriptions").update({ status: "past_due", updated_at: new Date().toISOString() }).eq("square_subscription_id", subId));
       // Producer: a failed payment is a money problem leadership should see fast.
-      await raisePaymentAlert("Subscription payment failed", "A subscriber's card was declined — they'll lose access. Check Subscribers.");
+      await raiseAlert({ severity: "critical", category: "money", title: "Subscription payment failed", body: "A subscriber's card was declined — they'll lose access. Check Subscribers." });
     } else if (type.startsWith("payment.")) {
       // Mirror completed Square sales (incl. walk-up POS that never touch the app) into
       // event_sales, scoped to the live event, so the command center HUD is real. Dedupe

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { uploadToBucket } from "@/lib/uploads";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 
@@ -51,15 +52,12 @@ export default function AiTraining() {
   const uploadMedia = async (file: File) => {
     if (!supabase) return;
     setUpBusy(true);
-    try {
-      const ext = file.name.split(".").pop() || "jpg";
-      const path = `${user?.id ?? "x"}/${title.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40) || "proof"}-${rows.length}.${ext}`;
-      const up = await supabase.storage.from("training").upload(path, file, { upsert: true });
-      if (up.error) throw up.error;
-      setMedia(supabase.storage.from("training").getPublicUrl(path).data.publicUrl);
+    const res = await uploadToBucket({ bucket: "training", file, prefix: user?.id ?? "x", upsert: true });
+    if ("error" in res) {
+      toast(res.error.includes("Bucket not found") ? "Run migration 0143 first (training bucket)." : "Upload failed", "error");
+    } else {
+      setMedia(res.url);
       toast("Proof attached");
-    } catch (e: unknown) {
-      toast(String((e as { message?: string })?.message ?? "").includes("Bucket not found") ? "Run migration 0143 first (training bucket)." : "Upload failed", "error");
     }
     setUpBusy(false);
   };

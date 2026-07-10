@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { authedFetch } from "@/lib/authedFetch";
 
 // CHIEF OF SALES — scouts the web for upcoming opportunities (fitness events, festivals, markets,
 // corporate, wellness expos, local newsletters) in the chosen markets, ranks the fit, and lets you
@@ -24,10 +25,8 @@ export default function ChiefOfSales({ onLeads }: { onLeads?: () => void }) {
   const [open, setOpen] = useState(false);
 
   const toggleMarket = (m: string) => setMarkets((p) => p.includes(m) ? p.filter((x) => x !== m) : [...p, m]);
-  const token = async () => (await supabase!.auth.getSession()).data.session?.access_token;
   const call = async (payload: any) => {
-    const t = await token();
-    const r = await fetch("/api/agents/sales", { method: "POST", headers: { "Content-Type": "application/json", ...(t ? { Authorization: `Bearer ${t}` } : {}) }, body: JSON.stringify(payload) });
+    const r = await authedFetch("/api/agents/sales", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     // parse defensively — a timeout/500 can return an HTML page, which would otherwise throw a cryptic
     // "string did not match the expected pattern" instead of a useful message
     const text = await r.text();

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { fetchInventory, type InvItem, type InventoryResp } from "@/lib/inventory";
 import { supabase } from "@/lib/supabase";
 import InventoryAI from "./InventoryAI";
+import EmptyState from "./EmptyState";
 
 // Inventory — the GT3 stock register, read from Postgres (system-of-record). Staff add / edit /
 // delete inline; writes go straight to `inventory_items` (RLS: staff-write). Lives next to the
@@ -133,6 +134,8 @@ export default function InventoryLibrary() {
           {editing === "new" && form}
           {resp.error ? (
             <div className="gl-hint">Couldn&apos;t reach inventory: {resp.error}</div>
+          ) : items.length === 0 ? (
+            editing !== "new" && <EmptyState title="No inventory items yet" sub="Add what you stock — counts, costs & pars start here." />
           ) : (
             items.map((it) => (
               editing === it.id ? <div key={it.id}>{form}</div> : (
