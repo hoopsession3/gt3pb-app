@@ -4021,6 +4021,11 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .dops-up-act{display:flex;gap:8px;flex-shrink:0}
 
 /* goals — the strategy's scoreboard (Plan › Goals) */
+/* payment trust line + pipeline activity trail */
+.dl-trust{margin-top:12px;font-size:11.5px;line-height:1.5;color:var(--cream-m);text-align:center}
+.dl-trust b{color:var(--cream)}
+.pipe-trail{padding:0 12px 4px;font-family:'DM Mono',ui-monospace,monospace;font-size:10px;color:var(--cream-d)}
+
 /* studio content links — the taxonomy chips (events · stops · plays), removable */
 .studio-links{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0 2px}
 .studio-link-chip{display:inline-flex;align-items:center;gap:6px;background:var(--char2);border:1px solid var(--line2);border-radius:16px;padding:5px 6px 5px 11px;font-family:'Inter';font-weight:600;font-size:11.5px;color:var(--cream)}

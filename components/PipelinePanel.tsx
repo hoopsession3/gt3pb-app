@@ -134,6 +134,26 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   useRealtimeTable(["opportunities", "deals", "vendors"], load);
 
   const firstName = (uid: string | null) => (staff.find((s) => s.id === uid)?.display_name || "").trim().split(/\s+/)[0] || null;
+  // Milestones write into the opportunity's thread (comments + strategy_key — dated, attributed),
+  // so a rep's notes and the stage history read as ONE chronological pursuit record.
+  const logActivity = (oppId: string, body: string) => {
+    if (!supabase || !user) return;
+    supabase.from("comments").insert({ strategy_key: `opp:${oppId}`, body, author_id: user.id }).then(() => loadActivity());
+  };
+  const [activity, setActivity] = useState<Record<string, { n: number; lastAt: string; lastBy: string | null }>>({});
+  const loadActivity = useCallback(async () => {
+    if (!supabase) return;
+    const { data } = await supabase.from("comments").select("strategy_key, created_at, author_id")
+      .like("strategy_key", "opp:%").order("created_at", { ascending: false }).limit(400);
+    const m: Record<string, { n: number; lastAt: string; lastBy: string | null }> = {};
+    for (const r of ((data ?? []) as { strategy_key: string; created_at: string; author_id: string | null }[])) {
+      const k = r.strategy_key.slice(4);
+      if (!m[k]) m[k] = { n: 0, lastAt: r.created_at, lastBy: r.author_id };
+      m[k].n++;
+    }
+    setActivity(m);
+  }, []);
+  useEffect(() => { loadActivity(); }, [loadActivity]);
   const patch = async (id: string, p: Record<string, unknown>) => {
     if (!supabase) return;
     setOpps((prev) => prev.map((o) => (o.id === id ? { ...o, ...p } as Opp : o)));
@@ -146,11 +166,14 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
     if (stage === "won") p.won_at = new Date().toISOString();
     if (stage === "lost") { p.lost_at = new Date().toISOString(); const r = typeof window !== "undefined" ? window.prompt("What lost it? (one line, for the record)") : null; if (r?.trim()) p.lost_reason = r.trim(); }
     await patch(o.id, p);
+    const label = STAGES.find((s) => s.key === stage)?.label ?? stage;
+    logActivity(o.id, `→ ${label}${stage === "lost" && p.lost_reason ? ` — ${p.lost_reason}` : ""}`);
     if (stage === "won") toast("Won — nice. Book it in Plan › Events when dates land.");
   };
 
   const assignRep = async (o: Opp, uid: string) => {
     await patch(o.id, { rep_id: uid || null });
+    logActivity(o.id, uid ? `→ assigned to ${firstName(uid) ?? "a rep"}` : "→ unassigned");
     if (uid && uid !== user?.id) {
       raiseAlertClient({ severity: "important", category: "booking", title: `Pipeline: ${o.vendors?.name ?? "an account"} is yours`.slice(0, 140), body: o.deals?.title ? `Deal: ${o.deals.title}` : "Pick the deal and make first contact.", link: "/crew?s=pipeline", targetUserId: uid });
     }
@@ -297,6 +320,9 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
         </span>
         <span className={`ev-chev${openId === o.id ? " open" : ""}`} aria-hidden="true">›</span>
       </button>
+      {activity[o.id] && openId !== o.id && (
+        <div className="pipe-trail">💬 {activity[o.id].n} · last {new Date(activity[o.id].lastAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}{firstName(activity[o.id].lastBy) ? ` · ${firstName(activity[o.id].lastBy)}` : ""}</div>
+      )}
       {(o.next_step || overdue(o)) && openId !== o.id && (
         <div className="pipe-next">{overdue(o) ? "⚠ " : "→ "}{o.next_step ?? "next step overdue"}{o.next_step_at ? ` · ${new Date(`${o.next_step_at}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : ""}</div>
       )}
@@ -324,7 +350,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
               <input inputMode="decimal" defaultValue={o.value_cents != null ? String(o.value_cents / 100) : ""} onBlur={(e) => patch(o.id, { value_cents: e.target.value ? Math.round(Number(e.target.value) * 100) : null })} placeholder="500" />
             </label>
             <label>Next step
-              <input defaultValue={o.next_step ?? ""} onBlur={(e) => (e.target.value.trim() || null) !== o.next_step && patch(o.id, { next_step: e.target.value.trim() || null })} placeholder="Call back Tuesday, send the one-pager…" />
+              <input defaultValue={o.next_step ?? ""} onBlur={(e) => { const v = e.target.value.trim() || null; if (v !== o.next_step) { patch(o.id, { next_step: v }); if (v) logActivity(o.id, `→ next: ${v}`); } }} placeholder="Call back Tuesday, send the one-pager…" />
             </label>
             <label>By
               <input type="date" value={o.next_step_at ?? ""} onChange={(e) => patch(o.id, { next_step_at: e.target.value || null })} />

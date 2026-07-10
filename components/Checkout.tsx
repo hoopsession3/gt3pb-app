@@ -255,7 +255,7 @@ export default function Checkout() {
                         or <b>pay at the truck</b> — send pre-order
                       </button>
                     )}
-                    <div className="signoff">Secured by Square · skip the line at pickup.</div>
+                    <div className="signoff">Secured by Square · skip the line at pickup.<br />Your card is never stored here — Square handles it. The charge shows as <b>GT3 Performance Bar</b>.</div>
                   </div>
                 </>
               ) : payLater.on ? (

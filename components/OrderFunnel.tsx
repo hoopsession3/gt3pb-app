@@ -564,6 +564,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
                   {busy ? "Reserving…" : "or reserve now — pay at pickup"}
                 </button>
               )}
+              <p className="dl-trust">Secured by Square — your card never touches our servers. The charge shows as <b>GT3 Performance Bar</b>.{mode === "pickup" ? " Change of plans? Cancel from My packs before the drop closes and a paid pack is refunded." : ""}</p>
             </>
           ) : mode === "pickup" && payLater.on ? (
             <>
