@@ -116,6 +116,13 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 .handle:disabled{opacity:.45;box-shadow:none;cursor:default}
 /* Cohesion: give the high-traffic tappables that were missing it the house press-feedback. */
 .rsvp:active,.scan-add:not(:disabled):active,.craft-cta-b:active,.craft-cta-b.ghost:active,.conc-send:active,.subpitch-pack:active,.stop:active{transform:scale(.97)}
+/* Crew Pit Wall — the high-traffic controls that had no press feedback (adm-btn base, chips, FAB). */
+.adm-btn:not(:disabled):active,.myday-chip:active,.qd-fab:active,.adm-act-more:active,.alert-ack:active,.alert-open:active,.myday-open:active,.myday-jot:active,.myday-ack:active,.cogs-row:active,.cogs-tab:active,.bo-need:active,.bo-overdue-row:active,.adm-prep-view:active,.adm-prep-back:active,.adm-crew-chip:active,.adm-role:active,.adm-golink:active{transform:scale(.96)}
+.qd-fab:active{box-shadow:0 4px 12px rgba(0,0,0,.4)}
+/* Academy — tappable rows/options/cert chips get the house press feedback. */
+.ac-mod:active,.ac-opt:not(:disabled):active,.ac-cert:active,.ac-prod:active,.ac-ackcard:active,.ac-team-btn:active,.ac-back:active{transform:scale(.985)}
+/* Academy subtitles used .subm which was never defined (rendered as raw body text) — alias to .h-sub. */
+.subm{font-family:'Inter';font-size:13px;color:var(--cream-m);margin-top:8px;line-height:1.5}
 .handle .sm{font-family:'Inter';font-weight:500;font-size:9px;letter-spacing:1px;opacity:.8;display:block;margin-top:2px}
 .btn2{width:100%;margin-top:12px;border:none;cursor:pointer;font-family:'Inter';font-weight:600;letter-spacing:1.5px;text-transform:uppercase;font-size:13px;padding:15px;border-radius:15px;color:var(--cream);background:transparent;border:1.5px solid var(--line2);display:flex;align-items:center;justify-content:center;gap:9px}
 .btn2 svg{width:15px;height:15px}
@@ -472,27 +479,27 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .ac-ring-v{position:absolute;font-family:var(--mono);font-size:21px;color:var(--cream);letter-spacing:-1px}
 .ac-ring-v small{font-size:11px;color:var(--cream-m)}
 .ac-certs{display:flex;flex-wrap:wrap;gap:7px;flex:1}
-.ac-cert{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-weight:500;font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:var(--cream-d);border:1px solid var(--line2);border-radius:8px;padding:6px 9px}
+.ac-cert{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-weight:500;font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:var(--cream-d);border:1px solid var(--line2);border-radius:999px;padding:6px 10px}
 .ac-cert .ac-cdot{width:6px;height:6px;border-radius:50%;background:var(--cream-d)}
-.ac-cert.on{color:#8fce86;border-color:rgba(106,160,92,.4);background:rgba(106,160,92,.1)}
-.ac-cert.on .ac-cdot{background:var(--ok);box-shadow:0 0 6px 1px rgba(106,160,92,.6)}
+.ac-cert.on{color:var(--gold2);border-color:rgba(200,166,97,.4);background:rgba(200,166,97,.1)}
+.ac-cert.on .ac-cdot{background:var(--gold2);box-shadow:0 0 6px 1px rgba(200,166,97,.55)}
 .ac-ready{display:flex;flex-direction:column;gap:1px}
 .ac-rrow{display:flex;align-items:center;gap:11px;font-family:'Inter';font-size:14px;color:var(--cream-m);padding:9px 2px;border-bottom:1px solid var(--line)}
 .ac-rrow.ok{color:var(--cream)}
 .ac-rmark{flex:0 0 18px;text-align:center;font-family:var(--mono);font-size:13px;color:var(--cream-d)}
-.ac-rrow.ok .ac-rmark{color:var(--ok)}
-.ac-team-btn{width:100%;margin-top:14px;text-align:left;background:rgba(184,144,47,.1);border:1px solid rgba(184,144,47,.28);border-radius:12px;color:var(--gold2);font-family:'Inter';font-weight:600;font-size:13px;padding:13px 15px;cursor:pointer}
+.ac-rrow.ok .ac-rmark{color:var(--gold2)}
+.ac-team-btn{width:100%;margin-top:14px;text-align:left;background:rgba(200,166,97,.1);border:1px solid var(--gold2);border-radius:12px;color:var(--gold2);font-family:'Inter';font-weight:600;font-size:13px;padding:13px 15px;cursor:pointer}
 .ac-mods{display:flex;flex-direction:column;gap:9px}
-.ac-mod{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 14px;cursor:pointer;color:var(--cream)}
-.ac-mod.done{border-color:rgba(106,160,92,.3)}
+.ac-mod{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:13px 14px;cursor:pointer;color:var(--cream);box-shadow:0 6px 16px rgba(0,0,0,.18)}
+.ac-mod.done{border-color:rgba(200,166,97,.3)}
 .ac-mod-tick{flex:0 0 20px;font-family:var(--mono);font-size:15px;color:var(--cream-d)}
-.ac-mod.done .ac-mod-tick{color:var(--ok)}
+.ac-mod.done .ac-mod-tick{color:var(--gold2)}
 .ac-mod-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
 .ac-mod-sec{font-family:var(--mono);font-size:8.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--cream-d)}
 .ac-mod-t{font-family:'Inter';font-weight:650;font-size:14.5px;letter-spacing:-.2px}
-.ac-mod-score{font-family:var(--mono);font-size:11px;color:var(--ok);flex:0 0 auto}
+.ac-mod-score{font-family:var(--mono);font-size:11px;color:var(--gold2);flex:0 0 auto}
 .ac-prods{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}
-.ac-prod{display:flex;flex-direction:column;gap:4px;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px;cursor:pointer;color:var(--cream)}
+.ac-prod{display:flex;flex-direction:column;gap:4px;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:13px;cursor:pointer;color:var(--cream);box-shadow:0 6px 16px rgba(0,0,0,.18)}
 .ac-prod-line{font-family:var(--mono);font-size:8px;letter-spacing:1.4px;text-transform:uppercase;color:var(--bronze)}
 .ac-prod-name{font-family:'Inter';font-weight:680;font-size:16px;letter-spacing:-.3px}
 .ac-prod-what{font-family:'Inter';font-size:11px;line-height:1.4;color:var(--cream-m)}
@@ -531,20 +538,20 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .ac-voice p{font-family:'Inter';font-size:13px;line-height:1.55;color:var(--cream-m);margin:5px 0 0}
 .ac-voice-tag{font-family:var(--mono);font-weight:600;font-size:8.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--bronze)}
 .ac-voice-tag.gt3{color:var(--cream)}
-.ac-voice-tag.founder{color:#c8a15a}
+.ac-voice-tag.founder{color:var(--gold2)}
 /* team board */
 .ac-team{display:flex;flex-direction:column;gap:9px;margin-top:14px}
-.ac-trow{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:12px 14px}
+.ac-trow{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 14px;box-shadow:0 6px 16px rgba(0,0,0,.18)}
 .ac-tmain{flex:1;min-width:0}
 .ac-tmain b{display:block;font-family:'Inter';font-weight:650;font-size:14px}
 .ac-tmain span{font-family:var(--mono);font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:var(--cream-d)}
 .ac-tbar{flex:0 0 80px;height:6px;border-radius:4px;background:rgba(0,0,0,.5);overflow:hidden;border:1px solid var(--line)}
 .ac-tbar i{display:block;height:100%;background:linear-gradient(90deg,var(--bronze),var(--gold2))}
 .ac-tpct{flex:0 0 auto;font-family:var(--mono);font-size:12px;color:var(--cream-m);min-width:38px;text-align:right}
-.ac-tpct.ok{color:var(--ok)}.ac-tpct.zero{color:var(--cream-d)}
+.ac-tpct.ok{color:var(--gold2)}.ac-tpct.zero{color:var(--cream-d)}
 /* cert expiry states */
-.ac-cert.soon{color:var(--gold2);border-color:rgba(200,166,97,.4);background:rgba(200,166,97,.1)}
-.ac-cert.soon .ac-cdot{background:var(--gold2)}
+.ac-cert.soon{color:var(--warn);border-color:rgba(207,154,74,.4);background:rgba(207,154,74,.1)}
+.ac-cert.soon .ac-cdot{background:var(--warn)}
 .ac-cert.expired{color:var(--red-h);border-color:rgba(184,36,32,.4);background:rgba(184,36,32,.1)}
 .ac-cert.expired .ac-cdot{background:var(--red)}
 /* required acknowledgement card */
@@ -607,7 +614,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .kds-stage-h{width:100%;display:flex;align-items:center;gap:10px;background:none;border:none;border-bottom:1px solid var(--line2);padding:6px 2px 8px;cursor:pointer;color:var(--cream)}
 .kds-caret{color:var(--cream-m);font-family:'Inter';font-size:18px;line-height:1;transition:transform .15s;transform:rotate(90deg)}
 .kds-caret.col{transform:none}
-.kds-stage-name{font-family:'Inter';font-weight:650;font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:var(--gold)}
+.kds-stage-name{font-family:'Inter';font-weight:650;font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:var(--gold2)}
 .kds-stage-n{margin-left:auto;font-family:'DM Mono';font-size:12px;color:var(--cream-m)}
 .kds-empty{font-family:'Inter';font-size:12px;color:var(--cream-m);padding:10px 2px}
 .kds-stagetime{color:var(--gold2)}
@@ -623,8 +630,10 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 :is(.adm-btn,.adm-btn.primary,.note-save){white-space:normal}
 .adm-btn.go{background:#2f7a34;border-color:#2f7a34;color:#fff}
 .adm-btn:disabled{opacity:.5;cursor:default}
-.adm-btn.on{background:var(--ok)}
+.adm-btn.on{background:var(--ok);border-color:var(--ok);color:#fff}
 .adm-btn.ghost{background:transparent;border:1.5px solid var(--line2);color:var(--cream)}
+/* every crew button variant reacts to a pointer, not just .primary — one coherent control system */
+@media (hover:hover){.adm-btn:not(.primary):not(:disabled):hover{border-color:var(--gold2);background:rgba(200,166,97,.08)}}
 .adm-member,.adm-event{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-top:9px}
 .adm-member-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
 .adm-member-top b{font-family:'Inter';font-weight:650;font-size:14px}
@@ -2758,7 +2767,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .brew-recipe-go{margin-left:auto;font-family:'Inter';font-weight:700;font-size:12.5px;color:var(--gold2)}
 .brew-spec{background:rgba(169,124,63,.14);border:1px solid var(--gold2);border-radius:10px;padding:9px 12px;font-family:'Inter';font-size:13.5px;color:var(--cream);margin-bottom:12px}
 .brew-spec b{color:var(--gold2)}
-.brew-block-h{font-family:'Inter';font-weight:800;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--gold);margin:14px 0 7px}
+.brew-block-h{font-family:'Inter';font-weight:800;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--gold2);margin:14px 0 7px}
 .brew-ing{display:flex;flex-direction:column;gap:5px}
 .brew-ing-row{display:flex;gap:10px;align-items:baseline;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:8px 11px}
 .brew-ing-row b{font-family:'DM Mono';font-size:13px;color:var(--gold2);flex:0 0 auto;min-width:86px}
@@ -2920,6 +2929,9 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .adm-reset-row{margin-top:16px;display:flex;justify-content:center}
 .adm-reset-btn{background:rgba(184,36,32,.1);border:1px solid rgba(184,36,32,.4);color:#e07a76;border-radius:10px;font-family:'Inter',sans-serif;font-weight:600;font-size:13px;padding:8px 14px;cursor:pointer}
 .adm-reset-btn:hover{background:rgba(184,36,32,.18)}
+.adm-reset-btn:active{transform:scale(.97);background:rgba(184,36,32,.24)}
+/* one press language for every dismiss glyph across all sheets */
+:is(.qd-x,.guide-x,.crew-x,.adm-act-more,.isheet-x):active{opacity:.55;transform:scale(.9)}
 .adm-reset-btn:disabled{opacity:.5}
 
 /* Owner (event/stop) identity + date/place/status, editable inline in the prep hub. */
@@ -3010,7 +3022,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 
 /* Academy — rich lesson blocks (why it matters, objectives, mistakes, scenarios, founder note) */
 .ac-why{margin:14px 0;padding:12px 14px;background:rgba(201,166,97,.08);border-left:3px solid var(--gold);border-radius:0 12px 12px 0}
-.ac-why-k{font-family:'Inter',sans-serif;font-weight:700;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--gold2)}
+.ac-why-k{font-family:var(--mono);font-weight:500;font-size:9.5px;letter-spacing:1.8px;text-transform:uppercase;color:var(--gold2)}
 .ac-why p{margin:5px 0 0;font-size:14.5px;line-height:1.55;color:var(--cream)}
 .ac-obj{margin:12px 0}
 .ac-obj ul,.ac-mistakes ul{margin:6px 0 0;padding-left:18px}
@@ -3022,7 +3034,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .ac-scn-s{font-size:13.5px;color:var(--cream-m);font-style:italic}
 .ac-scn-d{font-size:14px;color:var(--cream);margin-top:4px;font-weight:500}
 .ac-founder{margin:16px 0;padding:14px 16px;background:linear-gradient(180deg,rgba(201,166,97,.1),rgba(201,166,97,.04));border:1px solid var(--line2);border-radius:14px}
-.ac-founder-k{font-family:'Inter',sans-serif;font-weight:700;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--gold2)}
+.ac-founder-k{font-family:var(--mono);font-weight:500;font-size:9.5px;letter-spacing:1.8px;text-transform:uppercase;color:var(--gold2)}
 .ac-founder p{margin:6px 0 0;font-size:15px;line-height:1.55;color:var(--cream);font-style:italic}
 .app.crew-day .ac-why p,.app.crew-day .ac-founder p,.app.crew-day .ac-scn-d{color:#221f18}
 
@@ -4448,8 +4460,8 @@ input,select,textarea,progress{accent-color:var(--gold2)}
    existing press-scale; nothing moves on its own. */
 .oa-cta,.note-save,.spl-cta,.adm-btn.primary{box-shadow:inset 0 1px 0 rgba(255,255,255,.12),var(--shadow-1);transition:transform .18s var(--ease),box-shadow .18s var(--ease),filter .18s var(--ease)}
 @media (hover:hover){
-  .oa-cta:hover,.note-save:hover,.spl-cta:hover,.adm-btn.primary:hover{transform:translateY(-1px);box-shadow:inset 0 1px 0 rgba(255,255,255,.16),var(--shadow-2)}
-  .oa-cta:active,.note-save:active,.spl-cta:active,.adm-btn.primary:active{transform:translateY(0) scale(.985);box-shadow:inset 0 1px 0 rgba(255,255,255,.1),var(--shadow-1)}
+  .oa-cta:hover:not(:disabled),.note-save:hover:not(:disabled),.spl-cta:hover:not(:disabled),.adm-btn.primary:hover:not(:disabled){transform:translateY(-1px);box-shadow:inset 0 1px 0 rgba(255,255,255,.16),var(--shadow-2)}
+  .oa-cta:active:not(:disabled),.note-save:active:not(:disabled),.spl-cta:active:not(:disabled),.adm-btn.primary:active:not(:disabled){transform:translateY(0) scale(.985);box-shadow:inset 0 1px 0 rgba(255,255,255,.1),var(--shadow-1)}
 }
 .app.crew-day :is(.oa-cta,.note-save,.adm-btn.primary),body.light :is(.oa-cta,.note-save){box-shadow:inset 0 1px 0 rgba(255,255,255,.35),var(--shadow-1)}
 
