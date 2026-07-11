@@ -19,7 +19,9 @@ import { supabase } from "@/lib/supabase";
 
 const SESSION_KEY = "gt3-splash-shown";
 
-const DISSOLVE_MS = 10000;  // "after 10 secs all gone"
+const HOLD_MS = 5000;       // read it first — the entrance plays, then the ad holds, readable
+const DISSOLVE_MS = 10000;  // then the slow smoke → brand "3" → home behind it
+const FAST_MS = 2600;       // a tap bypasses: a quick "3" out of the smoke, then home
 
 type Copy = { head1: string; head2: string; sub: string; cta: string; href: string };
 const DEFAULT: Copy = {
@@ -37,6 +39,7 @@ export default function MarketingSplash() {
   const [copy, setCopy] = useState<Copy>(DEFAULT);
   const [show, setShow] = useState(false);
   const [dissolving, setDissolving] = useState(false); // false only under reduced motion (static splash)
+  const [fast, setFast] = useState(false);             // a tap → quick dissolve instead of the slow read
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => {
@@ -74,14 +77,15 @@ export default function MarketingSplash() {
     return () => { cancelled = true; timers.current.forEach(clearTimeout); timers.current = []; };
   }, []);
 
-  // The takeover dissolves the instant it's up: kick off the 10s sequence and unmount at the end.
-  // Reduced motion opts out entirely — the splash stays static and waits for a manual dismiss.
+  // The ad HOLDS first so it can actually be read (the entrance plays, then it sits), THEN it
+  // dissolves slowly — smoke blooms and the brand "3" condenses out of it — and finally unmounts,
+  // revealing home. Left alone it takes its time; a tap bypasses (below). Reduced motion opts out:
+  // the splash stays static and waits for a manual dismiss.
   useEffect(() => {
     if (!show || reducedMotion()) return;
-    setDissolving(true);
-    const toClose = setTimeout(() => setShow(false), DISSOLVE_MS);
-    timers.current.push(toClose);
-    return () => clearTimeout(toClose);
+    const toDissolve = setTimeout(() => setDissolving(true), HOLD_MS);
+    const toClose = setTimeout(() => setShow(false), HOLD_MS + DISSOLVE_MS);
+    return () => { clearTimeout(toDissolve); clearTimeout(toClose); };
   }, [show]);
 
   useEffect(() => {
@@ -100,11 +104,18 @@ export default function MarketingSplash() {
   }, [show]);
 
   const close = () => setShow(false);
+  // A tap anywhere on the backdrop bypasses: if you're still reading, dissolve NOW with a quick
+  // "3" out of the smoke, then home; if it's already dissolving, just get out of the way.
+  const bypass = () => {
+    if (reducedMotion() || dissolving) { setShow(false); return; }
+    setFast(true); setDissolving(true);
+    setTimeout(() => setShow(false), FAST_MS);
+  };
   const go = () => { const h = copy.href; setShow(false); if (h) { if (h.startsWith("/")) router.push(h); else window.open(h, "_blank", "noopener"); } };
 
   if (!show) return null;
   return (
-    <div className={`spl-scrim${dissolving ? " spl-smoke" : ""}`} role="dialog" aria-modal="true" aria-label="A note from GT3" onClick={close}>
+    <div className={`spl-scrim${dissolving ? " spl-smoke" : ""}${fast ? " spl-fast" : ""}`} role="dialog" aria-modal="true" aria-label="A note from GT3" onClick={bypass}>
       <button type="button" className="spl-skip" onClick={close}>Skip ›</button>
 
       {/* Smoke haze — drifting plumes that bloom, then gather toward center where the 3 forms. */}

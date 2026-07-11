@@ -8,6 +8,7 @@ import { useApp } from "@/components/AppProvider";
 import GenerateDay from "@/components/GenerateDay";
 import ReservePitch from "@/components/ReservePitch";
 import StampCard from "@/components/StampCard";
+import Watermark from "@/components/Watermark";
 import { useSiteCopy } from "@/lib/copy";
 import { supabase } from "@/lib/supabase";
 import { DRINKS, type DrinkId } from "@/lib/menu";
@@ -68,6 +69,7 @@ function TodayReal({ t }: { t: (k: string) => string }) {
 
   return (
     <section className="screen" id="s-today">
+      <Watermark variant="landing" />
       <div className="toprow">
         <div className="eyb">{todayLabel()}</div>
         <Link className="pf" href="/3mpire">{name.charAt(0)}</Link>

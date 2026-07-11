@@ -2343,7 +2343,8 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .conc-panel{width:100%;max-width:480px;height:min(76vh,640px);display:flex;flex-direction:column;background:#1b1a14;border:1px solid #36332a;border-radius:18px 18px 0 0;box-shadow:0 -12px 40px rgba(0,0,0,.5);overflow:hidden;animation:qdup .18s ease}
 .conc-head{display:flex;align-items:center;gap:10px;padding:13px 15px;border-bottom:1px solid #2c2a22}
 .conc-head-l{display:flex;align-items:center;gap:10px}
-.conc-badge{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:9px;background:#B8902F;color:#15140f;font-family:'Fraunces',serif;font-weight:700;font-size:14px}
+.conc-badge{display:inline-flex;align-items:center}
+.conc-badge .g3{font-family:'Archivo Black',sans-serif;font-size:20px;letter-spacing:.3px;color:var(--cream,#F5F1E8)}
 .conc-title{font-family:'Inter';font-weight:800;font-size:15px;color:#f4ead6}
 .conc-sub{font-family:'Inter';font-size:11.5px;color:#a59c86}
 .conc-x{margin-left:auto;background:transparent;border:none;color:#a59c86;font-size:16px;cursor:pointer}
@@ -2472,7 +2473,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
    Curated surfaces give themselves a stacking context (position:relative+z-index:0) so the z-index:-1
    mark sits above the surface background but below all content. One mark per screen; opacity lives in
    the app's --line hairline register (you feel it before you see it). NOT global — opt-in per screen. */
-.screen.arrival,.screen.menu,.screen.arch{position:relative;z-index:0;overflow:hidden}
+.screen.arrival,.screen.menu,.screen.arch,.screen#s-today{position:relative;z-index:0;overflow:hidden}
 .wm{position:absolute;z-index:-1;pointer-events:none;background-repeat:no-repeat;background-position:center;background-size:contain;aspect-ratio:1184/1730}
 /* arrival (dark) — cream mark bleeding off the top-right, behind the hero statement */
 .wm--landing{top:-46px;right:-21%;width:74%;max-width:420px;opacity:.05;background-image:url(/brand/3_outline_cream.svg)}
@@ -4211,6 +4212,12 @@ button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:
 .spl-scrim.spl-smoke .spl-haze i:nth-child(3){animation-delay:.8s;transform:translate(-50%,-30%) scale(.5)}
 .spl-scrim.spl-smoke .spl-finale{animation:spl-three-form 10s ease forwards}
 .spl-scrim.spl-smoke .spl-three{animation:spl-three-glow 3s ease-in-out 4.4s infinite}
+/* Tap to bypass — the same smoke → "3" story, condensed: a quick, graceful exit instead of the slow read. */
+.spl-scrim.spl-smoke.spl-fast{animation-duration:2.6s}
+.spl-scrim.spl-smoke.spl-fast .spl-wrap{animation-duration:.9s}
+.spl-scrim.spl-smoke.spl-fast .spl-haze i{animation-duration:2.4s}
+.spl-scrim.spl-smoke.spl-fast .spl-finale{animation-duration:2.4s}
+.spl-scrim.spl-smoke.spl-fast .spl-three{animation-delay:1s}
 @keyframes spl-dissolve{0%,84%{opacity:1}100%{opacity:0;visibility:hidden}}
 @keyframes spl-copyout{0%{opacity:1;transform:translateY(0) scale(1);filter:blur(0)}100%{opacity:0;transform:translateY(-42px) scale(1.05);filter:blur(11px)}}
 /* plumes bloom outward then contract toward the center as the glyph condenses out of them */
