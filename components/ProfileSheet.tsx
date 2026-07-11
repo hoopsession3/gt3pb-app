@@ -59,7 +59,7 @@ export default function ProfileSheet({ onClose }: { onClose: () => void }) {
 
   const initial = (name || profile?.display_name || user?.email || "?").trim().charAt(0).toUpperCase();
   return (
-    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><span className="isheet-title">Your profile</span><button type="button" className="isheet-x" style={{ marginLeft: "auto" }} onClick={onClose}>Close</button></div>}>
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><span className="isheet-title">Your profile</span><button type="button" className="isheet-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close">✕</button></div>}>
           <div className="prof-av-row">
             <div className="prof-av" style={avatar ? { backgroundImage: `url(${avatar})` } : undefined} aria-hidden>{!avatar && initial}</div>
             <div className="prof-av-ctl">

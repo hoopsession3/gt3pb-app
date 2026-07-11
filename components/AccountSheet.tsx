@@ -61,7 +61,7 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
   const head = (title: string) => (
     <div className="acs-head">
       <span className="acs-head-t"><Gt3Mark tone="cream" /> {title}</span>
-      <button type="button" className="isheet-x" onClick={onClose}>Close</button>
+      <button type="button" className="isheet-x" onClick={onClose} aria-label="Close">✕</button>
     </div>
   );
 

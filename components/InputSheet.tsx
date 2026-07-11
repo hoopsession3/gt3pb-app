@@ -33,7 +33,7 @@ export default function InputSheet({
   const done = () => { if (!busy) onDone(); };
 
   return (
-    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><button type="button" className="isheet-x" onClick={onClose}>Close</button><span className="isheet-title">{title}</span><button type="button" className="isheet-done" onClick={done} disabled={busy || !value.trim()}>{busy ? "…" : doneLabel}</button></div>}>
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><button type="button" className="isheet-x" onClick={onClose} aria-label="Close">✕</button><span className="isheet-title">{title}</span><button type="button" className="isheet-done" onClick={done} disabled={busy || !value.trim()}>{busy ? "…" : doneLabel}</button></div>}>
         {multiline ? (
           <textarea ref={ref} className="isheet-in isheet-area" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} maxLength={maxLength} rows={3} />
         ) : (

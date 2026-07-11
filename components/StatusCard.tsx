@@ -38,6 +38,30 @@ const FINISH_PAINT: Record<Finish, Paint> = {
   redline: { grd: ["#171010", "#0a0707", "#140c0c"], ink: "#F5F1E8", inkDim: "rgba(245,241,232,.6)",  accent: "#E0453F", accentDeep: "#B8241F", edge: "rgba(184,36,32,.6)",  edge2: "rgba(184,36,32,.24)", tex: "none" },
 };
 
+// Load an image for the canvas; resolves null on error (never rejects), so the share can't hang.
+function loadImg(src: string, crossOrigin?: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    if (crossOrigin) img.crossOrigin = crossOrigin;
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+// True only if drawing this image won't taint a canvas (so toBlob() can't throw). A tiny probe canvas.
+function canvasSafe(img: HTMLImageElement): boolean {
+  try { const c = document.createElement("canvas"); c.width = c.height = 2; const x = c.getContext("2d"); if (!x) return false; x.drawImage(img, 0, 0, 2, 2); c.toDataURL(); return true; } catch { return false; }
+}
+// object-fit: cover — center-crop the image to fill the target rect.
+function coverDraw(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: number, y: number, w: number, h: number) {
+  const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+  if (!iw || !ih) return;
+  const rr = w / h; let sw = iw, sh = ih, sx = 0, sy = 0;
+  if (iw / ih > rr) { sw = Math.round(ih * rr); sx = Math.round((iw - sw) / 2); }
+  else { sh = Math.round(iw / rr); sy = Math.round((ih - sh) / 2); }
+  ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+}
+
 export default function StatusCard({ open, onClose, demo }: { open: boolean; onClose: () => void; demo?: { founding?: boolean } }) {
   const { profile, user, refreshProfile } = useAuth();
   const { toast } = useApp();
@@ -59,7 +83,7 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
   const [spinning, setSpinning] = useState(false);
   const [pointer, setPointer] = useState(false);
   const [finish, setFinish] = useState<Finish>("gold");
-  const [motto, setMotto] = useState(MOTTO_DEFAULT);
+  const [motto, setMotto] = useState(profile?.card_motto?.trim() || MOTTO_DEFAULT);
   const [editMotto, setEditMotto] = useState(false);
   // The hero line is theirs to own — a one-line 5-year goal. Canonical (profiles.card_vision, 0183);
   // default "I Perform". Bounded on save ("safely").
@@ -78,12 +102,17 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
     try {
       const f = localStorage.getItem("gt3-card-finish") as Finish | null;
       if (f && FINISHES.some((x) => x.key === f)) setFinish(f);
-      const m = localStorage.getItem("gt3-card-motto");
-      if (m && m.trim()) setMotto(m.slice(0, 30));
     } catch { /* private mode / SSR */ }
   }, []);
   const pickFinish = (f: Finish) => { setFinish(f); haptic(HAPTIC.tap); try { localStorage.setItem("gt3-card-finish", f); } catch { /* ignore */ } };
-  const saveMotto = (v: string) => { const m = v.trim().slice(0, 30) || MOTTO_DEFAULT; setMotto(m); setEditMotto(false); try { localStorage.setItem("gt3-card-motto", m); } catch { /* ignore */ } };
+  const saveMotto = async (v: string) => {
+    const m = v.trim().slice(0, 30) || MOTTO_DEFAULT;
+    setMotto(m); setEditMotto(false);
+    if (!supabase || !user) return; // card_motto is DB-persisted (0186) so it follows the member everywhere
+    const { error } = await supabase.from("profiles").update({ card_motto: m === MOTTO_DEFAULT ? null : m }).eq("id", user.id);
+    if (error) { toast("Couldn't save your motto — try again", "error"); return; }
+    await refreshProfile();
+  };
   // Your vision — a one-line 5-year goal. Bounded to one short line, trimmed, saved canonically.
   const saveVision = async (v: string) => {
     const clean = v.replace(/\s+/g, " ").trim().slice(0, 48);
@@ -122,6 +151,39 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
       for (let x = -H; x < W; x += 8) { ctx.strokeStyle = "rgba(255,255,255,.035)"; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x + H, H); ctx.stroke(); }
       for (let x = 0; x < W + H; x += 8) { ctx.strokeStyle = "rgba(0,0,0,.06)"; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x - H, H); ctx.stroke(); }
       ctx.restore();
+    }
+
+    // ── PHOTO-HERO — if they've set a portrait, the share IS their face + status (the "photo frame"),
+    // mirroring the card front. Loaded cross-origin + taint-checked so toBlob() can never throw; if the
+    // image can't be used safely we fall straight through to the member-card composition below. ──
+    if (photoUrl) {
+      const pimg = await loadImg(photoUrl, "anonymous");
+      if (pimg && canvasSafe(pimg)) {
+        const fx = 46, fy = 46, fw = W - 92, fh = H - 92;
+        coverDraw(ctx, pimg, fx, fy, fw, fh);
+        const sc = ctx.createLinearGradient(0, H * 0.4, 0, H);
+        sc.addColorStop(0, "rgba(6,5,3,0)"); sc.addColorStop(0.5, "rgba(6,5,3,.55)"); sc.addColorStop(1, "rgba(6,5,3,.96)");
+        ctx.fillStyle = sc; ctx.fillRect(fx, fy, fw, fh);
+        const stp = ctx.createLinearGradient(0, fy, 0, fy + 200);
+        stp.addColorStop(0, "rgba(6,5,3,.6)"); stp.addColorStop(1, "rgba(6,5,3,0)");
+        ctx.fillStyle = stp; ctx.fillRect(fx, fy, fw, 200);
+        ctx.strokeStyle = p.edge; ctx.lineWidth = 3; ctx.strokeRect(46, 46, W - 92, H - 92);
+        ctx.strokeStyle = p.edge2; ctx.lineWidth = 1; ctx.strokeRect(60, 60, W - 120, H - 120);
+        const sp = (v: string) => { try { (ctx as CanvasRenderingContext2D & { letterSpacing?: string }).letterSpacing = v; } catch { /* older canvas */ } };
+        ctx.textAlign = "center";
+        sp("1px"); ctx.fillStyle = "rgba(245,241,232,.8)"; ctx.font = "italic 500 30px 'Fraunces', serif";
+        ctx.fillText("Grow your 3mpire", W / 2, 132); sp("0px");
+        sp("6px"); ctx.fillStyle = p.accent; ctx.font = "600 30px 'Inter', sans-serif";
+        ctx.fillText(tierLine, W / 2, H - 268); sp("0px");
+        ctx.fillStyle = "#F5F1E8"; ctx.font = "700 78px 'Inter', sans-serif";
+        ctx.fillText(name, W / 2, H - 186, W - 160);
+        ctx.fillStyle = p.accent; ctx.font = "italic 600 40px 'Fraunces', serif";
+        ctx.fillText(motto, W / 2, H - 118, W - 200);
+        sp("1px"); ctx.fillStyle = p.accent; ctx.font = "600 27px 'DM Mono', ui-monospace, monospace";
+        ctx.fillText(code ? `JOIN WITH ${code}  ·  app.gt3pb.com` : "app.gt3pb.com", W / 2, H - 60); sp("0px");
+        setReady(true);
+        return;
+      }
     }
 
     // faint caffeine-molecule watermark (ties it to the craft brand)
@@ -182,7 +244,7 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
     ctx.fillText(code ? `JOIN WITH ${code}   ·   app.gt3pb.com` : "app.gt3pb.com", W / 2, 1254);
 
     setReady(true);
-  }, [founding, name, code, sinceYear, tierLine, motto, finish, vision]);
+  }, [founding, name, code, sinceYear, tierLine, motto, finish, vision, photoUrl]);
 
   useEffect(() => { if (open) { setReady(false); draw(); } }, [open, draw]);
   useEffect(() => () => { if (spinTimer.current) clearTimeout(spinTimer.current); }, []);
@@ -191,6 +253,7 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
   useEffect(() => { if (!dirtyPhoto.current && profile?.avatar_url) { setPhotoUrl(profile.avatar_url); setHasPhoto(true); } }, [profile?.avatar_url]);
   // Adopt the saved vision when the profile loads (async), unless they're mid-edit.
   useEffect(() => { if (!editVision) setVision(profile?.card_vision?.trim() || VISION_DEFAULT); }, [profile?.card_vision]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!editMotto) setMotto(profile?.card_motto?.trim() || MOTTO_DEFAULT); }, [profile?.card_motto]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]; if (!f) return;

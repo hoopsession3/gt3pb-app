@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 
 // MONEY KPIs — the "how are we doing?" answer that opens the Money section, so it reads as a
 // dashboard instead of a list of doors. Four live tiles: revenue this week, orders today, active
-// subscribers, reserves on the books. Every query is defensive (fails to "—") so a schema gap or a
+// subscribers, pack pickups. Every query is defensive (fails to "—") so a schema gap or a
 // missing table can never break the section — the number just goes quiet.
 type Kpi = { k: string; v: string; sub: string };
 
@@ -18,7 +18,7 @@ export default function MoneyKpis() {
     { k: "week_rev", v: "—", sub: "Revenue · 7 days" },
     { k: "today_orders", v: "—", sub: "Orders today" },
     { k: "subs", v: "—", sub: "Active subscribers" },
-    { k: "reserves", v: "—", sub: "Reserves on the books" },
+    { k: "reserves", v: "—", sub: "Pack pickups" },
   ]);
 
   useEffect(() => {
@@ -45,7 +45,7 @@ export default function MoneyKpis() {
         { k: "week_rev", v: rev.data ? money(revCents ?? 0) : "—", sub: "Revenue · 7 days" },
         { k: "today_orders", v: orders.count != null ? String(orders.count) : "—", sub: "Orders today" },
         { k: "subs", v: subs.count != null ? String(subs.count) : "—", sub: "Active subscribers" },
-        { k: "reserves", v: reserves.count != null ? String(reserves.count) : "—", sub: "Reserves booked" },
+        { k: "reserves", v: reserves.count != null ? String(reserves.count) : "—", sub: "Pack pickups" },
       ]);
     })();
     return () => { live = false; };

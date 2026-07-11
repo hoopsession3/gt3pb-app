@@ -8,6 +8,7 @@ import { useApp } from "@/components/AppProvider";
 import GenerateDay from "@/components/GenerateDay";
 import ReservePitch from "@/components/ReservePitch";
 import StampCard from "@/components/StampCard";
+import Skeleton from "@/components/Skeleton";
 import Watermark from "@/components/Watermark";
 import { useSiteCopy } from "@/lib/copy";
 import { supabase } from "@/lib/supabase";
@@ -166,6 +167,6 @@ export default function TodayScreen() {
   const router = useRouter();
   useEffect(() => { if (enabled && ready && !user) router.replace("/truck"); }, [enabled, ready, user, router]);
   if (!enabled) return <TodayDemo t={t} />;
-  if (!ready || !user) return <section className="screen" id="s-today" />;
+  if (!ready || !user) return <section className="screen" id="s-today"><div className="toprow"><div className="eyb">{todayLabel()}</div></div><Skeleton variant="row" count={4} /></section>;
   return <TodayReal t={t} />;
 }

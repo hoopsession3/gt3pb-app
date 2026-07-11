@@ -42,6 +42,7 @@ export default function Goals() {
   const [initFor, setInitFor] = useState<string | null>(null);    // which goal shows the add-initiative input
   const [initTitle, setInitTitle] = useState("");
   const [adding, setAdding] = useState(false);
+  const [savingGoal, setSavingGoal] = useState(false);
   const [ng, setNg] = useState({ title: "", target: "", unit: "", play: "", due: "", stream: "business", source: "" });
   const canLead = LEADERSHIP_ROLES.includes(roleOf(profile)) || !!profile?.is_admin;
 
@@ -83,7 +84,7 @@ export default function Goals() {
   const logProgress = async (g: Goal) => {
     if (!supabase) return;
     const v = Number(logVal);
-    if (!Number.isFinite(v)) { toast("Numbers only — the bar does the talking", "error"); return; }
+    if (!Number.isFinite(v) || v < 0) { toast("Numbers only — the bar does the talking", "error"); return; }
     setLogging(null); setLogVal("");
     setRows((r) => r.map((x) => (x.id === g.id ? { ...x, current_value: v } : x)));
     const { error } = await supabase.from("goals").update({ current_value: v, updated_at: new Date().toISOString() }).eq("id", g.id);
@@ -108,9 +109,9 @@ export default function Goals() {
   const addInitiative = async (goalId: string) => {
     if (!supabase || !initTitle.trim()) return;
     const label = initTitle.trim();
-    setInitTitle("");
     const { error } = await supabase.from("event_tasks").insert({ goal_id: goalId, label, kind: "task", sort: inits.filter((i) => i.goal_id === goalId).length });
     if (error) { toast(`Couldn't add — ${error.message}`, "error"); return; }
+    setInitTitle("");
     load();
   };
   const toggleInitiative = async (i: Move) => {
@@ -143,10 +144,11 @@ export default function Goals() {
   const firstName = (uid: string | null) => (staff.find((s) => s.id === uid)?.display_name || "").trim().split(/\s+/)[0] || null;
 
   const addGoal = async () => {
-    if (!supabase || !user) return;
+    if (!supabase || !user || savingGoal) return;
     const target = Number(ng.target);
     if (!ng.title.trim() || !Number.isFinite(target) || target <= 0) { toast("A goal needs a name and a real target", "error"); return; }
     const src = ng.source || null;
+    setSavingGoal(true);
     const { error } = await supabase.from("goals").insert({
       title: ng.title.trim(), target_value: target,
       unit: src ? METRIC_SOURCES[src].unit : ng.unit.trim(),
@@ -154,6 +156,7 @@ export default function Goals() {
       stream_key: ng.stream, metric_source: src,
       created_by: user.id, author_name: profile?.display_name?.trim() || null,
     });
+    setSavingGoal(false);
     if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
     setAdding(false); setNg({ title: "", target: "", unit: "", play: "", due: "", stream: "business", source: "" });
     toast("On the board");
@@ -289,7 +292,7 @@ export default function Goals() {
             <input className="auth-input" type="date" value={ng.due} onChange={(e) => setNg({ ...ng, due: e.target.value })} aria-label="Due date" />
           </div>
           <div className="st-log-btns">
-            <button type="button" className="dops-mini" onClick={addGoal}>Put it on the board</button>
+            <button type="button" className="dops-mini" onClick={addGoal} disabled={savingGoal}>{savingGoal ? "Putting it up…" : "Put it on the board"}</button>
             <button type="button" className="st-discuss" onClick={() => setAdding(false)}>Cancel</button>
           </div>
         </div>

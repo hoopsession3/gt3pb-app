@@ -18,6 +18,7 @@ export interface Profile {
   avatar_url?: string | null;
   gender?: "male" | "female" | "other" | null;  // optional; drives the founding-member crest only (0182)
   card_vision?: string | null;                  // member's own 5-year goal — the card hero line (0183)
+  card_motto?: string | null;                    // member card motto — canonical, DB-persisted (0186)
   title?: string | null;
   bio?: string | null;
   nav_pins?: string[] | null;  // pinned work-stream keys for the crew bar (0160); null = role default

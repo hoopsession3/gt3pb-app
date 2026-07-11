@@ -246,7 +246,7 @@ function MoreSheet({ lanes, pins, activeId, onOpen, onClose, canPin }: { lanes: 
     refreshProfile();
   };
   return (
-    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><span className="isheet-title">Your lanes</span><button type="button" className="isheet-x" style={{ marginLeft: "auto" }} onClick={onClose}>Close</button></div>}>
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><span className="isheet-title">Your lanes</span><button type="button" className="isheet-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close">✕</button></div>}>
       <div className="lane-hint">{full ? "Your bar is full (4) — unpin one first." : local.length === 0 ? "Nothing pinned — your bar shows the standard set for your role. Pin lanes to make it yours." : "Tap a lane to open it. Pin up to 4 to your bar — unpin anything, it stays here."}</div>
       {lanes.map((g) => (
         <div key={g.id} className={`lane-row${activeId === g.id ? " on" : ""}`}>

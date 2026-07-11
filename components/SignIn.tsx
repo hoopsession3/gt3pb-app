@@ -57,6 +57,21 @@ export default function SignIn() {
     else { setStep("sent"); setCooldown(30); }
   };
 
+  // ── resend the link/code (same trimming + error handling as first send) ──
+  const handleResend = async () => {
+    if (busy || cooldown > 0) return;
+    setBusy(true); setErr("");
+    try {
+      const { error } = await sendCode(email.trim(), name.trim() || undefined);
+      if (error) setErr(error);
+      else setCooldown(30);
+    } catch {
+      setErr("Couldn't resend that — try again in a moment.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   // ── verify 6-digit code ──
   const handleVerifyCode = async () => {
     if (!otp.trim()) return;
@@ -158,7 +173,7 @@ export default function SignIn() {
           </button>
 
           <div className="auth-divider" />
-          <button className="handle ghost" disabled={busy || cooldown > 0} onClick={() => { setBusy(true); sendCode(email, name || undefined).then(() => { setBusy(false); setCooldown(30); }); }}>
+          <button className="handle ghost" disabled={busy || cooldown > 0} onClick={handleResend}>
             <span>{busy ? "Sending…" : cooldown > 0 ? `Resend in ${cooldown}s` : "Resend"}</span>
           </button>
           <button className="auth-link" onClick={reset}>← Different email</button>

@@ -1959,12 +1959,23 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
     }
     load();
   };
-  const requestSignoff = (approverIds: string[]) => {
+  const requestSignoff = async (approverIds: string[]) => {
     if (!supabase || approverIds.length === 0) { toast("Everyone's already approved"); return; }
+    const requester = profile?.display_name?.split(" ")[0] || "A manager";
+    const label = name ?? (isEvent ? "Event" : "Stop");
+    // Route through the alerts spine (inbox · My Day · digest) — one alert per pending approver — so
+    // an approver with no push subscription still sees it; the 0157 alerts_push_fanout trigger also
+    // delivers the web push, so the old push-only edge call is redundant. Toast reflects the write.
+    const { error } = await supabase.from("alerts").insert(
+      approverIds.map((id) => ({
+        severity: "important", category: "prep", kind: "prep_signoff_request", subject_id: target.id,
+        title: `${requester} needs your sign-off: ${label}`,
+        body: `Prep is ready for your approval${name ? ` · ${name}` : ""}`,
+        link: "/crew", target_user_id: id, created_by: user?.id ?? null,
+      })),
+    );
+    if (error) { toast(`Couldn't request sign-off: ${error.message}`, "error"); return; }
     toast("Sign-off requested");
-    supabase.functions
-      .invoke("push", { body: { table: "event_approval_request", type: "INSERT", record: { event_id: isEvent ? target.id : null, stop_id: isEvent ? null : target.id, title: name ?? (isEvent ? "Event" : "Stop"), approver_ids: approverIds } } })
-      .catch(() => {});
   };
 
   if (loadedOk && name === null) return (
@@ -4109,7 +4120,7 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
               <label className="ev-f">Day<input defaultValue={e.day_label ?? ""} placeholder="SAT" onBlur={(ev) => ev.target.value !== e.day_label && onUpdate({ day_label: ev.target.value })} /></label>
               <label className="ev-f">Start<input defaultValue={e.start_time ?? ""} placeholder="9:00" onBlur={(ev) => (ev.target.value.trim() || null) !== e.start_time && onUpdate({ start_time: ev.target.value.trim() || null })} /></label>
               <label className="ev-f">End<input defaultValue={e.end_time ?? ""} placeholder="2:00" onBlur={(ev) => (ev.target.value.trim() || null) !== e.end_time && onUpdate({ end_time: ev.target.value.trim() || null })} /></label>
-              <label className="ev-f">Going<input type="number" min={0} defaultValue={e.going_count ?? 0} onBlur={(ev) => onUpdate({ going_count: Math.max(0, parseInt(ev.target.value) || 0) })} /></label>
+              <label className="ev-f">Going<input type="text" readOnly value={`${e.going_count ?? 0} · from RSVPs`} title="Live headcount from member RSVPs — not editable" /></label>
             </div>
             <button className={`ev-toggle${e.member_only ? " on" : ""}`} onClick={() => onUpdate({ member_only: !e.member_only })} aria-pressed={e.member_only}>
               <span className="ev-toggle-track"><span className="ev-toggle-knob" /></span>

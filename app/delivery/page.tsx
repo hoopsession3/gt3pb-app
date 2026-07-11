@@ -13,7 +13,18 @@ import { useAuth } from "@/components/AuthProvider";
 // unfinished next to its mirror-image sibling.
 export default function DeliveryPage() {
   const { enabled } = useAuth();
-  if (!enabled) return null;
+  if (!enabled) {
+    return (
+      <section className="screen" id="s-delivery">
+        <Watermark variant="landing" />
+        <div className="toprow">
+          <div className="eyb">Order Ahead</div>
+          <AccountPill />
+        </div>
+        <div className="dops-empty">Delivery isn&apos;t live yet — check back soon.</div>
+      </section>
+    );
+  }
   return (
     <section className="screen" id="s-delivery">
       <Watermark variant="landing" />

@@ -11,6 +11,7 @@ import ReviewPrompt from "@/components/ReviewPrompt";
 import MembershipCard from "@/components/MembershipCard";
 import MyPacks from "@/components/MyPacks";
 import MyDeliveries from "@/components/MyDeliveries";
+import Skeleton from "@/components/Skeleton";
 import { supabase } from "@/lib/supabase";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import type { Order } from "@/lib/db";
@@ -304,7 +305,7 @@ export default function MpireScreen() {
     } catch { /* ignore */ }
   }, [user, router]);
   if (!enabled) return <MpireDemo />;
-  if (!ready) return <section className="screen" id="s-mpire" />;
+  if (!ready) return <section className="screen" id="s-mpire"><div className="toprow"><div className="eyb">Membership</div></div><Skeleton variant="card" count={1} /><Skeleton variant="row" count={3} /></section>;
   if (!user) return <SignIn />;
   return <MpireReal />;
 }

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import SignIn from "@/components/SignIn";
+import Skeleton from "@/components/Skeleton";
 import { supabase } from "@/lib/supabase";
 import {
   PRODUCTS, CERTS, ROLES, READINESS, PASS_DEFAULT, ACKS, ackByKey, certExpiryDays,
@@ -108,7 +109,7 @@ export default function AcademyPage() {
   const certOk = useCallback((key: string) => { const s = certStatus(key); return s === "active" || s === "expiring"; }, [certStatus]);
 
   if (!enabled) return <section className="screen"><div className="h-title">GT3 Academy</div><div className="h-sub">The live backend isn&apos;t configured here.</div></section>;
-  if (!ready) return <section className="screen" />;
+  if (!ready) return <section className="screen academy"><Skeleton variant="row" count={5} /></section>;
   if (!user) return <SignIn />;
 
   const path = pathForRole(role);
@@ -141,6 +142,12 @@ export default function AcademyPage() {
       : a.target_type === "cert" ? certOk(a.target_key)
         : required.every((m) => completed.has(m.slug));
   const openAssignments = assignments.filter((a) => !assignDone(a));
+  // Every assignment card is tappable — resolve each to a concrete module so cert/path
+  // taps aren't dead: route to the first incomplete required module (fall back to the first).
+  const assignTarget = (a: Assignment): string | null =>
+    a.target_type === "module" ? a.target_key
+      : a.target_type === "cert" ? (() => { const ms = certByKey(a.target_key)?.modules ?? []; return ms.find((s) => !completed.has(s)) ?? ms[0] ?? null; })()
+        : (required.find((m) => !completed.has(m.slug)) ?? required[0])?.slug ?? null;
 
   return (
     <section className="screen academy">
@@ -180,7 +187,7 @@ export default function AcademyPage() {
               const label = a.target_type === "module" ? (moduleBySlug(a.target_key)?.title ?? a.target_key)
                 : a.target_type === "cert" ? (certByKey(a.target_key)?.title ?? a.target_key) : "Full role path";
               return (
-                <button key={i} className={`ac-mod${overdue ? " overdue" : ""}`} onClick={() => { if (a.target_type === "module") setView({ k: "module", slug: a.target_key }); }}>
+                <button key={i} className={`ac-mod${overdue ? " overdue" : ""}`} onClick={() => { const slug = assignTarget(a); if (slug) setView({ k: "module", slug }); }}>
                   <span className="ac-mod-tick">◷</span>
                   <span className="ac-mod-main">
                     <span className="ac-mod-sec">{a.due_at ? (overdue ? "Overdue · " : "Due · ") + new Date(a.due_at).toLocaleDateString([], { month: "short", day: "numeric" }) : "Assigned"}</span>

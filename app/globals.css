@@ -1004,7 +1004,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 
 .menu-integrity{font-family:'Inter';font-weight:600;font-size:10px;letter-spacing:1.6px;text-transform:uppercase;color:#7a7361;text-align:center;margin-top:26px;line-height:1.8}
 .menu-mto{font-family:'Fraunces';font-style:italic;font-size:12.5px;color:#6f6a59;text-align:center;margin-top:7px}
-.order-bar{width:100%;margin-top:20px;border:none;cursor:pointer;font-family:'Inter';font-weight:600;letter-spacing:1.5px;text-transform:uppercase;font-size:12.5px;padding:16px;border-radius:14px;background:#221F18;color:#F4EFE3}
+.order-bar{width:100%;margin-top:20px;border:none;cursor:pointer;font-family:'Inter';font-weight:600;letter-spacing:1.5px;text-transform:uppercase;font-size:12.5px;padding:16px;border-radius:14px;background:var(--red);color:#fff;box-shadow:0 8px 20px rgba(184,36,32,.26)}
 .order-bar:active{transform:scale(.99)}
 
 /* cream detail sheet — a card lifted off the menu */
@@ -1649,7 +1649,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 @keyframes isheet-up{from{transform:translateY(100%)}to{transform:translateY(0)}}
 .isheet-grab{width:38px;height:4px;border-radius:2px;background:var(--line2);margin:6px auto 10px}
 .isheet-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
-.isheet-x{background:none;border:none;color:var(--cream-m);font-family:'Inter';font-size:14px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.isheet-x{background:none;border:none;color:var(--cream-m);font-family:'Inter';font-size:17px;line-height:1;cursor:pointer;-webkit-appearance:none;appearance:none}
 .isheet-title{font-family:'Inter';font-weight:600;font-size:15px;color:var(--cream)}
 .isheet-done{background:none;border:none;color:var(--gold2);font-family:'Inter';font-weight:700;font-size:15px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .isheet-done:disabled{opacity:.4}
@@ -4261,8 +4261,8 @@ button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:
 .spl-cta:hover,.spl-cta:focus-visible{background:var(--red-h,#d64b46);outline:none}
 .spl-cta:active{transform:scale(.98)}
 .spl-cta:focus-visible{outline:2px solid var(--cream);outline-offset:3px} /* keyboard focus stays visible on the takeover (CSS audit pack 2026-07) */
-.spl-foot{margin-top:20px;font-size:12.5px;letter-spacing:.03em;color:#7d735f;opacity:0;animation:spl-up 1.1s ease 1.15s forwards}
-.spl-skip{position:absolute;top:calc(20px + env(safe-area-inset-top));right:22px;z-index:3;-webkit-appearance:none;appearance:none;background:none;border:none;color:#6b6255;font-family:inherit;font-size:13px;letter-spacing:.04em;cursor:pointer;opacity:0;animation:spl-up 1s ease 1.3s forwards}
+.spl-foot{margin-top:20px;font-size:12.5px;letter-spacing:.03em;color:var(--cream-d);opacity:0;animation:spl-up 1.1s ease 1.15s forwards}
+.spl-skip{position:absolute;top:calc(20px + env(safe-area-inset-top));right:22px;z-index:3;-webkit-appearance:none;appearance:none;background:none;border:none;color:var(--cream-m);font-family:inherit;font-size:13px;letter-spacing:.04em;cursor:pointer;opacity:0;animation:spl-up 1s ease 1.3s forwards}
 .spl-skip:hover{color:var(--cream)}
 /* ── THE DISSOLVE (owner ask: "immediately start dissolving, after 10 secs all gone, smoke appears
       into a GT3 '3', then the home page"). The instant the takeover is up the component adds
