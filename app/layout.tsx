@@ -20,7 +20,13 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  // pinch-zoom left enabled (WCAG 1.4.4) — the prototype locked it, but a shipped PWA shouldn't
+  // Snap to the screen — pinch-zoom is LOCKED. A stray pinch was scaling the layout and pushing
+  // buttons/words off the edge (avatar, the float rail, the Reserve CTA), with no obvious way back
+  // for anyone who doesn't know the pinch-to-reset trick. WCAG 1.4.4 (resize text) is satisfied in
+  // a different, more reliable way: the in-app Display controls (rail → AA: text size, bold,
+  // spacing) reflow the layout properly instead of a blunt browser zoom that clips the chrome.
+  maximumScale: 1,
+  userScalable: false,
   // resizes-content: when the on-screen keyboard opens, the layout viewport shrinks to the visible
   // area, so bottom sheets (qd-sheet) sit ABOVE the keyboard instead of behind it (the "can't reach
   // the Build button" bug).
