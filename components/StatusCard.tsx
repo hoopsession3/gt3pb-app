@@ -6,6 +6,7 @@ import { useApp } from "./AppProvider";
 import Sheet from "./Sheet";
 import { supabase } from "@/lib/supabase";
 import { uploadToBucket } from "@/lib/uploads";
+import { useSiteCopy } from "@/lib/copy";
 import { haptic, HAPTIC } from "@/lib/haptics";
 
 // SHOW OFF YOUR STATUS — the member's card, made into an object they own. It's DUAL-SIDED: the front
@@ -41,6 +42,7 @@ type Crest = "crown" | "tiara" | null;
 export default function StatusCard({ open, onClose, demo }: { open: boolean; onClose: () => void; demo?: { founding?: boolean; gender?: "male" | "female" | null } }) {
   const { profile, user } = useAuth();
   const { toast } = useApp();
+  const t = useSiteCopy();  // client-facing strings are owner-editable via the Site Copy editor
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const photoRef = useRef<HTMLImageElement | null>(null);
@@ -248,7 +250,7 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
       header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Your member card &amp; status</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close">✕</button></div>}
       footer={<button type="button" className="status-share" onClick={share} disabled={!ready}>Share your status ↗</button>}>
 
-      {founding && <div className="fc-founding" role="status">✦ Thank you for being a <b>Founding Member</b> — you were here first.</div>}
+      {founding && <div className="fc-founding" role="status">{t("card.founding_thanks")}</div>}
 
       {/* the object they own — tap to spin, drag to tilt */}
       <div className={`fc-scene f-${finish}${founding ? " founding" : ""}`}>

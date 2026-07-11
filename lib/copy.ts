@@ -22,6 +22,9 @@ export const COPY_META: CopyMeta[] = [
     default: "Choose what you'd like and we'll have it waiting at the window." },
   { key: "home.signoff", group: "Home · signed-out", label: "Sign-off",
     default: "Pure Signal, No Noise." },
+  // ── Member card (the status card popout) ──
+  { key: "card.founding_thanks", group: "Member card", label: "Founding-member thank-you banner", multiline: true,
+    default: "✦ Thank you for being a Founding Member — you were here first." },
   // ── Home · signed-in (Today) ──
   { key: "home.questions", group: "Home · signed-in", label: "Stack-builder intro", multiline: true,
     default: "Five questions and I'll build your stack for the day." },
