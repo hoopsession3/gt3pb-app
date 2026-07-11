@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
+import { authedFetch } from "@/lib/authedFetch";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import type { Order } from "@/lib/db";
 import { saveSnapshot, readSnapshot, isNetworkError } from "./offline";
@@ -91,9 +92,13 @@ export default function OrderStatus() {
     if (!supabase || canceling) return;
     if (!window.confirm(paid ? "Cancel this order? Your refund will follow shortly." : "Cancel this order?")) return;
     setCanceling(true);
-    const { data, error } = await supabase.rpc("cancel_any_order", { p_channel: "cup", p_id: o.id });
+    // Route (not the raw RPC) so canceling also pings the crew + texts/emails the customer.
+    const ok = await authedFetch("/api/orders/cancel", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ channel: "cup", id: o.id }),
+    }).then((r) => r.ok ? r.json() : null).then((d) => d?.ok === true).catch(() => false);
     setCanceling(false);
-    if (!error && data) load();
+    if (ok) load();
   };
 
   return (

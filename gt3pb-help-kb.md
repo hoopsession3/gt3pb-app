@@ -82,8 +82,9 @@ Two independent controls, both surfaced in the crew Money section (`components/P
 - **Your pack** (`components/MyPacks.tsx`, top of `/reserve`): members see upcoming reservations
   live — staff checking them off at the truck flips the card to "picked up" in front of them.
   **Change** prefills the form and the new reservation cancels the old (never a double-brew);
-  **Cancel** runs `cancel_own_reservation` (0136 — owner-only, refuses picked-up; a PAID cancel
-  raises the same refund alert staff cancels do, so the crew inbox is the single refund queue).
+  **Cancel** posts `/api/orders/cancel` (see "Cancellation loop" below) which runs
+  `cancel_own_reservation` (0136 — owner-only, refuses picked-up) then alerts the crew and
+  texts/emails the customer.
 - **Talk to the truck** (quick replies under the order banner → `set_order_eta`, 0138): active
   orders carry one signal — 🏃 on my way · 📍 I'm outside · ⏰ running late. The pass shows it on
   the order card and **OUTSIDE rings the KDS once** — call the name. Tapping the active chip clears
@@ -92,7 +93,23 @@ Two independent controls, both surfaced in the crew Money section (`components/P
 - **Order notifications** are managed in the profile sheet — real permission state, one tap to
   enable order-ready pings, honest copy when the OS has them blocked.
 - **Cup orders**: live status banner (received → preparing → ready), self-cancel while still 'new'
-  (`cancel_own_order`, 0118), offline shows "last known" instead of vanishing.
+  (`cancel_own_order`, 0118, via `/api/orders/cancel`), offline shows "last known" instead of vanishing.
+
+## Cancellation loop — operator hears it, customer hears it
+- **One route, three channels**: `app/api/orders/cancel/route.ts` (`{ channel: "cup"|"pickup"|
+  "delivery", id }`). Every self-cancel surface — `OrderStatus` (cup), `MyPacks` (pickup),
+  `MyDeliveries` (delivery) — POSTs here instead of calling the RPC directly, so canceling is never
+  silent again.
+- **Why a route and not just the RPC**: a Postgres function can't send email/SMS, and the three
+  cancel RPCs only pinged the crew for *paid* cancels — an unpaid (pay-at-pickup) cancel vanished
+  with no operator signal and the customer never got a confirmation. Both gaps flagged from the gym.
+- **What it does on success**: the cancel runs AS THE USER (their JWT on the anon client → the
+  SECURITY DEFINER RPC's owner + status-window checks still hold). Then, best-effort: (1) an operator
+  alert — the paid case already raises the money/"refund needed" alert *inside* the RPC, so the route
+  adds only the missing **unpaid** FYI ("Canceled: {who}'s {channel}") to avoid double-pinging the
+  inbox (task #41, de-noise); (2) a customer **email + text** confirming the cancellation, with the
+  refund line only when they paid. Notifications are env-gated (Resend/Twilio) — clean no-op without
+  keys, so nothing breaks before those switch on; verify live once keys are set.
 
 ## The membership economy (loyalty · referral · streak · credit)
 - **Stamps** — `profiles.points`, +1 per drink on pickup (0012). The stamp card and the
@@ -195,8 +212,9 @@ reminder), **order ready** when the pass advances (account email — walk-ups ca
   the card). No empties → **Fresh anyway** (reason logged, margin absorbed once) or **No empties —
   hold** → order flips to `held_for_pickup`, the crew inbox gets the pickup-queue alert, customer
   collects at GT3PB 10 AM–2 PM. Payment already happened at order — never cash at the door.
-- **Cancels**: customers self-cancel until Friday 6 PM ET (`cancel_own_delivery`, 0139); a paid
-  cancel raises the standard refund alert. **Delivery's $14 premium bottle is the **Salted Latte** (one add, replaced the old MCT/butter matrix). The day is the customer's choice**: reserve
+- **Cancels**: customers self-cancel until Friday 6 PM ET (`cancel_own_delivery`, 0139, via
+  `/api/orders/cancel`); the crew is alerted and the customer gets an email/text — a paid cancel also
+  raises the refund alert. **Delivery's $14 premium bottle is the **Salted Latte** (one add, replaced the old MCT/butter matrix). The day is the customer's choice**: reserve
   offers the next few real stops as pickup days (server re-validates against the route + each
   drop's cutoff), and delivery offers this Sunday or next — dates never pick themselves. **Waitlist**: out-of-zone ZIPs capture email into
   `delivery_waitlist` (staff-read).

@@ -109,9 +109,13 @@ export default function MyPacks({ onChange, refreshKey }: { onChange?: (p: MyPac
       : `Cancel your ${p.size}-pack for ${day}? Nothing was charged.`;
     if (typeof window !== "undefined" && !window.confirm(msg)) return;
     setBusy(p.id);
-    const { data, error } = await supabase.rpc("cancel_any_order", { p_channel: "pickup", p_id: p.id });
+    // Route (not the raw RPC) so canceling also pings the crew + texts/emails the customer.
+    const ok = await authedFetch("/api/orders/cancel", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ channel: "pickup", id: p.id }),
+    }).then((r) => r.ok ? r.json() : null).then((d) => d?.ok === true).catch(() => false);
     setBusy(null);
-    if (error || data !== true) { toast("Couldn't cancel — it may already be picked up. Ask at the truck.", "error"); load(); return; }
+    if (!ok) { toast("Couldn't cancel — it may already be picked up. Ask at the truck.", "error"); load(); return; }
     toast(p.paid ? "Canceled — refund on the way" : "Reservation canceled");
     load();
   };
