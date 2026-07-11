@@ -1340,6 +1340,58 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .acct-item.crew{color:var(--gold2);font-weight:600}
 .acct-item.danger{color:var(--red)}
 
+/* ── ACCOUNT SHEET — the customer's things that matter, in the canonical LV popout ── */
+.acs-sheet{max-width:460px}
+.acs-head{display:flex;align-items:center;width:100%}
+.acs-head-t{display:flex;align-items:center;gap:9px;font-family:'Inter';font-weight:700;font-size:15px;color:var(--cream)}
+.acs-head-t .g3{font-size:15px}
+.acs-head .isheet-x{margin-left:auto}
+/* identity */
+.acs-hero{display:flex;align-items:center;gap:14px;padding:2px 2px 16px}
+.acs-av{position:relative;flex:0 0 auto;width:58px;height:58px;border-radius:50%;background:#1a1310;border:2px solid var(--gold2);display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,.42)}
+.acs-av.ph{background-size:cover;background-position:center;background-repeat:no-repeat}
+.acs-id{min-width:0}
+.acs-name{font-family:'Inter';font-weight:700;font-size:21px;letter-spacing:-.3px;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.acs-tier{display:inline-block;margin-top:6px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--cream-m);border:1px solid var(--line2);border-radius:999px;padding:3px 10px 2px}
+.acs-tier.founding{color:#0e0d0b;background:var(--gold2);border-color:transparent;font-weight:600}
+/* rewards glance */
+.acs-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.acs-stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 6px;text-align:center}
+.acs-stat-v{display:block;font-family:'Archivo Black';font-size:22px;color:var(--cream);line-height:1}
+.acs-stat-v i{font-style:normal;font-size:13px;color:var(--cream-m)}
+.acs-stat-k{display:block;margin-top:6px;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.07em;text-transform:uppercase;color:var(--gold2)}
+/* order again — one tap from anywhere */
+.acs-reorder{display:flex;align-items:center;gap:10px;width:100%;text-align:left;cursor:pointer;background:var(--red);border:none;border-radius:14px;padding:13px 15px;margin-bottom:10px}
+.acs-reorder:active{transform:scale(.99)}
+.acs-reorder-x{flex:1;min-width:0}
+.acs-reorder-x b{display:block;font-family:'Inter';font-weight:700;font-size:15px;color:#fff}
+.acs-reorder-x span{display:block;margin-top:1px;font-family:'Inter';font-size:12px;color:rgba(255,255,255,.82);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.acs-reorder-a{flex:0 0 auto;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#fff;opacity:.92}
+/* your member card — the gold hero action, shares the member-card ground */
+.acs-card{display:flex;align-items:center;gap:12px;width:100%;text-align:left;cursor:pointer;background:linear-gradient(150deg,#1c1811,#221a10 55%,#2a1c12);border:1px solid rgba(200,166,97,.4);border-radius:16px;padding:15px;margin-bottom:16px;box-shadow:0 12px 30px rgba(0,0,0,.35),inset 0 0 0 1px rgba(200,166,97,.1)}
+.acs-card:active{transform:scale(.99)}
+.acs-card-l{flex:1;min-width:0}
+.acs-card-l b{display:block;font-family:'Inter';font-weight:700;font-size:15px;color:var(--cream)}
+.acs-card-l span{display:block;margin-top:2px;font-family:'Inter';font-size:12px;color:var(--cream-m)}
+.acs-card-mk{flex:0 0 auto;opacity:.9}
+.acs-card-mk .g3{font-size:22px}
+/* the rest */
+.acs-rows{display:flex;flex-direction:column;gap:2px;margin-bottom:14px}
+.acs-row{display:flex;align-items:center;width:100%;text-align:left;background:none;border:none;border-radius:11px;padding:11px 10px;cursor:pointer}
+.acs-row:hover,.acs-row:active{background:rgba(255,255,255,.05)}
+.acs-row-x{flex:1;min-width:0}
+.acs-row-x b{display:block;font-family:'Inter';font-weight:600;font-size:14.5px;color:var(--cream)}
+.acs-row-x span{display:block;margin-top:1px;font-family:'Inter';font-size:11.5px;color:var(--cream-m)}
+.acs-row.crew .acs-row-x b{color:var(--gold2)}
+.acs-row-c{flex:0 0 auto;color:var(--cream-m);font-size:18px;padding-left:8px}
+.acs-signout{display:block;width:100%;background:none;border:1px solid var(--line2);border-radius:12px;padding:12px;font-family:'Inter';font-weight:600;font-size:14px;color:var(--red);cursor:pointer}
+.acs-signout:active{background:rgba(184,36,32,.08)}
+/* signed-out */
+.acs-guest{padding:10px 4px 6px;text-align:center}
+.acs-guest-t{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold2)}
+.acs-guest p{margin:9px 0 16px;font-family:'Inter';font-size:14px;color:var(--cream-m);line-height:1.5}
+.acs-cta{width:100%;background:var(--red);color:#fff;border:none;border-radius:12px;padding:13px;font-family:'Inter';font-weight:700;font-size:15px;cursor:pointer}
+
 /* Load-Out & Tow Plan */
 .tl{margin-top:14px}
 .tl-ev{color:var(--cream-m);font-weight:400}

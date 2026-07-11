@@ -1,19 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useAuth, roleOf } from "./AuthProvider";
-import { useApp } from "./AppProvider";
+import { useState } from "react";
+import { useAuth } from "./AuthProvider";
+import AccountSheet from "./AccountSheet";
 import ProfileSheet from "./ProfileSheet";
+import StatusCard from "./StatusCard";
 
-// Top-right account avatar → a role-aware dropdown. The coconut mark (GT3's whole-
-// coconut hydration) makes it jump out, and the bronze caret signals "there are options."
-// Quick actions live here (reachable from any page); the full hub is the 3MPIRE tab.
-
-const ROLE_LABEL: Record<string, string> = {
-  owner: "Owner", admin: "Admin", event_manager: "Event manager",
-  operator: "Operator", contractor: "Contractor", server: "Server", member: "Member",
-};
+// Top-right account avatar → the customer account popout (AccountSheet, the canonical LV Sheet).
+// The coconut mark (GT3's whole-coconut hydration) shows until they save a photo, then it's their
+// portrait everywhere; the bronze caret signals "there's more here." One tap opens the things that
+// matter to them — rewards, reorder, their member card — reachable from any page.
 
 function Coconut() {
   return (
@@ -28,52 +24,28 @@ function Coconut() {
 }
 
 export default function AccountPill() {
-  const { user, profile, signOut } = useAuth();
-  const { toast } = useApp();
-  const router = useRouter();
+  const { profile } = useAuth();
   const [open, setOpen] = useState(false);
   const [editProfile, setEditProfile] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, [open]);
-
-  const role = roleOf(profile);
-  const staff = !!user && role !== "member";
-  const name = profile?.display_name || user?.email || "Guest";
-  const go = (href: string) => { setOpen(false); router.push(href); };
+  const [cardOpen, setCardOpen] = useState(false);
 
   return (
-    <div className="acct" ref={ref}>
-      <button className="acct-av" aria-label="Account menu" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+    <div className="acct">
+      <button className="acct-av" aria-label="Your account" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>
         {profile?.avatar_url ? <span className="acct-photo" style={{ backgroundImage: `url(${profile.avatar_url})` }} /> : <Coconut />}
         <span className="acct-caret" aria-hidden="true">
           <svg viewBox="0 0 10 10" width="8" height="8"><path d="M2 4l3 3 3-3" fill="none" stroke="#1a1310" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </span>
       </button>
       {open && (
-        <div className="acct-menu" role="menu">
-          {user ? (
-            <>
-              <div className="acct-who"><b>{name}</b><span>{ROLE_LABEL[role] ?? "Member"}</span></div>
-              <button className="acct-item" role="menuitem" onClick={() => { setOpen(false); setEditProfile(true); }}>Edit profile</button>
-              <button className="acct-item" role="menuitem" onClick={() => go("/3mpire")}>Your 3MPIRE</button>
-              {staff && <button className="acct-item crew" role="menuitem" onClick={() => go("/crew")}>Switch to Crew Mode</button>}
-              <button className="acct-item danger" role="menuitem" onClick={() => { setOpen(false); signOut(); toast("Signed out"); }}>Sign out</button>
-            </>
-          ) : (
-            <>
-              <div className="acct-who"><b>Not signed in</b><span>points · pours · reserves</span></div>
-              <button className="acct-item" role="menuitem" onClick={() => go("/3mpire")}>Sign in</button>
-            </>
-          )}
-        </div>
+        <AccountSheet
+          onClose={() => setOpen(false)}
+          onEditProfile={() => { setOpen(false); setEditProfile(true); }}
+          onShowCard={() => setCardOpen(true)}
+        />
       )}
       {editProfile && <ProfileSheet onClose={() => setEditProfile(false)} />}
+      <StatusCard open={cardOpen} onClose={() => setCardOpen(false)} />
     </div>
   );
 }
