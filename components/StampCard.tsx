@@ -1,9 +1,12 @@
 "use client";
 
 import { useAuth } from "@/components/AuthProvider";
+import Gt3Mark from "@/components/Gt3Mark";
 
 // LOYALTY STAMP CARD — every drink earns a stamp; the 10th is on us. Pure view of profiles.points,
 // which the server credits on pickup (migration 0012, +1 per drink). No new data, no client writes.
+// Wears the shared GT3 card frame (gold ground + machined hairline + brand mark) so it reads as one
+// family with the membership card and the status card.
 const GOAL = 10;
 
 export default function StampCard() {
@@ -19,7 +22,7 @@ export default function StampCard() {
   return (
     <section className={`stamp${gotFree ? " won" : near ? " near" : ""}`} aria-label="Loyalty card">
       <div className="stamp-top">
-        <span className="stamp-k">Your card</span>
+        <span className="stamp-brand"><Gt3Mark tone="cream" /><span className="stamp-k">Your card</span></span>
         <span className="stamp-badge">{gotFree ? "🎉 Card full" : free > 0 ? `${free} free ${free === 1 ? "drink" : "drinks"} earned` : "10th is on us"}</span>
       </div>
       <div className="stamp-grid" role="img" aria-label={`${inCard} of ${GOAL} stamps`}>

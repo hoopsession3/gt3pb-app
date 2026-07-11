@@ -3535,7 +3535,12 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .sc-save:disabled,.sc-reset:disabled{opacity:.4;cursor:default}
 
 /* ─────────── loyalty stamp card (home) ─────────── */
-.stamp{background:var(--card);border:1px solid var(--line2);border-radius:16px;padding:14px 15px;margin-bottom:14px}
+/* shared GT3 card frame — gold ground + machined hairline + glow (matches .memberpass / the status card) */
+.stamp{position:relative;overflow:hidden;background:linear-gradient(150deg,#1c1811 0%,#221a10 55%,#2a1c12 100%);border:1px solid rgba(200,166,97,.28);border-radius:16px;padding:15px;margin-bottom:14px;box-shadow:0 14px 34px rgba(0,0,0,.35),inset 0 0 0 1px rgba(200,166,97,.1)}
+.stamp::after{content:"";position:absolute;inset:0;border-radius:16px;background:radial-gradient(120% 80% at 100% 0%,rgba(200,166,97,.12),transparent 60%);pointer-events:none}
+.stamp>*{position:relative;z-index:1}
+.stamp-brand{display:flex;align-items:center;gap:9px}
+.stamp-brand .g3{font-size:16px}
 .stamp-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:11px}
 .stamp-k{font-family:'Inter';font-weight:700;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--cream-m)}
 .stamp-badge{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#0e0d0b;background:var(--gold2);border-radius:999px;padding:4px 9px 3px}
@@ -3632,12 +3637,13 @@ select.note-in{-webkit-appearance:none;appearance:none}
 /* ─────────── stamp-card achievement states ─────────── */
 .stamp.near{border-color:var(--gold2)}
 .stamp.near .stamp-foot{color:var(--gold2);font-weight:600}
-.stamp.won{border-color:var(--red);background:linear-gradient(180deg,rgba(184,36,32,.08),transparent)}
+.stamp.won{border-color:var(--red)}
+.stamp.won::after{background:radial-gradient(120% 80% at 100% 0%,rgba(184,36,32,.16),transparent 60%)}
 .stamp.won .stamp-badge{background:var(--red);color:#fff}
 .stamp.won .stamp-foot{color:var(--red);font-weight:700}
 
 /* ─────────── GT3 membership card (scannable) ─────────── */
-.memberpass{position:relative;border-radius:20px;padding:18px 18px 16px;margin-bottom:14px;overflow:hidden;color:var(--cream);background:linear-gradient(150deg,#1c1811 0%,#221a10 55%,#2a1c12 100%);border:1px solid rgba(200,166,97,.28);box-shadow:0 14px 34px rgba(0,0,0,.4)}
+.memberpass{position:relative;border-radius:20px;padding:18px 18px 16px;margin-bottom:14px;overflow:hidden;color:var(--cream);background:linear-gradient(150deg,#1c1811 0%,#221a10 55%,#2a1c12 100%);border:1px solid rgba(200,166,97,.28);box-shadow:0 14px 34px rgba(0,0,0,.4),inset 0 0 0 1px rgba(200,166,97,.12)}
 .memberpass::after{content:"";position:absolute;inset:0;background:radial-gradient(120% 80% at 100% 0%,rgba(200,166,97,.14),transparent 60%);pointer-events:none}
 .mp-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
 .mp-mark .g3{font-size:30px}
