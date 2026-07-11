@@ -133,6 +133,8 @@ export default function MarketingSplash() {
       <div className="spl-finale" aria-hidden="true">
         <img className="spl-three" src="/brand/gt3-3.png" alt="" />
       </div>
+      {/* …and after the 3, a soft-white word-art welcome breathes in, then dissolves to home. */}
+      <div className="spl-welcome" aria-hidden="true">Welcome to the bar</div>
     </div>
   );
 }
