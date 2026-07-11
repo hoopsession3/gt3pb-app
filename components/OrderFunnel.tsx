@@ -48,7 +48,9 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
   const router = useRouter();
 
   const [mode, setMode] = useState<Mode>(initialMode);
-  const [step, setStep] = useState<Step>(initialMode === "delivery" ? "start" : "size");
+  // ZIP-first for BOTH modes: everyone lands on "start" (enter ZIP → choose a pickup date or a
+  // delivery date). The route's initialMode only decides which option leads once both are shown.
+  const [step, setStep] = useState<Step>("start");
 
   // ── shared cart (survives the mode flip) ──
   const [count, setCount] = useState<number | null>(initialMode === "pickup" ? 6 : null);
@@ -226,7 +228,9 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
     if (mode === "delivery") setStep("build");
   };
 
-  const checkZone = () => { if (zipInZone(zip)) { setZone("in"); setStep("size"); } else setZone("out"); };
+  // ZIP-first: checking a ZIP just reveals the options (delivery shows only if in-zone) — it no
+  // longer jumps straight to size; the customer picks a pickup date or a delivery date next.
+  const checkZone = () => setZone(zipInZone(zip) ? "in" : "out");
   const joinWaitlist = async () => {
     const r = await fetch("/api/delivery/waitlist", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ zip, email: wlEmail }) });
     if (r.ok) { setWlSent(true); toast("You're on the list"); } else toast("Enter a ZIP and a real email", "error");
@@ -335,14 +339,14 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
   const buildReady = count != null && picked === count;
   const glassReady = mode === "delivery" ? bringBack !== null && !(bringBack && refills > 0 && !ack) : true;
 
-  // back navigation per mode
+  // back navigation — both modes now start at the ZIP+method chooser ("start"), so size steps back there.
   const goBack = () => {
-    if (mode === "delivery") setStep(step === "size" ? "start" : step === "build" ? "size" : step === "glass" ? "build" : step === "details" ? "glass" : "details");
-    else setStep(step === "build" ? "size" : step === "glass" ? "build" : step === "details" ? "glass" : "details");
+    setStep(step === "size" ? "start" : step === "build" ? "size" : step === "glass" ? "build" : step === "details" ? "glass" : "details");
   };
 
-  // ── segmented toggle (shown through the shopping phase) ──
-  const showToggle = step === "start" || step === "size" || step === "build" || step === "glass";
+  // ── segmented toggle: the method is chosen on the ZIP-first "start" screen, so the toggle only
+  // shows once you're past it (to switch method mid-order without starting over). ──
+  const showToggle = step === "size" || step === "build" || step === "glass";
   const Toggle = (
     <div className="of-seg" role="tablist" aria-label="Fulfillment">
       <button type="button" role="tab" aria-selected={mode === "pickup"} className={mode === "pickup" ? "on" : ""} onClick={() => switchMode("pickup")}>
@@ -386,33 +390,65 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
         <div className="dl-deadline">{deadline}</div>
       )}
 
-      {/* ── DELIVERY START: zone check ── */}
-      {mode === "delivery" && step === "start" && (
+      {/* ── ZIP-FIRST START: enter ZIP, then choose a pickup date OR a delivery date (same style) ── */}
+      {step === "start" && (
         <div className="dl-step">
           <div className="dl-hero">
-            <h2 className="dl-h dl-h-xl">Your week, <em>delivered.</em></h2>
-            <p className="dl-sub">Cold-extracted Rise, Flow &amp; Dusk &mdash; on your porch by sunrise Sunday. Smooth, low-acid, and perfect for 7 days.</p>
-            <div className="dl-tiers">
-              <span><b>{dollars(DELIVERY_PRICING.refill)}</b> swap your empties</span>
-              <span><b>{dollars(DELIVERY_PRICING.fresh)}</b> new bottle</span>
-              <span><b>{dollars(SALTED_LATTE.price)}</b> {bulkItems[0]?.name ?? SALTED_LATTE.label}</span>
-            </div>
+            <h2 className="dl-h dl-h-xl">Fresh bottles, <em>your way.</em></h2>
+            <p className="dl-sub">Cold-extracted Rise, Flow &amp; Dusk &mdash; smooth, low-acid, brewed to order. Enter your ZIP and we&rsquo;ll show you pickup and delivery.</p>
           </div>
-          <p className="dl-sub dl-zlead">Enter your ZIP &mdash; we&rsquo;ll check your porch.</p>
           <div className="dl-ziprow dl-ziprow-xl">
             <input className="auth-input" inputMode="numeric" maxLength={5} placeholder="ZIP code" value={zip} onChange={(e) => { setZip(e.target.value.replace(/\D/g, "")); setZone("ask"); }} aria-label="ZIP code" />
-            <button type="button" className="handle" onClick={checkZone} disabled={zip.length !== 5}><span>Check</span></button>
+            <button type="button" className="handle" onClick={checkZone} disabled={zip.length !== 5}><span>{zone === "ask" ? "Check" : "Update"}</span></button>
           </div>
-          {zone === "out" && (
-            <div className="dl-out">
-              <p className="dl-sub"><b>Not in our delivery zone yet.</b> Drop your email — or grab it at a truck stop instead.</p>
-              {wlSent ? <p className="dl-sub ok">✓ You&rsquo;re on the list.</p> : (
-                <div className="dl-ziprow">
-                  <input className="auth-input" type="email" placeholder="you@email.com" value={wlEmail} onChange={(e) => setWlEmail(e.target.value)} aria-label="Email" />
-                  <button type="button" className="handle" onClick={joinWaitlist}><span>Notify me</span></button>
+
+          {zone !== "ask" && (
+            <div className="of-choose">
+              <div className="oa-slabel">Choose your day</div>
+
+              {/* Delivery — in-zone only, shown first: it's the best value. */}
+              {zone === "in" && choices.map((c, i) => (
+                <button key={`d${c.deliveryDateKey}`} type="button" className="of-opt of-opt-hero"
+                  onClick={() => { setMode("delivery"); setWhen(i); try { window.history.replaceState(null, "", "/delivery"); } catch { /* ignore */ } setStep("size"); }}>
+                  <span className="of-opt-i" aria-hidden>🚚</span>
+                  <span className="of-opt-b">
+                    <b>Delivered {c.deliveryLabel.replace(", 5–8 AM", "")}</b>
+                    <i>To your door · {i === 0 ? "this Sunday" : "next Sunday"} 5–8 AM · order by {c.cutoffLabel.replace(", 6:00 PM", " 6 PM")}</i>
+                  </span>
+                  <span className="of-opt-tag">Best value · from {dollars(DELIVERY_PRICING.refill)}</span>
+                </button>
+              ))}
+
+              {/* Pickup — always, from the truck's real upcoming stops (already 24h-open filtered). */}
+              {stops.length > 0 ? stops.map((st, i) => {
+                const d = dropForStop(st.starts_at);
+                return (
+                  <button key={`p${st.starts_at}`} type="button" className="of-opt"
+                    onClick={() => { setMode("pickup"); setStopIdx(i); try { window.history.replaceState(null, "", "/reserve"); } catch { /* ignore */ } setStep("size"); }}>
+                    <span className="of-opt-i" aria-hidden>🏪</span>
+                    <span className="of-opt-b">
+                      <b>Pick up {dayName(d.sat).split(",")[0]}</b>
+                      <i>{st.name ?? "At the truck"} · order by {dayName(d.cutoff).split(",")[0]}</i>
+                    </span>
+                    <span className="of-opt-tag ghost">Grab it at the stop</span>
+                  </button>
+                );
+              }) : (
+                <p className="dl-sub">No pickup stops are scheduled right now — check the Truck page for what&rsquo;s next.</p>
+              )}
+
+              {/* Out of zone → delivery waitlist (pickup options above still stand). */}
+              {zone === "out" && (
+                <div className="dl-out">
+                  <p className="dl-sub"><b>Delivery isn&rsquo;t in your ZIP yet.</b> Pick up above, or leave your email and we&rsquo;ll tell you the day we reach you.</p>
+                  {wlSent ? <p className="dl-sub ok">✓ You&rsquo;re on the list.</p> : (
+                    <div className="dl-ziprow">
+                      <input className="auth-input" type="email" placeholder="you@email.com" value={wlEmail} onChange={(e) => setWlEmail(e.target.value)} aria-label="Email" />
+                      <button type="button" className="handle" onClick={joinWaitlist}><span>Notify me</span></button>
+                    </div>
+                  )}
                 </div>
               )}
-              <button type="button" className="oa-cta ghost" onClick={() => switchMode("pickup")}>Switch to pickup →</button>
             </div>
           )}
         </div>
@@ -421,37 +457,17 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
       {/* ── SIZE ── */}
       {step === "size" && (
         <div className="dl-step">
-          <h2 className="dl-h">{mode === "delivery" ? "We deliver to you. Pick a Sunday and a size." : stops.length > 1 ? "Order ahead. Pick a day and a size." : `Order ahead for ${dayName(drop.sat).split(",")[0]}. Pick a size.`}</h2>
+          <h2 className="dl-h">{mode === "delivery" ? "Delivered to your door. Pick a size." : "Brewed for your pickup. Pick a size."}</h2>
           {mode === "pickup" && <p className="dl-sub">Cold-extracted Rise, Flow &amp; Dusk — smooth, low-acid bottles for your week. Reserve now, grab them at the truck.</p>}
 
           {mode === "pickup" && <p className="dl-pricemode">{bringBack ? "Prices with bring-back empties — need new glass? It\u2019s $10 a bottle, picked at the next step." : "New-glass prices — bring your empties back next drop and pay less."}</p>}
-          {mode === "delivery" ? (
-            <>
-              <div className="oa-slabel">Which Sunday</div>
-              <div className="dl-days">
-                {choices.map((c, i) => (
-                  <button key={c.deliveryDateKey} type="button" className={`oa-day${when === i ? " sel" : ""}`} onClick={() => setWhen(i)}>
-                    <b>{c.deliveryLabel.replace(", 5–8 AM", "")}</b>
-                    <span>{i === 0 ? "this Sunday" : "next Sunday"} · order by {c.cutoffLabel.replace(", 6:00 PM", " 6 PM")}</span>
-                  </button>
-                ))}
-              </div>
-            </>
-          ) : stops.length > 1 ? (
-            <>
-              <div className="oa-slabel">Pickup day — your call</div>
-              <div className="dl-days">
-                {stops.map((st, i) => {
-                  const d = dropForStop(st.starts_at);
-                  return (
-                    <button key={st.starts_at} type="button" className={`oa-day${i === stopIdx ? " sel" : ""}`} onClick={() => setStopIdx(i)}>
-                      <b>{dayName(d.sat)}</b>{st.name && <span>{st.name}</span>}
-                    </button>
-                  );
-                })}
-              </div>
-            </>
-          ) : null}
+          {/* the day was chosen on the start screen — show it, with a one-tap Change back to it */}
+          <div className="of-chosen">
+            <span className="of-chosen-b">{mode === "delivery"
+              ? `🚚 Delivered ${choices[when]?.deliveryLabel.replace(", 5–8 AM", "") ?? ""}`
+              : `🏪 Pick up ${dayName(drop.sat).split(",")[0]}${stop?.name ? ` · ${stop.name}` : ""}`}</span>
+            <button type="button" className="of-chosen-x" onClick={() => setStep("start")}>Change</button>
+          </div>
 
           <div className="oa-slabel">How many bottles</div>
           <div className="oa-tiles">

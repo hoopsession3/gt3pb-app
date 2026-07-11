@@ -3857,6 +3857,21 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .of-seg button.on b{color:var(--cream)}
 .of-seg button.on span{color:var(--gold2)}
 .oa-cta.ghost{background:none;border:1px solid var(--line2);color:var(--cream);margin-top:12px}
+/* ZIP-first method+date chooser — pickup & delivery options in one list, same style */
+.of-choose{display:flex;flex-direction:column;gap:9px;margin-top:6px}
+.of-opt{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:rgba(245,241,232,.03);border:1px solid var(--line2);border-radius:14px;padding:13px 14px;cursor:pointer;-webkit-appearance:none;appearance:none;transition:transform .12s var(--ease),border-color .16s,background .16s}
+.of-opt:active{transform:scale(.985)}
+.of-opt-hero{background:var(--oa-red-tint);border-color:var(--oa-red)}
+.of-opt-i{font-size:20px;flex:0 0 auto}
+.of-opt-b{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+.of-opt-b b{font-family:'Inter';font-weight:800;font-size:14.5px;color:var(--cream)}
+.of-opt-b i{font-style:normal;font-family:'Inter';font-size:11px;color:var(--cream-d);line-height:1.35}
+.of-opt-tag{flex:0 0 auto;font-family:'Inter';font-weight:800;font-size:10px;letter-spacing:.02em;color:#0e0d0b;background:var(--gold2,#C8A661);border-radius:999px;padding:4px 9px;text-align:center;line-height:1.2}
+.of-opt-tag.ghost{background:none;color:var(--cream-d);border:1px solid var(--line2)}
+/* chosen-day summary on the size step */
+.of-chosen{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--line2);border-radius:12px;padding:9px 13px;margin:2px 0 14px}
+.of-chosen-b{font-family:'Inter';font-weight:700;font-size:12.5px;color:var(--cream)}
+.of-chosen-x{background:none;border:none;font-family:'Inter';font-weight:700;font-size:12px;color:var(--gold2,#C8A661);cursor:pointer;-webkit-appearance:none;appearance:none}
 
 /* ─────────── Sunday delivery flow (/delivery) — Voice 2, house dark shell ─────────── */
 .dl-deadline{font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.08em;color:var(--cream-m);border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin:4px 0 16px}
