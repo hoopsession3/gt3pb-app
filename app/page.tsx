@@ -72,7 +72,14 @@ function TodayReal({ t }: { t: (k: string) => string }) {
       <Watermark variant="landing" />
       <div className="toprow">
         <div className="eyb">{todayLabel()}</div>
-        <Link className="pf" href="/3mpire">{name.charAt(0)}</Link>
+        <Link
+          className={`pf${profile?.avatar_url ? " pf-photo" : ""}`}
+          href="/3mpire"
+          aria-label="Your 3MPIRE"
+          style={profile?.avatar_url ? { backgroundImage: `url(${profile.avatar_url})` } : undefined}
+        >
+          {profile?.avatar_url ? "" : name.charAt(0)}
+        </Link>
       </div>
       <div className="h-title">{greet()}, {name}.</div>
       <YourUsual />

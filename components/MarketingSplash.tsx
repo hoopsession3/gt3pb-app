@@ -20,8 +20,8 @@ import { supabase } from "@/lib/supabase";
 const SESSION_KEY = "gt3-splash-shown";
 
 const HOLD_MS = 5000;       // read it first — the entrance plays, then the ad holds, readable
-const DISSOLVE_MS = 11500;  // slow smoke → brand "3" → "Welcome to the bar" → the 3mpire signature → home
-const FAST_MS = 2900;       // a tap bypasses: a quick "3" + sign-off, then home
+const DISSOLVE_MS = 12300;  // slow smoke → brand "3" (fully out) → a beat → "Welcome" + the 3mpire signature → home
+const FAST_MS = 3200;       // a tap bypasses: a quick "3" out, then the sign-off, then home
 
 type Copy = { head1: string; head2: string; sub: string; cta: string; href: string };
 const DEFAULT: Copy = {
