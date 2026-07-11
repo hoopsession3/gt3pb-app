@@ -223,7 +223,8 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
     setCount(s);
     // an overfull mix resets when the pack shrinks below it (reference behavior)
     setMix((m) => (m.rise + m.flow + m.dusk + (mode === "delivery" ? perf : 0) > s ? { rise: 0, flow: 0, dusk: 0 } : m));
-    if (mode === "delivery") setStep("build");
+    // Both modes operate identically: selecting a size highlights it; the "Build your pack" button
+    // advances. (Delivery used to auto-jump on tap, which felt different from pickup.)
   };
 
   const checkZone = () => { if (zipInZone(zip)) { setZone("in"); setStep("size"); } else setZone("out"); };
@@ -372,7 +373,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
               <span className="oa-usual-go">Load →</span>
             </button>
           )}
-          <MyPacks onChange={startChange} refreshKey={packsKey} />
+          <MyPacks onChange={startChange} refreshKey={packsKey} collapsible />
           {replacing && (
             <div className="oa-editing">
               Editing your {replacing.size}-pack for {packDayLabel(replacing)} — reserving again replaces it.
@@ -460,14 +461,14 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
                 {mode === "delivery" && s === 24 && <span className="oa-tag on">FREE DELIVERY</span>}
                 {mode === "pickup" && PACK_TAG[s] && <span className="oa-tag">{PACK_TAG[s]}</span>}
                 <div className="oa-c">{s}</div><div className="oa-u">BOTTLES</div>
-                <div className="oa-p">{mode === "delivery" ? (s === 12 ? "starter" : s === 24 ? "stock up" : "bulk") : dollars(packTotal(s, bringBack ? "return" : "new") * 100)}</div>
+                <div className="oa-p">{mode === "delivery" ? dollars(quoteDelivery(s, 0, 0, "direct").totalCents) : dollars(packTotal(s, bringBack ? "return" : "new") * 100)}</div>
               </button>
             ))}
           </div>
           {mode === "delivery"
             ? <p className="dl-note">Delivery {dollars(DELIVERY_PRICING.feeCents)} flat — free at {DELIVERY_PRICING.feeWaivedAt}+ bottles.</p>
             : <div className="dl-note" dangerouslySetInnerHTML={{ __html: count ? `≈ <b>${PACK_HINT[count]}</b>` : "" }} />}
-          {mode === "pickup" && count != null && (
+          {count != null && (
             <button type="button" className="oa-cta" disabled={!count} onClick={() => setStep("build")}>Build your pack →</button>
           )}
         </div>

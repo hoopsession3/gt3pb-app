@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import { useApp } from "./AppProvider";
 import { supabase } from "@/lib/supabase";
+import { authedFetch } from "@/lib/authedFetch";
 import { useRealtimeTable } from "@/lib/realtime";
 
 // YOUR DELIVERIES — the customer's own Sunday-delivery orders, on /3mpire. The delivery success
@@ -68,9 +69,13 @@ export default function MyDeliveries() {
       : `Cancel your ${p.pack_size}-bottle delivery for ${dayLabel(p.delivery_date)}?`;
     if (typeof window !== "undefined" && !window.confirm(msg)) return;
     setBusy(p.id);
-    const { data, error } = await supabase.rpc("cancel_any_order", { p_channel: "delivery", p_id: p.id });
+    // Route (not the raw RPC) so canceling also pings the crew + texts/emails the customer.
+    const ok = await authedFetch("/api/orders/cancel", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ channel: "delivery", id: p.id }),
+    }).then((r) => r.ok ? r.json() : null).then((d) => d?.ok === true).catch(() => false);
     setBusy(null);
-    if (error || data !== true) { toast("Too late to cancel online — it's already being brewed. Text us and we'll help.", "error"); load(); return; }
+    if (!ok) { toast("Too late to cancel online — it's already being brewed. Text us and we'll help.", "error"); load(); return; }
     toast(p.payment_status === "paid" ? "Canceled — refund on the way" : "Delivery canceled");
     load();
   };

@@ -36,7 +36,7 @@ export const packDayLabel = (p: { drop_date: string }): string =>
   new Date(`${p.drop_date}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 export const packMix = (p: { mix: Partial<Mix> }): Mix => ({ ...emptyMix(), ...p.mix });
 
-export default function MyPacks({ onChange, refreshKey }: { onChange?: (p: MyPack) => void; refreshKey?: string }) {
+export default function MyPacks({ onChange, refreshKey, collapsible }: { onChange?: (p: MyPack) => void; refreshKey?: string; collapsible?: boolean }) {
   const { user } = useAuth();
   const { toast } = useApp();
   const [rows, setRows] = useState<MyPack[]>([]);
@@ -44,6 +44,10 @@ export default function MyPacks({ onChange, refreshKey }: { onChange?: (p: MyPac
   const [busy, setBusy] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [moving, setMoving] = useState<string | null>(null); // pack id showing the day picker
+  // In the order-ahead flow (collapsible), a stack of existing packs used to wall off the size
+  // picker — you scrolled past every card to reach "Order ahead." Collapse them to one summary row
+  // by default so the primary action (place a new order) stays at the top; tap to expand & manage.
+  const [listOpen, setListOpen] = useState(false);
   // The same upcoming-drop days the order form offers (real stops, still open) — so "move it"
   // can only land on a day the truck will actually be out.
   const [days, setDays] = useState<{ key: string; label: string }[]>([]);
@@ -109,9 +113,13 @@ export default function MyPacks({ onChange, refreshKey }: { onChange?: (p: MyPac
       : `Cancel your ${p.size}-pack for ${day}? Nothing was charged.`;
     if (typeof window !== "undefined" && !window.confirm(msg)) return;
     setBusy(p.id);
-    const { data, error } = await supabase.rpc("cancel_any_order", { p_channel: "pickup", p_id: p.id });
+    // Route (not the raw RPC) so canceling also pings the crew + texts/emails the customer.
+    const ok = await authedFetch("/api/orders/cancel", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ channel: "pickup", id: p.id }),
+    }).then((r) => r.ok ? r.json() : null).then((d) => d?.ok === true).catch(() => false);
     setBusy(null);
-    if (error || data !== true) { toast("Couldn't cancel — it may already be picked up. Ask at the truck.", "error"); load(); return; }
+    if (!ok) { toast("Couldn't cancel — it may already be picked up. Ask at the truck.", "error"); load(); return; }
     toast(p.paid ? "Canceled — refund on the way" : "Reservation canceled");
     load();
   };
@@ -121,10 +129,22 @@ export default function MyPacks({ onChange, refreshKey }: { onChange?: (p: MyPac
   // bottles"), not three look-alike rows. Tap a row for the mix + the self-service moves.
   const byDay = new Map<string, MyPack[]>();
   for (const p of rows) { const g = byDay.get(p.drop_date) ?? []; g.push(p); byDay.set(p.drop_date, g); }
+  // Collapse the stack to one summary row in the order-ahead flow so it never buries the size picker.
+  const canCollapse = !!collapsible && rows.length >= 2;
+  const collapsed = canCollapse && !listOpen;
+  const atPickup = rows.filter((x) => !x.paid).length;
+  const summary = `${rows.length} packs · ${rows.reduce((s, x) => s + x.size, 0)} bottles${atPickup ? ` · ${atPickup} at pickup` : ""}`;
   return (
-    <div className="mypacks">
-      <div className="mypacks-h">Your pack{rows.length > 1 ? "s" : ""}</div>
-      {[...byDay.entries()].map(([day, group]) => (
+    <div className={`mypacks${collapsed ? " collapsed" : ""}`}>
+      {canCollapse ? (
+        <button type="button" className="mypacks-h mypacks-toggle" onClick={() => setListOpen((o) => !o)} aria-expanded={listOpen}>
+          <span>Your packs <em>{summary}</em></span>
+          <span className="mypacks-car">{listOpen ? "▾" : "▸"}</span>
+        </button>
+      ) : (
+        <div className="mypacks-h">Your pack{rows.length > 1 ? "s" : ""}</div>
+      )}
+      {!collapsed && [...byDay.entries()].map(([day, group]) => (
         <div key={day} className="mypack-day">
           {group.length > 1 && (
             <div className="mypack-dayh">
