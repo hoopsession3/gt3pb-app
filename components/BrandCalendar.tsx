@@ -38,7 +38,13 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
   const dragId = useRef<string | null>(null);
 
   const days = useMemo(() => {
-    const start = new Date(cursor); start.setDate(1 - start.getDay());
+    // Anchor the grid to the FIRST of the cursor's month, then back up to that week's Sunday. Using
+    // `cursor` directly broke the current month: on first open cursor is TODAY (e.g. the 11th), so
+    // `setDate(1 - getDay())` measured off the 11th and started the grid days early — every cell
+    // slid columns and "today" landed under the wrong weekday (Sat 7/11 showing as Tuesday). Months
+    // reached via the arrows set cursor to the 1st, which is why only the opening month was off.
+    const start = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+    start.setDate(1 - start.getDay());
     return Array.from({ length: 42 }, (_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return d; });
   }, [cursor]);
 
