@@ -20,8 +20,8 @@ import { supabase } from "@/lib/supabase";
 const SESSION_KEY = "gt3-splash-shown";
 
 const HOLD_MS = 5000;       // read it first — the entrance plays, then the ad holds, readable
-const DISSOLVE_MS = 10000;  // then the slow smoke → brand "3" → home behind it
-const FAST_MS = 2600;       // a tap bypasses: a quick "3" out of the smoke, then home
+const DISSOLVE_MS = 11500;  // slow smoke → brand "3" → "Welcome to the bar" → the 3mpire signature → home
+const FAST_MS = 2900;       // a tap bypasses: a quick "3" + sign-off, then home
 
 type Copy = { head1: string; head2: string; sub: string; cta: string; href: string };
 const DEFAULT: Copy = {
@@ -133,8 +133,10 @@ export default function MarketingSplash() {
       <div className="spl-finale" aria-hidden="true">
         <img className="spl-three" src="/brand/gt3-3.png" alt="" />
       </div>
-      {/* …and after the 3, a soft-white word-art welcome breathes in, then dissolves to home. */}
+      {/* …after the 3, a soft-white word-art welcome breathes in… */}
       <div className="spl-welcome" aria-hidden="true">Welcome to the bar</div>
+      {/* …then a red signature writes itself in — "Grow Your 3mpire", the 3 the real GT3 mark — and fades to home. */}
+      <div className="spl-sign" aria-hidden="true">Grow Your <img className="spl-sign-3" src="/brand/gt3-3.png" alt="" />mpire</div>
     </div>
   );
 }

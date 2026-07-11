@@ -4213,10 +4213,19 @@ button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:
 .spl-scrim.spl-smoke .spl-finale{animation:spl-three-form 10s ease forwards}
 .spl-scrim.spl-smoke .spl-three{animation:spl-three-glow 3s ease-in-out 4.4s infinite}
 /* After the "3" forms, a soft-white word-art welcome breathes in, holds a beat, then dissolves to home. */
-.spl-welcome{position:absolute;left:0;right:0;top:64%;text-align:center;font-family:'Fraunces',serif;font-style:italic;font-weight:400;font-size:clamp(21px,6vw,31px);letter-spacing:.005em;color:#F6F1E7;opacity:0;z-index:3;pointer-events:none}
-.spl-scrim.spl-smoke .spl-welcome{animation:spl-welcome 4s cubic-bezier(.2,.7,.2,1) 6.9s forwards}
-@keyframes spl-welcome{0%{opacity:0;transform:translateY(16px) scale(.985)}32%{opacity:1;transform:translateY(0) scale(1)}76%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(-5px)}}
-.spl-scrim.spl-smoke.spl-fast .spl-welcome{animation-delay:1.35s;animation-duration:1.5s}
+/* Welcome — understated, light, wide-tracked (LV minimal), so the red signature that follows is the flourish. */
+.spl-welcome{position:absolute;left:0;right:0;top:63%;text-align:center;font-family:'Inter',sans-serif;font-weight:300;font-size:clamp(13px,3.8vw,17px);letter-spacing:.42em;text-transform:uppercase;color:#EFEADD;opacity:0;z-index:3;pointer-events:none;padding-left:.42em}
+.spl-scrim.spl-smoke .spl-welcome{animation:spl-welcome 3.4s cubic-bezier(.2,.7,.2,1) 5.3s forwards}
+@keyframes spl-welcome{0%{opacity:0;transform:translateY(12px)}30%{opacity:.92;transform:translateY(0)}68%{opacity:.92}100%{opacity:0;transform:translateY(-4px)}}
+.spl-scrim.spl-smoke.spl-fast .spl-welcome{animation-delay:1.1s;animation-duration:1.3s}
+
+/* …then the sign-off writes itself in: "Grow Your 3mpire" in GT3 red italic, the 3 the real mark, glowing. */
+.spl-sign{position:absolute;left:0;right:0;top:70%;display:flex;align-items:baseline;justify-content:center;gap:.05em;white-space:nowrap;font-family:'Fraunces',serif;font-style:italic;font-weight:500;font-size:clamp(27px,7.6vw,42px);letter-spacing:.004em;color:#E0453F;opacity:0;z-index:3;pointer-events:none;text-shadow:0 0 18px rgba(224,69,63,.32)}
+.spl-sign-3{height:.82em;width:auto;transform:translateY(.1em);animation:sign3glow 2.3s ease-in-out 10.4s infinite}
+.spl-scrim.spl-smoke .spl-sign{animation:spl-sign 4.2s cubic-bezier(.22,.66,.2,1) 8.3s forwards}
+@keyframes spl-sign{0%{opacity:0;clip-path:inset(0 100% -25% 0)}14%{opacity:1}54%{clip-path:inset(0 0% -25% 0);opacity:1}80%{opacity:1}100%{opacity:0}}
+@keyframes sign3glow{0%,100%{filter:drop-shadow(0 0 6px rgba(224,69,63,.4))}50%{filter:drop-shadow(0 0 15px rgba(224,69,63,.85))}}
+.spl-scrim.spl-smoke.spl-fast .spl-sign{animation-delay:1.9s;animation-duration:1.9s}
 
 /* Tap to bypass — the same smoke → "3" story, condensed: a quick, graceful exit instead of the slow read. */
 .spl-scrim.spl-smoke.spl-fast{animation-duration:2.6s}

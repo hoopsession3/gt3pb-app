@@ -38,9 +38,7 @@ const FINISH_PAINT: Record<Finish, Paint> = {
   redline: { grd: ["#171010", "#0a0707", "#140c0c"], ink: "#F5F1E8", inkDim: "rgba(245,241,232,.6)",  accent: "#E0453F", accentDeep: "#B8241F", edge: "rgba(184,36,32,.6)",  edge2: "rgba(184,36,32,.24)", tex: "none" },
 };
 
-type Crest = "crown" | "tiara" | null;
-
-export default function StatusCard({ open, onClose, demo }: { open: boolean; onClose: () => void; demo?: { founding?: boolean; gender?: "male" | "female" | null } }) {
+export default function StatusCard({ open, onClose, demo }: { open: boolean; onClose: () => void; demo?: { founding?: boolean } }) {
   const { profile, user } = useAuth();
   const { toast } = useApp();
   const t = useSiteCopy();  // client-facing strings are owner-editable via the Site Copy editor
@@ -67,12 +65,8 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
   // default "I Perform". Bounded on save ("safely").
   const [vision, setVision] = useState(profile?.card_vision?.trim() || VISION_DEFAULT);
   const [editVision, setEditVision] = useState(false);
-  // Optional gender drives the founding crest only (crown / tiara). Local state mirrors the profile
-  // so the picker reflects instantly; persisted to profiles.gender (0182).
-  const [gender, setGenderLocal] = useState<"male" | "female" | null>(demo?.gender ?? (profile?.gender === "male" || profile?.gender === "female" ? profile.gender : null));
 
   const founding = Boolean(profile?.founding_member) || Boolean(demo?.founding);
-  const crest: Crest = founding ? (gender === "male" ? "crown" : gender === "female" ? "tiara" : null) : null;
   const tierLine = founding ? "FOUNDING MEMBER" : "MEMBER";
   const name = (profile?.display_name || user?.email?.split("@")[0] || "You").split(" ")[0].toUpperCase();
   const code = profile?.referral_code || "";
@@ -90,11 +84,6 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
   }, []);
   const pickFinish = (f: Finish) => { setFinish(f); haptic(HAPTIC.tap); try { localStorage.setItem("gt3-card-finish", f); } catch { /* ignore */ } };
   const saveMotto = (v: string) => { const m = v.trim().slice(0, 30) || MOTTO_DEFAULT; setMotto(m); setEditMotto(false); try { localStorage.setItem("gt3-card-motto", m); } catch { /* ignore */ } };
-  // Pick your crest — optional. Saves to the canonical profiles.gender; null clears it (no crest).
-  const setGender = async (g: "male" | "female" | null) => {
-    setGenderLocal(g); haptic(HAPTIC.tap);
-    if (supabase && user) await supabase.from("profiles").update({ gender: g }).eq("id", user.id);
-  };
   // Your vision — a one-line 5-year goal. Bounded to one short line, trimmed, saved canonically.
   const saveVision = async (v: string) => {
     const clean = v.replace(/\s+/g, " ").trim().slice(0, 48);
@@ -276,9 +265,6 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
         <div ref={tiltRef} className={`fc-tilt${pointer ? "" : " idle"}`} onPointerMove={onTilt} onPointerLeave={offTilt} onPointerCancel={offTilt}>
           <button type="button" className={`fc-card${spinning ? " spinning" : ""}`} style={{ ["--turn" as string]: `${turns * 180}deg` } as React.CSSProperties}
             onClick={flip} aria-label={`GT3 ${tierLine} card — tap to flip`}>
-            {/* Founding crest — crown / tiara — hangs off the corner and spins with the card (a child of
-                .fc-card, so it inherits the flip transform). Only when founding AND gender is set. */}
-            {crest && <img className={`fc-crest-royal ${crest}`} src={`/brand/crest-${crest}.svg`} alt="" aria-hidden />}
             {/* FRONT — the portrait, held in the frame */}
             <div className="fc-face fc-front">
               {photoUrl
@@ -337,16 +323,6 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
           <button type="button" className="fc-motto-btn" onClick={() => setEditMotto(true)}>✎ Your motto — &ldquo;{motto}&rdquo;</button>
         )}
       </div>
-
-      {/* Founding perk — wear your crest. Optional; it sets your profile and rides the card. */}
-      {founding && (
-        <div className="fc-crestpick" role="radiogroup" aria-label="Your crest">
-          <span className="fc-crestpick-l">Your crest</span>
-          <button type="button" role="radio" aria-checked={gender === "male"} className={`fc-crestbtn${gender === "male" ? " on" : ""}`} onClick={() => setGender("male")}>👑 Crown</button>
-          <button type="button" role="radio" aria-checked={gender === "female"} className={`fc-crestbtn${gender === "female" ? " on" : ""}`} onClick={() => setGender("female")}>♛ Tiara</button>
-          <button type="button" role="radio" aria-checked={gender === null} className={`fc-crestbtn${gender === null ? " on" : ""}`} onClick={() => setGender(null)}>None</button>
-        </div>
-      )}
 
       {/* photo (feeds the portrait side + the share PNG) */}
       <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onPick} />
