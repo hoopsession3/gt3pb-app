@@ -296,12 +296,14 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
       </div>
       <p className="fc-hint">{showingBack ? "Your member card" : "Your portrait"} · tap to flip · drag to tilt</p>
 
-      {/* make it theirs */}
+      {/* make it theirs — a luxury-configurator finish selector: real material swatches with a
+          polished sheen + machined edge, gold ring + check on the one that's set. */}
+      <div className="fc-fin-cap">Choose your finish</div>
       <div className="fc-finishes" role="radiogroup" aria-label="Card finish">
         {FINISHES.map((f) => (
           <button key={f.key} type="button" role="radio" aria-checked={finish === f.key}
             className={`fc-fin fin-${f.key}${finish === f.key ? " on" : ""}`} onClick={() => pickFinish(f.key)}>
-            <span className="fc-fin-sw" aria-hidden /><span>{f.label}</span>
+            <span className="fc-fin-sw" aria-hidden /><span className="fc-fin-lb">{f.label}</span>
           </button>
         ))}
       </div>

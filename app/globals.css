@@ -4822,14 +4822,27 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 .fc-hint{text-align:center;font-family:var(--mono);font-size:10px;letter-spacing:1.4px;text-transform:uppercase;color:var(--cream-m);margin:12px 0 2px}
 
 /* make it theirs — finish chips + motto */
-.fc-finishes{display:flex;gap:7px;justify-content:center;margin:12px 0 0;flex-wrap:wrap}
-.fc-fin{display:inline-flex;align-items:center;gap:7px;padding:7px 12px 7px 8px;border-radius:999px;border:1px solid var(--line2);background:transparent;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:12px;cursor:pointer;-webkit-appearance:none;appearance:none}
-.fc-fin.on{border-color:var(--gold2);color:var(--cream);background:rgba(200,166,97,.08)}
-.fc-fin-sw{width:15px;height:15px;border-radius:50%;border:1px solid rgba(255,255,255,.25)}
-.fin-gold .fc-fin-sw{background:linear-gradient(135deg,#C8A661,#8a5f22)}
-.fin-steel .fc-fin-sw{background:repeating-linear-gradient(115deg,#2c3138,#3a4048 2px,#2a2f36 4px)}
-.fin-carbon .fc-fin-sw{background:repeating-linear-gradient(45deg,#141414,#141414 2px,#242424 2px,#242424 4px)}
-.fin-redline .fc-fin-sw{background:linear-gradient(135deg,#E0453F,#7a1512)}
+/* ── FINISH SELECTOR — a luxury-configurator material picker (not a row of text pills) ── */
+.fc-fin-cap{text-align:center;margin:14px 0 9px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--cream-m);opacity:.72}
+.fc-finishes{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin:0}
+.fc-fin{display:flex;flex-direction:column;align-items:center;gap:7px;padding:0;border:none;background:transparent;cursor:pointer;-webkit-appearance:none;appearance:none}
+.fc-fin:focus-visible{outline:none}
+/* the material chip — a metal tile with a machined edge, a soft drop, and a polished sheen */
+.fc-fin-sw{position:relative;width:100%;height:42px;border-radius:11px;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,.1),0 3px 8px rgba(0,0,0,.36);transition:transform .16s ease,box-shadow .16s ease}
+.fc-fin-sw::before{content:"";position:absolute;inset:0;background:linear-gradient(118deg,transparent 32%,rgba(255,255,255,.28) 47%,transparent 62%);pointer-events:none}
+.fc-fin-sw::after{content:"✓";position:absolute;top:3px;right:4px;width:15px;height:15px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Inter';font-size:10px;font-weight:800;color:#0e0d0b;background:var(--gold2);opacity:0;transform:scale(.55);transition:opacity .16s ease,transform .16s ease;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+.fc-fin-lb{font-family:'DM Mono',monospace;font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--cream-m);transition:color .16s ease}
+/* materials — echo the real card finishes (FINISH_PAINT) */
+.fin-gold .fc-fin-sw{background:linear-gradient(140deg,#EBD292 6%,#C8A661 46%,#8a5f22 96%)}
+.fin-steel .fc-fin-sw{background:repeating-linear-gradient(116deg,rgba(255,255,255,.08),rgba(255,255,255,.08) 1px,transparent 1px,transparent 3px),linear-gradient(140deg,#6b7480,#3b414a 52%,#20242a)}
+.fin-carbon .fc-fin-sw{background:repeating-linear-gradient(45deg,rgba(255,255,255,.05),rgba(255,255,255,.05) 1px,transparent 1px,transparent 5px),repeating-linear-gradient(-45deg,rgba(255,255,255,.05),rgba(255,255,255,.05) 1px,transparent 1px,transparent 5px),linear-gradient(140deg,#242424,#141414 55%,#0d0d0d)}
+.fin-redline .fc-fin-sw{background:linear-gradient(140deg,#F58079 6%,#E0453F 46%,#7a1512 96%)}
+/* selected — the chip lifts, rings gold, checks; the label goes gold */
+.fc-fin.on .fc-fin-sw{transform:translateY(-2px);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14),0 0 0 2px var(--gold2),0 7px 16px rgba(0,0,0,.46)}
+.fc-fin.on .fc-fin-sw::after{opacity:1;transform:scale(1)}
+.fc-fin.on .fc-fin-lb{color:var(--gold2);font-weight:600}
+.fc-fin:focus-visible .fc-fin-sw{box-shadow:inset 0 0 0 1px rgba(255,255,255,.14),0 0 0 2px var(--gold2)}
+.fc-fin:active .fc-fin-sw{transform:translateY(0) scale(.97)}
 .fc-motto-edit{display:flex;justify-content:center;margin:10px 0 2px}
 .fc-motto-btn{font-family:'Inter';font-size:12.5px;color:var(--gold2);background:transparent;border:none;cursor:pointer;padding:4px 0;-webkit-appearance:none;appearance:none}
 .fc-motto-edit .auth-input{max-width:280px;text-align:center}
