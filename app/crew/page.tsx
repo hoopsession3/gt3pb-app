@@ -2789,7 +2789,7 @@ function LiveControl({ compact = false, manage = false }: { compact?: boolean; m
             </div>
             {live?.is_live
               ? <button className="adm-btn ghost" onClick={pause}>Go offline</button>
-              : (active[0] && <button className="adm-btn primary" onClick={() => goLive(active[0].id)}>Go live · {active[0].name || "next stop"}</button>)}
+              : (active[0] && <button className="adm-btn primary liveinst-go" onClick={() => goLive(active[0].id)}>Go live</button>)}
           </div>
           {live?.is_live ? (
             <div className="liveinst-row">

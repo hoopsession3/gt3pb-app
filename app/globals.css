@@ -3255,7 +3255,14 @@ select.note-in{-webkit-appearance:none;appearance:none}
 
 /* YOUR PACK — customer's own reservations on /reserve: track, change, cancel */
 .mypacks{margin:0 0 14px;margin-bottom:22px}
+.mypacks.collapsed{margin-bottom:14px}
 .mypacks-h{font-family:'Inter';font-weight:600;letter-spacing:2px;text-transform:uppercase;font-size:11px;color:var(--gold);margin-bottom:8px}
+/* Collapsed summary row — same eyebrow typography, now a full-width tappable header that keeps the
+   pack stack out of the way of the size picker. em carries the count in the muted body tone. */
+.mypacks-toggle{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;
+  -webkit-appearance:none;appearance:none;background:none;border:none;text-align:left;cursor:pointer;padding:2px 0}
+.mypacks-toggle em{font-style:normal;text-transform:none;letter-spacing:normal;font-weight:500;color:var(--cream-m)}
+.mypacks-car{color:var(--cream-m);font-size:12px;flex:0 0 auto}
 .mypack{border:1px solid var(--line2);border-radius:14px;padding:13px 14px;margin-bottom:10px;background:rgba(245,241,232,.04);border-left:3px solid var(--line2);position:relative}
 .mypack.done{opacity:.75}
 /* ── Pack cards: payment state is a FLAG, not a whisper ──
@@ -3414,8 +3421,13 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .liveinst{background:var(--char2);border:1px solid var(--line2);border-radius:16px;padding:2px 14px;margin:0 0 14px}
 .liveinst.on{border-color:rgba(127,168,107,.5);box-shadow:0 0 34px -16px rgba(127,168,107,.55)}
 .liveinst-row{display:flex;align-items:center;gap:11px;padding:11px 0;border-top:1px solid var(--line)}
-.liveinst-row.main{border-top:none}
-.liveinst-state{flex:1;min-width:0}
+/* wrap-safe: .adm-btn is flex:0 0 auto, so a long primary action used to overrun the OFFLINE/next
+   state text instead of yielding. row-gap lets the button drop to its own line before it ever
+   overlaps; the state keeps ellipsis. (The stop name lives in the "next ·" line — the button no
+   longer repeats it.) */
+.liveinst-row.main{border-top:none;flex-wrap:wrap;row-gap:9px}
+.liveinst-go{flex:0 0 auto;margin-left:auto}
+.liveinst-state{flex:1 1 auto;min-width:0}
 .liveinst{color:var(--cream)}
 .liveinst-state b{display:block;font-family:'DM Mono',ui-monospace,monospace;font-size:13px;letter-spacing:.16em}
 .liveinst-state span{display:block;font-size:12px;color:var(--cream-m);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
