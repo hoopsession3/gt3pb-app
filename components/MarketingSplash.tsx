@@ -133,10 +133,13 @@ export default function MarketingSplash() {
       <div className="spl-finale" aria-hidden="true">
         <img className="spl-three" src="/brand/gt3-3.png" alt="" />
       </div>
-      {/* …after the 3, a soft-white word-art welcome breathes in… */}
-      <div className="spl-welcome" aria-hidden="true">Welcome to the bar</div>
-      {/* …then a red signature writes itself in — "Grow Your 3mpire", the 3 the real GT3 mark — and fades to home. */}
-      <div className="spl-sign" aria-hidden="true">Grow Your <img className="spl-sign-3" src="/brand/gt3-3.png" alt="" />mpire</div>
+      {/* …then ONE composed lockup resolves below the 3: the welcome over the signature, joined by a
+          gold hairline — it holds and fades as a single title card, not two piecemeal reveals. */}
+      <div className="spl-lockup" aria-hidden="true">
+        <span className="spl-kicker">Welcome to the bar</span>
+        <span className="spl-rule" />
+        <span className="spl-sign">Grow Your <img className="spl-sign-3" src="/brand/gt3-3.png" alt="" />mpire</span>
+      </div>
     </div>
   );
 }
