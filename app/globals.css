@@ -4213,10 +4213,10 @@ button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:
 .spl-scrim.spl-smoke .spl-finale{animation:spl-three-form 10s ease forwards}
 .spl-scrim.spl-smoke .spl-three{animation:spl-three-glow 3s ease-in-out 4.4s infinite}
 /* After the "3" forms, a soft-white word-art welcome breathes in, holds a beat, then dissolves to home. */
-.spl-welcome{position:absolute;left:0;right:0;top:61%;text-align:center;font-family:'Fraunces',serif;font-style:italic;font-weight:400;font-size:clamp(19px,5.6vw,29px);letter-spacing:.015em;color:#fff;opacity:0;z-index:2;pointer-events:none;text-shadow:0 0 26px rgba(255,255,255,.22)}
-.spl-scrim.spl-smoke .spl-welcome{animation:spl-welcome 3.6s ease 6.6s forwards}
-@keyframes spl-welcome{0%{opacity:0;filter:blur(9px);transform:translateY(10px)}38%{opacity:1;filter:blur(0);transform:translateY(0)}82%{opacity:.95}100%{opacity:0;filter:blur(4px)}}
-.spl-scrim.spl-smoke.spl-fast .spl-welcome{animation-delay:1.3s;animation-duration:1.5s}
+.spl-welcome{position:absolute;left:0;right:0;top:64%;text-align:center;font-family:'Fraunces',serif;font-style:italic;font-weight:400;font-size:clamp(21px,6vw,31px);letter-spacing:.005em;color:#F6F1E7;opacity:0;z-index:3;pointer-events:none}
+.spl-scrim.spl-smoke .spl-welcome{animation:spl-welcome 4s cubic-bezier(.2,.7,.2,1) 6.9s forwards}
+@keyframes spl-welcome{0%{opacity:0;transform:translateY(16px) scale(.985)}32%{opacity:1;transform:translateY(0) scale(1)}76%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(-5px)}}
+.spl-scrim.spl-smoke.spl-fast .spl-welcome{animation-delay:1.35s;animation-duration:1.5s}
 
 /* Tap to bypass — the same smoke → "3" story, condensed: a quick, graceful exit instead of the slow read. */
 .spl-scrim.spl-smoke.spl-fast{animation-duration:2.6s}

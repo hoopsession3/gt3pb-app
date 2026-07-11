@@ -1,56 +1,45 @@
-<svg width="134" height="116" viewBox="0 0 134 116" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Founding member crown, three red pavé diamonds">
+<svg width="122" height="86" viewBox="0 0 122 86" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Founding member crown">
   <defs>
-    <linearGradient id="goldA" x1="0" y1="0" x2=".35" y2="1">
-      <stop offset="0" stop-color="#FFF6D6"/><stop offset=".34" stop-color="#E8C979"/><stop offset=".68" stop-color="#C49A4A"/><stop offset="1" stop-color="#7E5C1E"/>
+    <linearGradient id="gold" x1="0" y1="0" x2=".3" y2="1">
+      <stop offset="0" stop-color="#FBEEC6"/><stop offset=".3" stop-color="#E4C070"/><stop offset=".62" stop-color="#B98F3F"/><stop offset="1" stop-color="#6E4F17"/>
     </linearGradient>
-    <linearGradient id="goldShadow" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#B8934E"/><stop offset="1" stop-color="#5F4415"/>
+    <linearGradient id="goldEdge" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8A6A28"/><stop offset="1" stop-color="#4E3910"/>
     </linearGradient>
-    <radialGradient id="dia" cx="38%" cy="28%" r="82%">
-      <stop offset="0" stop-color="#FFD7D3"/><stop offset=".34" stop-color="#E64840"/><stop offset=".78" stop-color="#B8241F"/><stop offset="1" stop-color="#7E1512"/>
+    <radialGradient id="ruby" cx="38%" cy="30%" r="80%">
+      <stop offset="0" stop-color="#FFC9C4"/><stop offset=".38" stop-color="#D93A34"/><stop offset=".8" stop-color="#9E1C18"/><stop offset="1" stop-color="#6E1210"/>
     </radialGradient>
-    <linearGradient id="shine" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".85"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    <linearGradient id="sweep" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".8"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
     </linearGradient>
     <style>
-      .tw{transform-box:fill-box;transform-origin:center;animation:tw 2s ease-in-out infinite}
-      .tw.b{animation-delay:.66s}.tw.c{animation-delay:1.32s}
-      @keyframes tw{0%,100%{opacity:.35;transform:scale(.7)}50%{opacity:1;transform:scale(1.2)}}
-      .glint{animation:glint 3.4s ease-in-out infinite}
-      @keyframes glint{0%,72%,100%{opacity:0}84%{opacity:.75}}
+      .g{transform-box:fill-box;transform-origin:center;animation:g 2.6s ease-in-out infinite}
+      .g.b{animation-delay:.9s}.g.c{animation-delay:1.8s}
+      @keyframes g{0%,100%{opacity:.45}50%{opacity:1}}
+      .sw{animation:sw 4s ease-in-out infinite}
+      @keyframes sw{0%,74%,100%{opacity:0}86%{opacity:.7}}
     </style>
   </defs>
 
-  <!-- crown body (5 points) with a dimensional gold face -->
-  <path d="M12 86 L12 44 L39 66 L66 22 L93 66 L120 44 L120 86 Z" fill="url(#goldA)" stroke="#6b4e18" stroke-width="2.2" stroke-linejoin="round"/>
-  <path d="M66 22 L93 66 L120 44 L120 86 L66 86 Z" fill="url(#goldShadow)" opacity=".42"/>
-  <path d="M12 44 L39 66 L66 22 L93 66 L120 44" fill="none" stroke="#FFF8E2" stroke-width="1.7" stroke-linejoin="round" opacity=".85"/>
-  <!-- base band -->
-  <rect x="12" y="82" width="108" height="24" rx="6" fill="url(#goldA)" stroke="#6b4e18" stroke-width="2.2"/>
-  <rect x="14" y="83" width="104" height="6" rx="3" fill="#FFF8E2" opacity=".4"/>
-  <g fill="#FFF8E2" opacity=".55"><circle cx="24" cy="99" r="1.3"/><circle cx="33" cy="99" r="1.3"/><circle cx="42" cy="99" r="1.3"/><circle cx="90" cy="99" r="1.3"/><circle cx="99" cy="99" r="1.3"/><circle cx="108" cy="99" r="1.3"/></g>
+  <!-- three-point regal crown (three, for GT3) — slim, metallic, refined -->
+  <path d="M14 64 L21 33 L39 53 L61 22 L83 53 L101 33 L108 64 Z" fill="url(#gold)" stroke="url(#goldEdge)" stroke-width="1.4" stroke-linejoin="round"/>
+  <!-- right-side shadow for a little dimension -->
+  <path d="M61 22 L83 53 L101 33 L108 64 L61 64 Z" fill="url(#goldEdge)" opacity=".28"/>
+  <!-- bright top rim -->
+  <path d="M21 33 L39 53 L61 22 L83 53 L101 33" fill="none" stroke="#FFF7E0" stroke-width="1" opacity=".75" stroke-linejoin="round"/>
+  <!-- fine band with a beaded lower edge -->
+  <rect x="14" y="61" width="94" height="15" rx="4" fill="url(#gold)" stroke="url(#goldEdge)" stroke-width="1.4"/>
+  <rect x="16" y="62.5" width="90" height="4" rx="2" fill="#FFF7E0" opacity=".35"/>
+  <g fill="#6E4F17" opacity=".45"><circle cx="22" cy="75" r="1"/><circle cx="31" cy="75" r="1"/><circle cx="40" cy="75" r="1"/><circle cx="49" cy="75" r="1"/><circle cx="61" cy="75" r="1"/><circle cx="73" cy="75" r="1"/><circle cx="82" cy="75" r="1"/><circle cx="91" cy="75" r="1"/><circle cx="100" cy="75" r="1"/></g>
+  <!-- slim finials on each of the 3 peaks -->
+  <circle cx="21" cy="33" r="3" fill="url(#gold)" stroke="url(#goldEdge)" stroke-width="1"/>
+  <circle cx="61" cy="22" r="3.6" fill="url(#gold)" stroke="url(#goldEdge)" stroke-width="1"/>
+  <circle cx="101" cy="33" r="3" fill="url(#gold)" stroke="url(#goldEdge)" stroke-width="1"/>
 
-  <!-- ═ THE 3 RED PAVÉ DIAMONDS ═ pavé halo + brilliant gem + facets + a live white sparkle -->
-  <!-- left -->
-  <g><g fill="#F4A9A4" opacity=".95"><circle cx="37" cy="66" r="1.4"/><circle cx="30" cy="72" r="1.4"/><circle cx="44" cy="72" r="1.4"/><circle cx="30" cy="80" r="1.4"/><circle cx="44" cy="80" r="1.4"/><circle cx="37" cy="86" r="1.4"/></g>
-    <circle cx="37" cy="76" r="8" fill="url(#dia)" stroke="#8E1B18" stroke-width=".9"/>
-    <polygon points="37,72.4 40.1,74.2 40.1,77.8 37,79.6 33.9,77.8 33.9,74.2" fill="#FFE0DD" opacity=".7"/>
-    <g stroke="#FFB4AF" stroke-width=".6" opacity=".75"><line x1="37" y1="68" x2="37" y2="72.4"/><line x1="44" y1="76" x2="40.1" y2="76"/><line x1="30" y1="76" x2="33.9" y2="76"/></g>
-    <path class="tw" d="M32.5 71.5 l.9 2.2 2.2.9 -2.2.9 -.9 2.2 -.9-2.2 -2.2-.9 2.2-.9z" fill="#fff"/></g>
-  <!-- center (bigger) -->
-  <g><g fill="#F4A9A4" opacity=".95"><circle cx="66" cy="60" r="1.6"/><circle cx="57" cy="67" r="1.6"/><circle cx="75" cy="67" r="1.6"/><circle cx="56" cy="77" r="1.6"/><circle cx="76" cy="77" r="1.6"/><circle cx="66" cy="86" r="1.6"/></g>
-    <circle cx="66" cy="73" r="11" fill="url(#dia)" stroke="#8E1B18" stroke-width="1.1"/>
-    <polygon points="66,68 70.4,70.5 70.4,75.5 66,78 61.6,75.5 61.6,70.5" fill="#FFE0DD" opacity=".72"/>
-    <g stroke="#FFB4AF" stroke-width=".7" opacity=".78"><line x1="66" y1="62" x2="66" y2="68"/><line x1="77" y1="73" x2="70.4" y2="73"/><line x1="55" y1="73" x2="61.6" y2="73"/><line x1="58.5" y1="65.5" x2="61.6" y2="70.5"/><line x1="73.5" y1="65.5" x2="70.4" y2="70.5"/></g>
-    <path class="tw b" d="M61 66.5 l1.2 2.8 2.8 1.2 -2.8 1.2 -1.2 2.8 -1.2-2.8 -2.8-1.2 2.8-1.2z" fill="#fff"/></g>
-  <!-- right -->
-  <g><g fill="#F4A9A4" opacity=".95"><circle cx="97" cy="66" r="1.4"/><circle cx="90" cy="72" r="1.4"/><circle cx="104" cy="72" r="1.4"/><circle cx="90" cy="80" r="1.4"/><circle cx="104" cy="80" r="1.4"/><circle cx="97" cy="86" r="1.4"/></g>
-    <circle cx="97" cy="76" r="8" fill="url(#dia)" stroke="#8E1B18" stroke-width=".9"/>
-    <polygon points="97,72.4 100.1,74.2 100.1,77.8 97,79.6 93.9,77.8 93.9,74.2" fill="#FFE0DD" opacity=".7"/>
-    <g stroke="#FFB4AF" stroke-width=".6" opacity=".75"><line x1="97" y1="68" x2="97" y2="72.4"/><line x1="104" y1="76" x2="100.1" y2="76"/><line x1="90" y1="76" x2="93.9" y2="76"/></g>
-    <path class="tw c" d="M92.5 71.5 l.9 2.2 2.2.9 -2.2.9 -.9 2.2 -.9-2.2 -2.2-.9 2.2-.9z" fill="#fff"/></g>
+  <!-- 3 faceted red gems set into the crown, each with a live glint -->
+  <g><path d="M31 47 l5 3 -5 6 -5-6z" fill="url(#ruby)" stroke="#7E1512" stroke-width=".5"/><path d="M31 47 l5 3 -5 1.6 -5-1.6z" fill="#FFD2CE" opacity=".55"/><circle class="g" cx="29.4" cy="48.4" r="1.1" fill="#fff"/></g>
+  <g><path d="M61 40 l6.5 4 -6.5 8 -6.5-8z" fill="url(#ruby)" stroke="#7E1512" stroke-width=".6"/><path d="M61 40 l6.5 4 -6.5 2 -6.5-2z" fill="#FFD2CE" opacity=".55"/><circle class="g b" cx="58.8" cy="41.6" r="1.4" fill="#fff"/></g>
+  <g><path d="M91 47 l5 3 -5 6 -5-6z" fill="url(#ruby)" stroke="#7E1512" stroke-width=".5"/><path d="M91 47 l5 3 -5 1.6 -5-1.6z" fill="#FFD2CE" opacity=".55"/><circle class="g c" cx="89.4" cy="48.4" r="1.1" fill="#fff"/></g>
 
-  <!-- point tips + a sweeping glint -->
-  <circle cx="12" cy="44" r="4.5" fill="#FFF8E2"/><circle cx="66" cy="22" r="5.5" fill="#FFF8E2"/><circle cx="120" cy="44" r="4.5" fill="#FFF8E2"/>
-  <rect class="glint" x="4" y="18" width="26" height="96" fill="url(#shine)" transform="skewX(-18)"/>
+  <rect class="sw" x="2" y="14" width="22" height="76" fill="url(#sweep)" transform="skewX(-16)"/>
 </svg>
