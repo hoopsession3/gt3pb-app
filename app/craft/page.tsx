@@ -4,16 +4,43 @@ import { useRouter } from "next/navigation";
 import AccountPill from "@/components/AccountPill";
 import Watermark from "@/components/Watermark";
 import Gt3Mark from "@/components/Gt3Mark";
+import { useSiteCopy } from "@/lib/copy";
 
-// OUR CRAFT — the process story. The owner's mandate: "explaining our process is important, the how
-// we do it, perfectly design-crafted." Coffee and cocoa are powerful plants that reward care; the
-// brand's edge is the care most don't practice. Every claim here lives in the ONE defensible
-// register — process + materials truth (what we source, test, and touch it with) — never a
-// body-outcome promise. Retired from this page on purpose: "detox," "toxin-free," "low-acid,"
-// "mold-free," and any "gene expression" claim. The caffeine molecule is a factual chemical
-// diagram (allowed), not the brand mark.
+// OUR CRAFT — the education page, by purpose. Not just coffee & cocoa: every menu ingredient, grouped
+// by what it's FOR — Activation, Hydration, Rebuild/Fuel — in confident, fact-forward GT3 voice ("your
+// body runs on the same fuel; here's what's in the cup and what it does"). Bold, but factual: we state
+// composition + generally-recognized, sourced nutrition properties and NEVER cross into disease/cure/
+// detox/allergen-safety claims. EVERY line is owner-editable via site_copy (useSiteCopy). Ingredient
+// blocks are one "Name — fact" per line, edited as a block. The caffeine molecule is factual chemistry.
+
+// Split a "Name — fact\nName — fact" block into rows (em-dash separates name from its line).
+function ings(block: string): { n: string; d: string }[] {
+  return block.split("\n").map((l) => l.trim()).filter(Boolean).map((l) => {
+    const i = l.indexOf(" — ");
+    return i > 0 ? { n: l.slice(0, i), d: l.slice(i + 3) } : { n: "", d: l };
+  });
+}
+
 export default function CraftScreen() {
   const router = useRouter();
+  const t = useSiteCopy();
+
+  const Pillar = ({ k }: { k: "act" | "hyd" | "reb" }) => (
+    <div className="craft-sec">
+      <span className="craft-sec-n">{t(`craft.${k}_label`)}</span>
+      <h2 className="craft-sec-h">{t(`craft.${k}_title`)}</h2>
+      <p className="craft-body">{t(`craft.${k}_intro`)}</p>
+      <ul className="craft-ings">
+        {ings(t(`craft.${k}_items`)).map((it, i) => (
+          <li key={i} className="craft-ing">
+            <span className="craft-ing-dot" aria-hidden />
+            <div className="craft-ing-x">{it.n && <b>{it.n}</b>}<p>{it.d}</p></div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+
   return (
     <section className="screen craft" id="s-craft">
       <Watermark variant="landing" />
@@ -27,117 +54,40 @@ export default function CraftScreen() {
 
       {/* HERO — art & chemistry, the molecule */}
       <header className="craft-hero">
-        <span className="craft-eye">Our Craft · The How</span>
-        <h1 className="craft-h1">We practice <i>art.</i><br />And <i>chemistry.</i></h1>
-        <p className="craft-lede">
-          Coffee and cocoa are powerful plants. Rushed, they carry what plants carry. Treated as a
-          craft — sourced by origin, drawn cold, poured into glass — they give you the good and
-          little else. That care is an art most don&rsquo;t practice. We built the bar around it.
-        </p>
+        <span className="craft-eye">{t("craft.eye")}</span>
+        <h1 className="craft-h1">{t("craft.h1_l1")} <i>{t("craft.h1_em1")}</i><br />{t("craft.h1_l2")} <i>{t("craft.h1_em2")}</i></h1>
+        <p className="craft-lede">{t("craft.lede")}</p>
         <div className="craft-mol">
           <img src="/brand/caffeine-gt3.svg" alt="The caffeine molecule — a purine ring with three methyl groups, the three 3s of GT3" />
-          <span className="craft-mol-cap">Caffeine · three methyls, three 3s</span>
+          <span className="craft-mol-cap">{t("craft.mol_cap")}</span>
         </div>
       </header>
 
-      {/* 01 — THE STANDARD (animal-based-informed) */}
-      <div className="craft-sec">
-        <span className="craft-sec-n">01 · The Standard</span>
-        <h2 className="craft-sec-h">Keep the good. Introduce nothing.</h2>
-        <p className="craft-body">
-          In the animal-based world, coffee and cocoa sit on the <i>be-careful</i> list — they&rsquo;re
-          plants, and plants carry plant-defense compounds. We don&rsquo;t pretend that away. We do the
-          work that earns them a place in your day: careful origin sourcing, testing, low-heat
-          extraction, and materials that add nothing. Care, not shortcuts. The concerns are real —
-          so is the craft that answers them.
-        </p>
-      </div>
+      {/* PHILOSOPHY — the same fuel */}
+      <p className="craft-fuel">{t("craft.fuel")}</p>
 
-      {/* 02 — THE PROCESS (a real sequence → numbered) */}
-      <div className="craft-sec">
-        <span className="craft-sec-n">02 · The Process</span>
-        <h2 className="craft-sec-h">The how, step by step.</h2>
-        <ol className="craft-steps">
-          <li className="craft-step">
-            <span className="craft-step-n">1</span>
-            <div className="craft-step-x">
-              <b>Sourced by origin.</b>
-              <p>A plant draws what its soil and drying give it — so origin is the first lever. We
-              choose careful producers and test to keep the cup clean and well within accepted
-              limits. Not a promise of zero; a promise of <i>watched</i>.</p>
-            </div>
-          </li>
-          <li className="craft-step">
-            <span className="craft-step-n">2</span>
-            <div className="craft-step-x">
-              <b>Drawn cold.</b>
-              <p>Cold-extracted — steeped slow in cool water for hours, never rushed with heat. The
-              result is smoother and less bitter: the coffee, unhurried, giving its best character
-              instead of its harshest.</p>
-            </div>
-          </li>
-          <li className="craft-step">
-            <span className="craft-step-n">3</span>
-            <div className="craft-step-x">
-              <b>Poured into glass.</b>
-              <p>Glass and food-grade stainless at every point the coffee touches — inert by nature,
-              so nothing migrates in: no BPA, no BPS, no plastic plasticizers. We control what&rsquo;s
-              <i>in</i> the bottle by controlling what it <i>touches</i>.</p>
-            </div>
-          </li>
-          <li className="craft-step">
-            <span className="craft-step-n">4</span>
-            <div className="craft-step-x">
-              <b>Made the moment you order.</b>
-              <p>Nothing sits, nothing&rsquo;s preserved into shelf-life. It&rsquo;s fresh because it&rsquo;s
-              built in front of you — the last, unfakeable step of the craft.</p>
-            </div>
-          </li>
-        </ol>
-      </div>
+      {/* THE THREE PILLARS — every ingredient, by purpose */}
+      <Pillar k="act" />
+      <Pillar k="hyd" />
+      <Pillar k="reb" />
 
-      {/* 03 — EVERY CONTACT POINT (materials, incl. the honest closures nuance) */}
+      {/* THE MARK (the molecule = GT3) */}
       <div className="craft-sec">
-        <span className="craft-sec-n">03 · Every Contact Point</span>
-        <h2 className="craft-sec-h">Every point it touches, questioned.</h2>
-        <p className="craft-body">
-          Glass earns its place because it&rsquo;s inert — it doesn&rsquo;t shed the plasticizers or
-          microplastics associated with plastic contact surfaces. But we don&rsquo;t stop at the bottle.
-          The cap, the seal, every surface between the coffee and your hand gets the same single
-          question: <i>does this introduce anything?</i> If it does, it&rsquo;s out. Glass earns the
-          win — the closures have to earn it too. That&rsquo;s the whole discipline: chosen materials,
-          not hoped-for outcomes.
-        </p>
-        <div className="craft-mats">
-          <span className="craft-mat">Glass</span>
-          <span className="craft-mat">Food-grade stainless</span>
-          <span className="craft-mat">Inert closures</span>
-          <span className="craft-mat">No plastic contact</span>
-        </div>
-      </div>
-
-      {/* 04 — THE MARK (the molecule = GT3) */}
-      <div className="craft-sec">
-        <span className="craft-sec-n">04 · The Mark</span>
-        <h2 className="craft-sec-h">Three methyls. Three 3s. GT3.</h2>
-        <p className="craft-body">
-          Caffeine is one elegant molecule — a purine ring with three methyl groups at its nearest
-          points. Three 3s, written into the chemistry itself. We didn&rsquo;t invent the coincidence;
-          it&rsquo;s the structure. It&rsquo;s on the shirt. It&rsquo;s on the truck. It&rsquo;s the bar. Art meets
-          chemistry, and they were the same thing all along.
-        </p>
+        <span className="craft-sec-n">{t("craft.mark_label")}</span>
+        <h2 className="craft-sec-h">{t("craft.mark_title")}</h2>
+        <p className="craft-body">{t("craft.mark_body")}</p>
       </div>
 
       {/* CLOSE */}
       <div className="craft-close">
-        <p className="craft-close-line">Perfectly design-crafted.</p>
+        <p className="craft-close-line">{t("craft.close_line")}</p>
         <div className="craft-cta">
-          <button className="craft-cta-b" onClick={() => router.push("/menu")}>See the menu →</button>
-          <button className="craft-cta-b ghost" onClick={() => router.push("/reserve")}>Reserve a drop</button>
+          <button className="craft-cta-b" onClick={() => router.push("/menu")}>{t("craft.cta_menu")}</button>
+          <button className="craft-cta-b ghost" onClick={() => router.push("/reserve")}>{t("craft.cta_reserve")}</button>
         </div>
       </div>
 
-      <div className="signoff">Pure Signal, No Noise.</div>
+      <div className="signoff">{t("craft.signoff")}</div>
     </section>
   );
 }
