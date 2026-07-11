@@ -1,0 +1,22 @@
+<svg width="120" height="104" viewBox="0 0 120 104" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Founding member crown">
+  <defs>
+    <linearGradient id="cg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FBE9BF"/><stop offset=".42" stop-color="#D8B268"/><stop offset="1" stop-color="#8F6A22"/>
+    </linearGradient>
+    <radialGradient id="cj" cx="40%" cy="35%" r="70%">
+      <stop offset="0" stop-color="#E86A64"/><stop offset="1" stop-color="#8E1B18"/>
+    </radialGradient>
+  </defs>
+  <!-- five-point crown -->
+  <path d="M10 82 L10 40 L33 62 L60 22 L87 62 L110 40 L110 82 Z"
+        fill="url(#cg)" stroke="#6f5119" stroke-width="2.4" stroke-linejoin="round"/>
+  <!-- base band -->
+  <rect x="10" y="78" width="100" height="20" rx="5" fill="url(#cg)" stroke="#6f5119" stroke-width="2.4"/>
+  <line x1="16" y1="88" x2="104" y2="88" stroke="#8F6A22" stroke-width="1.2" opacity=".6"/>
+  <!-- jewels -->
+  <circle cx="60" cy="50" r="8" fill="url(#cj)" stroke="#FBEAC0" stroke-width="1.6"/>
+  <circle cx="33" cy="70" r="5" fill="url(#cj)"/><circle cx="87" cy="70" r="5" fill="url(#cj)"/>
+  <circle cx="27" cy="88" r="3" fill="url(#cj)"/><circle cx="60" cy="88" r="3.4" fill="url(#cj)"/><circle cx="93" cy="88" r="3" fill="url(#cj)"/>
+  <!-- point tips -->
+  <circle cx="10" cy="40" r="5" fill="#FBEAC0"/><circle cx="60" cy="22" r="6" fill="#FBEAC0"/><circle cx="110" cy="40" r="5" fill="#FBEAC0"/>
+</svg>

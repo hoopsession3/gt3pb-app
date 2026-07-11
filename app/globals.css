@@ -4730,7 +4730,24 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 .fc-motto-btn{font-family:'Inter';font-size:12.5px;color:var(--gold2);background:transparent;border:none;cursor:pointer;padding:4px 0;-webkit-appearance:none;appearance:none}
 .fc-motto-edit .auth-input{max-width:280px;text-align:center}
 
+/* ═══ FOUNDING MEMBER — a crest that rides the card, a warmer glow, and a thank-you that rolls in. ═══ */
+/* The crest hangs off the top-right corner and, being a child of .fc-card, spins with the flip. */
+.fc-crest-royal{position:absolute;top:-32px;right:-16px;width:78px;height:auto;z-index:8;transform:rotate(13deg);filter:drop-shadow(0 7px 13px rgba(0,0,0,.55));pointer-events:none;backface-visibility:visible}
+.fc-crest-royal.tiara{width:92px;top:-24px;right:calc(50% - 46px);transform:rotate(0deg)}
+/* founding gets a richer gold aura + edge — its card should read as special at a glance */
+.fc-scene.founding .fc-face{box-shadow:0 26px 60px -12px rgba(0,0,0,.75),0 0 34px -6px rgba(200,166,97,.4),0 0 0 1px var(--fc-edge2),inset 0 0 0 1px var(--fc-edge),inset 0 0 0 5px rgba(0,0,0,.25),inset 0 0 0 6px var(--fc-edge2)}
+/* the thank-you banner — rolls in with a soft 3D tip */
+.fc-founding{margin:2px 0 12px;text-align:center;font-family:'Fraunces',serif;font-style:italic;font-size:13.5px;line-height:1.4;color:#f2e2bb;padding:9px 15px;border-radius:14px;border:1px solid rgba(200,166,97,.4);background:linear-gradient(180deg,rgba(200,166,97,.14),rgba(200,166,97,.05));transform-origin:top center;animation:fcFoundingRoll .8s cubic-bezier(.2,.85,.2,1)}
+.fc-founding b{font-style:normal;font-weight:700;color:var(--gold2)}
+@keyframes fcFoundingRoll{0%{opacity:0;transform:translateY(-16px) rotateX(-55deg)}60%{opacity:1}100%{opacity:1;transform:none}}
+/* crest picker */
+.fc-crestpick{display:flex;align-items:center;gap:7px;justify-content:center;flex-wrap:wrap;margin:12px 0 0}
+.fc-crestpick-l{font-family:var(--mono);font-size:10px;letter-spacing:1.8px;text-transform:uppercase;color:var(--cream-m);margin-right:2px}
+.fc-crestbtn{font-family:'Inter';font-weight:600;font-size:12.5px;padding:7px 12px;border-radius:999px;border:1px solid var(--line2);background:transparent;color:var(--cream-m);cursor:pointer;-webkit-appearance:none;appearance:none}
+.fc-crestbtn.on{border-color:var(--gold2);color:var(--cream);background:rgba(200,166,97,.1)}
+
 @media (prefers-reduced-motion:reduce){
+  .fc-founding{animation:none}
   .fc-tilt.idle{animation:none}
   .fc-card{transition:transform .01s}
   .fc-card.spinning::after{animation:none}
