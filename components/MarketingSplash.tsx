@@ -116,16 +116,18 @@ export default function MarketingSplash() {
   if (!show) return null;
   return (
     <div className={`spl-scrim${dissolving ? " spl-smoke" : ""}${fast ? " spl-fast" : ""}`} role="dialog" aria-modal="true" aria-label="A note from GT3" onClick={bypass}>
-      <button type="button" className="spl-skip" onClick={close}>Skip ›</button>
+      <button type="button" className="spl-skip" onClick={(e) => { e.stopPropagation(); close(); }}>Skip ›</button>
 
       {/* Smoke haze — drifting plumes that bloom, then gather toward center where the 3 forms. */}
       <div className="spl-haze" aria-hidden="true"><i /><i /><i /></div>
 
-      <div className="spl-wrap" onClick={(e) => e.stopPropagation()}>
+      {/* No tap-guard on the copy: tapping ANYWHERE on the ad bursts it into smoke (the scrim's
+          bypass). Only the CTA and Skip stop the bubble, so they do their own thing instead. */}
+      <div className="spl-wrap">
         <div className="spl-kick">Sunday delivery · Greenville</div>
         <h1 className="spl-head">{copy.head1}{copy.head2 ? <><br />{copy.head2}</> : null}</h1>
         <p className="spl-sub">{copy.sub} <b>From <span className="spl-price">$8</span> a bottle.</b></p>
-        <button type="button" className="spl-cta" onClick={go}>{copy.cta}</button>
+        <button type="button" className="spl-cta" onClick={(e) => { e.stopPropagation(); go(); }}>{copy.cta}</button>
         <div className="spl-foot">Mix &amp; match · free delivery at 24+</div>
       </div>
 
