@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useApp } from "@/components/AppProvider";
 import Sheet from "@/components/Sheet";
 import { useOperatorSection } from "./OperatorNav";
 import { CAL_CAT, CONTENT_STATUS as STC } from "@/lib/calendarTokens";
@@ -24,6 +25,7 @@ const key = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart
 
 export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: string) => void; onCreate: (iso: string, eventId?: string | null) => void }) {
   const { setSection } = useOperatorSection();
+  const { toast } = useApp();
   const goToCompany = () => setSection("plan");
   const now = new Date();
   const [cursor, setCursor] = useState(() => new Date(now.getFullYear(), now.getMonth(), now.getDate())); // always open on today
@@ -38,26 +40,48 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
   const dragId = useRef<string | null>(null);
 
   const days = useMemo(() => {
-    const start = new Date(cursor); start.setDate(1 - start.getDay());
+    // Anchor the grid to the FIRST of the cursor's month, then back up to that week's Sunday. Using
+    // `cursor` directly broke the current month: on first open cursor is TODAY (e.g. the 11th), so
+    // `setDate(1 - getDay())` measured off the 11th and started the grid days early — every cell
+    // slid columns and "today" landed under the wrong weekday (Sat 7/11 showing as Tuesday). Months
+    // reached via the arrows set cursor to the 1st, which is why only the opening month was off.
+    const start = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+    start.setDate(1 - start.getDay());
     return Array.from({ length: 42 }, (_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return d; });
   }, [cursor]);
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    const from = key(days[0]), to = key(days[41]);
-    const [c, e, b] = await Promise.all([
-      supabase.from("content_items").select("id, title, status, channel, scheduled_for, event_id").not("scheduled_for", "is", null).gte("scheduled_for", `${from}T00:00:00`).lte("scheduled_for", `${to}T23:59:59`),
-      supabase.from("events").select("id, title, day, day_label").is("archived_at", null).gte("day", from).lte("day", to),
-      supabase.from("content_items").select("id, title, status, channel, scheduled_for, event_id").is("scheduled_for", null).neq("status", "published").order("updated_at", { ascending: false }).limit(24),
-    ]);
-    setContent((c.data as CItem[]) ?? []); setEvents((e.data as EvItem[]) ?? []); setBacklog((b.data as CItem[]) ?? []);
+    // scheduled_for is timestamptz (UTC). Bound the query by the REAL UTC instants of the local grid
+    // span — a naive "YYYY-MM-DDT00:00:00" bound is interpreted as UTC by PostgREST, which silently
+    // drops posts scheduled late on the last local day for behind-UTC zones (Eastern). events.day is
+    // a plain date, so it keys off the local calendar strings directly.
+    const fromKey = key(days[0]), toKey = key(days[41]);
+    const fromISO = days[0].toISOString();
+    const toISO = new Date(days[41].getFullYear(), days[41].getMonth(), days[41].getDate() + 1).toISOString();
+    // WRAPPED so a dropped socket / offline fetch can't become an unhandled rejection (the /studio
+    // field-error alert). On failure the last-known board stays; realtime + the next open recover.
+    try {
+      const [c, e, b] = await Promise.all([
+        supabase.from("content_items").select("id, title, status, channel, scheduled_for, event_id").not("scheduled_for", "is", null).gte("scheduled_for", fromISO).lt("scheduled_for", toISO),
+        supabase.from("events").select("id, title, day, day_label").is("archived_at", null).gte("day", fromKey).lte("day", toKey),
+        supabase.from("content_items").select("id, title, status, channel, scheduled_for, event_id").is("scheduled_for", null).neq("status", "published").order("updated_at", { ascending: false }).limit(24),
+      ]);
+      setContent((c.data as CItem[]) ?? []); setEvents((e.data as EvItem[]) ?? []); setBacklog((b.data as CItem[]) ?? []);
+    } catch { /* keep last-known board; realtime + next open refetch */ }
   }, [days]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
     if (!supabase) return;
-    const ch = supabase.channel("studio-cal").on("postgres_changes", { event: "*", schema: "public", table: "content_items" }, () => load()).subscribe();
-    return () => { supabase?.removeChannel(ch); };
+    // Live on BOTH tables the grid draws from — content chips AND event chips (a stop/event moved or
+    // archived elsewhere used to leave a stale chip until a manual reload).
+    const ch = supabase.channel("studio-cal")
+      .on("postgres_changes", { event: "*", schema: "public", table: "content_items" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "events" }, () => load())
+      .subscribe();
+    // removeChannel returns a promise — swallow so a teardown race can't reject unhandled.
+    return () => { try { void Promise.resolve(supabase?.removeChannel(ch)).catch(() => {}); } catch { /* */ } };
   }, [load]);
 
   const evTitle = useCallback((id: string | null) => id ? (events.find((e) => e.id === id)?.title ?? "linked event") : "", [events]);
@@ -75,9 +99,10 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
     const prev = it?.scheduled_for ? new Date(it.scheduled_for) : null;
     const [y, mo, da] = dayKey.split("-").map(Number);
     const dt = new Date(y, mo - 1, da, prev ? prev.getHours() : 9, prev ? prev.getMinutes() : 0);
-    setBacklog((b) => b.filter((x) => x.id !== id));
-    await supabase.from("content_items").update({ scheduled_for: dt.toISOString() }).eq("id", id);
-    load();
+    setBacklog((b) => b.filter((x) => x.id !== id)); // optimistic — a failed write reverts via load()
+    const { error } = await supabase.from("content_items").update({ scheduled_for: dt.toISOString() }).eq("id", id);
+    if (error) toast("Couldn't move that piece — check your role or connection.", "error");
+    load(); // reconcile with the truth either way (restores the chip if the move failed)
   };
   const drop = (dayKey: string) => { setOver(null); const id = dragId.current; dragId.current = null; if (id) reschedule(id, dayKey); };
 

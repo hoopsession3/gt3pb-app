@@ -102,21 +102,31 @@ export default function CompanyCalendar() {
     const to = key(range.end);
     const eFrom = (() => { const d = new Date(range.start); d.setDate(d.getDate() - 31); return key(d); })(); // catch multi-day spillover
     const from = key(range.start);
-    const [e, c, t, s, pt, bb, dr, dv, bt, bc] = await Promise.all([
-      supabase.from("events").select("id, title, day, day_label, is_live, category, plan_days, stage").is("archived_at", null).gte("day", eFrom).lte("day", to),
-      supabase.from("content_items").select("id, title, scheduled_for, status").is("archived_at", null).not("scheduled_for", "is", null).gte("scheduled_for", `${from}T00:00:00`).lte("scheduled_for", `${to}T23:59:59`),
-      supabase.from("todos").select("id, title, category, due_on, done, event_id, meeting_note_id").not("due_on", "is", null).gte("due_on", from).lte("due_on", to),
-      supabase.from("stops").select("id, name, location_text, starts_at, status").not("starts_at", "is", null).neq("status", "done").gte("starts_at", `${from}T00:00:00`).lte("starts_at", `${to}T23:59:59`),
-      supabase.from("event_tasks").select("id, label, due_at, event_id, stop_id, meeting_note_id, goal_id").eq("done", false).eq("kind", "task").not("due_at", "is", null).gte("due_at", `${from}T00:00:00`).lte("due_at", `${to}T23:59:59`),
-      supabase.from("brew_batches").select("id, recipe_name, batch_gal, status, brew_date, ready_at, latest_start_at").not("status", "in", "(served,dumped)").not("brew_date", "is", null).gte("brew_date", from).lte("brew_date", to),
-      supabase.from("drop_orders").select("drop_date, size").is("canceled_at", null).gte("drop_date", from).lte("drop_date", to),
-      supabase.from("delivery_orders").select("delivery_date").is("canceled_at", null).gte("delivery_date", from).lte("delivery_date", to),
-      supabase.from("todos").select("id, title, category, due_on, done, event_id, meeting_note_id").is("due_on", null).eq("done", false).limit(30),
-      supabase.from("content_items").select("id, title, scheduled_for, status").is("archived_at", null).is("scheduled_for", null).neq("status", "published").limit(30),
-    ]);
-    setEvents((e.data as Ev[]) ?? []); setContent((c.data as Content[]) ?? []); setTodos((t.data as Todo[]) ?? []); setStops((s.data as Stop[]) ?? []); setPrepTasks((pt.data as PrepTask[]) ?? []);
-    setBrews((bb.data as Brew[]) ?? []); setDrops((dr.data as { drop_date: string; size: number }[]) ?? []); setDels((dv.data as { delivery_date: string }[]) ?? []);
-    setBacklogT((bt.data as Todo[]) ?? []); setBacklogC((bc.data as Content[]) ?? []);
+    // timestamptz columns (scheduled_for / starts_at / due_at) must be bounded by the REAL UTC
+    // instants of the local range — a naive "…T00:00:00"/"…T23:59:59" bound is read as UTC by
+    // PostgREST and drops items late on the last local day for behind-UTC (Eastern) zones. Date
+    // columns (day / due_on / brew_date / drop_date / delivery_date) keep the local key strings.
+    const fromISO = new Date(range.start.getFullYear(), range.start.getMonth(), range.start.getDate()).toISOString();
+    const toISO = new Date(range.end.getFullYear(), range.end.getMonth(), range.end.getDate() + 1).toISOString();
+    // WRAPPED so a dropped socket / offline fetch can't become an unhandled rejection (the /crew
+    // field-error alert). On failure the last-known calendar holds; realtime + next open recover.
+    try {
+      const [e, c, t, s, pt, bb, dr, dv, bt, bc] = await Promise.all([
+        supabase.from("events").select("id, title, day, day_label, is_live, category, plan_days, stage").is("archived_at", null).gte("day", eFrom).lte("day", to),
+        supabase.from("content_items").select("id, title, scheduled_for, status").is("archived_at", null).not("scheduled_for", "is", null).gte("scheduled_for", fromISO).lt("scheduled_for", toISO),
+        supabase.from("todos").select("id, title, category, due_on, done, event_id, meeting_note_id").not("due_on", "is", null).gte("due_on", from).lte("due_on", to),
+        supabase.from("stops").select("id, name, location_text, starts_at, status").not("starts_at", "is", null).neq("status", "done").gte("starts_at", fromISO).lt("starts_at", toISO),
+        supabase.from("event_tasks").select("id, label, due_at, event_id, stop_id, meeting_note_id, goal_id").eq("done", false).eq("kind", "task").not("due_at", "is", null).gte("due_at", fromISO).lt("due_at", toISO),
+        supabase.from("brew_batches").select("id, recipe_name, batch_gal, status, brew_date, ready_at, latest_start_at").not("status", "in", "(served,dumped)").not("brew_date", "is", null).gte("brew_date", from).lte("brew_date", to),
+        supabase.from("drop_orders").select("drop_date, size").is("canceled_at", null).gte("drop_date", from).lte("drop_date", to),
+        supabase.from("delivery_orders").select("delivery_date").is("canceled_at", null).gte("delivery_date", from).lte("delivery_date", to),
+        supabase.from("todos").select("id, title, category, due_on, done, event_id, meeting_note_id").is("due_on", null).eq("done", false).limit(30),
+        supabase.from("content_items").select("id, title, scheduled_for, status").is("archived_at", null).is("scheduled_for", null).neq("status", "published").limit(30),
+      ]);
+      setEvents((e.data as Ev[]) ?? []); setContent((c.data as Content[]) ?? []); setTodos((t.data as Todo[]) ?? []); setStops((s.data as Stop[]) ?? []); setPrepTasks((pt.data as PrepTask[]) ?? []);
+      setBrews((bb.data as Brew[]) ?? []); setDrops((dr.data as { drop_date: string; size: number }[]) ?? []); setDels((dv.data as { delivery_date: string }[]) ?? []);
+      setBacklogT((bt.data as Todo[]) ?? []); setBacklogC((bc.data as Content[]) ?? []);
+    } catch { /* keep last-known calendar; realtime + next open refetch */ }
   }, [range]);
   useEffect(() => { load(); }, [load]);
   useRealtimeTable(["todos", "content_items", "events", "stops", "event_tasks", "brew_batches", "drop_orders", "delivery_orders"], load);
