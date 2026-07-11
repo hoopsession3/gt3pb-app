@@ -4618,6 +4618,12 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 /* BACK — the member card */
 .fc-back-molecule{position:absolute;inset:0;backface-visibility:hidden;background:url(/brand/caffeine-gt3.svg) center 62% / 62% no-repeat;opacity:.06}
 .fc-eyebrow{font-family:var(--mono);font-size:9.5px;letter-spacing:2.6px;color:var(--fc-ink);opacity:.7;margin-bottom:16px}
+.fc-grow{font-family:'Fraunces',serif;font-style:italic;font-size:13px;color:var(--fc-ink);opacity:.66;letter-spacing:.2px}
+.fc-pb{font-family:'Archivo Black','Inter',sans-serif;font-size:30px;letter-spacing:.5px;line-height:1;margin:3px 0 14px;
+  background:linear-gradient(100deg,var(--fc-accent) 32%,#fff6d8 50%,var(--fc-accent) 68%);background-size:250% 100%;
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;
+  animation:pbShine 3.4s ease-in-out infinite}
+@keyframes pbShine{0%,100%{background-position:130% 0}50%{background-position:-30% 0}}
 .fc-perform{font-family:'Inter';font-weight:800;font-size:30px;letter-spacing:2.5px;text-transform:uppercase;color:var(--fc-accent);line-height:1}
 .fc-rule{width:64px;height:2px;background:var(--fc-edge);margin:12px 0}
 .fc-bname{font-family:'Inter';font-weight:650;font-size:22px;color:var(--fc-ink)}
@@ -4651,4 +4657,5 @@ input,select,textarea,progress{accent-color:var(--gold2)}
   .fc-tilt.idle{animation:none}
   .fc-card{transition:transform .01s}
   .fc-card.spinning::after{animation:none}
+  .fc-pb{animation:none;background-position:50% 0}
 }
