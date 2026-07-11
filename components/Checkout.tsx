@@ -115,16 +115,19 @@ export default function Checkout() {
   // Used to just toast-and-close with no confirmation screen at all; now shows the same OrderConfirm
   // the paid path gets.
   const sendPreOrder = async () => {
+    if (busy) return; // guard against a double-tap firing two pre-orders the kitchen makes
     if (blocked86.length > 0) { toast("Remove the sold-out items first", "error"); return; }
     if (!customer) { toast("Add a name for pickup", "error"); return; }
     if (items.length === 0) return;
+    setBusy(true);
     await enableAlerts();
     const { error } = await recordPreOrder();
-    if (error) { toast("That didn't go through — give it another tap", "error"); return; }
+    if (error) { toast("That didn't go through — give it another tap", "error"); setBusy(false); return; }
     const capturedLines = [...lines], capturedName = customer, capturedTotal = totalCents;
     toast(`${items.length} drink${items.length === 1 ? "" : "s"} pre-ordered — ready in ~8 min`);
     checkout();
     setDone({ paid: false, total: capturedTotal, lines: capturedLines, name: capturedName });
+    setBusy(false);
   };
 
   const pay = async () => {
@@ -265,8 +268,8 @@ export default function Checkout() {
                   <div className="honest" style={{ marginTop: 16 }}>
                     This is a <b>pre-order</b> — we&apos;ll have it ready and you pay at the truck.
                   </div>
-                  <button className="handle" onClick={sendPreOrder} disabled={!customer || items.length === 0 || blocked86.length > 0}>
-                    <span>{blocked86.length > 0 ? "Remove sold-out items" : "Send pre-order"}</span>
+                  <button className="handle" onClick={sendPreOrder} disabled={busy || !customer || items.length === 0 || blocked86.length > 0}>
+                    <span>{busy ? "Sending…" : blocked86.length > 0 ? "Remove sold-out items" : "Send pre-order"}</span>
                   </button>
                 </>
               ) : (

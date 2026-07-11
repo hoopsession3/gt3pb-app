@@ -118,7 +118,7 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   const { soldOut } = useAvailability();
   const reorder = useCallback((items: DrinkId[]) => {
     const out = [...new Set(items.filter((id) => soldOut.has(id)))].map((id) => DRINKS[id]?.n ?? id);
-    const ok = items.filter((id) => !soldOut.has(id));
+    const ok = items.filter((id) => !soldOut.has(id) && DRINKS[id]); // drop unknown/legacy ids — Checkout reads DRINKS[id] unguarded
     if (out.length) toast(`${out.join(" · ")} ${out.length === 1 ? "is" : "are"} sold out today${ok.length ? " — added the rest" : ""}`, "error");
     if (ok.length === 0) return;
     setCart((prev) => {

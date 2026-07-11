@@ -64,7 +64,7 @@ export default function Concierge() {
         footer={
           <>
             <form className="conc-inbar" onSubmit={(e) => { e.preventDefault(); send(input); }}>
-              <input className="conc-in" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Type a question…" aria-label="Message" />
+              <input className="conc-in" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Type a question…" aria-label="Message" maxLength={500} />
               <button type="submit" className="conc-send" disabled={busy || !input.trim()} aria-label="Send">↑</button>
             </form>
             <div className="conc-foot">Answers come from our menu &amp; schedule. For allergies or medical questions, ask the crew at the window.</div>

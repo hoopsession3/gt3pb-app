@@ -40,6 +40,7 @@ export default function DriverRun() {
   const [coords, setCoords] = useState<Record<string, { lat: number; lng: number } | null>>({});
   const [openId, setOpenId] = useState<string | null>(null);
   const [empties, setEmpties] = useState<Record<string, number>>({});
+  const [busyId, setBusyId] = useState<string | null>(null); // stop being logged — blocks double-tap → double SMS/update
   const geoOnce = useRef<Set<string>>(new Set());
 
   const load = useCallback(async () => {
@@ -97,27 +98,28 @@ export default function DriverRun() {
   })(); };
 
   const swapDone = async (o: DOrder) => {
-    if (!supabase) return; haptic(HAPTIC.success); notifyDelivered(o);
-    await supabase.from("delivery_orders").update({ driver_outcome: "swap_completed", status: "delivered", empties_collected: Math.max(0, empties[o.id] ?? o.empties_expected) }).eq("id", o.id);
-    setOpenId(null); load();
+    if (!supabase || busyId) return; setBusyId(o.id); haptic(HAPTIC.success); notifyDelivered(o);
+    const { error } = await supabase.from("delivery_orders").update({ driver_outcome: "swap_completed", status: "delivered", empties_collected: Math.max(0, empties[o.id] ?? o.empties_expected) }).eq("id", o.id);
+    if (error) toast("Didn't save — check the stop", "error");
+    setBusyId(null); setOpenId(null); load();
   };
   const deliveredFresh = async (o: DOrder) => {
-    if (!supabase) return; haptic(HAPTIC.success); notifyDelivered(o);
-    await supabase.from("delivery_orders").update({ driver_outcome: o.refill_count > 0 ? "delivered_fresh_no_empties" : null, status: "delivered", empties_collected: 0 }).eq("id", o.id);
-    setOpenId(null); toast("Delivered — logged"); load();
+    if (!supabase || busyId) return; setBusyId(o.id); haptic(HAPTIC.success); notifyDelivered(o);
+    const { error } = await supabase.from("delivery_orders").update({ driver_outcome: o.refill_count > 0 ? "delivered_fresh_no_empties" : null, status: "delivered", empties_collected: 0 }).eq("id", o.id);
+    setBusyId(null); setOpenId(null); toast(error ? "Didn't save — check the stop" : "Delivered — logged", error ? "error" : undefined); load();
   };
   const hold = async (o: DOrder) => {
-    if (!supabase) return; haptic(HAPTIC.alert);
+    if (!supabase || busyId) return; setBusyId(o.id); haptic(HAPTIC.alert);
     await supabase.from("delivery_orders").update({ driver_outcome: "held_no_empties", status: "held_for_pickup", empties_collected: 0 }).eq("id", o.id);
     await raiseAlertClient({ severity: "important", category: "order", kind: "delivery_held", subjectId: o.id, title: "Delivery held — pickup queue", body: `${o.name} — no empties out. ${o.pack_size} bottles held at GT3PB for pickup 10 AM – 2 PM. ${o.phone ?? ""}`.trim(), link: "/crew?s=now" });
-    setOpenId(null); toast("Held for pickup — crew alerted"); load();
+    setBusyId(null); setOpenId(null); toast("Held for pickup — crew alerted"); load();
   };
   const notHome = async (o: DOrder) => {
-    if (!supabase) return; haptic(HAPTIC.alert);
+    if (!supabase || busyId) return; setBusyId(o.id); haptic(HAPTIC.alert);
     const at = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
     await supabase.from("delivery_orders").update({ status: "issue", driver_outcome: null, empties_collected: 0, driver_note: `Not home — ${at}` }).eq("id", o.id);
     await raiseAlertClient({ severity: "important", category: "order", kind: "delivery_not_home", subjectId: o.id, title: "Delivery — customer not home", body: `${o.name} wasn't home for the ${o.pack_size}-bottle drop${o.refill_count > 0 ? " (swap not completed)" : ""}. ${o.address_street}, ${o.address_city}. ${o.phone ?? ""}`.trim(), link: "/crew?s=now" });
-    setOpenId(null); toast("Logged — not home; crew alerted"); load();
+    setBusyId(null); setOpenId(null); toast("Logged — not home; crew alerted"); load();
   };
   // Roll a stop back to open — undo a mis-tap. Ties to the order: clears the outcome + reopens it.
   const rollback = async (o: DOrder) => {
@@ -180,16 +182,16 @@ export default function DriverRun() {
                               <button type="button" onClick={() => { haptic(HAPTIC.tap); setEmpties((e) => ({ ...e, [o.id]: (e[o.id] ?? o.empties_expected) + 1 })); }} aria-label="More">+</button>
                             </div>
                           </div>
-                          <button type="button" className="driver-out-ok" onClick={() => swapDone(o)}>✓ Swapped &amp; delivered</button>
-                          <button type="button" className="driver-out-mid" onClick={() => deliveredFresh(o)}>Delivered fresh — no empties out</button>
-                          <button type="button" className="driver-out-nothome" onClick={() => notHome(o)}>🚪 Not home</button>
-                          <button type="button" className="driver-out-hold" onClick={() => hold(o)}>⚠ No empties out — hold for pickup</button>
+                          <button type="button" className="driver-out-ok" onClick={() => swapDone(o)} disabled={busyId === o.id}>✓ Swapped &amp; delivered</button>
+                          <button type="button" className="driver-out-mid" onClick={() => deliveredFresh(o)} disabled={busyId === o.id}>Delivered fresh — no empties out</button>
+                          <button type="button" className="driver-out-nothome" onClick={() => notHome(o)} disabled={busyId === o.id}>🚪 Not home</button>
+                          <button type="button" className="driver-out-hold" onClick={() => hold(o)} disabled={busyId === o.id}>⚠ No empties out — hold for pickup</button>
                         </>
                       ) : (
                         <>
-                          <button type="button" className="driver-out-ok" onClick={() => deliveredFresh(o)}>✓ Delivered</button>
-                          <button type="button" className="driver-out-nothome" onClick={() => notHome(o)}>🚪 Not home</button>
-                          <button type="button" className="driver-out-hold" onClick={() => hold(o)}>⚠ Couldn&rsquo;t deliver — hold for pickup</button>
+                          <button type="button" className="driver-out-ok" onClick={() => deliveredFresh(o)} disabled={busyId === o.id}>✓ Delivered</button>
+                          <button type="button" className="driver-out-nothome" onClick={() => notHome(o)} disabled={busyId === o.id}>🚪 Not home</button>
+                          <button type="button" className="driver-out-hold" onClick={() => hold(o)} disabled={busyId === o.id}>⚠ Couldn&rsquo;t deliver — hold for pickup</button>
                         </>
                       )}
                     </div>

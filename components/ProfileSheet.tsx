@@ -68,7 +68,7 @@ export default function ProfileSheet({ onClose }: { onClose: () => void }) {
               <div className="prof-av-hint">A clean headshot reads best.</div>
             </div>
           </div>
-          <label className="prod-f" style={{ marginTop: 14 }}><span>Name</span><input className="note-in" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" /></label>
+          <label className="prod-f" style={{ marginTop: 14 }}><span>Name</span><input className="note-in" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" maxLength={60} /></label>
           <label className="prod-f" style={{ marginTop: 8 }}><span>Title</span><input className="note-in" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Lead Operator · Co-Founder" maxLength={60} /></label>
           <label className="prod-f" style={{ marginTop: 8 }}><span>Bio</span><textarea className="note-in" rows={3} value={bio} onChange={(e) => setBio(e.target.value)} placeholder="A line or two — what you bring to the bar." maxLength={600} /></label>
           {/* Notifications — order-ready alerts, managed right where the account lives. */}

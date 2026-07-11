@@ -23,7 +23,8 @@ function ScanInner() {
   const code = params.get("m") ?? "";
   const isStaff = ready && !!user && STAFF_ROLES.includes(roleOf(profile));
   const [member, setMember] = useState<Member | null>(null);
-  const [state, setState] = useState<"idle" | "loading" | "notfound" | "added">("idle");
+  const [state, setState] = useState<"idle" | "loading" | "notfound" | "added" | "error">("idle");
+  const [busy, setBusy] = useState(false);
 
   const load = async () => {
     if (!supabase || !code) return;
@@ -36,9 +37,12 @@ function ScanInner() {
   useEffect(() => { if (isStaff) load(); /* eslint-disable-next-line */ }, [isStaff, code]);
 
   const addStamp = async () => {
-    if (!supabase || !code) return;
+    if (!supabase || !code || busy) return; // guard the double-tap → double point
+    setBusy(true);
     const { data, error } = await supabase.rpc("award_manual_point", { p_code: code });
     if (!error && typeof data === "number") { setMember((m) => (m ? { ...m, points: data } : m)); setState("added"); }
+    else setState("error"); // don't leave a failed award looking successful
+    setBusy(false);
   };
 
   if (ready && (!user || !isStaff)) return (
@@ -66,8 +70,9 @@ function ScanInner() {
             {Array.from({ length: GOAL }).map((_, i) => <span key={i} className={`scan-dot${i < inCard ? " on" : ""}${i === GOAL - 1 ? " gift" : ""}`} />)}
           </div>
           <div className="scan-foot">{inCard === 0 && member.points > 0 ? "Card full — this one's on us 🎉" : `${GOAL - inCard} more till a free cup`}</div>
-          <button type="button" className="scan-add" onClick={addStamp}>＋ Add a stamp</button>
+          <button type="button" className="scan-add" onClick={addStamp} disabled={busy}>{busy ? "Adding…" : "＋ Add a stamp"}</button>
           {state === "added" && <div className="scan-added">Stamp added — now {member.points} points.</div>}
+          {state === "error" && <div className="h-sub">That didn&apos;t record — tap to try again.</div>}
         </div>
       )}
     </section>

@@ -194,6 +194,8 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
 
   const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]; if (!f) return;
+    if (!f.type.startsWith("image/")) { toast("Pick an image file", "error"); e.target.value = ""; return; }
+    if (f.size > 8 * 1024 * 1024) { toast("That photo's over 8 MB — pick a smaller one", "error"); e.target.value = ""; return; }
     dirtyPhoto.current = true;
     const url = URL.createObjectURL(f);
     const img = new Image();
