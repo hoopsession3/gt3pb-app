@@ -39,7 +39,7 @@ const FINISH_PAINT: Record<Finish, Paint> = {
 };
 
 export default function StatusCard({ open, onClose, demo }: { open: boolean; onClose: () => void; demo?: { founding?: boolean } }) {
-  const { profile, user } = useAuth();
+  const { profile, user, refreshProfile } = useAuth();
   const { toast } = useApp();
   const t = useSiteCopy();  // client-facing strings are owner-editable via the Site Copy editor
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -89,7 +89,12 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
     const clean = v.replace(/\s+/g, " ").trim().slice(0, 48);
     const val = clean || VISION_DEFAULT;
     setVision(val); setEditVision(false);
-    if (supabase && user) await supabase.from("profiles").update({ card_vision: clean || null }).eq("id", user.id);
+    if (!supabase || !user) return;
+    // card_vision must be UPDATE-granted (0184) or this silently fails — surface an error, and
+    // refresh so every surface reflects the saved goal.
+    const { error } = await supabase.from("profiles").update({ card_vision: clean || null }).eq("id", user.id);
+    if (error) { toast("Couldn't save your goal — try again", "error"); return; }
+    await refreshProfile();
   };
 
   // ── the shareable PNG = the MEMBER-CARD side, in their chosen finish (matches the card they hold) ──
@@ -203,7 +208,10 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
       if ("url" in up) {
         const bust = `${up.url}?v=${Date.now()}`;  // cache-bust so the new photo shows immediately
         await supabase.from("profiles").update({ avatar_url: bust }).eq("id", user.id);
-        setPhotoUrl(bust); toast("Photo saved");
+        setPhotoUrl(bust);
+        try { URL.revokeObjectURL(url); } catch { /* already gone */ }  // the local preview blob is now replaced
+        await refreshProfile();  // so the account pill + home flag pick up the new portrait at once
+        toast("Photo saved");
       } else toast(`Couldn't save the photo — ${up.error}`, "error");
       setSaving(false);
       e.target.value = "";

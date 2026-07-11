@@ -66,7 +66,7 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   const [prices, setPrices] = useState<Record<string, number>>({});
   useEffect(() => {
     let on = true;
-    fetch("/api/menu").then((r) => (r.ok ? r.json() : null)).then((d) => { if (on && d) setPrices(d); }).catch(() => {});
+    fetch("/api/menu").then((r) => (r.ok ? r.json() : null)).then((d) => { if (on && d) setPrices(d.prices || {}); }).catch(() => {});
     return () => { on = false; };
   }, []);
   const priceCents = useCallback((id: DrinkId) => prices[id] ?? fallbackCents(id), [prices]);

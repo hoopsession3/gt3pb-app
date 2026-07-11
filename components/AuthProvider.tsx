@@ -9,7 +9,6 @@ export interface Profile {
   display_name: string | null;
   referral_code: string | null;
   points: number;
-  streak_days: number;
   credit_cents: number;
   founding_member: boolean;
   is_admin: boolean;

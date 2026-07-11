@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { useAuth } from "@/components/AuthProvider";
+import { useApp } from "@/components/AppProvider";
 import Gt3Mark from "@/components/Gt3Mark";
 import StatusCard from "@/components/StatusCard";
 
@@ -14,6 +15,7 @@ const GOAL = 10;
 
 export default function MembershipCard() {
   const { profile, user } = useAuth();
+  const { toast } = useApp();
   const [qr, setQr] = useState<string>("");
   const [busy, setBusy] = useState<"" | "apple" | "google">("");
   const [flexOpen, setFlexOpen] = useState(false);
@@ -49,8 +51,9 @@ export default function MembershipCard() {
     setBusy("google");
     try {
       const res = await fetch("/api/wallet/google");
-      const data = await res.json();
+      const data = res.ok ? await res.json() : null;
       if (data?.saveUrl) window.location.href = data.saveUrl;
+      else toast("Couldn't open Google Wallet — try again", "error");
     } catch { /* surfaced by the button */ }
     setBusy("");
   };
@@ -75,7 +78,7 @@ export default function MembershipCard() {
       <StatusCard open={flexOpen} onClose={() => setFlexOpen(false)} />
       {(appleReady || googleReady) && (
         <div className="mp-wallets">
-          {appleReady && <button type="button" className="mp-wallet" onClick={addApple} disabled={!!busy}>{busy === "apple" ? "Preparing…" : " Add to Apple Wallet"}</button>}
+          {appleReady && <button type="button" className="mp-wallet" onClick={addApple} disabled={!!busy}>{busy === "apple" ? "Preparing…" : "Add to Apple Wallet"}</button>}
           {googleReady && <button type="button" className="mp-wallet mp-wallet-g" onClick={addGoogle} disabled={!!busy}>{busy === "google" ? "Preparing…" : "Save to Google Wallet"}</button>}
         </div>
       )}
