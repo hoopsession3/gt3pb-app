@@ -404,8 +404,11 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 .sw-update{position:fixed;left:12px;right:12px;bottom:calc(76px + 78px + env(safe-area-inset-bottom));display:flex;align-items:center;justify-content:center;gap:9px;padding:12px 16px;border:none;border-radius:13px;background:#15110d;border:1px solid var(--gold2);color:var(--gold2);font-family:'Inter';font-weight:650;font-size:13px;cursor:pointer;z-index:70;box-shadow:0 10px 30px rgba(0,0,0,.5);-webkit-appearance:none;appearance:none}
 .sw-update-dot{width:8px;height:8px;border-radius:50%;background:var(--gold2);box-shadow:0 0 0 4px rgba(184,144,47,.2)}
 .nav{flex:0 0 auto;display:flex;background:rgba(15,14,11,.92);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--line);padding:9px 6px calc(10px + env(safe-area-inset-bottom));z-index:30}
-.tab{flex:1;min-height:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px 2px;color:var(--cream);opacity:.6;cursor:pointer;text-decoration:none;transition:opacity .15s,transform .1s;-webkit-appearance:none;appearance:none;background:none;border:none;font:inherit}
+.tab{position:relative;flex:1;min-height:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px 2px;color:var(--cream);opacity:.6;cursor:pointer;text-decoration:none;transition:opacity .15s,transform .1s;-webkit-appearance:none;appearance:none;background:none;border:none;font:inherit}
 .tab.on{opacity:1}.tab.on .ti{color:var(--red)}
+/* active-tab marker — a short bar at the top edge (the highest-frequency element gets a real state) */
+.tab.on::after{content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);width:18px;height:2px;border-radius:0 0 2px 2px;background:var(--red)}
+.opnav .tab.on::after{background:var(--gold2)}
 .tab:active{transform:scale(.94)}
 .tab svg{width:22px;height:22px}
 .tab .tl{font-family:'Inter';font-weight:600;font-size:9.5px;letter-spacing:.6px;text-transform:uppercase}
@@ -1397,7 +1400,8 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .acs-guest{padding:10px 4px 6px;text-align:center}
 .acs-guest-t{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold2)}
 .acs-guest p{margin:9px 0 16px;font-family:'Inter';font-size:14px;color:var(--cream-m);line-height:1.5}
-.acs-cta{width:100%;background:var(--red);color:#fff;border:none;border-radius:12px;padding:13px;font-family:'Inter';font-weight:700;font-size:15px;cursor:pointer}
+.acs-cta{width:100%;background:var(--red);color:#fff;border:none;border-radius:14px;padding:15px;font-family:'Inter';font-weight:700;font-size:14px;letter-spacing:1.1px;text-transform:uppercase;cursor:pointer;box-shadow:0 8px 20px rgba(184,36,32,.26)}
+.acs-cta:active{transform:scale(.985)}
 
 /* Load-Out & Tow Plan */
 .tl{margin-top:14px}
@@ -3082,7 +3086,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
    Lacquered-red finish (soft ambient glow + a hairline top highlight, the same "lifted" depth
    language the app's cards already use) instead of a flat fill — one deliberately finished primary
    action, not five flat buttons that happened to match. */
-:is(.oa-cta,.subpitch-cta,.sub-cta,.t-order,.arr-order,.mpack-cta){width:100%;background:var(--oa-red);color:var(--oa-cream);border:none;border-radius:14px;padding:16px;font-size:15px;font-weight:700;letter-spacing:.2px;cursor:pointer;transition:transform .16s,box-shadow .16s,filter .16s;font-family:inherit;box-shadow:0 10px 24px rgba(184,36,32,.32),inset 0 1px 0 rgba(255,255,255,.14)}
+:is(.oa-cta,.subpitch-cta,.sub-cta,.t-order,.arr-order,.mpack-cta){width:100%;background:var(--oa-red);color:var(--oa-cream);border:none;border-radius:14px;padding:16px;font-size:14px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;cursor:pointer;transition:transform .16s,box-shadow .16s,filter .16s;font-family:inherit;box-shadow:0 10px 24px rgba(184,36,32,.32),inset 0 1px 0 rgba(255,255,255,.14)}
 :is(.oa-cta,.subpitch-cta,.sub-cta,.t-order,.arr-order,.mpack-cta):active{transform:scale(.99);filter:brightness(1.06);box-shadow:0 4px 12px rgba(184,36,32,.26),inset 0 1px 0 rgba(255,255,255,.1)}
 :is(.oa-cta,.subpitch-cta,.sub-cta,.t-order,.arr-order,.mpack-cta):disabled{opacity:.35;cursor:default;box-shadow:none;filter:none}
 .oa-cta.ghost{box-shadow:none}
@@ -4603,7 +4607,7 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 .notif-quiet-h{font-family:'Inter';font-size:11.5px;color:var(--cream-d)}
 
 /* ── Show off your status — the viral share card (S·7) ───────────────────────────────────────── */
-.mp-flex{width:100%;margin-top:12px;padding:12px 14px;border-radius:12px;border:1px solid rgba(200,166,97,.4);background:linear-gradient(135deg,rgba(200,166,97,.14),rgba(184,144,47,.06));color:var(--gold2);font-family:'Inter';font-weight:700;font-size:13.5px;cursor:pointer;-webkit-appearance:none;appearance:none;box-shadow:0 0 22px -8px rgba(200,166,97,.6);transition:transform .15s var(--ease)}
+.mp-flex{width:100%;margin-top:12px;padding:12px 14px;border-radius:14px;border:1px solid rgba(200,166,97,.4);background:linear-gradient(135deg,rgba(200,166,97,.14),rgba(184,144,47,.06));color:var(--gold2);font-family:'Inter';font-weight:700;font-size:13.5px;cursor:pointer;-webkit-appearance:none;appearance:none;box-shadow:0 0 22px -8px rgba(200,166,97,.6);transition:transform .15s var(--ease)}
 .mp-flex:active{transform:scale(.98)}
 .sheet2.status-lux{box-shadow:0 -14px 50px rgba(0,0,0,.65),0 0 90px -12px rgba(200,166,97,.55),inset 0 1px 0 rgba(200,166,97,.22);border-color:rgba(200,166,97,.3)}
 /* the share PNG is rasterized off-screen now; the visible card is the interactive one below */
@@ -4657,8 +4661,8 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 .craft-close{margin:48px 0 0;padding-top:30px;border-top:1px solid var(--line);text-align:center}
 .craft-close-line{font-family:'Fraunces';font-style:italic;font-size:22px;color:var(--gold2)}
 .craft-cta{display:flex;gap:10px;justify-content:center;margin:22px 0 4px;flex-wrap:wrap}
-.craft-cta-b{font-family:'Inter';font-weight:650;font-size:14px;padding:13px 22px;border-radius:999px;border:1px solid transparent;background:var(--oa-red);color:#fff;cursor:pointer;-webkit-appearance:none;appearance:none}
-.craft-cta-b.ghost{background:transparent;border-color:var(--line2);color:var(--oa-cream)}
+.craft-cta-b{font-family:'Inter';font-weight:700;font-size:13px;letter-spacing:1.1px;text-transform:uppercase;padding:15px 22px;border-radius:14px;border:1px solid transparent;background:var(--oa-red);color:#fff;cursor:pointer;-webkit-appearance:none;appearance:none;box-shadow:0 8px 20px rgba(184,36,32,.26)}
+.craft-cta-b.ghost{background:transparent;border-color:var(--line2);color:var(--oa-cream);box-shadow:none}
 
 /* the "Read our craft" link from the storefront story */
 .craft-link{display:inline-flex;align-items:center;gap:6px;margin:22px 0 0;font-family:var(--mono);font-weight:500;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--gold2);background:transparent;border:none;cursor:pointer;-webkit-appearance:none;appearance:none;padding:0}
