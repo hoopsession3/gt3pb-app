@@ -231,7 +231,7 @@ export default function StatusCard({ open, onClose }: { open: boolean; onClose: 
             <div className="fc-face fc-back">
               <span className="fc-back-molecule" aria-hidden />
               <span className="fc-grow">Grow your 3mpire</span>
-              <span className="fc-pb">PB</span>
+              <span className="fc-pbwrap"><span className="fc-pb">PB</span><i className="fc-spark s1" aria-hidden>✦</i><i className="fc-spark s2" aria-hidden>✦</i></span>
               <span className="fc-perform">I Perform</span>
               <span className="fc-rule" />
               <span className="fc-bname">{name}</span>
