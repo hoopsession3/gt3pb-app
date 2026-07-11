@@ -4177,7 +4177,44 @@ button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:
 .spl-foot{margin-top:20px;font-size:12.5px;letter-spacing:.03em;color:#7d735f;opacity:0;animation:spl-up 1.1s ease 1.15s forwards}
 .spl-skip{position:absolute;top:calc(20px + env(safe-area-inset-top));right:22px;z-index:3;-webkit-appearance:none;appearance:none;background:none;border:none;color:#6b6255;font-family:inherit;font-size:13px;letter-spacing:.04em;cursor:pointer;opacity:0;animation:spl-up 1s ease 1.3s forwards}
 .spl-skip:hover{color:var(--cream)}
-@media(prefers-reduced-motion:reduce){.spl-scrim,.spl-kick,.spl-head,.spl-sub,.spl-cta,.spl-foot,.spl-skip{animation:none;opacity:1;transform:none}}
+/* ── THE DISSOLVE (owner ask: "immediately start dissolving, after 10 secs all gone, smoke appears
+      into a GT3 '3', then the home page"). The instant the takeover is up the component adds
+      .spl-smoke: the copy smokes straight out (no hold), a slow luxe haze blooms and gathers to
+      center, the brand red "3" condenses OUT of that smoke, sharpens and glows, then the whole
+      takeover fades to nothing at 10s and unmounts onto the home page. Layers are inert until
+      .spl-smoke so nothing shows on the static (reduced-motion) splash. ── */
+.spl-haze{position:absolute;inset:0;z-index:1;pointer-events:none;overflow:hidden}
+.spl-haze i{position:absolute;left:50%;top:50%;width:min(92vw,660px);height:min(92vw,660px);border-radius:50%;
+  background:radial-gradient(circle at 50% 55%,rgba(200,166,97,.17),rgba(120,96,58,.10) 38%,transparent 68%);
+  filter:blur(30px);opacity:0;transform:translate(-50%,-30%) scale(.6);will-change:opacity,transform}
+.spl-finale{position:absolute;inset:0;z-index:2;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:0}
+.spl-three{width:clamp(120px,42vw,300px);height:auto;display:block}
+
+/* Immediately dissolving — copy leaves at once, the "3" is the 10s finale, scrim fades out at the end. */
+.spl-scrim.spl-smoke{animation:spl-dissolve 10s ease forwards}
+.spl-scrim.spl-smoke .spl-wrap{animation:spl-copyout 2.8s var(--ease-enter,cubic-bezier(.2,.7,.2,1)) forwards}
+.spl-scrim.spl-smoke .spl-wrap>*{animation:none;opacity:1;transform:none} /* cancel the entrance stagger — it's leaving, not arriving */
+.spl-scrim.spl-smoke .spl-haze i{animation:spl-plume 8s ease-out forwards}
+.spl-scrim.spl-smoke .spl-haze i:nth-child(2){animation-delay:.4s;background:radial-gradient(circle at 50% 55%,rgba(184,36,32,.14),transparent 66%)}
+.spl-scrim.spl-smoke .spl-haze i:nth-child(3){animation-delay:.8s;transform:translate(-50%,-30%) scale(.5)}
+.spl-scrim.spl-smoke .spl-finale{animation:spl-three-form 10s ease forwards}
+.spl-scrim.spl-smoke .spl-three{animation:spl-three-glow 3s ease-in-out 4.4s infinite}
+@keyframes spl-dissolve{0%,84%{opacity:1}100%{opacity:0;visibility:hidden}}
+@keyframes spl-copyout{0%{opacity:1;transform:translateY(0) scale(1);filter:blur(0)}100%{opacity:0;transform:translateY(-42px) scale(1.05);filter:blur(11px)}}
+/* plumes bloom outward then contract toward the center as the glyph condenses out of them */
+@keyframes spl-plume{0%{opacity:0;transform:translate(-50%,-30%) scale(.55)}26%{opacity:.6;transform:translate(-50%,-34%) scale(1.4)}60%{opacity:.42;transform:translate(-50%,-40%) scale(1)}100%{opacity:0;transform:translate(-50%,-46%) scale(.5)}}
+/* the red "3" gathers out of the smoke (blurred + oversized + faint), snaps sharp, holds, then goes */
+@keyframes spl-three-form{0%{opacity:0;transform:scale(1.6) rotate(-4deg);filter:blur(30px)}
+  22%{opacity:.35;filter:blur(18px)}
+  46%{opacity:1;transform:scale(1) rotate(0);filter:blur(0)}
+  80%{opacity:1;transform:scale(1) rotate(0);filter:blur(0)}
+  100%{opacity:0;transform:scale(1.06) rotate(0);filter:blur(4px)}}
+@keyframes spl-three-glow{0%,100%{filter:drop-shadow(0 0 16px rgba(184,36,32,.28))}50%{filter:drop-shadow(0 0 44px rgba(200,166,97,.5))}}
+
+@media(prefers-reduced-motion:reduce){.spl-scrim,.spl-kick,.spl-head,.spl-sub,.spl-cta,.spl-foot,.spl-skip{animation:none;opacity:1;transform:none}
+  /* No auto-dissolve under reduced motion (the component never adds .spl-smoke) — keep the finale
+     layers fully inert so nothing lingers over the static splash. */
+  .spl-haze,.spl-finale{display:none}}
 
 /* content approval sheet (review a post from the notification) */
 .capprove{display:flex;flex-direction:column;gap:11px;padding:2px 2px 6px}
