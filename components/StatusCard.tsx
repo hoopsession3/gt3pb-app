@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import { useApp } from "./AppProvider";
 import Sheet from "./Sheet";
+import { supabase } from "@/lib/supabase";
+import { uploadToBucket } from "@/lib/uploads";
 import { haptic, HAPTIC } from "@/lib/haptics";
 
 // SHOW OFF YOUR STATUS — the member's card, made into an object they own. It's DUAL-SIDED: the front
@@ -43,8 +45,11 @@ export default function StatusCard({ open, onClose }: { open: boolean; onClose: 
   const tiltRef = useRef<HTMLDivElement | null>(null);
   const spinTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [ready, setReady] = useState(false);
-  const [hasPhoto, setHasPhoto] = useState(false);
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  // The photo persists to the canonical avatar_url (same one ProfileSheet + the account circle use),
+  // so it follows the member everywhere and survives a reload — not a throwaway local preview.
+  const [hasPhoto, setHasPhoto] = useState(Boolean(profile?.avatar_url));
+  const [photoUrl, setPhotoUrl] = useState<string | null>(profile?.avatar_url ?? null);
 
   // the interactive card
   const [turns, setTurns] = useState(0);        // each tap +3 → a 540° whirl that lands on the other face
@@ -157,16 +162,39 @@ export default function StatusCard({ open, onClose }: { open: boolean; onClose: 
 
   useEffect(() => { if (open) { setReady(false); draw(); } }, [open, draw]);
   useEffect(() => () => { if (spinTimer.current) clearTimeout(spinTimer.current); }, []);
+  // Adopt the saved photo when the profile loads (async) — unless the member just picked a new one.
+  const dirtyPhoto = useRef(false);
+  useEffect(() => { if (!dirtyPhoto.current && profile?.avatar_url) { setPhotoUrl(profile.avatar_url); setHasPhoto(true); } }, [profile?.avatar_url]);
 
   const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]; if (!f) return;
+    dirtyPhoto.current = true;
     const url = URL.createObjectURL(f);
     const img = new Image();
     img.onload = () => { photoRef.current = img; setHasPhoto(true); setPhotoUrl(url); haptic(HAPTIC.tap); draw(); if (showingBack) flip(); };
     img.onerror = () => toast("Couldn't read that photo — try another", "error");
     img.src = url;
+    // Persist to the canonical avatar_url so it survives reload and shows everywhere (profile, card).
+    (async () => {
+      if (!supabase || !user) { toast("Sign in to save your photo", "error"); return; }
+      setSaving(true);
+      const up = await uploadToBucket({ bucket: "avatars", file: f, path: `${user.id}/avatar.${(f.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg"}`, upsert: true });
+      if ("url" in up) {
+        const bust = `${up.url}?v=${Date.now()}`;  // cache-bust so the new photo shows immediately
+        await supabase.from("profiles").update({ avatar_url: bust }).eq("id", user.id);
+        setPhotoUrl(bust); toast("Photo saved");
+      } else toast(`Couldn't save the photo — ${up.error}`, "error");
+      setSaving(false);
+      e.target.value = "";
+    })();
   };
-  const clearPhoto = () => { photoRef.current = null; setHasPhoto(false); if (photoUrl) { try { URL.revokeObjectURL(photoUrl); } catch { /* ignore */ } } setPhotoUrl(null); draw(); };
+  const clearPhoto = async () => {
+    dirtyPhoto.current = true;
+    photoRef.current = null; setHasPhoto(false);
+    if (photoUrl?.startsWith("blob:")) { try { URL.revokeObjectURL(photoUrl); } catch { /* ignore */ } }
+    setPhotoUrl(null); draw();
+    if (supabase && user) await supabase.from("profiles").update({ avatar_url: null }).eq("id", user.id);
+  };
 
   // ── the flip — a turn-and-a-half spin to the other face, with a steel glint sweep ──
   const flip = () => {
@@ -267,8 +295,8 @@ export default function StatusCard({ open, onClose }: { open: boolean; onClose: 
       {/* photo (feeds the portrait side + the share PNG) */}
       <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onPick} />
       <div className="status-photo-row">
-        <button type="button" className="status-photo-btn" onClick={() => fileRef.current?.click()}>{hasPhoto ? "↺ Change photo" : "＋ Add your photo — the front frames it"}</button>
-        {hasPhoto && <button type="button" className="status-photo-clear" onClick={clearPhoto} aria-label="Remove photo">✕</button>}
+        <button type="button" className="status-photo-btn" onClick={() => fileRef.current?.click()} disabled={saving}>{saving ? "Saving…" : hasPhoto ? "↺ Change photo" : "＋ Add your photo — the front frames it"}</button>
+        {hasPhoto && !saving && <button type="button" className="status-photo-clear" onClick={clearPhoto} aria-label="Remove photo">✕</button>}
       </div>
       <p className="status-hint">Make it yours — a finish, your motto, your photo. Share it to your story and tag <b>@gt3pb</b>; your code&rsquo;s on the card, so every friend who joins with it earns you both a credit.</p>
 

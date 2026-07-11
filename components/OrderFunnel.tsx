@@ -392,12 +392,6 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
         <div className="dl-step">
           <div className="dl-hero">
             <h2 className="dl-h dl-h-xl">Your week, <em>delivered.</em></h2>
-            <p className="dl-sub">Cold-extracted Rise, Flow &amp; Dusk &mdash; on your porch by sunrise Sunday. Smooth, low-acid, and perfect for 7 days.</p>
-            <div className="dl-tiers">
-              <span><b>{dollars(DELIVERY_PRICING.refill)}</b> swap your empties</span>
-              <span><b>{dollars(DELIVERY_PRICING.fresh)}</b> new bottle</span>
-              <span><b>{dollars(SALTED_LATTE.price)}</b> {bulkItems[0]?.name ?? SALTED_LATTE.label}</span>
-            </div>
           </div>
           <p className="dl-sub dl-zlead">Enter your ZIP &mdash; we&rsquo;ll check your porch.</p>
           <div className="dl-ziprow dl-ziprow-xl">
