@@ -131,7 +131,7 @@ function MpireReal() {
 
   const name = profile?.display_name || (user?.email ? user.email.split("@")[0] : "Member");
   const points = profile?.points ?? 0;
-  const streak = profile?.streak_days ?? 1;
+  const freeEarned = Math.floor(points / 10); // lifetime free drinks — derived from the real points column
   const credit = ((profile?.credit_cents ?? 0) / 100).toFixed(2);
   const code = profile?.referral_code || "GT3PB-3MP";
   const creditCents = profile?.credit_cents ?? 0;
@@ -159,7 +159,7 @@ function MpireReal() {
       <div id="rewards" className="memline acs-anchor">
         <span><b>{points}</b> pts</span>
         <span className="memline-dot">·</span>
-        <span>day <b>{streak}</b> streak</span>
+        <span><b>{freeEarned}</b> free earned</span>
         {creditCents > 0 && <><span className="memline-dot">·</span><span><b>${credit}</b> credit</span></>}
       </div>
 
@@ -256,7 +256,7 @@ function MpireDemo() {
       <div className="memline">
         <span><b>142</b> pts</span>
         <span className="memline-dot">·</span>
-        <span>day <b>8</b> streak</span>
+        <span><b>14</b> free earned</span>
         <span className="memline-dot">·</span>
         <span><b>$14.00</b> credit</span>
       </div>

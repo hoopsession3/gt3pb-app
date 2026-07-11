@@ -46,7 +46,6 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
   const toGo = GOAL - inCard;
   const free = Math.floor(pts / GOAL);
   const credit = (profile?.credit_cents ?? 0) / 100;
-  const streak = profile?.streak_days ?? 0;
   const photo = profile?.avatar_url || "";
 
   // Their usual — the single most-used customer action, reachable from anywhere.
@@ -93,10 +92,11 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
         </div>
       </div>
 
-      {/* Rewards at a glance — how close to free, points, and credit (or streak) */}
+      {/* Rewards at a glance — every value reads a real, maintained column: points (0012/0152) and
+          credit_cents (0013/0152). "Free earned" is derived from points. No dead columns. */}
       <div className="acs-stats">
         <div className="acs-stat">
-          <span className="acs-stat-v">{toGo === GOAL && pts > 0 ? "0" : inCard}<i>/{GOAL}</i></span>
+          <span className="acs-stat-v">{inCard === 0 && pts > 0 ? "0" : inCard}<i>/{GOAL}</i></span>
           <span className="acs-stat-k">{inCard === 0 && pts > 0 ? "Free ready" : `${toGo} to free`}</span>
         </div>
         <div className="acs-stat">
@@ -104,8 +104,8 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
           <span className="acs-stat-k">Points</span>
         </div>
         <div className="acs-stat">
-          <span className="acs-stat-v">{credit > 0 ? `$${credit % 1 === 0 ? credit.toFixed(0) : credit.toFixed(2)}` : streak}</span>
-          <span className="acs-stat-k">{credit > 0 ? "Credit" : "Day streak"}</span>
+          <span className="acs-stat-v">{credit > 0 ? `$${credit % 1 === 0 ? credit.toFixed(0) : credit.toFixed(2)}` : free}</span>
+          <span className="acs-stat-k">{credit > 0 ? "Credit" : "Free earned"}</span>
         </div>
       </div>
 
