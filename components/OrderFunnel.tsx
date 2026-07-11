@@ -373,7 +373,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
               <span className="oa-usual-go">Load →</span>
             </button>
           )}
-          <MyPacks onChange={startChange} refreshKey={packsKey} />
+          <MyPacks onChange={startChange} refreshKey={packsKey} collapsible />
           {replacing && (
             <div className="oa-editing">
               Editing your {replacing.size}-pack for {packDayLabel(replacing)} — reserving again replaces it.
