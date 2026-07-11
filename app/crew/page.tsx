@@ -49,6 +49,7 @@ import AskGT3 from "@/components/AskGT3";
 import Studio from "@/components/Studio";
 import MenuManager from "@/components/MenuManager";
 import PaymentSettings from "@/components/PaymentSettings";
+import MoneyKpis from "@/components/MoneyKpis";
 import PlanEditor from "@/components/PlanEditor";
 import CompanyCalendar from "@/components/CompanyCalendar";
 import EventDayPlanner from "@/components/EventDayPlanner";
@@ -4920,16 +4921,23 @@ export default function AdminPage() {
 
       {sec === "money" && isAdmin && (
         <>
+          {/* Dashboard, not a filing cabinet: live numbers first, then modules grouped by job. */}
+          <MoneyKpis />
+          <div className="crew-group">Get paid</div>
           <Panel id="pay" title="Checkout & payments" defaultOpen><PaymentSettings /></Panel>
-          <Panel id="menu" title="Menu & products"><MenuManager /></Panel>
+          <div className="crew-group">The numbers</div>
           <Panel id="sales" title="Sales"><Reports /></Panel>
           <Panel id="snapshot" title="Business snapshot"><SnapshotReport /></Panel>
           <Panel id="pnl" title="Per-event P&L"><EventPnlReport /></Panel>
+          <div className="crew-group">Catalog &amp; pricing</div>
+          <Panel id="menu" title="Menu & products"><MenuManager /></Panel>
           <Panel id="econ" title="Product economics"><ProductCatalog /></Panel>
           <Panel id="cogs" title="COGS calculator"><CogsCalculator /></Panel>
+          <div className="crew-group">Members &amp; subscriptions</div>
           <Panel id="plans" title="Membership plans"><PlanEditor /></Panel>
           <Panel id="subs" title="Subscribers"><Subscribers /></Panel>
           <Panel id="subint" title="Subscription interest"><SubInterest /></Panel>
+          <div className="crew-group">Records</div>
           <Panel id="resv" title="Reserve drops"><ReservesAdmin /></Panel>
           <Panel id="orders" title="Order history"><OrdersHistory /></Panel>
         </>

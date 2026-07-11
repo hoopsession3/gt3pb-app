@@ -3797,6 +3797,16 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .co-paylater b,.oa-paylater b{color:var(--cream);font-weight:700}
 .co-paylater:disabled,.oa-paylater:disabled{opacity:.5}
 /* Money → Checkout & payments */
+/* Money dashboard — KPI header + grouped module labels (the flat-list fix) */
+.mkpi{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:2px 0 8px}
+.mkpi-tile{background:var(--card);border:1px solid var(--line2);border-radius:16px;padding:15px 14px}
+.mkpi-v{font-family:'Inter';font-weight:800;font-size:25px;letter-spacing:-.02em;line-height:1;color:var(--gold2,#C8A661)}
+.mkpi-k{font-family:'Inter';font-weight:600;font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--cream-m);margin-top:6px}
+.crew-group{font-family:'Inter';font-weight:800;font-size:11.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--gold);margin:22px 2px 9px}
+.app.crew-day .mkpi-tile{background:#fff;border-color:rgba(26,22,16,.1);box-shadow:0 1px 2px rgba(26,22,16,.04)}
+.app.crew-day .mkpi-v{color:#7a5a1e}
+.app.crew-day .mkpi-k{color:rgba(26,22,16,.55)}
+.app.crew-day .crew-group{color:#8a6a2a}
 .paysettings{display:flex;flex-direction:column;gap:14px}
 .pay-row{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
 .pay-row-t{font-family:'Inter';font-weight:800;font-size:14px;color:var(--cream)}
