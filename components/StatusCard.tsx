@@ -26,6 +26,7 @@ const FINISHES: { key: Finish; label: string }[] = [
   { key: "redline", label: "Redline" },
 ];
 const MOTTO_DEFAULT = "Pure Signal, No Noise";
+const VISION_DEFAULT = "I Perform";  // the card hero line; members can make it their 5-year goal
 
 // The shared PNG mirrors the member-card side in the member's chosen finish (matches the .fc-scene
 // tokens). ink/accent/edge + a texture for the metallic finishes.
@@ -62,6 +63,10 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
   const [finish, setFinish] = useState<Finish>("gold");
   const [motto, setMotto] = useState(MOTTO_DEFAULT);
   const [editMotto, setEditMotto] = useState(false);
+  // The hero line is theirs to own — a one-line 5-year goal. Canonical (profiles.card_vision, 0183);
+  // default "I Perform". Bounded on save ("safely").
+  const [vision, setVision] = useState(profile?.card_vision?.trim() || VISION_DEFAULT);
+  const [editVision, setEditVision] = useState(false);
   // Optional gender drives the founding crest only (crown / tiara). Local state mirrors the profile
   // so the picker reflects instantly; persisted to profiles.gender (0182).
   const [gender, setGenderLocal] = useState<"male" | "female" | null>(demo?.gender ?? (profile?.gender === "male" || profile?.gender === "female" ? profile.gender : null));
@@ -89,6 +94,13 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
   const setGender = async (g: "male" | "female" | null) => {
     setGenderLocal(g); haptic(HAPTIC.tap);
     if (supabase && user) await supabase.from("profiles").update({ gender: g }).eq("id", user.id);
+  };
+  // Your vision — a one-line 5-year goal. Bounded to one short line, trimmed, saved canonically.
+  const saveVision = async (v: string) => {
+    const clean = v.replace(/\s+/g, " ").trim().slice(0, 48);
+    const val = clean || VISION_DEFAULT;
+    setVision(val); setEditVision(false);
+    if (supabase && user) await supabase.from("profiles").update({ card_vision: clean || null }).eq("id", user.id);
   };
 
   // ── the shareable PNG = the MEMBER-CARD side, in their chosen finish (matches the card they hold) ──
@@ -147,11 +159,16 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
     ctx.fillText("PB", W / 2, 292);
     sparkle(W / 2 + 74, 244, 12, "#fff6d8"); sparkle(W / 2 - 78, 288, 8, p.accent);
 
-    // "I PERFORM" — the hero, first person; the card is about them, so they'll share it
+    // The hero line — their vision (or "I PERFORM"). Auto-fit so a longer 5-year goal still lands clean.
     const ig = ctx.createLinearGradient(0, 418, 0, 520);
     ig.addColorStop(0, p.accent); ig.addColorStop(1, p.accentDeep);
-    lsp("8px"); ctx.fillStyle = ig; ctx.font = "800 92px 'Inter', sans-serif";
-    ctx.fillText("I PERFORM", W / 2, 508); lsp("0px");
+    const hero = vision.toUpperCase();
+    const long = hero.length > 12;
+    lsp(long ? "3px" : "8px");
+    let fs = 92; const maxW = W - 150;
+    ctx.font = `800 ${fs}px 'Inter', sans-serif`;
+    while (fs > 40 && ctx.measureText(hero).width > maxW) { fs -= 4; ctx.font = `800 ${fs}px 'Inter', sans-serif`; }
+    ctx.fillStyle = ig; ctx.fillText(hero, W / 2, 508, maxW); lsp("0px");
 
     ctx.strokeStyle = p.edge; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.moveTo(W / 2 - 90, 572); ctx.lineTo(W / 2 + 90, 572); ctx.stroke();
@@ -171,13 +188,15 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
     ctx.fillText(code ? `JOIN WITH ${code}   ·   app.gt3pb.com` : "app.gt3pb.com", W / 2, 1254);
 
     setReady(true);
-  }, [founding, name, code, sinceYear, tierLine, motto, finish]);
+  }, [founding, name, code, sinceYear, tierLine, motto, finish, vision]);
 
   useEffect(() => { if (open) { setReady(false); draw(); } }, [open, draw]);
   useEffect(() => () => { if (spinTimer.current) clearTimeout(spinTimer.current); }, []);
   // Adopt the saved photo when the profile loads (async) — unless the member just picked a new one.
   const dirtyPhoto = useRef(false);
   useEffect(() => { if (!dirtyPhoto.current && profile?.avatar_url) { setPhotoUrl(profile.avatar_url); setHasPhoto(true); } }, [profile?.avatar_url]);
+  // Adopt the saved vision when the profile loads (async), unless they're mid-edit.
+  useEffect(() => { if (!editVision) setVision(profile?.card_vision?.trim() || VISION_DEFAULT); }, [profile?.card_vision]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]; if (!f) return;
@@ -278,7 +297,7 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
               <span className="fc-back-molecule" aria-hidden />
               <span className="fc-grow">Grow your 3mpire</span>
               <span className="fc-pbwrap"><span className="fc-pb">PB</span><i className="fc-spark s1" aria-hidden>✦</i><i className="fc-spark s2" aria-hidden>✦</i></span>
-              <span className="fc-perform">I Perform</span>
+              <span className={`fc-perform${vision.length > 12 ? " long" : ""}${vision.length > 24 ? " longer" : ""}`}>{vision}</span>
               <span className="fc-rule" />
               <span className="fc-bname">{name}</span>
               <span className="fc-status">{tierLine}</span>
@@ -299,6 +318,15 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
             <span className="fc-fin-sw" aria-hidden /><span>{f.label}</span>
           </button>
         ))}
+      </div>
+      <div className="fc-motto-edit">
+        {editVision ? (
+          <input className="auth-input" defaultValue={vision === VISION_DEFAULT ? "" : vision} maxLength={48} autoFocus
+            onBlur={(e) => saveVision(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") saveVision((e.target as HTMLInputElement).value); }}
+            aria-label="Your 5-year vision" placeholder="Your 5-year goal — e.g. Make great coffee in 3 regions" />
+        ) : (
+          <button type="button" className="fc-motto-btn" onClick={() => setEditVision(true)}>🎯 Your vision — &ldquo;{vision}&rdquo; · tap to set a 5-year goal</button>
+        )}
       </div>
       <div className="fc-motto-edit">
         {editMotto ? (
