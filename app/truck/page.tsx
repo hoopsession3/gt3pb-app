@@ -108,25 +108,31 @@ function TruckLive() {
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    const [{ data: s }, { data: l }] = await Promise.all([
-      supabase.from("stops").select("*").order("sort"),
-      supabase.from("live_status").select("*").maybeSingle(),
-    ]);
-    // Guests see the road AHEAD: hide archived, completed, and past-dated stops (a stop stays
-    // visible through its evening — 8h grace past its start). The live stop always shows.
-    const lstat = l as LiveStatus | null;
-    const liveId = lstat?.is_live ? lstat.current_stop_id : null;
-    const nowT = Date.now();
-    if (s) setStops((s as (Stop & { completed_at?: string | null })[])
-      .filter((x) =>
-        !x.archived_at && x.status !== "done" && !x.completed_at
-        && (x.id === liveId || !x.starts_at || new Date(x.starts_at).getTime() > nowT - 8 * 3600 * 1000)
-      )
-      // Soonest first: guests read the road in date order (undated stops sink to the end),
-      // so the headline is always the next real stop — not whoever sorts first by hand.
-      .sort((a, b) => (a.starts_at ? Date.parse(a.starts_at) : Infinity) - (b.starts_at ? Date.parse(b.starts_at) : Infinity))
-    );
-    if (lstat) setLive(lstat);
+    // WRAPPED so this can never reject: load() is fired bare from five places (mount, both realtime
+    // handlers, the 20s poll, focus/visibility). A dropped socket, an offline fetch, or a realtime
+    // error object surfaces as an UNHANDLED promise rejection on /truck (the field-error alert).
+    // On failure keep the last-known route; the poll + focus refetch recover on their own.
+    try {
+      const [{ data: s }, { data: l }] = await Promise.all([
+        supabase.from("stops").select("*").order("sort"),
+        supabase.from("live_status").select("*").maybeSingle(),
+      ]);
+      // Guests see the road AHEAD: hide archived, completed, and past-dated stops (a stop stays
+      // visible through its evening — 8h grace past its start). The live stop always shows.
+      const lstat = l as LiveStatus | null;
+      const liveId = lstat?.is_live ? lstat.current_stop_id : null;
+      const nowT = Date.now();
+      if (s) setStops((s as (Stop & { completed_at?: string | null })[])
+        .filter((x) =>
+          !x.archived_at && x.status !== "done" && !x.completed_at
+          && (x.id === liveId || !x.starts_at || new Date(x.starts_at).getTime() > nowT - 8 * 3600 * 1000)
+        )
+        // Soonest first: guests read the road in date order (undated stops sink to the end),
+        // so the headline is always the next real stop — not whoever sorts first by hand.
+        .sort((a, b) => (a.starts_at ? Date.parse(a.starts_at) : Infinity) - (b.starts_at ? Date.parse(b.starts_at) : Infinity))
+      );
+      if (lstat) setLive(lstat);
+    } catch { /* keep last-known route; a later poll/focus refetch recovers */ }
     setLoaded(true);
   }, []);
 
@@ -146,7 +152,8 @@ function TruckLive() {
     if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVis);
     window.addEventListener("focus", onVis);
     return () => {
-      supabase?.removeChannel(ch);
+      // removeChannel returns a promise too — swallow so a teardown race can't reject unhandled.
+      try { void Promise.resolve(supabase?.removeChannel(ch)).catch(() => {}); } catch { /* */ }
       clearInterval(poll);
       if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVis);
       window.removeEventListener("focus", onVis);
