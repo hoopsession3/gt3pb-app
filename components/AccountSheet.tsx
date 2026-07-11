@@ -59,16 +59,16 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
 
   const go = (href: string) => { onClose(); router.push(href); };
 
-  const header = (
+  const head = (title: string) => (
     <div className="acs-head">
-      <span className="acs-head-t"><Gt3Mark tone="cream" /> Your GT3</span>
+      <span className="acs-head-t"><Gt3Mark tone="cream" /> {title}</span>
       <button type="button" className="isheet-x" onClick={onClose}>Close</button>
     </div>
   );
 
   if (!user) {
     return (
-      <Sheet open onClose={onClose} header={header} className="acs-sheet">
+      <Sheet open onClose={onClose} header={head("Membership")} className="acs-sheet">
         <div className="acs-guest">
           <div className="acs-guest-t">Points · pours · reserves</div>
           <p>Sign in to earn stamps, track your orders, and carry your GT3 member card.</p>
@@ -81,7 +81,7 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
   const usualNames = last ? last.items.map((i) => DRINKS[i as DrinkId]?.n ?? i).join(" · ") : "";
 
   return (
-    <Sheet open onClose={onClose} header={header} className="acs-sheet">
+    <Sheet open onClose={onClose} header={head("Your Member Profile")} className="acs-sheet">
       {/* Identity — the portrait, the name, the tier */}
       <div className="acs-hero">
         <div className={`acs-av${photo ? " ph" : ""}`} style={photo ? { backgroundImage: `url(${photo})` } : undefined}>
@@ -126,18 +126,28 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
         <span className="acs-card-mk"><Gt3Mark tone="cream" /></span>
       </button>
 
-      {/* Everything else */}
+      {/* Manage — the real destinations: orders, reservations, rewards */}
+      <div className="acs-group">Manage</div>
       <div className="acs-rows">
-        <button type="button" className="acs-row" onClick={onEditProfile}>
-          <span className="acs-row-x"><b>Edit profile</b><span>Photo · name · order alerts</span></span>
-          <span className="acs-row-c" aria-hidden>›</span>
-        </button>
-        <button type="button" className="acs-row" onClick={() => go("/3mpire")}>
-          <span className="acs-row-x"><b>Refer &amp; earn</b><span>Give $5, get $5{free > 0 ? ` · ${free} free earned` : ""}</span></span>
+        <button type="button" className="acs-row" onClick={() => go("/3mpire#orders")}>
+          <span className="acs-row-x"><b>Orders &amp; deliveries</b><span>Track, reorder &amp; receipts</span></span>
           <span className="acs-row-c" aria-hidden>›</span>
         </button>
         <button type="button" className="acs-row" onClick={() => go("/events")}>
-          <span className="acs-row-x"><b>Saved events</b><span>Track stops · RSVP</span></span>
+          <span className="acs-row-x"><b>Reservations &amp; events</b><span>Upcoming stops · RSVPs</span></span>
+          <span className="acs-row-c" aria-hidden>›</span>
+        </button>
+        <button type="button" className="acs-row" onClick={() => go("/3mpire#rewards")}>
+          <span className="acs-row-x"><b>Rewards &amp; referrals</b><span>Points, credit · give $5 get $5{free > 0 ? ` · ${free} free` : ""}</span></span>
+          <span className="acs-row-c" aria-hidden>›</span>
+        </button>
+      </div>
+
+      {/* Account — who you are and how you're reached */}
+      <div className="acs-group">Account</div>
+      <div className="acs-rows">
+        <button type="button" className="acs-row" onClick={onEditProfile}>
+          <span className="acs-row-x"><b>Profile &amp; notifications</b><span>Photo · name · order alerts</span></span>
           <span className="acs-row-c" aria-hidden>›</span>
         </button>
         {staff && (
@@ -147,7 +157,7 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
           </button>
         )}
         <button type="button" className="acs-row" onClick={() => go("/3mpire")}>
-          <span className="acs-row-x"><b>Your 3MPIRE</b><span>Full membership · orders · history</span></span>
+          <span className="acs-row-x"><b>Full member profile</b><span>Card, rewards, orders &amp; history</span></span>
           <span className="acs-row-c" aria-hidden>›</span>
         </button>
       </div>

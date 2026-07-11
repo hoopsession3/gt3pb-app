@@ -1375,8 +1375,12 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .acs-card-l span{display:block;margin-top:2px;font-family:'Inter';font-size:12px;color:var(--cream-m)}
 .acs-card-mk{flex:0 0 auto;opacity:.9}
 .acs-card-mk .g3{font-size:22px}
-/* the rest */
-.acs-rows{display:flex;flex-direction:column;gap:2px;margin-bottom:14px}
+/* grouped, labeled sections — a proper account center, not a flat dump */
+.acs-group{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold2);opacity:.8;margin:2px 4px 7px}
+/* deep-link landing offset so #orders / #rewards don't tuck under the top row */
+.acs-anchor{scroll-margin-top:72px}
+.acs-rows{display:flex;flex-direction:column;gap:2px;margin-bottom:16px}
+.acs-rows:last-of-type{margin-bottom:14px}
 .acs-row{display:flex;align-items:center;width:100%;text-align:left;background:none;border:none;border-radius:11px;padding:11px 10px;cursor:pointer}
 .acs-row:hover,.acs-row:active{background:rgba(255,255,255,.05)}
 .acs-row-x{flex:1;min-width:0}

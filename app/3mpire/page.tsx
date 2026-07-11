@@ -136,6 +136,15 @@ function MpireReal() {
   const code = profile?.referral_code || "GT3PB-3MP";
   const creditCents = profile?.credit_cents ?? 0;
 
+  // Deep-link landing — the account popout routes here with #orders / #rewards; scroll to the
+  // section once the page has laid out (data blocks mount async).
+  useEffect(() => {
+    const h = typeof window !== "undefined" ? window.location.hash.slice(1) : "";
+    if (!h) return;
+    const t = setTimeout(() => { document.getElementById(h)?.scrollIntoView({ behavior: "smooth", block: "start" }); }, 260);
+    return () => clearTimeout(t);
+  }, []);
+
   return (
     <section className="screen" id="s-mpire">
       <div className="toprow">
@@ -147,7 +156,7 @@ function MpireReal() {
           card + stat tiles repeated all of it (name ×2, 5/10 ×3); everything they added now lives
           in one quiet line, and credit only speaks up when there's actually credit. */}
       <MembershipCard />
-      <div className="memline">
+      <div id="rewards" className="memline acs-anchor">
         <span><b>{points}</b> pts</span>
         <span className="memline-dot">·</span>
         <span>day <b>{streak}</b> streak</span>
@@ -159,6 +168,7 @@ function MpireReal() {
       {/* Your orders — the fulfillment tracker the delivery success screen promises ("track it in
           your account"). Packs and deliveries share one card, live. Each self-hides when empty, so
           a brand-new member sees nothing here. Reserves stay on /events (their own mechanic). */}
+      <div id="orders" className="acs-anchor" aria-hidden />
       <MyPacks />
       <MyDeliveries />
 
