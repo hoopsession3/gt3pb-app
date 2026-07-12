@@ -1584,6 +1584,12 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .ops-track{flex:none;font-family:'Inter';font-weight:600;font-size:11.5px;color:var(--warn);background:rgba(207,154,74,.1);border:1px solid rgba(207,154,74,.35);border-radius:8px;padding:6px 12px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .ops-track:active{transform:scale(.95)}
 .ops-track:disabled{opacity:.55}
+/* note attachments → transcribe */
+.natt{display:flex;flex-direction:column;gap:5px;margin:8px 0}
+.natt-btn{align-self:flex-start;font-family:'Inter';font-weight:600;font-size:12.5px;color:var(--gold2);background:rgba(200,166,97,.08);border:1px dashed rgba(200,166,97,.5);border-radius:11px;padding:9px 15px;cursor:pointer;-webkit-appearance:none;appearance:none;transition:transform .12s ease}
+.natt-btn:active{transform:scale(.98)}
+.natt-btn:disabled{opacity:.6;cursor:default}
+.natt-hint{font-family:'Inter';font-size:11px;color:var(--cream-d)}
 @media(prefers-reduced-motion:reduce){.ops-op,.ops-approve,.ops-cancel,.ops-check,.ops-dots i,.ops-prog-bar i{animation:none;opacity:1;transform:none}}
 .oo-row{padding:13px 14px;border-bottom:1px solid var(--line2)}
 .oo-row:last-child{border-bottom:0}

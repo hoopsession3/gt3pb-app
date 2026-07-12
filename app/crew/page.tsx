@@ -25,6 +25,7 @@ import OfficeOrders from "@/components/OfficeOrders";
 import SiteCopyEditor from "@/components/SiteCopyEditor";
 import OfficeSettings from "@/components/OfficeSettings";
 import OpsPlan from "@/components/OpsPlan";
+import NoteAttach from "@/components/NoteAttach";
 import Goals from "@/components/Goals";
 import AiTraining from "@/components/AiTraining";
 import PromoEditor from "@/components/PromoEditor";
@@ -3068,8 +3069,9 @@ function MeetingNotes() {
             </div>
             <textarea className="note-area" placeholder="The note — a thought, a plan, a recap…" value={cSummary} onChange={(e) => setCSummary(e.target.value)} rows={cSummary.length > 200 ? 10 : 3} />
             <details className="note-transcript">
-              <summary>Have a transcript? Paste it and ✨ summarize</summary>
-              <textarea className="note-area" placeholder="Paste the full transcript here…" value={cBody} onChange={(e) => setCBody(e.target.value)} rows={4} />
+              <summary>Transcript or attachments? Add them and ✨ summarize</summary>
+              <NoteAttach onText={(t) => setCBody((b) => (b ? b + "\n\n" + t : t))} />
+              <textarea className="note-area" placeholder="Paste a transcript — or attach files above to fill this in…" value={cBody} onChange={(e) => setCBody(e.target.value)} rows={4} />
               <button type="button" className="note-suggest note-sum" onClick={summarize} disabled={summarizing}>{summarizing ? "Summarizing…" : "✨ Summarize → title · recap · tasks"}</button>
             </details>
             <div className="note-fu-h">Follow-ups
