@@ -1876,15 +1876,8 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       menuRow = (s as unknown as EventRow) ?? null;
     }
     if (!menuRow) return;
-    if (regen && typeof window !== "undefined" && !window.confirm(`Rebuild the pack list from the ${isEvent ? "event" : "stop"}'s current menu/rig?\n\nThis clears the existing list and all its checkmarks.`)) return;
+    if (regen && typeof window !== "undefined" && !window.confirm(`Refresh the pack list from the ${isEvent ? "event" : "stop"}'s current menu/rig?\n\nNew items are added and dropped ones removed — your existing checkmarks are kept.`)) return;
     setGenerating(true);
-    // Idempotency: never double-insert (the old double-tap bug). If tasks already exist,
-    // a plain generate no-ops; "Regenerate" clears first then rebuilds.
-    const { data: existing } = await supabase.from("event_tasks").select("id").eq(ownerCol, target.id);
-    if (existing && existing.length) {
-      if (!regen) { setGenerating(false); load(); return; }
-      await supabase.from("event_tasks").delete().eq(ownerCol, target.id);
-    }
     // Pack list (rig/menu) for both; compliance (state/county) for events, which carry a jurisdiction.
     // Menu comes from the 0173 relation (real product slugs) when it has rows; the legacy menu_*
     // booleans on the row remain the fallback for owners whose relation was never written.
@@ -1894,10 +1887,30 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
     const comp = isEvent && ev ? (await complianceFor(ev, supabase)).map((p, i) => ({ event_id: ev.id, label: p.label, section: p.section, critical: !!p.critical, warn: !!p.warn, kind: "task", link: p.link ?? null, sort: 100 + i })) : [];
     const rows = [...pack, ...comp];
     if (!rows.length) { setGenerating(false); toast(`Set the ${isEvent ? "event" : "stop"}'s menu + rig first — tap Menu & setup`, "error"); return; }
-    const { error } = await supabase.from("event_tasks").insert(rows);
+    const keyOf = (r: { section?: string | null; label: string }) => `${r.section ?? ""}|${r.label}`;
+    const { data: existing } = await supabase.from("event_tasks").select("id, label, section, kind").eq(ownerCol, target.id);
+    const ex = (existing as { id: string; label: string; section: string | null; kind: string | null }[]) ?? [];
+    if (!ex.length) {
+      // First generation — straight insert.
+      const { error } = await supabase.from("event_tasks").insert(rows);
+      setGenerating(false);
+      toast(error ? `Error: ${error.message}` : `Generated ${pack.length} pack${comp.length ? ` + ${comp.length} compliance` : ""} items`);
+      if (!error) load();
+      return;
+    }
+    if (!regen) { setGenerating(false); load(); return; } // idempotent: a plain generate never double-inserts
+    // DIFF regen (audit P1·8) — preserve crew progress: add only the items that are new, remove only
+    // the auto-generated PACK rows that are no longer on the menu, and leave everything else (checked
+    // items, manual tasks, follow-ups, compliance) exactly as it is.
+    const existingKeys = new Set(ex.map(keyOf));
+    const desiredKeys = new Set(rows.map(keyOf));
+    const toAdd = rows.filter((r) => !existingKeys.has(keyOf(r)));
+    const staleIds = ex.filter((r) => r.kind === "pack" && !desiredKeys.has(keyOf(r))).map((r) => r.id);
+    if (toAdd.length) await supabase.from("event_tasks").insert(toAdd);
+    if (staleIds.length) await supabase.from("event_tasks").delete().in("id", staleIds);
     setGenerating(false);
-    toast(error ? `Error: ${error.message}` : `Generated ${pack.length} pack${comp.length ? ` + ${comp.length} compliance` : ""} items`);
-    if (!error) load();
+    toast(toAdd.length || staleIds.length ? `Refreshed — ${toAdd.length} added, ${staleIds.length} removed, checkmarks kept` : "Already up to date");
+    load();
   };
   // Nuke / reset — wipe everything built for this event/stop (AI-generated prep + run-of-show schedule)
   // so the crew can start clean. The event/stop itself, its date, and its day-of brief stay.
@@ -2546,8 +2559,15 @@ function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive
     const geo = await geocode(q);
     if (!geo) { setBusy(false); toast("Couldn't find that address — add city & state, then retry."); return false; }
     const { error } = await supabase!.from(table).update({ address: q, location_text: q, lat: geo.lat, lng: geo.lng }).eq("id", row.id);
+    // A vendor's location is the source of truth — push it to every linked stop/event so directions
+    // stay accurate everywhere the venue is used (audit P1·7: the "edit once, updates everywhere"
+    // promise was only half-true — POC read live, but address/coords were snapshotted and went stale).
+    if (!error && kind === "vendor") {
+      await supabase!.from("stops").update({ address: q, location_text: q, lat: geo.lat, lng: geo.lng }).eq("vendor_id", row.id);
+      await supabase!.from("events").update({ location_text: q }).eq("vendor_id", row.id);
+    }
     setBusy(false);
-    toast(error ? `Error: ${error.message}` : `Location pinned${kind === "stop" ? " — directions are now accurate" : ""}`);
+    toast(error ? `Error: ${error.message}` : kind === "vendor" ? "Location saved — linked stops & events updated" : "Location pinned — directions are now accurate");
     if (!error) onChanged();
     return !error;
   };
