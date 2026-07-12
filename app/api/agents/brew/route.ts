@@ -104,6 +104,23 @@ export async function POST(req: Request) {
       notes: typeof body.commit.notes === "string" ? body.commit.notes.slice(0, 600) : null,
     }).select("id").maybeSingle();
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    // Brewing consumes ingredients — record it in the inventory ledger (audit P2: brew now moves stock,
+    // per the owner's "decrement at brew time" call). Match each scaled ingredient to a catalog item by
+    // name so the ledger row carries the real item id (0197 FK); qty is negative (a use). The ledger IS
+    // the on-hand delta system (inventory_on_hand sums it) — safer than mutating qty across mismatched
+    // units. Best-effort per line so a missing/uncosted ingredient never blocks the brew.
+    try {
+      const items: any[] = Array.isArray(scaled) ? scaled : [];
+      if (items.length) {
+        const { data: inv } = await supabaseAdmin.from("inventory_items").select("id, name");
+        const byName = new Map((inv ?? []).map((r: any) => [String(r.name).trim().toLowerCase(), r.id]));
+        const rows = items
+          .map((ing: any) => ({ nm: String(ing?.name ?? "").trim(), q: Number(ing?.qty) || 0 }))
+          .filter((x) => x.nm && x.q > 0)
+          .map((x) => ({ item: x.nm.slice(0, 160), inventory_item_id: byName.get(x.nm.toLowerCase()) ?? null, kind: "use", qty: -x.q, note: `Brew — ${(recipe as any).name ?? ""} · ${batchGal} gal`.slice(0, 200) }));
+        if (rows.length) await supabaseAdmin.from("inventory_ledger").insert(rows);
+      }
+    } catch { /* consumption logging is best-effort */ }
     return NextResponse.json({ ok: true, batch_id: ins?.id ?? null });
   }
 
