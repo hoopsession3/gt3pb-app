@@ -4705,13 +4705,14 @@ function VendorPicker({ vendors, vendorId, onLink, onCreated }: { vendors: Vendo
         {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}{v.status === "pending" ? " · pending" : ""}</option>)}
       </select>
       {linked?.status === "pending" && <div className="vpend">⏳ Pending owner approval — review it in Plan › Vendors.</div>}
-      {linked && (linked.poc_name || linked.poc_phone || linked.poc_email || linked.service_dates) && (
+      {linked && (linked.address || linked.location_text || linked.poc_name || linked.poc_phone || linked.poc_email || linked.service_dates) && (
         <div className="vlink">
-          {linked.poc_name && <div className="vlink-row"><span>POC</span><b>{linked.poc_name}</b></div>}
+          {(linked.address || linked.location_text) && <div className="vlink-row"><span>Address</span><b>{linked.address || linked.location_text}</b></div>}
+          {linked.poc_name && <div className="vlink-row"><span>Liaison</span><b>{linked.poc_name}</b></div>}
           {linked.poc_phone && <div className="vlink-row"><span>Phone</span><a href={`tel:${linked.poc_phone}`}>{linked.poc_phone}</a></div>}
           {linked.poc_email && <div className="vlink-row"><span>Email</span><a href={`mailto:${linked.poc_email}`}>{linked.poc_email}</a></div>}
           {linked.service_dates && <div className="vlink-row"><span>Service</span><b>{linked.service_dates}</b></div>}
-          <div className="vlink-note">Managed in Vendors — edits there update everywhere.</div>
+          <div className="vlink-note">Pulled from the vendor book — edits there update everywhere it&apos;s linked.</div>
         </div>
       )}
       {adding ? (
@@ -4807,6 +4808,12 @@ function SectionGuide({ allowed, current, onGo, onClose }: { allowed: OpSection[
   const [open, setOpen] = useState<OpSection>(current);
   return (
     <Sheet open onClose={onClose} labelledBy="section-guide-title" header={<div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}><div><div className="guide-t" id="section-guide-title">When to use what</div><div className="guide-lede">Each section is one job at one moment. Tap to learn more, then jump straight there.</div></div><button type="button" className="guide-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close">✕</button></div>}>
+        {(allowed.includes("plan") || allowed.includes("prep")) && (
+          <button type="button" className="guide-create" onClick={() => { window.dispatchEvent(new CustomEvent("gt3-copilot", { detail: "event-build" })); onClose(); }}>
+            <span className="guide-create-x"><b>✦ Create an event or truck stop</b><span>Say it in plain words — the chief of staff drafts it, you confirm.</span></span>
+            <span className="guide-create-go" aria-hidden>→</span>
+          </button>
+        )}
         <div className="guide-list">
           {allowed.map((s, i) => {
             const isOpen = open === s;
