@@ -19,6 +19,7 @@ export default function MoneyKpis() {
     { k: "today_orders", v: "—", sub: "Orders today" },
     { k: "subs", v: "—", sub: "Active subscribers" },
     { k: "reserves", v: "—", sub: "Pack pickups" },
+    { k: "office_rev", v: "—", sub: "Office · 7 days" },
   ]);
 
   useEffect(() => {
@@ -33,19 +34,22 @@ export default function MoneyKpis() {
     (async () => {
       const today = startOfToday();
       const week = startOfWeek();
-      const [rev, orders, subs, reserves] = await Promise.all([
+      const [rev, orders, subs, reserves, office] = await Promise.all([
         safe(() => supabase!.from("orders").select("total_cents").eq("paid", true).neq("status", "void").gte("created_at", week)),
         safe(() => supabase!.from("orders").select("id", { count: "exact", head: true }).neq("status", "void").gte("created_at", today)),
         safe(() => supabase!.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "active")),
         safe(() => supabase!.from("drop_orders").select("id", { count: "exact", head: true }).is("canceled_at", null).gte("drop_date", today.slice(0, 10))),
+        safe(() => supabase!.from("business_orders").select("total_cents").is("canceled_at", null).gte("created_at", week)),
       ]);
       if (!live) return;
       const revCents = rev.data?.reduce((s, o) => s + num(o.total_cents), 0);
+      const officeCents = office.data?.reduce((s, o) => s + num(o.total_cents), 0);
       setKpis([
         { k: "week_rev", v: rev.data ? money(revCents ?? 0) : "—", sub: "Revenue · 7 days" },
         { k: "today_orders", v: orders.count != null ? String(orders.count) : "—", sub: "Orders today" },
         { k: "subs", v: subs.count != null ? String(subs.count) : "—", sub: "Active subscribers" },
         { k: "reserves", v: reserves.count != null ? String(reserves.count) : "—", sub: "Pack pickups" },
+        { k: "office_rev", v: office.data ? money(officeCents ?? 0) : "—", sub: "Office · 7 days" },
       ]);
     })();
     return () => { live = false; };
