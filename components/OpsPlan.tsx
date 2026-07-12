@@ -6,6 +6,7 @@ import { useApp } from "./AppProvider";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { haptic, HAPTIC } from "@/lib/haptics";
+import { findOrCreatePendingVendor } from "@/lib/vendorLink";
 
 // OPS PLAN (chief-of-staff) — turn a meeting note into a build-able operations plan. Calls the
 // opsplan agent, then lets the operator tap "Create" on each proposed op (event/stop, vendor,
@@ -55,20 +56,32 @@ export default function OpsPlan({ noteId }: { noteId: string }) {
   const createOp = async (op: Op, i: number) => {
     if (!supabase || !user || done[i]) return;
     try {
+      // Every venue/vendor goes through the shared find-or-create — so a note about "Wine Express"
+      // reuses the existing vendor instead of minting a duplicate, and a brand-new one is created
+      // PENDING for owner approval (audit P0·2). Created records link back to the note.
       if (op.type === "task" || op.type === "brew") {
         await supabase.from("event_tasks").insert({ meeting_note_id: noteId, origin_note_id: noteId, label: (op.type === "brew" ? `Brew — ${op.title}` : op.title).slice(0, 300), kind: "task", section: "Follow-up", critical: !!op.critical, sort: 1000 + i });
-      } else if (op.type === "stop" || op.type === "event") {
+      } else if (op.type === "stop") {
         const dk = whenToDate(op.when);
-        await supabase.from("stops").insert({ name: (op.who || op.title).slice(0, 120), location_text: op.who || null, starts_at: new Date(`${dk}T11:00:00`).toISOString(), status: "upcoming", sort: 0 });
+        const v = await findOrCreatePendingVendor(op.who || op.title, { source: "a meeting note" });
+        const { data: s } = await supabase.from("stops").insert({ name: (op.who || op.title).slice(0, 120), location_text: op.who || null, starts_at: new Date(`${dk}T11:00:00`).toISOString(), status: "upcoming", sort: 0, vendor_id: v?.id ?? null }).select("id").single();
+        if (s) await supabase.from("meeting_notes").update({ stop_id: (s as { id: string }).id }).eq("id", noteId);
+      } else if (op.type === "event") {
+        // An EVENT is a booked show — it belongs in the events table, not stops (the old code
+        // mis-routed both into stops).
+        const dk = whenToDate(op.when);
+        const v = await findOrCreatePendingVendor(op.who || op.title, { source: "a meeting note" });
+        const { data: e } = await supabase.from("events").insert({ title: op.title.slice(0, 160), day: dk, category: "event", location_text: op.who || null, vendor_id: v?.id ?? null }).select("id").single();
+        if (e) await supabase.from("meeting_notes").update({ event_id: (e as { id: string }).id }).eq("id", noteId);
       } else if (op.type === "vendor") {
-        await supabase.from("vendors").insert({ name: (op.who || op.title).slice(0, 120), vendor_type: "gym" });
+        const v = await findOrCreatePendingVendor(op.who || op.title, { source: "a meeting note" });
+        if (v) await supabase.from("meeting_notes").update({ vendor_id: v.id }).eq("id", noteId);
       } else if (op.type === "pipeline") {
-        const vname = (op.who || op.title).slice(0, 120);
-        let vid: string | null = null;
-        const { data: ex } = await supabase.from("vendors").select("id").ilike("name", vname).limit(1).maybeSingle();
-        if (ex) vid = (ex as { id: string }).id;
-        else { const { data: nv } = await supabase.from("vendors").insert({ name: vname, vendor_type: "gym" }).select("id").single(); vid = (nv as { id: string } | null)?.id ?? null; }
-        if (vid) await supabase.from("opportunities").insert({ vendor_id: vid, next_step: (op.details || "Make first contact").slice(0, 300), created_by: user.id });
+        const v = await findOrCreatePendingVendor(op.who || op.title, { source: "a meeting note" });
+        if (v) {
+          const { data: opp } = await supabase.from("opportunities").insert({ vendor_id: v.id, next_step: (op.details || "Make first contact").slice(0, 300), created_by: user.id }).select("id").single();
+          if (opp) await supabase.from("meeting_notes").update({ opportunity_id: (opp as { id: string }).id, vendor_id: v.id }).eq("id", noteId);
+        }
       }
       setDone((s) => ({ ...s, [i]: true })); haptic(HAPTIC.success); toast(`${TYPE_LABEL[op.type] ?? "Op"} created`);
     } catch { toast("Couldn't create that one", "error"); }
