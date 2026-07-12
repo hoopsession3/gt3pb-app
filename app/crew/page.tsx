@@ -24,6 +24,7 @@ import DropOps from "@/components/DropOps";
 import OfficeOrders from "@/components/OfficeOrders";
 import SiteCopyEditor from "@/components/SiteCopyEditor";
 import OfficeSettings from "@/components/OfficeSettings";
+import OpsPlan from "@/components/OpsPlan";
 import Goals from "@/components/Goals";
 import AiTraining from "@/components/AiTraining";
 import PromoEditor from "@/components/PromoEditor";
@@ -3277,6 +3278,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
           )}
           {note.summary && <Markdown source={note.summary} className="note-summary" />}
           {note.body && <details className="note-full"><summary>Full notes</summary><p>{note.body}</p></details>}
+          <OpsPlan noteId={note.id} />
           <div className="note-fu-h">Follow-ups
             <button type="button" className="note-suggest" onClick={suggest} disabled={suggesting}>{suggesting ? "Reading…" : "✨ Suggest"}</button>
           </div>
