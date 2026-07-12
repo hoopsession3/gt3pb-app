@@ -5,7 +5,7 @@
 // but the 3 is always the red asset.
 export default function Gt3Mark({ className }: { tone?: "ink" | "cream"; className?: string }) {
   return (
-    <span className={`g3${className ? ` ${className}` : ""}`} aria-label="GT3">
+    <span className={`g3${className ? ` ${className}` : ""}`} role="img" aria-label="GT3">
       <span aria-hidden="true">GT</span>
       <img className="g3-3" src="/brand/gt3-3.png" alt="" aria-hidden="true" />
     </span>

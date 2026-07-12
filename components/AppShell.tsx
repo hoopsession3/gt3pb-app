@@ -26,9 +26,18 @@ import OfflineChip from "./OfflineChip";
 import MarketingSplash from "./MarketingSplash";
 import BroadcastBanner from "./BroadcastBanner";
 
+// Routes whose page already renders its own visible <h1> — don't add a second one.
+const H1_SKIP = new Set(["/truck", "/craft", "/office", "/display"]);
+const H1_TITLES: Record<string, string> = {
+  menu: "Menu", events: "Events", reserve: "Reserve a pack", book: "Book the truck",
+  delivery: "Delivery", scan: "Scan your card", playbook: "Playbook", academy: "Academy",
+  architecture: "Architecture", "3mpire": "Your member profile", crew: "Crew console", driver: "Driver run",
+};
+const routeTitle = (p: string): string => (p === "/" ? "GT3 Performance Bar" : H1_TITLES[p.split("/")[1] || ""] || "GT3 Performance Bar");
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const bodyRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLElement>(null);
   const { closeDrink } = useApp();
 
   // Mirror the prototype go(): scroll to top + close any open sheet on navigation.
@@ -95,9 +104,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <a href="#body" className="skip-link">Skip to content</a>
         {/* Live broadcast bar — an operator-published message/ad, shown to every user in real time. */}
         {!isShare && <BroadcastBanner />}
-        <div className="body" ref={bodyRef} id="body" tabIndex={-1}>
+        {/* The one <main> landmark (a11y: landmark-one-main / region). A per-route sr-only <h1> gives
+            every screen a level-one heading; pages that render their own visible h1 are skipped. */}
+        <main className="body" ref={bodyRef} id="body" tabIndex={-1}>
+          {!isShare && !H1_SKIP.has(pathname) && <h1 className="sr-only">{routeTitle(pathname)}</h1>}
           {children}
-        </div>
+        </main>
         <DrinkSheet />
         <Checkout />
         <Toast />

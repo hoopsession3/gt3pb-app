@@ -32,7 +32,7 @@ export default function BottomNav() {
   const guest = enabled && ready && !user;
   const tabs = guest ? [...CORE, JOIN] : [TODAY, ...CORE];
   return (
-    <div className="nav">
+    <nav className="nav" aria-label="Primary">
       {tabs.map((t) => {
         const on = t.href === "/" ? pathname === "/" : pathname.startsWith(t.href);
         return (
@@ -46,6 +46,6 @@ export default function BottomNav() {
           </Link>
         );
       })}
-    </div>
+    </nav>
   );
 }
