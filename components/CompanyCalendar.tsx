@@ -295,7 +295,7 @@ export default function CompanyCalendar() {
           </button>
         </div>
         {filterSheet && (
-          <Sheet open onClose={() => setFilterSheet(false)} header={<div style={{ display: "flex", alignItems: "center" }}><div className="prep-sheet-h">Show on the calendar</div></div>}>
+          <Sheet open onClose={() => setFilterSheet(false)} label="Calendar filters" header={<div style={{ display: "flex", alignItems: "center" }}><div className="prep-sheet-h">Show on the calendar</div></div>}>
             <div className="prep-sheet-opts">
               <button type="button" className={`prep-sheet-opt${filter === "all" ? " on" : ""}`} onClick={() => { setFilter("all"); setFilterSheet(false); }}>Everything</button>
               <div className="dv-sub" style={{ margin: "10px 0 4px" }}>By lane</div>
@@ -479,7 +479,7 @@ function DayView({ dayKey, items, events, onClose, onAdd, onSaved }: { dayKey: s
   const brewLate = items.some((i) => i.warn);
   return (
     <>
-    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{heading}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
+    <Sheet open onClose={onClose} label="Calendar day" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{heading}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
           {items.length === 0 && archived.length === 0 && <div className="oa-empty" style={{ padding: "18px 8px" }}>Nothing scheduled this day. Tap Add to put something here.</div>}
           {clash && <div className="dv-heads">Heads up: event + truck stop share this day.</div>}
           {brewLate && <div className="dv-heads">Heads up: a brew here is past its latest start.</div>}
@@ -593,7 +593,7 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: s
         onClose={() => setPlanOpen(false)}
       />
     )}
-    <Sheet open onClose={onClose} className="dp-form" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{kind === "stop" ? "Truck stop" : `Edit ${cfg.noun}`}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
+    <Sheet open onClose={onClose} className="dp-form" label="Edit calendar item" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{kind === "stop" ? "Truck stop" : `Edit ${cfg.noun}`}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
           {kind === "stop" ? (
             /* Read-only: one editor per stop (the prep hub). The calendar shows the facts + doors. */
             <div className="cal-stopcard">

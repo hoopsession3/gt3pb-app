@@ -58,7 +58,7 @@ export default function TroubleshootAI({ ownerType, ownerId, title, onClose, onL
   const keep = diag?.prevention.filter((p) => !p._skip).length ?? 0;
 
   return (
-    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow">🔧 Troubleshoot · field ops</div><div className="dp-title">{title || "On site"} — what&apos;s wrong?</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
+    <Sheet open onClose={onClose} label="Troubleshoot" header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow">🔧 Troubleshoot · field ops</div><div className="dp-title">{title || "On site"} — what&apos;s wrong?</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
           {done ? (
             <div className="eg-done">
               <div className="eg-done-h">✓ Logged to this {ownerType}&apos;s recap{done.added ? ` · ${done.added} prevention task${done.added === 1 ? "" : "s"} added to prep` : ""}</div>

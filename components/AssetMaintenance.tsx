@@ -129,7 +129,7 @@ function LogSheet({ asset, onClose, onSaved }: { asset: Asset; onClose: () => vo
     setBusy(false); onSaved();
   };
   return (
-    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Log · {asset.name}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
+    <Sheet open onClose={onClose} label="Maintenance log" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Log · {asset.name}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
           <div className="ts-chips">
             {KINDS.map((k) => <button key={k} type="button" className={`ts-chip${kind === k ? " on" : ""}`} onClick={() => setKind(k)}>{KIND_ICON[k]} {k}</button>)}
           </div>

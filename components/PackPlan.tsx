@@ -74,7 +74,7 @@ export default function PackPlan({ ownerType, ownerId, title, onClose }: { owner
   const allBottle = () => setKegGal(Object.fromEntries(batches.map((b) => [b.id, "0"])));
 
   return (
-    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow">📦 Pack-out plan · kegs vs bottles</div><div className="dp-title">{title || "Event"} — {totalGal} gal across {batches.length} batch{batches.length === 1 ? "" : "es"}</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
+    <Sheet open onClose={onClose} label="Pack-out plan" header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow">📦 Pack-out plan · kegs vs bottles</div><div className="dp-title">{title || "Event"} — {totalGal} gal across {batches.length} batch{batches.length === 1 ? "" : "es"}</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
           {!loaded ? <div className="dp-hint">Loading…</div> : batches.length === 0 ? (
             <div className="dp-hint">No batches tied to this {ownerType} yet. Plan a batch in Brew and tie it here, then come back to split it between kegs and bottles.</div>
           ) : (

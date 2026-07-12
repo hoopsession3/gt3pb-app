@@ -67,7 +67,7 @@ export default function EventPrepAI({ ownerType, ownerId, title, onClose, onAdde
   const keepCount = tasks?.filter((t) => !t._skip).length ?? 0;
 
   return (
-    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow">AI prep · grounded in your data</div><div className="dp-title">{title || "Event"} — prep list</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
+    <Sheet open onClose={onClose} label="Event prep" header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow">AI prep · grounded in your data</div><div className="dp-title">{title || "Event"} — prep list</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
           {done !== null ? (
             <div className="eg-done">
               <div className="eg-done-h">✓ Added {done} item{done === 1 ? "" : "s"} to this event&apos;s prep</div>

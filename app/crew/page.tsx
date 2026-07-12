@@ -1389,7 +1389,7 @@ function whenBucket(day: string | null | undefined): { key: number; label: strin
 // Pull-up sheet to categorize the card view (date/when sort direction).
 function PrepViewSheet({ dir, setDir, onClose }: { dir: "asc" | "desc"; setDir: (d: "asc" | "desc") => void; onClose: () => void }) {
   return (
-    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}>Group by · date / when</div>}>
+    <Sheet open onClose={onClose} label="Group tasks" header={<div style={{ display: "flex", alignItems: "center" }}>Group by · date / when</div>}>
         <div className="prep-sheet-opts">
           <button className={`prep-sheet-opt${dir === "asc" ? " on" : ""}`} onClick={() => { setDir("asc"); onClose(); }}>Soonest first</button>
           <button className={`prep-sheet-opt${dir === "desc" ? " on" : ""}`} onClick={() => { setDir("desc"); onClose(); }}>Latest first</button>
@@ -2358,7 +2358,7 @@ function AssignSheet({ task, staff, crewIds, meId, meName, onPick, onClose }: {
     </button>
   );
   return (
-    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}>Assign · <b>{task.label}</b></div>}>
+    <Sheet open onClose={onClose} label="Assign task" header={<div style={{ display: "flex", alignItems: "center" }}>Assign · <b>{task.label}</b></div>}>
         {meId && (
           <button type="button" className={`assign-row me${task.assignee === meId ? " on" : ""}`} onClick={() => onPick(meId)}>
             <span className="assign-av">{(meName.trim().charAt(0) || "M").toUpperCase()}</span>
@@ -2418,7 +2418,7 @@ function TaskEditSheet({ task, onClose, onSaved }: { task: EventTask; onClose: (
     toast("Task deleted"); onSaved();
   };
   return (
-    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}>Edit task</div>}>
+    <Sheet open onClose={onClose} label="Edit task" header={<div style={{ display: "flex", alignItems: "center" }}>Edit task</div>}>
         <input className="ev-input" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Task" maxLength={300} autoFocus />
         <div className="prod-grid" style={{ marginTop: 10 }}>
           <label className="prod-f"><span>Section</span><input value={section} onChange={(e) => setSection(e.target.value)} placeholder="Task" maxLength={60} /></label>
@@ -2521,7 +2521,7 @@ function SupplyPicker({ ev, title, have, onAdd, onClose }: {
   };
 
   return (
-    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}>Supplies for · <b>{title}</b></div>}>
+    <Sheet open onClose={onClose} label="Event supplies" header={<div style={{ display: "flex", alignItems: "center" }}>Supplies for · <b>{title}</b></div>}>
         <div className="supply-head">
           <input className="subpitch-email" style={{ marginBottom: 0 }} placeholder="Search inventory + gear…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search supplies" autoFocus />
           {ql && !exactMatch && (
@@ -3132,7 +3132,7 @@ function MeetingNotes() {
 
       <button type="button" className="note-new" onClick={() => setComposing(true)}>✎ New note</button>
       {composing && (
-        <Sheet open onClose={() => { setComposing(false); setCActions([]); }} className="note-lux"
+        <Sheet open onClose={() => { setComposing(false); setCActions([]); }} label="New note" className="note-lux"
           header={<div className="note-lux-head"><span className="note-lux-eyb">New note</span><button type="button" className="qd-x" onClick={() => { setComposing(false); setCActions([]); }} aria-label="Close">✕</button></div>}
           footer={<div className="note-actions"><button type="button" className="note-cancel" onClick={() => { setComposing(false); setCActions([]); }}>Cancel</button><button type="button" className="note-save" disabled={!cTitle.trim() || saving} onClick={save}>{saving ? "Saving…" : "Save note"}</button></div>}>
           <div className="note-composer">

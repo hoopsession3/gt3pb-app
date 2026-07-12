@@ -636,7 +636,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
       </div>
 
       {libOpen && (
-        <Sheet open onClose={() => setLibOpen(false)} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Media library</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setLibOpen(false)}>✕</button></div>}>
+        <Sheet open onClose={() => setLibOpen(false)} label="Media library" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Media library</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setLibOpen(false)}>✕</button></div>}>
               {lib.length === 0 ? <div className="oa-empty">No media yet — uploads from any piece show here to reuse.</div> : (
                 <div className="lib-grid">
                   {lib.map((m, i) => (
@@ -651,7 +651,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
       )}
 
       {kitOpen && (
-        <Sheet open onClose={() => setKitOpen(false)} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>📦 Post kit</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setKitOpen(false)}>✕</button></div>}>
+        <Sheet open onClose={() => setKitOpen(false)} label="Post kit" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>📦 Post kit</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setKitOpen(false)}>✕</button></div>}>
               <div className="kit-row"><span className="kit-h">Caption</span><button className="kit-copy" onClick={() => copyText(caption)}>Copy</button></div>
               <div className="kit-box" style={{ whiteSpace: "pre-wrap" }}>{caption || "—"}</div>
               {tags.trim() && <><div className="kit-row"><span className="kit-h">Hashtags</span><button className="kit-copy" onClick={() => copyText(tags.split(",").map((t) => `#${t.trim()}`).join(" "))}>Copy</button></div><div className="kit-box">{tags.split(",").map((t) => `#${t.trim()}`).join(" ")}</div></>}

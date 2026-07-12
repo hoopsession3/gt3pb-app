@@ -134,7 +134,7 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
 
   return (
     <>
-      <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}>
+      <Sheet open onClose={onClose} label="Day-of run sheet" header={<div style={{ display: "flex", alignItems: "center" }}>
         <div className="dp-head-l">
           <div className="dp-eyebrow">Run of show</div>
           <div className="dp-title">{title || "Event"} — daily schedule</div>
@@ -239,7 +239,7 @@ function ItemForm({ item, onClose, onSave }: { item: Item | null; onClose: () =>
   const [f, setF] = useState<Partial<Item>>(item ?? { title: "", kind: "other", start_time: "", end_time: "", location: "", address: "", details: "", who: "" });
   const set = (k: keyof Item, v: any) => setF((p) => ({ ...p, [k]: v }));
   return (
-    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{item ? "Edit block" : "New block"}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
+    <Sheet open onClose={onClose} label="Day-of block" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{item ? "Edit block" : "New block"}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
           <input className="note-in" value={f.title ?? ""} onChange={(e) => set("title", e.target.value)} placeholder="What's happening? e.g. Arrive Airbnb" autoFocus />
           <div className="dp-kinds">
             {KINDS.map((k) => (
@@ -283,7 +283,7 @@ function DraftPanel({ ownerType = "event", eventId, dayIndex, onClose, onAdd }: 
   };
 
   return (
-    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>✨ Draft day {dayIndex}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
+    <Sheet open onClose={onClose} label="Draft the day" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>✨ Draft day {dayIndex}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
           {!rows && (
             <>
               <div className="dp-hint">A few notes — where you&apos;re leaving from, when the event opens, where you&apos;re staying — and AI proposes the day. You approve what to keep.</div>
