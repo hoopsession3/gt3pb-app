@@ -1464,6 +1464,34 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .office-done p{font-family:'Inter';font-size:14px;line-height:1.55;color:var(--cream-m);margin:0 0 18px}
 .office-done p b{color:var(--gold2)}
 
+/* ── CREW · OFFICE ORDERS (Pit Wall) ── */
+.oo{margin-top:14px;border:1px solid var(--line);border-radius:16px;background:var(--panel,#16130d);overflow:hidden}
+.oo-h{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid var(--line2)}
+.oo-k{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold2)}
+.oo-n{font-family:var(--mono);font-size:11px;color:var(--cream-m)}
+.oo-row{padding:13px 14px;border-bottom:1px solid var(--line2)}
+.oo-row:last-child{border-bottom:0}
+.oo-row.standing{border-left:3px solid var(--gold2)}
+.oo-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.oo-co{display:flex;align-items:center;gap:8px;min-width:0}
+.oo-co b{font-family:'Inter';font-weight:700;font-size:15px;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.oo-badge{font-family:var(--mono);font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;color:#0e0d0b;background:var(--gold2);border-radius:5px;padding:2px 6px;flex:none}
+.oo-gal{font-family:'Archivo Black';font-size:17px;color:var(--gold2);flex:none}
+.oo-meta{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:5px;font-family:'DM Mono',monospace;font-size:11px;color:var(--cream-m)}
+.oo-dot{opacity:.5}
+.oo-pay{text-transform:uppercase;letter-spacing:.05em}
+.oo-pay.p-paid{color:var(--ok)}
+.oo-pay.p-invoiced{color:var(--gold2)}
+.oo-addr{font-family:'Inter';font-size:12px;color:var(--cream-d);margin-top:6px;line-height:1.4}
+.oo-acts{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}
+.oo-log{margin-top:11px;display:flex;flex-direction:column;gap:8px}
+.oo-jug{display:flex;align-items:center;justify-content:space-between;gap:12px;background:rgba(0,0,0,.22);border:1px solid var(--line2);border-radius:12px;padding:9px 12px}
+.oo-jug-l{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--cream-m)}
+.oo-step{display:flex;align-items:center;gap:4px}
+.oo-step button{width:36px;height:36px;border-radius:10px;border:1px solid var(--line2);background:var(--card);color:var(--cream);font-size:19px;line-height:1;cursor:pointer;-webkit-appearance:none;appearance:none}
+.oo-step button:active{transform:scale(.94)}
+.oo-jug-v{min-width:34px;text-align:center;font-family:'Archivo Black';font-size:20px;color:var(--cream)}
+
 /* Load-Out & Tow Plan */
 .tl{margin-top:14px}
 .tl-ev{color:var(--cream-m);font-weight:400}

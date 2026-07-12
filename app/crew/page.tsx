@@ -21,6 +21,7 @@ import { snapshotUsable } from "@/lib/offline";
 import MenuRigChips, { MENU_RIG_COLUMNS, type MenuRigPatch, type MenuRigValue } from "@/components/MenuRigChips";
 import TrailerLoadout from "@/components/TrailerLoadout";
 import DropOps from "@/components/DropOps";
+import OfficeOrders from "@/components/OfficeOrders";
 import Goals from "@/components/Goals";
 import AiTraining from "@/components/AiTraining";
 import PromoEditor from "@/components/PromoEditor";
@@ -4866,6 +4867,7 @@ export default function AdminPage() {
               {canManage && <LiveControl compact />}
               <DropOps brief onOpen={() => setSvc(true)} canPlan={canManage} />
               <DeliveryOps />
+              <OfficeOrders />
             </>
           )}
           {canManage && <Panel id="hud" title="Event heads-up"><EventHUD /></Panel>}

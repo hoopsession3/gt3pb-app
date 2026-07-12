@@ -71,6 +71,7 @@ export default function CompanyCalendar() {
   const [brews, setBrews] = useState<Brew[]>([]);
   const [drops, setDrops] = useState<{ drop_date: string; size: number }[]>([]);
   const [dels, setDels] = useState<{ delivery_date: string }[]>([]);
+  const [biz, setBiz] = useState<{ delivery_date: string; gallons: number }[]>([]);
   const [filter, setFilter] = useState<string>("all");
   const [filterSheet, setFilterSheet] = useState(false); // categories live behind one quiet chip
   const [addDay, setAddDay] = useState<string | null>(null);
@@ -111,7 +112,7 @@ export default function CompanyCalendar() {
     // WRAPPED so a dropped socket / offline fetch can't become an unhandled rejection (the /crew
     // field-error alert). On failure the last-known calendar holds; realtime + next open recover.
     try {
-      const [e, c, t, s, pt, bb, dr, dv, bt, bc] = await Promise.all([
+      const [e, c, t, s, pt, bb, dr, dv, bt, bc, bo] = await Promise.all([
         supabase.from("events").select("id, title, day, day_label, is_live, category, plan_days, stage").is("archived_at", null).gte("day", eFrom).lte("day", to),
         supabase.from("content_items").select("id, title, scheduled_for, status").is("archived_at", null).not("scheduled_for", "is", null).gte("scheduled_for", fromISO).lt("scheduled_for", toISO),
         supabase.from("todos").select("id, title, category, due_on, done, event_id, meeting_note_id").not("due_on", "is", null).gte("due_on", from).lte("due_on", to),
@@ -122,9 +123,10 @@ export default function CompanyCalendar() {
         supabase.from("delivery_orders").select("delivery_date").is("canceled_at", null).gte("delivery_date", from).lte("delivery_date", to),
         supabase.from("todos").select("id, title, category, due_on, done, event_id, meeting_note_id").is("due_on", null).eq("done", false).limit(30),
         supabase.from("content_items").select("id, title, scheduled_for, status").is("archived_at", null).is("scheduled_for", null).neq("status", "published").limit(30),
+        supabase.from("business_orders").select("delivery_date, gallons").is("canceled_at", null).gte("delivery_date", from).lte("delivery_date", to),
       ]);
       setEvents((e.data as Ev[]) ?? []); setContent((c.data as Content[]) ?? []); setTodos((t.data as Todo[]) ?? []); setStops((s.data as Stop[]) ?? []); setPrepTasks((pt.data as PrepTask[]) ?? []);
-      setBrews((bb.data as Brew[]) ?? []); setDrops((dr.data as { drop_date: string; size: number }[]) ?? []); setDels((dv.data as { delivery_date: string }[]) ?? []);
+      setBrews((bb.data as Brew[]) ?? []); setDrops((dr.data as { drop_date: string; size: number }[]) ?? []); setDels((dv.data as { delivery_date: string }[]) ?? []); setBiz((bo.data as { delivery_date: string; gallons: number }[]) ?? []);
       setBacklogT((bt.data as Todo[]) ?? []); setBacklogC((bc.data as Content[]) ?? []);
     } catch { /* keep last-known calendar; realtime + next open refetch */ }
   }, [range]);
@@ -205,8 +207,13 @@ export default function CompanyCalendar() {
       for (const d of dels) agg[d.delivery_date] = (agg[d.delivery_date] || 0) + 1;
       for (const [dk, n] of Object.entries(agg)) push(dk, { id: `del-${dk}`, title: `Delivery run · ${n} porch${n === 1 ? "" : "es"}`, cat: "delivery", kind: "delivery", go: dk === etToday() ? () => { window.location.href = "/driver"; } : openNow });
     }
+    if (pass("delivery")) {
+      const agg: Record<string, number> = {};
+      for (const b of biz) agg[b.delivery_date] = (agg[b.delivery_date] || 0) + Math.round(b.gallons || 0);
+      for (const [dk, g] of Object.entries(agg)) push(dk, { id: `office-${dk}`, title: `Office route · ${g} gal`, cat: "delivery", kind: "delivery", go: openNow });
+    }
     return m;
-  }, [events, content, todos, stops, prepTasks, brews, drops, dels, filter, streams]);
+  }, [events, content, todos, stops, prepTasks, brews, drops, dels, biz, filter, streams]);
 
   // Flat date-sorted spine for Board / Cards / Rails.
   const flat = useMemo(() => {
