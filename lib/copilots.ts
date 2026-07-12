@@ -11,6 +11,7 @@ export const COPILOT_CATS = ["Chief of staff", "Growth", "Events", "Production"]
 
 export const COPILOTS: Copilot[] = [
   // Chief of staff · notes → action
+  { id: "event-build", label: "Create an event — guided",             desc: "Say it in words; I draft it & you confirm",       section: "plan",     cat: "Chief of staff" },
   { id: "opsplan",   label: "Turn a note into operations",           desc: "Note → events, vendors, pipeline & tasks + gaps", section: "notes",    cat: "Chief of staff" },
   { id: "transcribe",label: "Transcribe photos, PDFs & handwriting", desc: "Attachments → one clean transcript",             section: "notes",    cat: "Chief of staff" },
   { id: "recap",     label: "Pull follow-ups from a note",           desc: "Note → concrete action items",                   section: "notes",    cat: "Chief of staff" },

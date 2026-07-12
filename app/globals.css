@@ -785,6 +785,17 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .ownerdet-convert-l{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--cream-d)}
 .ownerdet-convert-b{margin-left:auto;background:rgba(255,255,255,.05);border:1px solid var(--line2);border-radius:999px;padding:7px 13px;color:var(--gold2);font-family:'Inter';font-weight:600;font-size:12.5px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .ownerdet-convert-b:hover{border-color:var(--gold2)}
+/* event copilot (guided create) */
+.ec-eye{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold2)}
+.ec-start{display:flex;flex-direction:column;gap:11px}
+.ec-lead{margin:0;font-family:'Inter';font-size:13.5px;color:var(--cream-m);line-height:1.45}
+.ec-draft{display:flex;flex-direction:column;gap:2px}
+.ec-clarify{background:rgba(200,166,97,.1);border:1px solid rgba(200,166,97,.34);border-radius:11px;padding:10px 13px;font-family:'Inter';font-size:13px;color:var(--cream);line-height:1.45;margin-bottom:11px}
+.ec-ready{font-family:'Inter';font-size:12.5px;color:var(--ok);margin-bottom:11px}
+.ec-typ{display:flex;gap:8px;margin-bottom:10px}
+.ec-typ-b{flex:1;background:var(--card);border:1px solid var(--line2);border-radius:11px;padding:9px 12px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13.5px;cursor:pointer;-webkit-appearance:none;appearance:none;transition:border-color .15s ease,background-color .15s ease}
+.ec-typ-b.on{border-color:var(--gold2);background:rgba(200,166,97,.1);color:var(--cream)}
+.ec-note{margin:9px 0 0;font-family:'Inter';font-size:11.5px;color:var(--cream-d);line-height:1.4}
 /* archived events drawer */
 .ev-archived{margin-top:18px;border-top:1px solid var(--line);padding-top:8px}
 .ev-arch-head{display:flex;align-items:center;gap:8px;width:100%;background:none;border:none;color:var(--cream-m);font-family:var(--mono);font-weight:500;font-size:10px;letter-spacing:1.6px;text-transform:uppercase;cursor:pointer;padding:8px 2px}

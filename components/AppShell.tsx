@@ -6,6 +6,7 @@ import { useApp } from "./AppProvider";
 import BottomNav from "./BottomNav";
 import OperatorNav, { OperatorSectionProvider } from "./OperatorNav";
 import QuickDock from "./QuickDock";
+import EventCopilot from "./EventCopilot";
 import Concierge from "./Concierge";
 import CartBar from "./CartBar";
 import OrderStatus from "./OrderStatus";
@@ -102,6 +103,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {inAdmin || isShare ? null : <CartBar />}
         {isShare ? null : inAdmin ? <OperatorNav /> : <BottomNav />}
         {inAdmin && <QuickDock />}
+        {inAdmin && <EventCopilot />}
         {inAdmin && <CommandPalette />}
         {inAdmin && <SwipeBack />}
         {inAdmin && <ScrollRestore />}

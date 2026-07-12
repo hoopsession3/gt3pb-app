@@ -46,7 +46,7 @@ export default function CopilotLauncher({ role, onPick }: { role: string; onPick
             <div key={g.cat} className="cl-group">
               <div className="cl-cat">{g.cat}</div>
               {g.items.map((c) => (
-                <button key={c.id} type="button" className="cl-op" onClick={() => onPick(c.section)}>
+                <button key={c.id} type="button" className="cl-op" onClick={() => { window.dispatchEvent(new CustomEvent("gt3-copilot", { detail: c.id })); onPick(c.section); }}>
                   <span className="cl-op-main">
                     <b className="cl-op-label">{c.label}</b>
                     <span className="cl-op-desc">{c.desc}</span>
