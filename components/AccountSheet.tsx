@@ -137,6 +137,10 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
           <span className="acs-row-x"><b>Reservations &amp; events</b><span>Upcoming stops · RSVPs</span></span>
           <span className="acs-row-c" aria-hidden>›</span>
         </button>
+        <button type="button" className="acs-row" onClick={() => go("/office")}>
+          <span className="acs-row-x"><b>Office delivery</b><span>Your team&rsquo;s Monday route &amp; jugs</span></span>
+          <span className="acs-row-c" aria-hidden>›</span>
+        </button>
         <button type="button" className="acs-row" onClick={() => go("/3mpire#rewards")}>
           <span className="acs-row-x"><b>Rewards &amp; referrals</b><span>Points, credit · give $5 get $5{free > 0 ? ` · ${free} free` : ""}</span></span>
           <span className="acs-row-c" aria-hidden>›</span>

@@ -1469,6 +1469,47 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .oo-h{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid var(--line2)}
 .oo-k{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold2)}
 .oo-n{font-family:var(--mono);font-size:11px;color:var(--cream-m)}
+.oo-h-r{display:flex;align-items:center;gap:10px}
+.oo-gen{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:var(--gold2);background:rgba(200,166,97,.08);border:1px solid rgba(200,166,97,.4);border-radius:999px;padding:5px 11px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.oo-gen:active{transform:scale(.96)}
+.oo-gen:disabled{opacity:.5}
+.oo-empty{padding:14px;font-family:'Inter';font-size:12.5px;color:var(--cream-d);text-align:center}
+
+/* ── OFFICE PORTAL (member self-serve) ── */
+.office-portal .op-h{font-family:'Inter';font-weight:750;font-size:26px;letter-spacing:-.4px;color:var(--cream);margin:14px 0 4px}
+.op-none{text-align:center;padding:38px 10px}
+.op-none-ic{font-size:48px}
+.op-none h1{font-family:'Inter';font-weight:750;font-size:26px;color:var(--cream);margin:12px 0 8px}
+.op-none p{font-family:'Inter';font-size:14px;line-height:1.55;color:var(--cream-m);max-width:34ch;margin:0 auto 20px}
+.op-k{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold2)}
+.op-card{background:linear-gradient(150deg,#1c1811,#221a10 55%,#2a1c12);border:1px solid rgba(200,166,97,.3);border-radius:16px;padding:16px;margin-top:14px}
+.op-card-h{display:flex;align-items:center;justify-content:space-between}
+.op-sub{font-family:'Inter';font-size:12.5px;color:var(--cream-m);margin:8px 0 0;line-height:1.5}
+.op-switch{width:46px;height:27px;border-radius:999px;background:rgba(245,241,232,.14);border:none;position:relative;cursor:pointer;-webkit-appearance:none;appearance:none;flex:none}
+.op-switch.on{background:var(--gold2)}
+.op-switch-k{position:absolute;top:3px;left:3px;width:21px;height:21px;border-radius:50%;background:#fff;transition:left .16s ease}
+.op-switch.on .op-switch-k{left:22px}
+.op-gal{display:flex;align-items:center;justify-content:space-between;margin-top:14px}
+.op-step{display:flex;align-items:center;gap:4px}
+.op-step button{width:38px;height:38px;border-radius:11px;border:1px solid var(--line2);background:rgba(0,0,0,.25);color:var(--cream);font-size:20px;line-height:1;cursor:pointer;-webkit-appearance:none;appearance:none}
+.op-step button:disabled{opacity:.4}
+.op-step button:active{transform:scale(.94)}
+.op-gal-v{min-width:40px;text-align:center;font-family:'Archivo Black';font-size:24px;color:var(--cream)}
+.op-quote{display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding-top:12px;border-top:1px solid rgba(200,166,97,.2)}
+.op-quote span{font-family:'DM Mono',monospace;font-size:11px;color:var(--cream-m)}
+.op-quote b{font-family:'Archivo Black';font-size:18px;color:var(--gold2)}
+.op-jugs{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-top:12px}
+.op-jugs-sub{display:block;font-family:'Inter';font-size:11.5px;color:var(--cream-m);margin-top:2px}
+.op-jugs-v{font-family:'Archivo Black';font-size:30px;color:var(--gold2)}
+.op-list{margin-top:16px}
+.op-list-h{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold2);margin-bottom:8px}
+.op-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 4px;border-bottom:1px solid var(--line2)}
+.op-row-x b{display:block;font-family:'Inter';font-weight:650;font-size:14px;color:var(--cream)}
+.op-row-x span{display:block;font-family:'Inter';font-size:11.5px;color:var(--cream-m);margin-top:1px}
+.op-row-pay{font-family:'DM Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--cream-m)}
+.op-row-pay.p-paid{color:var(--ok)}
+.op-row-pay.p-invoiced,.op-row-pay.p-open{color:var(--gold2)}
+.op-fine{font-family:'Inter';font-size:11.5px;color:var(--cream-d);text-align:center;margin:22px 6px 0}
 .oo-row{padding:13px 14px;border-bottom:1px solid var(--line2)}
 .oo-row:last-child{border-bottom:0}
 .oo-row.standing{border-left:3px solid var(--gold2)}

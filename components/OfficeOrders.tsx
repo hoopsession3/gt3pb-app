@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import { supabase } from "@/lib/supabase";
-import { mondayLabel } from "@/lib/office";
+import { mondayLabel, nextMondayKey } from "@/lib/office";
 
 // CREW · OFFICE ORDERS — the operator's control surface for the Monday B2B route (0187). See upcoming
 // office deliveries, log the jug swap (full out / empties in) on delivery, and settle billing
@@ -20,6 +20,7 @@ const dollars = (c: number) => `$${(c / 100).toFixed(c % 100 === 0 ? 0 : 2)}`;
 export default function OfficeOrders() {
   const { toast } = useApp();
   const [rows, setRows] = useState<BOrder[]>([]);
+  const [standingN, setStandingN] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [empties, setEmpties] = useState<Record<string, number>>({});
@@ -27,11 +28,24 @@ export default function OfficeOrders() {
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    const { data } = await supabase.from("business_orders").select("*")
-      .is("canceled_at", null).neq("status", "delivered").order("delivery_date").limit(100);
-    setRows((data as BOrder[]) ?? []);
+    const [ord, acct] = await Promise.all([
+      supabase.from("business_orders").select("*").is("canceled_at", null).neq("status", "delivered").order("delivery_date").limit(100),
+      supabase.from("business_accounts").select("id", { count: "exact", head: true }).eq("standing_active", true),
+    ]);
+    setRows((ord.data as BOrder[]) ?? []);
+    setStandingN(acct.count ?? 0);
     setLoaded(true);
   }, []);
+
+  // Generate the next Monday's route from every standing account (idempotent RPC, 0188).
+  const gen = async () => {
+    if (!supabase || busyId) return; setBusyId("gen");
+    const dk = nextMondayKey();
+    const { data, error } = await supabase.rpc("generate_office_route", { p_date: dk });
+    setBusyId(null);
+    toast(error ? "Couldn't generate the route" : `${data ?? 0} standing order${(data ?? 0) === 1 ? "" : "s"} added for ${mondayLabel(dk)}`, error ? "error" : undefined);
+    load();
+  };
   useEffect(() => { load(); }, [load]);
 
   const bumpJugs = async (o: BOrder, jugsIn: number) => {
@@ -70,11 +84,18 @@ export default function OfficeOrders() {
   };
 
   if (!loaded) return null;
-  if (rows.length === 0) return null; // self-hides when there are no office orders (no empty clutter)
+  if (rows.length === 0 && standingN === 0) return null; // self-hides when there's no office activity at all
 
   return (
     <section className="oo" aria-label="Office orders">
-      <div className="oo-h"><span className="oo-k">Office route</span><span className="oo-n">{rows.length} order{rows.length === 1 ? "" : "s"}</span></div>
+      <div className="oo-h">
+        <span className="oo-k">Office route</span>
+        <span className="oo-h-r">
+          {standingN > 0 && <button type="button" className="oo-gen" onClick={gen} disabled={!!busyId}>{busyId === "gen" ? "…" : `↻ Generate · ${mondayLabel(nextMondayKey())}`}</button>}
+          <span className="oo-n">{rows.length} order{rows.length === 1 ? "" : "s"}</span>
+        </span>
+      </div>
+      {rows.length === 0 && <div className="oo-empty">No orders booked yet — generate this week&rsquo;s standing route above.</div>}
       {rows.map((o) => {
         const open = openId === o.id;
         return (
