@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { fetchEventPnl, type EventPnlRow } from "@/lib/reports";
+import { useOperatorSection } from "./OperatorNav";
 
 // Per-event P&L — actual revenue (Square mirror) minus COGS minus fixed event costs from the
 // event_economics model. Scaffold: fills in as sales flow against live events. MONEY tab.
@@ -11,6 +12,9 @@ const usd = (cents: number) => (cents < 0 ? "-$" : "$") + Math.round(Math.abs(ce
 export default function EventPnlReport() {
   const [rows, setRows] = useState<EventPnlRow[] | null>(null);
   const [loading, setLoading] = useState(true);
+  const { setSection } = useOperatorSection();
+  // Jump from a P&L row to the event it came from (audit P2: reports were read-only dead-ends).
+  const openEvent = (id?: string) => { if (!id) return; try { localStorage.setItem("gt3-prep-open", id); } catch { /* ignore */ } setSection("prep"); };
 
   useEffect(() => {
     let live = true;
@@ -30,16 +34,16 @@ export default function EventPnlReport() {
       ) : (
         <div className="rpt-block">
           {rows.map((r, i) => (
-            <div key={i} className="rpt-pnl">
+            <button key={i} type="button" className="rpt-pnl rpt-pnl-link" onClick={() => openEvent(r.id)} disabled={!r.id}>
               <div className="rpt-pnl-l">
-                <b>{r.event}</b>
+                <b>{r.event}{r.id ? <span className="rpt-pnl-go" aria-hidden> ›</span> : null}</b>
                 <span>{r.orders} orders · {Math.round((1 - r.cogs_pct) * 100)}% gross{r.fixed_cents > 0 ? ` · ${usd(r.fixed_cents)} fixed` : ""}</span>
               </div>
               <div className="rpt-pnl-r">
                 <div className="rpt-pnl-rev">{usd(r.actual_cents)}</div>
                 <div className={`rpt-pnl-m${r.margin_cents >= 0 ? "" : " neg"}`}>{usd(r.margin_cents)} net</div>
               </div>
-            </div>
+            </button>
           ))}
           <div className="rpt-foot">{anyActual
             ? "Actual revenue (Square) − COGS − fixed event costs (booth / transport / permit / consumables)."

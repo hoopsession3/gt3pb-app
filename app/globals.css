@@ -796,6 +796,11 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .ec-typ-b{flex:1;background:var(--card);border:1px solid var(--line2);border-radius:11px;padding:9px 12px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13.5px;cursor:pointer;-webkit-appearance:none;appearance:none;transition:border-color .15s ease,background-color .15s ease}
 .ec-typ-b.on{border-color:var(--gold2);background:rgba(200,166,97,.1);color:var(--cream)}
 .ec-note{margin:9px 0 0;font-family:'Inter';font-size:11.5px;color:var(--cream-d);line-height:1.4}
+/* clickable P&L rows → jump to the source event (audit P2) */
+.rpt-pnl-link{width:100%;text-align:left;background:none;border:none;-webkit-appearance:none;appearance:none;cursor:pointer;font:inherit;color:inherit;transition:background-color .15s ease;border-radius:9px}
+.rpt-pnl-link:hover:not(:disabled){background:rgba(200,166,97,.07)}
+.rpt-pnl-link:disabled{cursor:default}
+.rpt-pnl-go{color:var(--gold2);font-weight:700}
 /* archived events drawer */
 .ev-archived{margin-top:18px;border-top:1px solid var(--line);padding-top:8px}
 .ev-arch-head{display:flex;align-items:center;gap:8px;width:100%;background:none;border:none;color:var(--cream-m);font-family:var(--mono);font-weight:500;font-size:10px;letter-spacing:1.6px;text-transform:uppercase;cursor:pointer;padding:8px 2px}

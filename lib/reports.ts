@@ -37,6 +37,7 @@ export async function fetchSnapshot(): Promise<Snapshot | null> {
 }
 
 export interface EventPnlRow {
+  id?: string; // the source event id (0194) — lets the P&L row link back to the event
   event: string;
   actual_cents: number;
   orders: number;
