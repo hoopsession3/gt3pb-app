@@ -23,6 +23,10 @@ export interface Stop {
   service_dates?: string | null;
   archived_at?: string | null;
   vendor_id?: string | null; // linked canonical vendor/venue (0034)
+  // per-stop order-ahead / pickup overrides (0191). lead_min null = fall back to the global window.
+  order_ahead_enabled?: boolean;
+  pickup_enabled?: boolean;
+  order_ahead_lead_min?: number | null;
 }
 
 // Vendor / venue — one relational record shared by truck stops and events (0034).
@@ -40,6 +44,8 @@ export interface Vendor {
   notes: string | null;
   archived_at: string | null;
   sort: number;
+  status?: "approved" | "pending" | "archived"; // approval state (0191) — unknown-place stops → pending
+  vendor_type?: string | null; // gym | corporate | cafe | venue … (0165)
 }
 
 export interface LiveStatus {

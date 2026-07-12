@@ -10,6 +10,7 @@ import { etToday } from "@/lib/dates";
 import { useWorkStreams } from "@/lib/streams";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import { useOperatorSection } from "./OperatorNav";
+import { findOrCreatePendingVendor } from "@/lib/vendorLink";
 import EventDayPlanner from "./EventDayPlanner";
 import Sheet from "@/components/Sheet";
 
@@ -752,7 +753,14 @@ function AddSheet({ day, events, onClose, onDone }: { day: string; events: Ev[];
     const { data: { user } } = await supabase.auth.getUser();
     if (kind === "todo") await supabase.from("todos").insert({ title: title.trim(), category: cat, due_on: day, event_id: eventId || null, created_by: user?.id ?? null });
     // local wall-clock 11am — a fixed -04:00 offset lands at 10am all winter
-    else if (kind === "stop") await supabase.from("stops").insert({ name: title.trim(), location_text: where.trim() || null, starts_at: new Date(`${day}T11:00:00`).toISOString(), status: "upcoming", sort: 0 });
+    else if (kind === "stop") {
+      // A truck stop is always bound to the vendor book — find the venue by name or create it pending
+      // for owner approval (0191), then link it. Never an orphan with the place as loose text.
+      const { data: s } = await supabase.from("stops").insert({ name: title.trim(), location_text: where.trim() || null, starts_at: new Date(`${day}T11:00:00`).toISOString(), status: "upcoming", sort: 0 }).select("id").single();
+      const venue = where.trim() || title.trim();
+      const v = s && venue ? await findOrCreatePendingVendor(venue, { source: "the calendar quick-add" }) : null;
+      if (s && v) await supabase.from("stops").update({ vendor_id: v.id }).eq("id", (s as { id: string }).id);
+    }
     else await supabase.from("events").insert({ title: title.trim(), day, category: cat === "content" ? "event" : cat });
     onDone();
   };

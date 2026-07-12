@@ -393,7 +393,6 @@ async function raiseAlert(a: {
     created_by: a.created_by ?? null, kind: a.kind ?? null, subject_id: a.subject_id ?? null,
   });
 }
-void raiseAlertClient; // components outside this file use the lib helper; admin keeps created_by
 
 // How many comments hang off each subject — drives the count badge on a 💬 toggle so activity is
 // visible at a glance without opening every thread (organization/management at scale).
@@ -2574,7 +2573,7 @@ function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive
           </div>
           )}
 
-          {kind === "stop" && vendors && onLinkVendor && <VendorPicker vendors={vendors} vendorId={stop?.vendor_id} onLink={onLinkVendor} />}
+          {kind === "stop" && vendors && onLinkVendor && <VendorPicker vendors={vendors} vendorId={stop?.vendor_id} onLink={onLinkVendor} onCreated={onChanged} />}
 
           {showPoc && (
             <div className="ev-group">
@@ -4517,7 +4516,11 @@ function VendorsAdmin() {
   const archive = async (id: string) => { await supabase!.from("vendors").update({ archived_at: new Date().toISOString() }).eq("id", id); setOpenId(null); load(); };
   const restore = async (id: string) => { await supabase!.from("vendors").update({ archived_at: null }).eq("id", id); load(); };
   const del = async (id: string, nm: string) => { if (typeof window !== "undefined" && !window.confirm(`Delete ${nm}?`)) return; await supabase!.from("vendors").delete().eq("id", id); load(); };
+  // Approve a venue that was added on the fly from a truck stop (0191) — it becomes a first-class
+  // vendor. Opening it to fill in the contact details is the natural next step.
+  const approve = async (id: string) => { await supabase!.from("vendors").update({ status: "approved" }).eq("id", id); toast("Vendor approved"); setOpenId(id); load(); };
   const active = vendors.filter((v) => !v.archived_at);
+  const pending = active.filter((v) => v.status === "pending");
   const archived = vendors.filter((v) => v.archived_at);
 
   // Suggestions = stops/events not yet linked to a vendor, whose name isn't already a vendor.
@@ -4537,6 +4540,17 @@ function VendorsAdmin() {
     <div className="adm-sec">
       <div className="sec">Vendors <button className="adm-btn" style={{ marginLeft: "auto" }} onClick={add}>+ Add vendor</button></div>
       <div className="pnl-note" style={{ marginBottom: 6 }}>One record per venue/partner — linked from truck stops and events. Edit a POC here and it updates everywhere it&apos;s linked.</div>
+      {pending.length > 0 && (
+        <div className="vendor-pending">
+          <div className="ev-group-h" style={{ marginBottom: 8, color: "var(--warn)" }}>Awaiting your approval · {pending.length}</div>
+          {pending.map((v) => (
+            <div className="vendor-sug pend" key={`pend-${v.id}`}>
+              <div className="vendor-sug-main"><b>{v.name}</b><span>Added from a truck stop — approve to add it to the book</span></div>
+              <button className="adm-btn primary" onClick={() => approve(v.id)}>Approve</button>
+            </div>
+          ))}
+        </div>
+      )}
       {suggestions.length > 0 && (
         <div className="vendor-sugs">
           <div className="ev-group-h" style={{ marginBottom: 8 }}>Create from your stops &amp; events</div>
@@ -4566,17 +4580,40 @@ function VendorsAdmin() {
   );
 }
 
-// Reusable venue picker — links a stop/event to a vendor and denormalizes the public
-// location. Shows the linked vendor's POC live (relational), edit-once-updates-everywhere.
-function VendorPicker({ vendors, vendorId, onLink }: { vendors: Vendor[]; vendorId: string | null | undefined; onLink: (v: Vendor | null) => void }) {
+// Reusable venue picker — links a stop/event to a vendor, and is the ONE place a stop is bound to the
+// vendor book. A truck stop should always name a known venue; if it's a new place, you add it here and
+// it's created PENDING with an owner-approval alert (0191) — never a silent orphan. Shows the linked
+// vendor's POC live (relational), edit-once-updates-everywhere.
+function VendorPicker({ vendors, vendorId, onLink, onCreated }: { vendors: Vendor[]; vendorId: string | null | undefined; onLink: (v: Vendor | null) => void; onCreated?: () => void }) {
+  const { toast } = useApp();
   const linked = vendors.find((v) => v.id === vendorId) || null;
+  const [adding, setAdding] = useState(false);
+  const [nm, setNm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const createPending = async () => {
+    const name = nm.trim();
+    if (!name || busy || !supabase) return;
+    // Don't mint a duplicate for a name that already exists — link the existing one instead.
+    const dupe = vendors.find((v) => v.name.trim().toLowerCase() === name.toLowerCase());
+    if (dupe) { onLink(dupe); setNm(""); setAdding(false); toast(`Linked to ${dupe.name}`); return; }
+    setBusy(true);
+    const { data, error } = await supabase.from("vendors").insert({ name, status: "pending", sort: vendors.length }).select("*").single();
+    setBusy(false);
+    if (error) { toast(`Couldn't add venue: ${error.message}`, "error"); return; }
+    const v = data as Vendor;
+    onLink(v);
+    await raiseAlertClient({ severity: "important", category: "booking", kind: "vendor_pending", title: `New venue needs approval — ${name}`, body: "Added on the fly from a truck stop. Review the contact details & approve in Plan › Vendors.", link: "/crew?s=plan", subjectId: v.id });
+    toast(`${name} linked — pending owner approval`);
+    setNm(""); setAdding(false); onCreated?.();
+  };
   return (
     <div className="ev-group">
       <div className="ev-group-h">Venue · vendor</div>
       <select className="ev-input" value={vendorId ?? ""} onChange={(e) => onLink(vendors.find((v) => v.id === e.target.value) || null)}>
         <option value="">— not linked —</option>
-        {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+        {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}{v.status === "pending" ? " · pending" : ""}</option>)}
       </select>
+      {linked?.status === "pending" && <div className="vpend">⏳ Pending owner approval — review it in Plan › Vendors.</div>}
       {linked && (linked.poc_name || linked.poc_phone || linked.poc_email || linked.service_dates) && (
         <div className="vlink">
           {linked.poc_name && <div className="vlink-row"><span>POC</span><b>{linked.poc_name}</b></div>}
@@ -4585,6 +4622,15 @@ function VendorPicker({ vendors, vendorId, onLink }: { vendors: Vendor[]; vendor
           {linked.service_dates && <div className="vlink-row"><span>Service</span><b>{linked.service_dates}</b></div>}
           <div className="vlink-note">Managed in Vendors — edits there update everywhere.</div>
         </div>
+      )}
+      {adding ? (
+        <div className="vnew-row">
+          <input className="ev-input" value={nm} onChange={(e) => setNm(e.target.value)} placeholder="New venue name" maxLength={120} autoFocus onKeyDown={(e) => { if (e.key === "Enter") createPending(); }} />
+          <button type="button" className="adm-btn" onClick={createPending} disabled={busy || !nm.trim()}>{busy ? "Adding…" : "Add"}</button>
+          <button type="button" className="ev-arch-btn" onClick={() => { setAdding(false); setNm(""); }}>Cancel</button>
+        </div>
+      ) : (
+        <button type="button" className="vnew-btn" onClick={() => setAdding(true)}>＋ New venue — send for approval</button>
       )}
     </div>
   );
