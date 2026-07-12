@@ -218,6 +218,10 @@ export default function Checkout() {
                 </button>
               )}
 
+              {ordering.open && ordering.pickup && (
+                <div className="co-pickup">🥡 Order-ahead pickup available{ordering.nextName ? ` at ${ordering.nextName}` : ""} — skip the line, we&apos;ll have it ready.</div>
+              )}
+
               {!ordering.open ? (
                 <div className="co-closed">
                   <div className="co-closed-t">☕ The truck isn&apos;t pouring right now</div>

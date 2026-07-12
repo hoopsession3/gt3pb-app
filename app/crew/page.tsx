@@ -766,6 +766,10 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
   const [saving, setSaving] = useState(false);
   const [wrapping, setWrapping] = useState(false); // capturing the after-action to complete an event
   const [recap, setRecap] = useState("");
+  // Per-stop order-ahead / pickup (0191) — kept out of `f` so the boolean/number types stay clean.
+  const [oa, setOa] = useState(false);
+  const [pk, setPk] = useState(false);
+  const [lead, setLead] = useState("");
 
   // Remove from the active lists (keeps the record, reversible). The standard "delete" for a real
   // event/stop — same as the calendar's Remove and Live truck's Archive.
@@ -810,9 +814,11 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    const sel = isEvent ? "title, day, location_text, stage, default_buffer_min, completed_at, recap" : "name, starts_at, location_text, address, status, default_buffer_min, completed_at, recap";
+    const sel = isEvent ? "title, day, location_text, stage, default_buffer_min, completed_at, recap" : "name, starts_at, location_text, address, status, default_buffer_min, completed_at, recap, order_ahead_enabled, pickup_enabled, order_ahead_lead_min";
     const { data } = await supabase.from(table).select(sel).eq("id", ownerId).maybeSingle();
-    setF((data as unknown as Record<string, string | null>) ?? {});
+    const d = (data as unknown as Record<string, unknown>) ?? {};
+    setF(d as Record<string, string | null>);
+    if (!isEvent) { setOa(!!d.order_ahead_enabled); setPk(!!d.pickup_enabled); setLead(d.order_ahead_lead_min != null ? String(d.order_ahead_lead_min) : ""); }
   }, [table, ownerId, isEvent]);
   useEffect(() => { load(); }, [load]);
 
@@ -832,9 +838,10 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
     setSaving(true);
     const nm = (f[nameCol] || "").trim() || (isEvent ? "Event" : "Stop");
     const buf = f.default_buffer_min != null && String(f.default_buffer_min).trim() !== "" ? Math.max(0, Number(f.default_buffer_min)) : null;
-    const patch: Record<string, string | number | null> = isEvent
+    const patch: Record<string, string | number | boolean | null> = isEvent
       ? { title: nm, day: f.day || null, location_text: f.location_text?.trim() || null, stage: f.stage || "confirmed", default_buffer_min: buf }
-      : { name: nm, starts_at: f.starts_at || null, location_text: f.location_text?.trim() || null, address: f.address?.trim() || null, status: f.status || "upcoming", default_buffer_min: buf };
+      : { name: nm, starts_at: f.starts_at || null, location_text: f.location_text?.trim() || null, address: f.address?.trim() || null, status: f.status || "upcoming", default_buffer_min: buf,
+          order_ahead_enabled: oa, pickup_enabled: pk, order_ahead_lead_min: oa && lead.trim() !== "" ? Math.max(0, Number(lead)) : null };
     // For stops, geocode the address (or location) so it pins on the map + customer directions work.
     if (!isEvent) {
       const q = (f.address?.trim() || f.location_text?.trim() || "");
@@ -904,6 +911,17 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
         )}
       </label>
       <label className="prod-f" style={{ marginTop: 8 }}><span>Calendar buffer (min) — travel + setup blocked before service</span><input type="number" min={0} step={15} value={f.default_buffer_min ?? ""} onChange={(e) => set("default_buffer_min", e.target.value)} placeholder="e.g. 90" /></label>
+      {!isEvent && (
+        <div className="oa-set">
+          <div className="oa-set-h">Ordering at this stop</div>
+          <div className="oa-toggles">
+            <button type="button" role="switch" aria-checked={oa} className={`oa-toggle${oa ? " on" : ""}`} onClick={() => setOa((v) => !v)}>🕐 Order ahead<span>{oa ? "On" : "Off"}</span></button>
+            <button type="button" role="switch" aria-checked={pk} className={`oa-toggle${pk ? " on" : ""}`} onClick={() => setPk((v) => !v)}>🥡 Pickup<span>{pk ? "On" : "Off"}</span></button>
+          </div>
+          {oa && <label className="prod-f" style={{ marginTop: 8 }}><span>Order-ahead lead time (min) — blank uses the global window</span><input type="number" min={0} step={15} value={lead} onChange={(e) => setLead(e.target.value)} placeholder="e.g. 240" /></label>}
+          <div className="ownerdet-hint">When on, guests can order ahead{pk ? " and choose pickup" : ""} for this stop. Off = the truck’s global setting applies.</div>
+        </div>
+      )}
       {!isEvent && <div className="ownerdet-hint">Go live &amp; broadcast GPS in Now ▸ Live truck.</div>}
       <div className="ownerdet-danger">
         <button type="button" className="ownerdet-arch" onClick={archive} disabled={saving}>Archive {what}</button>

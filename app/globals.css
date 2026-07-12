@@ -771,6 +771,15 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .vnew-row .ev-input{flex:1;margin:0}
 .vendor-pending{margin-bottom:12px;padding:12px 13px;background:rgba(207,154,74,.08);border:1px solid rgba(207,154,74,.32);border-radius:12px}
 .vendor-sug.pend{border-bottom-color:rgba(207,154,74,.2)}
+/* per-stop order-ahead / pickup toggles (0191) */
+.oa-set{margin-top:12px;padding:12px 13px;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.14)}
+.oa-set-h{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--cream-d);margin-bottom:9px}
+.oa-toggles{display:flex;gap:9px}
+.oa-toggle{flex:1;display:flex;flex-direction:column;align-items:flex-start;gap:2px;background:var(--card);border:1px solid var(--line2);border-radius:11px;padding:10px 12px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none;transition:border-color .15s ease,background-color .15s ease}
+.oa-toggle span{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--cream-d)}
+.oa-toggle.on{border-color:var(--gold2);background:rgba(200,166,97,.1);color:var(--cream)}
+.oa-toggle.on span{color:var(--gold2)}
+.co-pickup{margin-top:8px;background:rgba(200,166,97,.1);border:1px solid rgba(200,166,97,.34);border-radius:11px;padding:9px 12px;font-family:'Inter';font-size:12.5px;color:var(--cream);line-height:1.4}
 /* archived events drawer */
 .ev-archived{margin-top:18px;border-top:1px solid var(--line);padding-top:8px}
 .ev-arch-head{display:flex;align-items:center;gap:8px;width:100%;background:none;border:none;color:var(--cream-m);font-family:var(--mono);font-weight:500;font-size:10px;letter-spacing:1.6px;text-transform:uppercase;cursor:pointer;padding:8px 2px}
