@@ -9,6 +9,7 @@ import SignIn from "@/components/SignIn";
 import OrderConfirm from "@/components/OrderConfirm";
 import PaymentCard, { type PaymentCardHandle } from "./PaymentCard";
 import MyPacks, { packMix, packDayLabel, type MyPack } from "./MyPacks";
+import OfficeOrder from "./OfficeOrder";
 import Sheet from "./Sheet";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
@@ -49,6 +50,10 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
 
   const [mode, setMode] = useState<Mode>(initialMode);
   const [step, setStep] = useState<Step>(initialMode === "delivery" ? "start" : "size");
+  // Delivery fork: a home order (residential Sunday packs, the flow below) vs an office order (B2B
+  // bulk, Monday 5–8 AM, amber gallon jugs — a purpose-built sheet, never the pack cart).
+  const [audience, setAudience] = useState<"home" | "office">("home");
+  const [officeOpen, setOfficeOpen] = useState(false);
 
   // ── shared cart (survives the mode flip) ──
   const [count, setCount] = useState<number | null>(initialMode === "pickup" ? 6 : null);
@@ -393,6 +398,24 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
           <div className="dl-hero">
             <h2 className="dl-h dl-h-xl">Your week, <em>delivered.</em></h2>
           </div>
+
+          {/* Who's it for? — one question, two doors. Never blurs a home order into an office order. */}
+          <div className="aud-fork" role="radiogroup" aria-label="Delivery type">
+            <button type="button" role="radio" aria-checked={audience === "home"} className={`aud${audience === "home" ? " on" : ""}`} onClick={() => setAudience("home")}>
+              <span className="aud-ic">🏠</span><b>My home</b><span className="aud-d">Sunday packs</span>
+            </button>
+            <button type="button" role="radio" aria-checked={audience === "office"} className={`aud${audience === "office" ? " on" : ""}`} onClick={() => setAudience("office")}>
+              <span className="aud-ic">🏢</span><b>My office</b><span className="aud-d">Mon · gallons</span>
+            </button>
+          </div>
+
+          {audience === "office" ? (
+            <div className="aud-office">
+              <p className="dl-sub">Fresh cold-extract for the whole team — <b>amber gallon jugs</b>, delivered <b>Monday 5–8&nbsp;AM</b>, empties swapped for full each week. 3-gallon minimum.</p>
+              <button type="button" className="handle" onClick={() => setOfficeOpen(true)}><span>Set up office delivery →</span></button>
+              {officeOpen && <OfficeOrder onClose={() => setOfficeOpen(false)} />}
+            </div>
+          ) : (<>
           <p className="dl-sub dl-zlead">Enter your ZIP &mdash; we&rsquo;ll check your porch.</p>
           <div className="dl-ziprow dl-ziprow-xl">
             <input className="auth-input" inputMode="numeric" maxLength={5} placeholder="ZIP code" value={zip} onChange={(e) => { setZip(e.target.value.replace(/\D/g, "")); setZone("ask"); }} aria-label="ZIP code" />
@@ -410,6 +433,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
               <button type="button" className="oa-cta ghost" onClick={() => switchMode("pickup")}>Switch to pickup →</button>
             </div>
           )}
+          </>)}
         </div>
       )}
 

@@ -1412,6 +1412,58 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .acs-cta{width:100%;background:var(--red);color:#fff;border:none;border-radius:14px;padding:15px;font-family:'Inter';font-weight:700;font-size:14px;letter-spacing:1.1px;text-transform:uppercase;cursor:pointer;box-shadow:0 8px 20px rgba(184,36,32,.26)}
 .acs-cta:active{transform:scale(.985)}
 
+/* ── DELIVERY AUDIENCE FORK (home / office) + OFFICE ORDER SHEET ── */
+.aud-fork{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0 6px}
+.aud{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;cursor:pointer;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 15px;-webkit-appearance:none;appearance:none;transition:transform .14s ease,border-color .14s ease}
+.aud:active{transform:scale(.98)}
+.aud.on{border-color:var(--red);background:linear-gradient(160deg,rgba(224,69,63,.09),var(--card))}
+.aud-ic{font-size:22px;line-height:1}
+.aud b{font-family:'Inter';font-weight:750;font-size:16px;color:var(--cream);margin-top:5px}
+.aud-d{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--cream-m)}
+.aud.on .aud-d{color:var(--red-h,#d64b46)}
+.aud-office{margin-top:10px;display:flex;flex-direction:column;gap:14px}
+.aud-office .handle{margin-top:2px}
+/* sheet */
+.office-head{display:flex;align-items:center;width:100%}
+.office-head-t{display:flex;align-items:center;gap:9px;font-family:'Inter';font-weight:700;font-size:15px;color:var(--cream)}
+.office-head-t .g3{font-size:15px}
+.office-head .isheet-x{margin-left:auto}
+.office-lede{font-family:'Inter';font-size:13.5px;line-height:1.55;color:var(--cream-m);margin:2px 2px 16px}
+.office-lede b{color:var(--cream)}
+.office-gal{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.office-k{display:block;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold2)}
+.office-hint{display:block;font-family:'Inter';font-size:11.5px;color:var(--cream-m);margin-top:3px}
+.office-step{display:flex;align-items:center;gap:4px;flex:0 0 auto}
+.office-step button{width:42px;height:42px;border-radius:12px;border:1px solid var(--line2);background:var(--card);color:var(--cream);font-size:22px;line-height:1;cursor:pointer;-webkit-appearance:none;appearance:none}
+.office-step button:disabled{opacity:.4}
+.office-step button:active{transform:scale(.94)}
+.office-gal-v{min-width:44px;text-align:center;font-family:'Archivo Black';font-size:26px;color:var(--cream)}
+.office-quote{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:14px;background:linear-gradient(150deg,#1c1811,#221a10 55%,#2a1c12);border:1px solid rgba(200,166,97,.3);margin-bottom:16px}
+.office-quote span{font-family:'DM Mono',monospace;font-size:12px;letter-spacing:.04em;color:var(--cream-m)}
+.office-quote b{font-family:'Archivo Black';font-size:20px;color:var(--gold2)}
+.office-fields{display:flex;flex-direction:column;gap:9px}
+.office-two{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.office-toggle{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 15px;margin:14px 0 0;cursor:pointer;-webkit-appearance:none;appearance:none}
+.office-toggle.on{border-color:var(--gold2);background:rgba(200,166,97,.07)}
+.office-toggle-x{flex:1}
+.office-toggle-x b{display:block;font-family:'Inter';font-weight:650;font-size:14px;color:var(--cream)}
+.office-toggle-x span{display:block;font-family:'Inter';font-size:11.5px;color:var(--cream-m);margin-top:1px}
+.office-toggle-track{flex:0 0 auto;width:44px;height:26px;border-radius:999px;background:rgba(245,241,232,.14);position:relative;transition:background .16s ease}
+.office-toggle.on .office-toggle-track{background:var(--gold2)}
+.office-toggle-knob{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .16s ease}
+.office-toggle.on .office-toggle-knob{left:21px}
+.office-bill{margin:16px 0 6px}
+.office-seg{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.office-seg button{font-family:'Inter';font-weight:600;font-size:12.5px;padding:11px 8px;border-radius:12px;border:1px solid var(--line2);background:var(--card);color:var(--cream-m);cursor:pointer;-webkit-appearance:none;appearance:none}
+.office-seg button.on{border-color:var(--gold2);color:var(--cream);background:rgba(200,166,97,.1)}
+.office-seg button:active{transform:scale(.98)}
+.office-fine{font-family:'Inter';font-size:11.5px;line-height:1.5;color:var(--cream-d);margin:12px 2px 2px}
+.office-done{text-align:center;padding:14px 6px 6px}
+.office-done-ic{font-size:44px}
+.office-done h2{font-family:'Inter';font-weight:750;font-size:22px;color:var(--cream);margin:10px 0 8px}
+.office-done p{font-family:'Inter';font-size:14px;line-height:1.55;color:var(--cream-m);margin:0 0 18px}
+.office-done p b{color:var(--gold2)}
+
 /* Load-Out & Tow Plan */
 .tl{margin-top:14px}
 .tl-ev{color:var(--cream-m);font-weight:400}
