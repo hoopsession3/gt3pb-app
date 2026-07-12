@@ -5,6 +5,7 @@ import { useAuth } from "./AuthProvider";
 import { useApp } from "./AppProvider";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
+import { haptic, HAPTIC } from "@/lib/haptics";
 
 // OPS PLAN (chief-of-staff) — turn a meeting note into a build-able operations plan. Calls the
 // opsplan agent, then lets the operator tap "Create" on each proposed op (event/stop, vendor,
@@ -69,7 +70,7 @@ export default function OpsPlan({ noteId }: { noteId: string }) {
         else { const { data: nv } = await supabase.from("vendors").insert({ name: vname, vendor_type: "gym" }).select("id").single(); vid = (nv as { id: string } | null)?.id ?? null; }
         if (vid) await supabase.from("opportunities").insert({ vendor_id: vid, next_step: (op.details || "Make first contact").slice(0, 300), created_by: user.id });
       }
-      setDone((s) => ({ ...s, [i]: true })); toast(`${TYPE_LABEL[op.type] ?? "Op"} created`);
+      setDone((s) => ({ ...s, [i]: true })); haptic(HAPTIC.success); toast(`${TYPE_LABEL[op.type] ?? "Op"} created`);
     } catch { toast("Couldn't create that one", "error"); }
   };
 
@@ -80,39 +81,57 @@ export default function OpsPlan({ noteId }: { noteId: string }) {
   };
 
   if (!plan) return (
-    <button type="button" className="ops-go" onClick={analyze} disabled={busy}>{busy ? "Reading the note…" : "⚡ Build operations"}</button>
+    <button type="button" className={`ops-go${busy ? " loading" : ""}`} onClick={analyze} disabled={busy}>
+      {busy ? <>Reading the note<span className="ops-dots"><i /><i /><i /></span></> : <>⚡ Build operations</>}
+    </button>
   );
+
+  const approved = Object.values(done).filter(Boolean).length;
+  const total = plan.operations.length;
 
   return (
     <div className="ops-plan">
-      {plan.headline && <p className="ops-headline">{plan.headline}</p>}
-      <p className="ops-hint">Proposals only — nothing is created until you tap <b>Approve</b> on each.</p>
-      {plan.operations.map((op, i) => (
-        <div key={i} className={`ops-op${done[i] ? " ops-done" : ""}`}>
-          <span className={`ops-badge t-${op.type}`}>{TYPE_LABEL[op.type] ?? op.type}</span>
-          <div className="ops-op-x">
-            <b>{op.title}{op.isNew ? <span className="ops-new">new</span> : null}</b>
-            <span>{[op.who, op.when, op.details].filter(Boolean).join(" · ")}</span>
-          </div>
-          {done[i] ? (
-            <button type="button" className="ops-create" disabled>✓ Created</button>
-          ) : pending[i] ? (
-            <span className="ops-confirm">
-              <button type="button" className="ops-create ok" onClick={() => { setPending((p) => ({ ...p, [i]: false })); createOp(op, i); }}>Approve</button>
-              <button type="button" className="ops-create ghost" onClick={() => setPending((p) => ({ ...p, [i]: false }))} aria-label="Cancel">✕</button>
-            </span>
-          ) : (
-            <button type="button" className="ops-create" onClick={() => setPending((p) => ({ ...p, [i]: true }))}>Create</button>
-          )}
+      <div className="ops-brief">
+        <span className="ops-eye">Chief of staff · operations plan</span>
+        {plan.headline && <p className="ops-headline">{plan.headline}</p>}
+        <div className="ops-prog">
+          <span className="ops-prog-bar"><i style={{ width: `${total ? (approved / total) * 100 : 0}%` }} /></span>
+          <span className="ops-prog-n">{approved}/{total} approved</span>
         </div>
-      ))}
+        <p className="ops-hint">Nothing is created until you approve each.</p>
+      </div>
+
+      <div className="ops-list">
+        {plan.operations.map((op, i) => (
+          <div key={i} className={`ops-op t-${op.type}${done[i] ? " is-done" : ""}${pending[i] ? " is-armed" : ""}`} style={{ animationDelay: `${Math.min(i, 8) * 45}ms` }}>
+            <span className="ops-badge">{TYPE_LABEL[op.type] ?? op.type}</span>
+            <div className="ops-op-x">
+              <b>{op.title}{op.isNew ? <span className="ops-new">new</span> : null}</b>
+              {[op.who, op.when, op.details].filter(Boolean).length > 0 && <span className="ops-meta">{[op.who, op.when, op.details].filter(Boolean).join(" · ")}</span>}
+            </div>
+            <div className="ops-act">
+              {done[i] ? (
+                <span className="ops-check" aria-label="Created">✓</span>
+              ) : pending[i] ? (
+                <>
+                  <button type="button" className="ops-approve" onClick={() => { setPending((p) => ({ ...p, [i]: false })); createOp(op, i); }}>Approve</button>
+                  <button type="button" className="ops-cancel" onClick={() => setPending((p) => ({ ...p, [i]: false }))} aria-label="Cancel">✕</button>
+                </>
+              ) : (
+                <button type="button" className="ops-create" onClick={() => { haptic(HAPTIC.tap); setPending((p) => ({ ...p, [i]: true })); }}>Create</button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
       {plan.gaps.length > 0 && (
         <div className="ops-gaps">
-          <div className="ops-gaps-h">⚠ Not built yet</div>
+          <div className="ops-gaps-h"><span className="ops-gaps-dot" />Not built yet · {plan.gaps.length}</div>
           {plan.gaps.map((g, i) => (
             <div key={i} className="ops-gap">
-              <div className="ops-op-x"><b>{g.need}</b>{g.why && <span>{g.why}</span>}</div>
-              <button type="button" className="ops-create ghost" onClick={() => trackGap(g, i)} disabled={gapDone[i]}>{gapDone[i] ? "✓" : "Track"}</button>
+              <div className="ops-op-x"><b>{g.need}</b>{g.why && <span className="ops-meta">{g.why}</span>}</div>
+              <button type="button" className="ops-track" onClick={() => trackGap(g, i)} disabled={gapDone[i]}>{gapDone[i] ? "✓" : "Track"}</button>
             </div>
           ))}
         </div>
