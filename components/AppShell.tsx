@@ -24,6 +24,7 @@ import ScrollRestore from "./ScrollRestore";
 import ErrorReporter from "./ErrorReporter";
 import OfflineChip from "./OfflineChip";
 import MarketingSplash from "./MarketingSplash";
+import BroadcastBanner from "./BroadcastBanner";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -92,6 +93,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <div className={`app${inAdmin && theme === "day" ? " crew-day" : ""}${disp ? ` ${disp}` : ""}`}>
         {/* Skip link — first focusable element; keyboard users jump past the chrome to the content. */}
         <a href="#body" className="skip-link">Skip to content</a>
+        {/* Live broadcast bar — an operator-published message/ad, shown to every user in real time. */}
+        {!isShare && <BroadcastBanner />}
         <div className="body" ref={bodyRef} id="body" tabIndex={-1}>
           {children}
         </div>

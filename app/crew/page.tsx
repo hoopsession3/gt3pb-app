@@ -26,6 +26,7 @@ import SiteCopyEditor from "@/components/SiteCopyEditor";
 import OfficeSettings from "@/components/OfficeSettings";
 import CopilotDirectory from "@/components/CopilotDirectory";
 import AiSpend from "@/components/AiSpend";
+import BroadcastEditor from "@/components/BroadcastEditor";
 import OpsPlan from "@/components/OpsPlan";
 import NoteAttach from "@/components/NoteAttach";
 import Goals from "@/components/Goals";
@@ -5100,6 +5101,7 @@ export default function AdminPage() {
           <div className="crew-group">Owner control room</div>
           <p className="set-lead">Everything you can change without a developer. Edits go live instantly — no deploy.</p>
           <Panel id="set-copy" title="Copy & wording · every line guests read" defaultOpen><SiteCopyEditor /></Panel>
+          <Panel id="set-broadcast" title="Broadcast · a live message or ad to everyone"><BroadcastEditor /></Panel>
           {isAdmin && <Panel id="set-office" title="Office delivery · price & minimum"><OfficeSettings /></Panel>}
           <Panel id="set-ai" title="AI copilots · the full catalog"><CopilotDirectory /></Panel>
           {isAdmin && <Panel id="set-spend" title="AI spend · what your copilots cost"><AiSpend /></Panel>}
