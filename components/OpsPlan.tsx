@@ -35,6 +35,7 @@ export default function OpsPlan({ noteId }: { noteId: string }) {
   const { toast } = useApp();
   const [plan, setPlan] = useState<Plan | null>(null);
   const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState<Record<number, boolean>>({}); // armed for a 2nd-tap approve
   const [done, setDone] = useState<Record<number, boolean>>({});
   const [gapDone, setGapDone] = useState<Record<number, boolean>>({});
 
@@ -85,6 +86,7 @@ export default function OpsPlan({ noteId }: { noteId: string }) {
   return (
     <div className="ops-plan">
       {plan.headline && <p className="ops-headline">{plan.headline}</p>}
+      <p className="ops-hint">Proposals only — nothing is created until you tap <b>Approve</b> on each.</p>
       {plan.operations.map((op, i) => (
         <div key={i} className={`ops-op${done[i] ? " ops-done" : ""}`}>
           <span className={`ops-badge t-${op.type}`}>{TYPE_LABEL[op.type] ?? op.type}</span>
@@ -92,7 +94,16 @@ export default function OpsPlan({ noteId }: { noteId: string }) {
             <b>{op.title}{op.isNew ? <span className="ops-new">new</span> : null}</b>
             <span>{[op.who, op.when, op.details].filter(Boolean).join(" · ")}</span>
           </div>
-          <button type="button" className="ops-create" onClick={() => createOp(op, i)} disabled={done[i]}>{done[i] ? "✓" : "Create"}</button>
+          {done[i] ? (
+            <button type="button" className="ops-create" disabled>✓ Created</button>
+          ) : pending[i] ? (
+            <span className="ops-confirm">
+              <button type="button" className="ops-create ok" onClick={() => { setPending((p) => ({ ...p, [i]: false })); createOp(op, i); }}>Approve</button>
+              <button type="button" className="ops-create ghost" onClick={() => setPending((p) => ({ ...p, [i]: false }))} aria-label="Cancel">✕</button>
+            </span>
+          ) : (
+            <button type="button" className="ops-create" onClick={() => setPending((p) => ({ ...p, [i]: true }))}>Create</button>
+          )}
         </div>
       ))}
       {plan.gaps.length > 0 && (

@@ -1548,6 +1548,10 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .ops-create:active{transform:scale(.96)}
 .ops-create:disabled{background:rgba(200,166,97,.2);color:var(--gold2)}
 .ops-create.ghost{background:transparent;border:1px solid var(--line2);color:var(--cream-m)}
+.ops-create.ok{background:var(--ok);color:#0e0d0b}
+.ops-confirm{display:flex;align-items:center;gap:6px;flex:none}
+.ops-hint{font-family:'Inter';font-size:11px;color:var(--cream-d);margin:0 4px 8px}
+.ops-hint b{color:var(--gold2)}
 .ops-gaps{margin-top:8px;border-top:1px dashed var(--line);padding-top:8px}
 .ops-gaps-h{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--warn);margin:0 4px 4px}
 .oo-row{padding:13px 14px;border-bottom:1px solid var(--line2)}
