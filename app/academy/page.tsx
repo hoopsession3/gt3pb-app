@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useApp } from "@/components/AppProvider";
-import { useAuth, roleOf } from "@/components/AuthProvider";
+import { useAuth, roleOf, isStaff } from "@/components/AuthProvider";
 import SignIn from "@/components/SignIn";
 import { supabase } from "@/lib/supabase";
 import {
@@ -110,6 +110,17 @@ export default function AcademyPage() {
   if (!enabled) return <section className="screen"><div className="h-title">GT3 Academy</div><div className="h-sub">The live backend isn&apos;t configured here.</div></section>;
   if (!ready) return <section className="screen" />;
   if (!user) return <SignIn />;
+  // Academy is the EMPLOYEE training + certification system — it carries internal ops, procedures,
+  // and the founder's "why" (founderInsight). A plain customer is signed in but not staff; the old
+  // `member → "staff"` role fallback handed them the full staff curriculum. Gate on isStaff() so
+  // only employees reach it; everyone else gets a friendly wall, not internal content.
+  if (!isStaff(profile)) return (
+    <section className="screen">
+      <div className="h-title">GT3 Academy</div>
+      <div className="h-sub">This is our crew training space — for GT3 team members. If you&apos;re on the crew and seeing this, ask an admin to set your role.</div>
+      <Link className="btn" href="/">← Back to GT3</Link>
+    </section>
+  );
 
   const path = pathForRole(role);
   const required = requiredModules(role);

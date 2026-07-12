@@ -5,13 +5,17 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 // knowledge below it. This is how a wrong answer gets fixed for good: the owner writes the truth
 // once, and every agent reads it first. Best-effort — returns "" when nothing's configured.
 
-export async function ownerCorrections(agent: string): Promise<string> {
+// `includeShared` controls the "all" wildcard bucket. Internal (staff-gated) agents include it so
+// one correction can apply everywhere. The PUBLIC concierge passes false: a guest-facing surface
+// must only ever inject corrections EXPLICITLY tagged for it — otherwise an owner note written for
+// the internal agents (tagged "all") would surface to guests. Explicit allow-list for the public.
+export async function ownerCorrections(agent: string, includeShared = true): Promise<string> {
   if (!supabaseAdmin) return "";
-  const { data } = await supabaseAdmin
+  const base = supabaseAdmin
     .from("agent_knowledge")
     .select("title, body")
-    .eq("active", true)
-    .in("agent", ["all", agent])
+    .eq("active", true);
+  const { data } = await (includeShared ? base.in("agent", ["all", agent]) : base.eq("agent", agent))
     .order("created_at", { ascending: false })
     .limit(60);
   if (!data || data.length === 0) return "";
