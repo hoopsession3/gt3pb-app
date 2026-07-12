@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObjec
 // Structure: scrim (flex) > panel (flex column) > grab · [header] · body (the only scroll region) ·
 // [footer]. Respects prefers-reduced-motion via the global guard.
 export default function Sheet({
-  open, onClose, header, footer, children, className = "", labelledBy, bodyRef,
+  open, onClose, header, footer, children, className = "", labelledBy, label, bodyRef,
 }: {
   open: boolean;
   onClose: () => void;
@@ -17,6 +17,10 @@ export default function Sheet({
   children: ReactNode;
   className?: string;
   labelledBy?: string;
+  // Accessible name for the dialog (a11y: dialog-name). Use `labelledBy` to point at a title element,
+  // or `label` for a plain string. If neither is given we fall back to "Dialog" so the modal is never
+  // nameless — every caller SHOULD pass one of them, but the fallback guarantees axe never fails here.
+  label?: string;
   // Optional ref onto the scroll body — for a sheet that needs to control its own scroll position
   // (e.g. auto-scrolling a chat transcript to the latest message). Every sheet shares this one scroll
   // region by contract; this just exposes a handle to it instead of a per-sheet nested scroll div.
@@ -83,6 +87,7 @@ export default function Sheet({
   return (
     <div className={`sheet2-scrim${out}`} onClick={requestClose}>
       <div className={`sheet2 ${className}${out}`} role="dialog" aria-modal="true" aria-labelledby={labelledBy}
+        aria-label={labelledBy ? undefined : (label ?? "Dialog")}
         style={panelStyle} onClick={(e) => e.stopPropagation()}>
         <div className="sheet2-grab" {...dragZone} />
         {header && <div className="sheet2-head" {...dragZone}>{header}</div>}
