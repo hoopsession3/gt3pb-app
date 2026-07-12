@@ -19,9 +19,8 @@ import { supabase } from "@/lib/supabase";
 
 const SESSION_KEY = "gt3-splash-shown";
 
-const HOLD_MS = 5000;       // read it first — the entrance plays, then the ad holds, readable
-const DISSOLVE_MS = 12300;  // slow smoke → brand "3" (fully out) → a beat → "Welcome" + the 3mpire signature → home
-const FAST_MS = 3200;       // a tap bypasses: a quick "3" out, then the sign-off, then home
+const HOLD_MS = 2500;       // read it first — the entrance (staggered to ~2.3s) plays, then it dissolves
+const FAST_MS = 3200;       // the compact dissolve: a quick "3" out of the smoke, sign-off, then home
 
 type Copy = { head1: string; head2: string; sub: string; cta: string; href: string };
 const DEFAULT: Copy = {
@@ -83,8 +82,12 @@ export default function MarketingSplash() {
   // the splash stays static and waits for a manual dismiss.
   useEffect(() => {
     if (!show || reducedMotion()) return;
-    const toDissolve = setTimeout(() => setDissolving(true), HOLD_MS);
-    const toClose = setTimeout(() => setShow(false), HOLD_MS + DISSOLVE_MS);
+    // After a brief readable hold, run the COMPACT dissolve — the same tuned choreography the tap-to-
+    // skip uses (smoke → brand "3" → "Welcome" → the 3mpire signature). Keeps the brand moment but
+    // makes the intro a ~6s takeover instead of ~18s (the old 5s hold + 12.3s slow dissolve was the
+    // dominant first-visit LCP cost — it covered the home screen for ~16s on every fresh visit).
+    const toDissolve = setTimeout(() => { setFast(true); setDissolving(true); }, HOLD_MS);
+    const toClose = setTimeout(() => setShow(false), HOLD_MS + FAST_MS);
     return () => { clearTimeout(toDissolve); clearTimeout(toClose); };
   }, [show]);
 
