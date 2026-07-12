@@ -39,6 +39,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        {/* Warm the connection to Supabase (auth/session + the first data query) so its TLS handshake
+            overlaps with the initial render instead of starting only when the auth layer fires. */}
+        {process.env.NEXT_PUBLIC_SUPABASE_URL && (
+          <>
+            <link rel="preconnect" href={process.env.NEXT_PUBLIC_SUPABASE_URL} crossOrigin="anonymous" />
+            <link rel="dns-prefetch" href={process.env.NEXT_PUBLIC_SUPABASE_URL} />
+          </>
+        )}
         {/* Style probe — heals the "raw HTML" render. If the app stylesheet failed to load
             (stale PWA shell pointing at a purged fingerprinted CSS, a cached 404, a deploy-
             boundary race), --cream never applies. One hard reload fetches fresh HTML with a
