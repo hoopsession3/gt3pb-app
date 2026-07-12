@@ -1049,6 +1049,11 @@ function MyDay({ userId, meName, isLeader, canPrep, canBrew }: { userId: string 
   const streams = useWorkStreams();
   const laneColor = (cat: string) => streamOfCategory(cat, streams)?.color;
   const [today, setToday] = useState<{ id: string; title: string | null; day_label: string | null; is_live: boolean | null; dress_code?: string | null; crew_brief?: string | null }[]>([]);
+  // Clock read CLIENT-SIDE only: /crew is prerendered, so a render-time new Date() bakes build/UTC
+  // time+date into the HTML and mismatches the browser on hydration (React #418). null on SSR + the
+  // first client render (they match), then the effect fills the real local greeting + date.
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => { setNow(new Date()); }, []);
   // The day's rhythm — the same anchors the company calendar carries. Events use the operator's
   // wall-clock day; drop/delivery are BUSINESS days (ET) so a late evening doesn't flip them early.
   const [rhythm, setRhythm] = useState<{ stops: { id: string; name: string | null; starts_at: string | null }[]; dropPacks: number; porches: number; brews: { id: string; recipe_name: string; batch_gal: number; warn: boolean }[] }>({ stops: [], dropPacks: 0, porches: 0, brews: [] });
@@ -1073,15 +1078,15 @@ function MyDay({ userId, meName, isLeader, canPrep, canBrew }: { userId: string 
     });
   }, []);
 
-  const hr = new Date().getHours();
-  const greet = hr < 12 ? "Good morning" : hr < 17 ? "Good afternoon" : "Good evening";
+  const greet = now ? (now.getHours() < 12 ? "Good morning" : now.getHours() < 17 ? "Good afternoon" : "Good evening") : "";
   const first = meName.split(" ")[0];
+  const named = first && first !== "Me" ? first : "";
 
   return (
     <>
       <div className="myday-hero">
-        <div className="myday-greet">{greet}{first && first !== "Me" ? `, ${first}` : ""}</div>
-        <div className="myday-date">{new Date().toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}</div>
+        <div className="myday-greet">{now ? `${greet}${named ? `, ${named}` : ""}` : ""}</div>
+        <div className="myday-date">{now ? now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" }) : ""}</div>
       </div>
       {today.length > 0 && (
         <div className="myday-today">
