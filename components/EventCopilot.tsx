@@ -76,7 +76,7 @@ export default function EventCopilot() {
 
   if (!open) return null;
   return (
-    <Sheet open onClose={() => setOpen(false)} header={<div style={{ display: "flex", alignItems: "center" }}><span className="ec-eye">✦ Chief of staff · create an event</span><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setOpen(false)} aria-label="Close">✕</button></div>}>
+    <Sheet open onClose={() => setOpen(false)} label="Create an event" header={<div style={{ display: "flex", alignItems: "center" }}><span className="ec-eye">✦ Chief of staff · create an event</span><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setOpen(false)} aria-label="Close">✕</button></div>}>
       {!draft ? (
         <div className="ec-start">
           <p className="ec-lead">Tell me about it in your own words — I&apos;ll draft it and you review.</p>

@@ -89,7 +89,7 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
 
   if (done) {
     return (
-      <Sheet open onClose={onClose} header={header} className="office-sheet">
+      <Sheet open onClose={onClose} label="Office delivery order" header={header} className="office-sheet">
         <div className="office-done">
           <div className="office-done-ic">🫙</div>
           <h2>You&rsquo;re on the Monday route.</h2>
@@ -101,7 +101,7 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <Sheet open onClose={onClose} header={header} className="office-sheet"
+    <Sheet open onClose={onClose} label="Office delivery order" header={header} className="office-sheet"
       footer={<button type="button" className="handle" onClick={submit} disabled={busy || !ready}><span>{busy ? "Booking…" : `Book ${q.gallons} gal · ${dollars(q.totalCents)}`}</span></button>}>
 
       <p className="office-lede">Fresh cold-extract for the whole team — <b>amber gallon jugs</b>, delivered <b>{OFFICE.windowLabel}</b>, empties swapped for full each week. 3-gallon minimum.</p>

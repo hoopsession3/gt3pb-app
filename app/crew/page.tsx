@@ -537,7 +537,7 @@ function NotifPrefsSheet({ userId, onClose }: { userId: string | null; onClose: 
   };
   const toggle = (k: string) => { const next = muted.includes(k) ? muted.filter((x) => x !== k) : [...muted, k]; setMuted(next); save(next, qs, qe); };
   return (
-    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Notifications</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close">✕</button></div>}>
+    <Sheet open onClose={onClose} label="Notifications" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Notifications</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close">✕</button></div>}>
       <p className="h-sub" style={{ marginTop: 0 }}>Quiet the categories you don&rsquo;t need. Critical alerts always come through.</p>
       <div className="notif-cats">
         {NOTIF_CATS.map((c) => (

@@ -327,7 +327,7 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
 
   if (!open) return null;
   return (
-    <Sheet open onClose={onClose} className="status-lux"
+    <Sheet open onClose={onClose} label="Member card & status" className="status-lux"
       header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Your member card &amp; status</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close">✕</button></div>}
       footer={<button type="button" className="status-share" onClick={share} disabled={!ready}>Share your status ↗</button>}>
 
