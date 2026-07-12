@@ -94,7 +94,7 @@ export async function POST(req: Request) {
   const fmt = { ...base, vehicle_notes: String(body.vehicle ?? "").slice(0, 300), bottle_type: "GT3 glass bottles (breakable; must stay cold)" };
   let out: any = null;
   try {
-    const r = await callClaude({
+    const r = await callClaude({ label: "loadout",
       model: MODELS.sonnet, maxTokens: 1100, temperature: 0.2,
       system:
         "You are GT3 Performance Bar's pack-out & loadout lead. The crew (Ryan & Kayla) is packing out a finished cold-brew batch — some to KEGS, the rest to GLASS bottles — to drive to an event cold and unbroken. The split is already computed (keg_gal/kegs, bottle_gal/bottles, uvdtf_labels = one label per bottle); NEVER recompute counts. Give a practical pack-out & transport plan: bottle containers (hard coolers / insulated crates, with dividers — wine-shipper inserts or foam sleeves — for glass), the cold strategy (gel/ice packs, NOT loose ice, under 40°F, pre-chill), how to layer so glass stays upright and can't shift or clink, how to handle/transport the keg(s) cold and secured if kegs > 0, how to load and secure everything in the vehicle (low, centered, braced, shaded, AC on), and a short load-in checklist (include 'apply UVDTF labels — N bottles' and 'order ~label_order labels with spares'). Be specific to the counts given. Don't invent gear beyond standard cooler/divider/keg options. Never make health claims. Always answer with the loadout_plan tool.\n\n=== GT3 SOPs ===\n" +

@@ -135,7 +135,7 @@ export async function POST(req: Request) {
 
   let out: { summary: string; causes: any[]; steps: string[]; prevention?: any[] } | null = null;
   try {
-    const r = await callClaude({
+    const r = await callClaude({ label: "troubleshoot",
       model: MODELS.sonnet, maxTokens: 1600, temperature: 0.2,
       system:
         "You are the field-ops troubleshooter for GT3 Performance Bar, a mobile beverage truck/cart. The crew is on site with a problem RIGHT NOW and needs to get back to serving fast and safely. Diagnose from the data given (the event/stop config — especially power/water/rig/load — the gear list, GT3's SOPs below, and the crew's description). " +

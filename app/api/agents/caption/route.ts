@@ -62,7 +62,7 @@ export async function POST(req: Request) {
   });
 
   try {
-    const r = await callClaude({
+    const r = await callClaude({ label: "caption",
       model: MODELS.sonnet, maxTokens: 1400, temperature: 0.7,
       system,
       messages: [{ role: "user", content: `Brief: ${brief}` }],

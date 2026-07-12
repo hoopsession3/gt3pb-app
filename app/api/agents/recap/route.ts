@@ -49,7 +49,7 @@ export async function POST(req: Request) {
 
   let items: { label: string; priority: string }[] = [];
   try {
-    const r = await callClaude({
+    const r = await callClaude({ label: "recap",
       model: MODELS.sonnet,
       maxTokens: 1024,
       system: "You turn a beverage-truck team's meeting recap into a clean follow-up list. Be concrete and concise. Never invent tasks that aren't supported by the recap. Always answer with the propose_followups tool.",

@@ -60,7 +60,7 @@ ${assets || "(none loaded)"}`;
 
   let out: { have_answer: boolean; proposal: string } | null = null;
   try {
-    const r = await callClaude({
+    const r = await callClaude({ label: "resolve",
       model: MODELS.sonnet, maxTokens: 700, temperature: 0.3, system,
       messages: [{ role: "user", content: `Follow-up: ${task.label}` }],
       tools: [TOOL], tool_choice: { type: "tool", name: "propose_completion" },

@@ -80,11 +80,11 @@ export async function POST(req: Request) {
   let research = "";
   try {
     let msgs: ClaudeMsg[] = [{ role: "user", content: ask }];
-    let r = await callClaude({ model: MODELS.sonnet, maxTokens: 2000, system: sys, messages: msgs, tools: [webTool] });
+    let r = await callClaude({ label: "sales", model: MODELS.sonnet, maxTokens: 2000, system: sys, messages: msgs, tools: [webTool] });
     let rounds = 0;
     while (r.stop_reason === "pause_turn" && rounds < 2) {
       msgs = [...msgs, { role: "assistant", content: r.content }];
-      r = await callClaude({ model: MODELS.sonnet, maxTokens: 2000, system: sys, messages: msgs, tools: [webTool] });
+      r = await callClaude({ label: "sales", model: MODELS.sonnet, maxTokens: 2000, system: sys, messages: msgs, tools: [webTool] });
       rounds++;
     }
     research = (r.text || "").trim();
@@ -95,7 +95,7 @@ export async function POST(req: Request) {
 
   let out: any = null;
   try {
-    const ex = await callClaude({
+    const ex = await callClaude({ label: "sales",
       model: MODELS.haiku, maxTokens: 1800,
       system: "Turn the sales research into clean opportunity rows for a mobile beverage truck. One row per real opportunity, keep the source links, rank fit (hot/warm/cold). Don't invent — only what's in the research. Always answer with the opportunities tool.",
       messages: [{ role: "user", content: `Markets: ${markets.join("; ")}\n\nResearch:\n${research}` }],

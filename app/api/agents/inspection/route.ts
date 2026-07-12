@@ -81,15 +81,15 @@ async function processResearchJob(jobId: string, j: { state: string; county: str
     const webTool: any = { type: "web_search_20260209", name: "web_search", max_uses: 1 };
     const sys = "You research local regulations for a mobile beverage truck (GT3 Performance Bar — coffee, broth, bottled drinks). Find the TEMPORARY food service / mobile vendor permit and health-inspection requirements for the named jurisdiction. Prefer official sources (county health department, state agriculture/DPH). Make ONE focused search, then summarize concisely with sources. Note that requirements must be confirmed with the authority for the exact date.";
     let msgs: ClaudeMsg[] = [{ role: "user", content: `Research what's needed to legally operate and pass a health inspection for a temporary mobile beverage setup in ${j.place}. List the permits, certifications, inspection items, and insurance, with source links.` }];
-    let r = await callClaude({ model: MODELS.sonnet, maxTokens: 1600, system: sys, messages: msgs, tools: [webTool] });
+    let r = await callClaude({ label: "inspection", model: MODELS.sonnet, maxTokens: 1600, system: sys, messages: msgs, tools: [webTool] });
     if (r.stop_reason === "pause_turn") {
       msgs = [...msgs, { role: "assistant", content: r.content }];
-      r = await callClaude({ model: MODELS.sonnet, maxTokens: 1600, system: sys, messages: msgs, tools: [webTool] });
+      r = await callClaude({ label: "inspection", model: MODELS.sonnet, maxTokens: 1600, system: sys, messages: msgs, tools: [webTool] });
     }
     const research = (r.text || "").trim() || "(no findings)";
 
     // (2) Extract structured rows (forced tool, no web search) — fast Haiku pass.
-    const ex = await callClaude({
+    const ex = await callClaude({ label: "inspection",
       model: MODELS.haiku, maxTokens: 1400,
       system: "Turn the research into clean compliance rows for a mobile beverage truck. One row per distinct requirement. Keep links from the research. If sources were thin, set confidence low. Always answer with save_requirements.",
       messages: [{ role: "user", content: `Jurisdiction: ${j.place}\n\nResearch findings:\n${research}` }],
@@ -155,7 +155,7 @@ export async function POST(req: Request) {
     // FAST PATH — summarize from what we already have (one Sonnet call). Returns inline.
     try {
       const known = (existing ?? []).map((r: any) => `- (${r.kind}${r.critical ? ", critical" : ""}) ${r.label}${r.link ? ` [${r.link}]` : ""}`).join("\n");
-      const r = await callClaude({
+      const r = await callClaude({ label: "inspection",
         model: MODELS.sonnet, maxTokens: 1200,
         system: "You brief a mobile beverage-truck operator on an upcoming health inspection using ONLY the requirements provided. Lead with what the inspector will check, then a short prep checklist. Always answer with save_requirements (echo the given rules).",
         messages: [{ role: "user", content: `Inspection in ${place}. Our known requirements:\n${known}\n\nBrief us.` }],

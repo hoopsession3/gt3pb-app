@@ -61,7 +61,7 @@ export async function POST(req: Request) {
     task: "REPURPOSE — recast the SOURCE idea below into a Story, a Reel script (hook → beats → CTA), an email, and a site blurb. Keep the substance; change the shape and length to fit each format. Stay in the GT3 voice. Always answer with the repurpose tool.",
   });
   try {
-    const r = await callClaude({
+    const r = await callClaude({ label: "repurpose",
       model: MODELS.sonnet, maxTokens: 1400, temperature: 0.7, system,
       messages: [{ role: "user", content: `SOURCE${title ? ` (titled "${title}")` : ""}:\n${source}` }],
       tools: [TOOL], tool_choice: { type: "tool", name: "repurpose" },

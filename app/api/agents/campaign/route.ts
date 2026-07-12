@@ -74,7 +74,7 @@ Distinct angles, all unmistakably GT3. Always answer with the build_campaign too
 
   let pieces: any[] = [];
   try {
-    const r = await callClaude({
+    const r = await callClaude({ label: "campaign",
       model: MODELS.sonnet, maxTokens: 1800, temperature: 0.85,
       system,
       messages: [{ role: "user", content: `Event: ${ev.title || "GT3 event"}${ev.day_label ? ` (${ev.day_label})` : ""} on ${ev.day}.` }],

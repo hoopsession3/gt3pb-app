@@ -41,7 +41,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const r = await callClaude({
+    const r = await callClaude({ label: "transcribe",
       model: MODELS.sonnet,
       maxTokens: 4000,
       temperature: 0,

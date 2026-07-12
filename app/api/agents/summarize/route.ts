@@ -47,7 +47,7 @@ export async function POST(req: Request) {
   if (!text.trim()) return NextResponse.json({ ok: false, error: "nothing to summarize" }, { status: 400 });
 
   try {
-    const r = await callClaude({
+    const r = await callClaude({ label: "summarize",
       model: MODELS.sonnet, maxTokens: 2000, temperature: 0.2,
       system: SUMMARY_SYSTEM,
       messages: [{ role: "user", content: `Meeting notes / transcript:\n\n${text}` }],

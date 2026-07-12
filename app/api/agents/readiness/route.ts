@@ -59,7 +59,7 @@ export async function POST(req: Request) {
 
   let out: { headline: string; severity: string; gaps: { item: string; detail: string }[] } | null = null;
   try {
-    const r = await callClaude({
+    const r = await callClaude({ label: "readiness",
       model: MODELS.sonnet,
       maxTokens: 1200,
       system: "You are the prep lead for a mobile beverage truck (GT3 Performance Bar). Given upcoming events and current inventory, decide if stock covers what's coming. Flag items below reorder point or likely to run out given event count/attendance and menu. Be specific and practical. Always answer with the report_readiness tool.",

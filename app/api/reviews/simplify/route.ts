@@ -40,7 +40,7 @@ export async function POST(req: Request) {
   const raw = (body.text || "").trim().slice(0, 1200);
   if (raw.length < 8) return NextResponse.json({ error: "Nothing to simplify." }, { status: 400 });
   try {
-    const r = await callClaude({
+    const r = await callClaude({ label: "reviews-simplify",
       model: MODELS.haiku, maxTokens: 320, temperature: 0.3,
       system: SYSTEM,
       messages: [{ role: "user", content: `Raw review:\n"""${raw}"""` }],

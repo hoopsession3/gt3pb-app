@@ -2,6 +2,9 @@
 // ANTHROPIC_API_KEY is a server secret set on the host — NEVER import this into client code.
 // The browser never talks to Anthropic directly; it calls our API routes, which call this.
 
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { costCents } from "@/lib/aiPricing";
+
 export const MODELS = {
   sonnet: "claude-sonnet-4-6",            // internal agents (recap, readiness) — quality/cost balance
   haiku: "claude-haiku-4-5-20251001",     // high-volume / public concierge
@@ -16,7 +19,22 @@ export interface ClaudeResult {
   toolUses: { name: string; input: any }[];
   stop_reason: string | null;
   content: any[]; // raw content blocks — needed to resume a server-tool pause_turn
-  usage?: { input_tokens: number; output_tokens: number }; // token usage (cost visibility / logging)
+  // token usage (cost visibility / logging). cache_* split out so the meter can show what caching saved.
+  usage?: { input_tokens: number; output_tokens: number; cache_write_tokens: number; cache_read_tokens: number };
+}
+
+// Fire-and-forget cost log — one row per call into ai_usage (0190). Best-effort: never blocks or throws,
+// so metering can't break an agent. Cost is priced HERE (at log time) from lib/aiPricing.
+function logUsage(agent: string, model: string, u: { input_tokens: number; output_tokens: number; cache_write_tokens: number; cache_read_tokens: number }): void {
+  if (!supabaseAdmin) return;
+  try {
+    void supabaseAdmin.from("ai_usage").insert({
+      agent, model,
+      input_tokens: u.input_tokens, output_tokens: u.output_tokens,
+      cache_write_tokens: u.cache_write_tokens, cache_read_tokens: u.cache_read_tokens,
+      cost_cents: costCents(model, u),
+    }).then(() => {}, () => {}); // swallow — logging is never allowed to surface
+  } catch { /* best-effort */ }
 }
 
 // Transient API failures (rate limit, overloaded, 5xx, network blips) shouldn't surface to the
@@ -36,14 +54,23 @@ export async function callClaude(opts: {
   tool_choice?: { type: "auto" | "any" | "tool"; name?: string };
   maxTokens?: number;
   temperature?: number;
+  label?: string; // which copilot this call belongs to — attributes the cost in ai_usage (0190)
 }): Promise<ClaudeResult> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("ANTHROPIC_API_KEY not set");
+  // PROMPT CACHING — the system prompt carries the big, identical-across-calls prefix (static
+  // knowledge + owner corrections + recipe facts). Marking it as an ephemeral cache breakpoint tells
+  // the API to reuse it: the whole tools+system prefix bills at ~10% on a cache hit instead of full
+  // input rate. For grounded agents that's the single biggest cost cut. Short prompts under the min
+  // cacheable size are simply not cached (no error), so this is always safe to send.
+  const systemBlocks = opts.system
+    ? [{ type: "text", text: opts.system, cache_control: { type: "ephemeral" } }]
+    : undefined;
   const body = JSON.stringify({
     model: opts.model,
     max_tokens: opts.maxTokens ?? 1024,
     temperature: opts.temperature ?? 0.2,
-    system: opts.system,
+    system: systemBlocks,
     messages: opts.messages,
     tools: opts.tools,
     tool_choice: opts.tool_choice,
@@ -78,13 +105,20 @@ export async function callClaude(opts: {
       const data = await res.json();
       const blocks: any[] = data.content ?? [];
       const u = data.usage ?? {};
-      console.log(`[claude] ${opts.model} ${Date.now() - started}ms in=${u.input_tokens ?? "?"} out=${u.output_tokens ?? "?"} stop=${data.stop_reason ?? "?"}${attempt ? ` retries=${attempt}` : ""}`);
+      const usage = {
+        input_tokens: u.input_tokens ?? 0,
+        output_tokens: u.output_tokens ?? 0,
+        cache_write_tokens: u.cache_creation_input_tokens ?? 0,
+        cache_read_tokens: u.cache_read_input_tokens ?? 0,
+      };
+      console.log(`[claude] ${opts.model} ${Date.now() - started}ms in=${usage.input_tokens} out=${usage.output_tokens} cache(w=${usage.cache_write_tokens} r=${usage.cache_read_tokens}) stop=${data.stop_reason ?? "?"}${attempt ? ` retries=${attempt}` : ""}`);
+      logUsage(opts.label ?? "unknown", opts.model, usage);
       return {
         text: blocks.filter((b) => b.type === "text").map((b) => b.text).join(""),
         toolUses: blocks.filter((b) => b.type === "tool_use").map((b) => ({ name: b.name, input: b.input })),
         stop_reason: data.stop_reason ?? null,
         content: blocks,
-        usage: { input_tokens: u.input_tokens ?? 0, output_tokens: u.output_tokens ?? 0 },
+        usage,
       };
     } catch (e: any) {
       lastErr = e;

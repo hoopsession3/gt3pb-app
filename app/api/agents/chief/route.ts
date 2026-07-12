@@ -99,7 +99,7 @@ export async function POST(req: Request) {
   const periodWord = period === "week" ? "WEEK" : period === "month" ? "MONTH" : "QUARTER";
   let out: any = null;
   try {
-    const r = await callClaude({
+    const r = await callClaude({ label: "chief",
       model: MODELS.sonnet, maxTokens: 1700, temperature: 0.25,
       system:
         `You are the Chief of Staff / executive assistant for GT3 Performance Bar, a mobile beverage truck run by Ryan & Kayla. You produce the ${periodWord} briefing — your job is to ORGANIZE and LEAD the ${period}, like an elite EA who has read everything and tells the owners exactly what to focus on and in what order. ` +

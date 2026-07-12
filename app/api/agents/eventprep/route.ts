@@ -45,7 +45,7 @@ async function runPrep(jobId: string, fmt: any) {
   if (!supabaseAdmin) return;
   const touch = (patch: any) => supabaseAdmin!.from("agent_jobs").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", jobId);
   const ask = async (nudge?: string) => {
-    const r = await callClaude({
+    const r = await callClaude({ label: "eventprep",
       model: MODELS.sonnet, maxTokens: 1800, temperature: 0.2,
       system: PREP_SYSTEM + academyKnowledge().slice(0, 9000),
       messages: [{ role: "user", content: `Build the prep list.\n\n${JSON.stringify(fmt)}${nudge ? `\n\n${nudge}` : ""}` }],

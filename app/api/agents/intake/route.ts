@@ -118,7 +118,7 @@ export async function POST(req: Request) {
 
   let out: any = null;
   try {
-    const r = await callClaude({
+    const r = await callClaude({ label: "intake",
       model: MODELS.sonnet, maxTokens: 900, temperature: 0.2,
       system:
         "You are the intake assistant for GT3 Performance Bar, a mobile beverage truck. Someone dropped a file. Figure out WHAT it is and the single best home for it: an ASSET (gear/equipment the truck owns — a grinder, keg, faucet, cooler), an INVENTORY consumable (stock we use up — coffee beans, bottles, cups, ingredients, CO2/N2), or a DOCUMENT to store (permit, certificate of insurance, contract, receipt/invoice, equipment manual, recipe/spec). Read everything visible — labels, amounts, dates, vendor names. Give a clear name, a one-line summary with the key facts, and the fields for that kind (qty + unit for inventory; category for an asset; doc_kind + tags for a document). Recommend the action in one line. Be decisive but set confidence honestly. Never invent details you can't see. Always answer with the intake_read tool.",

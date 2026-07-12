@@ -146,7 +146,7 @@ export async function POST(req: Request) {
 
   let plan: any = null;
   try {
-    const r = await callClaude({
+    const r = await callClaude({ label: "event-generate",
       model: MODELS.sonnet, maxTokens: 1800, temperature: 0.2,
       system: `You are the planning agent for GT3 Performance Bar, a mobile beverage truck (Ryan & Kayla). Turn casual planning notes into a clean, structured plan: the events AND truck stops discussed, a team collaboration note (GT3 house format — a '## Action Items' block then numbered '## N. Topic' sections), and concrete action-item to-dos linked to the right item. Classify each item with kind: a 'stop' is the truck physically parking and serving on the ground (market, run club, pop-up, vending spot — these go on the public route); an 'event' is a booked show / gig / party / catering. If the user says "add a stop" or describes the truck setting up somewhere, use kind 'stop'. Be grounded: only what's in the notes — never invent venues, dates, or tasks. Use real GT3 menu names if mentioned (Nature Aide, salted maple latte, nitro cold brew). Today is ${dow}, ${todayIso}. "This weekend" = Saturday ${sat} and Sunday ${sun}. Always answer with the event_plan tool.`,
       messages: [{ role: "user", content: notes }],

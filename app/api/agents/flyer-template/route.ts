@@ -74,7 +74,7 @@ ${TEMPLATES.map((t) => `- ${t.id}: ${t.when}`).join("\n")}
 Match the template's mood to the content and the moment. Prefer restraint over spectacle; reach for the loud cuts (redline, neon, checker) only when the moment truly calls for it. Always answer with the pick_template tool.`;
 
   try {
-    const r = await callClaude({
+    const r = await callClaude({ label: "flyer-template",
       model: MODELS.sonnet, maxTokens: 300, temperature: 0.4, system,
       messages: [{ role: "user", content: ctx || "Slide: announce" }],
       tools: [TOOL], tool_choice: { type: "tool", name: "pick_template" },

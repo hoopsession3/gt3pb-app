@@ -88,7 +88,7 @@ export async function POST(req: Request) {
   };
   let out: any = null;
   try {
-    const r = await callClaude({
+    const r = await callClaude({ label: "spaceplan",
       model: MODELS.sonnet, maxTokens: 1100, temperature: 0.3,
       system:
         "You are GT3 Performance Bar's load-out lead, packing the rig to drive to an event. The FIT is already computed deterministically (used vs usable cu ft + floor sq ft, per-item footprints) — NEVER recompute or contradict those numbers; build the arrangement around them. " +

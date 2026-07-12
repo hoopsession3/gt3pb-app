@@ -2001,6 +2001,28 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .cl-empty{font-family:'Inter';font-size:13px;color:var(--cream-m);line-height:1.5;text-align:center;padding:22px 12px}
 @media (prefers-reduced-motion:reduce){.cl-op,.cl-op-arrow,.cl-search{transition:none}.cl-op:hover .cl-op-arrow{transform:none}}
 
+/* ── AI spend — the owner's cost meter (reads ai_usage) ── */
+.spend{display:flex;flex-direction:column;gap:14px}
+.spend-empty{font-family:'Inter';font-size:13px;color:var(--cream-m);line-height:1.5;padding:14px 2px}
+.spend-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.spend-kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 10px;display:flex;flex-direction:column;gap:3px;text-align:center}
+.spend-k-v{font-family:var(--mono,'DM Mono');font-size:18px;font-weight:600;color:var(--cream);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.spend-k-l{font-family:var(--mono,'DM Mono');font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--cream-d)}
+.spend-cache{background:rgba(106,160,92,.1);border:1px solid rgba(106,160,92,.4);border-radius:11px;padding:10px 13px;font-family:'Inter';font-size:12.5px;color:var(--cream);line-height:1.45}
+.spend-cache b{color:var(--ok)}
+.spend-sec{font-family:var(--mono,'DM Mono');font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--cream-d);border-bottom:1px solid var(--line);padding-bottom:4px;margin-top:2px}
+.spend-tbl{display:flex;flex-direction:column;gap:7px}
+.spend-row{display:grid;grid-template-columns:minmax(72px,1.1fr) 2fr auto auto;align-items:center;gap:10px}
+.spend-agent{font-family:'Inter';font-weight:600;font-size:13px;color:var(--cream);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.spend-bar{height:6px;border-radius:99px;background:var(--char3,rgba(255,255,255,.06));overflow:hidden}
+.spend-bar span{display:block;height:100%;background:linear-gradient(90deg,var(--gold2),var(--gold));border-radius:99px}
+.spend-calls{font-family:var(--mono,'DM Mono');font-size:11px;color:var(--cream-d);font-variant-numeric:tabular-nums;text-align:right}
+.spend-cents{font-family:var(--mono,'DM Mono');font-size:12.5px;color:var(--cream);font-variant-numeric:tabular-nums;text-align:right;min-width:52px}
+.spend-models{display:flex;flex-direction:column;gap:5px}
+.spend-mrow{display:flex;justify-content:space-between;font-family:'Inter';font-size:12.5px;color:var(--cream-m)}
+.spend-mrow span:last-child{font-family:var(--mono,'DM Mono');color:var(--cream);font-variant-numeric:tabular-nums}
+.spend-foot{font-family:'Inter';font-size:11px;color:var(--cream-d);line-height:1.45;margin-top:2px}
+
 /* ── Studio — collaborative marketing studio ── */
 .studio-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
 .studio-back{background:none;border:none;color:var(--gold2);font-family:'Inter';font-weight:600;font-size:14px;cursor:pointer;padding:4px 0}

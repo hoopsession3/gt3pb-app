@@ -86,7 +86,7 @@ export async function POST(req: Request) {
   const known = (existing ?? []).map((r: any) => `- ${r.name}${r.category ? ` [${r.category}]` : ""}${r.unit ? ` (${r.unit})` : ""}`).join("\n");
 
   try {
-    const r = await callClaude({
+    const r = await callClaude({ label: "inventory",
       model: MODELS.sonnet, maxTokens: 1200,
       system: `You catalog inventory for GT3 Performance Bar — a mobile beverage bar (cold-brew coffee, bottled drinks, bone broth, hydration) that works markets and private events out of an enclosed trailer. Turn the user's description of an item into ONE complete inventory record: fill EVERY field, inferring sensible values from how a mobile bev bar would actually use it. Reuse the existing house categories + units below wherever the item fits; only invent a new category when nothing matches. Be specific. In notes, separate what you INFERRED from what should be confirmed, and include any storage/handling or safety point. Always answer with save_item.\n\nAlready in inventory (for taxonomy):\n${known || "(empty — you're setting the taxonomy)"}`,
       messages: [{ role: "user", content: `Catalog this item:\n${description}` }],

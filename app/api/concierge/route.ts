@@ -109,7 +109,7 @@ ${plans || "(ask about membership at the window)"}
 To book the truck for a private event, send people to the booking page (/book). To order, tell them to tap "Start your order."`;
 
   try {
-    const r = await callClaude({ model: MODELS.haiku, maxTokens: 500, temperature: 0.3, system, messages: trimmed });
+    const r = await callClaude({ label: "concierge", model: MODELS.haiku, maxTokens: 500, temperature: 0.3, system, messages: trimmed });
     return NextResponse.json({ ok: true, reply: r.text });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });

@@ -44,7 +44,7 @@ export async function POST(req: Request) {
   const passengers = Math.max(1, Math.min(9, Number(body.passengers) || 1));
 
   try {
-    const r = await callClaude({
+    const r = await callClaude({ label: "vehiclespec",
       model: MODELS.sonnet, maxTokens: 700, temperature: 0.2,
       system:
         "You are a vehicle-packing expert for a mobile beverage truck deciding what fits in the tow/cart vehicle. Given a year/make/model and a passenger count, give your best EXPERT ESTIMATE of: tow capacity (properly equipped), cargo volume seats-up and seats-down, and — most important — the USABLE cargo once you raise the seats those passengers need (e.g. 4 people in a 3-row SUV means the 3rd row is up, cutting cargo to the smaller behind-2nd-row space). Estimate realistic usable interior L×W×H in inches for that seat config (length behind the last up row, width between the wheel wells, height to the cargo-cover line — not the showroom max). If the model is ambiguous, assume the common trim and say so in the note. These are planning estimates, not spec-sheet exact. Always answer with the vehicle_spec tool.",

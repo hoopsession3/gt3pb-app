@@ -94,7 +94,7 @@ export async function POST(req: Request) {
   ].join("\n");
 
   try {
-    const r = await callClaude({
+    const r = await callClaude({ label: "opsplan",
       model: MODELS.sonnet,
       maxTokens: 1500,
       system,
