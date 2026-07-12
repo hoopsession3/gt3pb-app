@@ -88,7 +88,9 @@ export async function POST(req: Request) {
     plans = (pl.data ?? []).map((p: any) => `- ${p.label}: $${((p.price_cents ?? 0) / 100).toFixed(2)} every ${p.period_days} days`).join("\n");
   }
 
-  const corrections = await ownerCorrections("concierge");
+  // Public surface: only corrections EXPLICITLY tagged "concierge" — never the shared "all" bucket
+  // (which is written for the internal staff agents and could otherwise leak to guests).
+  const corrections = await ownerCorrections("concierge", false);
   const system = `${SYSTEM}${corrections ? `\n\n${corrections}` : ""}
 
 === MENU (canonical copy; use these descriptions verbatim in spirit) ===
