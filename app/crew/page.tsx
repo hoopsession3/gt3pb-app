@@ -753,6 +753,9 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
   const { toast } = useApp();
   const isEvent = ownerType === "event";
   const table = isEvent ? "events" : "stops";
+  // recap now lives on the staff-only sibling (event_ops / stop_ops, 0181), off the public row.
+  const opsTable = isEvent ? "event_ops" : "stop_ops";
+  const opsKey = isEvent ? "event_id" : "stop_id";
   const nameCol = isEvent ? "title" : "name";
   const what = isEvent ? "event" : "truck stop";
   const [f, setF] = useState<Record<string, string | null> | null>(null);
@@ -790,10 +793,13 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
     setSaving(true);
     const now = new Date().toISOString();
     const patch: Record<string, string | boolean | null> = isEvent
-      ? { stage: "done", completed_at: now, is_live: false, recap: recap.trim() || null }
-      : { status: "done", completed_at: now, recap: recap.trim() || null };
+      ? { stage: "done", completed_at: now, is_live: false }
+      : { status: "done", completed_at: now };
     if (alsoArchive) patch.archived_at = now;
     const { error } = await supabase.from(table).update(patch).eq("id", ownerId);
+    // recap lives on the staff-only ops sibling now — write it there (best-effort; the completion
+    // status is the important part, and it already committed above).
+    await supabase.from(opsTable).upsert({ [opsKey]: ownerId, recap: recap.trim() || null }, { onConflict: opsKey });
     setSaving(false);
     if (error) { toast(`Couldn't complete — ${error.message}`, "error"); return; }
     setWrapping(false);
@@ -804,10 +810,14 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    const sel = isEvent ? "title, day, location_text, stage, default_buffer_min, completed_at, recap" : "name, starts_at, location_text, address, status, default_buffer_min, completed_at, recap";
-    const { data } = await supabase.from(table).select(sel).eq("id", ownerId).maybeSingle();
-    setF((data as unknown as Record<string, string | null>) ?? {});
-  }, [table, ownerId, isEvent]);
+    const sel = isEvent ? "title, day, location_text, stage, default_buffer_min, completed_at" : "name, starts_at, location_text, address, status, default_buffer_min, completed_at";
+    // recap comes from the staff-only ops sibling; merge it in so the UI (f.recap) is unchanged.
+    const [{ data }, { data: ops }] = await Promise.all([
+      supabase.from(table).select(sel).eq("id", ownerId).maybeSingle(),
+      supabase.from(opsTable).select("recap").eq(opsKey, ownerId).maybeSingle(),
+    ]);
+    setF({ ...((data as unknown as Record<string, string | null>) ?? {}), recap: (ops as { recap?: string | null } | null)?.recap ?? null });
+  }, [table, opsTable, opsKey, ownerId, isEvent]);
   useEffect(() => { load(); }, [load]);
 
   const set = (k: string, v: string | null) => setF((p) => ({ ...(p ?? {}), [k]: v }));
@@ -990,7 +1000,9 @@ function MenuEditor({ ownerType, ownerId, isAdmin, onChanged }: { ownerType: "ev
 // DAY-OF BRIEF — how the crew shows up: dress code + call time / parking / what to bring. Leadership
 // edits it; assigned crew read it. Self-contained (loads + saves its own row), works for events or stops.
 function DayBrief({ ownerCol, ownerId, isAdmin }: { ownerCol: "event_id" | "stop_id"; ownerId: string; isAdmin: boolean }) {
-  const table = ownerCol === "stop_id" ? "stops" : "events";
+  // crew_brief + dress_code now live on the staff-only sibling (event_ops / stop_ops, 0181), keyed
+  // by the parent id — off the world-readable events/stops row.
+  const opsTable = ownerCol === "stop_id" ? "stop_ops" : "event_ops";
   const [dress, setDress] = useState("");
   const [brief, setBrief] = useState("");
   const [loaded, setLoaded] = useState(false);
@@ -999,17 +1011,18 @@ function DayBrief({ ownerCol, ownerId, isAdmin }: { ownerCol: "event_id" | "stop
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    const { data } = await supabase.from(table).select("dress_code, crew_brief").eq("id", ownerId).maybeSingle();
+    const { data } = await supabase.from(opsTable).select("dress_code, crew_brief").eq(ownerCol, ownerId).maybeSingle();
     setDress((data as { dress_code?: string | null } | null)?.dress_code ?? "");
     setBrief((data as { crew_brief?: string | null } | null)?.crew_brief ?? "");
     setLoaded(true);
-  }, [table, ownerId]);
+  }, [opsTable, ownerCol, ownerId]);
   useEffect(() => { load(); }, [load]);
 
   const save = async () => {
     if (!supabase) return;
     setSaving(true);
-    await supabase.from(table).update({ dress_code: dress.trim() || null, crew_brief: brief.trim() || null }).eq("id", ownerId);
+    // Upsert the staff-only ops row (create it on first save; the parent may have none yet).
+    await supabase.from(opsTable).upsert({ [ownerCol]: ownerId, dress_code: dress.trim() || null, crew_brief: brief.trim() || null }, { onConflict: ownerCol });
     setSaving(false); setEdit(false);
   };
 
@@ -1060,7 +1073,15 @@ function MyDay({ userId, meName, isLeader, canPrep, canBrew }: { userId: string 
   useEffect(() => {
     if (!supabase) return;
     const d = localToday();
-    supabase.from("events").select("id, title, day_label, is_live, dress_code, crew_brief").eq("day", d).is("archived_at", null).then(({ data }) => setToday(data ?? []));
+    // Brief fields live on the staff-only event_ops sibling now — pull today's events, then merge
+    // their ops rows by id (keeps the card's e.dress_code / e.crew_brief render unchanged).
+    supabase.from("events").select("id, title, day_label, is_live").eq("day", d).is("archived_at", null).then(async ({ data }) => {
+      const evs = (data ?? []) as { id: string; title: string | null; day_label: string | null; is_live: boolean | null }[];
+      if (!evs.length || !supabase) { setToday(evs); return; }
+      const { data: ops } = await supabase.from("event_ops").select("event_id, dress_code, crew_brief").in("event_id", evs.map((e) => e.id));
+      const m = new Map((ops ?? []).map((o: { event_id: string; dress_code: string | null; crew_brief: string | null }) => [o.event_id, o]));
+      setToday(evs.map((e) => ({ ...e, dress_code: m.get(e.id)?.dress_code ?? null, crew_brief: m.get(e.id)?.crew_brief ?? null })));
+    });
     const dayStart = new Date(`${d}T00:00:00`);
     const bd = etToday();
     Promise.all([
