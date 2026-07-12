@@ -1977,6 +1977,30 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .qd-note-foot{display:flex;align-items:center;gap:12px;margin-top:11px}
 .qd-note-msg{flex:1;font-family:'Inter';font-size:12.5px;color:var(--cream-m);line-height:1.4}
 
+/* ── ✦ Copilot launcher — the "do" front door: search any AI operation, route to its home ── */
+.cl{display:flex;flex-direction:column;gap:14px}
+.cl-head{display:flex;flex-direction:column;gap:10px;position:sticky;top:0;z-index:1}
+.cl-eye{font-family:var(--mono,'DM Mono');font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold2)}
+.cl-search{width:100%;background:var(--card);border:1px solid var(--line2);border-radius:12px;padding:12px 14px;color:var(--cream);font-family:'Inter';font-size:16px;-webkit-appearance:none;appearance:none;transition:border-color .15s ease}
+.cl-search::placeholder{color:var(--cream-d)}
+.cl-search:focus{outline:none;border-color:var(--gold2);box-shadow:0 0 0 3px rgba(200,166,97,.14)}
+.cl-list{display:flex;flex-direction:column;gap:16px}
+.cl-group{display:flex;flex-direction:column;gap:7px}
+.cl-cat{font-family:var(--mono,'DM Mono');font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--cream-d);padding:0 2px 3px;border-bottom:1px solid var(--line);margin-bottom:2px}
+.cl-op{display:flex;align-items:center;gap:12px;text-align:left;width:100%;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:12px 14px;cursor:pointer;-webkit-appearance:none;appearance:none;transition:transform .11s var(--ease),border-color .15s ease,background-color .15s ease}
+.cl-op:hover{border-color:var(--gold2);background:rgba(200,166,97,.06)}
+.cl-op:active{transform:scale(.985)}
+.cl-op-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.cl-op-label{font-family:'Inter';font-weight:600;font-size:14.5px;color:var(--cream);line-height:1.25}
+.cl-op-desc{font-family:'Inter';font-size:12px;color:var(--cream-m);line-height:1.35}
+.cl-op-go{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.cl-op-sec{font-family:var(--mono,'DM Mono');font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--cream-d);border:1px solid var(--line2);border-radius:999px;padding:3px 8px;white-space:nowrap}
+.cl-op-arrow{color:var(--gold2);font-size:15px;transition:transform .15s ease}
+.cl-op:hover .cl-op-arrow{transform:translateX(3px)}
+.cl-op:hover .cl-op-sec{border-color:var(--gold2);color:var(--gold2)}
+.cl-empty{font-family:'Inter';font-size:13px;color:var(--cream-m);line-height:1.5;text-align:center;padding:22px 12px}
+@media (prefers-reduced-motion:reduce){.cl-op,.cl-op-arrow,.cl-search{transition:none}.cl-op:hover .cl-op-arrow{transform:none}}
+
 /* ── Studio — collaborative marketing studio ── */
 .studio-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
 .studio-back{background:none;border:none;color:var(--gold2);font-family:'Inter';font-weight:600;font-size:14px;cursor:pointer;padding:4px 0}
