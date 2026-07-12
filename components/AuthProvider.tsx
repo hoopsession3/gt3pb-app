@@ -68,6 +68,19 @@ export function useAuth() {
   return v;
 }
 
+// Session SIGNAL cookie (gt3_auth) — a NON-sensitive boolean that middleware.ts reads to route guests
+// at the edge (/ → /truck) with no client round-trip. It mirrors "is there a session", never the token;
+// RLS remains the real security boundary. Long max-age so a returning signed-in user always has it.
+function setAuthSignal(on: boolean) {
+  if (typeof document === "undefined") return;
+  const secure = typeof location !== "undefined" && location.protocol === "https:" ? "; secure" : "";
+  try {
+    document.cookie = on
+      ? `gt3_auth=1; path=/; max-age=34560000; samesite=lax${secure}`
+      : `gt3_auth=; path=/; max-age=0; samesite=lax${secure}`;
+  } catch { /* cookies may be blocked */ }
+}
+
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(!supabaseEnabled); // if no Supabase, we're "ready" immediately
   const [user, setUser] = useState<User | null>(null);
@@ -109,11 +122,13 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       // Only set user/ready here; onAuthStateChange fires INITIAL_SESSION and owns the
       // profile load, so we don't fetch (or attach_referral) twice on cold start.
       setUser(data.session?.user ?? null);
+      setAuthSignal(!!data.session);
       setReady(true);
     });
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       const u = session?.user ?? null;
       setUser(u);
+      setAuthSignal(!!u); // keep the middleware routing signal (gt3_auth cookie) in sync with auth
       if (u) loadProfile(u.id);
       else setProfile(null);
       // Clicking a reset link signs the user in with a short-lived recovery session and fires this

@@ -1,4 +1,25 @@
-# Scope — SSR cookie-based auth migration
+# SSR cookie-based auth migration
+
+## Status — what shipped on `claude/ssr-cookie-auth`
+
+**Implemented (the perf goal, zero auth-flow risk):** edge guest routing. `proxy.ts` (Next 16 middleware)
+redirects `/` → `/truck` for signed-out visitors **on the server**, reading a lightweight non-sensitive
+**signal cookie** (`gt3_auth`) that `AuthProvider` sets on sign-in / clears on sign-out. This kills the
+~5s client-redirect double-load without moving the session or changing the sign-in flow. Verified: guest
+→ 307 `/truck`; signed-in signal → 200. The client redirect in `app/page.tsx` stays as the SPA-nav fallback.
+
+**Deferred (the full session-in-cookie / PKCE rewrite):** on implementation I confirmed the current
+**primary sign-in is a free-tier magic LINK** (`AuthProvider.sendCode` → `signInWithOtp` with
+`emailRedirectTo`; the 6-digit code path exists but waits on Resend SMTP) **plus an iOS-PWA cross-browser
+paste flow** (`signInWithUrl` extracts implicit-flow fragment tokens). Moving that to PKCE/cookies needs a
+callback route (`exchangeCodeForSession`), a rewrite of the paste flow, Supabase-dashboard redirect-URL
+config, and a **full real-email QA pass that can't be done headlessly** — so it's left as the plan below,
+best done once the same-browser OTP code becomes the primary flow. The signal-cookie above already delivers
+the routing win it was wanted for.
+
+---
+
+## Full migration plan (deferred) — SSR cookie sessions
 
 **Why:** today the browser Supabase client uses `flowType: "implicit"` with `persistSession: true`, so the
 session lives in **localStorage** — invisible to the server. Every auth-dependent routing decision is
