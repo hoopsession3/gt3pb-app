@@ -32,14 +32,16 @@ function firstName(profile: Profile | null, email?: string | null) {
   return f.charAt(0).toUpperCase() + f.slice(1);
 }
 
-function todayLabel() {
-  const d = new Date();
+// Both take the date explicitly (never call new Date() at render) so the CALLER controls when the
+// clock is read — critical for hydration: read on the server it bakes UTC time/date into the HTML,
+// which then mismatches the browser's local value (React #418). Callers pass a client-only `now`.
+function todayLabel(d: Date) {
   const wk = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()];
   const mo = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getMonth()];
   return `${wk} · ${mo} ${d.getDate()}`;
 }
-function greet() {
-  const h = new Date().getHours();
+function greet(d: Date) {
+  const h = d.getHours();
   return h < 12 ? "Morning" : h < 18 ? "Afternoon" : "Evening";
 }
 
@@ -67,12 +69,17 @@ function YourUsual() {
 function TodayReal({ t }: { t: (k: string) => string }) {
   const { user, profile } = useAuth();
   const name = firstName(profile, user?.email);
+  // Read the clock CLIENT-SIDE only. SSR + the first client render both see `now === null` (so the
+  // HTML matches and there's no hydration mismatch, React #418); the effect then fills in the real
+  // local date + greeting a frame later.
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => { setNow(new Date()); }, []);
 
   return (
     <section className="screen" id="s-today">
       <Watermark variant="landing" />
       <div className="toprow">
-        <div className="eyb">{todayLabel()}</div>
+        <div className="eyb">{now ? todayLabel(now) : ""}</div>
         <Link
           className={`pf${profile?.avatar_url ? " pf-photo" : ""}`}
           href="/3mpire"
@@ -82,7 +89,7 @@ function TodayReal({ t }: { t: (k: string) => string }) {
           {profile?.avatar_url ? "" : name.charAt(0)}
         </Link>
       </div>
-      <div className="h-title">{greet()}, {name}.</div>
+      <div className="h-title">{now ? `${greet(now)}, ` : ""}{name}.</div>
       <YourUsual />
       <StampCard />
       <ReservePitch />
@@ -167,6 +174,6 @@ export default function TodayScreen() {
   const router = useRouter();
   useEffect(() => { if (enabled && ready && !user) router.replace("/truck"); }, [enabled, ready, user, router]);
   if (!enabled) return <TodayDemo t={t} />;
-  if (!ready || !user) return <section className="screen" id="s-today"><div className="toprow"><div className="eyb">{todayLabel()}</div></div><Skeleton variant="row" count={4} /></section>;
+  if (!ready || !user) return <section className="screen" id="s-today"><div className="toprow"><div className="eyb" /></div><Skeleton variant="row" count={4} /></section>;
   return <TodayReal t={t} />;
 }
