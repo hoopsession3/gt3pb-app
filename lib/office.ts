@@ -9,10 +9,13 @@ export const OFFICE = {
 
 export type OfficeQuote = { gallons: number; subtotalCents: number; deliveryFeeCents: number; taxCents: number; totalCents: number };
 
-// Delivery fee is baked into the per-gallon margin (see ROI), so it's $0 to the office.
-export function officeQuote(gallons: number): OfficeQuote {
-  const g = Math.max(OFFICE.minGallons, Math.round(gallons || 0));
-  const subtotalCents = g * OFFICE.pricePerGallonCents;
+// Delivery fee is baked into the per-gallon margin (see ROI), so it's $0 to the office. Price + min
+// default to the constants but can be overridden by owner-set values (live_status, Settings tab).
+export function officeQuote(gallons: number, opts?: { priceCents?: number; minGallons?: number }): OfficeQuote {
+  const price = opts?.priceCents ?? OFFICE.pricePerGallonCents;
+  const min = opts?.minGallons ?? OFFICE.minGallons;
+  const g = Math.max(min, Math.round(gallons || 0));
+  const subtotalCents = g * price;
   return { gallons: g, subtotalCents, deliveryFeeCents: 0, taxCents: 0, totalCents: subtotalCents };
 }
 

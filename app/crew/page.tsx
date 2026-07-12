@@ -22,6 +22,8 @@ import MenuRigChips, { MENU_RIG_COLUMNS, type MenuRigPatch, type MenuRigValue } 
 import TrailerLoadout from "@/components/TrailerLoadout";
 import DropOps from "@/components/DropOps";
 import OfficeOrders from "@/components/OfficeOrders";
+import SiteCopyEditor from "@/components/SiteCopyEditor";
+import OfficeSettings from "@/components/OfficeSettings";
 import Goals from "@/components/Goals";
 import AiTraining from "@/components/AiTraining";
 import PromoEditor from "@/components/PromoEditor";
@@ -4585,10 +4587,10 @@ function VendorPicker({ vendors, vendorId, onLink }: { vendors: Vendor[]; vendor
 // ───────────────────────── section metadata (shared by header + the guide) ─────────────────────────
 // Each section = one job at one moment. LABEL names it, WHEN says when to reach for it (header pill),
 // SUB is the one-liner, MORE explains it, INSIDE lists what lives there. Order = the shift timeline.
-const SEC_LABEL: Record<OpSection, string> = { day: "My Day", now: "Live Ops", ask: "Ask GT3", prep: "Readiness", plan: "Plan", pipeline: "Pipeline", studio: "Studio", brew: "Brew", garage: "Assets", goals: "Goals", driver: "Delivery", stops: "Route", notes: "Notes", money: "Money", customers: "Customers", team: "Team" };
+const SEC_LABEL: Record<OpSection, string> = { day: "My Day", now: "Live Ops", ask: "Ask GT3", prep: "Readiness", plan: "Plan", pipeline: "Pipeline", studio: "Studio", brew: "Brew", garage: "Assets", goals: "Goals", driver: "Delivery", stops: "Route", notes: "Notes", money: "Money", customers: "Customers", team: "Team", settings: "Settings" };
 const SEC_WHEN: Record<OpSection, string> = {
   day: "Start of shift", now: "During service", ask: "When you're stuck", prep: "Before the event",
-  plan: "Booking ahead", pipeline: "Working the leads", studio: "Promoting a drop", brew: "Production days", garage: "Assets & stock", goals: "Steering the quarter", driver: "Delivery days", stops: "Route planning", notes: "Any time", money: "The books", customers: "Your regulars", team: "People & roles",
+  plan: "Booking ahead", pipeline: "Working the leads", studio: "Promoting a drop", brew: "Production days", garage: "Assets & stock", goals: "Steering the quarter", driver: "Delivery days", stops: "Route planning", notes: "Any time", money: "The books", customers: "Your regulars", team: "People & roles", settings: "Managing the app",
 };
 const SEC_SUB: Record<OpSection, string> = {
   day: "Your tasks, flags, needs-you & what's on today.",
@@ -4607,6 +4609,7 @@ const SEC_SUB: Record<OpSection, string> = {
   money: "Pricing, reserves & order history.",
   customers: "Every customer — orders, loyalty & contact info.",
   team: "People, roles, access & training.",
+  settings: "Copy, pricing, promos & codes — the owner control room.",
 };
 const SEC_MORE: Record<OpSection, string> = {
   day: "Your personal launchpad — the console's one glance screen. Everything assigned to you, everything flagged for your attention, and (for leadership) the needs-you list: booking replies, past-due team tasks and restock lows.",
@@ -4625,6 +4628,7 @@ const SEC_MORE: Record<OpSection, string> = {
   customers: "Your customer book. Every person who's ordered — cup, pickup or delivery, with or without an account — with their history, loyalty and contact info in one place.",
   team: "Your people. Add crew, set roles and access, and manage training — who can see and do what.",
   ask: "Your pocket brain. Ask anything about recipes, the why, gear, stock or how-to and get an answer from the GT3 playbook — from any screen.",
+  settings: "The owner control room — everything you can change without a developer. The wording guests read (copy) lives here, plus office-delivery pricing, and a map straight to brand, payments, menu, discount codes and roles. Edits go live instantly, no deploy.",
 };
 const SEC_INSIDE: Record<OpSection, string[]> = {
   day: ["Your open tasks & due dates", "Alerts flagged for you — with discussion threads", "Needs you (leadership): booking replies, past-due tasks, restock", "What's on the calendar today", "Day-of brief — dress code & call time"],
@@ -4643,6 +4647,7 @@ const SEC_INSIDE: Record<OpSection, string[]> = {
   money: ["Checkout & payments — card status + the pay-at-pickup toggle (governs cup, reserve & delivery)", "Sales · snapshot · per-event P&L", "Product economics & COGS", "Membership plans & subscribers", "Order history", "The Playbook (/playbook, owners) — every growth play + where its numbers land here", "Reserve drops — configure the limited drops"],
   team: ["Staff roster", "Roles & permissions", "Training & academy", "Manager approvals"],
   ask: ["Recipes & the why", "Gear & stock how-to", "The GT3 playbook"],
+  settings: ["Copy & wording — every line guests read", "Office delivery pricing & minimum", "A map to brand, payments, menu, codes & roles"],
 };
 
 // The interactive "when to use what" guide — every section the role can reach, each expandable to a
@@ -4934,6 +4939,33 @@ export default function AdminPage() {
           <Studio />
           <Panel id="splash" title="App splash · the pop-up guests see"><PromoEditor /></Panel>
           <Panel id="reviews" title="Customer reviews"><ReviewsAdmin /></Panel>
+        </>
+      )}
+
+      {sec === "settings" && canManage && (
+        <>
+          {/* The owner control room — one front door for everything you can change without a
+              developer. Copy lives HERE (the thing owners hunt for); the rest is a labeled map to
+              the surfaces that already own each editor, so nothing is duplicated or piecemeal. */}
+          <div className="crew-group">Owner control room</div>
+          <p className="set-lead">Everything you can change without a developer. Edits go live instantly — no deploy.</p>
+          <Panel id="set-copy" title="Copy & wording · every line guests read" defaultOpen><SiteCopyEditor /></Panel>
+          {isAdmin && <Panel id="set-office" title="Office delivery · price & minimum"><OfficeSettings /></Panel>}
+          <div className="crew-group">More controls</div>
+          <div className="set-map">
+            {([
+              { t: "Brand, splash & reviews", s: "Logo, kit, the pop-up, testimonials", to: "studio" },
+              { t: "Checkout, payments & flags", s: "Pay-at-pickup · subscriptions · lead time", to: "money" },
+              { t: "Menu, products & pricing", s: "Drinks, packs, COGS, plans", to: "money" },
+              { t: "Discount codes", s: "Mint & manage codes", to: "customers" },
+              { t: "Team & roles", s: "Who can do what", to: "team" },
+            ] as { t: string; s: string; to: OpSection }[]).map((r) => (
+              <button key={r.t} type="button" className="set-card" onClick={() => setSection(r.to)}>
+                <span className="set-card-x"><b>{r.t}</b><span>{r.s}</span></span>
+                <span className="set-card-c" aria-hidden>›</span>
+              </button>
+            ))}
+          </div>
         </>
       )}
 

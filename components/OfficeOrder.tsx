@@ -8,6 +8,7 @@ import { useApp } from "@/components/AppProvider";
 import { supabase } from "@/lib/supabase";
 import { raiseAlertClient } from "@/lib/clientAlerts";
 import { OFFICE, officeQuote, nextMondayKey, mondayLabel } from "@/lib/office";
+import { useOfficeSettings } from "./useOfficeSettings";
 
 // OFFICE DELIVERY — the B2B bulk order (amber gallon jugs, Monday 5–8 AM, 3-gal minimum). Purpose-built
 // so it never entangles the residential pack cart. Books a business_order (0187); a standing toggle also
@@ -32,9 +33,10 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<{ gallons: number; date: string } | null>(null);
 
-  const q = officeQuote(gallons);
+  const settings = useOfficeSettings();
+  const q = officeQuote(gallons, { priceCents: settings.priceCents, minGallons: settings.minGallons });
   const dateKey = nextMondayKey();
-  const ready = company.trim() && street.trim() && city.trim() && zip.trim().length >= 5 && gallons >= OFFICE.minGallons;
+  const ready = company.trim() && street.trim() && city.trim() && zip.trim().length >= 5 && gallons >= settings.minGallons;
 
   const submit = async () => {
     if (busy) return;
@@ -108,7 +110,7 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
       <div className="office-gal">
         <div className="office-gal-l"><span className="office-k">Gallons</span><span className="office-hint">~{q.gallons * 12}–{q.gallons * 16} cups · ~{dollars(Math.round(OFFICE.pricePerGallonCents / 14))}/cup</span></div>
         <div className="office-step">
-          <button type="button" onClick={() => setGallons((g) => Math.max(OFFICE.minGallons, g - 1))} aria-label="Fewer" disabled={gallons <= OFFICE.minGallons}>−</button>
+          <button type="button" onClick={() => setGallons((g) => Math.max(settings.minGallons, g - 1))} aria-label="Fewer" disabled={gallons <= settings.minGallons}>−</button>
           <span className="office-gal-v">{q.gallons}</span>
           <button type="button" onClick={() => setGallons((g) => g + 1)} aria-label="More">+</button>
         </div>
