@@ -791,6 +791,33 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
     toast(`${isEvent ? "Event" : "Stop"} deleted`); onRemoved();
   };
 
+  // Change the item's TYPE (event ↔ truck stop). They're separate tables, so this re-creates the row
+  // in the target table with the shared fields (name, date, location, vendor, buffer) and archives the
+  // original — the fix for "I picked the wrong type." Prep lists / brew links stay with the archived
+  // copy (they'd need re-pointing across tables), so this is cleanest right after creation.
+  const convertType = async () => {
+    if (!supabase) return;
+    const toEvent = !isEvent;
+    const toLabel = toEvent ? "event" : "truck stop";
+    if (typeof window !== "undefined" && !window.confirm(`Change this ${what} into a ${toLabel}?\n\nIt's re-created as a ${toLabel} with the same name, date, location & vendor. The original is archived — any prep list or brew links stay with the archived copy.`)) return;
+    setSaving(true);
+    const { data: src } = await supabase.from(table).select("*").eq("id", ownerId).maybeSingle();
+    const s = (src as Record<string, unknown>) ?? {};
+    let error = null;
+    if (toEvent) {
+      const day = s.starts_at ? new Date(String(s.starts_at)).toLocaleDateString("en-CA") : null;
+      const r = await supabase.from("events").insert({ title: String(s.name || "Event"), day, location_text: (s.location_text as string) ?? null, category: "event", vendor_id: (s.vendor_id as string) ?? null, default_buffer_min: (s.default_buffer_min as number) ?? null }).select("id").single();
+      error = r.error;
+    } else {
+      const startsAt = s.day ? new Date(`${String(s.day)}T11:00:00`).toISOString() : null;
+      const r = await supabase.from("stops").insert({ name: String(s.title || "Stop"), starts_at: startsAt, location_text: (s.location_text as string) ?? null, status: "upcoming", vendor_id: (s.vendor_id as string) ?? null, default_buffer_min: (s.default_buffer_min as number) ?? null, sort: 0 }).select("id").single();
+      error = r.error;
+    }
+    if (error) { setSaving(false); toast(`Couldn't convert — ${error.message}`, "error"); return; }
+    await supabase.from(table).update({ archived_at: new Date().toISOString() }).eq("id", ownerId);
+    setSaving(false); toast(`Changed to ${toLabel} — the original is archived`); onRemoved();
+  };
+
   // Complete (wrap) an event OR a stop: mark it done, stamp when, and file the after-action.
   // Optionally archive it off the active lists in the same move. DB triggers keep the world
   // consistent: a completed event can't stay is_live, and completing the live STOP takes the
@@ -923,6 +950,10 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
         </div>
       )}
       {!isEvent && <div className="ownerdet-hint">Go live &amp; broadcast GPS in Now ▸ Live truck.</div>}
+      <div className="ownerdet-convert">
+        <span className="ownerdet-convert-l">Wrong type?</span>
+        <button type="button" className="ownerdet-convert-b" onClick={convertType} disabled={saving}>Change to {isEvent ? "truck stop" : "event"} ⇄</button>
+      </div>
       <div className="ownerdet-danger">
         <button type="button" className="ownerdet-arch" onClick={archive} disabled={saving}>Archive {what}</button>
         <button type="button" className="ownerdet-del" onClick={del} disabled={saving}>Delete for good</button>
