@@ -102,6 +102,12 @@ import { fetchAssets, type AssetsResp } from "@/lib/assets";
 import type { Stop, LiveStatus, EventRow, EventTask, BookingRequest, Order, Reserve, Subscription, Vendor, MeetingNote, Alert, Comment } from "@/lib/db";
 
 // money helpers for the economics panels
+// Per-lane phase labels: the Service lane reads as the operator's loop — Plan → Prep → Run → Delivery
+// — instead of the old ad-hoc Live Ops · Readiness · Route · Delivery. Only overrides labels inside a
+// given lane's toggle, so shared sections (prep/now) keep their normal names elsewhere.
+const PHASE_LABEL: Record<string, Partial<Record<OpSection, string>>> = {
+  service: { stops: "Schedule", prep: "Prep", now: "Run", driver: "Delivery" },
+};
 const usd = (cents: number) => `$${(cents / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 const toCents = (s: string) => Math.max(0, Math.round((parseFloat(s) || 0) * 100));
 const pctInt = (n: number) => Math.round(n * 100);
@@ -5064,7 +5070,7 @@ export default function AdminPage() {
         return (
           <div className="grp-toggle" role="tablist" aria-label={grp!.label}>
             {members.map((m: OpSection) => (
-              <button key={m} type="button" role="tab" aria-selected={sec === m} className={`grp-seg${sec === m ? " on" : ""}`} onClick={() => setSection(m)}>{SECTION_LABEL[m]}</button>
+              <button key={m} type="button" role="tab" aria-selected={sec === m} className={`grp-seg${sec === m ? " on" : ""}`} onClick={() => setSection(m)}>{PHASE_LABEL[grp!.id]?.[m] ?? SECTION_LABEL[m]}</button>
             ))}
           </div>
         );
