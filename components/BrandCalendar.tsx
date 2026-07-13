@@ -38,6 +38,13 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
   const [dayOpen, setDayOpen] = useState<string | null>(null); // tap a day → its detail
   const [editId, setEditId] = useState<string | null>(null);  // quick in-place edit of a piece
   const dragId = useRef<string | null>(null);
+  // Week is the default — a spacious, readable agenda of the next seven days; Month is the zoomed-out
+  // grid. The choice is remembered. (First render is deterministic "week" for SSR; the stored pref,
+  // if any, is applied right after mount.)
+  const [view, setView] = useState<"week" | "month">("week");
+  useEffect(() => { try { const v = localStorage.getItem("gt3-cal-view"); if (v === "week" || v === "month") setView(v); } catch { /* */ } }, []);
+  const setCalView = (v: "week" | "month") => { setView(v); try { localStorage.setItem("gt3-cal-view", v); } catch { /* */ } };
+  const addDays = (base: Date, n: number) => { const d = new Date(base); d.setDate(d.getDate() + n); return d; };
 
   const days = useMemo(() => {
     // Anchor the grid to the FIRST of the cursor's month, then back up to that week's Sunday. Using
@@ -49,6 +56,17 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
     start.setDate(1 - start.getDay());
     return Array.from({ length: 42 }, (_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return d; });
   }, [cursor]);
+
+  // The visible week (Sun→Sat around the cursor). Its day-keys are a subset of the 42-cell `days`
+  // span, so byDay + the load() query already cover it — no extra fetch.
+  const weekDays = useMemo(() => {
+    const s = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate());
+    s.setDate(s.getDate() - s.getDay());
+    return Array.from({ length: 7 }, (_, i) => addDays(s, i));
+  }, [cursor]);
+  const goPrev = () => setCursor(view === "week" ? addDays(cursor, -7) : new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1));
+  const goNext = () => setCursor(view === "week" ? addDays(cursor, 7) : new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1));
+  const goToday = () => setCursor(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -107,6 +125,11 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
   const drop = (dayKey: string) => { setOver(null); const id = dragId.current; dragId.current = null; if (id) reschedule(id, dayKey); };
 
   const monthName = `${MONTHS[cursor.getMonth()]} ${cursor.getFullYear()}`;
+  const weekLabel = (() => {
+    const a = weekDays[0], b = weekDays[6];
+    const mA = MONTHS[a.getMonth()].slice(0, 3), mB = MONTHS[b.getMonth()].slice(0, 3);
+    return a.getMonth() === b.getMonth() ? `${mA} ${a.getDate()}–${b.getDate()}` : `${mA} ${a.getDate()} – ${mB} ${b.getDate()}`;
+  })();
   const todayKey = key(now);
 
   const Chip = ({ c, inCell }: { c: CItem; inCell?: boolean }) => {
@@ -121,6 +144,25 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
     );
   };
 
+  // Week view uses a fuller, full-width chip — a status rail + title + a sub line (status · channel ·
+  // time). More room than a month cell, so we say more.
+  const WChip = ({ c }: { c: CItem }) => {
+    const linked = !!c.event_id;
+    const t = c.scheduled_for ? new Date(c.scheduled_for) : null;
+    const time = t ? t.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
+    return (
+      <button type="button" draggable className="calw-chip" style={{ ["--st" as string]: STC[c.status] ?? "#9a8f7c" }}
+        onDragStart={() => { dragId.current = c.id; }} onClick={() => onOpen(c.id)}
+        title={`${c.title} · ${c.status}${linked ? ` · ↔ ${evTitle(c.event_id)}` : ""}`}>
+        <span className="calw-chip-rail" />
+        <span className="calw-chip-main">
+          <b>{linked ? "🔗 " : ""}{c.title || "Untitled"}</b>
+          <span className="calw-chip-sub">{c.status}{c.channel ? ` · ${c.channel}` : ""}{time ? ` · ${time}` : ""}</span>
+        </span>
+      </button>
+    );
+  };
+
   return (
     <div className="cal">
       <div className="cal-titlebar">
@@ -130,13 +172,19 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
       <div className="cal-sticky">
         <div className="cal-bar">
           <div className="cal-nav">
-            <button type="button" className="cal-arrow" onClick={() => setMonth(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))} aria-label="Previous month">‹</button>
-            <span className="cal-month">{monthName}</span>
-            <button type="button" className="cal-arrow" onClick={() => setMonth(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))} aria-label="Next month">›</button>
+            <button type="button" className="cal-arrow" onClick={goPrev} aria-label={view === "week" ? "Previous week" : "Previous month"}>‹</button>
+            <span className="cal-month">{view === "week" ? weekLabel : monthName}</span>
+            <button type="button" className="cal-arrow" onClick={goNext} aria-label={view === "week" ? "Next week" : "Next month"}>›</button>
           </div>
-          <button type="button" className="cal-today" onClick={() => setMonth(new Date(now.getFullYear(), now.getMonth(), 1))}>Today</button>
+          <div className="cal-barx">
+            <div className="cal-viewtog" role="tablist" aria-label="Calendar view">
+              <button type="button" role="tab" aria-selected={view === "week"} className={`cal-vt${view === "week" ? " on" : ""}`} onClick={() => setCalView("week")}>Week</button>
+              <button type="button" role="tab" aria-selected={view === "month"} className={`cal-vt${view === "month" ? " on" : ""}`} onClick={() => setCalView("month")}>Month</button>
+            </div>
+            <button type="button" className="cal-today" onClick={goToday}>Today</button>
+          </div>
         </div>
-        <div className="cal-dow">{DOW.map((d) => <div key={d} className="cal-dow-c">{d}</div>)}</div>
+        {view === "month" && <div className="cal-dow">{DOW.map((d) => <div key={d} className="cal-dow-c">{d}</div>)}</div>}
       </div>
 
       {backlog.length > 0 && (
@@ -148,6 +196,35 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
         </div>
       )}
 
+      {view === "week" ? (
+        <div className="calw">
+          {weekDays.map((d) => {
+            const k = key(d); const cell = byDay[k] ?? { posts: [], evs: [] };
+            const isToday = k === todayKey; const dayEv = cell.evs[0]?.id ?? null;
+            const iso9 = () => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 9, 0).toISOString();
+            return (
+              <div key={k} className={`calw-day${isToday ? " today" : ""}${over === k ? " over" : ""}`}
+                onDragOver={(e) => { e.preventDefault(); setOver(k); }} onDragLeave={() => setOver((o) => (o === k ? null : o))} onDrop={() => drop(k)}>
+                <div className="calw-h">
+                  <span className="calw-dow">{DOW[d.getDay()]}</span>
+                  <span className="calw-date">{d.getDate()}</span>
+                  {isToday && <span className="calw-today">Today</span>}
+                  <button type="button" className="calw-add" onClick={() => onCreate(iso9(), dayEv)} aria-label={`New piece ${DOW[d.getDay()]}`}>+ Add</button>
+                </div>
+                <div className="calw-items">
+                  {cell.evs.map((e) => (
+                    <button key={e.id} type="button" className="calw-ev" onClick={() => setDayOpen(k)} title={e.title || "Event"}>📍 {e.title || e.day_label || "Event"}</button>
+                  ))}
+                  {cell.posts.map((c) => <WChip key={c.id} c={c} />)}
+                  {cell.posts.length === 0 && cell.evs.length === 0 && (
+                    <button type="button" className="calw-empty" onClick={() => onCreate(iso9(), null)}>+ plan something</button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
       <div className="cal-grid">
         {days.map((d) => {
           const k = key(d); const cell = byDay[k]; const dim = d.getMonth() !== cursor.getMonth();
@@ -171,6 +248,7 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
           );
         })}
       </div>
+      )}
 
       {dayOpen && (
         <DayView dayKey={dayOpen} posts={byDay[dayOpen]?.posts ?? []} evs={byDay[dayOpen]?.evs ?? []} evTitle={evTitle}

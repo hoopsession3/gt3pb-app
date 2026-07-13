@@ -217,7 +217,7 @@ export default function OperatorNav() {
         const on = activeGroup.id === g.id;
         return (
           <button key={g.id} role="tab" aria-selected={on} className={`tab${on ? " on" : ""}`} onClick={() => { if (!on) openGroup(g); }}>
-            <span className="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>{g.id === "today" ? ICONS.day : streamIcon(g.icon)}</svg>{g.id === "today" && critCount > 0 && <span className="nav-badge" aria-label={`${critCount} critical alert${critCount === 1 ? "" : "s"}`}>{critCount}</span>}{g.id !== "today" && (laneCounts[g.id] ?? 0) > 0 && <span className="nav-badge lane" aria-label={`${laneCounts[g.id]} open alert${laneCounts[g.id] === 1 ? "" : "s"} in ${g.label}`}>{laneCounts[g.id]}</span>}</span>
+            <span className="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>{g.id === "today" ? ICONS.day : streamIcon(g.icon)}</svg>{g.id === "today" && critCount > 0 && <span className="nav-badge" title={`${critCount} critical alert${critCount === 1 ? "" : "s"} — needs you now`} aria-label={`${critCount} critical alert${critCount === 1 ? "" : "s"} — needs you now`}>{critCount}</span>}{g.id !== "today" && (laneCounts[g.id] ?? 0) > 0 && <span className="nav-badge lane" title={`${laneCounts[g.id]} open item${laneCounts[g.id] === 1 ? "" : "s"} in ${g.label}`} aria-label={`${laneCounts[g.id]} open item${laneCounts[g.id] === 1 ? "" : "s"} in ${g.label}`}>{laneCounts[g.id]}</span>}</span>
             <span className="tl">{g.label}</span>
           </button>
         );
@@ -249,6 +249,7 @@ function MoreSheet({ lanes, pins, activeId, onOpen, onClose, canPin }: { lanes: 
   };
   return (
     <Sheet open onClose={onClose} label="Your lanes" header={<div style={{ display: "flex", alignItems: "center" }}><span className="isheet-title">Your lanes</span><button type="button" className="isheet-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close">✕</button></div>}>
+      <div className="lane-legend"><span className="lane-key"><span className="cc-dot" style={{ background: "var(--red-h)" }} />needs you now</span><span className="lane-key"><span className="cc-dot" style={{ background: "var(--gold2)" }} />open items in a lane</span></div>
       <div className="lane-hint">{full ? "Your bar is full (4) — unpin one first." : local.length === 0 ? "Nothing pinned — your bar shows the standard set for your role. Pin lanes to make it yours." : "Tap a lane to open it. Pin up to 4 to your bar — unpin anything, it stays here."}</div>
       {lanes.map((g) => (
         <div key={g.id} className={`lane-row${activeId === g.id ? " on" : ""}`}>
