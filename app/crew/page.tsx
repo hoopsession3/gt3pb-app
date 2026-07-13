@@ -42,6 +42,7 @@ import CrmPanel from "@/components/CrmPanel";
 import CodesPanel from "@/components/CodesPanel";
 import CustomerKpis from "@/components/CustomerKpis";
 import FunnelReport from "@/components/FunnelReport";
+import { TeamKpis, PrepKpis, GarageKpis } from "@/components/CrewKpis";
 import DriverDash from "@/components/DriverDash";
 import PipelinePanel from "@/components/PipelinePanel";
 import GearLibrary from "@/components/GearLibrary";
@@ -5061,8 +5062,12 @@ export default function AdminPage() {
 
       {sec === "prep" && canPrep && (
         <>
+          {/* Money template: glance-first KPIs → crew-group dividers → the modules. */}
+          <PrepKpis />
+          {canManage && <div className="crew-group">Readiness</div>}
           {canManage && <ReadinessAgent />}
           {canManage && <InspectionPrep />}
+          <div className="crew-group">Event prep</div>
           <EventPrep onGo={goSection} />
         </>
       )}
@@ -5170,7 +5175,13 @@ export default function AdminPage() {
       {sec === "stops" && canManage && <LiveControl manage />}
       {sec === "notes" && <MeetingNotes />}
       {sec === "brew" && canPrep && <BrewPlanner />}
-      {sec === "garage" && canPrep && <GarageSection />}
+      {sec === "garage" && canPrep && (
+        <>
+          <GarageKpis />
+          <div className="crew-group">Assets &amp; stock</div>
+          <GarageSection />
+        </>
+      )}
       {sec === "goals" && canManage && <Goals />}
       {sec === "driver" && <DriverDash isLead={canManage} />}
 
@@ -5187,13 +5198,16 @@ export default function AdminPage() {
 
       {sec === "team" && isAdmin && (
         <>
+          <TeamKpis />
+          <div className="crew-group">Roster</div>
+          <OrgChart />
+          {isOwner && <Members />}
+          <div className="crew-group">Growth &amp; training</div>
           <Link href="/academy" className="opx-link">
             <span className="opx-link-t">GT3 Academy</span>
             <span className="opx-link-s">Training, certifications &amp; the cookbook →</span>
           </Link>
-          <OrgChart />
           {isOwner && <AiTraining />}
-          {isOwner && <Members />}
         </>
       )}
       </div>
