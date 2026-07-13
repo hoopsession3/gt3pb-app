@@ -46,6 +46,7 @@ export default function Changelog() {
   const [composing, setComposing] = useState(false);
   const [d, setD] = useState<Draft>(BLANK);
   const [saving, setSaving] = useState(false);
+  const [openM, setOpenM] = useState<Set<string> | null>(null);   // which month sections are expanded (null = default: newest only)
 
   const load = useCallback(async () => {
     if (!supabase) { setRows([]); return; }
@@ -122,21 +123,36 @@ export default function Changelog() {
 
       {groups.length === 0 ? (
         <div className="chg-empty">Nothing logged in this view yet.</div>
-      ) : groups.map(([mk, items]) => (
-        <div key={mk} className="chg-month">
-          <div className="chg-month-h">{monthLabel(mk)} <span>{items.length}</span></div>
-          {items.map((e) => (
-            <div key={e.id} className={`chg-row${e.highlight ? " hl" : ""}`}>
-              <span className="chg-cat" style={{ background: CATS[e.category]?.c || "#888" }}>{CATS[e.category]?.label || e.category}</span>
-              <span className="chg-body">
-                <span className="chg-title">{e.highlight && <span className="chg-star" aria-label="headline">★</span>}{e.title}</span>
-                <span className="chg-summary">{e.summary}</span>
-                <span className="chg-meta">{e.area ? <span className="chg-area">{e.area}</span> : null}<span className="chg-date">{dayLabel(e.shipped_on)}</span></span>
-              </span>
-            </div>
-          ))}
-        </div>
-      ))}
+      ) : groups.map(([mk, items], gi) => {
+        // Default: only the newest month expanded — the rest roll up into a one-line summary you tap open.
+        const openSet = openM ?? new Set(groups.slice(0, 1).map(([m]) => m));
+        const open = openSet.has(mk);
+        const toggle = () => setOpenM(() => { const base = openM ?? new Set(groups.slice(0, 1).map(([m]) => m)); const n = new Set(base); n.has(mk) ? n.delete(mk) : n.add(mk); return n; });
+        // roll-up: the categories present this month, newest-count first, for the collapsed glance
+        const byCat = new Map<string, number>();
+        for (const e of items) byCat.set(e.category, (byCat.get(e.category) ?? 0) + 1);
+        const rollup = [...byCat.entries()].sort((a, b) => b[1] - a[1]).map(([c, n]) => `${n} ${CATS[c]?.label || c}`).join(" · ");
+        return (
+          <div key={mk} className="chg-month">
+            <button type="button" className="chg-month-h" onClick={toggle} aria-expanded={open}>
+              <span className="chg-month-t">{monthLabel(mk)}</span>
+              <span className="chg-month-roll">{rollup}</span>
+              <span className="chg-month-n">{items.length}</span>
+              <span className={`chg-chev${open ? " open" : ""}`} aria-hidden>›</span>
+            </button>
+            {open && items.map((e) => (
+              <div key={e.id} className={`chg-row${e.highlight ? " hl" : ""}`}>
+                <span className="chg-cat" style={{ background: CATS[e.category]?.c || "#888" }}>{CATS[e.category]?.label || e.category}</span>
+                <span className="chg-body">
+                  <span className="chg-title">{e.highlight && <span className="chg-star" aria-label="headline">★</span>}{e.title}</span>
+                  <span className="chg-summary">{e.summary}</span>
+                  <span className="chg-meta">{e.area ? <span className="chg-area">{e.area}</span> : null}<span className="chg-date">{dayLabel(e.shipped_on)}</span></span>
+                </span>
+              </div>
+            ))}
+          </div>
+        );
+      })}
     </div>
   );
 }
