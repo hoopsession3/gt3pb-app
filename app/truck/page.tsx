@@ -12,6 +12,7 @@ import EmptyState from "@/components/EmptyState";
 import { clickable } from "@/lib/a11y";
 import { openDirections } from "@/lib/maps";
 import { supabase } from "@/lib/supabase";
+import { useSiteCopy } from "@/lib/copy";
 import type { Stop, LiveStatus } from "@/lib/db";
 
 const DEMO_POINTS: RoutePoint[] = [
@@ -87,20 +88,22 @@ function whenDate(s: Stop): string {
   const d = new Date(s.starts_at);
   return `${d.getMonth() + 1}/${d.getDate()}`;
 }
-const TIER_LABEL: Record<string, string> = { full: "Full bar on board", coffee: "Coffee bar", nitro: "Nitro bar", beer: "Beer & wine on board" };
+const TIER_KEYS = new Set(["full", "coffee", "nitro", "beer"]);
 // One clean description line for a route card: never just echo the stop's own name back, and skip
 // the stale seed location text ("Saturday Market", "Atlanta, Atlanta, GA"). Prefer the human note,
-// then the menu tier — the actual place still lives on the map + Get Directions.
-function descFor(s: Stop): string {
+// then the menu-tier tagline — which is owner-editable copy (site_copy: truck.tier.*), not hardcoded.
+function descFor(s: Stop, t: (k: string) => string): string {
   const note = s.notes?.trim();
   if (note) return note;
-  return TIER_LABEL[s.menu_tier ?? ""] ?? "Full bar on board";
+  const tier = s.menu_tier && TIER_KEYS.has(s.menu_tier) ? s.menu_tier : "full";
+  return t(`truck.tier.${tier}`);
 }
 
 // ───────────────────────── live (Supabase + realtime) ─────────────────────────
 function TruckLive() {
   const { toast } = useApp();
   const router = useRouter();
+  const t = useSiteCopy();
   const [stops, setStops] = useState<Stop[]>([]);
   const [live, setLive] = useState<LiveStatus | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -190,7 +193,7 @@ function TruckLive() {
       <Dispatch
         live={isLive}
         place={liveStop?.name ?? (loaded ? "No stops yet" : "…")}
-        sub={liveStop ? descFor(liveStop) : ""}
+        sub={liveStop ? descFor(liveStop, t) : ""}
         when={liveStop ? [whenDay(liveStop), whenDate(liveStop)].filter(Boolean).join(" ") : ""}
         openLabel={liveStop ? fmt12(whenTime(liveStop)) ?? "" : ""}
         eta={upcoming ? fmt12(whenTime(upcoming)) : null}
@@ -215,13 +218,13 @@ function TruckLive() {
               {...clickable(() => setOpenStop(isOpen ? null : s.id))}
             >
               <div className="when"><b>{whenDay(s)}</b><span>{[whenDate(s), whenTime(s)].filter(Boolean).join(" ")}</span></div>
-              <div className="info"><b>{s.name}</b><span>{descFor(s)}</span></div>
+              <div className="info"><b>{s.name}</b><span>{descFor(s, t)}</span></div>
               {rowLive && <div className="tag live">Live</div>}
               <span className={`stop-caret${isOpen ? " open" : ""}`} aria-hidden="true">›</span>
             </div>
             {isOpen && (
               <div className="stop-detail">
-                <p className="stop-notes">{s.notes ?? "Full bar on board. Order ahead or save a reminder."}</p>
+                <p className="stop-notes">{s.notes ?? t("truck.stop_note")}</p>
                 {rowLive ? (
                   <button className="t-order" style={{ marginTop: 12 }} onClick={() => router.push("/menu")}>Pre-order · skip the line</button>
                 ) : (

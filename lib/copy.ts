@@ -110,6 +110,13 @@ export const COPY_META: CopyMeta[] = [
     default: "Saturday packs" },
   { key: "menu.packs_note", group: "Menu", label: "Packs — bring-back note", multiline: true,
     default: "Bring your empties back for pack pricing — or take new glass at $10 a bottle. You choose when you reserve." },
+  // ── Truck page · the "what's on board" tagline per stop (keyed by the stop's menu tier) ──
+  { key: "truck.tier.full", group: "Truck", label: "Tagline — full bar", default: "Full bar on board" },
+  { key: "truck.tier.coffee", group: "Truck", label: "Tagline — coffee bar", default: "Coffee bar" },
+  { key: "truck.tier.nitro", group: "Truck", label: "Tagline — nitro bar", default: "Nitro bar" },
+  { key: "truck.tier.beer", group: "Truck", label: "Tagline — beer & wine", default: "Beer & wine on board" },
+  { key: "truck.stop_note", group: "Truck", label: "Route row — note when a stop has none", multiline: true,
+    default: "Full bar on board. Order ahead or save a reminder." },
   // ── Menu · sections + every drink. Names, tags, and descriptions are copy — PRICES ARE NOT:
   // the charge is computed server-side from the locked catalog / Square, so px stays in code.
   ...MENU.flatMap((s, i) => [
