@@ -33,7 +33,6 @@ export default function CopilotLauncher({ role, onPick }: { role: string; onPick
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search operations — “transcribe”, “brew”, “pipeline”…"
-          autoFocus
           aria-label="Search AI copilots"
         />
       </div>

@@ -5092,7 +5092,6 @@ export default function AdminPage() {
       {sec === "studio" && canManage && (
         <>
           <Studio />
-          <Panel id="splash" title="App splash · the pop-up guests see"><PromoEditor /></Panel>
           <Panel id="reviews" title="Customer reviews"><ReviewsAdmin /></Panel>
         </>
       )}
@@ -5106,6 +5105,7 @@ export default function AdminPage() {
           <p className="set-lead">Everything you can change without a developer. Edits go live instantly — no deploy.</p>
           <Panel id="set-copy" title="Copy & wording · every line guests read" defaultOpen><SiteCopyEditor /></Panel>
           <Panel id="set-broadcast" title="Broadcast · a live message or ad to everyone"><BroadcastEditor /></Panel>
+          <Panel id="splash" title="App splash · the pop-up guests see"><PromoEditor /></Panel>
           {isAdmin && <Panel id="set-office" title="Office delivery · price & minimum"><OfficeSettings /></Panel>}
           <Panel id="set-ai" title="AI copilots · the full catalog"><CopilotDirectory /></Panel>
           {isAdmin && <Panel id="set-spend" title="AI spend · what your copilots cost"><AiSpend /></Panel>}

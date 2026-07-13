@@ -2524,6 +2524,16 @@ select.note-in{-webkit-appearance:none;appearance:none}
    grip, position persists), collapsible (fold to a slim ‹ handle, persists), and insightful when
    expanded (each tab = icon + what it does). Left edge stays clear for crew swipe-back. */
 .rail{position:fixed;right:0;z-index:62;display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+/* A floating rail must never paint over an open popout (the Review Desk bug: Connect/Display panels
+   landed on top of the sheet + its APPROVE button). Whenever any sheet/scrim is mounted, fold the
+   whole rail away — collapsed ‹ handle and expanded panels alike. :has() is well-supported on the
+   modern iOS this app targets. */
+body:has(.sheet2-scrim) .rail,
+body:has(.isheet-scrim) .rail,
+body:has(.qd-scrim) .rail,
+body:has(.prep-scrim) .rail,
+body:has(.cmdk-scrim) .rail,
+body:has(.guide-sheet) .rail{display:none}
 .rail.dragging{user-select:none}
 .rail-head{display:flex;gap:6px;margin-right:8px}
 .rail-grip{width:36px;height:24px;border-radius:8px;border:1px solid var(--line2);background:var(--card);color:var(--cream-d);font-size:13px;line-height:1;cursor:grab;touch-action:none;-webkit-appearance:none;appearance:none}
