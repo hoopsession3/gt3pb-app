@@ -4,7 +4,7 @@
 -- the published artifact. Drives the Settings → "Maintenance & audits" dashboard (last-run per type,
 -- overdue-by-cadence, health at a glance). Staff read; admins/owners write.
 
-create table if not exists public.audit_log (
+create table if not exists public.maintenance_log (
   id           uuid primary key default gen_random_uuid(),
   tenant_id    uuid references public.tenants(id) default '00000000-0000-0000-0000-000000000001',
   kind         text not null default 'custom'
@@ -22,26 +22,26 @@ create table if not exists public.audit_log (
   created_at   timestamptz not null default now(),
   constraint audit_title_len check (char_length(title) <= 160)
 );
-create index if not exists audit_log_ran_idx  on public.audit_log (ran_on desc);
-create index if not exists audit_log_kind_idx on public.audit_log (kind);
+create index if not exists maintenance_log_ran_idx  on public.maintenance_log (ran_on desc);
+create index if not exists maintenance_log_kind_idx on public.maintenance_log (kind);
 
-drop trigger if exists stamp_tenant_tg on public.audit_log;
-create trigger stamp_tenant_tg before insert on public.audit_log
+drop trigger if exists stamp_tenant_tg on public.maintenance_log;
+create trigger stamp_tenant_tg before insert on public.maintenance_log
   for each row execute function public.stamp_tenant();
 
-alter table public.audit_log enable row level security;
-drop policy if exists "audit staff read" on public.audit_log;
-create policy "audit staff read" on public.audit_log for select using ((select public.is_staff()));
-drop policy if exists "audit admin write" on public.audit_log;
-create policy "audit admin write" on public.audit_log for all
+alter table public.maintenance_log enable row level security;
+drop policy if exists "audit staff read" on public.maintenance_log;
+create policy "audit staff read" on public.maintenance_log for select using ((select public.is_staff()));
+drop policy if exists "audit admin write" on public.maintenance_log;
+create policy "audit admin write" on public.maintenance_log for all
   using ((select public.is_admin())) with check ((select public.is_admin()));
-drop policy if exists "tenant isolation" on public.audit_log;
-create policy "tenant isolation" on public.audit_log as restrictive
+drop policy if exists "tenant isolation" on public.maintenance_log;
+create policy "tenant isolation" on public.maintenance_log as restrictive
   for all using (tenant_id = public.effective_tenant()) with check (tenant_id = public.effective_tenant());
-grant select, insert, update, delete on public.audit_log to authenticated;
+grant select, insert, update, delete on public.maintenance_log to authenticated;
 
 -- Seed the audits already run this build cycle so the dashboard opens with real history.
-insert into public.audit_log (kind, title, status, score, summary, findings, ran_on, cadence, artifact_url)
+insert into public.maintenance_log (kind, title, status, score, summary, findings, ran_on, cadence, artifact_url)
 select * from (values
   ('interop'::text, 'Interoperability audit', 'warn'::text, 9, 'Whole-app cross-feature links audited; 4/10 → 9/10 after fixes. Only pricing consolidation deferred.',
     'Fixed: brew re-derive, OpsPlan dedupe, stop→vendor binding, per-stop order-ahead, guided copilot, vendor propagation, pack-list refresh, B2B→customer spine, P&L click-through, money-truth (Square book-of-record, blended COGS, brew→inventory). Deferred: pricing consolidation (7 sources).'::text,
@@ -55,8 +55,8 @@ select * from (values
   ('cohesion', 'Crew console UI cohesion audit', 'warn', 6, 'The design system exists (Panel · crew-group · KPI strip) but only 2 of 16 tabs use it. Money is the 10/10 template.',
     'Best: money (KPI strip → crew-group → uniform Panels), then settings. Worst: customers (4 — two header systems in one tab), prep (5 — 3 section idioms), garage (5 — a third parallel collapsible), team (5 — no grouping). Enforce: glance-first KPIs, crew-group dividers, one Panel container, one empty/loading state, one button system.', current_date, 'quarterly', null)
 ) as v
-where not exists (select 1 from public.audit_log);
+where not exists (select 1 from public.maintenance_log);
 
 -- verify:
---   select to_regclass('public.audit_log');       -- non-null
---   select kind, status, score, ran_on from public.audit_log order by ran_on desc;
+--   select to_regclass('public.maintenance_log');       -- non-null
+--   select kind, status, score, ran_on from public.maintenance_log order by ran_on desc;

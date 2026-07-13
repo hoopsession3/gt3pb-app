@@ -8,7 +8,7 @@ import { useAuth } from "./AuthProvider";
 // MAINTENANCE & AUDITS (Settings) — the owner's record of every audit run on the app: what kind, when,
 // the prompt used, the result/score, a summary, findings, and a link to the artifact. Opens with a
 // health strip (last-run per type · overdue-by-cadence · average score), then a logger, then the
-// history. Reads audit_log (0198). Admin/owner write; staff read.
+// history. Reads maintenance_log (0198). Admin/owner write; staff read.
 type Audit = {
   id: string; kind: string; title: string; status: "pass" | "warn" | "fail" | "info";
   score: number | null; summary: string | null; prompt: string | null; findings: string | null;
@@ -52,7 +52,7 @@ export default function MaintenanceLog() {
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    const { data } = await supabase.from("audit_log").select("*").order("ran_on", { ascending: false });
+    const { data } = await supabase.from("maintenance_log").select("*").order("ran_on", { ascending: false });
     setRows((data as Audit[]) ?? []);
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -71,14 +71,14 @@ export default function MaintenanceLog() {
       artifact_url: d.artifact_url?.trim() || null, ran_on: d.ran_on || today(), cadence: d.cadence,
     };
     const { error } = d.id
-      ? await supabase.from("audit_log").update(payload).eq("id", d.id)
-      : await supabase.from("audit_log").insert({ ...payload, created_by: user?.id ?? null });
+      ? await supabase.from("maintenance_log").update(payload).eq("id", d.id)
+      : await supabase.from("maintenance_log").insert({ ...payload, created_by: user?.id ?? null });
     setSaving(false);
     if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
     toast(d.id ? "Audit updated" : "Audit logged");
     setD(BLANK); setComposing(false); load();
   };
-  const del = async (a: Audit) => { if (!supabase || (typeof window !== "undefined" && !window.confirm(`Delete "${a.title}"?`))) return; await supabase.from("audit_log").delete().eq("id", a.id); load(); };
+  const del = async (a: Audit) => { if (!supabase || (typeof window !== "undefined" && !window.confirm(`Delete "${a.title}"?`))) return; await supabase.from("maintenance_log").delete().eq("id", a.id); load(); };
 
   const stats = useMemo(() => {
     const r = rows ?? [];
