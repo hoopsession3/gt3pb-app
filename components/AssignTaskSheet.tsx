@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/AuthProvider";
+import { useApp } from "@/components/AppProvider";
 import Sheet from "@/components/Sheet";
 
 // REUSABLE buildout → task. Drop this after any buildout (bottle loadout, delivery loadout, event
@@ -23,6 +24,7 @@ export default function AssignTaskSheet({
   onCreated?: () => void;
 }) {
   const { user } = useAuth();
+  const { toast } = useApp();
   const [crew, setCrew] = useState<Crew[]>([]);
   const [title, setTitle] = useState(defaultTitle);
   const [assignee, setAssignee] = useState("");
@@ -48,7 +50,7 @@ export default function AssignTaskSheet({
       assignee: assignee || null, event_id: eventId || null, created_by: user?.id ?? null,
     }).select("id").single();
     setBusy(false);
-    if (error || !data) return;
+    if (error || !data) { toast(`Couldn't create the task — ${error?.message ?? "try again"}`, "error"); return; }
     setCreatedId((data as { id: string }).id);
     onCreated?.();
   };

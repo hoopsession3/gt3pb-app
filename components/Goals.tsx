@@ -187,7 +187,7 @@ export default function Goals() {
 
   const card = (g: Goal) => {
     const cur = (g.metric_source && live[g.metric_source] != null) ? live[g.metric_source] : g.current_value;
-    const pct = Math.max(0, Math.min(100, (cur / g.target_value) * 100));
+    const pct = g.target_value > 0 ? Math.max(0, Math.min(100, (cur / g.target_value) * 100)) : 0;
     const reached = cur >= g.target_value;
     const goalInits = inits.filter((i) => i.goal_id === g.id);
     const doneN = goalInits.filter((i) => i.done).length;

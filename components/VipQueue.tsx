@@ -37,9 +37,10 @@ export default function VipQueue() {
     setBusy(v.id);
     const { error } = await supabase.from("vip_verifications").update({ status: "verified", reviewed_by: user?.id ?? null, reviewed_at: new Date().toISOString(), reward: reward.trim() || null }).eq("id", v.id);
     if (error) { toast(`Couldn't verify — ${error.message}`, "error"); setBusy(null); return; }
-    // Promote to Founding (auto-grants founding perks); best-effort — staff can also set tier by hand.
-    await supabase.rpc("admin_set_customer_tier", { p_user: v.user_id, p_tier: "founding" }).then(() => {}, () => {});
-    toast("Verified — Founding VIP");
+    // Promote to Founding (auto-grants founding perks). Surface a failure — never claim "Founding VIP"
+    // when the promotion didn't land, or staff + the member both believe perks are live when they aren't.
+    const { error: promoErr } = await supabase.rpc("admin_set_customer_tier", { p_user: v.user_id, p_tier: "founding" });
+    toast(promoErr ? `Verified — but promotion to Founding failed: ${promoErr.message}. Set their tier by hand.` : "Verified — Founding VIP", promoErr ? "error" : undefined);
     setBusy(null); load();
   };
   const reject = async (v: Vip) => {

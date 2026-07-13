@@ -1359,7 +1359,7 @@ function MyTasks({ userId, chip = false }: { userId: string | null; chip?: boole
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const tdRows: MyTaskRow[] = ((td.data as any[]) ?? []).map((r) => ({
       id: r.id, label: r.title, source: "todo", category: r.category,
-      due_at: r.due_on ? `${r.due_on}T23:59:59` : null,        // end-of-day so a to-do due today isn't "overdue"
+      due_at: r.due_on ? new Date(`${r.due_on}T23:59:59`).toISOString() : null,   // local end-of-day as a REAL instant, so a to-do due today isn't "overdue" all evening (behind-UTC bug)
       critical: false, warn: false, events: null, meeting_notes: null, goals: null,
     } as MyTaskRow));
     setTasks([...evRows, ...tdRows]);
