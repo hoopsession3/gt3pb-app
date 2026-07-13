@@ -7,6 +7,7 @@ import { useAuth } from "./AuthProvider";
 import { useRealtimeTable } from "@/lib/realtime";
 import MoneyKpis from "./MoneyKpis";
 import InlineCreate from "./InlineCreate";
+import Sheet from "@/components/Sheet";
 
 // COMMAND BOARD — the shared war room both founders see: the launch initiatives with a countdown and
 // milestone progress, then This Week · Blockers · Done · Money in one glance. This is the digital twin
@@ -37,6 +38,8 @@ export default function CommandBoard() {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [overdue, setOverdue] = useState<Work[]>([]);
   const [done, setDone] = useState<Work[]>([]);
+  const [links, setLinks] = useState<{ initiative_id: string; milestone_id: string }[]>([]);
+  const [manage, setManage] = useState<Milestone | null>(null);   // milestone open in the manage sheet
   const [loaded, setLoaded] = useState(false);
 
   const load = useCallback(async () => {
@@ -44,9 +47,10 @@ export default function CommandBoard() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const safe = async (p: PromiseLike<{ data: any[] | null }>): Promise<any[]> => { try { return (await p).data ?? []; } catch { return []; } };
     const today = todayKey(), wk = weekAheadKey(), wago = weekAgoISO();
-    const [ini, mil, tThis, eThis, inc, tOver, eOver, tDone, eDone] = await Promise.all([
+    const [ini, mil, lnk, tThis, eThis, inc, tOver, eOver, tDone, eDone] = await Promise.all([
       safe(supabase.from("initiatives").select("id, title, summary, target_date, status, emoji").neq("status", "done").order("target_date", { nullsFirst: false })),
       safe(supabase.from("initiative_milestones").select("id, initiative_id, title, due_on, done, workstream, sort").order("sort")),
+      safe(supabase.from("initiative_milestone_links").select("initiative_id, milestone_id")),
       safe(supabase.from("todos").select("id, title, due_on").eq("done", false).not("due_on", "is", null).gte("due_on", today).lte("due_on", wk)),
       safe(supabase.from("event_tasks").select("id, label, due_at").eq("done", false).not("due_at", "is", null).gte("due_at", today).lte("due_at", `${wk}T23:59:59`)),
       safe(supabase.from("incident_log").select("id, problem, severity, created_at").eq("resolved", false).eq("severity", "blocker").order("created_at", { ascending: false })),
@@ -57,6 +61,7 @@ export default function CommandBoard() {
     ]);
     setInits(ini as Initiative[]);
     setMiles(mil as Milestone[]);
+    setLinks(lnk as { initiative_id: string; milestone_id: string }[]);
     setWeek([...toWork(tThis, "todo"), ...toWork(eThis, "task")].sort((a, b) => (a.due ?? "").localeCompare(b.due ?? "")));
     setIncidents(inc as Incident[]);
     setOverdue([...toWork(tOver, "todo"), ...toWork(eOver, "task")].sort((a, b) => (a.due ?? "").localeCompare(b.due ?? "")));
@@ -64,13 +69,18 @@ export default function CommandBoard() {
     setLoaded(true);
   }, []);
   useEffect(() => { load(); }, [load]);
-  useRealtimeTable(["initiatives", "initiative_milestones", "todos", "event_tasks", "incident_log"], load);
+  useRealtimeTable(["initiatives", "initiative_milestones", "initiative_milestone_links", "todos", "event_tasks", "incident_log"], load);
 
+  const mById = useMemo(() => new Map(miles.map((m) => [m.id, m])), [miles]);
+  // Placement now comes from the many-to-many links (a milestone can sit under several initiatives).
+  // Any milestone with no link at all still shows under its created-under initiative_id (defensive).
   const milesByInit = useMemo(() => {
     const m = new Map<string, Milestone[]>();
-    for (const x of miles) (m.get(x.initiative_id) ?? m.set(x.initiative_id, []).get(x.initiative_id)!).push(x);
+    const push = (initId: string, ms: Milestone) => (m.get(initId) ?? m.set(initId, []).get(initId)!).push(ms);
+    for (const l of links) { const ms = mById.get(l.milestone_id); if (ms) push(l.initiative_id, ms); }
+    for (const ms of miles) { if (ms.initiative_id && !links.some((l) => l.milestone_id === ms.id)) push(ms.initiative_id, ms); }
     return m;
-  }, [miles]);
+  }, [links, miles, mById]);
 
   const toggleMile = async (m: Milestone) => {
     if (!supabase || !isAdmin) return;
@@ -84,9 +94,28 @@ export default function CommandBoard() {
   };
   const addMilestone = async (initId: string, title: string) => {
     if (!supabase) return;
-    const n = miles.filter((x) => x.initiative_id === initId).length;
-    const { error } = await supabase.from("initiative_milestones").insert({ initiative_id: initId, title, sort: n });
-    if (error) toast(`Couldn't add — ${error.message}`, "error"); else load();
+    const n = (milesByInit.get(initId) ?? []).length;
+    const { data, error } = await supabase.from("initiative_milestones").insert({ initiative_id: initId, title, sort: n }).select("id").single();
+    if (error || !data) { toast(`Couldn't add — ${error?.message ?? "error"}`, "error"); return; }
+    await supabase.from("initiative_milestone_links").insert({ initiative_id: initId, milestone_id: (data as { id: string }).id });
+    load();
+  };
+  // Tie/untie a milestone to an initiative — this is BOTH "move" and "tie to multiple" in one control.
+  const toggleLink = async (mId: string, initId: string, on: boolean) => {
+    if (!supabase) return;
+    setLinks((p) => (on ? [...p, { initiative_id: initId, milestone_id: mId }] : p.filter((l) => !(l.initiative_id === initId && l.milestone_id === mId))));
+    if (on) await supabase.from("initiative_milestone_links").insert({ initiative_id: initId, milestone_id: mId });
+    else await supabase.from("initiative_milestone_links").delete().eq("initiative_id", initId).eq("milestone_id", mId);
+  };
+  const saveMile = async (m: Milestone, patch: Partial<Milestone>) => {
+    if (!supabase) return;
+    setMiles((p) => p.map((x) => (x.id === m.id ? { ...x, ...patch } : x)));
+    await supabase.from("initiative_milestones").update(patch).eq("id", m.id);
+  };
+  const deleteMile = async (m: Milestone) => {
+    if (!supabase || (typeof window !== "undefined" && !window.confirm(`Delete "${m.title}"?`))) return;
+    await supabase.from("initiative_milestones").delete().eq("id", m.id);   // cascades its links
+    setManage(null); load();
   };
 
   if (!loaded) return <div className="cmd-empty">Loading the board…</div>;
@@ -116,13 +145,18 @@ export default function CommandBoard() {
             <div className="cmd-miles">
               {ms.map((m) => {
                 const mlate = !m.done && m.due_on && daysTo(m.due_on) < 0;
+                const ties = links.filter((l) => l.milestone_id === m.id).length;
                 return (
-                  <button key={m.id} type="button" className={`cmd-mile${m.done ? " done" : ""}`} onClick={() => toggleMile(m)} disabled={!isAdmin} aria-pressed={m.done}>
-                    <span className={`cmd-check${m.done ? " on" : ""}`} aria-hidden>{m.done ? "✓" : ""}</span>
-                    <span className="cmd-mile-t">{m.title}</span>
-                    {m.workstream && <span className="cmd-ws">{m.workstream}</span>}
-                    {m.due_on && <span className={`cmd-mile-due${mlate ? " late" : ""}`}>{dnice(m.due_on)}</span>}
-                  </button>
+                  <div key={m.id} className="cmd-mile-wrap">
+                    <button type="button" className={`cmd-mile${m.done ? " done" : ""}`} onClick={() => toggleMile(m)} disabled={!isAdmin} aria-pressed={m.done}>
+                      <span className={`cmd-check${m.done ? " on" : ""}`} aria-hidden>{m.done ? "✓" : ""}</span>
+                      <span className="cmd-mile-t">{m.title}</span>
+                      {ties > 1 && <span className="cmd-tie" title={`Tied to ${ties} initiatives`}>⧉{ties}</span>}
+                      {m.workstream && <span className="cmd-ws">{m.workstream}</span>}
+                      {m.due_on && <span className={`cmd-mile-due${mlate ? " late" : ""}`}>{dnice(m.due_on)}</span>}
+                    </button>
+                    {isAdmin && <button type="button" className="cmd-mile-mng" onClick={() => setManage(m)} aria-label="Manage milestone">⋯</button>}
+                  </div>
                 );
               })}
             </div>
@@ -163,6 +197,54 @@ export default function CommandBoard() {
       {/* ── Money ── */}
       <div className="crew-group">Money</div>
       <MoneyKpis />
+
+      {manage && (
+        <MilestoneManage
+          key={manage.id}
+          m={manage}
+          initiatives={inits}
+          linkedIds={links.filter((l) => l.milestone_id === manage.id).map((l) => l.initiative_id)}
+          onToggleLink={(initId, on) => toggleLink(manage.id, initId, on)}
+          onSave={(patch) => saveMile(manage, patch)}
+          onDelete={() => deleteMile(manage)}
+          onClose={() => setManage(null)}
+        />
+      )}
     </div>
+  );
+}
+
+// Manage a milestone: rename / re-date / retag, then MOVE or TIE it across initiatives via checkboxes
+// (checking several = tied to several — one control for both), or delete it. Admins only.
+function MilestoneManage({ m, initiatives, linkedIds, onToggleLink, onSave, onDelete, onClose }: {
+  m: Milestone; initiatives: Initiative[]; linkedIds: string[];
+  onToggleLink: (initId: string, on: boolean) => void; onSave: (patch: Partial<Milestone>) => void; onDelete: () => void; onClose: () => void;
+}) {
+  const [title, setTitle] = useState(m.title);
+  const [due, setDue] = useState(m.due_on ?? "");
+  const [ws, setWs] = useState(m.workstream ?? "");
+  const linked = new Set(linkedIds);
+  const saveEdits = () => { const patch: Partial<Milestone> = {}; if (title.trim() && title !== m.title) patch.title = title.trim(); if ((due || null) !== m.due_on) patch.due_on = due || null; if ((ws.trim() || null) !== m.workstream) patch.workstream = ws.trim() || null; if (Object.keys(patch).length) onSave(patch); onClose(); };
+  return (
+    <Sheet open onClose={onClose} label="Manage milestone" header={<div className="oa-kicker">Milestone</div>}>
+      <label className="prod-f"><span>Title</span><input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={160} /></label>
+      <div className="prod-grid" style={{ marginTop: 8 }}>
+        <label className="prod-f"><span>Due</span><input type="date" value={due} onChange={(e) => setDue(e.target.value)} /></label>
+        <label className="prod-f"><span>Workstream</span><input value={ws} onChange={(e) => setWs(e.target.value)} placeholder="content · events · delivery…" /></label>
+      </div>
+      <div className="cmd-mng-h">Tied to — check every initiative this belongs to</div>
+      <div className="cmd-mng-inits">
+        {initiatives.map((it) => (
+          <label key={it.id} className="cmd-mng-init">
+            <input type="checkbox" checked={linked.has(it.id)} onChange={(e) => onToggleLink(it.id, e.target.checked)} />
+            <span>{it.emoji ? `${it.emoji} ` : ""}{it.title}</span>
+          </label>
+        ))}
+      </div>
+      <div className="prod-actions" style={{ marginTop: 14, justifyContent: "space-between" }}>
+        <button type="button" className="note-arch" onClick={onDelete}>Delete</button>
+        <button type="button" className="note-save" onClick={saveEdits}>Save</button>
+      </div>
+    </Sheet>
   );
 }
