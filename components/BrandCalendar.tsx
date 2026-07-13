@@ -6,6 +6,7 @@ import { useApp } from "@/components/AppProvider";
 import Sheet from "@/components/Sheet";
 import { useOperatorSection } from "./OperatorNav";
 import { CAL_CAT, CONTENT_STATUS as STC } from "@/lib/calendarTokens";
+import { isBlank } from "@/lib/formGuard";
 
 // BRAND CALENDAR — the planning brain of Studio. Posts (scheduled content) + events roll onto one
 // month view so Ryan + Kayla see the whole picture and build FROM it.
@@ -301,9 +302,9 @@ function ContentEdit({ id, events, onClose, onSaved, onOpenFull }: { id: string;
   const localDate = (iso: string) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
   const localTime = (iso: string) => { const d = new Date(iso); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
   const save = async () => {
-    if (!supabase || !f) return;
+    if (!supabase || !f || isBlank(f.title)) return;   // a piece can't be saved without a title (no more "Untitled")
     setSaving(true);
-    await supabase.from("content_items").update({ title: (f.title || "").trim() || "Untitled", scheduled_for: f.scheduled_for || null, status: f.status || "draft", event_id: f.event_id || null }).eq("id", id);
+    await supabase.from("content_items").update({ title: f.title.trim(), scheduled_for: f.scheduled_for || null, status: f.status || "draft", event_id: f.event_id || null }).eq("id", id);
     setSaving(false); onSaved();
   };
   const unschedule = async () => { if (!supabase) return; setSaving(true); await supabase.from("content_items").update({ scheduled_for: null }).eq("id", id); setSaving(false); onSaved(); };
@@ -334,7 +335,7 @@ function ContentEdit({ id, events, onClose, onSaved, onOpenFull }: { id: string;
             <button type="button" className="note-arch" onClick={unschedule} disabled={saving}>Unschedule</button>
             <div style={{ display: "flex", gap: 8 }}>
               <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
-              <button type="button" className="note-save" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
+              <button type="button" className="note-save" onClick={save} disabled={saving || isBlank(f?.title)}>{saving ? "Saving…" : "Save"}</button>
             </div>
           </div>
     </Sheet>

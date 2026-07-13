@@ -2268,6 +2268,8 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .studio-meta{display:flex;gap:8px;margin-bottom:10px}
 .studio-title{width:100%;background:transparent;border:none;border-bottom:1px solid var(--line);padding:6px 0;color:var(--cream);font-family:'Fraunces','Inter',serif;font-size:22px;margin-bottom:8px;-webkit-appearance:none;appearance:none}
 .studio-title:focus{border-color:var(--gold2)}
+.studio-title.err{border-bottom-color:#c98b7a}
+.studio-title-hint{font-family:'Inter';font-size:11.5px;font-weight:600;color:#c98b7a;margin:-4px 0 8px}
 .studio-hook,.studio-tags{width:100%;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:11px 13px;color:var(--cream);font-family:'Inter';font-size:15px;margin-bottom:8px;-webkit-appearance:none;appearance:none}
 .studio-caption{width:100%;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:13px 14px;color:var(--cream);font-family:'Inter';font-size:15px;line-height:1.55;resize:vertical;margin-bottom:8px;-webkit-appearance:none;appearance:none}
 .studio-hook:focus,.studio-caption:focus,.studio-tags:focus{border-color:var(--gold2)}

@@ -17,6 +17,7 @@ import RoadFlyer from "./RoadFlyer";
 import LetterFlyer from "./LetterFlyer";
 import SiteCopyEditor from "./SiteCopyEditor";
 import { lintCaption } from "@/lib/captionLint";
+import { isBlank } from "@/lib/formGuard";
 
 // STUDIO — the collaborative marketing studio. Her money-maker, his taste → built around
 // collaboration: real-time co-editing (Supabase Realtime presence + broadcast), real version
@@ -78,7 +79,7 @@ export default function Studio() {
 
   const create = async (scheduledISO?: string, eventId?: string | null) => {
     if (!supabase) return;
-    const { data } = await supabase.from("content_items").insert({ title: "Untitled", created_by: me.id, updated_by: me.id, scheduled_for: scheduledISO ?? null, event_id: eventId ?? null }).select("id").single();
+    const { data } = await supabase.from("content_items").insert({ title: "", created_by: me.id, updated_by: me.id, scheduled_for: scheduledISO ?? null, event_id: eventId ?? null }).select("id").single();
     if (data?.id) { await load(); setOpenId(data.id); }
   };
   const pickView = (v: "calendar" | "board" | "grid" | "flyer" | "letter" | "brand") => { setView(v); if (typeof window !== "undefined") localStorage.setItem("gt3-studio-view", v); };
@@ -194,6 +195,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   const [title, setTitle] = useState(""); const [hook, setHook] = useState(""); const [caption, setCaption] = useState("");
   const [campaign, setCampaign] = useState(""); const [campaigns, setCampaigns] = useState<string[]>([]);
   const [tags, setTags] = useState(""); const [status, setStatus] = useState("draft");
+  const [titleErr, setTitleErr] = useState(false);   // set when a blank-title piece is blocked from advancing
   const [sched, setSched] = useState(""); const [note, setNote] = useState("");
   const [eventId, setEventId] = useState<string>(""); const [evs, setEvs] = useState<{ id: string; title: string | null; day: string | null; day_label: string | null }[]>([]);
   const [stopId, setStopId] = useState<string>(""); const [stops, setStops] = useState<{ id: string; name: string | null; starts_at: string | null; when_label: string | null }[]>([]);
@@ -353,6 +355,8 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   };
 
   const setStage = async (next: string, extra: Record<string, any> = {}, label?: string) => {
+    // A piece can't move past draft without a title — no more "Untitled" going out for review/approval.
+    if (next !== "draft" && next !== "changes" && isBlank(title)) { setTitleErr(true); return; }
     setStatus(next);
     await persist({ status: next, ...extra });
     await snapshot(label ?? next);
@@ -662,7 +666,8 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
         </Sheet>
       )}
 
-      <input className="studio-title" value={title} onChange={(e) => edit("title", e.target.value)} placeholder="Title" />
+      <input className={`studio-title${titleErr ? " err" : ""}`} value={title} onChange={(e) => { edit("title", e.target.value); if (titleErr) setTitleErr(false); }} placeholder="Title — name it before it goes for review" />
+      {titleErr && <div className="studio-title-hint">Give this piece a title first.</div>}
       <input className="studio-hook" value={hook} onChange={(e) => edit("hook", e.target.value)} placeholder="Hook — the scroll-stopping first line" />
       <textarea className="studio-caption" value={caption} onChange={(e) => edit("caption", e.target.value)} rows={7} placeholder="Caption…" />
       {lint.length > 0 && (
@@ -708,8 +713,8 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
 
       <div className="studio-actions">
         <button type="button" className="studio-act" onClick={saveVersion}>✓ Save version</button>
-        {status === "draft" && <button type="button" className="studio-act primary" onClick={() => setStage("review", {}, "submitted")}>Submit for review</button>}
-        {(status === "review" || status === "changes") && <button type="button" className="studio-act primary" onClick={() => setStage("approved", { approved_by: me.id }, "approved")}>Approve</button>}
+        {status === "draft" && <button type="button" className="studio-act primary" onClick={() => setStage("review", {}, "submitted")} disabled={isBlank(title)}>Submit for review</button>}
+        {(status === "review" || status === "changes") && <button type="button" className="studio-act primary" onClick={() => setStage("approved", { approved_by: me.id }, "approved")} disabled={isBlank(title)}>Approve</button>}
         {status === "review" && (
           <span className="studio-changes">
             <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="What to change…" />
