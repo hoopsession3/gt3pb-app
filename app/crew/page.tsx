@@ -372,7 +372,7 @@ function ServicePulse({ onEnter }: { onEnter: () => void }) {
   useRealtimeTable(["orders", "products"], load);
   return (
     <button type="button" className={`svc-enter${(pass ?? 0) > 0 ? " hot" : ""}`} onClick={onEnter}>
-      <span className="svc-enter-t">▶ Service mode</span>
+      <span className="svc-enter-t">▶ The Pass</span>
       <span className="svc-enter-s">
         {pass === null ? "The pass, pickups & the 86 board — one screen"
           : <>{pass > 0 ? <><b><NumberRoll value={pass} ms={450} /></b> on the pass</> : "The pass is clear"}{out > 0 && <> · <b><NumberRoll value={out} ms={450} /></b> 86&rsquo;d</>} — tap to work</>}
@@ -1204,18 +1204,16 @@ function MyDay({ userId, meName, isLeader, canPrep, canBrew }: { userId: string 
           ))}
         </div>
       )}
-      {/* ONE inbox face — the same AlertsInbox the Now strip points to, with its discussion
-          threads, rendered here instead of a hand-rolled twin that had already lost them. */}
+      {/* My Day is a GLANCE — the full inbox (your flags + the leadership needs-you queue) now lives
+          behind the header 🔔 bell, reachable from any screen. Here we show only a pointer into it. */}
       {flags.length === 0 ? (
-        <>
-          <div className="sec">Flags &amp; pings for you</div>
-          <div className="myday-clear">✓ Nothing needs you right now. {"New here? The ⓘ Guide up top explains every tab."}</div>
-        </>
+        <div className="myday-clear">✓ Nothing needs you right now. {"New here? The ⓘ Guide explains every tab, and the 🔔 up top is your inbox."}</div>
       ) : (
-        <AlertsInbox userId={userId} title="Flags & pings for you" />
+        <button type="button" className="myday-inbox-ptr" onClick={() => window.dispatchEvent(new Event("gt3-open-inbox"))}>
+          <span className="myday-inbox-n">{flags.length}</span> flag{flags.length === 1 ? "" : "s"} &amp; ping{flags.length === 1 ? "" : "s"} for you <span className="myday-inbox-go">Open inbox →</span>
+        </button>
       )}
       <button type="button" className="myday-jot" onClick={() => window.dispatchEvent(new Event("gt3-quick-note"))}>✎ Note to self — jot a thought, only you see it</button>
-      {isLeader && <NeedsYou />}
       <MyTasks userId={userId} />
       {/* Lead-the-week tools sit BELOW the urgent lane — the operating loop reads top-down:
           what needs me now (flags) → what I'm doing today (tasks) → then lead the week. */}
@@ -4768,7 +4766,7 @@ const SEC_SUB: Record<OpSection, string> = {
 const SEC_MORE: Record<OpSection, string> = {
   day: "Your personal launchpad — the console's one glance screen. Everything assigned to you, everything flagged for your attention, and (for leadership) the needs-you list: booking replies, past-due team tasks and restock lows.",
   command: "The shared war room both founders see — the digital version of the magnetic board. Your initiatives (a dated program like the Aug-1 launch) with a countdown and milestone progress, then This Week, Blockers, Done and Money in one glance. This is where you answer “are we on track?” together, instead of over text.",
-  now: "The glance before the work. Alerts land here, the service pulse shows what's waiting (orders on the pass, items 86'd), and one tap opens Service mode — the working screen with the pass, pickup checklist and 86 board. Prep lives here too: the drop's brew sheet and Sunday delivery.",
+  now: "The glance before the work. Alerts land here, the service pulse shows what's waiting (orders on the pass, items 86'd), and one tap opens The Pass — the working screen with the pass board, pickup checklist and 86 board. Prep lives here too: the drop's brew sheet and Sunday delivery.",
   prep: "Get ready before you roll. Build the pack list, check stock and readiness, and sign off that the truck's loaded for the next event or stop.",
   plan: "The forward calendar. Book events, work incoming booking requests, and manage vendors and venues — weeks and months out.",
   pipeline: "The sales board. Every account with its deal (from the owner's catalog, matched to the account type), its rep, its stage and its next step — argued out on the thread, won or lost on the record.",
@@ -4789,7 +4787,7 @@ const SEC_MORE: Record<OpSection, string> = {
 const SEC_INSIDE: Record<OpSection, string[]> = {
   day: ["Your open tasks & due dates", "Alerts flagged for you — with discussion threads", "Needs you (leadership): booking replies, past-due tasks, restock", "What's on the calendar today", "Day-of brief — dress code & call time"],
   command: ["Initiatives — a dated program (e.g. the Aug-1 launch) with countdown & milestone progress", "This week — everything due across both task lists", "Blockers — stopped-service incidents + anything overdue", "Done this week — momentum at a glance", "Money — the live glance"],
-  now: ["Service pulse — live counts, one tap into the working screen", "Service mode — the pass (guests ping it: on my way · outside · late), pickup checklist & 86 board on ONE screen", "The drop — brew sheet & window money (the checklist lives in Service)", "Delivery run — run sheet, brew totals & packout (outcomes are logged in driver mode)", "Live truck: go live, GPS broadcast (locations & the ordering dial live on the Stops page)", "Alerts & your tasks — pointers into My Day"],
+  now: ["Service pulse — live counts, one tap into the working screen", "The Pass — the pass board (guests ping it: on my way · outside · late), pickup checklist & 86 board on ONE screen", "The drop — brew sheet & window money (the checklist lives in Service)", "Delivery run — run sheet, brew totals & packout (outcomes are logged in driver mode)", "Live truck: go live, GPS broadcast (locations & the ordering dial live on the Stops page)", "Alerts & your tasks — pointers into My Day"],
   prep: ["Per-event & per-stop pack lists", "Readiness & inspection checks", "Crew assignments & sign-off", "Load-out & gear moved to Production › Garage"],
   plan: ["Company calendar", "Events", "Booking requests", "Vendors & venues"],
   pipeline: ["Prospect → first attempt → talking → proposal → won", "Deal catalog — owner-set, per account type", "Rep assignment with a ping", "Per-deal discussion threads"],
@@ -4899,6 +4897,8 @@ export default function AdminPage() {
   const sec: OpSection = allowed.includes(section) ? section : "day";
   const [planTab, setPlanTab] = useState<"calendar" | "events" | "vendors">("calendar");
   const [guideOpen, setGuideOpen] = useState(false);
+  const [inboxOpen, setInboxOpen] = useState(false);
+  const { flags: hdrFlags, critCount: hdrCrit } = useMyAlerts(user?.id ?? null, canManage);   // header 🔔 badge
   // First-run: the guide explains the console's language (Live Ops, Readiness, Route) — open it
   // once for a brand-new staffer instead of hoping she finds the ⓘ pill.
   useEffect(() => {
@@ -4906,6 +4906,14 @@ export default function AdminPage() {
       if (!localStorage.getItem("gt3-guide-seen")) { localStorage.setItem("gt3-guide-seen", "1"); setGuideOpen(true); }
     } catch { /* ignore */ }
   }, []);
+  // The header 🔔 opens the ONE inbox (your flags + the needs-you queue). Any screen can summon it
+  // (the My Day pointer, the Now strip) via the gt3-open-inbox event; navigating a section closes it.
+  useEffect(() => {
+    const open = () => setInboxOpen(true);
+    window.addEventListener("gt3-open-inbox", open);
+    return () => window.removeEventListener("gt3-open-inbox", open);
+  }, []);
+  useEffect(() => { setInboxOpen(false); }, [sec]);
   // Service mode — full-screen KDS (pass + pickups). Esc exits; leaving Now exits.
   const [svc, setSvc] = useState(false);
   useEffect(() => {
@@ -4978,6 +4986,10 @@ export default function AdminPage() {
           <button type="button" className="modesw-seg" onClick={() => router.push("/")}>Customer view</button>
         </div>
         <div className="toprow-actions">
+          {/* Inbox — the one place everything that needs you rolls up (flags + needs-you), from any screen. */}
+          <button type="button" className="crew-bell" onClick={() => setInboxOpen(true)} aria-label={hdrFlags.length ? `Inbox — ${hdrFlags.length} for you` : "Inbox"}>
+            <span aria-hidden>🔔</span>{hdrFlags.length > 0 && <span className={`crew-bell-b${hdrCrit ? " crit" : ""}`}>{hdrFlags.length}</span>}
+          </button>
           {/* Jump — touch entry to the command palette (⌘K on desktop; a tap target on mobile). */}
           <button type="button" className="crew-jump" onClick={() => window.dispatchEvent(new Event("gt3-open-cmdk"))} aria-label="Jump to a section, recent, or action"><span aria-hidden>⌕</span> Jump<kbd className="crew-jump-k" aria-hidden>⌘K</kbd></button>
           {/* Section guide — what each section is for + jump there. */}
@@ -4988,6 +5000,12 @@ export default function AdminPage() {
         </div>
       </div>
       {guideOpen && <SectionGuide allowed={allowed} current={sec} onGo={setSection} onClose={() => setGuideOpen(false)} />}
+      {inboxOpen && (
+        <Sheet open onClose={() => setInboxOpen(false)} label="Inbox" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>🔔 Inbox</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setInboxOpen(false)} aria-label="Close">✕</button></div>}>
+          <AlertsInbox userId={user?.id ?? null} title="Flags & pings for you" />
+          {canManage && <NeedsYou />}
+        </Sheet>
+      )}
       <div className="op-head">
         {/* Breadcrumb trail — only appears once a deep view registers a crumb (e.g. Prep › event). */}
         <Breadcrumbs root={SEC_LABEL[sec]} />
@@ -5050,10 +5068,10 @@ export default function AdminPage() {
           in reach without ever leaving the screen — 86ing a flavor mid-rush is a tap, not an exit.
           Exit with the button or Esc; leaving the Now section exits too. */}
       {svc && sec === "now" && (
-        <div className="svc-full" role="dialog" aria-modal="true" aria-label="Service mode">
+        <div className="svc-full" role="dialog" aria-modal="true" aria-label="The Pass">
           <div className="svc-bar">
-            <b>Service</b>
-            <button type="button" className="svc-exit" onClick={() => setSvc(false)}>✕ Exit service</button>
+            <b>The Pass</b>
+            <button type="button" className="svc-exit" onClick={() => setSvc(false)}>✕ Exit</button>
           </div>
           <div className="svc-grid">
             <div className="svc-main"><Kitchen /></div>

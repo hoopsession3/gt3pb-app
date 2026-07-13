@@ -1243,6 +1243,15 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .crew-guide{display:inline-flex;align-items:center;gap:5px;font-family:'Inter';font-weight:700;font-size:11.5px;letter-spacing:.02em;color:var(--gold2);background:transparent;border:1px solid var(--gold2);border-radius:999px;padding:6px 12px;line-height:1;cursor:pointer;-webkit-appearance:none;appearance:none}
 .crew-guide:hover,.crew-guide:active{background:rgba(200,166,97,.1)}
 .crew-jump{display:inline-flex;align-items:center;gap:5px;font-family:'Inter';font-weight:700;font-size:11.5px;letter-spacing:.02em;color:var(--cream-m);background:transparent;border:1px solid var(--line2);border-radius:999px;padding:6px 10px;line-height:1;cursor:pointer;-webkit-appearance:none;appearance:none}
+/* Header inbox bell — the one place everything that needs you rolls up, from any screen */
+.crew-bell{position:relative;display:inline-flex;align-items:center;justify-content:center;background:transparent;border:1px solid var(--line2);border-radius:999px;width:32px;height:32px;font-size:15px;line-height:1;cursor:pointer;-webkit-appearance:none;appearance:none;flex:0 0 auto}
+.crew-bell-b{position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:var(--gold);color:#1a1610;font-family:'Inter';font-weight:800;font-size:9.5px;display:flex;align-items:center;justify-content:center;box-sizing:border-box}
+.crew-bell-b.crit{background:#c4453c;color:#fff}
+/* My Day inbox pointer — a compact link into the bell inbox (My Day stays a glance) */
+.myday-inbox-ptr{width:100%;display:flex;align-items:center;gap:8px;padding:12px 14px;border-radius:12px;border:1px solid var(--line2);background:var(--card);color:var(--cream);font-family:'Inter';font-weight:600;font-size:13.5px;cursor:pointer;text-align:left;-webkit-appearance:none;appearance:none}
+.myday-inbox-n{flex:0 0 auto;min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:var(--gold);color:#1a1610;font-weight:800;font-size:12px;display:inline-flex;align-items:center;justify-content:center}
+.myday-inbox-go{margin-left:auto;color:var(--gold2);font-weight:700;font-size:12px}
+.app.crew-day .myday-inbox-ptr{background:#fff;border-color:rgba(26,22,16,.1)}
 .crew-jump:hover,.crew-jump:active{background:rgba(245,241,232,.06);color:var(--cream)}
 .crew-jump .crew-jump-k{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.04em;color:var(--cream-d);border:1px solid var(--line);border-radius:4px;padding:1px 4px;margin-left:1px}
 /* No physical keyboard → hide the ⌘K hint; the chip is still the tap target. */
