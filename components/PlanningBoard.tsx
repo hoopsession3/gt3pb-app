@@ -11,9 +11,9 @@ type G = { id: string; title: string; horizon: string; status: string; current_v
 type P = { id: string; display_name: string | null };
 
 const COLS = [
-  { key: "strategic", label: "Strategic", hint: "Big bets" },
-  { key: "tactical", label: "Tactical", hint: "Moves" },
-  { key: "operational", label: "Operational", hint: "Day-to-day" },
+  { key: "strategic", label: "Strategic", hint: "The big bets", num: "I" },
+  { key: "tactical", label: "Tactical", hint: "The moves", num: "II" },
+  { key: "operational", label: "Operational", hint: "Day to day", num: "III" },
 ];
 const dnice = (iso: string | null) => (iso ? new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "");
 
@@ -41,14 +41,21 @@ export default function PlanningBoard() {
       {COLS.map((c) => {
         const items = goals.filter((g) => (g.horizon || "tactical") === c.key);
         return (
-          <div className="pboard-col" key={c.key}>
-            <div className="pboard-col-h"><b>{c.label}</b><span>{c.hint} · {items.length}</span></div>
-            {items.length === 0 ? <div className="pboard-empty">—</div> : items.map((g) => {
+          <div className={`pboard-col pboard-${c.key}`} key={c.key}>
+            <div className="pboard-col-h">
+              <span className="pboard-num">{c.num}</span>
+              <div className="pboard-col-title"><b>{c.label}</b><span className="pboard-hint">{c.hint}</span></div>
+              <span className="pboard-count">{items.length}</span>
+            </div>
+            {items.length === 0 ? <div className="pboard-empty">Nothing here yet</div> : items.map((g) => {
               const pct = g.target_value > 0 ? Math.max(0, Math.min(100, Math.round((g.current_value / g.target_value) * 100))) : 0;
               return (
                 <div className="pboard-card" key={g.id}>
                   <div className="pboard-card-t">{g.title}</div>
-                  <div className="pboard-bar"><span className={g.status === "hit" ? "hit" : ""} style={{ width: `${pct}%` }} /></div>
+                  <div className="pboard-prog">
+                    <span className="pboard-bar"><span className={g.status === "hit" ? "hit" : ""} style={{ width: `${pct}%` }} /></span>
+                    <span className="pboard-pct">{pct}%</span>
+                  </div>
                   <div className="pboard-meta">{firstName(g.owner_user_id) ?? "Unassigned"}{g.due_date ? ` · ${dnice(g.due_date)}` : ""}</div>
                 </div>
               );

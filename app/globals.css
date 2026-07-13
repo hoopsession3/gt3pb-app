@@ -4568,22 +4568,37 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .goal-tier.tier-tactical{background:rgba(200,166,97,.16);color:var(--gold)}
 .goal-tier.tier-operational{background:rgba(106,160,92,.16);color:#8fae86}
 
-/* ── Planning board (goals kanban by horizon) ── */
-.pboard{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
-.pboard-col{display:flex;flex-direction:column;gap:8px;min-width:0}
-.pboard-col-h{display:flex;flex-direction:column;gap:1px;padding-bottom:4px;border-bottom:1px solid var(--line2)}
-.pboard-col-h b{font-family:'Inter';font-weight:700;font-size:12.5px;color:var(--cream)}
-.pboard-col-h span{font-family:'Inter';font-size:10.5px;color:var(--cream-m)}
-.pboard-empty{font-family:'Inter';font-size:12px;color:var(--cream-m);opacity:.5;padding:4px 2px}
-.pboard-card{background:var(--card);border:1px solid var(--line2);border-radius:10px;padding:9px 10px;display:flex;flex-direction:column;gap:6px}
-.pboard-card-t{font-family:'Inter';font-weight:600;font-size:12px;color:var(--cream);line-height:1.3}
-.pboard-bar{height:5px;border-radius:999px;background:rgba(255,255,255,.06);overflow:hidden}
-.pboard-bar>span{display:block;height:100%;background:var(--gold);border-radius:999px}
-.pboard-bar>span.hit{background:#6aa05c}
-.pboard-meta{font-family:'Inter';font-size:10.5px;color:var(--cream-m)}
-@media (max-width:640px){.pboard{grid-template-columns:1fr}}
-.app.crew-day .pboard-card{background:#fff;border-color:rgba(26,22,16,.1)}
+/* ── Planning board · the plan at altitude (understated-luxury kanban by horizon) ── */
+.pboard{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:4px 0 22px}
+.pboard-col{position:relative;display:flex;flex-direction:column;gap:11px;min-width:0;padding-top:15px}
+/* a hairline gold rule crowns each column — brightest at the apex tier, quieting down the horizons */
+.pboard-col::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--gold),transparent 82%);opacity:.5}
+.pboard-strategic::before{opacity:1;box-shadow:0 0 14px rgba(184,144,47,.4)}
+.pboard-tactical::before{opacity:.55}
+.pboard-operational::before{opacity:.3;background:linear-gradient(90deg,var(--cream-m),transparent 82%)}
+.pboard-col-h{display:flex;align-items:baseline;gap:11px;padding-bottom:2px}
+.pboard-num{flex:0 0 auto;font-family:'Fraunces',Georgia,serif;font-style:italic;font-weight:500;font-size:23px;line-height:1;color:var(--gold);letter-spacing:.02em}
+.pboard-operational .pboard-num{color:var(--cream-m)}
+.pboard-col-title{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
+.pboard-col-title b{font-family:'Fraunces',Georgia,serif;font-weight:600;font-size:16.5px;color:var(--cream);letter-spacing:.005em;line-height:1.05}
+.pboard-hint{font-family:'Inter';font-size:9px;text-transform:uppercase;letter-spacing:.16em;color:var(--cream-m)}
+.pboard-count{flex:0 0 auto;align-self:center;font-family:'Inter';font-weight:600;font-size:11px;color:var(--gold);font-variant-numeric:tabular-nums;border:1px solid var(--gold2);border-radius:999px;padding:2px 9px;min-width:26px;text-align:center}
+.pboard-empty{font-family:'Fraunces',Georgia,serif;font-style:italic;font-size:13px;color:var(--cream-m);opacity:.42;padding:5px 2px}
+.pboard-card{position:relative;display:flex;flex-direction:column;gap:9px;padding:13px 14px 12px;border:1px solid var(--line2);border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.008));box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 1px 2px rgba(0,0,0,.25);transition:transform .22s cubic-bezier(.2,.7,.3,1),box-shadow .22s ease,border-color .22s ease}
+.pboard-card:hover{transform:translateY(-2px);border-color:var(--gold2);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 8px 20px rgba(0,0,0,.36),0 0 0 1px rgba(184,144,47,.12)}
+.pboard-card-t{font-family:'Inter';font-weight:600;font-size:12.5px;color:var(--cream);line-height:1.38;letter-spacing:.004em}
+.pboard-prog{display:flex;align-items:center;gap:10px}
+.pboard-bar{flex:1;height:4px;border-radius:999px;background:rgba(255,255,255,.06);box-shadow:inset 0 1px 1px rgba(0,0,0,.35);overflow:hidden}
+.pboard-bar>span{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#c9a24f,var(--gold));box-shadow:0 0 8px rgba(184,144,47,.5);transition:width .55s cubic-bezier(.2,.7,.3,1)}
+.pboard-bar>span.hit{background:linear-gradient(90deg,#7cbf6a,#6aa05c);box-shadow:0 0 8px rgba(106,160,92,.5)}
+.pboard-pct{flex:0 0 auto;font-family:'Inter';font-weight:600;font-size:10.5px;color:var(--cream-m);font-variant-numeric:tabular-nums;min-width:30px;text-align:right}
+.pboard-meta{font-family:'Inter';font-size:9px;text-transform:uppercase;letter-spacing:.11em;color:var(--cream-m)}
+@media (prefers-reduced-motion:reduce){.pboard-card,.pboard-bar>span{transition:none}}
+@media (max-width:640px){.pboard{grid-template-columns:1fr;gap:18px}}
+.app.crew-day .pboard-card{background:linear-gradient(180deg,#fff,#fcfaf4);border-color:rgba(26,22,16,.09);box-shadow:0 1px 2px rgba(26,22,16,.06)}
+.app.crew-day .pboard-card:hover{box-shadow:0 8px 20px rgba(26,22,16,.13),0 0 0 1px rgba(184,144,47,.2)}
 .app.crew-day .pboard-bar{background:rgba(26,22,16,.08)}
+.app.crew-day .pboard-bar>span{box-shadow:0 0 6px rgba(184,144,47,.35)}
 
 /* ── Shoot planner ── */
 .shoot{display:flex;flex-direction:column;gap:8px}
