@@ -40,6 +40,7 @@ import PackPlan from "@/components/PackPlan";
 import OrgChart from "@/components/OrgChart";
 import CrmPanel from "@/components/CrmPanel";
 import CodesPanel from "@/components/CodesPanel";
+import CustomerKpis from "@/components/CustomerKpis";
 import DriverDash from "@/components/DriverDash";
 import PipelinePanel from "@/components/PipelinePanel";
 import GearLibrary from "@/components/GearLibrary";
@@ -5171,7 +5172,16 @@ export default function AdminPage() {
       {sec === "goals" && canManage && <Goals />}
       {sec === "driver" && <DriverDash isLead={canManage} />}
 
-      {sec === "customers" && isAdmin && <><CrmPanel /><CodesPanel /></>}
+      {sec === "customers" && isAdmin && (
+        <>
+          {/* Money's 10/10 template: glance-first KPIs → crew-group dividers → uniform Panels. */}
+          <CustomerKpis />
+          <div className="crew-group">The people</div>
+          <Panel id="cust-book" title="Customer book · every guest &amp; member" defaultOpen><CrmPanel /></Panel>
+          <div className="crew-group">Loyalty &amp; codes</div>
+          <Panel id="cust-codes" title="Discount codes · mint &amp; manage"><CodesPanel /></Panel>
+        </>
+      )}
 
       {sec === "team" && isAdmin && (
         <>

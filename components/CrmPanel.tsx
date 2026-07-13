@@ -164,7 +164,7 @@ export default function CrmPanel() {
 
   return (
     <div className="adm-sec">
-      <div className="sec">Customers · {rows.length}</div>
+      {/* No bespoke header here — the enclosing <Panel> owns the title (Customers cohesion pass). */}
       {rows.length > 5 && (
         <input className="crm-search" placeholder="Search name, phone, or email" value={q} onChange={(e) => setQ(e.target.value)} />
       )}

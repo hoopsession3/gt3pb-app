@@ -108,11 +108,9 @@ export default function CodesPanel() {
 
   return (
     <div className="codes">
+      {/* The <Panel> owns the title now — this is just the lead line + the mint action (cohesion pass). */}
       <div className="codes-head">
-        <div>
-          <div className="codes-t">Discount codes</div>
-          <div className="codes-sub">Mint a redeemable code — customers enter it at checkout, priced live. No deploy.</div>
-        </div>
+        <div className="codes-sub">Mint a redeemable code — customers enter it at checkout, priced live. No deploy.</div>
         <button type="button" className="codes-new" onClick={() => setOpen((v) => !v)}>{open ? "Close" : "+ New code"}</button>
       </div>
 
