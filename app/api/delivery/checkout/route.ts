@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { chargeCard } from "@/lib/squareServer";
+import { chargeCard, safeIdemKey } from "@/lib/squareServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
@@ -17,6 +17,7 @@ import {
 
 type Body = {
   sourceId?: string;
+  idempotencyKey?: string; // stable per checkout attempt — see squareServer.safeIdemKey
   name?: string; phone?: string;
   addressStreet?: string; addressCity?: string; addressZip?: string; accessInstructions?: string;
   packSize?: number;
@@ -85,7 +86,7 @@ export async function POST(req: Request) {
 
   try {
     // Delivery always charges on order — no cash on delivery.
-    const charge = await chargeCard({ token, locationId, sourceId: b.sourceId!, amountCents: quote.totalCents, note: `GT3 Sunday delivery ${slot.deliveryDateKey}` });
+    const charge = await chargeCard({ token, locationId, sourceId: b.sourceId!, amountCents: quote.totalCents, note: `GT3 Sunday delivery ${slot.deliveryDateKey}`, idempotencyKey: safeIdemKey(b.idempotencyKey) });
     if (!charge.ok) return NextResponse.json({ error: charge.error }, { status: 400 });
     const paymentId = charge.paymentId;
     const paid = true;

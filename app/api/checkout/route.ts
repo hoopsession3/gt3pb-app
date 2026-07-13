@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { DRINKS, type DrinkId } from "@/lib/menu";
-import { SQUARE_BASE, SQUARE_VERSION, chargeCard } from "@/lib/squareServer";
+import { SQUARE_BASE, SQUARE_VERSION, chargeCard, safeIdemKey } from "@/lib/squareServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { benefitsForUser, priceForSlug } from "@/lib/benefits";
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Checkout isn't switched on yet." }, { status: 503 });
   }
 
-  let body: { sourceId?: string; items?: DrinkId[]; tipCents?: number; customer?: string; code?: string };
+  let body: { sourceId?: string; items?: DrinkId[]; tipCents?: number; customer?: string; code?: string; idempotencyKey?: string };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
   const { sourceId, items, tipCents } = body;
   if (!Array.isArray(items) || items.length === 0) {
@@ -146,7 +146,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const charge = await chargeCard({ token: token!, locationId: locationId!, sourceId: sourceId!, amountCents: amount, note: "GT3PB pre-order" });
+    const charge = await chargeCard({ token: token!, locationId: locationId!, sourceId: sourceId!, amountCents: amount, note: "GT3PB pre-order", idempotencyKey: safeIdemKey(body.idempotencyKey) });
     if (!charge.ok) return NextResponse.json({ error: charge.error }, { status: 400 });
     const paymentId = charge.paymentId;
 

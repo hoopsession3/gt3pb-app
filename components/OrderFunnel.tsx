@@ -196,6 +196,14 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
   // Square card — mounted by the shared <PaymentCard> only while step==="pay" is in the tree; React's
   // own mount/unmount lifecycle handles attach/teardown across step changes, so no effect needed here.
   const paymentRef = useRef<PaymentCardHandle>(null);
+  // Stable Square idempotency key per charge attempt (reused across "Try again" for the same order,
+  // regenerated when the order changes) so an ambiguous failure can't double-charge. Keyed by channel
+  // so a pickup and a delivery attempt don't collide. See lib/squareServer.safeIdemKey.
+  const idem = useRef<{ sig: string; key: string }>({ sig: "", key: "" });
+  const idemKeyFor = (sig: string) => {
+    if (idem.current.sig !== sig) idem.current = { sig, key: crypto.randomUUID() };
+    return idem.current.key;
+  };
   const [cardReady, setCardReady] = useState(false);
 
   // ── the toggle: preserve the cart, snap count, route sanely ──
@@ -264,7 +272,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
       const res = await authedFetch("/api/reserve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceId: sourceId ?? undefined, name: name.trim(), phone: phone.trim(), size: count, glass: (bringBack ? "return" : "new") as GlassPath, mix: { RISE: mix.rise, FLOW: mix.flow, DUSK: mix.dusk }, dropDate: dropDateKey(drop.sat), code: codeState === "ok" ? codeClean : undefined }),
+        body: JSON.stringify({ sourceId: sourceId ?? undefined, idempotencyKey: idemKeyFor("pickup:" + JSON.stringify({ name: name.trim(), phone: phone.trim(), count, bringBack, mix, drop: dropDateKey(drop.sat) })), name: name.trim(), phone: phone.trim(), size: count, glass: (bringBack ? "return" : "new") as GlassPath, mix: { RISE: mix.rise, FLOW: mix.flow, DUSK: mix.dusk }, dropDate: dropDateKey(drop.sat), code: codeState === "ok" ? codeClean : undefined }),
       });
       const data = await res.json(); setBusy(false);
       if (!res.ok) { setErr(data.error || "Something went wrong — try again."); return; }
@@ -291,7 +299,8 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          sourceId: result.token, name, phone, addressStreet: street, addressCity: city, addressZip: zip,
+          sourceId: result.token, idempotencyKey: idemKeyFor("delivery:" + JSON.stringify({ name, phone, street, city, zip, count, mix, premiums, refills: bringBack ? refills : 0, ack, slot: slot.deliveryDateKey })),
+          name, phone, addressStreet: street, addressCity: city, addressZip: zip,
           accessInstructions: access, packSize: count, riseCount: mix.rise, flowCount: mix.flow, duskCount: mix.dusk,
           perfMix: premiums, refillCount: bringBack ? refills : 0, emptiesAck: ack, deliveryDate: slot.deliveryDateKey,
         }),

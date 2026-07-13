@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { chargeCard } from "@/lib/squareServer";
+import { chargeCard, safeIdemKey } from "@/lib/squareServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
@@ -19,7 +19,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Reservations aren't switched on yet." }, { status: 503 });
   }
 
-  let body: { sourceId?: string; name?: string; phone?: string; size?: number; glass?: string; mix?: Partial<Mix>; dropDate?: string };
+  let body: { sourceId?: string; idempotencyKey?: string; name?: string; phone?: string; size?: number; glass?: string; mix?: Partial<Mix>; dropDate?: string };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
 
   // Order-ahead is member-only: the reservation needs an owner (drop_orders.user_id) so it lives
@@ -89,7 +89,7 @@ export async function POST(req: Request) {
     let paymentId: string | null = null;
     let paid = false;
     if (wantsCharge) {
-      const charge = await chargeCard({ token: token!, locationId: locationId!, sourceId: body.sourceId!, amountCents: amount, note: `GT3PB order-ahead · ${size}-pack · ${glass} · pickup ${dropDate}` });
+      const charge = await chargeCard({ token: token!, locationId: locationId!, sourceId: body.sourceId!, amountCents: amount, note: `GT3PB order-ahead · ${size}-pack · ${glass} · pickup ${dropDate}`, idempotencyKey: safeIdemKey(body.idempotencyKey) });
       if (!charge.ok) return NextResponse.json({ error: charge.error }, { status: 400 });
       paymentId = charge.paymentId;
       paid = true;

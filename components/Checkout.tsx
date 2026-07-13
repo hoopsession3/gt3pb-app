@@ -32,6 +32,15 @@ export default function Checkout() {
     fetch("/api/menu").then((r) => r.json()).then((d) => setPrices(d.prices || {})).catch(() => {});
   }, []);
   const paymentRef = useRef<PaymentCardHandle>(null);
+  // A Square idempotency key that stays stable across "Try again" taps for the SAME order, so an
+  // ambiguous failure (card captured but the response was lost) dedupes at Square on resubmit instead
+  // of charging twice. It regenerates only when the order itself changes (items/tip/name) — that's a
+  // genuinely new charge. See lib/squareServer.safeIdemKey (server side).
+  const idem = useRef<{ sig: string; key: string }>({ sig: "", key: "" });
+  const idemKeyFor = (sig: string) => {
+    if (idem.current.sig !== sig) idem.current = { sig, key: crypto.randomUUID() };
+    return idem.current.key;
+  };
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -146,7 +155,7 @@ export default function Checkout() {
       const res = await authedFetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceId: result.token, items, tipCents, customer }),
+        body: JSON.stringify({ sourceId: result.token, items, tipCents, customer, idempotencyKey: idemKeyFor(JSON.stringify({ items, tipCents, customer })) }),
       });
       const data = await res.json();
       setBusy(false);
@@ -157,7 +166,9 @@ export default function Checkout() {
       setDone({ paid: true, total: grandCents, lines: capturedLines, name: capturedName });
     } catch {
       setBusy(false);
-      setErr("Payment failed — nothing was charged. Try again.");
+      // We can't tell whether the card was captured before the connection dropped, but the idempotency
+      // key is stable — tapping Pay again replays the SAME charge, so Square won't double-charge.
+      setErr("Couldn't confirm the payment — tap Pay to retry. You won't be charged twice.");
     }
   };
 
