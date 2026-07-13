@@ -10,6 +10,7 @@ import { etToday } from "@/lib/dates";
 import { useWorkStreams } from "@/lib/streams";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import { useOperatorSection } from "./OperatorNav";
+import { isBlank } from "@/lib/formGuard";
 import { findOrCreatePendingVendor } from "@/lib/vendorLink";
 import EventDayPlanner from "./EventDayPlanner";
 import Sheet from "@/components/Sheet";
@@ -558,6 +559,7 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: s
   };
   const save = async () => {
     if (!supabase || !f) return;
+    if (kind !== "stop" && isBlank(f[cfg.nameCol])) return;   // require a real name — no generic-placeholder fallback
     setSaving(true);
     const name = (f[cfg.nameCol] || "").trim() || (kind === "event" ? "Event" : kind === "stop" ? "Stop" : kind === "todo" ? "To-do" : "Content");
     const patch: any = { [cfg.nameCol]: name, [cfg.dateCol]: f[cfg.dateCol] || null };
@@ -653,7 +655,7 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: s
             <button type="button" className="note-arch" onClick={remove} disabled={saving}>{kind === "content" ? "Unschedule" : kind === "todo" ? "Delete" : "Remove"}</button>
             <div style={{ display: "flex", gap: 8 }}>
               <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
-              <button type="button" className="note-save" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
+              <button type="button" className="note-save" onClick={save} disabled={saving || isBlank(f[cfg.nameCol])}>{saving ? "Saving…" : "Save"}</button>
             </div>
           </div>
           )}

@@ -43,6 +43,7 @@ import CodesPanel from "@/components/CodesPanel";
 import CustomerKpis from "@/components/CustomerKpis";
 import FunnelReport from "@/components/FunnelReport";
 import { TeamKpis, PrepKpis, GarageKpis } from "@/components/CrewKpis";
+import InlineCreate from "@/components/InlineCreate";
 import DriverDash from "@/components/DriverDash";
 import PipelinePanel from "@/components/PipelinePanel";
 import GearLibrary from "@/components/GearLibrary";
@@ -2860,8 +2861,8 @@ function LiveControl({ compact = false, manage = false }: { compact?: boolean; m
       ? `Pinned ${new Date(live.pos_updated_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
       : "Location not pinned yet"
     : "";
-  const addStop = async () => {
-    const { data, error } = await supabase!.from("stops").insert({ name: "New location", status: "upcoming", sort: stops.length }).select("id").single();
+  const addStop = async (name: string) => {
+    const { data, error } = await supabase!.from("stops").insert({ name, status: "upcoming", sort: stops.length }).select("id").single();
     if (error) { setErr(error.message); toast(`Couldn't add — ${error.message}`, "error"); }
     else { if (data) setOpenStopId((data as { id: string }).id); toast("Location added — fill in its details"); }
     load();
@@ -2892,7 +2893,7 @@ function LiveControl({ compact = false, manage = false }: { compact?: boolean; m
 
   return (
     <div className="adm-sec">
-      <div className="sec">Live truck {!compact && <button className="adm-btn" style={{ marginLeft: "auto" }} onClick={addStop}>+ Add location</button>}</div>
+      <div className="sec">Live truck {!compact && <InlineCreate label="+ Add location" placeholder="Location name" onCreate={addStop} style={{ marginLeft: "auto" }} />}</div>
       {err && <div className="adm-attn" role="alert">Backend error: {err}</div>}
       {compact ? (
         /* THE TRUCK INSTRUMENT — one panel, not a stack of floating cards (owner call). Row 1 is
@@ -4322,10 +4323,10 @@ function EventsAdmin() {
     toast(error ? `Error: ${error.message}` : "Event updated");
     if (!error) load();
   };
-  const addEvent = async () => {
+  const addEvent = async (title: string) => {
     // Born dated (next Saturday) — a dateless event is invisible to the calendar, which reads as "it vanished".
     const nextSat = (() => { const d = new Date(); d.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7 || 7)); return localYMD(d); })();
-    const { data, error } = await supabase!.from("events").insert({ title: "New event", day_label: "SAT", day: nextSat, sort: events.length }).select("id").single();
+    const { data, error } = await supabase!.from("events").insert({ title, day_label: "SAT", day: nextSat, sort: events.length }).select("id").single();
     toast(error ? `Error: ${error.message}` : "Event added");
     if (!error) { if (data) setOpenId((data as { id: string }).id); load(); } // open the new one for editing
   };
@@ -4361,7 +4362,7 @@ function EventsAdmin() {
     <div className="adm-sec">
       <div className="sec">Events
         <button className="adm-btn eg-btn" style={{ marginLeft: "auto" }} onClick={() => setGenOpen(true)}>✨ From notes</button>
-        <button className="adm-btn" onClick={addEvent}>+ Add</button>
+        <InlineCreate label="+ Add" placeholder="Event title" onCreate={addEvent} />
       </div>
       {genOpen && <EventGenerator onClose={() => setGenOpen(false)} onCreated={load} />}
       {active.length === 0 && <div className="ev-empty">No active events. Tap <b>+ Add</b> to create one{archived.length ? ", or reopen one below" : ""}.</div>}
@@ -4586,8 +4587,8 @@ function VendorsAdmin() {
     setEvents(((e as EventRow[]) ?? []).filter((x) => !x.archived_at));
   }, []);
   useEffect(() => { load(); }, [load]);
-  const add = async () => {
-    const { data, error } = await supabase!.from("vendors").insert({ name: "New vendor", sort: vendors.length }).select("id").single();
+  const add = async (name: string) => {
+    const { data, error } = await supabase!.from("vendors").insert({ name, sort: vendors.length }).select("id").single();
     toast(error ? `Error: ${error.message}` : "Vendor added");
     if (!error) { if (data) setOpenId((data as { id: string }).id); load(); }
   };
@@ -4634,7 +4635,7 @@ function VendorsAdmin() {
 
   return (
     <div className="adm-sec">
-      <div className="sec">Vendors <button className="adm-btn" style={{ marginLeft: "auto" }} onClick={add}>+ Add vendor</button></div>
+      <div className="sec">Vendors <InlineCreate label="+ Add vendor" placeholder="Vendor name" onCreate={add} style={{ marginLeft: "auto" }} /></div>
       <div className="pnl-note" style={{ marginBottom: 6 }}>One record per venue/partner — linked from truck stops and events. Edit a POC here and it updates everywhere it&apos;s linked.</div>
       {pending.length > 0 && (
         <div className="vendor-pending">

@@ -623,6 +623,13 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .adm-order.st-done{opacity:.72;border-left-color:var(--cream-m)}
 .adm-age.calm{color:var(--cream-m)}
 .adm-btn{font-family:'Inter';font-weight:650;font-size:12px;letter-spacing:.2px;padding:9px 13px;border-radius:11px;border:1px solid var(--line2);background:#2a2820;color:var(--cream);cursor:pointer;flex:0 0 auto;white-space:normal}
+/* Name-first inline creator (components/InlineCreate) — type a name before the row exists */
+.inline-create{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto}
+.inline-create-in{font-family:'Inter';font-size:12.5px;padding:7px 10px;border-radius:9px;border:1px solid var(--gold2);background:var(--card);color:var(--cream);width:150px;max-width:44vw;-webkit-appearance:none;appearance:none}
+.inline-create-in:focus{outline:none;box-shadow:0 0 0 3px rgba(200,166,97,.14)}
+.inline-create-go{font-family:'Inter';font-weight:700;font-size:12px;padding:7px 12px;border-radius:9px;border:none;background:var(--gold);color:#1a1610;cursor:pointer;flex:0 0 auto}
+.inline-create-go:disabled{opacity:.5;cursor:default}
+.app.crew-day .inline-create-in{background:#fff}
 /* THE red primary action button. .note-save (Plan notes / profile sheets) was a copy-paste of
    .adm-btn.primary's effective crew-console look with drifted weight/padding — converged via :is()
    (same approach as the :is(.oa-cta,…) CTA block); call-site class names are UNCHANGED. Size values
