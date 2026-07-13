@@ -101,7 +101,9 @@ export const sectionsForRole = (role: string): OpSection[] => ROLE_SECTIONS[role
 // axis, always first) + the user's pinned lanes (domain axis). One config drives the calendar's
 // lane filter, alert routing, the org chart, and this bar — no hand-rolled grouping to drift.
 export type NavGroup = { id: string; label: string; icon: string; members: OpSection[]; color?: string };
-const TODAY_GROUP: NavGroup = { id: "today", label: "Today", icon: "day", members: ["day", "now", "command"] };
+// The Today lane is defined ONCE here and reused by both the bottom bar AND the secondary section
+// toggle (crew page), so a section added to it can never again go missing from one of them.
+export const TODAY_GROUP: NavGroup = { id: "today", label: "Today", icon: "day", members: ["day", "now", "command"] };
 const MAX_PINS = 4; // total tabs on the bar (Today counts — it's pinnable like any lane)
 const isSection = (x: string): x is OpSection => (VALID as Set<string>).has(x) || x === "ask";
 export function streamGroups(streams: WorkStream[], role: string): NavGroup[] {

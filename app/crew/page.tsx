@@ -13,7 +13,7 @@ import { localToday, etToday } from "@/lib/dates";
 import { brewStartOverdue } from "@/lib/brewMath";
 import { useWorkStreams, streamOfCategory } from "@/lib/streams";
 import { useRealtimeTable } from "@/lib/realtime";
-import { useOperatorSection, sectionsForRole, streamGroups, SECTION_LABEL, type OpSection } from "@/components/OperatorNav";
+import { useOperatorSection, sectionsForRole, streamGroups, SECTION_LABEL, TODAY_GROUP, type OpSection } from "@/components/OperatorNav";
 import { CrumbProvider, Breadcrumbs, useCrumb } from "@/components/Crumbs";
 import { recordRecent } from "@/components/recents";
 import { queueOrderStatus, isNetworkError, saveSnapshot, readSnapshot, readQueue, OFFLINE_EVENT } from "@/components/offline";
@@ -5002,7 +5002,7 @@ export default function AdminPage() {
       {/* Secondary toggle — the ACTIVE LANE's sections (a section can live in two lanes — prep is
           Service's and Events' — so the tapped tab, tracked as groupId, wins the ambiguity). */}
       {(() => {
-        const lanes = [{ id: "today", label: "Today", members: (["day", "now", "command"] as OpSection[]).filter((m) => allowed.includes(m)) }, ...streamGroups(streams, role)];
+        const lanes = [{ id: "today", label: "Today", members: TODAY_GROUP.members.filter((m) => allowed.includes(m)) }, ...streamGroups(streams, role)];
         const grp = (navGroupId && lanes.find((g) => g.id === navGroupId && g.members.includes(sec))) || lanes.find((g) => g.members.includes(sec));
         const members = grp ? grp.members.filter((m: OpSection) => allowed.includes(m)) : [];
         if (members.length < 2) return null;
