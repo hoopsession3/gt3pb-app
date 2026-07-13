@@ -11,6 +11,9 @@ import { DRINKS, MENU, type DrinkId } from "./menu";
 export type CopyMeta = { key: string; group: string; label: string; multiline?: boolean; default: string };
 
 export const COPY_META: CopyMeta[] = [
+  // ── Team board · back-office (the crew console) ──
+  { key: "board.welcome", group: "Team board", label: "Crew welcome line", multiline: true,
+    default: "Precision in every pour — let's make today one worth remembering." },
   // ── Home · signed-out (Arrival) ──
   { key: "home.statement", group: "Home · signed-out", label: "Hero statement", multiline: true,
     default: "We draw the coffee cold, blend the hydration from whole coconut, and simmer the broth slow — the long way, on purpose — then make every cup the moment you order it." },

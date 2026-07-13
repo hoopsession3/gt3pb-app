@@ -7,6 +7,7 @@ export const CAL_CAT: Record<string, { label: string; color: string; icon: strin
   content: { label: "Content", color: "#2bb3a3", icon: "🎨" }, task: { label: "Tasks", color: "#c2603f", icon: "⏰" },
   brew: { label: "Brew", color: "#c9a227", icon: "🍺" }, drop: { label: "Drops", color: "#c25b8e", icon: "📦" },
   delivery: { label: "Delivery", color: "#5c6bc0", icon: "🏠" },
+  goal: { label: "Goals", color: "#c8a661", icon: "🎯" },
 };
 
 // content_items.status → chip color (Brand calendar + Studio surfaces).

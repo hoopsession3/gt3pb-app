@@ -8,6 +8,7 @@ import { useRealtimeTable } from "@/lib/realtime";
 import { uploadToBucket } from "@/lib/uploads";
 import { raiseAlertClient } from "@/lib/clientAlerts";
 import { GTM_PLAYS } from "@/lib/strategy";
+import { useOperatorSection } from "@/components/OperatorNav";
 import Sheet from "@/components/Sheet";
 
 type CLink = { id: string; event_id: string | null; stop_id: string | null; play_key: string | null };
@@ -56,6 +57,8 @@ const bestTime = (channel: string) => channel === "tiktok"
   : "Tue–Fri, 11am–1pm or 7–9pm ET — IG lunch + evening windows.";
 
 export default function Studio() {
+  const { setSection } = useOperatorSection();
+  const goCompanyCal = () => { try { localStorage.setItem("gt3-plan-tab", "calendar"); } catch { /* ignore */ } setSection("plan"); };
   const { user, profile } = useAuth();
   const me = useMemo(() => ({ id: user?.id ?? "anon", name: profile?.display_name || user?.email?.split("@")[0] || "Crew" }), [user?.id, profile?.display_name, user?.email]);
   const [items, setItems] = useState<Item[]>([]);
@@ -124,7 +127,13 @@ export default function Studio() {
       ) : view === "brand" ? (
         <><BrandKit canEdit /><SiteCopyEditor /></>
       ) : view === "calendar" ? (
-        <BrandCalendar onOpen={setOpenId} onCreate={(iso, evId) => create(iso, evId)} />
+        <>
+          <div className="cal-xlink">
+            <span className="cal-xlink-t">This is your <b>content</b> calendar — scheduled posts &amp; shoots.</span>
+            <button type="button" className="cal-xlink-go" onClick={goCompanyCal}>See everything on the Company calendar →</button>
+          </div>
+          <BrandCalendar onOpen={setOpenId} onCreate={(iso, evId) => create(iso, evId)} />
+        </>
       ) : view === "grid" ? (
         <>
           <div className="subnav" role="tablist" aria-label="Filter">

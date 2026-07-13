@@ -2413,9 +2413,15 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .studio-rel-chips button.rel-camp{background:var(--red);border-color:var(--red);color:#fff}
 
 /* ── My Day rollup ── */
-.myday-hero{margin:2px 0 14px}
-.myday-greet{font-family:'Archivo Black';font-size:26px;color:var(--cream);line-height:1.1}
-.myday-date{font-family:'Inter';font-size:14px;color:var(--cream-m);margin-top:4px}
+.myday-hero{margin:2px 0 16px}
+.myday-greet{position:relative;overflow:hidden;display:inline-block;font-family:'Archivo Black';font-size:27px;color:var(--cream);line-height:1.12;letter-spacing:-.01em;animation:heroRise .72s cubic-bezier(.2,.72,.28,1) both}
+/* a single, restrained light-gleam sweeps the greeting once on arrival — the Apple product-reveal shine */
+.myday-greet::after{content:"";position:absolute;inset:0;background:linear-gradient(105deg,transparent 34%,rgba(255,255,255,.32) 47%,rgba(200,166,97,.55) 52%,transparent 66%);transform:translateX(-130%);animation:heroGleam 1.5s cubic-bezier(.2,.7,.3,1) .5s 1}
+.myday-date{font-family:'Inter';font-size:14px;color:var(--cream-m);margin-top:5px;animation:heroRise .72s cubic-bezier(.2,.72,.28,1) .08s both}
+.myday-motto{font-family:'Fraunces',Georgia,serif;font-style:italic;font-size:14.5px;line-height:1.4;color:#c8a661;margin-top:8px;max-width:440px;animation:heroRise .72s cubic-bezier(.2,.72,.28,1) .16s both}
+@keyframes heroRise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes heroGleam{to{transform:translateX(130%)}}
+@media (prefers-reduced-motion:reduce){.myday-greet,.myday-date,.myday-motto{animation:none}.myday-greet::after{display:none}}
 .myday-today{display:flex;flex-direction:column;gap:7px;margin-bottom:6px}
 .myday-ev{display:flex;align-items:center;gap:9px;background:rgba(111,168,220,.1);border:1px solid var(--line2);border-radius:12px;padding:12px 14px;font-family:'Inter';font-size:15px;color:var(--cream)}
 .myday-live{font-family:'Inter';font-weight:800;font-size:10px;letter-spacing:.5px;color:#fff;background:var(--red);border-radius:5px;padding:3px 7px}
@@ -4599,6 +4605,13 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .app.crew-day .pboard-card:hover{box-shadow:0 8px 20px rgba(26,22,16,.13),0 0 0 1px rgba(184,144,47,.2)}
 .app.crew-day .pboard-bar{background:rgba(26,22,16,.08)}
 .app.crew-day .pboard-bar>span{box-shadow:0 0 6px rgba(184,144,47,.35)}
+
+/* ── Calendar cross-link (Studio content cal → company cal) ── */
+.cal-xlink{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:10px 14px;margin-bottom:13px;border:1px solid var(--gold2);border-radius:12px;background:linear-gradient(180deg,rgba(200,166,97,.06),transparent)}
+.cal-xlink-t{font-family:'Inter';font-size:12.5px;color:var(--cream-m)}
+.cal-xlink-t b{color:var(--cream);font-weight:700}
+.cal-xlink-go{font-family:'Inter';font-weight:700;font-size:12px;color:var(--gold);background:none;border:none;cursor:pointer;padding:2px 0;white-space:nowrap}
+.cal-xlink-go:hover{text-decoration:underline}
 
 /* ── Shoot planner ── */
 .shoot{display:flex;flex-direction:column;gap:8px}

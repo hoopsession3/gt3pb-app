@@ -32,6 +32,7 @@ import OpsPlan from "@/components/OpsPlan";
 import NoteAttach from "@/components/NoteAttach";
 import Goals from "@/components/Goals";
 import PlanningBoard from "@/components/PlanningBoard";
+import { useSiteCopy } from "@/lib/copy";
 import AiTraining from "@/components/AiTraining";
 import PromoEditor from "@/components/PromoEditor";
 import EightySix from "@/components/EightySix";
@@ -1132,6 +1133,7 @@ function MyDay({ userId, meName, isLeader, canPrep, canBrew }: { userId: string 
   const { flags } = useMyAlerts(userId);
   const { setSection } = useOperatorSection();
   const streams = useWorkStreams();
+  const t = useSiteCopy();
   const laneColor = (cat: string) => streamOfCategory(cat, streams)?.color;
   const [today, setToday] = useState<{ id: string; title: string | null; day_label: string | null; is_live: boolean | null; dress_code?: string | null; crew_brief?: string | null }[]>([]);
   // Clock read CLIENT-SIDE only: /crew is prerendered, so a render-time new Date() bakes build/UTC
@@ -1174,12 +1176,18 @@ function MyDay({ userId, meName, isLeader, canPrep, canBrew }: { userId: string 
   const greet = now ? (now.getHours() < 12 ? "Good morning" : now.getHours() < 17 ? "Good afternoon" : "Good evening") : "";
   const first = meName.split(" ")[0];
   const named = first && first !== "Me" ? first : "";
+  const motto = t("board.welcome");
 
   return (
     <>
       <div className="myday-hero">
-        <div className="myday-greet">{now ? `${greet}${named ? `, ${named}` : ""}` : ""}</div>
-        <div className="myday-date">{now ? now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" }) : ""}</div>
+        {now && (
+          <>
+            <div className="myday-greet">{greet}{named ? `, ${named}` : ""}</div>
+            <div className="myday-date">{now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}</div>
+            {motto && <div className="myday-motto">{motto}</div>}
+          </>
+        )}
       </div>
       {today.length > 0 && (
         <div className="myday-today">

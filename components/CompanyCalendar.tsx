@@ -40,7 +40,8 @@ const VLABEL: Record<View, string> = { list: "Agenda", board: "Board", cards: "C
 
 type Stop = { id: string; name: string; location_text: string | null; starts_at: string | null; status: string | null };
 type Brew = { id: string; recipe_name: string | null; batch_gal: number | null; status: string; brew_date: string | null; ready_at: string | null; latest_start_at: string | null };
-type Item = { id: string; title: string; cat: string; kind: "event" | "content" | "todo" | "stop" | "task" | "brew" | "drop" | "delivery"; done?: boolean; warn?: boolean; meta?: string; go: () => void; toggle?: () => void };
+type Goal = { id: string; title: string; due_date: string | null; status: string; horizon: string };
+type Item = { id: string; title: string; cat: string; kind: "event" | "content" | "todo" | "stop" | "task" | "brew" | "drop" | "delivery" | "goal"; done?: boolean; warn?: boolean; meta?: string; go: () => void; toggle?: () => void };
 // kinds that back a SRC row and can be edited/dragged here; brew/drop/delivery are read-only rollups.
 // "task" is deliberately NOT editable here — CalEdit had no task branch, so a tap+Save fell into
 // the content form and renamed the task/wiped its due date. Tasks route to their prep hub (it.go).
@@ -80,6 +81,7 @@ export default function CompanyCalendar() {
   const [dayOpen, setDayOpen] = useState<string | null>(null); // a date → show that day's detail
   const [backlogT, setBacklogT] = useState<Todo[]>([]);   // undated to-dos — Board's Unscheduled column
   const [backlogC, setBacklogC] = useState<Content[]>([]); // unscheduled content, same column
+  const [goals, setGoals] = useState<Goal[]>([]);          // objectives land on their target date
   const [edit, setEdit] = useState<{ kind: EditKind; id: string } | null>(null); // Cards/Rails edit in place
   const [stale, setStale] = useState(0); // overdue, unpublished, not-yet-tidied content
   const [tidying, setTidying] = useState(false);
@@ -114,7 +116,7 @@ export default function CompanyCalendar() {
     // WRAPPED so a dropped socket / offline fetch can't become an unhandled rejection (the /crew
     // field-error alert). On failure the last-known calendar holds; realtime + next open recover.
     try {
-      const [e, c, t, s, pt, bb, dr, dv, bt, bc, bo] = await Promise.all([
+      const [e, c, t, s, pt, bb, dr, dv, bt, bc, bo, gl] = await Promise.all([
         supabase.from("events").select("id, title, day, day_label, is_live, category, plan_days, stage").is("archived_at", null).gte("day", eFrom).lte("day", to),
         supabase.from("content_items").select("id, title, scheduled_for, status").is("archived_at", null).not("scheduled_for", "is", null).gte("scheduled_for", fromISO).lt("scheduled_for", toISO),
         supabase.from("todos").select("id, title, category, due_on, done, event_id, meeting_note_id").not("due_on", "is", null).gte("due_on", from).lte("due_on", to),
@@ -126,14 +128,15 @@ export default function CompanyCalendar() {
         supabase.from("todos").select("id, title, category, due_on, done, event_id, meeting_note_id").is("due_on", null).eq("done", false).limit(30),
         supabase.from("content_items").select("id, title, scheduled_for, status").is("archived_at", null).is("scheduled_for", null).neq("status", "published").limit(30),
         supabase.from("business_orders").select("delivery_date, gallons").is("canceled_at", null).gte("delivery_date", from).lte("delivery_date", to),
+        supabase.from("goals").select("id, title, due_date, status, horizon").not("due_date", "is", null).neq("status", "archived").gte("due_date", from).lte("due_date", to),
       ]);
       setEvents((e.data as Ev[]) ?? []); setContent((c.data as Content[]) ?? []); setTodos((t.data as Todo[]) ?? []); setStops((s.data as Stop[]) ?? []); setPrepTasks((pt.data as PrepTask[]) ?? []);
       setBrews((bb.data as Brew[]) ?? []); setDrops((dr.data as { drop_date: string; size: number }[]) ?? []); setDels((dv.data as { delivery_date: string }[]) ?? []); setBiz((bo.data as { delivery_date: string; gallons: number }[]) ?? []);
-      setBacklogT((bt.data as Todo[]) ?? []); setBacklogC((bc.data as Content[]) ?? []);
+      setBacklogT((bt.data as Todo[]) ?? []); setBacklogC((bc.data as Content[]) ?? []); setGoals((gl.data as Goal[]) ?? []);
     } catch { /* keep last-known calendar; realtime + next open refetch */ }
   }, [range]);
   useEffect(() => { load(); }, [load]);
-  useRealtimeTable(["todos", "content_items", "events", "stops", "event_tasks", "brew_batches", "drop_orders", "delivery_orders"], load);
+  useRealtimeTable(["todos", "content_items", "events", "stops", "event_tasks", "brew_batches", "drop_orders", "delivery_orders", "goals"], load);
 
   const loadStale = useCallback(async () => { if (!supabase) return; const { data } = await supabase.rpc("stale_content_count"); setStale(typeof data === "number" ? data : 0); }, []);
   useEffect(() => { loadStale(); }, [loadStale]);
@@ -198,6 +201,7 @@ export default function CompanyCalendar() {
     for (const c of content) if (c.scheduled_for && pass("content")) push(key(new Date(c.scheduled_for)), { id: c.id, title: c.title || "Content", cat: "content", kind: "content", go: () => setSection("studio") });
     for (const t of todos) if (t.due_on && pass(t.category)) push(t.due_on, { id: t.id, title: t.title, cat: CAT[t.category] ? t.category : "ops", kind: "todo", done: t.done, go: () => { if (t.event_id) openEventPrep(t.event_id); else if (t.meeting_note_id) setSection("plan"); }, toggle: () => toggleTodo(t) });
     for (const t of prepTasks) if (t.due_at && pass("task")) push(key(new Date(t.due_at)), { id: t.id, title: t.label, cat: "task", kind: "task", go: () => { if (t.event_id) openEventPrep(t.event_id); else if (t.stop_id) openStopPrep(t.stop_id); else if (t.meeting_note_id) setSection("notes"); else if (t.goal_id) setSection("goals"); } });
+    for (const g of goals) if (g.due_date && pass("goal")) push(g.due_date, { id: g.id, title: g.title, cat: "goal", kind: "goal", meta: g.status === "hit" ? "Hit" : g.horizon, go: () => setSection("goals") });
     if (pass("brew")) for (const b of brews) if (b.brew_date) push(b.brew_date, { id: b.id, title: `Brew · ${b.recipe_name || "Batch"} ${Number(b.batch_gal ?? 1)} gal`, cat: "brew", kind: "brew", warn: brewStartOverdue(b), go: openBrew });
     if (pass("drop")) {
       const agg: Record<string, number> = {};
@@ -215,7 +219,7 @@ export default function CompanyCalendar() {
       for (const [dk, g] of Object.entries(agg)) push(dk, { id: `office-${dk}`, title: `Office route · ${g} gal`, cat: "delivery", kind: "delivery", go: openNow });
     }
     return m;
-  }, [events, content, todos, stops, prepTasks, brews, drops, dels, biz, filter, streams]);
+  }, [events, content, todos, stops, prepTasks, brews, drops, dels, biz, goals, filter, streams]);
 
   // Flat date-sorted spine for Board / Cards / Rails.
   const flat = useMemo(() => {
@@ -475,7 +479,7 @@ function DayView({ dayKey, items, events, onClose, onAdd, onSaved }: { dayKey: s
   }, [dayKey]);
   const d = new Date(`${dayKey}T00:00:00`);
   const heading = d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-  const sub: Record<Item["kind"], string> = { event: "event", stop: "on-the-ground op", todo: "to-do", content: "content", task: "task due", brew: "brew day", drop: "pack pickup", delivery: "delivery run" };
+  const sub: Record<Item["kind"], string> = { event: "event", stop: "on-the-ground op", todo: "to-do", content: "content", task: "task due", brew: "brew day", drop: "pack pickup", delivery: "delivery run", goal: "goal" };
   const clash = items.some((i) => i.kind === "event") && items.some((i) => i.kind === "stop");
   const brewLate = items.some((i) => i.warn);
   return (
