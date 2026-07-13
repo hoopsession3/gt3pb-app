@@ -62,6 +62,22 @@ export async function POST(req: Request) {
   const customer = typeof body.customer === "string" && body.customer.trim() ? body.customer.trim().slice(0, 80) : null;
   if (!paying && !customer) return NextResponse.json({ error: "Add a name for pickup" }, { status: 400 });
 
+  // Card-testing guard: the guest card path is open by design (walk-up POS, no login), which makes it
+  // the natural target for scripted BIN/stolen-card testing. Throttle it with the durable Postgres
+  // limiter (rate_limit_hit, 0154, shared across lambdas): a tight per-IP burst cap plus a global
+  // ceiling so a rotating-IP script still can't grind cards through Square. Pay-at-pickup is exempt
+  // (no charge). Fails open if the limiter is unreachable — Square's own fraud tools are the backstop.
+  if (paying) {
+    const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "anon";
+    const [ipHit, allHit] = await Promise.all([
+      supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `checkout:${ip}`, p_window_ms: 60_000, p_max: 6 }),
+      supabaseAdmin.rpc("rate_limit_hit", { p_bucket: "checkout:global", p_window_ms: 60_000, p_max: 60 }),
+    ]);
+    if (ipHit.data === false || allHit.data === false) {
+      return NextResponse.json({ error: "Too many attempts — give it a minute." }, { status: 429 });
+    }
+  }
+
   // Availability is enforced HERE, not just on the screen: a stale cart or tampered client can't
   // buy an 86'd or delisted item. Checked before any charge. Missing product rows fail open (a
   // catalog gap must not brick checkout). Same query also carries price_cents — the one price

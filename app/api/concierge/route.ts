@@ -45,6 +45,19 @@ export async function POST(req: Request) {
   if (!anthropicEnabled()) return NextResponse.json({ ok: false, error: "Chat isn't available right now." }, { status: 503 });
   const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "anon";
   if (throttled(ip)) return NextResponse.json({ ok: false, error: "One sec — too many messages. Try again in a moment." }, { status: 429 });
+  // Durable, cross-instance cap (the in-memory throttle above resets on every cold start and is
+  // per-lambda, so it can't stop a real spend-DoS). Postgres rate_limit_hit (0154) is shared across
+  // all instances: a per-IP burst cap AND a global ceiling, so nobody can burn the AI budget by
+  // rotating IPs or spraying many lambdas. Fails open if the limiter itself is unreachable.
+  if (supabaseAdmin) {
+    const [ipHit, allHit] = await Promise.all([
+      supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `concierge:${ip}`, p_window_ms: 60_000, p_max: 20 }),
+      supabaseAdmin.rpc("rate_limit_hit", { p_bucket: "concierge:global", p_window_ms: 60_000, p_max: 240 }),
+    ]);
+    if (ipHit.data === false || allHit.data === false) {
+      return NextResponse.json({ ok: false, error: "One sec — the concierge is catching its breath. Try again in a moment." }, { status: 429 });
+    }
+  }
 
   let messages: any[] = [];
   try { ({ messages } = await req.json()); } catch { /* */ }
