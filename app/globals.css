@@ -4514,6 +4514,35 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .rdy-st.rdy-warn{background:rgba(200,166,97,.16);color:var(--gold)}
 .rdy-st.rdy-bad{background:rgba(196,69,60,.16);color:#d98a7d}
 .app.crew-day .rdy-check{background:#fff;border-color:rgba(26,22,16,.1)}
+
+/* ── Founder digest settings ── */
+.fdig{display:flex;flex-direction:column;gap:11px}
+.fdig-note{font-family:'Inter';font-size:12.5px;line-height:1.5;color:var(--cream-m);margin:0}
+.fdig-cad{display:flex;gap:7px}
+.fdig-opt{font-family:'Inter';font-weight:600;font-size:12.5px;padding:7px 14px;border-radius:999px;border:1px solid var(--line2);background:none;color:var(--cream-m);cursor:pointer}
+.fdig-opt.on{background:var(--gold);border-color:var(--gold);color:#1a1610}
+.fdig-opt:disabled{opacity:.6}
+
+/* ── Spend & budget ── */
+.spb{display:flex;flex-direction:column;gap:12px}
+.spb-empty{font-family:'Inter';font-size:13px;color:var(--cream-m);padding:6px 2px}
+.spb-head{font-family:'Inter';font-size:14px;color:var(--cream)}
+.spb-head b{font-size:20px;font-weight:800}
+.spb-sub{color:var(--cream-m);font-size:12.5px}
+.spb-list{display:flex;flex-direction:column;gap:9px}
+.spb-row{display:flex;flex-direction:column;gap:5px}
+.spb-row-h{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.spb-cat{font-family:'Inter';font-weight:600;font-size:12.5px;color:var(--cream);text-transform:capitalize}
+.spb-bud{font-family:'Inter';font-size:12px;color:var(--cream-m);background:none;border:none;cursor:pointer;font-variant-numeric:tabular-nums}
+.spb-bud-in{width:88px;font-family:'Inter';font-size:12px;padding:3px 7px;border-radius:7px;border:1px solid var(--gold2);background:var(--card);color:var(--cream)}
+.spb-bar{display:block;height:7px;border-radius:999px;background:rgba(255,255,255,.06);overflow:hidden}
+.spb-bar>span{display:block;height:100%;background:var(--gold);border-radius:999px}
+.spb-bar>span.over{background:#c4453c}
+.spb-add{display:flex;flex-wrap:wrap;gap:7px;align-items:center;padding-top:4px;border-top:1px solid var(--line2)}
+.spb-add .note-in{flex:1 1 auto;min-width:0}
+.spb-amt{flex:0 0 80px!important}
+.spb-desc{flex:2 1 120px!important}
+.app.crew-day .spb-bar{background:rgba(26,22,16,.08)}
 .app.crew-day .mkpi-v{color:#7a5a1e}
 .app.crew-day .mkpi-k{color:rgba(26,22,16,.55)}
 .app.crew-day .crew-group{color:#8a6a2a}

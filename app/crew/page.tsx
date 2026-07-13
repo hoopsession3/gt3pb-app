@@ -47,6 +47,8 @@ import { TeamKpis, PrepKpis, GarageKpis } from "@/components/CrewKpis";
 import InlineCreate from "@/components/InlineCreate";
 import Changelog from "@/components/Changelog";
 import CommandBoard from "@/components/CommandBoard";
+import FounderDigest from "@/components/FounderDigest";
+import SpendBudget from "@/components/SpendBudget";
 import DriverDash from "@/components/DriverDash";
 import PipelinePanel from "@/components/PipelinePanel";
 import GearLibrary from "@/components/GearLibrary";
@@ -5141,6 +5143,7 @@ export default function AdminPage() {
           {isAdmin && <Panel id="set-office" title="Office delivery · price & minimum"><OfficeSettings /></Panel>}
           <Panel id="set-ai" title="AI copilots · the full catalog"><CopilotDirectory /></Panel>
           {isAdmin && <Panel id="set-spend" title="AI spend · what your copilots cost"><AiSpend /></Panel>}
+          {isAdmin && <Panel id="set-digest" title="Founder digest · the daily business roll-up"><FounderDigest /></Panel>}
           <Panel id="set-changelog" title="What we've built · changelog"><Changelog /></Panel>
           <div className="crew-group">More controls</div>
           <div className="set-map">
@@ -5176,6 +5179,8 @@ export default function AdminPage() {
         <>
           {/* Dashboard, not a filing cabinet: live numbers first, then modules grouped by job. */}
           <MoneyKpis />
+          <div className="crew-group">Spend & budget</div>
+          <Panel id="spend" title="Spend & budget · what the business spends" defaultOpen><SpendBudget /></Panel>
           <div className="crew-group">Get paid</div>
           <Panel id="pay" title="Checkout & payments" defaultOpen><PaymentSettings /></Panel>
           <div className="crew-group">The numbers</div>

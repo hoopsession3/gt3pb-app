@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { staffFromRequest } from "@/lib/apiAuth";
+import { staffFromRequest, userFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 
@@ -8,8 +8,9 @@ export const maxDuration = 60;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // AGENT #1 — meeting recap → action items. Reads a meeting note, asks Claude to pull out the
-// concrete follow-ups, and PROPOSES them as event_tasks owned by the note (unassigned, for review).
-// Human-in-the-loop by design: the agent suggests, you assign/flag/delete in the UI. Staff-gated.
+// concrete follow-ups, and files them as event_tasks owned by the note. Each is auto-assigned to the
+// note's owner (falling back to whoever ran the recap) so nothing lands orphaned in an unassigned
+// limbo — still fully reassignable/deletable in the UI. Human-in-the-loop, minus the dropped items.
 
 const TOOL: ToolDef = {
   name: "propose_followups",
@@ -42,8 +43,11 @@ export async function POST(req: Request) {
   try { ({ note_id } = await req.json()); } catch { /* */ }
   if (!note_id) return NextResponse.json({ ok: false, error: "note_id required" }, { status: 400 });
 
-  const { data: note } = await supabaseAdmin.from("meeting_notes").select("id, title, summary, body").eq("id", note_id).maybeSingle();
+  const { data: note } = await supabaseAdmin.from("meeting_notes").select("id, title, summary, body, created_by").eq("id", note_id).maybeSingle();
   if (!note) return NextResponse.json({ ok: false, error: "note not found" }, { status: 404 });
+  // Auto-assign the follow-ups to the note's owner, or whoever triggered the recap — never orphan them.
+  const caller = await userFromRequest(req);
+  const owner: string | null = (note as any).created_by ?? caller?.id ?? null;
   const text = [note.title, note.summary, note.body].filter(Boolean).join("\n\n").slice(0, 12000);
   if (!text.trim()) return NextResponse.json({ ok: true, added: 0, items: [] });
 
@@ -68,7 +72,7 @@ export async function POST(req: Request) {
   const have = new Set((existing ?? []).map((t: any) => t.label.trim().toLowerCase()));
   const rows = items
     .filter((i) => !have.has(i.label.trim().toLowerCase()))
-    .map((i, idx) => ({ meeting_note_id: note_id, label: i.label.trim().slice(0, 300), kind: "task", section: "Follow-up", critical: i.priority === "critical", sort: 1000 + idx }));
+    .map((i, idx) => ({ meeting_note_id: note_id, label: i.label.trim().slice(0, 300), kind: "task", section: "Follow-up", critical: i.priority === "critical", assignee: owner, sort: 1000 + idx }));
   if (rows.length === 0) return NextResponse.json({ ok: true, added: 0, items: [] });
 
   const { error } = await supabaseAdmin.from("event_tasks").insert(rows);
