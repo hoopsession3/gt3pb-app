@@ -14,12 +14,12 @@ import { supabase } from "@/lib/supabase";
 // shared (context) so the nav (rendered in the shell) and the page content stay
 // in sync; persisted so you return to the same section.
 
-export type OpSection = "day" | "now" | "ask" | "prep" | "plan" | "pipeline" | "studio" | "brew" | "garage" | "goals" | "driver" | "stops" | "notes" | "money" | "customers" | "team" | "settings" | "audit";
+export type OpSection = "day" | "now" | "ask" | "command" | "prep" | "plan" | "pipeline" | "studio" | "brew" | "garage" | "goals" | "driver" | "stops" | "notes" | "money" | "customers" | "team" | "settings" | "audit";
 
 const Ctx = createContext<{ section: OpSection; setSection: (s: OpSection) => void; back: () => boolean; canGoBack: boolean; groupId: string | null; setGroupId: (g: string | null) => void }>({ section: "day", setSection: () => {}, back: () => false, canGoBack: false, groupId: null, setGroupId: () => {} });
 export const useOperatorSection = () => useContext(Ctx);
 
-const VALID = new Set<OpSection>(["day", "now", "prep", "plan", "pipeline", "studio", "brew", "garage", "goals", "driver", "stops", "notes", "money", "customers", "team", "settings", "audit"]);
+const VALID = new Set<OpSection>(["day", "now", "command", "prep", "plan", "pipeline", "studio", "brew", "garage", "goals", "driver", "stops", "notes", "money", "customers", "team", "settings", "audit"]);
 
 export function OperatorSectionProvider({ children }: { children: React.ReactNode }) {
   const [section, setSectionState] = useState<OpSection>("day");
@@ -91,9 +91,9 @@ const ROLE_SECTIONS: Record<string, OpSection[]> = {
   server: ["day", "now", "notes", "driver"],
   contractor: ["day", "now", "prep", "garage", "notes", "driver"],
   operator: ["day", "now", "prep", "brew", "garage", "pipeline", "notes", "driver"],
-  event_manager: ["day", "now", "prep", "plan", "pipeline", "studio", "goals", "notes", "stops", "driver"],
-  admin: ["day", "now", "prep", "plan", "pipeline", "studio", "brew", "garage", "goals", "notes", "stops", "driver", "money", "customers", "team", "settings", "audit"],
-  owner: ["day", "now", "prep", "plan", "pipeline", "studio", "brew", "garage", "goals", "notes", "stops", "driver", "money", "customers", "team", "settings", "audit"],
+  event_manager: ["day", "now", "command", "prep", "plan", "pipeline", "studio", "goals", "notes", "stops", "driver"],
+  admin: ["day", "now", "command", "prep", "plan", "pipeline", "studio", "brew", "garage", "goals", "notes", "stops", "driver", "money", "customers", "team", "settings", "audit"],
+  owner: ["day", "now", "command", "prep", "plan", "pipeline", "studio", "brew", "garage", "goals", "notes", "stops", "driver", "money", "customers", "team", "settings", "audit"],
 };
 export const sectionsForRole = (role: string): OpSection[] => ROLE_SECTIONS[role] ?? ["now"];
 
@@ -101,7 +101,7 @@ export const sectionsForRole = (role: string): OpSection[] => ROLE_SECTIONS[role
 // axis, always first) + the user's pinned lanes (domain axis). One config drives the calendar's
 // lane filter, alert routing, the org chart, and this bar — no hand-rolled grouping to drift.
 export type NavGroup = { id: string; label: string; icon: string; members: OpSection[]; color?: string };
-const TODAY_GROUP: NavGroup = { id: "today", label: "Today", icon: "day", members: ["day", "now"] };
+const TODAY_GROUP: NavGroup = { id: "today", label: "Today", icon: "day", members: ["day", "now", "command"] };
 const MAX_PINS = 4; // total tabs on the bar (Today counts — it's pinnable like any lane)
 const isSection = (x: string): x is OpSection => (VALID as Set<string>).has(x) || x === "ask";
 export function streamGroups(streams: WorkStream[], role: string): NavGroup[] {
@@ -143,6 +143,7 @@ const streamIcon = (key: string) => STREAM_ICONS[key] ?? <circle cx="12" cy="12"
 const ICONS: Record<OpSection, React.ReactNode> = {
   day: <><circle cx="12" cy="12" r="4.2" /><path d="M12 2.5v2.4M12 19.1v2.4M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.2 19.8l1.7-1.7M18.1 5.9l1.7-1.7" /></>,
   now: <path d="M13 2 4 14h7l-1 8 9-12h-7z" />,
+  command: <><rect x="3" y="3" width="7.5" height="7.5" rx="1.5" /><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5" /><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5" /><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5" /></>,
   ask: <><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.6-.8L3 21l1.8-5.9A8.5 8.5 0 1 1 21 11.5z" /><path d="M12 7v.5M12 11v3" /></>,
   studio: <><path d="M12 3l2.1 4.9 5.3.4-4 3.5 1.2 5.2L12 14.7 7.4 17.4l1.2-5.2-4-3.5 5.3-.4z" /></>,
   prep: <><rect x="6" y="4" width="12" height="17" rx="2" /><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1" /><path d="M9 12l2 2 4-4" /></>,
@@ -160,7 +161,7 @@ const ICONS: Record<OpSection, React.ReactNode> = {
   settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 13.5a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></>,
   audit: <><path d="M12 3l7 3v5c0 4.2-2.9 7.6-7 8.7C7.9 18.6 5 15.2 5 11V6z" /><path d="M9 11.5l2 2 4-4" /></>,
 };
-const LABELS: Record<OpSection, string> = { day: "My Day", now: "Live Ops", ask: "Ask", prep: "Readiness", plan: "Plan", pipeline: "Pipeline", studio: "Studio", brew: "Brew", garage: "Assets", goals: "Goals", driver: "Delivery", stops: "Route", notes: "Notes", money: "Money", customers: "Customers", team: "Team", settings: "Settings", audit: "Audit" };
+const LABELS: Record<OpSection, string> = { day: "My Day", now: "Live Ops", ask: "Ask", command: "Command", prep: "Readiness", plan: "Plan", pipeline: "Pipeline", studio: "Studio", brew: "Brew", garage: "Assets", goals: "Goals", driver: "Delivery", stops: "Route", notes: "Notes", money: "Money", customers: "Customers", team: "Team", settings: "Settings", audit: "Audit" };
 export const SECTION_LABEL = LABELS;
 
 

@@ -4402,6 +4402,43 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .chg-empty{font-family:'Inter';font-size:13px;color:var(--cream-m);padding:10px 2px}
 .app.crew-day .chg-kpi,.app.crew-day .chg-form,.app.crew-day .chg-row,.app.crew-day .chg-chip{background:#fff;border-color:rgba(26,22,16,.1)}
 .app.crew-day .chg-area{background:rgba(26,22,16,.06)}
+
+/* ── Command Board · the shared war room (the digital MagBoard) ── */
+.cmd{display:flex;flex-direction:column}
+.cmd-empty{font-family:'Inter';font-size:12.5px;color:var(--cream-m);padding:8px 2px 4px}
+.cmd-init{background:var(--card);border:1px solid var(--line2);border-radius:14px;padding:13px 14px;margin-bottom:10px}
+.cmd-init-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.cmd-init-h b{font-family:'Inter';font-weight:800;font-size:16px;color:var(--cream);line-height:1.25}
+.cmd-cd{flex:0 0 auto;font-family:'Inter';font-weight:700;font-size:11px;color:#1a1610;background:var(--gold);border-radius:999px;padding:3px 10px;white-space:nowrap}
+.cmd-cd.late{background:#c4453c;color:#fff}
+.cmd-init-sum{font-family:'Inter';font-size:12px;line-height:1.5;color:var(--cream-m);margin:5px 0 0}
+.cmd-prog{display:flex;align-items:center;gap:9px;margin:10px 0 11px}
+.cmd-prog-bar{flex:1 1 auto;height:8px;background:rgba(255,255,255,.06);border-radius:999px;overflow:hidden}
+.cmd-prog-bar>span{display:block;height:100%;background:linear-gradient(90deg,var(--gold),var(--gold2));border-radius:999px;transition:width .3s ease}
+.cmd-prog-n{flex:0 0 auto;font-family:'Inter';font-weight:700;font-size:11.5px;color:var(--cream-m);font-variant-numeric:tabular-nums}
+.cmd-miles{display:flex;flex-direction:column;gap:5px}
+.cmd-mile{display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:none;border:none;border-radius:8px;padding:6px 6px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.cmd-mile:disabled{cursor:default}
+.cmd-check{flex:0 0 auto;width:18px;height:18px;border-radius:6px;border:1.5px solid var(--line2);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#1a1610}
+.cmd-check.on{background:var(--gold);border-color:var(--gold)}
+.cmd-mile-t{flex:1 1 auto;font-family:'Inter';font-size:13px;color:var(--cream);line-height:1.35;min-width:0}
+.cmd-mile.done .cmd-mile-t{text-decoration:line-through;color:var(--cream-m)}
+.cmd-ws{flex:0 0 auto;font-family:'DM Mono','Inter';font-size:9.5px;letter-spacing:.03em;text-transform:uppercase;color:var(--cream-m);background:rgba(255,255,255,.05);border-radius:5px;padding:2px 6px}
+.cmd-mile-due{flex:0 0 auto;font-family:'Inter';font-size:11px;color:var(--cream-d)}
+.cmd-mile-due.late{color:#c98b7a;font-weight:700}
+.cmd-add{align-self:flex-start;margin-top:9px;font-family:'Inter';font-weight:650;font-size:11.5px;padding:5px 11px;border-radius:9px;border:1px dashed var(--line2);background:none;color:var(--cream-m);cursor:pointer}
+.cmd-add.big{margin-top:2px;margin-bottom:6px;font-size:12.5px;padding:8px 14px;color:var(--cream)}
+.cmd-list{display:flex;flex-direction:column;gap:6px}
+.cmd-row{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 12px}
+.cmd-row.blk{border-color:rgba(196,69,60,.4)}
+.cmd-row.done{opacity:.6}
+.cmd-row.done .cmd-row-t{text-decoration:line-through}
+.cmd-row-t{font-family:'Inter';font-size:13px;color:var(--cream);line-height:1.35;min-width:0}
+.cmd-row-due{flex:0 0 auto;font-family:'Inter';font-size:11px;color:var(--cream-d)}
+.cmd-row-due.late{color:#c98b7a;font-weight:700}
+.cmd-more{font-family:'Inter';font-size:11.5px;color:var(--cream-m);padding:3px 2px}
+.app.crew-day .cmd-init,.app.crew-day .cmd-row{background:#fff;border-color:rgba(26,22,16,.1)}
+.app.crew-day .cmd-prog-bar,.app.crew-day .cmd-ws{background:rgba(26,22,16,.06)}
 .app.crew-day .mkpi-v{color:#7a5a1e}
 .app.crew-day .mkpi-k{color:rgba(26,22,16,.55)}
 .app.crew-day .crew-group{color:#8a6a2a}
