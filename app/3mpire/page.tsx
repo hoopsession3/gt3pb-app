@@ -9,6 +9,7 @@ import SignIn from "@/components/SignIn";
 import AccountPill from "@/components/AccountPill";
 import ReviewPrompt from "@/components/ReviewPrompt";
 import MembershipCard from "@/components/MembershipCard";
+import VipVerify from "@/components/VipVerify";
 import MyPacks from "@/components/MyPacks";
 import MyDeliveries from "@/components/MyDeliveries";
 import Skeleton from "@/components/Skeleton";
@@ -157,6 +158,7 @@ function MpireReal() {
           card + stat tiles repeated all of it (name ×2, 5/10 ×3); everything they added now lives
           in one quiet line, and credit only speaks up when there's actually credit. */}
       <MembershipCard />
+      <VipVerify />
       <div id="rewards" className="memline acs-anchor">
         <span><b>{points}</b> pts</span>
         <span className="memline-dot">·</span>

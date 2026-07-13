@@ -41,6 +41,7 @@ import OrgChart from "@/components/OrgChart";
 import CrmPanel from "@/components/CrmPanel";
 import CodesPanel from "@/components/CodesPanel";
 import CustomerKpis from "@/components/CustomerKpis";
+import VipQueue from "@/components/VipQueue";
 import FunnelReport from "@/components/FunnelReport";
 import { TeamKpis, PrepKpis, GarageKpis } from "@/components/CrewKpis";
 import InlineCreate from "@/components/InlineCreate";
@@ -5225,6 +5226,8 @@ export default function AdminPage() {
           <Panel id="cust-book" title="Customer book · every guest &amp; member" defaultOpen><CrmPanel /></Panel>
           <div className="crew-group">Loyalty &amp; codes</div>
           <Panel id="cust-codes" title="Discount codes · mint &amp; manage"><CodesPanel /></Panel>
+          <div className="crew-group">VIP verification</div>
+          <Panel id="cust-vip" title="Bottle-owner proofs · verify → Founding" defaultOpen><VipQueue /></Panel>
         </>
       )}
 

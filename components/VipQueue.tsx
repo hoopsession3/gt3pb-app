@@ -1,0 +1,88 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
+import { useApp } from "./AppProvider";
+import { useAuth } from "./AuthProvider";
+import { useRealtimeTable } from "@/lib/realtime";
+
+// VIP QUEUE — the staff moderation side of VIP verification. A bottle owner's proof photo lands here;
+// Verify promotes them to Founding (which auto-grants the founding perks from 0176) with a reward, or
+// Reject sends a reason back. Mirrors the reviews-moderation pattern. Reads vip_verifications (0203).
+type Vip = {
+  id: string; user_id: string; customer_id: string | null; photo_url: string;
+  status: string; reward: string | null; note: string | null; created_at: string;
+  customers: { name: string | null; tier: string } | null;
+};
+
+export default function VipQueue() {
+  const { toast } = useApp();
+  const { user } = useAuth();
+  const [rows, setRows] = useState<Vip[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    if (!supabase) { setRows([]); return; }
+    const { data } = await supabase.from("vip_verifications")
+      .select("id, user_id, customer_id, photo_url, status, reward, note, created_at, customers(name, tier)")
+      .order("created_at", { ascending: false }).limit(60);
+    setRows((data as unknown as Vip[]) ?? []);
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  useRealtimeTable("vip_verifications", load);
+
+  const verify = async (v: Vip) => {
+    if (!supabase || busy) return;
+    const reward = typeof window !== "undefined" ? (window.prompt("Reward to note (e.g. “free bottle”) — or leave blank:", "free bottle") ?? "") : "";
+    setBusy(v.id);
+    const { error } = await supabase.from("vip_verifications").update({ status: "verified", reviewed_by: user?.id ?? null, reviewed_at: new Date().toISOString(), reward: reward.trim() || null }).eq("id", v.id);
+    if (error) { toast(`Couldn't verify — ${error.message}`, "error"); setBusy(null); return; }
+    // Promote to Founding (auto-grants founding perks); best-effort — staff can also set tier by hand.
+    await supabase.rpc("admin_set_customer_tier", { p_user: v.user_id, p_tier: "founding" }).then(() => {}, () => {});
+    toast("Verified — Founding VIP");
+    setBusy(null); load();
+  };
+  const reject = async (v: Vip) => {
+    if (!supabase || busy) return;
+    const note = typeof window !== "undefined" ? window.prompt("Why? (the member sees this)", "") : "";
+    if (note === null) return;
+    setBusy(v.id);
+    await supabase.from("vip_verifications").update({ status: "rejected", reviewed_by: user?.id ?? null, reviewed_at: new Date().toISOString(), note: note.trim() || null }).eq("id", v.id);
+    setBusy(null); load();
+  };
+
+  if (rows === null) return <div className="vipq-empty">Loading…</div>;
+  const pending = rows.filter((r) => r.status === "pending");
+  const recent = rows.filter((r) => r.status !== "pending").slice(0, 8);
+
+  return (
+    <div className="vipq">
+      {pending.length === 0 ? (
+        <div className="vipq-empty">No VIP proofs waiting. 🟢</div>
+      ) : pending.map((v) => (
+        <div key={v.id} className="vipq-row">
+          <a href={v.photo_url} target="_blank" rel="noreferrer" className="vipq-photo" style={{ backgroundImage: `url(${v.photo_url})` }} aria-label="Open the proof photo full-size" />
+          <div className="vipq-main">
+            <b>{v.customers?.name?.trim() || "A member"}</b>
+            <span className="vipq-sub">Submitted {new Date(v.created_at).toLocaleDateString()} · now {v.customers?.tier ?? "guest"}</span>
+            <div className="vipq-acts">
+              <button type="button" className="vipq-yes" onClick={() => verify(v)} disabled={busy === v.id}>✓ Verify → Founding</button>
+              <button type="button" className="vipq-no" onClick={() => reject(v)} disabled={busy === v.id}>Reject</button>
+            </div>
+          </div>
+        </div>
+      ))}
+      {recent.length > 0 && (
+        <>
+          <div className="crew-group" style={{ marginTop: 12 }}>Recently handled</div>
+          {recent.map((v) => (
+            <div key={v.id} className="vipq-done">
+              <span className="vipq-done-t">{v.customers?.name?.trim() || "A member"}</span>
+              <span className={`vipq-tag st-${v.status}`}>{v.status === "verified" ? `✓ Verified${v.reward ? ` · ${v.reward}` : ""}` : "Rejected"}</span>
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
