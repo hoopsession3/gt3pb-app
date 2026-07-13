@@ -5002,7 +5002,7 @@ export default function AdminPage() {
       {/* Secondary toggle — the ACTIVE LANE's sections (a section can live in two lanes — prep is
           Service's and Events' — so the tapped tab, tracked as groupId, wins the ambiguity). */}
       {(() => {
-        const lanes = [{ id: "today", label: "Today", members: (["day", "now"] as OpSection[]).filter((m) => allowed.includes(m)) }, ...streamGroups(streams, role)];
+        const lanes = [{ id: "today", label: "Today", members: (["day", "now", "command"] as OpSection[]).filter((m) => allowed.includes(m)) }, ...streamGroups(streams, role)];
         const grp = (navGroupId && lanes.find((g) => g.id === navGroupId && g.members.includes(sec))) || lanes.find((g) => g.members.includes(sec));
         const members = grp ? grp.members.filter((m: OpSection) => allowed.includes(m)) : [];
         if (members.length < 2) return null;
