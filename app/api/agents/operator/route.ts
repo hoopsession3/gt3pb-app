@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ClaudeMsg } from "@/lib/anthropic";
 import { academyKnowledge } from "@/lib/operatorKb";
 import { ownerCorrections, brewRecipeFacts, logConvo } from "@/lib/agentKnowledge";
+import { claimSafe, CLAIM_FALLBACK } from "@/lib/claimGuard";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -58,9 +59,16 @@ export async function POST(req: Request) {
   try {
     const r = await callClaude({ label: "operator", model: MODELS.sonnet, maxTokens: 700, temperature: 0.3, system, messages: trimmed });
     // Log the exchange so the owner can review answers and turn a wrong one into a correction.
+    // logConvo records the REAL text (so the owner sees exactly what the model said), but the claim
+    // guard still governs what leaves the endpoint — a slipped claim is redirected, not repeated.
     const lastQ = [...trimmed].reverse().find((m) => m.role === "user")?.content ?? "";
     const u = await userFromRequest(req);
     void logConvo("operator", lastQ, r.text, u?.id ?? null, null);
+    const guard = claimSafe(r.text);
+    if (!guard.ok) {
+      console.warn(`[operator] claim-guard tripped on "${guard.hit}" — reply redirected`);
+      return NextResponse.json({ ok: true, reply: CLAIM_FALLBACK });
+    }
     return NextResponse.json({ ok: true, reply: r.text });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });

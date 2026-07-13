@@ -309,6 +309,23 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("money: tip/round-trip cents are lossless", OA.toCents(OA.packTotal(12, "return")) === 7800 && OA.dollars(OA.packTotal(6, "return")) === "$42");
 }
 
+// --- claim guard (brand-legal): the AI's output must never assert a health/allergen effect ---
+{
+  const CG = require("../.smoke/claimGuard.js");
+  const bad = (s) => CG.claimSafe(s).ok === false, good = (s) => CG.claimSafe(s).ok === true;
+  ok("claim: 'detoxes your liver' is blocked", bad("This drink detoxes your liver fast."));
+  ok("claim: 'cures your cold' is blocked", bad("It cures your cold."));
+  ok("claim: 'toxin-free' is blocked", bad("Our coffee is toxin-free."));
+  ok("claim: 'safe for diabetics' is blocked", bad("It's safe for diabetics."));
+  ok("claim: 'gene expression' is blocked", bad("It improves gene expression."));
+  ok("claim: 'reduces inflammation' is blocked", bad("Rise reduces inflammation."));
+  ok("claim: 'lactose-free' is blocked", bad("The goat-milk latte is lactose-free."));
+  ok("claim: negated 'we don't make detox claims' passes", good("We don't make detox claims — we just use whole foods."));
+  ok("claim: negated 'it's not a cure' passes", good("It's not a cure for anything, just real fuel."));
+  ok("claim: clean ingredient talk passes", good("Cold-extracted coffee with A2 goat milk, real maple, and sea salt."));
+  ok("claim: fallback is non-empty & on-brand", typeof CG.CLAIM_FALLBACK === "string" && CG.CLAIM_FALLBACK.length > 20);
+}
+
 
 console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
 console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);
