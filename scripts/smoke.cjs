@@ -299,6 +299,14 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("delivery: Fri 6:00 PM ET → next Sunday", D.nextDeliverySlot(T("2026-07-10T22:00:00Z")).deliveryDateKey === "2026-07-19");
   ok("delivery: Saturday → next Sunday", D.nextDeliverySlot(T("2026-07-11T15:00:00Z")).deliveryDateKey === "2026-07-19");
   ok("delivery: Sunday orders for the following Sunday", D.nextDeliverySlot(T("2026-07-12T15:00:00Z")).deliveryDateKey === "2026-07-19");
+
+  // --- money invariants: cross-cutting guards so a pricing edit can't quietly leak revenue ---
+  ok("money: bigger pickup pack never costs less in total", OA.packTotal(12, "return") > OA.packTotal(6, "return") && OA.packTotal(6, "return") > OA.packTotal(3, "return"));
+  ok("money: per-bottle drops (or holds) as the pack grows — volume discount, never a penalty", OA.perBottle(12, "return") <= OA.perBottle(6, "return") && OA.perBottle(6, "return") <= OA.perBottle(3, "return"));
+  ok("money: no pack is ever free or negative", OA.packTotal(3, "return") > 0 && OA.packTotal(3, "new") > 0);
+  ok("money: the advertised saving never exceeds the pack's own price", OA.saveAmount(6) < OA.packTotal(6, "return") && OA.saveAmount(12) < OA.packTotal(12, "return"));
+  ok("money: every delivery quote charges more than zero", D.quoteDelivery(12, 0, 0, "direct").totalCents > 0 && D.quoteDelivery(36, 4, 8, "direct").totalCents > 0);
+  ok("money: tip/round-trip cents are lossless", OA.toCents(OA.packTotal(12, "return")) === 7800 && OA.dollars(OA.packTotal(6, "return")) === "$42");
 }
 
 

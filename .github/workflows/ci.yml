@@ -26,5 +26,7 @@ jobs:
       - run: npm ci
       - name: Build
         run: npm run build
-      - name: Smoke (deterministic core)
+      - name: Smoke (deterministic core — money/ops math)
         run: npm run smoke
+      - name: DB smoke (RLS isolation + cancel_own_order, on in-process Postgres)
+        run: npm run db:test
