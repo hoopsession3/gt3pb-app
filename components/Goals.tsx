@@ -23,6 +23,7 @@ type Goal = {
   play: string | null; source: string | null; status: "active" | "hit" | "missed" | "archived";
   author_name: string | null; updated_at: string;
   stream_key: string | null; metric_source: string | null; owner_user_id: string | null;
+  horizon: "strategic" | "tactical" | "operational";
 };
 type Move = { id: string; goal_id: string; label: string; done: boolean; assignee: string | null; due_at: string | null; sort: number };
 type Staff = { id: string; display_name: string | null };
@@ -113,6 +114,13 @@ export default function Goals() {
     await supabase.from("goals").update({ owner_user_id: uid || null, updated_at: new Date().toISOString() }).eq("id", g.id);
   };
 
+  // Planning altitude: strategic (big bets) / tactical (moves) / operational (day-to-day).
+  const setHorizon = async (g: Goal, horizon: string) => {
+    if (!supabase) return;
+    setRows((r) => r.map((x) => (x.id === g.id ? { ...x, horizon: horizon as Goal["horizon"] } : x)));
+    await supabase.from("goals").update({ horizon, updated_at: new Date().toISOString() }).eq("id", g.id);
+  };
+
   const addInitiative = async (goalId: string) => {
     if (!supabase || !initTitle.trim()) return;
     const label = initTitle.trim();
@@ -188,6 +196,7 @@ export default function Goals() {
         <div className="goal-top">
           <span className="goal-title">{g.title}</span>
           {g.metric_source && <span className="goal-live" title={METRIC_SOURCES[g.metric_source]?.hint}>live</span>}
+          {g.horizon && <span className={`goal-tier tier-${g.horizon}`}>{g.horizon}</span>}
           {g.play && <span className="goal-play">{g.play}</span>}
         </div>
         {g.metric && <p className="goal-metric">{g.metric}</p>}
@@ -206,6 +215,13 @@ export default function Goals() {
             </select>
           ) : (
             <span className="goal-owner-n">{firstName(g.owner_user_id) ?? "Unassigned"}</span>
+          )}
+          {canLead && (
+            <select className="goal-owner-sel" value={g.horizon} onChange={(e) => setHorizon(g, e.target.value)} aria-label={`Horizon of ${g.title}`}>
+              <option value="strategic">Strategic</option>
+              <option value="tactical">Tactical</option>
+              <option value="operational">Operational</option>
+            </select>
           )}
         </div>
 

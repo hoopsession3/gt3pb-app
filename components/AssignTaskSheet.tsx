@@ -30,6 +30,7 @@ export default function AssignTaskSheet({
   const [busy, setBusy] = useState(false);
   const [createdId, setCreatedId] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [visibility, setVisibility] = useState<"team" | "leadership" | "private">("team");
 
   useEffect(() => {
     if (!supabase) return;
@@ -43,7 +44,7 @@ export default function AssignTaskSheet({
     if (!supabase || !title.trim() || busy) return;
     setBusy(true);
     const { data, error } = await supabase.from("todos").insert({
-      title: title.trim(), category, due_on: due || null,
+      title: title.trim(), category, due_on: due || null, visibility,
       assignee: assignee || null, event_id: eventId || null, created_by: user?.id ?? null,
     }).select("id").single();
     setBusy(false);
@@ -75,6 +76,13 @@ export default function AssignTaskSheet({
               <label className="prod-f"><span>Task</span><input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={140} /></label>
               <label className="prod-f" style={{ marginTop: 8 }}><span>Assign to</span><select value={assignee} onChange={(e) => setAssignee(e.target.value)}>{crewOptions}</select></label>
               <label className="prod-f" style={{ marginTop: 8 }}><span>Due</span><input type="date" value={due} onChange={(e) => setDue(e.target.value)} /></label>
+              <label className="prod-f" style={{ marginTop: 8 }}><span>Visible to</span>
+                <select value={visibility} onChange={(e) => setVisibility(e.target.value as "team" | "leadership" | "private")}>
+                  <option value="team">Whole team</option>
+                  <option value="leadership">Leadership only</option>
+                  <option value="private">Just the assignee</option>
+                </select>
+              </label>
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={onClose}>Not now</button>
                 <button type="button" className="note-save" disabled={busy || !title.trim()} onClick={create}>{busy ? "Creating…" : "Create & assign"}</button>

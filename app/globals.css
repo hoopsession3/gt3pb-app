@@ -4563,6 +4563,54 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .goal-owner-l{font-family:'Inter';font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--cream-m)}
 .goal-owner-sel{font-family:'Inter';font-size:12px;padding:4px 9px;border-radius:8px;border:1px solid var(--line2);background:var(--card);color:var(--cream)}
 .goal-owner-n{font-family:'Inter';font-weight:600;font-size:12.5px;color:var(--cream)}
+.goal-tier{font-family:'Inter';font-weight:700;font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;padding:2px 7px;border-radius:999px}
+.goal-tier.tier-strategic{background:rgba(140,120,200,.18);color:#a99bd6}
+.goal-tier.tier-tactical{background:rgba(200,166,97,.16);color:var(--gold)}
+.goal-tier.tier-operational{background:rgba(106,160,92,.16);color:#8fae86}
+
+/* ── Planning board (goals kanban by horizon) ── */
+.pboard{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.pboard-col{display:flex;flex-direction:column;gap:8px;min-width:0}
+.pboard-col-h{display:flex;flex-direction:column;gap:1px;padding-bottom:4px;border-bottom:1px solid var(--line2)}
+.pboard-col-h b{font-family:'Inter';font-weight:700;font-size:12.5px;color:var(--cream)}
+.pboard-col-h span{font-family:'Inter';font-size:10.5px;color:var(--cream-m)}
+.pboard-empty{font-family:'Inter';font-size:12px;color:var(--cream-m);opacity:.5;padding:4px 2px}
+.pboard-card{background:var(--card);border:1px solid var(--line2);border-radius:10px;padding:9px 10px;display:flex;flex-direction:column;gap:6px}
+.pboard-card-t{font-family:'Inter';font-weight:600;font-size:12px;color:var(--cream);line-height:1.3}
+.pboard-bar{height:5px;border-radius:999px;background:rgba(255,255,255,.06);overflow:hidden}
+.pboard-bar>span{display:block;height:100%;background:var(--gold);border-radius:999px}
+.pboard-bar>span.hit{background:#6aa05c}
+.pboard-meta{font-family:'Inter';font-size:10.5px;color:var(--cream-m)}
+@media (max-width:640px){.pboard{grid-template-columns:1fr}}
+.app.crew-day .pboard-card{background:#fff;border-color:rgba(26,22,16,.1)}
+.app.crew-day .pboard-bar{background:rgba(26,22,16,.08)}
+
+/* ── Shoot planner ── */
+.shoot{display:flex;flex-direction:column;gap:8px}
+.shoot-empty{font-family:'Inter';font-size:13px;color:var(--cream-m);padding:4px 2px}
+.shoot-card{border:1px solid var(--line2);border-radius:12px;overflow:hidden;background:var(--card)}
+.shoot-head{display:flex;align-items:center;gap:10px;width:100%;padding:11px 13px;background:none;border:none;cursor:pointer;text-align:left}
+.shoot-head-main{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.shoot-head-main b{font-family:'Inter';font-weight:700;font-size:14px;color:var(--cream)}
+.shoot-sub{font-family:'Inter';font-size:11.5px;color:var(--cream-m)}
+.shoot-cnt{font-family:'Inter';font-size:11px;color:var(--cream-m);white-space:nowrap}
+.shoot-body{padding:0 13px 13px;display:flex;flex-direction:column;gap:11px}
+.shoot-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.shoot-fields label{display:flex;flex-direction:column;gap:3px}
+.shoot-fields label span{font-family:'Inter';font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--cream-m)}
+.shoot-fields input,.shoot-fields select{font-family:'Inter';font-size:12.5px;padding:6px 9px;border-radius:8px;border:1px solid var(--line2);background:rgba(255,255,255,.05);color:var(--cream)}
+.shoot-f-wide{grid-column:1 / -1}
+.shoot-shots{display:flex;flex-direction:column;gap:5px}
+.shoot-shot{display:flex;align-items:center;gap:8px}
+.shoot-st{font-family:'Inter';font-weight:600;font-size:11px;padding:4px 9px;border-radius:8px;border:1px solid var(--line2);background:none;cursor:pointer;white-space:nowrap;color:var(--cream-m)}
+.shoot-st.st-shot{color:var(--gold);border-color:var(--gold2)}
+.shoot-st.st-cut{color:#8fae86;border-color:rgba(106,160,92,.4)}
+.shoot-desc{flex:1;min-width:0;font-family:'Inter';font-size:12.5px;color:var(--cream)}
+.shoot-assign{font-family:'Inter';font-size:11px;padding:3px 6px;border-radius:7px;border:1px solid var(--line2);background:rgba(255,255,255,.05);color:var(--cream-m);max-width:110px}
+.shoot-del{background:none;border:none;color:var(--cream-m);cursor:pointer;font-size:12px;opacity:.6}
+.shoot-delshoot{align-self:flex-start;font-family:'Inter';font-size:11px;color:#c98b7a;background:none;border:none;cursor:pointer;padding:2px 0}
+.app.crew-day .shoot-card{background:#fff;border-color:rgba(26,22,16,.1)}
+.app.crew-day .shoot-fields input,.app.crew-day .shoot-fields select,.app.crew-day .shoot-assign{background:#fff}
 .app.crew-day .mkpi-v{color:#7a5a1e}
 .app.crew-day .mkpi-k{color:rgba(26,22,16,.55)}
 .app.crew-day .crew-group{color:#8a6a2a}

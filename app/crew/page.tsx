@@ -31,6 +31,7 @@ import MaintenanceLog from "@/components/MaintenanceLog";
 import OpsPlan from "@/components/OpsPlan";
 import NoteAttach from "@/components/NoteAttach";
 import Goals from "@/components/Goals";
+import PlanningBoard from "@/components/PlanningBoard";
 import AiTraining from "@/components/AiTraining";
 import PromoEditor from "@/components/PromoEditor";
 import EightySix from "@/components/EightySix";
@@ -66,6 +67,7 @@ import AlertAction, { alertHasInlineAction } from "@/components/AlertAction";
 import { supabase } from "@/lib/supabase";
 import AskGT3 from "@/components/AskGT3";
 import Studio from "@/components/Studio";
+import ShootPlanner from "@/components/ShootPlanner";
 import MenuManager from "@/components/MenuManager";
 import PaymentSettings from "@/components/PaymentSettings";
 import MoneyKpis from "@/components/MoneyKpis";
@@ -5139,6 +5141,8 @@ export default function AdminPage() {
       {sec === "studio" && canManage && (
         <>
           <Studio />
+          <div className="crew-group">Shoots</div>
+          <Panel id="shoots" title="Shoot planning · shot list &amp; call sheet"><ShootPlanner /></Panel>
           <Panel id="reviews" title="Customer reviews"><ReviewsAdmin /></Panel>
         </>
       )}
@@ -5233,7 +5237,7 @@ export default function AdminPage() {
           <GarageSection />
         </>
       )}
-      {sec === "goals" && canManage && <Goals />}
+      {sec === "goals" && canManage && (<><PlanningBoard /><Goals /></>)}
       {sec === "driver" && <DriverDash isLead={canManage} />}
 
       {sec === "customers" && isAdmin && (

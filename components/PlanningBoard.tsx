@@ -1,0 +1,61 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
+import { useRealtimeTable } from "@/lib/realtime";
+
+// PLANNING BOARD — the plan at altitude. Goals grouped by horizon (strategic / tactical / operational,
+// 0213) into three columns, each card showing owner + progress + due. The glanceable enterprise-planning
+// view above the detailed goal threads. Read-only; edit horizon/owner on the goal cards below.
+type G = { id: string; title: string; horizon: string; status: string; current_value: number; target_value: number; due_date: string | null; owner_user_id: string | null };
+type P = { id: string; display_name: string | null };
+
+const COLS = [
+  { key: "strategic", label: "Strategic", hint: "Big bets" },
+  { key: "tactical", label: "Tactical", hint: "Moves" },
+  { key: "operational", label: "Operational", hint: "Day-to-day" },
+];
+const dnice = (iso: string | null) => (iso ? new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "");
+
+export default function PlanningBoard() {
+  const [goals, setGoals] = useState<G[]>([]);
+  const [people, setPeople] = useState<P[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!supabase) { setLoaded(true); return; }
+    const [g, p] = await Promise.all([
+      supabase.from("goals").select("id, title, horizon, status, current_value, target_value, due_date, owner_user_id").neq("status", "archived"),
+      supabase.from("profiles").select("id, display_name").neq("role", "member"),
+    ]);
+    setGoals((g.data as G[]) ?? []); setPeople((p.data as P[]) ?? []); setLoaded(true);
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  useRealtimeTable(["goals"], load);
+
+  const firstName = (uid: string | null) => (people.find((x) => x.id === uid)?.display_name || "").trim().split(/\s+/)[0] || null;
+  if (!loaded || goals.length === 0) return null;
+
+  return (
+    <div className="pboard">
+      {COLS.map((c) => {
+        const items = goals.filter((g) => (g.horizon || "tactical") === c.key);
+        return (
+          <div className="pboard-col" key={c.key}>
+            <div className="pboard-col-h"><b>{c.label}</b><span>{c.hint} · {items.length}</span></div>
+            {items.length === 0 ? <div className="pboard-empty">—</div> : items.map((g) => {
+              const pct = g.target_value > 0 ? Math.max(0, Math.min(100, Math.round((g.current_value / g.target_value) * 100))) : 0;
+              return (
+                <div className="pboard-card" key={g.id}>
+                  <div className="pboard-card-t">{g.title}</div>
+                  <div className="pboard-bar"><span className={g.status === "hit" ? "hit" : ""} style={{ width: `${pct}%` }} /></div>
+                  <div className="pboard-meta">{firstName(g.owner_user_id) ?? "Unassigned"}{g.due_date ? ` · ${dnice(g.due_date)}` : ""}</div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
