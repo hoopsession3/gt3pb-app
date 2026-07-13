@@ -58,6 +58,21 @@ export async function callClaude(opts: {
 }): Promise<ClaudeResult> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("ANTHROPIC_API_KEY not set");
+  // Central AI throttle (F3) — every copilot funnels through here, so ONE guard covers all ~27 AI
+  // routes instead of 27 per-route hacks. A per-copilot cap plus a global ceiling on the durable
+  // Postgres limiter (rate_limit_hit, 0154), so a leaked/shared staff token or a runaway client can't
+  // burn the AI budget. Fails OPEN if the limiter is unreachable — a limiter blip mustn't take AI down.
+  if (supabaseAdmin) {
+    let overCap = false;
+    try {
+      const [perLabel, overall] = await Promise.all([
+        supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `ai:${opts.label ?? "misc"}`, p_window_ms: 60_000, p_max: 40 }),
+        supabaseAdmin.rpc("rate_limit_hit", { p_bucket: "ai:all", p_window_ms: 60_000, p_max: 300 }),
+      ]);
+      overCap = perLabel.data === false || overall.data === false;
+    } catch { overCap = false; }
+    if (overCap) throw new Error("AI is busy — too many requests this minute. Try again in a moment.");
+  }
   // PROMPT CACHING — the system prompt carries the big, identical-across-calls prefix (static
   // knowledge + owner corrections + recipe facts). Marking it as an ephemeral cache breakpoint tells
   // the API to reuse it: the whole tools+system prefix bills at ~10% on a cache hit instead of full

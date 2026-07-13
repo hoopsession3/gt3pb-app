@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ClaudeMsg } from "@/lib/anthropic";
 import { menuKnowledge } from "@/lib/conciergeKb";
-import { ownerCorrections } from "@/lib/agentKnowledge";
+import { ownerCorrections, logConvo } from "@/lib/agentKnowledge";
 import { claimSafe, CLAIM_FALLBACK } from "@/lib/claimGuard";
 
 export const runtime = "nodejs";
@@ -131,11 +131,16 @@ To book the truck for a private event, send people to the booking page (/book). 
     // Fail-safe: if a prohibited health/allergen claim slipped through (jailbreak, forged history, or
     // the model just erring), DROP it and return the compliant redirect. The brand's #1 legal line,
     // enforced mechanically rather than trusting the model to always obey the prompt.
+    // Audit log — the public concierge is our highest-stakes surface, so record every exchange (like
+    // the operator does) so a claim-bait attempt is visible in the conversation log, not invisible.
+    const lastQ = trimmed[trimmed.length - 1]?.content ?? "";
     const guard = claimSafe(r.text);
     if (!guard.ok) {
       console.warn(`[concierge] claim-guard tripped on "${guard.hit}" — reply redirected`);
+      void logConvo("concierge", lastQ, `⚠ CLAIM-GUARD BLOCKED (hit: "${guard.hit}") — sent the compliant redirect. Model had said: ${r.text}`, null, "claim-guard");
       return NextResponse.json({ ok: true, reply: CLAIM_FALLBACK });
     }
+    void logConvo("concierge", lastQ, r.text, null, null);
     return NextResponse.json({ ok: true, reply: r.text });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });
