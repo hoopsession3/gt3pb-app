@@ -47,6 +47,7 @@ import CustomerKpis from "@/components/CustomerKpis";
 import VipQueue from "@/components/VipQueue";
 import FunnelReport from "@/components/FunnelReport";
 import { TeamKpis, PrepKpis, GarageKpis } from "@/components/CrewKpis";
+import PrepBoard from "@/components/PrepBoard";
 import InlineCreate from "@/components/InlineCreate";
 import Changelog from "@/components/Changelog";
 import CommandBoard from "@/components/CommandBoard";
@@ -887,6 +888,13 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
     const hh = old ? `${String(old.getHours()).padStart(2, "0")}:${String(old.getMinutes()).padStart(2, "0")}` : "11:00";
     set("starts_at", new Date(`${v}T${hh}:00`).toISOString());
   };
+  // Start time — stops carry a real timestamp; this finally lets you SET the time of day, not just the date.
+  const timeVal = !f || isEvent || !f.starts_at ? "" : (() => { const d = new Date(f.starts_at); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; })();
+  const onTime = (v: string) => {
+    if (isEvent || !v) return;
+    const dayKey = f?.starts_at ? new Date(f.starts_at).toLocaleDateString("en-CA") : new Date().toLocaleDateString("en-CA");
+    set("starts_at", new Date(`${dayKey}T${v}:00`).toISOString());
+  };
 
   const save = async () => {
     if (!supabase || !f) return;
@@ -951,8 +959,11 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
       <input className="note-in" value={f[nameCol] ?? ""} onChange={(e) => set(nameCol, e.target.value)} placeholder={isEvent ? "Event name" : "Stop name"} />
       <div className="prod-grid" style={{ marginTop: 8 }}>
         <label className="prod-f"><span>Date</span><input type="date" value={dateVal} onChange={(e) => onDate(e.target.value)} /></label>
-        <label className="prod-f"><span>{isEvent ? "Location" : "Where"}</span><input value={f.location_text ?? ""} onChange={(e) => set("location_text", e.target.value)} placeholder="Where" /></label>
+        {isEvent
+          ? <label className="prod-f"><span>Location</span><input value={f.location_text ?? ""} onChange={(e) => set("location_text", e.target.value)} placeholder="Where" /></label>
+          : <label className="prod-f"><span>Start time</span><input type="time" value={timeVal} onChange={(e) => onTime(e.target.value)} /></label>}
       </div>
+      {!isEvent && <label className="prod-f" style={{ marginTop: 8 }}><span>Where</span><input value={f.location_text ?? ""} onChange={(e) => set("location_text", e.target.value)} placeholder="Where" /></label>}
       {!isEvent && <label className="prod-f" style={{ marginTop: 8 }}><span>Address (tap-to-map)</span><input value={f.address ?? ""} onChange={(e) => set("address", e.target.value)} placeholder="123 Peach St, Atlanta GA" /></label>}
       <label className="prod-f" style={{ marginTop: 8 }}><span>Status</span>
         {isEvent ? (
@@ -5115,10 +5126,12 @@ export default function AdminPage() {
         <>
           {/* Money template: glance-first KPIs → crew-group dividers → the modules. */}
           <PrepKpis />
+          <div className="crew-group">All open prep · one board</div>
+          <Panel id="prep-board" title="Work every open task — critical first" defaultOpen><PrepBoard /></Panel>
           {canManage && <div className="crew-group">Readiness</div>}
           {canManage && <ReadinessAgent />}
           {canManage && <InspectionPrep />}
-          <div className="crew-group">Event prep</div>
+          <div className="crew-group">Event prep · by stop</div>
           <EventPrep onGo={goSection} />
         </>
       )}

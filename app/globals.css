@@ -4613,6 +4613,32 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .cal-xlink-go{font-family:'Inter';font-weight:700;font-size:12px;color:var(--gold);background:none;border:none;cursor:pointer;padding:2px 0;white-space:nowrap}
 .cal-xlink-go:hover{text-decoration:underline}
 
+/* ── Prep board · aggregate readiness triage ── */
+.pbd{display:flex;flex-direction:column;gap:10px}
+.pbd-filters{display:flex;gap:7px;flex-wrap:wrap}
+.pbd-filter{display:inline-flex;align-items:center;gap:6px;font-family:'Inter';font-weight:600;font-size:12px;padding:6px 12px;border-radius:999px;border:1px solid var(--line2);background:none;color:var(--cream-m);cursor:pointer}
+.pbd-filter.on{background:var(--gold);border-color:var(--gold);color:#1a1610}
+.pbd-filter.crit:not(.on){border-color:rgba(196,69,60,.5);color:#d98a7d}
+.pbd-fn{font-variant-numeric:tabular-nums;font-weight:700;opacity:.85}
+.pbd-empty{font-family:'Inter';font-size:13px;color:var(--cream-m);padding:8px 2px}
+.pbd-list{display:flex;flex-direction:column;gap:6px}
+.pbd-row{display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:11px;border:1px solid var(--line2);background:var(--card)}
+.pbd-row.crit{border-color:rgba(196,69,60,.42)}
+.pbd-row.over{border-color:rgba(200,166,97,.42)}
+.pbd-check{flex:0 0 auto;width:22px;height:22px;border-radius:7px;border:1.5px solid var(--line2);background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+.pbd-check>span{width:10px;height:10px;border-radius:3px;background:transparent;transition:background .15s}
+.pbd-check:hover>span{background:var(--gold)}
+.pbd-check:active{transform:scale(.9)}
+.pbd-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.pbd-label{font-family:'Inter';font-weight:500;font-size:13px;color:var(--cream);line-height:1.3}
+.pbd-ctx{font-family:'Inter';font-size:10px;color:var(--cream-m);text-transform:uppercase;letter-spacing:.05em;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.pbd-due.over{color:#d98a7d;font-weight:700}
+.pbd-crit{color:#d98a7d;font-weight:700}
+.pbd-assign{flex:0 0 auto;font-family:'Inter';font-size:11px;padding:4px 7px;border-radius:8px;border:1px solid var(--line2);background:rgba(255,255,255,.04);color:var(--cream-m);max-width:96px}
+.pbd-assign.on{border-color:var(--gold2);color:var(--gold)}
+.app.crew-day .pbd-row{background:#fff;border-color:rgba(26,22,16,.1)}
+.app.crew-day .pbd-assign{background:#fff}
+
 /* ── Shoot planner ── */
 .shoot{display:flex;flex-direction:column;gap:8px}
 .shoot-empty{font-family:'Inter';font-size:13px;color:var(--cream-m);padding:4px 2px}
