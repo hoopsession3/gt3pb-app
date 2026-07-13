@@ -36,12 +36,14 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
   const settings = useOfficeSettings();
   const q = officeQuote(gallons, { priceCents: settings.priceCents, minGallons: settings.minGallons });
   const dateKey = nextMondayKey();
-  const ready = company.trim() && street.trim() && city.trim() && zip.trim().length >= 5 && gallons >= settings.minGallons;
+  // Prepaid texts a secure payment link, so a phone is required on that path (no phone = no way to pay).
+  const needsPhone = billing === "prepaid";
+  const ready = company.trim() && street.trim() && city.trim() && zip.trim().length >= 5 && gallons >= settings.minGallons && (!needsPhone || phone.trim().length > 0);
 
   const submit = async () => {
     if (busy) return;
     if (!supabase || !user) { toast("Sign in to set up office delivery", "error"); return; }
-    if (!ready) { toast("Add your company and address first", "error"); return; }
+    if (!ready) { toast(needsPhone && !phone.trim() ? "Add a phone — prepaid sends the payment link by text" : "Add your company and address first", "error"); return; }
     setBusy(true);
 
     // A standing account (weekly Mondays) is created/linked so the generator can refill it (P2).

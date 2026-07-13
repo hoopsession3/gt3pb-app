@@ -67,7 +67,7 @@ export default function BookScreen() {
         <input id="b-email" className="auth-input" type="email" inputMode="email" value={f.email} onChange={set("email")} placeholder="you@email.com" maxLength={200} required />
         <div className="b-row">
           <div><label className="auth-label" htmlFor="b-date">Event date</label><input id="b-date" className="auth-input" type="date" value={f.event_date} onChange={set("event_date")} /></div>
-          <div><label className="auth-label" htmlFor="b-head">Headcount</label><input id="b-head" className="auth-input" type="number" inputMode="numeric" min={0} max={100000} value={f.headcount} onChange={set("headcount")} placeholder="50" /></div>
+          <div><label className="auth-label" htmlFor="b-head">Headcount</label><input id="b-head" className="auth-input" type="number" inputMode="numeric" min={1} max={100000} value={f.headcount} onChange={set("headcount")} placeholder="50" /></div>
         </div>
         <label className="auth-label" htmlFor="b-loc">Location</label>
         <input id="b-loc" className="auth-input" value={f.location_text} onChange={set("location_text")} placeholder="City / venue" maxLength={300} />

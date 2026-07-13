@@ -51,7 +51,7 @@ export async function POST(req: Request) {
   const street = s(b.addressStreet, 160);
   const city = s(b.addressCity, 80);
   const zip = s(b.addressZip, 10);
-  if (!b.sourceId || !name || !street || !city || !zip) return NextResponse.json({ error: "Missing delivery details" }, { status: 400 });
+  if (!b.sourceId || !name || !b.phone || !street || !city || !zip) return NextResponse.json({ error: "Missing delivery details — a phone is required for the delivery-morning text." }, { status: 400 });
   if (!zipInZone(zip)) return NextResponse.json({ error: "That ZIP isn't in the delivery zone." }, { status: 400 });
 
   const packSize = n(b.packSize);
