@@ -28,6 +28,12 @@ const TOOL: ToolDef = {
           title: { type: "string" },
           why: { type: "string", description: "One line grounding it in the data." },
           urgency: { type: "string", enum: ["high", "medium", "low"] },
+          ref: {
+            type: "object",
+            description: "If this priority IS one of the open items listed under todos_open or critical_open_tasks, link it here so it can be checked off from the briefing. Copy the id EXACTLY from that item's [todo:ID] or [task:ID] tag — never invent one. Omit for general priorities that aren't a single tracked item.",
+            properties: { kind: { type: "string", enum: ["todo", "task"] }, id: { type: "string" } },
+            required: ["kind", "id"],
+          },
         }, required: ["title", "urgency"] },
       },
       lead_plan: { type: "array", items: { type: "string" }, description: "The ordered do-this plan to lead the period — concrete steps in the sequence to do them." },
@@ -69,8 +75,8 @@ export async function POST(req: Request) {
     db.from("events").select("title, day, stage, location_text").is("archived_at", null).gte("day", from).lte("day", to).order("day"),
     db.from("stops").select("name, starts_at, status").not("starts_at", "is", null).neq("status", "done").gte("starts_at", fromTs).lte("starts_at", toTs).order("starts_at"),
     db.from("brew_batches").select("recipe_name, batch_gal, ready_at, status, event_id").not("status", "in", "(served,dumped)").order("ready_at", { nullsFirst: false }),
-    db.from("todos").select("title, due_on, category, done").eq("done", false).not("due_on", "is", null).lte("due_on", to).order("due_on"),
-    db.from("event_tasks").select("label, critical, done").eq("done", false).eq("critical", true).limit(25),
+    db.from("todos").select("id, title, due_on, category, done").eq("done", false).not("due_on", "is", null).lte("due_on", to).order("due_on"),
+    db.from("event_tasks").select("id, label, critical, done").eq("done", false).eq("critical", true).limit(25),
     db.from("incident_log").select("problem, severity, created_at, resolved").eq("resolved", false).order("created_at", { ascending: false }).limit(15),
     db.from("content_items").select("title, scheduled_for, status").is("archived_at", null).not("scheduled_for", "is", null).neq("status", "published").gte("scheduled_for", fromTs).lte("scheduled_for", toTs).order("scheduled_for"),
     db.from("booking_requests").select("name, event_date, status, created_at").eq("status", "new").order("created_at", { ascending: false }).limit(15),
@@ -86,8 +92,8 @@ export async function POST(req: Request) {
     events: (events.data ?? []).map((e: any) => `${e.day} · ${e.title}${e.stage ? ` [${e.stage}]` : ""}${e.location_text ? ` @ ${e.location_text}` : ""}`),
     truck_stops: (stops.data ?? []).map((s: any) => `${ymd(new Date(s.starts_at))} · ${s.name}`),
     brew_batches: (brews.data ?? []).map((b: any) => `${b.recipe_name} ${b.batch_gal}gal — ${b.status}${b.ready_at ? ` (ready ${ymd(new Date(b.ready_at))})` : ""}`),
-    todos_open: (todos.data ?? []).map((t: any) => `${t.due_on}${overdue(t.due_on) ? " ⚠OVERDUE" : ""} · [${t.category}] ${t.title}`),
-    critical_open_tasks: (critTasks.data ?? []).map((t: any) => t.label),
+    todos_open: (todos.data ?? []).map((t: any) => `[todo:${t.id}] ${t.due_on}${overdue(t.due_on) ? " ⚠OVERDUE" : ""} · [${t.category}] ${t.title}`),
+    critical_open_tasks: (critTasks.data ?? []).map((t: any) => `[task:${t.id}] ${t.label}`),
     open_incidents: (incidents.data ?? []).map((i: any) => `[${i.severity}] ${i.problem}`),
     content_scheduled: (content.data ?? []).map((c: any) => `${ymd(new Date(c.scheduled_for))} · ${c.title} [${c.status}]`),
     new_bookings: (bookings.data ?? []).map((b: any) => `${b.name ?? "—"}${b.event_date ? ` · ${b.event_date}` : ""}`),
@@ -108,6 +114,7 @@ export async function POST(req: Request) {
         (period === "week"
           ? "This is the week ahead: make it executable day-by-day. "
           : "This is a longer horizon: frame it as what's ahead, what's slipping, and what decisions to make now to stay ahead. ") +
+        "When a priority IS a specific open item from todos_open or critical_open_tasks, set its `ref` using that item's [todo:ID]/[task:ID] tag (copy the id exactly) so the owner can check it off from the briefing. " +
         "Always answer with the briefing tool.",
       messages: [{ role: "user", content: `${periodWord} snapshot:\n\n${JSON.stringify(snapshot, null, 1)}` }],
       tools: [TOOL],

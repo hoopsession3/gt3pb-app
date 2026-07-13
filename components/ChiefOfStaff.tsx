@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
+import AssignTaskSheet from "./AssignTaskSheet";
 
 // CHIEF OF STAFF — the executive-assistant briefing. Pick a horizon (week / month / quarter) and it
 // reads the whole org and tells you what to focus on and in what order: headline, ranked priorities,
@@ -21,6 +22,21 @@ export default function ChiefOfStaff() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [res, setRes] = useState<any | null>(null);
+  const [doneRefs, setDoneRefs] = useState<Set<string>>(new Set());   // priorities checked off this session
+  const [assignTitle, setAssignTitle] = useState<string | null>(null); // open the assign sheet with this title
+
+  // Close the SOURCE record a priority points at (a real todo / event_task), so ✓ Done on the
+  // briefing actually completes the overdue item — not just a cosmetic check. Scoped by id + still-open
+  // so a stale/hallucinated ref is a harmless no-op.
+  const complete = async (ref: { kind: string; id: string }) => {
+    if (!supabase) return;
+    const key = `${ref.kind}:${ref.id}`;
+    setDoneRefs((s) => new Set(s).add(key));
+    const table = ref.kind === "task" ? "event_tasks" : "todos";
+    const patch = ref.kind === "task" ? { done: true } : { done: true, done_at: new Date().toISOString() };
+    const { error } = await supabase.from(table).update(patch).eq("id", ref.id).eq("done", false);
+    if (error) setDoneRefs((s) => { const n = new Set(s); n.delete(key); return n; });
+  };
 
   const run = async (p = period) => {
     if (!supabase || busy) return;
@@ -54,19 +70,31 @@ export default function ChiefOfStaff() {
           {b.priorities?.length > 0 && (
             <div className="cos-block">
               <div className="cos-block-h">Priorities</div>
-              {b.priorities.map((p: any, i: number) => (
-                <div key={i} className="cos-prio">
-                  <span className="cos-prio-n" style={{ background: URG[p.urgency] || "#888" }}>{i + 1}</span>
-                  <span className="cos-prio-main"><b>{p.title}</b>{p.why ? <span>{p.why}</span> : null}</span>
-                </div>
-              ))}
+              {b.priorities.map((p: any, i: number) => {
+                const ref = p.ref && (p.ref.kind === "todo" || p.ref.kind === "task") ? p.ref : null;
+                const isDone = ref ? doneRefs.has(`${ref.kind}:${ref.id}`) : false;
+                return (
+                  <div key={i} className={`cos-prio${isDone ? " done" : ""}`}>
+                    <span className="cos-prio-n" style={{ background: URG[p.urgency] || "#888" }}>{i + 1}</span>
+                    <span className="cos-prio-main">
+                      <b>{p.title}</b>{p.why ? <span>{p.why}</span> : null}
+                      <span className="cos-prio-acts">
+                        {ref && (isDone
+                          ? <span className="cos-doneflag">✓ Done</span>
+                          : <button type="button" className="cos-act" onClick={() => complete(ref)}>✓ Done</button>)}
+                        <button type="button" className="cos-act" onClick={() => setAssignTitle(p.title)}>＋ Task</button>
+                      </span>
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           )}
 
           {b.lead_plan?.length > 0 && (
             <div className="cos-block">
               <div className="cos-block-h">Lead the {period === "week" ? "week" : period}</div>
-              <ol className="cos-plan">{b.lead_plan.map((s: string, i: number) => <li key={i}>{s}</li>)}</ol>
+              <ol className="cos-plan">{b.lead_plan.map((s: string, i: number) => <li key={i}><span>{s}</span><button type="button" className="cos-act sm" onClick={() => setAssignTitle(s)} aria-label="Make a task from this step">＋</button></li>)}</ol>
             </div>
           )}
 
@@ -102,6 +130,9 @@ export default function ChiefOfStaff() {
         </>
       )}
       {err && <div className="dp-err" style={{ marginTop: 8 }}>{err}</div>}
+      {assignTitle != null && (
+        <AssignTaskSheet defaultTitle={assignTitle} onClose={() => setAssignTitle(null)} onCreated={() => setAssignTitle(null)} />
+      )}
     </div>
   );
 }

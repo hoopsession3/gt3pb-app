@@ -3056,6 +3056,16 @@ body:has(.guide-sheet) .rail{display:none}
 .cos-plan li{counter-increment:cp;position:relative;padding:8px 10px 8px 34px;background:rgba(245,241,232,.04);border:1px solid var(--line);border-radius:9px;margin-bottom:6px;font-family:'Inter';font-size:13px;color:var(--cream);line-height:1.45}
 .app.crew-day .cos-plan li{background:rgba(34,31,24,.03)}
 .cos-plan li::before{content:counter(cp);position:absolute;left:8px;top:8px;width:19px;height:19px;border-radius:50%;background:var(--gold);color:#15140f;font-weight:700;font-size:11px;display:flex;align-items:center;justify-content:center}
+.cos-plan li{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+/* Actionable briefing — complete the source item / spin a recommendation into an assigned task */
+.cos-prio-acts{display:flex;gap:6px;margin-top:6px}
+.cos-act{-webkit-appearance:none;appearance:none;border:1px solid var(--line2);background:rgba(245,241,232,.05);color:var(--cream);font-family:'Inter';font-weight:700;font-size:11px;padding:3px 9px;border-radius:999px;cursor:pointer;white-space:nowrap;flex:0 0 auto}
+.cos-act:hover{border-color:var(--gold2);color:var(--gold2)}
+.cos-act.sm{padding:1px 8px;font-size:13px;line-height:1.2}
+.cos-doneflag{font-family:'Inter';font-weight:800;font-size:11px;color:#6aa05c;padding:3px 0}
+.cos-prio.done{opacity:.55}
+.cos-prio.done .cos-prio-main b{text-decoration:line-through}
+.app.crew-day .cos-act{background:rgba(34,31,24,.04)}
 .cos-risk{display:flex;flex-direction:column;gap:1px;padding:7px 10px;background:rgba(184,36,32,.1);border:1px solid rgba(184,36,32,.35);border-radius:9px;margin-bottom:6px}
 .cos-risk b{font-family:'Inter';font-weight:600;font-size:13px;color:var(--cream)}
 .cos-risk span{font-family:'Inter';font-size:12px;color:var(--cream-m)}
