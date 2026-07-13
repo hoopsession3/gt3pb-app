@@ -14,12 +14,12 @@ import { supabase } from "@/lib/supabase";
 // shared (context) so the nav (rendered in the shell) and the page content stay
 // in sync; persisted so you return to the same section.
 
-export type OpSection = "day" | "now" | "ask" | "prep" | "plan" | "pipeline" | "studio" | "brew" | "garage" | "goals" | "driver" | "stops" | "notes" | "money" | "customers" | "team" | "settings";
+export type OpSection = "day" | "now" | "ask" | "prep" | "plan" | "pipeline" | "studio" | "brew" | "garage" | "goals" | "driver" | "stops" | "notes" | "money" | "customers" | "team" | "settings" | "audit";
 
 const Ctx = createContext<{ section: OpSection; setSection: (s: OpSection) => void; back: () => boolean; canGoBack: boolean; groupId: string | null; setGroupId: (g: string | null) => void }>({ section: "day", setSection: () => {}, back: () => false, canGoBack: false, groupId: null, setGroupId: () => {} });
 export const useOperatorSection = () => useContext(Ctx);
 
-const VALID = new Set<OpSection>(["day", "now", "prep", "plan", "pipeline", "studio", "brew", "garage", "goals", "driver", "stops", "notes", "money", "customers", "team", "settings"]);
+const VALID = new Set<OpSection>(["day", "now", "prep", "plan", "pipeline", "studio", "brew", "garage", "goals", "driver", "stops", "notes", "money", "customers", "team", "settings", "audit"]);
 
 export function OperatorSectionProvider({ children }: { children: React.ReactNode }) {
   const [section, setSectionState] = useState<OpSection>("day");
@@ -92,8 +92,8 @@ const ROLE_SECTIONS: Record<string, OpSection[]> = {
   contractor: ["day", "now", "prep", "garage", "notes", "driver"],
   operator: ["day", "now", "prep", "brew", "garage", "pipeline", "notes", "driver"],
   event_manager: ["day", "now", "prep", "plan", "pipeline", "studio", "goals", "notes", "stops", "driver"],
-  admin: ["day", "now", "prep", "plan", "pipeline", "studio", "brew", "garage", "goals", "notes", "stops", "driver", "money", "customers", "team", "settings"],
-  owner: ["day", "now", "prep", "plan", "pipeline", "studio", "brew", "garage", "goals", "notes", "stops", "driver", "money", "customers", "team", "settings"],
+  admin: ["day", "now", "prep", "plan", "pipeline", "studio", "brew", "garage", "goals", "notes", "stops", "driver", "money", "customers", "team", "settings", "audit"],
+  owner: ["day", "now", "prep", "plan", "pipeline", "studio", "brew", "garage", "goals", "notes", "stops", "driver", "money", "customers", "team", "settings", "audit"],
 };
 export const sectionsForRole = (role: string): OpSection[] => ROLE_SECTIONS[role] ?? ["now"];
 
@@ -158,8 +158,9 @@ const ICONS: Record<OpSection, React.ReactNode> = {
   customers: <><rect x="3" y="5" width="18" height="15" rx="2" /><circle cx="9" cy="11" r="2.2" /><path d="M5.8 17c.5-1.7 1.7-2.6 3.2-2.6s2.7.9 3.2 2.6M15 9.5h4M15 13h4" /></>,
   team: <><circle cx="9" cy="8" r="3" /><path d="M3 20c0-3 3-5 6-5s6 2 6 5" /><path d="M16 5.2a3 3 0 0 1 0 5.6M21 20c0-2.4-1.8-4-4-4.6" /></>,
   settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 13.5a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></>,
+  audit: <><path d="M12 3l7 3v5c0 4.2-2.9 7.6-7 8.7C7.9 18.6 5 15.2 5 11V6z" /><path d="M9 11.5l2 2 4-4" /></>,
 };
-const LABELS: Record<OpSection, string> = { day: "My Day", now: "Live Ops", ask: "Ask", prep: "Readiness", plan: "Plan", pipeline: "Pipeline", studio: "Studio", brew: "Brew", garage: "Assets", goals: "Goals", driver: "Delivery", stops: "Route", notes: "Notes", money: "Money", customers: "Customers", team: "Team", settings: "Settings" };
+const LABELS: Record<OpSection, string> = { day: "My Day", now: "Live Ops", ask: "Ask", prep: "Readiness", plan: "Plan", pipeline: "Pipeline", studio: "Studio", brew: "Brew", garage: "Assets", goals: "Goals", driver: "Delivery", stops: "Route", notes: "Notes", money: "Money", customers: "Customers", team: "Team", settings: "Settings", audit: "Audit" };
 export const SECTION_LABEL = LABELS;
 
 

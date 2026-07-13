@@ -4733,10 +4733,10 @@ function VendorPicker({ vendors, vendorId, onLink, onCreated }: { vendors: Vendo
 // ───────────────────────── section metadata (shared by header + the guide) ─────────────────────────
 // Each section = one job at one moment. LABEL names it, WHEN says when to reach for it (header pill),
 // SUB is the one-liner, MORE explains it, INSIDE lists what lives there. Order = the shift timeline.
-const SEC_LABEL: Record<OpSection, string> = { day: "My Day", now: "Live Ops", ask: "Ask GT3", prep: "Readiness", plan: "Plan", pipeline: "Pipeline", studio: "Studio", brew: "Brew", garage: "Assets", goals: "Goals", driver: "Delivery", stops: "Route", notes: "Notes", money: "Money", customers: "Customers", team: "Team", settings: "Settings" };
+const SEC_LABEL: Record<OpSection, string> = { day: "My Day", now: "Live Ops", ask: "Ask GT3", prep: "Readiness", plan: "Plan", pipeline: "Pipeline", studio: "Studio", brew: "Brew", garage: "Assets", goals: "Goals", driver: "Delivery", stops: "Route", notes: "Notes", money: "Money", customers: "Customers", team: "Team", settings: "Settings", audit: "Audit" };
 const SEC_WHEN: Record<OpSection, string> = {
   day: "Start of shift", now: "During service", ask: "When you're stuck", prep: "Before the event",
-  plan: "Booking ahead", pipeline: "Working the leads", studio: "Promoting a drop", brew: "Production days", garage: "Assets & stock", goals: "Steering the quarter", driver: "Delivery days", stops: "Route planning", notes: "Any time", money: "The books", customers: "Your regulars", team: "People & roles", settings: "Managing the app",
+  plan: "Booking ahead", pipeline: "Working the leads", studio: "Promoting a drop", brew: "Production days", garage: "Assets & stock", goals: "Steering the quarter", driver: "Delivery days", stops: "Route planning", notes: "Any time", money: "The books", customers: "Your regulars", team: "People & roles", settings: "Managing the app", audit: "App health checks",
 };
 const SEC_SUB: Record<OpSection, string> = {
   day: "Your tasks, flags, needs-you & what's on today.",
@@ -4756,6 +4756,7 @@ const SEC_SUB: Record<OpSection, string> = {
   customers: "Every customer — orders, loyalty & contact info.",
   team: "People, roles, access & training.",
   settings: "Copy, pricing, promos & codes — the owner control room.",
+  audit: "Every audit run on the app — scored, dated & tracked for re-run.",
 };
 const SEC_MORE: Record<OpSection, string> = {
   day: "Your personal launchpad — the console's one glance screen. Everything assigned to you, everything flagged for your attention, and (for leadership) the needs-you list: booking replies, past-due team tasks and restock lows.",
@@ -4775,6 +4776,7 @@ const SEC_MORE: Record<OpSection, string> = {
   team: "Your people. Add crew, set roles and access, and manage training — who can see and do what.",
   ask: "Your pocket brain. Ask anything about recipes, the why, gear, stock or how-to and get an answer from the GT3 playbook — from any screen.",
   settings: "The owner control room — everything you can change without a developer. The wording guests read (copy) lives here, plus office-delivery pricing, and a map straight to brand, payments, menu, discount codes and roles. Edits go live instantly, no deploy.",
+  audit: "The app's audit trail — every review run on it (security, privacy, performance, accessibility, UI cohesion, data), with a score, the date it ran, the prompt used, and when it's due to run again. A health strip leads (average score · what's overdue · last run); log a new audit any time you run one.",
 };
 const SEC_INSIDE: Record<OpSection, string[]> = {
   day: ["Your open tasks & due dates", "Alerts flagged for you — with discussion threads", "Needs you (leadership): booking replies, past-due tasks, restock", "What's on the calendar today", "Day-of brief — dress code & call time"],
@@ -4794,6 +4796,7 @@ const SEC_INSIDE: Record<OpSection, string[]> = {
   team: ["Staff roster", "Roles & permissions", "Training & academy", "Manager approvals"],
   ask: ["Recipes & the why", "Gear & stock how-to", "The GT3 playbook"],
   settings: ["Copy & wording — every line guests read", "Office delivery pricing & minimum", "A map to brand, payments, menu, codes & roles"],
+  audit: ["Health strip — average score, what's overdue, last run", "The full audit log — security, privacy, performance, a11y, cohesion, data", "Log an audit — score, date, prompt, findings & artifact link", "Re-run cadence & overdue flags"],
 };
 
 // The interactive "when to use what" guide — every section the role can reach, each expandable to a
@@ -5106,10 +5109,10 @@ export default function AdminPage() {
           {isAdmin && <Panel id="set-office" title="Office delivery · price & minimum"><OfficeSettings /></Panel>}
           <Panel id="set-ai" title="AI copilots · the full catalog"><CopilotDirectory /></Panel>
           {isAdmin && <Panel id="set-spend" title="AI spend · what your copilots cost"><AiSpend /></Panel>}
-          {isAdmin && <Panel id="set-maint" title="Maintenance & audits · app health"><MaintenanceLog /></Panel>}
           <div className="crew-group">More controls</div>
           <div className="set-map">
             {([
+              ...(isAdmin ? [{ t: "Audit & maintenance", s: "Every audit run — scores, dates, what's overdue", to: "audit" as OpSection }] : []),
               { t: "Brand, splash & reviews", s: "Logo, kit, the pop-up, testimonials", to: "studio" },
               { t: "Checkout, payments & flags", s: "Pay-at-pickup · subscriptions · lead time", to: "money" },
               { t: "Menu, products & pricing", s: "Drinks, packs, COGS, plans", to: "money" },
@@ -5122,6 +5125,17 @@ export default function AdminPage() {
               </button>
             ))}
           </div>
+        </>
+      )}
+
+      {sec === "audit" && isAdmin && (
+        <>
+          {/* The owner's audit trail — every review run on the app (security, privacy, performance,
+              accessibility, cohesion, data), scored, dated, and tracked for its next re-run. Same
+              glance-first shape as Money: the health strip leads, then the log. */}
+          <div className="crew-group">App health · audit trail</div>
+          <p className="set-lead">Every audit run on the app — security, privacy, performance, accessibility, UI cohesion, data — with scores, dates, and what&apos;s due for a re-run. Log a new one any time you run a check.</p>
+          <MaintenanceLog />
         </>
       )}
 
