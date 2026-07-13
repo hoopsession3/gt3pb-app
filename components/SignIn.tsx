@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { trackFunnel } from "@/lib/funnel";
 import Image from "next/image";
 import Mpire from "./Mpire";
 import { useAuth } from "./AuthProvider";
@@ -24,6 +25,7 @@ export default function SignIn() {
   const [err, setErr] = useState("");
   const [cooldown, setCooldown] = useState(0); // resend rate-limit (client; Supabase also throttles server-side)
 
+  useEffect(() => { trackFunnel("signup", "open"); }, []); // funnel analytics (anonymous, no PII)
   useEffect(() => {
     if (cooldown <= 0) return;
     const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
@@ -54,7 +56,7 @@ export default function SignIn() {
     const { error } = await sendCode(email.trim(), name.trim() || undefined);
     setBusy(false);
     if (error) setErr(error);
-    else { setStep("sent"); setCooldown(30); }
+    else { setStep("sent"); setCooldown(30); trackFunnel("signup", "code_sent"); }
   };
 
   // ── resend the link/code (same trimming + error handling as first send) ──
@@ -79,6 +81,7 @@ export default function SignIn() {
     const { error } = await verifyCode(email.trim(), otp.trim());
     setBusy(false);
     if (error) setErr(error);
+    else trackFunnel("signup", "signed_in");
   };
 
   // ── paste magic-link URL (iOS PWA) ──

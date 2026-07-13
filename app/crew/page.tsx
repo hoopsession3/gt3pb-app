@@ -41,6 +41,7 @@ import OrgChart from "@/components/OrgChart";
 import CrmPanel from "@/components/CrmPanel";
 import CodesPanel from "@/components/CodesPanel";
 import CustomerKpis from "@/components/CustomerKpis";
+import FunnelReport from "@/components/FunnelReport";
 import DriverDash from "@/components/DriverDash";
 import PipelinePanel from "@/components/PipelinePanel";
 import GearLibrary from "@/components/GearLibrary";
@@ -5150,6 +5151,7 @@ export default function AdminPage() {
           <Panel id="sales" title="Sales"><Reports /></Panel>
           <Panel id="snapshot" title="Business snapshot"><SnapshotReport /></Panel>
           <Panel id="pnl" title="Per-event P&L"><EventPnlReport /></Panel>
+          <Panel id="funnels" title="Funnels · where people drop off"><FunnelReport /></Panel>
           <div className="crew-group">Catalog &amp; pricing</div>
           <Panel id="menu" title="Menu & products"><MenuManager /></Panel>
           <Panel id="econ" title="Product economics"><ProductCatalog /></Panel>

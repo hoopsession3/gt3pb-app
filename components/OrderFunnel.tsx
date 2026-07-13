@@ -10,6 +10,7 @@ import OrderConfirm from "@/components/OrderConfirm";
 import PaymentCard, { type PaymentCardHandle } from "./PaymentCard";
 import MyPacks, { packMix, packDayLabel, type MyPack } from "./MyPacks";
 import OfficeOrder from "./OfficeOrder";
+import { trackFunnel } from "@/lib/funnel";
 import Sheet from "./Sheet";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
@@ -49,6 +50,8 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
   const router = useRouter();
 
   const [mode, setMode] = useState<Mode>(initialMode);
+  // Funnel analytics (anonymous, no PII): which flow the visitor entered.
+  useEffect(() => { trackFunnel(mode === "delivery" ? "delivery" : "reserve", "start"); }, [mode]);
   const [step, setStep] = useState<Step>(initialMode === "delivery" ? "start" : "size");
   // Delivery fork: a home order (residential Sunday packs, the flow below) vs an office order (B2B
   // bulk, Monday 5–8 AM, amber gallon jugs — a purpose-built sheet, never the pack cart).
@@ -278,6 +281,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
       if (!res.ok) { setErr(data.error || "Something went wrong — try again."); return; }
       haptic(HAPTIC.success);
       setDone({ total: totalCents, paid: !!data.paid, ref: (data.id || data.ref || "").toString(), label: dayName(drop.sat) });
+      trackFunnel("reserve", "done");
       setStep("done");
       if (replacing && supabase) {
         const old = replacing; setReplacing(null);
@@ -309,6 +313,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
       if (!res.ok) { setErr(data.error || "Payment failed"); return; }
       haptic(HAPTIC.success);
       setDone({ total: data.totalCents ?? deliveryQuote.totalCents, label: data.deliveryLabel, warn: data.warn, paid: true });
+      trackFunnel("delivery", "done");
       setStep("done");
     } catch { setBusy(false); setErr("Payment service unavailable"); }
   };

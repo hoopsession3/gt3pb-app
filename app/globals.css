@@ -4313,6 +4313,29 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .mkpi-k{font-family:'Inter';font-weight:600;font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--cream-m);margin-top:6px}
 .crew-group{font-family:'Inter';font-weight:800;font-size:11.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--gold);margin:22px 2px 9px}
 .app.crew-day .mkpi-tile{background:#fff;border-color:rgba(26,22,16,.1);box-shadow:0 1px 2px rgba(26,22,16,.04)}
+
+/* ── Funnels · where people drop off (privacy-respecting analytics) ── */
+.fn{display:flex;flex-direction:column;gap:14px}
+.fn-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.fn-sub{font-family:'Inter';font-size:12px;color:var(--cream-m)}
+.fn-days{display:inline-flex;background:var(--card);border:1px solid var(--line2);border-radius:9px;padding:2px}
+.fn-day{background:none;border:none;border-radius:7px;padding:5px 10px;color:var(--cream-m);font-family:'Inter';font-weight:700;font-size:12px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.fn-day.on{background:var(--gold);color:#1a1610}
+.fn-empty{font-family:'Inter';font-size:13px;color:var(--cream-m);padding:8px 2px;line-height:1.5}
+.fn-block{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 14px}
+.fn-block-h{display:flex;align-items:center;gap:8px;margin-bottom:11px}
+.fn-block-h b{font-family:'Inter';font-weight:700;font-size:14.5px;color:var(--cream)}
+.fn-conv{margin-left:auto;font-family:'Inter';font-weight:800;font-size:11px;color:#1a1610;background:var(--gold);border-radius:999px;padding:3px 9px}
+.fn-alt{font-family:'Inter';font-weight:700;font-size:11px;color:var(--cream-m);background:rgba(255,255,255,.05);border:1px solid var(--line2);border-radius:999px;padding:3px 9px}
+.fn-steps{display:flex;flex-direction:column;gap:9px}
+.fn-step-l{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px}
+.fn-step-l span{font-family:'Inter';font-size:12.5px;color:var(--cream-m)}
+.fn-step-l b{font-family:'Inter';font-weight:800;font-size:14px;color:var(--cream);font-variant-numeric:tabular-nums}
+.fn-bar{height:8px;background:rgba(255,255,255,.05);border-radius:999px;overflow:hidden}
+.fn-bar>span{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--gold),var(--gold2));transition:width .3s ease}
+.fn-drop{font-family:'Inter';font-size:10.5px;color:#c98b7a;margin-top:3px}
+.app.crew-day .fn-block,.app.crew-day .fn-days{background:#fff;border-color:rgba(26,22,16,.1)}
+.app.crew-day .fn-bar{background:rgba(26,22,16,.06)}
 .app.crew-day .mkpi-v{color:#7a5a1e}
 .app.crew-day .mkpi-k{color:rgba(26,22,16,.55)}
 .app.crew-day .crew-group{color:#8a6a2a}

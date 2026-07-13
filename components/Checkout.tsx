@@ -12,6 +12,7 @@ import { perBottle, PRICING } from "@/lib/orderAhead";
 import { useOrderingOpen } from "./useOrderingOpen";
 import { usePayAtPickup } from "./usePayAtPickup";
 import { squareClientReady } from "@/lib/square";
+import { trackFunnel } from "@/lib/funnel";
 import Sheet from "./Sheet";
 import OrderConfirm from "./OrderConfirm";
 import Skeleton from "./Skeleton";
@@ -24,7 +25,7 @@ export default function Checkout() {
   // at success time because checkout() clears the cart right after (lines would otherwise read empty
   // by the time the confirm screen renders).
   const [done, setDone] = useState<{ paid: boolean; total: number; lines: [DrinkId, number][]; name: string } | null>(null);
-  useEffect(() => { if (!open) setDone(null); }, [open]);
+  useEffect(() => { if (!open) setDone(null); else trackFunnel("order", "open"); }, [open]);
   const { user, profile } = useAuth();
   const [prices, setPrices] = useState<Record<string, number>>({});
   // Prices for the displayed total (the actual charge is computed server-side).
@@ -133,6 +134,7 @@ export default function Checkout() {
     const { error } = await recordPreOrder();
     if (error) { toast("That didn't go through — give it another tap", "error"); setBusy(false); return; }
     const capturedLines = [...lines], capturedName = customer, capturedTotal = totalCents;
+    trackFunnel("order", "pickup");
     toast(`${items.length} drink${items.length === 1 ? "" : "s"} pre-ordered — ready in ~8 min`);
     checkout();
     setDone({ paid: false, total: capturedTotal, lines: capturedLines, name: capturedName });
@@ -152,6 +154,7 @@ export default function Checkout() {
         setBusy(false);
         return;
       }
+      trackFunnel("order", "pay_start");
       const res = await authedFetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -160,6 +163,7 @@ export default function Checkout() {
       const data = await res.json();
       setBusy(false);
       if (!res.ok) { setErr(data.error || "Payment failed"); return; }
+      trackFunnel("order", "paid");
       const capturedLines = [...lines], capturedName = customer;
       toast(data.warn || `Paid $${total} — order in. Ready in ~8 min.`);
       checkout(); // clears cart
