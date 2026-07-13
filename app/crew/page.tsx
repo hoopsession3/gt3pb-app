@@ -423,7 +423,7 @@ function alertDest(category: string | null | undefined, title?: string | null): 
   if (cat === "order") return { section: "now", anchor: "kitchen-pass" };  // land ON the pass, even from the pass screen
   if (cat === "money") return { section: "money" };
   if (cat === "brew") return { section: "brew" };
-  if (cat === "booking") return { section: "plan", planTab: "bookings" };
+  if (cat === "booking") return { section: "pipeline" };
   if (cat === "prep") return { section: "prep" };
   if (cat === "content" && !/content ready for review/i.test(title || "")) return { section: "studio" };
   if (cat === "strategy") return { section: "goals" };
@@ -1267,7 +1267,7 @@ function NeedsYou() {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => load(), 500);
   });
-  const goBookings = () => { try { localStorage.setItem("gt3-plan-tab", "bookings"); } catch { /* ignore */ } setSection("plan"); };
+  const goBookings = () => { setSection("pipeline"); };   // leads live in Pipeline now (one funnel)
   const openTarget = (kind: "event" | "stop", id: string) => { try { localStorage.setItem("gt3-prep-open", kind === "stop" ? `stop:${id}` : id); } catch { /* ignore */ } setSection("prep"); };
   if (news === 0 && overdue.length === 0 && low.length === 0) return null;
   return (
@@ -4891,7 +4891,7 @@ export default function AdminPage() {
   // a prep deep-link should land somewhere that explains itself, and the URL/localStorage must not
   // keep re-teleporting her on every cold open.
   const sec: OpSection = allowed.includes(section) ? section : "day";
-  const [planTab, setPlanTab] = useState<"calendar" | "events" | "vendors" | "bookings">("calendar");
+  const [planTab, setPlanTab] = useState<"calendar" | "events" | "vendors">("calendar");
   const [guideOpen, setGuideOpen] = useState(false);
   // First-run: the guide explains the console's language (Live Ops, Readiness, Route) — open it
   // once for a brand-new staffer instead of hoping she finds the ⓘ pill.
@@ -4921,7 +4921,7 @@ export default function AdminPage() {
   useEffect(() => {
     if (sec !== "plan" || typeof window === "undefined") return;
     const t = localStorage.getItem("gt3-plan-tab");
-    if (t && (["calendar", "events", "vendors", "bookings"] as const).includes(t as typeof planTab)) {
+    if (t && (["calendar", "events", "vendors"] as const).includes(t as typeof planTab)) {
       localStorage.removeItem("gt3-plan-tab"); setPlanTab(t as typeof planTab);
     }
   }, [sec]);
@@ -4956,8 +4956,8 @@ export default function AdminPage() {
   // Overview's jump links map onto the operator sections — and the Plan sub-tab when relevant,
   // so "Events" actually lands on Plan→Events instead of whatever tab was last open.
   const goSection = (t: string) => {
-    const map: Record<string, OpSection> = { events: "plan", vendors: "plan", bookings: "plan", money: "money", members: "team", stops: "stops", tasks: "day" };
-    const tab: Record<string, typeof planTab> = { events: "events", bookings: "bookings", vendors: "vendors" };
+    const map: Record<string, OpSection> = { events: "plan", vendors: "plan", bookings: "pipeline", money: "money", members: "team", stops: "stops", tasks: "day" };
+    const tab: Record<string, typeof planTab> = { events: "events", vendors: "vendors" };
     if (tab[t]) setPlanTab(tab[t]);
     setSection(map[t] ?? "prep");
   };
@@ -5078,9 +5078,9 @@ export default function AdminPage() {
             {/* This week — what's hot at this stage */}
             {/* Ordered by operating rhythm (not alphabet): when → what → where → requests in →
                 production → notes. Back office (rarely touched) sits after the divider. */}
-            {([["calendar", "Calendar", 0], ["events", "Events", planCounts.events], ["bookings", "Bookings", planCounts.bookings]] as const).map(([k, label, n]) => (
+            {([["calendar", "Calendar", 0], ["events", "Events", planCounts.events]] as const).map(([k, label, n]) => (
               <button key={k} type="button" role="tab" aria-selected={planTab === k} className={`subnav-tab${planTab === k ? " on" : ""}`} onClick={() => setPlanTab(k)}>
-                {label}{n > 0 && <span className={`subnav-badge${k === "bookings" ? " hot" : ""}`}>{n}</span>}
+                {label}{n > 0 && <span className="subnav-badge">{n}</span>}
               </button>
             ))}
             <span className="subnav-div" aria-hidden />
@@ -5092,7 +5092,6 @@ export default function AdminPage() {
           {planTab === "calendar" && <CompanyCalendar />}
           {planTab === "events" && <EventsAdmin />}
           {planTab === "vendors" && <VendorsAdmin />}
-          {planTab === "bookings" && <Bookings />}
         </>
       )}
 
@@ -5171,7 +5170,14 @@ export default function AdminPage() {
         </>
       )}
 
-      {sec === "pipeline" && canPrep && <PipelinePanel isAdmin={isAdmin} />}
+      {sec === "pipeline" && canPrep && (
+        <>
+          {/* One lead funnel (typed): inbound booking requests are the intake stage, then the B2B
+              pipeline. Consolidated here so leads live in ONE place, not split across Plan + Pipeline. */}
+          <Bookings />
+          <PipelinePanel isAdmin={isAdmin} />
+        </>
+      )}
       {sec === "stops" && canManage && <LiveControl manage />}
       {sec === "notes" && <MeetingNotes />}
       {sec === "brew" && canPrep && <BrewPlanner />}
