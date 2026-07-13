@@ -38,6 +38,7 @@ import ReviewsAdmin from "@/components/ReviewsAdmin";
 import DeliveryOps from "@/components/DeliveryOps";
 import PackPlan from "@/components/PackPlan";
 import OrgChart from "@/components/OrgChart";
+import WorkloadBoard from "@/components/WorkloadBoard";
 import CrmPanel from "@/components/CrmPanel";
 import CodesPanel from "@/components/CodesPanel";
 import CustomerKpis from "@/components/CustomerKpis";
@@ -758,6 +759,8 @@ type MyTaskRow = EventTask & {
   events: { title: string | null; day: string | null; is_live: boolean | null } | null;
   meeting_notes: { title: string | null } | null;
   goals: { title: string | null } | null;
+  source?: "event" | "todo";      // 'todo' rows are delegated to-dos (0210) folded into one plate
+  category?: string | null;       // todos carry a category instead of an event/goal parent
 };
 
 // MY DAY — the personal rollup: what's on today, the flags & pings aimed at YOU (alerts targeted
@@ -1318,23 +1321,33 @@ function MyTasks({ userId, chip = false }: { userId: string | null; chip?: boole
 
   const load = useCallback(async () => {
     if (!supabase || !userId) { setTasks([]); setLoaded(true); return; }
-    const { data } = await supabase
-      .from("event_tasks")
-      .select("*, events(title, day, is_live), meeting_notes(title), goals(title)")
-      .eq("assignee", userId)
-      .eq("done", false)
-      .order("sort");
-    setTasks((data as MyTaskRow[]) ?? []);
+    // Both task tables land on one plate: the rich event_tasks engine AND to-dos delegated via
+    // AssignTaskSheet (0210) — which used to be invisible to the assignee. Anyone's My Day now shows
+    // everything they own, whichever table it lives in.
+    const [ev, td] = await Promise.all([
+      supabase.from("event_tasks").select("*, events(title, day, is_live), meeting_notes(title), goals(title)").eq("assignee", userId).eq("done", false).order("sort"),
+      supabase.from("todos").select("id, title, category, due_on").eq("assignee", userId).eq("done", false),
+    ]);
+    const evRows = ((ev.data as MyTaskRow[]) ?? []).map((r) => ({ ...r, source: "event" as const }));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tdRows: MyTaskRow[] = ((td.data as any[]) ?? []).map((r) => ({
+      id: r.id, label: r.title, source: "todo", category: r.category,
+      due_at: r.due_on ? `${r.due_on}T23:59:59` : null,        // end-of-day so a to-do due today isn't "overdue"
+      critical: false, warn: false, events: null, meeting_notes: null, goals: null,
+    } as MyTaskRow));
+    setTasks([...evRows, ...tdRows]);
     setLoaded(true);
   }, [userId]);
 
   useEffect(() => { load(); }, [load]);
   useRealtimeTable({ table: "event_tasks", filter: `assignee=eq.${userId}` }, load, { enabled: !!userId });
+  useRealtimeTable({ table: "todos", filter: `assignee=eq.${userId}` }, load, { enabled: !!userId });
 
   const complete = async (t: MyTaskRow) => {
     if (!supabase) return;
     setTasks((p) => p.filter((x) => x.id !== t.id)); // optimistic
-    await supabase.from("event_tasks").update({ done: true, done_by: userId, done_at: new Date().toISOString() }).eq("id", t.id);
+    if (t.source === "todo") await supabase.from("todos").update({ done: true, done_at: new Date().toISOString() }).eq("id", t.id);
+    else await supabase.from("event_tasks").update({ done: true, done_by: userId, done_at: new Date().toISOString() }).eq("id", t.id);
   };
 
   if (!userId || (loaded && tasks.length === 0)) return null;
@@ -1369,7 +1382,7 @@ function MyTasks({ userId, chip = false }: { userId: string | null; chip?: boole
           </button>
           <div className="mytask-main">
             <span className="mytask-label">{t.label}</span>
-            <span className="mytask-ev">{t.meeting_notes ? `Follow-up · ${t.meeting_notes.title ?? "Meeting"}` : t.goals ? `Goal · ${t.goals.title ?? "Goal"}` : `${t.events?.title ?? "Event"}${t.events?.is_live ? " · LIVE" : t.events?.day ? ` · ${whenBucket(t.events.day).label}` : ""}`}{t.due_at ? ` · due ${dueLabel(t.due_at)}` : ""}</span>
+            <span className="mytask-ev">{t.source === "todo" ? `To-do${t.category ? ` · ${t.category}` : ""}` : t.meeting_notes ? `Follow-up · ${t.meeting_notes.title ?? "Meeting"}` : t.goals ? `Goal · ${t.goals.title ?? "Goal"}` : `${t.events?.title ?? "Event"}${t.events?.is_live ? " · LIVE" : t.events?.day ? ` · ${whenBucket(t.events.day).label}` : ""}`}{t.due_at ? ` · due ${dueLabel(t.due_at)}` : ""}</span>
           </div>
           {isOver(t) ? <span className="mytask-pri over">Overdue</span> : t.critical ? <span className="mytask-pri crit">Critical</span> : t.warn ? <span className="mytask-pri warn">Important</span> : null}
         </div>
@@ -5239,6 +5252,8 @@ export default function AdminPage() {
       {sec === "team" && isAdmin && (
         <>
           <TeamKpis />
+          <div className="crew-group">Who&apos;s on what</div>
+          <WorkloadBoard />
           <div className="crew-group">Roster</div>
           <OrgChart />
           {isOwner && <Members />}

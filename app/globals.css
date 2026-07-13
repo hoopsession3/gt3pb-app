@@ -4543,6 +4543,26 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .spb-amt{flex:0 0 80px!important}
 .spb-desc{flex:2 1 120px!important}
 .app.crew-day .spb-bar{background:rgba(26,22,16,.08)}
+
+/* ── Team workload board ── */
+.wl{display:flex;flex-direction:column;gap:8px}
+.wl-empty{font-family:'Inter';font-size:13px;color:var(--cream-m);padding:6px 2px}
+.wl-row{display:grid;grid-template-columns:minmax(90px,1.2fr) 2fr auto;align-items:center;gap:11px}
+.wl-who{display:flex;flex-direction:column;min-width:0}
+.wl-who b{font-family:'Inter';font-weight:700;font-size:13px;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wl-role{font-family:'Inter';font-size:10.5px;color:var(--cream-m);text-transform:capitalize}
+.wl-bar{display:block;height:8px;border-radius:999px;background:rgba(255,255,255,.06);overflow:hidden}
+.wl-bar>span{display:block;height:100%;background:var(--gold);border-radius:999px;min-width:2px}
+.wl-bar>span.over{background:#c4453c}
+.wl-n{font-family:'Inter';font-size:12px;color:var(--cream-m);white-space:nowrap;font-variant-numeric:tabular-nums}
+.wl-over{color:#d98a7d;font-weight:600}
+.app.crew-day .wl-bar{background:rgba(26,22,16,.08)}
+
+/* ── Goal owner (accountability) ── */
+.goal-owner{display:flex;align-items:center;gap:8px;margin-top:9px}
+.goal-owner-l{font-family:'Inter';font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--cream-m)}
+.goal-owner-sel{font-family:'Inter';font-size:12px;padding:4px 9px;border-radius:8px;border:1px solid var(--line2);background:var(--card);color:var(--cream)}
+.goal-owner-n{font-family:'Inter';font-weight:600;font-size:12.5px;color:var(--cream)}
 .app.crew-day .mkpi-v{color:#7a5a1e}
 .app.crew-day .mkpi-k{color:rgba(26,22,16,.55)}
 .app.crew-day .crew-group{color:#8a6a2a}

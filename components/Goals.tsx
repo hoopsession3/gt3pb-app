@@ -22,7 +22,7 @@ type Goal = {
   target_value: number; current_value: number; due_date: string | null;
   play: string | null; source: string | null; status: "active" | "hit" | "missed" | "archived";
   author_name: string | null; updated_at: string;
-  stream_key: string | null; metric_source: string | null;
+  stream_key: string | null; metric_source: string | null; owner_user_id: string | null;
 };
 type Move = { id: string; goal_id: string; label: string; done: boolean; assignee: string | null; due_at: string | null; sort: number };
 type Staff = { id: string; display_name: string | null };
@@ -104,6 +104,13 @@ export default function Goals() {
     if (!supabase) return;
     setRows((r) => r.map((x) => (x.id === g.id ? { ...x, stream_key } : x)));
     await supabase.from("goals").update({ stream_key }).eq("id", g.id);
+  };
+
+  // Every objective gets ONE accountable owner (distinct from the people doing the individual moves).
+  const setOwner = async (g: Goal, uid: string) => {
+    if (!supabase) return;
+    setRows((r) => r.map((x) => (x.id === g.id ? { ...x, owner_user_id: uid || null } : x)));
+    await supabase.from("goals").update({ owner_user_id: uid || null, updated_at: new Date().toISOString() }).eq("id", g.id);
   };
 
   const addInitiative = async (goalId: string) => {
@@ -188,6 +195,18 @@ export default function Goals() {
         <div className="goal-nums">
           <span><b>{cur}</b> of <b>{g.target_value}</b>{g.unit && ` ${g.unit}`}</span>
           <span>{goalInits.length > 0 && `${doneN}/${goalInits.length} moves · `}{g.due_date ? `by ${new Date(`${g.due_date}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : g.source ? "standing" : ""}</span>
+        </div>
+
+        <div className="goal-owner">
+          <span className="goal-owner-l">Owner</span>
+          {canLead ? (
+            <select className="goal-owner-sel" value={g.owner_user_id ?? ""} onChange={(e) => setOwner(g, e.target.value)} aria-label={`Owner of ${g.title}`}>
+              <option value="">Unassigned</option>
+              {staff.map((s) => <option key={s.id} value={s.id}>{s.display_name || "Unnamed"}</option>)}
+            </select>
+          ) : (
+            <span className="goal-owner-n">{firstName(g.owner_user_id) ?? "Unassigned"}</span>
+          )}
         </div>
 
         {/* the breakdown — the concrete moves that accomplish this goal */}
