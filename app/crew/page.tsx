@@ -44,6 +44,7 @@ import CustomerKpis from "@/components/CustomerKpis";
 import FunnelReport from "@/components/FunnelReport";
 import { TeamKpis, PrepKpis, GarageKpis } from "@/components/CrewKpis";
 import InlineCreate from "@/components/InlineCreate";
+import Changelog from "@/components/Changelog";
 import DriverDash from "@/components/DriverDash";
 import PipelinePanel from "@/components/PipelinePanel";
 import GearLibrary from "@/components/GearLibrary";
@@ -4779,7 +4780,7 @@ const SEC_MORE: Record<OpSection, string> = {
   customers: "Your customer book. Every person who's ordered — cup, pickup or delivery, with or without an account — with their history, loyalty and contact info in one place.",
   team: "Your people. Add crew, set roles and access, and manage training — who can see and do what.",
   ask: "Your pocket brain. Ask anything about recipes, the why, gear, stock or how-to and get an answer from the GT3 playbook — from any screen.",
-  settings: "The owner control room — everything you can change without a developer. The wording guests read (copy) lives here, plus office-delivery pricing, and a map straight to brand, payments, menu, discount codes and roles. Edits go live instantly, no deploy.",
+  settings: "The owner control room — everything you can change without a developer. The wording guests read (copy) lives here, plus office-delivery pricing, and a map straight to brand, payments, menu, discount codes and roles. It also holds “What we've built” — the running changelog of every improvement shipped, categorized so anyone can see the whole story of how GT3 got built. Edits go live instantly, no deploy.",
   audit: "The app's audit trail — every review run on it (security, privacy, performance, accessibility, UI cohesion, data), with a score, the date it ran, the prompt used, and when it's due to run again. A health strip leads (average score · what's overdue · last run); log a new audit any time you run one.",
 };
 const SEC_INSIDE: Record<OpSection, string[]> = {
@@ -4799,7 +4800,7 @@ const SEC_INSIDE: Record<OpSection, string[]> = {
   money: ["Checkout & payments — card status + the pay-at-pickup toggle (governs cup, reserve & delivery)", "Sales · snapshot · per-event P&L", "Product economics & COGS", "Membership plans & subscribers", "Order history", "The Playbook (/playbook, owners) — every growth play + where its numbers land here", "Reserve drops — configure the limited drops"],
   team: ["Staff roster", "Roles & permissions", "Training & academy", "Manager approvals"],
   ask: ["Recipes & the why", "Gear & stock how-to", "The GT3 playbook"],
-  settings: ["Copy & wording — every line guests read", "Office delivery pricing & minimum", "A map to brand, payments, menu, codes & roles"],
+  settings: ["Copy & wording — every line guests read", "Office delivery pricing & minimum", "What we've built — the categorized changelog of every improvement shipped", "A map to brand, payments, menu, codes & roles"],
   audit: ["Health strip — average score, what's overdue, last run", "The full audit log — security, privacy, performance, a11y, cohesion, data", "Log an audit — score, date, prompt, findings & artifact link", "Re-run cadence & overdue flags"],
 };
 
@@ -5116,6 +5117,7 @@ export default function AdminPage() {
           {isAdmin && <Panel id="set-office" title="Office delivery · price & minimum"><OfficeSettings /></Panel>}
           <Panel id="set-ai" title="AI copilots · the full catalog"><CopilotDirectory /></Panel>
           {isAdmin && <Panel id="set-spend" title="AI spend · what your copilots cost"><AiSpend /></Panel>}
+          <Panel id="set-changelog" title="What we've built · changelog"><Changelog /></Panel>
           <div className="crew-group">More controls</div>
           <div className="set-map">
             {([
