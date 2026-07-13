@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useApp } from "./AppProvider";
+import { isBlank } from "@/lib/formGuard";
 import { supabase } from "@/lib/supabase";
 
 // MEMBERSHIP PLAN editor — manage subscription tiers in-app (was SQL-only). CRUD on subscription_plans.
@@ -22,7 +23,7 @@ export default function PlanEditor() {
     if (!supabase) return;
     const key = prompt("Plan key (lowercase id, e.g. 'pro')")?.trim().toLowerCase();
     if (!key) return;
-    const { error } = await supabase.from("subscription_plans").insert({ key, label: "New plan", price_cents: 0, period_days: 14 });
+    const { error } = await supabase.from("subscription_plans").insert({ key, label: "", price_cents: 0, period_days: 14, active: false });
     if (error) toast(`Error: ${error.message}`, "error"); else load();
   };
 
@@ -46,6 +47,8 @@ function PlanRow({ p, onSaved, toast }: { p: Plan; onSaved: () => void; toast: (
 
   const save = async () => {
     if (!supabase) return;
+    if (isBlank(d.label)) { toast("Name the plan first", "error"); return; }
+    if (d.active && !(Number(d.price_cents) > 0)) { toast("Set a price above $0 before activating the plan", "error"); return; }
     const { error } = await supabase.from("subscription_plans").update({ label: d.label.trim(), price_cents: Math.round(Number(d.price_cents) || 0), period_days: Math.round(Number(d.period_days) || 1), active: d.active }).eq("key", p.key);
     if (error) toast(`Error: ${error.message}`, "error"); else { toast("Saved"); onSaved(); }
   };
@@ -71,7 +74,7 @@ function PlanRow({ p, onSaved, toast }: { p: Plan; onSaved: () => void; toast: (
         </div>
         <div className="prod-actions">
           <button type="button" className="note-arch" onClick={del}>Delete</button>
-          <button type="button" className="note-save" onClick={save} disabled={!dirty}>Save</button>
+          <button type="button" className="note-save" onClick={save} disabled={!dirty || isBlank(d.label) || (d.active && !(Number(d.price_cents) > 0))}>Save</button>
         </div>
       </div>
     </div>

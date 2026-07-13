@@ -3598,7 +3598,7 @@ function ReservesAdmin() {
   };
   const add = async () => {
     const { error } = await supabase!.from("reserves").insert({
-      name: "New reserve", price_cents: 1200, stock_total: 12, stock_remaining: 12, status: "draft", sort: rows.length,
+      name: "", price_cents: 1200, stock_total: 12, stock_remaining: 12, status: "draft", sort: rows.length,
     });
     toast(error ? `Error: ${error.message}` : "Reserve created — set details, then set it Live");
     if (!error) load();

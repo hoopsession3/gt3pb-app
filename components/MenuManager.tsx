@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useApp } from "./AppProvider";
+import { isBlank } from "@/lib/formGuard";
 import { supabase } from "@/lib/supabase";
 
 // MENU / PRODUCT manager — the catalog as a managed, relational record. Edit every attribute
@@ -32,7 +33,9 @@ export default function MenuManager() {
   const create = async () => {
     if (!supabase) return;
     const slug = `item-${Math.random().toString(36).slice(2, 7)}`;
-    const { data } = await supabase.from("products").insert({ slug, name: "New item", line: "Activation", price_cents: 0, sort: (products.at(-1)?.sort ?? 0) + 1 }).select("id").single();
+    // New products start as an OFF-menu draft with a blank name — they can't be charged from until
+    // they're named, priced (> $0) and switched on, so a stray "+ New" click can't put junk on the live menu.
+    const { data } = await supabase.from("products").insert({ slug, name: "", line: "Activation", price_cents: 0, active: false, sort: (products.at(-1)?.sort ?? 0) + 1 }).select("id").single();
     if (data?.id) { await load(); setOpenId(data.id); }
   };
 
@@ -61,6 +64,8 @@ function ProductRow({ p, inv, open, onToggle, onSaved, toast }: { p: Product; in
 
   const save = async () => {
     if (!supabase) return;
+    if (isBlank(d.name)) { toast("Give it a name first", "error"); return; }
+    if (d.active && !(Number(d.price_cents) > 0)) { toast("Set a price above $0 before putting it on the menu", "error"); return; }
     const { error } = await supabase.from("products").update({
       name: d.name.trim(), line: d.line, price_cents: Math.round(Number(d.price_cents) || 0), active: d.active, what: d.what, why: d.why,
       ingredients: (d.ingredients || []), excludes: (d.excludes || []), timing: d.timing, slug: d.slug.trim(),
@@ -156,7 +161,7 @@ function ProductRow({ p, inv, open, onToggle, onSaved, toast }: { p: Product; in
 
           <div className="prod-actions">
             <button type="button" className="note-arch" onClick={del}>Delete</button>
-            <button type="button" className="note-save" onClick={save}>Save</button>
+            <button type="button" className="note-save" onClick={save} disabled={isBlank(d.name) || (d.active && !(Number(d.price_cents) > 0))}>Save</button>
           </div>
         </div>
       )}
