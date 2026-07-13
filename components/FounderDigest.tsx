@@ -40,8 +40,10 @@ export default function FounderDigest() {
     try {
       const r = await authedFetch("/api/cron/digest", { method: "POST" });
       const j = await r.json();
-      if (j.ok) toast(`Digest sent to ${j.sent} founder${j.sent === 1 ? "" : "s"}`);
-      else toast(`Couldn't send — ${j.error ?? "try again"}`, "error");
+      if (!j.ok) toast(`Couldn't send — ${j.error ?? "try again"}`, "error");
+      else if (j.emailConfigured === false) toast("Email isn't set up yet — add RESEND keys to send digests", "error");
+      else if (j.sent === 0) toast("No founder accounts to send to yet", "error");
+      else toast(`Digest sent to ${j.sent} founder${j.sent === 1 ? "" : "s"}`);
     } catch { toast("Couldn't send — try again", "error"); }
     setSending(false);
   };

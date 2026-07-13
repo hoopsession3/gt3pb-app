@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { staffFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { accountEmail, sendEmail, sendSMS } from "@/lib/notify";
+import { accountEmail, sendEmail, sendSMS, emailEnabled } from "@/lib/notify";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -83,5 +83,5 @@ export async function POST(req: Request) {
     } catch { /* SMS best-effort */ }
   }
 
-  return NextResponse.json({ ok: true, sent, summary: headline });
+  return NextResponse.json({ ok: true, sent, emailConfigured: emailEnabled(), summary: headline });
 }
