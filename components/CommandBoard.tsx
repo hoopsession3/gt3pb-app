@@ -6,6 +6,7 @@ import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { useRealtimeTable } from "@/lib/realtime";
 import MoneyKpis from "./MoneyKpis";
+import LaunchReadiness from "./LaunchReadiness";
 import InlineCreate from "./InlineCreate";
 import Sheet from "@/components/Sheet";
 
@@ -165,6 +166,9 @@ export default function CommandBoard() {
         );
       })}
       {isAdmin && <InlineCreate label="+ New initiative" placeholder="Initiative name" className="cmd-add big" onCreate={createInit} />}
+
+      {/* ── Launch readiness · go/no-go ── */}
+      <LaunchReadiness />
 
       {/* ── This Week ── */}
       <div className="crew-group">This week</div>

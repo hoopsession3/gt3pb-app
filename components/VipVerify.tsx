@@ -30,8 +30,9 @@ export default function VipVerify() {
     setBusy(true); setErr("");
     const up = await uploadToBucket({ bucket: "vip", file, prefix: user.id });   // own-folder path satisfies the bucket RLS
     if ("error" in up) { setErr(up.error); setBusy(false); return; }
-    const customerId = (await supabase.rpc("resolve_customer", { p_user_id: user.id, p_phone: null, p_email: null, p_name: null }).then((r) => r.data, () => null)) as string | null;
-    const { error } = await supabase.from("vip_verifications").insert({ user_id: user.id, customer_id: customerId, photo_url: up.url });
+    // customer_id is filled server-side by the link_vip_customer trigger (0204) — resolve_customer is
+    // service-role only, so the client can't call it; the trigger folds this proof onto the canonical customer.
+    const { error } = await supabase.from("vip_verifications").insert({ user_id: user.id, photo_url: up.url });
     setBusy(false);
     if (error) { setErr(error.message); return; }
     load();

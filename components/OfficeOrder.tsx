@@ -63,7 +63,9 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
       contact_name: contact.trim() || null, contact_phone: phone.trim() || null,
       address_street: street.trim(), address_city: city.trim(), address_zip: zip.trim(),
       access_instructions: access.trim() || null, delivery_date: dateKey, delivery_window: OFFICE.window,
-      gallons: q.gallons, price_per_gallon_cents: OFFICE.pricePerGallonCents,
+      // Record the SAME per-gallon price the quote charged (the live_status override, 0189) — not the
+      // hardcoded OFFICE constant, which drifted from settings.priceCents and mis-recorded the price.
+      gallons: q.gallons, price_per_gallon_cents: settings.priceCents,
       subtotal_cents: q.subtotalCents, delivery_fee_cents: q.deliveryFeeCents, tax_cents: q.taxCents, total_cents: q.totalCents,
       billing_terms: billing, standing,
     }).select("id").single();

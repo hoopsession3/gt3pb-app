@@ -8,6 +8,7 @@ export interface InvItem {
   id: string;
   name: string;
   qty: number | null;
+  onHand: number | null;      // effective on-hand: ledger balance when we have one, else static qty (0205)
   eventReady: number | null;
   reorderPoint: number | null;
   status: string | null;
@@ -51,14 +52,17 @@ export function eventUseCases(e: EventRow): string[] {
 const isOnHand = (it: InvItem) => it.status == null || it.status === "On Hand" || it.status === "In Transit";
 const relevantTo = (it: InvItem, cases: Set<string>) =>
   it.useCases.some((u) => cases.has(u)) || it.requiredFor.includes("All Events") || it.critical;
-const isLow = (it: InvItem) => it.qty != null && it.reorderPoint != null && it.qty <= it.reorderPoint;
+// Reorder math runs on effective on-hand (ledger balance when we have one, else static qty) so real
+// logged consumption — not just hand-edits — trips the threshold. Mirrors the 0205 inventory_status view.
+export const effOnHand = (it: InvItem) => it.onHand ?? it.qty;
+const isLow = (it: InvItem) => { const q = effOnHand(it); return q != null && it.reorderPoint != null && q <= it.reorderPoint; };
 
 export interface InvCheck { relevant: InvItem[]; low: InvItem[]; out: InvItem[]; onHandCount: number }
 export function inventoryForEvent(items: InvItem[], e: EventRow): InvCheck {
   const cases = new Set(eventUseCases(e));
   const relevant = items.filter((it) => isOnHand(it) && relevantTo(it, cases));
   const low = relevant.filter(isLow);
-  const out = relevant.filter((it) => it.qty != null && it.qty <= 0);
+  const out = relevant.filter((it) => { const q = effOnHand(it); return q != null && q <= 0; });
   return { relevant, low, out, onHandCount: relevant.length };
 }
 
@@ -69,7 +73,7 @@ export function rollupLowStock(items: InvItem[], events: EventRow[]): InvItem[] 
   events.forEach((e) => eventUseCases(e).forEach((c) => cases.add(c)));
   const low = items.filter((it) => isOnHand(it) && relevantTo(it, cases) && isLow(it));
   const seen = new Set<string>();
-  const outFirst = (it: InvItem) => ((it.qty ?? 0) <= 0 ? 1 : 0);
+  const outFirst = (it: InvItem) => ((effOnHand(it) ?? 0) <= 0 ? 1 : 0);
   return low
     .filter((it) => (seen.has(it.name) ? false : (seen.add(it.name), true)))
     .sort((a, b) => outFirst(b) - outFirst(a) || a.name.localeCompare(b.name));

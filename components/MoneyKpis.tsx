@@ -4,9 +4,12 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 // MONEY KPIs — the "how are we doing?" answer that opens the Money section, so it reads as a
-// dashboard instead of a list of doors. Four live tiles: revenue this week, orders today, active
-// subscribers, pack pickups. Every query is defensive (fails to "—") so a schema gap or a
-// missing table can never break the section — the number just goes quiet.
+// dashboard instead of a list of doors. The headline revenue tile sums ALL FOUR order channels the
+// app records — cup + pack pickup + delivery + office — not just cups (it used to read `orders`
+// alone, silently omitting three revenue streams). This is app-recorded order revenue, deliberately
+// NOT the Square book-of-record reconciliation (report_sales, 0197) — that answers a different
+// question and its authority is an open call. Every query is defensive (fails to "—"/skips) so a
+// schema gap or missing table can never break the section — the number just goes quiet.
 type Kpi = { k: string; v: string; sub: string };
 
 const money = (cents: number) => `$${(cents / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
@@ -15,7 +18,7 @@ const startOfWeek = () => { const d = new Date(); d.setDate(d.getDate() - 6); d.
 
 export default function MoneyKpis() {
   const [kpis, setKpis] = useState<Kpi[]>([
-    { k: "week_rev", v: "—", sub: "Revenue · 7 days" },
+    { k: "week_rev", v: "—", sub: "Revenue · all channels · 7d" },
     { k: "today_orders", v: "—", sub: "Orders today" },
     { k: "subs", v: "—", sub: "Active subscribers" },
     { k: "reserves", v: "—", sub: "Pack pickups" },
@@ -34,22 +37,29 @@ export default function MoneyKpis() {
     (async () => {
       const today = startOfToday();
       const week = startOfWeek();
-      const [rev, orders, subs, reserves, office] = await Promise.all([
+      // Four revenue channels (cup / pack pickup / delivery / office) + three counts. Each channel
+      // filters to paid, not-canceled rows in the last 7d, from the app's own order tables.
+      const [cup, packs, deliv, office, orders, subs, reserves] = await Promise.all([
         safe(() => supabase!.from("orders").select("total_cents").eq("paid", true).neq("status", "void").gte("created_at", week)),
+        safe(() => supabase!.from("drop_orders").select("total_cents").eq("paid", true).is("canceled_at", null).gte("created_at", week)),
+        safe(() => supabase!.from("delivery_orders").select("total_cents").eq("payment_status", "paid").is("canceled_at", null).gte("created_at", week)),
+        safe(() => supabase!.from("business_orders").select("total_cents").eq("payment_status", "paid").is("canceled_at", null).gte("created_at", week)),
         safe(() => supabase!.from("orders").select("id", { count: "exact", head: true }).neq("status", "void").gte("created_at", today)),
         safe(() => supabase!.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "active")),
         safe(() => supabase!.from("drop_orders").select("id", { count: "exact", head: true }).is("canceled_at", null).gte("drop_date", today.slice(0, 10))),
-        safe(() => supabase!.from("business_orders").select("total_cents").is("canceled_at", null).gte("created_at", week)),
       ]);
       if (!live) return;
-      const revCents = rev.data?.reduce((s, o) => s + num(o.total_cents), 0);
-      const officeCents = office.data?.reduce((s, o) => s + num(o.total_cents), 0);
+      const sum = (q: Q) => (q.data ? q.data.reduce((s, o) => s + num(o.total_cents), 0) : null);
+      const cupC = sum(cup), packC = sum(packs), delivC = sum(deliv), officeC = sum(office);
+      // Headline = every channel that answered. Quiet only if all four failed (never a silent cup-only total).
+      const anyRev = [cupC, packC, delivC, officeC].some((c) => c != null);
+      const totalC = (cupC ?? 0) + (packC ?? 0) + (delivC ?? 0) + (officeC ?? 0);
       setKpis([
-        { k: "week_rev", v: rev.data ? money(revCents ?? 0) : "—", sub: "Revenue · 7 days" },
+        { k: "week_rev", v: anyRev ? money(totalC) : "—", sub: "Revenue · all channels · 7d" },
         { k: "today_orders", v: orders.count != null ? String(orders.count) : "—", sub: "Orders today" },
         { k: "subs", v: subs.count != null ? String(subs.count) : "—", sub: "Active subscribers" },
         { k: "reserves", v: reserves.count != null ? String(reserves.count) : "—", sub: "Pack pickups" },
-        { k: "office_rev", v: office.data ? money(officeCents ?? 0) : "—", sub: "Office · 7 days" },
+        { k: "office_rev", v: officeC != null ? money(officeC) : "—", sub: "Office · 7 days" },
       ]);
     })();
     return () => { live = false; };

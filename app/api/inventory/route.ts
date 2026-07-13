@@ -19,7 +19,9 @@ export async function GET(req: Request) {
     global: { headers: { Authorization: `Bearer ${token}` } },
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const { data, error } = await sb.from("inventory_items").select("*");
+  // inventory_status (0205) = inventory_items + reconciled on-hand from the ledger, so reorder math
+  // reflects real consumption, not just hand-edited qty.
+  const { data, error } = await sb.from("inventory_status").select("*");
   if (error) return Response.json({ enabled: true, error: error.message, items: [] });
 
   const num = (v: any) => (typeof v === "number" ? v : v == null ? null : Number(v));
@@ -27,6 +29,7 @@ export async function GET(req: Request) {
     id: r.id,
     name: r.name || "—",
     qty: num(r.qty),
+    onHand: num(r.effective_on_hand),
     eventReady: num(r.qty_event_ready),
     reorderPoint: num(r.reorder_point),
     status: r.status ?? null,
