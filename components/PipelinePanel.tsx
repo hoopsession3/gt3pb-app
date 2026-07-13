@@ -89,6 +89,40 @@ type Staff = { id: string; display_name: string | null };
 
 const money = (c: number | null) => (c == null ? "" : `$${(c / 100).toLocaleString()}`);
 
+// Live ROI what-if — sits inside the New Deal form so you can feel a % before you commit it. Drag the
+// cut and an editable monthly volume and it shows the real dollar split + what it leaves you in margin
+// against the floor. Pure/derived — reads the same residualMargin + belowFloor rules the saved deal
+// will be judged by, so "what 10% looks like" here is exactly what it'll be once it's on the table.
+function DealRoi({ model, rate, econ, vol, setVol }: { model: string; rate: number; econ: Econ; vol: number; setVol: (s: string) => void }) {
+  const share = model === "rev_share";
+  const theirs = Math.round(vol * rate / 100);
+  const ours = Math.max(0, vol - theirs);
+  const keepPct = Math.max(0, Math.min(100, 100 - rate));
+  const residual = residualMargin({ model, rate_pct: rate } as Deal, econ);
+  const below = rate > 0 && belowFloor({ model, rate_pct: rate } as Deal, econ);
+  return (
+    <div className={`roi${below ? " below" : ""}`}>
+      <div className="roi-h">
+        <span>What {rate || 0}% looks like</span>
+        <label className="roi-vol">on&nbsp;$<input inputMode="decimal" value={String(vol)} onChange={(e) => setVol(e.target.value)} aria-label="Estimated monthly volume" />/mo</label>
+      </div>
+      <div className="roi-bar" role="img" aria-label={`You keep ${keepPct}%, ${share ? "they take" : "they save"} ${rate}%`}>
+        <span className="roi-you" style={{ width: `${keepPct}%` }} />
+        <span className="roi-them" style={{ width: `${Math.max(0, Math.min(100, rate))}%` }} />
+      </div>
+      <div className="roi-split">
+        <span><b>${ours.toLocaleString()}</b> you keep</span>
+        <span><b>${theirs.toLocaleString()}</b> {share ? "to them" : "they save"}</span>
+      </div>
+      <div className={`roi-margin ${below ? "bad" : "ok"}`}>
+        {residual != null
+          ? `Leaves ${residual}% gross margin — ${below ? `under the ${RESIDUAL_MARGIN_FLOOR}% floor` : "clears the floor"}`
+          : below ? `Give is ${rate}% — over the ${MARGIN_FLOOR_GIVE}% cap` : `Give is ${rate}% of revenue — within the ${MARGIN_FLOOR_GIVE}% cap`}
+      </div>
+    </div>
+  );
+}
+
 export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   const { toast } = useApp();
   const { user, profile } = useAuth();
@@ -115,6 +149,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   const [mineOnly, setMineOnly] = useState(!isAdmin);
   const [no, setNo] = useState({ vendorId: "", newVendor: "", newType: "gym", dealId: "", repId: "", value: "", nextStep: "" });
   const [nd, setNd] = useState({ title: "", vendor_type: "gym", price_label: "", blurb: "", model: "rev_share", rate: "", amount: "", line: "wholesale" });
+  const [roiVol, setRoiVol] = useState("1000");   // the "play with it" monthly-volume assumption for the live ROI card
   const [editId, setEditId] = useState<string | null>(null);    // deal being edited in the catalog
   const [ed, setEd] = useState({ title: "", vendor_type: "gym", price_label: "", blurb: "", model: "rev_share", rate: "", amount: "", line: "wholesale" });
 
@@ -488,6 +523,9 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
                 )}
                 {nd.model === "custom" && (
                   <label>Terms<input value={nd.price_label} onChange={(e) => setNd({ ...nd, price_label: e.target.value })} placeholder="Describe the structure" maxLength={40} /></label>
+                )}
+                {(nd.model === "rev_share" || nd.model === "discount") && (
+                  <DealRoi model={nd.model} rate={Number(nd.rate) || 0} econ={econ} vol={Math.max(0, Number(roiVol) || 0)} setVol={setRoiVol} />
                 )}
                 <label>One-liner<input value={nd.blurb} onChange={(e) => setNd({ ...nd, blurb: e.target.value })} placeholder="What the account gets" maxLength={120} /></label>
               </div>

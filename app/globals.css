@@ -4336,6 +4336,23 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .fn-drop{font-family:'Inter';font-size:10.5px;color:#c98b7a;margin-top:3px}
 .app.crew-day .fn-block,.app.crew-day .fn-days{background:#fff;border-color:rgba(26,22,16,.1)}
 .app.crew-day .fn-bar{background:rgba(26,22,16,.06)}
+
+/* ── Live deal ROI what-if (Pipeline · New Deal form) ── */
+.roi{grid-column:1/-1;margin:2px 0;padding:11px 12px;border:1px solid var(--line2);border-radius:12px;background:var(--card);display:flex;flex-direction:column;gap:8px}
+.roi.below{border-color:rgba(201,139,122,.5)}
+.roi-h{display:flex;align-items:center;justify-content:space-between;gap:8px;font-family:'Inter';font-weight:700;font-size:12.5px;color:var(--cream)}
+.roi-vol{font-weight:600;font-size:11.5px;color:var(--cream-m);display:inline-flex;align-items:center;gap:1px;white-space:nowrap}
+.roi-vol input{width:60px;background:rgba(255,255,255,.05);border:1px solid var(--line2);border-radius:7px;padding:3px 6px;margin:0 2px;color:var(--cream);font-family:'Inter';font-weight:700;font-size:12px;text-align:right;-webkit-appearance:none;appearance:none}
+.roi-bar{display:flex;height:10px;border-radius:999px;overflow:hidden;background:rgba(255,255,255,.06)}
+.roi-you{background:linear-gradient(90deg,var(--gold),var(--gold2));transition:width .2s ease}
+.roi-them{background:rgba(201,139,122,.55);transition:width .2s ease}
+.roi-split{display:flex;justify-content:space-between;font-family:'Inter';font-size:12px;color:var(--cream-m)}
+.roi-split b{color:var(--cream);font-weight:800;font-variant-numeric:tabular-nums}
+.roi-margin{font-family:'Inter';font-size:11px;font-weight:600}
+.roi-margin.ok{color:#8fae86}
+.roi-margin.bad{color:#c98b7a}
+.app.crew-day .roi,.app.crew-day .roi-vol input{background:#fff;border-color:rgba(26,22,16,.12)}
+.app.crew-day .roi-bar{background:rgba(26,22,16,.08)}
 .app.crew-day .mkpi-v{color:#7a5a1e}
 .app.crew-day .mkpi-k{color:rgba(26,22,16,.55)}
 .app.crew-day .crew-group{color:#8a6a2a}
