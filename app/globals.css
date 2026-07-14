@@ -5717,3 +5717,17 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .ownerdet-warn{font-size:12.5px;line-height:1.45;color:#e0a23a;font-weight:600;margin:8px 2px 0;padding:9px 11px;border:1px solid rgba(224,162,58,.4);background:rgba(224,162,58,.1);border-radius:9px}
 .app.crew-day .ownerdet-typehint{color:#6a5a3a;background:rgba(169,124,63,.08)}
 .app.crew-day .ownerdet-warn{color:#8a5a12}
+
+/* ── MemberInbox — "your stuff" order-activity feed on customer Today (MemberInbox.tsx) ── */
+.minbox{margin:0 0 18px;display:flex;flex-direction:column;gap:8px}
+.minbox-h{font-family:'Inter';font-weight:600;letter-spacing:2px;text-transform:uppercase;font-size:11px;color:var(--gold2,#c8a661);margin-bottom:2px}
+.minbox-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;background:var(--card,#1a1710);border:1px solid var(--line,#2a2620);text-decoration:none;color:inherit;transition:transform .12s var(--ease,ease),border-color .15s}
+.minbox-row:active{transform:scale(.99)}
+.minbox-row.tone-live{border-color:rgba(184,36,32,.45);background:linear-gradient(180deg,rgba(184,36,32,.08),transparent)}
+.minbox-row.tone-warn{border-color:rgba(224,162,58,.5)}
+.minbox-ic{font-size:20px;flex:0 0 auto;line-height:1}
+.minbox-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.minbox-main b{font-family:'Inter';font-weight:650;font-size:14.5px;color:var(--cream);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.minbox-main span{font-size:12.5px;color:var(--cream-m)}
+.minbox-row.tone-live .minbox-main span{color:#e79a96;font-weight:600}
+.minbox-when{flex:0 0 auto;font-size:11px;color:var(--cream-m);opacity:.7;font-variant-numeric:tabular-nums}

@@ -8,6 +8,7 @@ import { useApp } from "@/components/AppProvider";
 import GenerateDay from "@/components/GenerateDay";
 import ReservePitch from "@/components/ReservePitch";
 import StampCard from "@/components/StampCard";
+import MemberInbox, { useHasActiveOrder } from "@/components/MemberInbox";
 import Skeleton from "@/components/Skeleton";
 import Watermark from "@/components/Watermark";
 import { useSiteCopy } from "@/lib/copy";
@@ -74,6 +75,7 @@ function TodayReal({ t }: { t: (k: string) => string }) {
   // local date + greeting a frame later.
   const [now, setNow] = useState<Date | null>(null);
   useEffect(() => { setNow(new Date()); }, []);
+  const hasActive = useHasActiveOrder();
 
   return (
     <section className="screen" id="s-today">
@@ -90,9 +92,11 @@ function TodayReal({ t }: { t: (k: string) => string }) {
         </Link>
       </div>
       <div className="h-title">{now ? `${greet(now)}, ` : ""}{name}.</div>
+      <MemberInbox />
       <YourUsual />
       <StampCard />
-      <ReservePitch />
+      {/* Don't upsell "reserve a drop" to someone who already has a pack/delivery coming. */}
+      {!hasActive && <ReservePitch />}
       <div className="h-sub">{t("home.questions")}</div>
       <GenerateDay />
     </section>
