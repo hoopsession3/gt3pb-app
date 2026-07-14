@@ -15,6 +15,7 @@ import { useWorkStreams, streamOfCategory } from "@/lib/streams";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useOperatorSection, sectionsForRole, streamGroups, SECTION_LABEL, TODAY_GROUP, type OpSection } from "@/components/OperatorNav";
 import { useTaskSheet } from "@/components/TaskSheet";
+import GtmCard from "@/components/GtmCard";
 import { CrumbProvider, Breadcrumbs, useCrumb } from "@/components/Crumbs";
 import { recordRecent } from "@/components/recents";
 import { queueOrderStatus, isNetworkError, saveSnapshot, readSnapshot, readQueue, OFFLINE_EVENT } from "@/components/offline";
@@ -1240,6 +1241,7 @@ function MyDay({ userId, meName, isLeader, canPrep, canBrew }: { userId: string 
           </>
         )}
       </div>
+      <GtmCard />
       {today.length > 0 && (
         <div className="myday-today">
           {today.map((e) => (
