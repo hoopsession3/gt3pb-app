@@ -5711,3 +5711,9 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 
 /* .mytask-main is now a <button> (opens TaskSheet) — strip button chrome so it reads as before */
 button.mytask-main{-webkit-appearance:none;appearance:none;background:none;border:none;text-align:left;cursor:pointer;width:100%;min-width:0;font:inherit;color:inherit}
+
+/* event-vs-stop create helpers (OwnerDetail edit form) */
+.ownerdet-typehint{font-size:12px;line-height:1.5;color:var(--cream-m);margin:7px 2px 2px;padding:8px 11px;border-left:2px solid var(--gold2,#c8a661);background:rgba(200,166,97,.06);border-radius:0 8px 8px 0}
+.ownerdet-warn{font-size:12.5px;line-height:1.45;color:#e0a23a;font-weight:600;margin:8px 2px 0;padding:9px 11px;border:1px solid rgba(224,162,58,.4);background:rgba(224,162,58,.1);border-radius:9px}
+.app.crew-day .ownerdet-typehint{color:#6a5a3a;background:rgba(169,124,63,.08)}
+.app.crew-day .ownerdet-warn{color:#8a5a12}

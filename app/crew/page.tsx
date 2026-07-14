@@ -799,6 +799,7 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
   const [saving, setSaving] = useState(false);
   const [wrapping, setWrapping] = useState(false); // capturing the after-action to complete an event
   const [recap, setRecap] = useState("");
+  const [dupWarn, setDupWarn] = useState<string | null>(null);
   // Per-stop order-ahead / pickup (0191) — kept out of `f` so the boolean/number types stay clean.
   const [oa, setOa] = useState(false);
   const [pk, setPk] = useState(false);
@@ -902,6 +903,29 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
   };
   // Start time — stops carry a real timestamp; this finally lets you SET the time of day, not just the date.
   const timeVal = !f || isEvent || !f.starts_at ? "" : (() => { const d = new Date(f.starts_at); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; })();
+  // Same-day-same-place guard — warn (never block) if another ACTIVE event OR stop already sits at
+  // this location on this date. Events and stops live in two tables, so it checks both; this is the
+  // common "did I already make this?" duplicate the two-table split makes easy to miss.
+  const locKey = (f?.location_text ?? "").trim();
+  useEffect(() => {
+    if (!supabase || !edit || !locKey || !dateVal) { setDupWarn(null); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const [{ data: evs }, { data: sts }] = await Promise.all([
+          supabase.from("events").select("id, title").is("archived_at", null).eq("day", dateVal).ilike("location_text", locKey),
+          supabase.from("stops").select("id, name").is("archived_at", null).ilike("location_text", locKey).gte("starts_at", `${dateVal}T00:00:00`).lte("starts_at", `${dateVal}T23:59:59`),
+        ]);
+        if (cancelled) return;
+        const other = [
+          ...((evs as { id: string; title: string }[]) ?? []).filter((e) => e.id !== ownerId).map((e) => e.title || "an event"),
+          ...((sts as { id: string; name: string }[]) ?? []).filter((s) => s.id !== ownerId).map((s) => s.name || "a stop"),
+        ][0];
+        setDupWarn(other ? `“${other}” is already at ${locKey} that day — same place, same date. Duplicate?` : null);
+      } catch { setDupWarn(null); }
+    })();
+    return () => { cancelled = true; };
+  }, [edit, locKey, dateVal, ownerId]);
   const onTime = (v: string) => {
     if (isEvent || !v) return;
     const dayKey = f?.starts_at ? new Date(f.starts_at).toLocaleDateString("en-CA") : new Date().toLocaleDateString("en-CA");
@@ -969,6 +993,10 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
   return (
     <div className="ownerdet editing">
       <input className="note-in" value={f[nameCol] ?? ""} onChange={(e) => set(nameCol, e.target.value)} placeholder={isEvent ? "Event name" : "Stop name"} />
+      <div className="ownerdet-typehint">{isEvent
+        ? "📅 Event — a booked gig with prep, a crew & a run-of-show. (A quick roll-up-and-serve visit is a Truck stop.)"
+        : "📍 Truck stop — you roll up, serve, and leave. (A booked gig with prep & crew should be an Event.)"}</div>
+      {dupWarn && <div className="ownerdet-warn" role="status">⚠ {dupWarn}</div>}
       <div className="prod-grid" style={{ marginTop: 8 }}>
         <label className="prod-f"><span>Date</span><input type="date" value={dateVal} onChange={(e) => onDate(e.target.value)} /></label>
         {isEvent
