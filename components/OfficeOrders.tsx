@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import { supabase } from "@/lib/supabase";
+import { authedFetch } from "@/lib/authedFetch";
 import { mondayLabel, nextMondayKey } from "@/lib/office";
 
 // CREW · OFFICE ORDERS — the operator's control surface for the Monday B2B route (0187). See upcoming
@@ -77,6 +78,20 @@ export default function OfficeOrders() {
     setBusyId(null); toast(error ? "Didn't save" : status === "paid" ? "Marked paid" : "Invoice queued", error ? "error" : undefined); load();
   };
 
+  // The app creates the Square payment link itself (0221) — one tap, link on the clipboard, and when
+  // the customer pays, the webhook auto-marks the order paid. No more hand-texted links + hand-marking.
+  const payLink = async (o: BOrder) => {
+    if (busyId) return; setBusyId(o.id);
+    try {
+      const r = await authedFetch("/api/office/paylink", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId: o.id }) });
+      const j = await r.json();
+      if (!j.ok || !j.url) { toast(`Couldn't create the link — ${j.error ?? "try again"}`, "error"); setBusyId(null); return; }
+      try { await navigator.clipboard.writeText(j.url); toast("Payment link copied — text it to the customer. It auto-marks paid."); }
+      catch { toast(`Payment link ready: ${j.url}`); }
+    } catch { toast("Couldn't create the link — try again", "error"); }
+    setBusyId(null);
+  };
+
   const cancel = async (o: BOrder) => {
     if (!supabase || busyId) return; setBusyId(o.id);
     await supabase.from("business_orders").update({ canceled_at: new Date().toISOString(), status: "issue" }).eq("id", o.id);
@@ -118,7 +133,10 @@ export default function OfficeOrders() {
                 <button type="button" className="adm-btn primary" onClick={() => { setOpenId(o.id); setEmpties((e) => ({ ...e, [o.id]: Math.round(o.gallons) })); }}>Log delivery</button>
                 {o.payment_status !== "paid" && o.payment_status !== "invoiced" && (
                   o.billing_terms === "prepaid"
-                    ? <button type="button" className="adm-btn" onClick={() => setPay(o, "paid")} disabled={busyId === o.id}>Mark paid</button>
+                    ? <>
+                        <button type="button" className="adm-btn" onClick={() => payLink(o)} disabled={busyId === o.id}>💳 Payment link</button>
+                        <button type="button" className="adm-btn ghost" onClick={() => setPay(o, "paid")} disabled={busyId === o.id}>Mark paid</button>
+                      </>
                     : <button type="button" className="adm-btn" onClick={() => setPay(o, "invoiced")} disabled={busyId === o.id}>Invoice</button>
                 )}
                 <button type="button" className="adm-btn ghost" onClick={() => cancel(o)} disabled={busyId === o.id}>Cancel</button>

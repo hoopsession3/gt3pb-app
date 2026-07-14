@@ -42,6 +42,7 @@ import DeliveryOps from "@/components/DeliveryOps";
 import PackPlan from "@/components/PackPlan";
 import OrgChart from "@/components/OrgChart";
 import WorkloadBoard from "@/components/WorkloadBoard";
+import InviteTeammate from "@/components/InviteTeammate";
 import CrmPanel from "@/components/CrmPanel";
 import CodesPanel from "@/components/CodesPanel";
 import CustomerKpis from "@/components/CustomerKpis";
@@ -5284,6 +5285,8 @@ export default function AdminPage() {
       {sec === "team" && isAdmin && (
         <>
           <TeamKpis />
+          {isOwner && <div className="crew-group">Invite a teammate</div>}
+          {isOwner && <InviteTeammate />}
           <div className="crew-group">Who&apos;s on what</div>
           <WorkloadBoard />
           <div className="crew-group">Roster</div>

@@ -70,6 +70,17 @@ export async function POST(req: Request) {
           source: "square",
           amount_cents: p?.amount_money?.amount ?? 0,
         }, { onConflict: "square_payment_id" }));
+        // An office payment link paid → auto-mark the business order + store the payment id (0221),
+        // which also powers the walk-up dedupe. Best-effort: non-office payments match zero rows,
+        // and a failure here must never make Square retry the whole event.
+        if (p.order_id) {
+          try {
+            // Only forward transitions: never let a delayed Square retry flip a refunded order back to paid.
+            await supabaseAdmin.from("business_orders")
+              .update({ payment_status: "paid", payment_id: p.id })
+              .eq("square_order_id", p.order_id).in("payment_status", ["pending", "invoiced", "failed"]);
+          } catch { /* best-effort */ }
+        }
       }
     }
     // Only ack once the write succeeded. On failure return 500 so Square RETRIES
