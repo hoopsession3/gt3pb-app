@@ -7,7 +7,8 @@ import { authedFetch } from "@/lib/authedFetch";
 import { useApp } from "./AppProvider";
 import { useAuth, roleOf } from "./AuthProvider";
 import { useOperatorSection } from "./OperatorNav";
-import { findOrCreatePendingVendor } from "@/lib/vendorLink";
+import { resolveVendor, type ResolveDecision, type VendorMatch } from "@/lib/vendorLink";
+import VendorResolve from "./VendorResolve";
 import { haptic, HAPTIC } from "@/lib/haptics";
 
 // EVENT COPILOT (chief-of-staff, guided) — say it in plain words, the agent reads it into a draft, you
@@ -26,6 +27,7 @@ export default function EventCopilot() {
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [creating, setCreating] = useState(false);
+  const [resolve, setResolve] = useState<{ name: string; candidates: VendorMatch[] } | null>(null);
 
   useEffect(() => {
     const onOpen = (e: Event) => { if ((e as CustomEvent).detail === "event-build") { reset(); setOpen(true); } };
@@ -51,23 +53,31 @@ export default function EventCopilot() {
 
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setDraft((p) => (p ? { ...p, [k]: v } : p));
 
-  const create = async () => {
+  const create = async (decision?: ResolveDecision | "skip") => {
     if (!draft || !supabase || creating) return;
     if (!draft.title.trim()) { toast("Give it a name first", "error"); return; }
     setCreating(true);
     try {
       const venue = (draft.venue || "").trim();
-      const v = venue ? await findOrCreatePendingVendor(venue, { source: "the event copilot" }) : null;
+      // ONE resolver (0226): a look-alike venue pauses the create and asks — never a silent
+      // "Wine Xpress" minted next to "Wine Express".
+      let vid: string | null = null;
+      let created = false;
+      if (venue && decision !== "skip") {
+        const r = await resolveVendor(venue, { source: "the event copilot", decision });
+        if (r.kind === "similar") { setResolve({ name: venue, candidates: r.candidates }); setCreating(false); return; }
+        if (r.kind !== "error") { vid = r.id; created = r.kind === "created"; }
+      }
       if (draft.kind === "stop") {
         const startsAt = draft.date ? new Date(`${draft.date}T11:00:00`).toISOString() : null;
-        const { error } = await supabase.from("stops").insert({ name: draft.title.trim().slice(0, 120), location_text: venue || null, starts_at: startsAt, status: "upcoming", vendor_id: v?.id ?? null, order_ahead_enabled: draft.order_ahead, pickup_enabled: draft.pickup, sort: 0 });
+        const { error } = await supabase.from("stops").insert({ name: draft.title.trim().slice(0, 120), location_text: venue || null, starts_at: startsAt, status: "upcoming", vendor_id: vid, order_ahead_enabled: draft.order_ahead, pickup_enabled: draft.pickup, sort: 0 });
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("events").insert({ title: draft.title.trim().slice(0, 160), day: draft.date || null, category: "event", location_text: venue || null, vendor_id: v?.id ?? null });
+        const { error } = await supabase.from("events").insert({ title: draft.title.trim().slice(0, 160), day: draft.date || null, category: "event", location_text: venue || null, vendor_id: vid });
         if (error) throw error;
       }
       haptic(HAPTIC.success);
-      toast(`${draft.kind === "stop" ? "Truck stop" : "Event"} created${v?.created ? " — venue sent for approval" : ""}`);
+      toast(`${draft.kind === "stop" ? "Truck stop" : "Event"} created${created ? " — venue sent for approval" : ""}`);
       setOpen(false);
       setSection(draft.kind === "stop" ? "prep" : "plan");
     } catch (e) { toast(`Couldn't create it — ${(e as { message?: string })?.message ?? "try again"}`, "error"); }
@@ -104,9 +114,17 @@ export default function EventCopilot() {
           <p className="ec-note">{draft.venue ? "The venue links to your vendor book — a new one is created pending approval." : "Add a venue to bind it to your vendor book."}</p>
           <div className="prod-actions" style={{ marginTop: 12 }}>
             <button type="button" className="note-arch" onClick={() => setDraft(null)} disabled={creating}>← Back</button>
-            <button type="button" className="note-save" onClick={create} disabled={creating || !draft.title.trim()}>{creating ? "Creating…" : `Create ${draft.kind === "stop" ? "truck stop" : "event"}`}</button>
+            <button type="button" className="note-save" onClick={() => create()} disabled={creating || !draft.title.trim()}>{creating ? "Creating…" : `Create ${draft.kind === "stop" ? "truck stop" : "event"}`}</button>
           </div>
         </div>
+      )}
+      {resolve && (
+        <VendorResolve name={resolve.name} candidates={resolve.candidates}
+          onUse={(c) => { setResolve(null); create({ linkTo: c.id }); }}
+          onCreateDistinct={() => { setResolve(null); create({ createDistinct: true }); }}
+          onSkip={() => { setResolve(null); create("skip"); }}
+          onClose={() => setResolve(null)}
+        />
       )}
     </Sheet>
   );

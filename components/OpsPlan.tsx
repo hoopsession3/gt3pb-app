@@ -6,7 +6,8 @@ import { useApp } from "./AppProvider";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { haptic, HAPTIC } from "@/lib/haptics";
-import { findOrCreatePendingVendor } from "@/lib/vendorLink";
+import { resolveVendor, type ResolveDecision, type VendorMatch } from "@/lib/vendorLink";
+import VendorResolve from "./VendorResolve";
 
 // OPS PLAN (chief-of-staff) — turn a meeting note into a build-able operations plan. Calls the
 // opsplan agent, then lets the operator tap "Create" on each proposed op (event/stop, vendor,
@@ -40,6 +41,8 @@ export default function OpsPlan({ noteId }: { noteId: string }) {
   const [pending, setPending] = useState<Record<number, boolean>>({}); // armed for a 2nd-tap approve
   const [done, setDone] = useState<Record<number, boolean>>({});
   const [gapDone, setGapDone] = useState<Record<number, boolean>>({});
+  // A look-alike vendor paused this op — the confirm sheet completes it with the human's decision.
+  const [resolve, setResolve] = useState<{ op: Op; i: number; name: string; candidates: VendorMatch[] } | null>(null);
 
   const analyze = async () => {
     if (busy) return; setBusy(true);
@@ -53,34 +56,49 @@ export default function OpsPlan({ noteId }: { noteId: string }) {
     setBusy(false);
   };
 
-  const createOp = async (op: Op, i: number) => {
+  const createOp = async (op: Op, i: number, decision?: ResolveDecision | "skip") => {
     if (!supabase || !user || done[i]) return;
     try {
-      // Every venue/vendor goes through the shared find-or-create — so a note about "Wine Express"
-      // reuses the existing vendor instead of minting a duplicate, and a brand-new one is created
-      // PENDING for owner approval (audit P0·2). Created records link back to the note.
+      // Every venue/vendor goes through the ONE resolver (0226): exact name → the existing vendor;
+      // a ≥40% look-alike → PAUSE and ask (the confirm sheet), never a silent duplicate; a clean
+      // miss → created PENDING for owner approval. Created records link back to the note.
+      const vendorFor = async (name: string): Promise<string | null | "asked"> => {
+        if (decision === "skip") return null;
+        const r = await resolveVendor(name, { source: "a meeting note", decision });
+        if (r.kind === "similar") { setResolve({ op, i, name, candidates: r.candidates }); return "asked"; }
+        return r.kind === "error" ? null : r.id;
+      };
+      // A vendor/pipeline op IS its vendor — skipping it creates nothing, so it must not read "done"
+      // (panel finding: a skipped vendor op showed a ✓ and "created" with no row written).
+      if (decision === "skip" && (op.type === "vendor" || op.type === "pipeline")) {
+        toast("Skipped — nothing created"); return;
+      }
       if (op.type === "task" || op.type === "brew") {
         await supabase.from("event_tasks").insert({ meeting_note_id: noteId, origin_note_id: noteId, label: (op.type === "brew" ? `Brew — ${op.title}` : op.title).slice(0, 300), kind: "task", section: "Follow-up", critical: !!op.critical, sort: 1000 + i });
       } else if (op.type === "stop") {
         const dk = whenToDate(op.when);
-        const v = await findOrCreatePendingVendor(op.who || op.title, { source: "a meeting note" });
-        const { data: s } = await supabase.from("stops").insert({ name: (op.who || op.title).slice(0, 120), location_text: op.who || null, starts_at: new Date(`${dk}T11:00:00`).toISOString(), status: "upcoming", sort: 0, vendor_id: v?.id ?? null }).select("id").single();
+        const vid = await vendorFor(op.who || op.title);
+        if (vid === "asked") return;
+        const { data: s } = await supabase.from("stops").insert({ name: (op.who || op.title).slice(0, 120), location_text: op.who || null, starts_at: new Date(`${dk}T11:00:00`).toISOString(), status: "upcoming", sort: 0, vendor_id: vid }).select("id").single();
         if (s) await supabase.from("meeting_notes").update({ stop_id: (s as { id: string }).id }).eq("id", noteId);
       } else if (op.type === "event") {
         // An EVENT is a booked show — it belongs in the events table, not stops (the old code
         // mis-routed both into stops).
         const dk = whenToDate(op.when);
-        const v = await findOrCreatePendingVendor(op.who || op.title, { source: "a meeting note" });
-        const { data: e } = await supabase.from("events").insert({ title: op.title.slice(0, 160), day: dk, category: "event", location_text: op.who || null, vendor_id: v?.id ?? null }).select("id").single();
+        const vid = await vendorFor(op.who || op.title);
+        if (vid === "asked") return;
+        const { data: e } = await supabase.from("events").insert({ title: op.title.slice(0, 160), day: dk, category: "event", location_text: op.who || null, vendor_id: vid }).select("id").single();
         if (e) await supabase.from("meeting_notes").update({ event_id: (e as { id: string }).id }).eq("id", noteId);
       } else if (op.type === "vendor") {
-        const v = await findOrCreatePendingVendor(op.who || op.title, { source: "a meeting note" });
-        if (v) await supabase.from("meeting_notes").update({ vendor_id: v.id }).eq("id", noteId);
+        const vid = await vendorFor(op.who || op.title);
+        if (vid === "asked") return;
+        if (vid) await supabase.from("meeting_notes").update({ vendor_id: vid }).eq("id", noteId);
       } else if (op.type === "pipeline") {
-        const v = await findOrCreatePendingVendor(op.who || op.title, { source: "a meeting note" });
-        if (v) {
-          const { data: opp } = await supabase.from("opportunities").insert({ vendor_id: v.id, next_step: (op.details || "Make first contact").slice(0, 300), created_by: user.id }).select("id").single();
-          if (opp) await supabase.from("meeting_notes").update({ opportunity_id: (opp as { id: string }).id, vendor_id: v.id }).eq("id", noteId);
+        const vid = await vendorFor(op.who || op.title);
+        if (vid === "asked") return;
+        if (vid) {
+          const { data: opp } = await supabase.from("opportunities").insert({ vendor_id: vid, next_step: (op.details || "Make first contact").slice(0, 300), created_by: user.id }).select("id").single();
+          if (opp) await supabase.from("meeting_notes").update({ opportunity_id: (opp as { id: string }).id, vendor_id: vid }).eq("id", noteId);
         }
       }
       setDone((s) => ({ ...s, [i]: true })); haptic(HAPTIC.success); toast(`${TYPE_LABEL[op.type] ?? "Op"} created`);
@@ -148,6 +166,17 @@ export default function OpsPlan({ noteId }: { noteId: string }) {
             </div>
           ))}
         </div>
+      )}
+      {resolve && (
+        <VendorResolve name={resolve.name} candidates={resolve.candidates}
+          onUse={(c) => { const { op, i } = resolve; setResolve(null); createOp(op, i, { linkTo: c.id }); }}
+          onCreateDistinct={() => { const { op, i } = resolve; setResolve(null); createOp(op, i, { createDistinct: true }); }}
+          // A stop/event can exist without a vendor; a vendor/pipeline op can't — no skip for those.
+          onSkip={resolve.op.type === "stop" || resolve.op.type === "event"
+            ? () => { const { op, i } = resolve; setResolve(null); createOp(op, i, "skip"); }
+            : undefined}
+          onClose={() => setResolve(null)}
+        />
       )}
     </div>
   );

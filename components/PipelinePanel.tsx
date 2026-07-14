@@ -6,6 +6,8 @@ import { useRealtimeTable } from "@/lib/realtime";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { raiseAlertClient } from "@/lib/clientAlerts";
+import { resolveVendor, type ResolveDecision, type VendorMatch } from "@/lib/vendorLink";
+import VendorResolve from "./VendorResolve";
 import { StrategyThread } from "./StrategyCollab";
 import ProposalDesk from "./ProposalDesk";
 import CountUp from "./CountUp";
@@ -141,6 +143,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   }, [openId]);
   const [threadId, setThreadId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [resolve, setResolve] = useState<{ name: string; candidates: VendorMatch[] } | null>(null);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [econ, setEcon] = useState<Econ>(null);
   const [lineFilter, setLineFilter] = useState<string>("all");
@@ -234,13 +237,15 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   // Reps can only attach an ACTIVE deal that matches the account's vendor type — the owner's gate.
   const dealsFor = (vendorType: string | null | undefined) => deals.filter((d) => d.active && (!vendorType || d.vendor_type === vendorType));
 
-  const addOpp = async () => {
+  const addOpp = async (decision?: ResolveDecision) => {
     if (!supabase || !user) return;
     let vendorId = no.vendorId;
     if (!vendorId && no.newVendor.trim()) {
-      const { data, error } = await supabase.from("vendors").insert({ name: no.newVendor.trim(), vendor_type: no.newType }).select("id").single();
-      if (error) { toast(`Couldn't add the account — ${error.message}`, "error"); return; }
-      vendorId = (data as { id: string }).id;
+      // ONE resolver (0226): a look-alike account name pauses and asks instead of minting a copy.
+      const r = await resolveVendor(no.newVendor.trim(), { status: "approved", vendorType: no.newType, source: "the pipeline", decision });
+      if (r.kind === "similar") { setResolve({ name: no.newVendor.trim(), candidates: r.candidates }); return; }
+      if (r.kind === "error") { toast(`Couldn't add the account — ${r.message}`, "error"); return; }
+      vendorId = r.id;
     }
     if (!vendorId) { toast("Pick an account or add a new one", "error"); return; }
     const { error } = await supabase.from("opportunities").insert({
@@ -602,7 +607,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
             <label>First step<input value={no.nextStep} onChange={(e) => setNo({ ...no, nextStep: e.target.value })} placeholder="Walk in, ask for the manager" maxLength={120} /></label>
           </div>
           <div className="st-log-btns">
-            <button type="button" className="dops-mini" onClick={addOpp}>Add to the pipeline</button>
+            <button type="button" className="dops-mini" onClick={() => addOpp()}>Add to the pipeline</button>
             <button type="button" className="st-discuss" onClick={() => setAdding(false)}>Cancel</button>
           </div>
         </div>
@@ -611,6 +616,13 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
           <b>＋ New opportunity</b>
           <span>An account, a deal from the table, a rep, a first step.</span>
         </button>
+      )}
+      {resolve && (
+        <VendorResolve name={resolve.name} candidates={resolve.candidates}
+          onUse={(c) => { setResolve(null); addOpp({ linkTo: c.id }); }}
+          onCreateDistinct={() => { setResolve(null); addOpp({ createDistinct: true }); }}
+          onClose={() => setResolve(null)}
+        />
       )}
     </div>
   );

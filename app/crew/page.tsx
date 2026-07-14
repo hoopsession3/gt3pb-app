@@ -101,7 +101,9 @@ import { projectEvent, reconcile, DEFAULT_ECON, type EventEcon, type ProductEcon
 import { buildBrief } from "@/lib/eventbrief";
 import { fetchInventory, inventoryForEvent, rollupLowStock, type InventoryResp, type InvItem } from "@/lib/inventory";
 import { fetchAssets, type AssetsResp } from "@/lib/assets";
-import type { Stop, LiveStatus, EventRow, EventTask, BookingRequest, Order, Reserve, Subscription, Vendor, MeetingNote, Alert, Comment } from "@/lib/db";
+import type { Stop, LiveStatus, EventRow, EventTask, BookingRequest, Order, Reserve, Subscription, Vendor, VendorLocation, MeetingNote, Alert, Comment } from "@/lib/db";
+import { resolveVendor, addVendorLocation, type VendorMatch, type ResolveDecision } from "@/lib/vendorLink";
+import VendorResolve from "@/components/VendorResolve";
 
 // money helpers for the economics panels
 // Per-lane phase labels: the Service lane reads as the operator's loop — Plan → Prep → Run → Delivery
@@ -2727,7 +2729,10 @@ function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive
           </div>
           )}
 
-          {kind === "stop" && vendors && onLinkVendor && <VendorPicker vendors={vendors} vendorId={stop?.vendor_id} onLink={onLinkVendor} onCreated={onChanged} />}
+          {kind === "stop" && vendors && onLinkVendor && (
+            <VendorPicker vendors={vendors} vendorId={stop?.vendor_id} onLink={onLinkVendor} onCreated={onChanged}
+              onPickLocation={(loc) => patch({ address: loc.address ?? null, location_text: loc.location_text ?? loc.label, lat: loc.lat ?? null, lng: loc.lng ?? null }, `Stop set to ${loc.label}`)} />
+          )}
 
           {showPoc && (
             <div className="ev-group">
@@ -2924,6 +2929,22 @@ function LiveControl({ compact = false, manage = false }: { compact?: boolean; m
     else { if (data) setOpenStopId((data as { id: string }).id); toast("Location added — fill in its details"); }
     load();
   };
+  // "Stop here again" (0226 route redesign): a repeat visit clones the place's identity — name,
+  // location, vendor link, menu/rig — into a fresh UNDATED stop. The place stays ONE place on the
+  // route; only the visit is new. (A real recurrence engine is deliberately not built — a clone +
+  // date is the flexible version of it.)
+  const stopAgain = async (tpl: Stop) => {
+    const { data, error } = await supabase!.from("stops").insert({
+      name: tpl.name, location_text: tpl.location_text, address: tpl.address, lat: tpl.lat, lng: tpl.lng,
+      vendor_id: tpl.vendor_id ?? null, rig: tpl.rig ?? null, menu_tier: tpl.menu_tier ?? null,
+      order_ahead_enabled: tpl.order_ahead_enabled ?? false, pickup_enabled: tpl.pickup_enabled ?? false,
+      status: "upcoming", sort: stops.length,
+    }).select("id").single();
+    if (error) { toast(`Couldn't add the visit — ${error.message}`, "error"); return; }
+    if (data) setOpenStopId((data as { id: string }).id);
+    toast(`${tpl.name} — new visit added. Set its date & time.`);
+    load();
+  };
   // Archive a location out of the active list (keeps the record). If it was live, close it.
   const archiveStop = async (id: string) => {
     const wasLive = id === live?.current_stop_id;
@@ -3024,24 +3045,71 @@ function LiveControl({ compact = false, manage = false }: { compact?: boolean; m
         </>
       )}
 
+      {/* THE ROUTE, BY PLACE (0226 redesign): the same location never reads as two locations.
+          Stops group under their PLACE — the vendor when linked, else the normalized name — with
+          the visits nested inside and "+ Stop here again" for repeats. Single-visit unlinked
+          one-offs stay flat rows (a card of one is chrome, not clarity). */}
       <div className="ev-list" style={{ marginTop: 12 }}>
-        {active.map((s, i) => (
-          <LocationEditor
-            key={s.id}
-            kind="stop"
-            row={s}
-            index={i}
-            isCur={Boolean(s.id === live?.current_stop_id && live?.is_live)}
-            open={openStopId === s.id}
-            onToggle={() => setOpenStopId(openStopId === s.id ? null : s.id)}
-            onGoLive={goLive}
-            onArchive={() => archiveStop(s.id)}
-            onChanged={load}
-            vendors={vendors}
-            onLinkVendor={(v) => linkVendor(s.id, v)}
-            onOpenPrep={() => openPrep(s.id)}
-          />
-        ))}
+        {(() => {
+          const placeKey = (s: Stop) => s.vendor_id ? `v:${s.vendor_id}` : `t:${(s.name || s.location_text || s.address || "").trim().toLowerCase()}`;
+          const groups: { key: string; vendor: Vendor | null; rows: Stop[] }[] = [];
+          for (const s of active) {
+            const k = placeKey(s);
+            let g = groups.find((x) => x.key === k);
+            if (!g) { g = { key: k, vendor: s.vendor_id ? vendors.find((v) => v.id === s.vendor_id) ?? null : null, rows: [] }; groups.push(g); }
+            g.rows.push(s);
+          }
+          const fmtNext = (rows: Stop[]) => {
+            // Mirrors /truck: 8h grace, done/completed visits excluded. Past-only reads "last ·",
+            // never a stale "next ·" (panel finding).
+            const live = rows.filter((r) => r.starts_at && r.status !== "done" && !r.completed_at);
+            const dated = live.map((r) => new Date(r.starts_at as string)).sort((a, b) => a.getTime() - b.getTime());
+            const next = dated.find((d) => d.getTime() > Date.now() - 8 * 3600 * 1000);
+            if (next) return `next · ${next.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}`;
+            const last = dated[dated.length - 1];
+            return last ? `last · ${last.toLocaleDateString([], { month: "short", day: "numeric" })}` : "undated";
+          };
+          let idx = -1;
+          return groups.map((g) => {
+            const editors = g.rows.map((s) => {
+              idx += 1;
+              return (
+                <LocationEditor
+                  key={s.id}
+                  kind="stop"
+                  row={s}
+                  index={idx}
+                  isCur={Boolean(s.id === live?.current_stop_id && live?.is_live)}
+                  open={openStopId === s.id}
+                  onToggle={() => setOpenStopId(openStopId === s.id ? null : s.id)}
+                  onGoLive={goLive}
+                  onArchive={() => archiveStop(s.id)}
+                  onChanged={load}
+                  vendors={vendors}
+                  onLinkVendor={(v) => linkVendor(s.id, v)}
+                  onOpenPrep={() => openPrep(s.id)}
+                />
+              );
+            });
+            if (g.rows.length === 1 && !g.vendor) return <div key={g.key}>{editors}</div>;
+            return (
+              <div className="place-card" key={g.key}>
+                <div className="place-head">
+                  <b>{g.vendor?.name ?? g.rows[0].name}</b>
+                  <span className="place-sub">{g.rows.length > 1 ? `${g.rows.length} visits` : "1 visit"}{g.vendor ? " · vendor-linked" : ""}{g.vendor?.status === "pending" ? " · pending" : ""}</span>
+                  <span className="place-next">{fmtNext(g.rows)}</span>
+                </div>
+                {editors}
+                <button type="button" className="place-again" onClick={() => {
+                  // Template = the NEWEST visit by date (sort order isn't recency — quick-add paths
+                  // insert with sort 0; panel finding), so the clone carries the latest flags.
+                  const byDate = [...g.rows].sort((a, b) => new Date(a.starts_at ?? 0).getTime() - new Date(b.starts_at ?? 0).getTime());
+                  stopAgain(byDate[byDate.length - 1] ?? g.rows[g.rows.length - 1]);
+                }}>＋ Stop here again — new visit, same place</button>
+              </div>
+            );
+          });
+        })()}
       </div>
       {active.length === 0 && <div className="ev-empty">No locations yet. Tap <b>+ Add location</b> to create one{archived.length ? ", or reopen one below" : ""}.</div>}
 
@@ -3498,6 +3566,7 @@ function Bookings() {
   const [reqs, setReqs] = useState<BookingRequest[]>([]);
   const [wonDeals, setWonDeals] = useState<WonPipelineDeal[]>([]);
   const [promoting, setPromoting] = useState<string | null>(null);
+  const [promoteResolve, setPromoteResolve] = useState<{ req: BookingRequest; name: string; candidates: VendorMatch[] } | null>(null);
   const load = useCallback(async () => {
     if (!supabase) return;
     const { data } = await supabase.from("booking_requests").select("*").order("created_at", { ascending: false });
@@ -3535,25 +3604,26 @@ function Bookings() {
   // account from the requester (reused if we already know them), stage "talking" (they opened
   // the conversation), and the request context as the first pursuit-trail entry. The request
   // itself stays here, linked, so the button can't double-promote.
-  const promote = async (r: BookingRequest) => {
+  const promote = async (r: BookingRequest, decision?: ResolveDecision) => {
     if (!supabase || !user || promoting) return;
     setPromoting(r.id);
     try {
       const nm = r.name?.trim() || r.email?.trim() || "Booking request";
-      const { data: byName } = await supabase.from("vendors").select("id")
-        .ilike("name", nm.replace(/[\\%_]/g, "\\$&")).limit(1);
-      let vendorId: string | undefined = byName?.[0]?.id;
-      if (!vendorId && r.email) {
+      // Known-contact pre-check first (email beats name), then the ONE resolver (0226): a
+      // look-alike name surfaces the confirm sheet instead of silently minting an account copy.
+      let vendorId: string | undefined;
+      if (r.email) {
         const { data: byEmail } = await supabase.from("vendors").select("id").eq("poc_email", r.email).limit(1);
         vendorId = byEmail?.[0]?.id;
       }
       if (!vendorId) {
-        const { data, error } = await supabase.from("vendors").insert({
-          name: nm, vendor_type: "venue", poc_name: r.name, poc_email: r.email, poc_phone: r.phone,
-          location_text: r.location_text ?? null,
-        }).select("id").single();
-        if (error) { toast(`Couldn't create the account — ${error.message}`, "error"); return; }
-        vendorId = (data as { id: string }).id;
+        const res = await resolveVendor(nm, {
+          status: "approved", vendorType: "venue", source: "a booking request", decision,
+          extra: { poc_name: r.name, poc_email: r.email, poc_phone: r.phone, location_text: r.location_text ?? null },
+        });
+        if (res.kind === "similar") { setPromoteResolve({ req: r, name: nm, candidates: res.candidates }); return; }
+        if (res.kind === "error") { toast(`Couldn't create the account — ${res.message}`, "error"); return; }
+        vendorId = res.id;
       }
       const { data: opp, error: oppErr } = await supabase.from("opportunities").insert({
         vendor_id: vendorId, stage: "talking", source: "inbound",
@@ -3633,6 +3703,18 @@ function Bookings() {
             </div>
           ))}
         </>
+      )}
+      {promoteResolve && (
+        <VendorResolve name={promoteResolve.name} candidates={promoteResolve.candidates}
+          onUse={(c) => { const { req } = promoteResolve; setPromoteResolve(null); promote(req, { linkTo: c.id }); }}
+          onAddLocation={async (c) => {
+            const { req, name } = promoteResolve; setPromoteResolve(null);
+            await addVendorLocation(c.id, { label: name, location_text: req.location_text ?? null });
+            promote(req, { linkTo: c.id });
+          }}
+          onCreateDistinct={() => { const { req } = promoteResolve; setPromoteResolve(null); promote(req, { createDistinct: true }); }}
+          onClose={() => setPromoteResolve(null)}
+        />
       )}
     </div>
   );
@@ -4625,46 +4707,127 @@ function Overview({ onGo, onOpenTarget }: { onGo: (t: string) => void; onOpenTar
 // ───────────────────────── vendors (relational venue records) ─────────────────────────
 type VendorSug = { kind: "stop" | "event"; id: string; name: string; sub: string; stop?: Stop; event?: EventRow };
 
+// A vendor's places (0226) — list, add, set primary, archive. Rendered under the open vendor row.
+function VendorLocationsEditor({ vendorId, vendorName }: { vendorId: string; vendorName: string }) {
+  const { toast } = useApp();
+  const [locs, setLocs] = useState<VendorLocation[]>([]);
+  const [nm, setNm] = useState("");
+  const [addr, setAddr] = useState("");
+  const load = useCallback(async () => {
+    if (!supabase) return;
+    const { data } = await supabase.from("vendor_locations").select("*").eq("vendor_id", vendorId).is("archived_at", null).order("is_primary", { ascending: false }).order("sort");
+    setLocs((data as VendorLocation[]) ?? []);
+  }, [vendorId]);
+  useEffect(() => { load(); }, [load]);
+  const add = async () => {
+    if (!nm.trim()) return;
+    const made = await addVendorLocation(vendorId, { label: nm.trim(), address: addr.trim() || null });
+    if (!made) { toast("Couldn't add the location", "error"); return; }
+    setNm(""); setAddr(""); toast("Location added"); load();
+  };
+  const setPrimary = async (id: string) => {
+    if (!supabase) return;
+    // Clear the old primary first — the partial unique index enforces ONE.
+    await supabase.from("vendor_locations").update({ is_primary: false }).eq("vendor_id", vendorId).eq("is_primary", true);
+    const { error } = await supabase.from("vendor_locations").update({ is_primary: true }).eq("id", id);
+    toast(error ? `Couldn't set primary — ${error.message}` : "Primary location set");
+    load();
+  };
+  const archiveLoc = async (id: string, label: string) => {
+    if (!supabase) return;
+    const { error } = await supabase.from("vendor_locations").update({ is_primary: false, archived_at: new Date().toISOString() }).eq("id", id);
+    toast(error ? `Couldn't remove — ${error.message}` : `${label} removed`);
+    load();
+  };
+  return (
+    <div className="vloc" style={{ padding: "0 12px 10px" }}>
+      <div className="ev-group-h">Locations · {vendorName}</div>
+      {locs.map((l) => (
+        <div className="vloc-row" key={l.id}>
+          <div className="vloc-main"><b>{l.label}</b>{(l.address || l.location_text) && <span>{l.address ?? l.location_text}</span>}</div>
+          {l.is_primary ? <span className="vloc-pri">Primary</span> : <button className="ev-arch-btn" onClick={() => setPrimary(l.id)}>Make primary</button>}
+          <button className="ev-arch-btn del" onClick={() => archiveLoc(l.id, l.label)}>Remove</button>
+        </div>
+      ))}
+      {locs.length === 0 && <div className="pnl-note">No locations yet — the vendor&apos;s own address acts as its place.</div>}
+      <div className="vnew-row" style={{ marginTop: 8 }}>
+        <input className="ev-input" value={nm} onChange={(e) => setNm(e.target.value)} placeholder="Location name" maxLength={80} />
+        <input className="ev-input" value={addr} onChange={(e) => setAddr(e.target.value)} placeholder="Address (optional)" maxLength={300} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
+        <button type="button" className="adm-btn" onClick={add} disabled={!nm.trim()}>Add</button>
+      </div>
+    </div>
+  );
+}
+
 function VendorsAdmin() {
   const { toast } = useApp();
+  const { profile } = useAuth();
+  const isAdmin = ["owner", "admin"].includes(roleOf(profile));
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [stops, setStops] = useState<Stop[]>([]);
   const [events, setEvents] = useState<EventRow[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
   const [showArch, setShowArch] = useState(false);
+  type DupePair = { a: string; a_name: string; b: string; b_name: string; sim: number };
+  const [dupes, setDupes] = useState<DupePair[]>([]);
+  const [merging, setMerging] = useState(false);
+  // The look-alike confirm sheet's pending question: which path asked, and with what payload.
+  const [resolve, setResolve] = useState<{ name: string; candidates: VendorMatch[]; ctx: { type: "add" } | { type: "from"; sug: VendorSug } } | null>(null);
   const load = useCallback(async () => {
     if (!supabase) return;
-    const [{ data: v }, { data: s }, { data: e }] = await Promise.all([
+    const [{ data: v }, { data: s }, { data: e }, dup] = await Promise.all([
       supabase.from("vendors").select("*").order("sort"),
       supabase.from("stops").select("*"),
       supabase.from("events").select("*"),
+      supabase.rpc("vendor_dupe_candidates"),
     ]);
     if (v) setVendors(v as Vendor[]);
     setStops(((s as Stop[]) ?? []).filter((x) => !x.archived_at));
     setEvents(((e as EventRow[]) ?? []).filter((x) => !x.archived_at));
+    setDupes(((dup.data as DupePair[]) ?? []));
   }, []);
   useEffect(() => { load(); }, [load]);
-  const add = async (name: string) => {
-    const { data, error } = await supabase!.from("vendors").insert({ name, sort: vendors.length }).select("id").single();
-    toast(error ? `Error: ${error.message}` : "Vendor added");
-    if (!error) { if (data) setOpenId((data as { id: string }).id); load(); }
+  // ONE resolver (0226): exact → open the existing record · look-alike → the confirm sheet ·
+  // clean miss → create approved (this is the deliberate vendor book, not an on-the-fly add).
+  const add = async (name: string, decision?: ResolveDecision) => {
+    const r = await resolveVendor(name, { status: "approved", source: "the vendor book", sort: vendors.length, decision });
+    if (r.kind === "similar") { setResolve({ name, candidates: r.candidates, ctx: { type: "add" } }); return; }
+    if (r.kind === "error") { toast(`Error: ${r.message}`, "error"); return; }
+    setResolve(null);
+    toast(r.kind === "created" ? "Vendor added" : "Already in the book — opened it");
+    setOpenId(r.id); load();
   };
-  // Relational fill: materialize a vendor from an existing stop/event and link the source,
-  // so "I had vendor events" turns into populated vendor records with one tap.
-  const createFrom = async (sug: VendorSug) => {
-    let payload: Partial<Vendor> = { name: sug.name, sort: vendors.length };
+  // Relational fill: materialize a vendor from an existing stop/event and link the source —
+  // and if the name look-alikes an existing vendor, LINK the source to it instead of minting
+  // a copy (the whole point of the guard).
+  const createFrom = async (sug: VendorSug, decision?: ResolveDecision) => {
+    let extra: Partial<Vendor> = {};
     if (sug.kind === "stop" && sug.stop) {
       const s = sug.stop;
-      payload = { ...payload, location_text: s.location_text, address: s.address, lat: s.lat, lng: s.lng, poc_name: s.poc_name, poc_phone: s.poc_phone, poc_email: s.poc_email, service_dates: s.service_dates };
+      extra = { location_text: s.location_text, address: s.address, lat: s.lat, lng: s.lng, poc_name: s.poc_name, poc_phone: s.poc_phone, poc_email: s.poc_email, service_dates: s.service_dates };
     } else if (sug.event) {
-      payload = { ...payload, location_text: sug.event.location_text };
+      extra = { location_text: sug.event.location_text };
     }
-    const { data, error } = await supabase!.from("vendors").insert(payload).select("id").single();
-    if (error) { toast(`Error: ${error.message}`, "error"); return; }
-    const vid = (data as { id: string }).id;
-    if (sug.kind === "stop") await supabase!.from("stops").update({ vendor_id: vid }).eq("id", sug.id);
-    else await supabase!.from("events").update({ vendor_id: vid }).eq("id", sug.id);
-    toast(`Vendor created from ${sug.name} — now linked`);
+    const r = await resolveVendor(sug.name, { status: "approved", source: "the vendor book", sort: vendors.length, extra: extra as Record<string, unknown>, decision });
+    if (r.kind === "similar") { setResolve({ name: sug.name, candidates: r.candidates, ctx: { type: "from", sug } }); return; }
+    if (r.kind === "error") { toast(`Error: ${r.message}`, "error"); return; }
+    setResolve(null);
+    if (sug.kind === "stop") await supabase!.from("stops").update({ vendor_id: r.id }).eq("id", sug.id);
+    else await supabase!.from("events").update({ vendor_id: r.id }).eq("id", sug.id);
+    toast(r.kind === "created" ? `Vendor created from ${sug.name} — now linked` : `${sug.name} linked to the existing vendor`);
+    load();
+  };
+  // Owner-gated merge (0226): repoints stops/events/pipeline/notes/spend, archives the dupes.
+  const merge = async (keep: DupePair["a"], dupe: string, keepName: string, dupeName: string) => {
+    if (!supabase || merging) return;
+    if (typeof window !== "undefined" && !window.confirm(`Merge “${dupeName}” into “${keepName}”? Everything linked to ${dupeName} gets repointed; it's archived (reversible), never deleted.`)) return;
+    setMerging(true);
+    const { data, error } = await supabase.rpc("merge_vendors", { p_keep: keep, p_dupes: [dupe] });
+    setMerging(false);
+    if (error) { toast(`Couldn't merge — ${error.message}`, "error"); return; }
+    const rep = (data as { repointed?: Record<string, number> })?.repointed ?? {};
+    const moved = Object.entries(rep).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${k.replace("_", " ")}`).join(" · ");
+    toast(`Merged into ${keepName}${moved ? ` — repointed ${moved}` : ""}`);
     load();
   };
   const archive = async (id: string) => { await supabase!.from("vendors").update({ archived_at: new Date().toISOString() }).eq("id", id); setOpenId(null); load(); };
@@ -4692,8 +4855,26 @@ function VendorsAdmin() {
 
   return (
     <div className="adm-sec">
-      <div className="sec">Vendors <InlineCreate label="+ Add vendor" placeholder="Vendor name" onCreate={add} style={{ marginLeft: "auto" }} /></div>
-      <div className="pnl-note" style={{ marginBottom: 6 }}>One record per venue/partner — linked from truck stops and events. Edit a POC here and it updates everywhere it&apos;s linked.</div>
+      <div className="sec">Vendors <InlineCreate label="+ Add vendor" placeholder="Vendor name" onCreate={(name) => add(name)} style={{ marginLeft: "auto" }} /></div>
+      <div className="pnl-note" style={{ marginBottom: 6 }}>One record per venue/partner — linked from truck stops and events. Edit a POC here and it updates everywhere it&apos;s linked. A vendor can hold several locations.</div>
+      {dupes.length > 0 && (
+        <div className="vdupe">
+          <div className="vdupe-h">Possible duplicates · {dupes.length}</div>
+          {dupes.map((d) => (
+            <div className="vdupe-row" key={`${d.a}-${d.b}`}>
+              <span className="vdupe-names"><b>{d.a_name}</b><em>{Math.round(d.sim * 100)}%</em><b>{d.b_name}</b></span>
+              {isAdmin ? (
+                <span style={{ display: "flex", gap: 6 }}>
+                  <button className="adm-btn" disabled={merging} onClick={() => merge(d.a, d.b, d.a_name, d.b_name)}>Keep {d.a_name}</button>
+                  <button className="adm-btn" disabled={merging} onClick={() => merge(d.b, d.a, d.b_name, d.a_name)}>Keep {d.b_name}</button>
+                </span>
+              ) : (
+                <span className="pnl-note">Owner can merge these</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
       {pending.length > 0 && (
         <div className="vendor-pending">
           <div className="ev-group-h" style={{ marginBottom: 8, color: "var(--warn)" }}>Awaiting your approval · {pending.length}</div>
@@ -4719,9 +4900,39 @@ function VendorsAdmin() {
       {active.length === 0 && suggestions.length === 0 && <div className="ev-empty">No vendors yet. Tap <b>+ Add vendor</b> to create one.</div>}
       <div className="ev-list">
         {active.map((v, i) => (
-          <LocationEditor key={v.id} kind="vendor" row={v} index={i} open={openId === v.id} onToggle={() => setOpenId(openId === v.id ? null : v.id)} onArchive={() => archive(v.id)} onChanged={load} />
+          <div key={v.id}>
+            <LocationEditor kind="vendor" row={v} index={i} open={openId === v.id} onToggle={() => setOpenId(openId === v.id ? null : v.id)} onArchive={() => archive(v.id)} onChanged={load} />
+            {openId === v.id && <VendorLocationsEditor vendorId={v.id} vendorName={v.name} />}
+          </div>
         ))}
       </div>
+      {resolve && (
+        <VendorResolve name={resolve.name} candidates={resolve.candidates}
+          onUse={async (c) => {
+            const ctx = resolve.ctx; setResolve(null);
+            if (ctx.type === "add") { setOpenId(c.id); toast(`${c.name} is already in the book — opened it`); return; }
+            if (ctx.sug.kind === "stop") await supabase!.from("stops").update({ vendor_id: c.id }).eq("id", ctx.sug.id);
+            else await supabase!.from("events").update({ vendor_id: c.id }).eq("id", ctx.sug.id);
+            toast(`${ctx.sug.name} linked to ${c.name}`); load();
+          }}
+          onAddLocation={async (c) => {
+            const ctx = resolve.ctx; setResolve(null);
+            const src = ctx.type === "from" && ctx.sug.kind === "stop" ? ctx.sug.stop : null;
+            await addVendorLocation(c.id, { label: resolve.name, address: src?.address ?? null, location_text: src?.location_text ?? null, lat: src?.lat ?? null, lng: src?.lng ?? null });
+            if (ctx.type === "from") {
+              if (ctx.sug.kind === "stop") await supabase!.from("stops").update({ vendor_id: c.id }).eq("id", ctx.sug.id);
+              else await supabase!.from("events").update({ vendor_id: c.id }).eq("id", ctx.sug.id);
+            }
+            toast(`Added “${resolve.name}” as a location of ${c.name}`); load();
+          }}
+          onCreateDistinct={() => {
+            const ctx = resolve.ctx; setResolve(null);
+            if (ctx.type === "add") add(resolve.name, { createDistinct: true });
+            else createFrom(ctx.sug, { createDistinct: true });
+          }}
+          onClose={() => setResolve(null)}
+        />
+      )}
       {archived.length > 0 && (
         <div className="ev-archived">
           <button className="ev-arch-head" onClick={() => setShowArch((s) => !s)} aria-expanded={showArch}>Archived vendors · {archived.length}<span className={`ev-chev${showArch ? " open" : ""}`}>›</span></button>
@@ -4738,27 +4949,62 @@ function VendorsAdmin() {
 // vendor book. A truck stop should always name a known venue; if it's a new place, you add it here and
 // it's created PENDING with an owner-approval alert (0191) — never a silent orphan. Shows the linked
 // vendor's POC live (relational), edit-once-updates-everywhere.
-function VendorPicker({ vendors, vendorId, onLink, onCreated }: { vendors: Vendor[]; vendorId: string | null | undefined; onLink: (v: Vendor | null) => void; onCreated?: () => void }) {
+function VendorPicker({ vendors, vendorId, onLink, onCreated, onPickLocation }: { vendors: Vendor[]; vendorId: string | null | undefined; onLink: (v: Vendor | null) => void; onCreated?: () => void; onPickLocation?: (loc: VendorLocation) => void }) {
   const { toast } = useApp();
   const linked = vendors.find((v) => v.id === vendorId) || null;
   const [adding, setAdding] = useState(false);
   const [nm, setNm] = useState("");
   const [busy, setBusy] = useState(false);
-  const createPending = async () => {
+  const [similar, setSimilar] = useState<VendorMatch[] | null>(null);
+  const [locs, setLocs] = useState<VendorLocation[]>([]);
+  const [addingLoc, setAddingLoc] = useState(false);
+  const [locNm, setLocNm] = useState("");
+  const [locAddr, setLocAddr] = useState("");
+
+  // The linked vendor's places (0226) — one shows as the place; several ask which.
+  useEffect(() => {
+    let on = true;
+    (async () => {
+      if (!supabase || !vendorId) { if (on) setLocs([]); return; }
+      const { data } = await supabase.from("vendor_locations").select("*").eq("vendor_id", vendorId).is("archived_at", null).order("is_primary", { ascending: false }).order("sort");
+      if (on) setLocs((data as VendorLocation[]) ?? []);
+    })();
+    return () => { on = false; };
+  }, [vendorId]);
+
+  const linkById = async (id: string): Promise<Vendor | null> => {
+    let v = vendors.find((x) => x.id === id) ?? null;
+    if (!v && supabase) v = ((await supabase.from("vendors").select("*").eq("id", id).single()).data as Vendor | null);
+    if (v) onLink(v);
+    return v;
+  };
+
+  // ONE resolver (0226): exact → link · look-alike → the confirm sheet · clean miss → pending create.
+  const create = async (decision?: ResolveDecision) => {
     const name = nm.trim();
     if (!name || busy || !supabase) return;
-    // Don't mint a duplicate for a name that already exists — link the existing one instead.
-    const dupe = vendors.find((v) => v.name.trim().toLowerCase() === name.toLowerCase());
-    if (dupe) { onLink(dupe); setNm(""); setAdding(false); toast(`Linked to ${dupe.name}`); return; }
     setBusy(true);
-    const { data, error } = await supabase.from("vendors").insert({ name, status: "pending", sort: vendors.length }).select("*").single();
+    const r = await resolveVendor(name, { source: "a truck stop", sort: vendors.length, decision });
     setBusy(false);
-    if (error) { toast(`Couldn't add venue: ${error.message}`, "error"); return; }
-    const v = data as Vendor;
-    onLink(v);
-    await raiseAlertClient({ severity: "important", category: "booking", kind: "vendor_pending", title: `New venue needs approval — ${name}`, body: "Added on the fly from a truck stop. Review the contact details & approve in Plan › Vendors.", link: "/crew?s=plan", subjectId: v.id });
-    toast(`${name} linked — pending owner approval`);
+    if (r.kind === "similar") { setSimilar(r.candidates); return; }
+    if (r.kind === "error") { toast(`Couldn't add venue: ${r.message}`, "error"); return; }
+    setSimilar(null);
+    const v = await linkById(r.id);
+    toast(r.kind === "created" ? `${name} linked — pending owner approval` : `Linked to ${v?.name ?? name}`);
     setNm(""); setAdding(false); onCreated?.();
+  };
+
+  const addLoc = async () => {
+    if (!vendorId || !locNm.trim() || !supabase) return;
+    const made = await addVendorLocation(vendorId, { label: locNm.trim(), address: locAddr.trim() || null });
+    if (!made) { toast("Couldn't add the location", "error"); return; }
+    const { data } = await supabase.from("vendor_locations").select("*").eq("id", made.id).single();
+    setLocNm(""); setLocAddr(""); setAddingLoc(false);
+    if (data) {
+      setLocs((p) => [...p, data as VendorLocation]);
+      onPickLocation?.(data as VendorLocation);
+      toast("Location added & set on this stop");
+    }
   };
   return (
     <div className="ev-group">
@@ -4778,14 +5024,65 @@ function VendorPicker({ vendors, vendorId, onLink, onCreated }: { vendors: Vendo
           <div className="vlink-note">Pulled from the vendor book — edits there update everywhere it&apos;s linked.</div>
         </div>
       )}
+      {/* Multi-location vendor (0226): several places → ask which; one → it's simply the place. */}
+      {linked && locs.length > 1 && (
+        <div className="ev-group" style={{ marginTop: 8 }}>
+          <div className="ev-group-h">Which location?</div>
+          <select className="ev-input" value="" onChange={(e) => {
+            const loc = locs.find((l) => l.id === e.target.value);
+            if (loc) { onPickLocation?.(loc); toast(`Stop set to ${linked.name} — ${loc.label}`); }
+          }}>
+            <option value="">Pick the location for this stop…</option>
+            {locs.map((l) => <option key={l.id} value={l.id}>{l.label}{l.is_primary ? " · primary" : ""}{l.address ? ` — ${l.address}` : ""}</option>)}
+          </select>
+        </div>
+      )}
+      {linked && locs.length === 1 && (locs[0].address || locs[0].label !== "Main") && (
+        <div className="vlink" style={{ marginTop: 8 }}>
+          <div className="vlink-row"><span>Place</span><b>{locs[0].label}{locs[0].address ? ` — ${locs[0].address}` : ""}</b></div>
+        </div>
+      )}
+      {linked && (addingLoc ? (
+        <div className="vnew-row">
+          <input className="ev-input" value={locNm} onChange={(e) => setLocNm(e.target.value)} placeholder="Location name — e.g. Downtown" maxLength={80} autoFocus />
+          <input className="ev-input" value={locAddr} onChange={(e) => setLocAddr(e.target.value)} placeholder="Address (optional)" maxLength={300} onKeyDown={(e) => { if (e.key === "Enter") addLoc(); }} />
+          <button type="button" className="adm-btn" onClick={addLoc} disabled={!locNm.trim()}>Add</button>
+          <button type="button" className="ev-arch-btn" onClick={() => { setAddingLoc(false); setLocNm(""); setLocAddr(""); }}>Cancel</button>
+        </div>
+      ) : (
+        <button type="button" className="vnew-btn" onClick={() => setAddingLoc(true)}>＋ Add a location for {linked.name}</button>
+      ))}
       {adding ? (
         <div className="vnew-row">
-          <input className="ev-input" value={nm} onChange={(e) => setNm(e.target.value)} placeholder="New venue name" maxLength={120} autoFocus onKeyDown={(e) => { if (e.key === "Enter") createPending(); }} />
-          <button type="button" className="adm-btn" onClick={createPending} disabled={busy || !nm.trim()}>{busy ? "Adding…" : "Add"}</button>
+          <input className="ev-input" value={nm} onChange={(e) => setNm(e.target.value)} placeholder="New venue name" maxLength={120} autoFocus onKeyDown={(e) => { if (e.key === "Enter") create(); }} />
+          <button type="button" className="adm-btn" onClick={() => create()} disabled={busy || !nm.trim()}>{busy ? "Adding…" : "Add"}</button>
           <button type="button" className="ev-arch-btn" onClick={() => { setAdding(false); setNm(""); }}>Cancel</button>
         </div>
       ) : (
         <button type="button" className="vnew-btn" onClick={() => setAdding(true)}>＋ New venue — send for approval</button>
+      )}
+      {similar && (
+        <VendorResolve name={nm.trim()} candidates={similar} busy={busy}
+          onUse={async (c) => {
+            setSimilar(null);
+            const v = await linkById(c.id);
+            toast(`Linked to ${v?.name ?? c.name}`);
+            setNm(""); setAdding(false);
+          }}
+          onAddLocation={async (c) => {
+            setSimilar(null);
+            await linkById(c.id);
+            const made = await addVendorLocation(c.id, { label: nm.trim() });
+            if (made && supabase) {
+              const { data } = await supabase.from("vendor_locations").select("*").eq("id", made.id).single();
+              if (data) onPickLocation?.(data as VendorLocation);
+            }
+            toast(`Added “${nm.trim()}” as a location of ${c.name}`);
+            setNm(""); setAdding(false); onCreated?.();
+          }}
+          onCreateDistinct={() => { setSimilar(null); create({ createDistinct: true }); }}
+          onClose={() => setSimilar(null)}
+        />
       )}
     </div>
   );

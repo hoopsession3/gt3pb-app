@@ -11,7 +11,8 @@ import { useWorkStreams } from "@/lib/streams";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import { useOperatorSection } from "./OperatorNav";
 import { isBlank } from "@/lib/formGuard";
-import { findOrCreatePendingVendor } from "@/lib/vendorLink";
+import { resolveVendor, type ResolveDecision, type VendorMatch } from "@/lib/vendorLink";
+import VendorResolve from "./VendorResolve";
 import { localDayBoundsISO } from "@/lib/calendarMath";
 import EventDayPlanner from "./EventDayPlanner";
 import Sheet from "@/components/Sheet";
@@ -751,18 +752,24 @@ function OutlookBar({ onSynced }: { onSynced: () => void }) {
 function AddSheet({ day, events, onClose, onDone }: { day: string; events: Ev[]; onClose: () => void; onDone: () => void; setSection: (s: any) => void }) {
   const [kind, setKind] = useState<"todo" | "event" | "stop">("todo");
   const [title, setTitle] = useState(""); const [cat, setCat] = useState("ops"); const [eventId, setEventId] = useState(""); const [where, setWhere] = useState("");
-  const save = async () => {
+  const [resolve, setResolve] = useState<{ name: string; candidates: VendorMatch[] } | null>(null);
+  const save = async (decision?: ResolveDecision | "skip") => {
     if (!supabase || !title.trim()) return;
     const { data: { user } } = await supabase.auth.getUser();
     if (kind === "todo") await supabase.from("todos").insert({ title: title.trim(), category: cat, due_on: day, event_id: eventId || null, created_by: user?.id ?? null });
     // local wall-clock 11am — a fixed -04:00 offset lands at 10am all winter
     else if (kind === "stop") {
-      // A truck stop is always bound to the vendor book — find the venue by name or create it pending
-      // for owner approval (0191), then link it. Never an orphan with the place as loose text.
-      const { data: s } = await supabase.from("stops").insert({ name: title.trim(), location_text: where.trim() || null, starts_at: new Date(`${day}T11:00:00`).toISOString(), status: "upcoming", sort: 0 }).select("id").single();
+      // A truck stop is always bound to the vendor book — through the ONE resolver (0226): the
+      // venue links exact, PAUSES on a look-alike (confirm sheet), or is created pending owner
+      // approval. Resolve FIRST so a canceled choice never leaves an orphan stop behind.
       const venue = where.trim() || title.trim();
-      const v = s && venue ? await findOrCreatePendingVendor(venue, { source: "the calendar quick-add" }) : null;
-      if (s && v) await supabase.from("stops").update({ vendor_id: v.id }).eq("id", (s as { id: string }).id);
+      let vid: string | null = null;
+      if (venue && decision !== "skip") {
+        const r = await resolveVendor(venue, { source: "the calendar quick-add", decision });
+        if (r.kind === "similar") { setResolve({ name: venue, candidates: r.candidates }); return; }
+        if (r.kind !== "error") vid = r.id;
+      }
+      await supabase.from("stops").insert({ name: title.trim(), location_text: where.trim() || null, starts_at: new Date(`${day}T11:00:00`).toISOString(), status: "upcoming", sort: 0, vendor_id: vid });
     }
     else await supabase.from("events").insert({ title: title.trim(), day, category: cat === "content" ? "event" : cat });
     onDone();
@@ -791,8 +798,16 @@ function AddSheet({ day, events, onClose, onDone }: { day: string; events: Ev[];
           )}
           <div className="prod-actions" style={{ marginTop: 14 }}>
             <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
-            <button type="button" className="note-save" onClick={save} disabled={!title.trim()}>Add</button>
+            <button type="button" className="note-save" onClick={() => save()} disabled={!title.trim()}>Add</button>
           </div>
+      {resolve && (
+        <VendorResolve name={resolve.name} candidates={resolve.candidates}
+          onUse={(c) => { setResolve(null); save({ linkTo: c.id }); }}
+          onCreateDistinct={() => { setResolve(null); save({ createDistinct: true }); }}
+          onSkip={() => { setResolve(null); save("skip"); }}
+          onClose={() => setResolve(null)}
+        />
+      )}
     </Sheet>
   );
 }

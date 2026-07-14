@@ -27,6 +27,8 @@ export interface Stop {
   order_ahead_enabled?: boolean;
   pickup_enabled?: boolean;
   order_ahead_lead_min?: number | null;
+  rig?: "cart_only" | "trailer_only" | "trailer_plus_cart" | null; // stop-parity rig (0095/0110)
+  completed_at?: string | null; // stop wrap-up (0125)
 }
 
 // Vendor / venue — one relational record shared by truck stops and events (0034).
@@ -46,6 +48,23 @@ export interface Vendor {
   sort: number;
   status?: "approved" | "pending" | "archived"; // approval state (0191) — unknown-place stops → pending
   vendor_type?: string | null; // gym | corporate | cafe | venue … (0165)
+  confirmed_distinct?: boolean; // 0226 — the explicit "yes, really a new vendor" flag the guard honors
+}
+
+// A vendor's place (0226) — one partner, 1..N locations ("Five Forks", "Downtown"). The primary is
+// the default; a stop bound to a multi-location vendor picks which, and the picked place's address
+// is denormalized onto the stop row (the true FK on the spine is the 0224-contract follow-up).
+export interface VendorLocation {
+  id: string;
+  vendor_id: string;
+  label: string;
+  address: string | null;
+  location_text: string | null;
+  lat: number | null;
+  lng: number | null;
+  is_primary: boolean;
+  sort: number;
+  archived_at: string | null;
 }
 
 export interface LiveStatus {
