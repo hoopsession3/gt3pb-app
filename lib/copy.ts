@@ -14,17 +14,6 @@ export const COPY_META: CopyMeta[] = [
   // ── Team board · back-office (the crew console) ──
   { key: "board.welcome", group: "Team board", label: "Crew welcome line", multiline: true,
     default: "Precision in every pour — let's make today one worth remembering." },
-  // ── Launch countdown (home page banner) — every word + the date are yours; blank the date to hide ──
-  { key: "launch.date", group: "Launch countdown", label: "Launch date (YYYY-MM-DD) — blank hides the banner",
-    default: "2026-08-01" },
-  { key: "launch.kicker", group: "Launch countdown", label: "Kicker",
-    default: "Founding early access" },
-  { key: "launch.headline", group: "Launch countdown", label: "Headline",
-    default: "The first drop lands August 1." },
-  { key: "launch.sub", group: "Launch countdown", label: "Supporting line", multiline: true,
-    default: "Reserve a founding pack now and you're pouring on day one." },
-  { key: "launch.cta", group: "Launch countdown", label: "Button",
-    default: "Reserve yours" },
   // ── Home · signed-out (Arrival) ──
   { key: "home.statement", group: "Home · signed-out", label: "Hero statement", multiline: true,
     default: "We draw the coffee cold, blend the hydration from whole coconut, and simmer the broth slow — the long way, on purpose — then make every cup the moment you order it." },

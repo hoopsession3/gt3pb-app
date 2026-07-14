@@ -1,6 +1,9 @@
 -- ⛔ 0224 — FIELD OPS CONTRACT (merge Phase 5). DO NOT APPLY until the soak gate is green:
---   GATE: 7 consecutive days with (a) zero drift from the nightly check below, and (b) at least one
---   real event day, one truck stop going live, and one Monday office run operated on the spine.
+--   GATE (amended 2026-07-14, Ryan's call — option C, since no real event lands inside the window):
+--   7 consecutive green nights of the drift check below, plus at least one truck stop gone live and
+--   one Monday office run operated on the spine. The event-day leg was DROPPED from the gate.
+--   The nightly check is AUTOMATED: field_ops_drift() RPC (0227), called by a scheduled watcher
+--   nightly at 23:30 ET; it pushes green/red. Manual runs any time via the query below.
 --   Sits in supabase/pending/ so no tooling ever auto-applies it. Take a manual backup snapshot
 --   (Supabase → Database → Backups) immediately before applying. This is the ONLY irreversible step.
 --

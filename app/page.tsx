@@ -7,7 +7,6 @@ import { useAuth, type Profile } from "@/components/AuthProvider";
 import { useApp } from "@/components/AppProvider";
 import GenerateDay from "@/components/GenerateDay";
 import ReservePitch from "@/components/ReservePitch";
-import LaunchCountdown from "@/components/LaunchCountdown";
 import StampCard from "@/components/StampCard";
 import Skeleton from "@/components/Skeleton";
 import Watermark from "@/components/Watermark";
@@ -93,7 +92,6 @@ function TodayReal({ t }: { t: (k: string) => string }) {
       <div className="h-title">{now ? `${greet(now)}, ` : ""}{name}.</div>
       <YourUsual />
       <StampCard />
-      <LaunchCountdown />
       <ReservePitch />
       <div className="h-sub">{t("home.questions")}</div>
       <GenerateDay />
