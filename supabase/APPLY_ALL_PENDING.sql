@@ -1,3 +1,5 @@
+-- ⚠️ NEVER include files from supabase/pending/ in this bundle — those are soak-gated (see
+-- supabase/pending/0224_field_ops_contract.sql) and applying them early is irreversible.
 -- GT3PB  apply all pending migrations + role fix, in order. Idempotent (safe to re-run).
 -- Paste this whole file into the Supabase SQL editor and Run.
 

@@ -1,0 +1,192 @@
+// FIELD-OPS MERGE CONTRACT — the acceptance tests for the events+stops physical merge (0222/0223).
+// Same harness philosophy as db.test.mjs: an in-process WASM Postgres (PGlite), a fixture that stubs
+// ONLY what Supabase provides at runtime, table shapes mirroring the LIVE prod columns (pulled from
+// information_schema, not guessed from migrations), and the MIGRATIONS UNDER TEST loaded verbatim
+// from their real files. If these pass, the merge machine — backfill, mirrors, spine sync — is
+// behaving to contract; the same file re-verifies every later phase.
+import { PGlite } from "@electric-sql/pglite";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+let pass = 0, fail = 0;
+const ok = (name, cond, got) => {
+  if (cond) { pass++; } else { fail++; console.log(`  ✗ ${name}` + (got !== undefined ? ` → got ${JSON.stringify(got)}` : "")); }
+};
+
+const db = new PGlite();
+const q1 = async (sql, params) => (await db.query(sql, params)).rows[0];
+
+// ── platform stubs (what Supabase provides at runtime) ──────────────────────────────────────────
+await db.exec(`
+  create schema if not exists auth;
+  create table auth.users (id uuid primary key);
+  create or replace function auth.uid() returns uuid language sql stable as $$ select null::uuid $$;
+  create role anon; create role authenticated;
+  grant usage on schema auth, public to anon, authenticated;
+  create table public.tenants (id uuid primary key);
+  insert into public.tenants values ('00000000-0000-0000-0000-000000000001');
+  create table public.vendors (id uuid primary key default gen_random_uuid());
+  create or replace function public.is_staff() returns boolean language sql stable as $$ select true $$;
+  create or replace function public.effective_tenant() returns uuid language sql stable as $$
+    select '00000000-0000-0000-0000-000000000001'::uuid $$;
+  create or replace function public.stamp_tenant() returns trigger language plpgsql as $$
+    begin new.tenant_id := coalesce(new.tenant_id, '00000000-0000-0000-0000-000000000001'::uuid); return new; end $$;
+`);
+
+// ── events + stops, mirroring the LIVE prod column lists exactly ────────────────────────────────
+await db.exec(`
+  create table public.events (
+    id uuid primary key default gen_random_uuid(),
+    title text not null, type text, day date, start_time text, end_time text, location_text text,
+    member_only boolean default false, capacity int, claimed int default 0, going_count int default 0,
+    blurb text, sort int default 0, day_label text, archetype text, rig text,
+    menu_nitro boolean default false, menu_nature_aid boolean default false, menu_salted_maple boolean default false,
+    menu_bottles boolean default false, menu_broth boolean default false,
+    power_available boolean default false, water_available boolean default false,
+    expected_attendance int, duration_hrs numeric, staff_count int, is_live boolean default false,
+    state text, county text, archived_at timestamptz, vendor_id uuid references public.vendors(id),
+    tenant_id uuid default '00000000-0000-0000-0000-000000000001', category text, plan_days int,
+    outlook_event_id text, outlook_synced_at timestamptz, stage text, default_buffer_min int, completed_at timestamptz
+  );
+  create table public.stops (
+    id uuid primary key default gen_random_uuid(),
+    name text not null, location_text text, lat double precision, lng double precision,
+    starts_at timestamptz, ends_at timestamptz, status text, note text, menu_tier text, sort int default 0,
+    when_label text, time_label text, tag_label text, notes text, address text,
+    poc_name text, poc_phone text, poc_email text, service_dates text, archived_at timestamptz,
+    vendor_id uuid references public.vendors(id), tenant_id uuid default '00000000-0000-0000-0000-000000000001',
+    plan_days int, rig text, power_available boolean default false, water_available boolean default false,
+    menu_nitro boolean default false, menu_nature_aid boolean default false, menu_salted_maple boolean default false,
+    menu_bottles boolean default false, menu_broth boolean default false,
+    default_buffer_min int, completed_at timestamptz,
+    order_ahead_enabled boolean default false, pickup_enabled boolean default false, order_ahead_lead_min int
+  );
+`);
+
+// ── the 21 dependents, minimal shapes (id + their real parent columns) ──────────────────────────
+const DUAL = ["brew_batch_links","brew_batches","content_items","content_links","event_approvals",
+  "event_menu_items","event_schedule_items","event_staff","incident_log",
+  "inventory_ledger","meeting_notes"];
+const EVENT_ONLY = ["documents","event_sales","expenses","rsvps","todos"];
+for (const t of DUAL) await db.exec(
+  `create table public.${t} (id uuid primary key default gen_random_uuid(),
+     event_id uuid references public.events(id) on delete cascade,
+     stop_id uuid references public.stops(id) on delete cascade);`);
+for (const t of EVENT_ONLY) await db.exec(
+  `create table public.${t} (id uuid primary key default gen_random_uuid(),
+     event_id uuid references public.events(id) on delete cascade);`);
+// Prod-fidelity shapes the panel demanded (the minimal shapes hid a real trigger bug):
+// event_tasks carries the 0164 one-owner 4-way check; orders mixes FK actions (0024 NO ACTION /
+// 0219 SET NULL); event_economics/event_ops/stop_ops key the PARENT as their primary key.
+await db.exec(`
+  create table public.event_tasks (id uuid primary key default gen_random_uuid(),
+    event_id uuid references public.events(id) on delete cascade,
+    stop_id uuid references public.stops(id) on delete cascade,
+    meeting_note_id uuid, goal_id uuid,
+    constraint event_tasks_one_owner check (
+      ((event_id is not null)::int + (stop_id is not null)::int +
+       (meeting_note_id is not null)::int + (goal_id is not null)::int) = 1));
+  create table public.orders (id uuid primary key default gen_random_uuid(),
+    event_id uuid references public.events(id),
+    stop_id uuid references public.stops(id) on delete set null);
+  create table public.event_economics (event_id uuid primary key references public.events(id) on delete cascade);
+  create table public.event_ops (event_id uuid primary key references public.events(id) on delete cascade);
+  create table public.stop_ops (stop_id uuid primary key references public.stops(id) on delete cascade);
+`);
+// Prod trigger population + the 0220 view, so 0222 exercises the drop-view path and BEFORE/AFTER order.
+await db.exec(`
+  create trigger stamp_tenant_tg before insert on public.events for each row execute function public.stamp_tenant();
+  create trigger stamp_tenant_tg before insert on public.stops for each row execute function public.stamp_tenant();
+  create view public.field_ops as select id, 'event'::text as kind from public.events
+    union all select id, 'stop' from public.stops;
+`);
+
+// ── pre-existing rows (the backfill population) ─────────────────────────────────────────────────
+const EV = "eeeeeeee-0000-0000-0000-000000000001";
+const ST = "ssssssss-0000-0000-0000-000000000001".replace(/s/g, "5");
+await db.exec(`
+  insert into public.events (id, title, day, category, is_live) values ('${EV}', 'Gratitude Market', '2026-07-31', 'event', false);
+  insert into public.stops (id, name, starts_at, status) values ('${ST}', 'WineXpress', '2026-07-18T15:00:00Z', 'upcoming');
+  insert into public.event_tasks (event_id) values ('${EV}');
+  insert into public.orders (stop_id) values ('${ST}');
+  insert into public.event_sales (event_id) values ('${EV}');
+  insert into public.stop_ops (stop_id) values ('${ST}');
+`);
+
+// ── APPLY THE REAL MIGRATIONS ───────────────────────────────────────────────────────────────────
+await db.exec(readFileSync(join(ROOT, "supabase/migrations/0222_field_ops_table.sql"), "utf8"));
+await db.exec(readFileSync(join(ROOT, "supabase/migrations/0223_field_op_spine.sql"), "utf8"));
+
+// ── 1 · backfill: every source row present, UUIDs preserved, kinds right ────────────────────────
+ok("backfill count = events + stops",
+  (await q1(`select (select count(*)::int from public.field_ops) =
+                    (select count(*)::int from public.events) + (select count(*)::int from public.stops) as r`)).r === true);
+ok("event UUID preserved with kind/name mapped",
+  (await q1(`select kind || '|' || name as r from public.field_ops where id = '${EV}'`)).r === "event|Gratitude Market");
+ok("stop UUID preserved with kind/name mapped",
+  (await q1(`select kind || '|' || name as r from public.field_ops where id = '${ST}'`)).r === "stop|WineXpress");
+
+// ── 2 · mirrors: insert / update / delete flow through, both kinds ──────────────────────────────
+await db.exec(`insert into public.events (id, title, day) values ('eeeeeeee-0000-0000-0000-000000000002', 'Pop-up', '2026-08-02');`);
+ok("event insert mirrors", (await q1(`select name as r from public.field_ops where id = 'eeeeeeee-0000-0000-0000-000000000002'`))?.r === "Pop-up");
+await db.exec(`update public.events set title = 'Pop-up · Midtown', is_live = true where id = 'eeeeeeee-0000-0000-0000-000000000002';`);
+ok("event update mirrors (rename + live)",
+  (await q1(`select name || '|' || is_live::text as r from public.field_ops where id = 'eeeeeeee-0000-0000-0000-000000000002'`)).r === "Pop-up · Midtown|true");
+await db.exec(`delete from public.events where id = 'eeeeeeee-0000-0000-0000-000000000002';`);
+ok("event delete mirrors", (await q1(`select count(*)::int as r from public.field_ops where id = 'eeeeeeee-0000-0000-0000-000000000002'`)).r === 0);
+
+await db.exec(`insert into public.stops (id, name, starts_at) values ('55555555-0000-0000-0000-000000000002', 'Office Row', '2026-07-20T13:00:00Z');`);
+ok("stop insert mirrors", (await q1(`select name as r from public.field_ops where id = '55555555-0000-0000-0000-000000000002'`))?.r === "Office Row");
+await db.exec(`update public.stops set starts_at = '2026-07-20T16:51:00Z' where id = '55555555-0000-0000-0000-000000000002';`);
+ok("stop time update mirrors",
+  (await q1(`select starts_at = '2026-07-20T16:51:00Z'::timestamptz as r from public.field_ops where id = '55555555-0000-0000-0000-000000000002'`)).r === true);
+await db.exec(`delete from public.stops where id = '55555555-0000-0000-0000-000000000002';`);
+ok("stop delete mirrors", (await q1(`select count(*)::int as r from public.field_ops where id = '55555555-0000-0000-0000-000000000002'`)).r === 0);
+
+// ── 3 · spine: backfilled + auto-synced on old-writer inserts and re-parents ────────────────────
+ok("spine column landed on all 21 dependents",
+  (await q1(`select count(*)::int as r from information_schema.columns where table_schema = 'public' and column_name = 'field_op_id'`)).r === 21);
+ok("pre-existing event_tasks backfilled", (await q1(`select field_op_id::text as r from public.event_tasks limit 1`)).r === EV);
+ok("pre-existing stop order backfilled", (await q1(`select field_op_id::text as r from public.orders limit 1`)).r === ST);
+ok("pre-existing stop_ops backfilled", (await q1(`select field_op_id::text as r from public.stop_ops limit 1`)).r === ST);
+await db.exec(`insert into public.event_tasks (id, stop_id) values ('aaaaaaaa-0000-0000-0000-000000000009', '${ST}');`);
+ok("old-writer insert auto-fills the spine",
+  (await q1(`select field_op_id::text as r from public.event_tasks where id = 'aaaaaaaa-0000-0000-0000-000000000009'`)).r === ST);
+await db.exec(`update public.event_tasks set stop_id = null, event_id = '${EV}' where id = 'aaaaaaaa-0000-0000-0000-000000000009';`);
+ok("re-parent re-derives the spine",
+  (await q1(`select field_op_id::text as r from public.event_tasks where id = 'aaaaaaaa-0000-0000-0000-000000000009'`)).r === EV);
+
+// ── 4 · the panel's cases: unlink clears, re-parent-to-goal clears, set-null delete path ────────
+await db.exec(`insert into public.content_items (id, event_id) values ('cccccccc-0000-0000-0000-000000000001', '${EV}');`);
+await db.exec(`update public.content_items set event_id = null where id = 'cccccccc-0000-0000-0000-000000000001';`);
+ok("unlink CLEARS the spine (Studio's {event_id: null})",
+  (await q1(`select field_op_id is null as r from public.content_items where id = 'cccccccc-0000-0000-0000-000000000001'`)).r === true);
+await db.exec(`update public.event_tasks set event_id = null, goal_id = gen_random_uuid() where id = 'aaaaaaaa-0000-0000-0000-000000000009';`);
+ok("re-parent event→goal clears the spine",
+  (await q1(`select field_op_id is null as r from public.event_tasks where id = 'aaaaaaaa-0000-0000-0000-000000000009'`)).r === true);
+ok("pending 0224 one-owner would hold on every event_tasks row",
+  (await q1(`select count(*)::int as r from public.event_tasks where
+     ((field_op_id is not null)::int + (meeting_note_id is not null)::int + (goal_id is not null)::int) <> 1`)).r === 0);
+await db.exec(`
+  insert into public.stops (id, name) values ('55555555-0000-0000-0000-000000000003', 'SetNull Stop');
+  insert into public.orders (id, stop_id) values ('bbbbbbbb-0000-0000-0000-000000000001', '55555555-0000-0000-0000-000000000003');
+  delete from public.stops where id = '55555555-0000-0000-0000-000000000003';`);
+ok("stop delete (SET NULL FK) clears both parent and spine, no dangling ref",
+  (await q1(`select (stop_id is null and field_op_id is null) as r from public.orders where id = 'bbbbbbbb-0000-0000-0000-000000000001'`)).r === true);
+
+// ── 5 · drift: the nightly invariant, looped over EVERY spined table, both drift classes ────────
+const SPINED = [...DUAL, "event_tasks", "orders", ...EVENT_ONLY, "event_economics", "event_ops", "stop_ops"];
+for (const t of SPINED) {
+  const cols = (await db.query(`select column_name from information_schema.columns where table_schema='public' and table_name='${t}'`)).rows.map((r) => r.column_name);
+  const e = cols.includes("event_id") ? "event_id" : "null::uuid";
+  const st = cols.includes("stop_id") ? "stop_id" : "null::uuid";
+  const bad = (await q1(`select count(*)::int as r from public.${t}
+    where (coalesce(${e}, ${st}) is not null and field_op_id is distinct from coalesce(${e}, ${st}))
+       or (field_op_id is not null and coalesce(${e}, ${st}) is null)`)).r;
+  ok(`zero drift on ${t} (both classes)`, bad === 0, bad);
+}
+
+console.log(`FIELD-OPS CONTRACT: ${pass} passed, ${fail} failed`);
+if (fail > 0) process.exit(1);
