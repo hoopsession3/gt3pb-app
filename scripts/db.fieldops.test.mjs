@@ -256,5 +256,11 @@ ok("todo leg: source/due/category intact, critical stays false, spine context ri
 ok("view keeps security_invoker (RLS of the querying user, not the owner)",
   (await q1(`select 'security_invoker=on' = any(reloptions) as r from pg_class where relname = 'all_tasks'`)).r === true);
 
+// ── 7 · the drift RPC (0227): the nightly watcher's endpoint returns the same four zeros ────────
+await db.exec(readFileSync(join(ROOT, "supabase/migrations/0227_field_ops_drift_fn.sql"), "utf8"));
+const drift = (await db.query(`select chk, n::int as n from public.field_ops_drift() order by chk`)).rows;
+ok("field_ops_drift() returns exactly the four soak checks, all zero on a clean spine",
+  drift.length === 4 && drift.every((r) => r.n === 0), drift);
+
 console.log(`FIELD-OPS CONTRACT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
