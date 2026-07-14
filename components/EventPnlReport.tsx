@@ -14,7 +14,7 @@ export default function EventPnlReport() {
   const [loading, setLoading] = useState(true);
   const { setSection } = useOperatorSection();
   // Jump from a P&L row to the event it came from (audit P2: reports were read-only dead-ends).
-  const openEvent = (id?: string) => { if (!id) return; try { localStorage.setItem("gt3-prep-open", id); } catch { /* ignore */ } setSection("prep"); };
+  const openEvent = (id?: string, kind?: "event" | "stop") => { if (!id) return; try { localStorage.setItem("gt3-prep-open", kind === "stop" ? `stop:${id}` : id); } catch { /* ignore */ } setSection("prep"); };
 
   useEffect(() => {
     let live = true;
@@ -34,7 +34,7 @@ export default function EventPnlReport() {
       ) : (
         <div className="rpt-block">
           {rows.map((r, i) => (
-            <button key={i} type="button" className="rpt-pnl rpt-pnl-link" onClick={() => openEvent(r.id)} disabled={!r.id}>
+            <button key={i} type="button" className="rpt-pnl rpt-pnl-link" onClick={() => openEvent(r.id, r.kind)} disabled={!r.id}>
               <div className="rpt-pnl-l">
                 <b>{r.event}{r.id ? <span className="rpt-pnl-go" aria-hidden> ›</span> : null}</b>
                 <span>{r.orders} orders · {Math.round((1 - r.cogs_pct) * 100)}% gross{r.fixed_cents > 0 ? ` · ${usd(r.fixed_cents)} fixed` : ""}</span>

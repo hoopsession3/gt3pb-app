@@ -50,6 +50,7 @@ export async function POST(req: Request) {
       supabaseAdmin.from("orders").select("payment_id").not("payment_id", "is", null).gte("created_at", since60d()),
       supabaseAdmin.from("drop_orders").select("payment_id").not("payment_id", "is", null).gte("created_at", since60d()),
       supabaseAdmin.from("delivery_orders").select("payment_id").not("payment_id", "is", null).gte("created_at", since60d()),
+      supabaseAdmin.from("business_orders").select("payment_id").not("payment_id", "is", null).gte("created_at", since60d()),
     ]);
     const appIds = new Set(idSets.flatMap((r) => (r.data ?? []).map((x: any) => x.payment_id)));
     sq = (es ?? []).reduce((s: number, r: any) => s + (appIds.has(r.square_payment_id) ? 0 : Number(r.amount_cents) || 0), 0);

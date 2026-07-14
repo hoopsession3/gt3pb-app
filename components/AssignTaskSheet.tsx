@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/AuthProvider";
 import { useApp } from "@/components/AppProvider";
+import { createTodo } from "@/lib/tasks";
 import Sheet from "@/components/Sheet";
 
 // REUSABLE buildout → task. Drop this after any buildout (bottle loadout, delivery loadout, event
@@ -45,13 +46,11 @@ export default function AssignTaskSheet({
   const create = async () => {
     if (!supabase || !title.trim() || busy) return;
     setBusy(true);
-    const { data, error } = await supabase.from("todos").insert({
-      title: title.trim(), category, due_on: due || null, visibility,
-      assignee: assignee || null, event_id: eventId || null, created_by: user?.id ?? null,
-    }).select("id").single();
+    // ONE write path (lib/tasks) — the same helper every delegated-task surface uses.
+    const r = await createTodo({ title, category, dueOn: due, assignee, eventId, visibility, createdBy: user?.id });
     setBusy(false);
-    if (error || !data) { toast(`Couldn't create the task — ${error?.message ?? "try again"}`, "error"); return; }
-    setCreatedId((data as { id: string }).id);
+    if (r.error || !r.id) { toast(`Couldn't create the task — ${r.error ?? "try again"}`, "error"); return; }
+    setCreatedId(r.id);
     onCreated?.();
   };
   const reassign = async (id: string) => {

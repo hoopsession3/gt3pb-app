@@ -33,6 +33,7 @@ import NoteAttach from "@/components/NoteAttach";
 import Goals from "@/components/Goals";
 import PlanningBoard from "@/components/PlanningBoard";
 import { useSiteCopy } from "@/lib/copy";
+import { completeTask } from "@/lib/tasks";
 import AiTraining from "@/components/AiTraining";
 import PromoEditor from "@/components/PromoEditor";
 import EightySix from "@/components/EightySix";
@@ -1374,8 +1375,7 @@ function MyTasks({ userId, chip = false }: { userId: string | null; chip?: boole
   const complete = async (t: MyTaskRow) => {
     if (!supabase) return;
     setTasks((p) => p.filter((x) => x.id !== t.id)); // optimistic
-    if (t.source === "todo") await supabase.from("todos").update({ done: true, done_at: new Date().toISOString() }).eq("id", t.id);
-    else await supabase.from("event_tasks").update({ done: true, done_by: userId, done_at: new Date().toISOString() }).eq("id", t.id);
+    await completeTask(t.source === "todo" ? "todo" : "event", t.id, userId);   // ONE complete path (lib/tasks)
   };
 
   if (!userId || (loaded && tasks.length === 0)) return null;

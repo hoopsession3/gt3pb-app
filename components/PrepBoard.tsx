@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "./AuthProvider";
 import { useRealtimeTable } from "@/lib/realtime";
+import { completeTask } from "@/lib/tasks";
 
 // PREP BOARD — the aggregate readiness triage surface. Every open prep task across every event and
 // stop, in ONE prioritized board you can actually work: critical + overdue first, one tap to done,
@@ -41,7 +42,7 @@ export default function PrepBoard() {
   const done = async (t: Task) => {
     if (!supabase) return;
     setRows((p) => p.filter((x) => x.id !== t.id));
-    await supabase.from("event_tasks").update({ done: true, done_by: user?.id ?? null, done_at: nowISO() }).eq("id", t.id);
+    await completeTask("event", t.id, user?.id);   // ONE complete path (lib/tasks)
   };
   const assign = async (t: Task, uid: string) => {
     if (!supabase) return;

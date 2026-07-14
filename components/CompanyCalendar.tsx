@@ -12,6 +12,7 @@ import { useAuth, roleOf } from "@/components/AuthProvider";
 import { useOperatorSection } from "./OperatorNav";
 import { isBlank } from "@/lib/formGuard";
 import { findOrCreatePendingVendor } from "@/lib/vendorLink";
+import { localDayBoundsISO } from "@/lib/calendarMath";
 import EventDayPlanner from "./EventDayPlanner";
 import Sheet from "@/components/Sheet";
 
@@ -107,12 +108,8 @@ export default function CompanyCalendar() {
     const to = key(range.end);
     const eFrom = (() => { const d = new Date(range.start); d.setDate(d.getDate() - 31); return key(d); })(); // catch multi-day spillover
     const from = key(range.start);
-    // timestamptz columns (scheduled_for / starts_at / due_at) must be bounded by the REAL UTC
-    // instants of the local range — a naive "…T00:00:00"/"…T23:59:59" bound is read as UTC by
-    // PostgREST and drops items late on the last local day for behind-UTC (Eastern) zones. Date
-    // columns (day / due_on / brew_date / drop_date / delivery_date) keep the local key strings.
-    const fromISO = new Date(range.start.getFullYear(), range.start.getMonth(), range.start.getDate()).toISOString();
-    const toISO = new Date(range.end.getFullYear(), range.end.getMonth(), range.end.getDate() + 1).toISOString();
+    // Shared UTC-bounding math (lib/calendarMath) — date columns keep the local key strings.
+    const { fromISO, toISO } = localDayBoundsISO(range.start, range.end);
     // WRAPPED so a dropped socket / offline fetch can't become an unhandled rejection (the /crew
     // field-error alert). On failure the last-known calendar holds; realtime + next open recover.
     try {

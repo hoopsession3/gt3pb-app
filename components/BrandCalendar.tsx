@@ -6,6 +6,7 @@ import { useApp } from "@/components/AppProvider";
 import Sheet from "@/components/Sheet";
 import { useOperatorSection } from "./OperatorNav";
 import { CAL_CAT, CONTENT_STATUS as STC } from "@/lib/calendarTokens";
+import { localDayBoundsISO } from "@/lib/calendarMath";
 import { isBlank } from "@/lib/formGuard";
 
 // BRAND CALENDAR — the planning brain of Studio. Posts (scheduled content) + events roll onto one
@@ -71,13 +72,9 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    // scheduled_for is timestamptz (UTC). Bound the query by the REAL UTC instants of the local grid
-    // span — a naive "YYYY-MM-DDT00:00:00" bound is interpreted as UTC by PostgREST, which silently
-    // drops posts scheduled late on the last local day for behind-UTC zones (Eastern). events.day is
-    // a plain date, so it keys off the local calendar strings directly.
+    // Shared UTC-bounding math (lib/calendarMath) — events.day keys off local calendar strings.
     const fromKey = key(days[0]), toKey = key(days[41]);
-    const fromISO = days[0].toISOString();
-    const toISO = new Date(days[41].getFullYear(), days[41].getMonth(), days[41].getDate() + 1).toISOString();
+    const { fromISO, toISO } = localDayBoundsISO(days[0], days[41]);
     // WRAPPED so a dropped socket / offline fetch can't become an unhandled rejection (the /studio
     // field-error alert). On failure the last-known board stays; realtime + the next open recover.
     try {
