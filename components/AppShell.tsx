@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useApp } from "./AppProvider";
 import BottomNav from "./BottomNav";
 import OperatorNav, { OperatorSectionProvider } from "./OperatorNav";
+import { TaskSheetProvider } from "./TaskSheet";
 import QuickDock from "./QuickDock";
 import EventCopilot from "./EventCopilot";
 import Concierge from "./Concierge";
@@ -99,6 +100,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <OperatorSectionProvider>
+     <TaskSheetProvider>
       <div className={`app${inAdmin && theme === "day" ? " crew-day" : ""}${disp ? ` ${disp}` : ""}`}>
         {/* Skip link — first focusable element; keyboard users jump past the chrome to the content. */}
         <a href="#body" className="skip-link">Skip to content</a>
@@ -136,6 +138,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <ErrorReporter />
         <ServiceWorkerRegister />
       </div>
+     </TaskSheetProvider>
     </OperatorSectionProvider>
   );
 }

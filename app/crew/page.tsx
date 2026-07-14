@@ -14,6 +14,7 @@ import { brewStartOverdue } from "@/lib/brewMath";
 import { useWorkStreams, streamOfCategory } from "@/lib/streams";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useOperatorSection, sectionsForRole, streamGroups, SECTION_LABEL, TODAY_GROUP, type OpSection } from "@/components/OperatorNav";
+import { useTaskSheet } from "@/components/TaskSheet";
 import { CrumbProvider, Breadcrumbs, useCrumb } from "@/components/Crumbs";
 import { recordRecent } from "@/components/recents";
 import { queueOrderStatus, isNetworkError, saveSnapshot, readSnapshot, readQueue, OFFLINE_EVENT } from "@/components/offline";
@@ -1348,6 +1349,7 @@ function NeedsYou() {
 
 function MyTasks({ userId, chip = false }: { userId: string | null; chip?: boolean }) {
   const { setSection } = useOperatorSection();
+  const { openTask } = useTaskSheet();
   const [tasks, setTasks] = useState<MyTaskRow[]>([]);
   const [loaded, setLoaded] = useState(false);
 
@@ -1423,10 +1425,10 @@ function MyTasks({ userId, chip = false }: { userId: string | null; chip?: boole
           <button type="button" className="task-check" onClick={() => complete(t)} aria-label={`Mark done: ${t.label}`}>
             <span className="task-box" />
           </button>
-          <div className="mytask-main">
+          <button type="button" className="mytask-main" onClick={() => openTask(t.id, t.source === "todo" ? "todo" : "event")} aria-label={`Open task: ${t.label}`}>
             <span className="mytask-label">{t.label}</span>
             <span className="mytask-ev">{t.source === "todo" ? `To-do${t.category ? ` · ${t.category}` : ""}` : t.meeting_notes ? `Follow-up · ${t.meeting_notes.title ?? "Meeting"}` : t.goals ? `Goal · ${t.goals.title ?? "Goal"}` : `${t.events?.title ?? "Event"}${t.events?.is_live ? " · LIVE" : t.events?.day ? ` · ${whenBucket(t.events.day).label}` : ""}`}{t.due_at ? ` · due ${dueLabel(t.due_at)}` : ""}</span>
-          </div>
+          </button>
           {isOver(t) ? <span className="mytask-pri over">Overdue</span> : t.critical ? <span className="mytask-pri crit">Critical</span> : t.warn ? <span className="mytask-pri warn">Important</span> : null}
         </div>
       ))}

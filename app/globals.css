@@ -5684,3 +5684,30 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 .vdupe-row:last-child{border-bottom:none}
 .vdupe-names{flex:1;min-width:180px;font-family:'Inter';font-size:13px;color:var(--cream)}
 .vdupe-names em{font-style:normal;color:var(--gold);font-family:var(--mono);font-size:10px;margin:0 6px}
+
+/* ── TaskSheet — the universal task-detail popout (components/TaskSheet.tsx) ── */
+.tsheet-h{display:flex;align-items:center;gap:8px;min-width:0}
+.tsheet-h b{font-family:'Inter';font-weight:700;font-size:16px;color:var(--cream);line-height:1.25;overflow:hidden;text-overflow:ellipsis}
+.tsheet-flame{flex:0 0 auto}
+.tsheet-body{display:flex;flex-direction:column;gap:14px;padding:4px 2px 8px}
+.tsheet-empty{color:var(--cream-m);font-size:14px;padding:18px 2px}
+.tsheet-ctx{display:flex;flex-wrap:wrap;gap:8px 14px;font-size:13px;color:var(--cream-m);align-items:center}
+.tsheet-ctx-link{background:none;border:none;color:var(--gold2,#c8a661);font:inherit;cursor:pointer;padding:0}
+.tsheet-editlink{align-self:flex-start;background:none;border:none;color:var(--gold2,#c8a661);font-family:'Inter';font-size:12.5px;font-weight:600;cursor:pointer;padding:0}
+.tsheet-edit{display:flex;gap:8px}
+.tsheet-edit .auth-input{flex:1;min-width:0}
+.tsheet-field{display:flex;flex-direction:column;gap:5px}
+.tsheet-k{font-family:'Inter';font-weight:600;letter-spacing:1.5px;text-transform:uppercase;font-size:10.5px;color:var(--gold)}
+.tsheet-due{font-size:12.5px;color:var(--cream-m);margin-top:-6px}
+.tsheet-due.warn{color:var(--warn,#e0a23a);font-weight:600}
+.tsheet-meta{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:12px;color:var(--cream-m);opacity:.85}
+.tsheet-actions{display:flex;gap:10px;margin-top:4px}
+.tsheet-done{flex:1;-webkit-appearance:none;appearance:none;border:1.5px solid var(--line2);background:rgba(0,0,0,.2);color:var(--cream);font-family:'Inter';font-weight:700;font-size:14px;padding:13px;border-radius:12px;cursor:pointer;transition:.15s}
+.tsheet-done.on{border-color:rgba(127,168,107,.5);background:rgba(127,168,107,.14);color:#a9d18e}
+.tsheet-del{-webkit-appearance:none;appearance:none;border:1.5px solid var(--line2);background:transparent;color:var(--warn,#e0a23a);font-family:'Inter';font-weight:600;font-size:13px;padding:13px 16px;border-radius:12px;cursor:pointer}
+.app.crew-day .tsheet-h b{color:#221F18}
+.app.crew-day .tsheet-k{color:#8a6a2a}
+.app.crew-day .tsheet-done{background:rgba(34,31,24,.05);color:#221F18}
+
+/* .mytask-main is now a <button> (opens TaskSheet) — strip button chrome so it reads as before */
+button.mytask-main{-webkit-appearance:none;appearance:none;background:none;border:none;text-align:left;cursor:pointer;width:100%;min-width:0;font:inherit;color:inherit}
