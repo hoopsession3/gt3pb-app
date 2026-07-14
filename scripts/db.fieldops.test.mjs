@@ -188,5 +188,73 @@ for (const t of SPINED) {
   ok(`zero drift on ${t} (both classes)`, bad === 0, bad);
 }
 
+// ── 6 · all_tasks v2 (0225): the ONE task read-view, enriched for My Day off the spine ──────────
+// Fixture fidelity: give event_tasks/todos their real read columns (lax nullability — the view
+// doesn't depend on it), a titled meeting_notes, and a goals table, then prove the REAL 0225
+// replaces the REAL 0210 baseline legally (append-only) and carries the context My Day renders.
+await db.exec(`
+  alter table public.event_tasks
+    add column label text, add column assignee uuid, add column due_at timestamptz,
+    add column done boolean not null default false, add column done_at timestamptz,
+    add column created_at timestamptz not null default now(), add column critical boolean not null default false,
+    add column section text, add column warn boolean not null default false, add column sort int not null default 0;
+  alter table public.todos
+    add column title text, add column assignee uuid, add column due_on date,
+    add column done boolean not null default false, add column done_at timestamptz,
+    add column created_at timestamptz not null default now(), add column category text, add column meeting_note_id uuid;
+  alter table public.meeting_notes add column title text;
+  create table public.goals (id uuid primary key default gen_random_uuid(), title text);
+`);
+// The LIVE baseline, verbatim from 0210 (nothing later redefines all_tasks; prod viewdef is
+// re-verified against this before 0225 is applied there).
+await db.exec(`
+  create or replace view public.all_tasks with (security_invoker = on) as
+    select 'event'::text as source, id, label as title, assignee, due_at::date as due,
+           done, done_at, created_at, critical, section as category, event_id, goal_id, meeting_note_id
+    from public.event_tasks
+    union all
+    select 'todo', id, title, assignee, due_on as due,
+           done, done_at, created_at, false as critical, category, event_id, null::uuid, meeting_note_id
+    from public.todos;
+`);
+let v2ok = true;
+try { await db.exec(readFileSync(join(ROOT, "supabase/migrations/0225_all_tasks_v2.sql"), "utf8")); }
+catch (e) { v2ok = false; console.log(`  ✗ 0225 apply threw → ${e.message}`); }
+ok("0225 replaces the 0210 baseline legally (append-only column contract)", v2ok);
+await db.exec(`
+  insert into public.meeting_notes (id, title) values ('dddddddd-0000-0000-0000-000000000001', 'Monday sync');
+  insert into public.goals (id, title) values ('99999999-0000-0000-0000-000000000001', 'July revenue');
+  insert into public.event_tasks (id, event_id, label, due_at, critical, warn, sort)
+    values ('aaaaaaaa-0000-0000-0000-000000000010', '${EV}', 'Order bottles', '2026-07-30T18:00:00Z', true, true, 3);
+  insert into public.event_tasks (id, stop_id, label)
+    values ('aaaaaaaa-0000-0000-0000-000000000011', '${ST}', 'Pack signage');
+  insert into public.event_tasks (id, meeting_note_id, label)
+    values ('aaaaaaaa-0000-0000-0000-000000000012', 'dddddddd-0000-0000-0000-000000000001', 'Send recap');
+  insert into public.event_tasks (id, goal_id, label)
+    values ('aaaaaaaa-0000-0000-0000-000000000013', '99999999-0000-0000-0000-000000000001', 'Push packs');
+  insert into public.todos (id, event_id, title, due_on, category)
+    values ('cccccccc-0000-0000-0000-000000000002', '${EV}', 'Call the venue', '2026-07-16', 'Events');
+`);
+ok("WorkloadBoard read is untouched (original columns, original types)",
+  (await q1(`select (assignee is null and due = '2026-07-30' and done = false) as r
+             from public.all_tasks where id = 'aaaaaaaa-0000-0000-0000-000000000010'`)).r === true);
+ok("event task carries op context + INTRADAY due_at (not just the date)",
+  (await q1(`select op_kind || '|' || op_name || '|' || (due_at = '2026-07-30T18:00:00Z'::timestamptz)::text || '|' || warn::text || '|' || sort::text as r
+             from public.all_tasks where id = 'aaaaaaaa-0000-0000-0000-000000000010'`)).r === "event|Gratitude Market|true|true|3");
+ok("STOP task finally carries its stop's name off the spine",
+  (await q1(`select op_kind || '|' || op_name as r from public.all_tasks where id = 'aaaaaaaa-0000-0000-0000-000000000011'`)).r === "stop|WineXpress");
+ok("stop context ships the raw instant for client-side localization (no UTC date cast)",
+  (await q1(`select (op_day is null and op_starts_at = '2026-07-18T15:00:00Z'::timestamptz) as r
+             from public.all_tasks where id = 'aaaaaaaa-0000-0000-0000-000000000011'`)).r === true);
+ok("note-owned task carries meeting_note_title",
+  (await q1(`select meeting_note_title as r from public.all_tasks where id = 'aaaaaaaa-0000-0000-0000-000000000012'`)).r === "Monday sync");
+ok("goal-owned task carries goal_title",
+  (await q1(`select goal_title as r from public.all_tasks where id = 'aaaaaaaa-0000-0000-0000-000000000013'`)).r === "July revenue");
+ok("todo leg: source/due/category intact, critical stays false, spine context rides along",
+  (await q1(`select source || '|' || due::text || '|' || category || '|' || critical::text || '|' || op_name as r
+             from public.all_tasks where id = 'cccccccc-0000-0000-0000-000000000002'`)).r === "todo|2026-07-16|Events|false|Gratitude Market");
+ok("view keeps security_invoker (RLS of the querying user, not the owner)",
+  (await q1(`select 'security_invoker=on' = any(reloptions) as r from pg_class where relname = 'all_tasks'`)).r === true);
+
 console.log(`FIELD-OPS CONTRACT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

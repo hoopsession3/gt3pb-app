@@ -9,7 +9,7 @@ import { raiseAlertClient } from "@/lib/clientAlerts";
 import { authedFetch } from "@/lib/authedFetch";
 import { normalizeCategory, type AlertCategory } from "@/lib/alertKinds";
 import { useMyAlerts, type MyFlag } from "@/lib/useMyAlerts";
-import { localToday, etToday } from "@/lib/dates";
+import { localToday, etToday, dayKey } from "@/lib/dates";
 import { brewStartOverdue } from "@/lib/brewMath";
 import { useWorkStreams, streamOfCategory } from "@/lib/streams";
 import { useRealtimeTable } from "@/lib/realtime";
@@ -1351,21 +1351,33 @@ function MyTasks({ userId, chip = false }: { userId: string | null; chip?: boole
 
   const load = useCallback(async () => {
     if (!supabase || !userId) { setTasks([]); setLoaded(true); return; }
-    // Both task tables land on one plate: the rich event_tasks engine AND to-dos delegated via
-    // AssignTaskSheet (0210) — which used to be invisible to the assignee. Anyone's My Day now shows
-    // everything they own, whichever table it lives in.
-    const [ev, td] = await Promise.all([
-      supabase.from("event_tasks").select("*, events(title, day, is_live), meeting_notes(title), goals(title)").eq("assignee", userId).eq("done", false).order("sort"),
-      supabase.from("todos").select("id, title, category, due_on").eq("assignee", userId).eq("done", false),
-    ]);
-    const evRows = ((ev.data as MyTaskRow[]) ?? []).map((r) => ({ ...r, source: "event" as const }));
+    // ONE task read: the all_tasks spine view (0210, enriched by 0225) — event_tasks ∪ todos with
+    // the op/note/goal context joined in the database. Same plate the WorkloadBoard reads, so task
+    // surfaces can't drift apart again. Op context rides the field_ops spine, which is why a
+    // STOP-owned task now shows its stop's name (it rendered as a bare "Event" before).
+    const { data } = await supabase
+      .from("all_tasks")
+      .select("*")
+      .eq("assignee", userId)
+      .eq("done", false)
+      .order("sort", { ascending: true, nullsFirst: false });   // events keep their sort; sortless to-dos land after, as before
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const tdRows: MyTaskRow[] = ((td.data as any[]) ?? []).map((r) => ({
-      id: r.id, label: r.title, source: "todo", category: r.category,
-      due_at: r.due_on ? new Date(`${r.due_on}T23:59:59`).toISOString() : null,   // local end-of-day as a REAL instant, so a to-do due today isn't "overdue" all evening (behind-UTC bug)
-      critical: false, warn: false, events: null, meeting_notes: null, goals: null,
-    } as MyTaskRow));
-    setTasks([...evRows, ...tdRows]);
+    const rows: MyTaskRow[] = ((data as any[]) ?? []).map((r) =>
+      r.source === "todo"
+        ? ({
+            id: r.id, label: r.title, source: "todo", category: r.category,
+            due_at: r.due ? new Date(`${r.due}T23:59:59`).toISOString() : null,   // local end-of-day as a REAL instant, so a to-do due today isn't "overdue" all evening (behind-UTC bug)
+            critical: false, warn: false, events: null, meeting_notes: null, goals: null,
+          } as MyTaskRow)
+        : ({
+            ...r, label: r.title, source: "event" as const,
+            // != null (not truthiness): an empty-string title is still a real row — panel finding.
+            // Stop dates bucket on the OPERATOR's wall clock (dayKey, the one-clock spine), not a UTC cast.
+            events: r.op_name != null ? { title: r.op_kind === "stop" ? `🚚 ${r.op_name}` : r.op_name, day: r.op_day ?? (r.op_starts_at ? dayKey(new Date(r.op_starts_at)) : null), is_live: r.op_is_live } : null,
+            meeting_notes: r.meeting_note_title != null ? { title: r.meeting_note_title } : null,
+            goals: r.goal_title != null ? { title: r.goal_title } : null,
+          } as MyTaskRow));
+    setTasks(rows);
     setLoaded(true);
   }, [userId]);
 
