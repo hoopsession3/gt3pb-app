@@ -13,12 +13,13 @@ export const maxDuration = 60;
 // the composed summary so the button can confirm what went out.
 
 const since7d = () => new Date(Date.now() - 7 * 864e5).toISOString();
+const since60d = () => new Date(Date.now() - 60 * 864e5).toISOString();   // payment-id lookback for the walk-up dedupe
 const money = (cents: number) => `$${Math.round(cents / 100).toLocaleString()}`;
 
-async function sum(table: string, filter: (q: any) => any): Promise<number> {
+async function sum(table: string, filter: (q: any) => any, col = "total_cents"): Promise<number> {
   try {
-    const { data } = await filter(supabaseAdmin!.from(table).select("total_cents"));
-    return (data ?? []).reduce((s: number, r: any) => s + (Number(r.total_cents) || 0), 0);
+    const { data } = await filter(supabaseAdmin!.from(table).select(col));
+    return (data ?? []).reduce((s: number, r: any) => s + (Number(r[col]) || 0), 0);
   } catch { return 0; }
 }
 async function count(table: string, filter: (q: any) => any): Promise<number> {
@@ -33,14 +34,27 @@ export async function POST(req: Request) {
   if (!supabaseAdmin) return NextResponse.json({ ok: false, error: "not configured" }, { status: 503 });
   const week = since7d();
 
-  // All-channel revenue (last 7d) — the four order tables MoneyKpis sums.
+  // Reconciled revenue (last 7d) — THE basis (0216): every paid app order once + Square WALK-UPS
+  // (event_sales rows matching no app order's payment id — the app charges through Square too, and
+  // the webhook mirrors every payment, so summing both raw would double-count).
   const [cup, packs, deliv, office] = await Promise.all([
     sum("orders", (q) => q.eq("paid", true).neq("status", "void").gte("created_at", week)),
     sum("drop_orders", (q) => q.eq("paid", true).is("canceled_at", null).gte("created_at", week)),
     sum("delivery_orders", (q) => q.eq("payment_status", "paid").is("canceled_at", null).gte("created_at", week)),
     sum("business_orders", (q) => q.eq("payment_status", "paid").is("canceled_at", null).gte("created_at", week)),
   ]);
-  const rev = cup + packs + deliv + office;
+  let sq = 0;
+  try {
+    const [{ data: es }, ...idSets] = await Promise.all([
+      supabaseAdmin.from("event_sales").select("square_payment_id, amount_cents").gte("created_at", week),
+      supabaseAdmin.from("orders").select("payment_id").not("payment_id", "is", null).gte("created_at", since60d()),
+      supabaseAdmin.from("drop_orders").select("payment_id").not("payment_id", "is", null).gte("created_at", since60d()),
+      supabaseAdmin.from("delivery_orders").select("payment_id").not("payment_id", "is", null).gte("created_at", since60d()),
+    ]);
+    const appIds = new Set(idSets.flatMap((r) => (r.data ?? []).map((x: any) => x.payment_id)));
+    sq = (es ?? []).reduce((s: number, r: any) => s + (appIds.has(r.square_payment_id) ? 0 : Number(r.amount_cents) || 0), 0);
+  } catch { /* walk-up leg is best-effort */ }
+  const rev = sq + cup + packs + deliv + office;
 
   const [blockers, reorders, crit] = await Promise.all([
     count("incident_log", (q) => q.eq("resolved", false).eq("severity", "blocker")),
@@ -60,8 +74,8 @@ export async function POST(req: Request) {
   const emailBody = [
     "GT3 Performance Bar — founder digest",
     "",
-    `Revenue (last 7 days, all channels): ${money(rev)}`,
-    `   cup ${money(cup)} · pack ${money(packs)} · delivery ${money(deliv)} · office ${money(office)}`,
+    `Revenue (last 7 days, reconciled): ${money(rev)}`,
+    `   walk-up ${money(sq)} · cup ${money(cup)} · pack ${money(packs)} · delivery ${money(deliv)} · office ${money(office)}`,
     `Launch readiness: ${verdict}${blocked ? ` — ${blocked} critical blocked` : ""}`,
     `Open blockers: ${blockers}`,
     `Reorders needed: ${reorders}`,

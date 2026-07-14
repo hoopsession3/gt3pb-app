@@ -21,13 +21,26 @@ export default function VipQueue() {
   const [rows, setRows] = useState<Vip[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
+  const [signed, setSigned] = useState<Record<string, string>>({});   // storage path → 1h signed URL (bucket is private, 0217)
+
   const load = useCallback(async () => {
     if (!supabase) { setRows([]); return; }
     const { data } = await supabase.from("vip_verifications")
       .select("id, user_id, customer_id, photo_url, status, reward, note, created_at, customers(name, tier)")
       .order("created_at", { ascending: false }).limit(60);
-    setRows((data as unknown as Vip[]) ?? []);
+    const rows = (data as unknown as Vip[]) ?? [];
+    setRows(rows);
+    // The vip bucket is private — staff view proofs through short-lived signed URLs. The stored value
+    // is the original URL string; the path after /vip/ is the storage key.
+    const paths = [...new Set(rows.map((r) => decodeURIComponent((r.photo_url.split("/vip/")[1] ?? ""))).filter(Boolean))];
+    if (paths.length) {
+      const { data: s } = await supabase.storage.from("vip").createSignedUrls(paths, 28800);   // 8h — outlives a service shift; realtime re-signs on any queue activity
+      const m: Record<string, string> = {};
+      for (const it of s ?? []) if (it.signedUrl && it.path) m[it.path] = it.signedUrl;
+      setSigned(m);
+    }
   }, []);
+  const photoUrl = (v: Vip) => signed[decodeURIComponent(v.photo_url.split("/vip/")[1] ?? "")] ?? v.photo_url;
   useEffect(() => { load(); }, [load]);
   useRealtimeTable("vip_verifications", load);
 
@@ -62,7 +75,7 @@ export default function VipQueue() {
         <div className="vipq-empty">No VIP proofs waiting. 🟢</div>
       ) : pending.map((v) => (
         <div key={v.id} className="vipq-row">
-          <a href={v.photo_url} target="_blank" rel="noreferrer" className="vipq-photo" style={{ backgroundImage: `url(${v.photo_url})` }} aria-label="Open the proof photo full-size" />
+          <a href={photoUrl(v)} target="_blank" rel="noreferrer" className="vipq-photo" style={{ backgroundImage: `url(${photoUrl(v)})` }} aria-label="Open the proof photo full-size" />
           <div className="vipq-main">
             <b>{v.customers?.name?.trim() || "A member"}</b>
             <span className="vipq-sub">Submitted {new Date(v.created_at).toLocaleDateString()} · now {v.customers?.tier ?? "guest"}</span>

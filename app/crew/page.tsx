@@ -403,16 +403,17 @@ const isLeader = (role: string | null | undefined) => (LEADERSHIP_ROLES as reado
 // Raise an alert. The INSERT is the whole contract — the alerts_push_fanout trigger (0157)
 // delivers push + Teams for every row, same as the server and pg_cron producers. Category is the
 // closed lib/alertKinds vocabulary, so misrouted "Open →" buttons are a type error now.
+// ONE alert producer (lib/clientAlerts) — this shim keeps the crew page's historical call shape but
+// delegates to the shared helper, so the payload can never drift from every other surface again.
 async function raiseAlert(a: {
   severity?: "critical" | "important" | "fyi"; category: AlertCategory; title: string;
   body?: string; link?: string; target_user_id?: string | null; created_by?: string | null;
   kind?: string; subject_id?: string | null; // 0174 action contract
 }) {
-  if (!supabase) return;
-  await supabase.from("alerts").insert({
+  return raiseAlertClient({
     severity: a.severity ?? "important", category: a.category, title: a.title,
-    body: a.body ?? null, link: a.link ?? "/crew", target_user_id: a.target_user_id ?? null,
-    created_by: a.created_by ?? null, kind: a.kind ?? null, subject_id: a.subject_id ?? null,
+    body: a.body, link: a.link ?? "/crew", targetUserId: a.target_user_id,
+    kind: a.kind, subjectId: a.subject_id ?? undefined, createdBy: a.created_by,
   });
 }
 

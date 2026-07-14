@@ -105,6 +105,7 @@ export async function POST(req: Request) {
       tax_cents: 0, total_cents: quote.totalCents,
       empty_ack_at: refills > 0 ? new Date().toISOString() : null,
       payment_method: paid ? "square" : "pay_on_delivery", payment_status: paid ? "paid" : "unpaid", status: "received",
+      payment_id: paymentId || null,   // Square charge id — links this order to its event_sales mirror (walk-up dedupe, 0216)
       empties_expected: quote.refillCount,
     };
     let { error: insErr } = await supabaseAdmin.from("delivery_orders").insert(row);

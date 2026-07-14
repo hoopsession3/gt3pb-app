@@ -37,8 +37,10 @@ export default function MoneyKpis() {
     (async () => {
       const today = startOfToday();
       const week = startOfWeek();
-      // Four revenue channels (cup / pack pickup / delivery / office) + three counts. Each channel
-      // filters to paid, not-canceled rows in the last 7d, from the app's own order tables.
+      // Headline = report_sales (0216): the ONE reconciled revenue basis — Square on-event + app
+      // off-event + packs/delivery/office. The client-side channel sum below is the FALLBACK (and
+      // still feeds the office tile). One definition of revenue everywhere; see 0216 for the basis.
+      const rpc = await safe(() => supabase!.rpc("report_sales", { p_days: 7 }));
       const [cup, packs, deliv, office, orders, subs, reserves] = await Promise.all([
         safe(() => supabase!.from("orders").select("total_cents").eq("paid", true).neq("status", "void").gte("created_at", week)),
         safe(() => supabase!.from("drop_orders").select("total_cents").eq("paid", true).is("canceled_at", null).gte("created_at", week)),
@@ -51,11 +53,15 @@ export default function MoneyKpis() {
       if (!live) return;
       const sum = (q: Q) => (q.data ? q.data.reduce((s, o) => s + num(o.total_cents), 0) : null);
       const cupC = sum(cup), packC = sum(packs), delivC = sum(deliv), officeC = sum(office);
-      // Headline = every channel that answered. Quiet only if all four failed (never a silent cup-only total).
+      // Headline: reconciled RPC first; else every channel that answered (never a silent cup-only total).
+      const rec = (rpc as { data?: { revenue_cents?: number; error?: string } | null }).data;
+      const recCents = rec && !rec.error && typeof rec.revenue_cents === "number" ? rec.revenue_cents : null;
       const anyRev = [cupC, packC, delivC, officeC].some((c) => c != null);
       const totalC = (cupC ?? 0) + (packC ?? 0) + (delivC ?? 0) + (officeC ?? 0);
       setKpis([
-        { k: "week_rev", v: anyRev ? money(totalC) : "—", sub: "Revenue · all channels · 7d" },
+        recCents != null
+          ? { k: "week_rev", v: money(recCents), sub: "Revenue · reconciled · 7d" }
+          : { k: "week_rev", v: anyRev ? money(totalC) : "—", sub: "Revenue · all channels · 7d" },
         { k: "today_orders", v: orders.count != null ? String(orders.count) : "—", sub: "Orders today" },
         { k: "subs", v: subs.count != null ? String(subs.count) : "—", sub: "Active subscribers" },
         { k: "reserves", v: reserves.count != null ? String(reserves.count) : "—", sub: "Pack pickups" },

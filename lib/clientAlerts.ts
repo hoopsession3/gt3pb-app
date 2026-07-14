@@ -16,6 +16,7 @@ export async function raiseAlertClient(a: {
   targetUserId?: string | null;
   kind?: string;
   subjectId?: string;
+  createdBy?: string | null;
 }): Promise<void> {
   if (!supabase) return;
   try {
@@ -26,8 +27,9 @@ export async function raiseAlertClient(a: {
       body: (a.body ?? "").slice(0, 300) || null,
       link: a.link ?? "/crew",
       target_user_id: a.targetUserId ?? null,
-    kind: a.kind ?? null,
-    subject_id: a.subjectId ?? null,
+      kind: a.kind ?? null,
+      subject_id: a.subjectId ?? null,
+      created_by: a.createdBy ?? null,
     });
   } catch { /* best-effort */ }
 }
