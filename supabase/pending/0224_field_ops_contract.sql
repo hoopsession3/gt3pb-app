@@ -30,6 +30,9 @@
 -- claim_reserve, stamp_order_event, report_events, generate_office_route readers; lib/ics, lib/eventbrief.
 -- NOTE: stop liveness — field_ops.is_live is event-populated only; the flip must make set_live write
 -- field_ops.is_live for stops too (today it's derived from live_status.current_stop_id).
+-- NOTE: 0228 hygiene — re-point archive_stale_stops() + stop_recap_alerts() (cron jobs
+-- 'archive-stale-stops' / 'stop-recap-asks') from stops to field_ops, and move stops.recap_asked_at
+-- (plus the stop_ops.recap / legacy stops.recap reads) with the other stop columns in the drop step.
 --
 -- ── the contract SQL (finalize + apply only after the flip is deployed + soaked) ──────────────────
 begin;

@@ -118,7 +118,7 @@ export default function CompanyCalendar() {
         supabase.from("events").select("id, title, day, day_label, is_live, category, plan_days, stage").is("archived_at", null).gte("day", eFrom).lte("day", to),
         supabase.from("content_items").select("id, title, scheduled_for, status").is("archived_at", null).not("scheduled_for", "is", null).gte("scheduled_for", fromISO).lt("scheduled_for", toISO),
         supabase.from("todos").select("id, title, category, due_on, done, event_id, meeting_note_id").not("due_on", "is", null).gte("due_on", from).lte("due_on", to),
-        supabase.from("stops").select("id, name, location_text, starts_at, status").not("starts_at", "is", null).neq("status", "done").gte("starts_at", fromISO).lt("starts_at", toISO),
+        supabase.from("stops").select("id, name, location_text, starts_at, status").is("archived_at", null).not("starts_at", "is", null).neq("status", "done").gte("starts_at", fromISO).lt("starts_at", toISO),
         supabase.from("event_tasks").select("id, label, due_at, event_id, stop_id, meeting_note_id, goal_id").eq("done", false).eq("kind", "task").not("due_at", "is", null).gte("due_at", fromISO).lt("due_at", toISO),
         supabase.from("brew_batches").select("id, recipe_name, batch_gal, status, brew_date, ready_at, latest_start_at").not("status", "in", "(served,dumped)").not("brew_date", "is", null).gte("brew_date", from).lte("brew_date", to),
         supabase.from("drop_orders").select("drop_date, size").is("canceled_at", null).gte("drop_date", from).lte("drop_date", to),

@@ -28,6 +28,21 @@ export async function POST(req: Request) {
   let evt: any;
   try { evt = JSON.parse(raw); } catch { return NextResponse.json({ ok: false }, { status: 400 }); }
   const type: string = evt?.type || "";
+  const eventId: string | null = typeof evt?.event_id === "string" ? evt.event_id : null;
+
+  // INBOX (0230): insert-first, so a Square replay/retry of an already-processed event acks 200 and
+  // touches nothing (no duplicate alerts, no re-mirrors). If a PRIOR attempt died mid-processing
+  // (row exists, processed_at still null) we fall through and run again — every write below is
+  // idempotent. An inbox hiccup must never DROP a real event, so non-duplicate errors keep going.
+  if (eventId) {
+    const { error: inboxErr } = await supabaseAdmin.from("webhook_events")
+      .insert({ id: eventId, provider: "square", type, payload: evt });
+    if (inboxErr && (inboxErr as { code?: string }).code === "23505") {
+      const { data: seen } = await supabaseAdmin.from("webhook_events")
+        .select("processed_at").eq("id", eventId).maybeSingle();
+      if (seen?.processed_at) return NextResponse.json({ ok: true, replay: true });
+    }
+  }
 
   try {
     let err: { message?: string } | null = null;
@@ -45,8 +60,9 @@ export async function POST(req: Request) {
         // Other transitions (canceled/paused) still apply.
         if (next === "active") q = q.not("status", "in", "(canceled,past_due)");
         ({ error: err } = await q);
-        // Leadership visibility on churn — a cancel shouldn't be invisible.
-        if (next === "canceled") await raiseAlert({ severity: "important", category: "money", title: "Subscription canceled", body: "A member canceled their coffee subscription. See Subscribers." });
+        // Leadership visibility on churn — a cancel shouldn't be invisible. Gated on success so a
+        // failed mirror + Square retry can't double the alert (the retry re-runs this body).
+        if (next === "canceled" && !err) await raiseAlert({ severity: "important", category: "money", title: "Subscription canceled", body: "A member canceled their coffee subscription. See Subscribers." });
       }
     } else if (type === "invoice.payment_made") {
       const subId = evt?.data?.object?.invoice?.subscription_id;
@@ -55,8 +71,9 @@ export async function POST(req: Request) {
     } else if (type === "invoice.payment_failed") {
       const subId = evt?.data?.object?.invoice?.subscription_id;
       if (subId) ({ error: err } = await supabaseAdmin.from("subscriptions").update({ status: "past_due", updated_at: new Date().toISOString() }).eq("square_subscription_id", subId));
-      // Producer: a failed payment is a money problem leadership should see fast.
-      await raiseAlert({ severity: "critical", category: "money", title: "Subscription payment failed", body: "A subscriber's card was declined — they'll lose access. Check Subscribers." });
+      // Producer: a failed payment is a money problem leadership should see fast — but only once:
+      // gated on success so the 500-retry path can't stack duplicate criticals.
+      if (!err) await raiseAlert({ severity: "critical", category: "money", title: "Subscription payment failed", body: "A subscriber's card was declined — they'll lose access. Check Subscribers." });
     } else if (type.startsWith("payment.")) {
       // Mirror completed Square sales (incl. walk-up POS that never touch the app) into
       // event_sales, scoped to the live event, so the command center HUD is real. Dedupe
@@ -84,11 +101,17 @@ export async function POST(req: Request) {
       }
     }
     // Only ack once the write succeeded. On failure return 500 so Square RETRIES
-    // (it retries on non-2xx) rather than silently dropping the state transition.
-    if (err) return NextResponse.json({ ok: false }, { status: 500 });
+    // (it retries on non-2xx) rather than silently dropping the state transition. The inbox row
+    // keeps processed_at null on a failure — which is exactly what lets the retry re-run the body.
+    if (err) {
+      if (eventId) { try { await supabaseAdmin.from("webhook_events").update({ error: err.message || "processing failed" }).eq("id", eventId); } catch { /* best-effort */ } }
+      return NextResponse.json({ ok: false }, { status: 500 });
+    }
   } catch {
+    if (eventId) { try { await supabaseAdmin.from("webhook_events").update({ error: "processing threw" }).eq("id", eventId); } catch { /* best-effort */ } }
     return NextResponse.json({ ok: false }, { status: 500 });
   }
 
+  if (eventId) { try { await supabaseAdmin.from("webhook_events").update({ processed_at: new Date().toISOString(), error: null }).eq("id", eventId); } catch { /* best-effort */ } }
   return NextResponse.json({ ok: true });
 }
