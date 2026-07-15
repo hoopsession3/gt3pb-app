@@ -5846,4 +5846,15 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .dv-sub{font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:var(--cream-d);border-bottom:1px solid var(--line-2,rgba(245,241,232,.07));padding-bottom:6px;margin:14px 0 4px}
 /* WorkloadBoard trailing slot inside the kit InfoRow */
 .wl.k-rows .wl-tr{display:flex;align-items:center;gap:10px}
+/* Prep board roll-up — collapsible groups per event/stop + one deliberate "complete all" (crew grammar). */
+.pbd-group{margin-top:16px}
+.pbd-group-h{display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:2px}
+.pbd-group-t{flex:1;min-width:0;display:flex;align-items:center;gap:7px;background:none;border:none;text-align:left;cursor:pointer;font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:var(--gold)}
+.pbd-group-ic{font-size:12px;flex:0 0 auto}
+.pbd-group-nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pbd-chev{display:inline-block;flex:0 0 auto;transition:transform .15s;color:var(--cream-d);font-size:13px}
+.pbd-chev.open{transform:rotate(90deg)}
+.pbd-group-n{flex:0 0 auto;font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--cream-d);text-transform:none}
+.pbd-group-all{flex:0 0 auto;background:none;border:1px solid var(--line2);border-radius:999px;padding:4px 11px;cursor:pointer;font-family:'Inter';font-weight:700;font-size:11px;color:var(--cream-m)}
+.pbd-group-all.armed{border-color:var(--red-h);color:var(--red-h);background:rgba(184,36,32,.06)}
 .wl.k-rows .wl-bar{width:70px}
