@@ -2603,14 +2603,18 @@ function SupplyPicker({ ev, title, have, onAdd, onClose }: {
 // address pin, POC trio, service dates, notes, archive/delete); the stop adds go-live, a calendar date,
 // and the vendor picker. Unifies what used to be StopControl + VendorCard (near-identical), and upgrades
 // the vendor to the stop's nicer modal address-pin flow. Stop-only props are optional.
-function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive, isCur, onGoLive, vendors, onLinkVendor, onOpenPrep }: {
+function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive, isCur, onGoLive, vendors, onLinkVendor, onOpenPrep, nameOverride }: {
   kind: "stop" | "vendor"; row: Stop | Vendor; index: number; isCur?: boolean; open: boolean; onToggle: () => void;
   onArchive: () => void; onChanged: () => void;
   onGoLive?: (id: string) => void; vendors?: Vendor[]; onLinkVendor?: (v: Vendor | null) => void; onOpenPrep?: () => void;
+  // When a stop is vendor-linked, the VENDOR is the place's identity — show its canonical name on
+  // every visit row so two visits to one place can't read as two different names (panel finding).
+  nameOverride?: string | null;
 }) {
   const { toast } = useApp();
   const table = kind === "stop" ? "stops" : "vendors";
   const stop = kind === "stop" ? (row as Stop) : null;
+  const displayName = (nameOverride && nameOverride.trim()) || row.name;
   const [name, setName] = useState(row.name);
   const [address, setAddress] = useState(row.address ?? "");
   const [busy, setBusy] = useState(false);
@@ -2662,7 +2666,7 @@ function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive
         <span className="ev-led" />
         <span className="ev-head-main">
           <span className="ev-tag">{tag}</span>
-          <span className="ev-title">{row.name || (kind === "stop" ? "Untitled location" : "Untitled vendor")}</span>
+          <span className="ev-title">{displayName || (kind === "stop" ? "Untitled location" : "Untitled vendor")}</span>
           <span className="ev-sub">{sub || "Tap to set up"}</span>
         </span>
         <span className="ev-head-badges">
@@ -2686,7 +2690,7 @@ function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive
                follows). Route shows the facts and one door to change them. */
             <div className="ev-group">
               <div className="ev-group-h">Location</div>
-              <div className="stop-coords ok" style={{ marginTop: 0 }}>{row.name || "Untitled location"}{stopWhen ? ` · ${stopWhen}` : " · no date"}</div>
+              <div className="stop-coords ok" style={{ marginTop: 0 }}>{displayName || "Untitled location"}{stopWhen ? ` · ${stopWhen}` : " · no date"}</div>
               <div className={`stop-coords${hasCoords ? " ok" : ""}`}>{hasCoords ? `Pinned · ${(row.lat as number).toFixed(4)}, ${(row.lng as number).toFixed(4)}` : "No pin yet — add the address for accurate directions"}</div>
               {/* the facts change HERE, in two taps (FieldOpSheet) — the prep hub stays the deep surface */}
               <button type="button" className="adm-btn" onClick={() => setEditFacts(true)}>Edit name, date, time &amp; address ›</button>
@@ -2769,6 +2773,7 @@ function LiveControl({ compact = false, manage = false }: { compact?: boolean; m
   const [posBusy, setPosBusy] = useState(false);
   const [openStopId, setOpenStopId] = useState<string | null>(null); // single-open accordion
   const [showArchStops, setShowArchStops] = useState(false);
+  const [showPastStops, setShowPastStops] = useState(false);
   const [vendors, setVendors] = useState<Vendor[]>([]);
 
   const load = useCallback(async () => {
@@ -2959,6 +2964,13 @@ function LiveControl({ compact = false, manage = false }: { compact?: boolean; m
   const curStop = stops.find((s) => s.id === live?.current_stop_id);
   const active = stops.filter((s) => !s.archived_at);
   const archived = stops.filter((s) => s.archived_at);
+  // Road-ahead partition (mirrors /truck's 8h grace): a visit whose start is >8h past — and isn't the
+  // stop we're live at — is stale. It must not sit in the active route as a current LOCATION row; it
+  // folds into "Past visits" below instead of vanishing (the auto-archive cron files it eventually,
+  // but the UI can't wait on that). One definition, shared by the route grouping and Past visits.
+  const graceMs = Date.now() - 8 * 3600 * 1000;
+  const isAhead = (s: Stop) => !s.starts_at || new Date(s.starts_at).getTime() > graceMs || (s.id === live?.current_stop_id && !!live?.is_live);
+  const stale = active.filter((s) => !isAhead(s));
 
   return (
     <div className="adm-sec">
@@ -3042,9 +3054,11 @@ function LiveControl({ compact = false, manage = false }: { compact?: boolean; m
           one-offs stay flat rows (a card of one is chrome, not clarity). */}
       <div className="ev-list" style={{ marginTop: 12 }}>
         {(() => {
+          // Road AHEAD only — stale (past) visits are partitioned out at component scope (`isAhead`)
+          // and rendered under "Past visits" below, so the same location never reads as two places.
           const placeKey = (s: Stop) => s.vendor_id ? `v:${s.vendor_id}` : `t:${(s.name || s.location_text || s.address || "").trim().toLowerCase()}`;
           const groups: { key: string; vendor: Vendor | null; rows: Stop[] }[] = [];
-          for (const s of active) {
+          for (const s of active.filter(isAhead)) {
             const k = placeKey(s);
             let g = groups.find((x) => x.key === k);
             if (!g) { g = { key: k, vendor: s.vendor_id ? vendors.find((v) => v.id === s.vendor_id) ?? null : null, rows: [] }; groups.push(g); }
@@ -3079,6 +3093,7 @@ function LiveControl({ compact = false, manage = false }: { compact?: boolean; m
                   vendors={vendors}
                   onLinkVendor={(v) => linkVendor(s.id, v)}
                   onOpenPrep={() => openPrep(s.id)}
+                  nameOverride={g.vendor?.name ?? null}
                 />
               );
             });
@@ -3103,6 +3118,30 @@ function LiveControl({ compact = false, manage = false }: { compact?: boolean; m
         })()}
       </div>
       {active.length === 0 && <div className="ev-empty">No locations yet. Tap <b>+ Add location</b> to create one{archived.length ? ", or reopen one below" : ""}.</div>}
+      {active.length > 0 && stale.length === active.length && <div className="ev-empty">Nothing on the road ahead — every location&apos;s last visit has passed. See <b>Past visits</b> below, or tap <b>+ Add location</b>.</div>}
+
+      {/* PAST VISITS — stale (past-dated) unarchived stops fold here instead of vanishing from the
+          route or lingering as a false "next" location. They stay one tap from restore/again. */}
+      {stale.length > 0 && (
+        <div className="ev-archived">
+          <button className="ev-arch-head" onClick={() => setShowPastStops((v) => !v)} aria-expanded={showPastStops}>
+            Past visits · {stale.length}<span className={`ev-chev${showPastStops ? " open" : ""}`}>›</span>
+          </button>
+          {showPastStops && stale
+            .slice()
+            .sort((a, b) => new Date(b.starts_at ?? 0).getTime() - new Date(a.starts_at ?? 0).getTime())
+            .map((s) => {
+              const when = s.starts_at ? new Date(s.starts_at).toLocaleDateString([], { month: "short", day: "numeric" }) : null;
+              return (
+                <div className="ev-arch-row" key={s.id}>
+                  <span className="ev-arch-name">{s.name || "Untitled location"}{when ? ` · ${when}` : ""}</span>
+                  <button className="ev-arch-btn" onClick={() => stopAgain(s)}>Stop again</button>
+                  <button className="ev-arch-btn" onClick={() => archiveStop(s.id)}>Archive</button>
+                </div>
+              );
+            })}
+        </div>
+      )}
 
       {archived.length > 0 && (
         <div className="ev-archived">
