@@ -166,6 +166,14 @@ export async function POST(req: Request) {
     if (!charge.ok) return NextResponse.json({ error: charge.error }, { status: 400 });
     const paymentId = charge.paymentId;
 
+    // Idempotency at the ORDER row: the charge's idempotency key makes a retry return the SAME
+    // paymentId, so if we already recorded an order for it (a retry after a lost response), don't
+    // insert a SECOND paid order → double fulfillment. (A unique index on payment_id backs this in DB.)
+    if (paymentId) {
+      const { data: already } = await supabaseAdmin.from("orders").select("id").eq("payment_id", paymentId).maybeSingle();
+      if (already) return NextResponse.json({ ok: true, paymentId, amount, recorded: true });
+    }
+
     // Record the paid order server-side (paid + payment_id are trustworthy here).
     // total_cents is the GOODS subtotal (tip excluded) so history + the referral floor
     // are consistent across paid and pre-order paths.

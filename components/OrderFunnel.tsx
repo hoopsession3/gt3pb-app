@@ -125,7 +125,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
     setCodeState("checking");
     const { data } = await supabase.from("member_benefits")
       .select("kind, target, percent, value_cents, label")
-      .eq("active", true).eq("scope", "code").ilike("code", codeClean).maybeSingle();
+      .eq("active", true).eq("scope", "code").ilike("code", codeClean.replace(/[%_\\]/g, (c) => `\\${c}`)).maybeSingle();
     if (!data) { setCodeState("bad"); setCodeBenefit(null); return; }
     setCodeBenefit(data as CodeBenefit); setCodeState("ok"); haptic(HAPTIC.tap);
   }, [codeClean]);

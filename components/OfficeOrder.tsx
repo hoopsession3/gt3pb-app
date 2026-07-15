@@ -49,13 +49,25 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
     // A standing account (weekly Mondays) is created/linked so the generator can refill it (P2).
     let businessId: string | null = null;
     if (standing) {
-      const { data: acct } = await supabase.from("business_accounts").insert({
+      const acctRow = {
         user_id: user.id, company: company.trim(), contact_name: contact.trim() || null, contact_phone: phone.trim() || null,
         contact_email: user.email ?? null, address_street: street.trim(), address_city: city.trim(), address_zip: zip.trim(),
         headcount: headcount ? Math.max(0, parseInt(headcount) || 0) : null, billing_terms: billing,
         standing_active: true, standing_gallons: q.gallons,
-      }).select("id").single();
-      businessId = acct?.id ?? null;
+      };
+      // REUSE this office's existing standing account (update it) instead of blind-inserting a NEW one
+      // every week — duplicate accounts make the weekly generator ship duplicate deliveries + invoices.
+      // Surface a real failure instead of silently downgrading to a one-off.
+      const { data: existing } = await supabase.from("business_accounts").select("id").eq("user_id", user.id).eq("company", company.trim()).maybeSingle();
+      if (existing?.id) {
+        const { error } = await supabase.from("business_accounts").update(acctRow).eq("id", existing.id);
+        if (error) { toast(`Couldn't update your standing account — ${error.message}`, "error"); setBusy(false); return; }
+        businessId = existing.id;
+      } else {
+        const { data: acct, error } = await supabase.from("business_accounts").insert(acctRow).select("id").single();
+        if (error) { toast(`Couldn't set up your standing account — ${error.message}`, "error"); setBusy(false); return; }
+        businessId = acct?.id ?? null;
+      }
     }
 
     const { data: order, error } = await supabase.from("business_orders").insert({

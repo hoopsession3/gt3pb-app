@@ -31,13 +31,18 @@ const NEG = /\b(not|never|no|non|without|isn'?t|aren'?t|wasn'?t|won'?t|can'?t|ca
 
 export function claimSafe(text: string): { ok: boolean; hit: string | null } {
   const t = text || "";
-  for (const re of CLAIM) {
-    re.lastIndex = 0;
-    const m = re.exec(t);
-    if (!m) continue;
-    const before = t.slice(Math.max(0, m.index - 34), m.index);
-    if (NEG.test(before)) continue; // negated / reframed — allowed
-    return { ok: false, hit: m[0] };
+  for (const base of CLAIM) {
+    // Scan EVERY occurrence, not just the first. A negated first mention ("we don't claim it detoxes")
+    // must NOT let a later affirmative one ("…but it detoxes your liver") slip past — the old code
+    // exec'd once and `continue`d on a negated first hit, skipping the rest of that pattern entirely.
+    const re = new RegExp(base.source, base.flags.includes("g") ? base.flags : `${base.flags}g`);
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(t)) !== null) {
+      if (m.index === re.lastIndex) re.lastIndex++; // guard against a zero-width match looping forever
+      const before = t.slice(Math.max(0, m.index - 34), m.index);
+      if (NEG.test(before)) continue;    // this occurrence is negated/reframed — check the next one
+      return { ok: false, hit: m[0] };   // an un-negated occurrence — a real claim
+    }
   }
   return { ok: true, hit: null };
 }

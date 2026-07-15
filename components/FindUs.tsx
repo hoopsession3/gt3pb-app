@@ -92,7 +92,10 @@ export default function FindUs() {
     // Wrapped so a dropped socket can never reject unhandled; the poll/focus refetch recovers.
     try {
       const [{ data: fo }, { data: l }] = await Promise.all([
-        supabase.from("field_ops").select("*").eq("is_public", true),
+        // Explicit display columns only — NOT select("*"): the row carries venue POC contact PII
+        // (poc_name/phone/email/service_dates) that this public customer road must never fetch to the
+        // browser. Matches the FieldOp type exactly. (Follow-up: revoke those columns from anon at the DB.)
+        supabase.from("field_ops").select("id, kind, name, day, starts_at, ends_at, start_time, end_time, day_label, when_label, time_label, location_text, address, lat, lng, member_only, going_count, capacity, blurb, menu_tier, notes, note, status, completed_at, archived_at, is_public").eq("is_public", true),
         supabase.from("live_status").select("*").maybeSingle(),
       ]);
       const lstat = l as LiveStatus | null;

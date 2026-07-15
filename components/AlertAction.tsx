@@ -62,20 +62,26 @@ export default function AlertAction({ flag, meId, onResolved }: {
     if (!supabase || !flag.subject_id || busy) return;
     setBusy(true);
     try {
+      // supabase-js does NOT throw on an RLS/constraint/offline failure — it resolves with { error }.
+      // Capture it and throw so a FAILED write never reports "done" and never acks the alert (the brew
+      // reminder would otherwise vanish without the brew ever starting).
       if (kind === "task_assigned" || kind === "task_due") {
-        await supabase.from("event_tasks").update({ done: true, done_by: meId, done_at: new Date().toISOString() }).eq("id", flag.subject_id);
+        const { error } = await supabase.from("event_tasks").update({ done: true, done_by: meId, done_at: new Date().toISOString() }).eq("id", flag.subject_id);
+        if (error) throw error;
         haptic(HAPTIC.success);
       } else if (kind === "brew_start_window" || kind === "brew_start_now" || kind === "brew_at_risk") {
         const startIso = new Date().toISOString();
         // Mirror BrewPlanner.startBrew's status + alert-flag reset so the ladder re-arms cleanly.
-        await supabase.from("brew_batches").update({
+        const { error } = await supabase.from("brew_batches").update({
           status: "brewing", brew_started_at: startIso,
           alerted_soon: false, alerted_ready: false, alerted_started: false,
           alerted_overextract: false, alerted_hold_soon: false, alerted_hold_expired: false,
         }).eq("id", flag.subject_id);
+        if (error) throw error;
         haptic(HAPTIC.arm);
       } else if (kind === "delivery_held") {
-        await supabase.from("delivery_orders").update({ status: "picked_up" }).eq("id", flag.subject_id);
+        const { error } = await supabase.from("delivery_orders").update({ status: "picked_up" }).eq("id", flag.subject_id);
+        if (error) throw error;
         haptic(HAPTIC.success);
       }
       // refund_needed / pack_moved / reservation_new / content_approved / ops_incident are

@@ -45,27 +45,33 @@ export async function POST(req: Request) {
     const o = evt.data.object;
 
     if (evt.type === "checkout.session.completed" && o.client_reference_id) {
-      // A tenant just became a paying customer. 🎉
-      await supabaseAdmin.from("tenants").update({
+      // A tenant just became a paying customer. 🎉 Capture the write error and check we actually
+      // matched the tenant — if the provisioning write fails (or matches 0 rows), return non-2xx so
+      // Stripe RETRIES. Otherwise a paid customer is silently never activated. (Square webhook does this.)
+      const { data: rows, error } = await supabaseAdmin.from("tenants").update({
         plan: "pro",
         billing_status: "active",
         stripe_customer_id: typeof o.customer === "string" ? o.customer : null,
         stripe_subscription_id: typeof o.subscription === "string" ? o.subscription : null,
-      }).eq("id", o.client_reference_id);
+      }).eq("id", o.client_reference_id).select("id");
+      if (error || !rows || rows.length === 0) {
+        return NextResponse.json({ ok: false, error: "provision failed — will retry" }, { status: 500 });
+      }
       await raiseAlert({ severity: "important", category: "money", title: "New software subscription", body: `Tenant ${o.client_reference_id} subscribed.`, link: "/crew" });
     }
 
     if ((evt.type === "customer.subscription.updated" || evt.type === "customer.subscription.deleted") && o.id) {
       const status = evt.type === "customer.subscription.deleted" ? "canceled" : (o.status ?? "active");
       const endS = o.current_period_end ?? o.items?.data?.[0]?.current_period_end;
-      await supabaseAdmin.from("tenants").update({
+      const { error } = await supabaseAdmin.from("tenants").update({
         billing_status: status,
         ...(typeof endS === "number" ? { current_period_end: new Date(endS * 1000).toISOString() } : {}),
       }).eq("stripe_subscription_id", o.id);
+      if (error) return NextResponse.json({ ok: false, error: "update failed — will retry" }, { status: 500 });
       if (status === "past_due" || status === "canceled") {
         await raiseAlert({ severity: "important", category: "money", title: `Software subscription ${status}`, body: `Stripe subscription ${o.id} is ${status}.`, link: "/crew" });
       }
     }
-  } catch { /* malformed body from a verified sender — ack and move on */ }
+  } catch { /* malformed body from a verified sender — ack and move on (don't retry a bad payload) */ }
   return NextResponse.json({ ok: true });
 }

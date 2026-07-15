@@ -108,6 +108,12 @@ export async function POST(req: Request) {
       payment_id: paymentId || null,   // Square charge id — links this order to its event_sales mirror (walk-up dedupe, 0216)
       empties_expected: quote.refillCount,
     };
+    // Idempotency for PAID delivery: a retry returns the SAME Square paymentId, so don't insert a
+    // second paid delivery order → double fulfillment + double invoice.
+    if (paid && paymentId) {
+      const { data: already } = await supabaseAdmin.from("delivery_orders").select("id").eq("payment_id", paymentId).maybeSingle();
+      if (already) return NextResponse.json({ ok: true, paymentId, recorded: true, deliveryLabel: slot.deliveryLabel });
+    }
     let { error: insErr } = await supabaseAdmin.from("delivery_orders").insert(row);
     if (insErr) ({ error: insErr } = await supabaseAdmin.from("delivery_orders").insert(row));
     if (insErr) {
