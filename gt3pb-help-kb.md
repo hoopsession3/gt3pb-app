@@ -7,14 +7,42 @@ touched a surface below and didn't update its help, the change isn't done.
 
 ## Where "help" lives (keep all three current)
 1. **Section Guide** (in-app, crew) — `SEC_LABEL / SEC_WHEN / SEC_SUB / SEC_MORE / SEC_INSIDE` in
-   `app/admin/page.tsx`. Opened from the crew top bar ("ⓘ Guide") or a header WHEN pill. Add a new
+   `app/crew/page.tsx`. Opened from the crew top bar ("ⓘ Guide") or a header WHEN pill. Add a new
    crew surface → add it to the owning section's `SEC_INSIDE`.
 2. **Academy / KB** (in-app, training) — `lib/academy.ts` (modules + product cards) and
    `lib/operatorKb.ts`. Operational or product change → reflect it here; keep it claim-safe and
    priced to the truck board.
 3. **This index** — the top-level map + the deploy runbook (`gt3pb-deploy-v1.md`) + the risk
-   Delivery build: read `GT3-Delivery-Audit.md` FIRST — what already exists vs the Cowork debrief.
-   register (`RISK_REGISTER.md`).
+   register (`RISK_REGISTER.md`). Delivery build: read `GT3-Delivery-Audit.md` FIRST — what already
+   exists vs the Cowork debrief.
+
+> **Path note:** the crew console route is **`/crew`** (older docs say `/admin` — same console).
+
+---
+
+## What changed — 2026-07 (Design System v1 · Find Us · canonical DB)
+
+The platform-wide overhaul. Three things to know:
+
+1. **Design System v1 is THE build standard** (`components/kit.tsx`) — every page is built from one
+   kit: **Masthead** (one identity zone; eyebrow = context label only), **SectionHeader** (mono label
+   + italic annotation + hairline), **InfoRow** (lead · body · trailing — a stop and an event are the
+   *same* row), three button tiers (`.btn-pri` max ONE red/screen · `.btn-sec` · `.btn-ter`), the
+   type scale (`.k-title/.k-sub/.k-eyb/.k-cap`), and **ClosingBeat** ("Carolinas, Georgia") ending
+   every page. Build a new surface on the kit or don't build it. Sheets share the DNA but get no
+   masthead/beat. Crew sections live in the operator shell (which owns identity) — SectionHeader +
+   rows + chips only. `/display` (signage kiosk) is the one intentional exemption.
+2. **Find Us** (`components/FindUs.tsx`) — the customer Truck and Events pages **collapsed into one
+   road**. Stops and events read chronologically on the `field_ops` spine in a single `is_public`
+   query; each row self-types (a stop trails a caret → details/directions/pre-order; an event trails
+   the RSVP chip). `/truck` and `/events` both render it (every QR/link kept working); the bottom nav
+   is now **Today · Find Us · Menu · Reserve** (+ Join for guests).
+3. **The canonical DB spine** — `field_ops` (unified stops+events, mirror-maintained, `is_public`
+   generated column at the RLS door), `loyalty_ledger` (points = sum, void-safe), `order_items`
+   (per-drink sales), `webhook_events` (idempotent Square inbox). See `lib/architecture.ts`.
+
+**Verify gate:** `npm run verify` = unit/DB suites → `next build` → the **UI smoke** (`scripts/smoke.ui.mjs`,
+Playwright over all 18 routes: SSR 200 + kit markers + no page errors). Must be green before any ship.
 
 ---
 
@@ -25,10 +53,10 @@ wordmark; canonical host `app.gt3pb.com`). "GT3 Performance Bar" stays the brand
 
 | Surface | Route | What |
 |---|---|---|
-| Home / Today | `/` | Greeting, your usual, **loyalty stamp card**, reserve pitch, day-builder |
+| Home / Today | `/` | Greeting, your usual, **member inbox** ("your stuff"), loyalty stamp card, reserve pitch, day-builder |
+| **Find Us** | `/truck` **and** `/events` | Stops **and** events on one chronological road (`FindUs` on the `field_ops` spine) — live hero, pre-order, RSVP, directions, the map. Both routes render it. |
 | Menu | `/menu` | Full line — Activation, Hydration, Fuel (prices per truck board) |
-| Reserve (order-ahead) | `/reserve` | **Your pack** (track · change · cancel) + 3/6/12 packs, flavor mix, next-stop pickup |
-| Truck | `/truck` | Live location / route |
+| Reserve (order-ahead) | `/reserve` | **Your pack** (track · change · cancel) + reserve drops + 3/6/12 packs, flavor mix, next-stop pickup |
 | Account (3mpire) | `/3mpire` | **Scannable membership card (unique per-member QR)**, ring, credit, leave a review, order history |
 | Operator scan | `/scan?m=<code>` | Staff-only: scan a member's card QR → their stamps → add a stamp for a walk-up |
 | Truck display | `/display` | Full-screen loop for a tablet/TV: menu · brand · guest reviews · connect (scan QR) |
@@ -123,7 +151,7 @@ Two independent controls, both surfaced in the crew Money section (`components/P
 
 ---
 
-# 2 · The crew console (`/admin`)
+# 2 · The crew console (`/crew`)
 
 ## Sections — when to use what
 **My Day** (start of shift) · **Now** (during service) · **Prep** (before the event) · **Plan**
@@ -223,7 +251,7 @@ reminder), **order ready** when the pass advances (account email — walk-ups ca
 
 ## Navigation (the "pay for this" layer)
 - **Sections are URL-backed** (`OperatorSectionProvider`, `components/OperatorNav.tsx`) — every
-  switch is a real history entry (`/admin?s=prep`), so the phone's Back button works, links
+  switch is a real history entry (`/crew?s=prep`), so the phone's Back button works, links
   deep-link, and the console `‹` walks section history before it ever exits crew mode.
 - **Swipe-back** (`components/SwipeBack.tsx`) — left-edge drag walks history; installed PWAs have
   no OS edge-swipe, so the app provides one. Only fires when there's history to walk.
@@ -238,7 +266,7 @@ reminder), **order ready** when the pass advances (account email — walk-ups ca
   arrow-keys in the nav tablist, palette returns focus on close.
 
 ## UI standards
-- **Collapsible sections** = the `Panel` primitive (`app/admin/page.tsx`) — tappable header +
+- **Collapsible sections** = the `Panel` primitive (`app/crew/page.tsx`) — tappable header +
   chevron, remembers open/closed per id. Specialized accordions that carry extra affordances (Prep
   rows, KDS stage groups) are intentionally not Panels.
 - **Quiet by default**: open only the primary panel in a stacked section; collapse the rest.
@@ -338,3 +366,10 @@ pixel-exact brand 3).
 Through **0146** — full table + verify SQL in `gt3pb-deploy-v1.md`. `0145` pay_at_pickup toggle · `0146` pack lifecycle. Earlier newest:
 `0133` client errors · `0134` tenant enforcement (on prod) · `0135` software billing (dormant) ·
 `0136` reservation self-service · `0137` pre-order window dial · `0138` order eta comms · `0139` Sunday delivery · `0140` strategy collab (threads + decision log + drafts) · `0141` customer-record durability (audit catch-up + delete guards) · `0142` goals (scoreboard) · `0143` AI training · `0144` marketing splash + bulk-order flag · `0145` brew reminder skips a planned batch when a sibling for the same need is already brewing · `0146` content campaign/theme tag.
+
+**Canonical-DB + design-system wave (0147–0234, current):** the platform matured past the 0146 line —
+loyalty became an append-only **ledger** (0229), Square webhooks got an idempotent **inbox** (0230),
+orders gained real **line items** (0231), identity got its **doors** (0232, dedup + normalized keys),
+stops+events merged onto the **field_ops** spine (0222–0227) with a generated **is_public** visibility
+rule at the RLS door (0233), and field_ops joined realtime (0234). Full table + verify SQL live in
+`gt3pb-deploy-v1.md`; the owner's live map is `/architecture` (`lib/architecture.ts`).

@@ -26,8 +26,8 @@ export const DATABASES: DbEntry[] = [
   { table: "products", manage: "full", surface: "Money → Menu & products", note: "Catalog + recipe (inventory) + price (card & cash)." },
   { table: "product_components", manage: "full", surface: "Money → Menu & products", note: "Each drink's recipe → inventory." },
   { table: "subscription_plans", manage: "full", surface: "Money → Membership plans", note: "Tiers, price, billing period, active." },
-  { table: "events", manage: "full", surface: "Plan → Events", note: "Create/edit/delete events + menu flags." },
-  { table: "stops", manage: "full", surface: "Service → Stops", note: "Truck stops + ordering dial + pick lists." },
+  { table: "events", manage: "full", surface: "Plan → Events · Find Us", note: "Create/edit/delete events + menu flags. is_public (generated) gates guest visibility — internal ops + private bookings never show to guests." },
+  { table: "stops", manage: "full", surface: "Route · Find Us", note: "Truck stops + ordering dial + pick lists. Edited in two taps via FieldOpSheet." },
   { table: "vendors", manage: "full", surface: "Plan → Vendors", note: "Create/edit/delete." },
   { table: "booking_requests", manage: "full", surface: "Plan → Bookings", note: "B2B booking pipeline." },
   { table: "event_tasks", manage: "full", surface: "Prep / Notes", note: "Pack lists + follow-ups (assign, flag, AI propose)." },
@@ -53,7 +53,11 @@ export const DATABASES: DbEntry[] = [
   { table: "content_versions", manage: "partial", surface: "Studio (history)", note: "Immutable snapshots — restore, not edit." },
   { table: "academy_*", manage: "partial", surface: "Academy", note: "Progress/certs via training flow." },
   // System / external — intentionally not hand-edited
-  { table: "orders", manage: "system", surface: "Checkout / Square", note: "Created at checkout; refunds in Square." },
+  { table: "field_ops", manage: "system", surface: "Find Us · Route · Plan", note: "The unified stops+events spine (one 'field operation' per occasion). Mirror-maintained from events/stops on every write; is_public (generated) serves the guest Find Us road in one query. Zero hand-edits." },
+  { table: "loyalty_ledger", manage: "system", surface: "3MPIRE · Money", note: "Append-only points ledger — profiles.points = sum(ledger). Every cup/pickup/delivery/scan/opening award is one row; a void claws its award back (net-zero after void). Points you can trust." },
+  { table: "order_items", manage: "system", surface: "Money → Product mix", note: "Exploded per-drink line items (auto-maintained from each order's items). Powers real per-drink sales numbers." },
+  { table: "webhook_events", manage: "system", surface: "—", note: "Idempotent inbox for Square webhooks — insert-first on event_id so a replayed webhook can't double-fire." },
+  { table: "orders", manage: "system", surface: "Checkout / Square", note: "Created at checkout; refunds in Square. status_changed_at stamps when fulfillment moved." },
   { table: "audit_log", manage: "readonly", surface: "—", note: "Append-only by triggers." },
   { table: "live_status", manage: "partial", surface: "Now → Go live", note: "Via the go-live control (RPC)." },
   { table: "tenants", manage: "system", surface: "—", note: "Single tenant; staged for multi-tenant." },
@@ -272,13 +276,13 @@ export const ARCHITECTURE: ArchLayer[] = [
 // partner build log (~/Downloads/GT3-Build-Log.md). Velocity counts (PRs/commits/LOC) come from git, so
 // they're baked here; the business KPIs shown above this snapshot are live from Supabase.
 export const BUILD_STATS: { asOf: string; items: { n: string; l: string }[] } = {
-  asOf: "Jun 24, 2026",
+  asOf: "Jul 15, 2026",
   items: [
-    { n: "48", l: "features shipped" },
+    { n: "60+", l: "features shipped" },
     { n: "12", l: "AI agents" },
-    { n: "71", l: "migrations" },
-    { n: "28", l: "API endpoints" },
-    { n: "41", l: "components" },
-    { n: "~16.8k", l: "lines of code" },
+    { n: "233", l: "migrations" },
+    { n: "59", l: "API endpoints" },
+    { n: "139", l: "components" },
+    { n: "~38.7k", l: "lines of code" },
   ],
 };
