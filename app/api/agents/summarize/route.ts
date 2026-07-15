@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { staffFromRequest } from "@/lib/apiAuth";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
+import { claimSafeDeep } from "@/lib/claimGuard";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -56,6 +57,13 @@ export async function POST(req: Request) {
     });
     const out = r.toolUses.find((t) => t.name === "note_recap")?.input;
     if (!out?.summary) return NextResponse.json({ ok: false, error: "no recap" }, { status: 502 });
+    // Deterministic backstop (F5 — output claim-guard): this becomes the stored, re-read meeting note —
+    // a meeting can discuss a claim (to reject it); don't let the recap preserve it as an assertion.
+    const guard = claimSafeDeep(out);
+    if (!guard.ok) {
+      console.warn(`[summarize] claim-guard tripped on "${guard.hit}" (${guard.path}) — recap blocked`);
+      return NextResponse.json({ ok: false, error: "The recap needs review before saving — try again." }, { status: 502 });
+    }
     const actionItems = (out.action_items ?? []).filter((a: any) => a?.title?.trim()).map((a: any) => ({
       title: String(a.title).slice(0, 300), category: CATS.includes(a.category) ? a.category : "ops", critical: !!a.critical,
     }));

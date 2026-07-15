@@ -3,6 +3,7 @@ import { staffFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { studioSystem } from "@/lib/brandVoice";
+import { claimSafeDeep } from "@/lib/claimGuard";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -68,6 +69,14 @@ export async function POST(req: Request) {
     });
     const out: any = r.toolUses.find((t) => t.name === "repurpose")?.input ?? null;
     if (!out) return NextResponse.json({ ok: false, error: "no variants returned — try again" }, { status: 502 });
+    // Deterministic backstop (F5 — output claim-guard): this fans one idea across Story/Reel/email/
+    // site copy — a claim slipping into any of them ships across every channel, so fail the whole
+    // batch rather than publish four surfaces with one compromised.
+    const guard = claimSafeDeep(out);
+    if (!guard.ok) {
+      console.warn(`[repurpose] claim-guard tripped on "${guard.hit}" (${guard.path}) — batch blocked`);
+      return NextResponse.json({ ok: false, error: "Generated content needs a rewrite — try again." }, { status: 502 });
+    }
     return NextResponse.json({ ok: true, ...out });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 200) }, { status: 502 });

@@ -3,6 +3,7 @@ import { staffFromRequest } from "@/lib/apiAuth";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { studioSystem } from "@/lib/brandVoice";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { claimSafeDeep } from "@/lib/claimGuard";
 
 // Recent captions the team approved/published — the live voice the agents learn from.
 async function approvedCaptions(limit = 4): Promise<string[]> {
@@ -68,7 +69,14 @@ export async function POST(req: Request) {
       messages: [{ role: "user", content: `Brief: ${brief}` }],
       tools: [TOOL], tool_choice: { type: "tool", name: "draft_captions" },
     });
-    const options = (r.toolUses.find((t) => t.name === "draft_captions")?.input?.options ?? []).filter((o: any) => o?.caption?.trim());
+    const raw = (r.toolUses.find((t) => t.name === "draft_captions")?.input?.options ?? []).filter((o: any) => o?.caption?.trim());
+    // Deterministic backstop (F5 — output claim-guard): drop any option that slips a health/medical/
+    // allergen claim into its caption/hook, rather than trusting the system prompt alone.
+    const options = raw.filter((o: any) => {
+      const guard = claimSafeDeep(o);
+      if (!guard.ok) console.warn(`[caption] claim-guard dropped an option on "${guard.hit}" (${guard.path})`);
+      return guard.ok;
+    });
     return NextResponse.json({ ok: true, options });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });

@@ -3,6 +3,7 @@ import { staffFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { academyKnowledge } from "@/lib/operatorKb";
+import { claimSafeDeep } from "@/lib/claimGuard";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -152,6 +153,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: String(err?.message ?? err).slice(0, 300) }, { status: 502 });
   }
   if (!out) return NextResponse.json({ ok: false, error: "Couldn't diagnose — try adding a detail." }, { status: 502 });
+  // Deterministic backstop (F5 — output claim-guard).
+  const guard = claimSafeDeep(out);
+  if (!guard.ok) {
+    console.warn(`[troubleshoot] claim-guard tripped on "${guard.hit}" (${guard.path}) — diagnosis blocked`);
+    return NextResponse.json({ ok: false, error: "Couldn't diagnose safely — try adding a detail or describing it differently." }, { status: 502 });
+  }
 
   const causes = (out.causes ?? []).filter((c) => c?.cause?.trim()).map((c) => ({
     cause: String(c.cause).slice(0, 240), likelihood: c.likelihood === "possible" ? "possible" : "likely", why: c.why ? String(c.why).slice(0, 200) : "",

@@ -3,6 +3,7 @@ import { staffFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
+import { claimSafeDeep } from "@/lib/claimGuard";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -72,6 +73,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });
   }
   if (!out) return NextResponse.json({ ok: false, error: "no assessment" }, { status: 502 });
+  // Deterministic backstop (F5 — output claim-guard): this gets pushed as a staff ALERT via
+  // raiseAlert() below — guard before it ever fans out on the alerts spine, not just before the
+  // HTTP response.
+  const guard = claimSafeDeep(out);
+  if (!guard.ok) {
+    console.warn(`[readiness] claim-guard tripped on "${guard.hit}" (${guard.path}) — assessment blocked`);
+    return NextResponse.json({ ok: false, error: "The assessment needs review — try again." }, { status: 502 });
+  }
 
   const severity = ["critical", "important", "fyi"].includes(out.severity) ? out.severity : "important";
   const body = out.gaps?.length ? out.gaps.map((g) => `• ${g.item}: ${g.detail}`).join("\n") : "All stocked for what's coming.";

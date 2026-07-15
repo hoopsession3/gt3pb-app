@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { staffFromRequest, userFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
+import { claimSafeDeep } from "@/lib/claimGuard";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -61,7 +62,14 @@ export async function POST(req: Request) {
       tools: [TOOL],
       tool_choice: { type: "tool", name: "propose_followups" },
     });
-    items = (r.toolUses.find((t) => t.name === "propose_followups")?.input?.items ?? []).filter((i: any) => i?.label?.trim());
+    const raw = (r.toolUses.find((t) => t.name === "propose_followups")?.input?.items ?? []).filter((i: any) => i?.label?.trim());
+    // Deterministic backstop (F5 — output claim-guard): a meeting recap can discuss a claim (to REJECT
+    // it) — don't let that wording resurface as a task label a staffer might read as an instruction.
+    items = raw.filter((i: any) => {
+      const guard = claimSafeDeep(i.label);
+      if (!guard.ok) console.warn(`[recap] claim-guard dropped a follow-up on "${guard.hit}"`);
+      return guard.ok;
+    });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });
   }

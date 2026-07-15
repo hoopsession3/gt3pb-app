@@ -55,6 +55,10 @@ await db.exec(`
     name text not null, location_text text, lat double precision, lng double precision,
     starts_at timestamptz, ends_at timestamptz, status text, note text, menu_tier text, sort int default 0,
     when_label text, time_label text, tag_label text, notes text, address text,
+    -- poc_name/poc_phone/poc_email/service_dates: present here because this stub is prod state as
+    -- of ~0221 (right before 0222 applies, which still backfills them into field_ops from here) —
+    -- they aren't dropped until 0240, applied near the bottom of this file (section 9), matching
+    -- their real chronological position in migration history. Don't remove them from this stub.
     poc_name text, poc_phone text, poc_email text, service_dates text, archived_at timestamptz,
     vendor_id uuid references public.vendors(id), tenant_id uuid default '00000000-0000-0000-0000-000000000001',
     plan_days int, rig text, power_available boolean default false, water_available boolean default false,
@@ -295,6 +299,27 @@ ok("the MIRROR's door too: field_ops read policy gates on is_public or is_staff 
 ok("no drift between the two computed columns anywhere",
   (await q1(`select count(*)::int as r from public.field_ops fo join public.events e on e.id = fo.id
              where fo.is_public <> e.is_public`)).r === 0);
+
+// ── 9 · 0240: stop contact cleanup — dead poc_*/service_dates columns dropped from BOTH tables,
+//      mirror trigger still functions cleanly without them ─────────────────────────────────────
+await db.exec(readFileSync(join(ROOT, "supabase/migrations/0240_stop_contact_cleanup.sql"), "utf8"));
+ok("poc_name/poc_phone/poc_email/service_dates gone from stops",
+  (await q1(`select count(*)::int as r from information_schema.columns
+             where table_schema='public' and table_name='stops'
+               and column_name in ('poc_name','poc_phone','poc_email','service_dates')`)).r === 0);
+ok("poc_name/poc_phone/poc_email/service_dates gone from field_ops",
+  (await q1(`select count(*)::int as r from information_schema.columns
+             where table_schema='public' and table_name='field_ops'
+               and column_name in ('poc_name','poc_phone','poc_email','service_dates')`)).r === 0);
+await db.exec(`insert into public.stops (id, name, starts_at) values ('55555555-0000-0000-0000-000000000004', 'Post-0240 Stop', '2026-08-01T12:00:00Z');`);
+ok("mirror still fires cleanly post-0240 (insert)",
+  (await q1(`select name as r from public.field_ops where id = '55555555-0000-0000-0000-000000000004'`))?.r === "Post-0240 Stop");
+await db.exec(`update public.stops set name = 'Renamed Stop' where id = '55555555-0000-0000-0000-000000000004';`);
+ok("mirror still fires cleanly post-0240 (update)",
+  (await q1(`select name as r from public.field_ops where id = '55555555-0000-0000-0000-000000000004'`))?.r === "Renamed Stop");
+await db.exec(`delete from public.stops where id = '55555555-0000-0000-0000-000000000004';`);
+ok("mirror still fires cleanly post-0240 (delete)",
+  (await q1(`select count(*)::int as r from public.field_ops where id = '55555555-0000-0000-0000-000000000004'`)).r === 0);
 
 console.log(`FIELD-OPS CONTRACT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

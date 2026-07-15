@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { staffFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
+import { claimSafeDeep } from "@/lib/claimGuard";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -90,6 +91,12 @@ export async function POST(req: Request) {
       });
       const o = r.toolUses.find((t) => t.name === "departure_summary")?.input ?? null;
       if (!o) return NextResponse.json({ ok: true, leave_by: "", summary: "", risks: [] });
+      // Deterministic backstop (F5 — output claim-guard).
+      const guard = claimSafeDeep(o);
+      if (!guard.ok) {
+        console.warn(`[dayplan] claim-guard tripped on "${guard.hit}" (${guard.path}) — departure summary blocked`);
+        return NextResponse.json({ ok: true, leave_by: "", summary: "", risks: [] });
+      }
       return NextResponse.json({
         ok: true,
         leave_by: String(o.leave_by ?? "").slice(0, 40),
@@ -137,6 +144,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: String(err?.message ?? err).slice(0, 300) }, { status: 502 });
   }
   if (!out) return NextResponse.json({ ok: false, error: "no draft" }, { status: 502 });
+  // Deterministic backstop (F5 — output claim-guard).
+  const guard = claimSafeDeep(out);
+  if (!guard.ok) {
+    console.warn(`[dayplan] claim-guard tripped on "${guard.hit}" (${guard.path}) — draft blocked`);
+    return NextResponse.json({ ok: false, error: "The draft needs review — try again." }, { status: 502 });
+  }
 
   const items = (out.items ?? []).filter((i) => i && i.title && i.start_time).map((i) => ({
     start_time: String(i.start_time).slice(0, 40),

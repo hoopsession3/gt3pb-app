@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { staffFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
+import { claimSafeDeep } from "@/lib/claimGuard";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -103,6 +104,12 @@ export async function POST(req: Request) {
       tool_choice: { type: "tool", name: "operations_plan" },
     });
     const plan = r.toolUses.find((t) => t.name === "operations_plan")?.input ?? { operations: [], gaps: [] };
+    // Deterministic backstop (F5 — output claim-guard).
+    const guard = claimSafeDeep(plan);
+    if (!guard.ok) {
+      console.warn(`[opsplan] claim-guard tripped on "${guard.hit}" (${guard.path}) — plan blocked`);
+      return NextResponse.json({ ok: false, error: "The plan needs review — try again." }, { status: 502 });
+    }
     const operations = (plan.operations ?? []).filter((o: any) => o?.type && o?.title?.trim()).slice(0, 20);
     const gaps = (plan.gaps ?? []).filter((g: any) => g?.need?.trim()).slice(0, 8);
     return NextResponse.json({ ok: true, plan: { headline: plan.headline ?? "", operations, gaps } });

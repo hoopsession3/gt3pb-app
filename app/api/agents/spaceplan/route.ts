@@ -3,6 +3,7 @@ import { staffFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { computeSpace, rigToBox, type TrailerProfile } from "@/lib/loadout";
+import { claimSafeDeep } from "@/lib/claimGuard";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -101,6 +102,9 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ ...base, summary: fitNote, zones: [], stacking: [], at_risk: [], load_order: [], ai_error: String(err?.message ?? err).slice(0, 200) });
   }
+  // Deterministic backstop (F5 — output claim-guard): a trip degrades exactly like an AI error above —
+  // the deterministic fit numbers (`base`) are never AI-generated, so the crew is never blocked.
+  if (out && !claimSafeDeep(out).ok) { console.warn("[spaceplan] claim-guard tripped — falling back to the deterministic fit"); out = null; }
 
   return NextResponse.json({
     ...base,

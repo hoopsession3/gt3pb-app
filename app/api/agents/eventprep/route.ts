@@ -3,6 +3,7 @@ import { staffFromRequest, userFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { academyKnowledge } from "@/lib/operatorKb";
+import { claimSafeDeep } from "@/lib/claimGuard";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 export const runtime = "nodejs";
@@ -54,6 +55,10 @@ async function runPrep(jobId: string, fmt: any) {
     });
     const out: any = r.toolUses.find((t) => t.name === "prep_list")?.input ?? null;
     if (!out) return null;
+    // Deterministic backstop (F5 — output claim-guard): treat a trip like a non-answer — the caller's
+    // existing retry-then-baseline-graft logic already handles null cleanly, so the crew still gets a
+    // real checklist instead of the request just failing.
+    if (!claimSafeDeep(out).ok) { console.warn("[eventprep] claim-guard tripped — treating as a non-answer"); return null; }
     const tasks = (out.tasks ?? []).filter((t: any) => t?.label?.trim()).map((t: any) => ({
       label: String(t.label).slice(0, 300), section: SECTIONS.includes(t.section) ? t.section : "Prep",
       critical: !!t.critical, why: t.why ? String(t.why).slice(0, 200) : "",

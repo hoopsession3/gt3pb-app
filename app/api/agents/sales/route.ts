@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { staffFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef, type ClaudeMsg } from "@/lib/anthropic";
+import { claimSafeDeep } from "@/lib/claimGuard";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -92,6 +93,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: `Scout/web search failed: ${String(err?.message ?? err).slice(0, 200)}` }, { status: 502 });
   }
   if (!research) return NextResponse.json({ ok: true, summary: "No opportunities surfaced — try a broader focus.", opportunities: [] });
+  // Deterministic backstop (F5 — output claim-guard): `research` is raw web-search text — an
+  // opportunity's own marketing copy could carry a claim GT3 has no business repeating.
 
   let out: any = null;
   try {
@@ -105,13 +108,20 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ ok: false, error: String(err?.message ?? err).slice(0, 200) }, { status: 502 });
   }
-  if (!out) return NextResponse.json({ ok: true, summary: research.slice(0, 300), opportunities: [] });
+  const safeResearchSummary = claimSafeDeep(research.slice(0, 300)).ok ? research.slice(0, 300) : "";
+  if (!out) return NextResponse.json({ ok: true, summary: safeResearchSummary, opportunities: [] });
 
   const opportunities = (out.opportunities ?? []).filter((o: any) => o?.name?.trim()).slice(0, 20).map((o: any) => ({
     name: String(o.name).slice(0, 160), date: o.date ? String(o.date).slice(0, 80) : "",
     location: o.location ? String(o.location).slice(0, 120) : "", fit: o.fit ? String(o.fit).slice(0, 240) : "",
     pitch: o.pitch ? String(o.pitch).slice(0, 240) : "", source: o.source ? String(o.source).slice(0, 400) : "",
     score: ["hot", "warm", "cold"].includes(o.score) ? o.score : "warm",
-  }));
-  return NextResponse.json({ ok: true, summary: out.summary ?? "", opportunities });
+  })).filter((o: any) => {
+    const guard = claimSafeDeep(o);
+    if (!guard.ok) console.warn(`[sales] claim-guard dropped "${o.name}" on "${guard.hit}" (${guard.path})`);
+    return guard.ok;
+  });
+  const summaryGuard = claimSafeDeep(out.summary ?? "");
+  if (!summaryGuard.ok) console.warn(`[sales] claim-guard dropped the summary on "${summaryGuard.hit}"`);
+  return NextResponse.json({ ok: true, summary: summaryGuard.ok ? (out.summary ?? "") : safeResearchSummary, opportunities });
 }

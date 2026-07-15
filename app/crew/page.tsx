@@ -2615,6 +2615,9 @@ function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive
   const { toast } = useApp();
   const table = kind === "stop" ? "stops" : "vendors";
   const stop = kind === "stop" ? (row as Stop) : null;
+  // POC/service-dates live only on vendors now (0240 dropped the dead stops.poc_* columns) —
+  // this cast is how the subtitle + editor below read them without widening Stop's type.
+  const vendor = kind === "vendor" ? (row as Vendor) : null;
   const displayName = (nameOverride && nameOverride.trim()) || row.name;
   const [name, setName] = useState(row.name);
   const [address, setAddress] = useState(row.address ?? "");
@@ -2659,7 +2662,7 @@ function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive
   const stopWhen = kind === "stop" && (row as { starts_at?: string | null }).starts_at
     ? new Date((row as { starts_at?: string | null }).starts_at as string).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
     : null;
-  const sub = [stopWhen, row.poc_name, row.service_dates, hasCoords ? "pinned" : "no pin"].filter(Boolean).join("  ·  ");
+  const sub = [stopWhen, vendor?.poc_name, vendor?.service_dates, hasCoords ? "pinned" : "no pin"].filter(Boolean).join("  ·  ");
   const tag = kind === "stop" ? `Location ${String(index + 1).padStart(2, "0")}${isCur ? " · Live" : ""}` : `Vendor ${String(index + 1).padStart(2, "0")}`;
   return (
     <div className={`ev-card${isCur ? " live" : ""}${open ? " open" : ""}`}>
@@ -2733,14 +2736,14 @@ function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive
           {showPoc && (
             <div className="ev-group">
               <div className="ev-group-h">Point of contact</div>
-              <input className="ev-input" defaultValue={row.poc_name ?? ""} placeholder="POC name" maxLength={120} onBlur={(e) => { if ((e.target.value.trim() || null) !== (row.poc_name ?? null)) patch({ poc_name: e.target.value.trim() || null }, "Contact saved"); }} />
-              <input className="ev-input" type="tel" defaultValue={row.poc_phone ?? ""} placeholder="Phone" maxLength={40} onBlur={(e) => { if ((e.target.value.trim() || null) !== (row.poc_phone ?? null)) patch({ poc_phone: e.target.value.trim() || null }, "Contact saved"); }} />
-              <input className="ev-input" type="email" defaultValue={row.poc_email ?? ""} placeholder="Email" maxLength={160} onBlur={(e) => { if ((e.target.value.trim() || null) !== (row.poc_email ?? null)) patch({ poc_email: e.target.value.trim() || null }, "Contact saved"); }} />
+              <input className="ev-input" defaultValue={vendor?.poc_name ?? ""} placeholder="POC name" maxLength={120} onBlur={(e) => { if ((e.target.value.trim() || null) !== (vendor?.poc_name ?? null)) patch({ poc_name: e.target.value.trim() || null }, "Contact saved"); }} />
+              <input className="ev-input" type="tel" defaultValue={vendor?.poc_phone ?? ""} placeholder="Phone" maxLength={40} onBlur={(e) => { if ((e.target.value.trim() || null) !== (vendor?.poc_phone ?? null)) patch({ poc_phone: e.target.value.trim() || null }, "Contact saved"); }} />
+              <input className="ev-input" type="email" defaultValue={vendor?.poc_email ?? ""} placeholder="Email" maxLength={160} onBlur={(e) => { if ((e.target.value.trim() || null) !== (vendor?.poc_email ?? null)) patch({ poc_email: e.target.value.trim() || null }, "Contact saved"); }} />
             </div>
           )}
 
           {kind === "vendor" && (
-            <div className="ev-group"><div className="ev-group-h">Dates of service</div><input className="ev-input" defaultValue={row.service_dates ?? ""} placeholder="e.g. Saturdays · May – Aug" maxLength={200} onBlur={(e) => { if ((e.target.value.trim() || null) !== (row.service_dates ?? null)) patch({ service_dates: e.target.value.trim() || null }, "Saved"); }} /></div>
+            <div className="ev-group"><div className="ev-group-h">Dates of service</div><input className="ev-input" defaultValue={vendor?.service_dates ?? ""} placeholder="e.g. Saturdays · May – Aug" maxLength={200} onBlur={(e) => { if ((e.target.value.trim() || null) !== (vendor?.service_dates ?? null)) patch({ service_dates: e.target.value.trim() || null }, "Saved"); }} /></div>
           )}
 
           {kind === "vendor" && (
@@ -4835,7 +4838,10 @@ function VendorsAdmin() {
     let extra: Partial<Vendor> = {};
     if (sug.kind === "stop" && sug.stop) {
       const s = sug.stop;
-      extra = { location_text: s.location_text, address: s.address, lat: s.lat, lng: s.lng, poc_name: s.poc_name, poc_phone: s.poc_phone, poc_email: s.poc_email, service_dates: s.service_dates };
+      // POC/service-dates no longer live on stops (0240 — they were dead columns, never carried
+      // real data); a materialized vendor starts with location only and gets its contact filled
+      // in directly, same as any other new vendor-book entry.
+      extra = { location_text: s.location_text, address: s.address, lat: s.lat, lng: s.lng };
     } else if (sug.event) {
       extra = { location_text: sug.event.location_text };
     }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { staffFromRequest } from "@/lib/apiAuth";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
+import { claimSafeDeep } from "@/lib/claimGuard";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -59,6 +60,12 @@ export async function POST(req: Request) {
     });
     const draft = r.toolUses.find((t) => t.name === "event_draft")?.input;
     if (!draft) return NextResponse.json({ ok: false, error: "Couldn't read that — try rephrasing." }, { status: 502 });
+    // Deterministic backstop (F5 — output claim-guard).
+    const guard = claimSafeDeep(draft);
+    if (!guard.ok) {
+      console.warn(`[event-build] claim-guard tripped on "${guard.hit}" (${guard.path}) — draft blocked`);
+      return NextResponse.json({ ok: false, error: "Couldn't read that safely — try rephrasing." }, { status: 502 });
+    }
     return NextResponse.json({ ok: true, draft });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message || "Something went wrong." }, { status: 500 });

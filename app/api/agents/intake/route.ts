@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { staffFromRequest, userFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
+import { claimSafeDeep } from "@/lib/claimGuard";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -131,6 +132,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: `Couldn't read that file: ${String(e?.message ?? e).slice(0, 180)}` }, { status: 502 });
   }
   if (!out) return NextResponse.json({ ok: false, error: "no read" }, { status: 502 });
+  // Deterministic backstop (F5 — output claim-guard).
+  const guard = claimSafeDeep(out);
+  if (!guard.ok) {
+    console.warn(`[intake] claim-guard tripped on "${guard.hit}" (${guard.path}) — proposal blocked`);
+    return NextResponse.json({ ok: false, error: "Couldn't classify that file safely — try again or file it manually." }, { status: 502 });
+  }
 
   const proposal = {
     kind: KINDS.includes(out.kind) ? out.kind : "other",

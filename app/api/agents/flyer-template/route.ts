@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { staffFromRequest } from "@/lib/apiAuth";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { BRAND_VOICE } from "@/lib/brandVoice";
+import { claimSafeDeep } from "@/lib/claimGuard";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -81,7 +82,13 @@ Match the template's mood to the content and the moment. Prefer restraint over s
     });
     const out: any = r.toolUses.find((t) => t.name === "pick_template")?.input ?? null;
     if (!out || !IDS.includes(out.template)) return NextResponse.json({ ok: false, error: "no pick returned — try again" }, { status: 502 });
-    return NextResponse.json({ ok: true, template: out.template, reason: String(out.reason ?? "").slice(0, 200) });
+    // Deterministic backstop (F5 — output claim-guard): the pick itself is a closed enum (no claim
+    // surface); only `reason` is free text. A trip there blanks just the rationale — the useful part
+    // (which template) still ships rather than failing the whole request over one throwaway line.
+    const reason = String(out.reason ?? "").slice(0, 200);
+    const guard = claimSafeDeep(reason);
+    if (!guard.ok) console.warn(`[flyer-template] claim-guard dropped the reason on "${guard.hit}"`);
+    return NextResponse.json({ ok: true, template: out.template, reason: guard.ok ? reason : "" });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 200) }, { status: 502 });
   }

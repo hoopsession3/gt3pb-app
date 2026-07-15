@@ -3,6 +3,7 @@ import { staffFromRequest, userFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { studioSystem } from "@/lib/brandVoice";
+import { claimSafeDeep } from "@/lib/claimGuard";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -80,15 +81,27 @@ Distinct angles, all unmistakably GT3. Always answer with the build_campaign too
       messages: [{ role: "user", content: `Event: ${ev.title || "GT3 event"}${ev.day_label ? ` (${ev.day_label})` : ""} on ${ev.day}.` }],
       tools: [TOOL], tool_choice: { type: "tool", name: "build_campaign" },
     });
-    pieces = r.toolUses.find((t) => t.name === "build_campaign")?.input?.pieces ?? [];
+    const raw = r.toolUses.find((t) => t.name === "build_campaign")?.input?.pieces ?? [];
+    // Deterministic backstop (F5 — output claim-guard): drop any piece that slips a health/medical/
+    // allergen claim into its caption/hook, rather than trusting the system prompt alone. MAP, don't
+    // filter — dropping a piece from the array (rather than blanking it in place) shifts every later
+    // index, and the phase-alignment fallback below reads pieces[] by index; a shift would hand one
+    // phase's slot a DIFFERENT phase's content instead of leaving it blank. Keeping the phase tag on
+    // the stub also means `.find(phase)` still resolves it correctly on its own.
+    pieces = raw.map((p: any) => {
+      const guard = claimSafeDeep(p);
+      if (guard.ok) return p;
+      console.warn(`[campaign] claim-guard dropped the ${p?.phase ?? "?"} piece on "${guard.hit}" (${guard.path})`);
+      return { phase: p?.phase };
+    });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });
   }
-  if (pieces.length === 0) return NextResponse.json({ ok: false, error: "no campaign generated" }, { status: 502 });
+  if (!pieces.some((p) => p?.title || p?.caption)) return NextResponse.json({ ok: false, error: "no campaign generated" }, { status: 502 });
 
   const [y, m, d] = ev.day.split("-").map(Number);
-  const rows = PHASES.map((ph) => {
-    const p = pieces.find((x) => x.phase === ph.key) || pieces[PHASES.indexOf(ph)] || {};
+  const rows = PHASES.map((ph, i) => {
+    const p = pieces.find((x) => x.phase === ph.key) || pieces[i] || {};
     const dt = new Date(y, m - 1, d + ph.offset, 9, 0);
     return {
       kind: "post", channel, event_id, status: "draft",

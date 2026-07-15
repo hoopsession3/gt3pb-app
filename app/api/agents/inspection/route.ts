@@ -3,6 +3,7 @@ import { after } from "next/server";
 import { staffFromRequest, userFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ClaudeMsg, type ToolDef } from "@/lib/anthropic";
+import { claimSafeDeep } from "@/lib/claimGuard";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -97,6 +98,14 @@ async function processResearchJob(jobId: string, j: { state: string; county: str
     });
     const out: SaveOut | null = ex.toolUses.find((t) => t.name === "save_requirements")?.input ?? null;
     if (!out) { await touchJob(jobId, { status: "error", error: "could not extract requirements" }); return; }
+    // Deterministic backstop (F5 — output claim-guard): this is unmoderated web research turned into
+    // a saved brief + compliance rows — hold it to the bar before it's ever shown or proposed.
+    const guard = claimSafeDeep(out);
+    if (!guard.ok) {
+      console.warn(`[inspection] claim-guard tripped on "${guard.hit}" (${guard.path}) — research blocked`);
+      await touchJob(jobId, { status: "error", error: "Research needs review before it can be shown — try again." });
+      return;
+    }
 
     // Persist newly-researched rules as PROPOSED (inactive + unverified) for admin approval.
     let proposed: any[] = [];
@@ -163,6 +172,12 @@ export async function POST(req: Request) {
       });
       const out: SaveOut | null = r.toolUses.find((t) => t.name === "save_requirements")?.input ?? null;
       if (!out) return NextResponse.json({ ok: false, error: "no result" }, { status: 502 });
+      // Deterministic backstop (F5 — output claim-guard).
+      const guard = claimSafeDeep(out);
+      if (!guard.ok) {
+        console.warn(`[inspection] claim-guard tripped on "${guard.hit}" (${guard.path}) — brief blocked`);
+        return NextResponse.json({ ok: false, error: "The brief needs review — try again." }, { status: 502 });
+      }
       const tasksAdded = await persistTasks(event_id, out.checklist);
       return NextResponse.json({
         ok: true, status: "done", place, researched: false,

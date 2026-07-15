@@ -16,11 +16,9 @@ export interface Stop {
   starts_at?: string | null; // the date/time it's on the calendar (0001)
   ends_at?: string | null;
   sort: number;
-  // vendor / location management (0033)
-  poc_name?: string | null;
-  poc_phone?: string | null;
-  poc_email?: string | null;
-  service_dates?: string | null;
+  // NOTE: poc_name/poc_phone/poc_email/service_dates lived here (0033) but were dropped from the
+  // table in 0240 — they were dead (world-readable, never written) columns; a stop's point-of-
+  // contact now lives exclusively on the linked `vendors` record (is_admin()-gated), via vendor_id.
   archived_at?: string | null;
   vendor_id?: string | null; // linked canonical vendor/venue (0034)
   // per-stop order-ahead / pickup overrides (0191). lead_min null = fall back to the global window.

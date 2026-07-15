@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ownerFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
+import { claimSafeDeep } from "@/lib/claimGuard";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -125,6 +126,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: String(err?.message ?? err).slice(0, 300) }, { status: 502 });
   }
   if (!out) return NextResponse.json({ ok: false, error: "no briefing" }, { status: 502 });
+  // Deterministic backstop (F5 — output claim-guard): owner-only today, but this briefing gets acted
+  // on and repeated — hold it to the same bar rather than assuming a leadership audience is exempt.
+  const guard = claimSafeDeep(out);
+  if (!guard.ok) {
+    console.warn(`[chief] claim-guard tripped on "${guard.hit}" (${guard.path}) — briefing blocked`);
+    return NextResponse.json({ ok: false, error: "The briefing needs review before it can be shown — try again." }, { status: 502 });
+  }
 
   return NextResponse.json({ ok: true, period, window: { from, to }, briefing: out, counts: {
     events: snapshot.events.length, stops: snapshot.truck_stops.length, brews: snapshot.brew_batches.length,

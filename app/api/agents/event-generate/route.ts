@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { staffFromRequest, userFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
+import { claimSafeDeep } from "@/lib/claimGuard";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -158,5 +159,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });
   }
   if (!plan) return NextResponse.json({ ok: false, error: "no plan" }, { status: 502 });
+  // Deterministic backstop (F5 — output claim-guard): event blurbs can reach public listings and the
+  // collaboration note is a stored, re-read record — hold the whole plan to the bar before it previews.
+  const guard = claimSafeDeep(plan);
+  if (!guard.ok) {
+    console.warn(`[event-generate] claim-guard tripped on "${guard.hit}" (${guard.path}) — plan blocked`);
+    return NextResponse.json({ ok: false, error: "The plan needs review — try again." }, { status: 502 });
+  }
   return NextResponse.json({ ok: true, plan });
 }

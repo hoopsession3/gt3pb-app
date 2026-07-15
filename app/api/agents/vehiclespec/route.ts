@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { staffFromRequest } from "@/lib/apiAuth";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
+import { claimSafeDeep } from "@/lib/claimGuard";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -54,6 +55,12 @@ export async function POST(req: Request) {
     });
     const out: any = r.toolUses.find((t) => t.name === "vehicle_spec")?.input ?? null;
     if (!out) return NextResponse.json({ ok: false, error: "no estimate returned — try a more specific year/make/model" }, { status: 502 });
+    // Deterministic backstop (F5 — output claim-guard).
+    const guard = claimSafeDeep(out);
+    if (!guard.ok) {
+      console.warn(`[vehiclespec] claim-guard tripped on "${guard.hit}" (${guard.path}) — estimate blocked`);
+      return NextResponse.json({ ok: false, error: "Couldn't produce that estimate safely — try again." }, { status: 502 });
+    }
     return NextResponse.json({ ok: true, estimate: true, ...out });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 200) }, { status: 502 });

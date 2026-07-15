@@ -3,6 +3,7 @@ import { staffFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { academyKnowledge } from "@/lib/operatorKb";
+import { claimSafeDeep } from "@/lib/claimGuard";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -164,11 +165,14 @@ export async function POST(req: Request) {
     // AI down — still return the exact deterministic plan so the crew is never blocked.
     return NextResponse.json({ ...base, spec: (recipe as any).target_spec ?? "", brew_note: brewDate ? `Start ${brewDate} for ${needBy}.` : `Allow ${extractionHours}h extraction.`, steps: (recipe as any).method ?? [], checks: [], inventory_flags: [], ai_error: String(err?.message ?? err).slice(0, 200) });
   }
+  // Deterministic backstop (F5 — output claim-guard): a trip degrades exactly like an AI error above —
+  // the deterministic scaling/schedule (`base`) is never AI-generated, so the crew is never blocked.
+  if (out && !claimSafeDeep(out).ok) { console.warn("[brew] claim-guard tripped — falling back to the deterministic plan"); out = null; }
 
   return NextResponse.json({
     ...base,
     spec: out?.spec || (recipe as any).target_spec || "",
-    brew_note: out?.brew_note || "",
+    brew_note: out?.brew_note || (brewDate ? `Start ${brewDate} for ${needBy}.` : `Allow ${extractionHours}h extraction.`),
     steps: Array.isArray(out?.steps) ? out.steps.map((s: any) => String(s).slice(0, 300)) : ((recipe as any).method ?? []),
     checks: Array.isArray(out?.checks) ? out.checks.map((s: any) => String(s).slice(0, 200)) : [],
     inventory_flags: Array.isArray(out?.inventory_flags) ? out.inventory_flags.map((s: any) => String(s).slice(0, 200)) : [],

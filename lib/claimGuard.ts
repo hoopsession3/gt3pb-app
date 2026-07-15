@@ -51,3 +51,34 @@ export function claimSafe(text: string): { ok: boolean; hit: string | null } {
 // the crew or a doctor, and offers the thing we CAN talk about (what's in the cup).
 export const CLAIM_FALLBACK =
   "I can tell you exactly what's in it and why we chose it — but I can't speak to health, medical, or allergy effects. For anything like that, the crew at the window or your doctor is the right call. Want the rundown on what's actually in the drink?";
+
+// claimSafe() checks ONE string. Most of the ~25 AI copy routes don't return a single chat string —
+// they force a `tool_use` call (draft_captions, brief_campaign, prep_list, …) whose real guest/staff-
+// facing prose lives nested inside the tool's structured `input` (a caption three levels deep in
+// `options[1].caption`, a briefing's `by_area[3].note`, etc.). claimSafe() alone never sees those —
+// which is exactly the gap this session's audit found: only operator + concierge (plain r.text chat)
+// were ever wired up. claimSafeDeep() walks an arbitrary object/array — the whole tool_use `input`,
+// or any slice of it — and runs claimSafe() on every string leaf it finds, so a claim can't hide in a
+// field nobody thought to name explicitly. Returns the FIRST hit (dot/bracket path + matched text) so
+// a caller can log exactly which field tripped; ok:true means every string leaf passed.
+export function claimSafeDeep(value: unknown, path = ""): { ok: boolean; path: string | null; hit: string | null } {
+  if (typeof value === "string") {
+    const r = claimSafe(value);
+    return r.ok ? { ok: true, path: null, hit: null } : { ok: false, path: path || "(root)", hit: r.hit };
+  }
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) {
+      const r = claimSafeDeep(value[i], `${path}[${i}]`);
+      if (!r.ok) return r;
+    }
+    return { ok: true, path: null, hit: null };
+  }
+  if (value && typeof value === "object") {
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      const r = claimSafeDeep(v, path ? `${path}.${k}` : k);
+      if (!r.ok) return r;
+    }
+    return { ok: true, path: null, hit: null };
+  }
+  return { ok: true, path: null, hit: null }; // numbers/booleans/null — nothing to scan
+}

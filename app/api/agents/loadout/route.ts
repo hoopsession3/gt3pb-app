@@ -3,6 +3,7 @@ import { staffFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { academyKnowledge } from "@/lib/operatorKb";
+import { claimSafeDeep } from "@/lib/claimGuard";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -107,14 +108,17 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ ...base, summary: packSummary, containers: [], ice: "Gel/ice packs between rows; pre-chill; hold under 40°F.", layout: ["Upright in dividers", "Packs between layers", "Snug — no shift"], vehicle: "Low, centered, braced, shaded.", checklist: [], ai_error: String(err?.message ?? err).slice(0, 200) });
   }
+  // Deterministic backstop (F5 — output claim-guard): a trip degrades exactly like an AI error above —
+  // the deterministic pack counts (`base`) are never AI-generated, so the crew is never blocked.
+  if (out && !claimSafeDeep(out).ok) { console.warn("[loadout] claim-guard tripped — falling back to the deterministic pack plan"); out = null; }
 
   return NextResponse.json({
     ...base,
     summary: out?.summary || packSummary,
     containers: Array.isArray(out?.containers) ? out.containers.slice(0, 8) : [],
-    ice: out?.ice || "",
-    layout: Array.isArray(out?.layout) ? out.layout.map((s: any) => String(s).slice(0, 240)) : [],
-    vehicle: out?.vehicle || "",
+    ice: out?.ice || "Gel/ice packs between rows; pre-chill; hold under 40°F.",
+    layout: Array.isArray(out?.layout) ? out.layout.map((s: any) => String(s).slice(0, 240)) : ["Upright in dividers", "Packs between layers", "Snug — no shift"],
+    vehicle: out?.vehicle || "Low, centered, braced, shaded.",
     checklist: Array.isArray(out?.checklist) ? out.checklist.map((s: any) => String(s).slice(0, 200)) : [],
   });
 }

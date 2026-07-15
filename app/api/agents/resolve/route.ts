@@ -3,6 +3,7 @@ import { staffFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { academyKnowledge } from "@/lib/operatorKb";
+import { claimSafeDeep } from "@/lib/claimGuard";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -70,6 +71,13 @@ ${assets || "(none loaded)"}`;
     return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });
   }
   if (!out) return NextResponse.json({ ok: false, error: "no proposal" }, { status: 502 });
+  // Deterministic backstop (F5 — output claim-guard): this PERSISTS to event_tasks.ai_proposal (read
+  // by other staff later) — guard before the write, not just before the response.
+  const guard = claimSafeDeep(out.proposal);
+  if (!guard.ok) {
+    console.warn(`[resolve] claim-guard tripped on "${guard.hit}" — proposal blocked`);
+    return NextResponse.json({ ok: false, error: "Couldn't propose that safely — try again." }, { status: 502 });
+  }
 
   await supabaseAdmin.from("event_tasks").update({ ai_proposal: out.proposal, ai_has_answer: !!out.have_answer }).eq("id", task_id);
   return NextResponse.json({ ok: true, proposal: out.proposal, have_answer: !!out.have_answer });
