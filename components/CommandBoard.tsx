@@ -8,6 +8,7 @@ import { useRealtimeTable } from "@/lib/realtime";
 import MoneyKpis from "./MoneyKpis";
 import LaunchReadiness from "./LaunchReadiness";
 import { useTaskSheet } from "./TaskSheet";
+import { SectionHeader } from "@/components/kit";
 import InlineCreate from "./InlineCreate";
 import Sheet from "@/components/Sheet";
 
@@ -130,7 +131,7 @@ export default function CommandBoard() {
   return (
     <div className="cmd">
       {/* ── Initiatives · the launch ── */}
-      <div className="crew-group">Initiatives</div>
+      <SectionHeader label="Initiatives" annotation="the launch" />
       {inits.length === 0 && !isAdmin && <div className="cmd-empty">No active initiatives.</div>}
       {inits.map((it) => {
         const ms = (milesByInit.get(it.id) ?? []).slice().sort((a, b) => a.sort - b.sort);
@@ -174,7 +175,7 @@ export default function CommandBoard() {
       <LaunchReadiness />
 
       {/* ── This Week ── */}
-      <div className="crew-group">This week</div>
+      <SectionHeader label="This week" annotation="due next 7 days" />
       {wk.shown.length === 0 ? <div className="cmd-empty">Nothing due in the next 7 days.</div> : (
         <div className="cmd-list">
           {wk.shown.map((w) => <button type="button" className="cmd-row" style={{ width: "100%", textAlign: "left", cursor: "pointer" }} key={`${w.src}-${w.id}`} onClick={() => openTask(w.id, w.src === "task" ? "event" : "todo")} aria-label={`Open task: ${w.title}`}><span className="cmd-row-t">{w.title}</span><span className="cmd-row-due">{dnice(w.due)}</span></button>)}
@@ -183,7 +184,7 @@ export default function CommandBoard() {
       )}
 
       {/* ── Blockers ── */}
-      <div className="crew-group">Blockers</div>
+      <SectionHeader label="Blockers" annotation="clear these first" />
       {incidents.length === 0 && ov.shown.length === 0 ? <div className="cmd-empty">Nothing blocked. 🟢</div> : (
         <div className="cmd-list">
           {incidents.map((i) => <div className="cmd-row blk" key={i.id}><span className="cmd-row-t">🛑 {i.problem}</span></div>)}
@@ -193,7 +194,7 @@ export default function CommandBoard() {
       )}
 
       {/* ── Done this week ── */}
-      <div className="crew-group">Done this week</div>
+      <SectionHeader label="Done this week" annotation="wrapped" />
       {dn.shown.length === 0 ? <div className="cmd-empty">Nothing wrapped yet this week.</div> : (
         <div className="cmd-list">
           {dn.shown.map((w) => <div className="cmd-row done" key={`dn-${w.src}-${w.id}`}><span className="cmd-row-t">{w.title}</span></div>)}
@@ -202,7 +203,7 @@ export default function CommandBoard() {
       )}
 
       {/* ── Money ── */}
-      <div className="crew-group">Money</div>
+      <SectionHeader label="Money" annotation="the number" />
       <MoneyKpis />
 
       {manage && (

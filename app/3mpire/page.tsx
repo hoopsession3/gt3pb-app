@@ -177,13 +177,8 @@ function MpireReal() {
 
       <SectionHeader label="Your Account" annotation="manage" />
       <div className="rows">
-        {roleOf(profile) !== "member" && (
-          <div className="row" aria-label="Staff" {...clickable(() => router.push("/crew"))}>
-            <div className="ri"><svg viewBox="0 0 24 24" strokeWidth="2"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z" /><path d="M9 12l2 2 4-4" /></svg></div>
-            <div className="rl"><b>Switch to Crew Mode</b><span>{roleOf(profile) === "server" ? "Order pass · kitchen display" : "Your crew console — shift, prep, plan & money"}</span></div>
-            <div className="rr">›</div>
-          </div>
-        )}
+        {/* "Switch to Crew Mode" lives in the account popout (the pill, top-right of THIS page and
+            every screen) — an inline duplicate here was clutter. Academy is the staff door kept. */}
         {roleOf(profile) !== "member" && (
           <div className="row" aria-label="GT3 Academy" {...clickable(() => router.push("/academy"))}>
             <div className="ri"><svg viewBox="0 0 24 24" strokeWidth="2"><path d="M12 3L2 8l10 5 10-5-10-5z" /><path d="M6 10v5c0 1 3 3 6 3s6-2 6-3v-5" /></svg></div>
@@ -198,11 +193,6 @@ function MpireReal() {
             <div className="rr">›</div>
           </div>
         )}
-        <div className="row" aria-label="Saved Events" {...clickable(() => router.push("/events"))}>
-          <div className="ri"><svg viewBox="0 0 24 24" strokeWidth="2"><path d="M12 21s-7-6-7-11a7 7 0 0 1 14 0c0 5-7 11-7 11z" /><circle cx="12" cy="10" r="2.5" /></svg></div>
-          <div className="rl"><b>Saved Events</b><span>Track stops + RSVP</span></div>
-          <div className="rr">›</div>
-        </div>
         <div className="row" aria-label="Book the bar — B2B" {...clickable(() => router.push("/book"))}>
           <div className="ri"><svg viewBox="0 0 24 24" strokeWidth="2"><path d="M3 9h18M3 9l2-5h14l2 5M5 9v11h14V9M9 13h6" /></svg></div>
           <div className="rl"><b>Book the bar</b><span>Bring GT3PB to your event — B2B</span></div>
@@ -260,11 +250,6 @@ function MpireDemo() {
         <div className="row" aria-label="Order History" {...clickable(() => toast("Showing your last 6 orders"))}>
           <div className="ri"><svg viewBox="0 0 24 24" strokeWidth="2"><path d="M3 3h18v4H3zM5 7v14h14V7M9 11h6" /></svg></div>
           <div className="rl"><b>Order History</b><span>Last: 2× FLOW · Duncan Square</span></div>
-          <div className="rr">›</div>
-        </div>
-        <div className="row" aria-label="Saved Events" {...clickable(() => router.push("/events"))}>
-          <div className="ri"><svg viewBox="0 0 24 24" strokeWidth="2"><path d="M12 21s-7-6-7-11a7 7 0 0 1 14 0c0 5-7 11-7 11z" /><circle cx="12" cy="10" r="2.5" /></svg></div>
-          <div className="rl"><b>Saved Events</b><span>3 stops tracked this week</span></div>
           <div className="rr">›</div>
         </div>
         <div className="row" aria-label="Book the bar — B2B" {...clickable(() => router.push("/book"))}>

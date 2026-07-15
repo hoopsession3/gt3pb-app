@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
+import { InfoRow } from "@/components/kit";
 
 // WORKLOAD BOARD — who's carrying what. As the team grows 2→5, work distribution can't stay invisible
 // (headcount counts were all we had). Reads the all_tasks spine (0210) — event_tasks + delegated todos
@@ -47,14 +48,22 @@ export default function WorkloadBoard() {
   const max = Math.max(1, ...rows.map((r) => r.open));
   if (rows.length === 0) return <div className="wl-empty">No teammates yet — add people in the roster below.</div>;
 
+  // On the kit InfoRow: name+role lead the body, the load bar + count ride the trailing slot.
+  // Same row grammar as every other list in the app — a teammate reads like a stop reads.
   return (
-    <div className="wl">
+    <div className="wl k-rows">
       {rows.map(({ p, open, over }) => (
-        <div className="wl-row" key={p.id}>
-          <div className="wl-who"><b>{p.display_name || "Teammate"}</b><span className="wl-role">{p.role}</span></div>
-          <span className="wl-bar"><span className={over ? "over" : ""} style={{ width: `${(open / max) * 100}%` }} /></span>
-          <span className="wl-n">{open === 0 ? "clear" : `${open} open`}{over ? <span className="wl-over"> · {over} overdue</span> : null}</span>
-        </div>
+        <InfoRow
+          key={p.id}
+          name={p.display_name || "Teammate"}
+          sub={p.role}
+          trailing={
+            <div className="wl-tr">
+              <span className="wl-bar"><span className={over ? "over" : ""} style={{ width: `${(open / max) * 100}%` }} /></span>
+              <span className="wl-n">{open === 0 ? "clear" : `${open} open`}{over ? <span className="wl-over"> · {over} overdue</span> : null}</span>
+            </div>
+          }
+        />
       ))}
     </div>
   );

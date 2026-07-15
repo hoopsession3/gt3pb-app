@@ -133,10 +133,8 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
           <span className="acs-row-x"><b>Orders &amp; deliveries</b><span>Track, reorder &amp; receipts</span></span>
           <span className="acs-row-c" aria-hidden>›</span>
         </button>
-        <button type="button" className="acs-row" onClick={() => go("/events")}>
-          <span className="acs-row-x"><b>Reservations &amp; events</b><span>Upcoming stops · RSVPs</span></span>
-          <span className="acs-row-c" aria-hidden>›</span>
-        </button>
+        {/* "Reservations & events" removed — /events is now the Find Us road, a primary nav tab
+            reachable from every screen; a re-link here was a duplicate (RSVPs live on that road). */}
         <button type="button" className="acs-row" onClick={() => go("/office")}>
           <span className="acs-row-x"><b>Office delivery</b><span>Your team&rsquo;s Monday route &amp; jugs</span></span>
           <span className="acs-row-c" aria-hidden>›</span>

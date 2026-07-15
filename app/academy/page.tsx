@@ -109,7 +109,7 @@ export default function AcademyPage() {
   }, [earned, certExp]);
   const certOk = useCallback((key: string) => { const s = certStatus(key); return s === "active" || s === "expiring"; }, [certStatus]);
 
-  if (!enabled) return <section className="screen"><div className="h-title">GT3 Academy</div><div className="h-sub">The live backend isn&apos;t configured here.</div></section>;
+  if (!enabled) return <section className="screen"><Masthead eyebrow="GT3 Academy" /><h1 className="k-title">Academy</h1><p className="k-sub">The live backend isn&apos;t configured here.</p></section>;
   if (!ready) return <section className="screen academy"><Skeleton variant="row" count={5} /></section>;
   if (!user) return <SignIn />;
   // Academy is the EMPLOYEE training + certification system — it carries internal ops, procedures,

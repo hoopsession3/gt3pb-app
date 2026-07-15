@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useWorkStreams } from "@/lib/streams";
+import { SectionHeader } from "@/components/kit";
 import { useAuth, roleOf } from "./AuthProvider";
 
 // Dynamic org chart — reads every crew profile and lays them out by role tier (owner → admin →
@@ -46,7 +47,7 @@ export default function OrgChart() {
 
   return (
     <div className="adm-sec">
-      <div className="sec">Work streams</div>
+      <SectionHeader label="Work streams" annotation="one owner per lane" />
       <div className="ws-grid">
         {streams.map((s) => {
           const owner = people.find((p) => p.id === s.owner_user_id) ?? null;
@@ -67,7 +68,7 @@ export default function OrgChart() {
         })}
       </div>
       <div className="ws-note">One accountable owner per lane — their pings, their calendar rail, their call. One person can own several lanes.</div>
-      <div className="sec">Org chart</div>
+      <SectionHeader label="Org chart" annotation="who reports where" />
       <div className="org">
         {TIERS.map((t) => {
           const tier = people.filter((p) => t.roles.includes(p.role ?? ""));
