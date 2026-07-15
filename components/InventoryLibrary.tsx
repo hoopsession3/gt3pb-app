@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { SectionHeader } from "@/components/kit";
 import { fetchInventory, type InvItem, type InventoryResp } from "@/lib/inventory";
 import { supabase } from "@/lib/supabase";
 import InventoryAI from "./InventoryAI";
@@ -40,7 +41,7 @@ export default function InventoryLibrary() {
   if (!resp.enabled) {
     return (
       <div className="adm-sec gl">
-        <div className="sec">Inventory</div>
+        <SectionHeader label="Inventory" annotation="stock & reorder" />
         <div className="gl-hint">Sign in as crew to see inventory.</div>
       </div>
     );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { SectionHeader } from "@/components/kit";
 import { fetchSalesReport, type SalesReport } from "@/lib/reports";
 
 // Sales actuals — the first reporting dashboard (MONEY tab). Real revenue + per-event actuals +
@@ -37,7 +38,7 @@ export default function Reports() {
   return (
     <div className="adm-sec rpt">
       <div className="rpt-head">
-        <div className="sec">Sales</div>
+        <SectionHeader label="Sales" annotation="the number" />
         <div className="rpt-range">
           {RANGES.map((d) => (
             <button key={d} className={`rpt-r${days === d ? " on" : ""}`} onClick={() => setDays(d)}>{d}d</button>

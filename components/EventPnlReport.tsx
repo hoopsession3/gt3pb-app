@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { SectionHeader } from "@/components/kit";
 import { fetchEventPnl, type EventPnlRow } from "@/lib/reports";
 import { useOperatorSection } from "./OperatorNav";
 
@@ -22,13 +23,13 @@ export default function EventPnlReport() {
     return () => { live = false; };
   }, []);
 
-  if (loading) return <div className="adm-sec rpt"><div className="sec">Per-event P&amp;L</div><div className="rpt-hint">Loading…</div></div>;
+  if (loading) return <div className="adm-sec rpt"><SectionHeader label="Per-event P&amp;L" annotation="loading…" /></div>;
   if (!rows) return null;
   const anyActual = rows.some((r) => r.actual_cents > 0);
 
   return (
     <div className="adm-sec rpt">
-      <div className="sec">Per-event P&amp;L</div>
+      <SectionHeader label="Per-event P&amp;L" annotation="plan vs actual" />
       {rows.length === 0 ? (
         <div className="rpt-hint">No events yet.</div>
       ) : (

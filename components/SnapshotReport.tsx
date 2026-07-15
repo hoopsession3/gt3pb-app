@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { SectionHeader } from "@/components/kit";
 import { fetchSnapshot, type Snapshot } from "@/lib/reports";
 import { supabase } from "@/lib/supabase";
 import { nextDrop , dropDateKey} from "@/lib/orderAhead";
@@ -37,7 +38,7 @@ export default function SnapshotReport() {
     return () => { live = false; };
   }, []);
 
-  if (loading) return <div className="adm-sec rpt"><div className="sec">Business snapshot</div><div className="rpt-hint">Loading…</div></div>;
+  if (loading) return <div className="adm-sec rpt"><SectionHeader label="Business snapshot" annotation="loading…" /></div>;
   if (!snap || snap.error) return null;
 
   const inv = snap.inventory, subs = snap.subs, loy = snap.loyalty;
@@ -47,7 +48,7 @@ export default function SnapshotReport() {
 
   return (
     <div className="adm-sec rpt">
-      <div className="sec">Business snapshot</div>
+      <SectionHeader label="Business snapshot" annotation="the whole picture" />
 
       {resv && (resv.m30N > 0) && (
         <div className="rpt-block">

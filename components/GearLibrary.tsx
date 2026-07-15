@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { SectionHeader } from "@/components/kit";
 import { fetchAssets, type AssetItem, type AssetsResp } from "@/lib/assets";
 import { supabase } from "@/lib/supabase";
 import EmptyState from "./EmptyState";
@@ -40,7 +41,7 @@ export default function GearLibrary() {
   if (!resp.enabled) {
     return (
       <div className="adm-sec gl">
-        <div className="sec">Gear &amp; manuals</div>
+        <SectionHeader label="Gear & manuals" annotation="the library" />
         <div className="gl-hint">Sign in as crew to see the gear library.</div>
       </div>
     );
