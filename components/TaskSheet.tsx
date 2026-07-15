@@ -20,7 +20,9 @@ type AllTask = {
   critical: boolean | null; category: string | null; due_at: string | null; warn: boolean | null;
   op_kind: string | null; op_name: string | null; op_is_live: boolean | null;
   goal_title: string | null; meeting_note_title: string | null; goal_id: string | null;
+  initiative_id: string | null; initiative_title: string | null; initiative_emoji: string | null;
 };
+type Init = { id: string; title: string; emoji: string | null };
 type Crew = { id: string; display_name: string | null; role: string };
 
 const OP_ICON: Record<string, string> = { event: "📅", stop: "📍", brew: "⚗️" };
@@ -48,6 +50,7 @@ function TaskSheet({ id, source, onClose }: { id: string; source: TaskSource; on
   const [t, setT] = useState<AllTask | null>(null);
   const [missing, setMissing] = useState(false);
   const [crew, setCrew] = useState<Crew[]>([]);
+  const [inits, setInits] = useState<Init[]>([]);
   const [editing, setEditing] = useState(false);
   const [prep, setPrep] = useState<{ section: string | null; kind: string | null; target_qty: number | null } | null>(null);
   const [draft, setDraft] = useState("");
@@ -70,6 +73,12 @@ function TaskSheet({ id, source, onClose }: { id: string; source: TaskSource; on
     if (!supabase) return;
     supabase.from("profiles").select("id, display_name, role").neq("role", "member").order("display_name")
       .then(({ data }) => setCrew((data as Crew[]) ?? []));
+  }, []);
+  // the open initiatives a task can roll up to (0201/0237) — the picker's options
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.from("initiatives").select("id, title, emoji, status").neq("status", "done").order("status").order("title")
+      .then(({ data }) => setInits((data as Init[]) ?? []));
   }, []);
   // Live: if someone else changes this task, reflect it (writes hit the base table).
   useEffect(() => {
@@ -99,6 +108,10 @@ function TaskSheet({ id, source, onClose }: { id: string; source: TaskSource; on
 
   const toggleDone = () => t && write({ done: !t.done }, { done: !t.done, done_at: !t.done ? new Date().toISOString() : null });
   const reassign = (uid: string) => write({ assignee: uid || null }, { assignee: uid || null });
+  const setInitiative = (iid: string) => {
+    const chosen = inits.find((i) => i.id === iid);
+    write({ initiativeId: iid || null }, { initiative_id: iid || null, initiative_title: chosen?.title ?? null, initiative_emoji: chosen?.emoji ?? null });
+  };
   const reschedule = (val: string) => {
     // event input is datetime-local; todo input is date. Empty clears the due date.
     const iso = val ? new Date(source === "event" ? val : `${val}T12:00:00`).toISOString() : null;
@@ -134,8 +147,9 @@ function TaskSheet({ id, source, onClose }: { id: string; source: TaskSource; on
       ) : (
         <div className="tsheet-body">
           {/* context — what this task is FOR (from the spine's joins) */}
-          {(t.op_name || t.goal_title || t.meeting_note_title) && (
+          {(t.op_name || t.goal_title || t.meeting_note_title || t.initiative_title) && (
             <div className="tsheet-ctx">
+              {t.initiative_title && <span>{t.initiative_emoji || "🎯"} {t.initiative_title}</span>}
               {t.op_name && <span>{OP_ICON[t.op_kind ?? ""] ?? "•"} {t.op_name}{t.op_is_live ? " · 🔴 live" : ""}</span>}
               {t.goal_title && <button type="button" className="tsheet-ctx-link" onClick={() => { onClose(); router.push("/crew?section=goals"); }}>↳ {t.goal_title}</button>}
               {t.meeting_note_title && <span>📝 {t.meeting_note_title}</span>}
@@ -172,6 +186,18 @@ function TaskSheet({ id, source, onClose }: { id: string; source: TaskSource; on
             <select className="auth-input" value={t.assignee ?? ""} onChange={(e) => reassign(e.target.value)}>
               <option value="">Unassigned</option>
               {crew.map((c) => <option key={c.id} value={c.id}>{c.display_name || c.role} · {c.role.replace("_", " ")}</option>)}
+            </select>
+          </label>
+
+          {/* initiative — the program this task rolls up to (0201/0237) */}
+          <label className="tsheet-field">
+            <span className="tsheet-k">Initiative</span>
+            <select className="auth-input" value={t.initiative_id ?? ""} onChange={(e) => setInitiative(e.target.value)}>
+              <option value="">No initiative</option>
+              {inits.map((i) => <option key={i.id} value={i.id}>{i.emoji ? `${i.emoji} ` : ""}{i.title}</option>)}
+              {t.initiative_id && !inits.some((i) => i.id === t.initiative_id) && (
+                <option value={t.initiative_id}>{t.initiative_emoji ? `${t.initiative_emoji} ` : ""}{t.initiative_title ?? "Current"}</option>
+              )}
             </select>
           </label>
 

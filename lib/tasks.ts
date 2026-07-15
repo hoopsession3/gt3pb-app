@@ -31,6 +31,21 @@ export async function completeTask(source: TaskSource, id: string, userId?: stri
   return !error;
 }
 
+// Finish an initiative: cascade every open task under it to done (both engines), then close the
+// program. Completing the tasks is the intent and hard-fails on error; flipping the initiative's
+// status is best-effort (admin-gated by RLS), so a lead who can clear tasks isn't blocked by it.
+export async function completeInitiative(initiativeId: string, userId?: string | null): Promise<{ error?: string }> {
+  if (!supabase) return { error: "offline" };
+  const done_at = new Date().toISOString();
+  // All three writes run; the FIRST error is surfaced (no silent partial-success). RLS still gates
+  // each write, so a caller who lacks admin sees the denial rather than a false "done".
+  const e1 = await supabase.from("event_tasks").update({ done: true, done_by: userId ?? null, done_at }).eq("initiative_id", initiativeId).eq("done", false);
+  const e2 = await supabase.from("todos").update({ done: true, done_at }).eq("initiative_id", initiativeId).eq("done", false);
+  const e3 = await supabase.from("initiatives").update({ status: "done" }).eq("id", initiativeId);
+  const err = e1.error?.message || e2.error?.message || e3.error?.message;
+  return err ? { error: err } : {};
+}
+
 // THE full write-adapter behind TaskSheet — the one place the two-table asymmetry is resolved, so no
 // surface ever writes event_tasks/todos directly again. A neutral patch maps to each table's columns:
 //   done   → event_tasks{done, done_by, done_at} · todos{done, done_at}
@@ -39,6 +54,8 @@ export async function completeTask(source: TaskSource, id: string, userId?: stri
 //   assignee is the same column on both.
 export type TaskPatch = {
   done?: boolean; assignee?: string | null; dueISO?: string | null; title?: string;
+  // the program a task rolls up to — both tables carry initiative_id (0201); null clears the link
+  initiativeId?: string | null;
   // event-only prep fields (silently ignored for todos): section / type / priority / plan-qty
   section?: string | null; kind?: "task" | "pack"; critical?: boolean; warn?: boolean; targetQty?: number | null;
   // todos-only
@@ -54,6 +71,7 @@ export async function updateTask(source: TaskSource, id: string, patch: TaskPatc
     if (source === "event") row.done_by = patch.done ? (userId ?? null) : null;
   }
   if (patch.assignee !== undefined) row.assignee = patch.assignee || null;
+  if (patch.initiativeId !== undefined) row.initiative_id = patch.initiativeId || null; // both tables (0201)
   if (patch.title !== undefined) {
     const t = patch.title.trim();
     if (source === "event") row.label = t; else row.title = t;

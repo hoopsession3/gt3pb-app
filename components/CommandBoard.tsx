@@ -8,6 +8,7 @@ import { useRealtimeTable } from "@/lib/realtime";
 import MoneyKpis from "./MoneyKpis";
 import LaunchReadiness from "./LaunchReadiness";
 import { useTaskSheet } from "./TaskSheet";
+import { completeInitiative } from "@/lib/tasks";
 import { SectionHeader, InfoRow } from "@/components/kit";
 import InlineCreate from "./InlineCreate";
 import Sheet from "@/components/Sheet";
@@ -97,6 +98,16 @@ export default function CommandBoard() {
     const { error } = await supabase.from("initiatives").insert({ title, status: "active", created_by: user?.id ?? null });
     if (error) toast(`Couldn't add — ${error.message}`, "error"); else { toast("Initiative added"); load(); }
   };
+  // Finish the whole initiative — the true cascade: completes every open task assigned to it (both
+  // engines) and closes the program. Admin-only, with a scope-explicit confirm (this is the deliberate
+  // "finish an initiative → finishes all its tasks" home; the Prep board only clears what it shows).
+  const finishInit = async (it: Initiative) => {
+    if (!supabase || !isAdmin) return;
+    if (typeof window !== "undefined" && !window.confirm(`Finish "${it.title}"? This completes every open task assigned to it and closes the initiative.`)) return;
+    const { error } = await completeInitiative(it.id, user?.id);
+    if (error) { toast(`Couldn't finish — ${error}`, "error"); return; }
+    toast(`${it.title} finished — its tasks are done.`); load();
+  };
   const addMilestone = async (initId: string, title: string) => {
     if (!supabase) return;
     const n = (milesByInit.get(initId) ?? []).length;
@@ -180,6 +191,7 @@ export default function CommandBoard() {
               </div>
             )}
             {isAdmin && <InlineCreate label="+ Milestone" placeholder="Milestone" className="cmd-add" onCreate={(t) => addMilestone(it.id, t)} />}
+            {isAdmin && <button type="button" className="cmd-finish" onClick={() => finishInit(it)}>✓ Finish initiative — completes every task under it</button>}
           </div>
         );
       })}
