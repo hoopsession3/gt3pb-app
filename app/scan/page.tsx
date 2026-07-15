@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth, roleOf, STAFF_ROLES } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
 import Gt3Mark from "@/components/Gt3Mark";
+import { Masthead, ClosingBeat } from "@/components/kit";
 
 // OPERATOR SCAN — the receiving end of a member's card QR. Staff-only: look up the member by their
 // card code and add a stamp for a walk-up (cash) purchase. RPCs (0132) are SECURITY DEFINER + staff-
@@ -46,7 +47,12 @@ function ScanInner() {
   };
 
   if (ready && (!user || !isStaff)) return (
-    <section className="screen"><div className="h-title">Staff only</div><div className="h-sub">Sign in with a crew account to scan member cards.</div></section>
+    <section className="screen">
+      <Masthead eyebrow="Scan card" />
+      <div className="h-title">Staff only</div>
+      <div className="h-sub">Sign in with a crew account to scan member cards.</div>
+      <ClosingBeat />
+    </section>
   );
 
   const inCard = member ? member.points % GOAL : 0;
@@ -54,10 +60,7 @@ function ScanInner() {
 
   return (
     <section className="screen scanpg">
-      <div className="toprow">
-        <div className="eyb">GT3 · Scan</div>
-        <button type="button" className="pf" aria-label="Back to crew" onClick={() => router.push("/crew")}>‹</button>
-      </div>
+      <Masthead eyebrow="Scan card" right={<button type="button" className="pf" aria-label="Back to crew" onClick={() => router.push("/crew")}>‹</button>} />
       <div className="h-title">Member card</div>
       {!code && <div className="h-sub">No card code — scan a member&apos;s QR from their account.</div>}
       {state === "loading" && <div className="h-sub">Looking up…</div>}
@@ -75,6 +78,7 @@ function ScanInner() {
           {state === "error" && <div className="h-sub">That didn&apos;t record — tap to try again.</div>}
         </div>
       )}
+      <ClosingBeat />
     </section>
   );
 }

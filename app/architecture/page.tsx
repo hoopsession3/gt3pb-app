@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth, roleOf } from "@/components/AuthProvider";
+import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { ARCHITECTURE, ARCH_OVERVIEW, DATABASES, BUSINESS, BUSINESS_OVERVIEW, BUILD_STATS, MANAGE_LABEL, STATUS_LABEL, sotUrl, type ArchLayer, type ArchComponent, type ArchStatus } from "@/lib/architecture";
@@ -55,9 +56,10 @@ export default function ArchitecturePage() {
   if (!isOwner) {
     return (
       <section className="screen">
-        <div className="toprow"><div className="eyb">GT3PB · System</div><Link className="pf" href="/3mpire" aria-label="Back">‹</Link></div>
+        <Masthead eyebrow="System map" right={<Link className="pf" href="/3mpire" aria-label="Back">‹</Link>} />
         <div className="h-title">Owners only</div>
         <div className="h-sub">The system architecture map is restricted to owners.</div>
+        <ClosingBeat />
       </section>
     );
   }
@@ -85,7 +87,7 @@ export default function ArchitecturePage() {
 
   return (
     <section className="screen arch">
-      <div className="toprow"><div className="eyb">GT3PB · System{live && <span className="arch-livedot" title="Live status loaded" />}</div><Link className="pf" href="/3mpire" aria-label="Exit">‹</Link></div>
+      <Masthead eyebrow="System map" live={!!live} right={<Link className="pf" href="/3mpire" aria-label="Exit">‹</Link>} />
 
       {open ? (
         <>
@@ -122,7 +124,7 @@ export default function ArchitecturePage() {
                 <div className="h-sub" style={{ marginTop: 14 }}>Loading live numbers…</div>
               ) : (
                 <div className="prog-build">
-                  <div className="prog-build-h">By the numbers <span>· live from the running platform</span></div>
+                  <SectionHeader label="By the numbers" annotation="live from the running platform" />
                   <div className="prog-build-grid">
                     <div className="prog-build-card"><span className="prog-build-n">{money(kpis.revenue_cents)}</span><span className="prog-build-l">Revenue</span></div>
                     <div className="prog-build-card"><span className="prog-build-n">{kpis.orders}</span><span className="prog-build-l">Orders</span></div>
@@ -208,6 +210,7 @@ export default function ArchitecturePage() {
           </>)}
         </>
       )}
+      <ClosingBeat />
     </section>
   );
 }

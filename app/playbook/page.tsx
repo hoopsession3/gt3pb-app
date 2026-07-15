@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import AccountPill from "@/components/AccountPill";
-import Gt3Mark from "@/components/Gt3Mark";
 import { STRATEGY_CORE, GTM_PLAYS, GOVERNANCE, FLYWHEEL, STRATEGY_REV, type GtmPlay } from "@/lib/strategy";
 import { StrategyThread, DecisionLog, PlayBuilder, useDrafts } from "@/components/StrategyCollab";
+import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
 
 // THE PLAYBOOK — the whole strategy on one owner screen, and now a working document: every block
 // and play carries a live discussion thread (owners get pinged), the guided builder walks you
@@ -26,7 +26,7 @@ export default function PlaybookPage() {
   if (role !== "owner" && role !== "admin") {
     return (
       <section className="screen" id="s-playbook">
-        <div className="toprow"><div className="eyb">Playbook</div><AccountPill /></div>
+        <Masthead eyebrow="The Playbook" right={<AccountPill />} />
         <h2 className="dl-h">Owners only</h2>
         <p className="dl-sub">The playbook is the business itself — sign in with an owner or admin account.</p>
       </section>
@@ -41,24 +41,17 @@ export default function PlaybookPage() {
 
   return (
     <section className="screen" id="s-playbook">
-      <div className="toprow"><div className="eyb">The Playbook</div><AccountPill /></div>
+      <Masthead eyebrow="The Playbook" right={<AccountPill />} />
 
-      <div className="pb-mast">
-        <Gt3Mark tone="cream" />
-        <div className="pb-mast-t">
-          <h1>How GT3 wins.</h1>
-          <span className="pb-rev">{STRATEGY_REV} · lives in GT3-Brew-Business-Strategy.md — this page renders it, never forks it</span>
-        </div>
-      </div>
+      <h1 className="k-title">How GT3 wins.</h1>
+      <p className="k-cap">{STRATEGY_REV} · lives in GT3-Brew-Business-Strategy.md — this page renders it, never forks it</p>
 
-      <div className="dchapter"><span className="dchn">The Flywheel</span><span className="dchw">how one guest compounds</span></div>
-      <div className="dchrule" />
+      <SectionHeader label="The Flywheel" annotation="how one guest compounds" />
       <ol className="pb-loop">
         {FLYWHEEL.map((s, i) => <li key={i}><span className="pb-loop-n">{i + 1}</span><span>{s}</span></li>)}
       </ol>
 
-      <div className="dchapter"><span className="dchn">The Foundations</span><span className="dchw">locked · tap 💬 to talk it through</span></div>
-      <div className="dchrule" />
+      <SectionHeader label="The Foundations" annotation="locked · tap 💬 to talk it through" />
       {STRATEGY_CORE.map((b) => (
         <div className="pb-block" key={b.h}>
           <div className="pb-block-h">{b.h}</div>
@@ -67,15 +60,14 @@ export default function PlaybookPage() {
         </div>
       ))}
 
-      <div className="dchapter"><span className="dchn">Growth Plays</span><span className="dchw">projected ROI · where the app runs it</span></div>
-      <div className="dchrule" />
+      <SectionHeader label="Growth Plays" annotation="projected ROI · where the app runs it" />
       {builder ? (
         <PlayBuilder prefill={builder.prefill} onDone={() => { setBuilder(null); reload(); }} />
       ) : (
-        <button type="button" className="dl-card st-build" onClick={() => setBuilder({ prefill: null })}>
-          <b>＋ Build a play</b>
-          <span>Seven guided steps — name it, aim it, plan it, put honest numbers on it, wire it to the app. Saves as a draft for discussion.</span>
-        </button>
+        <>
+          <button type="button" className="btn-pri" onClick={() => setBuilder({ prefill: null })}>＋ Build a play</button>
+          <p className="k-sub">Seven guided steps — name it, aim it, plan it, put honest numbers on it, wire it to the app. Saves as a draft for discussion.</p>
+        </>
       )}
       {drafts.map((d) => (
         <div className="pb-play st-draft" key={d.id}>
@@ -107,8 +99,7 @@ export default function PlaybookPage() {
         </div>
       ))}
 
-      <div className="dchapter"><span className="dchn">Governance</span><span className="dchw">how this document stays true</span></div>
-      <div className="dchrule" />
+      <SectionHeader label="Governance" annotation="how this document stays true" />
       {GOVERNANCE.map((b) => (
         <div className="pb-block" key={b.h}>
           <div className="pb-block-h">{b.h}</div>
@@ -116,15 +107,14 @@ export default function PlaybookPage() {
         </div>
       ))}
 
-      <div className="dchapter"><span className="dchn">The Decision Log</span><span className="dchw">append-only · the institution&rsquo;s memory</span></div>
-      <div className="dchrule" />
+      <SectionHeader label="The Decision Log" annotation="append-only · the institution’s memory" />
       <DecisionLog canWrite={role === "owner" || role === "admin"} />
 
       <div className="pb-foot">
         Deeper cuts: <a href="/architecture">the live architecture map</a> (owner) · <a href="/built/gt3-built-k7m9x4q2">the partner one-pager</a> (safe to show) ·
         the numbers behind every play recompute daily in <b>Money</b>.
       </div>
-      <div className="signoff">Pure Signal. No Noise.</div>
+      <ClosingBeat />
     </section>
   );
 }

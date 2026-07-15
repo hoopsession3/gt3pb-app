@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { BUSINESS, BUILD_STATS, STATUS_LABEL } from "@/lib/architecture";
 import Watermark from "@/components/Watermark";
 import BuiltBack from "@/components/BuiltBack";
+import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
 
 // Read-only PARTNER share of "what we've built" — capabilities + build footprint only. NO financials
 // (revenue/inventory/members stay owner-only on /architecture), no auth, no DB; pure manifest data.
@@ -32,7 +33,7 @@ export default async function BuiltShare({ params }: { params: Promise<{ key: st
     <section className="screen arch">
       <Watermark variant="share" />
       <BuiltBack />
-      <div className="toprow"><div className="eyb">GT3PB · Performance Bar</div></div>
+      <Masthead eyebrow="Partner share" />
       <div className="h-title">What we&apos;ve built</div>
       <div className="h-sub">A complete operating system for the business — customer storefront, every back-of-house workflow, the brand studio, and an AI layer that proposes work for people to approve. Built by a two-person team with an AI build pipeline.</div>
 
@@ -55,7 +56,7 @@ export default async function BuiltShare({ params }: { params: Promise<{ key: st
         ))}
       </div>
 
-      <div className="rev-h" style={{ marginTop: 28 }}>What people are saying</div>
+      <SectionHeader label="What people are saying" />
       <div className="rev-grid">
         {REVIEWS.map((r, i) => (
           <figure key={i} className="rev-card">
@@ -67,6 +68,7 @@ export default async function BuiltShare({ params }: { params: Promise<{ key: st
       </div>
 
       <div className="prog-foot" style={{ marginTop: 20, paddingBottom: 24 }}>GT3 Performance Bar · what we&apos;ve built, together · {BUILD_STATS.asOf}</div>
+      <ClosingBeat />
     </section>
   );
 }

@@ -6,7 +6,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { useApp } from "@/components/AppProvider";
 import AccountPill from "@/components/AccountPill";
 import Watermark from "@/components/Watermark";
-import Gt3Mark from "@/components/Gt3Mark";
+import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
 import Skeleton from "@/components/Skeleton";
 import { supabase } from "@/lib/supabase";
 import { OFFICE, officeQuote, mondayLabel } from "@/lib/office";
@@ -53,12 +53,12 @@ export default function OfficeScreen() {
   };
   const adjustGallons = (d: number) => { if (!acct) return; const g = Math.max(OFFICE.minGallons, (acct.standing_gallons ?? OFFICE.minGallons) + d); patch({ standing_gallons: g }); };
 
-  if (!ready || (enabled && !loaded)) return <section className="screen" id="s-office"><div className="toprow"><div className="eyb">Office</div></div><Skeleton variant="card" count={1} /><Skeleton variant="row" count={3} /></section>;
+  if (!ready || (enabled && !loaded)) return <section className="screen" id="s-office"><Masthead eyebrow="Office delivery" right={<AccountPill />} /><Skeleton variant="card" count={1} /><Skeleton variant="row" count={3} /></section>;
 
   return (
     <section className="screen office-portal" id="s-office">
       <Watermark variant="landing" />
-      <div className="toprow"><div className="mast-brand mast-dark"><Gt3Mark tone="cream" /><span className="pb">Office delivery</span></div><AccountPill /></div>
+      <Masthead eyebrow="Office delivery" right={<AccountPill />} />
 
       {!acct ? (
         <div className="op-none">
@@ -98,7 +98,7 @@ export default function OfficeScreen() {
         {/* upcoming + recent orders */}
         {orders.length > 0 && (
           <div className="op-list">
-            <div className="op-list-h">Deliveries</div>
+            <SectionHeader label="Deliveries" />
             {orders.map((o) => (
               <div key={o.id} className="op-row">
                 <div className="op-row-x"><b>{mondayLabel(o.delivery_date)}</b><span>{Math.round(o.gallons)} gal · {o.status === "delivered" ? "delivered" : "scheduled"}</span></div>
@@ -111,7 +111,7 @@ export default function OfficeScreen() {
         {/* invoices */}
         {invoices.length > 0 && (
           <div className="op-list">
-            <div className="op-list-h">Invoices</div>
+            <SectionHeader label="Invoices" />
             {invoices.map((v) => (
               <div key={v.id} className="op-row">
                 <div className="op-row-x"><b>{dollars(v.amount_cents)}</b><span>{new Date(v.issued_at).toLocaleDateString()} · {v.terms}</span></div>
@@ -123,6 +123,7 @@ export default function OfficeScreen() {
 
         <p className="op-fine">Questions or a one-off change? Text us — we confirm every route the Friday before.</p>
       </>)}
+      <ClosingBeat />
     </section>
   );
 }
