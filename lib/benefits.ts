@@ -69,8 +69,10 @@ export async function benefitsForUser(userId: string | null, code?: string | nul
       out.push(...((data ?? []) as Benefit[]));
     }
     if (code && code.trim()) {
+      // exact redeemable code, case-insensitive — escape LIKE wildcards so a member can't send
+      // "%" (or "_") and match EVERY code-scoped benefit (discount forgery / revenue leak).
       const { data } = await supabaseAdmin.from("member_benefits").select("scope, tier, code, kind, target, value_cents, percent, label")
-        .eq("active", true).eq("scope", "code").ilike("code", code.trim());
+        .eq("active", true).eq("scope", "code").ilike("code", code.trim().replace(/[%_\\]/g, (c) => `\\${c}`));
       out.push(...((data ?? []) as Benefit[]));
     }
   } catch { /* pricing must not break if benefits are unreachable */ }

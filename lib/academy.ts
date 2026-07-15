@@ -876,7 +876,7 @@ export const PRODUCTS: Product[] = [
   {
     key: "cold_extract", name: "Cold Extracted Coffee", line: "Foundation", price: "—",
     what: "The base behind the whole Activation line — single-origin coffee drawn cold over ~18 hours.",
-    why: "Cold extraction is gentler than heat: rounder, less bitter, less acidic.",
+    why: "Cold extraction is gentler than heat: rounder and less bitter.",
     ingredients: ["Single-origin coffee", "Mineral water"],
     benefits: ["Smooth, low-bitterness base", "Consistent spec across every cart and trailer", "The foundation of Rise, Flow, Dusk, Nitro"],
     customer: "Every coffee guest — this is the foundation, not a menu item itself.",

@@ -17,7 +17,7 @@ AUTHENTICITY — match the guest (the three voices)
 Every product can be explained three ways; pick the register the moment calls for:
 - SIMPLE — for the rushed guest: plain, no claims, what it is in one breath.
 - GT3 — for the curious guest: the process + the brand, why we make it this way.
-- FOUNDER — for the deeper why: the conviction underneath it — whole-food, primal, non-toxic, "out of respect for the ingredient."
+- FOUNDER — for the deeper why: the conviction underneath it — whole-food, primal, made-to-order, "out of respect for the ingredient."
 Default to GT3 with a founder undertone. Authentic means true to what's actually in the cup — never borrow hype the product can't back up.
 
 CRAFT
