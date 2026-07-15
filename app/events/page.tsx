@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useApp } from "@/components/AppProvider";
 import { useAuth } from "@/components/AuthProvider";
 import AccountPill from "@/components/AccountPill";
+import { Masthead, SectionHeader, InfoRow, ClosingBeat } from "@/components/kit";
 import Reserves from "@/components/Reserves";
 import Skeleton from "@/components/Skeleton";
 import EmptyState from "@/components/EmptyState";
@@ -15,6 +16,12 @@ import { calFromEvent } from "@/lib/ics";
 import { supabase } from "@/lib/supabase";
 import { localToday } from "@/lib/dates";
 import type { EventRow } from "@/lib/db";
+
+// EVENTS — on the kit (Design System v1): same masthead, same rows, same section
+// grammar as the Truck. An event and a stop are the same InfoRow; only the trailing
+// slot differs (RSVP chip here, caret there). Guests see ONLY public happenings —
+// customer events, never internal admin/ops rows or private bookings (belt here,
+// 0233's is_public policy at the door).
 
 function evTime(ev: EventRow) {
   return ev.end_time ? `${ev.start_time ?? ""}–${ev.end_time}` : ev.start_time ?? "";
@@ -27,20 +34,17 @@ function evDate(ev: EventRow) {
   const [y, m, d] = ev.day.split("-").map(Number);
   return new Date(y, m - 1, d).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
-
-function ReserveCard() {
-  // Teaser only — the actual reserve sale isn't built yet, so no fake "claim".
-  return (
-    <div className="drop">
-      <span className="badge">★ Member access</span>
-      <div className="din">
-        <div className="eyb">Limited Reserve</div>
-        <h2>FLOW RESERVE</h2>
-        <div className="desc">A single-origin micro-lot of our cacao-nib cold brew. A capped run — members get first access when it drops.</div>
-        <div className="left" style={{ marginTop: 14 }}>Members are notified first</div>
-      </div>
-    </div>
-  );
+// Lead column parts: day abbrev over "Jul 12" — hand-set label wins, else derived from the date.
+function evLeadDay(ev: EventRow) {
+  if (ev.day_label?.trim()) return ev.day_label;
+  if (!ev.day) return "";
+  const [y, m, d] = ev.day.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", { weekday: "short" }).toUpperCase();
+}
+function evLeadDate(ev: EventRow) {
+  if (!ev.day) return "";
+  const [y, m, d] = ev.day.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 function RsvpRow({ ev }: { ev: EventRow }) {
@@ -90,33 +94,48 @@ function RsvpRow({ ev }: { ev: EventRow }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  const onClick = () => {
+  const onRsvp = () => {
     if (busy) return;
     if (!supabase || !user) { pendingRsvp.current = true; setSignInOpen(true); return; }
     toggle();
   };
 
   const dateStr = evDate(ev);
+  const meta = [evTime(ev), ev.going_count != null && ev.going_count > 0 ? `● ${ev.going_count} going` : ""].filter(Boolean).join(" · ");
 
   return (
-    <div className="ev-wrap">
-      <div className={`ev${ev.member_only ? " mo" : ""}`}>
-        <div className="when"><b>{ev.day_label ?? ""}</b>{dateStr && <span className="ev-when-date">{dateStr}</span>}<span>{evTime(ev)}</span></div>
-        <div className="info" role={hasDetail ? "button" : undefined} tabIndex={hasDetail ? 0 : undefined} aria-expanded={hasDetail ? open : undefined}
-          onClick={() => hasDetail && setOpen((o) => !o)} onKeyDown={(e) => { if (hasDetail && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setOpen((o) => !o); } }}>
-          <b>{ev.title}{ev.member_only && <span className="motag">Members</span>}</b>
-          <span>{ev.blurb ?? ev.location_text ?? ""}</span>
-          {ev.going_count != null && ev.going_count > 0 && <span className="go">● {ev.going_count} going</span>}
-        </div>
-        {hasDetail && <span className={`ev-caret${open ? " open" : ""}`} aria-hidden="true">›</span>}
-        <button className={`rsvp${going ? " in" : ""}`} onClick={onClick}>{going ? "Going ✓" : "I'm in"}</button>
-      </div>
+    <div>
+      <InfoRow
+        lead={evLeadDay(ev)}
+        leadSub={evLeadDate(ev)}
+        name={ev.title}
+        nameExtra={ev.member_only ? <span className="motag">Members</span> : undefined}
+        sub={ev.blurb ?? ev.location_text ?? undefined}
+        meta={meta || undefined}
+        bodyClick={hasDetail ? () => setOpen((o) => !o) : undefined}
+        ariaLabel={hasDetail ? `${ev.title} — details` : undefined}
+        expanded={hasDetail ? open : undefined}
+        trailing={
+          <>
+            <button type="button" className={`k-chip${going ? " on" : " sec"}`} onClick={onRsvp}>{going ? "Going ✓" : "I'm in"}</button>
+            {hasDetail && <span className={`k-caret${open ? " open" : ""}`} aria-hidden="true">›</span>}
+          </>
+        }
+      />
       {open && hasDetail && (
-        <div className="ev-detail">
-          {ev.location_text && <div className="ev-det-row"><span className="ev-det-k">Where</span><a className="ev-maplink" href={`https://maps.google.com/?q=${encodeURIComponent(ev.location_text)}`} target="_blank" rel="noreferrer">📍 {ev.location_text}</a></div>}
-          {(ev.start_time || ev.end_time) && <div className="ev-det-row"><span className="ev-det-k">When</span><span>{(dateStr ?? ev.day_label) ? `${dateStr ?? ev.day_label} · ` : ""}{evTime(ev)}</span></div>}
-          {ev.blurb && <p className="ev-det-blurb">{ev.blurb}</p>}
-          {ev.member_only && <div className="ev-det-note">Members only — sign in to RSVP.</div>}
+        <div className="k-detail">
+          {ev.location_text && (
+            <div className="k-det-row"><span className="k-det-k">Where</span>
+              <a href={`https://maps.google.com/?q=${encodeURIComponent(ev.location_text)}`} target="_blank" rel="noreferrer">📍 {ev.location_text}</a>
+            </div>
+          )}
+          {(ev.start_time || ev.end_time) && (
+            <div className="k-det-row"><span className="k-det-k">When</span>
+              <span>{(dateStr ?? ev.day_label) ? `${dateStr ?? ev.day_label} · ` : ""}{evTime(ev)}</span>
+            </div>
+          )}
+          {ev.blurb && <p>{ev.blurb}</p>}
+          {ev.member_only && <p className="k-cap">Members only — sign in to RSVP.</p>}
           <div style={{ marginTop: 10 }}><AddToCalendar ev={calFromEvent({ id: ev.id, title: ev.title, day: ev.day, start_time: ev.start_time, end_time: ev.end_time, location_text: ev.location_text, blurb: ev.blurb })} /></div>
         </div>
       )}
@@ -129,8 +148,7 @@ function RsvpRow({ ev }: { ev: EventRow }) {
   );
 }
 
-// ───────────────────────── live ─────────────────────────
-function EventsLive() {
+export default function EventsScreen() {
   const router = useRouter();
   const [events, setEvents] = useState<EventRow[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -139,10 +157,15 @@ function EventsLive() {
   useEffect(() => {
     let active = true;
     (async () => {
-      if (!supabase) return;
+      if (!supabase) { if (active) setLoaded(true); return; }
+      // PUBLIC events only: customer occasions (category 'event'), never internal admin/ops
+      // rows, never private bookings. Filters use columns that exist TODAY so this deploy is
+      // safe before 0233 applies; 0233's is_public policy then enforces the same rule at the
+      // door no matter what any client asks for.
       const { data } = await supabase.from("events").select("*")
+        .eq("category", "event")
+        .or("archetype.is.null,archetype.neq.private_booking")
         .order("day", { ascending: true, nullsFirst: false }).order("sort");
-      // hide archived events from guests (client-side so it's safe pre-migration 0032)
       if (active && data) setEvents((data as EventRow[]).filter((e) => !e.archived_at));
       if (active) setLoaded(true);
     })();
@@ -155,83 +178,35 @@ function EventsLive() {
 
   return (
     <section className="screen" id="s-events">
-      <div className="toprow">
-        <div className="eyb">Grow The 3MPIRE</div>
-        <AccountPill />
-      </div>
-      <div className="h-title">Events.</div>
+      <Masthead eyebrow="What's on" right={<AccountPill />} />
+      <h1 className="k-title">Events</h1>
 
       <Reserves />
 
-      <div className="dchapter"><span className="dchn">This Week</span><span className="dchw">save your spot</span></div>
-      <div className="dchrule" />
+      <SectionHeader label="This Week" annotation="save your spot" />
       {!loaded && <Skeleton variant="row" count={3} />}
-      {upcoming.map((ev) => <RsvpRow key={ev.id} ev={ev} />)}
+      <div className="k-rows">
+        {upcoming.map((ev) => <RsvpRow key={ev.id} ev={ev} />)}
+      </div>
       {loaded && upcoming.length === 0 && <EmptyState title="No events this week" sub="New pours and run-club meetups drop here — check back soon." />}
 
       {past.length > 0 && (
-        <div className="ev-archived">
-          <button type="button" className="ev-arch-head" onClick={() => setShowPast((s) => !s)} aria-expanded={showPast}>
-            Past · {past.length}<span className={`ev-chev${showPast ? " open" : ""}`}>›</span>
+        <div style={{ marginTop: 10 }}>
+          <button type="button" className="btn-ter" onClick={() => setShowPast((s) => !s)} aria-expanded={showPast}>
+            Past · {past.length} <span className={`k-caret${showPast ? " open" : ""}`}>›</span>
           </button>
-          {showPast && past.map((ev) => <RsvpRow key={ev.id} ev={ev} />)}
+          {showPast && <div className="k-rows">{past.map((ev) => <RsvpRow key={ev.id} ev={ev} />)}</div>}
         </div>
       )}
 
-      {/* Always-relevant closing beat — true whether this week is packed or slow, so the page
-          never just trails off into empty space on a quiet week. */}
-      <div className="dchapter"><span className="dchn">Bring Us To You</span><span className="dchw">private events</span></div>
-      <div className="dchrule" />
-      <p className="empty-s" style={{ margin: "2px 2px 14px", textAlign: "left" }}>Pours, run clubs, launches — we set up anywhere.</p>
-      <button type="button" className="co-upsell-line" onClick={() => router.push("/book")}>
+      {/* Always-relevant close — true whether the week is packed or slow. */}
+      <SectionHeader label="Bring Us To You" annotation="private events" />
+      <p style={{ fontSize: 14, color: "var(--cream-m)", margin: "14px 2px 12px" }}>Pours, run clubs, launches — we set up anywhere.</p>
+      <button type="button" className="btn-ter" onClick={() => router.push("/book")}>
         Book the bar for your event <b>→</b>
       </button>
+
+      <ClosingBeat />
     </section>
   );
-}
-
-// ───────────────────────── demo ─────────────────────────
-function RsvpButtonDemo() {
-  const { toast } = useApp();
-  const [going, setGoing] = useState(false);
-  return (
-    <button className={`rsvp${going ? " in" : ""}`} onClick={() => { setGoing((g) => { if (!g) toast("You're in — we'll remind you"); return !g; }); }}>
-      {going ? "Going ✓" : "I'm in"}
-    </button>
-  );
-}
-
-function EventsDemo() {
-  return (
-    <section className="screen" id="s-events">
-      <div className="toprow">
-        <div className="eyb">Grow The 3MPIRE</div>
-        <AccountPill />
-      </div>
-      <div className="h-title">Events.</div>
-      <ReserveCard />
-      <div className="dchapter"><span className="dchn">This Week</span><span className="dchw">save your spot</span></div>
-      <div className="dchrule" />
-      <div className="ev">
-        <div className="when"><b>SAT</b><span>8–1</span></div>
-        <div className="info"><b>Duncan Town Square</b><span>Saturday Market</span><span className="go">● 23 members going</span></div>
-        <RsvpButtonDemo />
-      </div>
-      <div className="ev mo">
-        <div className="when"><b>SAT</b><span>2:30</span></div>
-        <div className="info"><b>Founding First Pour<span className="motag">Members</span></b><span>DUSK winter blend · tasting</span><span className="go">● 9 going · 6 left</span></div>
-        <RsvpButtonDemo />
-      </div>
-      <div className="ev">
-        <div className="when"><b>SUN</b><span>10–2</span></div>
-        <div className="info"><b>Greenville Run Club</b><span>Hydrate + Rebuild</span><span className="go">● 11 members going</span></div>
-        <RsvpButtonDemo />
-      </div>
-    </section>
-  );
-}
-
-export default function EventsScreen() {
-  const { enabled } = useAuth();
-  return enabled ? <EventsLive /> : <EventsDemo />;
 }

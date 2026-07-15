@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "./AuthProvider";
 import { useRealtimeTable } from "@/lib/realtime";
 import { completeTask } from "@/lib/tasks";
+import { useTaskSheet } from "./TaskSheet";
 
 // PREP BOARD — the aggregate readiness triage surface. Every open prep task across every event and
 // stop, in ONE prioritized board you can actually work: critical + overdue first, one tap to done,
@@ -26,6 +27,7 @@ export default function PrepBoard() {
   const [rows, setRows] = useState<Task[]>([]);
   const [crew, setCrew] = useState<Crew[]>([]);
   const [filter, setFilter] = useState<Filter>("all");
+  const { openTask } = useTaskSheet(); // the ONE task editor, on the spine
   const [loaded, setLoaded] = useState(false);
 
   const load = useCallback(async () => {
@@ -80,7 +82,10 @@ export default function PrepBoard() {
           {shown.map((t) => (
             <div key={t.id} className={`pbd-row${t.critical ? " crit" : isOver(t) ? " over" : ""}`}>
               <button type="button" className="pbd-check" onClick={() => done(t)} aria-label={`Mark done: ${t.label}`}><span /></button>
-              <div className="pbd-main">
+              <div className="pbd-main" role="button" tabIndex={0} style={{ cursor: "pointer" }}
+                onClick={() => openTask(t.id, "event")}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openTask(t.id, "event"); } }}
+                aria-label={`Open task: ${t.label}`}>
                 <span className="pbd-label">{t.label}</span>
                 <span className="pbd-ctx">{ctx(t)}{t.due_at ? <span className={isOver(t) ? "pbd-due over" : "pbd-due"}> · {isOver(t) ? "overdue" : dueLabel(t.due_at)}</span> : null}{t.critical ? <span className="pbd-crit">critical</span> : null}</span>
               </div>

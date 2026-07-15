@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useApp } from "@/components/AppProvider";
+import FieldOpSheet from "@/components/FieldOpSheet";
 import { useAuth, roleOf, LEADERSHIP_ROLES, type Profile } from "@/components/AuthProvider";
 import { raiseAlertClient } from "@/lib/clientAlerts";
 import { authedFetch } from "@/lib/authedFetch";
@@ -805,6 +806,9 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
   const [oa, setOa] = useState(false);
   const [pk, setPk] = useState(false);
   const [lead, setLead] = useState("");
+  // What starts_at was when loaded — if a save CHANGES the schedule, the stale hand-set
+  // when/time labels are cleared so guests see the new time (same rule as FieldOpSheet).
+  const origStartsAt = useRef<string | null>(null);
 
   // Remove from the active lists (keeps the record, reversible). The standard "delete" for a real
   // event/stop — same as the calendar's Remove and Live truck's Archive.
@@ -888,7 +892,7 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
     ]);
     const d = (data as unknown as Record<string, unknown>) ?? {};
     setF({ ...(d as Record<string, string | null>), recap: (ops as { recap?: string | null } | null)?.recap ?? null });
-    if (!isEvent) { setOa(!!d.order_ahead_enabled); setPk(!!d.pickup_enabled); setLead(d.order_ahead_lead_min != null ? String(d.order_ahead_lead_min) : ""); }
+    if (!isEvent) { origStartsAt.current = (d.starts_at as string | null) ?? null; setOa(!!d.order_ahead_enabled); setPk(!!d.pickup_enabled); setLead(d.order_ahead_lead_min != null ? String(d.order_ahead_lead_min) : ""); }
   }, [table, opsTable, opsKey, ownerId, isEvent]);
   useEffect(() => { load(); }, [load]);
 
@@ -944,6 +948,8 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
           order_ahead_enabled: oa, pickup_enabled: pk, order_ahead_lead_min: oa && lead.trim() !== "" ? Math.max(0, Number(lead)) : null };
     // For stops, geocode the address (or location) so it pins on the map + customer directions work.
     if (!isEvent) {
+      // schedule changed → derived values must beat stale hand-set labels on the guest page
+      if ((f.starts_at || null) !== origStartsAt.current) { patch.when_label = null; patch.time_label = null; }
       const q = (f.address?.trim() || f.location_text?.trim() || "");
       if (q) { const g = await geocode(q).catch(() => null); if (g) { patch.lat = g.lat; patch.lng = g.lng; } }
     }
@@ -1230,18 +1236,19 @@ function MyDay({ userId, meName, isLeader, canPrep, canBrew }: { userId: string 
   const named = first && first !== "Me" ? first : "";
   const motto = t("board.welcome");
 
+  const [leadOpen, setLeadOpen] = useState(false); // leadership briefing/intake — collapsed by default (decrowd)
   return (
     <>
+      {/* compact kit header: eyebrow · title · ONE italic line (date — motto). No banner block. */}
       <div className="myday-hero">
         {now && (
           <>
-            <div className="myday-greet">{greet}{named ? `, ${named}` : ""}</div>
-            <div className="myday-date">{now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}</div>
-            {motto && <div className="myday-motto">{motto}</div>}
+            <div className="k-eyb">My Day</div>
+            <h1 className="k-title" style={{ marginTop: 8 }}>{greet.replace("Good ", "")}{named ? `, ${named}` : ""}.</h1>
+            <p className="k-sub">{now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}{motto ? ` — ${motto}` : ""}</p>
           </>
         )}
       </div>
-      <GtmCard />
       {today.length > 0 && (
         <div className="myday-today">
           {today.map((e) => (
@@ -1273,21 +1280,33 @@ function MyDay({ userId, meName, isLeader, canPrep, canBrew }: { userId: string 
           ))}
         </div>
       )}
-      {/* My Day is a GLANCE — the full inbox (your flags + the leadership needs-you queue) now lives
-          behind the header 🔔 bell, reachable from any screen. Here we show only a pointer into it. */}
-      {flags.length === 0 ? (
-        <div className="myday-clear">✓ Nothing needs you right now. {"New here? The ⓘ Guide explains every tab, and the 🔔 up top is your inbox."}</div>
-      ) : (
+      {/* The one inbox pointer — counts live in ONE place (the 🔔 bell is the same number). When
+          nothing needs you, we say NOTHING: silence is the signal, not another banner. */}
+      {flags.length > 0 && (
         <button type="button" className="myday-inbox-ptr" onClick={() => window.dispatchEvent(new Event("gt3-open-inbox"))}>
           <span className="myday-inbox-n">{flags.length}</span> flag{flags.length === 1 ? "" : "s"} &amp; ping{flags.length === 1 ? "" : "s"} for you <span className="myday-inbox-go">Open inbox →</span>
         </button>
       )}
-      <button type="button" className="myday-jot" onClick={() => window.dispatchEvent(new Event("gt3-quick-note"))}>✎ Note to self — jot a thought, only you see it</button>
+      {/* MY TASKS above the fold — the day's work leads; everything else follows. */}
       <MyTasks userId={userId} />
-      {/* Lead-the-week tools sit BELOW the urgent lane — the operating loop reads top-down:
-          what needs me now (flags) → what I'm doing today (tasks) → then lead the week. */}
-      {isLeader && <ChiefOfStaff />}
-      {isLeader && <SmartIntake />}
+      <button type="button" className="btn-ter" style={{ marginTop: 10 }} onClick={() => window.dispatchEvent(new Event("gt3-quick-note"))}>✎ Note to self</button>
+      {/* Lead-the-week tools: collapsed to one chip until called for (decrowd — the briefing is
+          on-demand by nature; it shouldn't occupy the glance screen). */}
+      {isLeader && (
+        <div style={{ marginTop: 18 }}>
+          <button type="button" className="k-chip sec" onClick={() => setLeadOpen((o) => !o)} aria-expanded={leadOpen}>
+            🧭 Lead the week — GTM, briefing &amp; intake {leadOpen ? "▴" : "▾"}
+          </button>
+          {leadOpen && (
+            <div style={{ marginTop: 12 }}>
+              {/* GTM definition first — its home is the collapsed chip (Ryan: "GTM -> collapsed chip") */}
+              <GtmCard />
+              <ChiefOfStaff />
+              <SmartIntake />
+            </div>
+          )}
+        </div>
+      )}
     </>
   );
 }
@@ -1894,6 +1913,7 @@ function Garage({ events, stops, liveStopId, loaded }: { events: EventRow[]; sto
 // engine (assign, supply/gear picker, My Tasks) minus the event-only bits. Owner = event_id
 // XOR stop_id (migration 0040).
 function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: string }; onBack: () => void }) {
+  const { openTask } = useTaskSheet(); // the ONE task editor, on the spine
   const { user, profile } = useAuth();
   const { toast } = useApp();
   const isAdmin = roleOf(profile) === "admin" || roleOf(profile) === "owner";
@@ -1910,7 +1930,6 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   const [newTaskDue, setNewTaskDue] = useState("");
   const [generating, setGenerating] = useState(false);
   const [assignFor, setAssignFor] = useState<EventTask | null>(null);
-  const [editTask, setEditTask] = useState<EventTask | null>(null);
   const [showSupplies, setShowSupplies] = useState(false);
   // Breadcrumb: Prep › <this target>. Clicking the "Prep" root (or the name) steps back to the list.
   useCrumb("prep-detail", name ?? (isEvent ? "Event" : "Location"), onBack);
@@ -2382,7 +2401,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
                 <div className="task-right">
                   {t.link && <a className="adm-task-link" href={t.link} target="_blank" rel="noopener noreferrer" aria-label="Open reference / application">↗</a>}
                   <button type="button" className="task-discuss" onClick={() => setOpenThread(openThread === t.id ? null : t.id)} aria-label={`Discuss ${t.label}`}>💬{counts[t.id] ? <span className="cmt-count">{counts[t.id]}</span> : <span className="task-discuss-l">Discuss</span>}</button>
-                  {isAdmin && <button type="button" className="task-discuss" onClick={() => setEditTask(t)} aria-label={`Edit ${t.label}`} title="Edit task">✎</button>}
+                  {isAdmin && <button type="button" className="task-discuss" onClick={() => openTask(t.id, "event")} aria-label={`Edit ${t.label}`} title="Edit task">✎</button>}
                   {isAdmin ? (
                     <button type="button" className={`task-assign${t.assignee ? " set" : ""}`} onClick={() => setAssignFor(t)} aria-label={t.assignee ? `Reassign ${t.label} — currently ${staffName(t.assignee)}` : `Assign ${t.label} to crew`}>
                       {t.assignee
@@ -2421,7 +2440,6 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
         />
       )}
 
-      {editTask && <TaskEditSheet task={editTask} onClose={() => setEditTask(null)} onSaved={() => { setEditTask(null); load(); }} />}
 
       {showSupplies && (
         <SupplyPicker ev={ev} title={name ?? (isEvent ? "this event" : "this location")} have={new Set(tasks.map((t) => t.label.trim().toLowerCase()))} onAdd={addSupplies} onClose={() => setShowSupplies(false)} />
@@ -2480,72 +2498,6 @@ function AssignSheet({ task, staff, crewIds, meId, meName, onPick, onClose }: {
 // level: owned by an event, a stop, OR a meeting note). Updates are by id, so the same sheet works
 // from Prep and from Meeting Notes; the edit relates straight back to the source. Fills the gap the
 // per-surface rows left: rename the task, set its section, type (pack/to-do), and priority.
-function TaskEditSheet({ task, onClose, onSaved }: { task: EventTask; onClose: () => void; onSaved: () => void }) {
-  const { toast } = useApp();
-  const [label, setLabel] = useState(task.label);
-  const [section, setSection] = useState(task.section ?? "Task");
-  const [kind, setKind] = useState<"pack" | "task">(task.kind === "pack" ? "pack" : "task");
-  const [priority, setPriority] = useState<"normal" | "important" | "critical">(task.critical ? "critical" : task.warn ? "important" : "normal");
-  const [targetQty, setTargetQty] = useState(task.target_qty != null ? String(task.target_qty) : "");
-  // due date — local YYYY-MM-DD; stored as end-of-day local so "due Thu" is past due once Thu ends
-  const [due, setDue] = useState(task.due_at ? localYMD(new Date(task.due_at)) : "");
-  const [saving, setSaving] = useState(false);
-  const save = async () => {
-    if (!supabase) return;
-    const nm = label.trim(); if (!nm) { toast("Give the task a name"); return; }
-    setSaving(true);
-    const { error } = await supabase.from("event_tasks").update({
-      label: nm, section: section.trim() || null, kind,
-      critical: priority === "critical", warn: priority === "important",
-      target_qty: targetQty.trim() === "" ? null : Number(targetQty),
-      due_at: due.trim() === "" ? null : new Date(`${due}T23:59:59`).toISOString(),
-    }).eq("id", task.id);
-    setSaving(false);
-    if (error) { toast(`Error: ${error.message}`, "error"); return; }
-    toast("Task updated"); onSaved();
-  };
-  const del = async () => {
-    if (!supabase) return;
-    if (typeof window !== "undefined" && !window.confirm(`Delete "${task.label}"?`)) return;
-    setSaving(true);
-    const { error } = await supabase.from("event_tasks").delete().eq("id", task.id);
-    setSaving(false);
-    if (error) { toast(`Error: ${error.message}`, "error"); return; }
-    toast("Task deleted"); onSaved();
-  };
-  return (
-    <Sheet open onClose={onClose} label="Edit task" header={<div style={{ display: "flex", alignItems: "center" }}>Edit task</div>}>
-        <input className="ev-input" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Task" maxLength={300} autoFocus />
-        <div className="prod-grid" style={{ marginTop: 10 }}>
-          <label className="prod-f"><span>Section</span><input value={section} onChange={(e) => setSection(e.target.value)} placeholder="Task" maxLength={60} /></label>
-          <label className="prod-f"><span>Type</span>
-            <select value={kind} onChange={(e) => setKind(e.target.value as "pack" | "task")}>
-              <option value="task">To-do</option><option value="pack">Pack / supply</option>
-            </select>
-          </label>
-        </div>
-        <div className="te-prio">
-          {(["normal", "important", "critical"] as const).map((p) => (
-            <button key={p} type="button" className={`te-prio-b ${p}${priority === p ? " on" : ""}`} onClick={() => setPriority(p)}>
-              {p === "normal" ? "Normal" : p === "important" ? "Important" : "Critical"}
-            </button>
-          ))}
-        </div>
-        <div className="prod-grid" style={{ marginTop: 10 }}>
-          <label className="prod-f"><span>Due date (optional)</span><input type="date" value={due} onChange={(e) => setDue(e.target.value)} /></label>
-          <label className="prod-f"><span>Plan quantity — e.g. 100 bottles</span><input type="number" min="0" value={targetQty} onChange={(e) => setTargetQty(e.target.value)} placeholder="blank = plain to-do" /></label>
-        </div>
-        <div className="prod-actions" style={{ marginTop: 14, justifyContent: "space-between" }}>
-          <button type="button" className="note-arch" onClick={del} disabled={saving}>Delete</button>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
-            <button type="button" className="note-save" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
-          </div>
-        </div>
-    </Sheet>
-  );
-}
-
 type SupplyItem = { name: string; category: string; qty: number | null; unit: string | null; critical: boolean };
 
 // Supply picker — one searchable catalog over BOTH Notion DBs: inventory (consumables,
@@ -2663,6 +2615,7 @@ function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive
   const [address, setAddress] = useState(row.address ?? "");
   const [busy, setBusy] = useState(false);
   const [editAddr, setEditAddr] = useState(false);
+  const [editFacts, setEditFacts] = useState(false); // FieldOpSheet — quick core-facts editor
   const hasCoords = row.lat != null && row.lng != null;
 
   // every update carries a WHERE (id) — safe with the safeupdate guard
@@ -2734,8 +2687,14 @@ function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive
             <div className="ev-group">
               <div className="ev-group-h">Location</div>
               <div className="stop-coords ok" style={{ marginTop: 0 }}>{row.name || "Untitled location"}{stopWhen ? ` · ${stopWhen}` : " · no date"}</div>
-              <div className={`stop-coords${hasCoords ? " ok" : ""}`}>{hasCoords ? `Pinned · ${(row.lat as number).toFixed(4)}, ${(row.lng as number).toFixed(4)}` : "No pin yet — add the address in the prep hub for accurate directions"}</div>
-              {onOpenPrep && <button type="button" className="adm-btn" onClick={onOpenPrep}>Edit name, address &amp; times in the prep hub ›</button>}
+              <div className={`stop-coords${hasCoords ? " ok" : ""}`}>{hasCoords ? `Pinned · ${(row.lat as number).toFixed(4)}, ${(row.lng as number).toFixed(4)}` : "No pin yet — add the address for accurate directions"}</div>
+              {/* the facts change HERE, in two taps (FieldOpSheet) — the prep hub stays the deep surface */}
+              <button type="button" className="adm-btn" onClick={() => setEditFacts(true)}>Edit name, date, time &amp; address ›</button>
+              {onOpenPrep && <button type="button" className="adm-btn" onClick={onOpenPrep}>Full prep — menu, staffing, run-of-show ›</button>}
+              {editFacts && (
+                <FieldOpSheet kind="stop" id={row.id} onClose={() => setEditFacts(false)}
+                  onSaved={() => { setEditFacts(false); onChanged(); }} onOpenPrep={onOpenPrep} />
+              )}
             </div>
           ) : (
           <div className="ev-group">
@@ -3396,12 +3355,12 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
   onArchive: () => void;
   onVisibility?: (v: "private" | "team" | "collab") => void;
 }) {
+  const { openTask } = useTaskSheet(); // the ONE task editor, on the spine
   const { user, profile } = useAuth();
   const { toast } = useApp();
   const [items, setItems] = useState<EventTask[]>([]);
   const [newItem, setNewItem] = useState("");
   const [assignFor, setAssignFor] = useState<EventTask | null>(null);
-  const [editTask, setEditTask] = useState<EventTask | null>(null);
   const [openThread, setOpenThread] = useState<string | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [suggesting, setSuggesting] = useState(false);
@@ -3550,7 +3509,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
                 <button type="button" className="note-fu-flag" onClick={() => setOpenThread(openThread === t.id ? null : t.id)} aria-label="Discuss" title="Discuss">💬{counts[t.id] ? <span className="cmt-count">{counts[t.id]}</span> : null}</button>
                 <button type="button" className="note-fu-flag" onClick={() => flag(t)} aria-label="Flag as can't-miss" title="Flag as can't-miss">⚑</button>
                 {!t.ai_proposal && <button type="button" className="note-fu-solve" onClick={() => resolve(t)} disabled={resolving.has(t.id)} title="Propose how to complete this">{resolving.has(t.id) ? "…" : "💡"}</button>}
-                {isAdmin && <button type="button" className="note-fu-flag" onClick={() => setEditTask(t)} aria-label="Edit follow-up" title="Edit follow-up">✎</button>}
+                {isAdmin && <button type="button" className="note-fu-flag" onClick={() => openTask(t.id, "event")} aria-label="Edit follow-up" title="Edit follow-up">✎</button>}
                 {isAdmin && <button type="button" className="note-fu-x" onClick={() => removeItem(t)} aria-label="Remove follow-up">×</button>}
               </div>
               {t.ai_proposal && (
@@ -3578,7 +3537,6 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
         <AssignSheet task={assignFor} staff={staff} crewIds={[]} meId={meId} meName={meName}
           onPick={(uid) => assign(assignFor, uid)} onClose={() => setAssignFor(null)} />
       )}
-      {editTask && <TaskEditSheet task={editTask} onClose={() => setEditTask(null)} onSaved={() => { setEditTask(null); load(); }} />}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { useAuth } from "./AuthProvider";
 import { useRealtimeTable } from "@/lib/realtime";
 import MoneyKpis from "./MoneyKpis";
 import LaunchReadiness from "./LaunchReadiness";
+import { useTaskSheet } from "./TaskSheet";
 import InlineCreate from "./InlineCreate";
 import Sheet from "@/components/Sheet";
 
@@ -39,6 +40,7 @@ export default function CommandBoard() {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [overdue, setOverdue] = useState<Work[]>([]);
   const [done, setDone] = useState<Work[]>([]);
+  const { openTask } = useTaskSheet(); // the ONE task editor, on the spine
   const [links, setLinks] = useState<{ initiative_id: string; milestone_id: string }[]>([]);
   const [manage, setManage] = useState<Milestone | null>(null);   // milestone open in the manage sheet
   const [loaded, setLoaded] = useState(false);
@@ -174,7 +176,7 @@ export default function CommandBoard() {
       <div className="crew-group">This week</div>
       {wk.shown.length === 0 ? <div className="cmd-empty">Nothing due in the next 7 days.</div> : (
         <div className="cmd-list">
-          {wk.shown.map((w) => <div className="cmd-row" key={`${w.src}-${w.id}`}><span className="cmd-row-t">{w.title}</span><span className="cmd-row-due">{dnice(w.due)}</span></div>)}
+          {wk.shown.map((w) => <button type="button" className="cmd-row" style={{ width: "100%", textAlign: "left", cursor: "pointer" }} key={`${w.src}-${w.id}`} onClick={() => openTask(w.id, w.src === "task" ? "event" : "todo")} aria-label={`Open task: ${w.title}`}><span className="cmd-row-t">{w.title}</span><span className="cmd-row-due">{dnice(w.due)}</span></button>)}
           {wk.more > 0 && <div className="cmd-more">+{wk.more} more</div>}
         </div>
       )}
@@ -184,7 +186,7 @@ export default function CommandBoard() {
       {incidents.length === 0 && ov.shown.length === 0 ? <div className="cmd-empty">Nothing blocked. 🟢</div> : (
         <div className="cmd-list">
           {incidents.map((i) => <div className="cmd-row blk" key={i.id}><span className="cmd-row-t">🛑 {i.problem}</span></div>)}
-          {ov.shown.map((w) => <div className="cmd-row blk" key={`ov-${w.src}-${w.id}`}><span className="cmd-row-t">{w.title}</span><span className="cmd-row-due late">{dnice(w.due)} · overdue</span></div>)}
+          {ov.shown.map((w) => <button type="button" className="cmd-row blk" style={{ width: "100%", textAlign: "left", cursor: "pointer" }} key={`ov-${w.src}-${w.id}`} onClick={() => openTask(w.id, w.src === "task" ? "event" : "todo")} aria-label={`Open task: ${w.title}`}><span className="cmd-row-t">{w.title}</span><span className="cmd-row-due late">{dnice(w.due)} · overdue</span></button>)}
           {ov.more > 0 && <div className="cmd-more">+{ov.more} more overdue</div>}
         </div>
       )}

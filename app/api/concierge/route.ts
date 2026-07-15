@@ -74,7 +74,12 @@ export async function POST(req: Request) {
     const [pr, ls, ev, pl] = await Promise.all([
       supabaseAdmin.from("products").select("slug, name, price_cents, active").eq("active", true),
       supabaseAdmin.from("live_status").select("is_live, current_stop_id").eq("id", 1).maybeSingle(),
-      supabaseAdmin.from("events").select("title, day_label, day, start_time, location_text, member_only").is("archived_at", null).gte("day", today).order("day").limit(8),
+      // PUBLIC events only — this is a guest-facing context and the service role bypasses RLS,
+      // so the visibility rule applies here too (panel catch: internal ops rows and private
+      // bookings were being fed to the guest concierge).
+      supabaseAdmin.from("events").select("title, day_label, day, start_time, location_text, member_only").is("archived_at", null)
+        .eq("category", "event").or("archetype.is.null,archetype.neq.private_booking")
+        .gte("day", today).order("day").limit(8),
       supabaseAdmin.from("subscription_plans").select("label, price_cents, period_days, active").eq("active", true).order("price_cents"),
     ]);
     prices = (pr.data ?? []).map((p: any) => `- ${p.name ?? p.slug}: $${((p.price_cents ?? 0) / 100).toFixed(2)}`).join("\n");

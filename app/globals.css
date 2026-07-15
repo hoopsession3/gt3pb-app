@@ -5746,3 +5746,77 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .app.crew-day .gtm{background:#fff}
 .app.crew-day .gtm-main b{color:#221F18}
 .app.crew-day .gtm-eyb{color:#8a6a2a}
+/* ============================================================
+   KIT — Customer Design System v1 (2026-07-14, APP-WIDE standard)
+   Seven primitives; every new or migrated screen builds from
+   these and nothing else. k- namespaced (legacy collides on
+   .chip/.mast). Rules: eyebrow = context label only (never a
+   slogan, never a date) · max ONE .btn-pri per screen · every
+   page ends on a .k-beat.
+   ============================================================ */
+/* 01 · Masthead — one identity zone */
+.k-mast{display:flex;align-items:flex-start;justify-content:space-between;padding-top:2px}
+.k-lock{display:flex;flex-direction:column;line-height:1}
+.k-lock .g3{font-family:'Archivo Black';font-size:22px;letter-spacing:.4px;color:var(--cream);line-height:1}
+.k-lock .k-pb{font-family:'Inter';font-weight:600;font-size:8.5px;letter-spacing:.3em;text-transform:uppercase;color:var(--cream-d);margin-top:6px}
+/* 02 · Type scale — five steps, one title font */
+.k-eyb{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.22em;text-transform:uppercase;color:var(--gold);display:flex;align-items:center}
+.k-eyb.live{color:#7fce82}
+.k-page-eyb{margin-top:22px}
+.k-display{font-family:'Fraunces',Georgia,serif;font-weight:500;font-size:30px;letter-spacing:-.4px;line-height:1.1}
+.k-title{font-family:'Archivo Black';font-size:30px;letter-spacing:-1px;line-height:1.02;margin-top:9px}
+.k-title.lg{font-size:32px}
+.k-sub{font-family:'Fraunces',Georgia,serif;font-style:italic;font-size:14px;color:var(--cream-m);margin-top:8px;line-height:1.45}
+.k-cap{font-family:var(--mono);font-size:11px;color:var(--cream-d);letter-spacing:.04em}
+/* 03 · Buttons — three tiers */
+.btn-pri{display:block;width:100%;padding:15px;background:var(--red);color:#fff;border:none;border-radius:14px;cursor:pointer;font-family:'Inter';font-weight:700;font-size:14px;letter-spacing:.2px;text-align:center;box-shadow:0 10px 26px rgba(184,36,32,.34);transition:background .15s}
+.btn-pri:active{background:var(--red-d,#9d1d1a)}
+.btn-sec{display:inline-block;padding:11px 20px;background:transparent;color:var(--cream);border:1px solid var(--line2);border-radius:14px;cursor:pointer;font-family:'Inter';font-weight:700;font-size:14px;letter-spacing:.2px}
+.btn-ter{display:inline-flex;align-items:center;gap:6px;background:none;border:none;padding:2px 0;color:var(--gold2);cursor:pointer;font-family:'Inter';font-weight:600;font-size:14px}
+.btn-ter b,.btn-ter span{color:var(--gold);font-weight:600}
+/* 04 · Section header — label + italic annotation + hairline */
+.k-sec{display:flex;align-items:baseline;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:9px;margin:30px 0 4px}
+.k-sec .l{font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.2em;text-transform:uppercase;color:var(--gold)}
+.k-sec .a{font-family:'Fraunces',Georgia,serif;font-style:italic;font-size:13px;color:var(--cream-d)}
+/* 05 · Info row — lead · body · trailing slot (stop and event are the SAME row) */
+.k-row{display:flex;align-items:center;gap:16px;padding:15px 0;border-bottom:1px solid var(--line);width:100%;text-align:left;background:none;border-left:none;border-right:none;border-top:none;color:inherit}
+.k-rows>.k-row:last-child,.k-rows>*:last-child .k-row{border-bottom:0}
+.k-row.tap{cursor:pointer}
+.k-row.tap:active{opacity:.72}
+.k-lead{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--cream-d);width:64px;flex:none;line-height:1.35}
+.k-lead b{display:block;color:var(--cream);font-size:12.5px;font-weight:500}
+.k-bd{flex:1;min-width:0}
+.k-nm{font-family:'Inter';font-weight:700;font-size:16px;letter-spacing:-.2px;color:var(--cream);display:flex;align-items:center;gap:8px}
+.k-rsub{font-family:'Fraunces',Georgia,serif;font-style:italic;font-size:13px;color:var(--cream-d);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.k-meta{font-family:var(--mono);font-size:10.5px;color:var(--cream-d);margin-top:4px;letter-spacing:.04em}
+.k-tr{flex:none;display:flex;align-items:center;gap:10px}
+.k-caret{color:var(--cream-d);font-size:17px;transition:transform .15s}
+.k-caret.open{transform:rotate(90deg)}
+.k-chip{font-family:'Inter';font-weight:700;font-size:12px;padding:8px 14px;border-radius:11px;border:none;cursor:pointer;line-height:1}
+.k-chip.pri{background:var(--red);color:#fff}
+.k-chip.sec{background:transparent;color:var(--cream);border:1px solid var(--line2)}
+.k-chip.on{background:rgba(127,206,130,.14);color:#7fce82;border:1px solid rgba(127,206,130,.35)}
+.k-row.now .k-nm{color:var(--cream)}
+.k-tag-live{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:#7fce82;border:1px solid rgba(127,206,130,.4);border-radius:6px;padding:3px 7px}
+/* facts strip (hero telemetry) */
+.k-facts{display:flex;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-top:20px}
+.k-facts .f{flex:1;padding:14px 0;min-width:0}
+.k-facts .f+.f{border-left:1px solid var(--line);padding-left:18px}
+.k-facts .fk{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--cream-d)}
+.k-facts .fv{font-family:'Inter';font-weight:700;font-size:19px;margin-top:5px;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.k-facts .fv.ok{color:#7fce82}
+.k-cta{margin-top:22px}
+/* 07 · Closing beat — every page ends on purpose */
+.k-beat{text-align:center;padding:34px 0 10px}
+.k-beat .rule{height:1px;background:var(--line);margin:0 auto 16px;max-width:120px}
+.k-beat .g3{font-family:'Archivo Black';font-size:15px;color:var(--cream-m);justify-content:center}
+.k-beat .sig{font-family:var(--mono);font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:rgba(245,241,232,.28);margin-top:10px}
+/* row detail drawer (expanded InfoRow) */
+.k-detail{padding:4px 0 16px 80px;border-bottom:1px solid var(--line)}
+.k-detail p{font-size:13.5px;color:var(--cream-m);line-height:1.55;margin:0 0 10px}
+.k-det-row{display:flex;gap:10px;font-size:13px;color:var(--cream-m);margin:0 0 8px;align-items:baseline}
+.k-det-k{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--cream-d);width:44px;flex:none}
+.k-det-row a{color:var(--gold2);text-decoration:none}
+@media (max-width:360px){.k-detail{padding-left:0}}
+/* TaskSheet — event-task prep fields (section/type/priority/qty), two-up grid */
+.tsheet-prep-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}

@@ -14,7 +14,7 @@ import { isBlank } from "@/lib/formGuard";
 import { resolveVendor, type ResolveDecision, type VendorMatch } from "@/lib/vendorLink";
 import VendorResolve from "./VendorResolve";
 import { localDayBoundsISO } from "@/lib/calendarMath";
-import EventDayPlanner from "./EventDayPlanner";
+import FieldOpSheet from "./FieldOpSheet";
 import Sheet from "@/components/Sheet";
 
 // COMPANY CALENDAR — one pane for everything dated: truck events, admin/ops work, scheduled content
@@ -457,7 +457,10 @@ export default function CompanyCalendar() {
       {isOwner && <OutlookBar onSynced={load} />}
       {!isOwner && <div className="insp-foot" style={{ marginTop: 12 }}>📅 Outlook two-way sync is managed by the owner.</div>}
 
-      {edit && <CalEdit kind={edit.kind} id={edit.id} events={events} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load(); }} />}
+      {edit && (edit.kind === "event" || edit.kind === "stop"
+        ? <FieldOpSheet kind={edit.kind} id={edit.id} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load(); }}
+            onOpenPrep={() => { try { localStorage.setItem("gt3-prep-open", edit.kind === "stop" ? `stop:${edit.id}` : edit.id); } catch { /* ignore */ } setSection("prep"); setEdit(null); }} />
+        : <CalEdit kind={edit.kind} id={edit.id} events={events} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load(); }} />)}
       {dayOpen && <DayView dayKey={dayOpen} items={byDay[dayOpen] || []} events={events} onClose={() => setDayOpen(null)} onAdd={() => { const k = dayOpen; setDayOpen(null); setAddDay(k); }} onSaved={load} />}
       {addDay && <AddSheet day={addDay} events={events} onClose={() => setAddDay(null)} onDone={() => { setAddDay(null); load(); }} setSection={setSection} />}
     </div>
@@ -469,6 +472,7 @@ export default function CompanyCalendar() {
 // row appears (Prep, Studio, My Tasks). The "↗" opens its full prep / run-of-show / studio. Archived
 // events show here (and only here) so a removed event is still reachable by opening its day.
 function DayView({ dayKey, items, events, onClose, onAdd, onSaved }: { dayKey: string; items: Item[]; events: Ev[]; onClose: () => void; onAdd: () => void; onSaved: () => void }) {
+  const { setSection } = useOperatorSection();
   const [archived, setArchived] = useState<{ id: string; title: string | null; day_label: string | null }[]>([]);
   const [edit, setEdit] = useState<{ kind: EditKind; id: string } | null>(null);
   useEffect(() => {
@@ -518,7 +522,10 @@ function DayView({ dayKey, items, events, onClose, onAdd, onSaved }: { dayKey: s
           </div>
           <div className="prod-actions" style={{ marginTop: 14 }}><span /><button type="button" className="note-save" onClick={onAdd}>+ Add to this day</button></div>
     </Sheet>
-    {edit && <CalEdit kind={edit.kind} id={edit.id} events={events} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); onSaved(); }} />}
+    {edit && (edit.kind === "event" || edit.kind === "stop"
+      ? <FieldOpSheet kind={edit.kind} id={edit.id} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); onSaved(); }}
+          onOpenPrep={() => { try { localStorage.setItem("gt3-prep-open", edit.kind === "stop" ? `stop:${edit.id}` : edit.id); } catch { /* ignore */ } setSection("prep"); setEdit(null); onClose(); }} />
+      : <CalEdit kind={edit.kind} id={edit.id} events={events} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); onSaved(); }} />)}
     </>
   );
 }
@@ -535,14 +542,13 @@ const SRC: Record<EditKind, { table: string; nameCol: string; dateCol: string; d
   task:    { table: "event_tasks",   nameCol: "label", dateCol: "due_at",        dateIsTimestamp: true,  defTime: "23:59", noun: "task" },
 };
 function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: string; events: Ev[]; onClose: () => void; onSaved: () => void }) {
+  // events + stops route to FieldOpSheet (the one quick editor) before reaching here —
+  // CalEdit now handles only todo / content / task rows.
   const cfg = SRC[kind];
   const { setSection } = useOperatorSection();
   const [f, setF] = useState<any | null>(null);
   const [saving, setSaving] = useState(false);
-  const [planOpen, setPlanOpen] = useState(false); // time blocks / run-of-show, right from the calendar
-  const sel = kind === "event" ? "title, day, location_text, stage"
-    : kind === "stop" ? "name, starts_at, location_text"
-    : kind === "todo" ? "title, due_on, category, event_id, done"
+  const sel = kind === "todo" ? "title, due_on, category, event_id, done"
     : "title, scheduled_for, status, event_id";
   useEffect(() => {
     if (!supabase) return;
@@ -561,13 +567,11 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: s
   };
   const save = async () => {
     if (!supabase || !f) return;
-    if (kind !== "stop" && isBlank(f[cfg.nameCol])) return;   // require a real name — no generic-placeholder fallback
+    if (isBlank(f[cfg.nameCol])) return;   // require a real name — no generic-placeholder fallback
     setSaving(true);
-    const name = (f[cfg.nameCol] || "").trim() || (kind === "event" ? "Event" : kind === "stop" ? "Stop" : kind === "todo" ? "To-do" : "Content");
+    const name = (f[cfg.nameCol] || "").trim() || (kind === "todo" ? "To-do" : "Content");
     const patch: any = { [cfg.nameCol]: name, [cfg.dateCol]: f[cfg.dateCol] || null };
-    if (kind === "event") { patch.location_text = f.location_text?.trim() || null; patch.stage = f.stage || "confirmed"; }
-    else if (kind === "stop") { patch.location_text = f.location_text?.trim() || null; }
-    else if (kind === "todo") { patch.category = f.category || "ops"; patch.event_id = f.event_id || null; }
+    if (kind === "todo") { patch.category = f.category || "ops"; patch.event_id = f.event_id || null; }
     else if (kind === "content") { patch.status = f.status || "scheduled"; patch.event_id = f.event_id || null; }
     await supabase.from(cfg.table).update(patch).eq("id", id);
     setSaving(false); onSaved();
@@ -586,31 +590,10 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: s
   const linkable = kind === "todo" || kind === "content";
   return (
     <>
-    {planOpen && f && (kind === "event" || kind === "stop") && (
-      <EventDayPlanner
-        ownerType={kind === "stop" ? "stop" : "event"}
-        eventId={id}
-        title={f[cfg.nameCol] || cfg.noun}
-        eventDay={kind === "stop" ? (f.starts_at ? localDate(f.starts_at) : null) : (f.day || null)}
-        planDays={1}
-        onPlanDays={async (n) => { if (supabase) await supabase.from(cfg.table).update({ plan_days: n }).eq("id", id); }}
-        onClose={() => setPlanOpen(false)}
-      />
-    )}
-    <Sheet open onClose={onClose} className="dp-form" label="Edit calendar item" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{kind === "stop" ? "Truck stop" : `Edit ${cfg.noun}`}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
-          {kind === "stop" ? (
-            /* Read-only: one editor per stop (the prep hub). The calendar shows the facts + doors. */
-            <div className="cal-stopcard">
-              <b>{f.name || "Untitled location"}</b>
-              <span>{dateVal ? new Date(`${dateVal}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : "No date"}{f.location_text ? ` · ${f.location_text}` : ""}</span>
-              <span className="cal-stopcard-hint">Name, date &amp; address are edited in the prep hub.</span>
-            </div>
-          ) : (
+    <Sheet open onClose={onClose} className="dp-form" label="Edit calendar item" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{`Edit ${cfg.noun}`}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
           <input className="note-in" value={f[cfg.nameCol] ?? ""} onChange={(e) => set(cfg.nameCol, e.target.value)} placeholder={`${cfg.noun[0].toUpperCase() + cfg.noun.slice(1)} name`} autoFocus />
-          )}
           <div className="prod-grid" style={{ marginTop: 10 }}>
-            {kind !== "stop" && <label className="prod-f"><span>Date</span><input type="date" value={dateVal} onChange={(e) => onDate(e.target.value)} /></label>}
-            {kind === "event" && <label className="prod-f"><span>Location</span><input value={f.location_text ?? ""} onChange={(e) => set("location_text", e.target.value)} placeholder="Where" /></label>}
+            <label className="prod-f"><span>Date</span><input type="date" value={dateVal} onChange={(e) => onDate(e.target.value)} /></label>
             {kind === "todo" && (
               <label className="prod-f"><span>Category</span>
                 <select value={f.category ?? "ops"} onChange={(e) => set("category", e.target.value)}>
@@ -626,13 +609,6 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: s
               </label>
             )}
           </div>
-          {kind === "event" && (
-            <label className="prod-f" style={{ marginTop: 8 }}><span>Stage</span>
-              <select value={f.stage ?? "confirmed"} onChange={(e) => set("stage", e.target.value)}>
-                <option value="lead">Lead</option><option value="confirmed">Confirmed</option><option value="prep">Prep</option><option value="live">Live</option><option value="done">Done</option>
-              </select>
-            </label>
-          )}
           {linkable && (
             <label className="prod-f" style={{ marginTop: 8 }}><span>Link to event</span>
               <select value={f.event_id ?? ""} onChange={(e) => set("event_id", e.target.value || null)}>
@@ -642,17 +618,6 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: s
             </label>
           )}
           {kind === "content" && <button type="button" className="cal-tolink" style={{ marginTop: 10, marginLeft: 0 }} onClick={() => { setSection("studio"); onClose(); }}>Open full editor in Studio ↗</button>}
-          {(kind === "event" || kind === "stop") && (
-            <div className="prod-actions" style={{ marginTop: 10, gap: 8 }}>
-              <button type="button" className="cal-tolink" style={{ marginLeft: 0 }} onClick={() => setPlanOpen(true)}>⏱ Time blocks</button>
-              <button type="button" className="cal-tolink" style={{ marginLeft: 0 }} onClick={() => { try { localStorage.setItem("gt3-prep-open", kind === "stop" ? `stop:${id}` : id); } catch { /* ignore */ } setSection("prep"); onClose(); }}>Open full prep hub ↗</button>
-            </div>
-          )}
-          {kind === "stop" ? (
-            <div className="prod-actions" style={{ marginTop: 14, justifyContent: "flex-end" }}>
-              <button type="button" className="note-save" onClick={onClose}>Close</button>
-            </div>
-          ) : (
           <div className="prod-actions" style={{ marginTop: 14, justifyContent: "space-between" }}>
             <button type="button" className="note-arch" onClick={remove} disabled={saving}>{kind === "content" ? "Unschedule" : kind === "todo" ? "Delete" : "Remove"}</button>
             <div style={{ display: "flex", gap: 8 }}>
@@ -660,7 +625,6 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: s
               <button type="button" className="note-save" onClick={save} disabled={saving || isBlank(f[cfg.nameCol])}>{saving ? "Saving…" : "Save"}</button>
             </div>
           </div>
-          )}
     </Sheet>
     </>
   );

@@ -262,5 +262,39 @@ const drift = (await db.query(`select chk, n::int as n from public.field_ops_dri
 ok("field_ops_drift() returns exactly the four soak checks, all zero on a clean spine",
   drift.length === 4 && drift.every((r) => r.n === 0), drift);
 
+// ── 8 · 0233: public visibility decided in one place (generated on both tables + the door) ──────
+await db.exec(readFileSync(join(ROOT, "supabase/migrations/0233_public_visibility.sql"), "utf8"));
+ok("plain event is public on BOTH tables",
+  (await q1(`select (select is_public from public.events where id = '${EV}') and
+                    (select is_public from public.field_ops where id = '${EV}') as r`)).r === true);
+ok("unarchived stop is public on the spine",
+  (await q1(`select is_public as r from public.field_ops where id = '${ST}'`)).r === true);
+const PB = "eeeeeeee-0000-0000-0000-000000000233";
+await db.exec(`insert into public.events (id, title, day, category, archetype) values ('${PB}', 'Smith wedding', '2026-08-08', 'event', 'private_booking')`);
+ok("private_booking is NOT public — events table",
+  (await q1(`select is_public as r from public.events where id = '${PB}'`)).r === false);
+ok("private_booking is NOT public — mirrored spine agrees (generated, not copied)",
+  (await q1(`select is_public as r from public.field_ops where id = '${PB}'`)).r === false);
+const OPS = "eeeeeeee-0000-0000-0000-000000000234";
+await db.exec(`insert into public.events (id, title, day, category) values ('${OPS}', 'Deep clean', '2026-08-09', 'ops')`);
+ok("internal ops event is NOT public (both tables)",
+  (await q1(`select (select not is_public from public.events where id = '${OPS}') and
+                    (select not is_public from public.field_ops where id = '${OPS}') as r`)).r === true);
+await db.exec(`update public.stops set archived_at = now() where id = '${ST}'`);
+ok("archiving a stop flips is_public off through the mirror",
+  (await q1(`select is_public as r from public.field_ops where id = '${ST}'`)).r === false);
+await db.exec(`update public.stops set archived_at = null where id = '${ST}'`);
+ok("un-archiving flips it back (pure function of the row)",
+  (await q1(`select is_public as r from public.field_ops where id = '${ST}'`)).r === true);
+ok("the DOOR: select policy on events now gates on is_public (guests) or is_staff",
+  (await q1(`select qual like '%is_public%' and qual like '%is_staff%' as r from pg_policies
+             where tablename = 'events' and policyname = 'public read events'`)).r === true);
+ok("the MIRROR's door too: field_ops read policy gates on is_public or is_staff (panel: 0222 shipped using(true))",
+  (await q1(`select qual like '%is_public%' and qual like '%is_staff%' as r from pg_policies
+             where tablename = 'field_ops' and policyname = 'field ops read'`)).r === true);
+ok("no drift between the two computed columns anywhere",
+  (await q1(`select count(*)::int as r from public.field_ops fo join public.events e on e.id = fo.id
+             where fo.is_public <> e.is_public`)).r === 0);
+
 console.log(`FIELD-OPS CONTRACT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

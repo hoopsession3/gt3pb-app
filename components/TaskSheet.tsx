@@ -49,6 +49,7 @@ function TaskSheet({ id, source, onClose }: { id: string; source: TaskSource; on
   const [missing, setMissing] = useState(false);
   const [crew, setCrew] = useState<Crew[]>([]);
   const [editing, setEditing] = useState(false);
+  const [prep, setPrep] = useState<{ section: string | null; kind: string | null; target_qty: number | null } | null>(null);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const isAdmin = ["admin", "owner"].includes(roleOf(profile));
@@ -58,6 +59,10 @@ function TaskSheet({ id, source, onClose }: { id: string; source: TaskSource; on
     const { data } = await supabase.from("all_tasks").select("*").eq("id", id).eq("source", source).maybeSingle();
     if (!data) { setMissing(true); return; }
     setT(data as AllTask);
+    if (source === "event") {
+      const { data: e } = await supabase.from("event_tasks").select("section, kind, target_qty").eq("id", id).maybeSingle();
+      if (e) setPrep(e as { section: string | null; kind: string | null; target_qty: number | null });
+    }
   }, [id, source]);
 
   useEffect(() => { load(); }, [load]);
@@ -169,6 +174,39 @@ function TaskSheet({ id, source, onClose }: { id: string; source: TaskSource; on
               {crew.map((c) => <option key={c.id} value={c.id}>{c.display_name || c.role} · {c.role.replace("_", " ")}</option>)}
             </select>
           </label>
+
+          {/* prep details — event tasks only (section / type / priority / plan-qty), same
+              adapter (lib/tasks), so the prep hub's old TaskEditSheet is fully replaced */}
+          {source === "event" && prep && (
+            <>
+              <div className="tsheet-prep-grid">
+                <label className="tsheet-field"><span className="tsheet-k">Section</span>
+                  <input className="auth-input" value={prep.section ?? ""} maxLength={60} placeholder="Task"
+                    onChange={(e) => setPrep({ ...prep, section: e.target.value })}
+                    onBlur={() => write({ section: prep.section }, {})} />
+                </label>
+                <label className="tsheet-field"><span className="tsheet-k">Type</span>
+                  <select className="auth-input" value={prep.kind === "pack" ? "pack" : "task"}
+                    onChange={(e) => { const k = e.target.value === "pack" ? "pack" as const : "task" as const; setPrep({ ...prep, kind: k }); write({ kind: k }, {}); }}>
+                    <option value="task">To-do</option><option value="pack">Pack / supply</option>
+                  </select>
+                </label>
+              </div>
+              <div className="tsheet-prep-grid">
+                <label className="tsheet-field"><span className="tsheet-k">Priority</span>
+                  <select className="auth-input" value={t.critical ? "critical" : t.warn ? "important" : "normal"}
+                    onChange={(e) => { const v = e.target.value; write({ critical: v === "critical", warn: v === "important" }, { critical: v === "critical", warn: v === "important" }); }}>
+                    <option value="normal">Normal</option><option value="important">Important</option><option value="critical">Critical</option>
+                  </select>
+                </label>
+                <label className="tsheet-field"><span className="tsheet-k">Plan qty</span>
+                  <input type="number" min={0} className="auth-input" value={prep.target_qty ?? ""} placeholder="blank = plain to-do"
+                    onChange={(e) => setPrep({ ...prep, target_qty: e.target.value === "" ? null : Number(e.target.value) })}
+                    onBlur={() => write({ targetQty: prep.target_qty }, {})} />
+                </label>
+              </div>
+            </>
+          )}
 
           {/* meta */}
           <div className="tsheet-meta">

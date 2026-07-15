@@ -37,7 +37,13 @@ export async function completeTask(source: TaskSource, id: string, userId?: stri
 //   title  → event_tasks.label            · todos.title
 //   dueISO → event_tasks.due_at (instant) · todos.due_on (date only — todos have no intraday time)
 //   assignee is the same column on both.
-export type TaskPatch = { done?: boolean; assignee?: string | null; dueISO?: string | null; title?: string };
+export type TaskPatch = {
+  done?: boolean; assignee?: string | null; dueISO?: string | null; title?: string;
+  // event-only prep fields (silently ignored for todos): section / type / priority / plan-qty
+  section?: string | null; kind?: "task" | "pack"; critical?: boolean; warn?: boolean; targetQty?: number | null;
+  // todos-only
+  category?: string;
+};
 
 export async function updateTask(source: TaskSource, id: string, patch: TaskPatch, userId?: string | null): Promise<{ error?: string }> {
   if (!supabase) return { error: "offline" };
@@ -56,6 +62,13 @@ export async function updateTask(source: TaskSource, id: string, patch: TaskPatc
     if (source === "event") row.due_at = patch.dueISO || null;
     else row.due_on = patch.dueISO ? patch.dueISO.slice(0, 10) : null; // todos are date-only
   }
+  if (source === "event") {
+    if (patch.section !== undefined) row.section = patch.section?.trim() || null;
+    if (patch.kind !== undefined) row.kind = patch.kind;
+    if (patch.critical !== undefined) row.critical = patch.critical;
+    if (patch.warn !== undefined) row.warn = patch.warn;
+    if (patch.targetQty !== undefined) row.target_qty = patch.targetQty;
+  } else if (patch.category !== undefined) row.category = patch.category;
   if (Object.keys(row).length === 0) return {};
   const { error } = await supabase.from(source === "event" ? "event_tasks" : "todos").update(row).eq("id", id);
   return { error: error?.message };
