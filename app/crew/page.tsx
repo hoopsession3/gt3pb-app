@@ -452,7 +452,7 @@ function alertDest(category: string | null | undefined, title?: string | null): 
   if (cat === "prep") return { section: "prep" };
   if (cat === "content" && !/content ready for review/i.test(title || "")) return { section: "studio" };
   if (cat === "strategy") return { section: "goals" };
-  return { section: "day" }; // task + system → My Day (tasks live there)
+  return { section: "day", anchor: "my-day-tasks" }; // task + system → My Day tasks (scroll target)
 }
 // After a section switch React needs a beat to mount the destination before we can scroll to it.
 function scrollToAnchor(anchor?: string) {
@@ -588,7 +588,7 @@ function NotifPrefsSheet({ userId, onClose }: { userId: string | null; onClose: 
   );
 }
 
-function AlertsInbox({ userId, compact = false, title = "Alerts" }: { userId: string | null; compact?: boolean; title?: string }) {
+function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: { userId: string | null; compact?: boolean; title?: string; onNavigate?: () => void }) {
   const { profile } = useAuth();
   const { setSection } = useOperatorSection();
   const meName = profile?.display_name?.trim() || "Me";
@@ -614,6 +614,7 @@ function AlertsInbox({ userId, compact = false, title = "Alerts" }: { userId: st
     if (alertIsContentReview(a.title)) { const pid = postIdFromLink(a.link); if (pid) { setReviewPost({ id: pid, alert: a }); return; } }
     const d = alertDest(a.category, a.title);
     if (d.planTab) { try { localStorage.setItem("gt3-plan-tab", d.planTab); } catch { /* ignore */ } }
+    onNavigate?.();              // close the inbox sheet FIRST — else the destination renders behind it
     setSection(d.section);
     scrollToAnchor(d.anchor);
   };
@@ -1467,7 +1468,7 @@ function MyTasks({ userId, chip = false }: { userId: string | null; chip?: boole
   }
 
   return (
-    <div className="adm-sec">
+    <div className="adm-sec" id="my-day-tasks">
       <div className="crew-group">My tasks <span className={`adm-pill${crit || over ? " due" : ""}`}>{tasks.length}{over ? ` · ${over} overdue` : crit ? ` · ${crit} critical` : ""}</span></div>
       {sorted.map((t) => (
         <div key={t.id} className={`mytask${t.critical ? " crit" : isOver(t) ? " crit" : t.warn ? " warn" : ""}`}>
@@ -5386,7 +5387,7 @@ export default function AdminPage() {
       {guideOpen && <SectionGuide allowed={allowed} current={sec} onGo={setSection} onClose={() => setGuideOpen(false)} />}
       {inboxOpen && (
         <Sheet open onClose={() => setInboxOpen(false)} label="Inbox" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>🔔 Inbox</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setInboxOpen(false)} aria-label="Close">✕</button></div>}>
-          <AlertsInbox userId={user?.id ?? null} title="Flags & pings for you" />
+          <AlertsInbox userId={user?.id ?? null} title="Flags & pings for you" onNavigate={() => setInboxOpen(false)} />
           {canManage && <NeedsYou />}
         </Sheet>
       )}
