@@ -4,6 +4,7 @@ import AccountPill from "@/components/AccountPill";
 import Watermark from "@/components/Watermark";
 import { Masthead, ClosingBeat } from "@/components/kit";
 import OrderFunnel from "@/components/OrderFunnel";
+import Reserves from "@/components/Reserves";
 import StorefrontStory from "@/components/StorefrontStory";
 
 // Order-ahead / reserve-your-drop screen, on the kit. One-off Saturday pre-orders — no
@@ -14,6 +15,7 @@ export default function ReserveScreen() {
     <section className="screen" id="s-reserve">
       <Watermark variant="landing" />
       <Masthead eyebrow="Order ahead" right={<AccountPill />} />
+      <Reserves />
       <OrderFunnel initialMode="pickup" />
       <StorefrontStory />
       <ClosingBeat />
