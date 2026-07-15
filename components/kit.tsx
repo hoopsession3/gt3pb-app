@@ -16,10 +16,10 @@ import Gt3Mark from "@/components/Gt3Mark";
 // btn-sec, btn-ter. EmptyState stays its own component.
 // ============================================================
 
-export function Masthead({ eyebrow, live = false, right }: { eyebrow?: string; live?: boolean; right?: ReactNode }) {
+export function Masthead({ eyebrow, live = false, right, tone = "dark" }: { eyebrow?: string; live?: boolean; right?: ReactNode; tone?: "dark" | "light" }) {
   return (
     <>
-      <header className="k-mast">
+      <header className={`k-mast${tone === "light" ? " k-mast-light" : ""}`}>
         <div className="k-lock">
           <Gt3Mark tone="cream" />
           <span className="k-pb">Performance Bar</span>

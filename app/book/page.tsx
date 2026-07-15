@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import AccountPill from "@/components/AccountPill";
+import { Masthead, ClosingBeat } from "@/components/kit";
 import { supabase } from "@/lib/supabase";
 
 // "Book the bar" intake — captures B2B/event requests into Supabase (admins manage them
@@ -40,20 +41,20 @@ export default function BookScreen() {
   if (done) {
     return (
       <section className="screen bookwrap" id="s-book">
-        <div className="toprow"><div className="eyb">B2B · Book the bar</div><AccountPill /></div>
+        <Masthead eyebrow="Book the bar" right={<AccountPill />} />
         <div className="bookcard">
           <div className="eyb">Request received</div>
           <h2>We&apos;re on it.</h2>
           <p>Thanks, {f.name.split(" ")[0]}. Kayla will reach out within a day to lock your date and the bar. Pricing &amp; prep run through Booking Tool v5.</p>
         </div>
-        <div className="signoff">Grow The 3MPIRE.</div>
+        <ClosingBeat />
       </section>
     );
   }
 
   return (
     <section className="screen bookwrap" id="s-book">
-      <div className="toprow"><div className="eyb">B2B · Book the bar</div><AccountPill /></div>
+      <Masthead eyebrow="Book the bar" right={<AccountPill />} />
       <div className="bookcard">
         <div className="eyb">Bring GT3PB to your event</div>
         <h2>Book the bar.</h2>
@@ -76,6 +77,7 @@ export default function BookScreen() {
         <button className="handle" type="submit" disabled={busy} style={{ marginTop: 18 }}><span>{busy ? "Sending…" : "Send request"}</span></button>
       </form>
       <p className="auth-fine">Pricing &amp; prep handled by Booking Tool v5 — the app never quotes.</p>
+      <ClosingBeat />
     </section>
   );
 }

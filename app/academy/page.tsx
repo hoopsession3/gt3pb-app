@@ -6,6 +6,7 @@ import { useApp } from "@/components/AppProvider";
 import { useAuth, roleOf, isStaff } from "@/components/AuthProvider";
 import SignIn from "@/components/SignIn";
 import Skeleton from "@/components/Skeleton";
+import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
 import { supabase } from "@/lib/supabase";
 import {
   PRODUCTS, CERTS, ROLES, READINESS, PASS_DEFAULT, ACKS, ackByKey, certExpiryDays,
@@ -162,7 +163,7 @@ export default function AcademyPage() {
 
   return (
     <section className="screen academy">
-      <div className="toprow"><div className="eyb">GT3 Academy</div><Link className="pf" href="/3mpire" aria-label="Exit">‹</Link></div>
+      <Masthead eyebrow="GT3 Academy" right={<Link className="pf" href="/3mpire" aria-label="Exit">‹</Link>} />
       <h1 className="h-title">Your <em className="it">path.</em></h1>
       <div className="subm" style={{ marginTop: 10 }}>{roleLabel} track · {reqDone}/{required.length} modules</div>
 
@@ -191,7 +192,7 @@ export default function AcademyPage() {
       {/* assigned to you (admin-set, with due dates) */}
       {openAssignments.length > 0 && (
         <>
-          <div className="wrule"><span>Assigned to you</span></div>
+          <SectionHeader label="Assigned to you" />
           <div className="ac-mods">
             {openAssignments.map((a, i) => {
               const overdue = a.due_at != null && new Date(a.due_at).getTime() < Date.now();
@@ -213,7 +214,7 @@ export default function AcademyPage() {
       )}
 
       {/* operational readiness */}
-      <div className="wrule"><span>Operational readiness</span></div>
+      <SectionHeader label="Operational readiness" />
       <div className="ac-ready">
         {READINESS.map((r) => {
           const ok = r.need.every((k) => certOk(k)) && (!r.ack || acks.has(r.ack));
@@ -226,7 +227,7 @@ export default function AcademyPage() {
       )}
 
       {/* learning path modules */}
-      <div className="wrule"><span>Your modules</span></div>
+      <SectionHeader label="Your modules" />
       <div className="ac-mods">
         {required.map((m) => {
           const done = completed.has(m.slug);
@@ -246,7 +247,7 @@ export default function AcademyPage() {
       </div>
 
       {/* product education library */}
-      <div className="wrule"><span>Product education</span></div>
+      <SectionHeader label="Product education" />
       <div className="ac-prods">
         {PRODUCTS.map((p) => (
           <button key={p.key} className="ac-prod" onClick={() => setView({ k: "product", key: p.key })}>
@@ -256,6 +257,7 @@ export default function AcademyPage() {
           </button>
         ))}
       </div>
+      <ClosingBeat />
     </section>
   );
 }
@@ -391,7 +393,7 @@ function ProductDetail({ p, onBack }: { p: Product; onBack: () => void }) {
       <h1 className="h-title" style={{ fontSize: 30 }}>{p.name}</h1>
       <p className="ac-what">{p.what}</p>
 
-      <div className="wrule"><span>Why it exists</span></div>
+      <SectionHeader label="Why it exists" />
       <p className="ac-bp">{p.why}</p>
 
       <div className="ac-grid2">
@@ -404,7 +406,7 @@ function ProductDetail({ p, onBack }: { p: Product; onBack: () => void }) {
 
       {p.voices && (
         <>
-          <div className="wrule"><span>Three voices · match the guest</span></div>
+          <SectionHeader label="Three voices · match the guest" />
           <div className="ac-voices">
             <div className="ac-voice"><span className="ac-voice-tag">Simple</span><p>{p.voices.simple}</p></div>
             <div className="ac-voice"><span className="ac-voice-tag gt3">GT3</span><p>{p.voices.gt3}</p></div>
@@ -413,15 +415,15 @@ function ProductDetail({ p, onBack }: { p: Product; onBack: () => void }) {
         </>
       )}
 
-      <div className="wrule"><span>Talking points</span></div>
+      <SectionHeader label="Talking points" />
       <ul className="ac-ul">{p.talking.map((x) => <li key={x}>{x}</li>)}</ul>
 
-      <div className="wrule"><span>FAQs</span></div>
+      <SectionHeader label="FAQs" />
       {p.faqs.map((f, i) => <div key={i} className="ac-faq"><b>{f.q}</b><span>{f.a}</span></div>)}
 
       {p.cookbook && (
         <>
-          <div className="wrule"><span>Cookbook · operating spec</span></div>
+          <SectionHeader label="Cookbook · operating spec" />
           {p.cookbook.batch && <div className="ac-faq"><b>Batch</b><span>{p.cookbook.batch}</span></div>}
           {p.cookbook.brew && <div><div className="ac-mini-h">Procedure</div><ol className="ac-ol">{p.cookbook.brew.map((x) => <li key={x}>{x}</li>)}</ol></div>}
           {p.cookbook.serve && <div><div className="ac-mini-h">Serve</div><ul className="ac-ul">{p.cookbook.serve.map((x) => <li key={x}>{x}</li>)}</ul></div>}
@@ -487,7 +489,7 @@ function TeamBoard({ onBack }: { onBack: () => void }) {
       <div className="toprow"><button className="ac-back" onClick={onBack}>‹ Academy</button><div className="eyb">Admin</div></div>
       <h1 className="h-title" style={{ fontSize: 28 }}>Team <em className="it">readiness.</em></h1>
 
-      <div className="wrule"><span>Assign training</span></div>
+      <SectionHeader label="Assign training" />
       <div className="ac-assign">
         <select className="ev-input" value={memberId} onChange={(e) => setMemberId(e.target.value)} aria-label="Member">
           <option value="">Member…</option>
@@ -501,7 +503,7 @@ function TeamBoard({ onBack }: { onBack: () => void }) {
         <button className="handle" style={{ marginTop: 0 }} onClick={assign}>Assign training</button>
       </div>
 
-      <div className="wrule"><span>Readiness</span></div>
+      <SectionHeader label="Readiness" />
       <div className="ac-team">
         {rows.map((r) => (
           <div key={r.id} className="ac-trow">

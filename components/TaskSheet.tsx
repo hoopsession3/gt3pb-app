@@ -159,7 +159,7 @@ function TaskSheet({ id, source, onClose }: { id: string; source: TaskSource; on
               type={source === "event" ? "datetime-local" : "date"}
               className="auth-input"
               value={source === "event"
-                ? (t.due_at ? new Date(t.due_at).toISOString().slice(0, 16) : "")
+                ? (t.due_at ? (() => { const d = new Date(t.due_at); const p2 = (n: number) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}`; })() : "")
                 : (t.due ?? "")}
               onChange={(e) => reschedule(e.target.value)}
             />

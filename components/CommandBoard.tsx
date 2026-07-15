@@ -28,7 +28,8 @@ const daysTo = (iso: string) => Math.round((new Date(`${iso}T12:00:00`).getTime(
 const countdown = (iso: string | null) => { if (!iso) return ""; const d = daysTo(iso); return d > 1 ? `${d} days left` : d === 1 ? "tomorrow" : d === 0 ? "today" : `${-d}d overdue`; };
 const dnice = (iso: string | null) => iso ? new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toWork = (rows: any[], src: "todo" | "task"): Work[] => rows.map((r) => ({ id: r.id, title: r.title ?? r.label ?? "—", due: r.due_on ?? (r.due_at ? String(r.due_at).slice(0, 10) : null), src }));
+const localYMD = (iso: string) => { const d = new Date(iso); const p = (n: number) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
+const toWork = (rows: any[], src: "todo" | "task"): Work[] => rows.map((r) => ({ id: r.id, title: r.title ?? r.label ?? "—", due: r.due_on ?? (r.due_at ? localYMD(String(r.due_at)) : null), src }));
 
 export default function CommandBoard() {
   const { toast } = useApp();

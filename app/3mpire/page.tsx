@@ -1,12 +1,12 @@
 "use client";
 
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import SignIn from "@/components/SignIn";
 import AccountPill from "@/components/AccountPill";
+import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
 import ReviewPrompt from "@/components/ReviewPrompt";
 import MembershipCard from "@/components/MembershipCard";
 import VipVerify from "@/components/VipVerify";
@@ -45,8 +45,7 @@ function OrderHistory() {
 
   return (
     <>
-      <div className="dchapter"><span className="dchn">Recent Orders</span><span className="dchw">order again</span></div>
-      <div className="dchrule" />
+      <SectionHeader label="Recent Orders" annotation="order again" />
       {(showAll ? orders : orders.slice(0, 4)).map((o) => (
         <div className="hist-row" key={o.id}>
           <div className="hist-row-l">
@@ -149,10 +148,7 @@ function MpireReal() {
 
   return (
     <section className="screen" id="s-mpire">
-      <div className="toprow">
-        <div className="eyb">Membership</div>
-        <AccountPill />
-      </div>
+      <Masthead eyebrow="Your 3MPIRE" right={<AccountPill />} />
 
       {/* The card IS the hero — name, tier, stamps, code, QR, the free-pour promise. The old ring
           card + stat tiles repeated all of it (name ×2, 5/10 ×3); everything they added now lives
@@ -179,8 +175,7 @@ function MpireReal() {
 
       <ReferralCard code={code} />
 
-      <div className="dchapter"><span className="dchn">Your Account</span><span className="dchw">manage</span></div>
-      <div className="dchrule" />
+      <SectionHeader label="Your Account" annotation="manage" />
       <div className="rows">
         {roleOf(profile) !== "member" && (
           <div className="row" aria-label="Staff" {...clickable(() => router.push("/crew"))}>
@@ -220,10 +215,7 @@ function MpireReal() {
         </div>
       </div>
 
-      <div className="domain">
-        <Image src="/gt3pb-domain.png" alt="GT3PB.COM" width={170} height={24} style={{ height: 24, width: "auto", opacity: 0.8 }} priority />
-      </div>
-      <div className="tag-soft">Pure Signal, No Noise.</div>
+      <ClosingBeat />
     </section>
   );
 }
@@ -235,10 +227,7 @@ function MpireDemo() {
   const ringRef = useRingFill(0.7);
   return (
     <section className="screen" id="s-mpire">
-      <div className="toprow">
-        <div className="eyb">Membership</div>
-        <AccountPill />
-      </div>
+      <Masthead eyebrow="Your 3MPIRE" right={<AccountPill />} />
 
       <MembershipCard />
       <div className="memcard"><div className="min">
@@ -266,8 +255,7 @@ function MpireDemo() {
 
       <ReferralCard code="RYAN-3MP" />
 
-      <div className="dchapter"><span className="dchn">Your Account</span><span className="dchw">manage</span></div>
-      <div className="dchrule" />
+      <SectionHeader label="Your Account" annotation="manage" />
       <div className="rows">
         <div className="row" aria-label="Order History" {...clickable(() => toast("Showing your last 6 orders"))}>
           <div className="ri"><svg viewBox="0 0 24 24" strokeWidth="2"><path d="M3 3h18v4H3zM5 7v14h14V7M9 11h6" /></svg></div>
@@ -286,10 +274,7 @@ function MpireDemo() {
         </div>
       </div>
 
-      <div className="domain">
-        <Image src="/gt3pb-domain.png" alt="GT3PB.COM" width={170} height={24} style={{ height: 24, width: "auto", opacity: 0.8 }} priority />
-      </div>
-      <div className="tag-soft">Pure Signal, No Noise.</div>
+      <ClosingBeat />
     </section>
   );
 }

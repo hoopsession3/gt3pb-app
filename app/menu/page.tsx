@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import AccountPill from "@/components/AccountPill";
 import Watermark from "@/components/Watermark";
-import Gt3Mark from "@/components/Gt3Mark";
+import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
 import { useSiteCopy } from "@/lib/copy";
 import { useAvailability } from "@/lib/availability";
 import { DRINKS, MENU, type DrinkId } from "@/lib/menu";
@@ -44,13 +44,7 @@ export default function MenuScreen() {
   return (
     <section className="screen menu" id="s-menu">
       <Watermark variant="menu" />
-      <div className="toprow">
-        <div className="mast-brand">
-          <Gt3Mark tone="ink" />
-          <span className="pb">Performance Bar</span>
-        </div>
-        <AccountPill />
-      </div>
+      <Masthead tone="light" eyebrow="The Menu" right={<AccountPill />} />
 
       <p className="mast-stmt">{t("menu.statement")}</p>
       <div className="mast-order">{t("menu.order_line")}</div>
@@ -63,11 +57,7 @@ export default function MenuScreen() {
 
       {MENU.map((cat, ci) => (
         <div key={cat.name} ref={(el) => { catRefs.current[cat.name] = el; }} data-cat={cat.name}>
-          <div className="chapter">
-            <span className="chn">{t(`menu.sec.${ci}.name`)}</span>
-            <span className="chw">{t(`menu.sec.${ci}.sub`)}</span>
-          </div>
-          <div className="chrule" />
+          <SectionHeader label={t(`menu.sec.${ci}.name`)} annotation={t(`menu.sec.${ci}.sub`)} />
 
           {cat.rows.map((id) => {
             const d = DRINKS[id];
@@ -104,11 +94,7 @@ export default function MenuScreen() {
 
       {/* Pack upsell — the take-home path. Prices come from the order-ahead grid (lib/orderAhead),
           both glass paths shown honestly; the bring-back-or-new choice itself is made in Reserve. */}
-      <div className="chapter">
-        <span className="chn">{t("menu.packs_title")}</span>
-        <span className="chw">{t("menu.packs_sub")}</span>
-      </div>
-      <div className="chrule" />
+      <SectionHeader label={t("menu.packs_title")} annotation={t("menu.packs_sub")} />
       <div className="mpack">
         {PACK_SIZES.map((s) => (
           <div className="mpack-row" key={s}>
@@ -123,6 +109,7 @@ export default function MenuScreen() {
       <div className="menu-integrity">{t("menu.integrity")}</div>
       <div className="menu-mto">{t("menu.mto")}</div>
 
+      <ClosingBeat />
     </section>
   );
 }

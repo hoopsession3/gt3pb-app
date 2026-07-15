@@ -5820,3 +5820,13 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 @media (max-width:360px){.k-detail{padding-left:0}}
 /* TaskSheet — event-task prep fields (section/type/priority/qty), two-up grid */
 .tsheet-prep-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+/* KIT · light (paper) context — the cream Menu keeps its palette, same anatomy */
+.k-mast-light .g3{color:#221F18}
+.k-mast-light .k-pb{color:#6f6a59}
+.menu .k-eyb,.paper .k-eyb{color:#9A7A2A}
+.menu .k-sec,.paper .k-sec{border-color:rgba(34,31,24,.16)}
+.menu .k-sec .l,.paper .k-sec .l{color:#9A7A2A}
+.menu .k-sec .a,.paper .k-sec .a{color:#5d5748}
+.menu .k-beat .rule,.paper .k-beat .rule{background:rgba(34,31,24,.16)}
+.menu .k-beat .g3,.paper .k-beat .g3{color:#221F18}
+.menu .k-beat .sig,.paper .k-beat .sig{color:rgba(34,31,24,.45)}

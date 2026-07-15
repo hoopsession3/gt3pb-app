@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import AccountPill from "@/components/AccountPill";
 import Watermark from "@/components/Watermark";
-import Gt3Mark from "@/components/Gt3Mark";
+import { Masthead, ClosingBeat } from "@/components/kit";
 import { useSiteCopy } from "@/lib/copy";
 
 // OUR CRAFT — the education page, by purpose. Not just coffee & cocoa: every menu ingredient, grouped
@@ -44,17 +44,10 @@ export default function CraftScreen() {
   return (
     <section className="screen craft" id="s-craft">
       <Watermark variant="landing" />
-      <div className="toprow">
-        <div className="mast-brand mast-dark">
-          <Gt3Mark tone="cream" />
-          <span className="pb">Performance Bar</span>
-        </div>
-        <AccountPill />
-      </div>
+      <Masthead eyebrow={t("craft.eye")} right={<AccountPill />} />
 
       {/* HERO — art & chemistry, the molecule */}
       <header className="craft-hero">
-        <span className="craft-eye">{t("craft.eye")}</span>
         <h1 className="craft-h1">{t("craft.h1_l1")} <i>{t("craft.h1_em1")}</i><br />{t("craft.h1_l2")} <i>{t("craft.h1_em2")}</i></h1>
         <p className="craft-lede">{t("craft.lede")}</p>
         <div className="craft-mol">
@@ -88,6 +81,7 @@ export default function CraftScreen() {
       </div>
 
       <div className="signoff">{t("craft.signoff")}</div>
+      <ClosingBeat />
     </section>
   );
 }
