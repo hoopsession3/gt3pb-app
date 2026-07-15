@@ -7,6 +7,7 @@ import { type PerfMix } from "@/lib/delivery";
 import { etToday } from "@/lib/dates";
 import AssignTaskSheet from "./AssignTaskSheet";
 import Sheet from "./Sheet";
+import { SectionHeader, InfoRow } from "@/components/kit";
 
 // SUNDAY DELIVERY OPS — the crew side of the delivery debrief, in DropOps' shape: one summary
 // sentence (units, one hero thought), the Saturday brew totals (incl. Performance combos), and a
@@ -85,8 +86,11 @@ export default function DeliveryOps() {
   const dLabel = new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 
   return (
-    <div className="dops zone-delivery">
-      <div className="dops-head"><span className="dops-kick">🚚 Delivery · Sunday porch run</span><b>{dLabel} · {rows.length} order{rows.length === 1 ? "" : "s"}</b></div>
+    // Standard white-card treatment (matches .mpanel / the boxed .oo sibling) so Sunday delivery sits
+    // in the same container rhythm as the other Live Ops panels instead of rendering bare. Kit
+    // SectionHeader replaces the ad-hoc .dops-head; each stop is a kit InfoRow. Logic is untouched.
+    <section className="mpanel" style={{ marginTop: 14, padding: "0 15px 14px" }} aria-label="Sunday delivery">
+      <SectionHeader label="Sunday delivery" annotation={`${dLabel} · ${rows.length} order${rows.length === 1 ? "" : "s"}`} />
       <p className="dops-sum">
         <b>{bottles}</b> bottles ({refills} refills · {fresh} fresh) · <b>{dollars(revenue)}</b> paid on order
         {heldQueue.length > 0 && <> · <b className="dl-held">{heldQueue.length} held for pickup</b></>}
@@ -103,37 +107,44 @@ export default function DeliveryOps() {
         <span><b>{doneCount}/{rows.length}</b> stops done</span>
         <span>{showList ? "▾" : "▸"}</span>
       </button>
-      {showList && rows.map((o) => (
-        <div className={`dops-order${o.status === "delivered" ? " done" : ""}`} key={o.id}>
-          <div className="dops-top">
-            <span className="dops-name">{o.name}
-              {o.refill_count > 0 && <span className="dops-chip ret">SWAP ×{o.refill_count}</span>}
-              <span className={`dops-chip ${o.status === "held_for_pickup" ? "new" : "ret"}`}>{STATUS_LABEL[o.status]}</span>
-            </span>
-            <span className="dops-total">{dollars(o.total_cents)} ✓</span>
-          </div>
-          <div className="dops-meta">
-            <b>{o.pack_size} bottles</b> — {[o.rise_count && `${o.rise_count}× RISE`, o.flow_count && `${o.flow_count}× FLOW`, o.dusk_count && `${o.dusk_count}× DUSK`, o.performance_count && `${Object.entries(o.performance_mix || {}).map(([k, n]) => `${n}× ${prettySlug(k)}`).join(" · ") || `${o.performance_count}× premium`}`].filter(Boolean).join(" · ")}
-            <br />{o.address_street}, {o.address_city} {o.address_zip}{o.access_instructions ? <> · <em>{o.access_instructions}</em></> : null}
-            <div className="dops-drive">
-              <a className="dops-nav" href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${o.address_street}, ${o.address_city} ${o.address_zip}`)}`} target="_blank" rel="noopener noreferrer">🧭 Navigate</a>
-              {o.phone ? <a className="dops-tel" href={`tel:${o.phone.replace(/[^\d+]/g, "")}`}>📞 Call {o.name.split(" ")[0]}</a> : null}
+      {showList && (
+        <div className="k-rows">
+          {rows.map((o) => (
+            <div key={o.id} style={o.status === "delivered" ? { opacity: 0.5 } : undefined}>
+              <InfoRow
+                lead="ZIP"
+                leadSub={o.address_zip}
+                name={o.name}
+                nameExtra={<>
+                  {o.refill_count > 0 && <span className="dops-chip ret">SWAP ×{o.refill_count}</span>}
+                  <span className={`dops-chip ${o.status === "held_for_pickup" ? "new" : "ret"}`}>{STATUS_LABEL[o.status]}</span>
+                </>}
+                trailing={<span className="dops-total">{dollars(o.total_cents)} ✓</span>}
+                meta={<>
+                  <b>{o.pack_size} bottles</b> — {[o.rise_count && `${o.rise_count}× RISE`, o.flow_count && `${o.flow_count}× FLOW`, o.dusk_count && `${o.dusk_count}× DUSK`, o.performance_count && `${Object.entries(o.performance_mix || {}).map(([k, n]) => `${n}× ${prettySlug(k)}`).join(" · ") || `${o.performance_count}× premium`}`].filter(Boolean).join(" · ")}
+                  <br />{o.address_street}, {o.address_city} {o.address_zip}{o.access_instructions ? <> · <em>{o.access_instructions}</em></> : null}
+                  <div className="dops-drive">
+                    <a className="dops-nav" href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${o.address_street}, ${o.address_city} ${o.address_zip}`)}`} target="_blank" rel="noopener noreferrer">🧭 Navigate</a>
+                    {o.phone ? <a className="dops-tel" href={`tel:${o.phone.replace(/[^\d+]/g, "")}`}>📞 Call {o.name.split(" ")[0]}</a> : null}
+                  </div>
+                  {o.empties_collected != null && o.empties_collected !== o.empties_expected && (
+                    <><br /><em className="dl-held">Empties short: {o.empties_collected}/{o.empties_expected}</em></>
+                  )}
+                  <div className="dops-actions">
+                    {STATUS_NEXT[o.status] && (
+                      <button type="button" className="dops-check" onClick={() => setStatus(o, STATUS_NEXT[o.status])}>→ {STATUS_LABEL[STATUS_NEXT[o.status]]}</button>
+                    )}
+                    {o.status === "out_for_delivery" && (
+                      <a className="dops-mini" href="/driver">Log the outcome in driver mode →</a>
+                    )}
+                  </div>
+                </>}
+              />
             </div>
-            {o.empties_collected != null && o.empties_collected !== o.empties_expected && (
-              <><br /><em className="dl-held">Empties short: {o.empties_collected}/{o.empties_expected}</em></>
-            )}
-          </div>
-          <div className="dops-actions">
-            {STATUS_NEXT[o.status] && (
-              <button type="button" className="dops-check" onClick={() => setStatus(o, STATUS_NEXT[o.status])}>→ {STATUS_LABEL[STATUS_NEXT[o.status]]}</button>
-            )}
-            {o.status === "out_for_delivery" && (
-              <a className="dops-mini" href="/driver">Log the outcome in driver mode →</a>
-            )}
-          </div>
+          ))}
         </div>
-      ))}
-    </div>
+      )}
+    </section>
   );
 }
 

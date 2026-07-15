@@ -5,9 +5,10 @@ import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
 import { raiseAlertClient } from "@/lib/clientAlerts";
 import { useApp } from "./AppProvider";
+import { SectionHeader, InfoRow } from "@/components/kit";
 import { FLAVORS, nextDrop, dropDateKey, mixSummary, dollars, type GlassPath, type Mix } from "@/lib/orderAhead";
 import { gallonsForBottles, flavorDemand } from "@/lib/brewMath";
-import { dayKey, etToday } from "@/lib/dates";
+import { dayKey, etToday, relativeDay } from "@/lib/dates";
 
 // DROP OPS — the order-ahead brew sheet + pickup checklist for Saturday's drop. Lives in the admin
 // "Now" section right under the kitchen pass (and pops out of reservation alerts), so walk-up orders
@@ -72,6 +73,10 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
   }, []);
   const dropISO = drop.iso;
   const satLabel = drop.label;
+  // Humanized, unambiguous drop date for the heading — "This Sat · Jul 18" instead of a bare
+  // "Sat, Jul 18" (relativeDay + the absolute date, per lib/dates' caller contract). satLabel
+  // stays the raw weekday label the toasts / confirms / alert bodies below already read.
+  const dropWhen = `${relativeDay(dropISO)} · ${new Date(`${dropISO}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -217,7 +222,14 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
 
   return (
     <div className="dops zone-pickup">
-      <div className="dops-head"><span className="dops-kick">🧺 Pickup · reserves &amp; packs</span><b>{satLabel}&rsquo;s drop{rows.length > 0 ? ` · ${rows.length} pack${rows.length === 1 ? "" : "s"} reserved` : ""}</b></div>
+      {/* The drop block is a card now (matches the crew console's .mpanel panels) so the heading
+          reads as a titled surface, not a bare floating line. SectionHeader supplies its own top
+          spacing; the card only pads sides + bottom. */}
+      <div className="mpanel" style={{ padding: "0 14px 14px" }}>
+        <SectionHeader
+          label="Pickup · reserves & packs"
+          annotation={`${dropWhen}'s drop${rows.length > 0 ? ` · ${rows.length} pack${rows.length === 1 ? "" : "s"}` : ""}`}
+        />
       {/* One sentence with units instead of three bare KPI tiles ("6 BREW" told nobody anything).
           It answers the drop's three questions in reading order: how much to make, what money
           happens at the window, what glass comes back. */}
@@ -251,13 +263,19 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
           </button>
           {!brief && showList && queue.map((o) => (
             <div className={`dops-order${o.picked_up ? " done" : ""}`} key={`cur-${o.id}`}>
-              <div className="dops-top">
-                <span className="dops-name">{o.name}
-                  <span className={`dops-chip ${o.glass === "return" ? "ret" : "new"}`}>{o.glass === "return" ? `GLASS BACK ×${o.size}` : "NEW GLASS"}</span>
-                </span>
-                <span className="dops-total">{dollars(o.total_cents / 100)} {o.paid ? "✓" : <em className="dops-owe">due</em>}</span>
+              {/* Identity line as a kit InfoRow: lead = pack qty, body = name + glass chip + mix +
+                  phone, trailing = money/paid. The fulfillment stepper + actions stay below it,
+                  inside the same order card. (.k-rows drops the row's own hairline here.) */}
+              <div className="k-rows">
+                <InfoRow
+                  lead="Pack"
+                  leadSub={`${o.size}`}
+                  name={o.name}
+                  nameExtra={<span className={`dops-chip ${o.glass === "return" ? "ret" : "new"}`}>{o.glass === "return" ? `GLASS BACK ×${o.size}` : "NEW GLASS"}</span>}
+                  meta={<>{mixSummary(o.mix)}{o.phone ? <><br /><a className="dops-tel" href={`tel:${o.phone.replace(/[^\d+]/g, "")}`}>{o.phone}</a></> : null}</>}
+                  trailing={<span className="dops-total">{dollars(o.total_cents / 100)} {o.paid ? "✓" : <em className="dops-owe">due</em>}</span>}
+                />
               </div>
-              <div className="dops-meta"><b>{o.size}-pack</b> — {mixSummary(o.mix)}{o.phone ? <><br /><a className="dops-tel" href={`tel:${o.phone.replace(/[^\d+]/g, "")}`}>{o.phone}</a></> : null}</div>
               {/* Fulfillment stepper — tap a stage to jump, or the primary button to advance one.
                   Reserved → Preparing → Ready → En route → Picked up; the customer sees it live. */}
               {(() => {
@@ -295,6 +313,7 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
           ))}
         </>
       )}
+      </div>
       {/* Moved packs land here in the same breath — never off any surface. Grouped by date so a
           glance says what next week already owes. */}
       {!brief && upcoming.length > 0 && (

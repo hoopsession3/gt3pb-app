@@ -8,6 +8,7 @@ import { useRealtimeTable } from "@/lib/realtime";
 import { mixSummary, dollars, emptyMix, dropForStop, nextDrop, dropDateKey, type Mix, type GlassPath } from "@/lib/orderAhead";
 import { authedFetch } from "@/lib/authedFetch";
 import { haptic, HAPTIC } from "@/lib/haptics";
+import { relativeDay } from "@/lib/dates";
 
 // YOUR PACK — the customer's own reservations, right on /reserve. Reserving is only half the
 // product: coming back should show what you've got coming, live (staff checking you off at the
@@ -32,8 +33,13 @@ const STAGE_VIEW: Record<PackStage, { label: string; note: string }> = {
 };
 const PACK_STEPS: PackStage[] = ["preparing", "ready", "en_route", "picked_up"];
 
-export const packDayLabel = (p: { drop_date: string }): string =>
-  new Date(`${p.drop_date}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+export const packDayLabel = (p: { drop_date: string }): string => {
+  // Humanize the near-term pickup week (Today / Tomorrow / This Sat); keep the absolute weekday +
+  // date for pickup days a week or more out (relativeDay's "Next …" is excluded).
+  const rel = relativeDay(p.drop_date);
+  if (/^(Today|Tomorrow|Yesterday|This )/.test(rel) || rel.endsWith("d ago")) return rel;
+  return new Date(`${p.drop_date}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+};
 export const packMix = (p: { mix: Partial<Mix> }): Mix => ({ ...emptyMix(), ...p.mix });
 
 export default function MyPacks({ onChange, refreshKey, collapsible }: { onChange?: (p: MyPack) => void; refreshKey?: string; collapsible?: boolean }) {

@@ -103,7 +103,7 @@ export default function MenuScreen() {
           </div>
         ))}
         <div className="mpack-note">{t("menu.packs_note")}</div>
-        <Link href="/reserve" className="mpack-cta">Reserve Saturday&rsquo;s pack ›</Link>
+        <Link href="/reserve" className="mpack-cta">Reserve your pack ›</Link>
       </div>
 
       <div className="menu-integrity">{t("menu.integrity")}</div>

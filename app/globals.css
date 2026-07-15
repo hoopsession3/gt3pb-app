@@ -4710,6 +4710,9 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .alerts-strip-t b{color:var(--cream);font-weight:700}
 .alerts-strip-go{flex:0 0 auto;font-family:'Inter';font-weight:700;font-size:12px;color:var(--gold2)}
 .app.crew-day .alerts-strip-t b{color:#1a1610}
+/* Tasks pointer — a CALM secondary pointer, not an alert peer: no red, dashed hairline, transparent
+   fill, so Live Ops never shows two identical solid alert strips bracketing neutral panels. */
+.alerts-strip.taskptr{background:transparent;border-style:dashed;border-color:var(--line)}
 
 /* one-hero-one-line stat shapes (de-noise sweep, crew) */
 .adm-hud-hero{display:flex;align-items:baseline;gap:8px;margin:4px 2px 2px}
@@ -5767,8 +5770,8 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .k-eyb{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.22em;text-transform:uppercase;color:var(--gold);display:flex;align-items:center}
 .k-eyb.live{color:#7fce82}
 .k-page-eyb{margin-top:22px}
-.k-display{font-family:'Fraunces',Georgia,serif;font-weight:500;font-size:30px;letter-spacing:-.4px;line-height:1.1}
-.k-title{font-family:'Archivo Black';font-size:30px;letter-spacing:-1px;line-height:1.02;margin-top:9px}
+.k-display{font-family:'Fraunces',Georgia,serif;font-weight:500;font-size:30px;letter-spacing:-.4px;line-height:1.1;color:var(--cream)}
+.k-title{font-family:'Archivo Black';font-size:30px;letter-spacing:-1px;line-height:1.02;margin-top:9px;color:var(--cream)}
 .k-title.lg{font-size:32px}
 .k-sub{font-family:'Fraunces',Georgia,serif;font-style:italic;font-size:14px;color:var(--cream-m);margin-top:8px;line-height:1.45}
 .k-cap{font-family:var(--mono);font-size:11px;color:var(--cream-d);letter-spacing:.04em}

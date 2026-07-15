@@ -41,6 +41,12 @@ const FLAV_LABEL: Record<Flav, string> = { rise: "RISE", flow: "FLOW", dusk: "DU
 const FLAV_DESC: Record<Flav, string> = { rise: FLAVOR_DESC.RISE, flow: FLAVOR_DESC.FLOW, dusk: FLAVOR_DESC.DUSK };
 const dollars = (c: number) => `$${(c / 100).toFixed(c % 100 === 0 ? 0 : 2)}`;
 const dayName = (d: Date) => d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+// Sunday label from the slot's REAL date, not its list position — after Friday's 6 PM cutoff the first
+// choice rolls a week out, so "this Sunday" by index was calling an 8-days-away slot "this Sunday".
+const sunLabel = (key: string) => {
+  const days = Math.round((new Date(`${key}T12:00:00`).getTime() - Date.now()) / 86400000);
+  return days <= 7 ? "this Sunday" : days <= 14 ? "next Sunday" : "the Sunday after";
+};
 const PICKUP_TIERS = PACK_SIZES as readonly number[]; // [3, 6, 12]
 
 export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
@@ -465,7 +471,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
                 {choices.map((c, i) => (
                   <button key={c.deliveryDateKey} type="button" className={`oa-day${when === i ? " sel" : ""}`} onClick={() => setWhen(i)}>
                     <b>{c.deliveryLabel.replace(", 5–8 AM", "")}</b>
-                    <span>{i === 0 ? "this Sunday" : "next Sunday"} · order by {c.cutoffLabel.replace(", 6:00 PM", " 6 PM")}</span>
+                    <span>{sunLabel(c.deliveryDateKey)} · order by {c.cutoffLabel.replace(", 6:00 PM", " 6 PM")}</span>
                   </button>
                 ))}
               </div>

@@ -84,9 +84,9 @@ export const COPY_META: CopyMeta[] = [
   { key: "pitch.headline", group: "Reserve card", label: "Headline", default: "The bottles you love, brewed to order." },
   { key: "pitch.body", group: "Reserve card", label: "Body", multiline: true,
     default: "Reserve a Saturday drop — ready the moment you reach the window. No plan, no commitment." },
-  { key: "pitch.cta", group: "Reserve card", label: "Button", default: "Reserve this week's drop" },
+  { key: "pitch.cta", group: "Reserve card", label: "Button", default: "Reserve the next drop" },
   { key: "pitch.fine", group: "Reserve card", label: "Fine print", multiline: true,
-    default: "Order by Wed 6 PM · pickup Saturday · bring bottles back for the best price." },
+    default: "Order ahead · pickup at the truck · bring bottles back for the best price." },
   // ── Reserve flow (order-ahead). {cutoff}/{pickup}/{size} are filled in live. ──
   { key: "reserve.kicker", group: "Reserve flow", label: "Kicker", default: "Order Ahead" },
   { key: "reserve.headline", group: "Reserve flow", label: "Headline", multiline: true, default: "Tell us you're coming, we'll brew it to order." },

@@ -6,6 +6,7 @@ import { useAuth } from "./AuthProvider";
 import { useApp } from "./AppProvider";
 import { useRealtimeTable } from "@/lib/realtime";
 import InlineCreate from "./InlineCreate";
+import { SectionHeader } from "@/components/kit";
 
 // LAUNCH READINESS — the go/no-go board. Distinct from milestone progress ("are the deliverables
 // done?"): this is the gating checklist ("is it actually safe to launch?"). Each critical check is
@@ -68,24 +69,23 @@ export default function LaunchReadiness() {
   const crit = rows.filter((r) => r.critical);
   const verdict: "go" | "at-risk" | "no-go" | "none" =
     crit.some((r) => r.status === "blocked") ? "no-go" : crit.some((r) => r.status === "at_risk") ? "at-risk" : crit.length ? "go" : "none";
-  const V = { go: { t: "GO", c: "rdy-go" }, "at-risk": { t: "AT RISK", c: "rdy-atrisk" }, "no-go": { t: "NO-GO", c: "rdy-nogo" }, none: { t: "—", c: "" } }[verdict];
+  const V = { go: { t: "GO", c: "rdy-ok" }, "at-risk": { t: "AT RISK", c: "rdy-warn" }, "no-go": { t: "NO-GO", c: "rdy-bad" }, none: { t: "—", c: "" } }[verdict];
   const readyN = crit.filter((r) => r.status === "ready").length;
   const cd = launch.target_date != null ? daysTo(launch.target_date) : null;
 
   return (
     <div className="rdy">
-      <div className="crew-group">Launch readiness · {launch.emoji ? `${launch.emoji} ` : ""}{launch.title}</div>
-      <div className={`rdy-verdict ${V.c}`}>
-        <div className="rdy-verdict-b">{V.t}</div>
+      <SectionHeader label="Launch readiness" annotation={`${launch.emoji ? `${launch.emoji} ` : ""}${launch.title}`} />
+      <div className="rdy-verdict" style={{ alignItems: "center", marginBottom: 10 }}>
+        <span className={`k-chip rdy-st ${V.c}`} style={{ fontSize: 15, letterSpacing: ".04em", cursor: "default" }}>{V.t}</span>
         <div className="rdy-verdict-sub">{readyN}/{crit.length} critical ready{cd != null ? ` · ${cd > 0 ? `${cd}d out` : cd === 0 ? "today" : `${-cd}d past`}` : ""}</div>
       </div>
       <div className="rdy-list">
         {rows.map((c) => (
           <button key={c.id} type="button" className="rdy-check" onClick={() => cycle(c)} disabled={!isAdmin} title={isAdmin ? "Tap to change status" : undefined}>
-            <span className={`rdy-dot ${ST[c.status].c}`} aria-hidden />
             <span className="rdy-label">{c.label}{!c.critical && <span className="rdy-opt">optional</span>}</span>
             {c.category && <span className="rdy-cat">{c.category}</span>}
-            <span className={`rdy-st ${ST[c.status].c}`}>{ST[c.status].t}</span>
+            <span className={`k-chip rdy-st ${ST[c.status].c}`} style={{ cursor: "inherit" }}>{ST[c.status].t}</span>
           </button>
         ))}
       </div>

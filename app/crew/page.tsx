@@ -10,7 +10,7 @@ import { raiseAlertClient } from "@/lib/clientAlerts";
 import { authedFetch } from "@/lib/authedFetch";
 import { normalizeCategory, type AlertCategory } from "@/lib/alertKinds";
 import { useMyAlerts, type MyFlag } from "@/lib/useMyAlerts";
-import { localToday, etToday, dayKey } from "@/lib/dates";
+import { localToday, etToday, dayKey, relativeDay } from "@/lib/dates";
 import { brewStartOverdue } from "@/lib/brewMath";
 import { useWorkStreams, streamOfCategory } from "@/lib/streams";
 import { useRealtimeTable } from "@/lib/realtime";
@@ -1300,7 +1300,7 @@ function MyDay({ userId, meName, isLeader, canPrep, canBrew }: { userId: string 
           {leadOpen && (
             <div style={{ marginTop: 12 }}>
               {/* GTM definition first — its home is the collapsed chip (Ryan: "GTM -> collapsed chip") */}
-              <GtmCard />
+              <GtmCard onOpenSchedule={() => setSection("now")} onOpenInitiative={() => setSection("command")} />
               <ChiefOfStaff />
               <SmartIntake />
             </div>
@@ -1458,7 +1458,7 @@ function MyTasks({ userId, chip = false }: { userId: string | null; chip?: boole
   // the same pattern the alerts strip uses.
   if (chip) {
     return (
-      <button type="button" className={`alerts-strip${crit || over ? " crit" : ""}`} onClick={() => setSection("day")}>
+      <button type="button" className="alerts-strip taskptr" onClick={() => setSection("day")}>
         <span className="alerts-strip-i" aria-hidden>☑️</span>
         <span className="alerts-strip-t"><b>{tasks.length} task{tasks.length === 1 ? "" : "s"} on your plate</b>{over ? ` · ${over} overdue` : crit ? ` · ${crit} critical` : ""}</span>
         <span className="alerts-strip-go">Open in My Day →</span>
@@ -1468,7 +1468,7 @@ function MyTasks({ userId, chip = false }: { userId: string | null; chip?: boole
 
   return (
     <div className="adm-sec">
-      <div className="sec">My tasks <span className={`adm-pill${crit || over ? " due" : ""}`}>{tasks.length}{over ? ` · ${over} overdue` : crit ? ` · ${crit} critical` : ""}</span></div>
+      <div className="crew-group">My tasks <span className={`adm-pill${crit || over ? " due" : ""}`}>{tasks.length}{over ? ` · ${over} overdue` : crit ? ` · ${crit} critical` : ""}</span></div>
       {sorted.map((t) => (
         <div key={t.id} className={`mytask${t.critical ? " crit" : isOver(t) ? " crit" : t.warn ? " warn" : ""}`}>
           <button type="button" className="task-check" onClick={() => complete(t)} aria-label={`Mark done: ${t.label}`}>
@@ -3070,9 +3070,10 @@ function LiveControl({ compact = false, manage = false }: { compact?: boolean; m
             const live = rows.filter((r) => r.starts_at && r.status !== "done" && !r.completed_at);
             const dated = live.map((r) => new Date(r.starts_at as string)).sort((a, b) => a.getTime() - b.getTime());
             const next = dated.find((d) => d.getTime() > Date.now() - 8 * 3600 * 1000);
-            if (next) return `next · ${next.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}`;
+            // Relative + absolute, so the weekday can't misread as "next Saturday" (relativeDay: This Sat · Jul 18).
+            if (next) return `${relativeDay(next)} · ${next.toLocaleDateString([], { month: "short", day: "numeric" })}`;
             const last = dated[dated.length - 1];
-            return last ? `last · ${last.toLocaleDateString([], { month: "short", day: "numeric" })}` : "undated";
+            return last ? `${relativeDay(last)} · ${last.toLocaleDateString([], { month: "short", day: "numeric" })}` : "undated";
           };
           let idx = -1;
           return groups.map((g) => {

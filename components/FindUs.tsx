@@ -11,7 +11,7 @@ import EmptyState from "@/components/EmptyState";
 import { openDirections } from "@/lib/maps";
 import { supabase } from "@/lib/supabase";
 import { useSiteCopy } from "@/lib/copy";
-import { localToday } from "@/lib/dates";
+import { localToday, relativeDay } from "@/lib/dates";
 import type { LiveStatus, EventRow } from "@/lib/db";
 
 // FIND US — the one answer to "where's GT3?", on the field_ops spine. Stops and events used to
@@ -139,7 +139,16 @@ export default function FindUs() {
   const past = ops.filter((r) => r.kind === "event" && r.day && r.day < today);
   // the hero is the next PLACE TO FIND US — live stop first, else first upcoming stop or event
   const hero = (isLive && upcoming.find((r) => r.id === live?.current_stop_id)) || upcoming[0];
-  const heroWhen = hero ? [whenDay(hero), whenDate(hero)].filter(Boolean).join(" ") : "";
+  // Humanize the hero's "when" (the one "where's the truck next" answer): relativeDay returns an
+  // unambiguous near-term qualifier — "Today" / "This Sat" / "Next Sat" — which we pair with the
+  // numeric date for clarity ("This Sat · 7/18"). Anything past two weeks (or with no date) keeps
+  // the original absolute weekday + M/D exactly as before.
+  const heroRel = hero ? relativeDay(hero.starts_at ?? (hero.day ? `${hero.day}T12:00:00` : "")) : "";
+  const heroWhen = !hero
+    ? ""
+    : /^(Today|Tomorrow|Yesterday|This |Next )/.test(heroRel) || heroRel.endsWith("d ago")
+      ? [heroRel, whenDate(hero)].filter(Boolean).join(" · ")
+      : [whenDay(hero), whenDate(hero)].filter(Boolean).join(" ");
   const heroOpen = hero ? (hero.kind === "stop" ? fmt12(whenTime(hero)) ?? "" : fmt12(hero.start_time) ?? "") : "";
 
   const points: RoutePoint[] = useMemo(() => ops

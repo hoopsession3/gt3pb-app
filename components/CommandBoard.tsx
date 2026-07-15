@@ -8,7 +8,7 @@ import { useRealtimeTable } from "@/lib/realtime";
 import MoneyKpis from "./MoneyKpis";
 import LaunchReadiness from "./LaunchReadiness";
 import { useTaskSheet } from "./TaskSheet";
-import { SectionHeader } from "@/components/kit";
+import { SectionHeader, InfoRow } from "@/components/kit";
 import InlineCreate from "./InlineCreate";
 import Sheet from "@/components/Sheet";
 
@@ -141,30 +141,44 @@ export default function CommandBoard() {
         const late = it.target_date ? daysTo(it.target_date) < 0 : false;
         return (
           <div className="cmd-init" key={it.id}>
-            <div className="cmd-init-h">
-              <b>{it.emoji ? `${it.emoji} ` : ""}{it.title}</b>
-              {it.target_date && <span className={`cmd-cd${late ? " late" : ""}`}>{dnice(it.target_date)} · {cd}</span>}
+            <div className="k-rows">
+              <InfoRow
+                name={<>{it.emoji ? `${it.emoji} ` : ""}{it.title}</>}
+                sub={it.summary || undefined}
+                trailing={it.target_date ? <span className={`cmd-cd${late ? " late" : ""}`}>{dnice(it.target_date)} · {cd}</span> : undefined}
+              />
             </div>
-            {it.summary && <p className="cmd-init-sum">{it.summary}</p>}
             <div className="cmd-prog"><span className="cmd-prog-bar"><span style={{ width: `${pct}%` }} /></span><span className="cmd-prog-n">{doneN}/{ms.length} · {pct}%</span></div>
-            <div className="cmd-miles">
-              {ms.map((m) => {
-                const mlate = !m.done && m.due_on && daysTo(m.due_on) < 0;
-                const ties = links.filter((l) => l.milestone_id === m.id).length;
-                return (
-                  <div key={m.id} className="cmd-mile-wrap">
-                    <button type="button" className={`cmd-mile${m.done ? " done" : ""}`} onClick={() => toggleMile(m)} disabled={!isAdmin} aria-pressed={m.done}>
-                      <span className={`cmd-check${m.done ? " on" : ""}`} aria-hidden>{m.done ? "✓" : ""}</span>
-                      <span className="cmd-mile-t">{m.title}</span>
+            {ms.length > 0 && (
+              <div className="k-rows">
+                {ms.map((m) => {
+                  const mlate = !m.done && m.due_on && daysTo(m.due_on) < 0;
+                  const ties = links.filter((l) => l.milestone_id === m.id).length;
+                  const trailing = (ties > 1 || m.workstream || m.due_on || isAdmin) ? (
+                    <>
                       {ties > 1 && <span className="cmd-tie" title={`Tied to ${ties} initiatives`}>⧉{ties}</span>}
                       {m.workstream && <span className="cmd-ws">{m.workstream}</span>}
                       {m.due_on && <span className={`cmd-mile-due${mlate ? " late" : ""}`}>{dnice(m.due_on)}</span>}
-                    </button>
-                    {isAdmin && <button type="button" className="cmd-mile-mng" onClick={() => setManage(m)} aria-label="Manage milestone">⋯</button>}
-                  </div>
-                );
-              })}
-            </div>
+                      {isAdmin && <button type="button" className="cmd-mile-mng" onClick={() => setManage(m)} aria-label="Manage milestone">⋯</button>}
+                    </>
+                  ) : undefined;
+                  return (
+                    <InfoRow
+                      key={m.id}
+                      name={
+                        <>
+                          <span className={`cmd-check${m.done ? " on" : ""}`} aria-hidden>{m.done ? "✓" : ""}</span>
+                          <span className="cmd-mile-t" style={{ fontWeight: 400, ...(m.done ? { textDecoration: "line-through", color: "var(--cream-m)" } : {}) }}>{m.title}</span>
+                        </>
+                      }
+                      trailing={trailing}
+                      bodyClick={isAdmin ? () => toggleMile(m) : undefined}
+                      ariaLabel={m.title}
+                    />
+                  );
+                })}
+              </div>
+            )}
             {isAdmin && <InlineCreate label="+ Milestone" placeholder="Milestone" className="cmd-add" onCreate={(t) => addMilestone(it.id, t)} />}
           </div>
         );
@@ -177,8 +191,16 @@ export default function CommandBoard() {
       {/* ── This Week ── */}
       <SectionHeader label="This week" annotation="due next 7 days" />
       {wk.shown.length === 0 ? <div className="cmd-empty">Nothing due in the next 7 days.</div> : (
-        <div className="cmd-list">
-          {wk.shown.map((w) => <button type="button" className="cmd-row" style={{ width: "100%", textAlign: "left", cursor: "pointer" }} key={`${w.src}-${w.id}`} onClick={() => openTask(w.id, w.src === "task" ? "event" : "todo")} aria-label={`Open task: ${w.title}`}><span className="cmd-row-t">{w.title}</span><span className="cmd-row-due">{dnice(w.due)}</span></button>)}
+        <div className="k-rows">
+          {wk.shown.map((w) => (
+            <InfoRow
+              key={`${w.src}-${w.id}`}
+              name={w.title}
+              trailing={<span className="cmd-row-due">{dnice(w.due)}</span>}
+              onClick={() => openTask(w.id, w.src === "task" ? "event" : "todo")}
+              ariaLabel={`Open task: ${w.title}`}
+            />
+          ))}
           {wk.more > 0 && <div className="cmd-more">+{wk.more} more</div>}
         </div>
       )}
@@ -186,9 +208,17 @@ export default function CommandBoard() {
       {/* ── Blockers ── */}
       <SectionHeader label="Blockers" annotation="clear these first" />
       {incidents.length === 0 && ov.shown.length === 0 ? <div className="cmd-empty">Nothing blocked. 🟢</div> : (
-        <div className="cmd-list">
-          {incidents.map((i) => <div className="cmd-row blk" key={i.id}><span className="cmd-row-t">🛑 {i.problem}</span></div>)}
-          {ov.shown.map((w) => <button type="button" className="cmd-row blk" style={{ width: "100%", textAlign: "left", cursor: "pointer" }} key={`ov-${w.src}-${w.id}`} onClick={() => openTask(w.id, w.src === "task" ? "event" : "todo")} aria-label={`Open task: ${w.title}`}><span className="cmd-row-t">{w.title}</span><span className="cmd-row-due late">{dnice(w.due)} · overdue</span></button>)}
+        <div className="k-rows">
+          {incidents.map((i) => <InfoRow key={i.id} name={<>🛑 {i.problem}</>} />)}
+          {ov.shown.map((w) => (
+            <InfoRow
+              key={`ov-${w.src}-${w.id}`}
+              name={w.title}
+              trailing={<span className="cmd-row-due late">{dnice(w.due)} · overdue</span>}
+              onClick={() => openTask(w.id, w.src === "task" ? "event" : "todo")}
+              ariaLabel={`Open task: ${w.title}`}
+            />
+          ))}
           {ov.more > 0 && <div className="cmd-more">+{ov.more} more overdue</div>}
         </div>
       )}
@@ -196,8 +226,8 @@ export default function CommandBoard() {
       {/* ── Done this week ── */}
       <SectionHeader label="Done this week" annotation="wrapped" />
       {dn.shown.length === 0 ? <div className="cmd-empty">Nothing wrapped yet this week.</div> : (
-        <div className="cmd-list">
-          {dn.shown.map((w) => <div className="cmd-row done" key={`dn-${w.src}-${w.id}`}><span className="cmd-row-t">{w.title}</span></div>)}
+        <div className="k-rows">
+          {dn.shown.map((w) => <InfoRow key={`dn-${w.src}-${w.id}`} name={<span style={{ textDecoration: "line-through", color: "var(--cream-d)" }}>{w.title}</span>} />)}
           {dn.more > 0 && <div className="cmd-more">+{dn.more} more done</div>}
         </div>
       )}
