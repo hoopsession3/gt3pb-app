@@ -6,6 +6,7 @@ import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import type { Broadcast } from "@/lib/broadcasts";
 import Icon from "@/components/Icon";
+import { InfoRow } from "@/components/kit";
 
 // BROADCAST EDITOR (Settings) — compose an announcement/ad and put it live across the app to everyone.
 // The composer exposes every option: what it says, who sees it, how it looks, an optional call-to-
@@ -89,26 +90,59 @@ export default function BroadcastEditor() {
         <label className="prod-f"><span>Hide after (optional)</span><input type="datetime-local" value={d.ends_at ? d.ends_at.slice(0, 16) : ""} onChange={(e) => set("ends_at", e.target.value ? new Date(e.target.value).toISOString() : null)} /></label>
       </div>
 
-      <div className="prod-actions" style={{ marginTop: 14 }}>
-        {d.id && <button type="button" className="note-arch" onClick={() => setD(BLANK)} disabled={saving}>New</button>}
-        <button type="button" className="note-arch" onClick={() => save(false)} disabled={saving || !d.title.trim()}>Save draft</button>
-        <button type="button" className="note-save" onClick={() => save(true)} disabled={saving || !d.title.trim()}>{saving ? "…" : d.id ? "Update & go live" : "Go live"}</button>
+      {/* The one true .btn-pri on the Settings screen (app/crew/page.tsx, sec==="settings"): going
+          live ships the broadcast app-wide — the most externally-consequential write of any
+          Panel on this screen, same "outward-facing commit" reasoning as Studio's Publish to
+          site / CodesPanel's mint / InviteTeammate's invite. Checked every sibling Panel:
+          SiteCopyEditor/PromoEditor/CopilotDirectory/AiSpend carry no note-save or btn-pri at
+          all; Changelog still has an unmigrated legacy .note-save "Log it" button (out of scope
+          here). OfficeSettings' and FounderDigest's save actions are each the only button on
+          their own small form and would read "likely .btn-pri" in isolation, but Panels open
+          independently (see Panel() below — more than one can be visible at once), so they're
+          kept at .btn-sec to keep this the single one; see the note on each of those buttons.
+          Go live leads the row (flex-wrap added inline) so its full-width block doesn't orphan
+          Save draft/New on a sparse line — same fix Studio's .studio-pub-row applies. Save draft
+          is a real, deliberate write (just not the one that ships it) → .btn-sec. New only
+          resets local form state, no persistence → .btn-ter. */}
+      <div className="prod-actions" style={{ marginTop: 14, flexWrap: "wrap" }}>
+        <button type="button" className="btn-pri" onClick={() => save(true)} disabled={saving || !d.title.trim()}>{saving ? "…" : d.id ? "Update & go live" : "Go live"}</button>
+        <button type="button" className="btn-sec" onClick={() => save(false)} disabled={saving || !d.title.trim()}>Save draft</button>
+        {d.id && <button type="button" className="btn-ter" onClick={() => setD(BLANK)} disabled={saving}>New</button>}
       </div>
 
       {rows.length > 0 && (
         <>
-          <div className="crew-group" style={{ marginTop: 16 }}>All broadcasts</div>
-          <div className="bce-list">
+          {/* "All broadcasts" labels a sublist INSIDE this component, not a top-level page section —
+              .crew-group (mono, uppercase, border-bottom hairline, space-between) is the page-level
+              divider primitive (see this same page's "Owner control room"/"Shoots" dividers, and
+              OrgChart's comment on the "Roster" crew-group in app/crew/page.tsx); reusing it here made
+              this inner sublist read as a second section header competing with the Panel's own title.
+              .insp-lbl is the app's existing internal-sub-header pattern for exactly this situation —
+              a plain label, not another SectionHeader (Studio's "Caption engine"/"Design & publish",
+              BrandKit's "Palette"/"Logos & assets", BrandCalendar's "Unscheduled" backlog label all
+              use it the same way). Rows below are now kit InfoRows: the style-color dot moves into
+              `name` (still its own .bce-dot swatch — no kit equivalent for a per-item color chip),
+              live/draft status is carried by the `live` prop's Live tag (drop the redundant inline
+              "Live" text; keep an explicit "Draft ·" prefix in `meta` when not live, since Draft has
+              no tag counterpart and dropping it silently would lose information), audience/kind →
+              meta, toggle+delete stay their own .bce-toggle/.bce-del buttons in `trailing` (bodyClick
+              on the body zone, not onClick on the row, since trailing holds its own real buttons —
+              same rule RsvpRow/OfficeOrders follow). No data fetching, state, or handlers changed. */}
+          <div className="insp-lbl" style={{ marginTop: 16 }}>All broadcasts</div>
+          <div className="k-rows">
             {rows.map((b) => (
-              <div key={b.id} className={`bce-row${b.active ? " on" : ""}`}>
-                <span className={`bce-dot bcast-${b.style}`} />
-                <button type="button" className="bce-row-main" onClick={() => edit(b)}>
-                  <b>{b.title}</b>
-                  <span>{b.active ? <><Icon name="dot" /> Live</> : "Draft"} · {b.audience === "all" ? "Everyone" : b.audience === "members" ? "Members" : "Staff"}{b.kind === "promo" ? " · Ad" : ""}</span>
-                </button>
-                <button type="button" className={`bce-toggle${b.active ? " on" : ""}`} onClick={() => toggle(b)}>{b.active ? "Take down" : "Go live"}</button>
-                <button type="button" className="bce-del" onClick={() => del(b)} aria-label="Delete"><Icon name="close" /></button>
-              </div>
+              <InfoRow
+                key={b.id}
+                name={<><span className={`bce-dot bcast-${b.style}`} />{b.title}</>}
+                meta={<>{!b.active && "Draft · "}{b.audience === "all" ? "Everyone" : b.audience === "members" ? "Members" : "Staff"}{b.kind === "promo" ? " · Ad" : ""}</>}
+                live={b.active}
+                bodyClick={() => edit(b)}
+                ariaLabel={`${b.title || "Untitled"} — edit`}
+                trailing={<>
+                  <button type="button" className={`bce-toggle${b.active ? " on" : ""}`} onClick={() => toggle(b)}>{b.active ? "Take down" : "Go live"}</button>
+                  <button type="button" className="bce-del" onClick={() => del(b)} aria-label="Delete"><Icon name="close" /></button>
+                </>}
+              />
             ))}
           </div>
         </>

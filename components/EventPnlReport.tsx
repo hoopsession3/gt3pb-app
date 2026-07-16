@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { SectionHeader } from "@/components/kit";
+import { SectionHeader, InfoRow } from "@/components/kit";
 import { fetchEventPnl, type EventPnlRow } from "@/lib/reports";
 import { useOperatorSection } from "./OperatorNav";
 import { useAsyncData } from "@/lib/useAsyncData";
@@ -36,18 +36,36 @@ export default function EventPnlReport() {
           const anyActual = rows.some((r) => r.actual_cents > 0);
           return (
             <div className="rpt-block">
-              {rows.map((r, i) => (
-                <button key={i} type="button" className="rpt-pnl rpt-pnl-link" onClick={() => openEvent(r.id, r.kind)} disabled={!r.id}>
-                  <div className="rpt-pnl-l">
-                    <b>{r.event}{r.id ? <span className="rpt-pnl-go" aria-hidden> ›</span> : null}</b>
-                    <span>{r.orders} orders · {Math.round((1 - r.cogs_pct) * 100)}% gross{r.fixed_cents > 0 ? ` · ${usd(r.fixed_cents)} fixed` : ""}</span>
-                  </div>
-                  <div className="rpt-pnl-r">
-                    <div className="rpt-pnl-rev">{usd(r.actual_cents)}</div>
-                    <div className={`rpt-pnl-m${r.margin_cents >= 0 ? "" : " neg"}`}>{usd(r.margin_cents)} net</div>
-                  </div>
-                </button>
-              ))}
+              {/* Kit InfoRow replaces the ad-hoc .rpt-pnl button: event → name, the tap-through
+                  chevron → nameExtra (still sits right next to the name, only shown when the row
+                  is actually linkable), orders/gross%/fixed → meta. Revenue + net margin stay a
+                  bespoke stacked pair inside trailing — k-tr lays its children out in a row, so
+                  the two numbers that need to stack vertically (as they did before) still need
+                  their own wrapper; .rpt-pnl-r/-rev/-m are unchanged, just relocated. A row with
+                  no linkable id gets no onClick at all — same as the old disabled button: no
+                  handler, no tap cursor, no navigation — so InfoRow renders it as a plain
+                  non-interactive div instead of a button. No data fetching, calculations, or
+                  navigation logic below changed — presentation only. */}
+              <div className="k-rows">
+                {rows.map((r, i) => {
+                  const id = r.id;
+                  return (
+                    <InfoRow
+                      key={i}
+                      name={r.event}
+                      nameExtra={id ? <span className="rpt-pnl-go" aria-hidden>›</span> : null}
+                      meta={`${r.orders} orders · ${Math.round((1 - r.cogs_pct) * 100)}% gross${r.fixed_cents > 0 ? ` · ${usd(r.fixed_cents)} fixed` : ""}`}
+                      trailing={
+                        <div className="rpt-pnl-r">
+                          <div className="rpt-pnl-rev">{usd(r.actual_cents)}</div>
+                          <div className={`rpt-pnl-m${r.margin_cents >= 0 ? "" : " neg"}`}>{usd(r.margin_cents)} net</div>
+                        </div>
+                      }
+                      onClick={id ? () => openEvent(id, r.kind) : undefined}
+                    />
+                  );
+                })}
+              </div>
               <div className="rpt-foot">{anyActual
                 ? "Actual revenue (Square) − COGS − fixed event costs (booth / transport / permit / consumables)."
                 : "Actuals fill in from Square as you sell at each event; costs come from each event's economics."}</div>

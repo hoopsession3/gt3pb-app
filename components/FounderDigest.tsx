@@ -57,7 +57,13 @@ export default function FounderDigest() {
           <button key={c} type="button" className={`fdig-opt${cadence === c ? " on" : ""}`} onClick={() => change(c)} disabled={busy} aria-pressed={cadence === c}>{LABELS[c]}</button>
         ))}
       </div>
-      <button type="button" className="note-save" onClick={sendNow} disabled={sending}>{sending ? "Sending…" : "Send digest now"}</button>
+      {/* .btn-sec, not .btn-pri: on its own this is the only action on the form, but this Panel is
+          a sibling of BroadcastEditor/OfficeSettings on the same Settings screen (app/crew/page.tsx,
+          sec==="settings") — Panels there open independently, so more than one can be visible at
+          once. BroadcastEditor's "Go live" claims the screen's one true .btn-pri (see its comment):
+          publishing app-wide outranks an internal-only digest send. This stays .btn-sec — still a
+          real, deliberate action, just not the screen's single hero. */}
+      <button type="button" className="btn-sec" onClick={sendNow} disabled={sending}>{sending ? "Sending…" : "Send digest now"}</button>
     </div>
   );
 }

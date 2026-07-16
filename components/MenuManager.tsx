@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useApp } from "./AppProvider";
 import { isBlank } from "@/lib/formGuard";
 import { supabase } from "@/lib/supabase";
-import { SectionHeader } from "@/components/kit";
+import { SectionHeader, InfoRow } from "@/components/kit";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 
@@ -53,7 +53,15 @@ export default function MenuManager() {
         <div className="adm-sec">
           <div className="studio-top">
             <SectionHeader label="Menu & products" />
-            <button type="button" className="rdy-run" onClick={create}>+ New item</button>
+            {/* "+New item" just opens a blank draft row — it doesn't commit anything, so it's not
+                the primary action (see ProductRow's Save for that). .btn-sec, same tier Studio.tsx
+                uses for its own deliberate-but-not-committing actions. Kept inside .studio-top
+                (not folded into SectionHeader's own `right` slot) on purpose: when this screen is
+                Panel-wrapped (it always is, via app/crew/page.tsx), the CSS rule
+                `.mpanel-body > .adm-sec > .studio-top > .k-sec{display:none}` hides the dupe
+                SectionHeader title but relies on the button staying a SIBLING of .k-sec, not a
+                child of it — moving the button inside SectionHeader's `right` would hide it too. */}
+            <button type="button" className="btn-sec" onClick={create}>+ New item</button>
           </div>
           <div className="h-sub">The catalog the app charges from — card &amp; cash. Edit every attribute, set each drink&apos;s recipe (the inventory a serving uses), toggle what&apos;s on the menu.</div>
           {products.map((p) => <ProductRow key={p.id} p={p} inv={inv} open={openId === p.id} onToggle={() => setOpenId(openId === p.id ? null : p.id)} onSaved={reload} toast={toast} />)}
@@ -115,20 +123,41 @@ function ProductRow({ p, inv, open, onToggle, onSaved, toast }: { p: Product; in
 
   return (
     <div className={`prod${open ? " open" : ""}`}>
-      <div className="prod-headrow">
-        <button type="button" className="prod-head" onClick={onToggle}>
-          {/* was `p.timing ? undefined : undefined` — both branches identical, so the live timing
-              field never rendered anything. Daypart colors match the customer pillars. */}
-          <span className="prod-dot" data-on={p.timing || undefined} style={{ background: { BEFORE: "#B8902F", DURING: "#3f7d6e", AFTER: "#B82420" }[(p.timing || "").trim().toUpperCase()] }} />
-          <span className="prod-n">{p.name}{!p.active && <span className="prod-off">off</span>}{p.active && p.sold_out && <span className="prod-86tag">SOLD OUT{p.sold_out_at ? ` · ${new Date(p.sold_out_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}</span>}</span>
-          <span className="prod-line">{p.line}</span>
-          <span className="prod-px">${(p.price_cents / 100).toFixed(2)}</span>
-        </button>
-        {p.active && (
-          <button type="button" className={`prod-86btn${p.sold_out ? " on" : ""}`} onClick={toggle86}>
-            {p.sold_out ? "Back on" : "86"}
-          </button>
-        )}
+      {/* Collapsed summary as a kit InfoRow: name (+ the timing dot) on the left; off/sold-out
+          badges as nameExtra; line + price + the 86 quick-toggle grouped as trailing, preserving
+          the original single-line, right-aligned arrangement (.prod-head used margin-left:auto to
+          push line+price to the right of the same row). bodyClick (not onClick) because trailing
+          holds its OWN interactive button (86/Back on) — onClick would wrap the entire row,
+          86-button included, in one outer <button>, nesting buttons and double-firing clicks.
+          Wrapped in .k-rows purely so the existing `.k-rows>.k-row:last-child{border-bottom:0}`
+          rule zeroes this row's border — the closed .prod-headrow never had a divider of its own,
+          and when open, the one hairline between header and form still comes from .prod-body's
+          own border-top below (unchanged), so this avoids a doubled line. */}
+      <div className="k-rows">
+        <InfoRow
+          bodyClick={onToggle}
+          expanded={open}
+          ariaLabel={p.name ? `${p.name} — edit item` : "Edit item"}
+          name={<>
+            {/* was `p.timing ? undefined : undefined` — both branches identical, so the live timing
+                field never rendered anything. Daypart colors match the customer pillars. */}
+            <span className="prod-dot" data-on={p.timing || undefined} style={{ background: { BEFORE: "#B8902F", DURING: "#3f7d6e", AFTER: "#B82420" }[(p.timing || "").trim().toUpperCase()] }} />
+            {p.name}
+          </>}
+          nameExtra={<>
+            {!p.active && <span className="prod-off">off</span>}
+            {p.active && p.sold_out && <span className="prod-86tag">SOLD OUT{p.sold_out_at ? ` · ${new Date(p.sold_out_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}</span>}
+          </>}
+          trailing={<>
+            <span className="prod-line">{p.line}</span>
+            <span className="prod-px">${(p.price_cents / 100).toFixed(2)}</span>
+            {p.active && (
+              <button type="button" className={`prod-86btn${p.sold_out ? " on" : ""}`} onClick={toggle86}>
+                {p.sold_out ? "Back on" : "86"}
+              </button>
+            )}
+          </>}
+        />
       </div>
       {open && (
         <div className="prod-body">
@@ -170,9 +199,17 @@ function ProductRow({ p, inv, open, onToggle, onSaved, toast }: { p: Product; in
             </div>
           </div>
 
-          <div className="prod-actions">
-            <button type="button" className="note-arch" onClick={del}>Delete</button>
-            <button type="button" className="note-save" onClick={save} disabled={isBlank(d.name) || (d.active && !(Number(d.price_cents) > 0))}>Save</button>
+          {/* Save is the one true commit action while this row is open — the parent's openId
+              guarantees at most one ProductRow is ever open at a time, so at most one .btn-pri
+              renders across this whole screen. Delete is destructive/secondary → .btn-ter, same
+              tier Studio.tsx and OfficeOrders.tsx use for Delete/Cancel. .btn-pri is a block,
+              width:100% button; .prod-actions is a shared class (30+ other bespoke forms app-wide
+              reuse it) with no flex-wrap in its CSS, so it's added locally here rather than in
+              globals.css — otherwise Save would be squeezed shoulder-to-shoulder with Delete
+              instead of taking its own full-width row. */}
+          <div className="prod-actions" style={{ flexWrap: "wrap" }}>
+            <button type="button" className="btn-ter" onClick={del}>Delete</button>
+            <button type="button" className="btn-pri" onClick={save} disabled={isBlank(d.name) || (d.active && !(Number(d.price_cents) > 0))}>Save</button>
           </div>
         </div>
       )}

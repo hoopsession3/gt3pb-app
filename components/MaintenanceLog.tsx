@@ -8,6 +8,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
+import { InfoRow } from "@/components/kit";
 
 // MAINTENANCE & AUDITS (Settings) — the owner's record of every audit run on the app: what kind, when,
 // the prompt used, the result/score, a summary, findings, and a link to the artifact. Opens with a
@@ -109,7 +110,10 @@ export default function MaintenanceLog() {
             </div>
 
             {!composing ? (
-              <button type="button" className="mnt-new" onClick={() => { setD(BLANK); setComposing(true); }}>+ Log an audit</button>
+              // Was the bespoke dashed .mnt-new button. It only opens the composer below — it
+              // doesn't commit anything — so it's .btn-sec, same tier as .chg-new in Changelog and
+              // OfficeOrders' "Log delivery" trigger, not .btn-pri.
+              <button type="button" className="btn-sec" onClick={() => { setD(BLANK); setComposing(true); }}>+ Log an audit</button>
             ) : (
               <div className="mnt-form">
                 <div className="prod-grid">
@@ -141,20 +145,34 @@ export default function MaintenanceLog() {
                     <button key={k} type="button" className={`mnt-chip${filter === k ? " on" : ""}`} onClick={() => setFilter(k)}>{l}</button>
                   ))}
                 </div>
+                {/* Each row's header (dot · title · kind/date/cadence/overdue · score · chevron) is
+                    now a kit InfoRow: the status dot leads `name` (same "small marker before the
+                    title" idiom CommandBoard's milestone checkbox uses), kind/date/cadence/overdue
+                    is `meta` (mono, doesn't truncate — safe for this variable-length line), the
+                    score badge + a shared k-caret are `trailing`, and the whole row is one InfoRow
+                    onClick toggling `open` — same whole-row-is-a-button pattern as FindUs' stop
+                    rows. The expanded body (summary/findings/prompt/next-due/artifact link) stays
+                    100% bespoke .mnt-body markup, unchanged: that free text has no maxLength, so
+                    none of it goes through InfoRow's `sub` (.k-rsub truncates to one line) — only
+                    the bounded title (maxLength 160) goes through InfoRow at all. Edit/Delete/Open
+                    artifact now use .btn-ter, matching Studio's Delete button and its external "Open
+                    design"/"View graphic" links; Delete keeps its original right-alignment via an
+                    inline style since .mnt-del's margin-left:auto no longer applies. No data
+                    fetching, state, handlers, or conditions changed — presentation only. */}
                 <div className="mnt-list">
                   {shown.map((a) => {
                     const nd = nextDue(a); const isOpen = open === a.id;
                     return (
                       <div key={a.id} className={`mnt-row st-${a.status}${isOpen ? " open" : ""}`}>
-                        <button type="button" className="mnt-row-h" onClick={() => setOpen(isOpen ? null : a.id)} aria-expanded={isOpen}>
-                          <span className={`mnt-dot st-${a.status}`} />
-                          <span className="mnt-row-x">
-                            <b>{a.title}</b>
-                            <span className="mnt-row-sub">{KIND_LABEL[a.kind] ?? a.kind} · {daysAgo(a.ran_on)}{a.cadence !== "once" ? ` · ${a.cadence}` : ""}{nd?.overdue ? <> · <Icon name="warning" /> overdue</> : ""}</span>
-                          </span>
-                          {a.score != null && <span className={`mnt-score st-${a.status}`}>{a.score}<small>/10</small></span>}
-                          <span className={`mnt-chev${isOpen ? " open" : ""}`} aria-hidden>›</span>
-                        </button>
+                        <div className="k-rows">
+                          <InfoRow
+                            name={<><span className={`mnt-dot st-${a.status}`} />{a.title}</>}
+                            meta={<>{KIND_LABEL[a.kind] ?? a.kind} · {daysAgo(a.ran_on)}{a.cadence !== "once" ? ` · ${a.cadence}` : ""}{nd?.overdue ? <> · <Icon name="warning" /> overdue</> : ""}</>}
+                            trailing={<>{a.score != null && <span className={`mnt-score st-${a.status}`}>{a.score}<small>/10</small></span>}<span className={`k-caret${isOpen ? " open" : ""}`} aria-hidden="true">›</span></>}
+                            onClick={() => setOpen(isOpen ? null : a.id)}
+                            expanded={isOpen}
+                          />
+                        </div>
                         {isOpen && (
                           <div className="mnt-body">
                             {a.summary && <p className="mnt-summary">{a.summary}</p>}
@@ -162,9 +180,9 @@ export default function MaintenanceLog() {
                             {a.prompt && <div className="mnt-field"><span>Prompt</span><p className="mnt-mono">{a.prompt}</p></div>}
                             <div className="mnt-meta">
                               {nd && <span>Next due {nd.due}{nd.overdue ? " (overdue)" : ""}</span>}
-                              {a.artifact_url && <a href={a.artifact_url} target="_blank" rel="noreferrer">Open artifact <Icon name="externalLink" /></a>}
-                              <button type="button" className="mnt-edit" onClick={() => editRow(a)}>Edit</button>
-                              <button type="button" className="mnt-del" onClick={() => del(a)}>Delete</button>
+                              {a.artifact_url && <a href={a.artifact_url} target="_blank" rel="noreferrer" className="btn-ter">Open artifact <Icon name="externalLink" /></a>}
+                              <button type="button" className="btn-ter" onClick={() => editRow(a)}>Edit</button>
+                              <button type="button" className="btn-ter" style={{ marginLeft: "auto" }} onClick={() => del(a)}>Delete</button>
                             </div>
                           </div>
                         )}

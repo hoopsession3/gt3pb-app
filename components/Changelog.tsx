@@ -102,7 +102,10 @@ export default function Changelog() {
       </div>
 
       {isAdmin && (!composing ? (
-        <button type="button" className="chg-new" onClick={() => { setD(BLANK); setComposing(true); }}>+ Log an update</button>
+        // Was the bespoke dashed .chg-new button. It only opens the composer below — it doesn't
+        // commit anything — so it's .btn-sec, same tier as OfficeOrders' "Log delivery" trigger,
+        // not .btn-pri (this screen has no single "ships externally" action to reserve that for).
+        <button type="button" className="btn-sec" onClick={() => { setD(BLANK); setComposing(true); }}>+ Log an update</button>
       ) : (
         <div className="chg-form">
           <label className="prod-f"><span>What shipped</span><input value={d.title} onChange={(e) => set("title", e.target.value)} maxLength={160} placeholder="e.g. Live deal ROI what-if" /></label>
@@ -147,6 +150,15 @@ export default function Changelog() {
               <span className="chg-month-n">{items.length}</span>
               <span className={`chg-chev${open ? " open" : ""}`} aria-hidden>›</span>
             </button>
+            {/* .chg-row deliberately stays bespoke here — evaluated for kit's InfoRow (title/summary
+                as name/sub, area+date as meta) and rejected: InfoRow's `sub` slot (.k-rsub) is
+                single-line — white-space:nowrap + text-overflow:ellipsis — but e.summary is
+                unbounded free text (the composer's textarea above has no maxLength, unlike title's
+                160) inside a max-width:480px app frame. Routing a real summary through `sub` would
+                silently truncate audit content a founder relies on. `meta` doesn't truncate, but its
+                tiny mono label styling is wrong for prose, and using it would also reorder
+                summary/meta from title→summary→meta to title→meta→summary for no real gain. Left
+                the row's content untouched; only chg-new's button tier changed above. */}
             {open && items.map((e) => (
               <div key={e.id} className={`chg-row${e.highlight ? " hl" : ""}`}>
                 <span className="chg-cat" style={{ background: CATS[e.category]?.c || "#888" }}>{CATS[e.category]?.label || e.category}</span>

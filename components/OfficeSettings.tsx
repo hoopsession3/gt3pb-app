@@ -41,7 +41,13 @@ export default function OfficeSettings() {
       <label className="ofset-f"><span>Price per gallon ($)</span><input className="note-in" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value.replace(/[^0-9.]/g, ""))} /></label>
       <label className="ofset-f"><span>Minimum gallons per order</span><input className="note-in" inputMode="numeric" value={min} onChange={(e) => setMin(e.target.value.replace(/\D/g, ""))} /></label>
       <p className="ofset-note">Applies to new office quotes. Booked orders keep their locked-in price. Delivery zones are still code-managed — ask to make those editable next.</p>
-      <button type="button" className="note-save" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save pricing"}</button>
+      {/* .btn-sec, not .btn-pri: on its own this is the only action on this small form, but this
+          Panel is a sibling of BroadcastEditor/FounderDigest on the same Settings screen and Panels
+          there open independently (more than one can be visible at once). BroadcastEditor's
+          "Go live" claims the screen's one true .btn-pri (see its comment); this stays .btn-sec.
+          The two .note-in fields above aren't part of this migration — .btn-pri/.btn-sec/.btn-ter
+          is a documented button-only tier system, there's no corresponding input class to move to. */}
+      <button type="button" className="btn-sec" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save pricing"}</button>
     </div>
   );
 }

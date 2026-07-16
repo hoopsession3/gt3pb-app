@@ -6,6 +6,7 @@ import { useApp } from "./AppProvider";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import { InfoRow } from "@/components/kit";
 
 // SPEND & BUDGET (0209) — the procurement side of Money. Log what the business spends (optionally to a
 // real vendor / event) and track it against a per-category monthly budget. Reads report_spend(); every
@@ -67,26 +68,35 @@ export default function SpendBudget() {
         return (
           <div className="spb">
             <div className="spb-head"><b>{money(rep.total_spent_cents)}</b> spent<span className="spb-sub"> of {money(rep.total_budget_cents)} budget · {rep.month}</span></div>
-            <div className="spb-list">
+            {/* Kit InfoRow replaces the ad-hoc .spb-row/.spb-row-h markup: category → name (a bare
+                inline textTransform:capitalize style stands in for the old .spb-cat rule, since
+                k-nm doesn't capitalize on its own — same fix Studio's version list makes via a
+                scoped CSS rule; done inline here since this pass only touches this file), the
+                spent/budget figure (button ↔ inline edit input, unchanged) → trailing, and the
+                % bar → meta. The bar keeps its exact width%/over-budget logic; it now renders at
+                the body column's width instead of full row bleed, same trade-off every other
+                migrated list in this app already makes for its meta content (e.g. WorkloadBoard's
+                own bar rides InfoRow's trailing). No data, state, or calculations changed below —
+                presentation only. */}
+            <div className="spb-list k-rows">
               {rep.by_category.map((c) => {
                 const pct = c.budget_cents > 0 ? Math.min(100, Math.round((c.spent_cents / c.budget_cents) * 100)) : 0;
                 const over = c.budget_cents > 0 && c.spent_cents > c.budget_cents;
                 return (
-                  <div key={c.category} className="spb-row">
-                    <div className="spb-row-h">
-                      <span className="spb-cat">{c.category}</span>
-                      {editCat === c.category ? (
-                        <input className="spb-bud-in" autoFocus inputMode="decimal" value={editVal}
-                          onChange={(e) => setEditVal(e.target.value.replace(/[^0-9.]/g, ""))}
-                          onBlur={() => saveBudget(c.category)} onKeyDown={(e) => { if (e.key === "Enter") saveBudget(c.category); }} />
-                      ) : (
-                        <button type="button" className="spb-bud" onClick={() => { setEditCat(c.category); setEditVal(c.budget_cents ? String(c.budget_cents / 100) : ""); }}>
-                          {money(c.spent_cents)} / {c.budget_cents ? money(c.budget_cents) : "set budget"}
-                        </button>
-                      )}
-                    </div>
-                    <span className="spb-bar"><span className={over ? "over" : ""} style={{ width: `${c.budget_cents > 0 ? pct : 0}%` }} /></span>
-                  </div>
+                  <InfoRow
+                    key={c.category}
+                    name={<span style={{ textTransform: "capitalize" }}>{c.category}</span>}
+                    trailing={editCat === c.category ? (
+                      <input className="spb-bud-in" autoFocus inputMode="decimal" value={editVal}
+                        onChange={(e) => setEditVal(e.target.value.replace(/[^0-9.]/g, ""))}
+                        onBlur={() => saveBudget(c.category)} onKeyDown={(e) => { if (e.key === "Enter") saveBudget(c.category); }} />
+                    ) : (
+                      <button type="button" className="spb-bud" onClick={() => { setEditCat(c.category); setEditVal(c.budget_cents ? String(c.budget_cents / 100) : ""); }}>
+                        {money(c.spent_cents)} / {c.budget_cents ? money(c.budget_cents) : "set budget"}
+                      </button>
+                    )}
+                    meta={<span className="spb-bar"><span className={over ? "over" : ""} style={{ width: `${c.budget_cents > 0 ? pct : 0}%` }} /></span>}
+                  />
                 );
               })}
             </div>

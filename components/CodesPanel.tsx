@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import { InfoRow } from "@/components/kit";
 
 // DISCOUNT CODES — the owner mints redeemable codes as data (member_benefits, scope='code'). A code
 // is a rule: kind (percent_off | price_override | free_refill) × target (whole order, the straight-
@@ -157,25 +158,39 @@ export default function CodesPanel() {
             <input className="auth-input" value={label} onChange={(e) => setLabel(e.target.value)} placeholder={autoLabel()} aria-label="Label" />
           </label>
           {dupe && codeClean && <p className="codes-warn">{codeClean} already exists.</p>}
-          <button type="button" className="codes-mint" onClick={mint} disabled={saving || !codeClean || dupe}>
+          {/* The one .btn-pri on this screen (Customers → Loyalty & codes): minting is the only
+              action here that writes a new, real, redeemable code — CrmPanel and VipQueue (this
+              panel's siblings under sec==="customers") carry none, so this stays the single one. */}
+          <button type="button" className="btn-pri" onClick={mint} disabled={saving || !codeClean || dupe}>
             {saving ? "Minting…" : `Mint ${codeClean || "code"}`}
           </button>
         </div>
       )}
 
+      {/* Kit InfoRow replaces the ad-hoc .codes-item/.codes-item-main row (code → name, value badge →
+          nameExtra, target → sub). .codes-toggle stays its own bespoke switch, not a .btn-pri/-sec/-ter:
+          it's role="switch"/aria-checked, a binary active/paused STATE control, not a commit action —
+          same treatment PaymentSettings' .pay-toggle and EventCopilot's .oa-toggle already get. Because
+          the toggle is itself an interactive control, the row uses neither onClick nor bodyClick (avoids
+          nesting a button in a button) and just renders as plain, non-interactive InfoRow markup, same as
+          DropOps' pack rows. The per-row dim-when-paused look (was .codes-item.off{opacity:.55}) is kept
+          via inline style on the wrapping div since InfoRow has no className passthrough. No data
+          fetching, state, or toggle/mint logic below changed — presentation only. */}
       <AsyncSection state={board} isEmpty={(data) => data.length === 0} emptyTitle="No codes yet" emptySub="Mint one above." errorTitle="Couldn't load codes">
         {(codeRows) => (
-          <div className="codes-list">
+          <div className="k-rows">
             {codeRows.map((r) => (
-              <div key={r.id} className={`codes-item${r.active ? "" : " off"}`}>
-                <div className="codes-item-main">
-                  <span className="codes-code">{r.code}</span>
-                  <span className="codes-badge">{valueText(r)}</span>
-                  <span className="codes-tgt">{targetText(r)}</span>
-                </div>
-                <button type="button" className={`codes-toggle${r.active ? " on" : ""}`} onClick={() => toggle(r)} role="switch" aria-checked={r.active} aria-label={`${r.code} ${r.active ? "active" : "paused"}`}>
-                  {r.active ? "Active" : "Paused"}
-                </button>
+              <div key={r.id} style={{ opacity: r.active ? 1 : 0.55 }}>
+                <InfoRow
+                  name={<span className="codes-code">{r.code}</span>}
+                  nameExtra={<span className="codes-badge">{valueText(r)}</span>}
+                  sub={targetText(r)}
+                  trailing={
+                    <button type="button" className={`codes-toggle${r.active ? " on" : ""}`} onClick={() => toggle(r)} role="switch" aria-checked={r.active} aria-label={`${r.code} ${r.active ? "active" : "paused"}`}>
+                      {r.active ? "Active" : "Paused"}
+                    </button>
+                  }
+                />
               </div>
             ))}
           </div>

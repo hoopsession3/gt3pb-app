@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useApp } from "@/components/AppProvider";
-import { SectionHeader } from "@/components/kit";
+import { SectionHeader, InfoRow } from "@/components/kit";
 import FieldOpSheet from "@/components/FieldOpSheet";
 import { useAuth, roleOf, LEADERSHIP_ROLES, type Profile } from "@/components/AuthProvider";
 import { raiseAlertClient } from "@/lib/clientAlerts";
@@ -3927,7 +3927,7 @@ function ReservesAdmin() {
 
   return (
     <div className="adm-sec">
-      <SectionHeader label="Reserves" right={<button className="adm-btn" onClick={add}>+ Add</button>} />
+      <SectionHeader label="Reserves" right={<button type="button" className="btn-sec" onClick={add}>+ Add</button>} />
       <AsyncSection
         state={reservesState}
         isEmpty={(rows) => rows.filter((r) => r.status !== "archived").length === 0}
@@ -3941,7 +3941,7 @@ function ReservesAdmin() {
           return (
             <>
               {active.map((r) => (
-                <div className="adm-event" key={r.id}>
+                <div className="adm-member" key={r.id}>
                   <div className="adm-member-top">
                     <input className="auth-input" style={{ fontSize: 16, padding: "9px 11px" }} maxLength={120} defaultValue={r.name} onBlur={(e) => e.target.value !== r.name && update(r.id, { name: e.target.value })} />
                   </div>
@@ -3961,8 +3961,8 @@ function ReservesAdmin() {
                       </select>
                     </label>
                     <label className="adm-check"><input type="checkbox" defaultChecked={r.member_only} onChange={(e) => update(r.id, { member_only: e.target.checked })} />Members</label>
-                    <button className="adm-btn ghost" onClick={() => archive(r.id)}>Archive</button>
-                    <button className="adm-btn ghost" style={{ color: "#e07a76" }} onClick={() => remove(r.id, r.name)}>Delete</button>
+                    <button type="button" className="btn-ter" onClick={() => archive(r.id)}>Archive</button>
+                    <button type="button" className="btn-ter" style={{ color: "#e07a76" }} onClick={() => remove(r.id, r.name)}>Delete</button>
                   </div>
                 </div>
               ))}
@@ -4025,18 +4025,19 @@ function Subscribers() {
               {active.length > 0 && <span className="adm-pill">{active.length} active</span>}
               {dueSoon > 0 && <span className="adm-pill due">{dueSoon} due soon</span>}
             </>} />
-            {ordered.map((s) => {
-              const r = renew(s);
-              return (
-                <div className="adm-member" key={s.id}>
-                  <div className="adm-member-top">
-                    <b>{names[s.user_id] ?? "Member"}</b>
-                    <span className={`adm-substat ${s.status}`}>{s.status.replace("_", " ")}</span>
-                  </div>
-                  <div className={`meta sub-renew ${r.cls}`}>{r.text}</div>
-                </div>
-              );
-            })}
+            <div className="k-rows">
+              {ordered.map((s) => {
+                const r = renew(s);
+                return (
+                  <InfoRow
+                    key={s.id}
+                    name={names[s.user_id] ?? "Member"}
+                    nameExtra={<span className={`adm-substat ${s.status}`}>{s.status.replace("_", " ")}</span>}
+                    meta={<span className={`sub-renew ${r.cls}`}>{r.text}</span>}
+                  />
+                );
+              })}
+            </div>
           </div>
         );
       }}
@@ -4823,15 +4824,16 @@ function SubInterest() {
           <div className="adm-sec">
             <SectionHeader label="Subscription interest" right={<span className="adm-pill">{rows.length}</span>} />
             <div className="meta" style={{ marginBottom: 10 }}>6-pack · {byPack("6")} &nbsp;|&nbsp; 12-pack · {byPack("12")} &nbsp;|&nbsp; 18-pack · {byPack("18")}</div>
-            {rows.map((r, i) => (
-              <div className="adm-member" key={i}>
-                <div className="adm-member-top">
-                  <b>{r.email ?? "—"}</b>
-                  <span className="adm-substat active">{r.pack_size ? `${r.pack_size}-pack` : "—"}</span>
-                </div>
-                <div className="meta">{new Date(r.created_at).toLocaleDateString([], { month: "short", day: "numeric" })}</div>
-              </div>
-            ))}
+            <div className="k-rows">
+              {rows.map((r, i) => (
+                <InfoRow
+                  key={i}
+                  name={r.email ?? "—"}
+                  nameExtra={<span className="adm-substat active">{r.pack_size ? `${r.pack_size}-pack` : "—"}</span>}
+                  meta={new Date(r.created_at).toLocaleDateString([], { month: "short", day: "numeric" })}
+                />
+              ))}
+            </div>
           </div>
         );
       }}
@@ -4874,17 +4876,18 @@ function OrdersHistory() {
             <SectionHeader label="Order history" right={done > 0 ? <span className="adm-pill">{done} completed</span> : undefined} />
             <input className="adm-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name · order # · item · amount" aria-label="Search order history" />
             {term && <div className="h-sub" style={{ margin: "2px 2px 10px" }}>{shown.length} match{shown.length === 1 ? "" : "es"}</div>}
-            {shown.map((o) => (
-              <div className="adm-member" key={o.id}>
-                <div className="adm-member-top">
-                  <b>{o.customer ?? "Guest"}</b>
-                  <span className={`adm-substat ${o.status === "void" ? "past_due" : "active"}`}>{o.status}</span>
-                </div>
-                <div className="meta">{groupItems(o.items).map((g) => `${g.qty > 1 ? g.qty + "× " : ""}${DRINKS[g.id as DrinkId]?.n ?? g.id}`).join(" · ")} · ${(o.total_cents / 100).toFixed(2)} · {new Date(o.status_changed_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>
-              </div>
-            ))}
+            <div className="k-rows">
+              {shown.map((o) => (
+                <InfoRow
+                  key={o.id}
+                  name={o.customer ?? "Guest"}
+                  nameExtra={<span className={`adm-substat ${o.status === "void" ? "past_due" : "active"}`}>{o.status}</span>}
+                  meta={<>{groupItems(o.items).map((g) => `${g.qty > 1 ? g.qty + "× " : ""}${DRINKS[g.id as DrinkId]?.n ?? g.id}`).join(" · ")} · ${(o.total_cents / 100).toFixed(2)} · {new Date(o.status_changed_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</>}
+                />
+              ))}
+            </div>
             {rows.length === 0 && <EmptyState title="No completed orders yet" sub="They appear here after pickup." />}
-            {rows.length > 0 && shown.length === 0 && <div className="h-sub">No orders match &ldquo;{q.trim()}&rdquo;.</div>}
+            {rows.length > 0 && shown.length === 0 && <EmptyState title={`No matches for “${q.trim()}”`} sub="Try a different name, order #, item, or amount." />}
           </div>
         );
       }}
@@ -5410,10 +5413,10 @@ function VendorPicker({ vendors, vendorId, onLink, onCreated, onPickLocation }: 
 // ───────────────────────── section metadata (shared by header + the guide) ─────────────────────────
 // Each section = one job at one moment. LABEL names it, WHEN says when to reach for it (header pill),
 // SUB is the one-liner, MORE explains it, INSIDE lists what lives there. Order = the shift timeline.
-const SEC_LABEL: Record<OpSection, string> = { day: "My Day", now: "Live Ops", ask: "Ask GT3", command: "Command", prep: "Readiness", plan: "Plan", pipeline: "Pipeline", studio: "Studio", brew: "Brew", garage: "Assets", goals: "Goals", driver: "Delivery", stops: "Route", notes: "Notes", money: "Money", customers: "Customers", team: "Team", settings: "Settings", audit: "Audit" };
+const SEC_LABEL: Record<OpSection, string> = { day: "My Day", now: "Live Ops", ask: "Ask GT3", command: "Command", prep: "Readiness", plan: "Plan", pipeline: "Pipeline", studio: "Studio", brew: "Brew", garage: "Assets", goals: "Goals", driver: "Delivery", stops: "Route", notes: "Notes", money: "Money", customers: "Customers", team: "Team", settings: "Settings" };
 const SEC_WHEN: Record<OpSection, string> = {
   day: "Start of shift", now: "During service", ask: "When you're stuck", command: "Are we on track?", prep: "Before the event",
-  plan: "Booking ahead", pipeline: "Working the leads", studio: "Promoting a drop", brew: "Production days", garage: "Assets & stock", goals: "Steering the quarter", driver: "Delivery days", stops: "Route planning", notes: "Any time", money: "The books", customers: "Your regulars", team: "People & roles", settings: "Managing the app", audit: "App health checks",
+  plan: "Booking ahead", pipeline: "Working the leads", studio: "Promoting a drop", brew: "Production days", garage: "Assets & stock", goals: "Steering the quarter", driver: "Delivery days", stops: "Route planning", notes: "Any time", money: "The books", customers: "Your regulars", team: "People & roles", settings: "Managing the app",
 };
 const SEC_SUB: Record<OpSection, string> = {
   day: "Your tasks, flags, needs-you & what's on today.",
@@ -5434,7 +5437,6 @@ const SEC_SUB: Record<OpSection, string> = {
   customers: "Every customer — orders, loyalty & contact info.",
   team: "People, roles, access & training.",
   settings: "Copy, pricing, promos & codes — the owner control room.",
-  audit: "Every audit run on the app — scored, dated & tracked for re-run.",
 };
 const SEC_MORE: Record<OpSection, string> = {
   day: "Your personal launchpad — the console's one glance screen. Everything assigned to you, everything flagged for your attention, and (for leadership) the needs-you list: booking replies, past-due team tasks and restock lows.",
@@ -5454,8 +5456,7 @@ const SEC_MORE: Record<OpSection, string> = {
   customers: "Your customer book. Every person who's ordered — cup, pickup or delivery, with or without an account — with their history, loyalty and contact info in one place.",
   team: "Your people. Add crew, set roles and access, and manage training — who can see and do what.",
   ask: "Your pocket brain. Ask anything about recipes, the why, gear, stock or how-to and get an answer from the GT3 playbook — from any screen.",
-  settings: "The owner control room — everything you can change without a developer. The wording guests read (copy) lives here, plus office-delivery pricing, and a map straight to brand, payments, menu, discount codes and roles. It also holds “What we've built” — the running changelog of every improvement shipped, categorized so anyone can see the whole story of how GT3 got built. Edits go live instantly, no deploy.",
-  audit: "The app's audit trail — every review run on it (security, privacy, performance, accessibility, UI cohesion, data), with a score, the date it ran, the prompt used, and when it's due to run again. A health strip leads (average score · what's overdue · last run); log a new audit any time you run one.",
+  settings: "The owner control room — everything you can change without a developer. The wording guests read (copy) lives here, plus office-delivery pricing, and a map straight to brand, payments, menu, discount codes and roles. It also holds “What we've built” — the running changelog of every improvement shipped, categorized so anyone can see the whole story of how GT3 got built — and the app's audit trail: every review run on it (security, privacy, performance, accessibility, UI cohesion, data), scored, dated and tracked for its next re-run. Edits go live instantly, no deploy.",
 };
 const SEC_INSIDE: Record<OpSection, string[]> = {
   day: ["Your open tasks & due dates", "Alerts flagged for you — with discussion threads", "Needs you (leadership): booking replies, past-due tasks, restock", "What's on the calendar today", "Day-of brief — dress code & call time"],
@@ -5475,8 +5476,7 @@ const SEC_INSIDE: Record<OpSection, string[]> = {
   money: ["Checkout & payments — card status + the pay-at-pickup toggle (governs cup, reserve & delivery)", "Sales · snapshot · per-event P&L", "Product economics & COGS", "Membership plans & subscribers", "Order history", "The Playbook (/playbook, owners) — every growth play + where its numbers land here", "Reserve drops — configure the limited drops"],
   team: ["Staff roster", "Roles & permissions", "Training & academy", "Manager approvals"],
   ask: ["Recipes & the why", "Gear & stock how-to", "The GT3 playbook"],
-  settings: ["Copy & wording — every line guests read", "Office delivery pricing & minimum", "What we've built — the categorized changelog of every improvement shipped", "A map to brand, payments, menu, codes & roles"],
-  audit: ["Health strip — average score, what's overdue, last run", "The full audit log — security, privacy, performance, a11y, cohesion, data", "Log an audit — score, date, prompt, findings & artifact link", "Re-run cadence & overdue flags"],
+  settings: ["Copy & wording — every line guests read", "Office delivery pricing & minimum", "What we've built — the categorized changelog of every improvement shipped", "Audit & maintenance — every review run, scored, dated & tracked for re-run", "A map to brand, payments, menu, codes & roles"],
 };
 
 // The interactive "when to use what" guide — every section the role can reach, each expandable to a
@@ -5822,10 +5822,15 @@ export default function AdminPage() {
           {isAdmin && <Panel id="set-spend" title="AI spend · what your copilots cost"><AiSpend /></Panel>}
           {isAdmin && <Panel id="set-digest" title="Founder digest · the daily business roll-up"><FounderDigest /></Panel>}
           <Panel id="set-changelog" title="What we've built · changelog"><Changelog /></Panel>
+          {isAdmin && (
+            <Panel id="set-audit" title="Audit & maintenance · every review run, scored &amp; dated">
+              <p className="set-lead">Every review run on the app — security, privacy, performance, accessibility, UI cohesion, data — with a score, the date, the prompt used, and when it's due to run again. Log a new one any time you run a check.</p>
+              <MaintenanceLog />
+            </Panel>
+          )}
           <div className="crew-group">More controls</div>
           <div className="set-map">
             {([
-              ...(isAdmin ? [{ t: "Audit & maintenance", s: "Every audit run — scores, dates, what's overdue", to: "audit" as OpSection }] : []),
               { t: "Brand, splash & reviews", s: "Logo, kit, the pop-up, testimonials", to: "studio" },
               { t: "Checkout, payments & flags", s: "Pay-at-pickup · subscriptions · lead time", to: "money" },
               { t: "Menu, products & pricing", s: "Drinks, packs, COGS, plans", to: "money" },
@@ -5838,17 +5843,6 @@ export default function AdminPage() {
               </button>
             ))}
           </div>
-        </>
-      )}
-
-      {sec === "audit" && isAdmin && (
-        <>
-          {/* The owner's audit trail — every review run on the app (security, privacy, performance,
-              accessibility, cohesion, data), scored, dated, and tracked for its next re-run. Same
-              glance-first shape as Money: the health strip leads, then the log. */}
-          <div className="crew-group">App health · audit trail</div>
-          <p className="set-lead">Every audit run on the app — security, privacy, performance, accessibility, UI cohesion, data — with scores, dates, and what&apos;s due for a re-run. Log a new one any time you run a check.</p>
-          <MaintenanceLog />
         </>
       )}
 
