@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import AccountPill from "@/components/AccountPill";
+import EditCopyPill from "@/components/EditCopyPill";
 import Watermark from "@/components/Watermark";
 import { Masthead, ClosingBeat } from "@/components/kit";
 import { useSiteCopy } from "@/lib/copy";
@@ -44,7 +45,7 @@ export default function CraftScreen() {
   return (
     <section className="screen craft" id="s-craft">
       <Watermark variant="landing" />
-      <Masthead eyebrow={t("craft.eye")} right={<AccountPill />} />
+      <Masthead eyebrow={t("craft.eye")} right={<div className="mast-right"><EditCopyPill group="Craft page" /><AccountPill /></div>} />
 
       {/* HERO — art & chemistry, the molecule */}
       <header className="craft-hero">

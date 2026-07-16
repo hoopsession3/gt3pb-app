@@ -15,6 +15,12 @@ export const COPY_META: CopyMeta[] = [
   { key: "board.welcome", group: "Team board", label: "Crew welcome line", multiline: true,
     default: "Precision in every pour — let's make today one worth remembering." },
   // ── Home · signed-out (Arrival) ──
+  // 2026-07-16: home.statement / home.principles / home.cta are currently DEAD — no component
+  // reads them (confirmed by search; StorefrontStory.tsx, the actual guest arrival block on
+  // /reserve and /delivery, uses reserve.order_bar for its button and has no hero-statement or
+  // principles-line slot at all). Editing these three does nothing visible. Left in place rather
+  // than deleted since they read like an intended arrival hero that never got wired up — flagging
+  // here instead of silently dropping them; wiring them up or removing them is a real product call.
   { key: "home.statement", group: "Home · signed-out", label: "Hero statement", multiline: true,
     default: "We draw the coffee cold, blend the hydration from whole coconut, and simmer the broth slow — the long way, on purpose — then make every cup the moment you order it." },
   { key: "home.principles", group: "Home · signed-out", label: "Principles line",
@@ -140,6 +146,43 @@ export const COPY_META: CopyMeta[] = [
 
 export const COPY_DEFAULTS: Record<string, string> = Object.fromEntries(COPY_META.map((m) => [m.key, m.default]));
 export const copyDefault = (key: string): string => COPY_DEFAULTS[key] ?? "";
+
+// ── The live-copy edit bridge (2026-07-16) ──────────────────────────────────────────────────────
+// Two one-tap jumps between where copy is EDITED (SiteCopyEditor, /crew Settings) and where it's
+// SEEN (the live storefront): "View live →" in the editor, and an owner-only Edit pill on the live
+// page. Both directions key off the same CopyMeta.group string, so they can't drift apart from
+// each other — only one has to independently track where a group actually renders.
+
+// group → a stable DOM id, used as BOTH the SiteCopyEditor group's anchor id AND the "a=" deep-link
+// param the crew console scrolls to. Derived from the group name so a new group never needs a
+// second place to register its slug.
+export function copyGroupAnchor(group: string): string {
+  return "sc-" + group.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
+
+// group → the live page that actually renders it. Explicit per group (unlike the anchor, a route
+// can't be derived from the name); the per-drink "Menu · <name>" groups all fall through to /menu.
+// "Home · signed-out" points at /reserve, NOT /, because that's where its live keys actually render
+// (guest arrival is StorefrontStory on /reserve + /delivery — see the dead-key note above; / is the
+// signed-in member home and shows none of this group).
+const COPY_GROUP_ROUTE: Record<string, string> = {
+  "Team board": "/crew?s=day",
+  "Home · signed-out": "/reserve",
+  "Home · signed-in": "/",
+  "Home · pillars": "/reserve",
+  "Member card": "/",
+  "Craft page": "/craft",
+  "Reserve card": "/",
+  "Reserve flow": "/reserve",
+  "Menu": "/menu",
+  "Menu · sections": "/menu",
+  "Truck": "/truck",
+};
+export function copyGroupRoute(group: string): string {
+  if (COPY_GROUP_ROUTE[group]) return COPY_GROUP_ROUTE[group];
+  if (group.startsWith("Menu")) return "/menu"; // per-drink groups, e.g. "Menu · Cold Brew"
+  return "/";
+}
 
 // Client hook: load overrides once, resolve default-or-override. Returns a stable t(key) function.
 // Falls back to defaults if Supabase isn't configured or the row doesn't exist.

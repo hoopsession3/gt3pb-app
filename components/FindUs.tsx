@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AccountPill from "@/components/AccountPill";
+import EditCopyPill from "@/components/EditCopyPill";
 import { Masthead, SectionHeader, InfoRow, ClosingBeat } from "@/components/kit";
 import { RsvpRow } from "@/components/RsvpRow";
 import RouteMap, { type RoutePoint } from "@/components/RouteMap";
@@ -198,7 +199,7 @@ export default function FindUs() {
       <Masthead
         eyebrow={isLive ? "Live now" : hero?.kind === "event" ? "Next event" : "Next stop"}
         live={isLive}
-        right={<AccountPill />}
+        right={<div className="mast-right"><EditCopyPill group="Truck" /><AccountPill /></div>}
       />
 
       <h1 className="k-title lg">{hero?.name ?? (board.status === "error" ? "Couldn't load" : board.status === "ready" ? "No stops yet" : "…")}</h1>

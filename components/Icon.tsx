@@ -26,7 +26,9 @@ export type IconName =
   // dingbat replacements (✓ → ✕ ↗ ★ ▸ ○●) — highest-frequency typographic icon-substitutes
   | "check" | "arrowRight" | "close" | "chevronRight" | "externalLink" | "star" | "dot" | "dotOutline"
   // small utility set, cheap to include, comes up constantly in retrofit work
-  | "plus" | "info" | "search" | "more";
+  | "plus" | "info" | "search" | "more"
+  // owner-only "edit this" affordance (2026-07-16, the live-copy edit bridge)
+  | "edit";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   // = OperatorNav ICONS.studio / STREAM_ICONS.brand (reused verbatim — same "AI/brand moment" glyph)
@@ -74,6 +76,8 @@ const PATHS: Record<IconName, React.ReactNode> = {
   search: <><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></>,
   // = OperatorNav STREAM_ICONS.more
   more: <><circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" /></>,
+  // simple pencil — the owner-only "edit this on the live page" affordance
+  edit: <><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></>,
 };
 
 export function Icon({

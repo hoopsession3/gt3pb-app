@@ -1,6 +1,7 @@
 "use client";
 
 import AccountPill from "@/components/AccountPill";
+import EditCopyPill from "@/components/EditCopyPill";
 import Watermark from "@/components/Watermark";
 import { Masthead, ClosingBeat } from "@/components/kit";
 import OrderFunnel from "@/components/OrderFunnel";
@@ -14,7 +15,7 @@ export default function ReserveScreen() {
   return (
     <section className="screen" id="s-reserve">
       <Watermark variant="landing" />
-      <Masthead eyebrow="Order ahead" right={<AccountPill />} />
+      <Masthead eyebrow="Order ahead" right={<div className="mast-right"><EditCopyPill group="Reserve flow" /><AccountPill /></div>} />
       <Reserves />
       <OrderFunnel initialMode="pickup" />
       <StorefrontStory />

@@ -5534,13 +5534,17 @@ function SectionGuide({ allowed, current, onGo, onClose }: { allowed: OpSection[
 
 // Collapsible panel — tames a long section into tidy, tappable cards. Remembers open/closed per id,
 // and hides the wrapped panel's own title (the Panel supplies it) while keeping its actions.
+// `id` was only ever used internally (the storeKey) and never landed on the actual DOM node — every
+// scrollToAnchor("pay")-style deep link into a Panel was silently a no-op, getElementById found
+// nothing. Found while wiring up the settings-card anchors and the live-copy edit bridge (7/16);
+// fixed here since both depend on it.
 function Panel({ title, id, defaultOpen = false, children }: { title: string; id: string; defaultOpen?: boolean; children: ReactNode }) {
   const storeKey = `gt3-mpanel-${id}`;
   const [open, setOpen] = useState(defaultOpen);
   useEffect(() => { try { const v = localStorage.getItem(storeKey); if (v !== null) setOpen(v === "1"); } catch { /* ignore */ } }, [storeKey]);
   const toggle = () => setOpen((o) => { const n = !o; try { localStorage.setItem(storeKey, n ? "1" : "0"); } catch { /* ignore */ } return n; });
   return (
-    <section className={`mpanel${open ? " open" : ""}`}>
+    <section id={id} className={`mpanel${open ? " open" : ""}`} style={{ scrollMarginTop: 16 }}>
       <button type="button" className="mpanel-h" onClick={toggle} aria-expanded={open}>
         <span className="mpanel-t">{title}</span>
         <span className="mpanel-chev" aria-hidden="true">›</span>
@@ -5579,6 +5583,25 @@ export default function AdminPage() {
       if (!localStorage.getItem("gt3-guide-seen")) { localStorage.setItem("gt3-guide-seen", "1"); setGuideOpen(true); }
     } catch { /* ignore */ }
   }, []);
+  // Cross-route deep link: /crew?s=settings&a=set-copy (or a specific copy group, e.g. sc-craft-page
+  // from the owner-only Edit pill on a live page) lands on the right SECTION via
+  // OperatorSectionProvider's own ?s= hydration; this consumes the matching ?a= once that section has
+  // actually mounted, via the same scrollToAnchor alert links already use. Own ref (not state) so it
+  // fires once per page load and never re-triggers on an in-app section change afterward.
+  const consumedAnchorRef = useRef(false);
+  useEffect(() => {
+    if (consumedAnchorRef.current) return;
+    let a: string | null = null;
+    try { a = new URL(window.location.href).searchParams.get("a"); } catch { /* ignore */ }
+    if (!a) return;
+    consumedAnchorRef.current = true;
+    scrollToAnchor(a);
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.delete("a");
+      window.history.replaceState(window.history.state, "", u.pathname + u.search);
+    } catch { /* ignore */ }
+  }, [sec]);
   // The header 🔔 opens the ONE inbox (your flags + the needs-you queue). Any screen can summon it
   // (the My Day pointer, the Now strip) via the gt3-open-inbox event; navigating a section closes it.
   useEffect(() => {
@@ -5832,12 +5855,23 @@ export default function AdminPage() {
           <div className="set-map">
             {([
               { t: "Brand, splash & reviews", s: "Logo, kit, the pop-up, testimonials", to: "studio" },
-              { t: "Checkout, payments & flags", s: "Pay-at-pickup · subscriptions · lead time", to: "money" },
-              { t: "Menu, products & pricing", s: "Drinks, packs, COGS, plans", to: "money" },
+              // These two used to both just say to: "money" with no anchor — landing on the top of
+              // Money (KPIs) either way, so "Menu, products & pricing" silently took you to the same
+              // place as "Checkout, payments & flags" and you scrolled to find what you actually
+              // wanted. Same jump-to-anchor mechanism AlertsInbox already uses (scrollToAnchor).
+              { t: "Checkout, payments & flags", s: "Pay-at-pickup · subscriptions · lead time", to: "money", anchor: "pay" },
+              { t: "Menu, products & pricing", s: "Drinks, packs, COGS, plans", to: "money", anchor: "menu" },
               { t: "Discount codes", s: "Mint & manage codes", to: "customers" },
               { t: "Team & roles", s: "Who can do what", to: "team" },
-            ] as { t: string; s: string; to: OpSection }[]).map((r) => (
-              <button key={r.t} type="button" className="set-card" onClick={() => setSection(r.to)}>
+            ] as { t: string; s: string; to: OpSection; anchor?: string }[]).map((r) => (
+              <button key={r.t} type="button" className="set-card" onClick={() => {
+                // Force the target panel open too, not just scrolled-to — "menu" has no defaultOpen,
+                // so without this you'd land on its (correct, but collapsed) header and still need an
+                // extra tap. Same storeKey Panel itself writes on a manual toggle.
+                if (r.anchor) { try { localStorage.setItem(`gt3-mpanel-${r.anchor}`, "1"); } catch { /* ignore */ } }
+                setSection(r.to);
+                scrollToAnchor(r.anchor);
+              }}>
                 <span className="set-card-x"><b>{r.t}</b><span>{r.s}</span></span>
                 <span className="set-card-c" aria-hidden>›</span>
               </button>

@@ -4,10 +4,11 @@ import { useCallback, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
-import { COPY_META } from "@/lib/copy";
+import { COPY_META, copyGroupAnchor, copyGroupRoute } from "@/lib/copy";
 import { SectionHeader } from "@/components/kit";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import Icon from "@/components/Icon";
 
 // SITE COPY EDITOR — owners/crews edit the storefront's front-end text from inside the app. Each
 // editable string shows its current value (override or default); Save writes an override, Reset
@@ -72,8 +73,16 @@ export default function SiteCopyEditor() {
           <SectionHeader label="Front-end copy" />
           <div className="h-sub" style={{ margin: "0 2px 12px" }}>Edit the words on the storefront. Saves go live immediately; Reset returns a line to its default.</div>
           {Object.entries(groups).map(([group, items]) => (
-            <div key={group} className="sc-group">
-              <div className="sc-group-h">{group}</div>
+            <div key={group} id={copyGroupAnchor(group)} className="sc-group">
+              <div className="sc-group-h">
+                <span>{group}</span>
+                {/* Ryan's ask, 7/16: "click the section I'm editing, see what it looks like" — jumps
+                    to the live page that actually renders this group's copy. New tab so an unsaved
+                    draft in this editor isn't lost by navigating away from it. */}
+                <a className="sc-view-live" href={copyGroupRoute(group)} target="_blank" rel="noopener noreferrer">
+                  View live <Icon name="externalLink" size={13} />
+                </a>
+              </div>
               {items.map((m) => {
                 const overridden = over[m.key] !== undefined;
                 return (

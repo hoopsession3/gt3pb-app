@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import AccountPill from "@/components/AccountPill";
+import EditCopyPill from "@/components/EditCopyPill";
 import Watermark from "@/components/Watermark";
 import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
 import { useSiteCopy } from "@/lib/copy";
@@ -48,7 +49,7 @@ export default function MenuScreen() {
   return (
     <section className="screen menu" id="s-menu">
       <Watermark variant="menu" />
-      <Masthead tone="light" eyebrow="The Menu" right={<AccountPill />} />
+      <Masthead tone="light" eyebrow="The Menu" right={<div className="mast-right"><EditCopyPill group="Menu" /><AccountPill /></div>} />
 
       <p className="mast-stmt">{t("menu.statement")}</p>
       <div className="mast-order">{t("menu.order_line")}</div>

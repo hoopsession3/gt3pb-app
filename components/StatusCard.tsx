@@ -5,6 +5,7 @@ import { useAuth } from "./AuthProvider";
 import { useApp } from "./AppProvider";
 import Sheet from "./Sheet";
 import Icon from "@/components/Icon";
+import EditCopyPill from "@/components/EditCopyPill";
 import { supabase } from "@/lib/supabase";
 import { uploadToBucket } from "@/lib/uploads";
 import { useSiteCopy } from "@/lib/copy";
@@ -329,7 +330,7 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
   if (!open) return null;
   return (
     <Sheet open onClose={onClose} label="Member card & status" className="status-lux"
-      header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Your member card &amp; status</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close"><Icon name="close" /></button></div>}
+      header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Your member card &amp; status</b><span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}><EditCopyPill group="Member card" /><button type="button" className="qd-x" onClick={onClose} aria-label="Close"><Icon name="close" /></button></span></div>}
       footer={<button type="button" className="status-share" onClick={share} disabled={!ready}>Share your status <Icon name="externalLink" /></button>}>
 
       {founding && <div className="fc-founding" role="status">{t("card.founding_thanks")}</div>}
