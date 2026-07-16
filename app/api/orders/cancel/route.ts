@@ -81,8 +81,13 @@ export async function POST(req: Request) {
     // Confirm to the customer on every channel — the missing "email or text about my order being
     // canceled." Phone (pickup/delivery rows carry it) + account email, both best-effort.
     const email = await accountEmail(user.id);
+    // Was worded as a done deal with a concrete timeline ("your refund is on the way... in a few
+    // business days") — but nothing in this path actually calls Square to issue a refund; it only
+    // queues a staff alert ("refund it in Square"). If that alert gets buried in a busy inbox, the
+    // system has no follow-up, no retry, and had just told the customer something it can't enforce.
+    // Say what's actually true instead of a promise this route can't keep.
     const refundLine = info.paid
-      ? ` You paid ${money(info.total_cents)} — your refund is on the way and posts to your card in a few business days.`
+      ? ` You paid ${money(info.total_cents)} — we've flagged it for a refund and the crew will process it. If you don't see it on your card within a few business days, reach out and we'll sort it.`
       : " Nothing was charged.";
     await notifyCustomer({
       phone: info.phone,

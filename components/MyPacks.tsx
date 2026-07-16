@@ -115,8 +115,10 @@ export default function MyPacks({ onChange, refreshKey, collapsible }: { onChang
   const cancel = async (p: MyPack) => {
     if (!supabase || busy) return;
     const day = packDayLabel(p);
+    // "Will follow shortly" overpromised a timeline this flow doesn't actually enforce — canceling
+    // only flags it for a staff-processed refund, same fix as /api/orders/cancel's customer message.
     const msg = p.paid
-      ? `Cancel your ${p.size}-pack for ${day}?\n\nYou paid ${dollars(p.total_cents / 100)} — your refund will follow shortly.`
+      ? `Cancel your ${p.size}-pack for ${day}?\n\nYou paid ${dollars(p.total_cents / 100)} — we'll flag it for a refund and the crew will process it.`
       : `Cancel your ${p.size}-pack for ${day}? Nothing was charged.`;
     if (typeof window !== "undefined" && !window.confirm(msg)) return;
     setBusy(p.id);
@@ -127,7 +129,7 @@ export default function MyPacks({ onChange, refreshKey, collapsible }: { onChang
     }).then((r) => r.ok ? r.json() : null).then((d) => d?.ok === true).catch(() => false);
     setBusy(null);
     if (!ok) { toast("Couldn't cancel — it may already be picked up. Ask at the truck.", "error"); load(); return; }
-    toast(p.paid ? "Canceled — refund on the way" : "Reservation canceled");
+    toast(p.paid ? "Canceled — flagged for a refund" : "Reservation canceled");
     load();
   };
 

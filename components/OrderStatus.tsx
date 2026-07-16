@@ -82,16 +82,22 @@ export default function OrderStatus() {
     if (!supabase || etaBusy) return;
     setEtaBusy(true);
     const next = o.eta_status === eta ? null : eta;
-    const { data } = await supabase.rpc("set_order_eta", { p_order: o.id, p_eta: next });
-    setEtaBusy(false);
-    if (data === true) load();
+    // try/finally so a thrown (not just an {error}-shaped) RPC failure can't leave etaBusy stuck
+    // true forever — the chips would otherwise go permanently unusable for the rest of the session.
+    try {
+      const { data } = await supabase.rpc("set_order_eta", { p_order: o.id, p_eta: next });
+      if (data === true) load();
+    } finally {
+      setEtaBusy(false);
+    }
   };
 
   // Self-service cancel — allowed only while the order is still 'new' (not yet on the pass). The RPC
   // re-checks owner + status server-side; a paid order flags staff for the Square refund.
   const cancel = async () => {
     if (!supabase || canceling) return;
-    if (!window.confirm(paid ? "Cancel this order? Your refund will follow shortly." : "Cancel this order?")) return;
+    // "Will follow shortly" overpromised a timeline this flow doesn't actually enforce.
+    if (!window.confirm(paid ? "Cancel this order? We'll flag it for a refund and the crew will process it." : "Cancel this order?")) return;
     setCanceling(true);
     // Route (not the raw RPC) so canceling also pings the crew + texts/emails the customer.
     const ok = await authedFetch("/api/orders/cancel", {

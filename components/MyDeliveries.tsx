@@ -65,8 +65,10 @@ export default function MyDeliveries() {
 
   const cancel = async (p: MyDelivery) => {
     if (!supabase || busy) return;
+    // "Will follow shortly" overpromised a timeline this flow doesn't actually enforce — canceling
+    // only flags it for a staff-processed refund, same fix as /api/orders/cancel's customer message.
     const msg = p.payment_status === "paid"
-      ? `Cancel your ${p.pack_size}-bottle delivery for ${dayLabel(p.delivery_date)}?\n\nYou paid ${money(p.total_cents)} — your refund will follow shortly.`
+      ? `Cancel your ${p.pack_size}-bottle delivery for ${dayLabel(p.delivery_date)}?\n\nYou paid ${money(p.total_cents)} — we'll flag it for a refund and the crew will process it.`
       : `Cancel your ${p.pack_size}-bottle delivery for ${dayLabel(p.delivery_date)}?`;
     if (typeof window !== "undefined" && !window.confirm(msg)) return;
     setBusy(p.id);
@@ -77,7 +79,7 @@ export default function MyDeliveries() {
     }).then((r) => r.ok ? r.json() : null).then((d) => d?.ok === true).catch(() => false);
     setBusy(null);
     if (!ok) { toast("Too late to cancel online — it's already being brewed. Text us and we'll help.", "error"); load(); return; }
-    toast(p.payment_status === "paid" ? "Canceled — refund on the way" : "Delivery canceled");
+    toast(p.payment_status === "paid" ? "Canceled — flagged for a refund" : "Delivery canceled");
     load();
   };
 
