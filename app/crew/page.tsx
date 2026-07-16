@@ -596,6 +596,7 @@ function NotifPrefsSheet({ userId, onClose }: { userId: string | null; onClose: 
 function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: { userId: string | null; compact?: boolean; title?: string; onNavigate?: () => void }) {
   const { profile } = useAuth();
   const { setSection } = useOperatorSection();
+  const { toast } = useApp();
   const meName = profile?.display_name?.trim() || "Me";
   // One source of truth for "what needs me" — the same hook drives My Day's flags and the nav
   // badge, so the three counters that used to disagree now agree by construction. Ack semantics
@@ -616,7 +617,15 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
   const [reviewPost, setReviewPost] = useState<{ id: string; alert: MyFlag } | null>(null);
   const gotoAlert = (a: MyFlag) => {
     if (alertIsReservation(a.title)) { setDropSheet(true); return; }
-    if (alertIsContentReview(a.title)) { const pid = postIdFromLink(a.link); if (pid) { setReviewPost({ id: pid, alert: a }); return; } }
+    if (alertIsContentReview(a.title)) {
+      const pid = postIdFromLink(a.link);
+      if (pid) { setReviewPost({ id: pid, alert: a }); return; }
+      // No post id on the link (an older alert raised before the link format was fixed, or a
+      // malformed one) — don't silently fall through to the generic My Day route below, which
+      // reads as "Open" teleporting you somewhere unrelated instead of doing nothing useful.
+      toast("Couldn't find that post — it may have been removed. Check Business → Studio.", "error");
+      return;
+    }
     const d = alertDest(a.category, a.title);
     if (d.planTab) { try { localStorage.setItem("gt3-plan-tab", d.planTab); } catch { /* ignore */ } }
     onNavigate?.();              // close the inbox sheet FIRST — else the destination renders behind it
