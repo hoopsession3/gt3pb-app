@@ -5990,6 +5990,9 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .pbd-chev{display:inline-block;flex:0 0 auto;transition:transform .15s;color:var(--cream-d);font-size:13px}
 .pbd-chev.open{transform:rotate(90deg)}
 .pbd-group-n{flex:0 0 auto;font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--cream-d);text-transform:none}
+/* Route already files a >8h-past stop under "Past visits" — this names it the same way here instead
+   of silently disagreeing about whether the stop is current (crew-console audit finding). */
+.pbd-group-past{flex:0 0 auto;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--cream-d)}
 .pbd-group-all{flex:0 0 auto;background:none;border:1px solid var(--line2);border-radius:999px;padding:4px 11px;cursor:pointer;font-family:'Inter';font-weight:700;font-size:11px;color:var(--cream-m)}
 .pbd-group-all.armed{border-color:var(--red-h);color:var(--red-h);background:rgba(184,36,32,.06)}
 /* Command board — the deliberate "finish the whole initiative" action (admin, scope-explicit confirm). */

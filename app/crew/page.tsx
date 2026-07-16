@@ -3804,7 +3804,7 @@ function Bookings() {
       const when = [r.event_date, r.headcount ? `${r.headcount} ppl` : null, r.location_text].filter(Boolean).join(" · ");
       const who = [r.name, r.email, r.phone].filter(Boolean).join(" · ");
       const ctx = [
-        "Inbound booking request — promoted from Plan › Bookings.",
+        "Inbound booking request — promoted from Business › Pipeline.",
         when && `Event: ${when}`,
         who && `Contact: ${who}`,
         r.notes?.trim() && `Notes: ${r.notes.trim().slice(0, 400)}`,
@@ -4065,8 +4065,8 @@ const ROLE_META: Record<RoleKey, { label: string; tier: "lead" | "crew" | "membe
   owner:         { label: "Owner",         tier: "lead",   scope: "Full access — every section",    tone: "red" },
   admin:         { label: "Admin",         tier: "lead",   scope: "Full access — every section",    tone: "red" },
   event_manager: { label: "Event Manager", tier: "lead",   scope: "Everything but Money & Team",    tone: "gold" },
-  operator:      { label: "Operator",      tier: "crew",   scope: "Service · Prep · Brew · Garage · Pipeline · Notes · Drive", tone: "cream" },
-  contractor:    { label: "Contractor",    tier: "crew",   scope: "Service · Prep · Garage · Notes · Drive", tone: "cream" },
+  operator:      { label: "Operator",      tier: "crew",   scope: "Service · Prep · Brew · Assets · Pipeline · Notes · Drive", tone: "cream" },
+  contractor:    { label: "Contractor",    tier: "crew",   scope: "Service · Prep · Assets · Notes · Drive", tone: "cream" },
   server:        { label: "Server",        tier: "crew",   scope: "My Day · Live Ops · Notes · Drive", tone: "cream" },
   member:        { label: "Member",        tier: "member", scope: "Customer — loyalty only",        tone: "muted" },
 };
@@ -5472,7 +5472,7 @@ const SEC_INSIDE: Record<OpSection, string[]> = {
   day: ["Your open tasks & due dates", "Alerts flagged for you — with discussion threads", "Needs you (leadership): booking replies, past-due tasks, restock", "What's on the calendar today", "Day-of brief — dress code & call time"],
   command: ["Initiatives — a dated program (e.g. the Aug-1 launch) with countdown & milestone progress", "This week — everything due across both task lists", "Blockers — stopped-service incidents + anything overdue", "Done this week — momentum at a glance", "Money — the live glance"],
   now: ["Service pulse — live counts, one tap into the working screen", "The Pass — the pass board (guests ping it: on my way · outside · late), pickup checklist & 86 board on ONE screen", "The drop — brew sheet & window money (the checklist lives in Service)", "Delivery run — run sheet, brew totals & packout (outcomes are logged in driver mode)", "Live truck: go live, GPS broadcast (locations & the ordering dial live on the Stops page)", "Alerts & your tasks — pointers into My Day"],
-  prep: ["Per-event & per-stop pack lists", "Readiness & inspection checks", "Crew assignments & sign-off", "Load-out & gear moved to Production › Garage"],
+  prep: ["Per-event & per-stop pack lists", "Readiness & inspection checks", "Crew assignments & sign-off", "Load-out & gear moved to Production › Assets"],
   plan: ["Company calendar", "Events", "Booking requests", "Vendors & venues"],
   pipeline: ["Prospect → first attempt → talking → proposal → won", "Deal catalog — owner-set, per account type", "Rep assignment with a ping", "Per-deal discussion threads"],
   stops: ["Location list & route order", "Go live at any location", "The cup-ordering dial", "Names, dates & addresses are edited in the prep hub"],

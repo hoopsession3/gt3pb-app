@@ -4,11 +4,13 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 // MONEY KPIs — the "how are we doing?" answer that opens the Money section, so it reads as a
-// dashboard instead of a list of doors. The headline revenue tile sums ALL FOUR order channels the
-// app records — cup + pack pickup + delivery + office — not just cups (it used to read `orders`
-// alone, silently omitting three revenue streams). This is app-recorded order revenue, deliberately
-// NOT the Square book-of-record reconciliation (report_sales, 0197) — that answers a different
-// question and its authority is an open call. Every query is defensive (fails to "—"/skips) so a
+// dashboard instead of a list of doors. The headline revenue tile prefers the reconciled report_sales
+// figure (0216) and falls back to summing all four app-recorded order channels client-side — cup +
+// pack pickup + delivery + office, never just cups (it used to read `orders` alone, silently omitting
+// three revenue streams) — only when that RPC is unavailable. See the comment at the RPC call below
+// for the exact precedence. (An earlier version of THIS comment said the opposite — headline
+// "deliberately NOT" the reconciled figure — true before 0216 existed, false since; only the comment
+// hadn't caught up. Crew-console audit finding.) Every query is defensive (fails to "—"/skips) so a
 // schema gap or missing table can never break the section — the number just goes quiet.
 type Kpi = { k: string; v: string; sub: string };
 

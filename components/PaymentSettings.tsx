@@ -123,15 +123,22 @@ export default function PaymentSettings() {
       </div>
 
       {/* Subscriptions — the owner's go-live switch (0150). Default OFF: the launch push is packs,
-          reserves, and bulk packs for pickup + delivery. Flip on when Square plans are ready. */}
+          reserves, and bulk packs for pickup + delivery. Flip on when Square plans are ready.
+          2026-07-16: the pill used to say "live" the instant this flipped on, next to a toggle toast
+          that (already fixed in an earlier round) admits there's no customer sign-up flow built yet —
+          so the one-time toast was honest but the persistent pill kept overstating readiness. Pill
+          now says "on"; the caveat is now permanent copy instead of a toast the owner can dismiss and
+          forget. Crew-console audit finding. */}
       <div className="pay-row">
         <div className="pay-row-l">
-          <div className="pay-row-t">Subscriptions <span className="pay-row-tag">{subsOn ? "live" : "hidden"}</span></div>
+          <div className="pay-row-t">Subscriptions <span className="pay-row-tag">{subsOn ? "on" : "hidden"}</span></div>
           <div className="pay-row-s">
             {/* {" "} for the same Turbopack space-trim edge as the pay-at-pickup row above. */}
             Offer <b>recurring coffee packs</b>{" "}to customers. Off by default — the launch push is
-            packs, reserves, and bulk packs for pickup + delivery. Leave off until you&apos;re ready
-            to go live with recurring billing.
+            packs, reserves, and bulk packs for pickup + delivery.{" "}
+            {subsOn
+              ? <>Flipping this on only sets the flag — there&apos;s no customer sign-up flow built yet, so it doesn&apos;t put subscriptions in front of anyone until that ships.</>
+              : <>Leave off until you&apos;re ready to go live with recurring billing.</>}
           </div>
         </div>
         <button

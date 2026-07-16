@@ -33,7 +33,7 @@ const CATS: Record<string, { label: string; c: string }> = {
   design: { label: "Design", c: "#c77fa6" },
 };
 const CAT_KEYS = Object.keys(CATS);
-const AREAS = ["Ordering", "Studio", "Pipeline", "Money", "Crew", "Brand", "Membership", "Delivery", "AI", "Ops", "Alerts", "Garage"];
+const AREAS = ["Ordering", "Studio", "Pipeline", "Money", "Crew", "Brand", "Membership", "Delivery", "AI", "Ops", "Alerts", "Assets"];
 
 const today = () => new Date().toISOString().slice(0, 10);
 const monthKey = (iso: string) => iso.slice(0, 7);

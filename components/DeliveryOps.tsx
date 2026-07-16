@@ -12,9 +12,15 @@ import Icon from "@/components/Icon";
 
 // SUNDAY DELIVERY OPS — the crew side of the delivery debrief, in DropOps' shape: one summary
 // sentence (units, one hero thought), the Saturday brew totals (incl. Performance combos), and a
-// name-by-name run list that folds until delivery day. Driver logs one of three outcomes per stop;
+// name-by-name run list that folds until delivery day. Driver logs one of three outcomes per porch;
 // "held" flips the order into the pickup queue and raises a crew alert. Realtime like everything
 // else — channel name unique per subscription (the twice-shipped crash class).
+//
+// 2026-07-16: this screen used to call the same delivery destination a "stop" (progress button, the
+// assign-a-driver task title) in one spot and an "order" (section header count) in another — "stop"
+// already means something else entirely (the truck's own Route locations, a different DB table).
+// Standardized on "porch" here, matching what DriverDash/DriverRun and the app's own Sunday-delivery
+// brand voice (Academy, marketing copy, the customer SMS) already call it.
 
 type DOrder = {
   id: string; name: string; phone: string | null;
@@ -89,9 +95,9 @@ export default function DeliveryOps() {
   return (
     // Standard white-card treatment (matches .mpanel / the boxed .oo sibling) so Sunday delivery sits
     // in the same container rhythm as the other Live Ops panels instead of rendering bare. Kit
-    // SectionHeader replaces the ad-hoc .dops-head; each stop is a kit InfoRow. Logic is untouched.
+    // SectionHeader replaces the ad-hoc .dops-head; each porch is a kit InfoRow. Logic is untouched.
     <section className="mpanel" style={{ marginTop: 14, padding: "0 15px 14px" }} aria-label="Sunday delivery">
-      <SectionHeader label="Sunday delivery" annotation={`${dLabel} · ${rows.length} order${rows.length === 1 ? "" : "s"}`} />
+      <SectionHeader label="Sunday delivery" annotation={`${dLabel} · ${rows.length} porch${rows.length === 1 ? "" : "es"}`} />
       <p className="dops-sum">
         <b>{bottles}</b> bottles ({refills} refills · {fresh} fresh) · <b>{dollars(revenue)}</b> paid on order
         {heldQueue.length > 0 && <> · <b className="dl-held">{heldQueue.length} held for pickup</b></>}
@@ -102,10 +108,10 @@ export default function DeliveryOps() {
       <a className="dops-driver-link" href="/driver"><Icon name="truck" /> Open the driver run — map &amp; turn-by-turn <Icon name="arrowRight" /></a>
       <button type="button" className="dops-assign-link" onClick={() => setAssign(true)}><Icon name="team" /> Assign this run to a driver <Icon name="arrowRight" /></button>
       <button type="button" className="dops-assign-link" onClick={() => setPackout(true)}><Icon name="package" /> Vehicle packout plan <Icon name="arrowRight" /></button>
-      {assign && <AssignTaskSheet defaultTitle={`Sunday delivery run — ${rows.length} stop${rows.length === 1 ? "" : "s"} · ${bottles} bottles`} dueOn={date} category="ops" onClose={() => setAssign(false)} />}
+      {assign && <AssignTaskSheet defaultTitle={`Sunday delivery run — ${rows.length} porch${rows.length === 1 ? "" : "es"} · ${bottles} bottles`} dueOn={date} category="ops" onClose={() => setAssign(false)} />}
       {packout && <DeliveryPackout bottles={bottles} orders={rows.length} refills={refills} onClose={() => setPackout(false)} />}
       <button type="button" className="dops-prog" onClick={() => setListOpen(!showList)} aria-expanded={showList}>
-        <span><b>{doneCount}/{rows.length}</b> stops done</span>
+        <span><b>{doneCount}/{rows.length}</b> porches done</span>
         <span>{showList ? "▾" : "▸"}</span>
       </button>
       {showList && (
@@ -163,7 +169,7 @@ function DeliveryPackout({ bottles, orders, refills, onClose }: { bottles: numbe
   const gelPacks = coolers * 5;                               // 4–6 per cooler; 5 is the safe middle
   const returnBins = refills > 0 ? Math.max(1, Math.ceil(refills / 30)) : 0;
   return (
-    <Sheet open onClose={onClose} label="Vehicle packout" header={<div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}><div><div className="dp-eyebrow"><Icon name="package" /> Vehicle packout · Sunday run</div><div className="dp-title">{bottles} bottles · {orders} stop{orders === 1 ? "" : "s"}</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}><Icon name="close" /></button></div>}>
+    <Sheet open onClose={onClose} label="Vehicle packout" header={<div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}><div><div className="dp-eyebrow"><Icon name="package" /> Vehicle packout · Sunday run</div><div className="dp-title">{bottles} bottles · {orders} porch{orders === 1 ? "" : "es"}</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}><Icon name="close" /></button></div>}>
           <div className="brew-spec"><b>{coolers}</b> hard cooler{coolers === 1 ? "" : "s"} (24–48 qt) · <b>{gelPacks}</b> gel packs (pre-frozen){returnBins > 0 ? <> · <b>{returnBins}</b> empties bin{returnBins === 1 ? "" : "s"}</> : ""}</div>
           <div className="brew-block-h">Pack them in</div>
           <div className="brew-ing">

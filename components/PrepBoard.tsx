@@ -7,7 +7,7 @@ import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
-import { completeTask } from "@/lib/tasks";
+import { completeTask, updateTask } from "@/lib/tasks";
 import { useTaskSheet } from "./TaskSheet";
 import Icon from "@/components/Icon";
 
@@ -18,19 +18,30 @@ import Icon from "@/components/Icon";
 // assign, and one deliberate two-tap to finish a whole initiative (which cascades its tasks + closes
 // the program). Reads event_tasks; tasks never leave their event/stop. Fetch state (loading/error/
 // empty) comes from useAsyncData — a failed query is a real error now, not a silent "you're ready 🟢".
+//
+// 2026-07-16: a stop-linked group here had no idea Route (app/crew/page.tsx) already considers a
+// visit >8h past "stale" and files it under Past visits — this board kept showing it as a plain
+// current group, so the same stop could read as active in one lane and archived in another. Not
+// hiding it (an open task for a past stop is still real, maybe more urgent) — just naming it the
+// same way Route already does, so the two screens agree. See isStopPast below.
 type Task = {
   id: string; label: string; critical: boolean; due_at: string | null; assignee: string | null;
   event_id: string | null; stop_id: string | null; section: string | null; initiative_id: string | null;
-  events: { title: string | null } | null; stops: { name: string | null } | null;
+  events: { title: string | null } | null; stops: { name: string | null; starts_at: string | null } | null;
   initiatives: { title: string | null; emoji: string | null } | null;
 };
 type Crew = { id: string; display_name: string | null };
 type Filter = "all" | "critical" | "mine" | "overdue";
-type Group = { key: string; label: string; kind: "initiative" | "event" | "stop" | "general"; initiativeId: string | null; icon: React.ReactNode; tasks: Task[] };
+type Group = { key: string; label: string; kind: "initiative" | "event" | "stop" | "general"; initiativeId: string | null; icon: React.ReactNode; tasks: Task[]; past?: boolean };
 type BoardData = { rows: Task[]; crew: Crew[] };
 
 const nowISO = () => new Date().toISOString();
 const dueLabel = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "");
+// Mirrors Route's own >8h-past grace exactly (app/crew/page.tsx's isAhead/graceMs) — same cutoff, so
+// a stop reads the same age in both places even though the two components can't share the literal
+// function across this file/route boundary.
+const STOP_GRACE_MS = 8 * 3600 * 1000;
+const isStopPast = (startsAt: string | null | undefined) => !!startsAt && new Date(startsAt).getTime() <= Date.now() - STOP_GRACE_MS;
 
 export default function PrepBoard() {
   const { user } = useAuth();
@@ -42,7 +53,7 @@ export default function PrepBoard() {
   const loader = useCallback(async (): Promise<BoardData> => {
     if (!supabase) return { rows: [], crew: [] };
     const [t, c] = await Promise.all([
-      supabase.from("event_tasks").select("id, label, critical, due_at, assignee, event_id, stop_id, section, initiative_id, events(title), stops(name), initiatives(title, emoji)").eq("done", false).limit(300),
+      supabase.from("event_tasks").select("id, label, critical, due_at, assignee, event_id, stop_id, section, initiative_id, events(title), stops(name, starts_at), initiatives(title, emoji)").eq("done", false).limit(300),
       supabase.from("profiles").select("id, display_name").neq("role", "member").order("display_name"),
     ]);
     if (t.error) throw new Error(t.error.message);
@@ -63,7 +74,7 @@ export default function PrepBoard() {
   };
   const assign = async (t: Task, uid: string) => {
     if (!supabase) return;
-    await supabase.from("event_tasks").update({ assignee: uid || null }).eq("id", t.id);
+    await updateTask("event", t.id, { assignee: uid || null });   // ONE write path (lib/tasks)
     reload();
   };
 
@@ -88,7 +99,10 @@ export default function PrepBoard() {
         const kind: Group["kind"] = t.initiative_id ? "initiative" : t.event_id ? "event" : t.stop_id ? "stop" : "general";
         const label = t.initiative_id ? (t.initiatives?.title || "Initiative") : (t.events?.title || t.stops?.name || t.section || "General");
         const icon = kind === "initiative" ? (t.initiatives?.emoji || "🎯") : kind === "event" ? <Icon name="calendar" /> : kind === "stop" ? <Icon name="pin" /> : "•";
-        g = { key, label, kind, initiativeId: t.initiative_id, icon, tasks: [] };
+        // Only a plain stop-kind group can be "past" — an initiative can span many stops, so no
+        // single date applies to it (mirrors Route: isAhead only ever judges one stop at a time).
+        const past = kind === "stop" ? isStopPast(t.stops?.starts_at) : false;
+        g = { key, label, kind, initiativeId: t.initiative_id, icon, tasks: [], past };
         map.set(key, g);
       }
       g.tasks.push(t);
@@ -145,6 +159,7 @@ export default function PrepBoard() {
                       <span className={`pbd-chev${open ? " open" : ""}`} aria-hidden>›</span>
                       <span className="pbd-group-ic" aria-hidden>{g.icon}</span>
                       <span className="pbd-group-nm">{g.label}</span>
+                      {g.past && <span className="pbd-group-past">past visit</span>}
                       <span className="pbd-group-n">{g.tasks.length}{crit ? ` · ${crit} crit` : ""}</span>
                     </button>
                     <button type="button" className={`pbd-group-all${armed === g.key ? " armed" : ""}`}

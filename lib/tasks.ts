@@ -4,8 +4,15 @@ import { supabase } from "./supabase";
 
 // THE task write path. Work lives in two tables — event_tasks (the rich per-event/goal/note engine)
 // and todos (free-form delegated tasks) — unified at read by the all_tasks view (0210) and My Day's
-// merge. This is the WRITE half of that spine: one helper to create a delegated to-do, one to
-// complete a task wherever it lives, so table routing can never drift per-surface again.
+// merge. This is the WRITE half of that spine: helpers to create a delegated to-do or an event_task
+// (a goal's "move," a stop/event's prep item), and to complete/update/delete a task wherever it
+// lives, so table routing can never drift per-surface again.
+//
+// 2026-07-16: added createEventTask and closed out the last direct-write holdouts — PrepBoard,
+// AssignTaskSheet, CompanyCalendar, and Goals each had at least one event_tasks/todos write that
+// bypassed this file entirely (the crew-console audit's point: this file's own "can never drift"
+// claim wasn't actually being enforced everywhere it should have been). All four now route through
+// the helpers below.
 export type TaskSource = "event" | "todo";
 
 export async function createTodo(t: {
@@ -17,6 +24,24 @@ export async function createTodo(t: {
     title: t.title.trim(), category: t.category ?? "ops", due_on: t.dueOn || null,
     assignee: t.assignee || null, event_id: t.eventId || null,
     visibility: t.visibility ?? "team", created_by: t.createdBy ?? null,
+  }).select("id").single();
+  if (error || !data) return { error: error?.message ?? "insert failed" };
+  return { id: (data as { id: string }).id };
+}
+
+// event_tasks' side of the same job — a goal's "move," or a stop/event's own prep item. Kept
+// separate from createTodo (rather than one mega-function branching on source) because the two
+// tables' required fields genuinely differ — a todo needs a due-on/visibility/assignee; an event_task
+// needs a parent binding (goal/event/stop) and a kind — and every existing call site already knows
+// which table it means, so a single always-both-shapes signature would just add unused fields.
+export async function createEventTask(t: {
+  label: string; goalId?: string | null; eventId?: string | null; stopId?: string | null;
+  kind?: "task" | "pack"; sort?: number; section?: string | null; critical?: boolean;
+}): Promise<{ id?: string; error?: string }> {
+  if (!supabase) return { error: "offline" };
+  const { data, error } = await supabase.from("event_tasks").insert({
+    label: t.label.trim(), goal_id: t.goalId ?? null, event_id: t.eventId ?? null, stop_id: t.stopId ?? null,
+    kind: t.kind ?? "task", sort: t.sort ?? 0, section: t.section ?? null, critical: t.critical ?? false,
   }).select("id").single();
   if (error || !data) return { error: error?.message ?? "insert failed" };
   return { id: (data as { id: string }).id };

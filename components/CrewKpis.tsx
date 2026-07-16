@@ -55,7 +55,8 @@ const PREP_TILES: KpiTile[] = [
   { key: "events", label: "Events on the books", load: (db) => head(db, "events") },
 ];
 
-// ── Garage ── assets + stock health
+// ── Assets ── assets + stock health (internal "garage" naming kept for the section key/tiles below,
+// matching OpSection's own "garage" key — only the label shown to users changed)
 const GARAGE_TILES: KpiTile[] = [
   { key: "inv", label: "Inventory items", load: (db) => head(db, "inventory_items") },
   { key: "crit", label: "Critical items", load: (db) => head(db, "inventory_items").eq("critical", true) },
@@ -64,4 +65,4 @@ const GARAGE_TILES: KpiTile[] = [
 
 export const TeamKpis = () => <KpiStrip tiles={TEAM_TILES} label="Team at a glance" />;
 export const PrepKpis = () => <KpiStrip tiles={PREP_TILES} label="Readiness at a glance" />;
-export const GarageKpis = () => <KpiStrip tiles={GARAGE_TILES} label="Garage at a glance" />;
+export const GarageKpis = () => <KpiStrip tiles={GARAGE_TILES} label="Assets at a glance" />;

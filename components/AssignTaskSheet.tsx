@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/AuthProvider";
 import { useApp } from "@/components/AppProvider";
-import { createTodo } from "@/lib/tasks";
+import { createTodo, updateTask } from "@/lib/tasks";
 import Sheet from "@/components/Sheet";
 import Icon from "@/components/Icon";
 
@@ -56,12 +56,12 @@ export default function AssignTaskSheet({
   };
   const reassign = async (id: string) => {
     setAssignee(id);
-    if (supabase && createdId) await supabase.from("todos").update({ assignee: id || null }).eq("id", createdId);
+    if (supabase && createdId) await updateTask("todo", createdId, { assignee: id || null });   // ONE write path (lib/tasks)
   };
   const toggleDone = async () => {
     if (!supabase || !createdId) return;
     const nd = !done; setDone(nd);
-    await supabase.from("todos").update({ done: nd, done_at: nd ? new Date().toISOString() : null }).eq("id", createdId);
+    await updateTask("todo", createdId, { done: nd });   // ONE write path (lib/tasks)
   };
 
   const crewOptions = (

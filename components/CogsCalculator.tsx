@@ -140,7 +140,7 @@ export default function CogsCalculator() {
               )}
             </div>
           ))}
-          {batches.length === 0 && <EmptyState title="No brew/broth recipes yet" sub="Add them in Plan → Brew." />}
+          {batches.length === 0 && <EmptyState title="No brew/broth recipes yet" sub="Add them in Production → Brew." />}
           <div className="pnl-note" style={{ marginTop: 8 }}>Batch costs match recipe ingredients to inventory by name — anything flagged <b>uncosted</b> needs a matching inventory item with a unit cost.</div>
         </>
       )}

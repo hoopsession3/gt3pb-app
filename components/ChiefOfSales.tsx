@@ -7,7 +7,8 @@ import Icon from "@/components/Icon";
 
 // CHIEF OF SALES — scouts the web for upcoming opportunities (fitness events, festivals, markets,
 // corporate, wellness expos, local newsletters) in the chosen markets, ranks the fit, and lets you
-// save the good ones straight into the Bookings pipeline as leads. Lives at the top of Plan → Bookings.
+// save the good ones straight into the Bookings pipeline as leads. Lives at the top of Business ›
+// Pipeline (Bookings' intake list — moved out of Plan when Pipeline consolidated leads into one place).
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 const MARKETS = ["Greenville, SC", "Atlanta, GA"];

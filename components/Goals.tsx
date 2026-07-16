@@ -8,6 +8,7 @@ import { useAuth, roleOf, LEADERSHIP_ROLES } from "./AuthProvider";
 import { useWorkStreams } from "@/lib/streams";
 import { METRIC_SOURCES, computeMetric } from "@/lib/goalMetrics";
 import { raiseAlertClient } from "@/lib/clientAlerts";
+import { updateTask, deleteTask, createEventTask } from "@/lib/tasks";
 import { StrategyThread } from "./StrategyCollab";
 import { SectionHeader } from "@/components/kit";
 import { useAsyncData } from "@/lib/useAsyncData";
@@ -164,27 +165,28 @@ export default function Goals() {
   const addInitiative = async (goalId: string) => {
     if (!supabase || !initTitle.trim()) return;
     const label = initTitle.trim();
-    const { error } = await supabase.from("event_tasks").insert({ goal_id: goalId, label, kind: "task", sort: inits.filter((i) => i.goal_id === goalId).length });
-    if (error) { toast(`Couldn't add — ${error.message}`, "error"); return; }
+    // ONE write path (lib/tasks) — createEventTask closes the last gap: every other write here
+    // already had a lib/tasks helper; creating a move was the one insert with no home yet.
+    const { error } = await createEventTask({ goalId, label, kind: "task", sort: inits.filter((i) => i.goal_id === goalId).length });
+    if (error) { toast(`Couldn't add — ${error}`, "error"); return; }
     setInitTitle("");
     reload();
   };
   const toggleInitiative = async (i: Move) => {
     if (!supabase) return;
-    const next = !i.done;
-    await supabase.from("event_tasks").update({ done: next, done_by: next ? user?.id ?? null : null, done_at: next ? new Date().toISOString() : null }).eq("id", i.id);
+    await updateTask("event", i.id, { done: !i.done }, user?.id);   // ONE write path (lib/tasks)
     reload();
   };
   const removeInitiative = async (i: Move) => {
     if (!supabase) return;
-    await supabase.from("event_tasks").delete().eq("id", i.id);
+    await deleteTask("event", i.id);   // ONE write path (lib/tasks)
     reload();
   };
   // Assigning a move works exactly like assigning prep: the owner gets a targeted ping and the
   // move appears in THEIR My Tasks (same rows, same engine).
   const assignMove = async (i: Move, goalTitle: string, uid: string) => {
     if (!supabase) return;
-    await supabase.from("event_tasks").update({ assignee: uid || null }).eq("id", i.id);
+    await updateTask("event", i.id, { assignee: uid || null });   // ONE write path (lib/tasks)
     if (uid && uid !== user?.id) {
       raiseAlertClient({ severity: "critical", category: "task", kind: "task_assigned", subjectId: i.id, title: `Assigned to you: ${i.label}`.slice(0, 140), body: `Goal: ${goalTitle}`, link: "/crew?s=day", targetUserId: uid });
     }
@@ -193,7 +195,7 @@ export default function Goals() {
   const dueMove = async (i: Move, v: string) => {
     if (!supabase) return;
     const due_at = v ? new Date(`${v}T23:59:59`).toISOString() : null;
-    await supabase.from("event_tasks").update({ due_at }).eq("id", i.id);
+    await updateTask("event", i.id, { dueISO: due_at });   // ONE write path (lib/tasks)
     reload();
   };
   const firstName = (uid: string | null) => (staff.find((s) => s.id === uid)?.display_name || "").trim().split(/\s+/)[0] || null;

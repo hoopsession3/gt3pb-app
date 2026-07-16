@@ -10,7 +10,8 @@ import Icon from "@/components/Icon";
 
 // Inventory — the GT3 stock register, read from Postgres (system-of-record). Staff add / edit /
 // delete inline; writes go straight to `inventory_items` (RLS: staff-write). Lives next to the
-// gear library in Crew Mode → Prep. Reuses the .gl-* styles.
+// gear library in Production → Assets (moved out of Prep along with Brew/Garage — 0161; crew-console
+// audit caught this comment still naming the old lane). Reuses the .gl-* styles.
 
 const STATUS = ["On Hand", "In Transit", "Backorder", "Consumed", "Returned"];
 const UNITS = ["", "each", "case", "pack", "gallon", "lb", "oz", "set", "box"];

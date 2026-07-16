@@ -29,12 +29,12 @@ export const DATABASES: DbEntry[] = [
   { table: "events", manage: "full", surface: "Plan → Events · Find Us", note: "Create/edit/delete events + menu flags. is_public (generated) gates guest visibility — internal ops + private bookings never show to guests." },
   { table: "stops", manage: "full", surface: "Route · Find Us", note: "Truck stops + ordering dial + pick lists. Edited in two taps via FieldOpSheet." },
   { table: "vendors", manage: "full", surface: "Plan → Vendors", note: "Create/edit/delete." },
-  { table: "booking_requests", manage: "full", surface: "Plan → Bookings", note: "B2B booking pipeline." },
+  { table: "booking_requests", manage: "full", surface: "Business → Pipeline", note: "B2B booking pipeline." },
   { table: "event_tasks", manage: "full", surface: "Prep / Notes", note: "Pack lists + follow-ups (assign, flag, AI propose)." },
   { table: "event_staff", manage: "full", surface: "Plan → Events", note: "Crew on an event." },
   { table: "meeting_notes", manage: "full", surface: "Business → Notes", note: "Create/edit/archive/search + AI summary." },
-  { table: "inventory_items", manage: "full", surface: "Garage → Inventory", note: "Stock + reorder points." },
-  { table: "assets", manage: "full", surface: "Garage → Gear", note: "Gear library." },
+  { table: "inventory_items", manage: "full", surface: "Assets → Inventory", note: "Stock + reorder points." },
+  { table: "assets", manage: "full", surface: "Assets → Gear", note: "Gear library." },
   { table: "compliance_rules", manage: "full", surface: "Prep → Inspection", note: "Per-jurisdiction; agent proposals approved here." },
   { table: "content_items", manage: "full", surface: "Studio", note: "Create/edit/schedule/delete content." },
   { table: "brand_kit", manage: "full", surface: "Studio → Brand", note: "Voice, palette, fonts, logos." },
@@ -67,7 +67,7 @@ export const DATABASES: DbEntry[] = [
   { table: "reserve_claims", manage: "system", surface: "—", note: "Claimed via RPC." },
   { table: "admin_emails", manage: "readonly", surface: "SQL only", note: "Allowlist — not in-app." },
   { table: "subscription_interest", manage: "partial", surface: "Money", note: "Captured from interest signups." },
-  { table: "trailer_profile", manage: "partial", surface: "Garage", note: "Singleton — update." },
+  { table: "trailer_profile", manage: "partial", surface: "Assets", note: "Singleton — update." },
 ];
 
 // Business architecture — the same platform, told operationally to an owner: the capabilities the
@@ -87,7 +87,7 @@ export const BUSINESS: BizCapability[] = [
       "Square-backed checkout + order status",
       "Membership signup and the B2B booking pipeline (intake → review)",
     ],
-    where: "Customer app · Money → Subscribers · Plan → Bookings",
+    where: "Customer app · Money → Subscribers · Business → Pipeline",
     next: "Public AI concierge (answer guests' menu/booking questions) — scoped, not yet built.",
   },
   {
@@ -110,7 +110,7 @@ export const BUSINESS: BizCapability[] = [
       "Pack/pick lists per event and per truck stop",
       "Combine-and-optimize packing across home→show (recipe-aware via products)",
     ],
-    where: "Prep → Readiness · Garage → Inventory / Gear · Service → Stops",
+    where: "Prep → Readiness · Assets → Inventory / Gear · Service → Stops",
   },
   {
     id: "brand", icon: "🎨", name: "Brand & Marketing", status: "live",
@@ -203,7 +203,7 @@ export const ARCHITECTURE: ArchLayer[] = [
     blurb: "Customer and crew surfaces, plus the public endpoints the world talks to.",
     components: [
       { name: "Customer app", status: "live", desc: "PWA storefront — menu, live status, membership, booking.", sot: "app/page.tsx" },
-      { name: "Crew console", status: "live", desc: "Role-scoped operator console at /crew — the bottom bar is Today plus the work-stream lanes (Service, Events, Production, Brand, Business), pinnable per user.", detail: "Navigation is a projection of work_streams (table-backed lanes, per-tenant): the same lanes drive the bottom bar, calendar rollups, org ownership, and alert routing. Lane pages: Today (My Day, Now) · Service (Now, Prep, Stops, Drive) · Events (Plan, Prep) · Production (Brew, Garage) · Brand (Studio) · Business (Money, Customers, Team, Goals, Notes). /admin redirects here.", sot: "app/crew/page.tsx" },
+      { name: "Crew console", status: "live", desc: "Role-scoped operator console at /crew — the bottom bar is Today plus the work-stream lanes (Service, Events, Production, Brand, Business), pinnable per user.", detail: "Navigation is a projection of work_streams (table-backed lanes, per-tenant): the same lanes drive the bottom bar, calendar rollups, org ownership, and alert routing. Lane pages: Today (My Day, Now) · Service (Now, Prep, Stops, Drive) · Events (Plan) · Production (Brew, Assets) · Brand (Studio) · Business (Money, Customers, Team, Goals, Notes). /admin redirects here.", sot: "app/crew/page.tsx" },
       { name: "QuickDock", status: "live", desc: "Floating Ask GT3 + quick-note, on every crew page.", sot: "components/QuickDock.tsx" },
       { name: "Checkout / orders", status: "live", desc: "Square-backed checkout + order status.", sot: "app/api/checkout" },
       { name: "Square webhook", status: "live", desc: "Inbound payment/catalog events.", sot: "app/api/square" },

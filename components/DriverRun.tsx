@@ -15,12 +15,14 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
 
-// DRIVER RUN — the Sunday porch run, built for one hand at the wheel. Stops ordered by ZIP → street
+// DRIVER RUN — the Sunday porch run, built for one hand at the wheel. Porches ordered by ZIP → street
 // (a compact-zone route), pinned on the map, each a big card with Navigate / Call / one-tap outcome.
 // No window.prompt anywhere — empties log on an inline stepper. Reuses the delivery_orders outcomes
 // (swap / fresh / hold) so it stays in lock-step with DeliveryOps and the customer texts. Realtime.
 // Fetch state via useAsyncData — a failed load is a real error now, not a silent "No delivery run
 // scheduled" that looks identical to a genuinely empty Sunday.
+// 2026-07-16: "stop" retired from this screen's own copy — it already means the truck's own Route
+// locations (a different table); see DeliveryOps.tsx for the full terminology note.
 
 type DOrder = {
   id: string; name: string; phone: string | null;
@@ -106,13 +108,13 @@ export default function DriverRun() {
   const swapDone = async (o: DOrder) => {
     if (!supabase || busyId) return; setBusyId(o.id); haptic(HAPTIC.success); notifyDelivered(o);
     const { error } = await supabase.from("delivery_orders").update({ driver_outcome: "swap_completed", status: "delivered", empties_collected: Math.max(0, empties[o.id] ?? o.empties_expected) }).eq("id", o.id);
-    if (error) toast("Didn't save — check the stop", "error");
+    if (error) toast("Didn't save — check the porch", "error");
     setBusyId(null); setOpenId(null); reload();
   };
   const deliveredFresh = async (o: DOrder) => {
     if (!supabase || busyId) return; setBusyId(o.id); haptic(HAPTIC.success); notifyDelivered(o);
     const { error } = await supabase.from("delivery_orders").update({ driver_outcome: o.refill_count > 0 ? "delivered_fresh_no_empties" : null, status: "delivered", empties_collected: 0 }).eq("id", o.id);
-    setBusyId(null); setOpenId(null); toast(error ? "Didn't save — check the stop" : "Delivered — logged", error ? "error" : undefined); reload();
+    setBusyId(null); setOpenId(null); toast(error ? "Didn't save — check the porch" : "Delivered — logged", error ? "error" : undefined); reload();
   };
   const hold = async (o: DOrder) => {
     if (!supabase || busyId) return; setBusyId(o.id); haptic(HAPTIC.alert);
@@ -145,7 +147,7 @@ export default function DriverRun() {
       {(data) => {
         const { date } = data;
         if (rows.length === 0) {
-          return <div className="driver-empty">No stops on {new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })} yet.</div>;
+          return <div className="driver-empty">No porches on {new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })} yet.</div>;
         }
         const dLabel = new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
         const remaining = rows.length - doneCount;
@@ -159,9 +161,9 @@ export default function DriverRun() {
 
             {points.length > 0 && <RouteMap points={points} />}
             {remaining > 0 && routeHref && (
-              <a className="driver-route-cta" href={routeHref} target="_blank" rel="noopener noreferrer">Navigate the whole run ({remaining} stop{remaining === 1 ? "" : "s"}) <Icon name="arrowRight" /></a>
+              <a className="driver-route-cta" href={routeHref} target="_blank" rel="noopener noreferrer">Navigate the whole run ({remaining} porch{remaining === 1 ? "" : "es"}) <Icon name="arrowRight" /></a>
             )}
-            {points.length < rows.length && <div className="driver-geohint">Pinning stops on the map…</div>}
+            {points.length < rows.length && <div className="driver-geohint">Pinning porches on the map…</div>}
 
             <div className="driver-list">
               {rows.map((o, i) => {
@@ -223,7 +225,7 @@ export default function DriverRun() {
                 );
               })}
             </div>
-            {remaining === 0 && <div className="driver-wrap">Run complete — all {rows.length} stops handled. Nice driving.</div>}
+            {remaining === 0 && <div className="driver-wrap">Run complete — all {rows.length} porches handled. Nice driving.</div>}
           </div>
         );
       }}

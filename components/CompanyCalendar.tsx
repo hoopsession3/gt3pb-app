@@ -17,6 +17,7 @@ import { isBlank } from "@/lib/formGuard";
 import { resolveVendor, type ResolveDecision, type VendorMatch } from "@/lib/vendorLink";
 import VendorResolve from "./VendorResolve";
 import { localDayBoundsISO } from "@/lib/calendarMath";
+import { createTodo, updateTask, deleteTask } from "@/lib/tasks";
 import FieldOpSheet from "./FieldOpSheet";
 import Sheet from "@/components/Sheet";
 import Icon from "@/components/Icon";
@@ -167,7 +168,7 @@ export default function CompanyCalendar() {
   const openStopPrep = (stopId: string) => { if (typeof window !== "undefined") localStorage.setItem("gt3-prep-open", `stop:${stopId}`); setSection("prep"); };
   const toggleTodo = async (t: Todo) => {
     if (!supabase) return;
-    await supabase.from("todos").update({ done: !t.done, done_at: !t.done ? new Date().toISOString() : null }).eq("id", t.id);
+    await updateTask("todo", t.id, { done: !t.done });   // ONE write path (lib/tasks)
     reload();
   };
   // Drag-to-reschedule for every editable kind — same rule as CalEdit's onDate: plain-date columns
@@ -606,7 +607,7 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: s
     if (!supabase) return;
     if (typeof window !== "undefined" && !window.confirm(kind === "content" ? "Unschedule this from the calendar? (It stays in Studio.)" : kind === "todo" ? "Delete this to-do?" : "Remove from the calendar?")) return;
     setSaving(true);
-    if (kind === "todo") await supabase.from("todos").delete().eq("id", id);
+    if (kind === "todo") await deleteTask("todo", id);   // ONE write path (lib/tasks)
     else if (kind === "content") await supabase.from("content_items").update({ scheduled_for: null }).eq("id", id);
     else await supabase.from(cfg.table).update({ archived_at: new Date().toISOString() }).eq("id", id);
     setSaving(false); onSaved();
@@ -745,7 +746,7 @@ function AddSheet({ day, events, onClose, onDone }: { day: string; events: Ev[];
   const save = async (decision?: ResolveDecision | "skip") => {
     if (!supabase || !title.trim()) return;
     const { data: { user } } = await supabase.auth.getUser();
-    if (kind === "todo") await supabase.from("todos").insert({ title: title.trim(), category: cat, due_on: day, event_id: eventId || null, created_by: user?.id ?? null });
+    if (kind === "todo") await createTodo({ title: title.trim(), category: cat, dueOn: day, eventId: eventId || null, createdBy: user?.id ?? null });   // ONE write path (lib/tasks)
     // local wall-clock 11am — a fixed -04:00 offset lands at 10am all winter
     else if (kind === "stop") {
       // A truck stop is always bound to the vendor book — through the ONE resolver (0226): the
