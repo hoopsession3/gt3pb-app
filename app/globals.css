@@ -2632,6 +2632,13 @@ body:has(.qd-scrim) .rail,
 body:has(.prep-scrim) .rail,
 body:has(.cmdk-scrim) .rail,
 body:has(.guide-sheet) .rail{display:none}
+/* Exception: Concierge ("Ask us") is itself a rail tab — its own sheet opening isn't the rail
+   painting over someone ELSE's popout (the bug above), it's the tab you just tapped. Folding the
+   whole rail away there only hides the tab you're using plus its two siblings for no reason.
+   Every other sheet above still folds the rail; this only restores it when .conc-sheet (and
+   nothing else needing the fold) is what's mounted. Same specificity as the rule above, so
+   source order — this comes after — decides the tie. */
+body:has(.conc-sheet) .rail{display:flex}
 .rail.dragging{user-select:none}
 .rail-head{display:flex;gap:6px;margin-right:8px}
 .rail-grip{width:36px;height:24px;border-radius:8px;border:1px solid var(--line2);background:var(--card);color:var(--cream-d);font-size:13px;line-height:1;cursor:grab;touch-action:none;-webkit-appearance:none;appearance:none}

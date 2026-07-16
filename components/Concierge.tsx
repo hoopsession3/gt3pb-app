@@ -54,7 +54,7 @@ export default function Concierge() {
         <img className="conc-fab-i" src="/brand/gt3-3.png" alt="" aria-hidden="true" /><span className="rail-txt"><b>Ask us</b><i>menu · hours · booking</i></span>
       </button>
 
-      <Sheet open={open} onClose={() => setOpen(false)} labelledBy="concierge-title" bodyRef={bodyRef}
+      <Sheet open={open} onClose={() => setOpen(false)} labelledBy="concierge-title" bodyRef={bodyRef} className="conc-sheet"
         header={
           <div className="conc-head">
             <div className="conc-head-l"><span className="conc-badge"><Gt3Mark tone="cream" /></span><div><div className="conc-title" id="concierge-title">Concierge</div></div></div>
