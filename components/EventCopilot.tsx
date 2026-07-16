@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Sheet from "@/components/Sheet";
+import Icon from "@/components/Icon";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { useApp } from "./AppProvider";
@@ -86,7 +87,7 @@ export default function EventCopilot() {
 
   if (!open) return null;
   return (
-    <Sheet open onClose={() => setOpen(false)} label="Create an event" header={<div style={{ display: "flex", alignItems: "center" }}><span className="ec-eye">✦ Chief of staff · create an event</span><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setOpen(false)} aria-label="Close">✕</button></div>}>
+    <Sheet open onClose={() => setOpen(false)} label="Create an event" header={<div style={{ display: "flex", alignItems: "center" }}><span className="ec-eye"><Icon name="star" /> Chief of staff · create an event</span><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setOpen(false)} aria-label="Close"><Icon name="close" /></button></div>}>
       {!draft ? (
         <div className="ec-start">
           <p className="ec-lead">Tell me about it in your own words — I&apos;ll draft it and you review.</p>
@@ -95,10 +96,10 @@ export default function EventCopilot() {
         </div>
       ) : (
         <div className="ec-draft">
-          {draft.clarify ? <div className="ec-clarify">💬 {draft.clarify}</div> : <div className="ec-ready">Looks good — review and create.</div>}
+          {draft.clarify ? <div className="ec-clarify"><Icon name="chat" /> {draft.clarify}</div> : <div className="ec-ready">Looks good — review and create.</div>}
           <div className="ec-typ">
             <button type="button" className={`ec-typ-b${draft.kind === "event" ? " on" : ""}`} onClick={() => set("kind", "event")}>Event</button>
-            <button type="button" className={`ec-typ-b${draft.kind === "stop" ? " on" : ""}`} onClick={() => set("kind", "stop")}>🚚 Truck stop</button>
+            <button type="button" className={`ec-typ-b${draft.kind === "stop" ? " on" : ""}`} onClick={() => set("kind", "stop")}><Icon name="truck" /> Truck stop</button>
           </div>
           <label className="prod-f"><span>Name</span><input value={draft.title} onChange={(e) => set("title", e.target.value)} placeholder="Event name" /></label>
           <div className="prod-grid" style={{ marginTop: 8 }}>
@@ -107,8 +108,8 @@ export default function EventCopilot() {
           </div>
           {draft.kind === "stop" && (
             <div className="oa-toggles" style={{ marginTop: 10 }}>
-              <button type="button" role="switch" aria-checked={draft.order_ahead} className={`oa-toggle${draft.order_ahead ? " on" : ""}`} onClick={() => set("order_ahead", !draft.order_ahead)}>🕐 Order ahead<span>{draft.order_ahead ? "On" : "Off"}</span></button>
-              <button type="button" role="switch" aria-checked={draft.pickup} className={`oa-toggle${draft.pickup ? " on" : ""}`} onClick={() => set("pickup", !draft.pickup)}>🥡 Pickup<span>{draft.pickup ? "On" : "Off"}</span></button>
+              <button type="button" role="switch" aria-checked={draft.order_ahead} className={`oa-toggle${draft.order_ahead ? " on" : ""}`} onClick={() => set("order_ahead", !draft.order_ahead)}><Icon name="clock" /> Order ahead<span>{draft.order_ahead ? "On" : "Off"}</span></button>
+              <button type="button" role="switch" aria-checked={draft.pickup} className={`oa-toggle${draft.pickup ? " on" : ""}`} onClick={() => set("pickup", !draft.pickup)}><Icon name="package" /> Pickup<span>{draft.pickup ? "On" : "Off"}</span></button>
             </div>
           )}
           <p className="ec-note">{draft.venue ? "The venue links to your vendor book — a new one is created pending approval." : "Add a venue to bind it to your vendor book."}</p>

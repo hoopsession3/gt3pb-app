@@ -4,6 +4,7 @@ import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import Sheet from "@/components/Sheet";
+import Icon from "@/components/Icon";
 
 // EVENT PREP AI — tell it about a specific event and it builds a tailored prep / to-do list,
 // grounded in the event's config + run of show, current inventory, gear, jurisdiction compliance,
@@ -67,10 +68,10 @@ export default function EventPrepAI({ ownerType, ownerId, title, onClose, onAdde
   const keepCount = tasks?.filter((t) => !t._skip).length ?? 0;
 
   return (
-    <Sheet open onClose={onClose} label="Event prep" header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow">AI prep · grounded in your data</div><div className="dp-title">{title || "Event"} — prep list</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
+    <Sheet open onClose={onClose} label="Event prep" header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow">AI prep · grounded in your data</div><div className="dp-title">{title || "Event"} — prep list</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}><Icon name="close" /></button></div>}>
           {done !== null ? (
             <div className="eg-done">
-              <div className="eg-done-h">✓ Added {done} item{done === 1 ? "" : "s"} to this event&apos;s prep</div>
+              <div className="eg-done-h"><Icon name="check" /> Added {done} item{done === 1 ? "" : "s"} to this event&apos;s prep</div>
               <div className="dp-hint" style={{ marginTop: 8 }}>Find them on the event&apos;s pick list (Prep). Assign, flag, and check them off there.</div>
               <div className="prod-actions" style={{ marginTop: 12 }}><span /><button type="button" className="note-save" onClick={onClose}>Done</button></div>
             </div>
@@ -81,7 +82,7 @@ export default function EventPrepAI({ ownerType, ownerId, title, onClose, onAdde
               {err && <div className="dp-err">{err}</div>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={onClose} disabled={busy}>Cancel</button>
-                <button type="button" className="note-save" onClick={generate} disabled={busy}>{busy ? "Building…" : "✨ Build the prep list"}</button>
+                <button type="button" className="note-save" onClick={generate} disabled={busy}>{busy ? "Building…" : <><Icon name="sparkles" /> Build the prep list</>}</button>
               </div>
             </>
           ) : (
@@ -89,9 +90,9 @@ export default function EventPrepAI({ ownerType, ownerId, title, onClose, onAdde
               {summary && <div className="dp-hint">{summary}</div>}
               {tasks.length === 0 ? <div className="dp-hint">Nothing to add — looks covered.</div> : tasks.map((t, i) => (
                 <button key={i} type="button" className={`eg-row${t._skip ? "" : " on"}`} onClick={() => toggle(i)} style={{ ["--c" as string]: SECTION_COLOR[t.section] || "#9a8f7c" }}>
-                  <span className="eg-ck">{t._skip ? "○" : "✓"}</span>
+                  <span className="eg-ck">{t._skip ? <Icon name="dotOutline" /> : <Icon name="check" />}</span>
                   <span className="eg-main">
-                    <b>{t.critical ? "⚠️ " : ""}{t.label}</b>
+                    <b>{t.critical ? <><Icon name="warning" /> </> : null}{t.label}</b>
                     <span>{t.section}{t.due_offset_days && t.due_offset_days >= 1 ? ` · due ${t.due_offset_days}d before` : ""}{t.why ? ` · ${t.why}` : ""}</span>
                   </span>
                 </button>

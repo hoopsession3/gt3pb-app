@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import { useApp } from "./AppProvider";
 import Sheet from "./Sheet";
+import Icon from "@/components/Icon";
 import { supabase } from "@/lib/supabase";
 import { uploadToBucket } from "@/lib/uploads";
 import { useSiteCopy } from "@/lib/copy";
@@ -328,8 +329,8 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
   if (!open) return null;
   return (
     <Sheet open onClose={onClose} label="Member card & status" className="status-lux"
-      header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Your member card &amp; status</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close">✕</button></div>}
-      footer={<button type="button" className="status-share" onClick={share} disabled={!ready}>Share your status ↗</button>}>
+      header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Your member card &amp; status</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close"><Icon name="close" /></button></div>}
+      footer={<button type="button" className="status-share" onClick={share} disabled={!ready}>Share your status <Icon name="externalLink" /></button>}>
 
       {founding && <div className="fc-founding" role="status">{t("card.founding_thanks")}</div>}
 
@@ -386,7 +387,7 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
             onBlur={(e) => saveVision(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") saveVision((e.target as HTMLInputElement).value); }}
             aria-label="Your 5-year vision" placeholder="Your 5-year goal — e.g. Make great coffee in 3 regions" />
         ) : (
-          <button type="button" className="fc-motto-btn" onClick={() => setEditVision(true)}>🎯 Your vision — &ldquo;{vision}&rdquo; · tap to set a 5-year goal</button>
+          <button type="button" className="fc-motto-btn" onClick={() => setEditVision(true)}><Icon name="target" /> Your vision — &ldquo;{vision}&rdquo; · tap to set a 5-year goal</button>
         )}
       </div>
       <div className="fc-motto-edit">
@@ -402,8 +403,8 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
       {/* photo (feeds the portrait side + the share PNG) */}
       <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onPick} />
       <div className="status-photo-row">
-        <button type="button" className="status-photo-btn" onClick={() => fileRef.current?.click()} disabled={saving}>{saving ? "Saving…" : hasPhoto ? "↺ Change photo" : "＋ Add your photo — the front frames it"}</button>
-        {hasPhoto && !saving && <button type="button" className="status-photo-clear" onClick={clearPhoto} aria-label="Remove photo">✕</button>}
+        <button type="button" className="status-photo-btn" onClick={() => fileRef.current?.click()} disabled={saving}>{saving ? "Saving…" : hasPhoto ? "↺ Change photo" : <><Icon name="plus" /> Add your photo — the front frames it</>}</button>
+        {hasPhoto && !saving && <button type="button" className="status-photo-clear" onClick={clearPhoto} aria-label="Remove photo"><Icon name="close" /></button>}
       </div>
       <p className="status-hint">Make it yours — a finish, your motto, your photo. Share it to your story and tag <b>@gt3pb</b>; your code&rsquo;s on the card, so every friend who joins with it earns you both a credit.</p>
 

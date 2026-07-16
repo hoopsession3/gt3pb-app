@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth, roleOf } from "./AuthProvider";
 import { useApp } from "./AppProvider";
 import Sheet from "@/components/Sheet";
+import Icon from "@/components/Icon";
 import Gt3Mark from "@/components/Gt3Mark";
 import { supabase } from "@/lib/supabase";
 import { DRINKS, type DrinkId } from "@/lib/menu";
@@ -61,7 +62,7 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
   const head = (title: string) => (
     <div className="acs-head">
       <span className="acs-head-t"><Gt3Mark tone="cream" /> {title}</span>
-      <button type="button" className="isheet-x" onClick={onClose} aria-label="Close">✕</button>
+      <button type="button" className="isheet-x" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
     </div>
   );
 
@@ -88,7 +89,7 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
         </div>
         <div className="acs-id">
           <div className="acs-name">{name}</div>
-          <span className={`acs-tier${founding ? " founding" : ""}`}>{founding ? "★ Founding Member" : "Member"}</span>
+          <span className={`acs-tier${founding ? " founding" : ""}`}>{founding ? <><Icon name="star" /> Founding Member</> : "Member"}</span>
         </div>
       </div>
 
@@ -121,7 +122,7 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
       <button type="button" className="acs-card" onClick={() => { onClose(); onShowCard(); }}>
         <span className="acs-card-l">
           <b>Your member card</b>
-          <span>{founding ? "Founding status · photo & finish — show it off ↗" : "Photo, status & finish — show it off ↗"}</span>
+          <span>{founding ? <>Founding status · photo &amp; finish — show it off <Icon name="externalLink" /></> : <>Photo, status &amp; finish — show it off <Icon name="externalLink" /></>}</span>
         </span>
         <span className="acs-card-mk"><Gt3Mark tone="cream" /></span>
       </button>
