@@ -4,6 +4,7 @@ import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import Sheet from "@/components/Sheet";
+import Icon, { type IconName } from "@/components/Icon";
 
 // TROUBLESHOOT AI — the field-ops first responder. Something's going wrong at the event/stop RIGHT
 // NOW: pick the area, say what's happening, and the agent gives the most likely cause, an ordered
@@ -11,13 +12,13 @@ import Sheet from "@/components/Sheet";
 // post-event recap remembers it — and push the prevention items into prep as follow-up tasks.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-const SYMPTOMS: { key: string; label: string; icon: string }[] = [
-  { key: "power", label: "Power / generator", icon: "⚡" },
-  { key: "water", label: "Water / hot water", icon: "🚿" },
-  { key: "gas", label: "Nitro / keg / gas", icon: "🛢️" },
-  { key: "pos", label: "POS / payments", icon: "💳" },
-  { key: "stock", label: "Ran out of stock", icon: "📦" },
-  { key: "other", label: "Something else", icon: "🔧" },
+const SYMPTOMS: { key: string; label: string; icon: IconName }[] = [
+  { key: "power", label: "Power / generator", icon: "warning" },
+  { key: "water", label: "Water / hot water", icon: "jar" },
+  { key: "gas", label: "Nitro / keg / gas", icon: "package" },
+  { key: "pos", label: "POS / payments", icon: "lock" },
+  { key: "stock", label: "Ran out of stock", icon: "package" },
+  { key: "other", label: "Something else", icon: "wrench" },
 ];
 
 type Cause = { cause: string; likelihood: string; why?: string };
@@ -58,10 +59,10 @@ export default function TroubleshootAI({ ownerType, ownerId, title, onClose, onL
   const keep = diag?.prevention.filter((p) => !p._skip).length ?? 0;
 
   return (
-    <Sheet open onClose={onClose} label="Troubleshoot" header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow">🔧 Troubleshoot · field ops</div><div className="dp-title">{title || "On site"} — what&apos;s wrong?</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
+    <Sheet open onClose={onClose} label="Troubleshoot" header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow"><Icon name="wrench" /> Troubleshoot · field ops</div><div className="dp-title">{title || "On site"} — what&apos;s wrong?</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}><Icon name="close" /></button></div>}>
           {done ? (
             <div className="eg-done">
-              <div className="eg-done-h">✓ Logged to this {ownerType}&apos;s recap{done.added ? ` · ${done.added} prevention task${done.added === 1 ? "" : "s"} added to prep` : ""}</div>
+              <div className="eg-done-h"><Icon name="check" /> Logged to this {ownerType}&apos;s recap{done.added ? ` · ${done.added} prevention task${done.added === 1 ? "" : "s"} added to prep` : ""}</div>
               <div className="dp-hint" style={{ marginTop: 8 }}>It&apos;s saved against this {ownerType} — you&apos;ll see it in the recap so the same thing doesn&apos;t bite twice.</div>
               <div className="prod-actions" style={{ marginTop: 12 }}><span /><button type="button" className="note-save" onClick={onClose}>Done</button></div>
             </div>
@@ -70,7 +71,7 @@ export default function TroubleshootAI({ ownerType, ownerId, title, onClose, onL
               <div className="ts-chips">
                 {SYMPTOMS.map((s) => (
                   <button key={s.key} type="button" className={`ts-chip${symptom === s.key ? " on" : ""}`} onClick={() => setSymptom(s.key)}>
-                    <span aria-hidden="true">{s.icon}</span>{s.label}
+                    <span aria-hidden="true"><Icon name={s.icon} /></span>{s.label}
                   </button>
                 ))}
               </div>
@@ -79,7 +80,7 @@ export default function TroubleshootAI({ ownerType, ownerId, title, onClose, onL
               {err && <div className="dp-err">{err}</div>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={onClose} disabled={busy}>Cancel</button>
-                <button type="button" className="note-save" onClick={diagnose} disabled={busy || !problem.trim()}>{busy ? "Diagnosing…" : "🔧 Diagnose"}</button>
+                <button type="button" className="note-save" onClick={diagnose} disabled={busy || !problem.trim()}>{busy ? "Diagnosing…" : <><Icon name="wrench" /> Diagnose</>}</button>
               </div>
             </>
           ) : (
@@ -109,8 +110,8 @@ export default function TroubleshootAI({ ownerType, ownerId, title, onClose, onL
                   <div className="ts-block-h">Stop it happening again {keep > 0 && <span className="ts-keepn">{keep} → prep</span>}</div>
                   {diag.prevention.map((p, i) => (
                     <button key={i} type="button" className={`eg-row${p._skip ? "" : " on"}`} onClick={() => togglePrev(i)} style={{ ["--c" as string]: p.critical ? "#c4453c" : "#e0892b" }}>
-                      <span className="eg-ck">{p._skip ? "○" : "✓"}</span>
-                      <span className="eg-main"><b>{p.critical ? "⚠️ " : ""}{p.label}</b><span>{p.critical ? "critical" : "important"} · adds to this {ownerType}&apos;s prep</span></span>
+                      <span className="eg-ck">{p._skip ? <Icon name="dotOutline" /> : <Icon name="check" />}</span>
+                      <span className="eg-main"><b>{p.critical && <Icon name="warning" />} {p.label}</b><span>{p.critical ? "critical" : "important"} · adds to this {ownerType}&apos;s prep</span></span>
                     </button>
                   ))}
                 </div>

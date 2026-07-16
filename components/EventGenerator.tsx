@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import Markdown from "./Markdown";
 import Sheet from "@/components/Sheet";
+import Icon from "@/components/Icon";
 
 // EVENT GENERATOR — say hey, feed it notes: the agent drafts the events + a team collaboration note
 // (your house format) + an action-item to-do list, all linked. You get a quick review, untick
@@ -48,7 +49,7 @@ export default function EventGenerator({ onClose, onCreated, initialNotes }: { o
     <Sheet open onClose={onClose} label="Create an event from notes" header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow">AI · from your notes</div><div className="dp-title">Create an event from your notes</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
           {done ? (
             <div className="eg-done">
-              <div className="eg-done-h">✓ Done — here&apos;s what I made</div>
+              <div className="eg-done-h"><Icon name="check" /> Done — here&apos;s what I made</div>
               <ul className="eg-list">
                 <li>{done.events?.length ?? 0} event{(done.events?.length ?? 0) === 1 ? "" : "s"} &amp; stop{(done.events?.length ?? 0) === 1 ? "" : "s"}{done.events?.length ? `: ${done.events.map((e: any) => e.title).join(", ")}` : ""}</li>
                 <li>{done.note ? `Team note: ${done.note.title}` : "No note"}</li>
@@ -64,7 +65,7 @@ export default function EventGenerator({ onClose, onCreated, initialNotes }: { o
               {err && <div className="dp-err">{err}</div>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={onClose} disabled={busy}>Cancel</button>
-                <button type="button" className="note-save" onClick={draft} disabled={busy || !notes.trim()}>{busy ? "Reading your notes…" : "✨ Draft the plan"}</button>
+                <button type="button" className="note-save" onClick={draft} disabled={busy || !notes.trim()}>{busy ? "Reading your notes…" : <><Icon name="sparkles" /> Draft the plan</>}</button>
               </div>
             </>
           ) : (
@@ -74,8 +75,8 @@ export default function EventGenerator({ onClose, onCreated, initialNotes }: { o
                 const isStop = e.kind === "stop";
                 return (
                 <button key={i} type="button" className={`eg-row${e._skip ? "" : " on"}`} onClick={() => toggle("events", i)} style={{ ["--c" as string]: isStop ? "#5b9a6b" : "#6fa8dc" }}>
-                  <span className="eg-ck">{e._skip ? "○" : "✓"}</span>
-                  <span className="eg-main"><b>{isStop ? "🚚 " : "📍 "}{e.title} <span className="eg-kind">{isStop ? "Truck stop" : "Event"}</span></b><span>{[e.date || e.day_label, e.location].filter(Boolean).join(" · ") || "date TBD"}{e.blurb ? ` — ${e.blurb}` : ""}</span></span>
+                  <span className="eg-ck">{e._skip ? <Icon name="dotOutline" /> : <Icon name="check" />}</span>
+                  <span className="eg-main"><b>{isStop ? <Icon name="truck" /> : <Icon name="pin" />} {e.title} <span className="eg-kind">{isStop ? "Truck stop" : "Event"}</span></b><span>{[e.date || e.day_label, e.location].filter(Boolean).join(" · ") || "date TBD"}{e.blurb ? ` — ${e.blurb}` : ""}</span></span>
                 </button>
                 );
               })}
@@ -90,7 +91,7 @@ export default function EventGenerator({ onClose, onCreated, initialNotes }: { o
               <div className="eg-sec">Action items → to-dos</div>
               {(plan.action_items ?? []).length === 0 ? <div className="dp-hint">No action items found.</div> : plan.action_items.map((a: any, i: number) => (
                 <button key={i} type="button" className={`eg-row${a._skip ? "" : " on"}`} onClick={() => toggle("action_items", i)} style={{ ["--c" as string]: CATC[a.category] || "#9a8f7c" }}>
-                  <span className="eg-ck">{a._skip ? "○" : "✓"}</span>
+                  <span className="eg-ck">{a._skip ? <Icon name="dotOutline" /> : <Icon name="check" />}</span>
                   <span className="eg-main"><b>{a.title}</b><span>{a.category}{typeof a.event_index === "number" && ev[a.event_index] ? ` · ${ev[a.event_index].title}` : ""}</span></span>
                 </button>
               ))}

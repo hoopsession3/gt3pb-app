@@ -8,6 +8,7 @@ import { etToday } from "@/lib/dates";
 import AssignTaskSheet from "./AssignTaskSheet";
 import Sheet from "./Sheet";
 import { SectionHeader, InfoRow } from "@/components/kit";
+import Icon from "@/components/Icon";
 
 // SUNDAY DELIVERY OPS — the crew side of the delivery debrief, in DropOps' shape: one summary
 // sentence (units, one hero thought), the Saturday brew totals (incl. Performance combos), and a
@@ -98,9 +99,9 @@ export default function DeliveryOps() {
       <div className="dops-brew">Brew: <b>{(["RISE", "FLOW", "DUSK"] as const).filter((f) => perF[f] > 0).map((f) => `${perF[f]}× ${f}`).join(" · ") || "—"}</b>
         {premiumTotal > 0 && <> · Premium: <b>{Object.keys(premiumMix).length ? Object.entries(premiumMix).map(([k, n]) => `${n}× ${k}`).join(" · ") : premiumTotal}</b></>}
       </div>
-      <a className="dops-driver-link" href="/driver">🚗 Open the driver run — map &amp; turn-by-turn →</a>
-      <button type="button" className="dops-assign-link" onClick={() => setAssign(true)}>📋 Assign this run to a driver →</button>
-      <button type="button" className="dops-assign-link" onClick={() => setPackout(true)}>📦 Vehicle packout plan →</button>
+      <a className="dops-driver-link" href="/driver"><Icon name="truck" /> Open the driver run — map &amp; turn-by-turn <Icon name="arrowRight" /></a>
+      <button type="button" className="dops-assign-link" onClick={() => setAssign(true)}><Icon name="team" /> Assign this run to a driver <Icon name="arrowRight" /></button>
+      <button type="button" className="dops-assign-link" onClick={() => setPackout(true)}><Icon name="package" /> Vehicle packout plan <Icon name="arrowRight" /></button>
       {assign && <AssignTaskSheet defaultTitle={`Sunday delivery run — ${rows.length} stop${rows.length === 1 ? "" : "s"} · ${bottles} bottles`} dueOn={date} category="ops" onClose={() => setAssign(false)} />}
       {packout && <DeliveryPackout bottles={bottles} orders={rows.length} refills={refills} onClose={() => setPackout(false)} />}
       <button type="button" className="dops-prog" onClick={() => setListOpen(!showList)} aria-expanded={showList}>
@@ -119,12 +120,12 @@ export default function DeliveryOps() {
                   {o.refill_count > 0 && <span className="dops-chip ret">SWAP ×{o.refill_count}</span>}
                   <span className={`dops-chip ${o.status === "held_for_pickup" ? "new" : "ret"}`}>{STATUS_LABEL[o.status]}</span>
                 </>}
-                trailing={<span className="dops-total">{dollars(o.total_cents)} ✓</span>}
+                trailing={<span className="dops-total">{dollars(o.total_cents)} <Icon name="check" /></span>}
                 meta={<>
                   <b>{o.pack_size} bottles</b> — {[o.rise_count && `${o.rise_count}× RISE`, o.flow_count && `${o.flow_count}× FLOW`, o.dusk_count && `${o.dusk_count}× DUSK`, o.performance_count && `${Object.entries(o.performance_mix || {}).map(([k, n]) => `${n}× ${prettySlug(k)}`).join(" · ") || `${o.performance_count}× premium`}`].filter(Boolean).join(" · ")}
                   <br />{o.address_street}, {o.address_city} {o.address_zip}{o.access_instructions ? <> · <em>{o.access_instructions}</em></> : null}
                   <div className="dops-drive">
-                    <a className="dops-nav" href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${o.address_street}, ${o.address_city} ${o.address_zip}`)}`} target="_blank" rel="noopener noreferrer">🧭 Navigate</a>
+                    <a className="dops-nav" href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${o.address_street}, ${o.address_city} ${o.address_zip}`)}`} target="_blank" rel="noopener noreferrer"><Icon name="compass" /> Navigate</a>
                     {o.phone ? <a className="dops-tel" href={`tel:${o.phone.replace(/[^\d+]/g, "")}`}>📞 Call {o.name.split(" ")[0]}</a> : null}
                   </div>
                   {o.empties_collected != null && o.empties_collected !== o.empties_expected && (
@@ -155,7 +156,7 @@ function DeliveryPackout({ bottles, orders, refills, onClose }: { bottles: numbe
   const gelPacks = coolers * 5;                               // 4–6 per cooler; 5 is the safe middle
   const returnBins = refills > 0 ? Math.max(1, Math.ceil(refills / 30)) : 0;
   return (
-    <Sheet open onClose={onClose} label="Vehicle packout" header={<div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}><div><div className="dp-eyebrow">📦 Vehicle packout · Sunday run</div><div className="dp-title">{bottles} bottles · {orders} stop{orders === 1 ? "" : "s"}</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
+    <Sheet open onClose={onClose} label="Vehicle packout" header={<div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}><div><div className="dp-eyebrow"><Icon name="package" /> Vehicle packout · Sunday run</div><div className="dp-title">{bottles} bottles · {orders} stop{orders === 1 ? "" : "s"}</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}><Icon name="close" /></button></div>}>
           <div className="brew-spec"><b>{coolers}</b> hard cooler{coolers === 1 ? "" : "s"} (24–48 qt) · <b>{gelPacks}</b> gel packs (pre-frozen){returnBins > 0 ? <> · <b>{returnBins}</b> empties bin{returnBins === 1 ? "" : "s"}</> : ""}</div>
           <div className="brew-block-h">Pack them in</div>
           <div className="brew-ing">

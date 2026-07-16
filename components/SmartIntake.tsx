@@ -4,19 +4,20 @@ import { useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { uploadToBucket } from "@/lib/uploads";
+import Icon, { type IconName } from "@/components/Icon";
 
 // SMART INTAKE — drop any file (photo of gear, a permit, a receipt, a manual). It's read by the
 // intake agent, which proposes where it belongs: an asset, an inventory consumable, or a stored
 // document. Review/adjust, then file it. The file is kept in the private 'intake' bucket either way.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-const KINDS: { key: string; label: string; icon: string }[] = [
-  { key: "asset", label: "Asset / gear", icon: "🔧" },
-  { key: "inventory", label: "Inventory", icon: "📦" },
-  { key: "document", label: "Document", icon: "📄" },
-  { key: "recipe", label: "Recipe", icon: "🧪" },
-  { key: "photo", label: "Photo", icon: "🖼️" },
-  { key: "other", label: "Other", icon: "•" },
+const KINDS: { key: string; label: string; icon: IconName }[] = [
+  { key: "asset", label: "Asset / gear", icon: "wrench" },
+  { key: "inventory", label: "Inventory", icon: "package" },
+  { key: "document", label: "Document", icon: "info" },
+  { key: "recipe", label: "Recipe", icon: "coffee" },
+  { key: "photo", label: "Photo", icon: "search" },
+  { key: "other", label: "Other", icon: "more" },
 ];
 const rand = (n: string) => `${Date.now()}-${n.replace(/[^a-zA-Z0-9.\-_]/g, "_")}`.slice(0, 80);
 
@@ -71,7 +72,7 @@ export default function SmartIntake() {
         </div>
       ) : !p ? (
         <button type="button" className="intake-drop" onClick={() => fileRef.current?.click()} disabled={!!busy}>
-          <span className="intake-i">📎</span>
+          <span className="intake-i"><Icon name="link" /></span>
           <b>{busy || "Drop a file — I'll figure out where it goes"}</b>
           <span>Photo of gear, a permit, a receipt, a manual… anything</span>
         </button>
@@ -79,19 +80,19 @@ export default function SmartIntake() {
         <div className="intake-review">
           <div className="intake-readhead">
             <span className="intake-conf" data-c={p.confidence}>{p.confidence}</span>
-            <b>Looks like {KINDS.find((k) => k.key === p.kind)?.icon} {KINDS.find((k) => k.key === p.kind)?.label}</b>
+            <b>Looks like <Icon name={KINDS.find((k) => k.key === p.kind)?.icon ?? "info"} /> {KINDS.find((k) => k.key === p.kind)?.label}</b>
           </div>
           {p.action && <div className="dp-hint" style={{ marginTop: 0 }}>{p.action}</div>}
 
           {scan.knownAsset && (
             <div className="intake-kb">
-              <div className="intake-kb-h">📖 You already have this — {scan.knownAsset.name}</div>
+              <div className="intake-kb-h">You already have this — {scan.knownAsset.name}</div>
               {scan.knownAsset.next_due && (
                 <div className={`intake-kb-due${scan.knownAsset.next_due.overdue ? " over" : ""}`}>
-                  {scan.knownAsset.next_due.overdue ? "⚠ Overdue" : "Next"}: {scan.knownAsset.next_due.summary} · {scan.knownAsset.next_due.on}
+                  {scan.knownAsset.next_due.overdue ? <><Icon name="warning" /> Overdue</> : "Next"}: {scan.knownAsset.next_due.summary} · {scan.knownAsset.next_due.on}
                 </div>
               )}
-              {scan.knownAsset.manual_url && <a className="intake-kb-link" href={scan.knownAsset.manual_url} target="_blank" rel="noreferrer">Open manual ↗</a>}
+              {scan.knownAsset.manual_url && <a className="intake-kb-link" href={scan.knownAsset.manual_url} target="_blank" rel="noreferrer">Open manual <Icon name="externalLink" /></a>}
               {scan.knownAsset.how_tos?.map((h: any, i: number) => (
                 <details key={i} className="am-how"><summary>{h.summary}</summary>
                   <div className="am-how-steps">{String(h.how_to).split("\n").map((s: string) => s.trim()).filter(Boolean).map((s: string, j: number) => <div key={j}>{s}</div>)}</div>
@@ -102,7 +103,7 @@ export default function SmartIntake() {
           )}
 
           <div className="ts-chips" style={{ marginTop: 10 }}>
-            {KINDS.map((k) => <button key={k.key} type="button" className={`ts-chip${p.kind === k.key ? " on" : ""}`} onClick={() => set("kind", k.key)}>{k.icon} {k.label}</button>)}
+            {KINDS.map((k) => <button key={k.key} type="button" className={`ts-chip${p.kind === k.key ? " on" : ""}`} onClick={() => set("kind", k.key)}><Icon name={k.icon} /> {k.label}</button>)}
           </div>
 
           <input className="note-in" style={{ marginTop: 10 }} value={p.name} onChange={(e) => set("name", e.target.value)} placeholder="Name" />

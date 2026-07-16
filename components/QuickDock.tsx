@@ -8,6 +8,7 @@ import { haptic, HAPTIC } from "@/lib/haptics";
 import AskGT3 from "./AskGT3";
 import CopilotLauncher from "./CopilotLauncher";
 import Sheet from "@/components/Sheet";
+import Icon from "@/components/Icon";
 
 // QuickDock — a floating, always-accessible launcher for the crew's two most-used quick actions:
 // Ask GT3 (the pocket-brain chat) and a fast Note capture (jot/speak → a real note, private by
@@ -48,11 +49,11 @@ export default function QuickDock() {
   return (
     <>
       <button type="button" className={`qd-fab${open ? " open" : ""}`} onClick={() => setOpen((o) => !o)} aria-label={open ? "Close quick actions" : "Quick actions — run a copilot, ask GT3, or take a note"}>
-        {open ? "✕" : "✦"}
+        {open ? <Icon name="close" /> : <Icon name="sparkles" />}
       </button>
 
       {open && (
-        <Sheet open onClose={() => setOpen(false)} label="Quick actions" header={<div style={{ display: "flex", alignItems: "center" }}><button type="button" className={`qd-tab${mode === "do" ? " on" : ""}`} onClick={() => setMode("do")}>✦ Do</button><button type="button" className={`qd-tab${mode === "ask" ? " on" : ""}`} onClick={() => setMode("ask")}>Ask GT3</button><button type="button" className={`qd-tab${mode === "note" ? " on" : ""}`} onClick={() => setMode("note")}>✎ Note</button><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setOpen(false)} aria-label="Close">✕</button></div>}>
+        <Sheet open onClose={() => setOpen(false)} label="Quick actions" header={<div style={{ display: "flex", alignItems: "center" }}><button type="button" className={`qd-tab${mode === "do" ? " on" : ""}`} onClick={() => setMode("do")}><Icon name="sparkles" /> Do</button><button type="button" className={`qd-tab${mode === "ask" ? " on" : ""}`} onClick={() => setMode("ask")}>Ask GT3</button><button type="button" className={`qd-tab${mode === "note" ? " on" : ""}`} onClick={() => setMode("note")}>Note</button><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setOpen(false)} aria-label="Close"><Icon name="close" /></button></div>}>
           {mode === "do" ? <CopilotLauncher role={role} onPick={(s) => { setSection(s); setOpen(false); }} />
             : mode === "ask" ? <AskGT3 />
             : <QuickNote userId={user?.id ?? null} onSaved={() => setOpen(false)} />}
@@ -64,11 +65,12 @@ export default function QuickDock() {
 
 // Quick note capture — type or speak a line, pick who sees it (just you by default), save.
 // Lands in Business › Notes to expand later.
-const QN_VIS = [
-  { v: "private", label: "🔒 Just me" },
-  { v: "team", label: "👥 Team" },
-  { v: "collab", label: "🤝 Team + comments" },
-] as const;
+const QN_VIS: { v: "private" | "team" | "collab"; label: string; icon: IconNameQD }[] = [
+  { v: "private", label: "Just me", icon: "lock" },
+  { v: "team", label: "Team", icon: "team" },
+  { v: "collab", label: "Team + comments", icon: "partners" },
+];
+type IconNameQD = "lock" | "team" | "partners";
 function QuickNote({ userId, onSaved }: { userId: string | null; onSaved: () => void }) {
   const [text, setText] = useState("");
   const [vis, setVis] = useState<"private" | "team" | "collab">("private");
@@ -114,7 +116,7 @@ function QuickNote({ userId, onSaved }: { userId: string | null; onSaved: () => 
       </div>
       <div className="qd-note-vis" role="radiogroup" aria-label="Who can see this note">
         {QN_VIS.map((o) => (
-          <button key={o.v} type="button" role="radio" aria-checked={vis === o.v} className={`qd-vis-chip${vis === o.v ? " on" : ""}`} onClick={() => setVis(o.v)}>{o.label}</button>
+          <button key={o.v} type="button" role="radio" aria-checked={vis === o.v} className={`qd-vis-chip${vis === o.v ? " on" : ""}`} onClick={() => setVis(o.v)}><Icon name={o.icon} /> {o.label}</button>
         ))}
       </div>
       <div className="qd-note-foot">

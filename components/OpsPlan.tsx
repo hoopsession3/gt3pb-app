@@ -8,6 +8,7 @@ import { authedFetch } from "@/lib/authedFetch";
 import { haptic, HAPTIC } from "@/lib/haptics";
 import { resolveVendor, type ResolveDecision, type VendorMatch } from "@/lib/vendorLink";
 import VendorResolve from "./VendorResolve";
+import Icon from "@/components/Icon";
 
 // OPS PLAN (chief-of-staff) — turn a meeting note into a build-able operations plan. Calls the
 // opsplan agent, then lets the operator tap "Create" on each proposed op (event/stop, vendor,
@@ -113,7 +114,7 @@ export default function OpsPlan({ noteId }: { noteId: string }) {
 
   if (!plan) return (
     <button type="button" className={`ops-go${busy ? " loading" : ""}`} onClick={analyze} disabled={busy}>
-      {busy ? <>Reading the note<span className="ops-dots"><i /><i /><i /></span></> : <>⚡ Build operations</>}
+      {busy ? <>Reading the note<span className="ops-dots"><i /><i /><i /></span></> : <><Icon name="sparkles" /> Build operations</>}
     </button>
   );
 
@@ -142,11 +143,11 @@ export default function OpsPlan({ noteId }: { noteId: string }) {
             </div>
             <div className="ops-act">
               {done[i] ? (
-                <span className="ops-check" aria-label="Created">✓</span>
+                <span className="ops-check" aria-label="Created"><Icon name="check" /></span>
               ) : pending[i] ? (
                 <>
                   <button type="button" className="ops-approve" onClick={() => { setPending((p) => ({ ...p, [i]: false })); createOp(op, i); }}>Approve</button>
-                  <button type="button" className="ops-cancel" onClick={() => setPending((p) => ({ ...p, [i]: false }))} aria-label="Cancel">✕</button>
+                  <button type="button" className="ops-cancel" onClick={() => setPending((p) => ({ ...p, [i]: false }))} aria-label="Cancel"><Icon name="close" /></button>
                 </>
               ) : (
                 <button type="button" className="ops-create" onClick={() => { haptic(HAPTIC.tap); setPending((p) => ({ ...p, [i]: true })); }}>Create</button>
@@ -162,7 +163,7 @@ export default function OpsPlan({ noteId }: { noteId: string }) {
           {plan.gaps.map((g, i) => (
             <div key={i} className="ops-gap">
               <div className="ops-op-x"><b>{g.need}</b>{g.why && <span className="ops-meta">{g.why}</span>}</div>
-              <button type="button" className="ops-track" onClick={() => trackGap(g, i)} disabled={gapDone[i]}>{gapDone[i] ? "✓" : "Track"}</button>
+              <button type="button" className="ops-track" onClick={() => trackGap(g, i)} disabled={gapDone[i]}>{gapDone[i] ? <Icon name="check" /> : "Track"}</button>
             </div>
           ))}
         </div>

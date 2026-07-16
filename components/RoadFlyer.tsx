@@ -7,6 +7,7 @@ import { uploadToBucket } from "@/lib/uploads";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { localToday } from "@/lib/dates";
+import Icon from "@/components/Icon";
 
 // ROAD FLYER — the locked GT3 house graphics, drawn on a canvas so they're pixel-identical every
 // time. A five-slide set (Announce · Menu · Sub-menu · Details · Photo) that reads as ONE luxury
@@ -472,7 +473,7 @@ export default function RoadFlyer() {
     <div className="rf">
       <div className="rf-tpl-head">
         <span>Template · {THEMES[tpl].name}</span>
-        <button type="button" className="rf-ai" onClick={suggest} disabled={suggesting}>{suggesting ? "Thinking…" : "✨ Suggest for me"}</button>
+        <button type="button" className="rf-ai" onClick={suggest} disabled={suggesting}>{suggesting ? "Thinking…" : <><Icon name="sparkles" /> Suggest for me</>}</button>
       </div>
       <div className="rf-tpls" role="tablist" aria-label="Template">
         {THEMES.map((t, i) => (
@@ -498,15 +499,15 @@ export default function RoadFlyer() {
       {tile === "details" && <label className="rf-f"><span>Tasting notes — one drink per line as <b>Name | description</b> (up to 5)</span><textarea rows={7} value={f.details} onChange={(e) => setF((p) => ({ ...p, details: e.target.value }))} /></label>}
       {usesPhoto && (
         <div className="rf-photo">
-          <button type="button" className="rf-btn" onClick={() => fileRef.current?.click()} disabled={busy}>{busy ? "Working…" : f.photo ? "Replace photo" : "＋ Add photo"}</button>
+          <button type="button" className="rf-btn" onClick={() => fileRef.current?.click()} disabled={busy}>{busy ? "Working…" : f.photo ? "Replace photo" : <><Icon name="plus" /> Add photo</>}</button>
           {f.photo && <button type="button" className="rf-btn ghost" onClick={() => setF((p) => ({ ...p, photo: "" }))}>Remove</button>}
           <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { const file = e.target.files?.[0]; if (file) uploadPhoto(file); e.target.value = ""; }} />
         </div>
       )}
       <canvas ref={canvasRef} width={W} height={H} className="rf-canvas" />
       <div className="rf-actions">
-        <button type="button" className="rf-dl ghost" onClick={download}>⬇ Download</button>
-        <button type="button" className="rf-dl" onClick={saveToFeed} disabled={busy}>{busy ? "Saving…" : "✦ Save to feed"}</button>
+        <button type="button" className="rf-dl ghost" onClick={download}>Download</button>
+        <button type="button" className="rf-dl" onClick={saveToFeed} disabled={busy}>{busy ? "Saving…" : <><Icon name="star" /> Save to feed</>}</button>
       </div>
     </div>
   );
