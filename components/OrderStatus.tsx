@@ -8,6 +8,7 @@ import { DRINKS, type DrinkId } from "@/lib/menu";
 import type { Order } from "@/lib/db";
 import { saveSnapshot, readSnapshot, isNetworkError } from "./offline";
 import { snapshotUsable } from "@/lib/offline";
+import Icon from "@/components/Icon";
 
 // A live "your order" banner for signed-in members — preparing → ready in realtime,
 // no push permission required (RLS lets a member read only their own orders). Guests
@@ -119,15 +120,15 @@ export default function OrderStatus() {
       {/* Talk to the truck — folded until asked for; once set, it collapses to the answer. */}
       {etaOpen ? (
         <div className="orderbar-eta" role="group" aria-label="Tell the truck">
-          {([["on_way", "🏃 On my way"], ["outside", "📍 I'm outside"], ["late", "⏰ Running late"]] as const).map(([k, label]) => (
+          {([["on_way", "compass", "On my way"], ["outside", "pin", "I'm outside"], ["late", "clock", "Running late"]] as const).map(([k, icon, label]) => (
             <button key={k} type="button" className={`eta-chip${o.eta_status === k ? " on" : ""}`} disabled={etaBusy} onClick={async () => { await setEta(k); setEtaOpen(false); }} aria-pressed={o.eta_status === k}>
-              {label}
+              <Icon name={icon} /> {label}
             </button>
           ))}
         </div>
       ) : o.eta_status ? (
         <div className="orderbar-eta collapsed">
-          <span className="eta-set">{({ on_way: "🏃 On my way", outside: "📍 I'm outside", late: "⏰ Running late" } as const)[o.eta_status]} ✓</span>
+          <span className="eta-set"><Icon name={({ on_way: "compass", outside: "pin", late: "clock" } as const)[o.eta_status]} /> {({ on_way: "On my way", outside: "I'm outside", late: "Running late" } as const)[o.eta_status]} <Icon name="check" /></span>
           <button type="button" className="eta-change" onClick={() => setEtaOpen(true)}>change</button>
         </div>
       ) : (

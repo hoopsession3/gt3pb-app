@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import type { Broadcast } from "@/lib/broadcasts";
+import Icon from "@/components/Icon";
 
 // BROADCAST EDITOR (Settings) — compose an announcement/ad and put it live across the app to everyone.
 // The composer exposes every option: what it says, who sees it, how it looks, an optional call-to-
@@ -66,7 +67,7 @@ export default function BroadcastEditor() {
         <div className={`bcast bcast-${d.style}`} role="status">
           <div className="bcast-x"><b className="bcast-t">{d.title || "Your headline"}</b>{d.body && <span className="bcast-b">{d.body}</span>}</div>
           {d.cta_label && <span className="bcast-cta">{d.cta_label}</span>}
-          <button type="button" className="bcast-close" aria-hidden>✕</button>
+          <button type="button" className="bcast-close" aria-hidden><Icon name="close" /></button>
         </div>
       </div>
 
@@ -103,10 +104,10 @@ export default function BroadcastEditor() {
                 <span className={`bce-dot bcast-${b.style}`} />
                 <button type="button" className="bce-row-main" onClick={() => edit(b)}>
                   <b>{b.title}</b>
-                  <span>{b.active ? "● Live" : "Draft"} · {b.audience === "all" ? "Everyone" : b.audience === "members" ? "Members" : "Staff"}{b.kind === "promo" ? " · Ad" : ""}</span>
+                  <span>{b.active ? <><Icon name="dot" /> Live</> : "Draft"} · {b.audience === "all" ? "Everyone" : b.audience === "members" ? "Members" : "Staff"}{b.kind === "promo" ? " · Ad" : ""}</span>
                 </button>
                 <button type="button" className={`bce-toggle${b.active ? " on" : ""}`} onClick={() => toggle(b)}>{b.active ? "Take down" : "Go live"}</button>
-                <button type="button" className="bce-del" onClick={() => del(b)} aria-label="Delete">✕</button>
+                <button type="button" className="bce-del" onClick={() => del(b)} aria-label="Delete"><Icon name="close" /></button>
               </div>
             ))}
           </div>

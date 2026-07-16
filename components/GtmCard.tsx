@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { InfoRow } from "@/components/kit";
+import Icon from "@/components/Icon";
 
 // GTM DEFINITION — the one place the go-to-market motion is stated, so both founders operate from
 // the same definition instead of a text thread. Internal (crew) surface. The two anchors today:
@@ -48,14 +49,14 @@ export default function GtmCard({ onOpenSchedule, onOpenInitiative }: GtmCardPro
       <div className="gtm-eyb">Go-to-market</div>
       <div className="k-rows">
         <InfoRow
-          name={<><span className="gtm-ic" aria-hidden>🗓️</span>Mondays</>}
+          name={<><span className="gtm-ic" aria-hidden><Icon name="calendar" /></span>Mondays</>}
           sub="Small-business delivery day"
           onClick={onOpenSchedule}
           ariaLabel={onOpenSchedule ? "Open delivery-day schedule" : undefined}
           trailing={onOpenSchedule ? caret : undefined}
         />
         <InfoRow
-          name={<><span className="gtm-ic" aria-hidden>🎯</span>{READINESS.label}</>}
+          name={<><span className="gtm-ic" aria-hidden><Icon name="target" /></span>{READINESS.label}</>}
           sub={READINESS.note}
           onClick={onOpenInitiative}
           ariaLabel={onOpenInitiative ? "Open readiness initiative" : undefined}

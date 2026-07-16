@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { SectionHeader } from "@/components/kit";
 import { useSiteCopy } from "@/lib/copy";
+import Icon from "@/components/Icon";
 
 // The brand-story close — "What We Make" pillars + a walk-up CTA + sign-off, on the kit.
 // PLACEMENT IS AUDIENCE-SCOPED, not page-scoped (Ryan's de-dup question, answered with the
@@ -24,7 +25,7 @@ export default function StorefrontStory() {
       <div className="pillar"><span className="pdot" style={{ background: "#3f7d6e" }} /><div className="px"><b>{t("home.pillar2_t")}</b><p>{t("home.pillar2_d")}</p></div></div>
       <div className="pillar"><span className="pdot" style={{ background: "#B82420" }} /><div className="px"><b>{t("home.pillar3_t")}</b><p>{t("home.pillar3_d")}</p></div></div>
 
-      <button className="btn-ter" onClick={() => router.push("/craft")}>Our craft — the how <b>→</b></button>
+      <button className="btn-ter" onClick={() => router.push("/craft")}>Our craft — the how <b><Icon name="arrowRight" /></b></button>
 
       <div className="arr-cta">
         <button className="arr-order" onClick={() => router.push("/menu")}>{t("reserve.order_bar")}</button>

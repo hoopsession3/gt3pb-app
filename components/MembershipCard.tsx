@@ -6,6 +6,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { useApp } from "@/components/AppProvider";
 import Gt3Mark from "@/components/Gt3Mark";
 import StatusCard from "@/components/StatusCard";
+import Icon from "@/components/Icon";
 
 // GT3 MEMBERSHIP CARD — a premium, scannable member card. The QR encodes a link to the operator
 // scan page keyed to this member (referral_code, or user id as fallback), so at the truck a crew
@@ -74,7 +75,7 @@ export default function MembershipCard() {
         <div className="mp-qr">{qr ? <img src={qr} alt="Scan at the truck" width={110} height={110} /> : <div className="mp-qr-ph" />}</div>
       </div>
       <div className="mp-foot">Scan at the truck to earn your stamp · 10th is on us</div>
-      <button type="button" className="mp-flex" onClick={() => setFlexOpen(true)}>✦ Show off your status ↗</button>
+      <button type="button" className="mp-flex" onClick={() => setFlexOpen(true)}><Icon name="star" /> Show off your status <Icon name="externalLink" /></button>
       <StatusCard open={flexOpen} onClose={() => setFlexOpen(false)} />
       {(appleReady || googleReady) && (
         <div className="mp-wallets">

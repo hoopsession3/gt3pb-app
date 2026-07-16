@@ -10,6 +10,7 @@ import SignIn from "@/components/SignIn";
 import { calFromEvent } from "@/lib/ics";
 import { supabase } from "@/lib/supabase";
 import type { EventRow } from "@/lib/db";
+import Icon from "@/components/Icon";
 
 // RSVP ROW — one event row on the kit InfoRow, with the full RSVP machine (optimistic toggle,
 // 23505 flip-back, sign-in resume). Extracted from /events so the unified Find Us surface and
@@ -108,7 +109,7 @@ export function RsvpRow({ ev }: { ev: EventRow }) {
         expanded={hasDetail ? open : undefined}
         trailing={
           <>
-            <button type="button" className={`k-chip${going ? " on" : " sec"}`} onClick={onRsvp}>{going ? "Going ✓" : "I'm in"}</button>
+            <button type="button" className={`k-chip${going ? " on" : " sec"}`} onClick={onRsvp}>{going ? <>Going <Icon name="check" /></> : "I'm in"}</button>
             {hasDetail && <span className={`k-caret${open ? " open" : ""}`} aria-hidden="true">›</span>}
           </>
         }
@@ -117,7 +118,7 @@ export function RsvpRow({ ev }: { ev: EventRow }) {
         <div className="k-detail">
           {ev.location_text && (
             <div className="k-det-row"><span className="k-det-k">Where</span>
-              <a href={`https://maps.google.com/?q=${encodeURIComponent(ev.location_text)}`} target="_blank" rel="noreferrer">📍 {ev.location_text}</a>
+              <a href={`https://maps.google.com/?q=${encodeURIComponent(ev.location_text)}`} target="_blank" rel="noreferrer"><Icon name="pin" /> {ev.location_text}</a>
             </div>
           )}
           {(ev.start_time || ev.end_time) && (
