@@ -1244,22 +1244,27 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 /* Employee Mode — operator console (distinct from the customer shell) */
 .opnav{border-top:1px solid var(--gold2)}
 .opnav .tab.on{color:var(--gold2)}
-.op-head{padding:2px 2px 14px}
+/* Top pad dropped 2px→0 (2026-07-16, ground-up redesign): pulls the title flush up against
+   .toprow so the two read as one header zone instead of two stacked bands. */
+.op-head{padding:0 2px 14px}
 .op-head-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .op-head-t{font-family:'Inter','Helvetica Neue',Arial,sans-serif;font-style:normal;font-weight:800;font-size:26px;color:var(--cream);line-height:1}
 /* WHEN pill — the at-a-glance cue for which moment a section is for (tap → section guide) */
 .op-head-when{display:inline-flex;align-items:center;gap:5px;font-family:'DM Mono',ui-monospace,monospace;font-size:10px;font-weight:500;letter-spacing:.13em;text-transform:uppercase;color:var(--gold2);background:transparent;border:1px solid var(--gold2);border-radius:999px;padding:3px 9px 2px;line-height:1;white-space:nowrap;opacity:.9;cursor:pointer;-webkit-appearance:none;appearance:none;transition:opacity .12s,background .12s}
 .op-head-when:hover,.op-head-when:active{opacity:1;background:rgba(200,166,97,.1)}
 .op-head-when-i{font-size:9px;opacity:.7}
-.op-head-s{font-family:'Inter';font-size:12.5px;color:var(--cream-m);margin-top:6px;letter-spacing:.2px}
 /* crew eyebrow → section guide */
 .eyb-guide{display:inline-flex;align-items:center;gap:6px;background:transparent;border:none;padding:0;cursor:pointer;-webkit-appearance:none;appearance:none;font:inherit;color:inherit}
 .eyb-i{font-size:10px;opacity:.6}
-/* mode switch (Crew ⇄ Customer) + Guide chip in the crew top bar */
+/* Mode switch (Crew ⇄ Customer) — de-emphasized (2026-07-16, ground-up redesign). This was a
+   bordered, filled-pill control carrying the same visual weight as the real section-tab nav
+   below (.grp-seg), which made the header read as a stack of competing bands. It's a rare
+   escape hatch, not frequent navigation, so it's now plain text + a quiet link: no box, no fill. */
 .toprow-actions{display:inline-flex;align-items:center;gap:8px}
-.modesw{display:inline-flex;align-items:center;gap:2px;background:var(--card);border:1px solid var(--line2);border-radius:999px;padding:2px;flex:0 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none}
-.modesw-seg{font-family:'DM Mono',ui-monospace,monospace;font-size:10px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--cream-m);background:transparent;border:none;border-radius:999px;padding:5px 11px 4px;line-height:1;cursor:pointer;-webkit-appearance:none;appearance:none;white-space:nowrap}
-.modesw-seg.on{background:var(--gold);color:#1a1610;cursor:default}
+.modesw{display:inline-flex;align-items:center;gap:6px;flex:0 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none}
+.modesw-seg{font-family:'DM Mono',ui-monospace,monospace;font-size:10px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--cream-d);background:transparent;border:none;border-radius:6px;padding:6px;line-height:1;cursor:pointer;-webkit-appearance:none;appearance:none;white-space:nowrap}
+.modesw-seg.on{color:var(--gold2);cursor:default}
+.modesw-seg:not(.on):hover{color:var(--cream-m)}
 .crew-guide{display:inline-flex;align-items:center;gap:5px;font-family:'Inter';font-weight:700;font-size:11.5px;letter-spacing:.02em;color:var(--gold2);background:transparent;border:1px solid var(--gold2);border-radius:999px;padding:6px 12px;line-height:1;cursor:pointer;-webkit-appearance:none;appearance:none}
 .crew-guide:hover,.crew-guide:active{background:rgba(200,166,97,.1)}
 .crew-jump{display:inline-flex;align-items:center;gap:5px;font-family:'Inter';font-weight:700;font-size:11.5px;letter-spacing:.02em;color:var(--cream-m);background:transparent;border:1px solid var(--line2);border-radius:999px;padding:6px 10px;line-height:1;cursor:pointer;-webkit-appearance:none;appearance:none}
@@ -1476,6 +1481,10 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .admin .op-head-t{font-size:28px}
 .admin .sec{font-size:12px}
 .admin .toprow{flex-wrap:wrap;row-gap:8px} /* wraps instead of overflowing 320px viewports at rd-t2/t3 zoom (CSS audit pack 2 2026-07) */
+/* Bottom pad dropped 2px→0 (2026-07-16, ground-up redesign) — closes the seam to .op-head above
+   (.toprow is shared with app/page.tsx, app/3mpire/page.tsx, app/academy/page.tsx, so this stays
+   .admin-scoped to the crew console only; it doesn't touch those other screens). */
+.admin .toprow{padding-bottom:0}
 /* pass 2 — KDS tickets, checkboxes, toggles, and legibility of tiny labels */
 .admin .adm-order{padding:14px 16px;border-radius:16px}
 .admin .adm-items{font-size:15px}
@@ -2508,7 +2517,11 @@ select.note-in{-webkit-appearance:none;appearance:none}
    (2026-07-09). Two failure families: gold pills whose day background darkened past what ink text
    can sit on (→ white labels), and classes that hardcode dark-theme colors (pink crit text, cream
    chip text, light-blue link, light-red pills) that never flipped for the cream ground. */
-.app.crew-day :is(.modesw-seg.on,.grp-seg.on,.subnav-tab.on,.studio-view.on,.cos-tg.on,.rdy-run,.skip-link,.cal-nudge button,.myday-open,.alert-open,.note-tab.on,.oa-msg.user,.oa-send,.insp-yes,.note-fu-addbtn,.guide-go,.qd-fab,.inline-create-go,.crew-bell-b,.myday-inbox-n,.cmt-av,.cmt-count,.studio-peer,.cal-vt.on,.calw-today,.prof-av,.org-av,.fn-day.on,.fn-conv,.cmd-cd,.vipq-yes,.vipv-btn,.fdig-opt.on,.pbd-filter.on,.k-seg-opt.on){color:var(--card)}
+.app.crew-day :is(.grp-seg.on,.subnav-tab.on,.studio-view.on,.cos-tg.on,.rdy-run,.skip-link,.cal-nudge button,.myday-open,.alert-open,.note-tab.on,.oa-msg.user,.oa-send,.insp-yes,.note-fu-addbtn,.guide-go,.qd-fab,.inline-create-go,.crew-bell-b,.myday-inbox-n,.cmt-av,.cmt-count,.studio-peer,.cal-vt.on,.calw-today,.prof-av,.org-av,.fn-day.on,.fn-conv,.cmd-cd,.vipq-yes,.vipv-btn,.fdig-opt.on,.pbd-filter.on,.k-seg-opt.on){color:var(--card)}
+/* .modesw-seg.on dropped from the list above (2026-07-16, ground-up redesign): it's no longer a
+   filled gold pill (see .modesw-seg, ~line 1263) — it's plain gold2 text, and --gold2 is already
+   the deepened, WCAG-safe text-on-cream token in this theme block. Forcing it to var(--card)
+   (white) here would render it invisible against the light cream ground. */
 /* contrast fix (2026-07-15 crew-day audit): .subnav-tab.on and .studio-view.on are translucent-tint
    pills (not solid gold like the rest of the list above) whose OWN dark-theme rule already sets
    color:var(--gold2) — that's correct in both themes and shouldn't have been swept into the white-text
@@ -3039,12 +3052,18 @@ body:has(.conc-sheet) .rail{display:flex}
 /* ── Grouped nav: secondary segmented toggle (My Day·Now / Plan·Prep / Money·Team) ── */
 /* flex + overflow-x so a 6-section lane (Business) scrolls on phones instead of clipping —
    .body{overflow-x:hidden} was silently amputating Goals + Notes on iPhones. */
-.grp-toggle{display:flex;gap:3px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:3px;margin-bottom:14px;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+/* Un-boxed (2026-07-16, ground-up redesign): this used to be a solid bordered card holding the
+   segments, its own full-width band stacked under toprow + op-head (part of the "3 stacked pill
+   bands" clutter). The container's background/border/padding are gone — segments now float
+   directly on the page, each with its own light outline (.btn-sec's established secondary-tier
+   language) instead of sitting inside a second box. The gold-filled .on state is kept as-is: this
+   IS real section navigation, and it's now the one clear anchor in the header instead of one of
+   three competing ones. */
+.grp-toggle{display:flex;gap:8px;margin-bottom:14px;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .grp-toggle::-webkit-scrollbar{display:none}
 .grp-toggle .grp-seg{flex:0 0 auto}
-.app.crew-day .grp-toggle{background:var(--card)}
-.grp-seg{flex:0 0 auto;background:transparent;border:none;border-radius:999px;padding:7px 18px;color:var(--cream-m);font-family:'Inter';font-weight:700;font-size:13.5px;cursor:pointer;-webkit-appearance:none;appearance:none;transition:background .12s,color .12s}
-.grp-seg.on{background:var(--gold);color:#1a1610}
+.grp-seg{flex:0 0 auto;background:transparent;border:1px solid var(--line2);border-radius:999px;padding:7px 16px;color:var(--cream-m);font-family:'Inter';font-weight:700;font-size:13.5px;cursor:pointer;-webkit-appearance:none;appearance:none;transition:background .12s,color .12s,border-color .12s}
+.grp-seg.on{background:var(--gold);color:#1a1610;border-color:var(--gold)}
 
 /* ── Company calendar: tap-a-day detail view ── */
 .cal-cell{cursor:pointer}
@@ -5852,9 +5871,15 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .k-tr{flex:none;display:flex;align-items:center;gap:10px}
 .k-caret{color:var(--cream-d);font-size:17px;transition:transform .15s}
 .k-caret.open{transform:rotate(90deg)}
-.k-chip{font-family:'Inter';font-weight:700;font-size:12px;padding:8px 14px;border-radius:11px;border:none;cursor:pointer;line-height:1}
+.k-chip{font-family:'Inter';font-weight:700;font-size:12px;padding:8px 14px;border-radius:11px;border:none;cursor:pointer;line-height:1;display:inline-flex;align-items:center;gap:6px}
 .k-chip.pri{background:var(--red);color:#fff}
-.k-chip.sec{background:transparent;color:var(--cream);border:1px solid var(--line2)}
+/* Named k-chip-sec, NOT "sec" — that bare class already exists app-wide (~line 119, an unrelated
+   legacy section-label style: uppercase, gold, big margins, display:flex). An element with
+   className="k-chip sec" matched BOTH — .sec's uppercase/margin/flex leaked through on every
+   property .k-chip.sec didn't explicitly set, a real, live bug on 3 shipped chips (crew's "Lead
+   the week" toggle, and the customer "Order again" / "Get directions" chips), each rendering
+   heavier/louder than designed. Fixed 2026-07-16 by giving this tier its own collision-free name. */
+.k-chip-sec{background:transparent;color:var(--cream);border:1px solid var(--line2)}
 .k-chip.on{background:rgba(127,206,130,.14);color:#7fce82;border:1px solid rgba(127,206,130,.35)}
 .k-row.now .k-nm{color:var(--cream)}
 .k-tag-live{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:#7fce82;border:1px solid rgba(127,206,130,.4);border-radius:6px;padding:3px 7px}

@@ -58,7 +58,7 @@ function YourUsual() {
         leadSub="usual"
         name={names}
         sub="same order, one tap"
-        trailing={<span className="k-chip sec">Order again</span>}
+        trailing={<span className="k-chip k-chip-sec">Order again</span>}
         onClick={() => reorder(last.items as DrinkId[])}
         ariaLabel={`Order your usual again: ${names}`}
       />

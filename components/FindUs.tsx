@@ -243,7 +243,7 @@ export default function FindUs() {
                         <p>{(r.notes ?? r.note) ?? t("truck.stop_note")}</p>
                         {rowLive && <button type="button" className="k-chip pri" onClick={() => router.push("/menu")}>Pre-order</button>}
                         {r.lat != null && r.lng != null && (
-                          <button type="button" className="k-chip sec" style={rowLive ? { marginLeft: 8 } : undefined} onClick={() => openDirections(r.lat as number, r.lng as number)}>Get directions</button>
+                          <button type="button" className="k-chip k-chip-sec" style={rowLive ? { marginLeft: 8 } : undefined} onClick={() => openDirections(r.lat as number, r.lng as number)}>Get directions</button>
                         )}
                       </div>
                     )}

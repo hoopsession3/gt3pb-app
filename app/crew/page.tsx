@@ -1359,7 +1359,7 @@ function MyDay({ userId, meName, isLeader, canPrep, canBrew }: { userId: string 
           on-demand by nature; it shouldn't occupy the glance screen). */}
       {isLeader && (
         <div style={{ marginTop: 18 }}>
-          <button type="button" className="k-chip sec" onClick={() => setLeadOpen((o) => !o)} aria-expanded={leadOpen}>
+          <button type="button" className="k-chip k-chip-sec" onClick={() => setLeadOpen((o) => !o)} aria-expanded={leadOpen}>
             <Icon name="compass" /> Lead the week — GTM, briefing &amp; intake {leadOpen ? "▴" : "▾"}
           </button>
           {leadOpen && (
