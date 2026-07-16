@@ -2,6 +2,7 @@
 
 import { COPILOTS, COPILOT_CATS } from "@/lib/copilots";
 import { useOperatorSection, SECTION_LABEL } from "./OperatorNav";
+import Icon from "@/components/Icon";
 
 // The owner's AI catalog — the full surface area of every AI operation the business runs, grouped by
 // department. This is the governance/overview view (all copilots, unfiltered): "here is everything
@@ -14,7 +15,7 @@ export default function CopilotDirectory() {
   return (
     <div className="cl cl-dir">
       <p className="set-lead">
-        {COPILOTS.length} AI copilots across {groups.length} departments. Staff run them from the ✦ launcher —
+        {COPILOTS.length} AI copilots across {groups.length} departments. Staff run them from the <Icon name="star" /> launcher —
         it shows each person only the copilots their role can reach. Jump to any one here.
       </p>
       <div className="cl-list">
@@ -29,7 +30,7 @@ export default function CopilotDirectory() {
                 </span>
                 <span className="cl-op-go">
                   <span className="cl-op-sec">{SECTION_LABEL[c.section]}</span>
-                  <span className="cl-op-arrow" aria-hidden>→</span>
+                  <span className="cl-op-arrow" aria-hidden><Icon name="arrowRight" /></span>
                 </span>
               </button>
             ))}

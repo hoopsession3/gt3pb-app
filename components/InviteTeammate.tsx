@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { useRealtimeTable } from "@/lib/realtime";
+import Icon from "@/components/Icon";
 
 // INVITE A TEAMMATE (0221) — the onboarding path for a team going 2 → 5. The owner invites an email
 // WITH a role; the moment that person signs up (magic link or password, any device), the signup
@@ -73,7 +74,7 @@ export default function InviteTeammate() {
               <span className="tinv-em">{i.email}</span>
               <span className="tinv-role">{i.role.replace("_", " ")}</span>
               <span className="tinv-wait">waiting</span>
-              <button type="button" className="tinv-x" onClick={() => revoke(i)} aria-label={`Revoke invite for ${i.email}`}>✕</button>
+              <button type="button" className="tinv-x" onClick={() => revoke(i)} aria-label={`Revoke invite for ${i.email}`}><Icon name="close" /></button>
             </div>
           ))}
         </div>
@@ -84,7 +85,7 @@ export default function InviteTeammate() {
             <div className="tinv-row" key={i.id}>
               <span className="tinv-em">{i.email}</span>
               <span className="tinv-role">{i.role.replace("_", " ")}</span>
-              <span className="tinv-ok">✓ joined</span>
+              <span className="tinv-ok"><Icon name="check" /> joined</span>
             </div>
           ))}
         </div>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { uploadToBucket } from "@/lib/uploads";
+import Icon from "@/components/Icon";
 
 // BRAND KIT — GT3's logos, palette, fonts & voice, in the Studio. Seeded with the real brand;
 // leadership can edit voice/tagline, the wordmark, and the palette. The reference both of you
@@ -87,7 +88,7 @@ export default function BrandKit({ canEdit }: { canEdit: boolean }) {
           <div key={i} className="brand-sw">
             <span className="brand-chip" style={{ background: c.hex }} />
             <span className="brand-sw-n">{c.name}</span><span className="brand-sw-h">{c.hex}</span>
-            {edit && <button type="button" className="brand-x" onClick={() => setDraft({ ...draft, colors: draft.colors.filter((_, j) => j !== i) })}>✕</button>}
+            {edit && <button type="button" className="brand-x" onClick={() => setDraft({ ...draft, colors: draft.colors.filter((_, j) => j !== i) })}><Icon name="close" /></button>}
           </div>
         ))}
       </div>
@@ -107,7 +108,7 @@ export default function BrandKit({ canEdit }: { canEdit: boolean }) {
               <>
                 <input className="brand-font-edit" value={f.role} onChange={(e) => setDraft({ ...draft, fonts: draft.fonts.map((g, j) => j === i ? { ...g, role: e.target.value } : g) })} placeholder="Role" />
                 <input className="brand-font-edit n" value={f.name} onChange={(e) => setDraft({ ...draft, fonts: draft.fonts.map((g, j) => j === i ? { ...g, name: e.target.value } : g) })} placeholder="Font name" />
-                <button type="button" className="brand-x" onClick={() => setDraft({ ...draft, fonts: draft.fonts.filter((_, j) => j !== i) })}>✕</button>
+                <button type="button" className="brand-x" onClick={() => setDraft({ ...draft, fonts: draft.fonts.filter((_, j) => j !== i) })}><Icon name="close" /></button>
               </>
             ) : (
               <>
@@ -136,12 +137,12 @@ export default function BrandKit({ canEdit }: { canEdit: boolean }) {
                   <span className={`brand-asset-img${a.kind === "photo" ? " photo" : ""}`}><img src={a.url} alt={a.label} /></span>
                   <span className="brand-asset-l">{a.label}</span>
                 </a>
-                {canEdit && <button type="button" className="brand-asset-x" onClick={() => delAsset(a.id)} aria-label={`Delete ${a.label}`}>✕</button>}
+                {canEdit && <button type="button" className="brand-asset-x" onClick={() => delAsset(a.id)} aria-label={`Delete ${a.label}`}><Icon name="close" /></button>}
               </div>
             ))}
             {canEdit && (
               <label className="brand-asset brand-upload">
-                <span className="brand-asset-img"><span className="brand-up-plus">{uploading ? "…" : "＋"}</span></span>
+                <span className="brand-asset-img"><span className="brand-up-plus">{uploading ? "…" : <Icon name="plus" />}</span></span>
                 <span className="brand-asset-l">Upload logo</span>
                 <input type="file" accept="image/*" hidden disabled={uploading} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLogo(f); e.currentTarget.value = ""; }} />
               </label>

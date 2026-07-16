@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { uploadToBucket } from "@/lib/uploads";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
+import Icon from "@/components/Icon";
 
 // LETTER FLYER — 10 generic, fully-editable announcement templates, drawn on canvas so they're
 // pixel-identical every time. Unlike the poster Road Flyer, these carry NO preset GT3 saying — you
@@ -358,8 +359,8 @@ export default function LetterFlyer() {
       {field("date", "Date (optional)", "July 4, 2026")}
       <canvas ref={canvasRef} width={FORMATS[fmt].w} height={FORMATS[fmt].h} className="rf-canvas" />
       <div className="rf-actions">
-        <button type="button" className="rf-dl ghost" onClick={download}>⬇ Download</button>
-        <button type="button" className="rf-dl" onClick={saveToFeed} disabled={busy}>{busy ? "Saving…" : "✦ Save to feed"}</button>
+        <button type="button" className="rf-dl ghost" onClick={download}>Download</button>
+        <button type="button" className="rf-dl" onClick={saveToFeed} disabled={busy}>{busy ? "Saving…" : <><Icon name="star" /> Save to feed</>}</button>
       </div>
     </div>
   );

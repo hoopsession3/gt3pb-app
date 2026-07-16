@@ -5,6 +5,7 @@ import { useAuth } from "@/components/AuthProvider";
 import Gt3Mark from "@/components/Gt3Mark";
 import StatusCard from "@/components/StatusCard";
 import { clickable } from "@/lib/a11y";
+import Icon from "@/components/Icon";
 
 // LOYALTY STAMP CARD — every drink earns a stamp; the 10th is on us. Pure view of profiles.points,
 // which the server credits on pickup (migration 0012, +1 per drink). No new data, no client writes.
@@ -33,12 +34,12 @@ export default function StampCard() {
       >
         <div className="stamp-top">
           <span className="stamp-brand"><Gt3Mark tone="cream" /><span className="stamp-k">Your card</span></span>
-          <span className="stamp-badge">{gotFree ? "🎉 Card full" : free > 0 ? `${free} free ${free === 1 ? "drink" : "drinks"} earned` : "10th is on us"}</span>
+          <span className="stamp-badge">{gotFree ? "Card full" : free > 0 ? `${free} free ${free === 1 ? "drink" : "drinks"} earned` : "10th is on us"}</span>
         </div>
         <div className="stamp-grid" role="img" aria-label={`${inCard} of ${GOAL} stamps`}>
           {Array.from({ length: GOAL }).map((_, i) => (
             <span key={i} className={`stamp-dot${i < inCard ? " on" : ""}${i === GOAL - 1 ? " gift" : ""}`}>
-              {i === GOAL - 1 ? "★" : i < inCard ? "●" : ""}
+              {i === GOAL - 1 ? <Icon name="star" /> : i < inCard ? <Icon name="dot" /> : ""}
             </span>
           ))}
         </div>

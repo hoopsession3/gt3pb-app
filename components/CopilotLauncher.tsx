@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { COPILOTS, COPILOT_CATS, type Copilot } from "@/lib/copilots";
 import { sectionsForRole, SECTION_LABEL, type OpSection } from "./OperatorNav";
+import Icon from "@/components/Icon";
 
 // The ✦ launcher — one front door to every AI operation in GT3. Reads the registry (lib/copilots),
 // shows only the copilots whose home section this role can reach (access is inherited from the nav,
@@ -27,7 +28,7 @@ export default function CopilotLauncher({ role, onPick }: { role: string; onPick
   return (
     <div className="cl">
       <div className="cl-head">
-        <span className="cl-eye">✦ Copilots · what do you want to do?</span>
+        <span className="cl-eye"><Icon name="star" /> Copilots · what do you want to do?</span>
         <input
           className="cl-search"
           value={q}
@@ -52,7 +53,7 @@ export default function CopilotLauncher({ role, onPick }: { role: string; onPick
                   </span>
                   <span className="cl-op-go">
                     <span className="cl-op-sec">{SECTION_LABEL[c.section]}</span>
-                    <span className="cl-op-arrow" aria-hidden>→</span>
+                    <span className="cl-op-arrow" aria-hidden><Icon name="arrowRight" /></span>
                   </span>
                 </button>
               ))}

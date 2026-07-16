@@ -5,6 +5,7 @@ import Sheet from "@/components/Sheet";
 import { useApp } from "@/components/AppProvider";
 import { supabase } from "@/lib/supabase";
 import { geocode } from "@/lib/geocode";
+import Icon from "@/components/Icon";
 
 // FIELD-OP SHEET — the ONE quick editor for a field op's core facts (name · date · time ·
 // place · status), reachable in two taps from anywhere a stop or event shows (calendar,
@@ -103,7 +104,7 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
   if (!f) return null;
   return (
     <Sheet open onClose={onClose} className="dp-form" label={`Edit ${isEvent ? "event" : "truck stop"}`}
-      header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{isEvent ? "Event" : "Truck stop"}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
+      header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{isEvent ? "Event" : "Truck stop"}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}><Icon name="close" /></button></div>}>
       <input className="note-in" value={f[isEvent ? "title" : "name"] ?? ""} onChange={(e) => set(isEvent ? "title" : "name", e.target.value)} placeholder={isEvent ? "Event name" : "Stop name"} autoFocus />
       <div className="prod-grid" style={{ marginTop: 10 }}>
         <label className="prod-f"><span>Date</span><input type="date" value={dateVal} onChange={(e) => onDate(e.target.value)} /></label>
@@ -127,7 +128,7 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
       )}
       {onOpenPrep && (
         <button type="button" className="btn-ter" style={{ marginTop: 12 }} onClick={onOpenPrep}>
-          Full prep — menu, staffing, run-of-show <b>→</b>
+          Full prep — menu, staffing, run-of-show <b><Icon name="arrowRight" /></b>
         </button>
       )}
       <div className="ownerdet-danger" style={{ marginTop: 12 }}>
