@@ -375,7 +375,7 @@ function Kitchen() {
           </div>
         )}
       </div>
-      {active.length === 0 && done.length === 0 && <div className="h-sub">The pass is clear. New orders arrive here in realtime.</div>}
+      {active.length === 0 && done.length === 0 && <EmptyState title="The pass is clear" sub="New orders arrive here in realtime." />}
     </div>
   );
 }
@@ -1234,7 +1234,7 @@ function DayBrief({ ownerCol, ownerId, isAdmin }: { ownerCol: "event_id" | "stop
                 </div>
               </>
             ) : empty ? (
-              <div className="daybrief-empty">No brief yet — add dress code + call details so the crew knows how to show up.</div>
+              <EmptyState title="No brief yet" sub="Add dress code + call details so the crew knows how to show up." />
             ) : (
               <>
                 {dress.trim() && <div className="daybrief-row"><b>Wear</b><span>{dress}</span></div>}
@@ -1302,12 +1302,14 @@ function MyDay({ userId, meName, isLeader, canPrep, canBrew }: { userId: string 
   const [leadOpen, setLeadOpen] = useState(false); // leadership briefing/intake — collapsed by default (decrowd)
   return (
     <>
-      {/* compact kit header: eyebrow · title · ONE italic line (date — motto). No banner block. */}
+      {/* compact kit header: title · ONE italic line (date — motto). No banner block. No "My Day"
+          eyebrow here (2026-07-16, decrowd) — the persistent op-head title directly above this
+          component already says "My Day"; repeating it as an eyebrow read as two titles stacked
+          for one screen. */}
       <div className="myday-hero">
         {now && (
           <>
-            <div className="k-eyb">My Day</div>
-            <h1 className="k-title" style={{ marginTop: 8 }}>{greet.replace("Good ", "")}{named ? `, ${named}` : ""}.</h1>
+            <h1 className="k-title">{greet.replace("Good ", "")}{named ? `, ${named}` : ""}.</h1>
             <p className="k-sub">{now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}{motto ? ` — ${motto}` : ""}</p>
           </>
         )}
@@ -2305,7 +2307,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
           return (
             <div className="adm-sec adm-prep">
               <button className="adm-prep-back" onClick={onBack}>‹ All prep</button>
-              <div className="h-sub">{isEvent ? "Event" : "Location"} not found — it may have been removed.</div>
+              <EmptyState title={`${isEvent ? "Event" : "Location"} not found`} sub="It may have been removed." />
             </div>
           );
         }
@@ -2340,7 +2342,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
           <button className="adm-btn" onClick={() => setPrepAIOpen(true)}><Icon name="sparkles" /> AI prep list</button>
           <button className="adm-btn ts-btn" onClick={() => setTroubleshootOpen(true)}><Icon name="wrench" /> Troubleshoot</button>
         </div>
-      ) : <div className="h-sub">No pick list yet.</div>}
+      ) : <EmptyState title="No pick list yet" />}
       {prepAIOpen && (
         <EventPrepAI ownerType={target.kind} ownerId={target.id} title={name ?? (isEvent ? "Event" : "Stop")}
           onClose={() => setPrepAIOpen(false)} onAdded={load} />
@@ -2582,7 +2584,7 @@ function AssignSheet({ task, staff, crewIds, meId, meName, onPick, onClose }: {
             {task.assignee === meId && <span className="assign-check"><Icon name="check" /></span>}
           </button>
         )}
-        {crew.length === 0 && others.length === 0 && !meId && <div className="h-sub">No staff yet — add people and set their role/name in <b>Team</b>.</div>}
+        {crew.length === 0 && others.length === 0 && !meId && <EmptyState title="No staff yet" sub="Add people and set their role/name in Team." />}
         {crew.length > 0 && <div className="assign-group">On this crew</div>}
         {crew.map(Row)}
         {others.length > 0 && <div className="assign-group">All staff</div>}
@@ -2683,8 +2685,8 @@ function SupplyPicker({ ev, title, have, onAdd, onClose }: {
         </div>
         <div className="supply-list">
           {!loaded && <div className="h-sub" style={{ margin: "6px 0" }}>Loading inventory + gear…</div>}
-          {loaded && !enabled && <div className="h-sub" style={{ margin: "6px 0" }}>Catalogs (Notion) aren&apos;t connected — type a name above and tap <b>Add</b> to put it on the list.</div>}
-          {loaded && enabled && groupEntries.length === 0 && <div className="h-sub" style={{ margin: "6px 0" }}>No matches{ql ? ` for “${q.trim()}”` : ""}. Type to add it off-catalog.</div>}
+          {loaded && !enabled && <EmptyState title="Catalogs not connected" sub="Type a name above and tap Add to put it on the list." />}
+          {loaded && enabled && groupEntries.length === 0 && <EmptyState title={ql ? `No matches for “${q.trim()}”` : "No matches"} sub="Type to add it off-catalog." />}
           {groupEntries.map(([g, list]) => (
             <div key={g}>
               <div className="assign-group">{g} <span className="supply-count">{list.length}</span></div>
@@ -3223,8 +3225,8 @@ function LiveControl({ compact = false, manage = false }: { compact?: boolean; m
           });
         })()}
       </div>
-      {active.length === 0 && <div className="ev-empty">No locations yet. Tap <b>+ Add location</b> to create one{archived.length ? ", or reopen one below" : ""}.</div>}
-      {active.length > 0 && stale.length === active.length && <div className="ev-empty">Nothing on the road ahead — every location&apos;s last visit has passed. See <b>Past visits</b> below, or tap <b>+ Add location</b>.</div>}
+      {active.length === 0 && <EmptyState title="No locations yet" sub={`Tap + Add location to create one${archived.length ? ", or reopen one below" : ""}.`} />}
+      {active.length > 0 && stale.length === active.length && <EmptyState title="Nothing on the road ahead" sub="Every location's last visit has passed. See Past visits below, or tap + Add location." />}
 
       {/* PAST VISITS — stale (past-dated) unarchived stops fold here instead of vanishing from the
           route or lingering as a false "next" location. They stay one tap from restore/again. */}
@@ -3489,7 +3491,12 @@ function MeetingNotes() {
                 onVisibility={(v) => setNotes((prev) => prev.map((x) => (x.id === n.id ? { ...x, visibility: v } : x)))}
               />
             ))}
-            {shown.length === 0 && !composing && <div className="h-sub">{q ? "No notes match your search." : tab === "archived" ? "No archived notes." : "No notes yet — tap “New note” after your next sit-down."}</div>}
+            {shown.length === 0 && !composing && (
+              <EmptyState
+                title={q ? "No notes match your search" : tab === "archived" ? "No archived notes" : "No notes yet"}
+                sub={!q && tab !== "archived" ? "Tap “New note” after your next sit-down." : undefined}
+              />
+            )}
           </>
         );
         }}
@@ -3840,7 +3847,7 @@ function Bookings() {
           </div>
         </div>
       ))}
-      {reqs.length === 0 && <div className="h-sub">No requests yet — they land here from the Book the bar form.</div>}
+      {reqs.length === 0 && <EmptyState title="No requests yet" sub="They land here from the Book the bar form." />}
       {d.wonDeals.length > 0 && (
         <>
           <SectionHeader label="Won on the pipeline" right={<span className="adm-pill">{d.wonDeals.length}</span>} />
@@ -4280,7 +4287,7 @@ function EventEconomics({ e, econRow, catalog, onSave }: {
       <div className="ev-group-h">Economics · projected ROI</div>
 
       {proj.enabledLines === 0 ? (
-        <div className="pnl-note">Turn on the menu lines you&apos;ll pour (above) to project revenue &amp; ROI.</div>
+        <EmptyState title="No menu lines enabled" sub="Turn on the menu lines you'll pour (above) to project revenue & ROI." />
       ) : (
         <>
           <div className="ev-pnl-gauges">
@@ -4729,7 +4736,9 @@ function EventsAdmin() {
           const archived = events.filter((e) => e.archived_at);
           return (
             <>
-              {active.length === 0 && <div className="ev-empty">No active events. Tap <b>+ Add</b> to create one{archived.length ? ", or reopen one below" : ""}.</div>}
+              {active.length === 0 && (
+                <EmptyState title="No active events" sub={archived.length ? "Tap + Add above to create one, or reopen one below." : "Tap + Add above to create one."} />
+              )}
               <div className="ev-list">
                 {active.map((e, i) => (
                   <EventCard
@@ -4857,7 +4866,7 @@ function OrdersHistory() {
                 <div className="meta">{groupItems(o.items).map((g) => `${g.qty > 1 ? g.qty + "× " : ""}${DRINKS[g.id as DrinkId]?.n ?? g.id}`).join(" · ")} · ${(o.total_cents / 100).toFixed(2)} · {new Date(o.status_changed_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>
               </div>
             ))}
-            {rows.length === 0 && <div className="h-sub">No completed orders yet — they appear here after pickup.</div>}
+            {rows.length === 0 && <EmptyState title="No completed orders yet" sub="They appear here after pickup." />}
             {rows.length > 0 && shown.length === 0 && <div className="h-sub">No orders match &ldquo;{q.trim()}&rdquo;.</div>}
           </div>
         );
@@ -5185,7 +5194,9 @@ function VendorsAdmin() {
                 ))}
               </div>
             )}
-            {active.length === 0 && suggestions.length === 0 && <div className="ev-empty">No vendors yet. Tap <b>+ Add vendor</b> to create one.</div>}
+            {active.length === 0 && suggestions.length === 0 && (
+              <EmptyState title="No vendors yet" sub="Tap + Add vendor above to create one." />
+            )}
             <div className="ev-list">
               {active.map((v, i) => (
                 <div key={v.id}>
@@ -5656,10 +5667,13 @@ export default function AdminPage() {
         <Breadcrumbs root={SEC_LABEL[sec]} />
         <div className="op-head-row">
           <div className="op-head-t">{SEC_LABEL[sec]}</div>
-          {/* Tap the WHEN pill → the full section guide, opened on this section, with jump links. */}
+          {/* Tap the WHEN pill → the full section guide, opened on this section, with jump links.
+              The one-line "what this section is for" description used to repeat here EVERY visit
+              (op-head-s) — cut (2026-07-16, decrowd): SectionGuide already shows the identical
+              SEC_SUB line per-section, plus more (SEC_MORE, "what's inside"). One tap away via
+              this pill or the Guide button, not force-displayed above every screen forever. */}
           <button type="button" className="op-head-when" onClick={() => setGuideOpen(true)} aria-haspopup="dialog" title="What each section is for">{SEC_WHEN[sec]}<span className="op-head-when-i" aria-hidden><Icon name="info" /></span></button>
         </div>
-        <div className="op-head-s">{SEC_SUB[sec]}</div>
       </div>
 
       {/* Secondary toggle — the ACTIVE LANE's sections (a section can live in two lanes — prep is

@@ -11,6 +11,7 @@ import { isBlank } from "@/lib/formGuard";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
 
 // BRAND CALENDAR — the planning brain of Studio. Posts (scheduled content) + events roll onto one
@@ -262,7 +263,7 @@ function DayView({ dayKey, posts, evs, evTitle, onClose, onEdit, onOpenFull, onA
   const heading = d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   return (
     <Sheet open onClose={onClose} label="Content day" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{heading}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}><Icon name="close" /></button></div>}>
-          {posts.length === 0 && evs.length === 0 && <div className="oa-empty" style={{ padding: "18px 8px" }}>Nothing this day. Tap + New piece to start one.</div>}
+          {posts.length === 0 && evs.length === 0 && <EmptyState title="Nothing this day" sub="Tap + New piece to start one." />}
           <div className="dv-list">
             {evs.map((e) => (
               <div key={e.id} className="dv-row" style={{ ["--c" as string]: CAL_CAT.event.color }}>

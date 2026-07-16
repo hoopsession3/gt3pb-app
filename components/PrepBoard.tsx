@@ -6,6 +6,7 @@ import { useAuth } from "./AuthProvider";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import EmptyState from "./EmptyState";
 import { completeTask } from "@/lib/tasks";
 import { useTaskSheet } from "./TaskSheet";
 import Icon from "@/components/Icon";
@@ -128,7 +129,10 @@ export default function PrepBoard() {
             ))}
           </div>
           {shown.length === 0 ? (
-            <div className="pbd-empty">{filter === "all" ? "Nothing open — you're ready. 🟢" : `Nothing ${filter}.`}</div>
+            // "all" empty means the whole board is clear — the designed empty state. A filtered tab
+            // (critical/mine/overdue) coming up empty is a filtered VIEW, not the board itself — same
+            // "no match" treatment as the roster search (stays a dense inline note).
+            filter === "all" ? <EmptyState title="Nothing open" sub="You're ready." /> : <div className="pbd-empty">{`Nothing ${filter}.`}</div>
           ) : (
             groups.map((g) => {
               const open = !collapsed.has(g.key);

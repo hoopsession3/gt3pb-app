@@ -11,6 +11,7 @@ import { gallonsForBottles, flavorDemand } from "@/lib/brewMath";
 import { dayKey, etToday, relativeDay } from "@/lib/dates";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
 
 // DROP OPS — the order-ahead brew sheet + pickup checklist for Saturday's drop. Lives in the admin
@@ -242,7 +243,9 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
             </p>
           )}
           {rows.length === 0 ? (
-            <div className="dops-empty">No reservations yet for this drop.</div>
+            // brief = the Now screen's compact prep tile (checked repeatedly during service) — keeps its
+            // dense one-line note; the full/Service-mode face gets the designed empty state.
+            brief ? <div className="dops-empty">No reservations yet for this drop.</div> : <EmptyState title="No reservations yet for this drop" />
           ) : (
             <>
               <div className="dops-brew">Brew sheet: <b>{FLAVORS.map((f) => `${perF[f]}× ${f}`).join(" · ")}</b></div>

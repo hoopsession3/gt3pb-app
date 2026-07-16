@@ -6,6 +6,7 @@ import { authedFetch } from "@/lib/authedFetch";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import EmptyState from "./EmptyState";
 import { CAL_CAT as CAT } from "@/lib/calendarTokens";
 import { brewStartOverdue } from "@/lib/brewMath";
 import { etToday } from "@/lib/dates";
@@ -375,7 +376,7 @@ export default function CompanyCalendar() {
         for (let dt = new Date(range.start); dt <= range.end; dt.setDate(dt.getDate() + 1)) { const k = key(dt); if (byDay[k]?.length) out.push({ d: new Date(dt), items: byDay[k] }); }
         return (
           <div className="cal-list">
-            {out.length === 0 ? <div className="h-sub" style={{ marginTop: 12 }}>Nothing scheduled in the next three months.</div> : out.map(({ d, items }) => {
+            {out.length === 0 ? <EmptyState title="Nothing scheduled" sub="Nothing in the next three months." /> : out.map(({ d, items }) => {
               const k = key(d);
               return (
                 <div key={k} className={`cal-lrow${k === todayKey ? " today" : ""}`}>
@@ -455,7 +456,7 @@ export default function CompanyCalendar() {
           <div className="cal-cards">
             {overdue.length > 0 && <><div className="dv-sub" style={{ marginTop: 12 }}>Overdue · {overdue.length}</div>{overdue.map(card)}</>}
             <div className="dv-sub" style={{ marginTop: 12 }}>Up next</div>
-            {up.length === 0 ? <div className="h-sub" style={{ marginTop: 10 }}>Nothing coming up in the next two months.</div> : up.map(card)}
+            {up.length === 0 ? <EmptyState title="Nothing coming up" sub="Nothing in the next two months." /> : up.map(card)}
           </div>
         );
       })()}
@@ -504,7 +505,7 @@ function DayView({ dayKey, items, events, onClose, onAdd, onSaved }: { dayKey: s
   return (
     <>
     <Sheet open onClose={onClose} label="Calendar day" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{heading}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} title="Close"><Icon name="close" /></button></div>}>
-          {items.length === 0 && archived.length === 0 && <div className="oa-empty" style={{ padding: "18px 8px" }}>Nothing scheduled this day. Tap Add to put something here.</div>}
+          {items.length === 0 && archived.length === 0 && <EmptyState title="Nothing scheduled this day" sub="Tap Add to put something here." />}
           {clash && <div className="dv-heads">Heads up: event + truck stop share this day.</div>}
           {brewLate && <div className="dv-heads">Heads up: a brew here is past its latest start.</div>}
           <div className="dv-list">

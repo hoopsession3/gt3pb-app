@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { PRICING, fmtUSD } from "@/lib/aiPricing";
+import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
 
 // AI SPEND — the owner's answer to "how much am I spending when my AI is queried?" Reads ai_usage
@@ -63,7 +64,7 @@ export default function AiSpend() {
 
   if (rows === null) return <div className="spend-empty">Loading spend…</div>;
   if (err) return <div className="spend-empty">Couldn’t load spend — {err}</div>;
-  if (rows.length === 0) return <div className="spend-empty">No AI spend logged yet. As copilots run, every query’s tokens and cost land here — with a per-agent breakdown and what caching saved.</div>;
+  if (rows.length === 0) return <EmptyState title="No AI spend logged yet" sub="As copilots run, every query’s tokens and cost land here — with a per-agent breakdown and what caching saved." />;
 
   return (
     <div className="spend">

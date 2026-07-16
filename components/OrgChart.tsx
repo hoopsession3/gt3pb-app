@@ -8,6 +8,7 @@ import { SectionHeader } from "@/components/kit";
 import { useAuth, roleOf } from "./AuthProvider";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import EmptyState from "./EmptyState";
 
 // Dynamic org chart — reads every crew profile and lays them out by role tier (owner → admin →
 // event manager → operators → contractors). Updates live as people set their photo/title/role.
@@ -87,7 +88,7 @@ export default function OrgChart() {
                 </div>
               );
             })}
-            {people.length === 0 && <div className="h-sub">No crew yet — team members appear here once they have a role and a profile.</div>}
+            {people.length === 0 && <EmptyState title="No crew yet" sub="Team members appear here once they have a role and a profile." />}
           </div>
         </div>
       )}

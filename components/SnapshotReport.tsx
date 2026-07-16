@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { SectionHeader } from "@/components/kit";
+import EmptyState from "./EmptyState";
 import { fetchSnapshot, type Snapshot } from "@/lib/reports";
 import { supabase } from "@/lib/supabase";
 import { nextDrop , dropDateKey} from "@/lib/orderAhead";
@@ -39,7 +40,14 @@ export default function SnapshotReport() {
   }, []);
 
   if (loading) return <div className="adm-sec rpt"><SectionHeader label="Business snapshot" annotation="loading…" /></div>;
-  if (!snap || snap.error) return null;
+  if (!snap || snap.error) {
+    return (
+      <div className="adm-sec rpt">
+        <SectionHeader label="Business snapshot" annotation="the whole picture" />
+        <EmptyState title="No snapshot data yet" />
+      </div>
+    );
+  }
 
   const inv = snap.inventory, subs = snap.subs, loy = snap.loyalty;
   const catMax = Math.max(1, ...(inv.by_category ?? []).map((c) => c.value_cents));

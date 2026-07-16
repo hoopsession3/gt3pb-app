@@ -7,6 +7,7 @@ import { useAuth } from "./AuthProvider";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
 
 // VIP QUEUE — the staff moderation side of VIP verification. A bottle owner's proof photo lands here;
@@ -77,7 +78,7 @@ export default function VipQueue() {
         return (
           <div className="vipq">
             {pending.length === 0 ? (
-              <div className="vipq-empty">No VIP proofs waiting. 🟢</div>
+              <EmptyState title="No VIP proofs waiting" />
             ) : pending.map((v) => (
               <div key={v.id} className="vipq-row">
                 <a href={photoUrl(v)} target="_blank" rel="noreferrer" className="vipq-photo" style={{ backgroundImage: `url(${photoUrl(v)})` }} aria-label="Open the proof photo full-size" />

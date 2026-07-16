@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
 
 // The customer book — first reader of the identity spine. Rows are `customers` (canonical,
@@ -113,7 +114,7 @@ function CrmDetail({ c }: { c: Customer }) {
       {() => (
         <div className="crm-body">
           {orders.length === 0 ? (
-            <div className="crm-note">No orders on record yet.</div>
+            <EmptyState title="No orders on record yet" />
           ) : (
             <>
               <div className="crm-note" style={{ marginTop: 10 }}>

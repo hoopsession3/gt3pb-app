@@ -10,6 +10,7 @@ import Sheet from "@/components/Sheet";
 import ProgressRing from "@/components/ProgressRing";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import EmptyState from "./EmptyState";
 import { SectionHeader } from "@/components/kit";
 import Icon from "@/components/Icon";
 
@@ -191,7 +192,7 @@ export default function BrewPlanner() {
       </div>
 
       {view === "log" ? (
-        batches.length === 0 ? <div className="ev-empty">No batches logged yet — plan and brew one.</div> : (
+        batches.length === 0 ? <EmptyState title="No batches logged yet" sub="Plan and brew one." /> : (
           <div className="brew-list">
             {batches.map((b) => (
               <button key={b.id} type="button" className={`brew-logrow st-${b.status}`} onClick={() => setLogBatch(b)}>
@@ -206,7 +207,7 @@ export default function BrewPlanner() {
         )
       ) : (<>
       <div className="brew-sched-h">Brew schedule</div>
-      {active.length === 0 ? <div className="ev-empty">No batches scheduled. Tap <b>+ Plan a batch</b>.</div> : (
+      {active.length === 0 ? <EmptyState title="No batches scheduled" sub="Tap + Plan a batch." /> : (
         <div className="brew-list">
           {active.map((b) => {
             const ev = events.find((e) => e.id === b.event_id);

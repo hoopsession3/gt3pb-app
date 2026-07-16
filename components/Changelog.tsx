@@ -6,6 +6,7 @@ import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
 
 // CHANGELOG — "What we've built": the human-readable, categorized record of every improvement shipped,
@@ -128,7 +129,7 @@ export default function Changelog() {
       </div>
 
       {groups.length === 0 ? (
-        <div className="chg-empty">Nothing logged in this view yet.</div>
+        <EmptyState title="Nothing logged in this view yet" />
       ) : groups.map(([mk, items], gi) => {
         // Default: only the newest month expanded — the rest roll up into a one-line summary you tap open.
         const openSet = openM ?? new Set(groups.slice(0, 1).map(([m]) => m));

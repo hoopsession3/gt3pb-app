@@ -9,6 +9,7 @@ import {
 import { SectionHeader } from "@/components/kit";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
 
 // COGS CALCULATOR (Money) — one cohesive place for the cost side: cost per drink (from each
@@ -93,7 +94,7 @@ export default function CogsCalculator() {
               {openId === p.id && (
                 <div className="cogs-detail">
                   {!cogs.hasRecipe ? (
-                    <div className="cogs-empty">No recipe yet — add this drink&apos;s ingredients in <b>Menu <Icon name="arrowRight" /> recipe</b> to cost it.</div>
+                    <EmptyState title="No recipe yet" sub="Add this drink's ingredients in Menu → recipe to cost it." />
                   ) : (
                     <>
                       {cogs.lines.map((l, i) => (
@@ -110,7 +111,7 @@ export default function CogsCalculator() {
               )}
             </div>
           ))}
-          {drinks.length === 0 && <div className="pnl-note">No products yet — add them in Menu.</div>}
+          {drinks.length === 0 && <EmptyState title="No products yet" sub="Add them in Menu." />}
         </>
       )}
 
@@ -139,7 +140,7 @@ export default function CogsCalculator() {
               )}
             </div>
           ))}
-          {batches.length === 0 && <div className="pnl-note">No brew/broth recipes yet — add them in Plan <Icon name="arrowRight" /> Brew.</div>}
+          {batches.length === 0 && <EmptyState title="No brew/broth recipes yet" sub="Add them in Plan → Brew." />}
           <div className="pnl-note" style={{ marginTop: 8 }}>Batch costs match recipe ingredients to inventory by name — anything flagged <b>uncosted</b> needs a matching inventory item with a unit cost.</div>
         </>
       )}

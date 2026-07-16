@@ -18,6 +18,7 @@ import BrandKit from "./BrandKit";
 import RoadFlyer from "./RoadFlyer";
 import LetterFlyer from "./LetterFlyer";
 import SiteCopyEditor from "./SiteCopyEditor";
+import EmptyState from "./EmptyState";
 import { lintCaption } from "@/lib/captionLint";
 import { isBlank } from "@/lib/formGuard";
 
@@ -144,7 +145,7 @@ export default function Studio() {
           </div>
           <div className="ig-note">Instagram feed preview — drag tiles to plan the feed, tap to open.</div>
           {shown.length === 0 ? (
-            <div className="oa-empty" style={{ padding: "28px 8px" }}>No pieces yet — add a design (export the PNG from Canva) and it shows in the grid.</div>
+            <EmptyState title="No pieces yet" sub="Add a design (export the PNG from Canva) and it shows in the grid." />
           ) : (
             <div className="ig-grid">
               {feed.map((it) => {
@@ -177,7 +178,7 @@ export default function Studio() {
             ))}
           </div>
           {shown.length === 0 ? (
-            <div className="oa-empty" style={{ padding: "28px 8px" }}>No pieces yet. Start one — draft a caption with the engine, collaborate in real time, schedule it.</div>
+            <EmptyState title="No pieces yet" sub="Start one — draft a caption with the engine, collaborate in real time, schedule it." />
           ) : (
             <div className="studio-grid">
               {shown.map((it) => (
@@ -651,7 +652,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
 
       {libOpen && (
         <Sheet open onClose={() => setLibOpen(false)} label="Media library" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Media library</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setLibOpen(false)} title="Close"><Icon name="close" /></button></div>}>
-              {lib.length === 0 ? <div className="oa-empty">No media yet — uploads from any piece show here to reuse.</div> : (
+              {lib.length === 0 ? <EmptyState title="No media yet" sub="Uploads from any piece show here to reuse." /> : (
                 <div className="lib-grid">
                   {lib.map((m, i) => (
                     <button type="button" key={i} className="lib-cell" onClick={() => addFromLibrary(m)} style={m.type !== "video" ? { backgroundImage: `url(${m.url})` } : undefined} aria-label="Add this media">
@@ -760,7 +761,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
 
       {showVers && (
         <div className="studio-vers">
-          {versions.length === 0 ? <div className="oa-empty">No versions yet — Save version to checkpoint.</div> : versions.map((v) => (
+          {versions.length === 0 ? <EmptyState title="No versions yet" sub="Save version to checkpoint." /> : versions.map((v) => (
             <div key={v.id} className="studio-ver">
               <span className="studio-ver-t"><b>{v.label}</b> · {fmtDate(v.created_at)}{v.caption ? ` · ${v.caption.slice(0, 60)}` : ""}</span>
               <button type="button" className="insp-no" onClick={() => restore(v)}>Restore</button>

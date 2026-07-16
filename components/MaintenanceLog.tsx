@@ -6,6 +6,7 @@ import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
 
 // MAINTENANCE & AUDITS (Settings) — the owner's record of every audit run on the app: what kind, when,
@@ -132,7 +133,7 @@ export default function MaintenanceLog() {
               </div>
             )}
 
-            {rows.length > 0 && (
+            {rows.length > 0 ? (
               <>
                 <div className="mnt-filters">
                   <button type="button" className={`mnt-chip${filter === "all" ? " on" : ""}`} onClick={() => setFilter("all")}>All</button>
@@ -172,6 +173,8 @@ export default function MaintenanceLog() {
                   })}
                 </div>
               </>
+            ) : (
+              <EmptyState title="Nothing here yet" sub="Log your first audit above to start the record." />
             )}
           </div>
         );

@@ -7,6 +7,7 @@ import { cleanReview, isDisplayable } from "@/lib/reviews";
 import { SectionHeader } from "@/components/kit";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
 
 // STAFF REVIEW DESK — approve member feedback and add reviews pulled from Google / Instagram / the
@@ -111,7 +112,9 @@ export default function ReviewsAdmin() {
             <button className={`grp-seg${tab === "live" ? " on" : ""}`} onClick={() => setTab("live")}>Live {live.length > 0 && <span>{live.length}</span>}</button>
           </div>
 
-          {shown.length === 0 && <div className="h-sub">{tab === "pending" ? "No reviews waiting." : "Nothing live yet — approve or add some."}</div>}
+          {shown.length === 0 && (
+            <EmptyState title={tab === "pending" ? "No reviews waiting" : "Nothing live yet"} sub={tab === "pending" ? undefined : "Approve or add some."} />
+          )}
           {shown.map((r) => {
             const c = cleanReview(r); const okd = isDisplayable(r);
             const sug = suggest[r.id];

@@ -7,6 +7,7 @@ import { useAuth } from "./AuthProvider";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import EmptyState from "./EmptyState";
 import MoneyKpis from "./MoneyKpis";
 import LaunchReadiness from "./LaunchReadiness";
 import { useTaskSheet } from "./TaskSheet";
@@ -150,7 +151,7 @@ export default function CommandBoard() {
           <div className="cmd">
             {/* ── Initiatives · the launch ── */}
             <SectionHeader label="Initiatives" annotation="the launch" />
-            {data.inits.length === 0 && !isAdmin && <div className="cmd-empty">No active initiatives.</div>}
+            {data.inits.length === 0 && !isAdmin && <EmptyState title="No active initiatives" />}
             {data.inits.map((it) => {
               const ms = (milesByInit.get(it.id) ?? []).slice().sort((a, b) => a.sort - b.sort);
               const doneN = ms.filter((m) => m.done).length;
@@ -209,7 +210,7 @@ export default function CommandBoard() {
 
             {/* ── This Week ── */}
             <SectionHeader label="This week" annotation="due next 7 days" />
-            {wk.shown.length === 0 ? <div className="cmd-empty">Nothing due in the next 7 days.</div> : (
+            {wk.shown.length === 0 ? <EmptyState title="Nothing due in the next 7 days" /> : (
               <div className="k-rows">
                 {wk.shown.map((w) => (
                   <InfoRow
@@ -226,7 +227,7 @@ export default function CommandBoard() {
 
             {/* ── Blockers ── */}
             <SectionHeader label="Blockers" annotation="clear these first" />
-            {data.incidents.length === 0 && ov.shown.length === 0 ? <div className="cmd-empty">Nothing blocked. 🟢</div> : (
+            {data.incidents.length === 0 && ov.shown.length === 0 ? <EmptyState title="Nothing blocked" /> : (
               <div className="k-rows">
                 {data.incidents.map((i) => <InfoRow key={i.id} name={<><Icon name="warning" /> {i.problem}</>} />)}
                 {ov.shown.map((w) => (
@@ -244,7 +245,7 @@ export default function CommandBoard() {
 
             {/* ── Done this week ── */}
             <SectionHeader label="Done this week" annotation="wrapped" />
-            {dn.shown.length === 0 ? <div className="cmd-empty">Nothing wrapped yet this week.</div> : (
+            {dn.shown.length === 0 ? <EmptyState title="Nothing wrapped yet this week" /> : (
               <div className="k-rows">
                 {dn.shown.map((w) => <InfoRow key={`dn-${w.src}-${w.id}`} name={<span style={{ textDecoration: "line-through", color: "var(--cream-d)" }}>{w.title}</span>} />)}
                 {dn.more > 0 && <div className="cmd-more">+{dn.more} more done</div>}

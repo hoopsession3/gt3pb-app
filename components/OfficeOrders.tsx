@@ -7,6 +7,7 @@ import { authedFetch } from "@/lib/authedFetch";
 import { mondayLabel, nextMondayKey } from "@/lib/office";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
 
 // CREW · OFFICE ORDERS — the operator's control surface for the Monday B2B route (0187). See upcoming
@@ -120,7 +121,7 @@ export default function OfficeOrders() {
                 <span className="oo-n">{rows.length} order{rows.length === 1 ? "" : "s"}</span>
               </span>
             </div>
-            {rows.length === 0 && <div className="oo-empty">No orders booked yet — generate this week&rsquo;s standing route above.</div>}
+            {rows.length === 0 && <EmptyState title="No orders booked yet" sub="Generate this week's standing route above." />}
             {rows.map((o) => {
               const open = openId === o.id;
               return (
