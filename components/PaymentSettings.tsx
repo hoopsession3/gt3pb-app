@@ -63,7 +63,10 @@ export default function PaymentSettings() {
     const { error } = await supabase.from("live_status").update({ subscriptions_enabled: next }).eq("id", 1);
     setBusy(false);
     if (error) { toast(`Couldn't save — ${error.message}`, "error"); load(); return; }
-    toast(next ? "Subscriptions are ON — customers can start a recurring pack" : "Subscriptions are OFF — hidden from customers");
+    // "customers can start a recurring pack" overpromised: this flag only unlocks the server-side
+    // gate in /api/subscriptions/create — nothing in the customer app calls that route yet, so
+    // flipping this switch alone doesn't give a customer any way to actually sign up.
+    toast(next ? "Subscriptions are ON — heads up, there's no customer sign-up flow built yet" : "Subscriptions are OFF — hidden from customers");
   };
 
   return (

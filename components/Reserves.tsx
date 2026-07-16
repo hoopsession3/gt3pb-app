@@ -53,6 +53,7 @@ export default function Reserves() {
     if (error) {
       const m = /sold out/i.test(error.message) ? "Just sold out — sorry."
         : /limit/i.test(error.message) ? "You've hit the limit on this drop."
+        : /members only/i.test(error.message) ? "This drop is members-only."
         : "Couldn't reserve — try again.";
       toast(m, "error");
       load();
