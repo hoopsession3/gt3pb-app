@@ -8,6 +8,7 @@ import SignIn from "@/components/SignIn";
 import Skeleton from "@/components/Skeleton";
 import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
 import { supabase } from "@/lib/supabase";
+import Icon from "@/components/Icon";
 import {
   PRODUCTS, CERTS, ROLES, READINESS, PASS_DEFAULT, ACKS, ackByKey, certExpiryDays,
   moduleBySlug, certByKey, pathForRole, certEarned, requiredModules, sectionMeta,
@@ -200,7 +201,7 @@ export default function AcademyPage() {
                 : a.target_type === "cert" ? (certByKey(a.target_key)?.title ?? a.target_key) : "Full role path";
               return (
                 <button key={i} className={`ac-mod${overdue ? " overdue" : ""}`} onClick={() => { const slug = assignTarget(a); if (slug) setView({ k: "module", slug }); }}>
-                  <span className="ac-mod-tick">◷</span>
+                  <span className="ac-mod-tick"><Icon name="clock" /></span>
                   <span className="ac-mod-main">
                     <span className="ac-mod-sec">{a.due_at ? (overdue ? "Overdue · " : "Due · ") + new Date(a.due_at).toLocaleDateString([], { month: "short", day: "numeric" }) : "Assigned"}</span>
                     <span className="ac-mod-t">{label}</span>
@@ -218,7 +219,7 @@ export default function AcademyPage() {
       <div className="ac-ready">
         {READINESS.map((r) => {
           const ok = r.need.every((k) => certOk(k)) && (!r.ack || acks.has(r.ack));
-          return <div key={r.q} className={`ac-rrow${ok ? " ok" : ""}`}><span className="ac-rmark">{ok ? "✓" : "—"}</span>{r.q}</div>;
+          return <div key={r.q} className={`ac-rrow${ok ? " ok" : ""}`}><span className="ac-rmark">{ok ? <Icon name="check" /> : "—"}</span>{r.q}</div>;
         })}
       </div>
 
@@ -234,7 +235,7 @@ export default function AcademyPage() {
           const best = progress[m.slug]?.best_score;
           return (
             <button key={m.slug} className={`ac-mod${done ? " done" : ""}`} onClick={() => setView({ k: "module", slug: m.slug })}>
-              <span className="ac-mod-tick">{done ? "✓" : "○"}</span>
+              <span className="ac-mod-tick">{done ? <Icon name="check" /> : <Icon name="dotOutline" />}</span>
               <span className="ac-mod-main">
                 <span className="ac-mod-sec">{sectionMeta(m.section).label} · {m.estMin} min</span>
                 <span className="ac-mod-t">{m.title}</span>
@@ -299,11 +300,11 @@ function ModuleReader({ m, done, onBack, onComplete }: { m: Module; done: boolea
             ))}
           </div>
           {m.mistakes && m.mistakes.length > 0 && (
-            <div className="ac-mistakes"><div className="ac-bh">⚠ Common mistakes</div><ul>{m.mistakes.map((x, i) => <li key={i}>{x}</li>)}</ul></div>
+            <div className="ac-mistakes"><div className="ac-bh"><Icon name="warning" /> Common mistakes</div><ul>{m.mistakes.map((x, i) => <li key={i}>{x}</li>)}</ul></div>
           )}
           {m.scenarios && m.scenarios.length > 0 && (
             <div className="ac-scn"><div className="ac-bh">In the moment</div>{m.scenarios.map((s, i) => (
-              <div key={i} className="ac-scn-row"><div className="ac-scn-s">{s.situation}</div><div className="ac-scn-d">→ {s.doThis}</div></div>
+              <div key={i} className="ac-scn-row"><div className="ac-scn-s">{s.situation}</div><div className="ac-scn-d"><Icon name="arrowRight" /> {s.doThis}</div></div>
             ))}</div>
           )}
           {m.founderInsight && <div className="ac-founder"><span className="ac-founder-k">Founder’s note</span><p>“{m.founderInsight}”</p></div>}

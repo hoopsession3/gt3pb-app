@@ -13,6 +13,7 @@ import VipVerify from "@/components/VipVerify";
 import MyPacks from "@/components/MyPacks";
 import MyDeliveries from "@/components/MyDeliveries";
 import Skeleton from "@/components/Skeleton";
+import Icon from "@/components/Icon";
 import { supabase } from "@/lib/supabase";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import type { Order } from "@/lib/db";
@@ -229,7 +230,7 @@ function MpireDemo() {
           <div className="rc">7<small>OF 10 STAMPS</small></div>
         </div>
         <div className="mt">
-          <div className="eyb">★ Founding Member</div>
+          <div className="eyb"><Icon name="star" /> Founding Member</div>
           <h2>Ryan T.</h2>
           <p>Your 10th pour is on us. A point on every drink.</p>
         </div>

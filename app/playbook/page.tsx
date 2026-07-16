@@ -6,6 +6,7 @@ import AccountPill from "@/components/AccountPill";
 import { STRATEGY_CORE, GTM_PLAYS, GOVERNANCE, FLYWHEEL, STRATEGY_REV, type GtmPlay } from "@/lib/strategy";
 import { StrategyThread, DecisionLog, PlayBuilder, useDrafts } from "@/components/StrategyCollab";
 import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
+import Icon from "@/components/Icon";
 
 // THE PLAYBOOK — the whole strategy on one owner screen, and now a working document: every block
 // and play carries a live discussion thread (owners get pinged), the guided builder walks you
@@ -34,7 +35,7 @@ export default function PlaybookPage() {
   }
   const Discuss = ({ k, label }: { k: string; label: string }) => (
     <>
-      <button type="button" className="st-discuss" onClick={() => setOpen(open === k ? null : k)} aria-expanded={open === k}>💬 {open === k ? "Close" : "Discuss"}</button>
+      <button type="button" className="st-discuss" onClick={() => setOpen(open === k ? null : k)} aria-expanded={open === k}><Icon name="chat" /> {open === k ? "Close" : "Discuss"}</button>
       {open === k && <StrategyThread k={k} label={label} />}
     </>
   );
@@ -65,7 +66,7 @@ export default function PlaybookPage() {
         <PlayBuilder prefill={builder.prefill} onDone={() => { setBuilder(null); reload(); }} />
       ) : (
         <>
-          <button type="button" className="btn-pri" onClick={() => setBuilder({ prefill: null })}>＋ Build a play</button>
+          <button type="button" className="btn-pri" onClick={() => setBuilder({ prefill: null })}><Icon name="plus" /> Build a play</button>
           <p className="k-sub">Seven guided steps — name it, aim it, plan it, put honest numbers on it, wire it to the app. Saves as a draft for discussion.</p>
         </>
       )}

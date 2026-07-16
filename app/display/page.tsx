@@ -7,6 +7,7 @@ import { pickForDisplay, type CleanReview } from "@/lib/reviews";
 import { CONNECT_PRIMARY } from "@/lib/connect";
 import { supabase } from "@/lib/supabase";
 import Gt3Mark from "@/components/Gt3Mark";
+import Icon from "@/components/Icon";
 
 // TRUCK DISPLAY — a full-screen, auto-rotating loop for a tablet or TV at the bar. Three scenes:
 // the live menu, the brand line, and a cleaned + anonymized guest review. Public (no login). Reviews
@@ -84,7 +85,7 @@ export default function DisplayPage() {
 
       {scene === "review" && review && (
         <div className="tvl-scene tvl-rev">
-          <div className="tvl-rev-stars" aria-hidden>{"★".repeat(review.rating)}</div>
+          <div className="tvl-rev-stars" aria-hidden>{Array.from({ length: review.rating }).map((_, i) => <Icon key={i} name="star" />)}</div>
           <blockquote className="tvl-rev-q">“{review.text}”</blockquote>
           <div className="tvl-rev-who">— {review.who}</div>
           <div className="tvl-rev-tag">What the line is saying</div>

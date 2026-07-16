@@ -6,6 +6,7 @@ import { useAuth, roleOf, STAFF_ROLES } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
 import Gt3Mark from "@/components/Gt3Mark";
 import { Masthead, ClosingBeat } from "@/components/kit";
+import Icon from "@/components/Icon";
 
 // OPERATOR SCAN — the receiving end of a member's card QR. Staff-only: look up the member by their
 // card code and add a stamp for a walk-up (cash) purchase. RPCs (0132) are SECURITY DEFINER + staff-
@@ -72,8 +73,8 @@ function ScanInner() {
           <div className="scan-stamps" role="img" aria-label={`${inCard} of ${GOAL} stamps`}>
             {Array.from({ length: GOAL }).map((_, i) => <span key={i} className={`scan-dot${i < inCard ? " on" : ""}${i === GOAL - 1 ? " gift" : ""}`} />)}
           </div>
-          <div className="scan-foot">{inCard === 0 && member.points > 0 ? "Card full — this one's on us 🎉" : `${GOAL - inCard} more till a free cup`}</div>
-          <button type="button" className="scan-add" onClick={addStamp} disabled={busy}>{busy ? "Adding…" : "＋ Add a stamp"}</button>
+          <div className="scan-foot">{inCard === 0 && member.points > 0 ? "Card full — this one's on us" : `${GOAL - inCard} more till a free cup`}</div>
+          <button type="button" className="scan-add" onClick={addStamp} disabled={busy}>{busy ? "Adding…" : <><Icon name="plus" /> Add a stamp</>}</button>
           {state === "added" && <div className="scan-added">Stamp added — now {member.points} points.</div>}
           {state === "error" && <div className="h-sub">That didn&apos;t record — tap to try again.</div>}
         </div>

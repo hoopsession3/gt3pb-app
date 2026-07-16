@@ -10,6 +10,7 @@ import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
 import Skeleton from "@/components/Skeleton";
 import { supabase } from "@/lib/supabase";
 import { OFFICE, officeQuote, mondayLabel } from "@/lib/office";
+import Icon from "@/components/Icon";
 
 // OFFICE PORTAL — the B2B self-serve surface (Phase 3). A business account holder manages their
 // standing weekly order (pause / resume / adjust gallons), sees upcoming Monday deliveries, their
@@ -62,10 +63,10 @@ export default function OfficeScreen() {
 
       {!acct ? (
         <div className="op-none">
-          <div className="op-none-ic">🫙</div>
+          <div className="op-none-ic"><Icon name="jar" /></div>
           <h1>Bring GT3 to the office.</h1>
           <p>Fresh cold-extract in amber gallon jugs, delivered Monday 5–8&nbsp;AM, empties swapped for full each week. 3-gallon minimum.</p>
-          <button type="button" className="handle" onClick={() => router.push("/delivery")}><span>Set up office delivery →</span></button>
+          <button type="button" className="handle" onClick={() => router.push("/delivery")}><span>Set up office delivery <Icon name="arrowRight" /></span></button>
         </div>
       ) : (<>
         <h1 className="op-h">{acct.company}</h1>

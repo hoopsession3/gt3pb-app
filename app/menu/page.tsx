@@ -11,6 +11,7 @@ import { useAvailability } from "@/lib/availability";
 import { DRINKS, MENU, type DrinkId } from "@/lib/menu";
 import { PACK_SIZES, PACK_TAG, packTotal, newGlassTotal, dollars } from "@/lib/orderAhead";
 import { clickable } from "@/lib/a11y";
+import Icon from "@/components/Icon";
 
 export default function MenuScreen() {
   const { openDrink, isInCart, cartCount } = useApp();
@@ -77,7 +78,7 @@ export default function MenuScreen() {
                   <span className="entry-name">{name}</span>
                   {out ? <span className="entry-out">SOLD OUT</span> : tag ? <span className="entry-tag">{tag}</span> : null}
                   <span className="entry-gap" />
-                  {on && !out && <span className="entry-in" aria-label="in your order">✓</span>}
+                  {on && !out && <span className="entry-in" aria-label="in your order"><Icon name="check" /></span>}
                   <span className="entry-px">{priceLabel(id)}</span>
                 </div>
                 <div className="entry-body">
