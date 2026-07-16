@@ -84,8 +84,7 @@ export default function ReviewsAdmin() {
     <AsyncSection state={board} isEmpty={() => false} errorTitle="Couldn't load reviews" emptyTitle="Nothing here yet">
       {() => (
         <div className="adm-sec">
-          <SectionHeader label="Reviews" />
-          <button className="adm-prep-view" onClick={() => setAdding((v) => !v)}>{adding ? "Close" : "+ Add"}</button>
+          <SectionHeader label="Reviews" right={<button className="adm-prep-view" onClick={() => setAdding((v) => !v)}>{adding ? "Close" : "+ Add"}</button>} />
           <div className="h-sub">Nothing shows on the truck display until you approve it. Add ones from Google, Instagram, or the feedback album.</div>
 
           {adding && (

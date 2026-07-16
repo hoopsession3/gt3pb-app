@@ -2326,21 +2326,28 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .studio-opt-h{font-family:'Inter';font-size:12px;color:var(--gold2);margin-bottom:8px}
 .studio-sched{display:flex;gap:8px;align-items:center;margin:12px 0}
 .studio-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+/* .studio-act (plain, untiered) stays — still used by the schedule-bar "Schedule" button just above
+   (deliberately left alone, out of scope) plus BrandKit.tsx and app/crew/page.tsx. Its .primary/.ghost
+   modifiers are gone: Studio.tsx was their only user, now migrated to the kit's documented
+   .btn-pri/.btn-sec/.btn-ter tiers (2026-07-16 redesign pass). */
 .studio-act{background:rgba(255,255,255,.06);border:1px solid var(--line2);border-radius:10px;padding:9px 14px;color:var(--cream);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
-.studio-act.primary{background:var(--gold);border-color:var(--gold);color:#1a1610}
-.studio-act.ghost{background:transparent;color:var(--cream-m)}
 .studio-act:disabled{opacity:.5}
+/* None of the documented tiers style a :disabled state anywhere in the app yet (Studio is the first
+   caller to combine them with the disabled attribute) — pin the same dimming .studio-act always had,
+   scoped to Studio's own action rows so it can't leak into other screens' .btn-sec/.btn-pri. */
+.studio-engine .btn-sec:disabled,.studio-actions .btn-sec:disabled,.studio-pub .btn-sec:disabled,.studio-pub .btn-pri:disabled{opacity:.5}
 .studio-changes{display:flex;gap:6px;align-items:center}
 .studio-changes input{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:8px 11px;color:var(--cream);font-family:'Inter';font-size:13px}
 .studio-vers{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
-.studio-ver{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--line)}
-.studio-ver-t{flex:1;font-family:'Inter';font-size:12.5px;color:var(--cream-m);line-height:1.4}
-.studio-ver-t b{color:var(--cream);text-transform:capitalize}
+/* Version rows are now kit InfoRows (name/sub/meta/trailing) instead of bespoke .studio-ver markup —
+   .k-nm doesn't capitalize on its own, so restore the label capitalization ("edited" → "Edited") the
+   old .studio-ver-t b rule gave version labels. */
+.studio-vers .k-nm{text-transform:capitalize}
 
 /* ── Studio v1.1 — Canva + Webflow ── */
 .studio-pub{margin-top:14px;padding:13px;border:1px solid var(--line2);border-radius:13px;background:rgba(111,168,220,.06)}
 .studio-pub-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
-.studio-pub a.studio-act{text-decoration:none;display:inline-flex;align-items:center}
+.studio-pub a.btn-ter{text-decoration:none}
 
 /* ── Studio view toggle + Brand Calendar ── */
 /* Studio view-switcher — on the kit chip grammar (quiet until selected: hairline pills,
@@ -4223,13 +4230,34 @@ body:has(.conc-sheet) .rail{display:flex}
 .mpanel-body{padding:0 14px 14px;animation:mpanelin .22s ease}
 @keyframes mpanelin{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 /* the wrapped panel supplies its own title/pills — the Panel already shows it, so hide the dupe
-   (keep any action button in a .studio-top and any inner sub-headers). */
+   (keep any action button in a .studio-top and any inner sub-headers).
+   .k-sec added alongside .sec (2026-07-16, ground-up redesign audit): every component in this
+   codebase has already migrated from the legacy .sec heading to kit.tsx's SectionHeader, which
+   renders .k-sec — so the .sec-only rule below had gone quietly dead, and every Panel-wrapped
+   component that leads with its own SectionHeader was rendering TWO stacked titles (confirmed
+   live on EventHUD, ReviewsAdmin, SiteCopyEditor, PromoEditor, SnapshotReport, EventPnlReport,
+   MenuManager, ProductCatalog, CogsCalculator, PlanEditor, Subscribers, SubInterest,
+   OrdersHistory). Keeping the .sec selectors too in case anything not-yet-migrated still uses it. */
 .mpanel-body > .adm-sec{margin:0}
 .mpanel-body > .adm-sec > .sec:first-child,
+.mpanel-body > .adm-sec > .k-sec:first-child,
 .mpanel-body > * > .sec:first-child,
+.mpanel-body > * > .k-sec:first-child,
 .mpanel-body > .sec:first-child,
-.mpanel-body > .adm-sec > .studio-top > .sec{display:none}
+.mpanel-body > .k-sec:first-child,
+.mpanel-body > .adm-sec > .studio-top > .sec,
+.mpanel-body > .adm-sec > .studio-top > .k-sec{display:none}
 .mpanel-body > .adm-sec > .studio-top{justify-content:flex-end;margin-bottom:8px}
+
+/* Exception to the hide-rule above: EventHUD's SectionHeader label is ev.title — the LIVE EVENT'S
+   ACTUAL NAME — not a repeat of the "hud" Panel's generic "Event heads-up" title, so hiding it
+   would delete the one piece of info (which event this data is about) that makes the panel useful.
+   Re-show it specifically inside .adm-hud. Specificity (0,5,0) — .mpanel-body + .adm-sec + .adm-hud
+   + .k-sec + :first-child — beats the general rule's (0,4,0) max (.mpanel-body + .adm-sec + .k-sec
+   + :first-child) outright, and this rule also sits later in source order, so it wins either way.
+   display:flex matches .k-sec's own base rule (it needs display:flex for its align-items/
+   justify-content to do anything). */
+.mpanel-body > .adm-sec.adm-hud > .k-sec:first-child{display:flex}
 
 /* ─────────── stamp-card achievement states ─────────── */
 .stamp.near{border-color:var(--gold2)}

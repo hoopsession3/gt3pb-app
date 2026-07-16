@@ -8,6 +8,7 @@ import { mondayLabel, nextMondayKey } from "@/lib/office";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
+import { SectionHeader, InfoRow } from "@/components/kit";
 import Icon from "@/components/Icon";
 
 // CREW · OFFICE ORDERS — the operator's control surface for the Monday B2B route (0187). See upcoming
@@ -113,63 +114,78 @@ export default function OfficeOrders() {
       {(data) => {
         const { rows, standingN } = data;
         return (
-          <section className="oo" aria-label="Office orders">
-            <div className="oo-h">
-              <span className="oo-k">Office route</span>
-              <span className="oo-h-r">
+          // Kit SectionHeader replaces the ad-hoc .oo-h/.oo-k title row; each order is now a kit
+          // InfoRow (company → name, "standing" → nameExtra, gallons → trailing, date/pay-status/
+          // total/address → meta). The open/closed delivery-log block (jug-count stepper + its own
+          // action set) stays bespoke markup inside meta rather than forcing it into lead/sub —
+          // same call DeliveryOps made for its own row actions, just one level more involved here.
+          // Action buttons now use .btn-pri/.btn-sec/.btn-ter: "Delivered & swapped" is the one
+          // .btn-pri on this screen (only one order can be open at a time via openId, so it's never
+          // rendered more than once at once). .oo-gen (route-generate) and the order count aren't
+          // .adm-btn/.adm-act, so they keep their own look, now inside SectionHeader's `right` slot.
+          // No data fetching, state, handlers, or conditions below changed — presentation only.
+          <section className="oo" aria-label="Office orders" style={{ padding: "0 14px 14px" }}>
+            <SectionHeader
+              label="Office route"
+              right={<>
                 {standingN > 0 && <button type="button" className="oo-gen" onClick={gen} disabled={!!busyId}>{busyId === "gen" ? "…" : `↻ Generate · ${mondayLabel(nextMondayKey())}`}</button>}
                 <span className="oo-n">{rows.length} order{rows.length === 1 ? "" : "s"}</span>
-              </span>
-            </div>
+              </>}
+            />
             {rows.length === 0 && <EmptyState title="No orders booked yet" sub="Generate this week's standing route above." />}
-            {rows.map((o) => {
-              const open = openId === o.id;
-              return (
-                <div key={o.id} className={`oo-row${o.standing ? " standing" : ""}`}>
-                  <div className="oo-top">
-                    <div className="oo-co"><b>{o.company}</b>{o.standing && <span className="oo-badge">standing</span>}</div>
-                    <div className="oo-gal">{Math.round(o.gallons)} gal</div>
-                  </div>
-                  <div className="oo-meta">
-                    <span>{mondayLabel(o.delivery_date)} · 5–8 AM</span>
-                    <span className="oo-dot">·</span>
-                    <span className={`oo-pay p-${o.payment_status}`}>{o.payment_status === "paid" ? "paid" : o.payment_status === "invoiced" ? "invoiced" : o.billing_terms === "prepaid" ? "awaiting prepay" : "to invoice"}</span>
-                    <span className="oo-dot">·</span>
-                    <span>{dollars(o.total_cents)}</span>
-                  </div>
-                  <div className="oo-addr">{o.address_street}, {o.address_city} {o.address_zip}{o.contact_phone ? ` · ${o.contact_phone}` : ""}{o.access_instructions ? ` · ${o.access_instructions}` : ""}</div>
-
-                  {!open ? (
-                    <div className="oo-acts">
-                      <button type="button" className="adm-btn primary" onClick={() => { setOpenId(o.id); setEmpties((e) => ({ ...e, [o.id]: Math.round(o.gallons) })); }}>Log delivery</button>
-                      {o.payment_status !== "paid" && o.payment_status !== "invoiced" && (
-                        o.billing_terms === "prepaid"
-                          ? <>
-                              <button type="button" className="adm-btn" onClick={() => payLink(o)} disabled={busyId === o.id}>Payment link</button>
-                              <button type="button" className="adm-btn ghost" onClick={() => setPay(o, "paid")} disabled={busyId === o.id}>Mark paid</button>
-                            </>
-                          : <button type="button" className="adm-btn" onClick={() => setPay(o, "invoiced")} disabled={busyId === o.id}>Invoice</button>
-                      )}
-                      <button type="button" className="adm-btn ghost" onClick={() => cancel(o)} disabled={busyId === o.id}>Cancel</button>
-                    </div>
-                  ) : (
-                    <div className="oo-log">
-                      <div className="oo-jug">
-                        <span className="oo-jug-l">Empty jugs collected</span>
-                        <div className="oo-step">
-                          <button type="button" onClick={() => setEmpties((e) => ({ ...e, [o.id]: Math.max(0, (e[o.id] ?? Math.round(o.gallons)) - 1) }))} aria-label="Fewer">−</button>
-                          <span className="oo-jug-v">{empties[o.id] ?? Math.round(o.gallons)}</span>
-                          <button type="button" onClick={() => setEmpties((e) => ({ ...e, [o.id]: (e[o.id] ?? Math.round(o.gallons)) + 1 }))} aria-label="More">+</button>
+            <div className="k-rows">
+              {rows.map((o) => {
+                const open = openId === o.id;
+                return (
+                  <div key={o.id}>
+                    <InfoRow
+                      name={o.company}
+                      nameExtra={o.standing && <span className="oo-badge">standing</span>}
+                      trailing={<span className="oo-gal">{Math.round(o.gallons)} gal</span>}
+                      meta={<>
+                        <div className="oo-meta">
+                          <span>{mondayLabel(o.delivery_date)} · 5–8 AM</span>
+                          <span className="oo-dot">·</span>
+                          <span className={`oo-pay p-${o.payment_status}`}>{o.payment_status === "paid" ? "paid" : o.payment_status === "invoiced" ? "invoiced" : o.billing_terms === "prepaid" ? "awaiting prepay" : "to invoice"}</span>
+                          <span className="oo-dot">·</span>
+                          <span>{dollars(o.total_cents)}</span>
                         </div>
-                      </div>
-                      <button type="button" className="adm-act go" onClick={() => deliver(o, true)} disabled={busyId === o.id}><Icon name="check" /> Delivered &amp; swapped</button>
-                      <button type="button" className="adm-btn" onClick={() => deliver(o, false)} disabled={busyId === o.id}>Delivered — no empties</button>
-                      <button type="button" className="adm-btn ghost" onClick={() => setOpenId(null)}>Back</button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                        <div className="oo-addr">{o.address_street}, {o.address_city} {o.address_zip}{o.contact_phone ? ` · ${o.contact_phone}` : ""}{o.access_instructions ? ` · ${o.access_instructions}` : ""}</div>
+
+                        {!open ? (
+                          <div className="oo-acts">
+                            <button type="button" className="btn-sec" onClick={() => { setOpenId(o.id); setEmpties((e) => ({ ...e, [o.id]: Math.round(o.gallons) })); }}>Log delivery</button>
+                            {o.payment_status !== "paid" && o.payment_status !== "invoiced" && (
+                              o.billing_terms === "prepaid"
+                                ? <>
+                                    <button type="button" className="btn-sec" onClick={() => payLink(o)} disabled={busyId === o.id}>Payment link</button>
+                                    <button type="button" className="btn-ter" onClick={() => setPay(o, "paid")} disabled={busyId === o.id}>Mark paid</button>
+                                  </>
+                                : <button type="button" className="btn-sec" onClick={() => setPay(o, "invoiced")} disabled={busyId === o.id}>Invoice</button>
+                            )}
+                            <button type="button" className="btn-ter" onClick={() => cancel(o)} disabled={busyId === o.id}>Cancel</button>
+                          </div>
+                        ) : (
+                          <div className="oo-log">
+                            <div className="oo-jug">
+                              <span className="oo-jug-l">Empty jugs collected</span>
+                              <div className="oo-step">
+                                <button type="button" onClick={() => setEmpties((e) => ({ ...e, [o.id]: Math.max(0, (e[o.id] ?? Math.round(o.gallons)) - 1) }))} aria-label="Fewer">−</button>
+                                <span className="oo-jug-v">{empties[o.id] ?? Math.round(o.gallons)}</span>
+                                <button type="button" onClick={() => setEmpties((e) => ({ ...e, [o.id]: (e[o.id] ?? Math.round(o.gallons)) + 1 }))} aria-label="More">+</button>
+                              </div>
+                            </div>
+                            <button type="button" className="btn-pri" onClick={() => deliver(o, true)} disabled={busyId === o.id}><Icon name="check" /> Delivered &amp; swapped</button>
+                            <button type="button" className="btn-sec" onClick={() => deliver(o, false)} disabled={busyId === o.id}>Delivered — no empties</button>
+                            <button type="button" className="btn-ter" onClick={() => setOpenId(null)}>Back</button>
+                          </div>
+                        )}
+                      </>}
+                    />
+                  </div>
+                );
+              })}
+            </div>
           </section>
         );
       }}

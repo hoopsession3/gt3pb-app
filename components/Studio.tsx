@@ -11,6 +11,7 @@ import { GTM_PLAYS } from "@/lib/strategy";
 import { useOperatorSection } from "@/components/OperatorNav";
 import Sheet from "@/components/Sheet";
 import Icon from "@/components/Icon";
+import { InfoRow } from "@/components/kit";
 
 type CLink = { id: string; event_id: string | null; stop_id: string | null; play_key: string | null };
 import BrandCalendar from "./BrandCalendar";
@@ -703,7 +704,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
             <button type="button" className="insp-yes" onClick={() => useOption(o)}>Use this</button>
           </div>
         ))}
-        <button type="button" className="studio-act" style={{ marginTop: 6 }} onClick={doRepurpose} disabled={repBusy || !caption.trim()}>{repBusy ? "Repurposing…" : "Repurpose — Story · Reel · Email · Site"}</button>
+        <button type="button" className="btn-sec" style={{ marginTop: 6 }} onClick={doRepurpose} disabled={repBusy || !caption.trim()}>{repBusy ? "Repurposing…" : "Repurpose — Story · Reel · Email · Site"}</button>
       </div>
 
       {rep && (
@@ -723,21 +724,21 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
       </div>
 
       <div className="studio-actions">
-        <button type="button" className="studio-act" onClick={saveVersion}><Icon name="check" /> Save version</button>
-        {status === "draft" && <button type="button" className="studio-act primary" onClick={() => setStage("review", {}, "submitted")} disabled={isBlank(title)}>Submit for review</button>}
-        {(status === "review" || status === "changes") && <button type="button" className="studio-act primary" onClick={() => setStage("approved", { approved_by: me.id }, "approved")} disabled={isBlank(title)}>Approve</button>}
+        <button type="button" className="btn-sec" onClick={saveVersion}><Icon name="check" /> Save version</button>
+        {status === "draft" && <button type="button" className="btn-sec" onClick={() => setStage("review", {}, "submitted")} disabled={isBlank(title)}>Submit for review</button>}
+        {(status === "review" || status === "changes") && <button type="button" className="btn-sec" onClick={() => setStage("approved", { approved_by: me.id }, "approved")} disabled={isBlank(title)}>Approve</button>}
         {status === "review" && (
           <span className="studio-changes">
             <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="What to change…" />
-            <button type="button" className="studio-act" onClick={requestChanges} disabled={!note.trim()}>Request changes</button>
+            <button type="button" className="btn-sec" onClick={requestChanges} disabled={!note.trim()}>Request changes</button>
           </span>
         )}
-        {(status === "approved" || status === "scheduled") && <button type="button" className="studio-act" onClick={() => setStage("published", {}, "published")}>Mark published</button>}
-        {status === "scheduled" && <button type="button" className="studio-act ghost" onClick={() => setStage("approved", { scheduled_for: null }, "unscheduled")}>↩ Unschedule</button>}
-        {status === "published" && <button type="button" className="studio-act ghost" onClick={() => setStage("approved", {}, "unpublished")}>↩ Unpublish</button>}
-        <button type="button" className="studio-act" onClick={() => setKitOpen(true)}><Icon name="package" /> Post kit</button>
-        <button type="button" className="studio-act ghost" onClick={() => setShowVers((s) => !s)}>History ({versions.length})</button>
-        <button type="button" className="studio-act ghost" onClick={async () => { if (supabase && window.confirm("Delete this piece? This can't be undone.")) { await supabase.from("content_items").delete().eq("id", id); onClose(); } }}>Delete</button>
+        {(status === "approved" || status === "scheduled") && <button type="button" className="btn-sec" onClick={() => setStage("published", {}, "published")}>Mark published</button>}
+        {status === "scheduled" && <button type="button" className="btn-ter" onClick={() => setStage("approved", { scheduled_for: null }, "unscheduled")}>↩ Unschedule</button>}
+        {status === "published" && <button type="button" className="btn-ter" onClick={() => setStage("approved", {}, "unpublished")}>↩ Unpublish</button>}
+        <button type="button" className="btn-sec" onClick={() => setKitOpen(true)}><Icon name="package" /> Post kit</button>
+        <button type="button" className="btn-ter" onClick={() => setShowVers((s) => !s)}>History ({versions.length})</button>
+        <button type="button" className="btn-ter" onClick={async () => { if (supabase && window.confirm("Delete this piece? This can't be undone.")) { await supabase.from("content_items").delete().eq("id", id); onClose(); } }}>Delete</button>
       </div>
       {status === "changes" && item.review_note && <p className="insp-foot">Requested: {item.review_note}</p>}
 
@@ -745,27 +746,36 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
         <div className="studio-pub">
           <div className="insp-lbl">Design &amp; publish</div>
           <div className="studio-pub-row">
-            <button type="button" className="studio-act" onClick={makeCanva} disabled={!!pubBusy}>{pubBusy === "design" ? "Opening…" : "Make in Canva"}</button>
-            {pub.edit && <a className="studio-act ghost" href={pub.edit} target="_blank" rel="noreferrer">Open design <Icon name="externalLink" /></a>}
-            {pub.edit && <button type="button" className="studio-act" onClick={exportCanva} disabled={!!pubBusy}>{pubBusy === "export" ? "Exporting…" : "Export PNG"}</button>}
-            {pub.png && <a className="studio-act ghost" href={pub.png} target="_blank" rel="noreferrer">View graphic <Icon name="externalLink" /></a>}
+            <button type="button" className="btn-sec" onClick={makeCanva} disabled={!!pubBusy}>{pubBusy === "design" ? "Opening…" : "Make in Canva"}</button>
+            {pub.edit && <a className="btn-ter" href={pub.edit} target="_blank" rel="noreferrer">Open design <Icon name="externalLink" /></a>}
+            {pub.edit && <button type="button" className="btn-sec" onClick={exportCanva} disabled={!!pubBusy}>{pubBusy === "export" ? "Exporting…" : "Export PNG"}</button>}
+            {pub.png && <a className="btn-ter" href={pub.png} target="_blank" rel="noreferrer">View graphic <Icon name="externalLink" /></a>}
           </div>
           <div className="studio-pub-row">
-            <button type="button" className="studio-act primary" onClick={publish} disabled={!!pubBusy}>{pubBusy === "publish" ? "Publishing…" : "Publish to site"}</button>
-            {pub.live && <a className="studio-act ghost" href={pub.live.startsWith("http") ? pub.live : undefined} target="_blank" rel="noreferrer">Live <Icon name="externalLink" /> {pub.live.startsWith("http") ? "" : `(${pub.live})`}</a>}
-            {pub.live && <button type="button" className="studio-act ghost" onClick={unpublishSite} disabled={!!pubBusy}>{pubBusy === "unpublish" ? "Removing…" : "↩ Take off site"}</button>}
+            {/* The one true .btn-pri on this screen: this is the button that actually ships the
+                piece externally (Webflow publish, outward-facing) — see app/api/studio/publish.
+                Everything else that can feel "primary" (Submit for review / Approve / Mark
+                published) is a same-tier .btn-sec below; only one commit-to-the-world action gets
+                the heavy red treatment. It's the first child of this flex-wrap row so going
+                full-width doesn't orphan a sibling — Live/Take off site cleanly wrap under it. */}
+            <button type="button" className="btn-pri" onClick={publish} disabled={!!pubBusy}>{pubBusy === "publish" ? "Publishing…" : "Publish to site"}</button>
+            {pub.live && <a className="btn-ter" href={pub.live.startsWith("http") ? pub.live : undefined} target="_blank" rel="noreferrer">Live <Icon name="externalLink" /> {pub.live.startsWith("http") ? "" : `(${pub.live})`}</a>}
+            {pub.live && <button type="button" className="btn-ter" onClick={unpublishSite} disabled={!!pubBusy}>{pubBusy === "unpublish" ? "Removing…" : "↩ Take off site"}</button>}
           </div>
           {pubErr && <p className="insp-foot">{pubErr}</p>}
         </div>
       )}
 
       {showVers && (
-        <div className="studio-vers">
+        <div className="studio-vers k-rows">
           {versions.length === 0 ? <EmptyState title="No versions yet" sub="Save version to checkpoint." /> : versions.map((v) => (
-            <div key={v.id} className="studio-ver">
-              <span className="studio-ver-t"><b>{v.label}</b> · {fmtDate(v.created_at)}{v.caption ? ` · ${v.caption.slice(0, 60)}` : ""}</span>
-              <button type="button" className="insp-no" onClick={() => restore(v)}>Restore</button>
-            </div>
+            <InfoRow
+              key={v.id}
+              name={v.label}
+              meta={fmtDate(v.created_at)}
+              sub={v.caption ? v.caption.slice(0, 60) : undefined}
+              trailing={<button type="button" className="insp-no" onClick={() => restore(v)}>Restore</button>}
+            />
           ))}
         </div>
       )}

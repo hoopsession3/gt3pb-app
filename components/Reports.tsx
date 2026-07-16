@@ -37,14 +37,13 @@ export default function Reports() {
 
   return (
     <div className="adm-sec rpt">
-      <div className="rpt-head">
-        <SectionHeader label="Sales" annotation="the number" />
+      <SectionHeader label="Sales" annotation="the number" right={
         <div className="rpt-range">
           {RANGES.map((d) => (
             <button key={d} className={`rpt-r${days === d ? " on" : ""}`} onClick={() => setDays(d)}>{d}d</button>
           ))}
         </div>
-      </div>
+      } />
 
       {loading && !rep ? (
         <div className="rpt-hint">Loading…</div>

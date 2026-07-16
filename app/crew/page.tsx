@@ -296,10 +296,19 @@ function Kitchen() {
 
   return (
     <div className="adm-sec" id="kitchen-pass">
-      <SectionHeader label="The pass" right={<>
+      {/* Service mode's .svc-bar already renders "The Pass" directly above Kitchen (see AdminPage's
+          svc-bar, ~line 5730) — this SectionHeader only repeated it (case differs), so it's cut,
+          same precedent as ReadinessAgent's redundant "Readiness" header being cut where a
+          crew-group divider directly above already said it. The mute toggle + active count are
+          real controls (not a title), so they're kept, right-aligned in a bare wrapper. Unlike
+          .adm-prep-view (which has its own margin-left:auto), neither .adm-pill nor .kds-mute
+          does, so the wrapper reproduces the rest of .k-sec-r's own layout too (align-items:center,
+          gap:8px) rather than just justifyContent, so this doesn't lose the vertical centering or
+          the pill↔button spacing the two had inside the old SectionHeader's right slot. */}
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
         {active.length > 0 && <span className="adm-pill">{active.length} active</span>}
         <button type="button" className="kds-mute" onClick={toggleMute} aria-pressed={muted}>{muted ? "🔇 Muted" : <><Icon name="bell" /> Sound</>}</button>
-      </>} />
+      </div>
 
       {err && <div className="adm-attn" role="alert">Backend error: {err}</div>}
       {staleAt > 0 && (
@@ -1661,7 +1670,6 @@ function ReadinessAgent() {
   };
   return (
     <div className="adm-sec">
-      <SectionHeader label="Readiness" />
       <div className="rdy">
         <div className="rdy-top">
           <span className="rdy-blurb">Ask the prep agent if you&apos;re stocked for the next two weeks.</span>
@@ -1875,7 +1883,7 @@ function EventPrep({ onGo }: { onGo: (t: string) => void }) {
     {/* Overview + loadout show on the list only — opening a target gives prep the full screen. */}
     <Overview onGo={onGo} onOpenTarget={(kind, id) => setSelected({ kind, id })} />
     <div className="adm-sec adm-prep">
-      <SectionHeader label="Prep" right={<button className="adm-prep-view" onClick={() => setSheet(true)} aria-haspopup="dialog">View ⌄</button>} />
+      <div style={{ display: "flex" }}><button className="adm-prep-view" onClick={() => setSheet(true)} aria-haspopup="dialog">View ⌄</button></div>
       <AsyncSection
         state={prepState}
         isEmpty={(d) => d.events.length === 0 && d.stops.length === 0}
@@ -1983,7 +1991,6 @@ function Garage({ events, stops, liveStopId, loaded }: { events: EventRow[]; sto
   );
   return (
     <div className="garage">
-      <div className="prep-group-h">The garage <span>rigs · gear · stock</span></div>
       {row("loadout", <Icon name="truck" />, "Load-out & tow plan", packSoon ? "event this week — check the load" : "quiet until an event is near", <TrailerLoadout />)}
       {row("gear", <Icon name="wrench" />, "Gear library", "manuals · specs · how-tos", <GearLibrary />)}
       {row("maint", <Icon name="wrench" />, "Asset maintenance", "service log · what's due", <AssetMaintenance />)}
@@ -4246,7 +4253,17 @@ function EventHUD() {
     return () => clearInterval(recon);
   }, [load]);
   useRealtimeTable(["orders", "event_sales", "events"], load);
-  if (!ev) return null;
+  if (!ev) {
+    // The Panel wrapping EventHUD (id="hud", "Event heads-up") is gated on canManage only, not on
+    // whether an event is live, so a manager always sees a tappable panel — which most of the time
+    // (no live event) used to open onto a totally blank body. Same EmptyState pattern used
+    // elsewhere in this file for an empty Panel body.
+    return (
+      <div className="adm-sec adm-hud">
+        <EmptyState title="No event live" sub="Sales and pace will show here once an event goes live." />
+      </div>
+    );
+  }
   const hrs = stats.firstAt ? Math.max(0.25, (Date.now() - new Date(stats.firstAt).getTime()) / 3600000) : 0;
   const perHr = hrs ? stats.cents / hrs : 0;
   // plan vs actual — feed the real gross into the projection's cost structure
@@ -5867,6 +5884,7 @@ export default function AdminPage() {
           {/* One lead funnel (typed): inbound booking requests are the intake stage, then the B2B
               pipeline. Consolidated here so leads live in ONE place, not split across Plan + Pipeline. */}
           <Bookings />
+          <div className="crew-group">Pipeline</div>
           <PipelinePanel isAdmin={isAdmin} />
         </>
       )}
@@ -5903,7 +5921,11 @@ export default function AdminPage() {
           {isOwner && <InviteTeammate />}
           <div className="crew-group">Who&apos;s on what</div>
           <WorkloadBoard />
-          <div className="crew-group">Roster</div>
+          {/* Was "Roster" (2026-07-16, ground-up redesign): OrgChart alone renders two labeled
+              concerns (Org chart's reporting tiers, then Work streams' ownership grid), and
+              Members below adds a third ("Team", the actual member list) — "Roster" only
+              accurately described the last of the three. Broadened to cover all of them. */}
+          <div className="crew-group">Team structure</div>
           <OrgChart />
           {isOwner && <Members />}
           <div className="crew-group">Growth &amp; training</div>

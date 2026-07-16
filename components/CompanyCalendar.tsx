@@ -20,6 +20,7 @@ import { localDayBoundsISO } from "@/lib/calendarMath";
 import FieldOpSheet from "./FieldOpSheet";
 import Sheet from "@/components/Sheet";
 import Icon from "@/components/Icon";
+import { SectionHeader } from "@/components/kit";
 
 // COMPANY CALENDAR — one pane for everything dated: truck events, admin/ops work, scheduled content
 // (from Studio), and free-standing to-dos. Category-colored, filterable, click-through to source.
@@ -291,7 +292,13 @@ export default function CompanyCalendar() {
     <AsyncSection state={board} isEmpty={() => false} errorTitle="Couldn't load the calendar" emptyTitle="Nothing here yet">
       {() => (
     <div className="adm-sec cal">
-      <div className="cal-titlebar"><span className="cal-eyebrow"><Icon name="calendar" /> Company calendar</span><span className="cal-titlesub">everything dated — tap any day to open &amp; edit</span></div>
+      {/* "Company calendar" eyebrow cut (2026-07-16, decrowd): the crew header title + the
+          "Calendar" subnav tab the user just tapped already say this twice — a bespoke third
+          banner here was pure repetition. SectionHeader now matches this screen to its
+          EventsAdmin/VendorsAdmin subnav siblings; the tap-to-edit hint is genuine first-run
+          orientation copy (not stated anywhere above), so it stays as its own line. */}
+      <SectionHeader label="Calendar" />
+      <div className="cal-titlesub">everything dated — tap any day to open &amp; edit</div>
       {stale > 0 && (
         <div className="cal-nudge">
           <span><b>{stale}</b> post{stale === 1 ? "" : "s"} went past their date unpublished.</span>

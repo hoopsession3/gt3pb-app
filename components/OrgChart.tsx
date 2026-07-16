@@ -55,6 +55,25 @@ export default function OrgChart() {
     <AsyncSection state={board} isEmpty={() => false} errorTitle="Couldn't load the team" emptyTitle="Nothing here yet">
       {() => (
         <div className="adm-sec">
+          {/* Org chart leads, Work streams follows: this component renders directly under the
+              page's "Roster" crew-group divider (app/crew/page.tsx), and the tiered reporting
+              view below is what that label actually describes. Work-stream ownership is a
+              related but distinct concern — ownership assignment, not headcount/reporting — so
+              it's ordered second rather than leading with an unrelated module. */}
+          <SectionHeader label="Org chart" annotation="who reports where" />
+          <div className="org">
+            {TIERS.map((t) => {
+              const tier = people.filter((p) => t.roles.includes(p.role ?? ""));
+              if (tier.length === 0) return null;
+              return (
+                <div key={t.label} className="org-tier">
+                  <div className="org-tier-h">{t.label}</div>
+                  <div className="org-row">{tier.map(card)}</div>
+                </div>
+              );
+            })}
+            {people.length === 0 && <EmptyState title="No crew yet" sub="Team members appear here once they have a role and a profile." />}
+          </div>
           <SectionHeader label="Work streams" annotation="one owner per lane" />
           <div className="ws-grid">
             {streams.map((s) => {
@@ -76,20 +95,6 @@ export default function OrgChart() {
             })}
           </div>
           <div className="ws-note">One accountable owner per lane — their pings, their calendar rail, their call. One person can own several lanes.</div>
-          <SectionHeader label="Org chart" annotation="who reports where" />
-          <div className="org">
-            {TIERS.map((t) => {
-              const tier = people.filter((p) => t.roles.includes(p.role ?? ""));
-              if (tier.length === 0) return null;
-              return (
-                <div key={t.label} className="org-tier">
-                  <div className="org-tier-h">{t.label}</div>
-                  <div className="org-row">{tier.map(card)}</div>
-                </div>
-              );
-            })}
-            {people.length === 0 && <EmptyState title="No crew yet" sub="Team members appear here once they have a role and a profile." />}
-          </div>
         </div>
       )}
     </AsyncSection>

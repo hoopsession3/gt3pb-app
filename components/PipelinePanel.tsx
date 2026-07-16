@@ -1,7 +1,6 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useState } from "react";
-import { SectionHeader } from "@/components/kit";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useApp } from "./AppProvider";
@@ -431,8 +430,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <div className="adm-sec">
-      <SectionHeader label="Pipeline" annotation={openOpps.length > 0 ? `${openOpps.length} open` : "the leads"} />
-      <p className="h-sub" style={{ marginBottom: 12 }}>Every account, its deal, its rep, its next step. Won so far: <b><CountUp cents={wonValue} /></b>.</p>
+      <p className="h-sub" style={{ marginBottom: 12 }}>{openOpps.length > 0 && `${openOpps.length} open. `}Every account, its deal, its rep, its next step. Won so far: <b><CountUp cents={wonValue} /></b>.</p>
 
       {/* The owner's table — what reps are allowed to offer, per account type. */}
       {isAdmin && (

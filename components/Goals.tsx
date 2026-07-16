@@ -294,8 +294,7 @@ export default function Goals() {
 
   return (
     <div className="adm-sec" id="goals">
-      <SectionHeader label="Goals" />
-      {active.length > 0 && <span className="adm-pill">{active.length}</span>}
+      <SectionHeader label="Goals" right={active.length > 0 && <span className="adm-pill">{active.length}</span>} />
       <p className="h-sub" style={{ marginBottom: 12 }}>Every goal is a number with a bar, filed to the lane that owns it. Break it into moves; talk it out on the thread.</p>
 
       <AsyncSection state={board} isEmpty={(data) => data.rows.length === 0} emptyTitle="No goals yet" emptySub="Put a number on the wall." errorTitle="Couldn't load the board" loadingLabel="Loading the board…">
