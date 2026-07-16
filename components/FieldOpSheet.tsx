@@ -20,6 +20,18 @@ import Icon from "@/components/Icon";
 
 type Kind = "event" | "stop";
 
+// Truck stops read "Upcoming" forever unless a human flips the dropdown — a stop from last week
+// nobody touched still shows Upcoming here even though FindUs/Route/PrepBoard already treat it as
+// past (starts_at + 8h grace). This mirrors that same rule so the editor agrees with what guests
+// and crew already see elsewhere. An explicit "done" or a completed_at stamp (the Complete-stop
+// wrap flow, in OwnerDetails) always wins over the date math.
+const STOP_GRACE_MS = 8 * 3600 * 1000;
+function derivedStopStatus(status: string | null, startsAt: string | null, completedAt: string | null): string {
+  if (status === "done" || completedAt) return "done";
+  if (!startsAt) return "upcoming";
+  return Date.now() - new Date(startsAt).getTime() > STOP_GRACE_MS ? "done" : "upcoming";
+}
+
 export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }: {
   kind: Kind; id: string;
   onClose: () => void;
@@ -33,15 +45,18 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
   const [saving, setSaving] = useState(false);
   const [touchedWhen, setTouchedWhen] = useState(false);
   // stage/status as loaded — only written back if the USER changed it, so the lifecycle
-  // triggers (live/done automation) can't be clobbered by a stale quick-edit (panel catch)
+  // triggers (live/done automation) can't be clobbered by a stale quick-edit (panel catch).
+  // For stops, "as loaded" is the DATE-DERIVED default (derivedStopStatus above), not the raw
+  // column — so an unconfirmed default can never overwrite the real column either.
   const origStage = useRef<string | null>(null);
 
   useEffect(() => {
     if (!supabase) return;
-    const sel = isEvent ? "title, day, location_text, stage" : "name, starts_at, location_text, address, status";
+    const sel = isEvent ? "title, day, location_text, stage" : "name, starts_at, location_text, address, status, completed_at";
     supabase.from(table).select(sel).eq("id", id).maybeSingle()
       .then(({ data }) => {
         const row = ((data ?? {}) as unknown) as Record<string, string | null>;
+        if (!isEvent) row.status = derivedStopStatus(row.status ?? null, row.starts_at ?? null, row.completed_at ?? null);
         origStage.current = (isEvent ? row.stage : row.status) ?? null;
         setF(row);
       });

@@ -827,6 +827,20 @@ type MyTaskRow = EventTask & {
 // prep view is the single place to manage the thing end to end — no hopping to the calendar or Live
 // truck to change a name or date. Self-contained; works for events or stops. (Go-live + GPS stay in
 // Now ▸ Live truck, which owns the broadcast.)
+//
+// Upcoming/Done default (stops only): a stop's status column reads "upcoming" forever unless a
+// human flips it, but FindUs/Route/PrepBoard already treat a stop as past once it's 8h beyond its
+// start (same grace window, mirrored here — see FieldOpSheet's copy of this same helper). An
+// explicit "done" or a completed_at stamp (the Complete-stop wrap flow below) always wins over the
+// date math. This is seeded only when edit mode opens (not on every load) so the read-only pill —
+// which still must prompt for a recap even on a stale, never-completed stop — keeps reading the
+// true stored value untouched.
+const OWNERDET_STOP_GRACE_MS = 8 * 3600 * 1000;
+function derivedStopStatus(status: string | null, startsAt: string | null, completedAt: string | null): string {
+  if (status === "done" || completedAt) return "done";
+  if (!startsAt) return "upcoming";
+  return Date.now() - new Date(startsAt).getTime() > OWNERDET_STOP_GRACE_MS ? "done" : "upcoming";
+}
 function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { ownerType: "event" | "stop"; ownerId: string; isAdmin: boolean; onSaved: (name: string) => void; onRemoved: () => void }) {
   const { toast } = useApp();
   const isEvent = ownerType === "event";
@@ -849,6 +863,11 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
   // What starts_at was when loaded — if a save CHANGES the schedule, the stale hand-set
   // when/time labels are cleared so guests see the new time (same rule as FieldOpSheet).
   const origStartsAt = useRef<string | null>(null);
+  // stage/status as of when edit mode opened — only written back if the USER changed it from
+  // there, so lifecycle automation (or the date-derived default seeded on open, for stops) can't
+  // be clobbered by an unrelated quick-edit (same rule as FieldOpSheet; was previously unguarded
+  // here, so every save silently rewrote status/stage even when neither was touched).
+  const origStage = useRef<string | null>(null);
 
   // Remove from the active lists (keeps the record, reversible). The standard "delete" for a real
   // event/stop — same as the calendar's Remove and Live truck's Archive.
@@ -918,6 +937,7 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
     setWrapping(false);
     toast(alsoArchive ? `${isEvent ? "Event" : "Stop"} completed + archived` : `${isEvent ? "Event" : "Stop"} completed — nice work`);
     if (alsoArchive) { onRemoved(); return; }
+    origStage.current = "done"; // this write already committed above — keep the edit-guard baseline in sync
     setF((p) => ({ ...(p ?? {}), ...(isEvent ? { stage: "done" } : { status: "done" }), completed_at: now, recap: recap.trim() || null }));
   };
 
@@ -989,9 +1009,14 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
     const nm = (f[nameCol] || "").trim() || (isEvent ? "Event" : "Stop");
     const buf = f.default_buffer_min != null && String(f.default_buffer_min).trim() !== "" ? Math.max(0, Number(f.default_buffer_min)) : null;
     const patch: Record<string, string | number | boolean | null> = isEvent
-      ? { title: nm, day: f.day || null, location_text: f.location_text?.trim() || null, stage: f.stage || "confirmed", default_buffer_min: buf }
-      : { name: nm, starts_at: f.starts_at || null, location_text: f.location_text?.trim() || null, address: f.address?.trim() || null, status: f.status || "upcoming", default_buffer_min: buf,
+      ? { title: nm, day: f.day || null, location_text: f.location_text?.trim() || null, default_buffer_min: buf }
+      : { name: nm, starts_at: f.starts_at || null, location_text: f.location_text?.trim() || null, address: f.address?.trim() || null, default_buffer_min: buf,
           order_ahead_enabled: oa, pickup_enabled: pk, order_ahead_lead_min: oa && lead.trim() !== "" ? Math.max(0, Number(lead)) : null };
+    // stage/status: write ONLY a deliberate change from what the form opened with (same rule as
+    // FieldOpSheet) — every save used to rewrite this unconditionally, which could clobber
+    // lifecycle automation (or the seeded date-derived default) with a value nobody actually chose.
+    const stageNow = (isEvent ? f.stage : f.status) ?? null;
+    if (stageNow !== origStage.current) patch[isEvent ? "stage" : "status"] = stageNow;
     // For stops, geocode the address (or location) so it pins on the map + customer directions work.
     if (!isEvent) {
       // schedule changed → derived values must beat stale hand-set labels on the guest page
@@ -1002,6 +1027,11 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
     const { error } = await supabase.from(table).update(patch).eq("id", ownerId);
     setSaving(false);
     if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
+    // Re-sync the local draft with the server row BEFORE leaving edit mode — a skipped
+    // stage/status write (guard just above) must not leave the read-only view showing a
+    // derived-only default that was never actually persisted (it would otherwise hide the
+    // Complete/recap prompt on a stop nobody has actually completed yet).
+    await ownerState.reload();
     setEdit(false); onSaved(nm); toast(isEvent ? "Details saved" : "Saved — address pinned on the map");
   };
 
@@ -1049,7 +1079,14 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
         )}
         {done && f.recap && !wrapping && <div className="ownerdet-recap"><b>Recap</b> {f.recap}{isAdmin && <button type="button" className="ownerdet-recap-edit" onClick={() => { setRecap(f.recap ?? ""); setWrapping(true); }}>edit</button>}</div>}
         <AddToCalendar ev={cal} defaultBuffer={Number(f.default_buffer_min) || 0} />
-        {isAdmin && <button type="button" className="ownerdet-edit" onClick={() => setEdit(true)}>Edit details</button>}
+        {isAdmin && <button type="button" className="ownerdet-edit" onClick={() => {
+          // Seed the edit-guard baseline NOW, from what's about to show in the form — for stops,
+          // that's the date-derived default (not the raw column); see derivedStopStatus above.
+          const derived = isEvent ? (f.stage ?? null) : derivedStopStatus(f.status ?? null, f.starts_at ?? null, f.completed_at ?? null);
+          origStage.current = derived;
+          if (!isEvent && derived !== f.status) setF((p) => (p ? { ...p, status: derived } : p));
+          setEdit(true);
+        }}>Edit details</button>}
       </div>
     );
   }
