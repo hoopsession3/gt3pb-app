@@ -173,7 +173,7 @@ export const BUSINESS: BizCapability[] = [
     id: "ai", icon: "🤖", name: "The AI Layer", status: "live",
     outcome: "AI is a teammate, not a gimmick: it proposes, you approve — grounded in GT3's own governed truth.",
     built: [
-      "8 agents: recap, action-resolver, readiness, Ask GT3, inspection, caption, campaign, summarizer",
+      "26 agents across ops, events, prep, sales, and Studio — recap, readiness, Ask GT3, inspection, Smart Intake, caption, campaign, and 19 more (full list at /architecture)",
       "Grounded in the Academy (brand/nutrition/ops) so answers trace to written, claim-checked truth",
       "Human-in-the-loop everywhere — nothing auto-publishes or auto-commits",
       "Claude Sonnet 4.6 internal · Haiku 4.5 for volume; key is server-only",
@@ -196,6 +196,27 @@ export const ARCHITECTURE: ArchLayer[] = [
       { name: "Caption engine", status: "live", desc: "Suave, on-brand content options from a brief (Studio).", sot: "app/api/agents/caption/route.ts" },
       { name: "Campaign generator", status: "live", desc: "An event → teaser + day-of + recap, scheduled & event-linked.", sot: "app/api/agents/campaign/route.ts" },
       { name: "Summarizer", status: "live", desc: "Recreate a note's recap from the transcript.", sot: "app/api/agents/summarize/route.ts" },
+      // 16 of the 17 below already existed and were reachable in the app before this pass but were
+      // missing from this manifest — the BUSINESS view's "8 agents" and BUILD_STATS' "12" both
+      // undercounted what was actually shipped. Reconciled 2026-07-16 against the real
+      // app/api/agents/ directory. Studio Photo Read is the one genuinely new agent this round.
+      { name: "Smart Intake", status: "live", desc: "Drop any file — vision for photos, text for docs — and it proposes where it belongs: asset, inventory item, or document.", sot: "app/api/agents/intake/route.ts" },
+      { name: "Studio Photo Read", status: "live", desc: "The first photo on a brand-new content piece gets read and proposes a title/hook/tags — Smart Intake's pattern, scoped to Studio.", sot: "app/api/agents/studio-photo/route.ts" },
+      { name: "Brew AI", status: "live", desc: "Scales a recipe to an exact batch size and hits the spec.", sot: "app/api/agents/brew/route.ts" },
+      { name: "Bottle Loadout", status: "live", desc: "How to pack the bottles for the car, and what to pack them in.", sot: "app/api/agents/loadout/route.ts" },
+      { name: "Vehicle Spec Agent", status: "live", desc: "Year/make/model + rider count → an expert vehicle read.", sot: "app/api/agents/vehiclespec/route.ts" },
+      { name: "Event Build (guided)", status: "live", desc: "A staff member describes an event in plain words; it's built chief-of-staff style.", sot: "app/api/agents/event-build/route.ts" },
+      { name: "Event Prep", status: "live", desc: "A tailored, grounded prep/to-do list for one specific event or truck stop.", sot: "app/api/agents/eventprep/route.ts" },
+      { name: "Troubleshoot AI", status: "live", desc: "Field-ops first responder for what's going wrong right now.", sot: "app/api/agents/troubleshoot/route.ts" },
+      { name: "Event Generator", status: "live", desc: "A few freeform notes → a drafted event.", sot: "app/api/agents/event-generate/route.ts" },
+      { name: "Load-out Space Agent", status: "live", desc: "Does it all fit, and where does it go?", sot: "app/api/agents/spaceplan/route.ts" },
+      { name: "Ops Plan", status: "live", desc: "Chief-of-staff read of a meeting note — beyond recap's follow-up tasks.", sot: "app/api/agents/opsplan/route.ts" },
+      { name: "Day Planner Draft", status: "live", desc: "An event + freeform notes → a time-blocked run of show.", sot: "app/api/agents/dayplan/route.ts" },
+      { name: "Chief of Staff", status: "live", desc: "Executive-assistant briefing — the whole org snapshot for a period.", sot: "app/api/agents/chief/route.ts" },
+      { name: "Chief of Sales", status: "live", desc: "Scours the web for upcoming vend/booking opportunities.", sot: "app/api/agents/sales/route.ts" },
+      { name: "Flyer Template Picker", status: "live", desc: "Studio art director — picks the flyer template for the content + occasion.", sot: "app/api/agents/flyer-template/route.ts" },
+      { name: "Repurpose Engine", status: "live", desc: "One existing caption/idea → spun into every format.", sot: "app/api/agents/repurpose/route.ts" },
+      { name: "Transcribe", status: "live", desc: "Uploaded attachments → one clean transcript for ops-plan/summarize.", sot: "app/api/agents/transcribe/route.ts" },
     ],
   },
   {
@@ -276,13 +297,13 @@ export const ARCHITECTURE: ArchLayer[] = [
 // partner build log (~/Downloads/GT3-Build-Log.md). Velocity counts (PRs/commits/LOC) come from git, so
 // they're baked here; the business KPIs shown above this snapshot are live from Supabase.
 export const BUILD_STATS: { asOf: string; items: { n: string; l: string }[] } = {
-  asOf: "Jul 15, 2026",
+  asOf: "Jul 16, 2026",
   items: [
     { n: "60+", l: "features shipped" },
-    { n: "12", l: "AI agents" },
-    { n: "233", l: "migrations" },
-    { n: "59", l: "API endpoints" },
-    { n: "139", l: "components" },
+    { n: "26", l: "AI agents" },
+    { n: "243", l: "migrations" },
+    { n: "60", l: "API endpoints" },
+    { n: "142", l: "components" },
     { n: "~38.7k", l: "lines of code" },
   ],
 };
