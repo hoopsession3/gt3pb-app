@@ -13,7 +13,13 @@ import Gt3Mark from "@/components/Gt3Mark";
 //                 are the same row; only the trailing changes
 //   ClosingBeat   every page ends on purpose (mark + sig)
 // Buttons are CSS-only tiers: btn-pri (max ONE per screen),
-// btn-sec, btn-ter. EmptyState stays its own component.
+// btn-sec, btn-ter. EmptyState stays its own component: use it
+// for a screen's primary "nothing to do" moment (My Day, Team,
+// Inbox) — an editorial message beats a blank gap. Dense crew/
+// operator boards may still render nothing on an empty list ON
+// PURPOSE — a feed you check often (alerts strip, task pointer,
+// notes, incident log) says nothing when there's nothing: that's
+// the deliberate "silence is the signal" exception, not a gap.
 // ============================================================
 
 export function Masthead({ eyebrow, live = false, right, tone = "dark" }: { eyebrow?: string; live?: boolean; right?: ReactNode; tone?: "dark" | "light" }) {

@@ -17,6 +17,7 @@ import { useWorkStreams, streamOfCategory } from "@/lib/streams";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "@/components/AsyncSection";
+import EmptyState from "@/components/EmptyState";
 import { useOperatorSection, sectionsForRole, streamGroups, SECTION_LABEL, TODAY_GROUP, type OpSection } from "@/components/OperatorNav";
 import { useTaskSheet } from "@/components/TaskSheet";
 import GtmCard from "@/components/GtmCard";
@@ -633,7 +634,6 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
     scrollToAnchor(d.anchor);
   };
 
-  if (mine.length === 0 && held.length === 0) return null;
   const rank = (s: string) => (s === "critical" ? 0 : s === "important" ? 1 : 2);
   const sorted = [...mine].sort((a, b) => rank(a.severity) - rank(b.severity));
 
@@ -647,6 +647,17 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
         <span className="alerts-strip-t"><b>{mine.length} {mine.length === 1 ? "alert needs" : "alerts need"} you</b>{crit ? ` · ${crit} critical` : ""}</span>
         <span className="alerts-strip-go">Open in My Day <Icon name="arrowRight" /></span>
       </button>
+    );
+  }
+
+  // Full/sheet face (My Day inbox): unlike the compact strip, this is a destination you open on
+  // purpose — say something, don't just vanish. Held-quiet-hours-only counts as "nothing" here too.
+  if (mine.length === 0 && held.length === 0) {
+    return (
+      <div className="adm-sec">
+        <SectionHeader label={title} />
+        <EmptyState title="You're all caught up" sub="No flags or pings need you right now." />
+      </div>
     );
   }
 
@@ -1496,7 +1507,8 @@ function MyTasks({ userId, chip = false }: { userId: string | null; chip?: boole
     await completeTask(t.source === "todo" ? "todo" : "event", t.id, userId);   // ONE complete path (lib/tasks)
   };
 
-  if (!userId || (loaded && tasks.length === 0)) return null;
+  if (!userId) return null;
+  const empty = loaded && tasks.length === 0;
 
   // Priority: critical first, then overdue, then important (warn), then tasks on a LIVE event, then by date.
   const nowIso = new Date().toISOString();
@@ -1507,14 +1519,25 @@ function MyTasks({ userId, chip = false }: { userId: string | null; chip?: boole
   const over = tasks.filter(isOver).length;
 
   // Chip face (Live Ops): the full list has ONE home — My Day. During service this is a pointer,
-  // the same pattern the alerts strip uses.
+  // the same pattern the alerts strip uses. Nothing on your plate → the pointer itself is noise.
   if (chip) {
+    if (empty) return null;
     return (
       <button type="button" className="alerts-strip taskptr" onClick={() => setSection("day")}>
         <span className="alerts-strip-i" aria-hidden><Icon name="check" /></span>
         <span className="alerts-strip-t"><b>{tasks.length} task{tasks.length === 1 ? "" : "s"} on your plate</b>{over ? ` · ${over} overdue` : crit ? ` · ${crit} critical` : ""}</span>
         <span className="alerts-strip-go">Open in My Day <Icon name="arrowRight" /></span>
       </button>
+    );
+  }
+
+  // My Day is the one place this list lives above the fold — say so on purpose when it's clear,
+  // rather than leaving a gap where the day's work usually leads.
+  if (empty) {
+    return (
+      <div className="adm-sec" id="my-day-tasks">
+        <EmptyState title="Nothing on your plate" sub="You're clear for today — check Live Ops if something's moving." />
+      </div>
     );
   }
 
@@ -4171,7 +4194,7 @@ function Members() {
           </div>
         );
       })}
-      {staff.length === 0 && <div className="h-sub">No one here yet — people appear when they sign in.</div>}
+      {staff.length === 0 && <EmptyState title="No one here yet" sub="People appear here once they sign in." />}
       {staff.length > 0 && shown.length === 0 && <div className="h-sub">No match for &ldquo;{q}&rdquo;.</div>}
     </div>
       )}
