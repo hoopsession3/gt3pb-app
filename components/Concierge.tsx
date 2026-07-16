@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Sheet from "./Sheet";
 import Gt3Mark from "./Gt3Mark";
+import Icon from "./Icon";
 
 // Render the assistant's light markdown — **bold** becomes real bold (guests were seeing raw
 // asterisks). Newlines are already handled by the bubble's white-space:pre-wrap.
@@ -58,7 +59,7 @@ export default function Concierge() {
         header={
           <div className="conc-head">
             <div className="conc-head-l"><span className="conc-badge"><Gt3Mark tone="cream" /></span><div><div className="conc-title" id="concierge-title">Concierge</div></div></div>
-            <button type="button" className="conc-x" onClick={() => setOpen(false)} aria-label="Close">✕</button>
+            <button type="button" className="conc-x" onClick={() => setOpen(false)} aria-label="Close"><Icon name="close" /></button>
           </div>
         }
         footer={

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Sheet from "@/components/Sheet";
 import Gt3Mark from "@/components/Gt3Mark";
+import Icon from "@/components/Icon";
 import { useAuth } from "@/components/AuthProvider";
 import { useApp } from "@/components/AppProvider";
 import { supabase } from "@/lib/supabase";
@@ -99,7 +100,7 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
   const header = (
     <div className="office-head">
       <span className="office-head-t"><Gt3Mark tone="cream" /> Office delivery</span>
-      <button type="button" className="isheet-x" onClick={onClose} aria-label="Close">✕</button>
+      <button type="button" className="isheet-x" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
     </div>
   );
 
@@ -107,7 +108,7 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
     return (
       <Sheet open onClose={onClose} label="Office delivery order" header={header} className="office-sheet">
         <div className="office-done">
-          <div className="office-done-ic">🫙</div>
+          <div className="office-done-ic"><Icon name="jar" /></div>
           <h2>You&rsquo;re on the Monday route.</h2>
           <p>{done.gallons} gallons of cold-extract, <b>{mondayLabel(done.date)}, 5–8 AM</b>, in amber glass jugs. We&rsquo;ll {billing === "prepaid" ? "text a payment link to confirm" : "send an invoice"} and swap empties for full every week{standing ? "" : " (this order)"}.</p>
           <button type="button" className="handle" onClick={onClose}><span>Done</span></button>

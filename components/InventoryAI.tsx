@@ -4,6 +4,7 @@ import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import Sheet from "@/components/Sheet";
+import Icon from "@/components/Icon";
 
 // INVENTORY AI — describe an item and it drafts a COMPLETE inventory record (every attribute filled /
 // inferred). Review + tweak ANY field, then add it to the stock register. Reuses the .gl-* / .dp-*
@@ -48,10 +49,10 @@ export default function InventoryAI({ onClose, onAdded }: { onClose: () => void;
   const set = (k: keyof Item, v: any) => setItem((p) => p ? { ...p, [k]: v } : p);
 
   return (
-    <Sheet open onClose={onClose} label="Add an inventory item" header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow">AI inventory · drafts every attribute</div><div className="dp-title">Add an item</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
+    <Sheet open onClose={onClose} label="Add an inventory item" header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow">AI inventory · drafts every attribute</div><div className="dp-title">Add an item</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}><Icon name="close" /></button></div>}>
           {done ? (
             <div className="eg-done">
-              <div className="eg-done-h">✓ Added &ldquo;{item?.name}&rdquo; to inventory</div>
+              <div className="eg-done-h"><Icon name="check" /> Added &ldquo;{item?.name}&rdquo; to inventory</div>
               <div className="dp-hint" style={{ marginTop: 8 }}>It&apos;s in the stock register now — edit qty, reorder point, or anything else inline anytime.</div>
               <div className="prod-actions" style={{ marginTop: 12 }}><span /><button type="button" className="note-save" onClick={onClose}>Done</button></div>
             </div>
@@ -62,7 +63,7 @@ export default function InventoryAI({ onClose, onAdded }: { onClose: () => void;
               {err && <div className="dp-err">{err}</div>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={onClose} disabled={busy}>Cancel</button>
-                <button type="button" className="note-save" onClick={draft} disabled={busy || !desc.trim()}>{busy ? "Drafting…" : "✨ Draft it"}</button>
+                <button type="button" className="note-save" onClick={draft} disabled={busy || !desc.trim()}>{busy ? "Drafting…" : <><Icon name="sparkles" /> Draft it</>}</button>
               </div>
             </>
           ) : (

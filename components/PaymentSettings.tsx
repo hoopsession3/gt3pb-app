@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useApp } from "./AppProvider";
 import { squareClientReady } from "@/lib/square";
 import { authedFetch } from "@/lib/authedFetch";
+import Icon from "@/components/Icon";
 
 // PAYMENTS — the owner's checkout controls, in the Money section. Two facts, one switch:
 //   • Card checkout is on when the Square keys are set in the host env (read-only status here).
@@ -79,12 +80,12 @@ export default function PaymentSettings() {
         </div>
         <span className={`pay-status${squareClientReady ? " on" : ""}`}>{squareClientReady ? "Connected" : "Off"}</span>
       </div>
-      <button type="button" className="adm-regen" onClick={runCheck} disabled={checking}>{checking ? "Checking with Square…" : "🩺 Check card connection"}</button>
+      <button type="button" className="adm-regen" onClick={runCheck} disabled={checking}>{checking ? "Checking with Square…" : "Check card connection"}</button>
       {health && (
         <div className="pay-health">
           {health.map((c) => (
             <div key={c.name} className={`pay-health-row${c.ok ? "" : " bad"}`}>
-              <span className="pay-health-ok">{c.ok ? "✓" : "✕"}</span>
+              <span className="pay-health-ok">{c.ok ? <Icon name="check" /> : <Icon name="close" />}</span>
               <b>{c.name}</b>
               <span className="pay-health-note">{c.note}</span>
             </div>
@@ -144,7 +145,7 @@ export default function PaymentSettings() {
       </div>
 
       {!squareClientReady && payAtPickup && (
-        <div className="pay-note">✓ You can place and taste a full order right now — it records as a pay-at-pickup pre-order.</div>
+        <div className="pay-note"><Icon name="check" /> You can place and taste a full order right now — it records as a pay-at-pickup pre-order.</div>
       )}
       {!squareClientReady && payAtPickup === false && (
         <div className="pay-note warn">Card checkout is off and pay-at-pickup is off — customers can&apos;t place an order. Turn one on.</div>

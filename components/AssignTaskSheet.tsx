@@ -6,6 +6,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { useApp } from "@/components/AppProvider";
 import { createTodo } from "@/lib/tasks";
 import Sheet from "@/components/Sheet";
+import Icon from "@/components/Icon";
 
 // REUSABLE buildout → task. Drop this after any buildout (bottle loadout, delivery loadout, event
 // prep) to offer "Create a task? Assign to…" without leaving the flow. It writes to the existing
@@ -71,7 +72,7 @@ export default function AssignTaskSheet({
   );
 
   return (
-    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{createdId ? "Task assigned ✓" : "Create a task?"}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{createdId ? <>Task assigned <Icon name="check" /></> : "Create a task?"}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}><Icon name="close" /></button></div>}>
           {!createdId ? (
             <>
               <label className="prod-f"><span>Task</span><input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={140} /></label>
@@ -91,7 +92,7 @@ export default function AssignTaskSheet({
             </>
           ) : (
             <>
-              <div className="brew-spec">✓ {title}{due ? ` · due ${due}` : ""} · <b>{nameOf(assignee)}</b></div>
+              <div className="brew-spec"><Icon name="check" /> {title}{due ? ` · due ${due}` : ""} · <b>{nameOf(assignee)}</b></div>
               <label className="prod-f" style={{ marginTop: 10 }}><span>Reassign</span><select value={assignee} onChange={(e) => reassign(e.target.value)}>{crewOptions}</select></label>
               <label className="prod-toggle" style={{ marginTop: 12 }}><input type="checkbox" checked={done} onChange={toggleDone} /> Mark it done</label>
               <div className="oa-window" style={{ marginTop: 10 }}>It&rsquo;s in {assignee ? `${nameOf(assignee)}’s` : "the team’s"} day now — and in Plan &rsaquo; Calendar to manage anytime.</div>

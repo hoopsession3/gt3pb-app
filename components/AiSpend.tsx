@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { PRICING, fmtUSD } from "@/lib/aiPricing";
+import Icon from "@/components/Icon";
 
 // AI SPEND — the owner's answer to "how much am I spending when my AI is queried?" Reads ai_usage
 // (0190): every Claude call logs its tokens + computed cost here. Shows 30-day and today spend, the
@@ -74,7 +75,7 @@ export default function AiSpend() {
       </div>
 
       {s.saved > 0 && (
-        <div className="spend-cache">✦ Prompt caching saved <b>{fmtUSD(s.saved)}</b> this month — {(s.cacheReadTok / 1e3).toFixed(0)}k tokens read from cache instead of billed in full.</div>
+        <div className="spend-cache"><Icon name="star" /> Prompt caching saved <b>{fmtUSD(s.saved)}</b> this month — {(s.cacheReadTok / 1e3).toFixed(0)}k tokens read from cache instead of billed in full.</div>
       )}
 
       <div className="spend-sec">By copilot</div>

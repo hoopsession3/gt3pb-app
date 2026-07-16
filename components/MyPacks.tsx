@@ -9,6 +9,7 @@ import { mixSummary, dollars, emptyMix, dropForStop, nextDrop, dropDateKey, type
 import { authedFetch } from "@/lib/authedFetch";
 import { haptic, HAPTIC } from "@/lib/haptics";
 import { relativeDay } from "@/lib/dates";
+import Icon from "@/components/Icon";
 
 // YOUR PACK — the customer's own reservations, right on /reserve. Reserving is only half the
 // product: coming back should show what you've got coming, live (staff checking you off at the
@@ -168,7 +169,7 @@ export default function MyPacks({ onChange, refreshKey, collapsible }: { onChang
                 <span className="mypack-sub">{mixSummary(packMix(p)) || "your mix"} · #{p.id.slice(0, 6).toUpperCase()}</span>
               </span>
               <span className="mypack-rt">
-                <span className={`mypack-flag ${p.picked_up ? "done" : p.paid ? "paid" : "due"}`}>{p.picked_up ? "✓ picked up" : p.paid ? "✓ paid" : "$ at pickup"}</span>
+                <span className={`mypack-flag ${p.picked_up ? "done" : p.paid ? "paid" : "due"}`}>{p.picked_up ? <><Icon name="check" /> picked up</> : p.paid ? <><Icon name="check" /> paid</> : "$ at pickup"}</span>
                 <span className="mypack-car">{isOpen ? "▾" : "▸"}</span>
               </span>
             </button>

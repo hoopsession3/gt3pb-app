@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
+import Icon from "@/components/Icon";
 
 // Post-pickup feedback — only shows AFTER a recent pickup, tied to that order, and never again once
 // answered (or dismissed). Not a permanent fixture on the account. Reviews go in UNAPPROVED; a staffer
@@ -35,7 +36,7 @@ export default function ReviewPrompt() {
   }, [user]);
 
   if (!user || !orderId) return null; // nothing to ask about → not on screen
-  if (done) return <div className="rvp rvp-done">Thanks — that means a lot. 🙏</div>;
+  if (done) return <div className="rvp rvp-done">Thanks — that means a lot.</div>;
 
   const close = () => { try { localStorage.setItem(`gt3-reviewed-${orderId}`, "1"); } catch { /* ignore */ } };
   const submit = async () => {
@@ -52,12 +53,12 @@ export default function ReviewPrompt() {
     <section className="rvp" aria-label="Leave feedback">
       <div className="rvp-top">
         <span className="rvp-k">How was your last order?</span>
-        <button type="button" className="rvp-x" aria-label="Dismiss" onClick={() => { close(); setOrderId(null); }}>✕</button>
+        <button type="button" className="rvp-x" aria-label="Dismiss" onClick={() => { close(); setOrderId(null); }}><Icon name="close" /></button>
       </div>
       <div className="rvp-stars" role="radiogroup" aria-label="Rating">
         {[1, 2, 3, 4, 5].map((n) => (
           <button key={n} type="button" role="radio" aria-checked={n === rating} aria-label={`${n} star${n === 1 ? "" : "s"}`}
-            className={`rvp-star${n <= rating ? " on" : ""}`} onClick={() => setRating(n)}>★</button>
+            className={`rvp-star${n <= rating ? " on" : ""}`} onClick={() => setRating(n)}><Icon name="star" /></button>
         ))}
       </div>
       {rating > 0 && (

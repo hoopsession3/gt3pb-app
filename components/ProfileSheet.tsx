@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { uploadToBucket } from "@/lib/uploads";
 import { subscribePush } from "@/lib/push";
 import Sheet from "@/components/Sheet";
+import Icon from "@/components/Icon";
 
 // Your GT3 profile — photo, name, title, bio. Team culture: a face + a line on who you are, feeding
 // the org chart in Leadership. Avatar goes to the 'avatars' bucket under your own uid folder.
@@ -59,7 +60,7 @@ export default function ProfileSheet({ onClose }: { onClose: () => void }) {
 
   const initial = (name || profile?.display_name || user?.email || "?").trim().charAt(0).toUpperCase();
   return (
-    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><span className="isheet-title">Your profile</span><button type="button" className="isheet-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close">✕</button></div>}>
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><span className="isheet-title">Your profile</span><button type="button" className="isheet-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close"><Icon name="close" /></button></div>}>
           <div className="prof-av-row">
             <div className="prof-av" style={avatar ? { backgroundImage: `url(${avatar})` } : undefined} aria-hidden>{!avatar && initial}</div>
             <div className="prof-av-ctl">
@@ -75,11 +76,11 @@ export default function ProfileSheet({ onClose }: { onClose: () => void }) {
           <div className="prof-notif">
             <div className="prof-notif-t">Order notifications</div>
             {notifState === "granted" ? (
-              <div className="prof-notif-s on">✓ On — you&apos;ll get a ping when your order is ready. Turn off anytime in your phone&apos;s settings for this app.</div>
+              <div className="prof-notif-s on"><Icon name="check" /> On — you&apos;ll get a ping when your order is ready. Turn off anytime in your phone&apos;s settings for this app.</div>
             ) : notifState === "denied" ? (
               <div className="prof-notif-s">Blocked in your phone&apos;s settings — enable notifications for this app to get &ldquo;order ready&rdquo; pings.</div>
             ) : (
-              <button type="button" className="note-save" style={{ width: "100%" }} onClick={enableNotifs}>🔔 Turn on order-ready alerts</button>
+              <button type="button" className="note-save" style={{ width: "100%" }} onClick={enableNotifs}><Icon name="bell" /> Turn on order-ready alerts</button>
             )}
           </div>
           <div className="prod-actions" style={{ marginTop: 14 }}>
