@@ -10,6 +10,7 @@ import { supabase } from "@/lib/supabase";
 import { raiseAlertClient } from "@/lib/clientAlerts";
 import { OFFICE, officeQuote, nextMondayKey, mondayLabel } from "@/lib/office";
 import { useOfficeSettings } from "./useOfficeSettings";
+import { zipInZone } from "@/lib/delivery";
 
 // OFFICE DELIVERY — the B2B bulk order (amber gallon jugs, Monday 5–8 AM, 3-gal minimum). Purpose-built
 // so it never entangles the residential pack cart. Books a business_order (0187); a standing toggle also
@@ -39,19 +40,29 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
   const dateKey = nextMondayKey();
   // Prepaid texts a secure payment link, so a phone is required on that path (no phone = no way to pay).
   const needsPhone = billing === "prepaid";
-  const ready = company.trim() && street.trim() && city.trim() && zip.trim().length >= 5 && gallons >= settings.minGallons && (!needsPhone || phone.trim().length > 0);
+  // Same delivery-zone check the residential funnel already enforces before it lets anyone check out
+  // (lib/delivery.zipInZone) — office had none at all, client or server, so a mistyped or
+  // out-of-territory ZIP sailed straight through to a confirmed "you're on the Monday route" with
+  // staff only discovering it was unreachable while planning the actual route.
+  const zoneOk = zipInZone(zip);
+  const ready = company.trim() && street.trim() && city.trim() && zip.trim().length >= 5 && zoneOk && gallons >= settings.minGallons && (!needsPhone || phone.trim().length > 0);
 
   const submit = async () => {
     if (busy) return;
     if (!supabase || !user) { toast("Sign in to set up office delivery", "error"); return; }
-    if (!ready) { toast(needsPhone && !phone.trim() ? "Add a phone — prepaid sends the payment link by text" : "Add your company and address first", "error"); return; }
+    if (!ready) {
+      if (zip.trim().length >= 5 && !zoneOk) { toast("That ZIP looks outside our delivery route — text us and we'll see what we can do", "error"); return; }
+      toast(needsPhone && !phone.trim() ? "Add a phone — prepaid sends the payment link by text" : "Add your company and address first", "error");
+      return;
+    }
     setBusy(true);
 
     // A standing account (weekly Mondays) is created/linked so the generator can refill it (P2).
     let businessId: string | null = null;
     if (standing) {
+      const companyNorm = company.trim().replace(/\s+/g, " ");
       const acctRow = {
-        user_id: user.id, company: company.trim(), contact_name: contact.trim() || null, contact_phone: phone.trim() || null,
+        user_id: user.id, company: companyNorm, contact_name: contact.trim() || null, contact_phone: phone.trim() || null,
         contact_email: user.email ?? null, address_street: street.trim(), address_city: city.trim(), address_zip: zip.trim(),
         headcount: headcount ? Math.max(0, parseInt(headcount) || 0) : null, billing_terms: billing,
         standing_active: true, standing_gallons: q.gallons,
@@ -59,7 +70,12 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
       // REUSE this office's existing standing account (update it) instead of blind-inserting a NEW one
       // every week — duplicate accounts make the weekly generator ship duplicate deliveries + invoices.
       // Surface a real failure instead of silently downgrading to a one-off.
-      const { data: existing } = await supabase.from("business_accounts").select("id").eq("user_id", user.id).eq("company", company.trim()).maybeSingle();
+      // Case/whitespace-insensitive match (ilike + escaped wildcards) so "Acme Corp" and "Acme  corp"
+      // resolve to the same account — a bare .eq() only caught byte-identical strings. This closes the
+      // common (typed-differently-next-time) case; the accompanying migration adds a DB-level unique
+      // index on (user_id, lower(company)) as the backstop against a genuine concurrent double-submit,
+      // which no amount of client-side normalization alone can fully close.
+      const { data: existing } = await supabase.from("business_accounts").select("id").eq("user_id", user.id).ilike("company", companyNorm.replace(/[%_\\]/g, (c) => `\\${c}`)).maybeSingle();
       if (existing?.id) {
         const { error } = await supabase.from("business_accounts").update(acctRow).eq("id", existing.id);
         if (error) { toast(`Couldn't update your standing account — ${error.message}`, "error"); setBusy(false); return; }
@@ -125,14 +141,18 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
 
       {/* gallons */}
       <div className="office-gal">
-        <div className="office-gal-l"><span className="office-k">Gallons</span><span className="office-hint">~{q.gallons * 12}–{q.gallons * 16} cups · ~{dollars(Math.round(OFFICE.pricePerGallonCents / 14))}/cup</span></div>
+        <div className="office-gal-l"><span className="office-k">Gallons</span><span className="office-hint">~{q.gallons * 12}–{q.gallons * 16} cups · ~{dollars(Math.round(settings.priceCents / 14))}/cup</span></div>
         <div className="office-step">
           <button type="button" onClick={() => setGallons((g) => Math.max(settings.minGallons, g - 1))} aria-label="Fewer" disabled={gallons <= settings.minGallons}>−</button>
           <span className="office-gal-v">{q.gallons}</span>
           <button type="button" onClick={() => setGallons((g) => g + 1)} aria-label="More">+</button>
         </div>
       </div>
-      <div className="office-quote"><span>{q.gallons} gal × {dollars(OFFICE.pricePerGallonCents)}</span><b>{dollars(q.totalCents)}</b></div>
+      {/* Was OFFICE.pricePerGallonCents (the static constant) sitting right next to a total computed
+          from the LIVE settings.priceCents — arithmetic that visibly didn't add up the moment an
+          owner changed the live price via Settings, on the primary booking screen a customer sees
+          right before they commit. */}
+      <div className="office-quote"><span>{q.gallons} gal × {dollars(settings.priceCents)}</span><b>{dollars(q.totalCents)}</b></div>
 
       {/* who + where */}
       <div className="office-fields">

@@ -9,7 +9,8 @@ import Watermark from "@/components/Watermark";
 import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
 import Skeleton from "@/components/Skeleton";
 import { supabase } from "@/lib/supabase";
-import { OFFICE, officeQuote, mondayLabel } from "@/lib/office";
+import { officeQuote, mondayLabel } from "@/lib/office";
+import { useOfficeSettings } from "@/components/useOfficeSettings";
 import Icon from "@/components/Icon";
 
 // OFFICE PORTAL — the B2B self-serve surface (Phase 3). A business account holder manages their
@@ -29,6 +30,11 @@ export default function OfficeScreen() {
   const [invoices, setInvoices] = useState<Inv[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Live price/minimum (owner-editable via Settings) — this page used to import only the static
+  // OFFICE constants, so a returning customer's account page could show "5 gal × $45.00 = $225/wk"
+  // while the weekly generator (which DOES read live settings) actually billed $250. Same hook
+  // OfficeOrder.tsx already uses for the booking sheet.
+  const settings = useOfficeSettings();
 
   const load = useCallback(async () => {
     if (!supabase || !user) return;
@@ -52,7 +58,7 @@ export default function OfficeScreen() {
     setBusy(false);
     if (error) { toast("Couldn't save — try again", "error"); load(); }
   };
-  const adjustGallons = (d: number) => { if (!acct) return; const g = Math.max(OFFICE.minGallons, (acct.standing_gallons ?? OFFICE.minGallons) + d); patch({ standing_gallons: g }); };
+  const adjustGallons = (d: number) => { if (!acct) return; const g = Math.max(settings.minGallons, (acct.standing_gallons ?? settings.minGallons) + d); patch({ standing_gallons: g }); };
 
   if (!ready || (enabled && !loaded)) return <section className="screen" id="s-office"><Masthead eyebrow="Office delivery" right={<AccountPill />} /><Skeleton variant="card" count={1} /><Skeleton variant="row" count={3} /></section>;
 
@@ -80,12 +86,12 @@ export default function OfficeScreen() {
               <div className="op-gal">
                 <span className="op-k">Gallons / week</span>
                 <div className="op-step">
-                  <button type="button" onClick={() => adjustGallons(-1)} disabled={busy || (acct.standing_gallons ?? 3) <= OFFICE.minGallons} aria-label="Fewer">−</button>
-                  <span className="op-gal-v">{acct.standing_gallons ?? OFFICE.minGallons}</span>
+                  <button type="button" onClick={() => adjustGallons(-1)} disabled={busy || (acct.standing_gallons ?? 3) <= settings.minGallons} aria-label="Fewer">−</button>
+                  <span className="op-gal-v">{acct.standing_gallons ?? settings.minGallons}</span>
                   <button type="button" onClick={() => adjustGallons(1)} disabled={busy} aria-label="More">+</button>
                 </div>
               </div>
-              <div className="op-quote"><span>{acct.standing_gallons ?? 3} gal × {dollars(OFFICE.pricePerGallonCents)} · {acct.billing_terms === "prepaid" ? "prepaid" : "net terms"}</span><b>{dollars(officeQuote(acct.standing_gallons ?? 3).totalCents)}/wk</b></div>
+              <div className="op-quote"><span>{acct.standing_gallons ?? 3} gal × {dollars(settings.priceCents)} · {acct.billing_terms === "prepaid" ? "prepaid" : "net terms"}</span><b>{dollars(officeQuote(acct.standing_gallons ?? 3, { priceCents: settings.priceCents, minGallons: settings.minGallons }).totalCents)}/wk</b></div>
             </>
           ) : <p className="op-sub">Paused — no weekly deliveries. Flip it back on anytime.</p>}
         </div>

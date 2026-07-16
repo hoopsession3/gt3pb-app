@@ -23,7 +23,10 @@ export default function DisplayPage() {
   // Live prices (products.price_cents, the one authority — same /api/menu the ordering screens use)
   // so a reprice via Money > Menu shows up on this public board, not just the frozen lib/menu.ts copy.
   const [prices, setPrices] = useState<Record<string, number>>({});
-  const priceLabel = (id: keyof typeof DRINKS) => (prices[id] != null ? `$${(prices[id] / 100).toFixed(0)}` : DRINKS[id].px);
+  // Cents-aware: a flat .toFixed(0) rounded every live price to a whole dollar for display while
+  // checkout charges the exact cents — this board is the public in-truck price, so it must match
+  // what customers are actually charged. Matches the dollars()/money() convention used elsewhere.
+  const priceLabel = (id: keyof typeof DRINKS) => (prices[id] != null ? `$${(prices[id] / 100).toFixed(prices[id] % 100 === 0 ? 0 : 2)}` : DRINKS[id].px);
 
   useEffect(() => {
     QRCode.toDataURL(CONNECT_PRIMARY, { margin: 1, width: 640, color: { dark: "#15120D", light: "#ffffff" } }).then(setQr).catch(() => setQr(""));

@@ -49,8 +49,13 @@ export const isPackSize = (n: number): n is PackSize => (PACK_SIZES as readonly 
 export const newGlassTotal = (size: number): number => size * PRICING.newPerBottle;
 export const packTotal = (size: number, glass: GlassPath): number =>
   glass === "return" ? (PRICING.returnPacks[size] ?? newGlassTotal(size)) : newGlassTotal(size);
-// what a return pack saves vs paying $10/bottle for new glass (only shown on the return path)
-export const saveAmount = (size: number): number => Math.round(newGlassTotal(size) - (PRICING.returnPacks[size] ?? newGlassTotal(size)));
+// what a return pack saves vs paying $10/bottle for new glass (only shown on the return path).
+// Rounds to the nearest CENT, not the nearest whole dollar — a bare Math.round() on the dollar
+// figure was bumping the 3-pack's true $7.50 savings up to a displayed "$8", right next to the
+// correct $7.50/bottle and $22.50 total on the same screen (6- and 12-packs land on whole dollars
+// already, which is why this only ever showed up on the 3-pack). The actual charge (packTotal) was
+// never affected — this was marketing copy overstating itself, not a pricing bug.
+export const saveAmount = (size: number): number => Math.round((newGlassTotal(size) - (PRICING.returnPacks[size] ?? newGlassTotal(size))) * 100) / 100;
 export const perBottle = (size: number, glass: GlassPath): number => packTotal(size, glass) / size;
 export const toCents = (dollars: number): number => Math.round(dollars * 100);
 export const dollars = (n: number): string => "$" + (n % 1 ? n.toFixed(2) : n.toLocaleString());

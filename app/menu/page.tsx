@@ -22,7 +22,10 @@ export default function MenuScreen() {
   useEffect(() => {
     fetch("/api/menu").then((r) => r.json()).then((d) => setPrices(d.prices || {})).catch(() => {});
   }, []);
-  const priceLabel = (id: DrinkId) => (prices[id] != null ? `$${(prices[id] / 100).toFixed(0)}` : DRINKS[id].px);
+  // Cents-aware: a flat .toFixed(0) rounded every live price to a whole dollar for display while
+  // checkout charges the exact cents (e.g. a $7.50 reprice via Money > Menu would show "$8" here
+  // but charge $7.50) — matches the dollars()/money() convention used elsewhere (OrderFunnel, Office).
+  const priceLabel = (id: DrinkId) => (prices[id] != null ? `$${(prices[id] / 100).toFixed(prices[id] % 100 === 0 ? 0 : 2)}` : DRINKS[id].px);
 
   // Sticky category chips that scroll-spy the menu (jump + highlight current section).
   const [active, setActive] = useState<string>(MENU[0]?.name ?? "");
