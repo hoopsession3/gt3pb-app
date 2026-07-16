@@ -1,16 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { useRealtimeTable } from "@/lib/realtime";
 import Sheet from "@/components/Sheet";
+import Icon from "@/components/Icon";
+import { useAsyncData } from "@/lib/useAsyncData";
+import AsyncSection from "./AsyncSection";
 
 // EVENT DAY PLANNER — a multi-day, time-by-time run of show for one event. Pick how many days the
 // event runs, then build each day block by block: leave home 9:00, drive, arrive Airbnb (address +
 // gate code), setup, doors, teardown, load out. Every logistic gets a home. Quick-add templates make
 // it tap-fast; an optional AI draft proposes a full day from a few notes (crew approves). Realtime,
-// so Ryan & Kayla can plan the same trip together.
+// so Ryan & Kayla can plan the same trip together. Fetch state via useAsyncData — a failed load is a
+// real error now, not a silent "No blocks yet".
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 type Item = {
@@ -21,17 +25,17 @@ type Item = {
 };
 
 const KINDS = [
-  { key: "travel", label: "Travel", icon: "🚗", color: "#6fa8dc" },
+  { key: "travel", label: "Travel", icon: <Icon name="compass" />, color: "#6fa8dc" },
   { key: "lodging", label: "Lodging", icon: "🏡", color: "#8b5cf6" },
   { key: "setup", label: "Setup", icon: "🛠️", color: "#e0892b" },
   { key: "service", label: "Service", icon: "🥤", color: "#2bb3a3" },
   { key: "meal", label: "Meal", icon: "🍽️", color: "#d98c5f" },
-  { key: "meeting", label: "Meeting", icon: "🤝", color: "#c084fc" },
-  { key: "teardown", label: "Teardown", icon: "📦", color: "#a1887f" },
+  { key: "meeting", label: "Meeting", icon: <Icon name="partners" />, color: "#c084fc" },
+  { key: "teardown", label: "Teardown", icon: <Icon name="package" />, color: "#a1887f" },
   { key: "personal", label: "Personal", icon: "🧘", color: "#94a3b8" },
   { key: "other", label: "Other", icon: "•", color: "#9aa0a6" },
 ];
-const KMAP: Record<string, { key: string; label: string; icon: string; color: string }> = Object.fromEntries(KINDS.map((k) => [k.key, k]));
+const KMAP: Record<string, { key: string; label: string; icon: ReactNode; color: string }> = Object.fromEntries(KINDS.map((k) => [k.key, k]));
 const kindOf = (k: string) => KMAP[k] ?? KMAP.other;
 
 // common blocks, so a day fills in a few taps
@@ -67,19 +71,21 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
   const ownerCol = ownerType === "stop" ? "stop_id" : "event_id"; // event_schedule_items belongs to one owner
   const days = Math.max(1, planDays || 1);
   const [active, setActive] = useState(Math.min(Math.max(1, initialDay), Math.max(1, planDays || 1)));
-  const [items, setItems] = useState<Item[]>([]);
   const [editing, setEditing] = useState<Item | "new" | null>(null);
   const [drafting, setDrafting] = useState(false);
   const [departure, setDeparture] = useState<{ leave_by: string; summary: string; risks: string[] } | null>(null);
   const [depBusy, setDepBusy] = useState(false);
 
-  const load = useCallback(async () => {
-    if (!supabase) return;
-    const { data } = await supabase.from("event_schedule_items").select("*").eq(ownerCol, eventId).order("day_index").order("sort");
-    setItems((data as Item[]) ?? []);
+  const loader = useCallback(async (): Promise<Item[]> => {
+    if (!supabase) return [];
+    const { data, error } = await supabase.from("event_schedule_items").select("*").eq(ownerCol, eventId).order("day_index").order("sort");
+    if (error) throw new Error(error.message);
+    return (data as Item[]) ?? [];
   }, [eventId, ownerCol]);
-  useEffect(() => { load(); }, [load]);
-  useRealtimeTable({ table: "event_schedule_items", filter: `${ownerCol}=eq.${eventId}` }, load);
+  const board = useAsyncData(loader, [eventId, ownerCol]);
+  const { reload } = board;
+  useRealtimeTable({ table: "event_schedule_items", filter: `${ownerCol}=eq.${eventId}` }, reload);
+  const items = board.data ?? [];
 
   const dayDate = (di: number) => (eventDay ? isoAddDays(eventDay, di - 1) : null);
   const dayItems = useMemo(
@@ -101,12 +107,12 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
       location: patch.location ?? null, address: patch.address ?? null, details: patch.details ?? null, who: patch.who ?? null,
       sort: patch.sort ?? nextSort, created_by: user?.id ?? null,
     });
-    load();
+    reload();
   };
-  const saveItem = async (id: string, patch: Partial<Item>) => { if (!supabase) return; await supabase.from("event_schedule_items").update(patch).eq("id", id); load(); };
-  const delItem = async (id: string) => { if (!supabase) return; setItems((p) => p.filter((x) => x.id !== id)); await supabase.from("event_schedule_items").delete().eq("id", id); };
-  const toggle = async (it: Item) => { if (!supabase) return; setItems((p) => p.map((x) => x.id === it.id ? { ...x, done: !x.done } : x)); await supabase.from("event_schedule_items").update({ done: !it.done, done_at: !it.done ? new Date().toISOString() : null }).eq("id", it.id); };
-  const moveDay = async (it: Item, di: number) => { if (!supabase) return; await supabase.from("event_schedule_items").update({ day_index: di, day_date: dayDate(di) }).eq("id", it.id); load(); };
+  const saveItem = async (id: string, patch: Partial<Item>) => { if (!supabase) return; await supabase.from("event_schedule_items").update(patch).eq("id", id); reload(); };
+  const delItem = async (id: string) => { if (!supabase) return; await supabase.from("event_schedule_items").delete().eq("id", id); reload(); };
+  const toggle = async (it: Item) => { if (!supabase) return; await supabase.from("event_schedule_items").update({ done: !it.done, done_at: !it.done ? new Date().toISOString() : null }).eq("id", it.id); reload(); };
+  const moveDay = async (it: Item, di: number) => { if (!supabase) return; await supabase.from("event_schedule_items").update({ day_index: di, day_date: dayDate(di) }).eq("id", it.id); reload(); };
 
   // "When to leave" — the AI scheduler reads THIS day's slots and says when to leave, anchored on
   // the first fixed commitment. Cleared whenever you switch days or the blocks change.
@@ -139,7 +145,7 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
           <div className="dp-eyebrow">Run of show</div>
           <div className="dp-title">{title || "Event"} — daily schedule</div>
         </div>
-        <button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button>
+        <button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} title="Close"><Icon name="close" /></button>
       </div>}>
 
         <div className="dp-daysctl">
@@ -149,6 +155,9 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
           <button type="button" className="dp-step" onClick={() => setDays(days + 1)} aria-label="More days">+</button>
         </div>
 
+        <AsyncSection state={board} isEmpty={() => false} errorTitle="Couldn't load the schedule" emptyTitle="Nothing here yet">
+          {() => (
+            <>
         <div className="dp-tabs">
           {Array.from({ length: days }, (_, i) => i + 1).map((di) => {
             const ddi = dayDate(di);
@@ -167,9 +176,9 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
           {dayItems.length > 0 && (
             departure ? (
               <div className="dp-leave">
-                <div className="dp-leave-h"><span>🚗 Leave by</span><b>{departure.leave_by || "—"}</b><button type="button" className="dp-leave-redo" onClick={genDeparture} disabled={depBusy} aria-label="Recompute">↻</button></div>
+                <div className="dp-leave-h"><span><Icon name="compass" /> Leave by</span><b>{departure.leave_by || "—"}</b><button type="button" className="dp-leave-redo" onClick={genDeparture} disabled={depBusy} aria-label="Recompute">↻</button></div>
                 {departure.summary && <div className="dp-leave-sum">{departure.summary}</div>}
-                {departure.risks.length > 0 && <div className="dp-leave-risks">{departure.risks.map((r, i) => <span key={i}>⚠ {r}</span>)}</div>}
+                {departure.risks.length > 0 && <div className="dp-leave-risks">{departure.risks.map((r, i) => <span key={i}><Icon name="warning" /> {r}</span>)}</div>}
               </div>
             ) : (
               <button type="button" className="dp-leave-btn" onClick={genDeparture} disabled={depBusy}>{depBusy ? "Working out when to leave…" : "⏱ When do we leave? — summarize from the schedule"}</button>
@@ -182,11 +191,11 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
               const k = kindOf(it.kind);
               return (
                 <div key={it.id} className={`dp-item${it.done ? " done" : ""}`} style={{ ["--c" as string]: k.color }}>
-                  <button type="button" className="dp-check" onClick={() => toggle(it)} aria-label="Toggle done">{it.done ? "✓" : "○"}</button>
+                  <button type="button" className="dp-check" onClick={() => toggle(it)} aria-label="Toggle done">{it.done ? <Icon name="check" /> : "○"}</button>
                   <div className="dp-time">{it.start_time || "—"}{it.end_time ? <span className="dp-time-e">{it.end_time}</span> : null}</div>
                   <div className="dp-item-main">
                     <div className="dp-item-h"><span className="dp-kind" title={k.label}>{k.icon}</span><span className="dp-item-t">{it.title}</span></div>
-                    {(it.location || it.who) && <div className="dp-item-meta">{it.location && <span>📍 {it.location}</span>}{it.who && <span>👤 {it.who}</span>}</div>}
+                    {(it.location || it.who) && <div className="dp-item-meta">{it.location && <span><Icon name="pin" /> {it.location}</span>}{it.who && <span>👤 {it.who}</span>}</div>}
                     {it.address && <a className="dp-item-addr" href={`https://maps.google.com/?q=${encodeURIComponent(it.address)}`} target="_blank" rel="noreferrer">🗺️ {it.address}</a>}
                     {it.details && <div className="dp-item-det">{it.details}</div>}
                   </div>
@@ -197,7 +206,7 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
                         {Array.from({ length: days }, (_, i) => i + 1).map((di) => <option key={di} value={di}>D{di}</option>)}
                       </select>
                     )}
-                    <button type="button" className="dp-mini del" onClick={() => delItem(it.id)} aria-label="Delete">✕</button>
+                    <button type="button" className="dp-mini del" onClick={() => delItem(it.id)} aria-label="Delete"><Icon name="close" /></button>
                   </div>
                 </div>
               );
@@ -214,9 +223,12 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
 
           <div className="dp-actions">
             <button type="button" className="dp-add" onClick={() => setEditing("new")}>+ Add time block</button>
-            <button type="button" className="dp-draft" onClick={() => setDrafting(true)}>✨ Draft this day with AI</button>
+            <button type="button" className="dp-draft" onClick={() => setDrafting(true)}><Icon name="sparkles" /> Draft this day with AI</button>
           </div>
         </div>
+            </>
+          )}
+        </AsyncSection>
       </Sheet>
 
       {editing && (
@@ -239,7 +251,7 @@ function ItemForm({ item, onClose, onSave }: { item: Item | null; onClose: () =>
   const [f, setF] = useState<Partial<Item>>(item ?? { title: "", kind: "other", start_time: "", end_time: "", location: "", address: "", details: "", who: "" });
   const set = (k: keyof Item, v: any) => setF((p) => ({ ...p, [k]: v }));
   return (
-    <Sheet open onClose={onClose} label="Day-of block" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{item ? "Edit block" : "New block"}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
+    <Sheet open onClose={onClose} label="Day-of block" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{item ? "Edit block" : "New block"}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} title="Close"><Icon name="close" /></button></div>}>
           <input className="note-in" value={f.title ?? ""} onChange={(e) => set("title", e.target.value)} placeholder="What's happening? e.g. Arrive Airbnb" autoFocus />
           <div className="dp-kinds">
             {KINDS.map((k) => (
@@ -283,7 +295,7 @@ function DraftPanel({ ownerType = "event", eventId, dayIndex, onClose, onAdd }: 
   };
 
   return (
-    <Sheet open onClose={onClose} label="Draft the day" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>✨ Draft day {dayIndex}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
+    <Sheet open onClose={onClose} label="Draft the day" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}><Icon name="sparkles" /> Draft day {dayIndex}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} title="Close"><Icon name="close" /></button></div>}>
           {!rows && (
             <>
               <div className="dp-hint">A few notes — where you&apos;re leaving from, when the event opens, where you&apos;re staying — and AI proposes the day. You approve what to keep.</div>
@@ -301,7 +313,7 @@ function DraftPanel({ ownerType = "event", eventId, dayIndex, onClose, onAdd }: 
               <div className="dp-draftlist">
                 {rows.map((r, i) => (
                   <button key={i} type="button" className={`dp-draftrow${pick[i] ? " on" : ""}`} style={{ ["--c" as string]: kindOf(r.kind).color }} onClick={() => setPick((p) => ({ ...p, [i]: !p[i] }))}>
-                    <span className="dp-draftck">{pick[i] ? "✓" : "○"}</span>
+                    <span className="dp-draftck">{pick[i] ? <Icon name="check" /> : "○"}</span>
                     <span className="dp-drafttime">{r.start_time}</span>
                     <span className="dp-draftmain"><b>{kindOf(r.kind).icon} {r.title}</b>{(r.location || r.details) && <span>{[r.location, r.details].filter(Boolean).join(" · ")}</span>}</span>
                   </button>

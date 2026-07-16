@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useApp } from "./AppProvider";
 import { haptic, HAPTIC } from "@/lib/haptics";
+import { SectionHeader } from "@/components/kit";
 
 // THE 86 BOARD — sell out of an item from where the rush actually happens (the Now screen, right
 // under the pass), not three taps deep in Money. One chip per active product: tap to 86, tap to
@@ -36,7 +37,8 @@ export default function EightySix() {
   const outCount = rows.filter((r) => r.sold_out).length;
   return (
     <div className="adm-sec">
-      <div className="sec">86 board {outCount > 0 && <span className="adm-pill due">{outCount} out</span>}</div>
+      <SectionHeader label="86 board" />
+      {outCount > 0 && <span className="adm-pill due">{outCount} out</span>}
       <div className="es-note">Tap what you&rsquo;ve run out of — the live menu updates instantly, orders for it are refused, and everything resets at 4am.</div>
       <div className="es-row">
         {rows.map((p) => (

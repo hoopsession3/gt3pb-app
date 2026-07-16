@@ -20,10 +20,32 @@
   --oa-cream:#F5F1E8;--oa-cream-dim:rgba(245,241,232,.60);--oa-cream-faint:rgba(245,241,232,.34);
   --oa-gold:#B8902F;--oa-red:#B82420;--oa-red-tint:rgba(184,36,32,.15);--oa-hair:rgba(245,241,232,.14);--oa-green:#7FA86B;
   --char:#15120d;--char2:#1a1610;--char3:#100e0a;--card:#191510;--ink:#000;
+  /* --gold2 is the de facto PRIMARY gold in practice (468 usages vs 137 for --gold) despite the name —
+     --gold reads as the emphasis/deep variant. Not renaming (605 combined call sites depend on current
+     resolution); noting it here so new work reaches for --gold2 first. */
   --gold:#a97c3f;--gold2:#c8a661;--bronze:#a97c3f;--line:rgba(245,241,232,.12);--line2:rgba(245,241,232,.2);--ok:#6aa05c;--warn:#cf9a4a;--muted:rgba(245,241,232,.6);
+  /* --color-info (2026-07): a real gap — 17 distinct blue link/info literals existed with zero
+     consolidation (e.g. .dp-item-addr). Same value already in live use in both themes, so one token. */
+  --color-info:#2d6ca8;--color-info-tint:rgba(45,108,168,.15);
+  /* Pass-2 token extraction (2026-07-15 crew-day audit): these 15 tokens replace literals that
+     repeated 3+ times across .app.crew-day rules with no shared source of truth (same drift pattern
+     as --color-info above). Dark-theme values below are chosen to preserve each literal's ROLE
+     (status color or ink-tint alpha step) since these literals were unused in dark mode before this
+     pass — no dark-theme visual change. .app.crew-day redeclares each to the audited light value
+     (see that block). --ink-onLight-NN / --ink2-onLight-NN follow the existing --line/--cream-m
+     pattern: same alpha, dark base rgba(245,241,232,*) paired with a light-scope ink base. */
+  --red-onLight:var(--red-h); --green-onLight:var(--ok); --danger-onLight:var(--red);
+  --muted2-onLight:var(--cream-m); --muted3-onLight:var(--cream-d); --amber-onLight:var(--gold2);
+  --ink-onLight-03:rgba(245,241,232,.03); --ink-onLight-04:rgba(245,241,232,.04); --ink-onLight-05:rgba(245,241,232,.05);
+  --ink-onLight-16:rgba(245,241,232,.16); --ink-onLight-18:rgba(245,241,232,.18); --ink-onLight-24:rgba(245,241,232,.24);
+  --ink2-onLight-06:rgba(245,241,232,.06); --ink2-onLight-08:rgba(245,241,232,.08); --ink2-onLight-10:rgba(245,241,232,.10);
   --mono:'DM Mono',ui-monospace,monospace;
   /* radius scale tokens (2026-07) — available for new work; existing rules keep their literal values */
-  --r-s:8px;--r-m:12px;--r-l:16px;--r-pill:999px}
+  --r-s:8px;--r-m:12px;--r-l:16px;--r-pill:999px;
+  /* spacing scale (Wave 2, 2026-07-15) — none existed; margin/padding/gap were 1-18px literals with
+     no grid discipline (12px/14px/8px/10px/6px/9px/11px/13px all within ~15% usage of each other).
+     4px grid, available for new work; existing rules keep their literal values. */
+  --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:24px;--sp-7:32px;--sp-8:40px;--sp-9:48px}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 /* keyboard focus ring (WCAG 2.4.7) — gold on dark, dark on the cream Menu/sheets */
 :focus-visible{outline:2px solid var(--gold2);outline-offset:2px}
@@ -190,10 +212,8 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 .sk-row{height:62px;margin-top:10px;border-radius:14px}
 .sk-card{height:150px;margin-top:14px;border-radius:18px}
 /* dark editorial chapter — mirrors the cream menu's chapter rhythm */
-.dchapter{display:flex;align-items:baseline;justify-content:space-between;margin:34px 0 0}
-.dchapter .dchn{font-family:'Inter';font-weight:650;font-size:11px;letter-spacing:2.6px;text-transform:uppercase;color:var(--gold)}
-.dchapter .dchw{font-family:'Fraunces';font-style:italic;font-size:12.5px;color:var(--cream-m)}
-.dchrule{height:1px;background:var(--line2);margin:10px 0 2px}
+/* .dchapter/.dchrule removed (Wave 2, 2026-07-15) — confirmed zero JSX usage anywhere in the repo;
+   SectionHeader (components/kit.tsx) fully replaced this pattern already, this was dead CSS. */
 /* editorial process + pillars (Today / Arrival — typographic, no photos) */
 .craft-row{display:flex;gap:16px;padding:15px 2px;border-bottom:1px solid var(--line)}
 .craft-no{font-family:'DM Mono';font-weight:500;font-size:13px;color:var(--gold2);flex:0 0 auto;padding-top:3px}
@@ -629,7 +649,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .inline-create-in:focus{outline:none;box-shadow:0 0 0 3px rgba(200,166,97,.14)}
 .inline-create-go{font-family:'Inter';font-weight:700;font-size:12px;padding:7px 12px;border-radius:9px;border:none;background:var(--gold);color:#1a1610;cursor:pointer;flex:0 0 auto}
 .inline-create-go:disabled{opacity:.5;cursor:default}
-.app.crew-day .inline-create-in{background:#fff}
+.app.crew-day .inline-create-in{background:var(--card)}
 /* THE red primary action button. .note-save (Plan notes / profile sheets) was a copy-paste of
    .adm-btn.primary's effective crew-console look with drifted weight/padding — converged via :is()
    (same approach as the :is(.oa-cta,…) CTA block); call-site class names are UNCHANGED. Size values
@@ -937,7 +957,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .cogs-v{font-family:'DM Mono',monospace;font-size:12.5px;color:var(--cream)}
 .cogs-ok{color:var(--ok)}.cogs-gold{color:var(--gold2)}.cogs-red{color:var(--red-h)}
 .cogs-detail{background:rgba(255,255,255,.03);border:1px solid var(--line);border-top:none;border-radius:0 0 12px 12px;margin:-6px 5px 0;padding:9px 12px}
-.app.crew-day .cogs-detail{background:rgba(34,31,24,.04)}
+.app.crew-day .cogs-detail{background:var(--ink-onLight-04)}
 .cogs-sub{font-family:'Inter';font-size:11px;color:var(--cream-m);margin-bottom:6px}
 .cogs-line{display:flex;justify-content:space-between;gap:10px;font-family:'Inter';font-size:12px;color:var(--cream-m);padding:3px 0}
 .cogs-line.un span:last-child{color:var(--warn)}
@@ -1251,19 +1271,19 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .myday-inbox-ptr{width:100%;display:flex;align-items:center;gap:8px;padding:12px 14px;border-radius:12px;border:1px solid var(--line2);background:var(--card);color:var(--cream);font-family:'Inter';font-weight:600;font-size:13.5px;cursor:pointer;text-align:left;-webkit-appearance:none;appearance:none}
 .myday-inbox-n{flex:0 0 auto;min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:var(--gold);color:#1a1610;font-weight:800;font-size:12px;display:inline-flex;align-items:center;justify-content:center}
 .myday-inbox-go{margin-left:auto;color:var(--gold2);font-weight:700;font-size:12px}
-.app.crew-day .myday-inbox-ptr{background:#fff;border-color:rgba(26,22,16,.1)}
+.app.crew-day .myday-inbox-ptr{background:var(--card);border-color:var(--ink2-onLight-10)}
 .crew-jump:hover,.crew-jump:active{background:rgba(245,241,232,.06);color:var(--cream)}
 .crew-jump .crew-jump-k{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.04em;color:var(--cream-d);border:1px solid var(--line);border-radius:4px;padding:1px 4px;margin-left:1px}
 /* No physical keyboard → hide the ⌘K hint; the chip is still the tap target. */
 @media (pointer:coarse){.crew-jump .crew-jump-k{display:none}}
 /* ── Section guide sheet ── */
 .guide-sheet{position:fixed;left:50%;top:calc(50% - var(--kb,0px) / 2);transform:translate(-50%,-50%);width:calc(100% - 32px);max-width:520px;max-height:min(88vh,calc(100dvh - var(--kb,0px) - 24px));overflow-y:auto;z-index:56;background:#15110d;border:1px solid var(--line2);border-radius:18px;padding:14px 16px calc(16px + env(safe-area-inset-bottom));box-shadow:0 24px 60px rgba(0,0,0,.6);animation:popcenter .18s ease}
-.app.crew-day .guide-sheet{background:#fff}
+.app.crew-day .guide-sheet{background:var(--card)}
 .guide-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
 .guide-t{font-family:'Inter','Helvetica Neue',Arial,sans-serif;font-style:normal;font-weight:800;font-size:22px;color:var(--cream);line-height:1}
 .guide-lede{font-family:'Inter';font-size:12px;color:var(--cream-m);margin-top:5px;line-height:1.4}
 .guide-x{flex:0 0 auto;width:30px;height:30px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid var(--line2);color:var(--cream-m);font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
-.app.crew-day .guide-x{background:rgba(34,31,24,.05)}
+.app.crew-day .guide-x{background:var(--ink-onLight-05)}
 .guide-list{display:flex;flex-direction:column;gap:8px}
 .guide-row{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:rgba(255,255,255,.02)}
 .app.crew-day .guide-row{background:rgba(34,31,24,.02)}
@@ -1766,7 +1786,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .tl-vlook-q:focus{border-color:var(--gold2)}
 .tl-vlook-pax{background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:8px;padding:8px 9px;color:var(--cream);font-family:'Inter';font-size:13px;outline:none}
 .tl-editform .tl-vlook .adm-btn{grid-column:auto}
-.app.crew-day .tl-vlook-q,.app.crew-day .tl-vlook-pax,.app.crew-day .tl-f input{background:#fff}
+.app.crew-day .tl-vlook-q,.app.crew-day .tl-vlook-pax,.app.crew-day .tl-f input{background:var(--card)}
 .tl-vspec{grid-column:1 / -1;background:rgba(169,124,63,.1);border:1px solid rgba(169,124,63,.3);border-radius:10px;padding:10px 12px;font-family:'Inter';font-size:12.5px;line-height:1.5;color:var(--cream)}
 .tl-vspec b{font-weight:650}
 .tl-checks{display:flex;flex-direction:column;gap:9px;margin-top:12px}
@@ -1781,7 +1801,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .tl-space{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:9px}
 .tl-space-h{display:flex;align-items:center;justify-content:space-between;gap:10px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:var(--gold2)}
 .tl-plan{margin-top:4px;display:flex;flex-direction:column;gap:10px;padding:11px 12px;background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px}
-.app.crew-day .tl-plan{background:rgba(34,31,24,.04)}
+.app.crew-day .tl-plan{background:var(--ink-onLight-04)}
 .tl-plan-sum{font-family:'Inter';font-size:13px;font-weight:600;color:var(--cream);line-height:1.4}
 .tl-plan-zh{font-family:'DM Mono',monospace;font-size:9.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--bronze);margin-bottom:5px}
 .tl-plan-zone,.tl-plan-risk{display:flex;flex-direction:column}
@@ -1816,13 +1836,13 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .gl-dims .gl-dimw{flex:0 0 26%;border-color:rgba(169,124,63,.4)}
 .gl-dimx{color:var(--cream-d);font-size:12px}
 .gl-dim-note{font-family:'Inter';font-size:10.5px;color:var(--cream-m);margin-top:4px}
-.app.crew-day .gl-dims input{background:#fff}
+.app.crew-day .gl-dims input{background:var(--card)}
 .gl-notes{margin-top:5px}
 .gl-notes>summary{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:.02em;color:var(--gold2);cursor:pointer;list-style:none;display:inline-flex;align-items:center;gap:4px}
 .gl-notes>summary::before{content:'›';font-size:14px;line-height:1;transition:transform .15s}
 .gl-notes[open]>summary::before{transform:rotate(90deg)}
 .gl-notes-body{white-space:pre-wrap;font-family:'Inter';font-size:11.5px;line-height:1.5;color:var(--cream-m);margin-top:6px;padding:9px 11px;background:rgba(0,0,0,.18);border:1px solid var(--line);border-radius:9px}
-.app.crew-day .gl-notes-body{background:rgba(34,31,24,.05)}
+.app.crew-day .gl-notes-body{background:var(--ink-onLight-05)}
 /* /built partner page — "What people are saying" testimonials */
 .rev-h{font-family:'Inter';font-weight:700;font-size:12.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--gold2)}
 .rev-grid{display:flex;flex-direction:column;gap:10px;margin-top:12px}
@@ -1907,7 +1927,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .note-actions button{flex:0 1 auto;min-width:0}
 /* the composer on the light theme: white fields, dark ink, readable placeholders (was translucent
    black over cream — the gray-mud screenshot) */
-.app.crew-day .note-in,.app.crew-day .note-area{background:#fff;color:#221F18;border-color:rgba(34,31,24,.18)}
+.app.crew-day .note-in,.app.crew-day .note-area{background:var(--card);color:var(--cream);border-color:var(--ink-onLight-18)}
 .app.crew-day .note-in::placeholder,.app.crew-day .note-area::placeholder{color:rgba(34,31,24,.55)}
 .note-composer{max-width:100%}
 /* meeting notes inside the prep hub — summary visible without a tap */
@@ -1915,7 +1935,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .pnotes-row{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:10px 12px;margin-top:7px;cursor:pointer;color:var(--cream);-webkit-appearance:none;appearance:none}
 .pnotes-row b{display:block;font-family:'Inter';font-weight:650;font-size:12.5px}
 .pnotes-row span{display:block;font-size:11.5px;color:var(--cream-m);margin-top:2px}
-.app.crew-day .pnotes-row{background:#fff}
+.app.crew-day .pnotes-row{background:var(--card)}
 .note-cancel{background:none;border:1.5px solid var(--line2);border-radius:11px;padding:11px 18px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13.5px;cursor:pointer;-webkit-appearance:none;appearance:none}
 /* .note-save's box/fill lives in the shared :is(.adm-btn.primary,.note-save) rule (see .adm-btn). */
 .note-save:disabled{opacity:.4}
@@ -1965,7 +1985,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .alert-open,.myday-open{flex:0 0 auto;background:var(--gold);border:none;border-radius:10px;padding:9px 14px;color:#1a1610;font-family:'Inter';font-weight:700;font-size:12.5px;cursor:pointer;-webkit-appearance:none;appearance:none;min-height:40px}
 .myday-open{margin-right:6px;padding:8px 12px;font-size:12px}
 .alert-clearall{margin-left:auto;background:none;border:1px solid var(--line2);border-radius:999px;padding:4px 12px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:11.5px;cursor:pointer;-webkit-appearance:none;appearance:none}
-.app.crew-day .alert-clearall{color:#6c6256}
+.app.crew-day .alert-clearall{color:var(--muted2-onLight)}
 .opnav .tab .ti{position:relative}
 .nav-badge{position:absolute;top:-5px;left:calc(50% + 4px);min-width:16px;height:16px;padding:0 4px;background:var(--red-h);color:#fff;border-radius:999px;font-family:'Inter';font-weight:800;font-size:10px;line-height:16px;text-align:center;box-sizing:border-box}
 .alert-ack:active{opacity:.7}
@@ -2179,14 +2199,14 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .studio-rep{margin-top:12px;display:flex;flex-direction:column;gap:8px}
 .studio-rep-x{float:right;background:none;border:none;color:var(--cream-d);cursor:pointer;font-size:13px}
 .studio-rep-card{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:11px 13px}
-.app.crew-day .studio-rep-card{background:#fff}
+.app.crew-day .studio-rep-card{background:var(--card)}
 .studio-rep-h{display:flex;align-items:center;justify-content:space-between;font-family:var(--mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--bronze);margin-bottom:6px}
 .studio-rep-h span{display:flex;gap:6px}
 .studio-rep-h button{font-family:'Inter';font-size:10px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--gold2);background:rgba(184,144,47,.12);border:1px solid rgba(184,144,47,.3);border-radius:6px;padding:3px 8px;cursor:pointer}
 .studio-rep-card p{font-family:'Inter';font-size:12.5px;line-height:1.5;color:var(--cream-m);margin:3px 0}
 .studio-rep-card b{color:var(--cream)}
 .studio-rep-beats{margin:4px 0;padding-left:18px;font-family:'Inter';font-size:12.5px;line-height:1.5;color:var(--cream-m)}
-.app.crew-day .ig-cell{background:#ece4d3}
+.app.crew-day .ig-cell{background:var(--char3)}
 .ig-ph{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:8px;text-align:center;border:1px dashed var(--line2);border-radius:2px}
 .ig-ph-cam{font-size:16px;opacity:.5;margin-bottom:1px}
 .ig-ph b{font-family:'Inter';font-weight:600;font-size:10.5px;line-height:1.2;color:var(--cream-m);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
@@ -2213,14 +2233,14 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .kit-h{font-family:var(--mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--bronze)}
 .kit-copy{font-family:'Inter';font-size:11px;font-weight:600;color:var(--gold2);background:rgba(184,144,47,.12);border:1px solid rgba(184,144,47,.3);border-radius:6px;padding:3px 9px;cursor:pointer}
 .kit-box{font-family:'Inter';font-size:12.5px;line-height:1.5;color:var(--cream-m);background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:9px;padding:9px 11px}
-.app.crew-day .kit-box{background:rgba(34,31,24,.04)}
+.app.crew-day .kit-box{background:var(--ink-onLight-04)}
 .kit-media{display:flex;flex-wrap:wrap;gap:6px}
 .kit-dl{font-family:'Inter';font-size:12px;font-weight:600;color:var(--cream);background:rgba(255,255,255,.04);border:1px solid var(--line2);border-radius:8px;padding:6px 10px;text-decoration:none}
 /* road flyer generator */
 .rf{display:flex;flex-direction:column;gap:9px;margin-top:6px}
 .rf-note{font-family:'Inter';font-size:12px;color:var(--cream-m);line-height:1.45}
 .rf-pick,.rf-f input{width:100%;background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:9px;padding:10px 11px;color:var(--cream);font-family:'Inter';font-size:14px;box-sizing:border-box}
-.app.crew-day .rf-pick,.app.crew-day .rf-f input{background:#fff}
+.app.crew-day .rf-pick,.app.crew-day .rf-f input{background:var(--card)}
 .rf-grid2{display:grid;grid-template-columns:1fr 1fr;gap:9px}
 .rf-f{display:flex;flex-direction:column;gap:4px}
 .rf-f span{font-family:var(--mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--bronze)}
@@ -2239,12 +2259,12 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .rf-tile{flex:1 1 auto;min-width:72px;padding:9px 6px;border-radius:9px;border:1px solid var(--line2);background:transparent;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:12px;cursor:pointer}
 .rf-tile.on{border-color:var(--gold);background:rgba(184,144,47,.14);color:var(--gold)}
 .rf-f textarea{width:100%;background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:9px;padding:10px 11px;color:var(--cream);font-family:'Inter';font-size:13.5px;box-sizing:border-box;resize:vertical;line-height:1.5}
-.app.crew-day .rf-f textarea{background:#fff}
+.app.crew-day .rf-f textarea{background:var(--card)}
 .rf-actions{display:flex;gap:8px;margin-top:4px}
 .rf-dl{flex:1;padding:12px;border-radius:11px;border:none;background:var(--red);color:#fff;font-family:'Inter';font-weight:700;font-size:14px;cursor:pointer}
 .rf-dl.ghost{background:transparent;border:1px solid var(--line2);color:var(--cream)}
 .studio-media-add{width:100%;padding:22px;border-radius:12px;border:1.5px dashed var(--line2);background:rgba(255,255,255,.02);color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer}
-.app.crew-day .studio-media-add{background:rgba(34,31,24,.03)}
+.app.crew-day .studio-media-add{background:var(--ink-onLight-03)}
 /* full post simulation (IG chrome + safe zones) */
 .studio-sim{width:100%;max-width:300px;margin:0 auto}
 .studio-sim-head{display:flex;align-items:center;gap:7px;font-family:'Inter';font-weight:650;font-size:12px;color:var(--cream);padding:2px 2px 6px}
@@ -2470,6 +2490,16 @@ select.note-in{-webkit-appearance:none;appearance:none}
   --card:#FFFFFF; --char:#F1EADB; --char2:#F1EADB; --char3:#ECE4D3;
   --line:rgba(34,31,24,.13); --line2:rgba(34,31,24,.22);
   --gold:#86581f; --gold2:#6e4c1e; --bronze:#7d5622; --ok:#457a32; --warn:#8a5a17;
+  /* Pass-2 token extraction (2026-07-15): light-theme values for the 15 tokens declared in :root
+     above — see that comment. #1a1610 (rdg-fab/svc-exit/pay-row-t/alerts-strip-t, 4x) was NOT
+     tokenized here: it is byte-identical to root --char2, and reads as an intentional theme-invariant
+     "dark text on a gold chip" choice rather than a light-specific color; adding a differently-named
+     token for the same value would add confusion, not remove it. */
+  --red-onLight:#8f1d1a; --green-onLight:#3f6b2f; --danger-onLight:#a13c34;
+  --muted2-onLight:#6c6256; --muted3-onLight:#6f6a59; --amber-onLight:#8a6a2a;
+  --ink-onLight-03:rgba(34,31,24,.03); --ink-onLight-04:rgba(34,31,24,.04); --ink-onLight-05:rgba(34,31,24,.05);
+  --ink-onLight-16:rgba(34,31,24,.16); --ink-onLight-18:rgba(34,31,24,.18); --ink-onLight-24:rgba(34,31,24,.24);
+  --ink2-onLight-06:rgba(26,22,16,.06); --ink2-onLight-08:rgba(26,22,16,.08); --ink2-onLight-10:rgba(26,22,16,.10);
 }
 /* bottom nav + sticky headers (these reference --bg or hardcoded dark) */
 .app.crew-day .nav{background:rgba(247,242,232,.92);border-top:1px solid var(--line2)}
@@ -2478,16 +2508,23 @@ select.note-in{-webkit-appearance:none;appearance:none}
    (2026-07-09). Two failure families: gold pills whose day background darkened past what ink text
    can sit on (→ white labels), and classes that hardcode dark-theme colors (pink crit text, cream
    chip text, light-blue link, light-red pills) that never flipped for the cream ground. */
-.app.crew-day :is(.modesw-seg.on,.grp-seg.on,.subnav-tab.on,.studio-view.on,.cos-tg.on,.rdy-run,.skip-link,.cal-nudge button,.myday-open,.alert-open,.note-tab.on,.oa-msg.user,.oa-send,.insp-yes,.note-fu-addbtn,.guide-go,.qd-fab){color:#fff}
-.app.crew-day .subnav-tab.on .subnav-badge{background:rgba(255,255,255,.2);color:#fff}
-.app.crew-day :is(.mytask.crit .mytask-label,.adm-task.crit .task-label,.alert.sev-critical .alert-title,.note-del){color:#8f1d1a}
-.app.crew-day :is(.adm-pill.due,.mytask-pri.crit){color:#8f1d1a}
-.app.crew-day .tm-badge.tone-red{background:rgba(184,36,32,.1);color:#8f1d1a}
-.app.crew-day .ai-agent{color:#221F18}
-.app.crew-day .ai-agent.sel{color:#8f1d1a}
+.app.crew-day :is(.modesw-seg.on,.grp-seg.on,.subnav-tab.on,.studio-view.on,.cos-tg.on,.rdy-run,.skip-link,.cal-nudge button,.myday-open,.alert-open,.note-tab.on,.oa-msg.user,.oa-send,.insp-yes,.note-fu-addbtn,.guide-go,.qd-fab,.inline-create-go,.crew-bell-b,.myday-inbox-n,.cmt-av,.cmt-count,.studio-peer,.cal-vt.on,.calw-today,.prof-av,.org-av,.fn-day.on,.fn-conv,.cmd-cd,.vipq-yes,.vipv-btn,.fdig-opt.on,.pbd-filter.on,.k-seg-opt.on){color:var(--card)}
+/* contrast fix (2026-07-15 crew-day audit): .subnav-tab.on and .studio-view.on are translucent-tint
+   pills (not solid gold like the rest of the list above) whose OWN dark-theme rule already sets
+   color:var(--gold2) — that's correct in both themes and shouldn't have been swept into the white-text
+   list. Restore it at equal specificity, after, so source order wins. Their unadapted translucent
+   bronze tint background (rgba(169,124,63,.14), a literal, not a var) still reads pale in day mode,
+   so dark var(--gold2) text is required for legibility; pure white text on that pale tint was invisible. */
+.app.crew-day .subnav-tab.on,.app.crew-day .studio-view.on{color:var(--gold2)}
+.app.crew-day .subnav-tab.on .subnav-badge{background:rgba(255,255,255,.2);color:var(--gold2)}
+.app.crew-day :is(.mytask.crit .mytask-label,.adm-task.crit .task-label,.alert.sev-critical .alert-title,.note-del){color:var(--red-onLight)}
+.app.crew-day :is(.adm-pill.due,.mytask-pri.crit){color:var(--red-onLight)}
+.app.crew-day .tm-badge.tone-red{background:rgba(184,36,32,.1);color:var(--red-onLight)}
+.app.crew-day .ai-agent{color:var(--cream)}
+.app.crew-day .ai-agent.sel{color:var(--red-onLight)}
 .app.crew-day .pay-note{color:#3f7a30}
-.app.crew-day .dp-item-addr{color:#2d6ca8}
-.app.crew-day .auth-input{background:#fff;border-color:rgba(34,31,24,.24);color:#221F18}
+.app.crew-day .dp-item-addr{color:var(--color-info)}
+.app.crew-day .auth-input{background:var(--card);border-color:var(--ink-onLight-24);color:var(--cream)}
 .app.crew-day .auth-input::placeholder{color:rgba(34,31,24,.62)}
 /* tiny-type roles (8–11px) need the secondary ink tier — tertiary measures under 4.5 at this size
    (both themes: the same physics applies on the dark ground) */
@@ -2495,7 +2532,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .app.crew-day .opnav{border-top:1px solid var(--gold)}
 .app.crew-day .opnav .tab.on .tl,.app.crew-day .opnav .tab.on .ti{color:var(--gold)}
 .app.crew-day .cal-sticky{background:var(--bg)}
-.app.crew-day .qd-sheet{background:#fff}
+.app.crew-day .qd-sheet{background:var(--card)}
 /* white-on-dark subtle fills vanish on light → faint dark tint instead */
 .app.crew-day .studio-act,
 .app.crew-day .myday-ack,
@@ -2504,7 +2541,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .app.crew-day .seg,
 .app.crew-day .cell,
 .app.crew-day .countpill,
-.app.crew-day .sub-cardfield{background:rgba(34,31,24,.05)}
+.app.crew-day .sub-cardfield{background:var(--ink-onLight-05)}
 /* dark inset panels read heavy on light → white/cream */
 .app.crew-day .rdy,
 .app.crew-day .rdy-out,
@@ -2515,12 +2552,12 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .app.crew-day .studio-opt,
 .app.crew-day .fu-prop,
 .app.crew-day .brand-asset-img,
-.app.crew-day .oa-log{background:#fff}
-.app.crew-day .oa-msg.assistant{background:#F4EEE2}
+.app.crew-day .oa-log{background:var(--card)}
+.app.crew-day .oa-msg.assistant{background:var(--bg)}
 /* dark-surfaced cards/buttons that had no light-theme override (read as gray/dark blobs in crew day) */
-.app.crew-day .adm-btn:not(.primary):not(.go):not(.on){background:#fff;color:var(--cream);border-color:var(--line2)}
+.app.crew-day .adm-btn:not(.primary):not(.go):not(.on){background:var(--card);color:var(--cream);border-color:var(--line2)}
 /* checkerboard for transparent logos still reads on light */
-.app.crew-day .brand-asset-img{background:repeating-conic-gradient(#ece4d3 0% 25%, #f6f1e6 0% 50%) 50%/16px 16px}
+.app.crew-day .brand-asset-img{background:repeating-conic-gradient(var(--char3) 0% 25%, #f6f1e6 0% 50%) 50%/16px 16px}
 /* ── A11y fix pack (audit 2026-07): day-mode contrast ──
    Dark-glass fields/chips that never flipped for crew-day: white fields, warm-ink text, readable
    placeholders; status colors deepened so they hold contrast on cream. */
@@ -2528,48 +2565,53 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .app.crew-day .ev-f input,.app.crew-day .ev-f select,
 .app.crew-day .adm-fields input[type=number],.app.crew-day .adm-fields input[type=text],.app.crew-day .adm-fields select,
 .app.crew-day .gl-f input,.app.crew-day .gl-f select,.app.crew-day .gl-f textarea,
-.app.crew-day .isheet-in{background:#fff;color:#221F18;border-color:rgba(34,31,24,.24)}
+.app.crew-day .isheet-in{background:var(--card);color:var(--cream);border-color:var(--ink-onLight-24)}
 .app.crew-day .isheet-in::placeholder{color:rgba(34,31,24,.55)}
-.app.crew-day .tm-av,.app.crew-day .alert-ack,.app.crew-day .offchip,.app.crew-day .sw-update{background:#fff}
-.app.crew-day .gauge,.app.crew-day .adm-ready-bar,.app.crew-day .ev-golive{background:rgba(34,31,24,.05)}
-.app.crew-day .note-new{background:rgba(34,31,24,.04)}
+.app.crew-day .tm-av,.app.crew-day .alert-ack,.app.crew-day .offchip,.app.crew-day .sw-update{background:var(--card)}
+/* contrast fix (2026-07-15 crew-day audit): .tm-av.tone-red's own background:var(--red) loses to the
+   higher-specificity override above (3 classes beats 2), forcing a white avatar chip — but its
+   color:#fff (correct for the solid-red dark-theme bg) was never adjusted, so white text landed on
+   the now-white chip. tone-gold is unaffected: it already uses color:var(--gold2), which self-adapts. */
+.app.crew-day .tm-av.tone-red{color:var(--red-onLight)}
+.app.crew-day .gauge,.app.crew-day .adm-ready-bar,.app.crew-day .ev-golive{background:var(--ink-onLight-05)}
+.app.crew-day .note-new{background:var(--ink-onLight-04)}
 .app.crew-day .adm-attn{color:#7a2622}
-.app.crew-day .adm-attn b{color:#221F18}
-.app.crew-day .kds-eta.outside{color:#8f1d1a}
-.app.crew-day .adm-act.done{color:#3f6b2f}
-.app.crew-day .ev-inv-x span{color:#8f1d1a}
+.app.crew-day .adm-attn b{color:var(--cream)}
+.app.crew-day .kds-eta.outside{color:var(--red-onLight)}
+.app.crew-day .adm-act.done{color:var(--green-onLight)}
+.app.crew-day .ev-inv-x span{color:var(--red-onLight)}
 /* Contrast pack 2 (2026-07): agent-verified misses */
-.app.crew-day .ev-fieldbtn{background:#fff;border-color:rgba(34,31,24,.24)}
-.app.crew-day .ev-fieldbtn-v{color:#221F18}
+.app.crew-day .ev-fieldbtn{background:var(--card);border-color:var(--ink-onLight-24)}
+.app.crew-day .ev-fieldbtn-v{color:var(--cream)}
 .app.crew-day .ev-fieldbtn-v.ph{color:rgba(34,31,24,.5)}
 .app.crew-day .auth-paste-hint{color:rgba(34,31,24,.62)}
-.app.crew-day .auth-err{color:#8f1d1a;background:rgba(184,36,32,.08)}
+.app.crew-day .auth-err{color:var(--red-onLight);background:rgba(184,36,32,.08)}
 /* gold pills: day-mode gold deepens, so the dark label loses — keep the label light */
-.app.crew-day .note-tab.on{color:#F5F1E8}
-.app.crew-day .oa-msg.user{color:#F5F1E8}
+.app.crew-day .note-tab.on{color:var(--oa-cream)}
+.app.crew-day .oa-msg.user{color:var(--oa-cream)}
 /* CSS audit pack 2 (2026-07): the recurring trap this fixes — .app.crew-day descendant rules (0,3,0)
    silently beat .x.on state rules (0,2,0). Every .on/.done/.sel state a day override had killed
    gets its fill back here. */
-.app.crew-day .ev-golive.on{background:rgba(184,36,32,.12);color:#8f1d1a}
+.app.crew-day .ev-golive.on{background:rgba(184,36,32,.12);color:var(--red-onLight)}
 .app.crew-day .dp-tab.on{background:rgba(169,124,63,.14)}
 .app.crew-day .qd-tab.on{background:rgba(169,124,63,.18)}
 .app.crew-day .offchip.on{background:#f0f6ec}
-.app.crew-day .te-prio-b.normal.on{background:rgba(34,31,24,.08);color:#221F18}
+.app.crew-day .te-prio-b.normal.on{background:rgba(34,31,24,.08);color:var(--cream)}
 .app.crew-day .qd-fab.open{color:var(--cream)}
 /* day-mode contrast: status text + controls the packs missed */
-.app.crew-day :is(.dp-leave-h b,.dp-leave-btn){color:#2d6ca8}
-.app.crew-day .adm-age.late{color:#8f1d1a}
-.app.crew-day .adm-substat.past_due{color:#8f1d1a}
-.app.crew-day :is(.auth-label span,.auth-fine){color:rgba(34,31,24,.6)}
-.app.crew-day :is(.brew-toggle-b.on,.dops-nav,.dops-driver-link){color:#fff}
-.app.crew-day .pay-toggle{background:rgba(34,31,24,.16);border-color:rgba(34,31,24,.25)}
-.app.crew-day .ev-toggle-knob{background:#fff}
-.app.crew-day .note-fu-assign{background:rgba(34,31,24,.05)}
-.app.crew-day .cmt{background:rgba(34,31,24,.04)}
-.app.crew-day .isheet-help-detail{background:rgba(34,31,24,.04)}
-.app.crew-day .cal-chip{background:rgba(34,31,24,.04)}
+.app.crew-day :is(.dp-leave-h b,.dp-leave-btn){color:var(--color-info)}
+.app.crew-day .adm-age.late{color:var(--red-onLight)}
+.app.crew-day .adm-substat.past_due{color:var(--red-onLight)}
+.app.crew-day :is(.auth-label span,.auth-fine){color:var(--muted)}
+.app.crew-day :is(.brew-toggle-b.on,.dops-nav,.dops-driver-link,.driver-nav,.driver-stop.next .driver-seq){color:var(--card)}
+.app.crew-day .pay-toggle{background:var(--ink-onLight-16);border-color:rgba(34,31,24,.25)}
+.app.crew-day .ev-toggle-knob{background:var(--card)}
+.app.crew-day .note-fu-assign{background:var(--ink-onLight-05)}
+.app.crew-day .cmt{background:var(--ink-onLight-04)}
+.app.crew-day .isheet-help-detail{background:var(--ink-onLight-04)}
+.app.crew-day .cal-chip{background:var(--ink-onLight-04)}
 /* warn is a BACKGROUND in two spots — dark ink loses on the day-deepened amber */
-.app.crew-day :is(.am-flag,.driver-stop.issue .driver-seq){color:#fff}
+.app.crew-day :is(.am-flag,.driver-stop.issue .driver-seq){color:var(--card)}
 
 .theme-toggle{position:fixed;left:16px;bottom:calc(var(--navh,68px) + 16px);z-index:60;width:46px;height:46px;border-radius:50%;border:1px solid var(--line2);background:var(--card);color:var(--cream);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 16px rgba(0,0,0,.22);-webkit-appearance:none;appearance:none}
 
@@ -2599,14 +2641,14 @@ body:has(.guide-sheet) .rail{display:none}
 .rail-txt{display:flex;flex-direction:column;align-items:flex-start;line-height:1.2;text-align:left}
 .rail-txt b{font-family:'Inter';font-weight:800;font-size:12.5px}
 .rail-txt i{font-style:normal;font-family:'Inter';font-weight:600;font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--cream-d)}
-.app.crew-day .rail-grip,.app.crew-day .rail-fold,.app.crew-day .rail-open{background:#fff}
+.app.crew-day .rail-grip,.app.crew-day .rail-fold,.app.crew-day .rail-open{background:var(--card)}
 .rdg{position:relative;display:flex;justify-content:flex-end;animation:rail-raise .9s ease both}
 .rdg-fab{display:flex;align-items:center;gap:9px;min-width:172px;height:46px;padding:0 14px;border-radius:14px 0 0 14px;border:1px solid var(--line2);border-right:none;background:var(--card);color:var(--cream);cursor:pointer;box-shadow:0 6px 16px rgba(0,0,0,.22);-webkit-appearance:none;appearance:none}
 .rdg-aa{display:inline-flex;align-items:baseline;gap:1px;width:26px;justify-content:center}
 @keyframes rail-raise{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:none}}
 .rdg-a{font-family:'Fraunces',serif;font-weight:600;line-height:1}
 .rdg-panel{position:absolute;bottom:52px;right:0;left:auto;width:214px;background:var(--card);border:1px solid var(--line2);border-radius:14px;padding:12px;box-shadow:0 12px 30px rgba(0,0,0,.4);display:flex;flex-direction:column;gap:8px}
-.app.crew-day .rdg-panel,.app.crew-day .rdg-fab{background:#fff}
+.app.crew-day .rdg-panel,.app.crew-day .rdg-fab{background:var(--card)}
 .app.crew-day .rdg-fab{color:#1a1610}
 .app.crew-day .rdg-fab .rail-txt i{color:rgba(26,22,16,.55)}
 .rdg-row-h{font-family:var(--mono);font-size:9px;letter-spacing:1.2px;text-transform:uppercase;color:var(--bronze)}
@@ -2663,7 +2705,7 @@ body:has(.guide-sheet) .rail{display:none}
 .arch-comp-deep{margin-top:11px;border-top:1px solid var(--line);padding-top:11px}
 .arch-comp-detail{font-family:'Inter';font-size:13.5px;line-height:1.55;color:var(--cream);margin:0 0 9px}
 .arch-comp-cfg{font-family:'DM Mono';font-size:12px;line-height:1.5;color:var(--cream-m);background:rgba(0,0,0,.18);border-radius:9px;padding:9px 11px;margin-bottom:9px;word-break:break-word}
-.app.crew-day .arch-comp-cfg{background:rgba(34,31,24,.05)}
+.app.crew-day .arch-comp-cfg{background:var(--ink-onLight-05)}
 .arch-cfg-l{font-family:'Inter';font-weight:700;font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:var(--gold2);margin-right:6px}
 .arch-comp-sot{display:inline-block;font-family:'DM Mono';font-size:12px;color:var(--gold2);text-decoration:none;word-break:break-all}
 
@@ -2686,7 +2728,7 @@ body:has(.guide-sheet) .rail{display:none}
 .prod-f{display:flex;flex-direction:column;gap:4px;margin-top:9px}
 .prod-f span{font-family:'Inter';font-weight:600;font-size:11.5px;color:var(--cream-m)}
 .prod-f input,.prod-f textarea,.prod-addc select,.prod-addc input{background:var(--bg,#0d0b08);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--cream);font-family:'Inter';font-size:15px;-webkit-appearance:none;appearance:none}
-.app.crew-day .prod-f input,.app.crew-day .prod-f textarea,.app.crew-day .prod-addc select,.app.crew-day .prod-addc input{background:#fff}
+.app.crew-day .prod-f input,.app.crew-day .prod-f textarea,.app.crew-day .prod-addc select,.app.crew-day .prod-addc input{background:var(--card)}
 .prod-f input:focus,.prod-f textarea:focus{border-color:var(--gold2)}
 .prod-f input,.prod-f textarea,.prod-f select{width:100%;min-width:0}
 .prod-toggle{display:flex;align-items:center;gap:8px;margin-top:12px;font-family:'Inter';font-size:14px;color:var(--cream)}
@@ -2699,7 +2741,7 @@ body:has(.guide-sheet) .rail{display:none}
 /* ── editable brand fonts ── */
 .brand-font-edit{flex:0 0 auto;background:var(--bg,#0d0b08);border:1px solid var(--line);border-radius:8px;padding:7px 10px;color:var(--cream);font-family:'Inter';font-size:13px;-webkit-appearance:none;appearance:none;max-width:120px}
 .brand-font-edit.n{flex:1;max-width:none}
-.app.crew-day .brand-font-edit{background:#fff}
+.app.crew-day .brand-font-edit{background:var(--card)}
 
 /* ── Architecture: database review ── */
 .arch-db-row{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:8px}
@@ -2719,7 +2761,7 @@ body:has(.guide-sheet) .rail{display:none}
 .cc-filter.on{background:rgba(169,124,63,.14);border-color:var(--c,var(--gold2));color:var(--cream)}
 .cc-dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto}
 .cc-chip{display:flex;align-items:center;gap:4px;text-align:left;width:100%;background:rgba(255,255,255,.04);border:1px solid var(--line);border-left:3px solid #888;border-radius:5px;padding:4px 6px;min-height:26px;color:var(--cream);font-family:'Inter';font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;-webkit-appearance:none;appearance:none}
-.app.crew-day .cc-chip{background:rgba(34,31,24,.04)}
+.app.crew-day .cc-chip{background:var(--ink-onLight-04)}
 .cc-chip.done{opacity:.5;text-decoration:line-through}
 .cc-check{flex:0 0 auto;font-size:11px;color:var(--cream-m);cursor:pointer}
 /* ── Brand: upload + editable assets ── */
@@ -2789,7 +2831,7 @@ body:has(.guide-sheet) .rail{display:none}
 .dp-drafttime{flex:0 0 50px;font-family:'DM Mono';font-size:12px;color:var(--cream)}
 .dp-draftmain{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;font-family:'Inter';font-size:13.5px;color:var(--cream)}
 .dp-draftmain span{font-size:12px;color:var(--cream-m)}
-.app.crew-day .dp-tab,.app.crew-day .dp-item,.app.crew-day .dp-empty,.app.crew-day .dp-draftrow{background:#fff}
+.app.crew-day .dp-tab,.app.crew-day .dp-item,.app.crew-day .dp-empty,.app.crew-day .dp-draftrow{background:var(--card)}
 /* keep the base near-black label — the gold gradient bg doesn't change in day, so white text here
    was the contrast bug (audit finding), not the fix */
 .app.crew-day .dp-draft{color:#1a1409}
@@ -2821,7 +2863,7 @@ body:has(.guide-sheet) .rail{display:none}
 .biz-foot{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:11px;padding-top:10px;border-top:1px solid var(--line)}
 .biz-where{font-family:'DM Mono';font-size:11.5px;color:var(--cream);opacity:.9}
 .biz-next{font-family:'Inter';font-size:11.5px;color:var(--cream-d);font-style:italic}
-.app.crew-day .biz-card{background:#fff}
+.app.crew-day .biz-card{background:var(--card)}
 /* ── Architecture: Progress (live business KPIs) ── */
 .arch-prog{margin-top:4px}
 .prog-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-top:4px}
@@ -2830,7 +2872,7 @@ body:has(.guide-sheet) .rail{display:none}
 .prog-n{font-family:'Fraunces',serif;font-size:26px;line-height:1.1;color:var(--cream);margin-top:3px}
 .prog-s{font-family:'Inter';font-size:11.5px;color:var(--cream-m)}
 .prog-foot{margin-top:11px;font-family:'DM Mono';font-size:11.5px;line-height:1.5;color:var(--cream-m);text-align:center}
-.app.crew-day .prog-card{background:#fff}
+.app.crew-day .prog-card{background:var(--card)}
 .prog-build{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
 .prog-build-h{font-family:'Inter';font-size:11.5px;font-weight:600;letter-spacing:.2px;text-transform:uppercase;color:var(--gold2);margin-bottom:9px}
 .prog-build-h span{color:var(--cream-d);font-weight:400;text-transform:none;letter-spacing:0}
@@ -2838,7 +2880,7 @@ body:has(.guide-sheet) .rail{display:none}
 .prog-build-card{display:flex;flex-direction:column;gap:1px;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:9px 10px}
 .prog-build-n{font-family:'Fraunces',serif;font-size:19px;line-height:1.1;color:var(--cream)}
 .prog-build-l{font-family:'Inter';font-size:10.5px;line-height:1.3;color:var(--cream-m)}
-.app.crew-day .prog-build-card{background:#fff}
+.app.crew-day .prog-build-card{background:var(--card)}
 /* ── Guest concierge (customer-facing AI host) ── */
 .conc-fab{position:relative;display:flex;align-items:center;gap:9px;min-width:172px;height:46px;background:#15140f;color:#f4ead6;border:1px solid var(--gold2);border-right:none;border-radius:14px 0 0 14px;padding:0 14px;box-shadow:0 10px 26px rgba(0,0,0,.4);cursor:pointer;-webkit-appearance:none;appearance:none;animation:rail-raise .9s ease both}
 .conc-fab .rail-txt i{color:rgba(244,234,214,.5)}
@@ -2875,7 +2917,7 @@ body:has(.guide-sheet) .rail{display:none}
 .cal-views{display:flex;gap:5px;padding-bottom:8px;overflow-x:auto;-webkit-overflow-scrolling:touch}
 .cal-view{flex:0 0 auto;background:transparent;border:1px solid var(--line2);border-radius:999px;padding:6px 13px;color:var(--cream-m);font-family:'Inter';font-weight:700;font-size:12.5px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .cal-view.on{background:var(--cream);color:var(--bg,#161310);border-color:var(--cream)}
-.app.crew-day .cal-view.on{background:#221f18;color:#fff;border-color:#221f18}
+.app.crew-day .cal-view.on{background:var(--cream);color:var(--card);border-color:var(--cream)}
 /* week view — day rows */
 .cal-week{display:flex;flex-direction:column;gap:6px}
 .cal-wrow{display:flex;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:9px 11px}
@@ -2908,10 +2950,10 @@ body:has(.guide-sheet) .rail{display:none}
 .mini-d.today{background:var(--gold2);color:#1a1409;font-weight:700}
 .mini-dots{display:flex;gap:1.5px}
 .mini-dots i{width:3.5px;height:3.5px;border-radius:50%;display:block}
-.app.crew-day .mini-m,.app.crew-day .cal-wrow,.app.crew-day .cal-lrow{background:#fff}
+.app.crew-day .mini-m,.app.crew-day .cal-wrow,.app.crew-day .cal-lrow{background:var(--card)}
 /* Outlook sync bar */
 .ol-bar{margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:13px 14px}
-.app.crew-day .ol-bar{background:#fff}
+.app.crew-day .ol-bar{background:var(--card)}
 .ol-top{display:flex;align-items:center;gap:8px;font-family:'Inter';font-size:14px;color:var(--cream)}
 .ol-i{font-size:15px}
 .ol-state{margin-left:auto;font-family:'Inter';font-weight:700;font-size:10.5px;letter-spacing:.4px;text-transform:uppercase;padding:3px 9px;border-radius:999px;border:1px solid var(--line2);color:var(--cream-m)}
@@ -2927,7 +2969,7 @@ body:has(.guide-sheet) .rail{display:none}
 
 /* ── Prep declutter: collapsible section header ── */
 .prep-collapse{display:flex;align-items:center;gap:10px;width:100%;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer;-webkit-appearance:none;appearance:none;text-align:left}
-.app.crew-day .prep-collapse{background:#fff}
+.app.crew-day .prep-collapse{background:var(--card)}
 .prep-collapse-l{display:flex;flex-direction:column;gap:2px}
 .prep-collapse-l b{font-family:'Inter';font-weight:700;font-size:14.5px;color:var(--cream)}
 .prep-collapse-l span{font-family:'Inter';font-size:12px;color:var(--cream-m)}
@@ -2938,19 +2980,19 @@ body:has(.guide-sheet) .rail{display:none}
 .eg-sec{font-family:'Inter';font-weight:800;font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--gold2);margin:14px 0 7px}
 .eg-row{display:flex;gap:9px;align-items:flex-start;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-left:3px solid var(--c,#888);border-radius:10px;padding:9px 11px;margin-bottom:6px;cursor:pointer;-webkit-appearance:none;appearance:none;opacity:.55}
 .eg-row.on{opacity:1}
-.app.crew-day .eg-row{background:#fff}
+.app.crew-day .eg-row{background:var(--card)}
 .eg-ck{flex:0 0 auto;color:var(--c,var(--cream-m));font-size:14px;margin-top:1px}
 .eg-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .eg-main b{font-family:'Inter';font-weight:700;font-size:14px;color:var(--cream)}
 .eg-main span{font-family:'Inter';font-size:12.5px;line-height:1.45;color:var(--cream-m)}
 .eg-note{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:11px 13px}
-.app.crew-day .eg-note{background:#fff}
+.app.crew-day .eg-note{background:var(--card)}
 .eg-note-t{display:block;font-family:'Inter';font-weight:800;font-size:14.5px;color:var(--cream);margin-bottom:2px}
 /* AI-success panel — the wrapper 7 assistant flows share (EventGenerator, EventPrepAI, InventoryAI,
    ChiefOfSales, BrewPlanner, TroubleshootAI, SmartIntake). Same card box as its sibling .eg-note,
    tinted success-ward with the --ok green at low alpha on the border. */
 .eg-done{background:var(--card);border:1px solid rgba(106,160,92,.35);border-radius:11px;padding:11px 13px}
-.app.crew-day .eg-done{background:#fff}
+.app.crew-day .eg-done{background:var(--card)}
 .eg-done-h{font-family:'Fraunces',serif;font-size:18px;color:var(--ok);margin-bottom:6px}
 .eg-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
 .eg-list li{position:relative;padding-left:16px;font-family:'Inter';font-size:13.5px;line-height:1.5;color:var(--cream)}
@@ -2958,7 +3000,7 @@ body:has(.guide-sheet) .rail{display:none}
 
 /* ── Note composer: AI task preview ── */
 .note-tasks-prev{margin-top:9px;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:10px 12px;font-family:'Inter';font-size:12.5px;color:var(--cream-m)}
-.app.crew-day .note-tasks-prev{background:#fff}
+.app.crew-day .note-tasks-prev{background:var(--card)}
 .note-tasks-prev b{color:var(--cream)}
 .note-tasks-prev ul{margin:6px 0 0;padding-left:16px;display:flex;flex-direction:column;gap:3px}
 .note-tasks-prev li{font-size:12.5px;line-height:1.45;color:var(--cream)}
@@ -2993,7 +3035,7 @@ body:has(.guide-sheet) .rail{display:none}
 .grp-toggle{display:flex;gap:3px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:3px;margin-bottom:14px;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .grp-toggle::-webkit-scrollbar{display:none}
 .grp-toggle .grp-seg{flex:0 0 auto}
-.app.crew-day .grp-toggle{background:#fff}
+.app.crew-day .grp-toggle{background:var(--card)}
 .grp-seg{flex:0 0 auto;background:transparent;border:none;border-radius:999px;padding:7px 18px;color:var(--cream-m);font-family:'Inter';font-weight:700;font-size:13.5px;cursor:pointer;-webkit-appearance:none;appearance:none;transition:background .12s,color .12s}
 .grp-seg.on{background:var(--gold);color:#1a1610}
 
@@ -3002,7 +3044,7 @@ body:has(.guide-sheet) .rail{display:none}
 .cal-wday{cursor:pointer}
 .dv-list{display:flex;flex-direction:column;gap:7px}
 .dv-row{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-left:3px solid var(--c,#888);border-radius:11px;padding:11px 12px;cursor:pointer;-webkit-appearance:none;appearance:none}
-.app.crew-day .dv-row{background:#fff}
+.app.crew-day .dv-row{background:var(--card)}
 .dv-row.done{opacity:.5}
 .dv-row.done .dv-main b{text-decoration:line-through}
 .dv-row.arch{opacity:.6;cursor:default}
@@ -3025,7 +3067,7 @@ body:has(.guide-sheet) .rail{display:none}
 
 /* ── Event lifecycle stage ── */
 .ev-badge.stage{background:rgba(255,255,255,.06);border:1px solid var(--c,var(--line2));color:var(--c,var(--cream))}
-.app.crew-day .ev-badge.stage{background:rgba(34,31,24,.05)}
+.app.crew-day .ev-badge.stage{background:var(--ink-onLight-05)}
 .ev-stage{display:flex;gap:5px;overflow-x:auto;padding-bottom:11px;-webkit-overflow-scrolling:touch}
 .ev-stage-pill{flex:0 0 auto;background:transparent;border:1px solid var(--line2);border-radius:999px;padding:6px 13px;color:var(--cream-m);font-family:'Inter';font-weight:700;font-size:12.5px;cursor:pointer;-webkit-appearance:none;appearance:none;transition:background .12s,color .12s,border-color .12s}
 .ev-stage-pill.on{background:var(--c,var(--gold));border-color:var(--c,var(--gold));color:#15140f}
@@ -3034,9 +3076,9 @@ body:has(.guide-sheet) .rail{display:none}
 
 /* ── Day-mode fix: the prep/supply bottom-sheet was hardcoded near-black, so in the light crew
    console its (now-dark) text rendered on a dark sheet — invisible. Flip it light in Day mode. ── */
-.app.crew-day .prep-sheet{background:#fff}
-.app.crew-day .subpitch-email{background:rgba(34,31,24,.05)}
-.app.crew-day .assign-row:active{background:rgba(34,31,24,.05)}
+.app.crew-day .prep-sheet{background:var(--card)}
+.app.crew-day .subpitch-email{background:var(--ink-onLight-05)}
+.app.crew-day .assign-row:active{background:var(--ink-onLight-05)}
 
 /* ── Day view: tap-to-edit rows ── */
 .dv-tap{background:none;border:none;padding:0;font:inherit;cursor:pointer;align-items:flex-start}
@@ -3057,7 +3099,7 @@ body:has(.guide-sheet) .rail{display:none}
 
 /* ── Chief of Staff briefing ── */
 .cos{background:linear-gradient(160deg,#19150f,#120f0a);border:1px solid var(--gold2);border-radius:16px;padding:15px;margin-bottom:16px}
-.app.crew-day .cos{background:#fff;border-color:var(--line2)}
+.app.crew-day .cos{background:var(--card);border-color:var(--line2)}
 .cos-head{display:flex;align-items:center;gap:10px;margin-bottom:11px;flex-wrap:wrap}
 .cos-eyebrow{font-family:'Inter';font-weight:800;font-size:13px;color:var(--gold2)}
 .cos-toggle{margin-left:auto;display:flex;gap:4px;background:rgba(0,0,0,.25);border-radius:9px;padding:3px}
@@ -3070,7 +3112,7 @@ body:has(.guide-sheet) .rail{display:none}
 .cos-headline{font-family:'Inter';font-weight:700;font-size:16px;line-height:1.35;color:var(--cream);margin-bottom:7px}
 .cos-counts{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
 .cos-counts span{font-family:'DM Mono';font-size:10.5px;color:var(--cream-m);background:rgba(245,241,232,.06);border-radius:5px;padding:2px 6px}
-.app.crew-day .cos-counts span{background:rgba(34,31,24,.05)}
+.app.crew-day .cos-counts span{background:var(--ink-onLight-05)}
 .cos-block{margin-top:13px}
 .cos-block-h{font-family:'Inter';font-weight:800;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--gold);margin-bottom:8px}
 .cos-prio{display:flex;gap:10px;align-items:flex-start;margin-bottom:8px}
@@ -3080,8 +3122,9 @@ body:has(.guide-sheet) .rail{display:none}
 .cos-prio-main span{font-family:'Inter';font-size:12px;color:var(--cream-m);line-height:1.4}
 .cos-plan{margin:0;padding-left:0;list-style:none;counter-reset:cp}
 .cos-plan li{counter-increment:cp;position:relative;padding:8px 10px 8px 34px;background:rgba(245,241,232,.04);border:1px solid var(--line);border-radius:9px;margin-bottom:6px;font-family:'Inter';font-size:13px;color:var(--cream);line-height:1.45}
-.app.crew-day .cos-plan li{background:rgba(34,31,24,.03)}
+.app.crew-day .cos-plan li{background:var(--ink-onLight-03)}
 .cos-plan li::before{content:counter(cp);position:absolute;left:8px;top:8px;width:19px;height:19px;border-radius:50%;background:var(--gold);color:#15140f;font-weight:700;font-size:11px;display:flex;align-items:center;justify-content:center}
+.app.crew-day .cos-plan li::before{color:var(--card)}
 .cos-plan li{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
 /* Actionable briefing — complete the source item / spin a recommendation into an assigned task */
 .cos-prio-acts{display:flex;gap:6px;margin-top:6px}
@@ -3091,7 +3134,7 @@ body:has(.guide-sheet) .rail{display:none}
 .cos-doneflag{font-family:'Inter';font-weight:800;font-size:11px;color:#6aa05c;padding:3px 0}
 .cos-prio.done{opacity:.55}
 .cos-prio.done .cos-prio-main b{text-decoration:line-through}
-.app.crew-day .cos-act{background:rgba(34,31,24,.04)}
+.app.crew-day .cos-act{background:var(--ink-onLight-04)}
 .cos-risk{display:flex;flex-direction:column;gap:1px;padding:7px 10px;background:rgba(184,36,32,.1);border:1px solid rgba(184,36,32,.35);border-radius:9px;margin-bottom:6px}
 .cos-risk b{font-family:'Inter';font-weight:600;font-size:13px;color:var(--cream)}
 .cos-risk span{font-family:'Inter';font-size:12px;color:var(--cream-m)}
@@ -3148,7 +3191,7 @@ body:has(.guide-sheet) .rail{display:none}
 
 /* ── Brew planner (recipes + scheduled batches) ── */
 .brew-toggle{display:flex;gap:6px;margin-bottom:12px;background:rgba(0,0,0,.22);border:1px solid var(--line);border-radius:11px;padding:3px}
-.app.crew-day .brew-toggle{background:rgba(34,31,24,.05)}
+.app.crew-day .brew-toggle{background:var(--ink-onLight-05)}
 .brew-toggle-b{flex:1;background:none;border:none;border-radius:8px;padding:8px;color:var(--cream-m);font-family:'Inter';font-weight:700;font-size:13px;cursor:pointer}
 .brew-toggle-b.on{background:var(--gold);color:#15140f}
 .brew-logrow{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-left:3px solid var(--gold2);border-radius:11px;padding:11px 12px;cursor:pointer;-webkit-appearance:none;appearance:none}
@@ -3163,12 +3206,12 @@ body:has(.guide-sheet) .rail{display:none}
 .brew-card-top{display:flex;align-items:center;gap:8px}
 .brew-card-top b{font-family:'Inter';font-weight:700;font-size:14px;color:var(--cream)}
 .brew-status{margin-left:auto;background:rgba(0,0,0,.25);border:1px solid var(--line2);border-radius:8px;color:var(--cream);font-family:'Inter';font-size:12px;padding:4px 8px;-webkit-appearance:none;appearance:none}
-.app.crew-day .brew-status{background:rgba(34,31,24,.05)}
+.app.crew-day .brew-status{background:var(--ink-onLight-05)}
 .brew-card-meta{font-family:'Inter';font-size:12px;color:var(--cream-m);margin-top:5px;line-height:1.4}
 .brew-start{margin-top:9px;width:100%;background:linear-gradient(135deg,#a97c3f,#caa35f);border:none;border-radius:9px;padding:10px;color:#1a1409;font-family:'Inter';font-weight:800;font-size:13.5px;cursor:pointer;-webkit-appearance:none;appearance:none}
 /* back-scheduled "start by" hint on a planned batch (0084 brew alert ladder) */
 .brew-startby{margin-top:9px;font-family:'Inter';font-weight:700;font-size:12px;color:var(--cream-m);background:rgba(245,241,232,.05);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
-.app.crew-day .brew-startby{background:#fff;color:#6c6256}
+.app.crew-day .brew-startby{background:var(--card);color:var(--muted2-onLight)}
 .brew-startby.over{color:var(--red-h);border-color:var(--red-h);background:rgba(184,36,32,.1)}
 .brew-timer{display:flex;align-items:center;gap:11px;margin-top:9px;background:rgba(43,179,163,.13);border:1px solid rgba(43,179,163,.5);border-radius:11px;padding:10px 12px}
 .pring{position:relative;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}
@@ -3246,7 +3289,7 @@ body:has(.guide-sheet) .rail{display:none}
 .te-prio-b.normal.on{background:rgba(245,241,232,.1);border-color:var(--line2);color:var(--cream)}
 .te-prio-b.important.on{background:rgba(207,154,74,.16);border-color:var(--warn);color:var(--warn)}
 .te-prio-b.critical.on{background:rgba(184,36,32,.16);border-color:var(--red-h);color:var(--red-h)}
-.app.crew-day .te-prio-b{color:#6c6256}
+.app.crew-day .te-prio-b{color:var(--muted2-onLight)}
 
 /* ============================================================
    iPad / tablet — the ops planning device.
@@ -3285,7 +3328,7 @@ body:has(.guide-sheet) .rail{display:none}
 /* ── Smart intake (drop any file) ── */
 .intake{margin-bottom:16px}
 .intake-drop{display:flex;flex-direction:column;align-items:center;gap:4px;width:100%;background:rgba(245,241,232,.04);border:1px dashed var(--line2);border-radius:14px;padding:18px 14px;cursor:pointer;-webkit-appearance:none;appearance:none}
-.app.crew-day .intake-drop{background:rgba(34,31,24,.03)}
+.app.crew-day .intake-drop{background:var(--ink-onLight-03)}
 .intake-drop:disabled{opacity:.7}
 .intake-i{font-size:22px}
 .intake-drop b{font-family:'Inter';font-weight:700;font-size:14px;color:var(--cream);text-align:center}
@@ -3347,7 +3390,7 @@ body:has(.guide-sheet) .rail{display:none}
 
 /* Trailer load-out: event picker in the header */
 .tl-evsel{margin-left:8px;background:rgba(0,0,0,.22);border:1px solid var(--line2);border-radius:8px;color:var(--cream);font-family:'Inter';font-weight:600;font-size:13px;padding:4px 8px;-webkit-appearance:none;appearance:none;max-width:60%}
-.app.crew-day .tl-evsel{background:rgba(34,31,24,.05)}
+.app.crew-day .tl-evsel{background:var(--ink-onLight-05)}
 
 /* Day-of crew brief — dress code + call details on the event/stop prep and on the crew's Today. */
 .daybrief{margin-top:12px;background:rgba(201,166,97,.08);border:1px solid var(--line2);border-radius:14px;padding:12px 14px}
@@ -3358,13 +3401,13 @@ body:has(.guide-sheet) .rail{display:none}
 .daybrief-row{display:flex;gap:10px;padding:5px 0;font-size:14px;line-height:1.5}
 .daybrief-row b{flex:0 0 56px;color:var(--gold2);font-family:'Inter',sans-serif;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.04em;padding-top:1px}
 .daybrief-row span{color:var(--cream)}
-.app.crew-day .daybrief-row span{color:#221f18}
+.app.crew-day .daybrief-row span{color:var(--cream)}
 .myday-ev-wrap{display:flex;flex-direction:column}
 .myday-brief{margin:2px 0 8px;padding:8px 12px;background:rgba(201,166,97,.1);border-left:2px solid var(--gold);border-radius:0 10px 10px 0}
 .myday-brief-row{display:flex;gap:8px;font-size:13px;line-height:1.45;padding:2px 0}
 .myday-brief-row b{flex:0 0 64px;font-family:'Inter',sans-serif;font-weight:700;font-size:11px;color:var(--gold2)}
 .myday-brief-row span{color:var(--cream)}
-.app.crew-day .myday-brief-row span{color:#221f18}
+.app.crew-day .myday-brief-row span{color:var(--cream)}
 
 /* Reset / nuke an event or stop's prep + schedule — destructive, kept understated until needed. */
 .adm-reset-row{margin-top:16px;display:flex;justify-content:center}
@@ -3384,7 +3427,7 @@ body:has(.guide-sheet) .rail{display:none}
 .atc{position:relative}
 .atc-btn{background:rgba(184,144,47,.12);border:1px solid rgba(184,144,47,.32);color:var(--gold2);border-radius:8px;font-family:'Inter';font-size:12px;font-weight:600;padding:5px 11px;cursor:pointer;white-space:nowrap}
 .atc-menu{position:absolute;top:calc(100% + 6px);left:0;z-index:40;min-width:180px;background:var(--card);border:1px solid var(--line2);border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,.4);overflow:hidden;display:flex;flex-direction:column}
-.app.crew-day .atc-menu{background:#fff}
+.app.crew-day .atc-menu{background:var(--card)}
 .atc-item{display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:10px 13px;background:none;border:none;border-bottom:1px solid var(--line);color:var(--cream);font-family:'Inter';font-size:13px;font-weight:600;text-align:left;cursor:pointer;text-decoration:none}
 .atc-item:last-child{border-bottom:none}
 .atc-item span{font-family:var(--mono);font-size:9.5px;font-weight:400;letter-spacing:.3px;color:var(--cream-d);text-transform:uppercase}
@@ -3395,16 +3438,16 @@ body:has(.guide-sheet) .rail{display:none}
 .atc-buf-c{flex:1;padding:6px 0;border-radius:7px;border:1px solid var(--line2);background:transparent;color:var(--cream-m);font-family:'Inter';font-size:11px;font-weight:600;cursor:pointer}
 .atc-buf-c.on{border-color:var(--gold);background:rgba(184,144,47,.14);color:var(--gold)}
 .ownerdet.editing{display:block;background:rgba(255,255,255,.02);border:1px solid var(--line2);border-radius:14px;padding:14px}
-.app.crew-day .ownerdet.editing{background:rgba(34,31,24,.03)}
+.app.crew-day .ownerdet.editing{background:var(--ink-onLight-03)}
 .ownerdet-hint{font-size:12px;color:var(--muted);margin-top:8px}
 
 /* Menu & rig editor in the prep hub (events + stops) */
 .menued-body{margin-top:8px;background:rgba(255,255,255,.02);border:1px solid var(--line2);border-radius:14px;padding:12px 14px}
-.app.crew-day .menued-body{background:rgba(34,31,24,.03)}
+.app.crew-day .menued-body{background:var(--ink-onLight-03)}
 .menued-h{font-family:'Inter',sans-serif;font-weight:700;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--gold2);margin-bottom:6px}
 .menued-site{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 .menued-tog{background:rgba(0,0,0,.18);border:1px solid var(--line2);color:var(--cream);border-radius:9px;font-size:12.5px;font-weight:600;padding:6px 11px;cursor:pointer}
-.app.crew-day .menued-tog{background:rgba(34,31,24,.05);color:#221f18}
+.app.crew-day .menued-tog{background:var(--ink-onLight-05);color:var(--cream)}
 .menued-tog b{color:var(--gold2);text-transform:capitalize}
 
 /* Pack-out plan — kegs vs bottles across all of an event/stop's batches */
@@ -3413,16 +3456,16 @@ body:has(.guide-sheet) .rail{display:none}
 .pp-quick{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);margin-bottom:10px}
 .pp-quick span:first-child{margin-right:auto}
 .pp-mini{background:rgba(0,0,0,.18);border:1px solid var(--line2);color:var(--cream);border-radius:8px;font-size:12px;font-weight:600;padding:4px 10px;cursor:pointer}
-.app.crew-day .pp-mini{background:rgba(34,31,24,.05);color:#221f18}
+.app.crew-day .pp-mini{background:var(--ink-onLight-05);color:var(--cream)}
 .pp-row{border:1px solid var(--line2);border-radius:12px;padding:10px 12px;margin-bottom:8px}
 .pp-row-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:14px}
 .pp-row-h span{font-size:12px;color:var(--muted)}
 .pp-split{display:flex;align-items:flex-end;gap:12px;margin-top:8px}
 .pp-keg{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--muted)}
 .pp-keg input{width:84px;background:rgba(0,0,0,.2);border:1px solid var(--line2);border-radius:8px;color:var(--cream);padding:6px 8px;font-size:14px}
-.app.crew-day .pp-keg input{background:#fff;color:#221f18}
+.app.crew-day .pp-keg input{background:var(--card);color:var(--cream)}
 .pp-out{display:flex;flex-direction:column;gap:3px;font-size:13px;color:var(--cream)}
-.app.crew-day .pp-out{color:#221f18}
+.app.crew-day .pp-out{color:var(--cream)}
 .pp-short{color:#e07a76}
 .pp-totals{border-top:1px solid var(--line2);margin-top:10px;padding-top:10px}
 .pp-tot-row{display:flex;justify-content:space-between;font-size:14px;padding:3px 0}
@@ -3435,14 +3478,14 @@ body:has(.guide-sheet) .rail{display:none}
 .brewlink-h{font-family:'Inter',sans-serif;font-weight:700;font-size:12px;letter-spacing:.03em;color:var(--gold2);margin-bottom:6px}
 .brewlink-row{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:4px 0;font-size:13.5px}
 .brewlink-name{color:var(--cream)}
-.app.crew-day .brewlink-name{color:#221f18}
+.app.crew-day .brewlink-name{color:var(--cream)}
 .brewlink-st{font-size:12px;color:var(--muted);text-transform:capitalize;white-space:nowrap}
 
 /* Delete affordances — batch log, owner (event/stop) danger zone, maintenance rows */
 .brew-del{color:#e07a76;border-color:rgba(184,36,32,.4)}
 .ownerdet-danger{display:flex;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line2)}
 .ownerdet-arch{flex:1;background:rgba(0,0,0,.18);border:1px solid var(--line2);color:var(--cream);border-radius:9px;font-family:'Inter',sans-serif;font-weight:600;font-size:13px;padding:8px;cursor:pointer}
-.app.crew-day .ownerdet-arch{background:rgba(34,31,24,.05);color:#221f18}
+.app.crew-day .ownerdet-arch{background:var(--ink-onLight-05);color:var(--cream)}
 .ownerdet-del{flex:1;background:rgba(184,36,32,.1);border:1px solid rgba(184,36,32,.4);color:#e07a76;border-radius:9px;font-family:'Inter',sans-serif;font-weight:600;font-size:13px;padding:8px;cursor:pointer}
 .am-row-x{flex:0 0 auto;align-self:flex-start;background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:2px 6px;line-height:1}
 .am-row-x:hover{color:#e07a76}
@@ -3455,7 +3498,7 @@ body:has(.guide-sheet) .rail{display:none}
 .inc-ck{flex:0 0 auto;background:none;border:none;color:var(--gold2);font-size:15px;cursor:pointer;line-height:1.2;padding:0}
 .inc-main{flex:1;display:flex;flex-direction:column;gap:2px;font-size:13.5px;min-width:0}
 .inc-main b{color:var(--cream);font-weight:600}
-.app.crew-day .inc-main b{color:#221f18}
+.app.crew-day .inc-main b{color:var(--cream)}
 .inc-main b.inc-blk{color:#e07a76}
 .inc-main span{font-size:12px;color:var(--muted);text-transform:capitalize}
 .inc-x{flex:0 0 auto;background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:2px 6px;line-height:1}
@@ -3477,7 +3520,7 @@ body:has(.guide-sheet) .rail{display:none}
 .ac-founder{margin:16px 0;padding:14px 16px;background:linear-gradient(180deg,rgba(201,166,97,.1),rgba(201,166,97,.04));border:1px solid var(--line2);border-radius:14px}
 .ac-founder-k{font-family:var(--mono);font-weight:500;font-size:9.5px;letter-spacing:1.8px;text-transform:uppercase;color:var(--gold2)}
 .ac-founder p{margin:6px 0 0;font-size:15px;line-height:1.55;color:var(--cream);font-style:italic}
-.app.crew-day .ac-why p,.app.crew-day .ac-founder p,.app.crew-day .ac-scn-d{color:#221f18}
+.app.crew-day .ac-why p,.app.crew-day .ac-founder p,.app.crew-day .ac-scn-d{color:var(--cream)}
 
 /* clickable maps link on customer event/stop locations */
 .ev-maplink{color:var(--gold2);text-decoration:none}
@@ -3499,10 +3542,10 @@ body:has(.guide-sheet) .rail{display:none}
 .org-tier-h{text-align:center;font-family:'Inter',sans-serif;font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold2);margin-bottom:10px}
 .org-row{display:flex;flex-wrap:wrap;gap:12px;justify-content:center}
 .org-card{width:108px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:5px;padding:12px 8px;background:rgba(255,255,255,.02);border:1px solid var(--line2);border-radius:14px}
-.app.crew-day .org-card{background:rgba(34,31,24,.03)}
+.app.crew-day .org-card{background:var(--ink-onLight-03)}
 .org-av{width:54px;height:54px;border-radius:50%;background:var(--gold);background-size:cover;background-position:center;display:flex;align-items:center;justify-content:center;font-family:'Inter',sans-serif;font-weight:800;font-size:20px;color:#1a1610}
 .org-name{font-size:13px;font-weight:600;color:var(--cream);line-height:1.2}
-.app.crew-day .org-name{color:#221f18}
+.app.crew-day .org-name{color:var(--cream)}
 .org-title{font-size:11px;color:var(--muted);line-height:1.2}
 
 /* ============ ORDER-AHEAD (Saturday drop / reserve) — ported from the approved reference ============ */
@@ -3550,17 +3593,17 @@ body:has(.guide-sheet) .rail{display:none}
 .dops-head{display:flex;flex-direction:column;gap:2px;margin-bottom:12px}
 .dops-kick{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:600}
 .dops-head b{font-size:16px;color:var(--cream);font-weight:700}
-.app.crew-day .dops-head b{color:#221f18}
+.app.crew-day .dops-head b{color:var(--cream)}
 .dops-stats{display:flex;gap:9px;margin-bottom:14px}
 .dops-stat{flex:1;border:1px solid var(--hair,rgba(245,241,232,.14));border-radius:13px;padding:11px 6px;text-align:center}
 .dops-stat .sv{font-family:'DM Mono',monospace;font-size:19px;color:var(--gold2,#B8902F)}
 .dops-stat .sk{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-top:4px}
 .dops-brew{font-size:12px;color:var(--muted);margin:0 2px 12px}.dops-brew b{color:var(--cream)}
-.app.crew-day .dops-brew b{color:#221f18}
+.app.crew-day .dops-brew b{color:var(--cream)}
 .dops-order{border:1px solid var(--hair,rgba(245,241,232,.14));border-radius:14px;padding:12px 13px;margin-bottom:10px}
 .dops-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;gap:8px}
 .dops-name{font-weight:700;font-size:14px;color:var(--cream)}
-.app.crew-day .dops-name{color:#221f18}
+.app.crew-day .dops-name{color:var(--cream)}
 .dops-total{font-family:'DM Mono',monospace;font-size:12.5px;color:var(--gold2,#B8902F);flex:none}
 .dops-chip{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.07em;padding:2px 7px;border-radius:20px;margin-left:7px;vertical-align:1px}
 .dops-chip.ret{color:#cfe6c0;background:rgba(127,168,107,.15);border:1px solid rgba(127,168,107,.4)}
@@ -3705,21 +3748,21 @@ body:has(.guide-sheet) .rail{display:none}
 .dops-hist-st.cx{color:#c98e8e;text-decoration:line-through}
 .ev-complete{color:#7FA86B !important;border-color:rgba(127,168,107,.45) !important}
 /* crew-day (light) — complete the palette so the sheet + Now screen read at full contrast */
-.app.crew-day .dops-kick,.app.crew-day .dops-meta,.app.crew-day .dops-prog,.app.crew-day .dops-empty,.app.crew-day .dops-brew,.app.crew-day .dops-plan{color:#6f6a59}
-.app.crew-day .dops-stat,.app.crew-day .dops-order,.app.crew-day .dops-check,.app.crew-day .dops-mini,.app.crew-day .dops-plan{border-color:rgba(34,31,24,.16)}
+.app.crew-day .dops-kick,.app.crew-day .dops-meta,.app.crew-day .dops-prog,.app.crew-day .dops-empty,.app.crew-day .dops-brew,.app.crew-day .dops-plan{color:var(--muted3-onLight)}
+.app.crew-day .dops-stat,.app.crew-day .dops-order,.app.crew-day .dops-check,.app.crew-day .dops-mini,.app.crew-day .dops-plan{border-color:var(--ink-onLight-16)}
 .app.crew-day .dops-stat .sk{color:#8a8371}
 .app.crew-day .dops-check{color:#57524a}
-.app.crew-day .dops-check.done{color:#3f6b2f;border-color:#7FA86B}
-.app.crew-day .dops-chip.ret{color:#3f6b2f}
+.app.crew-day .dops-check.done{color:var(--green-onLight);border-color:var(--oa-green)}
+.app.crew-day .dops-chip.ret{color:var(--green-onLight)}
 .app.crew-day .dops-mini{color:#57524a}
-.app.crew-day .dops-mini.danger{color:#a13c34;border-color:rgba(161,60,52,.4)}
-.app.crew-day .dops-plan.queued{color:#3f6b2f;border-color:rgba(127,168,107,.5)}
-.app.crew-day .dops-hist-h,.app.crew-day .dops-hist-meta,.app.crew-day .dops-hist-row{color:#6f6a59}
-.app.crew-day .dops-hist-meta b{color:#221f18}
-.app.crew-day .dops-hist-st.ok{color:#3f6b2f}
-.app.crew-day .dops-hist-st.cx{color:#a13c34}
-.app.crew-day .dops-stage.done{color:#3f6b2f;border-color:#7FA86B}
-.app.crew-day .dops-prog.done{color:#3f6b2f}
+.app.crew-day .dops-mini.danger{color:var(--danger-onLight);border-color:rgba(161,60,52,.4)}
+.app.crew-day .dops-plan.queued{color:var(--green-onLight);border-color:rgba(127,168,107,.5)}
+.app.crew-day .dops-hist-h,.app.crew-day .dops-hist-meta,.app.crew-day .dops-hist-row{color:var(--muted3-onLight)}
+.app.crew-day .dops-hist-meta b{color:var(--cream)}
+.app.crew-day .dops-hist-st.ok{color:var(--green-onLight)}
+.app.crew-day .dops-hist-st.cx{color:var(--danger-onLight)}
+.app.crew-day .dops-stage.done{color:var(--green-onLight);border-color:var(--oa-green)}
+.app.crew-day .dops-prog.done{color:var(--green-onLight)}
 
 /* 86 / sold out — one visual language everywhere */
 .entry-86{opacity:.55}
@@ -3736,7 +3779,7 @@ body:has(.guide-sheet) .rail{display:none}
 .prod-dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;background:transparent;border:1px solid var(--line2)}
 .prod-dot[data-on]{border:none}
 .prod-86tag{font-size:8.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#a13c34;border:1px solid rgba(161,60,52,.4);border-radius:20px;padding:2px 7px;margin-left:8px;vertical-align:1px}
-.app.crew-day .prod-86btn{color:#a13c34}
+.app.crew-day .prod-86btn{color:var(--danger-onLight)}
 /* .on keeps the base near-black — the green bg is constant across themes; white here failed 3:1 */
 .app.crew-day .prod-86btn.on{color:#0e0d0b}
 /* the 86 board on Now — chips, tap to flip */
@@ -3746,8 +3789,8 @@ body:has(.guide-sheet) .rail{display:none}
 .es-chip em{font-style:normal;font-family:'DM Mono',monospace;font-size:10px;margin-left:6px;opacity:.8}
 .es-chip.out{color:#c98e8e;border-color:rgba(200,90,90,.5);background:rgba(200,90,90,.08);text-decoration:line-through}
 .es-chip.out em{text-decoration:none}
-.app.crew-day .es-chip{color:#221f18;background:rgba(34,31,24,.04);border-color:rgba(34,31,24,.16)}
-.app.crew-day .es-chip.out{color:#a13c34;border-color:rgba(161,60,52,.45);background:rgba(161,60,52,.06)}
+.app.crew-day .es-chip{color:var(--cream);background:var(--ink-onLight-04);border-color:var(--ink-onLight-16)}
+.app.crew-day .es-chip.out{color:var(--danger-onLight);border-color:rgba(161,60,52,.45);background:rgba(161,60,52,.06)}
 
 /* menu pack upsell — the take-home path (cream editorial palette) */
 .mpack{border:1px solid rgba(34,31,24,.14);border-radius:16px;padding:16px 16px 14px;margin:4px 0 26px}
@@ -3797,8 +3840,8 @@ body:has(.guide-sheet) .rail{display:none}
 .mypack-flag.paid{background:rgba(106,160,92,.16);color:#9fd18f;border:1px solid rgba(106,160,92,.45)}
 .mypack-flag.due{background:rgba(200,166,97,.12);color:var(--gold2);border:1px solid rgba(200,166,97,.4)}
 .mypack-flag.done{background:rgba(245,241,232,.06);color:var(--cream-d);border:1px solid var(--line2)}
-.app.crew-day .mypack-flag.paid,body.light .mypack-flag.paid{color:#3f6b2f}
-.app.crew-day .mypack-flag.due,body.light .mypack-flag.due{color:#6e4c1e}
+.app.crew-day .mypack-flag.paid,body.light .mypack-flag.paid{color:var(--green-onLight)}
+.app.crew-day .mypack-flag.due,body.light .mypack-flag.due{color:var(--gold2)}
 .mypack-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .mypack-top b{font-family:'Inter';font-weight:800;font-size:14.5px;color:var(--cream)}
 .mypack-pay{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--warn);border:1px solid var(--warn);border-radius:6px;padding:2px 7px}
@@ -3847,7 +3890,7 @@ body:has(.guide-sheet) .rail{display:none}
 
 /* Brew card operational rows — coverage, serve-by, stock check */
 .brew-oprow{margin-top:9px;font-family:'Inter';font-size:12px;line-height:1.4;color:var(--cream-m);background:rgba(245,241,232,.05);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-variant-numeric:tabular-nums}
-.app.crew-day .brew-oprow{background:#fff;color:#6c6256}
+.app.crew-day .brew-oprow{background:var(--card);color:var(--muted2-onLight)}
 .brew-oprow.ok{border-color:rgba(43,179,163,.45);color:var(--cream)}
 .brew-oprow.warn{border-color:var(--warn);background:rgba(207,154,74,.14);color:var(--cream);font-weight:600}
 .brew-oprow.over{border-color:var(--red-h);background:rgba(184,36,32,.1);color:var(--red-h);font-weight:700}
@@ -3864,8 +3907,8 @@ body:has(.guide-sheet) .rail{display:none}
 .myday-rhythm{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 14px}
 .myday-chip{background:var(--char2);border:1px solid var(--line2);border-left:3px solid var(--line2);border-radius:22px;padding:9px 14px;color:var(--cream);font-family:'Inter';font-weight:600;font-size:12.5px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .myday-chip.warn{border-color:rgba(214,75,70,.55);color:#ecb4b1}
-.app.crew-day .myday-chip{background:#fff;color:#221F18}
-.app.crew-day .myday-chip.warn{color:#8f1d1a}
+.app.crew-day .myday-chip{background:var(--card);color:var(--cream)}
+.app.crew-day .myday-chip.warn{color:var(--red-onLight)}
 
 /* NEW CALENDAR VIEWS — Board (flow kanban) · Cards (up next) · Rails (by work stream) */
 .cal-views{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;flex-wrap:nowrap}
@@ -3915,7 +3958,7 @@ body:has(.guide-sheet) .rail{display:none}
 .lane-secs{font-size:11px;color:var(--cream-m);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lane-pin{flex:0 0 auto;background:none;border:1px solid var(--line2);border-radius:16px;padding:6px 12px;color:var(--cream-m);font-family:'Inter';font-weight:650;font-size:10.5px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .lane-pin.on{color:var(--gold2);border-color:var(--gold2)}
-.app.crew-day .lane-row{background:#fff}
+.app.crew-day .lane-row{background:var(--card)}
 
 /* work streams — ownership cards (OrgChart) + lane tags */
 .ws-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:9px;margin-bottom:8px}
@@ -3923,7 +3966,7 @@ body:has(.guide-sheet) .rail{display:none}
 .ws-name{font-family:'Inter';font-weight:700;font-size:13.5px;color:var(--cream)}
 .ws-cats{font-family:'DM Mono',ui-monospace,monospace;font-size:9.5px;color:var(--cream-d);margin:3px 0 8px;text-transform:uppercase;letter-spacing:.4px}
 .ws-owner{width:100%;background:var(--char2);border:1px solid var(--line2);border-radius:8px;padding:7px 8px;color:var(--cream);font-family:'Inter';font-size:12px}
-.app.crew-day .ws-owner{background:#fff;color:#221F18}
+.app.crew-day .ws-owner{background:var(--card);color:var(--cream)}
 .ws-ownerro{font-family:'Inter';font-size:12px;color:var(--cream-m)}
 .ws-note{font-size:11.5px;color:var(--cream-d);margin:0 0 16px}
 .myday-lane{font-family:'Inter';font-weight:650;font-size:8.5px;letter-spacing:.7px;text-transform:uppercase;color:var(--gold2);border:1px solid var(--line2);border-radius:14px;padding:2px 7px;margin-left:7px;vertical-align:2px}
@@ -3956,14 +3999,14 @@ body:has(.guide-sheet) .rail{display:none}
 .liveinst-sub{flex:1;min-width:0;font-size:12.5px;color:var(--cream-m)}
 .liveinst-warn{flex:0 0 auto;font-size:11.5px;color:var(--warn);font-weight:650}
 .liveinst .adm-golink{display:block;width:100%;text-align:left;margin:0;padding:11px 0;border-top:1px solid var(--line)}
-.app.crew-day .liveinst{background:#fff;color:#221F18}
+.app.crew-day .liveinst{background:var(--card);color:var(--cream)}
 .app.crew-day .liveinst.on{border-color:rgba(69,122,50,.55)}
 
 /* CRM (Customers) — the identity spine's first surface. Rows are customers (canonical, resolve_
    customer-backed), not member profiles; expanding a row shows cross-channel history (all_orders'
    first reader) + loyalty when the human has an account. */
 .crm-search{width:100%;background:var(--char2);border:1px solid var(--line2);border-radius:12px;padding:12px 14px;color:var(--cream);font-family:'Inter';font-size:16px;outline:none;margin-bottom:12px}
-.app.crew-day .crm-search{background:#fff;color:#221F18}
+.app.crew-day .crm-search{background:var(--card);color:var(--cream)}
 .crm-row{border:1px solid var(--line);border-radius:14px;background:var(--card);margin-bottom:9px;overflow:hidden}
 .crm-head{display:flex;align-items:center;gap:11px;width:100%;background:none;border:none;padding:13px 14px;cursor:pointer;text-align:left;color:var(--cream);-webkit-appearance:none;appearance:none}
 .crm-name{flex:1;min-width:0}
@@ -3979,14 +4022,14 @@ body:has(.guide-sheet) .rail{display:none}
 .crm-loy{display:flex;align-items:center;gap:10px;margin-top:11px}
 .crm-loy label{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--cream-m)}
 .crm-loy input{width:74px;background:var(--char2);border:1px solid var(--line2);border-radius:9px;padding:7px 9px;color:var(--cream);font-family:'DM Mono',ui-monospace,monospace;font-size:13px}
-.app.crew-day .crm-loy input{background:#fff;color:#221F18}
+.app.crew-day .crm-loy input{background:var(--card);color:var(--cream)}
 .crm-note{font-size:11.5px;color:var(--cream-d);margin-top:8px}
 .team-crm-link{display:block;width:100%;text-align:left;background:none;border:1px dashed var(--line2);border-radius:12px;padding:12px 14px;color:var(--cream-m);font-family:'Inter';font-size:12.5px;cursor:pointer;margin:4px 0 16px;-webkit-appearance:none;appearance:none}
 .team-crm-link b{color:var(--gold2)}
 
 /* order-history search box */
 .adm-search{width:100%;background:rgba(0,0,0,.28);border:1.5px solid var(--hair,rgba(245,241,232,.14));border-radius:12px;padding:11px 14px;color:var(--cream,#F5F1E8);font-size:14px;font-family:'Inter',sans-serif;margin:2px 0 12px}
-.app.crew-day .adm-search{background:rgba(0,0,0,.05);color:#221f18}
+.app.crew-day .adm-search{background:rgba(0,0,0,.05);color:var(--cream)}
 .adm-search:focus{border-color:var(--gold2,#B8902F)}
 
 /* event completion / lifecycle (OwnerDetails) */
@@ -4003,11 +4046,11 @@ body:has(.guide-sheet) .rail{display:none}
 .ownerdet-wrap textarea{width:100%}
 .ownerdet-wrap-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .ownerdet-wrap-actions button{font-size:12.5px;font-weight:600;border-radius:10px;padding:8px 12px;cursor:pointer;font-family:'Inter',sans-serif;border:1px solid var(--hair,rgba(245,241,232,.16));background:transparent;color:var(--cream,#F5F1E8)}
-.app.crew-day .ownerdet-wrap-actions button{color:#221f18}
+.app.crew-day .ownerdet-wrap-actions button{color:var(--cream)}
 .ownerdet-wrap-actions .ownerdet-complete{color:#0e0d0b;background:#7FA86B;border-color:#7FA86B}
 .ownerdet-recap{font-size:12.5px;line-height:1.55;color:var(--muted);margin:8px 0;padding:10px 12px;border-left:2px solid var(--gold2,#B8902F);background:rgba(184,144,47,.06);border-radius:0 8px 8px 0}
 .ownerdet-recap b{color:var(--cream,#F5F1E8);margin-right:6px}
-.app.crew-day .ownerdet-recap b{color:#221f18}
+.app.crew-day .ownerdet-recap b{color:var(--cream)}
 .ownerdet-recap-edit{margin-left:8px;background:none;border:none;color:var(--gold2,#B8902F);font-size:11px;font-weight:600;cursor:pointer;text-decoration:underline}
 .ownerdet-cancel{opacity:.7}
 
@@ -4015,10 +4058,10 @@ body:has(.guide-sheet) .rail{display:none}
 .garage{margin-top:18px}
 .garage-row{border:1px solid var(--hair,rgba(245,241,232,.12));border-radius:14px;margin-bottom:8px;overflow:hidden}
 .garage-head{display:flex;align-items:center;gap:10px;width:100%;background:rgba(0,0,0,.14);border:none;padding:13px 14px;cursor:pointer;text-align:left;-webkit-appearance:none;appearance:none}
-.app.crew-day .garage-head{background:rgba(34,31,24,.04)}
+.app.crew-day .garage-head{background:var(--ink-onLight-04)}
 .garage-ic{font-size:15px}
 .garage-t{flex:1;font-family:'Inter';font-weight:600;font-size:13.5px;color:var(--cream,#F5F1E8)}
-.app.crew-day .garage-t{color:#221f18}
+.app.crew-day .garage-t{color:var(--cream)}
 .garage-hint{font-family:'Inter';font-size:11px;color:var(--cream-m,rgba(245,241,232,.55));text-align:right}
 .app.crew-day .garage-hint{color:#8a8371}
 .garage-chev{font-size:11px;color:var(--gold2,#B8902F)}
@@ -4027,16 +4070,16 @@ body:has(.guide-sheet) .rail{display:none}
 /* calendar: category filter lives behind one chip (opens a sheet) */
 .cal-filterbtn{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-family:'Inter';font-weight:600;font-size:12px;color:var(--cream-m,rgba(245,241,232,.6));background:none;border:1px solid var(--hair,rgba(245,241,232,.14));border-radius:16px;padding:6px 12px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .cal-filterbtn.on{color:var(--cream,#F5F1E8);border-color:var(--gold2,#B8902F)}
-.app.crew-day .cal-filterbtn{color:#6f6a59;border-color:rgba(34,31,24,.18)}
-.app.crew-day .cal-filterbtn.on{color:#221f18;border-color:#B8902F}
+.app.crew-day .cal-filterbtn{color:var(--muted3-onLight);border-color:var(--ink-onLight-18)}
+.app.crew-day .cal-filterbtn.on{color:var(--cream);border-color:var(--oa-gold)}
 
 /* drop sheet — DropOps popped out of an alert's "Open" */
 .drop-sheet{max-width:560px}
 .drop-sheet-h{display:flex;align-items:center;justify-content:space-between;font-family:'Inter';font-weight:600;font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--cream-m);margin:2px 0 10px}
 .drop-sheet-x{background:none;border:none;color:var(--cream-m);font-size:15px;line-height:1;cursor:pointer;padding:4px 6px;-webkit-appearance:none;appearance:none}
 .drop-sheet-done{width:100%;margin-top:12px;background:none;border:1.5px solid var(--line2);border-radius:12px;color:var(--cream);font-family:'Inter';font-weight:600;font-size:14px;padding:11px;cursor:pointer;-webkit-appearance:none;appearance:none}
-.app.crew-day .drop-sheet-h,.app.crew-day .drop-sheet-x{color:#6f6a59}
-.app.crew-day .drop-sheet-done{color:#221f18;border-color:rgba(34,31,24,.18)}
+.app.crew-day .drop-sheet-h,.app.crew-day .drop-sheet-x{color:var(--muted3-onLight)}
+.app.crew-day .drop-sheet-done{color:var(--cream);border-color:var(--ink-onLight-18)}
 
 /* site copy editor (owner-editable front-end text) */
 .sitecopy .sc-group{margin-bottom:16px}
@@ -4044,14 +4087,14 @@ body:has(.guide-sheet) .rail{display:none}
 .sc-row{border:1px solid var(--hair,rgba(245,241,232,.14));border-radius:12px;padding:11px 12px;margin-bottom:9px}
 .sc-row-h{display:flex;align-items:center;gap:8px;margin-bottom:6px}
 .sc-label{font-size:12.5px;font-weight:600;color:var(--cream,#F5F1E8)}
-.app.crew-day .sc-label{color:#221f18}
+.app.crew-day .sc-label{color:var(--cream)}
 .sc-pill{font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--gold2,#B8902F);background:rgba(184,144,47,.12);border:1px solid rgba(184,144,47,.4);padding:1px 7px;border-radius:20px}
 .sc-in{width:100%;background:rgba(0,0,0,.25);border:1.5px solid var(--hair,rgba(245,241,232,.14));border-radius:10px;padding:10px 12px;color:var(--cream,#F5F1E8);font-size:14px;font-family:'Inter',sans-serif;line-height:1.5}
-.app.crew-day .sc-in{background:rgba(0,0,0,.04);color:#221f18}
+.app.crew-day .sc-in{background:rgba(0,0,0,.04);color:var(--cream)}
 .sc-in:focus{border-color:var(--gold2,#B8902F)}
 .sc-actions{display:flex;gap:8px;margin-top:8px}
 .sc-save,.sc-reset{font-size:12px;font-weight:600;border-radius:9px;padding:7px 13px;cursor:pointer;font-family:'Inter',sans-serif;border:1px solid var(--hair,rgba(245,241,232,.16));background:transparent;color:var(--cream,#F5F1E8)}
-.app.crew-day .sc-save,.app.crew-day .sc-reset{color:#221f18}
+.app.crew-day .sc-save,.app.crew-day .sc-reset{color:var(--cream)}
 .sc-save{background:var(--gold2,#B8902F);border-color:var(--gold2,#B8902F);color:#0e0d0b}
 .sc-save:disabled,.sc-reset:disabled{opacity:.4;cursor:default}
 
@@ -4087,7 +4130,7 @@ body:has(.guide-sheet) .rail{display:none}
 .rvp-star,.rva-star{background:transparent;border:none;font-size:26px;line-height:1;color:var(--line2);cursor:pointer;-webkit-appearance:none;appearance:none;padding:0}
 .rvp-star.on,.rva-star.on{color:var(--gold2)}
 .rvp-in{width:100%;background:rgba(255,255,255,.04);border:1px solid var(--line2);border-radius:11px;color:var(--cream);font-family:'Inter';font-size:13px;padding:10px;resize:none;margin-bottom:8px}
-.app.crew-day .rvp-in,.app.crew-day .rva-in{background:#fff}
+.app.crew-day .rvp-in,.app.crew-day .rva-in{background:var(--card)}
 .rvp-send{background:var(--red);border:none;border-radius:11px;color:#fff;font-family:'Inter';font-weight:700;font-size:13px;padding:10px 18px;cursor:pointer}
 .rvp-send:disabled{opacity:.5}
 
@@ -4117,7 +4160,7 @@ body:has(.guide-sheet) .rail{display:none}
 .rva-sug{margin-top:8px;border-left:2px solid var(--gold2,#B8902F);background:rgba(184,144,47,.06);border-radius:0 8px 8px 0;padding:8px 12px}
 .rva-sug-lbl{font-family:'Inter';font-weight:700;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold2,#B8902F)}
 .rva-sug-q{font-size:13px;line-height:1.5;color:var(--cream,#F5F1E8);margin:4px 0 8px}
-.app.crew-day .rva-sug-q{color:#221f18}
+.app.crew-day .rva-sug-q{color:var(--cream)}
 .rva-sug-actions{display:flex;gap:8px}
 
 /* ─────────── truck display loop (/display) ─────────── */
@@ -4146,7 +4189,7 @@ body:has(.guide-sheet) .rail{display:none}
 
 /* ─────────── collapsible admin panels (tame long sections) ─────────── */
 .mpanel{border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:10px;background:var(--card)}
-.app.crew-day .mpanel{background:#fff}
+.app.crew-day .mpanel{background:var(--card)}
 .mpanel-h{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;background:transparent;border:none;padding:15px 16px;cursor:pointer;-webkit-appearance:none;appearance:none;text-align:left}
 .mpanel-t{font-family:'Inter';font-weight:700;font-size:13px;letter-spacing:.02em;color:var(--cream)}
 .mpanel-chev{flex:0 0 auto;color:var(--cream-m);font-size:19px;line-height:1;transition:transform .18s ease}
@@ -4268,7 +4311,7 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 /* ─────────── command palette (⌘K quick-jump, crew) ─────────── */
 .cmdk-scrim{position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);display:flex;align-items:flex-start;justify-content:center;padding-top:14vh}
 .cmdk{width:min(520px,92vw);background:#15120d;border:1px solid var(--line2);border-radius:16px;box-shadow:0 30px 70px rgba(0,0,0,.6);overflow:hidden;animation:popcenter .16s ease}
-.app.crew-day .cmdk{background:#fff}
+.app.crew-day .cmdk{background:var(--card)}
 .cmdk-in{width:100%;background:transparent;border:none;border-bottom:1px solid var(--line);color:var(--cream);font-family:'Inter';font-size:16px;padding:16px 18px;outline:none}
 .cmdk-list{max-height:min(52vh,380px);overflow-y:auto;padding:6px}
 .cmdk-item{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;background:transparent;border:none;border-radius:10px;padding:11px 12px;color:var(--cream);font-family:'Inter';font-size:14.5px;font-weight:600;cursor:pointer;text-align:left;-webkit-appearance:none;appearance:none}
@@ -4350,7 +4393,7 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .mkpi-v{font-family:'Inter';font-weight:800;font-size:25px;letter-spacing:-.02em;line-height:1;color:var(--gold2,#C8A661)}
 .mkpi-k{font-family:'Inter';font-weight:600;font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--cream-m);margin-top:6px}
 .crew-group{font-family:'Inter';font-weight:800;font-size:11.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--gold);margin:22px 2px 9px}
-.app.crew-day .mkpi-tile{background:#fff;border-color:rgba(26,22,16,.1);box-shadow:0 1px 2px rgba(26,22,16,.04)}
+.app.crew-day .mkpi-tile{background:var(--card);border-color:var(--ink2-onLight-10);box-shadow:0 1px 2px rgba(26,22,16,.04)}
 
 /* ── Funnels · where people drop off (privacy-respecting analytics) ── */
 .fn{display:flex;flex-direction:column;gap:14px}
@@ -4372,8 +4415,8 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .fn-bar{height:8px;background:rgba(255,255,255,.05);border-radius:999px;overflow:hidden}
 .fn-bar>span{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--gold),var(--gold2));transition:width .3s ease}
 .fn-drop{font-family:'Inter';font-size:10.5px;color:#c98b7a;margin-top:3px}
-.app.crew-day .fn-block,.app.crew-day .fn-days{background:#fff;border-color:rgba(26,22,16,.1)}
-.app.crew-day .fn-bar{background:rgba(26,22,16,.06)}
+.app.crew-day .fn-block,.app.crew-day .fn-days{background:var(--card);border-color:var(--ink2-onLight-10)}
+.app.crew-day .fn-bar{background:var(--ink2-onLight-06)}
 
 /* ── Live deal ROI what-if (Pipeline · New Deal form) ── */
 .roi{grid-column:1/-1;margin:2px 0;padding:11px 12px;border:1px solid var(--line2);border-radius:12px;background:var(--card);display:flex;flex-direction:column;gap:8px}
@@ -4389,8 +4432,8 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .roi-margin{font-family:'Inter';font-size:11px;font-weight:600}
 .roi-margin.ok{color:#8fae86}
 .roi-margin.bad{color:#c98b7a}
-.app.crew-day .roi,.app.crew-day .roi-vol input{background:#fff;border-color:rgba(26,22,16,.12)}
-.app.crew-day .roi-bar{background:rgba(26,22,16,.08)}
+.app.crew-day .roi,.app.crew-day .roi-vol input{background:var(--card);border-color:rgba(26,22,16,.12)}
+.app.crew-day .roi-bar{background:var(--ink2-onLight-08)}
 
 /* ── Changelog · "What we've built" (Settings) ── */
 .chg{display:flex;flex-direction:column;gap:12px}
@@ -4424,8 +4467,8 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .chg-area{font-family:'DM Mono','Inter';font-size:10px;letter-spacing:.03em;text-transform:uppercase;color:var(--cream-m);background:rgba(255,255,255,.05);border-radius:5px;padding:2px 6px}
 .chg-date{font-family:'Inter';font-size:11px;color:var(--cream-d)}
 .chg-empty{font-family:'Inter';font-size:13px;color:var(--cream-m);padding:10px 2px}
-.app.crew-day .chg-kpi,.app.crew-day .chg-form,.app.crew-day .chg-row,.app.crew-day .chg-chip{background:#fff;border-color:rgba(26,22,16,.1)}
-.app.crew-day .chg-area{background:rgba(26,22,16,.06)}
+.app.crew-day .chg-kpi,.app.crew-day .chg-form,.app.crew-day .chg-row,.app.crew-day .chg-chip{background:var(--card);border-color:var(--ink2-onLight-10)}
+.app.crew-day .chg-area{background:var(--ink2-onLight-06)}
 
 /* ── Command Board · the shared war room (the digital MagBoard) ── */
 .cmd{display:flex;flex-direction:column}
@@ -4469,8 +4512,8 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .cmd-row-due{flex:0 0 auto;font-family:'Inter';font-size:11px;color:var(--cream-d)}
 .cmd-row-due.late{color:#c98b7a;font-weight:700}
 .cmd-more{font-family:'Inter';font-size:11.5px;color:var(--cream-m);padding:3px 2px}
-.app.crew-day .cmd-init,.app.crew-day .cmd-row{background:#fff;border-color:rgba(26,22,16,.1)}
-.app.crew-day .cmd-prog-bar,.app.crew-day .cmd-ws{background:rgba(26,22,16,.06)}
+.app.crew-day .cmd-init,.app.crew-day .cmd-row{background:var(--card);border-color:var(--ink2-onLight-10)}
+.app.crew-day .cmd-prog-bar,.app.crew-day .cmd-ws{background:var(--ink2-onLight-06)}
 
 /* ── VIP verification — staff queue + customer submit ── */
 .vipq{display:flex;flex-direction:column;gap:9px}
@@ -4496,7 +4539,7 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .vipv-btn{font-family:'Inter';font-weight:700;font-size:13.5px;padding:11px 16px;border-radius:11px;border:none;background:var(--gold);color:#1a1610;cursor:pointer;-webkit-appearance:none;appearance:none}
 .vipv-btn:disabled{opacity:.6}
 .vipv-err{font-family:'Inter';font-size:12px;color:#c98b7a;margin-top:8px}
-.app.crew-day .vipq-row{background:#fff;border-color:rgba(26,22,16,.1)}
+.app.crew-day .vipq-row{background:var(--card);border-color:var(--ink2-onLight-10)}
 
 /* ── Launch readiness (go/no-go) ── */
 .rdy{display:flex;flex-direction:column;gap:9px}
@@ -4523,7 +4566,7 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .rdy-st.rdy-ok{background:rgba(106,160,92,.16);color:#8fae86}
 .rdy-st.rdy-warn{background:rgba(200,166,97,.16);color:var(--gold)}
 .rdy-st.rdy-bad{background:rgba(196,69,60,.16);color:#d98a7d}
-.app.crew-day .rdy-check{background:#fff;border-color:rgba(26,22,16,.1)}
+.app.crew-day .rdy-check{background:var(--card);border-color:var(--ink2-onLight-10)}
 
 /* ── Founder digest settings ── */
 .fdig{display:flex;flex-direction:column;gap:11px}
@@ -4552,7 +4595,7 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .spb-add .note-in{flex:1 1 auto;min-width:0}
 .spb-amt{flex:0 0 80px!important}
 .spb-desc{flex:2 1 120px!important}
-.app.crew-day .spb-bar{background:rgba(26,22,16,.08)}
+.app.crew-day .spb-bar{background:var(--ink2-onLight-08)}
 
 /* ── Team workload board ── */
 .wl{display:flex;flex-direction:column;gap:8px}
@@ -4566,7 +4609,7 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .wl-bar>span.over{background:#c4453c}
 .wl-n{font-family:'Inter';font-size:12px;color:var(--cream-m);white-space:nowrap;font-variant-numeric:tabular-nums}
 .wl-over{color:#d98a7d;font-weight:600}
-.app.crew-day .wl-bar{background:rgba(26,22,16,.08)}
+.app.crew-day .wl-bar{background:var(--ink2-onLight-08)}
 
 /* ── Goal owner (accountability) ── */
 .goal-owner{display:flex;align-items:center;gap:8px;margin-top:9px}
@@ -4605,9 +4648,9 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .pboard-meta{font-family:'Inter';font-size:9px;text-transform:uppercase;letter-spacing:.11em;color:var(--cream-m)}
 @media (prefers-reduced-motion:reduce){.pboard-card,.pboard-bar>span{transition:none}}
 @media (max-width:640px){.pboard{grid-template-columns:1fr;gap:18px}}
-.app.crew-day .pboard-card{background:linear-gradient(180deg,#fff,#fcfaf4);border-color:rgba(26,22,16,.09);box-shadow:0 1px 2px rgba(26,22,16,.06)}
+.app.crew-day .pboard-card{background:linear-gradient(180deg,var(--card),#fcfaf4);border-color:rgba(26,22,16,.09);box-shadow:0 1px 2px var(--ink2-onLight-06)}
 .app.crew-day .pboard-card:hover{box-shadow:0 8px 20px rgba(26,22,16,.13),0 0 0 1px rgba(184,144,47,.2)}
-.app.crew-day .pboard-bar{background:rgba(26,22,16,.08)}
+.app.crew-day .pboard-bar{background:var(--ink2-onLight-08)}
 .app.crew-day .pboard-bar>span{box-shadow:0 0 6px rgba(184,144,47,.35)}
 
 /* ── Invite a teammate ── */
@@ -4624,7 +4667,7 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .tinv-wait{font-family:'Inter';font-size:10.5px;color:var(--cream-m)}
 .tinv-ok{font-family:'Inter';font-weight:600;font-size:10.5px;color:#8fae86}
 .tinv-x{background:none;border:none;color:var(--cream-m);cursor:pointer;font-size:12px;opacity:.7}
-.app.crew-day .tinv-row{background:#fff;border-color:rgba(26,22,16,.1)}
+.app.crew-day .tinv-row{background:var(--card);border-color:var(--ink2-onLight-10)}
 
 /* ── Calendar cross-link (Studio content cal → company cal) ── */
 .cal-xlink{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:10px 14px;margin-bottom:13px;border:1px solid var(--gold2);border-radius:12px;background:linear-gradient(180deg,rgba(200,166,97,.06),transparent)}
@@ -4656,8 +4699,8 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .pbd-crit{color:#d98a7d;font-weight:700}
 .pbd-assign{flex:0 0 auto;font-family:'Inter';font-size:11px;padding:4px 7px;border-radius:8px;border:1px solid var(--line2);background:rgba(255,255,255,.04);color:var(--cream-m);max-width:96px}
 .pbd-assign.on{border-color:var(--gold2);color:var(--gold)}
-.app.crew-day .pbd-row{background:#fff;border-color:rgba(26,22,16,.1)}
-.app.crew-day .pbd-assign{background:#fff}
+.app.crew-day .pbd-row{background:var(--card);border-color:var(--ink2-onLight-10)}
+.app.crew-day .pbd-assign{background:var(--card)}
 
 /* ── Shoot planner ── */
 .shoot{display:flex;flex-direction:column;gap:8px}
@@ -4683,11 +4726,11 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .shoot-assign{font-family:'Inter';font-size:11px;padding:3px 6px;border-radius:7px;border:1px solid var(--line2);background:rgba(255,255,255,.05);color:var(--cream-m);max-width:110px}
 .shoot-del{background:none;border:none;color:var(--cream-m);cursor:pointer;font-size:12px;opacity:.6}
 .shoot-delshoot{align-self:flex-start;font-family:'Inter';font-size:11px;color:#c98b7a;background:none;border:none;cursor:pointer;padding:2px 0}
-.app.crew-day .shoot-card{background:#fff;border-color:rgba(26,22,16,.1)}
-.app.crew-day .shoot-fields input,.app.crew-day .shoot-fields select,.app.crew-day .shoot-assign{background:#fff}
+.app.crew-day .shoot-card{background:var(--card);border-color:var(--ink2-onLight-10)}
+.app.crew-day .shoot-fields input,.app.crew-day .shoot-fields select,.app.crew-day .shoot-assign{background:var(--card)}
 .app.crew-day .mkpi-v{color:#7a5a1e}
 .app.crew-day .mkpi-k{color:rgba(26,22,16,.55)}
-.app.crew-day .crew-group{color:#8a6a2a}
+.app.crew-day .crew-group{color:var(--amber-onLight)}
 .paysettings{display:flex;flex-direction:column;gap:14px}
 .pay-row{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
 .pay-row-t{font-family:'Inter';font-weight:800;font-size:14px;color:var(--cream)}
@@ -4876,7 +4919,7 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .studio-link-chip{display:inline-flex;align-items:center;gap:6px;background:var(--char2);border:1px solid var(--line2);border-radius:16px;padding:5px 6px 5px 11px;font-family:'Inter';font-weight:600;font-size:11.5px;color:var(--cream)}
 .studio-link-chip button{background:none;border:none;color:var(--cream-d);font-size:11px;cursor:pointer;padding:2px 5px;-webkit-appearance:none;appearance:none}
 .studio-link-chip button:hover{color:var(--red-h)}
-.app.crew-day .studio-link-chip{background:#fff;color:#221F18}
+.app.crew-day .studio-link-chip{background:var(--card);color:var(--cream)}
 
 /* PIPELINE — the sales funnel: stage groups, account cards, the owner's deal catalog */
 .pipe-stage{margin-bottom:14px}
@@ -4898,7 +4941,7 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .pipe-grid label{display:flex;flex-direction:column;gap:4px;font-family:'Inter';font-weight:650;font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:var(--cream-m)}
 .pipe-grid label i{font-style:normal;text-transform:none;font-weight:500;color:var(--cream-d)}
 .pipe-grid input,.pipe-grid select{background:var(--char2);border:1px solid var(--line2);border-radius:9px;padding:9px 10px;color:var(--cream);font-family:'Inter';font-size:13px;font-weight:400;text-transform:none;letter-spacing:0;width:100%;min-width:0}
-.app.crew-day .pipe-grid input,.app.crew-day .pipe-grid select{background:#fff;color:#221F18}
+.app.crew-day .pipe-grid input,.app.crew-day .pipe-grid select{background:var(--card);color:var(--cream)}
 .pipe-lost{margin-top:8px;font-size:11.5px;color:var(--cream-m)}
 .pipe-catalog{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:10px 0 14px}
 .pipe-dealrow{display:flex;align-items:center;gap:9px;padding:7px 0;border-top:1px dashed var(--line)}
@@ -4909,7 +4952,7 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .pipe-line{font-style:normal;margin-left:6px;font-family:'Inter';font-weight:650;font-size:8.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--gold2);border:1px solid var(--line2);border-radius:12px;padding:2px 7px}
 .pipe-lines{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 12px}
 .pipe-floor{margin-left:6px;font-family:'Inter';font-weight:700;font-size:8.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--red-h);border:1px solid rgba(184,36,32,.4);border-radius:12px;padding:2px 7px}
-.app.crew-day .pipe-card{background:#fff}
+.app.crew-day .pipe-card{background:var(--card)}
 
 /* Deal catalog management (PipelinePanel) — tap-to-edit, reorder, remove */
 button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:left;font-family:inherit;cursor:pointer;-webkit-appearance:none;appearance:none}
@@ -4949,9 +4992,9 @@ button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:
 .goal-init-who{flex:0 0 auto;font-family:'DM Mono',ui-monospace,monospace;font-size:9.5px;color:var(--cream-m)}
 .goal-init-meta{display:flex;gap:7px;margin:2px 0 6px 30px}
 .goal-init-meta select,.goal-init-meta input{background:var(--char2);border:1px solid var(--line2);border-radius:8px;padding:5px 8px;color:var(--cream-m);font-family:'Inter';font-size:11px}
-.app.crew-day .goal-init-meta select,.app.crew-day .goal-init-meta input{background:#fff;color:#221F18}
+.app.crew-day .goal-init-meta select,.app.crew-day .goal-init-meta input{background:var(--card);color:var(--cream)}
 .goal-lane-pick{margin-left:auto;background:var(--char2);border:1px solid var(--line2);border-radius:9px;padding:5px 8px;color:var(--cream-m);font-family:'Inter';font-size:10.5px}
-.app.crew-day .goal-lane-pick{background:#fff;color:#221F18}
+.app.crew-day .goal-lane-pick{background:var(--card);color:var(--cream)}
 
 .goal-card{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:13px 15px;margin-bottom:10px}
 .goal-top{display:flex;align-items:baseline;gap:10px}
@@ -4981,9 +5024,9 @@ button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:
 
 /* crew-day: muted text was still dark-theme cream → ghost on the light shell */
 .app.crew-day{--muted:rgba(34,31,24,.6)}
-.app.crew-day .opx-link-s{color:rgba(34,31,24,.6)}
-.app.crew-day .adm-member{color:#221f18}
-.app.crew-day .svc-enter-s b{color:#221f18}
+.app.crew-day .opx-link-s{color:var(--muted)}
+.app.crew-day .adm-member{color:var(--cream)}
+.app.crew-day .svc-enter-s b{color:var(--cream)}
 
 /* delivery landing — the hero the option deserves */
 .dl-hero{margin:6px 0 18px;padding:20px 18px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(160deg,rgba(200,166,97,.10),rgba(200,166,97,.02))}
@@ -5152,12 +5195,12 @@ button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:
 
 /* Pipeline: linked notes fold on an expanded opportunity */
 .pipe-notes{display:flex;flex-direction:column;gap:5px;margin-top:9px;padding:10px 12px;border:1px solid var(--line);border-radius:11px;background:rgba(0,0,0,.14)}
-.app.crew-day .pipe-notes{background:rgba(34,31,24,.04)}
+.app.crew-day .pipe-notes{background:var(--ink-onLight-04)}
 .pipe-notes b{font-family:var(--mono);font-size:9.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--cream-m)}
 .pipe-note{font-family:'Inter';font-size:12.5px;color:var(--cream)}
 /* Calendar: read-only stop card (identity edits live in the prep hub) */
 .cal-stopcard{display:flex;flex-direction:column;gap:4px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.14)}
-.app.crew-day .cal-stopcard{background:rgba(34,31,24,.04)}
+.app.crew-day .cal-stopcard{background:var(--ink-onLight-04)}
 .cal-stopcard b{font-family:'Inter';font-weight:650;font-size:15px;color:var(--cream)}
 .cal-stopcard span{font-family:'Inter';font-size:12.5px;color:var(--cream-m)}
 .cal-stopcard-hint{font-size:11.5px;opacity:.75}
@@ -5165,7 +5208,7 @@ button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:
 .qd-note-vis{display:flex;gap:7px;margin-top:9px;flex-wrap:wrap}
 .qd-vis-chip{font-family:'Inter';font-weight:600;font-size:12px;padding:7px 11px;border-radius:999px;border:1px solid var(--line2);background:rgba(0,0,0,.22);color:var(--cream-m);cursor:pointer;-webkit-appearance:none;appearance:none}
 .qd-vis-chip.on{border-color:var(--gold2);color:var(--gold2);background:rgba(184,144,47,.1)}
-.app.crew-day .qd-vis-chip{background:#fff}
+.app.crew-day .qd-vis-chip{background:var(--card)}
 .app.crew-day .qd-vis-chip.on{background:rgba(184,144,47,.1)}
 .pipe-lines-div{width:1px;align-self:stretch;background:var(--line2);margin:0 3px;flex:0 0 auto}
 /* My Day: one-tap private note capture */
@@ -5179,7 +5222,7 @@ select.note-vis{background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xm
 /* Same-day order confirm + Your Packs day rollup */
 .dup-list{display:flex;flex-direction:column;gap:7px;margin:4px 0 14px}
 .dup-row{font-family:'Inter';font-size:14px;color:var(--cream);background:rgba(0,0,0,.18);border:1px solid var(--line);border-radius:11px;padding:11px 13px}
-.app.crew-day .dup-row,body.light .dup-row{background:rgba(34,31,24,.05);color:#221F18}
+.app.crew-day .dup-row,body.light .dup-row{background:var(--ink-onLight-05);color:var(--cream)}
 .dup-nvm{width:100%;margin-top:9px;padding:12px;border-radius:12px;border:1px solid var(--line2);background:transparent;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:13.5px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .mypack-day{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
 /* the day-group header reads as a section, and the page's three jobs get breathing room */
@@ -5331,12 +5374,12 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 .alert-act-do:active{transform:scale(.97)}
 .alert-act-do:disabled{opacity:.7;cursor:default}
 .alert-open.ghost{background:transparent;border:1px solid var(--line2);color:var(--cream-m);font-weight:600}
-.app.crew-day .alert-open.ghost{color:#221F18;border-color:rgba(34,31,24,.24)}
+.app.crew-day .alert-open.ghost{color:var(--cream);border-color:var(--ink-onLight-24)}
 
 /* ── Notes 10/10 — the luxury note popout (golden glow, LV restraint) ─────────────────────────── */
 .sheet2.note-lux{box-shadow:0 -14px 50px rgba(0,0,0,.6),0 0 80px -10px rgba(200,166,97,.5),inset 0 1px 0 rgba(200,166,97,.22);border-color:rgba(200,166,97,.32)}
 @media (min-width:520px){.sheet2.note-lux{box-shadow:0 24px 60px rgba(0,0,0,.6),0 0 90px -12px rgba(200,166,97,.55),inset 0 1px 0 rgba(200,166,97,.22)}}
-.app.crew-day .sheet2.note-lux,body.light .sheet2.note-lux{box-shadow:0 24px 60px rgba(34,31,24,.22),0 0 70px -14px rgba(184,144,47,.4),inset 0 1px 0 rgba(184,144,47,.3);border-color:rgba(184,144,47,.34)}
+.app.crew-day .sheet2.note-lux,body.light .sheet2.note-lux{box-shadow:0 24px 60px var(--line2),0 0 70px -14px rgba(184,144,47,.4),inset 0 1px 0 rgba(184,144,47,.3);border-color:rgba(184,144,47,.34)}
 .note-lux-head{display:flex;align-items:center;width:100%}
 .note-lux-eyb{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold2)}
 .note-lux-head .qd-x{margin-left:auto}
@@ -5345,8 +5388,8 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 .note-vis-chips{display:flex;gap:7px;flex-wrap:wrap;margin:2px 0 4px}
 .note-vischip{font-family:'Inter';font-weight:600;font-size:12.5px;padding:8px 13px;border-radius:999px;border:1px solid var(--line2);background:transparent;color:var(--cream-m);cursor:pointer;-webkit-appearance:none;appearance:none;min-height:40px;transition:all .15s var(--ease)}
 .note-vischip.on{border-color:var(--gold2);color:var(--gold2);background:rgba(200,166,97,.12);box-shadow:0 0 16px -4px rgba(200,166,97,.5)}
-.app.crew-day .note-vischip{background:#fff}
-.app.crew-day .note-vischip.on{color:#6e4c1e;background:rgba(184,144,47,.1)}
+.app.crew-day .note-vischip{background:var(--card)}
+.app.crew-day .note-vischip.on{color:var(--gold2);background:rgba(184,144,47,.1)}
 /* transcript is progressive-disclosure — a jot doesn't see a meeting form */
 .note-transcript{border:1px solid var(--line);border-radius:12px;padding:0 12px;margin:2px 0}
 .note-transcript summary{font-family:'Inter';font-size:13px;color:var(--cream-m);cursor:pointer;padding:11px 0;list-style:none}
@@ -5359,7 +5402,7 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 .note-fu-add{font-family:'Inter';font-weight:650;font-size:12.5px;color:var(--gold2);background:rgba(200,166,97,.1);border:1px solid var(--gold2);border-radius:999px;padding:6px 12px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .note-fu-empty{font-family:'Inter';font-size:12.5px;color:var(--cream-d);line-height:1.5;padding:2px 0 4px}
 .note-fu-edit{display:flex;flex-direction:column;gap:7px;padding:10px;border:1px solid var(--line);border-radius:12px;margin-top:8px;background:rgba(0,0,0,.12)}
-.app.crew-day .note-fu-edit{background:rgba(34,31,24,.03)}
+.app.crew-day .note-fu-edit{background:var(--ink-onLight-03)}
 .note-fu-edit-r{display:flex;gap:7px;align-items:stretch}
 .note-fu-edit-r .note-in{flex:1;min-width:0}
 .note-fu-crit,.note-fu-del{flex:0 0 auto;width:42px;border-radius:10px;border:1px solid var(--line2);background:transparent;cursor:pointer;-webkit-appearance:none;appearance:none;font-size:15px}
@@ -5378,25 +5421,25 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 .crm-tier-b{font-family:'Inter';font-weight:650;font-size:12.5px;padding:8px 14px;border-radius:999px;border:1px solid var(--line2);background:transparent;color:var(--cream-m);cursor:pointer;-webkit-appearance:none;appearance:none;min-height:38px}
 .crm-tier-b.on{border-color:var(--gold2);color:var(--gold2);background:rgba(200,166,97,.1)}
 .crm-tier-b.gold.on{background:linear-gradient(135deg,rgba(200,166,97,.2),rgba(184,144,47,.1));box-shadow:0 0 18px -4px rgba(200,166,97,.6)}
-.app.crew-day .crm-tier-b{background:#fff}
-.app.crew-day .crm-tier-b.on{color:#6e4c1e}
+.app.crew-day .crm-tier-b{background:var(--card)}
+.app.crew-day .crm-tier-b.on{color:var(--gold2)}
 .crm-perks{list-style:none;margin:10px 0 0;padding:11px 13px;border:1px solid rgba(200,166,97,.3);border-radius:12px;background:rgba(200,166,97,.06)}
 .crm-perks li{font-family:'Inter';font-size:12.5px;color:var(--gold2);line-height:1.7}
-.app.crew-day .crm-perks li{color:#6e4c1e}
+.app.crew-day .crm-perks li{color:var(--gold2)}
 
 /* ── Notification management (0177) ──────────────────────────────────────────────────────────── */
 .alert-prefs-btn{margin-left:8px;background:transparent;border:none;color:var(--cream-m);font-size:15px;cursor:pointer;-webkit-appearance:none;appearance:none;line-height:1}
 .alert-snz{flex:0 0 auto;background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:10px;padding:9px 12px;color:var(--cream-m);cursor:pointer;-webkit-appearance:none;appearance:none;min-height:40px;font-size:14px}
-.app.crew-day .alert-snz{background:#fff}
+.app.crew-day .alert-snz{background:var(--card)}
 .notif-cats{display:flex;flex-direction:column;gap:8px;margin:6px 0 16px}
 .notif-cat{display:flex;align-items:center;justify-content:space-between;padding:13px 14px;border:1px solid var(--line2);border-radius:12px;background:transparent;color:var(--cream);font-family:'Inter';font-weight:600;font-size:13.5px;cursor:pointer;-webkit-appearance:none;appearance:none;min-height:48px}
 .notif-cat.muted{opacity:.6;border-style:dashed}
 .notif-cat-s{font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:var(--cream-m)}
-.app.crew-day .notif-cat{background:#fff}
+.app.crew-day .notif-cat{background:var(--card)}
 .notif-quiet-r{display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap}
 .notif-quiet-r label{display:flex;align-items:center;gap:6px;font-family:'Inter';font-size:13px;color:var(--cream-m)}
 .notif-quiet-r input{width:56px;padding:9px;border-radius:9px;border:1px solid var(--line2);background:rgba(0,0,0,.22);color:var(--cream);text-align:center;font-family:var(--mono)}
-.app.crew-day .notif-quiet-r input{background:#fff;color:#221F18}
+.app.crew-day .notif-quiet-r input{background:var(--card);color:var(--cream)}
 .notif-quiet-h{font-family:'Inter';font-size:11.5px;color:var(--cream-d)}
 
 /* ── Show off your status — the viral share card (S·7) ───────────────────────────────────────── */
@@ -5712,9 +5755,9 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 .tsheet-done{flex:1;-webkit-appearance:none;appearance:none;border:1.5px solid var(--line2);background:rgba(0,0,0,.2);color:var(--cream);font-family:'Inter';font-weight:700;font-size:14px;padding:13px;border-radius:12px;cursor:pointer;transition:.15s}
 .tsheet-done.on{border-color:rgba(127,168,107,.5);background:rgba(127,168,107,.14);color:#a9d18e}
 .tsheet-del{-webkit-appearance:none;appearance:none;border:1.5px solid var(--line2);background:transparent;color:var(--warn,#e0a23a);font-family:'Inter';font-weight:600;font-size:13px;padding:13px 16px;border-radius:12px;cursor:pointer}
-.app.crew-day .tsheet-h b{color:#221F18}
-.app.crew-day .tsheet-k{color:#8a6a2a}
-.app.crew-day .tsheet-done{background:rgba(34,31,24,.05);color:#221F18}
+.app.crew-day .tsheet-h b{color:var(--cream)}
+.app.crew-day .tsheet-k{color:var(--amber-onLight)}
+.app.crew-day .tsheet-done{background:var(--ink-onLight-05);color:var(--cream)}
 
 /* .mytask-main is now a <button> (opens TaskSheet) — strip button chrome so it reads as before */
 button.mytask-main{-webkit-appearance:none;appearance:none;background:none;border:none;text-align:left;cursor:pointer;width:100%;min-width:0;font:inherit;color:inherit}
@@ -5738,6 +5781,7 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .minbox-main span{font-size:12.5px;color:var(--cream-m)}
 .minbox-row.tone-live .minbox-main span{color:#e79a96;font-weight:600}
 .minbox-when{flex:0 0 auto;font-size:11px;color:var(--cream-m);opacity:.7;font-variant-numeric:tabular-nums}
+.app.crew-day .minbox-row.tone-live .minbox-main span{color:var(--red-onLight)}
 
 /* ── GtmCard — the go-to-market definition surface on crew My Day (GtmCard.tsx) ── */
 .gtm{margin:0 0 16px;padding:13px 15px;border-radius:15px;background:var(--char2,#1a1710);border:1px solid var(--line2,#332e26)}
@@ -5750,9 +5794,9 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .gtm-main span{font-size:12px;color:var(--cream-m)}
 .gtm-count{flex:0 0 auto;font-family:'DM Mono',ui-monospace,monospace;font-size:12px;font-weight:600;color:var(--cream-m);padding:3px 9px;border-radius:999px;border:1px solid var(--line2,#332e26)}
 .gtm-count.near{color:#e79a96;border-color:rgba(184,36,32,.45)}
-.app.crew-day .gtm{background:#fff}
-.app.crew-day .gtm-main b{color:#221F18}
-.app.crew-day .gtm-eyb{color:#8a6a2a}
+.app.crew-day .gtm{background:var(--card)}
+.app.crew-day .gtm-main b{color:var(--cream)}
+.app.crew-day .gtm-eyb{color:var(--amber-onLight)}
 /* ============================================================
    KIT — Customer Design System v1 (2026-07-14, APP-WIDE standard)
    Seven primitives; every new or migrated screen builds from
@@ -5785,6 +5829,8 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .k-sec{display:flex;align-items:baseline;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:9px;margin:30px 0 4px}
 .k-sec .l{font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.2em;text-transform:uppercase;color:var(--gold)}
 .k-sec .a{font-family:'Fraunces',Georgia,serif;font-style:italic;font-size:13px;color:var(--cream-d)}
+.k-sec-lbl{display:inline-flex;align-items:baseline;gap:8px;min-width:0}
+.k-sec-r{display:flex;align-items:center;gap:8px;flex:none}
 /* 05 · Info row — lead · body · trailing slot (stop and event are the SAME row) */
 .k-row{display:flex;align-items:center;gap:16px;padding:15px 0;border-bottom:1px solid var(--line);width:100%;text-align:left;background:none;border-left:none;border-right:none;border-top:none;color:inherit}
 .k-rows>.k-row:last-child,.k-rows>*:last-child .k-row{border-bottom:0}
@@ -5837,6 +5883,35 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .menu .k-beat .rule,.paper .k-beat .rule{background:rgba(34,31,24,.16)}
 .menu .k-beat .g3,.paper .k-beat .g3{color:#221F18}
 .menu .k-beat .sig,.paper .k-beat .sig{color:rgba(34,31,24,.45)}
+/* 08 · Kit extensions (Wave 2, 2026-07-15) — the button/card audit found real gaps, not just
+   duplication: segmented toggles (~52 bespoke instances), icon-only circular buttons (~9), and a
+   dashed "add new" affordance (~17) had no kit equivalent, so every screen reinvented its own. */
+.k-seg{display:flex;gap:2px;padding:3px;background:rgba(245,241,232,.06);border:1px solid var(--line);border-radius:var(--r-m)}
+.k-seg-opt{flex:1;padding:8px 12px;background:none;border:none;border-radius:calc(var(--r-m) - 3px);cursor:pointer;font-family:'Inter';font-weight:600;font-size:12.5px;color:var(--cream-d);text-align:center;transition:background .15s,color .15s}
+.k-seg-opt.on{background:var(--gold2);color:#15120d}
+.k-icon-btn{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:var(--r-pill);background:rgba(245,241,232,.06);border:1px solid var(--line);color:var(--cream);cursor:pointer;flex:none}
+.k-icon-btn:active{background:rgba(245,241,232,.12)}
+.k-icon-btn.sm{width:30px;height:30px}
+.k-btn-dash{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:12px;border:1px dashed var(--line2);border-radius:var(--r-m);background:none;color:var(--cream-d);cursor:pointer;font-family:'Inter';font-weight:600;font-size:13px}
+.k-btn-dash:active{border-color:var(--gold2);color:var(--gold2)}
+/* 09 · Card primitives (Wave 2) — one base + a stripe accent (--k-stripe) + two semantic families.
+   The audit found ~238 bespoke box classes; ~90% collapse to these four shapes with different
+   numbers plugged in. Not a retrofit-everything mandate — new work should reach for these first. */
+.k-card{background:var(--card);border:1px solid var(--line);border-radius:var(--r-m);padding:16px}
+.k-card.stripe{border-left-width:3px;border-left-color:var(--k-stripe,var(--gold2))}
+.k-card-well{background:rgba(0,0,0,.24);border:1px solid var(--line);border-radius:var(--r-s);padding:12px}
+.k-card-alert{border-radius:var(--r-s);padding:12px 14px;font-size:13px;line-height:1.5;border:1px solid transparent}
+.k-card-alert.tone-red{background:var(--oa-red-tint);border-color:rgba(184,36,32,.3);color:var(--cream)}
+.k-card-alert.tone-gold{background:rgba(184,144,47,.12);border-color:rgba(184,144,47,.3);color:var(--cream)}
+.k-card-alert.tone-green{background:rgba(106,160,92,.14);border-color:rgba(106,160,92,.32);color:var(--cream)}
+/* 10 · Icon (Wave 2) — semantic line icons replacing emoji-as-icon; see components/Icon.tsx */
+.k-ic{display:inline-flex;align-items:center;justify-content:center;flex:none;width:1em;height:1em}
+.k-ic svg{width:100%;height:100%}
+.app.crew-day .k-icon-btn{background:var(--ink-onLight-05);border-color:var(--line)}
+.app.crew-day .k-card-well{background:var(--ink-onLight-05)}
+.app.crew-day .k-card-alert.tone-red{color:var(--red-onLight)}
+.app.crew-day .k-card-alert.tone-gold{color:var(--amber-onLight)}
+.app.crew-day .k-card-alert.tone-green{color:var(--green-onLight)}
 
 /* KIT retrofit · crew-only legacy header grammars → the Design System v1 section look.
    These classes render ONLY on crew/admin surfaces (verified: no customer-page usage), so

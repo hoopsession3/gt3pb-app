@@ -8,11 +8,16 @@ import { bottlesFor, brewStartOverdue } from "@/lib/brewMath";
 import AssignTaskSheet from "@/components/AssignTaskSheet";
 import Sheet from "@/components/Sheet";
 import ProgressRing from "@/components/ProgressRing";
+import { useAsyncData } from "@/lib/useAsyncData";
+import AsyncSection from "./AsyncSection";
+import { SectionHeader } from "@/components/kit";
+import Icon from "@/components/Icon";
 
 // BREW — recipes + a back-scheduled batch plan. Pick a recipe, set the batch size in GALLONS (the
 // recipe scales exactly to it and hits its OG/Signal-Score spec), tie it to the event it's for, and
 // the agent back-schedules the brew so it's ready in time. Batches land on the schedule; log the
-// Signal Score when it's done — same high standard. Lives as a Plan sub-tab.
+// Signal Score when it's done — same high standard. Lives as a Plan sub-tab. Fetch state via
+// useAsyncData — a failed load is a real error now, not a silent "No batches scheduled."
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 type Recipe = { id: string; name: string; style: string | null; ratio: string | null; target_spec: string | null; base_water_gal: number; extraction_hours: number; yield_factor: number | null; product_slug: string | null };
@@ -22,6 +27,7 @@ type Batch = { id: string; recipe_id: string | null; recipe_name: string | null;
 type InvItem = { name: string; qty: number | null; unit: string | null };
 type Ev = { id: string; title: string | null; day: string | null; day_label: string | null };
 type St = { id: string; name: string; starts_at: string | null };
+type BrewBoard = { recipes: Recipe[]; vessels: Vessel[]; batches: Batch[]; events: Ev[]; stops: St[]; inv: InvItem[]; demand: Record<string, Record<string, number>> };
 
 const STATUS: { key: string; label: string }[] = [
   { key: "planned", label: "Planned" }, { key: "brewing", label: "Brewing" }, { key: "ready", label: "Ready" },
@@ -68,11 +74,6 @@ const remain = (target: string | null, now: number) => {
 };
 
 export default function BrewPlanner() {
-  const [recipes, setRecipes] = useState<Recipe[]>([]);
-  const [vessels, setVessels] = useState<Vessel[]>([]);
-  const [batches, setBatches] = useState<Batch[]>([]);
-  const [events, setEvents] = useState<Ev[]>([]);
-  const [stops, setStops] = useState<St[]>([]);
   const [plan, setPlan] = useState<Recipe | null>(null);
   const [pack, setPack] = useState<Batch | null>(null);
   const [logBatch, setLogBatch] = useState<Batch | null>(null);
@@ -80,8 +81,44 @@ export default function BrewPlanner() {
   const [adjust, setAdjust] = useState<Batch | null>(null);
   const [view, setView] = useState<"schedule" | "log">("schedule");
   const [now, setNow] = useState(() => Date.now());
-  const [demand, setDemand] = useState<Record<string, Record<string, number>>>({}); // drop_date → flavor → bottles reserved
-  const [inv, setInv] = useState<InvItem[]>([]);
+
+  const loader = useCallback(async (): Promise<BrewBoard> => {
+    if (!supabase) return { recipes: [], vessels: [], batches: [], events: [], stops: [], inv: [], demand: {} };
+    const [r, b, e, v, st, ii] = await Promise.all([
+      supabase.from("brew_recipes").select("id, name, style, ratio, target_spec, base_water_gal, extraction_hours, yield_factor, product_slug").is("archived_at", null).order("sort"),
+      supabase.from("brew_batches").select("id, recipe_id, recipe_name, batch_gal, brew_date, ready_at, event_id, stop_id, status, og, signal_score, target_spec, extraction_hours, brew_started_at, vessel, coffee_lot, brewer, taste_notes, created_at, needed_by, latest_start_at, drop_date, hold_hours, scaled").order("created_at", { ascending: false }),
+      supabase.from("events").select("id, title, day, day_label").is("archived_at", null).order("day"),
+      supabase.from("brew_vessels").select("id, name, capacity_gal, filter_type").is("archived_at", null).order("sort"),
+      supabase.from("stops").select("id, name, starts_at").is("archived_at", null).order("starts_at", { ascending: true, nullsFirst: false }),
+      supabase.from("inventory_items").select("name, qty, unit"),
+    ]);
+    const firstErr = [r, b, e, v, st, ii].find((x) => x.error)?.error;
+    if (firstErr) throw new Error(firstErr.message);
+    const bb = (b.data as Batch[]) ?? [];
+    const inv = ((ii.data as InvItem[]) ?? []).filter((i) => i.name?.trim());
+    // Demand for the drops these batches feed — per drop_date + flavor, same math as DropOps.
+    const dates = [...new Set(bb.filter((x) => x.status !== "served" && x.status !== "dumped" && x.drop_date).map((x) => x.drop_date!))];
+    const demand: Record<string, Record<string, number>> = {};
+    if (dates.length) {
+      const { data: o, error: oErr } = await supabase.from("drop_orders").select("drop_date, mix, canceled_at").is("canceled_at", null).in("drop_date", dates);
+      if (oErr) throw new Error(oErr.message);
+      ((o as { drop_date: string; mix: Record<string, number> | null }[]) ?? []).forEach((row) => {
+        const d = (demand[row.drop_date] ??= { RISE: 0, FLOW: 0, DUSK: 0 });
+        FLAVORS.forEach((f) => { d[f] += row.mix?.[f] || 0; });
+      });
+    }
+    return { recipes: (r.data as Recipe[]) ?? [], vessels: (v.data as Vessel[]) ?? [], batches: bb, events: (e.data as Ev[]) ?? [], stops: (st.data as St[]) ?? [], inv, demand };
+  }, []);
+  const board = useAsyncData(loader, []);
+  const { reload } = board;
+
+  const recipes = board.data?.recipes ?? [];
+  const vessels = board.data?.vessels ?? [];
+  const batches = board.data?.batches ?? [];
+  const events = board.data?.events ?? [];
+  const stops = board.data?.stops ?? [];
+  const inv = board.data?.inv ?? [];
+  const demand = board.data?.demand ?? {};
 
   // Live clock — ticks while a brew countdown or serve-by window is on screen, so both stay current.
   const ticking = batches.some((b) => b.status === "brewing" || b.status === "ready" || b.status === "kegged");
@@ -91,38 +128,12 @@ export default function BrewPlanner() {
     return () => clearInterval(t);
   }, [ticking]);
 
-  const load = useCallback(async () => {
-    if (!supabase) return;
-    const [{ data: r }, { data: b }, { data: e }, { data: v }, { data: st }, { data: ii }] = await Promise.all([
-      supabase.from("brew_recipes").select("id, name, style, ratio, target_spec, base_water_gal, extraction_hours, yield_factor, product_slug").is("archived_at", null).order("sort"),
-      supabase.from("brew_batches").select("id, recipe_id, recipe_name, batch_gal, brew_date, ready_at, event_id, stop_id, status, og, signal_score, target_spec, extraction_hours, brew_started_at, vessel, coffee_lot, brewer, taste_notes, created_at, needed_by, latest_start_at, drop_date, hold_hours, scaled").order("created_at", { ascending: false }),
-      supabase.from("events").select("id, title, day, day_label").is("archived_at", null).order("day"),
-      supabase.from("brew_vessels").select("id, name, capacity_gal, filter_type").is("archived_at", null).order("sort"),
-      supabase.from("stops").select("id, name, starts_at").is("archived_at", null).order("starts_at", { ascending: true, nullsFirst: false }),
-      supabase.from("inventory_items").select("name, qty, unit"),
-    ]);
-    const bb = (b as Batch[]) ?? [];
-    setRecipes((r as Recipe[]) ?? []); setBatches(bb); setEvents((e as Ev[]) ?? []); setVessels((v as Vessel[]) ?? []); setStops((st as St[]) ?? []);
-    setInv(((ii as InvItem[]) ?? []).filter((i) => i.name?.trim()));
-    // Demand for the drops these batches feed — per drop_date + flavor, same math as DropOps.
-    const dates = [...new Set(bb.filter((x) => x.status !== "served" && x.status !== "dumped" && x.drop_date).map((x) => x.drop_date!))];
-    const per: Record<string, Record<string, number>> = {};
-    if (dates.length) {
-      const { data: o } = await supabase.from("drop_orders").select("drop_date, mix, canceled_at").is("canceled_at", null).in("drop_date", dates);
-      ((o as { drop_date: string; mix: Record<string, number> | null }[]) ?? []).forEach((row) => {
-        const d = (per[row.drop_date] ??= { RISE: 0, FLOW: 0, DUSK: 0 });
-        FLAVORS.forEach((f) => { d[f] += row.mix?.[f] || 0; });
-      });
-    }
-    setDemand(per);
-  }, []);
-  useEffect(() => { load(); }, [load]);
-
+  // Mutations reload() from the server rather than patching local state — the fetched board now lives
+  // inside useAsyncData, which has no setter of its own (by design: it's the one place status/error live).
   const setStatus = async (id: string, status: string) => {
     if (!supabase) return;
-    setBatches((p) => p.map((x) => x.id === id ? { ...x, status } : x));
     await supabase.from("brew_batches").update({ status }).eq("id", id);
-    if (status === "served" || status === "dumped") load();
+    reload();
   };
   // Start the brew NOW — stamp the start, set ready_at = now + extraction_hours, capture the coffee
   // lot + brewer for traceability, reset alert flags.
@@ -133,9 +144,9 @@ export default function BrewPlanner() {
     const readyIso = new Date(Date.now() + hrs * 3600000).toISOString();
     const lot = extras?.coffee_lot?.trim() || b.coffee_lot || null;
     const brewer = extras?.brewer?.trim() || b.brewer || null;
-    setBatches((p) => p.map((x) => x.id === b.id ? { ...x, status: "brewing", brew_started_at: startIso, ready_at: readyIso, coffee_lot: lot, brewer } : x));
     setNow(Date.now());
     await supabase.from("brew_batches").update({ status: "brewing", brew_started_at: startIso, ready_at: readyIso, coffee_lot: lot, brewer, alerted_soon: false, alerted_ready: false, alerted_started: false, alerted_overextract: false, alerted_hold_soon: false, alerted_hold_expired: false }).eq("id", b.id);
+    reload();
   };
   // BREW FLEXIBILITY — the real brew rarely starts exactly when you tap Start. Fix the actual start
   // time (ready recomputes from it), stop early to bottle now, or undo a start entirely. Maximum
@@ -145,20 +156,20 @@ export default function BrewPlanner() {
     const hrs = Number(b.extraction_hours) || 20;
     const startIso = new Date(startLocal).toISOString();
     const readyIso = new Date(new Date(startLocal).getTime() + hrs * 3600000).toISOString();
-    setBatches((p) => p.map((x) => x.id === b.id ? { ...x, brew_started_at: startIso, ready_at: readyIso } : x));
     setNow(Date.now());
     await supabase.from("brew_batches").update({ brew_started_at: startIso, ready_at: readyIso, alerted_soon: false, alerted_ready: false }).eq("id", b.id);
+    reload();
   };
   const stopBrew = async (b: Batch) => {
     if (!supabase) return;
     const nowIso = new Date().toISOString();
-    setBatches((p) => p.map((x) => x.id === b.id ? { ...x, status: "ready", ready_at: nowIso } : x));
     await supabase.from("brew_batches").update({ status: "ready", ready_at: nowIso, alerted_ready: true }).eq("id", b.id);
+    reload();
   };
   const undoStart = async (b: Batch) => {
     if (!supabase) return;
-    setBatches((p) => p.map((x) => x.id === b.id ? { ...x, status: "planned", brew_started_at: null, ready_at: null } : x));
     await supabase.from("brew_batches").update({ status: "planned", brew_started_at: null, ready_at: null, alerted_soon: false, alerted_ready: false, alerted_started: false }).eq("id", b.id);
+    reload();
   };
 
   // schedule view = what's upcoming / in progress; the log view = every batch ever, the permanent record
@@ -166,8 +177,11 @@ export default function BrewPlanner() {
     .sort((a, b) => (a.ready_at || "9999").localeCompare(b.ready_at || "9999"));
 
   return (
+    <AsyncSection state={board} isEmpty={() => false} errorTitle="Couldn't load brew" emptyTitle="Nothing here yet">
+      {() => (
     <div className="adm-sec">
-      <div className="sec">Brew <button className="adm-btn primary" style={{ marginLeft: "auto" }} onClick={() => setPlan(recipes[0] ?? null)} disabled={!recipes.length}>+ Plan a batch</button></div>
+      <SectionHeader label="Brew" />
+      <button className="adm-btn primary" style={{ marginLeft: "auto" }} onClick={() => setPlan(recipes[0] ?? null)} disabled={!recipes.length}>+ Plan a batch</button>
       <div className="pnl-note" style={{ marginBottom: 8 }}>Recipes scale exactly to the gallons of water you brew and hold the spec. Batches are back-scheduled from the event they&apos;re for, then logged to standard.</div>
 
       <div className="brew-toggle">
@@ -233,7 +247,7 @@ export default function BrewPlanner() {
                   <>
                     {b.latest_start_at && (() => {
                       const over = brewStartOverdue(b, now);
-                      return <div className={`brew-startby${over ? " over" : ""}`}>{over ? "🚨 Past the latest start to be ready in time — start now" : `⏰ Start by ${fmtTs(b.latest_start_at)} to be ready in time`}</div>;
+                      return <div className={`brew-startby${over ? " over" : ""}`}>{over ? "🚨 Past the latest start to be ready in time — start now" : <><Icon name="clock" /> Start by {fmtTs(b.latest_start_at)} to be ready in time</>}</div>;
                     })()}
                     <button type="button" className="brew-start" onClick={() => setStarting(b)}>▶ Start brew ({Number(b.extraction_hours) || 20}h)</button>
                   </>
@@ -250,7 +264,7 @@ export default function BrewPlanner() {
                         <span className="brew-ring-pct">{done ? "🍾" : `${Math.round(pct * 100)}%`}</span>
                       </ProgressRing>
                       <div className="brew-timer-txt">
-                        <b>{done ? "⏰ Time to bottle" : remain(b.ready_at, now)}</b>
+                        <b>{done ? <><Icon name="clock" /> Time to bottle</> : remain(b.ready_at, now)}</b>
                         <span>{done ? `${b.recipe_name || "Brew"} · ${b.batch_gal} gal — filter, finish, bottle` : `${b.batch_gal} gal brewing · ready ${fmtTs(b.ready_at)}${soon ? " · almost there" : ""}`}</span>
                       </div>
                     </div>
@@ -273,7 +287,7 @@ export default function BrewPlanner() {
                         </div>
                       );
                     })()}
-                    <button type="button" className="brew-pack-btn" onClick={() => setPack(b)}>📦 Plan the bottle loadout</button>
+                    <button type="button" className="brew-pack-btn" onClick={() => setPack(b)}><Icon name="package" /> Plan the bottle loadout</button>
                   </>
                 )}
               </div>
@@ -294,12 +308,14 @@ export default function BrewPlanner() {
       </div>
       </>)}
 
-      {plan && <BrewSheet recipe={plan} events={events} stops={stops} vessels={vessels} onClose={() => setPlan(null)} onDone={() => { setPlan(null); load(); }} />}
+      {plan && <BrewSheet recipe={plan} events={events} stops={stops} vessels={vessels} onClose={() => setPlan(null)} onDone={() => { setPlan(null); reload(); }} />}
       {pack && <BottleLoadout batch={pack} onClose={() => setPack(null)} />}
-      {logBatch && <BatchLog batch={logBatch} events={events} stops={stops} onClose={() => setLogBatch(null)} onSaved={() => { setLogBatch(null); load(); }} />}
+      {logBatch && <BatchLog batch={logBatch} events={events} stops={stops} onClose={() => setLogBatch(null)} onSaved={() => { setLogBatch(null); reload(); }} />}
       {starting && <StartBrewSheet batch={starting} onClose={() => setStarting(null)} onStart={async (extras) => { await startBrew(starting, extras); setStarting(null); }} />}
       {adjust && <BrewAdjust batch={adjust} onClose={() => setAdjust(null)} onSaveTime={saveBrewTime} onStop={stopBrew} onUndo={undoStart} />}
     </div>
+      )}
+    </AsyncSection>
   );
 }
 
@@ -311,7 +327,7 @@ function StartBrewSheet({ batch, onClose, onStart }: { batch: Batch; onClose: ()
   const [busy, setBusy] = useState(false);
   const hrs = Number(batch.extraction_hours) || 20;
   return (
-    <Sheet open onClose={onClose} label="Start brew" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Start brew · {batch.recipe_name}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
+    <Sheet open onClose={onClose} label="Start brew" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Start brew · {batch.recipe_name}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} title="Close"><Icon name="close" /></button></div>}>
           <div className="brew-spec">{batch.batch_gal} gal{batch.vessel ? ` · ${batch.vessel}` : ""} · {hrs}h cold extraction → ready ~{new Date(Date.now() + hrs * 3600000).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}</div>
           <label className="prod-f"><span>Coffee lot — origin · roast date (for traceability)</span><input value={lot} onChange={(e) => setLot(e.target.value)} placeholder="e.g. Colombia single-origin · roasted 6/20" autoFocus /></label>
           <label className="prod-f" style={{ marginTop: 8 }}><span>Brewer</span><input value={brewer} onChange={(e) => setBrewer(e.target.value)} placeholder="Ryan / Kayla" /></label>
@@ -340,7 +356,7 @@ function BrewAdjust({ batch, onClose, onSaveTime, onStop, onUndo }: { batch: Bat
   const readyPreview = start ? new Date(new Date(start).getTime() + hrs * 3600000) : null;
   const run = async (fn: () => Promise<void>) => { setBusy(true); await fn(); onClose(); };
   return (
-    <Sheet open onClose={onClose} label="Adjust brew" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Adjust brew · {batch.recipe_name}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
+    <Sheet open onClose={onClose} label="Adjust brew" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Adjust brew · {batch.recipe_name}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} title="Close"><Icon name="close" /></button></div>}>
           <label className="prod-f"><span>When it actually started brewing</span><input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} /></label>
           {readyPreview && <div className="brew-spec">Ready ~{readyPreview.toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })} · {hrs}h extraction</div>}
           <div className="prod-actions" style={{ marginTop: 12 }}>
@@ -385,7 +401,7 @@ function BatchLog({ batch, events, stops, onClose, onSaved }: { batch: Batch; ev
     setBusy(false); onSaved();
   };
   return (
-    <Sheet open onClose={onClose} label="Batch log" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Batch log · {batch.recipe_name}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
+    <Sheet open onClose={onClose} label="Batch log" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Batch log · {batch.recipe_name}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} title="Close"><Icon name="close" /></button></div>}>
           <div className="brew-spec">{batch.batch_gal} gal{batch.vessel ? ` · ${batch.vessel}` : ""}{batch.target_spec ? ` · ${batch.target_spec}` : ""}<br />Brewed {fmtTs(batch.brew_started_at)} → ready {fmtTs(batch.ready_at)}</div>
           <div className="prod-grid">
             <label className="prod-f"><span>Status</span>
@@ -401,8 +417,8 @@ function BatchLog({ batch, events, stops, onClose, onSaved }: { batch: Batch; ev
           <label className="prod-f" style={{ marginTop: 10 }}><span>Taste / cupping notes</span><textarea className="note-in" rows={3} value={f.taste_notes ?? ""} onChange={(e) => set("taste_notes", e.target.value)} placeholder="Aroma, body, balance, anything off…" /></label>
           <div className="prod-f" style={{ marginTop: 10 }}><span>Serving which events / stops? (first drives the schedule)</span>
             <div className="ts-chips" style={{ marginTop: 4 }}>
-              {events.map((ev2) => { const k = `e:${ev2.id}`; const on = targets.includes(k); return <button key={ev2.id} type="button" className={`ts-chip${on ? " on" : ""}`} onClick={() => setTargets((p) => on ? p.filter((x) => x !== k) : [...p, k])}>{on ? "✓ " : ""}🎪 {ev2.title || ev2.day_label}</button>; })}
-              {stops.map((s) => { const k = `s:${s.id}`; const on = targets.includes(k); return <button key={s.id} type="button" className={`ts-chip${on ? " on" : ""}`} onClick={() => setTargets((p) => on ? p.filter((x) => x !== k) : [...p, k])}>{on ? "✓ " : ""}🚚 {s.name}</button>; })}
+              {events.map((ev2) => { const k = `e:${ev2.id}`; const on = targets.includes(k); return <button key={ev2.id} type="button" className={`ts-chip${on ? " on" : ""}`} onClick={() => setTargets((p) => on ? p.filter((x) => x !== k) : [...p, k])}>{on && <><Icon name="check" /> </>}<Icon name="event" /> {ev2.title || ev2.day_label}</button>; })}
+              {stops.map((s) => { const k = `s:${s.id}`; const on = targets.includes(k); return <button key={s.id} type="button" className={`ts-chip${on ? " on" : ""}`} onClick={() => setTargets((p) => on ? p.filter((x) => x !== k) : [...p, k])}>{on && <><Icon name="check" /> </>}<Icon name="truck" /> {s.name}</button>; })}
               {events.length === 0 && stops.length === 0 && <span className="dp-hint">No events or stops yet.</span>}
             </div>
           </div>
@@ -469,7 +485,7 @@ function BottleLoadout({ batch, onClose }: { batch: Batch; onClose: () => void }
 
   return (
     <>
-    <Sheet open onClose={onClose} label="Bottle loadout" header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow">📦 Bottle loadout · pack &amp; transport</div><div className="dp-title">{batch.recipe_name || "Batch"} · {batch.batch_gal} gal</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
+    <Sheet open onClose={onClose} label="Bottle loadout" header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow"><Icon name="package" /> Bottle loadout · pack &amp; transport</div><div className="dp-title">{batch.recipe_name || "Batch"} · {batch.batch_gal} gal</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} title="Close"><Icon name="close" /></button></div>}>
           {!res ? (
             <>
               <div className="dp-hint">Split the {batch.batch_gal} gal between keg and bottles — I&apos;ll work out the counts, UVDTF labels, and the pack plan.</div>
@@ -484,7 +500,7 @@ function BottleLoadout({ batch, onClose }: { batch: Batch; onClose: () => void }
               {err && <div className="dp-err">{err}</div>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={onClose} disabled={busy}>Cancel</button>
-                <button type="button" className="note-save" onClick={planIt} disabled={busy}>{busy ? "Planning…" : "📦 Plan the pack"}</button>
+                <button type="button" className="note-save" onClick={planIt} disabled={busy}>{busy ? "Planning…" : <><Icon name="package" /> Plan the pack</>}</button>
               </div>
             </>
           ) : (
@@ -495,9 +511,9 @@ function BottleLoadout({ batch, onClose }: { batch: Batch; onClose: () => void }
               )}
               {res.ice && <div className="brew-when">❄️ {res.ice}</div>}
               {res.layout?.length > 0 && (<><div className="brew-block-h">How to pack a cooler</div><ol className="ts-steps">{res.layout.map((s: string, i: number) => <li key={i}>{s}</li>)}</ol></>)}
-              {res.vehicle && <div className="brew-when">🚗 {res.vehicle}</div>}
+              {res.vehicle && <div className="brew-when"><Icon name="compass" /> {res.vehicle}</div>}
               {res.checklist?.length > 0 && (<><div className="brew-block-h">Before you pull off</div><ul className="brew-checks">{res.checklist.map((s: string, i: number) => <li key={i}>{s}</li>)}</ul></>)}
-              <button type="button" className="brew-pack-btn" style={{ marginTop: 12 }} onClick={() => setAssignTask(true)}>📋 Assign this pack-out as a task →</button>
+              <button type="button" className="brew-pack-btn" style={{ marginTop: 12 }} onClick={() => setAssignTask(true)}>📋 Assign this pack-out as a task <Icon name="arrowRight" /></button>
               <div className="prod-actions" style={{ marginTop: 12 }}>
                 <button type="button" className="note-arch" onClick={() => setRes(null)}>‹ Change</button>
                 <button type="button" className="note-save" onClick={onClose}>Done</button>
@@ -565,10 +581,10 @@ function BrewSheet({ recipe, events, stops, vessels, onClose, onDone }: { recipe
   };
 
   return (
-    <Sheet open onClose={onClose} label="Scale a brew" header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow">🍺 Brew · exact scale to spec</div><div className="dp-title">{recipe.name}</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
+    <Sheet open onClose={onClose} label="Scale a brew" header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow">🍺 Brew · exact scale to spec</div><div className="dp-title">{recipe.name}</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} title="Close"><Icon name="close" /></button></div>}>
           {saved ? (
             <div className="eg-done">
-              <div className="eg-done-h">✓ Batch added to the brew schedule</div>
+              <div className="eg-done-h"><Icon name="check" /> Batch added to the brew schedule</div>
               <div className="dp-hint" style={{ marginTop: 8 }}>Find it under Brew — advance its status as you go and log the Signal Score when it&apos;s ready.</div>
               <div className="prod-actions" style={{ marginTop: 12 }}><span /><button type="button" className="note-save" onClick={onDone}>Done</button></div>
             </div>
@@ -579,7 +595,7 @@ function BrewSheet({ recipe, events, stops, vessels, onClose, onDone }: { recipe
                 <>
                   <div className="ts-chips" style={{ marginTop: 12 }}>
                     {vessels.map((v) => (
-                      <button key={v.id} type="button" className={`ts-chip${vesselId === v.id && !override ? " on" : ""}`} onClick={() => pickVessel(v.id)}>🫙 {v.name} · {v.capacity_gal} gal</button>
+                      <button key={v.id} type="button" className={`ts-chip${vesselId === v.id && !override ? " on" : ""}`} onClick={() => pickVessel(v.id)}><Icon name="jar" /> {v.name} · {v.capacity_gal} gal</button>
                     ))}
                   </div>
                   <div className="dp-daysctl" style={{ padding: "8px 0 0" }}>
@@ -595,8 +611,8 @@ function BrewSheet({ recipe, events, stops, vessels, onClose, onDone }: { recipe
               </div>
               <div className="prod-f" style={{ marginTop: 8 }}><span>Serving which events / stops? (optional · pick any — first one drives the back-schedule)</span>
                 <div className="ts-chips" style={{ marginTop: 4 }}>
-                  {events.map((ev) => { const k = `e:${ev.id}`; const on = targets.includes(k); return <button key={ev.id} type="button" className={`ts-chip${on ? " on" : ""}`} onClick={() => setTargets((p) => on ? p.filter((x) => x !== k) : [...p, k])}>{on ? "✓ " : ""}🎪 {ev.title || ev.day_label}</button>; })}
-                  {stops.map((s) => { const k = `s:${s.id}`; const on = targets.includes(k); return <button key={s.id} type="button" className={`ts-chip${on ? " on" : ""}`} onClick={() => setTargets((p) => on ? p.filter((x) => x !== k) : [...p, k])}>{on ? "✓ " : ""}🚚 {s.name}</button>; })}
+                  {events.map((ev) => { const k = `e:${ev.id}`; const on = targets.includes(k); return <button key={ev.id} type="button" className={`ts-chip${on ? " on" : ""}`} onClick={() => setTargets((p) => on ? p.filter((x) => x !== k) : [...p, k])}>{on && <><Icon name="check" /> </>}<Icon name="event" /> {ev.title || ev.day_label}</button>; })}
+                  {stops.map((s) => { const k = `s:${s.id}`; const on = targets.includes(k); return <button key={s.id} type="button" className={`ts-chip${on ? " on" : ""}`} onClick={() => setTargets((p) => on ? p.filter((x) => x !== k) : [...p, k])}>{on && <><Icon name="check" /> </>}<Icon name="truck" /> {s.name}</button>; })}
                   {events.length === 0 && stops.length === 0 && <span className="dp-hint">No events or stops yet.</span>}
                 </div>
               </div>

@@ -4,31 +4,39 @@ import { useCallback, useEffect, useState } from "react";
 import { useApp } from "./AppProvider";
 import { isBlank } from "@/lib/formGuard";
 import { supabase } from "@/lib/supabase";
+import { SectionHeader } from "@/components/kit";
+import { useAsyncData } from "@/lib/useAsyncData";
+import AsyncSection from "./AsyncSection";
 
 // MENU / PRODUCT manager — the catalog as a managed, relational record. Edit every attribute
 // (name, line, price, description, ingredients), set the recipe (which inventory items a serving
-// consumes), and toggle active. Price here is what the app charges — card AND cash.
+// consumes), and toggle active. Price here is what the app charges — card AND cash. Fetch state via
+// useAsyncData — a failed load is a real error now, not a silent "No products yet."
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 type Product = { id: string; slug: string; name: string; line: string | null; price_cents: number; active: boolean; sold_out: boolean; sold_out_at: string | null; sort: number; what: string | null; why: string | null; ingredients: string[]; excludes: string[]; timing: string | null; square_item_id: string | null; bulk_orderable?: boolean; bulk_tier?: string | null };
 type Inv = { id: string; name: string; unit: string | null };
 type Comp = { id: string; inventory_item_id: string; qty_per_serving: number | null; unit: string | null };
+type Board = { products: Product[]; inv: Inv[] };
 
 export default function MenuManager() {
   const { toast } = useApp();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [inv, setInv] = useState<Inv[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    if (!supabase) return;
+  const loader = useCallback(async (): Promise<Board> => {
+    if (!supabase) return { products: [], inv: [] };
     const [p, i] = await Promise.all([
       supabase.from("products").select("*").order("sort"),
       supabase.from("inventory_items").select("id, name, unit").order("name"),
     ]);
-    setProducts((p.data as Product[]) ?? []); setInv((i.data as Inv[]) ?? []);
+    if (p.error) throw new Error(p.error.message);
+    if (i.error) throw new Error(i.error.message);
+    return { products: (p.data as Product[]) ?? [], inv: (i.data as Inv[]) ?? [] };
   }, []);
-  useEffect(() => { load(); }, [load]);
+  const board = useAsyncData(loader, []);
+  const { reload } = board;
+  const products = board.data?.products ?? [];
+  const inv = board.data?.inv ?? [];
 
   const create = async () => {
     if (!supabase) return;
@@ -36,19 +44,22 @@ export default function MenuManager() {
     // New products start as an OFF-menu draft with a blank name — they can't be charged from until
     // they're named, priced (> $0) and switched on, so a stray "+ New" click can't put junk on the live menu.
     const { data } = await supabase.from("products").insert({ slug, name: "", line: "Activation", price_cents: 0, active: false, sort: (products.at(-1)?.sort ?? 0) + 1 }).select("id").single();
-    if (data?.id) { await load(); setOpenId(data.id); }
+    if (data?.id) { await reload(); setOpenId(data.id); }
   };
 
   return (
-    <div className="adm-sec">
-      <div className="studio-top">
-        <div className="sec" style={{ margin: 0 }}>Menu &amp; products</div>
-        <button type="button" className="rdy-run" onClick={create}>+ New item</button>
-      </div>
-      <div className="h-sub">The catalog the app charges from — card &amp; cash. Edit every attribute, set each drink&apos;s recipe (the inventory a serving uses), toggle what&apos;s on the menu.</div>
-      {products.map((p) => <ProductRow key={p.id} p={p} inv={inv} open={openId === p.id} onToggle={() => setOpenId(openId === p.id ? null : p.id)} onSaved={load} toast={toast} />)}
-      {products.length === 0 && <div className="h-sub" style={{ marginTop: 14 }}>No products yet — run migration 0062, or add one.</div>}
-    </div>
+    <AsyncSection state={board} isEmpty={(data) => data.products.length === 0} emptyTitle="No products yet" emptySub="Run migration 0062, or add one." errorTitle="Couldn't load the menu">
+      {() => (
+        <div className="adm-sec">
+          <div className="studio-top">
+            <SectionHeader label="Menu & products" />
+            <button type="button" className="rdy-run" onClick={create}>+ New item</button>
+          </div>
+          <div className="h-sub">The catalog the app charges from — card &amp; cash. Edit every attribute, set each drink&apos;s recipe (the inventory a serving uses), toggle what&apos;s on the menu.</div>
+          {products.map((p) => <ProductRow key={p.id} p={p} inv={inv} open={openId === p.id} onToggle={() => setOpenId(openId === p.id ? null : p.id)} onSaved={reload} toast={toast} />)}
+        </div>
+      )}
+    </AsyncSection>
   );
 }
 

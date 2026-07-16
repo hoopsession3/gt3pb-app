@@ -1,8 +1,9 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase, supabaseEnabled } from "@/lib/supabase";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 
 export interface Profile {
   id: string;
@@ -241,6 +242,19 @@ function PasswordRecovery({ updatePassword, onCancel }: { updatePassword: AuthCt
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [done, setDone] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const restoreRef = useRef<HTMLElement | null>(null);
+  useFocusTrap(true, panelRef);
+  // useFocusTrap's own restore fires on open→false, but this component is always "open" while
+  // mounted (it's unmounted wholesale instead) — so restore that contract locally: capture on
+  // mount, fire it from whichever exit path (Escape/Cancel/Continue) actually gets used.
+  useEffect(() => { restoreRef.current = (document.activeElement as HTMLElement) ?? null; }, []);
+  const close = useCallback(() => { restoreRef.current?.focus?.(); onCancel(); }, [onCancel]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [close]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -253,14 +267,14 @@ function PasswordRecovery({ updatePassword, onCancel }: { updatePassword: AuthCt
   };
 
   return (
-    <div className="qd-scrim" style={{ zIndex: 200 }} role="dialog" aria-modal="true" aria-label="Set a new password">
+    <div className="qd-scrim" style={{ zIndex: 200 }} ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Set a new password">
       <div className="qd-sheet" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
         <div className="qd-body" style={{ padding: 22 }}>
           {done ? (
             <>
               <h1 className="auth-headline" style={{ marginTop: 0 }}>Password updated.</h1>
               <p className="auth-sub">You&apos;re all set — you&apos;re signed in with your new password.</p>
-              <button className="handle" onClick={onCancel} style={{ marginTop: 18 }}><span>Continue</span></button>
+              <button className="handle" onClick={close} style={{ marginTop: 18 }}><span>Continue</span></button>
             </>
           ) : (
             <form className="auth-form" onSubmit={submit}>
@@ -275,7 +289,7 @@ function PasswordRecovery({ updatePassword, onCancel }: { updatePassword: AuthCt
               <input id="rec-confirm" className="auth-input" type={show ? "text" : "password"} autoComplete="new-password" placeholder="Repeat password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
               {err && <div className="auth-err">{err}</div>}
               <button className="handle" type="submit" disabled={busy} style={{ marginTop: 18 }}><span>{busy ? "Saving…" : "Save new password"}</span></button>
-              <button type="button" className="auth-link" onClick={onCancel} style={{ marginTop: 10 }}>Cancel</button>
+              <button type="button" className="auth-link" onClick={close} style={{ marginTop: 10 }}>Cancel</button>
             </form>
           )}
         </div>

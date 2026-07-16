@@ -7,11 +7,18 @@ import { useAuth, roleOf } from "@/components/AuthProvider";
 import { useApp } from "@/components/AppProvider";
 import Sheet from "@/components/Sheet";
 import { updateTask, deleteTask, type TaskSource } from "@/lib/tasks";
+import { useAsyncData } from "@/lib/useAsyncData";
+import AsyncSection from "./AsyncSection";
 
 // TASKSHEET — the ONE task-detail sheet, opened from any task chip anywhere via useTaskSheet().
 // It reads the row from the all_tasks spine (0225) — so it doesn't care whether the task is an
 // event_task or a todo — and writes back through lib/tasks' source-routed adapter. Every surface's
 // job shrinks to: render a chip → openTask(id, source). See the design brief for the full rationale.
+// Fetch state via useAsyncData. This used to conflate two very different things into one "missing"
+// flag: a genuinely gone/no-access row (maybeSingle() resolves with no data, no error) and an actual
+// fetch failure (network drop, RLS error surfaced as a query error) — both showed the exact same
+// "This task was removed or you no longer have access." Now a real fetch error is a real error state,
+// distinct from the empty-but-successful "not there" case.
 
 // The all_tasks columns TaskSheet renders (a subset of the 0225 view).
 type AllTask = {
@@ -24,6 +31,8 @@ type AllTask = {
 };
 type Init = { id: string; title: string; emoji: string | null };
 type Crew = { id: string; display_name: string | null; role: string };
+type Prep = { section: string | null; kind: string | null; target_qty: number | null };
+type Board = { t: AllTask | null; prep: Prep | null };
 
 const OP_ICON: Record<string, string> = { event: "📅", stop: "📍", brew: "⚗️" };
 
@@ -48,27 +57,36 @@ function TaskSheet({ id, source, onClose }: { id: string; source: TaskSource; on
   const { toast } = useApp();
   const router = useRouter();
   const [t, setT] = useState<AllTask | null>(null);
-  const [missing, setMissing] = useState(false);
   const [crew, setCrew] = useState<Crew[]>([]);
   const [inits, setInits] = useState<Init[]>([]);
   const [editing, setEditing] = useState(false);
-  const [prep, setPrep] = useState<{ section: string | null; kind: string | null; target_qty: number | null } | null>(null);
+  const [prep, setPrep] = useState<Prep | null>(null);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const isAdmin = ["admin", "owner"].includes(roleOf(profile));
 
-  const load = useCallback(async () => {
-    if (!supabase) return;
-    const { data } = await supabase.from("all_tasks").select("*").eq("id", id).eq("source", source).maybeSingle();
-    if (!data) { setMissing(true); return; }
-    setT(data as AllTask);
+  const loader = useCallback(async (): Promise<Board> => {
+    if (!supabase) return { t: null, prep: null };
+    const { data, error } = await supabase.from("all_tasks").select("*").eq("id", id).eq("source", source).maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) return { t: null, prep: null }; // genuinely gone, or no RLS access — not a fetch failure
+    let prepRow: Prep | null = null;
     if (source === "event") {
-      const { data: e } = await supabase.from("event_tasks").select("section, kind, target_qty").eq("id", id).maybeSingle();
-      if (e) setPrep(e as { section: string | null; kind: string | null; target_qty: number | null });
+      const { data: e, error: e2 } = await supabase.from("event_tasks").select("section, kind, target_qty").eq("id", id).maybeSingle();
+      if (e2) throw new Error(e2.message);
+      prepRow = (e as Prep) ?? null;
     }
+    return { t: data as AllTask, prep: prepRow };
   }, [id, source]);
+  const board = useAsyncData(loader, [id, source]);
+  const { reload } = board;
 
-  useEffect(() => { load(); }, [load]);
+  // Mirror the fetched row into local state — write() below applies optimistic patches to it and
+  // reverts on failure, which needs a real settable copy, not just the board's read-only snapshot.
+  useEffect(() => {
+    if (board.data) { setT(board.data.t); setPrep(board.data.prep); }
+  }, [board.data]);
+
   useEffect(() => {
     if (!supabase) return;
     supabase.from("profiles").select("id, display_name, role").neq("role", "member").order("display_name")
@@ -84,10 +102,10 @@ function TaskSheet({ id, source, onClose }: { id: string; source: TaskSource; on
   useEffect(() => {
     if (!supabase) return;
     const ch = supabase.channel(`task-${source}-${id}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: source === "event" ? "event_tasks" : "todos", filter: `id=eq.${id}` }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: source === "event" ? "event_tasks" : "todos", filter: `id=eq.${id}` }, () => reload())
       .subscribe();
     return () => { try { void Promise.resolve(supabase?.removeChannel(ch)).catch(() => {}); } catch { /* */ } };
-  }, [id, source, load]);
+  }, [id, source, reload]);
 
   const nameOf = (uid: string | null) => (uid ? crew.find((c) => c.id === uid)?.display_name || "Assigned" : "Unassigned");
   const dueLocal = useMemo(() => {
@@ -134,122 +152,120 @@ function TaskSheet({ id, source, onClose }: { id: string; source: TaskSource; on
   const header = (
     <div className="tsheet-h">
       {t?.critical && <span className="tsheet-flame" title="Critical">🔥</span>}
-      <b id="tasksheet-title">{t?.title || (missing ? "Task removed" : "…")}</b>
+      <b id="tasksheet-title">{t?.title || (board.status === "ready" && !board.data?.t ? "Task removed" : board.status === "error" ? "Couldn't load" : "…")}</b>
     </div>
   );
 
   return (
     <Sheet open onClose={onClose} labelledBy="tasksheet-title" header={header} className="tsheet">
-      {missing ? (
-        <p className="tsheet-empty">This task was removed or you no longer have access.</p>
-      ) : !t ? (
-        <p className="tsheet-empty">Loading…</p>
-      ) : (
-        <div className="tsheet-body">
-          {/* context — what this task is FOR (from the spine's joins) */}
-          {(t.op_name || t.goal_title || t.meeting_note_title || t.initiative_title) && (
-            <div className="tsheet-ctx">
-              {t.initiative_title && <span>{t.initiative_emoji || "🎯"} {t.initiative_title}</span>}
-              {t.op_name && <span>{OP_ICON[t.op_kind ?? ""] ?? "•"} {t.op_name}{t.op_is_live ? " · 🔴 live" : ""}</span>}
-              {t.goal_title && <button type="button" className="tsheet-ctx-link" onClick={() => { onClose(); router.push("/crew?section=goals"); }}>↳ {t.goal_title}</button>}
-              {t.meeting_note_title && <span>📝 {t.meeting_note_title}</span>}
-            </div>
-          )}
-
-          {/* edit title */}
-          {editing ? (
-            <div className="tsheet-edit">
-              <input autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => e.key === "Enter" && saveTitle()} className="auth-input" />
-              <button type="button" className="note-save" onClick={saveTitle} disabled={busy}>Save</button>
-            </div>
-          ) : (
-            <button type="button" className="tsheet-editlink" onClick={() => { setDraft(t.title ?? ""); setEditing(true); }}>Edit title</button>
-          )}
-
-          {/* when */}
-          <label className="tsheet-field">
-            <span className="tsheet-k">When</span>
-            <input
-              type={source === "event" ? "datetime-local" : "date"}
-              className="auth-input"
-              value={source === "event"
-                ? (t.due_at ? (() => { const d = new Date(t.due_at); const p2 = (n: number) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}`; })() : "")
-                : (t.due ?? "")}
-              onChange={(e) => reschedule(e.target.value)}
-            />
-          </label>
-          {dueLocal && <div className={`tsheet-due${t.warn ? " warn" : ""}`}>Due {dueLocal}</div>}
-
-          {/* who */}
-          <label className="tsheet-field">
-            <span className="tsheet-k">Owner</span>
-            <select className="auth-input" value={t.assignee ?? ""} onChange={(e) => reassign(e.target.value)}>
-              <option value="">Unassigned</option>
-              {crew.map((c) => <option key={c.id} value={c.id}>{c.display_name || c.role} · {c.role.replace("_", " ")}</option>)}
-            </select>
-          </label>
-
-          {/* initiative — the program this task rolls up to (0201/0237) */}
-          <label className="tsheet-field">
-            <span className="tsheet-k">Initiative</span>
-            <select className="auth-input" value={t.initiative_id ?? ""} onChange={(e) => setInitiative(e.target.value)}>
-              <option value="">No initiative</option>
-              {inits.map((i) => <option key={i.id} value={i.id}>{i.emoji ? `${i.emoji} ` : ""}{i.title}</option>)}
-              {t.initiative_id && !inits.some((i) => i.id === t.initiative_id) && (
-                <option value={t.initiative_id}>{t.initiative_emoji ? `${t.initiative_emoji} ` : ""}{t.initiative_title ?? "Current"}</option>
-              )}
-            </select>
-          </label>
-
-          {/* prep details — event tasks only (section / type / priority / plan-qty), same
-              adapter (lib/tasks), so the prep hub's old TaskEditSheet is fully replaced */}
-          {source === "event" && prep && (
-            <>
-              <div className="tsheet-prep-grid">
-                <label className="tsheet-field"><span className="tsheet-k">Section</span>
-                  <input className="auth-input" value={prep.section ?? ""} maxLength={60} placeholder="Task"
-                    onChange={(e) => setPrep({ ...prep, section: e.target.value })}
-                    onBlur={() => write({ section: prep.section }, {})} />
-                </label>
-                <label className="tsheet-field"><span className="tsheet-k">Type</span>
-                  <select className="auth-input" value={prep.kind === "pack" ? "pack" : "task"}
-                    onChange={(e) => { const k = e.target.value === "pack" ? "pack" as const : "task" as const; setPrep({ ...prep, kind: k }); write({ kind: k }, {}); }}>
-                    <option value="task">To-do</option><option value="pack">Pack / supply</option>
-                  </select>
-                </label>
+      <AsyncSection state={board} isEmpty={(data) => data.t === null} emptyTitle="This task was removed or you no longer have access" errorTitle="Couldn't load this task">
+        {() => t && (
+          <div className="tsheet-body">
+            {/* context — what this task is FOR (from the spine's joins) */}
+            {(t.op_name || t.goal_title || t.meeting_note_title || t.initiative_title) && (
+              <div className="tsheet-ctx">
+                {t.initiative_title && <span>{t.initiative_emoji || "🎯"} {t.initiative_title}</span>}
+                {t.op_name && <span>{OP_ICON[t.op_kind ?? ""] ?? "•"} {t.op_name}{t.op_is_live ? " · 🔴 live" : ""}</span>}
+                {t.goal_title && <button type="button" className="tsheet-ctx-link" onClick={() => { onClose(); router.push("/crew?section=goals"); }}>↳ {t.goal_title}</button>}
+                {t.meeting_note_title && <span>📝 {t.meeting_note_title}</span>}
               </div>
-              <div className="tsheet-prep-grid">
-                <label className="tsheet-field"><span className="tsheet-k">Priority</span>
-                  <select className="auth-input" value={t.critical ? "critical" : t.warn ? "important" : "normal"}
-                    onChange={(e) => { const v = e.target.value; write({ critical: v === "critical", warn: v === "important" }, { critical: v === "critical", warn: v === "important" }); }}>
-                    <option value="normal">Normal</option><option value="important">Important</option><option value="critical">Critical</option>
-                  </select>
-                </label>
-                <label className="tsheet-field"><span className="tsheet-k">Plan qty</span>
-                  <input type="number" min={0} className="auth-input" value={prep.target_qty ?? ""} placeholder="blank = plain to-do"
-                    onChange={(e) => setPrep({ ...prep, target_qty: e.target.value === "" ? null : Number(e.target.value) })}
-                    onBlur={() => write({ targetQty: prep.target_qty }, {})} />
-                </label>
+            )}
+
+            {/* edit title */}
+            {editing ? (
+              <div className="tsheet-edit">
+                <input autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => e.key === "Enter" && saveTitle()} className="auth-input" />
+                <button type="button" className="note-save" onClick={saveTitle} disabled={busy}>Save</button>
               </div>
-            </>
-          )}
+            ) : (
+              <button type="button" className="tsheet-editlink" onClick={() => { setDraft(t.title ?? ""); setEditing(true); }}>Edit title</button>
+            )}
 
-          {/* meta */}
-          <div className="tsheet-meta">
-            {t.category && <span>{t.category}</span>}
-            {t.done && t.done_at && <span>✓ done {new Date(t.done_at).toLocaleDateString()}</span>}
-            <span>owner: {nameOf(t.assignee)}</span>
-          </div>
+            {/* when */}
+            <label className="tsheet-field">
+              <span className="tsheet-k">When</span>
+              <input
+                type={source === "event" ? "datetime-local" : "date"}
+                className="auth-input"
+                value={source === "event"
+                  ? (t.due_at ? (() => { const d = new Date(t.due_at); const p2 = (n: number) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}`; })() : "")
+                  : (t.due ?? "")}
+                onChange={(e) => reschedule(e.target.value)}
+              />
+            </label>
+            {dueLocal && <div className={`tsheet-due${t.warn ? " warn" : ""}`}>Due {dueLocal}</div>}
 
-          {/* actions */}
-          <div className="tsheet-actions">
-            <button type="button" className={`tsheet-done${t.done ? " on" : ""}`} onClick={toggleDone} disabled={busy}>
-              {t.done ? "↩ Reopen" : "✓ Mark done"}
-            </button>
-            {isAdmin && <button type="button" className="tsheet-del" onClick={remove} disabled={busy}>Delete</button>}
+            {/* who */}
+            <label className="tsheet-field">
+              <span className="tsheet-k">Owner</span>
+              <select className="auth-input" value={t.assignee ?? ""} onChange={(e) => reassign(e.target.value)}>
+                <option value="">Unassigned</option>
+                {crew.map((c) => <option key={c.id} value={c.id}>{c.display_name || c.role} · {c.role.replace("_", " ")}</option>)}
+              </select>
+            </label>
+
+            {/* initiative — the program this task rolls up to (0201/0237) */}
+            <label className="tsheet-field">
+              <span className="tsheet-k">Initiative</span>
+              <select className="auth-input" value={t.initiative_id ?? ""} onChange={(e) => setInitiative(e.target.value)}>
+                <option value="">No initiative</option>
+                {inits.map((i) => <option key={i.id} value={i.id}>{i.emoji ? `${i.emoji} ` : ""}{i.title}</option>)}
+                {t.initiative_id && !inits.some((i) => i.id === t.initiative_id) && (
+                  <option value={t.initiative_id}>{t.initiative_emoji ? `${t.initiative_emoji} ` : ""}{t.initiative_title ?? "Current"}</option>
+                )}
+              </select>
+            </label>
+
+            {/* prep details — event tasks only (section / type / priority / plan-qty), same
+                adapter (lib/tasks), so the prep hub's old TaskEditSheet is fully replaced */}
+            {source === "event" && prep && (
+              <>
+                <div className="tsheet-prep-grid">
+                  <label className="tsheet-field"><span className="tsheet-k">Section</span>
+                    <input className="auth-input" value={prep.section ?? ""} maxLength={60} placeholder="Task"
+                      onChange={(e) => setPrep({ ...prep, section: e.target.value })}
+                      onBlur={() => write({ section: prep.section }, {})} />
+                  </label>
+                  <label className="tsheet-field"><span className="tsheet-k">Type</span>
+                    <select className="auth-input" value={prep.kind === "pack" ? "pack" : "task"}
+                      onChange={(e) => { const k = e.target.value === "pack" ? "pack" as const : "task" as const; setPrep({ ...prep, kind: k }); write({ kind: k }, {}); }}>
+                      <option value="task">To-do</option><option value="pack">Pack / supply</option>
+                    </select>
+                  </label>
+                </div>
+                <div className="tsheet-prep-grid">
+                  <label className="tsheet-field"><span className="tsheet-k">Priority</span>
+                    <select className="auth-input" value={t.critical ? "critical" : t.warn ? "important" : "normal"}
+                      onChange={(e) => { const v = e.target.value; write({ critical: v === "critical", warn: v === "important" }, { critical: v === "critical", warn: v === "important" }); }}>
+                      <option value="normal">Normal</option><option value="important">Important</option><option value="critical">Critical</option>
+                    </select>
+                  </label>
+                  <label className="tsheet-field"><span className="tsheet-k">Plan qty</span>
+                    <input type="number" min={0} className="auth-input" value={prep.target_qty ?? ""} placeholder="blank = plain to-do"
+                      onChange={(e) => setPrep({ ...prep, target_qty: e.target.value === "" ? null : Number(e.target.value) })}
+                      onBlur={() => write({ targetQty: prep.target_qty }, {})} />
+                  </label>
+                </div>
+              </>
+            )}
+
+            {/* meta */}
+            <div className="tsheet-meta">
+              {t.category && <span>{t.category}</span>}
+              {t.done && t.done_at && <span>✓ done {new Date(t.done_at).toLocaleDateString()}</span>}
+              <span>owner: {nameOf(t.assignee)}</span>
+            </div>
+
+            {/* actions */}
+            <div className="tsheet-actions">
+              <button type="button" className={`tsheet-done${t.done ? " on" : ""}`} onClick={toggleDone} disabled={busy}>
+                {t.done ? "↩ Reopen" : "✓ Mark done"}
+              </button>
+              {isAdmin && <button type="button" className="tsheet-del" onClick={remove} disabled={busy}>Delete</button>}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </AsyncSection>
     </Sheet>
   );
 }

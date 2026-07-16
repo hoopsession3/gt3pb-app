@@ -6,12 +6,17 @@ import { useRealtimeTable } from "@/lib/realtime";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { raiseAlertClient } from "@/lib/clientAlerts";
+import { useAsyncData } from "@/lib/useAsyncData";
+import AsyncSection from "./AsyncSection";
 
 // PROPOSAL DESK (0180) — the reach-out strategy as a working, co-authored document that moves through
 // a real lifecycle. Any staffer edits the strategy; anyone advances it draft -> in_review -> sent ->
 // negotiating; only the owner (admin) records the decision (won/lost). Every move is logged to an
 // append-only trail, so the owner sees the whole path to the sales-engineer decision. Lives inside
 // the opportunity, beside the discussion thread — the thread is the talk, this is the artifact.
+// Fetch state via useAsyncData — a failed load now shows a real error, distinct from "no proposal
+// started yet." Before, a fetch error and an unstarted proposal both left `prop` null, so a failed
+// load quietly invited "Start the proposal" — which, on top of an EXISTING proposal, risks stomping it.
 
 type Status = "draft" | "in_review" | "sent" | "negotiating" | "won" | "lost";
 type Proposal = {
@@ -20,6 +25,8 @@ type Proposal = {
   updated_by: string | null; updated_at: string; created_by: string | null;
 };
 type Ev = { id: string; from_status: string | null; to_status: string; note: string | null; actor_id: string | null; at: string };
+type Staff = { id: string; display_name: string | null; role: string | null };
+type Board = { prop: Proposal | null; events: Ev[]; staff: Staff[] };
 
 const LINEAR: Status[] = ["draft", "in_review", "sent", "negotiating"];
 const LABEL: Record<Status, string> = { draft: "Draft", in_review: "In review", sent: "Sent", negotiating: "Negotiating", won: "Won", lost: "Lost" };
@@ -29,33 +36,46 @@ const when = (s: string) => new Date(s).toLocaleString(undefined, { month: "shor
 export default function ProposalDesk({ oppId, vendorName, isAdmin }: { oppId: string; vendorName: string | null; isAdmin: boolean }) {
   const { toast } = useApp();
   const { user, profile } = useAuth();
-  const [prop, setProp] = useState<Proposal | null>(null);
-  const [events, setEvents] = useState<Ev[]>([]);
-  const [staff, setStaff] = useState<{ id: string; display_name: string | null; role: string | null }[]>([]);
   const [strategy, setStrategy] = useState("");
   const [dirty, setDirty] = useState(false);
   const [decisionNote, setDecisionNote] = useState("");
   const [trailOpen, setTrailOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => {
-    if (!supabase) return;
-    const { data } = await supabase.from("proposals")
-      .select("id, opportunity_id, strategy, status, decision_note, decided_by, decided_at, updated_by, updated_at, created_by")
-      .eq("opportunity_id", oppId).maybeSingle();
-    const p = (data as Proposal | null) ?? null;
-    setProp(p);
-    setStrategy((cur) => (dirty ? cur : (p?.strategy ?? "")));   // don't clobber an in-flight edit
-    if (p) {
-      const { data: ev } = await supabase.from("proposal_events")
-        .select("id, from_status, to_status, note, actor_id, at").eq("proposal_id", p.id).order("at", { ascending: false });
-      setEvents((ev as Ev[]) ?? []);
-    } else setEvents([]);
-  }, [oppId, dirty]);
+  const loader = useCallback(async (): Promise<Board> => {
+    if (!supabase) return { prop: null, events: [], staff: [] };
+    const [p, s] = await Promise.all([
+      supabase.from("proposals")
+        .select("id, opportunity_id, strategy, status, decision_note, decided_by, decided_at, updated_by, updated_at, created_by")
+        .eq("opportunity_id", oppId).maybeSingle(),
+      supabase.from("profiles").select("id, display_name, role").neq("role", "member"),
+    ]);
+    if (p.error) throw new Error(p.error.message);
+    if (s.error) throw new Error(s.error.message);
+    const prop = (p.data as Proposal | null) ?? null;
+    let events: Ev[] = [];
+    if (prop) {
+      const { data: ev, error: evErr } = await supabase.from("proposal_events")
+        .select("id, from_status, to_status, note, actor_id, at").eq("proposal_id", prop.id).order("at", { ascending: false });
+      if (evErr) throw new Error(evErr.message);
+      events = (ev as Ev[]) ?? [];
+    }
+    return { prop, events, staff: (s.data as Staff[]) ?? [] };
+  }, [oppId]);
+  const board = useAsyncData(loader, [oppId]);
+  const { reload } = board;
+  useRealtimeTable({ table: "proposals", filter: `opportunity_id=eq.${oppId}` }, reload);
+  useRealtimeTable("proposal_events", reload);
+  const prop = board.data?.prop ?? null;
+  const events = board.data?.events ?? [];
+  const staff = board.data?.staff ?? [];
 
-  useEffect(() => { load(); if (supabase) supabase.from("profiles").select("id, display_name, role").neq("role", "member").then(({ data }) => setStaff((data as typeof staff) ?? [])); }, [load]);
-  useRealtimeTable({ table: "proposals", filter: `opportunity_id=eq.${oppId}` }, load);
-  useRealtimeTable("proposal_events", load);
+  // Don't clobber an in-flight edit — sync the textarea from the fetched value only when nothing's
+  // unsaved. Runs whenever a (re)load lands a new `prop` (mount, reload(), or realtime-triggered reload).
+  useEffect(() => {
+    if (dirty) return;
+    setStrategy(prop?.strategy ?? "");
+  }, [prop, dirty]);
 
   const nameOf = (uid: string | null) => (uid === user?.id ? "You" : (staff.find((s) => s.id === uid)?.display_name?.trim().split(" ")[0] || "Crew"));
   const status = prop?.status ?? null;
@@ -74,7 +94,7 @@ export default function ProposalDesk({ oppId, vendorName, isAdmin }: { oppId: st
     const { error } = await supabase.from("proposals").upsert(row, { onConflict: "opportunity_id" });
     setBusy(false); setDirty(false);
     if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
-    load();
+    reload();
   };
 
   const advance = async (to: Status, note?: string) => {
@@ -93,7 +113,7 @@ export default function ProposalDesk({ oppId, vendorName, isAdmin }: { oppId: st
       .forEach((s) => raiseAlertClient({ severity: "important", category: "strategy", kind: "thread_reply", subjectId: oppId, title: `Proposal ready for review — ${label}`, body: `${meFirst} sent the ${label} proposal for your review.`, link: "/crew?s=pipeline", targetUserId: s.id }));
     if (to === "won" || to === "lost") staff.filter((s) => s.id !== user?.id)
       .forEach((s) => raiseAlertClient({ severity: to === "won" ? "important" : "fyi", category: "strategy", kind: "thread_reply", subjectId: oppId, title: `Proposal ${to.toUpperCase()} — ${label}`, body: `${meFirst} recorded the decision on ${label}: ${to}.${note ? ` "${note.slice(0, 100)}"` : ""}`, link: "/crew?s=pipeline", targetUserId: s.id }));
-    load();
+    reload();
   };
 
   const stepPill = (s: Status) => {
@@ -105,6 +125,8 @@ export default function ProposalDesk({ oppId, vendorName, isAdmin }: { oppId: st
   const editedLine = useMemo(() => prop ? `Edited by ${nameOf(prop.updated_by)} · ${when(prop.updated_at)}` : "", [prop, staff, user]);
 
   return (
+    <AsyncSection state={board} isEmpty={() => false} errorTitle="Couldn't load the proposal" emptyTitle="Nothing here yet">
+      {() => (
     <div className="pd">
       <div className="pd-head">
         <span className="pd-title">Proposal &amp; reach-out strategy</span>
@@ -172,5 +194,7 @@ export default function ProposalDesk({ oppId, vendorName, isAdmin }: { oppId: st
         </div>
       )}
     </div>
+      )}
+    </AsyncSection>
   );
 }

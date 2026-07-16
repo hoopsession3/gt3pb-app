@@ -36,11 +36,14 @@ export function Masthead({ eyebrow, live = false, right, tone = "dark" }: { eyeb
   );
 }
 
-export function SectionHeader({ label, annotation }: { label: string; annotation?: string }) {
+export function SectionHeader({ label, annotation, right }: { label: string; annotation?: string; right?: ReactNode }) {
   return (
     <div className="k-sec">
-      <span className="l">{label}</span>
-      {annotation && <span className="a">{annotation}</span>}
+      <span className="k-sec-lbl">
+        <span className="l">{label}</span>
+        {annotation && <span className="a">{annotation}</span>}
+      </span>
+      {right && <span className="k-sec-r">{right}</span>}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { uploadToBucket } from "@/lib/uploads";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
+import { SectionHeader } from "@/components/kit";
 
 // TRAIN THE AI (Team → Train the AI, owner/crew) — the correction loop for the freeform agents.
 // The owner writes the truth once (with an optional photo of the recipe card / receipt as proof),
@@ -102,7 +103,8 @@ export default function AiTraining() {
 
   return (
     <div className="adm-sec" id="ai-training">
-      <div className="sec">Train the AI {shown.length > 0 && <span className="adm-pill">{shown.filter((r) => r.active).length} live</span>}</div>
+      <SectionHeader label="Train the AI" />
+      {shown.length > 0 && <span className="adm-pill">{shown.filter((r) => r.active).length} live</span>}
       <p className="h-sub" style={{ marginBottom: 12 }}>
         Correct a wrong answer once and it sticks. What you write here overrides the agent&rsquo;s built-in knowledge — it can&rsquo;t contradict you.
       </p>

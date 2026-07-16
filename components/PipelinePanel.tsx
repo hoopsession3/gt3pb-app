@@ -12,6 +12,8 @@ import VendorResolve from "./VendorResolve";
 import { StrategyThread } from "./StrategyCollab";
 import ProposalDesk from "./ProposalDesk";
 import CountUp from "./CountUp";
+import { useAsyncData } from "@/lib/useAsyncData";
+import AsyncSection from "./AsyncSection";
 
 // PIPELINE — the sales funnel (0165). Vendor (the account) × deal (from the owner's catalog,
 // gated per vendor type) × rep × stage. The owner articulates what's on the table in the Deal
@@ -89,6 +91,7 @@ type Opp = {
   deals: { title: string; line?: string | null } | null;
 };
 type Staff = { id: string; display_name: string | null };
+type Board = { opps: Opp[]; deals: Deal[]; vendors: Vendor[]; staff: Staff[] };
 
 const money = (c: number | null) => (c == null ? "" : `$${(c / 100).toLocaleString()}`);
 
@@ -129,11 +132,6 @@ function DealRoi({ model, rate, econ, vol, setVol }: { model: string; rate: numb
 export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   const { toast } = useApp();
   const { user, profile } = useAuth();
-  const [opps, setOpps] = useState<Opp[]>([]);
-  const [deals, setDeals] = useState<Deal[]>([]);
-  const [vendors, setVendors] = useState<Vendor[]>([]);
-  const [staff, setStaff] = useState<Staff[]>([]);
-  const [loaded, setLoaded] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);   // expanded opportunity
   const [oppNotes, setOppNotes] = useState<{ id: string; title: string; met_on: string; visibility?: string }[]>([]);
   useEffect(() => {
@@ -157,21 +155,31 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   const [editId, setEditId] = useState<string | null>(null);    // deal being edited in the catalog
   const [ed, setEd] = useState({ title: "", vendor_type: "gym", price_label: "", blurb: "", model: "rev_share", rate: "", amount: "", line: "wholesale" });
 
-  const load = useCallback(async () => {
-    if (!supabase) return;
+  const loader = useCallback(async (): Promise<Board> => {
+    if (!supabase) return { opps: [], deals: [], vendors: [], staff: [] };
     const [o, d, v, st] = await Promise.all([
       supabase.from("opportunities").select("id, vendor_id, deal_id, rep_id, stage, value_cents, next_step, next_step_at, lost_reason, created_at, vendors(name, vendor_type), deals(title, line)").order("created_at", { ascending: false }),
       supabase.from("deals").select("id, title, blurb, vendor_type, price_label, active, sort, model, rate_pct, monthly_cents, line").order("sort").order("created_at"),
       supabase.from("vendors").select("id, name, vendor_type, archived_at").is("archived_at", null).order("name"),
       supabase.from("profiles").select("id, display_name").neq("role", "member").order("display_name"),
     ]);
-    if (o.data) setOpps(o.data as unknown as Opp[]);
-    if (d.data) setDeals(d.data as Deal[]);
-    if (v.data) setVendors(v.data as Vendor[]);
-    if (st.data) setStaff(st.data as Staff[]);
-    setLoaded(true);
+    if (o.error) throw new Error(o.error.message);
+    if (d.error) throw new Error(d.error.message);
+    if (v.error) throw new Error(v.error.message);
+    if (st.error) throw new Error(st.error.message);
+    return {
+      opps: (o.data as unknown as Opp[]) ?? [],
+      deals: (d.data as Deal[]) ?? [],
+      vendors: (v.data as Vendor[]) ?? [],
+      staff: (st.data as Staff[]) ?? [],
+    };
   }, []);
-  useEffect(() => { load(); }, [load]);
+  const board = useAsyncData(loader, []);
+  const { reload } = board;
+  const opps = board.data?.opps ?? [];
+  const deals = board.data?.deals ?? [];
+  const vendors = board.data?.vendors ?? [];
+  const staff = board.data?.staff ?? [];
   useEffect(() => {
     if (!supabase) return;
     supabase.from("product_economics").select("price_cents, unit_cost_cents, active").then(({ data }) => {
@@ -182,7 +190,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
       setEcon({ marginPct, costed: rows.length });
     });
   }, []);
-  useRealtimeTable(["opportunities", "deals", "vendors"], load);
+  useRealtimeTable(["opportunities", "deals", "vendors"], reload);
 
   const firstName = (uid: string | null) => (staff.find((s) => s.id === uid)?.display_name || "").trim().split(/\s+/)[0] || null;
   // Milestones write into the opportunity's thread (comments + strategy_key — dated, attributed),
@@ -207,9 +215,9 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   useEffect(() => { loadActivity(); }, [loadActivity]);
   const patch = async (id: string, p: Record<string, unknown>) => {
     if (!supabase) return;
-    setOpps((prev) => prev.map((o) => (o.id === id ? { ...o, ...p } as Opp : o)));
     const { error } = await supabase.from("opportunities").update({ ...p, updated_at: new Date().toISOString() }).eq("id", id);
-    if (error) { toast(`Couldn't save — ${error.message}`, "error"); load(); }
+    if (error) toast(`Couldn't save — ${error.message}`, "error");
+    reload();
   };
 
   const setStage = async (o: Opp, stage: Stage) => {
@@ -260,7 +268,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
       raiseAlertClient({ severity: "important", category: "booking", title: `Pipeline: ${vn} is yours`.slice(0, 140), body: "New opportunity — make first contact.", link: "/crew?s=pipeline", targetUserId: no.repId });
     }
     setAdding(false); setNo({ vendorId: "", newVendor: "", newType: "gym", dealId: "", repId: "", value: "", nextStep: "" });
-    toast("On the board"); load();
+    toast("On the board"); reload();
   };
 
   const addDeal = async () => {
@@ -280,14 +288,13 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
       else if (res == null && rate > MARGIN_FLOOR_GIVE) toast(`Heads up — that gives away ${rate}%, past the 80% margin floor`, "error");
     }
     setNd({ title: "", vendor_type: "gym", price_label: "", blurb: "", model: "rev_share", rate: "", amount: "", line: "wholesale" });
-    toast("Deal's on the table"); load();
+    toast("Deal's on the table"); reload();
   };
   const toggleDeal = async (d: Deal) => {
     if (!supabase) return;
-    setDeals((prev) => prev.map((x) => (x.id === d.id ? { ...x, active: !d.active } : x)));
     const { error } = await supabase.from("deals").update({ active: !d.active, updated_at: new Date().toISOString() }).eq("id", d.id);
     if (error) toast(`Couldn't save — ${error.message}`, "error");
-    load();
+    reload();
   };
 
   const openEditDeal = (d: Deal) => {
@@ -310,27 +317,25 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
       monthly_cents: (ed.model === "monthly" || ed.model === "flat") ? amount : null,
       price_label: ed.price_label.trim() || null, blurb: ed.blurb.trim() || null,
     };
-    setDeals((prev) => prev.map((x) => (x.id === editId ? { ...x, ...fields } : x)));
     const { error } = await supabase.from("deals").update({ ...fields, updated_at: new Date().toISOString() }).eq("id", editId);
-    if (error) { toast(`Couldn't save — ${error.message}`, "error"); load(); return; }
+    if (error) { toast(`Couldn't save — ${error.message}`, "error"); reload(); return; }
     if (fields.rate_pct != null) {
       const res = econ ? residualMargin({ model: fields.model, rate_pct: fields.rate_pct } as Deal, econ) : null;
       if (res != null && res < RESIDUAL_MARGIN_FLOOR) toast(`Heads up — that leaves ≈${res}% gross margin, below the ${RESIDUAL_MARGIN_FLOOR}% floor`, "error");
       else if (res == null && fields.rate_pct > MARGIN_FLOOR_GIVE) toast(`Heads up — that gives away ${fields.rate_pct}%, past the 80% margin floor`, "error");
     }
     setEditId(null);
-    toast("Deal updated"); load();
+    toast("Deal updated"); reload();
   };
 
   const deleteDeal = async (d: Deal) => {
     if (!supabase) return;
     if (typeof window !== "undefined" && !window.confirm("Remove this deal from the table? Opportunities that used it keep their record.")) return;
     if (editId === d.id) setEditId(null);
-    setDeals((prev) => prev.filter((x) => x.id !== d.id));
     const { error } = await supabase.from("deals").delete().eq("id", d.id);
     if (error) toast(`Couldn't remove — ${error.message}`, "error");
     else toast("Off the table");
-    load();
+    reload();
   };
 
   // Swap sort with the neighbor inside the same vendor-type group. If the two sorts happen to
@@ -344,22 +349,13 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
     const other = group[j];
     const mySort = d.sort === other.sort ? j : other.sort;
     const theirSort = d.sort === other.sort ? i : d.sort;
-    setDeals((prev) => {
-      const next = [...prev];
-      const pi = next.findIndex((x) => x.id === d.id);
-      const pj = next.findIndex((x) => x.id === other.id);
-      if (pi < 0 || pj < 0) return prev;
-      next[pi] = { ...other, sort: theirSort };
-      next[pj] = { ...d, sort: mySort };
-      return next;
-    });
     const stamp = new Date().toISOString();
     const [a, b] = await Promise.all([
       supabase.from("deals").update({ sort: mySort, updated_at: stamp }).eq("id", d.id),
       supabase.from("deals").update({ sort: theirSort, updated_at: stamp }).eq("id", other.id),
     ]);
     if (a.error || b.error) toast(`Couldn't reorder — ${(a.error ?? b.error)!.message}`, "error");
-    load();
+    reload();
   };
 
   const newVendorType = no.vendorId ? (vendors.find((v) => v.id === no.vendorId)?.vendor_type ?? null) : no.newType;
@@ -557,21 +553,24 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
         );
       })()}
 
-      {!loaded && <div className="dops-empty">Loading the board…</div>}
-      {loaded && opps.length === 0 && <div className="h-sub">Nothing in the pipeline yet — add the first account below.</div>}
-
-      {STAGES.map((s) => {
-        const rows = opps
-          .filter((o) => o.stage === s.key && (lineFilter === "all" || o.deals?.line === lineFilter) && (!mineOnly || o.rep_id === user?.id))
-          .sort((a, b) => (a.next_step_at ?? "9999").localeCompare(b.next_step_at ?? "9999"));
-        if (rows.length === 0) return null;
-        return (
-          <div key={s.key} className="pipe-stage">
-            <div className="dops-up-h">{s.label} · {rows.length}</div>
-            {rows.map(card)}
-          </div>
-        );
-      })}
+      <AsyncSection state={board} isEmpty={(data) => data.opps.length === 0} emptyTitle="Nothing in the pipeline yet" emptySub="Add the first account below." errorTitle="Couldn't load the pipeline" loadingLabel="Loading the board…">
+        {() => (
+          <>
+            {STAGES.map((s) => {
+              const rows = opps
+                .filter((o) => o.stage === s.key && (lineFilter === "all" || o.deals?.line === lineFilter) && (!mineOnly || o.rep_id === user?.id))
+                .sort((a, b) => (a.next_step_at ?? "9999").localeCompare(b.next_step_at ?? "9999"));
+              if (rows.length === 0) return null;
+              return (
+                <div key={s.key} className="pipe-stage">
+                  <div className="dops-up-h">{s.label} · {rows.length}</div>
+                  {rows.map(card)}
+                </div>
+              );
+            })}
+          </>
+        )}
+      </AsyncSection>
 
       {adding ? (
         <div className="goal-new">

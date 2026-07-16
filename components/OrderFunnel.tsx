@@ -12,6 +12,7 @@ import MyPacks, { packMix, packDayLabel, type MyPack } from "./MyPacks";
 import OfficeOrder from "./OfficeOrder";
 import { trackFunnel } from "@/lib/funnel";
 import Sheet from "./Sheet";
+import Icon from "@/components/Icon";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { squareClientReady } from "@/lib/square";
@@ -375,7 +376,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
         <b>🏪 Pickup</b><span>Grab it at a truck stop</span>
       </button>
       <button type="button" role="tab" aria-selected={mode === "delivery"} className={mode === "delivery" ? "on" : ""} onClick={() => switchMode("delivery")}>
-        <b>🚚 Delivery</b><span>Prepaid, to your door</span>
+        <b><Icon name="truck" /> Delivery</b><span>Prepaid, to your door</span>
       </button>
     </div>
   );
@@ -395,7 +396,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
             <button type="button" className="oa-usual" onClick={reorderUsual}>
               <span className="oa-usual-k">↺ Your usual</span>
               <span className="oa-usual-v">{usual.size} bottles · {usual.glass === "return" ? "bring-back" : "new glass"}</span>
-              <span className="oa-usual-go">Load →</span>
+              <span className="oa-usual-go">Load <Icon name="arrowRight" /></span>
             </button>
           )}
           <MyPacks onChange={startChange} refreshKey={packsKey} collapsible />
@@ -432,7 +433,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
           {audience === "office" ? (
             <div className="aud-office">
               <p className="dl-sub">Fresh cold-extract for the whole team — <b>amber gallon jugs</b>, delivered <b>Monday 5–8&nbsp;AM</b>, empties swapped for full each week. 3-gallon minimum.</p>
-              <button type="button" className="handle" onClick={() => setOfficeOpen(true)}><span>Set up office delivery →</span></button>
+              <button type="button" className="handle" onClick={() => setOfficeOpen(true)}><span>Set up office delivery <Icon name="arrowRight" /></span></button>
               {officeOpen && <OfficeOrder onClose={() => setOfficeOpen(false)} />}
             </div>
           ) : (<>
@@ -444,13 +445,13 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
           {zone === "out" && (
             <div className="dl-out">
               <p className="dl-sub"><b>Not in our delivery zone yet.</b> Drop your email — or grab it at a truck stop instead.</p>
-              {wlSent ? <p className="dl-sub ok">✓ You&rsquo;re on the list.</p> : (
+              {wlSent ? <p className="dl-sub ok"><Icon name="check" /> You&rsquo;re on the list.</p> : (
                 <div className="dl-ziprow">
                   <input className="auth-input" type="email" placeholder="you@email.com" value={wlEmail} onChange={(e) => setWlEmail(e.target.value)} aria-label="Email" />
                   <button type="button" className="handle" onClick={joinWaitlist}><span>Notify me</span></button>
                 </div>
               )}
-              <button type="button" className="oa-cta ghost" onClick={() => switchMode("pickup")}>Switch to pickup →</button>
+              <button type="button" className="oa-cta ghost" onClick={() => switchMode("pickup")}>Switch to pickup <Icon name="arrowRight" /></button>
             </div>
           )}
           </>)}
@@ -507,7 +508,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
             ? <p className="dl-note">Delivery {dollars(DELIVERY_PRICING.feeCents)} flat — free at {DELIVERY_PRICING.feeWaivedAt}+ bottles.</p>
             : <div className="dl-note" dangerouslySetInnerHTML={{ __html: count ? `≈ <b>${PACK_HINT[count]}</b>` : "" }} />}
           {count != null && (
-            <button type="button" className="oa-cta" disabled={!count} onClick={() => setStep("build")}>Build your pack →</button>
+            <button type="button" className="oa-cta" disabled={!count} onClick={() => setStep("build")}>Build your pack <Icon name="arrowRight" /></button>
           )}
         </div>
       )}
@@ -543,7 +544,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
             </div>
           )}
           <button type="button" className="oa-cta" disabled={picked !== count} onClick={() => setStep("glass")}>
-            {picked === count ? "Your bottles →" : `Pick ${count - picked} more`}
+            {picked === count ? <>Your bottles <Icon name="arrowRight" /></> : `Pick ${count - picked} more`}
           </button>
         </div>
       )}
@@ -606,19 +607,19 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
             </>
           )}
           <button type="button" className="oa-cta" disabled={!glassReady} onClick={() => setStep("details")}>
-            {mode === "delivery" ? "Delivery details →" : "Who's it for? →"}
+            {mode === "delivery" ? <>Delivery details <Icon name="arrowRight" /></> : <>Who's it for? <Icon name="arrowRight" /></>}
           </button>
         </div>
       )}
 
       {/* ── DETAILS ── */}
       {dupRows && (
-        <Sheet open onClose={() => setDupRows(null)} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Already on the books</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setDupRows(null)} aria-label="Close">✕</button></div>}>
+        <Sheet open onClose={() => setDupRows(null)} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Already on the books</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setDupRows(null)} aria-label="Close"><Icon name="close" /></button></div>}>
           <p className="dl-sub" style={{ marginTop: 0 }}>You already have {dupRows.length === 1 ? "an order" : `${dupRows.length} orders`} for <b>{mode === "delivery" ? (slot?.deliveryLabel ?? "that day") : dayName(drop.sat)}</b>:</p>
           <div className="dup-list">
-            {dupRows.map((r, i) => <div key={i} className="dup-row">{r.kind === "pickup" ? "🛎" : "🚚"} {r.label}</div>)}
+            {dupRows.map((r, i) => <div key={i} className="dup-row">{r.kind === "pickup" ? "🛎" : <Icon name="truck" />} {r.label}</div>)}
           </div>
-          <button type="button" className="oa-cta" onClick={() => { setDupOk(targetDayKey()); setDupRows(null); setStep("pay"); }}>Yes — add this order too →</button>
+          <button type="button" className="oa-cta" onClick={() => { setDupOk(targetDayKey()); setDupRows(null); setStep("pay"); }}>Yes — add this order too <Icon name="arrowRight" /></button>
           <button type="button" className="dup-nvm" onClick={() => setDupRows(null)}>Never mind — keep what I have</button>
           <p className="pnl-note" style={{ marginTop: 10 }}>Tip: your packs for one day roll up together under “Your packs” — you can also change a pack instead of adding one.</p>
         </Sheet>
@@ -642,7 +643,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
                 <input className="auth-input dl-zip" value={zip} readOnly aria-label="ZIP (from your zone check)" />
               </div>
               <input className="auth-input" placeholder="Gate code / access notes (optional)" value={access} onChange={(e) => setAccess(e.target.value)} maxLength={200} aria-label="Access instructions" />
-              <button type="button" className="oa-cta" disabled={!name.trim() || !phone.trim() || !street.trim() || !city.trim()} onClick={toPayment}>Payment →</button>
+              <button type="button" className="oa-cta" disabled={!name.trim() || !phone.trim() || !street.trim() || !city.trim()} onClick={toPayment}>Payment <Icon name="arrowRight" /></button>
             </>
           ) : (
             <>
@@ -653,7 +654,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
                 <span>pickup {dayName(drop.sat)}{stop?.name ? ` · ${stop.name}` : ""}</span>
                 <span className="dl-quote-t">total <b>{dollars(pickupTotalCents)}</b></span>
               </div>
-              <button type="button" className="oa-cta" disabled={!name.trim() || !phone.trim()} onClick={toPayment}>Payment →</button>
+              <button type="button" className="oa-cta" disabled={!name.trim() || !phone.trim()} onClick={toPayment}>Payment <Icon name="arrowRight" /></button>
             </>
           )}
         </div>
@@ -676,7 +677,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
                 <div className="oa-code-ok">
                   <span className="oa-code-tag">{codeClean}</span>
                   <span className="oa-code-lbl">{codeDiscountCents > 0 ? `${dollars(codeDiscountCents)} off applied` : codeBenefit.label}</span>
-                  <button type="button" className="oa-code-x" onClick={clearCode} aria-label="Remove code">✕</button>
+                  <button type="button" className="oa-code-x" onClick={clearCode} aria-label="Remove code"><Icon name="close" /></button>
                 </div>
               ) : (
                 <div className="oa-code-in">

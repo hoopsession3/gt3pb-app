@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 
 // MARKETING SPLASH — the sales word-art the app opens to for guests. Fixed premium copy ("Own your
 // week."), so it ships with NO database dependency and shows the moment we deploy. Once per app
@@ -41,6 +42,8 @@ export default function MarketingSplash() {
   const [dissolving, setDissolving] = useState(false); // false only under reduced motion (static splash)
   const [fast, setFast] = useState(false);             // a tap → quick dissolve instead of the slow read
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const scrimRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(show, scrimRef);
 
   useEffect(() => {
     // Once per session — but the flag is written only when the splash ACTUALLY shows (below), never
@@ -115,7 +118,7 @@ export default function MarketingSplash() {
 
   if (!show) return null;
   return (
-    <div className={`spl-scrim${dissolving ? " spl-smoke" : ""}${fast ? " spl-fast" : ""}`} role="dialog" aria-modal="true" aria-label="A note from GT3" onClick={bypass}>
+    <div className={`spl-scrim${dissolving ? " spl-smoke" : ""}${fast ? " spl-fast" : ""}`} ref={scrimRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="A note from GT3" onClick={bypass}>
       <button type="button" className="spl-skip" onClick={(e) => { e.stopPropagation(); close(); }}>Skip ›</button>
 
       {/* Smoke haze — drifting plumes that bloom, then gather toward center where the 3 forms. */}

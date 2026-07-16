@@ -129,7 +129,7 @@ export default function GearLibrary() {
   return (
     <div className="adm-sec gl">
       <button className="gl-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        <span className="sec">Gear &amp; manuals · {items.length}</span>
+        <SectionHeader label="Gear & manuals" annotation={`${items.length} item${items.length === 1 ? "" : "s"}`} />
         <span className={`ev-chev${open ? " open" : ""}`} aria-hidden="true">›</span>
       </button>
       {open && (

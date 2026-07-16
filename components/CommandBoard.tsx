@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { useRealtimeTable } from "@/lib/realtime";
+import { useAsyncData } from "@/lib/useAsyncData";
+import AsyncSection from "./AsyncSection";
 import MoneyKpis from "./MoneyKpis";
 import LaunchReadiness from "./LaunchReadiness";
 import { useTaskSheet } from "./TaskSheet";
@@ -16,12 +18,18 @@ import Sheet from "@/components/Sheet";
 // COMMAND BOARD — the shared war room both founders see: the launch initiatives with a countdown and
 // milestone progress, then This Week · Blockers · Done · Money in one glance. This is the digital twin
 // of the physical magnetic board — one screen that answers "are we on track?" instead of a text thread.
-// Reads across BOTH task engines (todos + event_tasks) + incidents + initiatives; every query is
-// defensive (fails to empty). Admins (the owners) manage initiatives + milestones.
+// Reads across BOTH task engines (todos + event_tasks) + incidents + initiatives via useAsyncData — a
+// failed query now surfaces as a real error state (AsyncSection) instead of silently rendering "Nothing
+// blocked 🟢" on a request that actually errored. Admins (the owners) manage initiatives + milestones.
 type Initiative = { id: string; title: string; summary: string | null; target_date: string | null; status: string; emoji: string | null };
 type Milestone = { id: string; initiative_id: string; title: string; due_on: string | null; done: boolean; workstream: string | null; sort: number };
 type Work = { id: string; title: string; due: string | null; src: "todo" | "task" };
 type Incident = { id: string; problem: string; severity: string; created_at: string };
+type BoardData = {
+  inits: Initiative[]; miles: Milestone[]; links: { initiative_id: string; milestone_id: string }[];
+  week: Work[]; incidents: Incident[]; overdue: Work[]; done: Work[];
+};
+const EMPTY_BOARD: BoardData = { inits: [], miles: [], links: [], week: [], incidents: [], overdue: [], done: [] };
 
 const todayKey = () => new Date().toISOString().slice(0, 10);
 const weekAheadKey = () => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().slice(0, 10); };
@@ -37,46 +45,42 @@ export default function CommandBoard() {
   const { toast } = useApp();
   const { user, profile } = useAuth();
   const isAdmin = !!profile?.is_admin;
-  const [inits, setInits] = useState<Initiative[]>([]);
-  const [miles, setMiles] = useState<Milestone[]>([]);
-  const [week, setWeek] = useState<Work[]>([]);
-  const [incidents, setIncidents] = useState<Incident[]>([]);
-  const [overdue, setOverdue] = useState<Work[]>([]);
-  const [done, setDone] = useState<Work[]>([]);
   const { openTask } = useTaskSheet(); // the ONE task editor, on the spine
-  const [links, setLinks] = useState<{ initiative_id: string; milestone_id: string }[]>([]);
   const [manage, setManage] = useState<Milestone | null>(null);   // milestone open in the manage sheet
-  const [loaded, setLoaded] = useState(false);
 
-  const load = useCallback(async () => {
-    if (!supabase) { setLoaded(true); return; }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const safe = async (p: PromiseLike<{ data: any[] | null }>): Promise<any[]> => { try { return (await p).data ?? []; } catch { return []; } };
+  const loader = useCallback(async (): Promise<BoardData> => {
+    if (!supabase) return EMPTY_BOARD;
     const today = todayKey(), wk = weekAheadKey(), wago = weekAgoISO();
     const [ini, mil, lnk, tThis, eThis, inc, tOver, eOver, tDone, eDone] = await Promise.all([
-      safe(supabase.from("initiatives").select("id, title, summary, target_date, status, emoji").neq("status", "done").order("target_date", { nullsFirst: false })),
-      safe(supabase.from("initiative_milestones").select("id, initiative_id, title, due_on, done, workstream, sort").order("sort")),
-      safe(supabase.from("initiative_milestone_links").select("initiative_id, milestone_id")),
-      safe(supabase.from("todos").select("id, title, due_on").eq("done", false).not("due_on", "is", null).gte("due_on", today).lte("due_on", wk)),
-      safe(supabase.from("event_tasks").select("id, label, due_at").eq("done", false).not("due_at", "is", null).gte("due_at", today).lte("due_at", `${wk}T23:59:59`)),
-      safe(supabase.from("incident_log").select("id, problem, severity, created_at").eq("resolved", false).eq("severity", "blocker").order("created_at", { ascending: false })),
-      safe(supabase.from("todos").select("id, title, due_on").eq("done", false).not("due_on", "is", null).lt("due_on", today)),
-      safe(supabase.from("event_tasks").select("id, label, due_at").eq("done", false).not("due_at", "is", null).lt("due_at", today)),
-      safe(supabase.from("todos").select("id, title, due_on, done_at").eq("done", true).gte("done_at", wago)),
-      safe(supabase.from("event_tasks").select("id, label, due_at, done_at").eq("done", true).gte("done_at", wago)),
+      supabase.from("initiatives").select("id, title, summary, target_date, status, emoji").neq("status", "done").order("target_date", { nullsFirst: false }),
+      supabase.from("initiative_milestones").select("id, initiative_id, title, due_on, done, workstream, sort").order("sort"),
+      supabase.from("initiative_milestone_links").select("initiative_id, milestone_id"),
+      supabase.from("todos").select("id, title, due_on").eq("done", false).not("due_on", "is", null).gte("due_on", today).lte("due_on", wk),
+      supabase.from("event_tasks").select("id, label, due_at").eq("done", false).not("due_at", "is", null).gte("due_at", today).lte("due_at", `${wk}T23:59:59`),
+      supabase.from("incident_log").select("id, problem, severity, created_at").eq("resolved", false).eq("severity", "blocker").order("created_at", { ascending: false }),
+      supabase.from("todos").select("id, title, due_on").eq("done", false).not("due_on", "is", null).lt("due_on", today),
+      supabase.from("event_tasks").select("id, label, due_at").eq("done", false).not("due_at", "is", null).lt("due_at", today),
+      supabase.from("todos").select("id, title, due_on, done_at").eq("done", true).gte("done_at", wago),
+      supabase.from("event_tasks").select("id, label, due_at, done_at").eq("done", true).gte("done_at", wago),
     ]);
-    setInits(ini as Initiative[]);
-    setMiles(mil as Milestone[]);
-    setLinks(lnk as { initiative_id: string; milestone_id: string }[]);
-    setWeek([...toWork(tThis, "todo"), ...toWork(eThis, "task")].sort((a, b) => (a.due ?? "").localeCompare(b.due ?? "")));
-    setIncidents(inc as Incident[]);
-    setOverdue([...toWork(tOver, "todo"), ...toWork(eOver, "task")].sort((a, b) => (a.due ?? "").localeCompare(b.due ?? "")));
-    setDone([...toWork(tDone, "todo"), ...toWork(eDone, "task")]);
-    setLoaded(true);
+    const firstErr = [ini, mil, lnk, tThis, eThis, inc, tOver, eOver, tDone, eDone].find((r) => r.error)?.error;
+    if (firstErr) throw new Error(firstErr.message);
+    return {
+      inits: (ini.data as Initiative[]) ?? [],
+      miles: (mil.data as Milestone[]) ?? [],
+      links: (lnk.data as { initiative_id: string; milestone_id: string }[]) ?? [],
+      week: [...toWork(tThis.data ?? [], "todo"), ...toWork(eThis.data ?? [], "task")].sort((a, b) => (a.due ?? "").localeCompare(b.due ?? "")),
+      incidents: (inc.data as Incident[]) ?? [],
+      overdue: [...toWork(tOver.data ?? [], "todo"), ...toWork(eOver.data ?? [], "task")].sort((a, b) => (a.due ?? "").localeCompare(b.due ?? "")),
+      done: [...toWork(tDone.data ?? [], "todo"), ...toWork(eDone.data ?? [], "task")],
+    };
   }, []);
-  useEffect(() => { load(); }, [load]);
-  useRealtimeTable(["initiatives", "initiative_milestones", "initiative_milestone_links", "todos", "event_tasks", "incident_log"], load);
+  const board = useAsyncData(loader, []);
+  const { reload } = board;
+  useRealtimeTable(["initiatives", "initiative_milestones", "initiative_milestone_links", "todos", "event_tasks", "incident_log"], reload);
 
+  const miles = board.data?.miles ?? [];
+  const links = board.data?.links ?? [];
   const mById = useMemo(() => new Map(miles.map((m) => [m.id, m])), [miles]);
   // Placement now comes from the many-to-many links (a milestone can sit under several initiatives).
   // Any milestone with no link at all still shows under its created-under initiative_id (defensive).
@@ -88,15 +92,17 @@ export default function CommandBoard() {
     return m;
   }, [links, miles, mById]);
 
+  // Mutations reload() from the server rather than patching local state — the fetched board now lives
+  // inside useAsyncData, which has no setter of its own (by design: it's the one place status/error live).
   const toggleMile = async (m: Milestone) => {
     if (!supabase || !isAdmin) return;
-    setMiles((p) => p.map((x) => (x.id === m.id ? { ...x, done: !x.done } : x)));
     await supabase.from("initiative_milestones").update({ done: !m.done, done_at: !m.done ? new Date().toISOString() : null }).eq("id", m.id);
+    reload();
   };
   const createInit = async (title: string) => {
     if (!supabase) return;
     const { error } = await supabase.from("initiatives").insert({ title, status: "active", created_by: user?.id ?? null });
-    if (error) toast(`Couldn't add — ${error.message}`, "error"); else { toast("Initiative added"); load(); }
+    if (error) toast(`Couldn't add — ${error.message}`, "error"); else { toast("Initiative added"); reload(); }
   };
   // Finish the whole initiative — the true cascade: completes every open task assigned to it (both
   // engines) and closes the program. Admin-only, with a scope-explicit confirm (this is the deliberate
@@ -106,7 +112,7 @@ export default function CommandBoard() {
     if (typeof window !== "undefined" && !window.confirm(`Finish "${it.title}"? This completes every open task assigned to it and closes the initiative.`)) return;
     const { error } = await completeInitiative(it.id, user?.id);
     if (error) { toast(`Couldn't finish — ${error}`, "error"); return; }
-    toast(`${it.title} finished — its tasks are done.`); load();
+    toast(`${it.title} finished — its tasks are done.`); reload();
   };
   const addMilestone = async (initId: string, title: string) => {
     if (!supabase) return;
@@ -114,153 +120,156 @@ export default function CommandBoard() {
     const { data, error } = await supabase.from("initiative_milestones").insert({ initiative_id: initId, title, sort: n }).select("id").single();
     if (error || !data) { toast(`Couldn't add — ${error?.message ?? "error"}`, "error"); return; }
     await supabase.from("initiative_milestone_links").insert({ initiative_id: initId, milestone_id: (data as { id: string }).id });
-    load();
+    reload();
   };
   // Tie/untie a milestone to an initiative — this is BOTH "move" and "tie to multiple" in one control.
   const toggleLink = async (mId: string, initId: string, on: boolean) => {
     if (!supabase) return;
-    setLinks((p) => (on ? [...p, { initiative_id: initId, milestone_id: mId }] : p.filter((l) => !(l.initiative_id === initId && l.milestone_id === mId))));
     if (on) await supabase.from("initiative_milestone_links").insert({ initiative_id: initId, milestone_id: mId });
     else await supabase.from("initiative_milestone_links").delete().eq("initiative_id", initId).eq("milestone_id", mId);
+    reload();
   };
   const saveMile = async (m: Milestone, patch: Partial<Milestone>) => {
     if (!supabase) return;
-    setMiles((p) => p.map((x) => (x.id === m.id ? { ...x, ...patch } : x)));
     await supabase.from("initiative_milestones").update(patch).eq("id", m.id);
+    reload();
   };
   const deleteMile = async (m: Milestone) => {
     if (!supabase || (typeof window !== "undefined" && !window.confirm(`Delete "${m.title}"?`))) return;
     await supabase.from("initiative_milestones").delete().eq("id", m.id);   // cascades its links
-    setManage(null); load();
+    setManage(null); reload();
   };
 
-  if (!loaded) return <div className="cmd-empty">Loading the board…</div>;
-
-  const cap = (a: Work[], n = 8) => ({ shown: a.slice(0, n), more: Math.max(0, a.length - n) });
-  const wk = cap(week), ov = cap(overdue), dn = cap(done, 6);
-
   return (
-    <div className="cmd">
-      {/* ── Initiatives · the launch ── */}
-      <SectionHeader label="Initiatives" annotation="the launch" />
-      {inits.length === 0 && !isAdmin && <div className="cmd-empty">No active initiatives.</div>}
-      {inits.map((it) => {
-        const ms = (milesByInit.get(it.id) ?? []).slice().sort((a, b) => a.sort - b.sort);
-        const doneN = ms.filter((m) => m.done).length;
-        const pct = ms.length ? Math.round((doneN / ms.length) * 100) : 0;
-        const cd = it.target_date ? countdown(it.target_date) : "";
-        const late = it.target_date ? daysTo(it.target_date) < 0 : false;
+    <AsyncSection state={board} isEmpty={() => false} loadingLabel="Loading the board…" errorTitle="Couldn't load the board" emptyTitle="Nothing here yet">
+      {(data) => {
+        const cap = (a: Work[], n = 8) => ({ shown: a.slice(0, n), more: Math.max(0, a.length - n) });
+        const wk = cap(data.week), ov = cap(data.overdue), dn = cap(data.done, 6);
         return (
-          <div className="cmd-init" key={it.id}>
-            <div className="k-rows">
-              <InfoRow
-                name={<>{it.emoji ? `${it.emoji} ` : ""}{it.title}</>}
-                sub={it.summary || undefined}
-                trailing={it.target_date ? <span className={`cmd-cd${late ? " late" : ""}`}>{dnice(it.target_date)} · {cd}</span> : undefined}
-              />
-            </div>
-            <div className="cmd-prog"><span className="cmd-prog-bar"><span style={{ width: `${pct}%` }} /></span><span className="cmd-prog-n">{doneN}/{ms.length} · {pct}%</span></div>
-            {ms.length > 0 && (
-              <div className="k-rows">
-                {ms.map((m) => {
-                  const mlate = !m.done && m.due_on && daysTo(m.due_on) < 0;
-                  const ties = links.filter((l) => l.milestone_id === m.id).length;
-                  const trailing = (ties > 1 || m.workstream || m.due_on || isAdmin) ? (
-                    <>
-                      {ties > 1 && <span className="cmd-tie" title={`Tied to ${ties} initiatives`}>⧉{ties}</span>}
-                      {m.workstream && <span className="cmd-ws">{m.workstream}</span>}
-                      {m.due_on && <span className={`cmd-mile-due${mlate ? " late" : ""}`}>{dnice(m.due_on)}</span>}
-                      {isAdmin && <button type="button" className="cmd-mile-mng" onClick={() => setManage(m)} aria-label="Manage milestone">⋯</button>}
-                    </>
-                  ) : undefined;
-                  return (
+          <div className="cmd">
+            {/* ── Initiatives · the launch ── */}
+            <SectionHeader label="Initiatives" annotation="the launch" />
+            {data.inits.length === 0 && !isAdmin && <div className="cmd-empty">No active initiatives.</div>}
+            {data.inits.map((it) => {
+              const ms = (milesByInit.get(it.id) ?? []).slice().sort((a, b) => a.sort - b.sort);
+              const doneN = ms.filter((m) => m.done).length;
+              const pct = ms.length ? Math.round((doneN / ms.length) * 100) : 0;
+              const cd = it.target_date ? countdown(it.target_date) : "";
+              const late = it.target_date ? daysTo(it.target_date) < 0 : false;
+              return (
+                <div className="cmd-init" key={it.id}>
+                  <div className="k-rows">
                     <InfoRow
-                      key={m.id}
-                      name={
-                        <>
-                          <span className={`cmd-check${m.done ? " on" : ""}`} aria-hidden>{m.done ? "✓" : ""}</span>
-                          <span className="cmd-mile-t" style={{ fontWeight: 400, ...(m.done ? { textDecoration: "line-through", color: "var(--cream-m)" } : {}) }}>{m.title}</span>
-                        </>
-                      }
-                      trailing={trailing}
-                      bodyClick={isAdmin ? () => toggleMile(m) : undefined}
-                      ariaLabel={m.title}
+                      name={<>{it.emoji ? `${it.emoji} ` : ""}{it.title}</>}
+                      sub={it.summary || undefined}
+                      trailing={it.target_date ? <span className={`cmd-cd${late ? " late" : ""}`}>{dnice(it.target_date)} · {cd}</span> : undefined}
                     />
-                  );
-                })}
+                  </div>
+                  <div className="cmd-prog"><span className="cmd-prog-bar"><span style={{ width: `${pct}%` }} /></span><span className="cmd-prog-n">{doneN}/{ms.length} · {pct}%</span></div>
+                  {ms.length > 0 && (
+                    <div className="k-rows">
+                      {ms.map((m) => {
+                        const mlate = !m.done && m.due_on && daysTo(m.due_on) < 0;
+                        const ties = links.filter((l) => l.milestone_id === m.id).length;
+                        const trailing = (ties > 1 || m.workstream || m.due_on || isAdmin) ? (
+                          <>
+                            {ties > 1 && <span className="cmd-tie" title={`Tied to ${ties} initiatives`}>⧉{ties}</span>}
+                            {m.workstream && <span className="cmd-ws">{m.workstream}</span>}
+                            {m.due_on && <span className={`cmd-mile-due${mlate ? " late" : ""}`}>{dnice(m.due_on)}</span>}
+                            {isAdmin && <button type="button" className="cmd-mile-mng" onClick={() => setManage(m)} aria-label="Manage milestone">⋯</button>}
+                          </>
+                        ) : undefined;
+                        return (
+                          <InfoRow
+                            key={m.id}
+                            name={
+                              <>
+                                <span className={`cmd-check${m.done ? " on" : ""}`} aria-hidden>{m.done ? "✓" : ""}</span>
+                                <span className="cmd-mile-t" style={{ fontWeight: 400, ...(m.done ? { textDecoration: "line-through", color: "var(--cream-m)" } : {}) }}>{m.title}</span>
+                              </>
+                            }
+                            trailing={trailing}
+                            bodyClick={isAdmin ? () => toggleMile(m) : undefined}
+                            ariaLabel={m.title}
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
+                  {isAdmin && <InlineCreate label="+ Milestone" placeholder="Milestone" className="cmd-add" onCreate={(t) => addMilestone(it.id, t)} />}
+                  {isAdmin && <button type="button" className="cmd-finish" onClick={() => finishInit(it)}>✓ Finish initiative — completes every task under it</button>}
+                </div>
+              );
+            })}
+            {isAdmin && <InlineCreate label="+ New initiative" placeholder="Initiative name" className="cmd-add big" onCreate={createInit} />}
+
+            {/* ── Launch readiness · go/no-go ── */}
+            <LaunchReadiness />
+
+            {/* ── This Week ── */}
+            <SectionHeader label="This week" annotation="due next 7 days" />
+            {wk.shown.length === 0 ? <div className="cmd-empty">Nothing due in the next 7 days.</div> : (
+              <div className="k-rows">
+                {wk.shown.map((w) => (
+                  <InfoRow
+                    key={`${w.src}-${w.id}`}
+                    name={w.title}
+                    trailing={<span className="cmd-row-due">{dnice(w.due)}</span>}
+                    onClick={() => openTask(w.id, w.src === "task" ? "event" : "todo")}
+                    ariaLabel={`Open task: ${w.title}`}
+                  />
+                ))}
+                {wk.more > 0 && <div className="cmd-more">+{wk.more} more</div>}
               </div>
             )}
-            {isAdmin && <InlineCreate label="+ Milestone" placeholder="Milestone" className="cmd-add" onCreate={(t) => addMilestone(it.id, t)} />}
-            {isAdmin && <button type="button" className="cmd-finish" onClick={() => finishInit(it)}>✓ Finish initiative — completes every task under it</button>}
+
+            {/* ── Blockers ── */}
+            <SectionHeader label="Blockers" annotation="clear these first" />
+            {data.incidents.length === 0 && ov.shown.length === 0 ? <div className="cmd-empty">Nothing blocked. 🟢</div> : (
+              <div className="k-rows">
+                {data.incidents.map((i) => <InfoRow key={i.id} name={<>🛑 {i.problem}</>} />)}
+                {ov.shown.map((w) => (
+                  <InfoRow
+                    key={`ov-${w.src}-${w.id}`}
+                    name={w.title}
+                    trailing={<span className="cmd-row-due late">{dnice(w.due)} · overdue</span>}
+                    onClick={() => openTask(w.id, w.src === "task" ? "event" : "todo")}
+                    ariaLabel={`Open task: ${w.title}`}
+                  />
+                ))}
+                {ov.more > 0 && <div className="cmd-more">+{ov.more} more overdue</div>}
+              </div>
+            )}
+
+            {/* ── Done this week ── */}
+            <SectionHeader label="Done this week" annotation="wrapped" />
+            {dn.shown.length === 0 ? <div className="cmd-empty">Nothing wrapped yet this week.</div> : (
+              <div className="k-rows">
+                {dn.shown.map((w) => <InfoRow key={`dn-${w.src}-${w.id}`} name={<span style={{ textDecoration: "line-through", color: "var(--cream-d)" }}>{w.title}</span>} />)}
+                {dn.more > 0 && <div className="cmd-more">+{dn.more} more done</div>}
+              </div>
+            )}
+
+            {/* ── Money ── */}
+            <SectionHeader label="Money" annotation="the number" />
+            <MoneyKpis />
+
+            {manage && (
+              <MilestoneManage
+                key={manage.id}
+                m={manage}
+                initiatives={data.inits}
+                linkedIds={links.filter((l) => l.milestone_id === manage.id).map((l) => l.initiative_id)}
+                onToggleLink={(initId, on) => toggleLink(manage.id, initId, on)}
+                onSave={(patch) => saveMile(manage, patch)}
+                onDelete={() => deleteMile(manage)}
+                onClose={() => setManage(null)}
+              />
+            )}
           </div>
         );
-      })}
-      {isAdmin && <InlineCreate label="+ New initiative" placeholder="Initiative name" className="cmd-add big" onCreate={createInit} />}
-
-      {/* ── Launch readiness · go/no-go ── */}
-      <LaunchReadiness />
-
-      {/* ── This Week ── */}
-      <SectionHeader label="This week" annotation="due next 7 days" />
-      {wk.shown.length === 0 ? <div className="cmd-empty">Nothing due in the next 7 days.</div> : (
-        <div className="k-rows">
-          {wk.shown.map((w) => (
-            <InfoRow
-              key={`${w.src}-${w.id}`}
-              name={w.title}
-              trailing={<span className="cmd-row-due">{dnice(w.due)}</span>}
-              onClick={() => openTask(w.id, w.src === "task" ? "event" : "todo")}
-              ariaLabel={`Open task: ${w.title}`}
-            />
-          ))}
-          {wk.more > 0 && <div className="cmd-more">+{wk.more} more</div>}
-        </div>
-      )}
-
-      {/* ── Blockers ── */}
-      <SectionHeader label="Blockers" annotation="clear these first" />
-      {incidents.length === 0 && ov.shown.length === 0 ? <div className="cmd-empty">Nothing blocked. 🟢</div> : (
-        <div className="k-rows">
-          {incidents.map((i) => <InfoRow key={i.id} name={<>🛑 {i.problem}</>} />)}
-          {ov.shown.map((w) => (
-            <InfoRow
-              key={`ov-${w.src}-${w.id}`}
-              name={w.title}
-              trailing={<span className="cmd-row-due late">{dnice(w.due)} · overdue</span>}
-              onClick={() => openTask(w.id, w.src === "task" ? "event" : "todo")}
-              ariaLabel={`Open task: ${w.title}`}
-            />
-          ))}
-          {ov.more > 0 && <div className="cmd-more">+{ov.more} more overdue</div>}
-        </div>
-      )}
-
-      {/* ── Done this week ── */}
-      <SectionHeader label="Done this week" annotation="wrapped" />
-      {dn.shown.length === 0 ? <div className="cmd-empty">Nothing wrapped yet this week.</div> : (
-        <div className="k-rows">
-          {dn.shown.map((w) => <InfoRow key={`dn-${w.src}-${w.id}`} name={<span style={{ textDecoration: "line-through", color: "var(--cream-d)" }}>{w.title}</span>} />)}
-          {dn.more > 0 && <div className="cmd-more">+{dn.more} more done</div>}
-        </div>
-      )}
-
-      {/* ── Money ── */}
-      <SectionHeader label="Money" annotation="the number" />
-      <MoneyKpis />
-
-      {manage && (
-        <MilestoneManage
-          key={manage.id}
-          m={manage}
-          initiatives={inits}
-          linkedIds={links.filter((l) => l.milestone_id === manage.id).map((l) => l.initiative_id)}
-          onToggleLink={(initId, on) => toggleLink(manage.id, initId, on)}
-          onSave={(patch) => saveMile(manage, patch)}
-          onDelete={() => deleteMile(manage)}
-          onClose={() => setManage(null)}
-        />
-      )}
-    </div>
+      }}
+    </AsyncSection>
   );
 }
 

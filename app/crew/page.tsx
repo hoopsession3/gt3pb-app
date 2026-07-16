@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useApp } from "@/components/AppProvider";
+import { SectionHeader } from "@/components/kit";
 import FieldOpSheet from "@/components/FieldOpSheet";
 import { useAuth, roleOf, LEADERSHIP_ROLES, type Profile } from "@/components/AuthProvider";
 import { raiseAlertClient } from "@/lib/clientAlerts";
@@ -14,6 +15,8 @@ import { localToday, etToday, dayKey, relativeDay } from "@/lib/dates";
 import { brewStartOverdue } from "@/lib/brewMath";
 import { useWorkStreams, streamOfCategory } from "@/lib/streams";
 import { useRealtimeTable } from "@/lib/realtime";
+import { useAsyncData } from "@/lib/useAsyncData";
+import AsyncSection from "@/components/AsyncSection";
 import { useOperatorSection, sectionsForRole, streamGroups, SECTION_LABEL, TODAY_GROUP, type OpSection } from "@/components/OperatorNav";
 import { useTaskSheet } from "@/components/TaskSheet";
 import GtmCard from "@/components/GtmCard";
@@ -107,6 +110,7 @@ import { fetchAssets, type AssetsResp } from "@/lib/assets";
 import type { Stop, LiveStatus, EventRow, EventTask, BookingRequest, Order, Reserve, Subscription, Vendor, VendorLocation, MeetingNote, Alert, Comment } from "@/lib/db";
 import { resolveVendor, addVendorLocation, type VendorMatch, type ResolveDecision } from "@/lib/vendorLink";
 import VendorResolve from "@/components/VendorResolve";
+import Icon from "@/components/Icon";
 
 // money helpers for the economics panels
 // Per-lane phase labels: the Service lane reads as the operator's loop — Plan → Prep → Run → Delivery
@@ -291,9 +295,10 @@ function Kitchen() {
 
   return (
     <div className="adm-sec" id="kitchen-pass">
-      <div className="sec">The pass{active.length > 0 && <span className="adm-pill">{active.length} active</span>}
-        <button type="button" className="kds-mute" onClick={toggleMute} aria-pressed={muted}>{muted ? "🔇 Muted" : "🔔 Sound"}</button>
-      </div>
+      <SectionHeader label="The pass" right={<>
+        {active.length > 0 && <span className="adm-pill">{active.length} active</span>}
+        <button type="button" className="kds-mute" onClick={toggleMute} aria-pressed={muted}>{muted ? "🔇 Muted" : <><Icon name="bell" /> Sound</>}</button>
+      </>} />
 
       {err && <div className="adm-attn" role="alert">Backend error: {err}</div>}
       {staleAt > 0 && (
@@ -331,7 +336,7 @@ function Kitchen() {
                     <div className="adm-items">{groupItems(o.items).map((g) => `${g.qty > 1 ? g.qty + "× " : ""}${DRINKS[g.id as DrinkId]?.n ?? g.id}`).join(" · ")}</div>
                     {o.eta_status && (
                       <span className={`kds-eta ${o.eta_status}`}>
-                        {o.eta_status === "outside" ? "📍 OUTSIDE — call the name" : o.eta_status === "on_way" ? "🏃 On the way" : "⏰ Running late"}
+                        {o.eta_status === "outside" ? <><Icon name="pin" /> OUTSIDE — call the name</> : o.eta_status === "on_way" ? "🏃 On the way" : <><Icon name="clock" /> Running late</>}
                       </span>
                     )}
                     <div className="meta">#{o.id.slice(0, 4).toUpperCase()} · ${(o.total_cents / 100).toFixed(2)} · <span className={o.paid ? "pd" : "unp"}>{o.paid ? "PAID" : "pre-order"}</span> · <span className="kds-stagetime">{ago(o.status_changed_at)} in stage</span></div>
@@ -504,7 +509,7 @@ function ContentApprovalSheet({ contentId, meName, meId, onClose, onActioned }: 
   };
 
   return (
-    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><span>Review post</span><button type="button" className="drop-sheet-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close">✕</button></div>}>
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><span>Review post</span><button type="button" className="drop-sheet-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close"><Icon name="close" /></button></div>}>
         {!item ? <div className="dops-empty"><PourFill size={38} label="Pulling it up…" /></div> : (
           <div className="capprove">
             <div className="capprove-meta">{item.kind} · {item.channel}{item.status ? ` · ${item.status}` : ""}</div>
@@ -513,7 +518,7 @@ function ContentApprovalSheet({ contentId, meName, meId, onClose, onActioned }: 
             {item.hashtags?.length ? <div className="capprove-tags">{item.hashtags.map((h) => `#${h}`).join(" ")}</div> : null}
             <input className="ev-input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="What to change (only if requesting changes)" />
             <div className="capprove-acts">
-              <button type="button" className="oa-cta" disabled={busy} onClick={() => decide("approved")}>{busy ? "…" : "✓ Approve"}</button>
+              <button type="button" className="oa-cta" disabled={busy} onClick={() => decide("approved")}>{busy ? "…" : <><Icon name="check" /> Approve</>}</button>
               <button type="button" className="studio-act" disabled={busy} onClick={() => decide("changes")}>Request changes</button>
             </div>
             <p className="insp-foot">Approving saves your caption edits. Once you act, this alert clears.</p>
@@ -529,7 +534,7 @@ function DropSheet({ onClose }: { onClose: () => void }) {
   const { profile } = useAuth();
   const canPlan = (profile?.is_admin ?? false) || ["owner", "admin", "event_manager"].includes(profile?.role ?? "");
   return (
-    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><span>This week&rsquo;s drop</span><button type="button" className="drop-sheet-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close">✕</button></div>}>
+    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><span>This week&rsquo;s drop</span><button type="button" className="drop-sheet-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close"><Icon name="close" /></button></div>}>
         <DropOps canPlan={canPlan} />
         <button type="button" className="drop-sheet-done" onClick={onClose}>Done</button>
     </Sheet>
@@ -566,12 +571,12 @@ function NotifPrefsSheet({ userId, onClose }: { userId: string | null; onClose: 
   };
   const toggle = (k: string) => { const next = muted.includes(k) ? muted.filter((x) => x !== k) : [...muted, k]; setMuted(next); save(next, qs, qe); };
   return (
-    <Sheet open onClose={onClose} label="Notifications" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Notifications</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close">✕</button></div>}>
+    <Sheet open onClose={onClose} label="Notifications" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Notifications</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close"><Icon name="close" /></button></div>}>
       <p className="h-sub" style={{ marginTop: 0 }}>Quiet the categories you don&rsquo;t need. Critical alerts always come through.</p>
       <div className="notif-cats">
         {NOTIF_CATS.map((c) => (
           <button key={c.key} type="button" className={`notif-cat${muted.includes(c.key) ? " muted" : ""}`} onClick={() => toggle(c.key)} aria-pressed={muted.includes(c.key)}>
-            <span>{c.label}</span><span className="notif-cat-s">{muted.includes(c.key) ? "🔕 Muted" : "🔔 On"}</span>
+            <span>{c.label}</span><span className="notif-cat-s">{muted.includes(c.key) ? "🔕 Muted" : <><Icon name="bell" /> On</>}</span>
           </button>
         ))}
       </div>
@@ -629,9 +634,9 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
     if (mine.length === 0) return null;   // during quiet hours the held digest stays off the service strip
     return (
       <button type="button" className={`alerts-strip${crit ? " crit" : ""}`} onClick={() => setSection("day")}>
-        <span className="alerts-strip-i" aria-hidden>{crit ? "⚠️" : "🔔"}</span>
+        <span className="alerts-strip-i" aria-hidden>{crit ? <Icon name="warning" /> : <Icon name="bell" />}</span>
         <span className="alerts-strip-t"><b>{mine.length} {mine.length === 1 ? "alert needs" : "alerts need"} you</b>{crit ? ` · ${crit} critical` : ""}</span>
-        <span className="alerts-strip-go">Open in My Day →</span>
+        <span className="alerts-strip-go">Open in My Day <Icon name="arrowRight" /></span>
       </button>
     );
   }
@@ -640,7 +645,11 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
     <div className="adm-sec">
       {dropSheet && <DropSheet onClose={() => setDropSheet(false)} />}
       {reviewPost && <ContentApprovalSheet contentId={reviewPost.id} meName={meName} meId={userId} onClose={() => setReviewPost(null)} onActioned={() => { ack(reviewPost.alert); setReviewPost(null); }} />}
-      <div className="sec">{title} {mine.length > 0 && <span className={`adm-pill${crit ? " due" : ""}`}>{mine.length}{crit ? ` · ${crit} critical` : ""}</span>}{mine.length > 1 && <button type="button" className="alert-clearall" onClick={() => clearAll()}>Clear all</button>}<button type="button" className="alert-prefs-btn" onClick={() => setPrefsOpen(true)} aria-label="Notification settings">⚙</button></div>
+      <SectionHeader label={title} right={<>
+        {mine.length > 0 && <span className={`adm-pill${crit ? " due" : ""}`}>{mine.length}{crit ? ` · ${crit} critical` : ""}</span>}
+        {mine.length > 1 && <button type="button" className="alert-clearall" onClick={() => clearAll()}>Clear all</button>}
+        <button type="button" className="alert-prefs-btn" onClick={() => setPrefsOpen(true)} aria-label="Notification settings">⚙</button>
+      </>} />
       {prefsOpen && <NotifPrefsSheet userId={userId} onClose={() => setPrefsOpen(false)} />}
 
       {/* Quiet-hours digest (0177 + S·5b): non-criticals that arrived during your quiet window are
@@ -661,7 +670,7 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
                     <span className="digest-item-t">{a.title}</span>
                     {a.body && <span className="digest-item-b">{a.body}</span>}
                   </button>
-                  <button type="button" className="digest-item-x" onClick={() => ack(a)} aria-label={`Dismiss ${a.title}`}>✕</button>
+                  <button type="button" className="digest-item-x" onClick={() => ack(a)} aria-label={`Dismiss ${a.title}`}><Icon name="close" /></button>
                 </div>
               ))}
               <button type="button" className="digest-clear" onClick={() => clearHeld()}>Mark all read</button>
@@ -677,10 +686,10 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
               <span className="alert-title">{a.title}{myLane(a.category) && <span className="myday-lane">your lane</span>}</span>
               {a.body && <span className="alert-body">{a.body}</span>}
             </div>
-            {counts[a.id] ? <button type="button" className="alert-discuss" onClick={() => setOpenThread(openThread === a.id ? null : a.id)} aria-label="Discuss">💬<span className="cmt-count">{counts[a.id]}</span></button> : null}
-            <button type="button" className={alertHasInlineAction(a.kind) ? "alert-open ghost" : "alert-open"} onClick={() => gotoAlert(a)}>{alertHasInlineAction(a.kind) ? "Open" : "Open →"}</button>
-            {a.severity !== "critical" && <button type="button" className="alert-snz" onClick={() => snooze(a, new Date(Date.now() + 3600_000))} aria-label="Snooze 1 hour" title="Snooze 1 hour">⏰</button>}
-            <button type="button" className="alert-ack" onClick={() => ack(a)} aria-label="Got it">✓</button>
+            {counts[a.id] ? <button type="button" className="alert-discuss" onClick={() => setOpenThread(openThread === a.id ? null : a.id)} aria-label="Discuss"><Icon name="chat" /><span className="cmt-count">{counts[a.id]}</span></button> : null}
+            <button type="button" className={alertHasInlineAction(a.kind) ? "alert-open ghost" : "alert-open"} onClick={() => gotoAlert(a)}>{alertHasInlineAction(a.kind) ? "Open" : <>Open <Icon name="arrowRight" /></>}</button>
+            {a.severity !== "critical" && <button type="button" className="alert-snz" onClick={() => snooze(a, new Date(Date.now() + 3600_000))} aria-label="Snooze 1 hour" title="Snooze 1 hour"><Icon name="clock" /></button>}
+            <button type="button" className="alert-ack" onClick={() => ack(a)} aria-label="Got it"><Icon name="check" /></button>
           </div>
           {alertHasInlineAction(a.kind) && <AlertAction flag={a} meId={userId} onResolved={() => ack(a)} />}
           {openThread === a.id && (
@@ -882,8 +891,8 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
     setF((p) => ({ ...(p ?? {}), ...(isEvent ? { stage: "done" } : { status: "done" }), completed_at: now, recap: recap.trim() || null }));
   };
 
-  const load = useCallback(async () => {
-    if (!supabase) return;
+  const ownerState = useAsyncData<{ d: Record<string, unknown>; recap: string | null }>(async () => {
+    if (!supabase) throw new Error("Supabase client not configured");
     // recap moved to the staff-only ops sibling (event_ops / stop_ops, 0181); the per-stop order-ahead
     // columns stay on the public stop row. Fetch both in parallel and merge so the UI is unchanged.
     const sel = isEvent ? "title, day, location_text, stage, default_buffer_min, completed_at" : "name, starts_at, location_text, address, status, default_buffer_min, completed_at, order_ahead_enabled, pickup_enabled, order_ahead_lead_min";
@@ -892,10 +901,16 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
       supabase.from(opsTable).select("recap").eq(opsKey, ownerId).maybeSingle(),
     ]);
     const d = (data as unknown as Record<string, unknown>) ?? {};
-    setF({ ...(d as Record<string, string | null>), recap: (ops as { recap?: string | null } | null)?.recap ?? null });
-    if (!isEvent) { origStartsAt.current = (d.starts_at as string | null) ?? null; setOa(!!d.order_ahead_enabled); setPk(!!d.pickup_enabled); setLead(d.order_ahead_lead_min != null ? String(d.order_ahead_lead_min) : ""); }
+    return { d, recap: (ops as { recap?: string | null } | null)?.recap ?? null };
   }, [table, opsTable, opsKey, ownerId, isEvent]);
-  useEffect(() => { load(); }, [load]);
+  // Seed the local edit-draft from the fetch, and re-seed on every reload (Cancel, or the row
+  // changing underneath an open card) — f/oa/pk/lead stay the editable copy throughout.
+  useEffect(() => {
+    if (!ownerState.data) return;
+    const { d, recap } = ownerState.data;
+    setF({ ...(d as Record<string, string | null>), recap });
+    if (!isEvent) { origStartsAt.current = (d.starts_at as string | null) ?? null; setOa(!!d.order_ahead_enabled); setPk(!!d.pickup_enabled); setLead(d.order_ahead_lead_min != null ? String(d.order_ahead_lead_min) : ""); }
+  }, [ownerState.data, isEvent]);
 
   const set = (k: string, v: string | null) => setF((p) => ({ ...(p ?? {}), [k]: v }));
   // date <-> column: events.day is a plain date; stops.starts_at is a timestamp (preserve time of day)
@@ -960,8 +975,18 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
     setEdit(false); onSaved(nm); toast(isEvent ? "Details saved" : "Saved — address pinned on the map");
   };
 
-  if (!f) return null;
-  if (!edit) {
+  return (
+    <AsyncSection
+      state={ownerState}
+      isEmpty={() => false}
+      emptyTitle={`Couldn't find this ${what}`}
+      emptySub="It may have been deleted or archived."
+      loadingLabel={`Loading ${what} details…`}
+      errorTitle={`Couldn't load ${what} details`}
+    >
+      {() => {
+        if (!f) return null;
+        if (!edit) {
     const date = dateVal ? new Date(`${dateVal}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : "No date set";
     const place = f.location_text || f.address || "";
     const status = isEvent ? f.stage : f.status;
@@ -972,13 +997,13 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
     const done = f.completed_at != null || (isEvent ? f.stage === "done" : f.status === "done");
     return (
       <div className="ownerdet">
-        <span className="ownerdet-meta">📅 {date}{place ? ` · 📍 ${place}` : ""}</span>
+        <span className="ownerdet-meta"><Icon name="calendar" /> {date}{place ? <> · <Icon name="pin" /> {place}</> : ""}</span>
         <div className="ownerdet-life">
           <span className={`ownerdet-stage st-${status ?? (isEvent ? "confirmed" : "upcoming")}`}>{STAGE_LABEL[status ?? ""] ?? status}</span>
           {done ? (
-            <span className="ownerdet-completed">✓ Completed{f.completed_at ? ` ${new Date(f.completed_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : ""}</span>
+            <span className="ownerdet-completed"><Icon name="check" /> Completed{f.completed_at ? ` ${new Date(f.completed_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : ""}</span>
           ) : isAdmin ? (
-            <button type="button" className="ownerdet-complete" onClick={() => { setRecap(f.recap ?? ""); setWrapping((w) => !w); }}>✓ Complete {isEvent ? "event" : "stop"}</button>
+            <button type="button" className="ownerdet-complete" onClick={() => { setRecap(f.recap ?? ""); setWrapping((w) => !w); }}><Icon name="check" /> Complete {isEvent ? "event" : "stop"}</button>
           ) : null}
         </div>
         {wrapping && (
@@ -1002,9 +1027,9 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
     <div className="ownerdet editing">
       <input className="note-in" value={f[nameCol] ?? ""} onChange={(e) => set(nameCol, e.target.value)} placeholder={isEvent ? "Event name" : "Stop name"} />
       <div className="ownerdet-typehint">{isEvent
-        ? "📅 Event — a booked gig with prep, a crew & a run-of-show. (A quick roll-up-and-serve visit is a Truck stop.)"
-        : "📍 Truck stop — you roll up, serve, and leave. (A booked gig with prep & crew should be an Event.)"}</div>
-      {dupWarn && <div className="ownerdet-warn" role="status">⚠ {dupWarn}</div>}
+        ? <><Icon name="calendar" /> Event — a booked gig with prep, a crew & a run-of-show. (A quick roll-up-and-serve visit is a Truck stop.)</>
+        : <><Icon name="pin" /> Truck stop — you roll up, serve, and leave. (A booked gig with prep & crew should be an Event.)</>}</div>
+      {dupWarn && <div className="ownerdet-warn" role="status"><Icon name="warning" /> {dupWarn}</div>}
       <div className="prod-grid" style={{ marginTop: 8 }}>
         <label className="prod-f"><span>Date</span><input type="date" value={dateVal} onChange={(e) => onDate(e.target.value)} /></label>
         {isEvent
@@ -1046,10 +1071,13 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
         <button type="button" className="ownerdet-del" onClick={del} disabled={saving}>Delete for good</button>
       </div>
       <div className="prod-actions" style={{ marginTop: 12 }}>
-        <button type="button" className="note-arch" onClick={() => { setEdit(false); load(); }} disabled={saving}>Cancel</button>
+        <button type="button" className="note-arch" onClick={() => { setEdit(false); ownerState.reload(); }} disabled={saving}>Cancel</button>
         <button type="button" className="note-save" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save details"}</button>
       </div>
     </div>
+        );
+      }}
+    </AsyncSection>
   );
 }
 
@@ -1079,12 +1107,12 @@ function IncidentLog({ ownerCol, ownerId }: { ownerCol: "event_id" | "stop_id"; 
   if (rows.length === 0) return null;
   return (
     <div className="inclog">
-      <div className="brewlink-h">🔧 Incident log</div>
+      <div className="brewlink-h"><Icon name="wrench" /> Incident log</div>
       {rows.map((r) => (
         <div key={r.id} className={`inc-row${r.resolved ? " done" : ""}`}>
-          <button type="button" className="inc-ck" onClick={() => toggle(r)} aria-label={r.resolved ? "Mark unresolved" : "Mark resolved"}>{r.resolved ? "✓" : "○"}</button>
+          <button type="button" className="inc-ck" onClick={() => toggle(r)} aria-label={r.resolved ? "Mark unresolved" : "Mark resolved"}>{r.resolved ? <Icon name="check" /> : "○"}</button>
           <span className="inc-main"><b className={r.severity === "blocker" ? "inc-blk" : ""}>{r.problem}</b><span>{[r.symptom, r.resolved ? "resolved" : null, new Date(r.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })].filter(Boolean).join(" · ")}</span></span>
-          <button type="button" className="inc-x" onClick={() => del(r.id)} aria-label="Delete incident">✕</button>
+          <button type="button" className="inc-x" onClick={() => del(r.id)} aria-label="Delete incident"><Icon name="close" /></button>
         </div>
       ))}
     </div>
@@ -1137,18 +1165,23 @@ function DayBrief({ ownerCol, ownerId, isAdmin }: { ownerCol: "event_id" | "stop
   const opsTable = ownerCol === "stop_id" ? "stop_ops" : "event_ops";
   const [dress, setDress] = useState("");
   const [brief, setBrief] = useState("");
-  const [loaded, setLoaded] = useState(false);
   const [edit, setEdit] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const load = useCallback(async () => {
-    if (!supabase) return;
+  const briefState = useAsyncData<{ dress: string; brief: string }>(async () => {
+    if (!supabase) throw new Error("Supabase client not configured");
     const { data } = await supabase.from(opsTable).select("dress_code, crew_brief").eq(ownerCol, ownerId).maybeSingle();
-    setDress((data as { dress_code?: string | null } | null)?.dress_code ?? "");
-    setBrief((data as { crew_brief?: string | null } | null)?.crew_brief ?? "");
-    setLoaded(true);
+    return {
+      dress: (data as { dress_code?: string | null } | null)?.dress_code ?? "",
+      brief: (data as { crew_brief?: string | null } | null)?.crew_brief ?? "",
+    };
   }, [opsTable, ownerCol, ownerId]);
-  useEffect(() => { load(); }, [load]);
+  // Seed the editable copy from the fetch/reload — Cancel and realtime both flow back through here.
+  useEffect(() => {
+    if (!briefState.data) return;
+    setDress(briefState.data.dress);
+    setBrief(briefState.data.brief);
+  }, [briefState.data]);
 
   const save = async () => {
     if (!supabase) return;
@@ -1158,31 +1191,41 @@ function DayBrief({ ownerCol, ownerId, isAdmin }: { ownerCol: "event_id" | "stop
     setSaving(false); setEdit(false);
   };
 
-  if (!loaded) return null;
-  const empty = !dress.trim() && !brief.trim();
-  if (!isAdmin && empty) return null; // nothing to show crew yet
-
   return (
-    <div className="daybrief">
-      <div className="daybrief-h">🧢 Day-of brief · how to show up{isAdmin && !edit && <button type="button" className="daybrief-edit" onClick={() => setEdit(true)}>{empty ? "+ Add" : "Edit"}</button>}</div>
-      {edit ? (
-        <>
-          <label className="prod-f"><span>Dress code — what to wear</span><input className="note-in" value={dress} onChange={(e) => setDress(e.target.value)} placeholder="e.g. Black GT3 tee, dark jeans, closed-toe shoes" maxLength={600} /></label>
-          <label className="prod-f" style={{ marginTop: 8 }}><span>Call time, parking, what to bring, anything else</span><textarea className="note-in" rows={4} value={brief} onChange={(e) => setBrief(e.target.value)} placeholder={"Call 9:30a · park behind the pavilion · bring your apron + black hat · we pour 11–3"} maxLength={4000} /></label>
-          <div className="prod-actions" style={{ marginTop: 10 }}>
-            <button type="button" className="note-arch" onClick={() => { setEdit(false); load(); }} disabled={saving}>Cancel</button>
-            <button type="button" className="note-save" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save brief"}</button>
+    <AsyncSection
+      state={briefState}
+      isEmpty={() => false}
+      emptyTitle="No brief yet"
+      loadingLabel="Loading day-of brief…"
+      errorTitle="Couldn't load the day-of brief"
+    >
+      {() => {
+        const empty = !dress.trim() && !brief.trim();
+        if (!isAdmin && empty) return null; // nothing to show crew yet
+        return (
+          <div className="daybrief">
+            <div className="daybrief-h">🧢 Day-of brief · how to show up{isAdmin && !edit && <button type="button" className="daybrief-edit" onClick={() => setEdit(true)}>{empty ? "+ Add" : "Edit"}</button>}</div>
+            {edit ? (
+              <>
+                <label className="prod-f"><span>Dress code — what to wear</span><input className="note-in" value={dress} onChange={(e) => setDress(e.target.value)} placeholder="e.g. Black GT3 tee, dark jeans, closed-toe shoes" maxLength={600} /></label>
+                <label className="prod-f" style={{ marginTop: 8 }}><span>Call time, parking, what to bring, anything else</span><textarea className="note-in" rows={4} value={brief} onChange={(e) => setBrief(e.target.value)} placeholder={"Call 9:30a · park behind the pavilion · bring your apron + black hat · we pour 11–3"} maxLength={4000} /></label>
+                <div className="prod-actions" style={{ marginTop: 10 }}>
+                  <button type="button" className="note-arch" onClick={() => { setEdit(false); briefState.reload(); }} disabled={saving}>Cancel</button>
+                  <button type="button" className="note-save" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save brief"}</button>
+                </div>
+              </>
+            ) : empty ? (
+              <div className="daybrief-empty">No brief yet — add dress code + call details so the crew knows how to show up.</div>
+            ) : (
+              <>
+                {dress.trim() && <div className="daybrief-row"><b>Wear</b><span>{dress}</span></div>}
+                {brief.trim() && <div className="daybrief-row"><b>Details</b><span style={{ whiteSpace: "pre-wrap" }}>{brief}</span></div>}
+              </>
+            )}
           </div>
-        </>
-      ) : empty ? (
-        <div className="daybrief-empty">No brief yet — add dress code + call details so the crew knows how to show up.</div>
-      ) : (
-        <>
-          {dress.trim() && <div className="daybrief-row"><b>Wear</b><span>{dress}</span></div>}
-          {brief.trim() && <div className="daybrief-row"><b>Details</b><span style={{ whiteSpace: "pre-wrap" }}>{brief}</span></div>}
-        </>
-      )}
-    </div>
+        );
+      }}
+    </AsyncSection>
   );
 }
 
@@ -1254,7 +1297,7 @@ function MyDay({ userId, meName, isLeader, canPrep, canBrew }: { userId: string 
         <div className="myday-today">
           {today.map((e) => (
             <div key={e.id} className="myday-ev-wrap">
-              <div className="myday-ev">{e.is_live && <span className="myday-live">LIVE</span>}<span>📍 {e.title || e.day_label || "Event"}</span></div>
+              <div className="myday-ev">{e.is_live && <span className="myday-live">LIVE</span>}<span><Icon name="pin" /> {e.title || e.day_label || "Event"}</span></div>
               {(e.dress_code?.trim() || e.crew_brief?.trim()) && (
                 <div className="myday-brief">
                   {e.dress_code?.trim() && <div className="myday-brief-row"><b>🧢 Wear</b><span>{e.dress_code}</span></div>}
@@ -1269,14 +1312,14 @@ function MyDay({ userId, meName, isLeader, canPrep, canBrew }: { userId: string 
         <div className="myday-rhythm">
           {rhythm.stops.map((s) => (
             <button key={s.id} type="button" className="myday-chip" style={{ borderLeftColor: laneColor("stop") }} onClick={() => { if (!canPrep) { setSection("now"); return; } try { localStorage.setItem("gt3-prep-open", `stop:${s.id}`); } catch { /* ignore */ } setSection("prep"); }}>
-              🚚 {s.name || "Truck stop"}{s.starts_at ? ` · ${new Date(s.starts_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""} ›
+              <Icon name="truck" /> {s.name || "Truck stop"}{s.starts_at ? ` · ${new Date(s.starts_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""} ›
             </button>
           ))}
-          {rhythm.dropPacks > 0 && <button type="button" className="myday-chip" style={{ borderLeftColor: laneColor("drop") }} onClick={() => setSection("now")}>📦 Drop today · {rhythm.dropPacks} pack{rhythm.dropPacks === 1 ? "" : "s"} ›</button>}
-          {rhythm.porches > 0 && <button type="button" className="myday-chip" style={{ borderLeftColor: laneColor("delivery") }} onClick={() => { window.location.href = "/driver"; }}>🚗 Delivery run · {rhythm.porches} porch{rhythm.porches === 1 ? "" : "es"} ›</button>}
+          {rhythm.dropPacks > 0 && <button type="button" className="myday-chip" style={{ borderLeftColor: laneColor("drop") }} onClick={() => setSection("now")}><Icon name="package" /> Drop today · {rhythm.dropPacks} pack{rhythm.dropPacks === 1 ? "" : "s"} ›</button>}
+          {rhythm.porches > 0 && <button type="button" className="myday-chip" style={{ borderLeftColor: laneColor("delivery") }} onClick={() => { window.location.href = "/driver"; }}><Icon name="compass" /> Delivery run · {rhythm.porches} porch{rhythm.porches === 1 ? "" : "es"} ›</button>}
           {canBrew && rhythm.brews.map((b) => (
             <button key={b.id} type="button" className={`myday-chip${b.warn ? " warn" : ""}`} style={{ borderLeftColor: laneColor("brew") }} onClick={() => setSection("brew")}>
-              ☕ Brew · {b.recipe_name} {b.batch_gal} gal{b.warn ? " — start now" : ""} ›
+              <Icon name="coffee" /> Brew · {b.recipe_name} {b.batch_gal} gal{b.warn ? " — start now" : ""} ›
             </button>
           ))}
         </div>
@@ -1285,7 +1328,7 @@ function MyDay({ userId, meName, isLeader, canPrep, canBrew }: { userId: string 
           nothing needs you, we say NOTHING: silence is the signal, not another banner. */}
       {flags.length > 0 && (
         <button type="button" className="myday-inbox-ptr" onClick={() => window.dispatchEvent(new Event("gt3-open-inbox"))}>
-          <span className="myday-inbox-n">{flags.length}</span> flag{flags.length === 1 ? "" : "s"} &amp; ping{flags.length === 1 ? "" : "s"} for you <span className="myday-inbox-go">Open inbox →</span>
+          <span className="myday-inbox-n">{flags.length}</span> flag{flags.length === 1 ? "" : "s"} &amp; ping{flags.length === 1 ? "" : "s"} for you <span className="myday-inbox-go">Open inbox <Icon name="arrowRight" /></span>
         </button>
       )}
       {/* MY TASKS above the fold — the day's work leads; everything else follows. */}
@@ -1296,7 +1339,7 @@ function MyDay({ userId, meName, isLeader, canPrep, canBrew }: { userId: string 
       {isLeader && (
         <div style={{ marginTop: 18 }}>
           <button type="button" className="k-chip sec" onClick={() => setLeadOpen((o) => !o)} aria-expanded={leadOpen}>
-            🧭 Lead the week — GTM, briefing &amp; intake {leadOpen ? "▴" : "▾"}
+            <Icon name="compass" /> Lead the week — GTM, briefing &amp; intake {leadOpen ? "▴" : "▾"}
           </button>
           {leadOpen && (
             <div style={{ marginTop: 12 }}>
@@ -1462,7 +1505,7 @@ function MyTasks({ userId, chip = false }: { userId: string | null; chip?: boole
       <button type="button" className="alerts-strip taskptr" onClick={() => setSection("day")}>
         <span className="alerts-strip-i" aria-hidden>☑️</span>
         <span className="alerts-strip-t"><b>{tasks.length} task{tasks.length === 1 ? "" : "s"} on your plate</b>{over ? ` · ${over} overdue` : crit ? ` · ${crit} critical` : ""}</span>
-        <span className="alerts-strip-go">Open in My Day →</span>
+        <span className="alerts-strip-go">Open in My Day <Icon name="arrowRight" /></span>
       </button>
     );
   }
@@ -1585,11 +1628,11 @@ function ReadinessAgent() {
   };
   return (
     <div className="adm-sec">
-      <div className="sec">Readiness</div>
+      <SectionHeader label="Readiness" />
       <div className="rdy">
         <div className="rdy-top">
           <span className="rdy-blurb">Ask the prep agent if you&apos;re stocked for the next two weeks.</span>
-          <button type="button" className="rdy-run" onClick={run} disabled={busy}>{busy ? "Checking…" : "✨ Check"}</button>
+          <button type="button" className="rdy-run" onClick={run} disabled={busy}>{busy ? "Checking…" : <><Icon name="sparkles" /> Check</>}</button>
         </div>
         {res && (
           <div className={`rdy-out sev-${res.severity}`}>
@@ -1699,7 +1742,7 @@ function InspectionPrep() {
             <option value="">No event — just brief me</option>
             {events.map((ev) => <option key={ev.id} value={ev.id}>{ev.day_label || ev.day || ""} · {ev.title || "Event"}</option>)}
           </select>
-          <button type="button" className="rdy-run" onClick={run} disabled={busy || !state.trim()}>{busy ? "Researching…" : "✨ Research"}</button>
+          <button type="button" className="rdy-run" onClick={run} disabled={busy || !state.trim()}>{busy ? "Researching…" : <><Icon name="sparkles" /> Research</>}</button>
         </div>
         {wait && (
           <div className="insp-wait" role="status" aria-live="polite">
@@ -1718,7 +1761,7 @@ function InspectionPrep() {
               <><div className="insp-lbl">Proposed rules — approve to make official</div>
               {res.proposed.map((p) => (
                 <div key={p.id} className="insp-rule">
-                  <span className="insp-rule-t">{p.critical ? "⚠️ " : ""}<b>{p.kind}</b> — {p.label}{p.link ? <a href={p.link} target="_blank" rel="noreferrer" className="insp-src"> source</a> : null}</span>
+                  <span className="insp-rule-t">{p.critical ? <><Icon name="warning" /> </> : ""}<b>{p.kind}</b> — {p.label}{p.link ? <a href={p.link} target="_blank" rel="noreferrer" className="insp-src"> source</a> : null}</span>
                   <span className="insp-rule-act">
                     <button type="button" className="insp-yes" onClick={() => decide(p.id, true)}>Approve</button>
                     <button type="button" className="insp-no" onClick={() => decide(p.id, false)}>Dismiss</button>
@@ -1736,17 +1779,12 @@ function InspectionPrep() {
 }
 
 function EventPrep({ onGo }: { onGo: (t: string) => void }) {
-  const [events, setEvents] = useState<EventRow[]>([]);
-  const [stops, setStops] = useState<Stop[]>([]);
-  const [liveStopId, setLiveStopId] = useState<string | null>(null);
-  const [ready, setReady] = useState<Record<string, Readiness>>({});
   const [selected, setSelected] = useState<PrepTarget | null>(null);
   const [dir, setDir] = useState<"asc" | "desc">("asc");
   const [sheet, setSheet] = useState(false);
-  const [loaded, setLoaded] = useState(false);
 
-  const load = useCallback(async () => {
-    if (!supabase) return;
+  const prepState = useAsyncData<{ events: EventRow[]; stops: Stop[]; liveStopId: string | null; ready: Record<string, Readiness> }>(async () => {
+    if (!supabase) throw new Error("Supabase client not configured");
     const [{ data: evs }, { data: sts }, { data: ls }, { data: t }] = await Promise.all([
       supabase.from("events").select("*").order("sort"),
       supabase.from("stops").select("*").order("sort"),
@@ -1757,10 +1795,9 @@ function EventPrep({ onGo }: { onGo: (t: string) => void }) {
     // (0121); finishing a truck stop sets status:"done". Either way it drops off the active
     // list — it's still reachable via history/archive, just not cluttering today's prep.
     const evList = ((evs as EventRow[]) ?? []).filter((e) => !e.archived_at && e.stage !== "done");
-    setEvents(evList);
-    setStops(((sts as Stop[]) ?? []).filter((s) => !s.archived_at && s.status !== "done"));
+    const stopList = ((sts as Stop[]) ?? []).filter((s) => !s.archived_at && s.status !== "done");
     const lstat = ls as { current_stop_id: string | null; is_live: boolean } | null;
-    setLiveStopId(lstat?.is_live ? lstat.current_stop_id : null);
+    const liveStopId = lstat?.is_live ? lstat.current_stop_id : null;
     const map: Record<string, Readiness> = {};
     for (const row of (t as { event_id: string | null; stop_id: string | null; done: boolean; critical: boolean }[]) ?? []) {
       const key = row.event_id ?? row.stop_id;
@@ -1770,12 +1807,16 @@ function EventPrep({ onGo }: { onGo: (t: string) => void }) {
       if (row.done) m.done++;
       else if (row.critical) m.crit++;
     }
-    setReady(map);
-    setSelected((prev) => prev ?? (evList.find((e) => e.is_live) ? { kind: "event", id: evList.find((e) => e.is_live)!.id } : null));
-    setLoaded(true);
+    return { events: evList, stops: stopList, liveStopId, ready: map };
   }, []);
+  // Auto-open the live event the first time the list loads — never steals a selection the
+  // operator already made (prev ?? …), including one set by the deep-link effect below.
   useEffect(() => {
-    load();
+    if (!prepState.data) return;
+    const live = prepState.data.events.find((e) => e.is_live);
+    setSelected((prev) => prev ?? (live ? { kind: "event", id: live.id } : null));
+  }, [prepState.data]);
+  useEffect(() => {
     // Deep-link from an event editor's "Open prep".
     try {
       const tgt = localStorage.getItem("gt3-prep-open");
@@ -1791,56 +1832,65 @@ function EventPrep({ onGo }: { onGo: (t: string) => void }) {
     };
     window.addEventListener("gt3-open-prep", onOpen);
     return () => window.removeEventListener("gt3-open-prep", onOpen);
-  }, [load]);
-  useRealtimeTable(["events", "stops", "event_tasks"], load);
+  }, []);
+  useRealtimeTable(["events", "stops", "event_tasks"], prepState.reload);
 
   if (selected) return <PrepDetail target={selected} onBack={() => setSelected(null)} />;
-
-  // events grouped by date/when; dir flips order
-  const by: Record<string, { key: number; label: string; items: EventRow[] }> = {};
-  for (const ev of events) {
-    const b = whenBucket(ev.day);
-    (by[b.label] ??= { key: b.key, label: b.label, items: [] }).items.push(ev);
-  }
-  const groups = Object.values(by).sort((a, b) => a.key - b.key);
-  const cmp = (a: EventRow, b: EventRow) => (a.day ?? "9999").localeCompare(b.day ?? "9999") || a.sort - b.sort;
-  for (const g of groups) g.items.sort(cmp);
-  if (dir === "desc") { groups.reverse(); for (const g of groups) g.items.reverse(); }
 
   return (
     <>
     {/* Overview + loadout show on the list only — opening a target gives prep the full screen. */}
     <Overview onGo={onGo} onOpenTarget={(kind, id) => setSelected({ kind, id })} />
     <div className="adm-sec adm-prep">
-      <div className="sec">Prep
-        <button className="adm-prep-view" onClick={() => setSheet(true)} aria-haspopup="dialog">View ⌄</button>
-      </div>
-      {!loaded && <PourFill />}
-      {loaded && events.length === 0 && stops.length === 0 && <div className="h-sub">Nothing to prep yet — add an event (Plan → Events) or a truck location (Now → Live truck).</div>}
+      <SectionHeader label="Prep" right={<button className="adm-prep-view" onClick={() => setSheet(true)} aria-haspopup="dialog">View ⌄</button>} />
+      <AsyncSection
+        state={prepState}
+        isEmpty={(d) => d.events.length === 0 && d.stops.length === 0}
+        emptyTitle="Nothing to prep yet"
+        emptySub="Add an event (Plan → Events) or a truck location (Now → Live truck)."
+        loadingLabel="Loading prep…"
+        errorTitle="Couldn't load prep"
+      >
+        {(d) => {
+          // events grouped by date/when; dir flips order
+          const by: Record<string, { key: number; label: string; items: EventRow[] }> = {};
+          for (const ev of d.events) {
+            const b = whenBucket(ev.day);
+            (by[b.label] ??= { key: b.key, label: b.label, items: [] }).items.push(ev);
+          }
+          const groups = Object.values(by).sort((a, b) => a.key - b.key);
+          const cmp = (a: EventRow, b: EventRow) => (a.day ?? "9999").localeCompare(b.day ?? "9999") || a.sort - b.sort;
+          for (const g of groups) g.items.sort(cmp);
+          if (dir === "desc") { groups.reverse(); for (const g of groups) g.items.reverse(); }
+          return (
+            <>
+              {d.stops.length > 0 && (
+                <div className="prep-group">
+                  <div className="prep-group-h">Truck locations <span>{d.stops.length}</span></div>
+                  <div className="prep-cards">
+                    {d.stops.map((s) => (
+                      <PrepCard key={s.id} title={s.name} when={s.id === d.liveStopId ? "Live now" : [(s as { starts_at?: string | null }).starts_at ? new Date((s as { starts_at?: string | null }).starts_at as string).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : null, s.when_label].filter(Boolean).join(" · ") || "Unscheduled"} location={s.location_text} live={s.id === d.liveStopId}
+                        r={d.ready[s.id] ?? { done: 0, total: 0, crit: 0 }} onOpen={() => setSelected({ kind: "stop", id: s.id })} />
+                    ))}
+                  </div>
+                </div>
+              )}
 
-      {stops.length > 0 && (
-        <div className="prep-group">
-          <div className="prep-group-h">Truck locations <span>{stops.length}</span></div>
-          <div className="prep-cards">
-            {stops.map((s) => (
-              <PrepCard key={s.id} title={s.name} when={s.id === liveStopId ? "Live now" : [(s as { starts_at?: string | null }).starts_at ? new Date((s as { starts_at?: string | null }).starts_at as string).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : null, s.when_label].filter(Boolean).join(" · ") || "Unscheduled"} location={s.location_text} live={s.id === liveStopId}
-                r={ready[s.id] ?? { done: 0, total: 0, crit: 0 }} onOpen={() => setSelected({ kind: "stop", id: s.id })} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {groups.map((g) => (
-        <div key={g.label} className="prep-group">
-          <div className="prep-group-h">{g.label} <span>{g.items.length}</span></div>
-          <div className="prep-cards">
-            {g.items.map((ev) => (
-              <PrepCard key={ev.id} title={ev.title} when={[ev.day ? new Date(`${ev.day}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : ev.day_label, ev.start_time].filter(Boolean).join(" · ") || "Unscheduled"} location={ev.location_text} live={!!ev.is_live}
-                r={ready[ev.id] ?? { done: 0, total: 0, crit: 0 }} onOpen={() => setSelected({ kind: "event", id: ev.id })} />
-            ))}
-          </div>
-        </div>
-      ))}
+              {groups.map((g) => (
+                <div key={g.label} className="prep-group">
+                  <div className="prep-group-h">{g.label} <span>{g.items.length}</span></div>
+                  <div className="prep-cards">
+                    {g.items.map((ev) => (
+                      <PrepCard key={ev.id} title={ev.title} when={[ev.day ? new Date(`${ev.day}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : ev.day_label, ev.start_time].filter(Boolean).join(" · ") || "Unscheduled"} location={ev.location_text} live={!!ev.is_live}
+                        r={d.ready[ev.id] ?? { done: 0, total: 0, crit: 0 }} onOpen={() => setSelected({ kind: "event", id: ev.id })} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </>
+          );
+        }}
+      </AsyncSection>
       {sheet && <PrepViewSheet dir={dir} setDir={setDir} onClose={() => setSheet(false)} />}
     </div>
     </>
@@ -1887,13 +1937,13 @@ function Garage({ events, stops, liveStopId, loaded }: { events: EventRow[]; sto
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const autoRef = useRef(false);
   useEffect(() => { if (loaded && packSoon && !autoRef.current) { autoRef.current = true; setOpen((o) => ({ ...o, loadout: true })); } }, [loaded, packSoon]);
-  const row = (id: string, icon: string, title: string, hint: string, body: ReactNode) => (
+  const row = (id: string, icon: ReactNode, title: string, hint: string, body: ReactNode) => (
     <div className={`garage-row${open[id] ? " open" : ""}`}>
       <button type="button" className="garage-head" onClick={() => setOpen((o) => ({ ...o, [id]: !o[id] }))} aria-expanded={!!open[id]}>
         <span className="garage-ic">{icon}</span>
         <span className="garage-t">{title}</span>
         {!open[id] && <span className="garage-hint">{hint}</span>}
-        <span className="garage-chev">{open[id] ? "▾" : "▸"}</span>
+        <span className="garage-chev">{open[id] ? "▾" : <Icon name="chevronRight" />}</span>
       </button>
       {open[id] && <div className="garage-body">{body}</div>}
     </div>
@@ -1901,10 +1951,10 @@ function Garage({ events, stops, liveStopId, loaded }: { events: EventRow[]; sto
   return (
     <div className="garage">
       <div className="prep-group-h">The garage <span>rigs · gear · stock</span></div>
-      {row("loadout", "🚚", "Load-out & tow plan", packSoon ? "event this week — check the load" : "quiet until an event is near", <TrailerLoadout />)}
+      {row("loadout", <Icon name="truck" />, "Load-out & tow plan", packSoon ? "event this week — check the load" : "quiet until an event is near", <TrailerLoadout />)}
       {row("gear", "🧰", "Gear library", "manuals · specs · how-tos", <GearLibrary />)}
-      {row("maint", "🔧", "Asset maintenance", "service log · what's due", <AssetMaintenance />)}
-      {row("inventory", "📦", "Inventory", "stock, costs & pars", <InventoryLibrary />)}
+      {row("maint", <Icon name="wrench" />, "Asset maintenance", "service log · what's due", <AssetMaintenance />)}
+      {row("inventory", <Icon name="package" />, "Inventory", "stock, costs & pars", <InventoryLibrary />)}
     </div>
   );
 }
@@ -1922,7 +1972,6 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   const ownerCol = isEvent ? "event_id" : "stop_id";
   const [ev, setEv] = useState<EventRow | null>(null); // full event row (events only; drives generate)
   const [name, setName] = useState<string | null>(null); // display name for either kind
-  const [loadedOk, setLoadedOk] = useState(false);
   const [tasks, setTasks] = useState<EventTask[]>([]);
   const [crew, setCrew] = useState<{ id: string; user_id: string; role_label: string | null }[]>([]);
   const [staff, setStaff] = useState<{ id: string; display_name: string | null; role?: string | null }[]>([]);
@@ -1956,8 +2005,8 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   }, []);
   useEffect(() => { loadOnHand(); }, [loadOnHand]);
 
-  const load = useCallback(async () => {
-    if (!supabase) return;
+  const prepState = useAsyncData<true>(async () => {
+    if (!supabase) throw new Error("Supabase client not configured");
     // Resolve the target's display name (+ the full event row for events).
     if (isEvent) {
       const { data: e } = await supabase.from("events").select("*").eq("id", target.id).maybeSingle();
@@ -1970,7 +2019,6 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       setName(sm?.name ?? null);
       setStopMeta({ day: sm?.starts_at ? sm.starts_at.slice(0, 10) : null, plan_days: Math.max(1, sm?.plan_days ?? 1) });
     }
-    setLoadedOk(true);
     const { data: t } = await supabase.from("event_tasks").select("*").eq(ownerCol, target.id).order("sort");
     const seen = new Set<string>();
     const deduped = ((t as EventTask[]) ?? []).filter((x) => { const k = `${x.section ?? ""}|${x.label}`; if (seen.has(k)) return false; seen.add(k); return true; });
@@ -1996,8 +2044,13 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
     const rows = (bl as unknown as { brew_batches: BB | BB[] | null }[]) ?? [];
     setBrewBatches(rows.flatMap((r) => (Array.isArray(r.brew_batches) ? r.brew_batches : r.brew_batches ? [r.brew_batches] : []))
       .filter((b) => !seenB.has(b.id) && (seenB.add(b.id), true)));
+    return true;
   }, [target.id, isEvent, ownerCol, isAdmin]);
-  useEffect(() => { load(); }, [load]);
+  // `load` stays the name every mutation handler below already calls — it's now the hook's reload.
+  // The loader still owns its setState calls directly (unchanged from before); useAsyncData only
+  // layers status/error tracking + a race-safe reload on top, so this stays a light-touch wrap
+  // rather than a rewrite of every optimistic-update call site in this hub.
+  const load = prepState.reload;
   useRealtimeTable(["event_tasks", "event_staff", "event_approvals", "comments", "brew_batch_links", "brew_batches"], load);
 
   // Clear, identifiable labels — staff often sign in without setting a name, so fall back
@@ -2190,12 +2243,6 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
     toast("Sign-off requested");
   };
 
-  if (loadedOk && name === null) return (
-    <div className="adm-sec adm-prep">
-      <button className="adm-prep-back" onClick={onBack}>‹ All prep</button>
-      <div className="h-sub">{isEvent ? "Event" : "Location"} not found — it may have been removed.</div>
-    </div>
-  );
   const total = tasks.length, doneN = tasks.filter((t) => t.done).length;
   const critOut = tasks.filter((t) => t.critical && !t.done);
   const ready = total > 0 && doneN === total;
@@ -2215,9 +2262,29 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   const pendingApprovers = [...new Set([...managers.map((m) => m.user_id), ...ownerIds])].filter((id) => !approvedIds.has(id));
 
   return (
+    <AsyncSection
+      state={prepState}
+      isEmpty={() => false}
+      emptyTitle="Nothing to prep yet"
+      loadingLabel={`Loading ${isEvent ? "event" : "location"} prep…`}
+      errorTitle={`Couldn't load ${isEvent ? "event" : "location"} prep`}
+    >
+      {() => {
+        if (name === null) {
+          return (
+            <div className="adm-sec adm-prep">
+              <button className="adm-prep-back" onClick={onBack}>‹ All prep</button>
+              <div className="h-sub">{isEvent ? "Event" : "Location"} not found — it may have been removed.</div>
+            </div>
+          );
+        }
+        return (
     <div className="adm-sec adm-prep">
       <button className="adm-prep-back" onClick={onBack}>‹ All prep</button>
-      <div className="sec">{name ?? "…"} · prep{isEvent && ev?.is_live && <span className="adm-pill due">LIVE</span>}{!isEvent && <span className="adm-pill">Location</span>}</div>
+      <SectionHeader label={name ?? "…"} annotation="prep" right={<>
+        {isEvent && ev?.is_live && <span className="adm-pill due">LIVE</span>}
+        {!isEvent && <span className="adm-pill">Location</span>}
+      </>} />
       {/* Identity / date / place / status — managed right here, so a stop or event is one screen end to end. */}
       <OwnerDetails ownerType={target.kind} ownerId={target.id} isAdmin={isAdmin} onSaved={(nm) => { setName(nm); load(); }} onRemoved={onBack} />
       {total > 0 ? (
@@ -2230,8 +2297,8 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
           {isAdmin && (
             <div className="adm-prep-actions">
               <button className="adm-regen" onClick={() => generate(true)} disabled={generating}>↻ Regenerate from menu</button>
-              <button className="adm-regen" onClick={() => setPrepAIOpen(true)}>✨ AI prep list</button>
-              <button className="adm-regen ts-btn" onClick={() => setTroubleshootOpen(true)}>🔧 Troubleshoot</button>
+              <button className="adm-regen" onClick={() => setPrepAIOpen(true)}><Icon name="sparkles" /> AI prep list</button>
+              <button className="adm-regen ts-btn" onClick={() => setTroubleshootOpen(true)}><Icon name="wrench" /> Troubleshoot</button>
               <button className="adm-regen" onClick={() => setShowSupplies(true)}>+ Add supplies</button>
             </div>
           )}
@@ -2239,8 +2306,8 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       ) : isAdmin ? (
         <div className="adm-prep-actions" style={{ flexWrap: "wrap" }}>
           <button className="adm-btn primary" onClick={() => generate()} disabled={generating}>{generating ? "Generating…" : "Generate pack list from menu"}</button>
-          <button className="adm-btn" onClick={() => setPrepAIOpen(true)}>✨ AI prep list</button>
-          <button className="adm-btn ts-btn" onClick={() => setTroubleshootOpen(true)}>🔧 Troubleshoot</button>
+          <button className="adm-btn" onClick={() => setPrepAIOpen(true)}><Icon name="sparkles" /> AI prep list</button>
+          <button className="adm-btn ts-btn" onClick={() => setTroubleshootOpen(true)}><Icon name="wrench" /> Troubleshoot</button>
         </div>
       ) : <div className="h-sub">No pick list yet.</div>}
       {prepAIOpen && (
@@ -2290,11 +2357,11 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       {isAdmin && (
         <>
           <button type="button" className="prep-collapse" style={{ marginTop: 10 }} onClick={() => setLoadoutOpen((o) => !o)} aria-expanded={loadoutOpen}>
-            <span className="prep-collapse-l"><b>🚚 Load-out &amp; tow</b><span>space plan · tongue weight · the load checklist</span></span>
+            <span className="prep-collapse-l"><b><Icon name="truck" /> Load-out &amp; tow</b><span>space plan · tongue weight · the load checklist</span></span>
             <span className={`ev-chev${loadoutOpen ? " open" : ""}`}>›</span>
           </button>
           <div className="adm-prep-actions" style={{ marginTop: 8 }}>
-            <button className="adm-regen" onClick={() => setPackPlanOpen(true)}>📦 Pack-out plan · kegs vs bottles</button>
+            <button className="adm-regen" onClick={() => setPackPlanOpen(true)}><Icon name="package" /> Pack-out plan · kegs vs bottles</button>
           </div>
         </>
       )}
@@ -2321,9 +2388,9 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
             const mgr = c.role_label === "manager";
             return (
               <span key={c.id} className={`adm-crew-chip${mgr ? " mgr" : ""}`}>
-                <button type="button" className="crew-mgr" onClick={() => setManager(c.id, !mgr)} title={mgr ? "Remove manager" : "Make manager (must approve)"} aria-label={mgr ? "Remove manager" : "Make manager"}>{mgr ? "★" : "☆"}</button>
+                <button type="button" className="crew-mgr" onClick={() => setManager(c.id, !mgr)} title={mgr ? "Remove manager" : "Make manager (must approve)"} aria-label={mgr ? "Remove manager" : "Make manager"}>{mgr ? <Icon name="star" /> : "☆"}</button>
                 <span className="crew-name">{nameOf(c.user_id)}</span>
-                <button type="button" className="crew-x" onClick={() => removeCrew(c.id)} aria-label="Remove from crew">✕</button>
+                <button type="button" className="crew-x" onClick={() => removeCrew(c.id)} aria-label="Remove from crew"><Icon name="close" /></button>
               </span>
             );
           })}
@@ -2341,22 +2408,22 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
             <span>{approvedCount}/{1 + managers.length} approved</span>
           </div>
           <div className="adm-approve-rows">
-            <div className={`adm-approve-row${ownerApproved ? " done" : ""}`}><span>Owner</span><span className="adm-approve-mark">{ownerApproved ? "✓" : "—"}</span></div>
+            <div className={`adm-approve-row${ownerApproved ? " done" : ""}`}><span>Owner</span><span className="adm-approve-mark">{ownerApproved ? <Icon name="check" /> : "—"}</span></div>
             {managers.map((m) => (
-              <div key={m.id} className={`adm-approve-row${approvedIds.has(m.user_id) ? " done" : ""}`}><span>{firstNameOf(m.user_id)} · mgr</span><span className="adm-approve-mark">{approvedIds.has(m.user_id) ? "✓" : "—"}</span></div>
+              <div key={m.id} className={`adm-approve-row${approvedIds.has(m.user_id) ? " done" : ""}`}><span>{firstNameOf(m.user_id)} · mgr</span><span className="adm-approve-mark">{approvedIds.has(m.user_id) ? <Icon name="check" /> : "—"}</span></div>
             ))}
           </div>
           <div className="adm-approve-actions">
             {iAmRequired && <button className={`adm-btn${iApproved ? " ghost" : " primary"}`} onClick={() => toggleApproval(iApproved)}>{iApproved ? "Withdraw approval" : "Approve prep"}</button>}
             {isAdmin && !fullyApproved && pendingApprovers.length > 0 && <button className="adm-btn ghost" onClick={() => requestSignoff(pendingApprovers)}>Request sign-off</button>}
           </div>
-          {managers.length === 0 && <div className="h-sub" style={{ marginTop: 6 }}>Tag a crew member ★ as manager to require their approval too.</div>}
+          {managers.length === 0 && <div className="h-sub" style={{ marginTop: 6 }}>Tag a crew member <Icon name="star" /> as manager to require their approval too.</div>}
         </div>
       )}
 
       {onHand.length > 0 && (
         <div className="onhand carryin">
-          <div className="onhand-h">📦 On hand now <span>carried in — correct any count</span></div>
+          <div className="onhand-h"><Icon name="package" /> On hand now <span>carried in — correct any count</span></div>
           {onHand.map((o) => (
             <div key={o.item} className="onhand-row">
               <span className="onhand-label">{o.item}</span>
@@ -2397,11 +2464,11 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
               <div className={`adm-task${t.done ? " done" : ""}${t.critical ? " crit" : t.warn ? " warn" : ""}`}>
                 <button type="button" className="task-check" aria-pressed={t.done} onClick={() => toggle(t)} aria-label={`${t.done ? "Mark not loaded" : "Mark loaded"}: ${t.label}`}>
                   <span className="task-box">{t.done && <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7" /></svg>}</span>
-                  <span className="task-label">{t.label}{t.target_qty != null && <span className="task-qty">{t.actual_qty ?? "—"}/{t.target_qty}</span>}{t.due_at && <span className={`task-due${!t.done && t.due_at < new Date().toISOString() ? " over" : ""}`}>{!t.done && t.due_at < new Date().toISOString() ? "⚠ " : ""}due {dueLabel(t.due_at)}</span>}</span>
+                  <span className="task-label">{t.label}{t.target_qty != null && <span className="task-qty">{t.actual_qty ?? "—"}/{t.target_qty}</span>}{t.due_at && <span className={`task-due${!t.done && t.due_at < new Date().toISOString() ? " over" : ""}`}>{!t.done && t.due_at < new Date().toISOString() ? <><Icon name="warning" /> </> : ""}due {dueLabel(t.due_at)}</span>}</span>
                 </button>
                 <div className="task-right">
-                  {t.link && <a className="adm-task-link" href={t.link} target="_blank" rel="noopener noreferrer" aria-label="Open reference / application">↗</a>}
-                  <button type="button" className="task-discuss" onClick={() => setOpenThread(openThread === t.id ? null : t.id)} aria-label={`Discuss ${t.label}`}>💬{counts[t.id] ? <span className="cmt-count">{counts[t.id]}</span> : <span className="task-discuss-l">Discuss</span>}</button>
+                  {t.link && <a className="adm-task-link" href={t.link} target="_blank" rel="noopener noreferrer" aria-label="Open reference / application"><Icon name="externalLink" /></a>}
+                  <button type="button" className="task-discuss" onClick={() => setOpenThread(openThread === t.id ? null : t.id)} aria-label={`Discuss ${t.label}`}><Icon name="chat" />{counts[t.id] ? <span className="cmt-count">{counts[t.id]}</span> : <span className="task-discuss-l">Discuss</span>}</button>
                   {isAdmin && <button type="button" className="task-discuss" onClick={() => openTask(t.id, "event")} aria-label={`Edit ${t.label}`} title="Edit task">✎</button>}
                   {isAdmin ? (
                     <button type="button" className={`task-assign${t.assignee ? " set" : ""}`} onClick={() => setAssignFor(t)} aria-label={t.assignee ? `Reassign ${t.label} — currently ${staffName(t.assignee)}` : `Assign ${t.label} to crew`}>
@@ -2446,6 +2513,9 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
         <SupplyPicker ev={ev} title={name ?? (isEvent ? "this event" : "this location")} have={new Set(tasks.map((t) => t.label.trim().toLowerCase()))} onAdd={addSupplies} onClose={() => setShowSupplies(false)} />
       )}
     </div>
+        );
+      }}
+    </AsyncSection>
   );
 }
 
@@ -2466,19 +2536,19 @@ function AssignSheet({ task, staff, crewIds, meId, meName, onPick, onClose }: {
   const crew = staff.filter((s) => crewIds.includes(s.id) && s.id !== meId);
   const others = staff.filter((s) => !crewIds.includes(s.id) && s.id !== meId);
   const Row = (s: { id: string; display_name: string | null }) => (
-    <button key={s.id} type="button" className={`assign-row${task.assignee === s.id ? " on" : ""}`} onClick={() => onPick(s.id)}>
+    <button key={s.id} type="button" className={`assign-row${task.assignee === s.id ? " on" : ""}`} onClick={() => onPick(s.id)} aria-pressed={task.assignee === s.id}>
       <span className="assign-av">{initial(s)}</span>
       <span className="assign-name">{label(s)}</span>
-      {task.assignee === s.id && <span className="assign-check">✓</span>}
+      {task.assignee === s.id && <span className="assign-check"><Icon name="check" /></span>}
     </button>
   );
   return (
     <Sheet open onClose={onClose} label="Assign task" header={<div style={{ display: "flex", alignItems: "center" }}>Assign · <b>{task.label}</b></div>}>
         {meId && (
-          <button type="button" className={`assign-row me${task.assignee === meId ? " on" : ""}`} onClick={() => onPick(meId)}>
+          <button type="button" className={`assign-row me${task.assignee === meId ? " on" : ""}`} onClick={() => onPick(meId)} aria-pressed={task.assignee === meId}>
             <span className="assign-av">{(meName.trim().charAt(0) || "M").toUpperCase()}</span>
             <span className="assign-name">Assign to me{meName && meName !== "Me" ? ` · ${meName.split(" ")[0]}` : ""}</span>
-            {task.assignee === meId && <span className="assign-check">✓</span>}
+            {task.assignee === meId && <span className="assign-check"><Icon name="check" /></span>}
           </button>
         )}
         {crew.length === 0 && others.length === 0 && !meId && <div className="h-sub">No staff yet — add people and set their role/name in <b>Team</b>.</div>}
@@ -2755,7 +2825,7 @@ function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive
 
           <div className="ev-card-foot">
             {kind === "stop" && onOpenPrep && <button className="adm-btn" style={{ marginRight: "auto" }} onClick={onOpenPrep}>Open prep hub ›</button>}
-            {kind === "stop" && onOpenPrep && <button className="ev-archive ev-complete" onClick={onOpenPrep}>✓ Wrap up in the hub ›</button>}
+            {kind === "stop" && onOpenPrep && <button className="ev-archive ev-complete" onClick={onOpenPrep}><Icon name="check" /> Wrap up in the hub ›</button>}
             {kind === "vendor" && <button className="ev-archive" onClick={onArchive}>Archive</button>}
             {kind === "vendor" && <button className="ev-delete" onClick={remove}>Delete</button>}
           </div>
@@ -2978,7 +3048,7 @@ function LiveControl({ compact = false, manage = false }: { compact?: boolean; m
 
   return (
     <div className="adm-sec">
-      <div className="sec">Live truck {!compact && <InlineCreate label="+ Add location" placeholder="Location name" onCreate={addStop} style={{ marginLeft: "auto" }} />}</div>
+      <SectionHeader label="Live truck" right={!compact ? <InlineCreate label="+ Add location" placeholder="Location name" onCreate={addStop} /> : undefined} />
       {err && <div className="adm-attn" role="alert">Backend error: {err}</div>}
       {compact ? (
         /* THE TRUCK INSTRUMENT — one panel, not a stack of floating cards (owner call). Row 1 is
@@ -3228,13 +3298,16 @@ function MeetingNotes() {
     toast(on ? "Note archived" : "Note restored"); load();
   };
 
-  const load = useCallback(async () => {
-    if (!supabase) return;
+  const notesState = useAsyncData<MeetingNote[]>(async () => {
+    if (!supabase) throw new Error("Supabase client not configured");
     const { data } = await supabase.from("meeting_notes").select("*").order("met_on", { ascending: false }).order("created_at", { ascending: false });
-    setNotes((data as MeetingNote[]) ?? []);
+    return (data as MeetingNote[]) ?? [];
   }, []);
+  const load = notesState.reload;
+  // `notes` stays the editable/optimistic local copy (onVisibility below patches it directly on a
+  // successful save, no round trip) — reseed it from the fetch on every load/reload.
+  useEffect(() => { if (notesState.data) setNotes(notesState.data); }, [notesState.data]);
   useEffect(() => {
-    load();
     if (!supabase) return;
     supabase.from("events").select("id, title").is("archived_at", null).order("day", { ascending: false }).then(({ data }) => setEvents((data as { id: string; title: string }[]) ?? []));
     supabase.from("stops").select("id, name").is("archived_at", null).neq("status", "done").then(({ data }) => setNoteStops((data as { id: string; name: string | null }[]) ?? []));
@@ -3242,7 +3315,7 @@ function MeetingNotes() {
       setNoteOpps((((data ?? []) as unknown) as { id: string; vendors: { name: string } | null }[]).map((o) => ({ id: o.id, label: o.vendors?.name ?? "Opportunity" }))));
     supabase.from("vendors").select("id, name").is("archived_at", null).order("name").then(({ data }) => setNoteVendors((data as { id: string; name: string | null }[]) ?? []));
     supabase.from("profiles").select("id, display_name, role").neq("role", "member").then(({ data }) => setStaff((data as { id: string; display_name: string | null; role?: string | null }[]) ?? []));
-  }, [load]);
+  }, []);
   useRealtimeTable("meeting_notes", load);
 
   const save = async () => {
@@ -3292,13 +3365,13 @@ function MeetingNotes() {
 
   return (
     <div className="adm-sec">
-      <div className="sec">Notes <span className="adm-pill">{notes.length}</span></div>
-      <div className="h-sub note-intro">For yourself or the team — pick who sees each one (🔒 just me · 👥 team · 🤝 team + comments). Tag follow-ups and they land in My&nbsp;Tasks with a notification. Meeting recap? Paste the transcript and ✨ summarize.</div>
+      <SectionHeader label="Notes" right={<span className="adm-pill">{notes.length}</span>} />
+      <div className="h-sub note-intro">For yourself or the team — pick who sees each one (<Icon name="lock" /> just me · <Icon name="team" /> team · <Icon name="partners" /> team + comments). Tag follow-ups and they land in My&nbsp;Tasks with a notification. Meeting recap? Paste the transcript and <Icon name="sparkles" /> summarize.</div>
 
       <button type="button" className="note-new" onClick={() => setComposing(true)}>✎ New note</button>
       {composing && (
         <Sheet open onClose={() => { setComposing(false); setCActions([]); }} label="New note" className="note-lux"
-          header={<div className="note-lux-head"><span className="note-lux-eyb">New note</span><button type="button" className="qd-x" onClick={() => { setComposing(false); setCActions([]); }} aria-label="Close">✕</button></div>}
+          header={<div className="note-lux-head"><span className="note-lux-eyb">New note</span><button type="button" className="qd-x" onClick={() => { setComposing(false); setCActions([]); }} aria-label="Close"><Icon name="close" /></button></div>}
           footer={<div className="note-actions"><button type="button" className="note-cancel" onClick={() => { setComposing(false); setCActions([]); }}>Cancel</button><button type="button" className="note-save" disabled={!cTitle.trim() || saving} onClick={save}>{saving ? "Saving…" : "Save note"}</button></div>}>
           <div className="note-composer">
             <input className="note-in note-lux-title" placeholder="What&rsquo;s this note about?" value={cTitle} onChange={(e) => setCTitle(e.target.value)} autoFocus />
@@ -3321,21 +3394,21 @@ function MeetingNotes() {
               </select>
             </div>
             <div className="note-vis-chips" role="radiogroup" aria-label="Who can see this note">
-              {([["private","🔒 Just me"],["team","👥 Team"],["collab","🤝 Team + comments"]] as const).map(([v,l]) => (
+              {([["private",<><Icon name="lock" /> Just me</>],["team",<><Icon name="team" /> Team</>],["collab",<><Icon name="partners" /> Team + comments</>]] as const).map(([v,l]) => (
                 <button key={v} type="button" role="radio" aria-checked={cVis === v} className={`note-vischip${cVis === v ? " on" : ""}`} onClick={() => { setCVis(v); setVisTouched(true); }}>{l}</button>
               ))}
             </div>
             <textarea className="note-area" placeholder="The note — a thought, a plan, a recap…" value={cSummary} onChange={(e) => setCSummary(e.target.value)} rows={cSummary.length > 200 ? 10 : 3} />
             <details className="note-transcript">
-              <summary>Transcript or attachments? Add them and ✨ summarize</summary>
+              <summary>Transcript or attachments? Add them and <Icon name="sparkles" /> summarize</summary>
               <NoteAttach onText={(t) => setCBody((b) => (b ? b + "\n\n" + t : t))} />
               <textarea className="note-area" placeholder="Paste a transcript — or attach files above to fill this in…" value={cBody} onChange={(e) => setCBody(e.target.value)} rows={4} />
-              <button type="button" className="note-suggest note-sum" onClick={summarize} disabled={summarizing}>{summarizing ? "Summarizing…" : "✨ Summarize → title · recap · tasks"}</button>
+              <button type="button" className="note-suggest note-sum" onClick={summarize} disabled={summarizing}>{summarizing ? "Summarizing…" : <><Icon name="sparkles" /> Summarize → title · recap · tasks</>}</button>
             </details>
             <div className="note-fu-h">Follow-ups
               <button type="button" className="note-fu-add" onClick={() => setCActions((a) => [...a, { title: "", category: "task", critical: false, assignee: null }])}>+ Add</button>
             </div>
-            {cActions.length === 0 && <div className="note-fu-empty">No follow-ups yet — add one and assign it to a partner, or ✨ summarize a transcript to pull them out.</div>}
+            {cActions.length === 0 && <div className="note-fu-empty">No follow-ups yet — add one and assign it to a partner, or <Icon name="sparkles" /> summarize a transcript to pull them out.</div>}
             {cActions.map((a, i) => (
               <div className="note-fu-edit" key={i}>
                 <input className="note-in" placeholder="Follow-up task…" value={a.title} onChange={(e) => setCActions((arr) => arr.map((x, j) => j === i ? { ...x, title: e.target.value } : x))} />
@@ -3344,8 +3417,8 @@ function MeetingNotes() {
                     <option value="">Unassigned</option>
                     {staff.map((m) => <option key={m.id} value={m.id}>{m.display_name?.trim() || "Crew"}</option>)}
                   </select>
-                  <button type="button" className={`note-fu-crit${a.critical ? " on" : ""}`} onClick={() => setCActions((arr) => arr.map((x, j) => j === i ? { ...x, critical: !x.critical } : x))} aria-pressed={a.critical} title="Mark critical">⚠️</button>
-                  <button type="button" className="note-fu-del" onClick={() => setCActions((arr) => arr.filter((_, j) => j !== i))} aria-label="Remove">✕</button>
+                  <button type="button" className={`note-fu-crit${a.critical ? " on" : ""}`} onClick={() => setCActions((arr) => arr.map((x, j) => j === i ? { ...x, critical: !x.critical } : x))} aria-pressed={a.critical} title="Mark critical"><Icon name="warning" /></button>
+                  <button type="button" className="note-fu-del" onClick={() => setCActions((arr) => arr.filter((_, j) => j !== i))} aria-label="Remove"><Icon name="close" /></button>
                 </div>
               </div>
             ))}
@@ -3353,7 +3426,14 @@ function MeetingNotes() {
         </Sheet>
       )}
 
-      {(() => {
+      <AsyncSection
+        state={notesState}
+        isEmpty={() => false}
+        emptyTitle="No notes yet"
+        loadingLabel="Loading notes…"
+        errorTitle="Couldn't load notes"
+      >
+        {() => {
         const archivedCount = notes.filter((n) => n.archived_at).length;
         const q = query.trim().toLowerCase();
         const shown = notes.filter((n) => (tab === "archived" ? n.archived_at : !n.archived_at))
@@ -3381,7 +3461,8 @@ function MeetingNotes() {
             {shown.length === 0 && !composing && <div className="h-sub">{q ? "No notes match your search." : tab === "archived" ? "No archived notes." : "No notes yet — tap “New note” after your next sit-down."}</div>}
           </>
         );
-      })()}
+        }}
+      </AsyncSection>
     </div>
   );
 }
@@ -3514,7 +3595,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
       <button type="button" className="note-head" onClick={onToggle} aria-expanded={open}>
         <div className="note-head-main">
           <span className="note-title">{note.title}{note.source === "email" && <span className="note-src">email</span>}</span>
-          <span className="note-meta">{fmtNoteDate(note.met_on)}{authorName ? ` · ${authorName}` : ""}{eventTitle ? ` · ${eventTitle}` : ""}{note.visibility === "private" ? " · 🔒 private" : note.visibility === "team" ? " · 👥 team" : ""}{items.length ? ` · ${openCount}/${items.length} follow-ups` : ""}</span>
+          <span className="note-meta">{fmtNoteDate(note.met_on)}{authorName ? ` · ${authorName}` : ""}{eventTitle ? ` · ${eventTitle}` : ""}{note.visibility === "private" ? <> · <Icon name="lock" /> private</> : note.visibility === "team" ? <> · <Icon name="team" /> team</> : ""}{items.length ? ` · ${openCount}/${items.length} follow-ups` : ""}</span>
         </div>
         <span className={`note-chev${open ? " open" : ""}`} aria-hidden="true">›</span>
       </button>
@@ -3540,7 +3621,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
           {note.body && <details className="note-full"><summary>Full notes</summary><p>{note.body}</p></details>}
           <OpsPlan noteId={note.id} />
           <div className="note-fu-h">Follow-ups
-            <button type="button" className="note-suggest" onClick={suggest} disabled={suggesting}>{suggesting ? "Reading…" : "✨ Suggest"}</button>
+            <button type="button" className="note-suggest" onClick={suggest} disabled={suggesting}>{suggesting ? "Reading…" : <><Icon name="sparkles" /> Suggest</>}</button>
           </div>
           {items.map((t) => (
             <div key={t.id} className="note-fu-wrap">
@@ -3550,7 +3631,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
                 </button>
                 <span className="note-fu-label">{t.label}</span>
                 <button type="button" className="note-fu-assign" onClick={() => setAssignFor(t)}>{t.assignee ? firstNameOf(t.assignee) : "Assign"}</button>
-                <button type="button" className="note-fu-flag" onClick={() => setOpenThread(openThread === t.id ? null : t.id)} aria-label="Discuss" title="Discuss">💬{counts[t.id] ? <span className="cmt-count">{counts[t.id]}</span> : null}</button>
+                <button type="button" className="note-fu-flag" onClick={() => setOpenThread(openThread === t.id ? null : t.id)} aria-label="Discuss" title="Discuss"><Icon name="chat" />{counts[t.id] ? <span className="cmt-count">{counts[t.id]}</span> : null}</button>
                 <button type="button" className="note-fu-flag" onClick={() => flag(t)} aria-label="Flag as can't-miss" title="Flag as can't-miss">⚑</button>
                 {!t.ai_proposal && <button type="button" className="note-fu-solve" onClick={() => resolve(t)} disabled={resolving.has(t.id)} title="Propose how to complete this">{resolving.has(t.id) ? "…" : "💡"}</button>}
                 {isAdmin && <button type="button" className="note-fu-flag" onClick={() => openTask(t.id, "event")} aria-label="Edit follow-up" title="Edit follow-up">✎</button>}
@@ -3558,7 +3639,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
               </div>
               {t.ai_proposal && (
                 <div className={`fu-prop${t.ai_has_answer ? " has" : ""}`}>
-                  <div className="fu-prop-h">{t.ai_has_answer ? "✓ We already have this" : "💡 Proposed"}</div>
+                  <div className="fu-prop-h">{t.ai_has_answer ? <><Icon name="check" /> We already have this</> : "💡 Proposed"}</div>
                   <div className="fu-prop-b">{t.ai_proposal}</div>
                 </div>
               )}
@@ -3598,24 +3679,24 @@ function Bookings() {
   const { user } = useAuth();
   const { setSection } = useOperatorSection();
   const [reqs, setReqs] = useState<BookingRequest[]>([]);
-  const [wonDeals, setWonDeals] = useState<WonPipelineDeal[]>([]);
   const [promoting, setPromoting] = useState<string | null>(null);
   const [promoteResolve, setPromoteResolve] = useState<{ req: BookingRequest; name: string; candidates: VendorMatch[] } | null>(null);
-  const load = useCallback(async () => {
-    if (!supabase) return;
-    const { data } = await supabase.from("booking_requests").select("*").order("created_at", { ascending: false });
-    if (data) setReqs(data as BookingRequest[]);
+  const bookingsState = useAsyncData<{ reqs: BookingRequest[]; wonDeals: WonPipelineDeal[] }>(async () => {
+    if (!supabase) throw new Error("Supabase client not configured");
+    const [{ data: reqData }, { data: wonData }] = await Promise.all([
+      supabase.from("booking_requests").select("*").order("created_at", { ascending: false }),
+      supabase.from("opportunities")
+        .select("id, value_cents, won_at, vendors(name), deals!inner(title, line)")
+        .eq("stage", "won").eq("deals.line", "private_event")
+        .order("won_at", { ascending: false, nullsFirst: false }).limit(20),
+    ]);
+    return { reqs: (reqData as BookingRequest[]) ?? [], wonDeals: (wonData as unknown as WonPipelineDeal[]) ?? [] };
   }, []);
-  const loadWon = useCallback(async () => {
-    if (!supabase) return;
-    const { data } = await supabase.from("opportunities")
-      .select("id, value_cents, won_at, vendors(name), deals!inner(title, line)")
-      .eq("stage", "won").eq("deals.line", "private_event")
-      .order("won_at", { ascending: false, nullsFirst: false }).limit(20);
-    if (data) setWonDeals(data as unknown as WonPipelineDeal[]);
-  }, []);
-  useEffect(() => { load(); loadWon(); }, [load, loadWon]);
-  useRealtimeTable(["booking_requests", "opportunities"], () => { load(); loadWon(); });
+  const load = bookingsState.reload;
+  // reqs stays the editable/optimistic local copy — del() below removes a row instantly, before
+  // the round-trip — reseeded from the fetch on every load/reload; wonDeals is display-only.
+  useEffect(() => { if (bookingsState.data) setReqs(bookingsState.data.reqs); }, [bookingsState.data]);
+  useRealtimeTable(["booking_requests", "opportunities"], load);
 
   const setStatus = async (id: string, status: BookingRequest["status"]) => {
     const { error } = await supabase!.from("booking_requests").update({ status }).eq("id", id);
@@ -3679,7 +3760,7 @@ function Bookings() {
         .update({ opportunity_id: oppId, ...(r.status === "new" ? { status: "contacted" } : {}) }).eq("id", r.id);
       if (linkErr) toast(`Opportunity's up, but the request didn't link — ${linkErr.message}`, "error");
       else toast("Promoted — the pursuit lives in Business › Pipeline now");
-      load(); loadWon();
+      load();
     } finally { setPromoting(null); }
   };
   const del = async (r: BookingRequest) => {
@@ -3693,7 +3774,16 @@ function Bookings() {
   return (
     <div className="adm-sec">
       <ChiefOfSales onLeads={load} />
-      <div className="sec">Booking requests{open > 0 && <span className="adm-pill">{open} new</span>}</div>
+      <AsyncSection
+        state={bookingsState}
+        isEmpty={() => false}
+        emptyTitle="No booking requests yet"
+        loadingLabel="Loading booking requests…"
+        errorTitle="Couldn't load booking requests"
+      >
+        {(d) => (
+          <>
+      <SectionHeader label="Booking requests" right={open > 0 ? <span className="adm-pill">{open} new</span> : undefined} />
       {reqs.map((r) => (
         <div className={`adm-req${r.status === "new" ? " new" : ""}`} key={r.id}>
           <div className="adm-member-top">
@@ -3709,22 +3799,22 @@ function Bookings() {
             {STATUSES.map((s) => (
               <button key={s} className={r.status === s ? "on" : ""} onClick={() => setStatus(r.id, s)}>{s}</button>
             ))}
-            <button className="adm-req-mk" onClick={() => makeEvent(r)}>→ Make it an event</button>
+            <button className="adm-req-mk" onClick={() => makeEvent(r)}><Icon name="arrowRight" /> Make it an event</button>
             {r.opportunity_id ? (
-              <button className="adm-req-mk" onClick={() => setSection("pipeline")}>On the pipeline →</button>
+              <button className="adm-req-mk" onClick={() => setSection("pipeline")}>On the pipeline <Icon name="arrowRight" /></button>
             ) : (
-              <button className="adm-req-mk" onClick={() => promote(r)} disabled={promoting === r.id}>{promoting === r.id ? "Promoting…" : "→ Promote to Pipeline"}</button>
+              <button className="adm-req-mk" onClick={() => promote(r)} disabled={promoting === r.id}>{promoting === r.id ? "Promoting…" : <><Icon name="arrowRight" /> Promote to Pipeline</>}</button>
             )}
-            <button className="adm-req-del" onClick={() => del(r)} aria-label={`Delete booking request from ${r.name ?? "contact"}`}>✕</button>
+            <button className="adm-req-del" onClick={() => del(r)} aria-label={`Delete booking request from ${r.name ?? "contact"}`}><Icon name="close" /></button>
           </div>
         </div>
       ))}
       {reqs.length === 0 && <div className="h-sub">No requests yet — they land here from the Book the bar form.</div>}
-      {wonDeals.length > 0 && (
+      {d.wonDeals.length > 0 && (
         <>
-          <div className="sec" style={{ marginTop: 20 }}>Won on the pipeline<span className="adm-pill">{wonDeals.length}</span></div>
+          <SectionHeader label="Won on the pipeline" right={<span className="adm-pill">{d.wonDeals.length}</span>} />
           <p className="h-sub">Private-event deals the crew closed outbound. Book the dates in Events when they land.</p>
-          {wonDeals.map((w) => (
+          {d.wonDeals.map((w) => (
             <div className="adm-req" key={w.id}>
               <div className="adm-member-top">
                 <b>{w.vendors?.name ?? "Account"}</b>
@@ -3732,12 +3822,15 @@ function Bookings() {
               </div>
               <div className="meta">{w.deals?.title ?? "Private event"}{w.value_cents != null && <> · ${(w.value_cents / 100).toLocaleString()}</>}</div>
               <div className="adm-status">
-                <button className="adm-req-mk" onClick={() => setSection("pipeline")}>Open in Pipeline →</button>
+                <button className="adm-req-mk" onClick={() => setSection("pipeline")}>Open in Pipeline <Icon name="arrowRight" /></button>
               </div>
             </div>
           ))}
         </>
       )}
+          </>
+        )}
+      </AsyncSection>
       {promoteResolve && (
         <VendorResolve name={promoteResolve.name} candidates={promoteResolve.candidates}
           onUse={(c) => { const { req } = promoteResolve; setPromoteResolve(null); promote(req, { linkTo: c.id }); }}
@@ -3757,13 +3850,12 @@ function Bookings() {
 // ───────────────────────── reserves (limited drops) ─────────────────────────
 function ReservesAdmin() {
   const { toast } = useApp();
-  const [rows, setRows] = useState<Reserve[]>([]);
-  const load = useCallback(async () => {
-    if (!supabase) return;
+  const reservesState = useAsyncData<Reserve[]>(async () => {
+    if (!supabase) throw new Error("Supabase client not configured");
     const { data } = await supabase.from("reserves").select("*").order("sort");
-    if (data) setRows(data as Reserve[]);
+    return (data as Reserve[]) ?? [];
   }, []);
-  useEffect(() => { load(); }, [load]);
+  const load = reservesState.reload;
 
   const update = async (id: string, patch: Partial<Reserve>) => {
     const { error } = await supabase!.from("reserves").update(patch).eq("id", id);
@@ -3772,7 +3864,7 @@ function ReservesAdmin() {
   };
   const add = async () => {
     const { error } = await supabase!.from("reserves").insert({
-      name: "", price_cents: 1200, stock_total: 12, stock_remaining: 12, status: "draft", sort: rows.length,
+      name: "", price_cents: 1200, stock_total: 12, stock_remaining: 12, status: "draft", sort: reservesState.data?.length ?? 0,
     });
     toast(error ? `Error: ${error.message}` : "Reserve created — set details, then set it Live");
     if (!error) load();
@@ -3788,50 +3880,62 @@ function ReservesAdmin() {
     if (!error) load();
   };
 
-  const active = rows.filter((r) => r.status !== "archived");
   return (
     <div className="adm-sec">
-      <div className="sec">Reserves <button className="adm-btn" style={{ marginLeft: "auto" }} onClick={add}>+ Add</button></div>
-      {active.map((r) => (
-        <div className="adm-event" key={r.id}>
-          <div className="adm-member-top">
-            <input className="auth-input" style={{ fontSize: 16, padding: "9px 11px" }} maxLength={120} defaultValue={r.name} onBlur={(e) => e.target.value !== r.name && update(r.id, { name: e.target.value })} />
-          </div>
-          <input className="auth-input" style={{ fontSize: 16, padding: "9px 11px", marginTop: 6 }} maxLength={300} defaultValue={r.blurb ?? ""} placeholder="One line guests see" onBlur={(e) => (e.target.value.trim() || null) !== r.blurb && update(r.id, { blurb: e.target.value.trim() || null })} />
-          <div className="adm-fields">
-            <label>Price $<input type="text" inputMode="decimal" defaultValue={(r.price_cents / 100).toFixed(2)} onBlur={(e) => update(r.id, { price_cents: Math.max(0, Math.round(parseFloat(e.target.value || "0") * 100)) })} /></label>
-            <label>Stock<input type="number" min={0} defaultValue={r.stock_total} onBlur={(e) => update(r.id, { stock_total: Math.max(0, parseInt(e.target.value) || 0) })} /></label>
-            <label>Left<input type="number" min={0} defaultValue={r.stock_remaining} onBlur={(e) => update(r.id, { stock_remaining: Math.max(0, parseInt(e.target.value) || 0) })} /></label>
-            <label>Limit<input type="number" min={1} defaultValue={r.per_member_limit} onBlur={(e) => update(r.id, { per_member_limit: Math.max(1, parseInt(e.target.value) || 1) })} /></label>
-          </div>
-          <div className="adm-fields">
-            <label>Status
-              <select defaultValue={r.status} onChange={(e) => update(r.id, { status: e.target.value as Reserve["status"] })}>
-                <option value="draft">Draft (hidden)</option>
-                <option value="live">Live</option>
-                <option value="sold_out">Sold out</option>
-              </select>
-            </label>
-            <label className="adm-check"><input type="checkbox" defaultChecked={r.member_only} onChange={(e) => update(r.id, { member_only: e.target.checked })} />Members</label>
-            <button className="adm-btn ghost" onClick={() => archive(r.id)}>Archive</button>
-            <button className="adm-btn ghost" style={{ color: "#e07a76" }} onClick={() => remove(r.id, r.name)}>Delete</button>
-          </div>
-        </div>
-      ))}
-      {active.length === 0 && <div className="h-sub">No reserves yet — add a limited drop to sell to members.</div>}
+      <SectionHeader label="Reserves" right={<button className="adm-btn" onClick={add}>+ Add</button>} />
+      <AsyncSection
+        state={reservesState}
+        isEmpty={(rows) => rows.filter((r) => r.status !== "archived").length === 0}
+        emptyTitle="No reserves yet"
+        emptySub="Add a limited drop to sell to members."
+        loadingLabel="Loading reserves…"
+        errorTitle="Couldn't load reserves"
+      >
+        {(rows) => {
+          const active = rows.filter((r) => r.status !== "archived");
+          return (
+            <>
+              {active.map((r) => (
+                <div className="adm-event" key={r.id}>
+                  <div className="adm-member-top">
+                    <input className="auth-input" style={{ fontSize: 16, padding: "9px 11px" }} maxLength={120} defaultValue={r.name} onBlur={(e) => e.target.value !== r.name && update(r.id, { name: e.target.value })} />
+                  </div>
+                  <input className="auth-input" style={{ fontSize: 16, padding: "9px 11px", marginTop: 6 }} maxLength={300} defaultValue={r.blurb ?? ""} placeholder="One line guests see" onBlur={(e) => (e.target.value.trim() || null) !== r.blurb && update(r.id, { blurb: e.target.value.trim() || null })} />
+                  <div className="adm-fields">
+                    <label>Price $<input type="text" inputMode="decimal" defaultValue={(r.price_cents / 100).toFixed(2)} onBlur={(e) => update(r.id, { price_cents: Math.max(0, Math.round(parseFloat(e.target.value || "0") * 100)) })} /></label>
+                    <label>Stock<input type="number" min={0} defaultValue={r.stock_total} onBlur={(e) => update(r.id, { stock_total: Math.max(0, parseInt(e.target.value) || 0) })} /></label>
+                    <label>Left<input type="number" min={0} defaultValue={r.stock_remaining} onBlur={(e) => update(r.id, { stock_remaining: Math.max(0, parseInt(e.target.value) || 0) })} /></label>
+                    <label>Limit<input type="number" min={1} defaultValue={r.per_member_limit} onBlur={(e) => update(r.id, { per_member_limit: Math.max(1, parseInt(e.target.value) || 1) })} /></label>
+                  </div>
+                  <div className="adm-fields">
+                    <label>Status
+                      <select defaultValue={r.status} onChange={(e) => update(r.id, { status: e.target.value as Reserve["status"] })}>
+                        <option value="draft">Draft (hidden)</option>
+                        <option value="live">Live</option>
+                        <option value="sold_out">Sold out</option>
+                      </select>
+                    </label>
+                    <label className="adm-check"><input type="checkbox" defaultChecked={r.member_only} onChange={(e) => update(r.id, { member_only: e.target.checked })} />Members</label>
+                    <button className="adm-btn ghost" onClick={() => archive(r.id)}>Archive</button>
+                    <button className="adm-btn ghost" style={{ color: "#e07a76" }} onClick={() => remove(r.id, r.name)}>Delete</button>
+                  </div>
+                </div>
+              ))}
+            </>
+          );
+        }}
+      </AsyncSection>
     </div>
   );
 }
 
 // ───────────────────────── subscribers (read-only mirror) ─────────────────────────
 function Subscribers() {
-  const [subs, setSubs] = useState<Subscription[]>([]);
   const [names, setNames] = useState<Record<string, string>>({});
-  const load = useCallback(async () => {
-    if (!supabase) return;
+  const subsState = useAsyncData<Subscription[]>(async () => {
+    if (!supabase) throw new Error("Supabase client not configured");
     const { data } = await supabase.from("subscriptions").select("*").order("created_at", { ascending: false });
     const rows = (data as Subscription[]) ?? [];
-    setSubs(rows);
     const ids = [...new Set(rows.map((r) => r.user_id))];
     if (ids.length) {
       const { data: p } = await supabase.from("profiles").select("id, display_name").in("id", ids);
@@ -3839,19 +3943,14 @@ function Subscribers() {
       (p as { id: string; display_name: string | null }[] | null)?.forEach((x) => { m[x.id] = x.display_name ?? "—"; });
       setNames(m);
     }
+    return rows;
   }, []);
-  useEffect(() => { load(); }, [load]);
-  useRealtimeTable("subscriptions", load);
+  useRealtimeTable("subscriptions", subsState.reload);
 
   // Fulfillment-first ordering: trouble (past_due) and soonest-due float to the top so
   // an admin sees "who do I prep next / who needs a nudge" at a glance.
   const rank: Record<string, number> = { past_due: 0, active: 1, pending: 2, paused: 3, canceled: 4 };
-  const ordered = [...subs].sort(
-    (a, b) => (rank[a.status] ?? 9) - (rank[b.status] ?? 9) || ((a.current_period_end ?? "9") < (b.current_period_end ?? "9") ? -1 : 1)
-  );
-  const active = subs.filter((s) => s.status === "active");
   const daysTo = (d: string | null) => (d ? Math.ceil((new Date(d).getTime() - Date.now()) / 86400000) : null);
-  const dueSoon = active.filter((s) => { const n = daysTo(s.current_period_end); return n != null && n <= 3; }).length;
   const packOf = (plan: string) => { const n = plan?.match(/\d+/)?.[0]; return n ? `${n} bottles · every 2 wks` : plan; };
   const renew = (s: Subscription) => {
     if (s.status === "past_due") return { text: "Payment failed — card needs updating", cls: "due" };
@@ -3861,22 +3960,42 @@ function Subscribers() {
     return { text: `${packOf(s.plan)} · ${when}`, cls: n <= 0 ? "due" : n <= 3 ? "soon" : "" };
   };
   return (
-    <div className="adm-sec">
-      <div className="sec">Subscribers{active.length > 0 && <span className="adm-pill">{active.length} active</span>}{dueSoon > 0 && <span className="adm-pill due">{dueSoon} due soon</span>}</div>
-      {ordered.map((s) => {
-        const r = renew(s);
+    <AsyncSection
+      state={subsState}
+      isEmpty={(subs) => subs.length === 0}
+      emptyTitle="No subscribers yet"
+      emptySub="Members subscribe from their 3MPIRE."
+      loadingLabel="Loading subscribers…"
+      errorTitle="Couldn't load subscribers"
+    >
+      {(subs) => {
+        const ordered = [...subs].sort(
+          (a, b) => (rank[a.status] ?? 9) - (rank[b.status] ?? 9) || ((a.current_period_end ?? "9") < (b.current_period_end ?? "9") ? -1 : 1)
+        );
+        const active = subs.filter((s) => s.status === "active");
+        const dueSoon = active.filter((s) => { const n = daysTo(s.current_period_end); return n != null && n <= 3; }).length;
         return (
-          <div className="adm-member" key={s.id}>
-            <div className="adm-member-top">
-              <b>{names[s.user_id] ?? "Member"}</b>
-              <span className={`adm-substat ${s.status}`}>{s.status.replace("_", " ")}</span>
-            </div>
-            <div className={`meta sub-renew ${r.cls}`}>{r.text}</div>
+          <div className="adm-sec">
+            <SectionHeader label="Subscribers" right={<>
+              {active.length > 0 && <span className="adm-pill">{active.length} active</span>}
+              {dueSoon > 0 && <span className="adm-pill due">{dueSoon} due soon</span>}
+            </>} />
+            {ordered.map((s) => {
+              const r = renew(s);
+              return (
+                <div className="adm-member" key={s.id}>
+                  <div className="adm-member-top">
+                    <b>{names[s.user_id] ?? "Member"}</b>
+                    <span className={`adm-substat ${s.status}`}>{s.status.replace("_", " ")}</span>
+                  </div>
+                  <div className={`meta sub-renew ${r.cls}`}>{r.text}</div>
+                </div>
+              );
+            })}
           </div>
         );
-      })}
-      {subs.length === 0 && <div className="h-sub">No subscribers yet — members subscribe from their 3MPIRE.</div>}
-    </div>
+      }}
+    </AsyncSection>
   );
 }
 
@@ -3963,7 +4082,7 @@ function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; is
           <span className="adm-ref">{m.referral_code || "—"}</span>
         </div>
         <span className={`tm-badge tone-${meta.tone}`}>{meta.label}</span>
-        {isDriver && <span className="tm-driver" title="Delivery driver">🚗</span>}
+        {isDriver && <span className="tm-driver" title="Delivery driver"><Icon name="compass" /></span>}
       </div>
       <label className="tm-rolepick">
         <select className="adm-role" value={role} onChange={(e) => setRole(e.target.value)} aria-label={`Role for ${m.display_name ?? "member"}`}>
@@ -3978,7 +4097,7 @@ function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; is
           <label>Points<input type="number" min={0} value={pts} onChange={(e) => setPts(Math.max(0, parseInt(e.target.value) || 0))} /></label>
           <label>Credit $<input type="text" inputMode="decimal" value={credit} onChange={(e) => setCredit(e.target.value)} /></label>
           <label className="adm-check"><input type="checkbox" checked={founding} onChange={(e) => setFounding(e.target.checked)} />Founding</label>
-          {role !== "member" && <label className="adm-check"><input type="checkbox" checked={isDriver} onChange={toggleDriver} />🚗 Driver</label>}
+          {role !== "member" && <label className="adm-check"><input type="checkbox" checked={isDriver} onChange={toggleDriver} /><Icon name="compass" /> Driver</label>}
           <button className={`adm-btn${dirty ? " primary" : ""}`} onClick={save} disabled={!dirty || busy}>{busy ? "…" : "Save"}</button>
         </div>
       )}
@@ -3989,22 +4108,20 @@ function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; is
 function Members() {
   const { user } = useAuth();
   const { setSection } = useOperatorSection();
-  const [members, setMembers] = useState<Profile[]>([]);
-  const [loaded, setLoaded] = useState(false);
   const [q, setQ] = useState("");
-  const load = useCallback(async () => {
-    if (!supabase) return;
+  const membersState = useAsyncData<Profile[]>(async () => {
+    if (!supabase) throw new Error("Supabase client not configured");
     const { data } = await supabase.from("profiles").select("*").order("display_name");
-    if (data) setMembers(data as Profile[]);
-    setLoaded(true);
+    return (data as Profile[]) ?? [];
   }, []);
+  const [members, setMembers] = useState<Profile[]>([]);
+  useEffect(() => { if (membersState.data) setMembers(membersState.data); }, [membersState.data]);
   // Optimistic local patch so a role pick reflects instantly, before the round-trip.
   const patch = useCallback((id: string, role: string) =>
     setMembers((ms) => ms.map((x) => (x.id === id ? { ...x, role: role as Profile["role"] } : x))), []);
   // Real-time: any role/loyalty change (this manager, another manager, or the affected user's
   // own session re-reading their access) lands here live — no refresh.
-  useEffect(() => { load(); }, [load]);
-  useRealtimeTable("profiles", load);
+  useRealtimeTable("profiles", membersState.reload);
 
   const ql = q.trim().toLowerCase();
   const staff = members.filter((m) => rawRole(m) !== "member");
@@ -4015,8 +4132,17 @@ function Members() {
   const ownerCount = staff.filter((m) => rawRole(m) === "owner").length;
 
   return (
+    <AsyncSection
+      state={membersState}
+      isEmpty={() => false}
+      emptyTitle="No one here yet"
+      emptySub="People appear here when they sign in."
+      loadingLabel="Loading team…"
+      errorTitle="Couldn't load the team"
+    >
+      {() => (
     <div className="adm-sec tm">
-      <div className="sec">Team · {staff.length}</div>
+      <SectionHeader label="Team" annotation={`${staff.length} member${staff.length === 1 ? "" : "s"}`} />
       {customerCount > 0 && (
         <button type="button" className="team-crm-link" onClick={() => setSection("customers")}>
           {customerCount} customer account{customerCount === 1 ? "" : "s"} moved to <b>Customers</b> — the CRM. This roster is leadership &amp; crew. ›
@@ -4033,13 +4159,15 @@ function Members() {
         return (
           <div key={tier.key} className="tm-group">
             <div className="tm-gh"><span>{tier.title}</span><i>{tier.hint}</i><b>{rows.length}</b></div>
-            {rows.map((m) => <MemberRow key={m.id} m={m} isSelf={m.id === user?.id} ownerCount={ownerCount} onPatch={patch} onSaved={load} />)}
+            {rows.map((m) => <MemberRow key={m.id} m={m} isSelf={m.id === user?.id} ownerCount={ownerCount} onPatch={patch} onSaved={membersState.reload} />)}
           </div>
         );
       })}
-      {loaded && staff.length === 0 && <div className="h-sub">No one here yet — people appear when they sign in.</div>}
-      {loaded && staff.length > 0 && shown.length === 0 && <div className="h-sub">No match for &ldquo;{q}&rdquo;.</div>}
+      {staff.length === 0 && <div className="h-sub">No one here yet — people appear when they sign in.</div>}
+      {staff.length > 0 && shown.length === 0 && <div className="h-sub">No match for &ldquo;{q}&rdquo;.</div>}
     </div>
+      )}
+    </AsyncSection>
   );
 }
 
@@ -4091,7 +4219,7 @@ function EventHUD() {
   const netUp = recon.actualNetCents >= 0;
   return (
     <div className="adm-sec adm-hud">
-      <div className="sec">{ev.title}<span className="adm-pill due">LIVE</span></div>
+      <SectionHeader label={ev.title} right={<span className="adm-pill due">LIVE</span>} />
       {/* One hero mid-service — sales — and one quiet line. The full plan-vs-actual story
           (ROI, break-even, plan totals) lives in Money → Per-event P&L, not on the Now screen. */}
       <div className="adm-hud-hero"><b>${(stats.cents / 100).toFixed(0)}</b><span>in sales</span></div>
@@ -4170,33 +4298,39 @@ function EventEconomics({ e, econRow, catalog, onSave }: {
 // Owner-set price + unit cost per menu line (Money tab). Drives exact per-product COGS.
 function ProductCatalog() {
   const { toast } = useApp();
-  const [rows, setRows] = useState<ProductEcon[]>([]);
-  const [loaded, setLoaded] = useState(false);
-  const load = useCallback(async () => {
-    if (!supabase) { setLoaded(true); return; }
+  const catalogState = useAsyncData<ProductEcon[]>(async () => {
+    if (!supabase) throw new Error("Supabase client not configured");
     const { data } = await supabase.from("product_economics").select("*").order("sort");
-    if (data) setRows(data as ProductEcon[]);
-    setLoaded(true);
+    return (data as ProductEcon[]) ?? [];
   }, []);
-  useEffect(() => { load(); }, [load]);
   const save = async (key: string, patch: Partial<ProductEcon>) => {
     const { error } = await supabase!.from("product_economics").update(patch).eq("product_key", key);
-    if (error) toast(`Error: ${error.message}`); else load();
+    if (error) toast(`Error: ${error.message}`); else catalogState.reload();
   };
   return (
-    <div className="adm-sec">
-      <div className="sec">Product economics</div>
-      <div className="pnl-note" style={{ marginBottom: 10 }}>Representative price &amp; unit cost per line — these set exact COGS for every event&apos;s ROI projection.</div>
-      {rows.map((r) => (
-        <div className="cat-row" key={r.product_key}>
-          <div className="cat-name">{r.label}</div>
-          <label className="ev-f">Price $<input type="number" min={0} defaultValue={(r.price_cents / 100) || 0} onBlur={(ev) => toCents(ev.target.value) !== r.price_cents && save(r.product_key, { price_cents: toCents(ev.target.value) })} /></label>
-          <label className="ev-f">Cost $<input type="number" min={0} defaultValue={r.unit_cost_cents != null ? (r.unit_cost_cents / 100) : ""} placeholder="—" onBlur={(ev) => save(r.product_key, { unit_cost_cents: ev.target.value.trim() ? toCents(ev.target.value) : null })} /></label>
-          <div className="cat-margin">{r.unit_cost_cents != null && r.price_cents > 0 ? `${pctInt((r.price_cents - r.unit_cost_cents) / r.price_cents)}%` : "—"}</div>
+    <AsyncSection
+      state={catalogState}
+      isEmpty={(rows) => rows.length === 0}
+      emptyTitle="No catalog yet"
+      emptySub="Apply migration 0028 to seed it."
+      loadingLabel="Loading product economics…"
+      errorTitle="Couldn't load product economics"
+    >
+      {(rows) => (
+        <div className="adm-sec">
+          <SectionHeader label="Product economics" />
+          <div className="pnl-note" style={{ marginBottom: 10 }}>Representative price &amp; unit cost per line — these set exact COGS for every event&apos;s ROI projection.</div>
+          {rows.map((r) => (
+            <div className="cat-row" key={r.product_key}>
+              <div className="cat-name">{r.label}</div>
+              <label className="ev-f">Price $<input type="number" min={0} defaultValue={(r.price_cents / 100) || 0} onBlur={(ev) => toCents(ev.target.value) !== r.price_cents && save(r.product_key, { price_cents: toCents(ev.target.value) })} /></label>
+              <label className="ev-f">Cost $<input type="number" min={0} defaultValue={r.unit_cost_cents != null ? (r.unit_cost_cents / 100) : ""} placeholder="—" onBlur={(ev) => save(r.product_key, { unit_cost_cents: ev.target.value.trim() ? toCents(ev.target.value) : null })} /></label>
+              <div className="cat-margin">{r.unit_cost_cents != null && r.price_cents > 0 ? `${pctInt((r.price_cents - r.unit_cost_cents) / r.price_cents)}%` : "—"}</div>
+            </div>
+          ))}
         </div>
-      ))}
-      {loaded && rows.length === 0 && <div className="pnl-note">No catalog yet — apply migration 0028 to seed it.</div>}
-    </div>
+      )}
+    </AsyncSection>
   );
 }
 
@@ -4290,18 +4424,26 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
   onSaveEcon: (econ: EventEcon) => void;
   onOpenPrep: (id: string) => void;
 }) {
-  const [prep, setPrep] = useState<{ done: number; total: number; crit: number } | null>(null);
   const [planOpen, setPlanOpen] = useState(false);
   const [prepAIOpen, setPrepAIOpen] = useState(false);
-  const [planCount, setPlanCount] = useState<number | null>(null);
-  useEffect(() => {
-    if (!open || !supabase) return;
-    supabase.from("event_schedule_items").select("id", { count: "exact", head: true }).eq("event_id", e.id).then(({ count }) => setPlanCount(count ?? 0));
-    supabase.from("event_tasks").select("done, critical").eq("event_id", e.id).then(({ data }) => {
-      const rows = (data as { done: boolean; critical: boolean }[]) ?? [];
-      setPrep({ done: rows.filter((r) => r.done).length, total: rows.length, crit: rows.filter((r) => r.critical && !r.done).length });
-    });
+  // Lazy per-card status: the loader no-ops while collapsed (avoids firing prep/schedule queries
+  // for every event in a long list), and re-fetches for real once the card opens. useAsyncData's
+  // status still gives this a real loading vs. error split instead of a "…" that never resolved.
+  const cardState = useAsyncData<{ prep: { done: number; total: number; crit: number } | null; planCount: number | null }>(async () => {
+    if (!open || !supabase) return { prep: null, planCount: null };
+    const [{ count }, { data }] = await Promise.all([
+      supabase.from("event_schedule_items").select("id", { count: "exact", head: true }).eq("event_id", e.id),
+      supabase.from("event_tasks").select("done, critical").eq("event_id", e.id),
+    ]);
+    const rows = (data as { done: boolean; critical: boolean }[]) ?? [];
+    return {
+      prep: { done: rows.filter((r) => r.done).length, total: rows.length, crit: rows.filter((r) => r.critical && !r.done).length },
+      planCount: count ?? 0,
+    };
   }, [open, e.id]);
+  const prep = cardState.data?.prep ?? null;
+  const planCount = cardState.data?.planCount ?? null;
+  const statusErr = cardState.status === "error";
   const when = [e.day_label, [e.start_time, e.end_time].filter(Boolean).join("–")].filter(Boolean).join(" ");
   const sub = [when, e.location_text].filter(Boolean).join("  ·  ");
   const tag = `Event ${String(index + 1).padStart(2, "0")}${e.is_live ? " · Live" : ""}`;
@@ -4353,7 +4495,7 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
           <button type="button" className={`ev-prep${prep && prep.total > 0 && prep.done === prep.total ? " ok" : prep && prep.crit ? " miss" : ""}`} onClick={() => onOpenPrep(e.id)}>
             <span className="ev-prep-main">
               <b>Prep · pick list</b>
-              <span>{prep === null ? "…" : prep.total === 0 ? "Not generated yet — open Prep to build it" : `Loaded ${prep.done}/${prep.total}${prep.crit ? ` · ${prep.crit} critical to load` : prep.done === prep.total ? " · ready" : ""}`}</span>
+              <span>{prep === null ? (statusErr ? "Couldn't load — tap to open Prep" : "…") : prep.total === 0 ? "Not generated yet — open Prep to build it" : `Loaded ${prep.done}/${prep.total}${prep.crit ? ` · ${prep.crit} critical to load` : prep.done === prep.total ? " · ready" : ""}`}</span>
             </span>
             <span className="ev-prep-go">Open ›</span>
           </button>
@@ -4361,7 +4503,7 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
           {/* AI prep — tell it about this event, it builds a grounded to-do list (SOPs + inventory + compliance) */}
           <button type="button" className="ev-prep" onClick={() => setPrepAIOpen(true)}>
             <span className="ev-prep-main">
-              <b>✨ AI prep list</b>
+              <b><Icon name="sparkles" /> AI prep list</b>
               <span>Tell it about this event — it builds the to-do list from your SOPs, inventory &amp; the rules</span>
             </span>
             <span className="ev-prep-go">Build ›</span>
@@ -4369,14 +4511,14 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
           {prepAIOpen && (
             <EventPrepAI ownerType="event" ownerId={e.id} title={e.title}
               onClose={() => setPrepAIOpen(false)}
-              onAdded={() => { if (supabase) supabase.from("event_tasks").select("done, critical").eq("event_id", e.id).then(({ data }) => { const rows = (data as { done: boolean; critical: boolean }[]) ?? []; setPrep({ done: rows.filter((r) => r.done).length, total: rows.length, crit: rows.filter((r) => r.critical && !r.done).length }); }); }} />
+              onAdded={cardState.reload} />
           )}
 
           {/* Multi-day run of show — leave home → drive → setup → service → teardown, time by time */}
           <button type="button" className={`ev-prep${planCount && planCount > 0 ? " ok" : ""}`} onClick={() => setPlanOpen(true)}>
             <span className="ev-prep-main">
               <b>🗓️ Daily schedule · run of show</b>
-              <span>{planCount === null ? "…" : planCount === 0 ? "Build a time-by-time plan for each day" : `${planCount} block${planCount === 1 ? "" : "s"} across ${Math.max(1, e.plan_days ?? 1)} day${Math.max(1, e.plan_days ?? 1) === 1 ? "" : "s"}`}</span>
+              <span>{planCount === null ? (statusErr ? "Couldn't load — tap to open" : "…") : planCount === 0 ? "Build a time-by-time plan for each day" : `${planCount} block${planCount === 1 ? "" : "s"} across ${Math.max(1, e.plan_days ?? 1)} day${Math.max(1, e.plan_days ?? 1) === 1 ? "" : "s"}`}</span>
             </span>
             <span className="ev-prep-go">Plan ›</span>
           </button>
@@ -4384,7 +4526,7 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
             <EventDayPlanner
               eventId={e.id} title={e.title} eventDay={e.day} planDays={Math.max(1, e.plan_days ?? 1)}
               onPlanDays={(n) => onUpdate({ plan_days: n })}
-              onClose={() => { setPlanOpen(false); if (supabase) supabase.from("event_schedule_items").select("id", { count: "exact", head: true }).eq("event_id", e.id).then(({ count }) => setPlanCount(count ?? 0)); }}
+              onClose={() => { setPlanOpen(false); cardState.reload(); }}
             />
           )}
 
@@ -4447,17 +4589,13 @@ function EventsAdmin() {
   const { toast } = useApp();
   const { setSection } = useOperatorSection();
   const openPrep = (id: string) => { try { localStorage.setItem("gt3-prep-open", id); } catch { /* ignore */ } setSection("prep"); };
-  const [events, setEvents] = useState<EventRow[]>([]);
   const [openId, setOpenId] = useState<string | null>(null); // single-open accordion
   const [genOpen, setGenOpen] = useState(false); // "create from notes" agent
-  const [catalog, setCatalog] = useState<ProductEcon[]>([]);
-  const [econMap, setEconMap] = useState<Record<string, EventEcon>>({});
   const [showArch, setShowArch] = useState(false);
   const [inventory, setInventory] = useState<InventoryResp>({ enabled: false, items: [] });
-  const [vendors, setVendors] = useState<Vendor[]>([]);
   useEffect(() => { fetchInventory().then(setInventory); }, []); // live stock from Notion (token-gated)
-  const load = useCallback(async () => {
-    if (!supabase) return;
+  const eventsState = useAsyncData<{ events: EventRow[]; catalog: ProductEcon[]; econMap: Record<string, EventEcon>; vendors: Vendor[] }>(async () => {
+    if (!supabase) throw new Error("Supabase client not configured");
     // events + economics catalog + per-event econ + vendors in one round
     // (catalog/econ/vendors tables may not exist pre-migration — fail soft).
     const [evs, cat, ec, vs] = await Promise.all([
@@ -4466,16 +4604,29 @@ function EventsAdmin() {
       supabase.from("event_economics").select("*"),
       supabase.from("vendors").select("*").order("sort"),
     ]);
-    if (evs.data) setEvents(evs.data as EventRow[]);
-    if (cat.data) setCatalog(cat.data as ProductEcon[]);
-    if (vs.data) setVendors((vs.data as Vendor[]).filter((v) => !v.archived_at));
-    if (ec.data) {
-      const m: Record<string, EventEcon> = {};
-      for (const r of ec.data as ({ event_id: string } & EventEcon)[]) m[r.event_id] = r;
-      setEconMap(m);
-    }
+    const econMap: Record<string, EventEcon> = {};
+    for (const r of (ec.data ?? []) as ({ event_id: string } & EventEcon)[]) econMap[r.event_id] = r;
+    return {
+      events: (evs.data as EventRow[]) ?? [],
+      catalog: (cat.data as ProductEcon[]) ?? [],
+      econMap,
+      vendors: ((vs.data as Vendor[]) ?? []).filter((v) => !v.archived_at),
+    };
   }, []);
-  useEffect(() => { load(); }, [load]);
+  const load = eventsState.reload;
+  // Local mirrors: econMap takes an optimistic patch in saveEcon() below (no flicker on the live
+  // gauge), and events/catalog/vendors ride along as the same editable-until-reload copy.
+  const [events, setEvents] = useState<EventRow[]>([]);
+  const [catalog, setCatalog] = useState<ProductEcon[]>([]);
+  const [econMap, setEconMap] = useState<Record<string, EventEcon>>({});
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  useEffect(() => {
+    if (!eventsState.data) return;
+    setEvents(eventsState.data.events);
+    setCatalog(eventsState.data.catalog);
+    setEconMap(eventsState.data.econMap);
+    setVendors(eventsState.data.vendors);
+  }, [eventsState.data]);
   // link an event to a vendor → denormalize the guest-visible location
   const linkVendor = async (eventId: string, v: Vendor | null) => {
     const p: Partial<EventRow> = { vendor_id: v?.id ?? null };
@@ -4528,127 +4679,159 @@ function EventsAdmin() {
     if (!error) load();
   };
 
-  const active = events.filter((e) => !e.archived_at);
-  const archived = events.filter((e) => e.archived_at);
-
   return (
     <div className="adm-sec">
-      <div className="sec">Events
-        <button className="adm-btn eg-btn" style={{ marginLeft: "auto" }} onClick={() => setGenOpen(true)}>✨ From notes</button>
+      <SectionHeader label="Events" right={<>
+        <button className="adm-btn eg-btn" onClick={() => setGenOpen(true)}><Icon name="sparkles" /> From notes</button>
         <InlineCreate label="+ Add" placeholder="Event title" onCreate={addEvent} />
-      </div>
+      </>} />
       {genOpen && <EventGenerator onClose={() => setGenOpen(false)} onCreated={load} />}
-      {active.length === 0 && <div className="ev-empty">No active events. Tap <b>+ Add</b> to create one{archived.length ? ", or reopen one below" : ""}.</div>}
-      <div className="ev-list">
-        {active.map((e, i) => (
-          <EventCard
-            key={e.id}
-            e={e}
-            index={i}
-            open={openId === e.id}
-            onToggle={() => setOpenId(openId === e.id ? null : e.id)}
-            onUpdate={(patch) => update(e.id, patch)}
-            onRemove={() => remove(e.id)}
-            onSetLive={(live) => setLive(e.id, live)}
-            onArchive={() => archive(e.id)}
-            econRow={econMap[e.id] ?? null}
-            catalog={catalog}
-            inventory={inventory}
-            vendors={vendors}
-            onLinkVendor={(v) => linkVendor(e.id, v)}
-            onSaveEcon={(econ) => saveEcon(e.id, econ)}
-            onOpenPrep={openPrep}
-          />
-        ))}
-      </div>
+      <AsyncSection
+        state={eventsState}
+        isEmpty={() => false}
+        emptyTitle="No events yet"
+        loadingLabel="Loading events…"
+        errorTitle="Couldn't load events"
+      >
+        {() => {
+          const active = events.filter((e) => !e.archived_at);
+          const archived = events.filter((e) => e.archived_at);
+          return (
+            <>
+              {active.length === 0 && <div className="ev-empty">No active events. Tap <b>+ Add</b> to create one{archived.length ? ", or reopen one below" : ""}.</div>}
+              <div className="ev-list">
+                {active.map((e, i) => (
+                  <EventCard
+                    key={e.id}
+                    e={e}
+                    index={i}
+                    open={openId === e.id}
+                    onToggle={() => setOpenId(openId === e.id ? null : e.id)}
+                    onUpdate={(patch) => update(e.id, patch)}
+                    onRemove={() => remove(e.id)}
+                    onSetLive={(live) => setLive(e.id, live)}
+                    onArchive={() => archive(e.id)}
+                    econRow={econMap[e.id] ?? null}
+                    catalog={catalog}
+                    inventory={inventory}
+                    vendors={vendors}
+                    onLinkVendor={(v) => linkVendor(e.id, v)}
+                    onSaveEcon={(econ) => saveEcon(e.id, econ)}
+                    onOpenPrep={openPrep}
+                  />
+                ))}
+              </div>
 
-      {archived.length > 0 && (
-        <div className="ev-archived">
-          <button className="ev-arch-head" onClick={() => setShowArch((s) => !s)} aria-expanded={showArch}>
-            Archived · {archived.length}<span className={`ev-chev${showArch ? " open" : ""}`}>›</span>
-          </button>
-          {showArch && archived.map((e) => (
-            <div className="ev-arch-row" key={e.id}>
-              <span className="ev-arch-name">{e.title || "Untitled event"}</span>
-              <button className="ev-arch-btn" onClick={() => restore(e.id)}>Restore</button>
-              <button className="ev-arch-btn del" onClick={() => remove(e.id)}>Delete</button>
-            </div>
-          ))}
-        </div>
-      )}
+              {archived.length > 0 && (
+                <div className="ev-archived">
+                  <button className="ev-arch-head" onClick={() => setShowArch((s) => !s)} aria-expanded={showArch}>
+                    Archived · {archived.length}<span className={`ev-chev${showArch ? " open" : ""}`}>›</span>
+                  </button>
+                  {showArch && archived.map((e) => (
+                    <div className="ev-arch-row" key={e.id}>
+                      <span className="ev-arch-name">{e.title || "Untitled event"}</span>
+                      <button className="ev-arch-btn" onClick={() => restore(e.id)}>Restore</button>
+                      <button className="ev-arch-btn del" onClick={() => remove(e.id)}>Delete</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          );
+        }}
+      </AsyncSection>
     </div>
   );
 }
 
 // ───────────────────────── subscription interest (waitlist / demand signal) ─────────────────────────
 function SubInterest() {
-  const [rows, setRows] = useState<{ pack_size: string | null; email: string | null; created_at: string }[]>([]);
-  const [loaded, setLoaded] = useState(false);
-  useEffect(() => {
-    if (!supabase) { setLoaded(true); return; }
-    supabase.from("subscription_interest").select("pack_size,email,created_at").order("created_at", { ascending: false }).limit(100)
-      .then(({ data }) => { if (data) setRows(data as { pack_size: string | null; email: string | null; created_at: string }[]); setLoaded(true); });
+  const subState = useAsyncData<{ pack_size: string | null; email: string | null; created_at: string }[]>(async () => {
+    if (!supabase) throw new Error("Supabase client not configured");
+    const { data } = await supabase.from("subscription_interest").select("pack_size,email,created_at").order("created_at", { ascending: false }).limit(100);
+    return (data as { pack_size: string | null; email: string | null; created_at: string }[]) ?? [];
   }, []);
-  const byPack = (k: string) => rows.filter((r) => r.pack_size === k).length;
   return (
-    <div className="adm-sec">
-      <div className="sec">Subscription interest{rows.length > 0 && <span className="adm-pill">{rows.length}</span>}</div>
-      {rows.length > 0 && <div className="meta" style={{ marginBottom: 10 }}>6-pack · {byPack("6")} &nbsp;|&nbsp; 12-pack · {byPack("12")} &nbsp;|&nbsp; 18-pack · {byPack("18")}</div>}
-      {rows.map((r, i) => (
-        <div className="adm-member" key={i}>
-          <div className="adm-member-top">
-            <b>{r.email ?? "—"}</b>
-            <span className="adm-substat active">{r.pack_size ? `${r.pack_size}-pack` : "—"}</span>
+    <AsyncSection
+      state={subState}
+      isEmpty={(rows) => rows.length === 0}
+      emptyTitle="No interest yet"
+      emptySub="It lands here when people tap “Notify me” on the subscription pitch."
+      loadingLabel="Loading subscription interest…"
+      errorTitle="Couldn't load subscription interest"
+    >
+      {(rows) => {
+        const byPack = (k: string) => rows.filter((r) => r.pack_size === k).length;
+        return (
+          <div className="adm-sec">
+            <SectionHeader label="Subscription interest" right={<span className="adm-pill">{rows.length}</span>} />
+            <div className="meta" style={{ marginBottom: 10 }}>6-pack · {byPack("6")} &nbsp;|&nbsp; 12-pack · {byPack("12")} &nbsp;|&nbsp; 18-pack · {byPack("18")}</div>
+            {rows.map((r, i) => (
+              <div className="adm-member" key={i}>
+                <div className="adm-member-top">
+                  <b>{r.email ?? "—"}</b>
+                  <span className="adm-substat active">{r.pack_size ? `${r.pack_size}-pack` : "—"}</span>
+                </div>
+                <div className="meta">{new Date(r.created_at).toLocaleDateString([], { month: "short", day: "numeric" })}</div>
+              </div>
+            ))}
           </div>
-          <div className="meta">{new Date(r.created_at).toLocaleDateString([], { month: "short", day: "numeric" })}</div>
-        </div>
-      ))}
-      {loaded && rows.length === 0 && <div className="h-sub">No interest yet — it lands here when people tap &ldquo;Notify me&rdquo; on the subscription pitch.</div>}
-    </div>
+        );
+      }}
+    </AsyncSection>
   );
 }
 
 // ───────────────────────── order history (review past orders) ─────────────────────────
 function OrdersHistory() {
-  const [rows, setRows] = useState<Order[]>([]);
-  const [loaded, setLoaded] = useState(false);
   const [q, setQ] = useState("");
-  const load = useCallback(async () => {
-    if (!supabase) return;
+  const ordersState = useAsyncData<Order[]>(async () => {
+    if (!supabase) throw new Error("Supabase client not configured");
     const { data } = await supabase.from("orders").select("*").in("status", ["done", "void"]).order("status_changed_at", { ascending: false }).limit(300);
-    if (data) setRows(data as Order[]);
-    setLoaded(true);
+    return (data as Order[]) ?? [];
   }, []);
-  useEffect(() => { load(); }, [load]);
-  useRealtimeTable("orders", load);
-  const done = rows.filter((r) => r.status === "done").length;
-  // Under pressure a manager needs to LOOK UP an order — filter by name, order #, item, or amount.
-  const term = q.trim().toLowerCase();
-  const shown = term
-    ? rows.filter((o) => {
-        const name = (o.customer ?? "guest").toLowerCase();
-        const id = o.id.slice(0, 4).toLowerCase();
-        const items = o.items.map((i) => (DRINKS[i as DrinkId]?.n ?? i)).join(" ").toLowerCase();
-        return name.includes(term) || id.includes(term) || items.includes(term) || (o.total_cents / 100).toFixed(2).includes(term);
-      })
-    : rows;
+  useRealtimeTable("orders", ordersState.reload);
   return (
-    <div className="adm-sec">
-      <div className="sec">Order history{done > 0 && <span className="adm-pill">{done} completed</span>}</div>
-      <input className="adm-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name · order # · item · amount" aria-label="Search order history" />
-      {term && <div className="h-sub" style={{ margin: "2px 2px 10px" }}>{shown.length} match{shown.length === 1 ? "" : "es"}</div>}
-      {shown.map((o) => (
-        <div className="adm-member" key={o.id}>
-          <div className="adm-member-top">
-            <b>{o.customer ?? "Guest"}</b>
-            <span className={`adm-substat ${o.status === "void" ? "past_due" : "active"}`}>{o.status}</span>
+    <AsyncSection
+      state={ordersState}
+      isEmpty={() => false}
+      emptyTitle="No completed orders yet"
+      emptySub="They appear here after pickup."
+      loadingLabel="Loading order history…"
+      errorTitle="Couldn't load order history"
+    >
+      {(rows) => {
+        const done = rows.filter((r) => r.status === "done").length;
+        // Under pressure a manager needs to LOOK UP an order — filter by name, order #, item, or amount.
+        const term = q.trim().toLowerCase();
+        const shown = term
+          ? rows.filter((o) => {
+              const name = (o.customer ?? "guest").toLowerCase();
+              const id = o.id.slice(0, 4).toLowerCase();
+              const items = o.items.map((i) => (DRINKS[i as DrinkId]?.n ?? i)).join(" ").toLowerCase();
+              return name.includes(term) || id.includes(term) || items.includes(term) || (o.total_cents / 100).toFixed(2).includes(term);
+            })
+          : rows;
+        return (
+          <div className="adm-sec">
+            <SectionHeader label="Order history" right={done > 0 ? <span className="adm-pill">{done} completed</span> : undefined} />
+            <input className="adm-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name · order # · item · amount" aria-label="Search order history" />
+            {term && <div className="h-sub" style={{ margin: "2px 2px 10px" }}>{shown.length} match{shown.length === 1 ? "" : "es"}</div>}
+            {shown.map((o) => (
+              <div className="adm-member" key={o.id}>
+                <div className="adm-member-top">
+                  <b>{o.customer ?? "Guest"}</b>
+                  <span className={`adm-substat ${o.status === "void" ? "past_due" : "active"}`}>{o.status}</span>
+                </div>
+                <div className="meta">{groupItems(o.items).map((g) => `${g.qty > 1 ? g.qty + "× " : ""}${DRINKS[g.id as DrinkId]?.n ?? g.id}`).join(" · ")} · ${(o.total_cents / 100).toFixed(2)} · {new Date(o.status_changed_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>
+              </div>
+            ))}
+            {rows.length === 0 && <div className="h-sub">No completed orders yet — they appear here after pickup.</div>}
+            {rows.length > 0 && shown.length === 0 && <div className="h-sub">No orders match &ldquo;{q.trim()}&rdquo;.</div>}
           </div>
-          <div className="meta">{groupItems(o.items).map((g) => `${g.qty > 1 ? g.qty + "× " : ""}${DRINKS[g.id as DrinkId]?.n ?? g.id}`).join(" · ")} · ${(o.total_cents / 100).toFixed(2)} · {new Date(o.status_changed_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>
-        </div>
-      ))}
-      {loaded && rows.length === 0 && <div className="h-sub">No completed orders yet — they appear here after pickup.</div>}
-      {loaded && rows.length > 0 && shown.length === 0 && <div className="h-sub">No orders match &ldquo;{q.trim()}&rdquo;.</div>}
-    </div>
+        );
+      }}
+    </AsyncSection>
   );
 }
 
@@ -4679,13 +4862,13 @@ function Overview({ onGo, onOpenTarget }: { onGo: (t: string) => void; onOpenTar
   // to where you act on it. (Sales metrics — subs/waitlist — live in Money, not here.)
   // Prep-only context now: what's coming + what's live. The ACTION rows (booking replies,
   // overdue tasks, restock) moved to My Day's NeedsYou — the console has ONE glance screen.
-  const [s, setS] = useState({
-    eventsUp: 0, nextEvent: null as { title: string; label: string } | null,
-    stopsUp: 0, nextStop: null as { name: string; label: string; id: string } | null,
-    live: null as EventRow | null,
-  });
-  const load = useCallback(async () => {
-    if (!supabase) return;
+  type Glance = {
+    eventsUp: number; nextEvent: { title: string; label: string } | null;
+    stopsUp: number; nextStop: { name: string; label: string; id: string } | null;
+    live: EventRow | null;
+  };
+  const glanceState = useAsyncData<Glance>(async () => {
+    if (!supabase) throw new Error("Supabase client not configured");
     const today = localYMD(new Date()); // operator-local date, not UTC
     const [ev, evs, st] = await Promise.all([
       supabase.from("events").select("*").eq("is_live", true).maybeSingle(),
@@ -4698,43 +4881,51 @@ function Overview({ onGo, onOpenTarget }: { onGo: (t: string) => void; onOpenTar
     const allSt = ((st.data as Stop[]) ?? []).filter((x) => !x.archived_at);
     const upSt = allSt.filter((x) => x.status !== "done");
     const ns = upSt.find((x) => x.status === "live") ?? upSt[0];
-    setS({
+    return {
       eventsUp: upEv.length, nextEvent: ne ? { title: ne.title ?? "Event", label: ne.day_label || ne.day || "" } : null,
       stopsUp: upSt.length, nextStop: ns ? { name: ns.name ?? "Stop", label: ns.when_label || "", id: ns.id } : null,
       live: (ev.data as EventRow) ?? null,
-    });
+    };
   }, []);
   // Debounce realtime: a burst of task check-offs during prep should collapse into one reload,
   // not fire a full 6-query load() per row.
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    load();
-    return () => { if (timer.current) clearTimeout(timer.current); };
-  }, [load]);
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
   useRealtimeTable(["events", "stops"], () => {
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => load(), 500);
+    timer.current = setTimeout(() => glanceState.reload(), 500);
   });
-  const openStop = () => { if (s.nextStop && onOpenTarget) onOpenTarget("stop", s.nextStop.id); else onGo("stops"); };
   return (
-    <div className="adm-sec">
-      <div className="sec">At a glance</div>
-      <p className="bo-line">
-        <button type="button" onClick={() => onGo("events")}><b>{s.eventsUp}</b> event{s.eventsUp === 1 ? "" : "s"}</button>
-        {" · "}
-        <button type="button" onClick={openStop}><b>{s.stopsUp}</b> truck stop{s.stopsUp === 1 ? "" : "s"}</button>
-        {" coming up"}
-        {(s.nextEvent || s.nextStop) && <> — next: <b>{s.nextEvent ? `${s.nextEvent.label ? `${s.nextEvent.label} · ` : ""}${s.nextEvent.title}` : `${s.nextStop!.label ? `${s.nextStop!.label} · ` : ""}${s.nextStop!.name}`}</b></>}
-      </p>
-      {s.live ? (
-        <div className="bo-live" role="button" tabIndex={0} onClick={() => onOpenTarget ? onOpenTarget("event", s.live!.id) : onGo("events")} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (onOpenTarget ? onOpenTarget("event", s.live!.id) : onGo("events"))}>
-          <span className="adm-pill due">LIVE</span> <b>{s.live.title}</b> — running now · tap for prep
-        </div>
-      ) : (
-        <div className="h-sub" style={{ marginTop: 12 }}>No event live. Set one live under Events when you open.</div>
-      )}
-
-    </div>
+    <AsyncSection
+      state={glanceState}
+      isEmpty={() => false}
+      emptyTitle="Nothing to show yet"
+      loadingLabel="Loading…"
+      errorTitle="Couldn't load the glance"
+    >
+      {(s) => {
+        const openStop = () => { if (s.nextStop && onOpenTarget) onOpenTarget("stop", s.nextStop.id); else onGo("stops"); };
+        return (
+          <div className="adm-sec">
+            <SectionHeader label="At a glance" />
+            <p className="bo-line">
+              <button type="button" onClick={() => onGo("events")}><b>{s.eventsUp}</b> event{s.eventsUp === 1 ? "" : "s"}</button>
+              {" · "}
+              <button type="button" onClick={openStop}><b>{s.stopsUp}</b> truck stop{s.stopsUp === 1 ? "" : "s"}</button>
+              {" coming up"}
+              {(s.nextEvent || s.nextStop) && <> — next: <b>{s.nextEvent ? `${s.nextEvent.label ? `${s.nextEvent.label} · ` : ""}${s.nextEvent.title}` : `${s.nextStop!.label ? `${s.nextStop!.label} · ` : ""}${s.nextStop!.name}`}</b></>}
+            </p>
+            {s.live ? (
+              <div className="bo-live" role="button" tabIndex={0} onClick={() => onOpenTarget ? onOpenTarget("event", s.live!.id) : onGo("events")} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (onOpenTarget ? onOpenTarget("event", s.live!.id) : onGo("events"))}>
+                <span className="adm-pill due">LIVE</span> <b>{s.live.title}</b> — running now · tap for prep
+              </div>
+            ) : (
+              <div className="h-sub" style={{ marginTop: 12 }}>No event live. Set one live under Events when you open.</div>
+            )}
+          </div>
+        );
+      }}
+    </AsyncSection>
   );
 }
 
@@ -4744,15 +4935,14 @@ type VendorSug = { kind: "stop" | "event"; id: string; name: string; sub: string
 // A vendor's places (0226) — list, add, set primary, archive. Rendered under the open vendor row.
 function VendorLocationsEditor({ vendorId, vendorName }: { vendorId: string; vendorName: string }) {
   const { toast } = useApp();
-  const [locs, setLocs] = useState<VendorLocation[]>([]);
   const [nm, setNm] = useState("");
   const [addr, setAddr] = useState("");
-  const load = useCallback(async () => {
-    if (!supabase) return;
+  const locsState = useAsyncData<VendorLocation[]>(async () => {
+    if (!supabase) throw new Error("Supabase client not configured");
     const { data } = await supabase.from("vendor_locations").select("*").eq("vendor_id", vendorId).is("archived_at", null).order("is_primary", { ascending: false }).order("sort");
-    setLocs((data as VendorLocation[]) ?? []);
+    return (data as VendorLocation[]) ?? [];
   }, [vendorId]);
-  useEffect(() => { load(); }, [load]);
+  const load = locsState.reload;
   const add = async () => {
     if (!nm.trim()) return;
     const made = await addVendorLocation(vendorId, { label: nm.trim(), address: addr.trim() || null });
@@ -4776,14 +4966,26 @@ function VendorLocationsEditor({ vendorId, vendorName }: { vendorId: string; ven
   return (
     <div className="vloc" style={{ padding: "0 12px 10px" }}>
       <div className="ev-group-h">Locations · {vendorName}</div>
-      {locs.map((l) => (
-        <div className="vloc-row" key={l.id}>
-          <div className="vloc-main"><b>{l.label}</b>{(l.address || l.location_text) && <span>{l.address ?? l.location_text}</span>}</div>
-          {l.is_primary ? <span className="vloc-pri">Primary</span> : <button className="ev-arch-btn" onClick={() => setPrimary(l.id)}>Make primary</button>}
-          <button className="ev-arch-btn del" onClick={() => archiveLoc(l.id, l.label)}>Remove</button>
-        </div>
-      ))}
-      {locs.length === 0 && <div className="pnl-note">No locations yet — the vendor&apos;s own address acts as its place.</div>}
+      <AsyncSection
+        state={locsState}
+        isEmpty={(locs) => locs.length === 0}
+        emptyTitle="No locations yet"
+        emptySub="The vendor's own address acts as its place."
+        loadingLabel="Loading locations…"
+        errorTitle="Couldn't load locations"
+      >
+        {(locs) => (
+          <>
+            {locs.map((l) => (
+              <div className="vloc-row" key={l.id}>
+                <div className="vloc-main"><b>{l.label}</b>{(l.address || l.location_text) && <span>{l.address ?? l.location_text}</span>}</div>
+                {l.is_primary ? <span className="vloc-pri">Primary</span> : <button className="ev-arch-btn" onClick={() => setPrimary(l.id)}>Make primary</button>}
+                <button className="ev-arch-btn del" onClick={() => archiveLoc(l.id, l.label)}>Remove</button>
+              </div>
+            ))}
+          </>
+        )}
+      </AsyncSection>
       <div className="vnew-row" style={{ marginTop: 8 }}>
         <input className="ev-input" value={nm} onChange={(e) => setNm(e.target.value)} placeholder="Location name" maxLength={80} />
         <input className="ev-input" value={addr} onChange={(e) => setAddr(e.target.value)} placeholder="Address (optional)" maxLength={300} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
@@ -4797,30 +4999,39 @@ function VendorsAdmin() {
   const { toast } = useApp();
   const { profile } = useAuth();
   const isAdmin = ["owner", "admin"].includes(roleOf(profile));
-  const [vendors, setVendors] = useState<Vendor[]>([]);
-  const [stops, setStops] = useState<Stop[]>([]);
-  const [events, setEvents] = useState<EventRow[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
   const [showArch, setShowArch] = useState(false);
   type DupePair = { a: string; a_name: string; b: string; b_name: string; sim: number };
-  const [dupes, setDupes] = useState<DupePair[]>([]);
   const [merging, setMerging] = useState(false);
   // The look-alike confirm sheet's pending question: which path asked, and with what payload.
   const [resolve, setResolve] = useState<{ name: string; candidates: VendorMatch[]; ctx: { type: "add" } | { type: "from"; sug: VendorSug } } | null>(null);
-  const load = useCallback(async () => {
-    if (!supabase) return;
+  const vendorsState = useAsyncData<{ vendors: Vendor[]; stops: Stop[]; events: EventRow[]; dupes: DupePair[] }>(async () => {
+    if (!supabase) throw new Error("Supabase client not configured");
     const [{ data: v }, { data: s }, { data: e }, dup] = await Promise.all([
       supabase.from("vendors").select("*").order("sort"),
       supabase.from("stops").select("*"),
       supabase.from("events").select("*"),
       supabase.rpc("vendor_dupe_candidates"),
     ]);
-    if (v) setVendors(v as Vendor[]);
-    setStops(((s as Stop[]) ?? []).filter((x) => !x.archived_at));
-    setEvents(((e as EventRow[]) ?? []).filter((x) => !x.archived_at));
-    setDupes(((dup.data as DupePair[]) ?? []));
+    return {
+      vendors: (v as Vendor[]) ?? [],
+      stops: ((s as Stop[]) ?? []).filter((x) => !x.archived_at),
+      events: ((e as EventRow[]) ?? []).filter((x) => !x.archived_at),
+      dupes: (dup.data as DupePair[]) ?? [],
+    };
   }, []);
-  useEffect(() => { load(); }, [load]);
+  const load = vendorsState.reload;
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [stops, setStops] = useState<Stop[]>([]);
+  const [events, setEvents] = useState<EventRow[]>([]);
+  const [dupes, setDupes] = useState<DupePair[]>([]);
+  useEffect(() => {
+    if (!vendorsState.data) return;
+    setVendors(vendorsState.data.vendors);
+    setStops(vendorsState.data.stops);
+    setEvents(vendorsState.data.events);
+    setDupes(vendorsState.data.dupes);
+  }, [vendorsState.data]);
   // ONE resolver (0226): exact → open the existing record · look-alike → the confirm sheet ·
   // clean miss → create approved (this is the deliberate vendor book, not an on-the-fly add).
   const add = async (name: string, decision?: ResolveDecision) => {
@@ -4892,57 +5103,77 @@ function VendorsAdmin() {
 
   return (
     <div className="adm-sec">
-      <div className="sec">Vendors <InlineCreate label="+ Add vendor" placeholder="Vendor name" onCreate={(name) => add(name)} style={{ marginLeft: "auto" }} /></div>
+      <SectionHeader label="Vendors" right={<InlineCreate label="+ Add vendor" placeholder="Vendor name" onCreate={(name) => add(name)} />} />
       <div className="pnl-note" style={{ marginBottom: 6 }}>One record per venue/partner — linked from truck stops and events. Edit a POC here and it updates everywhere it&apos;s linked. A vendor can hold several locations.</div>
-      {dupes.length > 0 && (
-        <div className="vdupe">
-          <div className="vdupe-h">Possible duplicates · {dupes.length}</div>
-          {dupes.map((d) => (
-            <div className="vdupe-row" key={`${d.a}-${d.b}`}>
-              <span className="vdupe-names"><b>{d.a_name}</b><em>{Math.round(d.sim * 100)}%</em><b>{d.b_name}</b></span>
-              {isAdmin ? (
-                <span style={{ display: "flex", gap: 6 }}>
-                  <button className="adm-btn" disabled={merging} onClick={() => merge(d.a, d.b, d.a_name, d.b_name)}>Keep {d.a_name}</button>
-                  <button className="adm-btn" disabled={merging} onClick={() => merge(d.b, d.a, d.b_name, d.a_name)}>Keep {d.b_name}</button>
-                </span>
-              ) : (
-                <span className="pnl-note">Owner can merge these</span>
-              )}
+      <AsyncSection
+        state={vendorsState}
+        isEmpty={() => false}
+        emptyTitle="No vendors yet"
+        loadingLabel="Loading vendors…"
+        errorTitle="Couldn't load vendors"
+      >
+        {() => (
+          <>
+            {dupes.length > 0 && (
+              <div className="vdupe">
+                <div className="vdupe-h">Possible duplicates · {dupes.length}</div>
+                {dupes.map((d) => (
+                  <div className="vdupe-row" key={`${d.a}-${d.b}`}>
+                    <span className="vdupe-names"><b>{d.a_name}</b><em>{Math.round(d.sim * 100)}%</em><b>{d.b_name}</b></span>
+                    {isAdmin ? (
+                      <span style={{ display: "flex", gap: 6 }}>
+                        <button className="adm-btn" disabled={merging} onClick={() => merge(d.a, d.b, d.a_name, d.b_name)}>Keep {d.a_name}</button>
+                        <button className="adm-btn" disabled={merging} onClick={() => merge(d.b, d.a, d.b_name, d.a_name)}>Keep {d.b_name}</button>
+                      </span>
+                    ) : (
+                      <span className="pnl-note">Owner can merge these</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            {pending.length > 0 && (
+              <div className="vendor-pending">
+                <div className="ev-group-h" style={{ marginBottom: 8, color: "var(--warn)" }}>Awaiting your approval · {pending.length}</div>
+                {pending.map((v) => (
+                  <div className="vendor-sug pend" key={`pend-${v.id}`}>
+                    <div className="vendor-sug-main"><b>{v.name}</b><span>Added from a truck stop — approve to add it to the book</span></div>
+                    <button className="adm-btn primary" onClick={() => approve(v.id)}>Approve</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {suggestions.length > 0 && (
+              <div className="vendor-sugs">
+                <div className="ev-group-h" style={{ marginBottom: 8 }}>Create from your stops &amp; events</div>
+                {suggestions.map((sug) => (
+                  <div className="vendor-sug" key={`${sug.kind}-${sug.id}`}>
+                    <div className="vendor-sug-main"><b>{sug.name}</b><span>{sug.kind === "stop" ? "Stop" : "Event"}{sug.sub ? ` · ${sug.sub}` : ""}</span></div>
+                    <button className="adm-btn" onClick={() => createFrom(sug)}>+ Create</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {active.length === 0 && suggestions.length === 0 && <div className="ev-empty">No vendors yet. Tap <b>+ Add vendor</b> to create one.</div>}
+            <div className="ev-list">
+              {active.map((v, i) => (
+                <div key={v.id}>
+                  <LocationEditor kind="vendor" row={v} index={i} open={openId === v.id} onToggle={() => setOpenId(openId === v.id ? null : v.id)} onArchive={() => archive(v.id)} onChanged={load} />
+                  {openId === v.id && <VendorLocationsEditor vendorId={v.id} vendorName={v.name} />}
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      )}
-      {pending.length > 0 && (
-        <div className="vendor-pending">
-          <div className="ev-group-h" style={{ marginBottom: 8, color: "var(--warn)" }}>Awaiting your approval · {pending.length}</div>
-          {pending.map((v) => (
-            <div className="vendor-sug pend" key={`pend-${v.id}`}>
-              <div className="vendor-sug-main"><b>{v.name}</b><span>Added from a truck stop — approve to add it to the book</span></div>
-              <button className="adm-btn primary" onClick={() => approve(v.id)}>Approve</button>
-            </div>
-          ))}
-        </div>
-      )}
-      {suggestions.length > 0 && (
-        <div className="vendor-sugs">
-          <div className="ev-group-h" style={{ marginBottom: 8 }}>Create from your stops &amp; events</div>
-          {suggestions.map((sug) => (
-            <div className="vendor-sug" key={`${sug.kind}-${sug.id}`}>
-              <div className="vendor-sug-main"><b>{sug.name}</b><span>{sug.kind === "stop" ? "Stop" : "Event"}{sug.sub ? ` · ${sug.sub}` : ""}</span></div>
-              <button className="adm-btn" onClick={() => createFrom(sug)}>+ Create</button>
-            </div>
-          ))}
-        </div>
-      )}
-      {active.length === 0 && suggestions.length === 0 && <div className="ev-empty">No vendors yet. Tap <b>+ Add vendor</b> to create one.</div>}
-      <div className="ev-list">
-        {active.map((v, i) => (
-          <div key={v.id}>
-            <LocationEditor kind="vendor" row={v} index={i} open={openId === v.id} onToggle={() => setOpenId(openId === v.id ? null : v.id)} onArchive={() => archive(v.id)} onChanged={load} />
-            {openId === v.id && <VendorLocationsEditor vendorId={v.id} vendorName={v.name} />}
-          </div>
-        ))}
-      </div>
+            {archived.length > 0 && (
+              <div className="ev-archived">
+                <button className="ev-arch-head" onClick={() => setShowArch((s) => !s)} aria-expanded={showArch}>Archived vendors · {archived.length}<span className={`ev-chev${showArch ? " open" : ""}`}>›</span></button>
+                {showArch && archived.map((v) => (
+                  <div className="ev-arch-row" key={v.id}><span className="ev-arch-name">{v.name}</span><button className="ev-arch-btn" onClick={() => restore(v.id)}>Restore</button><button className="ev-arch-btn del" onClick={() => del(v.id, v.name)}>Delete</button></div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </AsyncSection>
       {resolve && (
         <VendorResolve name={resolve.name} candidates={resolve.candidates}
           onUse={async (c) => {
@@ -4969,14 +5200,6 @@ function VendorsAdmin() {
           }}
           onClose={() => setResolve(null)}
         />
-      )}
-      {archived.length > 0 && (
-        <div className="ev-archived">
-          <button className="ev-arch-head" onClick={() => setShowArch((s) => !s)} aria-expanded={showArch}>Archived vendors · {archived.length}<span className={`ev-chev${showArch ? " open" : ""}`}>›</span></button>
-          {showArch && archived.map((v) => (
-            <div className="ev-arch-row" key={v.id}><span className="ev-arch-name">{v.name}</span><button className="ev-arch-btn" onClick={() => restore(v.id)}>Restore</button><button className="ev-arch-btn del" onClick={() => del(v.id, v.name)}>Delete</button></div>
-          ))}
-        </div>
       )}
     </div>
   );
@@ -5210,11 +5433,11 @@ function SectionGuide({ allowed, current, onGo, onClose }: { allowed: OpSection[
   }, []);
   const [open, setOpen] = useState<OpSection>(current);
   return (
-    <Sheet open onClose={onClose} labelledBy="section-guide-title" header={<div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}><div><div className="guide-t" id="section-guide-title">When to use what</div><div className="guide-lede">Each section is one job at one moment. Tap to learn more, then jump straight there.</div></div><button type="button" className="guide-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close">✕</button></div>}>
+    <Sheet open onClose={onClose} labelledBy="section-guide-title" header={<div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}><div><div className="guide-t" id="section-guide-title">When to use what</div><div className="guide-lede">Each section is one job at one moment. Tap to learn more, then jump straight there.</div></div><button type="button" className="guide-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close"><Icon name="close" /></button></div>}>
         {(allowed.includes("plan") || allowed.includes("prep")) && (
           <button type="button" className="guide-create" onClick={() => { window.dispatchEvent(new CustomEvent("gt3-copilot", { detail: "event-build" })); onClose(); }}>
             <span className="guide-create-x"><b>✦ Create an event or truck stop</b><span>Say it in plain words — the chief of staff drafts it, you confirm.</span></span>
-            <span className="guide-create-go" aria-hidden>→</span>
+            <span className="guide-create-go" aria-hidden><Icon name="arrowRight" /></span>
           </button>
         )}
         <div className="guide-list">
@@ -5379,7 +5602,7 @@ export default function AdminPage() {
         <div className="toprow-actions">
           {/* Inbox — the one place everything that needs you rolls up (flags + needs-you), from any screen. */}
           <button type="button" className="crew-bell" onClick={() => setInboxOpen(true)} aria-label={hdrFlags.length ? `Inbox — ${hdrFlags.length} for you` : "Inbox"}>
-            <span aria-hidden>🔔</span>{hdrFlags.length > 0 && <span className={`crew-bell-b${hdrCrit ? " crit" : ""}`}>{hdrFlags.length}</span>}
+            <span aria-hidden><Icon name="bell" /></span>{hdrFlags.length > 0 && <span className={`crew-bell-b${hdrCrit ? " crit" : ""}`}>{hdrFlags.length}</span>}
           </button>
           {/* Jump — touch entry to the command palette (⌘K on desktop; a tap target on mobile). */}
           <button type="button" className="crew-jump" onClick={() => window.dispatchEvent(new Event("gt3-open-cmdk"))} aria-label="Jump to a section, recent, or action"><span aria-hidden>⌕</span> Jump<kbd className="crew-jump-k" aria-hidden>⌘K</kbd></button>
@@ -5392,7 +5615,7 @@ export default function AdminPage() {
       </div>
       {guideOpen && <SectionGuide allowed={allowed} current={sec} onGo={setSection} onClose={() => setGuideOpen(false)} />}
       {inboxOpen && (
-        <Sheet open onClose={() => setInboxOpen(false)} label="Inbox" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>🔔 Inbox</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setInboxOpen(false)} aria-label="Close">✕</button></div>}>
+        <Sheet open onClose={() => setInboxOpen(false)} label="Inbox" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}><Icon name="bell" /> Inbox</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setInboxOpen(false)} aria-label="Close"><Icon name="close" /></button></div>}>
           <AlertsInbox userId={user?.id ?? null} title="Flags & pings for you" onNavigate={() => setInboxOpen(false)} />
           {canManage && <NeedsYou />}
         </Sheet>
@@ -5462,7 +5685,7 @@ export default function AdminPage() {
         <div className="svc-full" role="dialog" aria-modal="true" aria-label="The Pass">
           <div className="svc-bar">
             <b>The Pass</b>
-            <button type="button" className="svc-exit" onClick={() => setSvc(false)}>✕ Exit</button>
+            <button type="button" className="svc-exit" onClick={() => setSvc(false)}><Icon name="close" /> Exit</button>
           </div>
           <div className="svc-grid">
             <div className="svc-main"><Kitchen /></div>
@@ -5641,7 +5864,7 @@ export default function AdminPage() {
           <div className="crew-group">Growth &amp; training</div>
           <Link href="/academy" className="opx-link">
             <span className="opx-link-t">GT3 Academy</span>
-            <span className="opx-link-s">Training, certifications &amp; the cookbook →</span>
+            <span className="opx-link-s">Training, certifications &amp; the cookbook <Icon name="arrowRight" /></span>
           </Link>
           {isOwner && <AiTraining />}
         </>

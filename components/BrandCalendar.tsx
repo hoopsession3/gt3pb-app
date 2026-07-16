@@ -8,6 +8,9 @@ import { useOperatorSection } from "./OperatorNav";
 import { CAL_CAT, CONTENT_STATUS as STC } from "@/lib/calendarTokens";
 import { localDayBoundsISO } from "@/lib/calendarMath";
 import { isBlank } from "@/lib/formGuard";
+import { useRealtimeTable } from "@/lib/realtime";
+import { useAsyncData } from "@/lib/useAsyncData";
+import AsyncSection from "./AsyncSection";
 
 // BRAND CALENDAR — the planning brain of Studio. Posts (scheduled content) + events roll onto one
 // month view so Ryan + Kayla see the whole picture and build FROM it.
@@ -16,10 +19,12 @@ import { isBlank } from "@/lib/formGuard";
 //   remembered across sessions.
 // - Relational: a piece can belong to an event (content_items.event_id). Start a post on an event's
 //   day and it auto-links; linked posts show the tie. Reschedules sync live via Supabase Realtime.
+// Fetch state via useAsyncData — a failed load is a real error now, not a silently empty calendar.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 type CItem = { id: string; title: string; status: string; channel: string; scheduled_for: string | null; event_id: string | null };
 type EvItem = { id: string; title: string | null; day: string; day_label: string | null };
+type Board = { content: CItem[]; events: EvItem[]; backlog: CItem[] };
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -32,9 +37,6 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
   const now = new Date();
   const [cursor, setCursor] = useState(() => new Date(now.getFullYear(), now.getMonth(), now.getDate())); // always open on today
   const setMonth = (d: Date) => setCursor(d);
-  const [content, setContent] = useState<CItem[]>([]);
-  const [events, setEvents] = useState<EvItem[]>([]);
-  const [backlog, setBacklog] = useState<CItem[]>([]);
   const [over, setOver] = useState<string | null>(null);
   const [focusEvent, setFocusEvent] = useState<string | null>(null); // highlight a relationship
   const [dayOpen, setDayOpen] = useState<string | null>(null); // tap a day → its detail
@@ -70,35 +72,26 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
   const goNext = () => setCursor(view === "week" ? addDays(cursor, 7) : new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1));
   const goToday = () => setCursor(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
 
-  const load = useCallback(async () => {
-    if (!supabase) return;
+  const loader = useCallback(async (): Promise<Board> => {
+    if (!supabase) return { content: [], events: [], backlog: [] };
     // Shared UTC-bounding math (lib/calendarMath) — events.day keys off local calendar strings.
     const fromKey = key(days[0]), toKey = key(days[41]);
     const { fromISO, toISO } = localDayBoundsISO(days[0], days[41]);
-    // WRAPPED so a dropped socket / offline fetch can't become an unhandled rejection (the /studio
-    // field-error alert). On failure the last-known board stays; realtime + the next open recover.
-    try {
-      const [c, e, b] = await Promise.all([
-        supabase.from("content_items").select("id, title, status, channel, scheduled_for, event_id").not("scheduled_for", "is", null).gte("scheduled_for", fromISO).lt("scheduled_for", toISO),
-        supabase.from("events").select("id, title, day, day_label").is("archived_at", null).gte("day", fromKey).lte("day", toKey),
-        supabase.from("content_items").select("id, title, status, channel, scheduled_for, event_id").is("scheduled_for", null).neq("status", "published").order("updated_at", { ascending: false }).limit(24),
-      ]);
-      setContent((c.data as CItem[]) ?? []); setEvents((e.data as EvItem[]) ?? []); setBacklog((b.data as CItem[]) ?? []);
-    } catch { /* keep last-known board; realtime + next open refetch */ }
+    const [c, e, b] = await Promise.all([
+      supabase.from("content_items").select("id, title, status, channel, scheduled_for, event_id").not("scheduled_for", "is", null).gte("scheduled_for", fromISO).lt("scheduled_for", toISO),
+      supabase.from("events").select("id, title, day, day_label").is("archived_at", null).gte("day", fromKey).lte("day", toKey),
+      supabase.from("content_items").select("id, title, status, channel, scheduled_for, event_id").is("scheduled_for", null).neq("status", "published").order("updated_at", { ascending: false }).limit(24),
+    ]);
+    const firstErr = [c, e, b].find((x) => x.error)?.error;
+    if (firstErr) throw new Error(firstErr.message);
+    return { content: (c.data as CItem[]) ?? [], events: (e.data as EvItem[]) ?? [], backlog: (b.data as CItem[]) ?? [] };
   }, [days]);
-
-  useEffect(() => { load(); }, [load]);
-  useEffect(() => {
-    if (!supabase) return;
-    // Live on BOTH tables the grid draws from — content chips AND event chips (a stop/event moved or
-    // archived elsewhere used to leave a stale chip until a manual reload).
-    const ch = supabase.channel("studio-cal")
-      .on("postgres_changes", { event: "*", schema: "public", table: "content_items" }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "events" }, () => load())
-      .subscribe();
-    // removeChannel returns a promise — swallow so a teardown race can't reject unhandled.
-    return () => { try { void Promise.resolve(supabase?.removeChannel(ch)).catch(() => {}); } catch { /* */ } };
-  }, [load]);
+  const board = useAsyncData(loader, [days]);
+  const { reload } = board;
+  useRealtimeTable(["content_items", "events"], reload);
+  const content = board.data?.content ?? [];
+  const events = board.data?.events ?? [];
+  const backlog = board.data?.backlog ?? [];
 
   const evTitle = useCallback((id: string | null) => id ? (events.find((e) => e.id === id)?.title ?? "linked event") : "", [events]);
   const byDay = useMemo(() => {
@@ -115,10 +108,9 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
     const prev = it?.scheduled_for ? new Date(it.scheduled_for) : null;
     const [y, mo, da] = dayKey.split("-").map(Number);
     const dt = new Date(y, mo - 1, da, prev ? prev.getHours() : 9, prev ? prev.getMinutes() : 0);
-    setBacklog((b) => b.filter((x) => x.id !== id)); // optimistic — a failed write reverts via load()
     const { error } = await supabase.from("content_items").update({ scheduled_for: dt.toISOString() }).eq("id", id);
     if (error) toast("Couldn't move that piece — check your role or connection.", "error");
-    load(); // reconcile with the truth either way (restores the chip if the move failed)
+    reload();
   };
   const drop = (dayKey: string) => { setOver(null); const id = dragId.current; dragId.current = null; if (id) reschedule(id, dayKey); };
 
@@ -162,6 +154,8 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
   };
 
   return (
+    <AsyncSection state={board} isEmpty={() => false} errorTitle="Couldn't load the content calendar" emptyTitle="Nothing here yet">
+      {() => (
     <div className="cal">
       <div className="cal-titlebar">
         <span className="cal-eyebrow">🎨 Content schedule</span>
@@ -253,8 +247,10 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
           onClose={() => setDayOpen(null)} onEdit={(id) => setEditId(id)} onOpenFull={(id) => { setDayOpen(null); onOpen(id); }}
           onAdd={() => { const [y, mo, da] = dayOpen.split("-").map(Number); const evId = byDay[dayOpen]?.evs[0]?.id ?? null; setDayOpen(null); onCreate(new Date(y, mo - 1, da, 9, 0).toISOString(), evId); }} />
       )}
-      {editId && <ContentEdit id={editId} events={events} onClose={() => setEditId(null)} onSaved={() => { setEditId(null); load(); }} onOpenFull={(id) => { setEditId(null); onOpen(id); }} />}
+      {editId && <ContentEdit id={editId} events={events} onClose={() => setEditId(null)} onSaved={() => { setEditId(null); reload(); }} onOpenFull={(id) => { setEditId(null); onOpen(id); }} />}
     </div>
+      )}
+    </AsyncSection>
   );
 }
 

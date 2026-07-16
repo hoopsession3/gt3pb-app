@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
+import { useAsyncData } from "@/lib/useAsyncData";
+import AsyncSection from "./AsyncSection";
 
 // CHANGELOG — "What we've built": the human-readable, categorized record of every improvement shipped,
 // so a cofounder (or any leader) can see the whole build without reading git. Newest first, grouped by
@@ -41,19 +43,21 @@ export default function Changelog() {
   const { toast } = useApp();
   const { user, profile } = useAuth();
   const isAdmin = !!(profile?.is_admin);
-  const [rows, setRows] = useState<Entry[] | null>(null);
   const [filter, setFilter] = useState<string>("all");   // "all" | "highlight" | a category key
   const [composing, setComposing] = useState(false);
   const [d, setD] = useState<Draft>(BLANK);
   const [saving, setSaving] = useState(false);
   const [openM, setOpenM] = useState<Set<string> | null>(null);   // which month sections are expanded (null = default: newest only)
 
-  const load = useCallback(async () => {
-    if (!supabase) { setRows([]); return; }
-    const { data } = await supabase.from("changelog").select("*").order("shipped_on", { ascending: false }).order("created_at", { ascending: false });
-    setRows((data as Entry[]) ?? []);
+  const loader = useCallback(async (): Promise<Entry[]> => {
+    if (!supabase) return [];
+    const { data, error } = await supabase.from("changelog").select("*").order("shipped_on", { ascending: false }).order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    return (data as Entry[]) ?? [];
   }, []);
-  useEffect(() => { load(); }, [load]);
+  const board = useAsyncData(loader, []);
+  const { reload } = board;
+  const rows = board.data ?? [];
 
   const stats = useMemo(() => {
     const r = rows ?? [];
@@ -78,13 +82,14 @@ export default function Changelog() {
     const { error } = await supabase.from("changelog").insert({ ...payload, created_by: user?.id ?? null });
     setSaving(false);
     if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
-    toast("Logged"); setD(BLANK); setComposing(false); load();
+    toast("Logged"); setD(BLANK); setComposing(false); reload();
   };
 
-  if (rows === null) return <div className="chg-empty">Loading…</div>;
   const presentCats = CAT_KEYS.filter((k) => (rows ?? []).some((r) => r.category === k));
 
   return (
+    <AsyncSection state={board} isEmpty={() => false} errorTitle="Couldn't load the changelog" emptyTitle="Nothing here yet">
+      {() => (
     <div className="chg">
       <p className="chg-lead">Everything we&apos;ve shipped — how GT3 got built, newest first. Every improvement, categorized, so anyone on the team can see the whole story.</p>
 
@@ -154,5 +159,7 @@ export default function Changelog() {
         );
       })}
     </div>
+      )}
+    </AsyncSection>
   );
 }

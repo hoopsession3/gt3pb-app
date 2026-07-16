@@ -1,44 +1,49 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import {
   drinkCogs, batchCogs, margin,
   type InvCost, type Component, type ProductRow, type BrewRecipeRow,
 } from "@/lib/cogs";
+import { SectionHeader } from "@/components/kit";
+import { useAsyncData } from "@/lib/useAsyncData";
+import AsyncSection from "./AsyncSection";
 
 // COGS CALCULATOR (Money) — one cohesive place for the cost side: cost per drink (from each
 // product's recipe × ingredient costs), cost per batch (brews, broth — cost/gallon and per 10oz
 // bottle), and the menu's blended margin. Derives everything from inventory unit costs + recipes
 // already in the system, so adding goat milk (or any input) with a cost flows straight through.
+// Fetch state via useAsyncData — a failed load is a real error now, not a silent "No products yet".
 
 const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 const marginCls = (pct: number) => (pct >= 60 ? "ok" : pct >= 30 ? "gold" : "red");
+type Board = { inv: InvCost[]; products: ProductRow[]; components: Component[]; recipes: BrewRecipeRow[] };
 
 export default function CogsCalculator() {
   const [tab, setTab] = useState<"drinks" | "batches">("drinks");
-  const [inv, setInv] = useState<InvCost[]>([]);
-  const [products, setProducts] = useState<ProductRow[]>([]);
-  const [components, setComponents] = useState<Component[]>([]);
-  const [recipes, setRecipes] = useState<BrewRecipeRow[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
-  const [loaded, setLoaded] = useState(false);
 
-  const load = useCallback(async () => {
-    if (!supabase) { setLoaded(true); return; }
+  const loader = useCallback(async (): Promise<Board> => {
+    if (!supabase) return { inv: [], products: [], components: [], recipes: [] };
     const [i, p, comp, r] = await Promise.all([
       supabase.from("inventory_items").select("id, name, unit_cost, unit"),
       supabase.from("products").select("id, slug, name, line, price_cents").eq("active", true).order("sort"),
       supabase.from("product_components").select("product_id, inventory_item_id, qty_per_serving, unit"),
       supabase.from("brew_recipes").select("id, name, style, base_water_gal, ingredients, yield_factor").is("archived_at", null).order("sort"),
     ]);
-    setInv((i.data as InvCost[]) ?? []);
-    setProducts((p.data as ProductRow[]) ?? []);
-    setComponents((comp.data as Component[]) ?? []);
-    setRecipes((r.data as BrewRecipeRow[]) ?? []);
-    setLoaded(true);
+    const firstErr = [i, p, comp, r].find((x) => x.error)?.error;
+    if (firstErr) throw new Error(firstErr.message);
+    return {
+      inv: (i.data as InvCost[]) ?? [], products: (p.data as ProductRow[]) ?? [],
+      components: (comp.data as Component[]) ?? [], recipes: (r.data as BrewRecipeRow[]) ?? [],
+    };
   }, []);
-  useEffect(() => { load(); }, [load]);
+  const board = useAsyncData(loader, []);
+  const inv = board.data?.inv ?? [];
+  const products = board.data?.products ?? [];
+  const components = board.data?.components ?? [];
+  const recipes = board.data?.recipes ?? [];
 
   const invById = useMemo(() => new Map(inv.map((x) => [x.id, x])), [inv]);
   const invByName = useMemo(() => new Map(inv.map((x) => [x.name.trim().toLowerCase(), x])), [inv]);
@@ -59,8 +64,10 @@ export default function CogsCalculator() {
   }, [drinks]);
 
   return (
+    <AsyncSection state={board} isEmpty={() => false} errorTitle="Couldn't load COGS data" emptyTitle="Nothing here yet">
+      {() => (
     <div className="adm-sec">
-      <div className="sec">COGS calculator</div>
+      <SectionHeader label="COGS calculator" />
       <div className="pnl-note" style={{ marginBottom: 10 }}>
         Cost of goods from your recipes × ingredient costs. Set an ingredient&apos;s cost in <b>inventory (unit cost)</b> and a drink&apos;s recipe in <b>Menu</b>; it flows here automatically.
         {blended != null && <> Blended menu margin (fully-costed lines): <b className={`cogs-bm ${marginCls(blended.pct)}`}>{blended.pct}%</b>.</>}
@@ -102,7 +109,7 @@ export default function CogsCalculator() {
               )}
             </div>
           ))}
-          {loaded && drinks.length === 0 && <div className="pnl-note">No products yet — add them in Menu.</div>}
+          {drinks.length === 0 && <div className="pnl-note">No products yet — add them in Menu.</div>}
         </>
       )}
 
@@ -131,10 +138,12 @@ export default function CogsCalculator() {
               )}
             </div>
           ))}
-          {loaded && batches.length === 0 && <div className="pnl-note">No brew/broth recipes yet — add them in Plan → Brew.</div>}
+          {batches.length === 0 && <div className="pnl-note">No brew/broth recipes yet — add them in Plan → Brew.</div>}
           <div className="pnl-note" style={{ marginTop: 8 }}>Batch costs match recipe ingredients to inventory by name — anything flagged <b>uncosted</b> needs a matching inventory item with a unit cost.</div>
         </>
       )}
     </div>
+      )}
+    </AsyncSection>
   );
 }

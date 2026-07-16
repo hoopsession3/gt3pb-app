@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 
 // READABILITY CONTROLS — a global "Aa" toggle (every surface, users + operators): bump the text
 // size, make text bolder, and open up the spacing so info is easier to scan. Persisted to
@@ -37,6 +38,8 @@ export default function DisplayToggle() {
   const [d, setD] = useState<Display>(DEFAULT);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(open, panelRef);
   useEffect(() => { setD(readDisplay()); }, []);
   useEffect(() => {
     if (!open) return;
@@ -44,12 +47,18 @@ export default function DisplayToggle() {
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
   const set = (patch: Partial<Display>) => { const next = { ...d, ...patch }; setD(next); write(next); };
 
   return (
     <div className="rdg" ref={ref}>
       {open && (
-        <div className="rdg-panel" role="dialog" aria-label="Display & text">
+        <div className="rdg-panel" ref={panelRef} tabIndex={-1} role="dialog" aria-label="Display & text">
           <div className="rdg-row-h">Text size</div>
           <div className="rdg-sizes">
             {SIZES.map((s, i) => (

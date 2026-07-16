@@ -9,13 +9,19 @@ import { useWorkStreams } from "@/lib/streams";
 import { METRIC_SOURCES, computeMetric } from "@/lib/goalMetrics";
 import { raiseAlertClient } from "@/lib/clientAlerts";
 import { StrategyThread } from "./StrategyCollab";
+import { SectionHeader } from "@/components/kit";
+import { useAsyncData } from "@/lib/useAsyncData";
+import AsyncSection from "./AsyncSection";
 
 // GOALS — the true tracker (0163/0164). Three layers, top down:
 //   lane → goal → moves.
 // Every goal rolls up to a work stream; a metric-bound goal reads its number LIVE from real
 // orders. Moves are event_tasks rows owned by goal_id (0049's meeting-note precedent), so an
 // assigned move pings its owner, lands in their My Tasks, rides the task-due ladder, and shows
-// on the calendar — the ONE task engine, not a second one.
+// on the calendar — the ONE task engine, not a second one. Fetch state via useAsyncData — a failed
+// load is a real error now, not a silent "No goals yet". Every mutation below used to patch local
+// state optimistically with no server round-trip check (several had no reload at all); useAsyncData
+// exposes no setter, so each one now awaits its write, then reload()s the real board.
 
 type Goal = {
   id: string; title: string; metric: string | null; unit: string;
@@ -27,16 +33,13 @@ type Goal = {
 };
 type Move = { id: string; goal_id: string; label: string; done: boolean; assignee: string | null; due_at: string | null; sort: number };
 type Staff = { id: string; display_name: string | null };
+type Board = { rows: Goal[]; inits: Move[]; staff: Staff[] };
 
 export default function Goals() {
   const { toast } = useApp();
   const { user, profile } = useAuth();
   const streams = useWorkStreams();
-  const [rows, setRows] = useState<Goal[]>([]);
-  const [inits, setInits] = useState<Move[]>([]);
-  const [staff, setStaff] = useState<Staff[]>([]);
   const [live, setLive] = useState<Record<string, number>>({});   // metric_source → live value
-  const [loaded, setLoaded] = useState(false);
   const [open, setOpen] = useState<string | null>(null);          // which thread is open
   const [logging, setLogging] = useState<string | null>(null);
   const [logVal, setLogVal] = useState("");
@@ -47,21 +50,24 @@ export default function Goals() {
   const [ng, setNg] = useState({ title: "", target: "", unit: "", play: "", due: "", stream: "business", source: "" });
   const canLead = LEADERSHIP_ROLES.includes(roleOf(profile)) || !!profile?.is_admin;
 
-  const load = useCallback(async () => {
-    if (!supabase) return;
+  const loader = useCallback(async (): Promise<Board> => {
+    if (!supabase) return { rows: [], inits: [], staff: [] };
     const [g, i, st] = await Promise.all([
       supabase.from("goals").select("*").neq("status", "archived")
         .order("status").order("due_date", { ascending: true, nullsFirst: false }).order("created_at"),
       supabase.from("event_tasks").select("id, goal_id, label, done, assignee, due_at, sort").not("goal_id", "is", null).order("sort").order("created_at"),
       supabase.from("profiles").select("id, display_name").neq("role", "member").order("display_name"),
     ]);
-    if (g.data) setRows(g.data as Goal[]);
-    if (i.data) setInits(i.data as Move[]);
-    if (st.data) setStaff(st.data as Staff[]);
-    setLoaded(true);
+    const firstErr = [g, i, st].find((x) => x.error)?.error;
+    if (firstErr) throw new Error(firstErr.message);
+    return { rows: (g.data as Goal[]) ?? [], inits: (i.data as Move[]) ?? [], staff: (st.data as Staff[]) ?? [] };
   }, []);
-  useEffect(() => { load(); }, [load]);
-  useRealtimeTable(["goals", "event_tasks"], load);
+  const board = useAsyncData(loader, []);
+  const { reload } = board;
+  useRealtimeTable(["goals", "event_tasks"], reload);
+  const rows = board.data?.rows ?? [];
+  const inits = board.data?.inits ?? [];
+  const staff = board.data?.staff ?? [];
 
   // Live metrics: compute each bound source once, show it, and (leadership only) write it back so
   // reports and escalation read the same number the board shows.
@@ -87,38 +93,38 @@ export default function Goals() {
     const v = Number(logVal);
     if (!Number.isFinite(v) || v < 0) { toast("Numbers only — the bar does the talking", "error"); return; }
     setLogging(null); setLogVal("");
-    setRows((r) => r.map((x) => (x.id === g.id ? { ...x, current_value: v } : x)));
     const { error } = await supabase.from("goals").update({ current_value: v, updated_at: new Date().toISOString() }).eq("id", g.id);
-    if (error) { toast(`Couldn't log it — ${error.message}`, "error"); load(); return; }
+    if (error) { toast(`Couldn't log it — ${error.message}`, "error"); reload(); return; }
     toast(v >= g.target_value ? "Logged — that's the target. Mark it hit when it holds." : "Progress logged");
+    reload();
   };
 
   const setStatus = async (g: Goal, status: Goal["status"]) => {
     if (!supabase) return;
-    setRows((r) => r.map((x) => (x.id === g.id ? { ...x, status } : x)));
     const { error } = await supabase.from("goals").update({ status, updated_at: new Date().toISOString() }).eq("id", g.id);
-    if (error) { toast(`Couldn't update — ${error.message}`, "error"); load(); }
+    if (error) { toast(`Couldn't update — ${error.message}`, "error"); }
     else if (status === "hit") toast("Goal hit — log the decision on the Playbook");
+    reload();
   };
 
   const setStream = async (g: Goal, stream_key: string) => {
     if (!supabase) return;
-    setRows((r) => r.map((x) => (x.id === g.id ? { ...x, stream_key } : x)));
     await supabase.from("goals").update({ stream_key }).eq("id", g.id);
+    reload();
   };
 
   // Every objective gets ONE accountable owner (distinct from the people doing the individual moves).
   const setOwner = async (g: Goal, uid: string) => {
     if (!supabase) return;
-    setRows((r) => r.map((x) => (x.id === g.id ? { ...x, owner_user_id: uid || null } : x)));
     await supabase.from("goals").update({ owner_user_id: uid || null, updated_at: new Date().toISOString() }).eq("id", g.id);
+    reload();
   };
 
   // Planning altitude: strategic (big bets) / tactical (moves) / operational (day-to-day).
   const setHorizon = async (g: Goal, horizon: string) => {
     if (!supabase) return;
-    setRows((r) => r.map((x) => (x.id === g.id ? { ...x, horizon: horizon as Goal["horizon"] } : x)));
     await supabase.from("goals").update({ horizon, updated_at: new Date().toISOString() }).eq("id", g.id);
+    reload();
   };
 
   const addInitiative = async (goalId: string) => {
@@ -127,34 +133,34 @@ export default function Goals() {
     const { error } = await supabase.from("event_tasks").insert({ goal_id: goalId, label, kind: "task", sort: inits.filter((i) => i.goal_id === goalId).length });
     if (error) { toast(`Couldn't add — ${error.message}`, "error"); return; }
     setInitTitle("");
-    load();
+    reload();
   };
   const toggleInitiative = async (i: Move) => {
     if (!supabase) return;
     const next = !i.done;
-    setInits((p) => p.map((x) => (x.id === i.id ? { ...x, done: next } : x)));
     await supabase.from("event_tasks").update({ done: next, done_by: next ? user?.id ?? null : null, done_at: next ? new Date().toISOString() : null }).eq("id", i.id);
+    reload();
   };
   const removeInitiative = async (i: Move) => {
     if (!supabase) return;
-    setInits((p) => p.filter((x) => x.id !== i.id));
     await supabase.from("event_tasks").delete().eq("id", i.id);
+    reload();
   };
   // Assigning a move works exactly like assigning prep: the owner gets a targeted ping and the
   // move appears in THEIR My Tasks (same rows, same engine).
   const assignMove = async (i: Move, goalTitle: string, uid: string) => {
     if (!supabase) return;
-    setInits((p) => p.map((x) => (x.id === i.id ? { ...x, assignee: uid || null } : x)));
     await supabase.from("event_tasks").update({ assignee: uid || null }).eq("id", i.id);
     if (uid && uid !== user?.id) {
       raiseAlertClient({ severity: "critical", category: "task", kind: "task_assigned", subjectId: i.id, title: `Assigned to you: ${i.label}`.slice(0, 140), body: `Goal: ${goalTitle}`, link: "/crew?s=day", targetUserId: uid });
     }
+    reload();
   };
   const dueMove = async (i: Move, v: string) => {
     if (!supabase) return;
     const due_at = v ? new Date(`${v}T23:59:59`).toISOString() : null;
-    setInits((p) => p.map((x) => (x.id === i.id ? { ...x, due_at } : x)));
     await supabase.from("event_tasks").update({ due_at }).eq("id", i.id);
+    reload();
   };
   const firstName = (uid: string | null) => (staff.find((s) => s.id === uid)?.display_name || "").trim().split(/\s+/)[0] || null;
 
@@ -175,6 +181,7 @@ export default function Goals() {
     if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
     setAdding(false); setNg({ title: "", target: "", unit: "", play: "", due: "", stream: "business", source: "" });
     toast("On the board");
+    reload();
   };
 
   const active = rows.filter((g) => g.status === "active");
@@ -286,24 +293,39 @@ export default function Goals() {
 
   return (
     <div className="adm-sec" id="goals">
-      <div className="sec">Goals{active.length > 0 && <span className="adm-pill">{active.length}</span>}</div>
+      <SectionHeader label="Goals" />
+      {active.length > 0 && <span className="adm-pill">{active.length}</span>}
       <p className="h-sub" style={{ marginBottom: 12 }}>Every goal is a number with a bar, filed to the lane that owns it. Break it into moves; talk it out on the thread.</p>
 
-      {!loaded && <div className="dops-empty">Loading the board…</div>}
-      {loaded && rows.length === 0 && <div className="dops-empty">No goals yet — put a number on the wall.</div>}
-
-      {groups.map(({ s, goals }) => (
-        <div key={s.key} className="goal-lane">
-          <div className="goal-lane-h"><span className="cc-dot" style={{ background: s.color }} /><b>{s.label}</b><span className="goal-lane-n">{goals.length}</span></div>
-          {goals.map(card)}
-        </div>
-      ))}
-      {orphans.length > 0 && (
-        <div className="goal-lane">
-          <div className="goal-lane-h"><span className="cc-dot" style={{ background: "#9a8f7c" }} /><b>Unfiled</b><span className="goal-lane-n">{orphans.length}</span></div>
-          {orphans.map(card)}
-        </div>
-      )}
+      <AsyncSection state={board} isEmpty={(data) => data.rows.length === 0} emptyTitle="No goals yet" emptySub="Put a number on the wall." errorTitle="Couldn't load the board" loadingLabel="Loading the board…">
+        {() => (
+          <>
+            {groups.map(({ s, goals }) => (
+              <div key={s.key} className="goal-lane">
+                <div className="goal-lane-h"><span className="cc-dot" style={{ background: s.color }} /><b>{s.label}</b><span className="goal-lane-n">{goals.length}</span></div>
+                {goals.map(card)}
+              </div>
+            ))}
+            {orphans.length > 0 && (
+              <div className="goal-lane">
+                <div className="goal-lane-h"><span className="cc-dot" style={{ background: "#9a8f7c" }} /><b>Unfiled</b><span className="goal-lane-n">{orphans.length}</span></div>
+                {orphans.map(card)}
+              </div>
+            )}
+            {settled.length > 0 && (
+              <div className="goal-settled">
+                <div className="dops-up-h">Settled · {settled.length}</div>
+                {settled.map((g) => (
+                  <div className="dops-up-row" key={g.id}>
+                    <span><b>{g.title}</b> — {g.current_value}{g.unit && ` ${g.unit}`} of {g.target_value}{g.unit && ` ${g.unit}`}</span>
+                    <span className={`goal-chip ${g.status}`}>{g.status === "hit" ? "✓ hit" : g.status}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </AsyncSection>
 
       {canLead && (adding ? (
         <div className="goal-new">
@@ -337,18 +359,6 @@ export default function Goals() {
           <span>A number, a lane, a date — measured live from the data where it can be.</span>
         </button>
       ))}
-
-      {settled.length > 0 && (
-        <div className="goal-settled">
-          <div className="dops-up-h">Settled · {settled.length}</div>
-          {settled.map((g) => (
-            <div className="dops-up-row" key={g.id}>
-              <span><b>{g.title}</b> — {g.current_value}{g.unit && ` ${g.unit}`} of {g.target_value}{g.unit && ` ${g.unit}`}</span>
-              <span className={`goal-chip ${g.status}`}>{g.status === "hit" ? "✓ hit" : g.status}</span>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

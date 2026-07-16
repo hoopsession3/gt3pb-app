@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { useRealtimeTable } from "@/lib/realtime";
+import { useAsyncData } from "@/lib/useAsyncData";
+import AsyncSection from "./AsyncSection";
 import { CAL_CAT as CAT } from "@/lib/calendarTokens";
 import { brewStartOverdue } from "@/lib/brewMath";
 import { etToday } from "@/lib/dates";
@@ -16,10 +18,12 @@ import VendorResolve from "./VendorResolve";
 import { localDayBoundsISO } from "@/lib/calendarMath";
 import FieldOpSheet from "./FieldOpSheet";
 import Sheet from "@/components/Sheet";
+import Icon from "@/components/Icon";
 
 // COMPANY CALENDAR — one pane for everything dated: truck events, admin/ops work, scheduled content
 // (from Studio), and free-standing to-dos. Category-colored, filterable, click-through to source.
 // Views: List · Week · Month · Quarter · Year. Owner can connect Outlook for two-way sync.
+// Fetch state via useAsyncData — a failed load is a real error now, not a silently stale calendar.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 type Ev = { id: string; title: string | null; day: string; day_label: string | null; is_live: boolean | null; category: string | null; plan_days: number | null; stage: string | null };
@@ -51,6 +55,15 @@ type EditKind = "event" | "content" | "todo" | "stop" | "task";
 const isEditable = (k: Item["kind"]): k is EditKind => k !== "task" && k in SRC;
 const DRAG = new Set<Item["kind"]>(["event", "stop", "content", "todo"]); // event_task + rollups stay put
 
+// Everything the calendar fetches, in one shape — combined behind useAsyncData so a failed query is a
+// real error state (AsyncSection) instead of the old try/catch that quietly kept the last-known board.
+type Board = {
+  events: Ev[]; content: Content[]; todos: Todo[]; stops: Stop[]; prepTasks: PrepTask[]; brews: Brew[];
+  drops: { drop_date: string; size: number }[]; dels: { delivery_date: string }[]; biz: { delivery_date: string; gallons: number }[];
+  backlogT: Todo[]; backlogC: Content[]; goals: Goal[];
+};
+const EMPTY_BOARD: Board = { events: [], content: [], todos: [], stops: [], prepTasks: [], brews: [], drops: [], dels: [], biz: [], backlogT: [], backlogC: [], goals: [] };
+
 function gridMonth(cursor: Date): Date[] { const s = new Date(cursor.getFullYear(), cursor.getMonth(), 1); s.setDate(1 - s.getDay()); return Array.from({ length: 42 }, (_, i) => { const d = new Date(s); d.setDate(s.getDate() + i); return d; }); }
 function gridWeek(cursor: Date): Date[] { const s = new Date(cursor); s.setDate(cursor.getDate() - cursor.getDay()); return Array.from({ length: 7 }, (_, i) => { const d = new Date(s); d.setDate(s.getDate() + i); return d; }); }
 const qStart = (cursor: Date) => Math.floor(cursor.getMonth() / 3) * 3;
@@ -68,22 +81,10 @@ export default function CompanyCalendar() {
   const setV = (v: View) => { setView(v); if (typeof window !== "undefined") localStorage.setItem(VIEW_KEY, v); };
   const [cursor, setCursor] = useState(() => new Date(now.getFullYear(), now.getMonth(), now.getDate())); // always open on today (right week AND month)
   const setCur = (d: Date) => setCursor(d);
-  const [events, setEvents] = useState<Ev[]>([]);
-  const [content, setContent] = useState<Content[]>([]);
-  const [todos, setTodos] = useState<Todo[]>([]);
-  const [stops, setStops] = useState<Stop[]>([]);
-  const [prepTasks, setPrepTasks] = useState<PrepTask[]>([]);
-  const [brews, setBrews] = useState<Brew[]>([]);
-  const [drops, setDrops] = useState<{ drop_date: string; size: number }[]>([]);
-  const [dels, setDels] = useState<{ delivery_date: string }[]>([]);
-  const [biz, setBiz] = useState<{ delivery_date: string; gallons: number }[]>([]);
   const [filter, setFilter] = useState<string>("all");
   const [filterSheet, setFilterSheet] = useState(false); // categories live behind one quiet chip
   const [addDay, setAddDay] = useState<string | null>(null);
   const [dayOpen, setDayOpen] = useState<string | null>(null); // a date → show that day's detail
-  const [backlogT, setBacklogT] = useState<Todo[]>([]);   // undated to-dos — Board's Unscheduled column
-  const [backlogC, setBacklogC] = useState<Content[]>([]); // unscheduled content, same column
-  const [goals, setGoals] = useState<Goal[]>([]);          // objectives land on their target date
   const [edit, setEdit] = useState<{ kind: EditKind; id: string } | null>(null); // Cards/Rails edit in place
   const [stale, setStale] = useState(0); // overdue, unpublished, not-yet-tidied content
   const [tidying, setTidying] = useState(false);
@@ -104,37 +105,50 @@ export default function CompanyCalendar() {
     const g = gridMonth(cursor); return { start: g[0], end: g[41] };
   }, [view, cursor]);
 
-  const load = useCallback(async () => {
-    if (!supabase) return;
+  const loader = useCallback(async (): Promise<Board> => {
+    if (!supabase) return EMPTY_BOARD;
     const to = key(range.end);
     const eFrom = (() => { const d = new Date(range.start); d.setDate(d.getDate() - 31); return key(d); })(); // catch multi-day spillover
     const from = key(range.start);
     // Shared UTC-bounding math (lib/calendarMath) — date columns keep the local key strings.
     const { fromISO, toISO } = localDayBoundsISO(range.start, range.end);
-    // WRAPPED so a dropped socket / offline fetch can't become an unhandled rejection (the /crew
-    // field-error alert). On failure the last-known calendar holds; realtime + next open recover.
-    try {
-      const [e, c, t, s, pt, bb, dr, dv, bt, bc, bo, gl] = await Promise.all([
-        supabase.from("events").select("id, title, day, day_label, is_live, category, plan_days, stage").is("archived_at", null).gte("day", eFrom).lte("day", to),
-        supabase.from("content_items").select("id, title, scheduled_for, status").is("archived_at", null).not("scheduled_for", "is", null).gte("scheduled_for", fromISO).lt("scheduled_for", toISO),
-        supabase.from("todos").select("id, title, category, due_on, done, event_id, meeting_note_id").not("due_on", "is", null).gte("due_on", from).lte("due_on", to),
-        supabase.from("stops").select("id, name, location_text, starts_at, status").is("archived_at", null).not("starts_at", "is", null).neq("status", "done").gte("starts_at", fromISO).lt("starts_at", toISO),
-        supabase.from("event_tasks").select("id, label, due_at, event_id, stop_id, meeting_note_id, goal_id").eq("done", false).eq("kind", "task").not("due_at", "is", null).gte("due_at", fromISO).lt("due_at", toISO),
-        supabase.from("brew_batches").select("id, recipe_name, batch_gal, status, brew_date, ready_at, latest_start_at").not("status", "in", "(served,dumped)").not("brew_date", "is", null).gte("brew_date", from).lte("brew_date", to),
-        supabase.from("drop_orders").select("drop_date, size").is("canceled_at", null).gte("drop_date", from).lte("drop_date", to),
-        supabase.from("delivery_orders").select("delivery_date").is("canceled_at", null).gte("delivery_date", from).lte("delivery_date", to),
-        supabase.from("todos").select("id, title, category, due_on, done, event_id, meeting_note_id").is("due_on", null).eq("done", false).limit(30),
-        supabase.from("content_items").select("id, title, scheduled_for, status").is("archived_at", null).is("scheduled_for", null).neq("status", "published").limit(30),
-        supabase.from("business_orders").select("delivery_date, gallons").is("canceled_at", null).gte("delivery_date", from).lte("delivery_date", to),
-        supabase.from("goals").select("id, title, due_date, status, horizon").not("due_date", "is", null).neq("status", "archived").gte("due_date", from).lte("due_date", to),
-      ]);
-      setEvents((e.data as Ev[]) ?? []); setContent((c.data as Content[]) ?? []); setTodos((t.data as Todo[]) ?? []); setStops((s.data as Stop[]) ?? []); setPrepTasks((pt.data as PrepTask[]) ?? []);
-      setBrews((bb.data as Brew[]) ?? []); setDrops((dr.data as { drop_date: string; size: number }[]) ?? []); setDels((dv.data as { delivery_date: string }[]) ?? []); setBiz((bo.data as { delivery_date: string; gallons: number }[]) ?? []);
-      setBacklogT((bt.data as Todo[]) ?? []); setBacklogC((bc.data as Content[]) ?? []); setGoals((gl.data as Goal[]) ?? []);
-    } catch { /* keep last-known calendar; realtime + next open refetch */ }
+    const [e, c, t, s, pt, bb, dr, dv, bt, bc, bo, gl] = await Promise.all([
+      supabase.from("events").select("id, title, day, day_label, is_live, category, plan_days, stage").is("archived_at", null).gte("day", eFrom).lte("day", to),
+      supabase.from("content_items").select("id, title, scheduled_for, status").is("archived_at", null).not("scheduled_for", "is", null).gte("scheduled_for", fromISO).lt("scheduled_for", toISO),
+      supabase.from("todos").select("id, title, category, due_on, done, event_id, meeting_note_id").not("due_on", "is", null).gte("due_on", from).lte("due_on", to),
+      supabase.from("stops").select("id, name, location_text, starts_at, status").is("archived_at", null).not("starts_at", "is", null).neq("status", "done").gte("starts_at", fromISO).lt("starts_at", toISO),
+      supabase.from("event_tasks").select("id, label, due_at, event_id, stop_id, meeting_note_id, goal_id").eq("done", false).eq("kind", "task").not("due_at", "is", null).gte("due_at", fromISO).lt("due_at", toISO),
+      supabase.from("brew_batches").select("id, recipe_name, batch_gal, status, brew_date, ready_at, latest_start_at").not("status", "in", "(served,dumped)").not("brew_date", "is", null).gte("brew_date", from).lte("brew_date", to),
+      supabase.from("drop_orders").select("drop_date, size").is("canceled_at", null).gte("drop_date", from).lte("drop_date", to),
+      supabase.from("delivery_orders").select("delivery_date").is("canceled_at", null).gte("delivery_date", from).lte("delivery_date", to),
+      supabase.from("todos").select("id, title, category, due_on, done, event_id, meeting_note_id").is("due_on", null).eq("done", false).limit(30),
+      supabase.from("content_items").select("id, title, scheduled_for, status").is("archived_at", null).is("scheduled_for", null).neq("status", "published").limit(30),
+      supabase.from("business_orders").select("delivery_date, gallons").is("canceled_at", null).gte("delivery_date", from).lte("delivery_date", to),
+      supabase.from("goals").select("id, title, due_date, status, horizon").not("due_date", "is", null).neq("status", "archived").gte("due_date", from).lte("due_date", to),
+    ]);
+    const firstErr = [e, c, t, s, pt, bb, dr, dv, bt, bc, bo, gl].find((x) => x.error)?.error;
+    if (firstErr) throw new Error(firstErr.message);
+    return {
+      events: (e.data as Ev[]) ?? [], content: (c.data as Content[]) ?? [], todos: (t.data as Todo[]) ?? [], stops: (s.data as Stop[]) ?? [], prepTasks: (pt.data as PrepTask[]) ?? [],
+      brews: (bb.data as Brew[]) ?? [], drops: (dr.data as { drop_date: string; size: number }[]) ?? [], dels: (dv.data as { delivery_date: string }[]) ?? [], biz: (bo.data as { delivery_date: string; gallons: number }[]) ?? [],
+      backlogT: (bt.data as Todo[]) ?? [], backlogC: (bc.data as Content[]) ?? [], goals: (gl.data as Goal[]) ?? [],
+    };
   }, [range]);
-  useEffect(() => { load(); }, [load]);
-  useRealtimeTable(["todos", "content_items", "events", "stops", "event_tasks", "brew_batches", "drop_orders", "delivery_orders", "goals"], load);
+  const board = useAsyncData(loader, [range]);
+  const { reload } = board;
+  useRealtimeTable(["todos", "content_items", "events", "stops", "event_tasks", "brew_batches", "drop_orders", "delivery_orders", "goals"], reload);
+  const events = board.data?.events ?? [];
+  const content = board.data?.content ?? [];
+  const todos = board.data?.todos ?? [];
+  const stops = board.data?.stops ?? [];
+  const prepTasks = board.data?.prepTasks ?? [];
+  const brews = board.data?.brews ?? [];
+  const drops = board.data?.drops ?? [];
+  const dels = board.data?.dels ?? [];
+  const biz = board.data?.biz ?? [];
+  const backlogT = board.data?.backlogT ?? [];
+  const backlogC = board.data?.backlogC ?? [];
+  const goals = board.data?.goals ?? [];
 
   const loadStale = useCallback(async () => { if (!supabase) return; const { data } = await supabase.rpc("stale_content_count"); setStale(typeof data === "number" ? data : 0); }, []);
   useEffect(() => { loadStale(); }, [loadStale]);
@@ -142,7 +156,7 @@ export default function CompanyCalendar() {
     if (!supabase || tidying) return;
     setTidying(true);
     const { data } = await supabase.rpc("tidy_stale_content", { grace_days: 0 }); // owner tapped Tidy → file all overdue now
-    setTidying(false); await load(); await loadStale();
+    setTidying(false); await reload(); await loadStale();
     return data;
   };
   // Tapping ANY dated thing on the calendar — event or stop — opens the same unified prep hub, so they
@@ -151,8 +165,8 @@ export default function CompanyCalendar() {
   const openStopPrep = (stopId: string) => { if (typeof window !== "undefined") localStorage.setItem("gt3-prep-open", `stop:${stopId}`); setSection("prep"); };
   const toggleTodo = async (t: Todo) => {
     if (!supabase) return;
-    setTodos((p) => p.map((x) => x.id === t.id ? { ...x, done: !x.done } : x));
     await supabase.from("todos").update({ done: !t.done, done_at: !t.done ? new Date().toISOString() : null }).eq("id", t.id);
+    reload();
   };
   // Drag-to-reschedule for every editable kind — same rule as CalEdit's onDate: plain-date columns
   // take the day key, timestamp columns keep their existing time-of-day.
@@ -166,14 +180,13 @@ export default function CompanyCalendar() {
       const hh = old ? `${pad(old.getHours())}:${pad(old.getMinutes())}` : cfg.defTime;
       val = new Date(`${dayKey}T${hh}:00`).toISOString();
     }
-    if (kind === "todo") setTodos((p) => p.map((x) => x.id === id ? { ...x, due_on: dayKey } : x));
     await supabase.from(cfg.table).update({ [cfg.dateCol]: val }).eq("id", id);
-    load();
+    reload();
   };
   const unschedule = async (kind: EditKind, id: string) => {
     if (!supabase || (kind !== "todo" && kind !== "content")) return;
     await supabase.from(SRC[kind].table).update({ [SRC[kind].dateCol]: null }).eq("id", id);
-    load();
+    reload();
   };
   // Business-rhythm rollups deep-link to the lane page that owns them.
   const openBrew = () => setSection("brew");
@@ -268,14 +281,16 @@ export default function CompanyCalendar() {
   const Chip = ({ it }: { it: Item }) => (
     <button type="button" draggable={DRAG.has(it.kind)} className={`cc-chip${it.done ? " done" : ""}`} style={{ borderLeftColor: CAT[it.cat]?.color }}
       onDragStart={() => { if (DRAG.has(it.kind) && isEditable(it.kind)) dragId.current = { kind: it.kind, id: it.id }; }} onClick={(e) => { e.stopPropagation(); it.go(); }} title={`${CAT[it.cat]?.label}: ${it.title}`}>
-      {it.kind === "todo" && <span className="cc-check" onClick={(e) => { e.stopPropagation(); it.toggle?.(); }}>{it.done ? "✓" : "○"}</span>}
+      {it.kind === "todo" && <span className="cc-check" onClick={(e) => { e.stopPropagation(); it.toggle?.(); }}>{it.done ? <Icon name="check" /> : "○"}</span>}
       <span className="cc-dot" style={{ background: CAT[it.cat]?.color }} />{it.title}
     </button>
   );
 
   return (
+    <AsyncSection state={board} isEmpty={() => false} errorTitle="Couldn't load the calendar" emptyTitle="Nothing here yet">
+      {() => (
     <div className="adm-sec cal">
-      <div className="cal-titlebar"><span className="cal-eyebrow">📅 Company calendar</span><span className="cal-titlesub">everything dated — tap any day to open &amp; edit</span></div>
+      <div className="cal-titlebar"><span className="cal-eyebrow"><Icon name="calendar" /> Company calendar</span><span className="cal-titlesub">everything dated — tap any day to open &amp; edit</span></div>
       {stale > 0 && (
         <div className="cal-nudge">
           <span><b>{stale}</b> post{stale === 1 ? "" : "s"} went past their date unpublished.</span>
@@ -406,7 +421,7 @@ export default function CompanyCalendar() {
                   {col.sub && <div className="bd-sub">{col.sub}</div>}
                   {rows.length === 0 ? <div className="bd-empty">{col.id === "overdue" ? "nothing slipped" : "clear"}</div> : rows.map(({ k, it }) => (
                     <div key={`${it.kind}-${it.id}-${k}`} className="bd-card">
-                      {k && <span className="bd-date">{fmtK(k)}{it.warn ? " ⚠" : ""}</span>}
+                      {k && <span className="bd-date">{fmtK(k)}{it.warn ? <> <Icon name="warning" /></> : ""}</span>}
                       <Chip it={it} />
                     </div>
                   ))}
@@ -431,8 +446,8 @@ export default function CompanyCalendar() {
                 <span>{CAT[it.cat]?.label}{it.meta ? ` · ${it.meta}` : ""}{it.warn ? " · past latest start" : ""}{k === todayKey ? " · today" : ""}</span>
               </button>
               {it.kind === "todo"
-                ? <button type="button" className="dv-go" title="Mark done" onClick={() => it.toggle?.()}>{it.done ? "✓" : "○"}</button>
-                : <button type="button" className="dv-go" title="Open" onClick={() => it.go()}>↗</button>}
+                ? <button type="button" className="dv-go" title="Mark done" onClick={() => it.toggle?.()}>{it.done ? <Icon name="check" /> : "○"}</button>
+                : <button type="button" className="dv-go" title="Open" onClick={() => it.go()}><Icon name="externalLink" /></button>}
             </div>
           );
         };
@@ -454,16 +469,18 @@ export default function CompanyCalendar() {
         </div>
       )}
 
-      {isOwner && <OutlookBar onSynced={load} />}
-      {!isOwner && <div className="insp-foot" style={{ marginTop: 12 }}>📅 Outlook two-way sync is managed by the owner.</div>}
+      {isOwner && <OutlookBar onSynced={reload} />}
+      {!isOwner && <div className="insp-foot" style={{ marginTop: 12 }}><Icon name="calendar" /> Outlook two-way sync is managed by the owner.</div>}
 
       {edit && (edit.kind === "event" || edit.kind === "stop"
-        ? <FieldOpSheet kind={edit.kind} id={edit.id} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load(); }}
+        ? <FieldOpSheet kind={edit.kind} id={edit.id} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); reload(); }}
             onOpenPrep={() => { try { localStorage.setItem("gt3-prep-open", edit.kind === "stop" ? `stop:${edit.id}` : edit.id); } catch { /* ignore */ } setSection("prep"); setEdit(null); }} />
-        : <CalEdit kind={edit.kind} id={edit.id} events={events} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load(); }} />)}
-      {dayOpen && <DayView dayKey={dayOpen} items={byDay[dayOpen] || []} events={events} onClose={() => setDayOpen(null)} onAdd={() => { const k = dayOpen; setDayOpen(null); setAddDay(k); }} onSaved={load} />}
-      {addDay && <AddSheet day={addDay} events={events} onClose={() => setAddDay(null)} onDone={() => { setAddDay(null); load(); }} setSection={setSection} />}
+        : <CalEdit kind={edit.kind} id={edit.id} events={events} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); reload(); }} />)}
+      {dayOpen && <DayView dayKey={dayOpen} items={byDay[dayOpen] || []} events={events} onClose={() => setDayOpen(null)} onAdd={() => { const k = dayOpen; setDayOpen(null); setAddDay(k); }} onSaved={reload} />}
+      {addDay && <AddSheet day={addDay} events={events} onClose={() => setAddDay(null)} onDone={() => { setAddDay(null); reload(); }} setSection={setSection} />}
     </div>
+      )}
+    </AsyncSection>
   );
 }
 
@@ -486,7 +503,7 @@ function DayView({ dayKey, items, events, onClose, onAdd, onSaved }: { dayKey: s
   const brewLate = items.some((i) => i.warn);
   return (
     <>
-    <Sheet open onClose={onClose} label="Calendar day" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{heading}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
+    <Sheet open onClose={onClose} label="Calendar day" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{heading}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} title="Close"><Icon name="close" /></button></div>}>
           {items.length === 0 && archived.length === 0 && <div className="oa-empty" style={{ padding: "18px 8px" }}>Nothing scheduled this day. Tap Add to put something here.</div>}
           {clash && <div className="dv-heads">Heads up: event + truck stop share this day.</div>}
           {brewLate && <div className="dv-heads">Heads up: a brew here is past its latest start.</div>}
@@ -507,8 +524,8 @@ function DayView({ dayKey, items, events, onClose, onAdd, onSaved }: { dayKey: s
                   <b>{it.title}</b><span>{CAT[it.cat]?.label}{it.meta ? ` · ${it.meta}` : ` · ${sub[it.kind]}`} · tap to edit</span>
                 </button>
                 {it.kind === "todo"
-                  ? <button type="button" className="dv-go" title="Mark done" onClick={() => it.toggle?.()}>{it.done ? "✓" : "○"}</button>
-                  : <button type="button" className="dv-go" title={it.kind === "content" ? "Open in Studio" : "Open full prep"} onClick={() => { it.go(); onClose(); }}>↗</button>}
+                  ? <button type="button" className="dv-go" title="Mark done" onClick={() => it.toggle?.()}>{it.done ? <Icon name="check" /> : "○"}</button>
+                  : <button type="button" className="dv-go" title={it.kind === "content" ? "Open in Studio" : "Open full prep"} onClick={() => { it.go(); onClose(); }}><Icon name="externalLink" /></button>}
               </div>
             ))}
             {archived.length > 0 && (
@@ -590,7 +607,7 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: s
   const linkable = kind === "todo" || kind === "content";
   return (
     <>
-    <Sheet open onClose={onClose} className="dp-form" label="Edit calendar item" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{`Edit ${cfg.noun}`}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
+    <Sheet open onClose={onClose} className="dp-form" label="Edit calendar item" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{`Edit ${cfg.noun}`}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} title="Close"><Icon name="close" /></button></div>}>
           <input className="note-in" value={f[cfg.nameCol] ?? ""} onChange={(e) => set(cfg.nameCol, e.target.value)} placeholder={`${cfg.noun[0].toUpperCase() + cfg.noun.slice(1)} name`} autoFocus />
           <div className="prod-grid" style={{ marginTop: 10 }}>
             <label className="prod-f"><span>Date</span><input type="date" value={dateVal} onChange={(e) => onDate(e.target.value)} /></label>
@@ -617,7 +634,7 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: s
               </select>
             </label>
           )}
-          {kind === "content" && <button type="button" className="cal-tolink" style={{ marginTop: 10, marginLeft: 0 }} onClick={() => { setSection("studio"); onClose(); }}>Open full editor in Studio ↗</button>}
+          {kind === "content" && <button type="button" className="cal-tolink" style={{ marginTop: 10, marginLeft: 0 }} onClick={() => { setSection("studio"); onClose(); }}>Open full editor in Studio <Icon name="externalLink" /></button>}
           <div className="prod-actions" style={{ marginTop: 14, justifyContent: "space-between" }}>
             <button type="button" className="note-arch" onClick={remove} disabled={saving}>{kind === "content" ? "Unschedule" : kind === "todo" ? "Delete" : "Remove"}</button>
             <div style={{ display: "flex", gap: 8 }}>
@@ -694,7 +711,7 @@ function OutlookBar({ onSynced }: { onSynced: () => void }) {
   if (!st) return null;
   return (
     <div className="ol-bar">
-      <div className="ol-top"><span className="ol-i">📅</span><b>Outlook sync</b>
+      <div className="ol-top"><span className="ol-i"><Icon name="calendar" /></span><b>Outlook sync</b>
         {st.connected ? <span className="ol-state on">Connected</span> : st.configured ? <span className="ol-state">Not connected</span> : <span className="ol-state off">Not configured</span>}
       </div>
       {!st.configured && <div className="ol-note">Set <code>MS_CLIENT_ID</code> and <code>MS_CLIENT_SECRET</code> (Azure app) to enable two-way sync.</div>}
@@ -739,7 +756,7 @@ function AddSheet({ day, events, onClose, onDone }: { day: string; events: Ev[];
     onDone();
   };
   return (
-    <Sheet open onClose={onClose} label="Add to the calendar" header={<div style={{ display: "flex", alignItems: "center" }}><button type="button" className={`qd-tab${kind === "todo" ? " on" : ""}`} onClick={() => setKind("todo")}>To-do</button><button type="button" className={`qd-tab${kind === "stop" ? " on" : ""}`} onClick={() => setKind("stop")}>🚚 Truck stop</button><button type="button" className={`qd-tab${kind === "event" ? " on" : ""}`} onClick={() => setKind("event")}>Event</button><span style={{ marginLeft: "auto", fontFamily: "Inter", fontSize: 13, color: "var(--cream-m)" }}>{day}</span><button type="button" className="qd-x" onClick={onClose}>✕</button></div>}>
+    <Sheet open onClose={onClose} label="Add to the calendar" header={<div style={{ display: "flex", alignItems: "center" }}><button type="button" className={`qd-tab${kind === "todo" ? " on" : ""}`} onClick={() => setKind("todo")}>To-do</button><button type="button" className={`qd-tab${kind === "stop" ? " on" : ""}`} onClick={() => setKind("stop")}><Icon name="truck" /> Truck stop</button><button type="button" className={`qd-tab${kind === "event" ? " on" : ""}`} onClick={() => setKind("event")}>Event</button><span style={{ marginLeft: "auto", fontFamily: "Inter", fontSize: 13, color: "var(--cream-m)" }}>{day}</span><button type="button" className="qd-x" onClick={onClose} title="Close"><Icon name="close" /></button></div>}>
           <input className="note-in" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={kind === "todo" ? "What needs doing?" : kind === "stop" ? "Stop name — e.g. Saturday Market" : "Event name"} autoFocus />
           {kind === "stop" ? (
             <>

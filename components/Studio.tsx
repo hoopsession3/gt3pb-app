@@ -10,6 +10,7 @@ import { raiseAlertClient } from "@/lib/clientAlerts";
 import { GTM_PLAYS } from "@/lib/strategy";
 import { useOperatorSection } from "@/components/OperatorNav";
 import Sheet from "@/components/Sheet";
+import Icon from "@/components/Icon";
 
 type CLink = { id: string; event_id: string | null; stop_id: string | null; play_key: string | null };
 import BrandCalendar from "./BrandCalendar";
@@ -130,7 +131,7 @@ export default function Studio() {
         <>
           <div className="cal-xlink">
             <span className="cal-xlink-t">This is your <b>content</b> calendar — scheduled posts &amp; shoots.</span>
-            <button type="button" className="cal-xlink-go" onClick={goCompanyCal}>See everything on the Company calendar →</button>
+            <button type="button" className="cal-xlink-go" onClick={goCompanyCal}>See everything on the Company calendar <Icon name="arrowRight" /></button>
           </div>
           <BrandCalendar onOpen={setOpenId} onCreate={(iso, evId) => create(iso, evId)} />
         </>
@@ -188,7 +189,7 @@ export default function Studio() {
                   <div className="studio-card-t">{it.title || "Untitled"}</div>
                   {it.campaign && <span className="studio-card-camp">{it.campaign}</span>}
                   {it.caption && <div className="studio-card-c">{it.caption}</div>}
-                  <div className="studio-card-f">{it.scheduled_for ? `📅 ${fmtDate(it.scheduled_for)}` : `Edited ${fmtDate(it.updated_at)}`}</div>
+                  <div className="studio-card-f">{it.scheduled_for ? <><Icon name="calendar" /> {fmtDate(it.scheduled_for)}</> : `Edited ${fmtDate(it.updated_at)}`}</div>
                 </button>
               ))}
             </div>
@@ -576,7 +577,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
                   await supabase.from("content_links").delete().eq("id", l.id);
                   if (l.event_id && l.event_id === eventId) { setEventId(""); persist({ event_id: null }); }
                   if (l.stop_id && l.stop_id === stopId) { setStopId(""); persist({ stop_id: null }); }
-                }}>✕</button>
+                }}><Icon name="close" /></button>
               </span>
             );
           })}
@@ -585,13 +586,13 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
 
       {linkedStop && (
         <div className="studio-rel">
-          <span className="studio-rel-l">🚚 Tied to <b>{linkedStop.name || "Truck stop"}</b>{stopWhen(linkedStop) ? ` · ${stopWhen(linkedStop)}` : ""}</span>
+          <span className="studio-rel-l"><Icon name="truck" /> Tied to <b>{linkedStop.name || "Truck stop"}</b>{stopWhen(linkedStop) ? ` · ${stopWhen(linkedStop)}` : ""}</span>
         </div>
       )}
 
       {linkedEv && (
         <div className="studio-rel">
-          <span className="studio-rel-l">🔗 Tied to <b>{linkedEv.title || "Event"}</b>{linkedEv.day_label ? ` · ${linkedEv.day_label}` : ""}</span>
+          <span className="studio-rel-l"><Icon name="link" /> Tied to <b>{linkedEv.title || "Event"}</b>{linkedEv.day_label ? ` · ${linkedEv.day_label}` : ""}</span>
           <div className="studio-rel-chips">
             <span className="studio-rel-cap">Schedule:</span>
             <button type="button" onClick={() => scheduleRel(-7)}>−1 wk</button>
@@ -599,7 +600,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
             <button type="button" onClick={() => scheduleRel(-1)}>Day before</button>
             <button type="button" onClick={() => scheduleRel(0)}>Day of</button>
             <button type="button" onClick={() => scheduleRel(1)}>Recap +1d</button>
-            <button type="button" className="rel-draft" onClick={briefFromEvent}>✨ Draft from event</button>
+            <button type="button" className="rel-draft" onClick={briefFromEvent}><Icon name="sparkles" /> Draft from event</button>
             <button type="button" className="rel-camp" onClick={genCampaign} disabled={campBusy}>{campBusy ? "Building…" : "⚡ Generate campaign"}</button>
           </div>
         </div>
@@ -626,7 +627,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
             </div>
             {!isVertical && (
               <>
-                <div className="studio-sim-actions"><span>♡</span><span>💬</span><span>➤</span><span className="bm">🔖</span></div>
+                <div className="studio-sim-actions"><span>♡</span><span><Icon name="chat" /></span><span>➤</span><span className="bm">🔖</span></div>
                 {caption && <div className="studio-sim-cap"><b>gt3performancebar</b> {caption.slice(0, 125)}{caption.length > 125 && <span className="more"> … more</span>}</div>}
               </>
             )}
@@ -638,8 +639,8 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
               <button type="button" key={i} className={`studio-thumb${i === active ? " on" : ""}`} onClick={() => setActive(i)} style={m.type !== "video" ? { backgroundImage: `url(${m.url})` } : undefined} aria-label={`Slide ${i + 1}`}>
                 {m.type === "video" && <video src={m.url} muted playsInline preload="metadata" />}
                 {i === 0 && <span className="studio-thumb-cover">Cover</span>}
-                <span className="studio-thumb-x" role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); removeMedia(i); }} aria-label="Remove">✕</span>
-                {i !== 0 && <span className="studio-thumb-cv" role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); makeCover(i); }} aria-label="Make cover">★</span>}
+                <span className="studio-thumb-x" role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); removeMedia(i); }} aria-label="Remove"><Icon name="close" /></span>
+                {i !== 0 && <span className="studio-thumb-cv" role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); makeCover(i); }} aria-label="Make cover"><Icon name="star" /></span>}
               </button>
             ))}
             <button type="button" className="studio-thumb add" onClick={() => fileRef.current?.click()} disabled={uploading} aria-label="Add more">{uploading ? "…" : "＋"}</button>
@@ -649,7 +650,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
       </div>
 
       {libOpen && (
-        <Sheet open onClose={() => setLibOpen(false)} label="Media library" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Media library</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setLibOpen(false)}>✕</button></div>}>
+        <Sheet open onClose={() => setLibOpen(false)} label="Media library" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Media library</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setLibOpen(false)} title="Close"><Icon name="close" /></button></div>}>
               {lib.length === 0 ? <div className="oa-empty">No media yet — uploads from any piece show here to reuse.</div> : (
                 <div className="lib-grid">
                   {lib.map((m, i) => (
@@ -664,7 +665,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
       )}
 
       {kitOpen && (
-        <Sheet open onClose={() => setKitOpen(false)} label="Post kit" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>📦 Post kit</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setKitOpen(false)}>✕</button></div>}>
+        <Sheet open onClose={() => setKitOpen(false)} label="Post kit" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}><Icon name="package" /> Post kit</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setKitOpen(false)} title="Close"><Icon name="close" /></button></div>}>
               <div className="kit-row"><span className="kit-h">Caption</span><button className="kit-copy" onClick={() => copyText(caption)}>Copy</button></div>
               <div className="kit-box" style={{ whiteSpace: "pre-wrap" }}>{caption || "—"}</div>
               {tags.trim() && <><div className="kit-row"><span className="kit-h">Hashtags</span><button className="kit-copy" onClick={() => copyText(tags.split(",").map((t) => `#${t.trim()}`).join(" "))}>Copy</button></div><div className="kit-box">{tags.split(",").map((t) => `#${t.trim()}`).join(" ")}</div></>}
@@ -688,7 +689,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
 
       {/* Caption engine */}
       <div className="studio-engine">
-        <div className="insp-lbl">✨ Caption engine</div>
+        <div className="insp-lbl"><Icon name="sparkles" /> Caption engine</div>
         <div className="oa-input">
           <input value={brief} onChange={(e) => setBrief(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") draft(); }} placeholder="Brief — e.g. 'promote Saturday market; lead with why no oxalates'" />
           <button type="button" className="oa-send" onClick={draft} disabled={drafting || !brief.trim()}>{drafting ? "Drafting…" : "Draft"}</button>
@@ -706,7 +707,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
 
       {rep && (
         <div className="studio-rep">
-          <div className="insp-lbl">♻️ Repurposed <button type="button" className="studio-rep-x" onClick={() => setRep(null)}>✕</button></div>
+          <div className="insp-lbl">♻️ Repurposed <button type="button" className="studio-rep-x" onClick={() => setRep(null)}><Icon name="close" /></button></div>
           <div className="studio-rep-card"><div className="studio-rep-h">Story<span><button onClick={() => copyText(rep.story)}>Copy</button><button onClick={() => spinOff("story", rep.story)}>Spin off</button></span></div><p>{rep.story}</p></div>
           <div className="studio-rep-card"><div className="studio-rep-h">Reel script<span><button onClick={() => copyText(`${rep.reel_script.hook}\n${(rep.reel_script.beats || []).join("\n")}\n${rep.reel_script.cta}`)}>Copy</button><button onClick={() => spinOff("reel", `${rep.reel_script.hook}\n\n${(rep.reel_script.beats || []).join("\n")}\n\n${rep.reel_script.cta}`)}>Spin off</button></span></div><p><b>Hook:</b> {rep.reel_script.hook}</p><ol className="studio-rep-beats">{(rep.reel_script.beats || []).map((b: string, i: number) => <li key={i}>{b}</li>)}</ol><p><b>CTA:</b> {rep.reel_script.cta}</p></div>
           <div className="studio-rep-card"><div className="studio-rep-h">Email<span><button onClick={() => copyText(`${rep.email.subject}\n\n${rep.email.body}`)}>Copy</button></span></div><p><b>{rep.email.subject}</b></p><p style={{ whiteSpace: "pre-wrap" }}>{rep.email.body}</p></div>
@@ -721,7 +722,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
       </div>
 
       <div className="studio-actions">
-        <button type="button" className="studio-act" onClick={saveVersion}>✓ Save version</button>
+        <button type="button" className="studio-act" onClick={saveVersion}><Icon name="check" /> Save version</button>
         {status === "draft" && <button type="button" className="studio-act primary" onClick={() => setStage("review", {}, "submitted")} disabled={isBlank(title)}>Submit for review</button>}
         {(status === "review" || status === "changes") && <button type="button" className="studio-act primary" onClick={() => setStage("approved", { approved_by: me.id }, "approved")} disabled={isBlank(title)}>Approve</button>}
         {status === "review" && (
@@ -733,7 +734,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
         {(status === "approved" || status === "scheduled") && <button type="button" className="studio-act" onClick={() => setStage("published", {}, "published")}>Mark published</button>}
         {status === "scheduled" && <button type="button" className="studio-act ghost" onClick={() => setStage("approved", { scheduled_for: null }, "unscheduled")}>↩ Unschedule</button>}
         {status === "published" && <button type="button" className="studio-act ghost" onClick={() => setStage("approved", {}, "unpublished")}>↩ Unpublish</button>}
-        <button type="button" className="studio-act" onClick={() => setKitOpen(true)}>📦 Post kit</button>
+        <button type="button" className="studio-act" onClick={() => setKitOpen(true)}><Icon name="package" /> Post kit</button>
         <button type="button" className="studio-act ghost" onClick={() => setShowVers((s) => !s)}>History ({versions.length})</button>
         <button type="button" className="studio-act ghost" onClick={async () => { if (supabase && window.confirm("Delete this piece? This can't be undone.")) { await supabase.from("content_items").delete().eq("id", id); onClose(); } }}>Delete</button>
       </div>
@@ -744,13 +745,13 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
           <div className="insp-lbl">Design &amp; publish</div>
           <div className="studio-pub-row">
             <button type="button" className="studio-act" onClick={makeCanva} disabled={!!pubBusy}>{pubBusy === "design" ? "Opening…" : "🎨 Make in Canva"}</button>
-            {pub.edit && <a className="studio-act ghost" href={pub.edit} target="_blank" rel="noreferrer">Open design ↗</a>}
+            {pub.edit && <a className="studio-act ghost" href={pub.edit} target="_blank" rel="noreferrer">Open design <Icon name="externalLink" /></a>}
             {pub.edit && <button type="button" className="studio-act" onClick={exportCanva} disabled={!!pubBusy}>{pubBusy === "export" ? "Exporting…" : "Export PNG"}</button>}
-            {pub.png && <a className="studio-act ghost" href={pub.png} target="_blank" rel="noreferrer">View graphic ↗</a>}
+            {pub.png && <a className="studio-act ghost" href={pub.png} target="_blank" rel="noreferrer">View graphic <Icon name="externalLink" /></a>}
           </div>
           <div className="studio-pub-row">
             <button type="button" className="studio-act primary" onClick={publish} disabled={!!pubBusy}>{pubBusy === "publish" ? "Publishing…" : "🌐 Publish to site"}</button>
-            {pub.live && <a className="studio-act ghost" href={pub.live.startsWith("http") ? pub.live : undefined} target="_blank" rel="noreferrer">Live ↗ {pub.live.startsWith("http") ? "" : `(${pub.live})`}</a>}
+            {pub.live && <a className="studio-act ghost" href={pub.live.startsWith("http") ? pub.live : undefined} target="_blank" rel="noreferrer">Live <Icon name="externalLink" /> {pub.live.startsWith("http") ? "" : `(${pub.live})`}</a>}
             {pub.live && <button type="button" className="studio-act ghost" onClick={unpublishSite} disabled={!!pubBusy}>{pubBusy === "unpublish" ? "Removing…" : "↩ Take off site"}</button>}
           </div>
           {pubErr && <p className="insp-foot">{pubErr}</p>}

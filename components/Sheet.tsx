@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 
+const FOCUSABLE = 'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
+
 // THE canonical popout. One implementation, so the scroll contract, safe-area, keyboard-awareness,
 // spring-in, and swipe-to-dismiss are guaranteed identical everywhere — no per-sheet drift. Bottom
 // sheet on phones (slides up, drag the handle/header down to flick it away), centered modal ≥520px.
@@ -28,6 +30,8 @@ export default function Sheet({
 }) {
   const [drag, setDrag] = useState(0);
   const startY = useRef<number | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const restoreRef = useRef<HTMLElement | null>(null);
   // Exit choreography: when `open` flips false, keep rendering ~220ms with the `out` class so the
   // sheet leaves the way it arrived. Works for every close path since it watches the prop itself;
   // the timeout (not animationend) guarantees unmount even under reduced-motion or missing CSS.
@@ -49,6 +53,16 @@ export default function Sheet({
   const requestClose = useCallback(() => {
     if (closeT.current) return;
     setPhase("closing");
+    // Restore focus now, not on a later phase==="closed" — for the common conditionally-mounted
+    // caller ({x && <Sheet .../>}) the parent unmounts the whole subtree as soon as onClose fires
+    // below, so an effect gated on a future phase transition never gets the chance to run (verified:
+    // that transition is also unreachable via this path even when the parent keeps rendering, since
+    // phase is already "closing" by the time the open-prop effect would react to onClose's result).
+    if (restoreRef.current) {
+      const el = restoreRef.current;
+      restoreRef.current = null;
+      el.focus?.();
+    }
     closeT.current = setTimeout(() => { closeT.current = null; onClose(); }, 210);
   }, [onClose]);
   useEffect(() => () => { if (closeT.current) clearTimeout(closeT.current); }, []);
@@ -59,6 +73,38 @@ export default function Sheet({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, requestClose]);
+
+  // Focus management: remember what was focused when the sheet opens, move focus into the panel;
+  // restore it once the exit animation finishes and the sheet actually unmounts (phase === "closed"),
+  // not on the `open` prop flip — closing plays out over ~210-230ms and shouldn't yank focus early.
+  useEffect(() => {
+    if (phase !== "open") return;
+    restoreRef.current = (document.activeElement as HTMLElement) ?? null;
+    const raf = requestAnimationFrame(() => {
+      const first = panelRef.current?.querySelector<HTMLElement>(FOCUSABLE);
+      (first ?? panelRef.current)?.focus();
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [phase]);
+  useEffect(() => {
+    if (phase !== "closed" || !restoreRef.current) return;
+    const el = restoreRef.current;
+    restoreRef.current = null;
+    requestAnimationFrame(() => el.focus?.());
+  }, [phase]);
+  useEffect(() => {
+    if (phase === "closed") return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Tab") return;
+      const items = Array.from(panelRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []).filter((el) => el.offsetParent !== null);
+      if (!items.length) return;
+      const first = items[0], last = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [phase]);
 
   const start = useCallback((y: number) => { startY.current = y; }, []);
   const move = useCallback((y: number) => {
@@ -86,7 +132,7 @@ export default function Sheet({
   const out = phase === "closing" ? " out" : "";
   return (
     <div className={`sheet2-scrim${out}`} onClick={requestClose}>
-      <div className={`sheet2 ${className}${out}`} role="dialog" aria-modal="true" aria-labelledby={labelledBy}
+      <div className={`sheet2 ${className}${out}`} ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={labelledBy}
         aria-label={labelledBy ? undefined : (label ?? "Dialog")}
         style={panelStyle} onClick={(e) => e.stopPropagation()}>
         <div className="sheet2-grab" {...dragZone} />

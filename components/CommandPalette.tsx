@@ -32,6 +32,22 @@ export default function CommandPalette() {
       suppressRestore.current = false;
     }
   }, [open]);
+  // Tab-trap while open — the palette is a full scrim takeover, so Tab shouldn't be able to
+  // escape into the page behind it.
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Tab") return;
+      const panel = document.querySelector<HTMLElement>(".cmdk");
+      const items = Array.from(panel?.querySelectorAll<HTMLElement>('a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])') ?? []).filter((el) => el.offsetParent !== null);
+      if (!items.length) return;
+      const first = items[0], last = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open]);
 
   // Jump to a recently-viewed event/stop: stage it for the Prep index, switch there, and nudge it
   // open (covers the already-on-Prep case where a mount read wouldn't re-fire).
@@ -83,7 +99,7 @@ export default function CommandPalette() {
 
   return (
     <div className="cmdk-scrim" onMouseDown={() => setOpen(false)}>
-      <div className="cmdk" role="dialog" aria-label="Jump to" onMouseDown={(e) => e.stopPropagation()}>
+      <div className="cmdk" role="dialog" aria-modal="true" aria-label="Jump to" onMouseDown={(e) => e.stopPropagation()}>
         {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
         <input autoFocus className="cmdk-in" placeholder="Jump to a section or action…" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={onInputKey} aria-label="Search" />
         <div className="cmdk-list">

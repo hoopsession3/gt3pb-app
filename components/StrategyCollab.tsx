@@ -7,6 +7,8 @@ import { raiseAlertClient } from "@/lib/clientAlerts";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { GTM_PLAYS, type GtmPlay } from "@/lib/strategy";
+import { useAsyncData } from "@/lib/useAsyncData";
+import AsyncSection from "./AsyncSection";
 
 // STRATEGY COLLABORATION — three small tools that make the playbook a working document:
 //  · StrategyThread — live discussion on any block/play (the comments engine + strategy_key, 0140);
@@ -64,19 +66,22 @@ export function StrategyThread({ k, label, link = "/playbook" }: { k: string; la
 }
 
 // ── decision log ──
+// Append-only governance ledger — a failed load is a real error now, not a silent "Nothing logged
+// yet" (which would misread as "no decisions have ever been made" on this record-of-truth).
 type Decision = { id: string; key: string; decision: string; why: string | null; author_name: string | null; created_at: string };
 export function DecisionLog({ canWrite }: { canWrite: boolean }) {
   const { toast } = useApp();
   const { user, profile } = useAuth();
-  const [rows, setRows] = useState<Decision[]>([]);
   const [adding, setAdding] = useState(false);
   const [f, setF] = useState({ key: "", decision: "", why: "" });
-  const load = useCallback(async () => {
-    if (!supabase) return;
-    const { data } = await supabase.from("strategy_decisions").select("*").order("created_at", { ascending: false }).limit(50);
-    setRows((data as Decision[]) ?? []);
+  const loader = useCallback(async (): Promise<Decision[]> => {
+    if (!supabase) return [];
+    const { data, error } = await supabase.from("strategy_decisions").select("*").order("created_at", { ascending: false }).limit(50);
+    if (error) throw new Error(error.message);
+    return (data as Decision[]) ?? [];
   }, []);
-  useEffect(() => { load(); }, [load]);
+  const board = useAsyncData(loader, []);
+  const { reload } = board;
   const add = async () => {
     if (!supabase || !f.decision.trim()) return;
     const { error } = await supabase.from("strategy_decisions").insert({
@@ -84,33 +89,37 @@ export function DecisionLog({ canWrite }: { canWrite: boolean }) {
       author_id: user?.id ?? null, author_name: profile?.display_name ?? null,
     });
     if (error) { toast(`Error: ${error.message}`, "error"); return; }
-    setF({ key: "", decision: "", why: "" }); setAdding(false); load();
+    setF({ key: "", decision: "", why: "" }); setAdding(false); reload();
     toast("Logged — the record stands");
   };
   return (
-    <div className="st-log">
-      {canWrite && (
-        adding ? (
-          <div className="st-log-form">
-            <input className="auth-input" placeholder="What it concerns (e.g. pricing, gtm:wholesale)" value={f.key} onChange={(e) => setF({ ...f, key: e.target.value })} />
-            <input className="auth-input" placeholder="The decision, one sentence" value={f.decision} onChange={(e) => setF({ ...f, decision: e.target.value })} />
-            <input className="auth-input" placeholder="Why (optional, future-you will ask)" value={f.why} onChange={(e) => setF({ ...f, why: e.target.value })} />
-            <div className="st-log-btns">
-              <button type="button" className="handle" onClick={add} disabled={!f.decision.trim()}><span>Log it</span></button>
-              <button type="button" className="dl-back" onClick={() => setAdding(false)}>Cancel</button>
+    <AsyncSection state={board} isEmpty={() => false} errorTitle="Couldn't load the decision log" emptyTitle="Nothing here yet">
+      {(rows) => (
+        <div className="st-log">
+          {canWrite && (
+            adding ? (
+              <div className="st-log-form">
+                <input className="auth-input" placeholder="What it concerns (e.g. pricing, gtm:wholesale)" value={f.key} onChange={(e) => setF({ ...f, key: e.target.value })} />
+                <input className="auth-input" placeholder="The decision, one sentence" value={f.decision} onChange={(e) => setF({ ...f, decision: e.target.value })} />
+                <input className="auth-input" placeholder="Why (optional, future-you will ask)" value={f.why} onChange={(e) => setF({ ...f, why: e.target.value })} />
+                <div className="st-log-btns">
+                  <button type="button" className="handle" onClick={add} disabled={!f.decision.trim()}><span>Log it</span></button>
+                  <button type="button" className="dl-back" onClick={() => setAdding(false)}>Cancel</button>
+                </div>
+              </div>
+            ) : <button type="button" className="dl-card st-log-add" onClick={() => setAdding(true)}><b>＋ Log a decision</b><span>Append-only — it can never be edited or deleted. No strategic call without a log line.</span></button>
+          )}
+          {rows.length === 0 && !adding && <p className="dl-sub">Nothing logged yet. The first entry should probably be adopting Rev 1.0.</p>}
+          {rows.map((d) => (
+            <div key={d.id} className="st-log-row">
+              <div className="st-log-top"><span className="st-log-key">{d.key}</span><span className="st-when">{d.author_name?.split(" ")[0] || "Owner"} · {new Date(d.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span></div>
+              <b>{d.decision}</b>
+              {d.why && <p>{d.why}</p>}
             </div>
-          </div>
-        ) : <button type="button" className="dl-card st-log-add" onClick={() => setAdding(true)}><b>＋ Log a decision</b><span>Append-only — it can never be edited or deleted. No strategic call without a log line.</span></button>
-      )}
-      {rows.length === 0 && !adding && <p className="dl-sub">Nothing logged yet. The first entry should probably be adopting Rev 1.0.</p>}
-      {rows.map((d) => (
-        <div key={d.id} className="st-log-row">
-          <div className="st-log-top"><span className="st-log-key">{d.key}</span><span className="st-when">{d.author_name?.split(" ")[0] || "Owner"} · {new Date(d.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span></div>
-          <b>{d.decision}</b>
-          {d.why && <p>{d.why}</p>}
+          ))}
         </div>
-      ))}
-    </div>
+      )}
+    </AsyncSection>
   );
 }
 

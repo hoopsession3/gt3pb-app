@@ -6,6 +6,7 @@ import QRCode from "qrcode";
 import Gt3Mark from "@/components/Gt3Mark";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import { CONNECT_GROUPS, CONNECT_LEADERSHIP, CONNECT_PRIMARY } from "@/lib/connect";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 
 // CONNECT HUB — a floating, intent-driven "link tree." Pull it up anytime someone asks where to find
 // GT3: it asks what they're here for ("Wanna order?", "Learn the brew?", "Connect?") and drops down
@@ -22,6 +23,8 @@ export default function ConnectHub() {
   const [group, setGroup] = useState(0); // which intent is expanded
   const [qr, setQr] = useState("");
   const ref = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(open, panelRef);
 
   useEffect(() => {
     QRCode.toDataURL(CONNECT_PRIMARY, { margin: 1, width: 320, color: { dark: "#15120D", light: "#ffffff" } })
@@ -33,6 +36,12 @@ export default function ConnectHub() {
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
 
   return (
     <div className={`chub${open ? " open" : ""}`} ref={ref}>
@@ -42,7 +51,7 @@ export default function ConnectHub() {
       </button>
 
       {open && (
-        <div className="chub-panel" role="dialog" aria-label="Connect with GT3">
+        <div className="chub-panel" ref={panelRef} tabIndex={-1} role="dialog" aria-label="Connect with GT3">
           <div className="chub-head"><Gt3Mark tone="cream" /><span className="chub-head-s">What are you here for?</span></div>
 
           <div className="chub-groups">

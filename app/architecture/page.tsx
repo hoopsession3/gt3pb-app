@@ -146,7 +146,7 @@ export default function ArchitecturePage() {
                 <p className="arch-ov-b">{BUSINESS_OVERVIEW}</p>
               </div>
               {BUSINESS.map((b) => (
-                <div key={b.id} className="biz-card">
+                <div key={b.id} className="k-card" style={{ marginBottom: 10 }}>
                   <div className="biz-head">
                     <span className="biz-icon" aria-hidden>{b.icon}</span>
                     <span className="biz-name">{b.name}</span>

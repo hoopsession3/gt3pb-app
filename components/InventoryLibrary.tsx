@@ -122,7 +122,7 @@ export default function InventoryLibrary() {
   return (
     <div className="adm-sec gl">
       <button className="gl-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        <span className="sec">Inventory · {items.length}{low ? ` · ${low} low` : ""}</span>
+        <SectionHeader label="Inventory" annotation={`${items.length} item${items.length === 1 ? "" : "s"}${low ? ` · ${low} low` : ""}`} />
         <span className={`ev-chev${open ? " open" : ""}`} aria-hidden="true">›</span>
       </button>
       {open && (

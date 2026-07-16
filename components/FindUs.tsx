@@ -6,13 +6,13 @@ import AccountPill from "@/components/AccountPill";
 import { Masthead, SectionHeader, InfoRow, ClosingBeat } from "@/components/kit";
 import { RsvpRow } from "@/components/RsvpRow";
 import RouteMap, { type RoutePoint } from "@/components/RouteMap";
-import Skeleton from "@/components/Skeleton";
-import EmptyState from "@/components/EmptyState";
 import { openDirections } from "@/lib/maps";
 import { supabase } from "@/lib/supabase";
 import { useSiteCopy } from "@/lib/copy";
 import { localToday, relativeDay } from "@/lib/dates";
 import type { LiveStatus, EventRow } from "@/lib/db";
+import { useAsyncData } from "@/lib/useAsyncData";
+import AsyncSection from "./AsyncSection";
 
 // FIND US — the one answer to "where's GT3?", on the field_ops spine. Stops and events used to
 // live on two strangers of pages; they're one chronological road now, each row self-typing:
@@ -20,6 +20,16 @@ import type { LiveStatus, EventRow } from "@/lib/db";
 // the kit's InfoRow promise, structural. Reads ONE query: field_ops where is_public (0233's
 // generated column + policy door serve exactly this surface). Both /truck and /events render
 // this component, so every QR code and deep link in the wild keeps working.
+//
+// Fetch state, split in two on purpose:
+//  - The INITIAL load rides useAsyncData/AsyncSection, so a real fetch failure shows a real error
+//    with a retry — it used to render "No stops yet" / "Nothing scheduled yet, check back soon,"
+//    identical to a truck with a genuinely empty week, which on a public ordering page reads as
+//    "this business isn't running" rather than "the request failed."
+//  - The BACKGROUND refresh (realtime + 20s poll + focus/visibility) stays deliberately silent,
+//    same as before: a dropped socket or a missed poll must never reject unhandled or yank an
+//    already-rendered schedule back to a loading/error screen. It just re-populates the same
+//    local mirror the initial load fills.
 
 type FieldOp = {
   id: string; kind: "event" | "stop"; name: string;
@@ -32,6 +42,7 @@ type FieldOp = {
   status: string | null; completed_at: string | null; archived_at: string | null;
   is_public: boolean;
 };
+type Board = { ops: FieldOp[]; live: LiveStatus | null };
 
 // ── stop label helpers (from the truck page — hand-set labels win, else derive) ─────────────────
 function whenDay(s: FieldOp): string {
@@ -78,53 +89,72 @@ function toEventRow(r: FieldOp): EventRow {
   return { ...(r as unknown as Record<string, unknown>), title: r.name } as unknown as EventRow;
 }
 
+// Shared query, used by both the error-aware initial load and the silent background refresh.
+async function fetchRoad(): Promise<Board> {
+  // Explicit display columns only — NOT select("*"): the row carries venue POC contact PII
+  // (poc_name/phone/email/service_dates) that this public customer road must never fetch to the
+  // browser. Matches the FieldOp type exactly. (Follow-up: revoke those columns from anon at the DB.)
+  const [{ data: fo, error: e1 }, { data: l, error: e2 }] = await Promise.all([
+    supabase!.from("field_ops").select("id, kind, name, day, starts_at, ends_at, start_time, end_time, day_label, when_label, time_label, location_text, address, lat, lng, member_only, going_count, capacity, blurb, menu_tier, notes, note, status, completed_at, archived_at, is_public").eq("is_public", true),
+    supabase!.from("live_status").select("*").maybeSingle(),
+  ]);
+  if (e1) throw new Error(e1.message);
+  if (e2) throw new Error(e2.message);
+  const lstat = l as LiveStatus | null;
+  const liveId = lstat?.is_live ? lstat.current_stop_id : null;
+  const nowT = Date.now();
+  // the road AHEAD: hide completed/past (8h grace for stops through their evening; events
+  // stay through their whole day) — the live stop always shows
+  const ops = ((fo as FieldOp[]) ?? [])
+    .filter((r) => r.status !== "done" && !r.completed_at
+      && (r.id === liveId
+        || (r.kind === "stop" ? (!r.starts_at || new Date(r.starts_at).getTime() > nowT - 8 * 3600 * 1000) : true)))
+    .sort((a, b) => sortKey(a) - sortKey(b));
+  return { ops, live: lstat };
+}
+
 export default function FindUs() {
   const router = useRouter();
   const t = useSiteCopy();
   const [ops, setOps] = useState<FieldOp[]>([]);
   const [live, setLive] = useState<LiveStatus | null>(null);
-  const [loaded, setLoaded] = useState(false);
   const [openStop, setOpenStop] = useState<string | null>(null);
   const [showPast, setShowPast] = useState(false);
 
-  const load = useCallback(async () => {
-    if (!supabase) { setLoaded(true); return; }
-    // Wrapped so a dropped socket can never reject unhandled; the poll/focus refetch recovers.
+  const loader = useCallback(async (): Promise<Board> => {
+    if (!supabase) return { ops: [], live: null };
+    return fetchRoad();
+  }, []);
+  const board = useAsyncData(loader, []);
+
+  // Mirror the board into local state for rendering — the silent background refresh below writes
+  // into the same mirror, so both paths feed one source of truth for the JSX below.
+  useEffect(() => {
+    if (board.data) { setOps(board.data.ops); setLive(board.data.live); }
+  }, [board.data]);
+
+  // Silent background refresh — realtime + 20s poll + focus/visibility. Deliberately independent
+  // of `board`/AsyncSection: a dropped socket or a missed poll must never reject unhandled or flip
+  // an already-rendered page back to a loading/error state; it keeps the last-known road instead.
+  const refreshQuietly = useCallback(async () => {
+    if (!supabase) return;
     try {
-      const [{ data: fo }, { data: l }] = await Promise.all([
-        // Explicit display columns only — NOT select("*"): the row carries venue POC contact PII
-        // (poc_name/phone/email/service_dates) that this public customer road must never fetch to the
-        // browser. Matches the FieldOp type exactly. (Follow-up: revoke those columns from anon at the DB.)
-        supabase.from("field_ops").select("id, kind, name, day, starts_at, ends_at, start_time, end_time, day_label, when_label, time_label, location_text, address, lat, lng, member_only, going_count, capacity, blurb, menu_tier, notes, note, status, completed_at, archived_at, is_public").eq("is_public", true),
-        supabase.from("live_status").select("*").maybeSingle(),
-      ]);
-      const lstat = l as LiveStatus | null;
-      const liveId = lstat?.is_live ? lstat.current_stop_id : null;
-      const nowT = Date.now();
-      if (fo) setOps((fo as FieldOp[])
-        // the road AHEAD: hide completed/past (8h grace for stops through their evening; events
-        // stay through their whole day) — the live stop always shows
-        .filter((r) => r.status !== "done" && !r.completed_at
-          && (r.id === liveId
-            || (r.kind === "stop" ? (!r.starts_at || new Date(r.starts_at).getTime() > nowT - 8 * 3600 * 1000) : true)))
-        .sort((a, b) => sortKey(a) - sortKey(b)));
-      if (lstat) setLive(lstat);
+      const road = await fetchRoad();
+      setOps(road.ops); setLive(road.live);
     } catch { /* keep last-known road */ }
-    setLoaded(true);
   }, []);
 
   useEffect(() => {
-    load();
     if (!supabase) return;
     // The mirrors keep field_ops current on EVERY stop/event write — one realtime subscription
     // covers the whole road. live_status rides along for the hero + truck dot.
     const ch = supabase
       .channel("find-us")
-      .on("postgres_changes", { event: "*", schema: "public", table: "field_ops" }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "live_status" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "field_ops" }, refreshQuietly)
+      .on("postgres_changes", { event: "*", schema: "public", table: "live_status" }, refreshQuietly)
       .subscribe();
-    const poll = setInterval(load, 20000);
-    const onVis = () => { if (typeof document !== "undefined" && document.visibilityState === "visible") load(); };
+    const poll = setInterval(refreshQuietly, 20000);
+    const onVis = () => { if (typeof document !== "undefined" && document.visibilityState === "visible") refreshQuietly(); };
     if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVis);
     window.addEventListener("focus", onVis);
     return () => {
@@ -133,7 +163,7 @@ export default function FindUs() {
       if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVis);
       window.removeEventListener("focus", onVis);
     };
-  }, [load]);
+  }, [refreshQuietly]);
 
   const today = localToday();
   const isLive = Boolean(live?.is_live);
@@ -170,7 +200,7 @@ export default function FindUs() {
         right={<AccountPill />}
       />
 
-      <h1 className="k-title lg">{hero?.name ?? (loaded ? "No stops yet" : "…")}</h1>
+      <h1 className="k-title lg">{hero?.name ?? (board.status === "error" ? "Couldn't load" : board.status === "ready" ? "No stops yet" : "…")}</h1>
       {hero && <p className="k-sub">{hero.kind === "stop" ? descFor(hero, t) : (hero.blurb ?? hero.location_text ?? "")}</p>}
 
       <div className="k-facts">
@@ -186,55 +216,59 @@ export default function FindUs() {
 
 
       <SectionHeader label="On The Road" annotation="stops & events, in order" />
-      {!loaded && <Skeleton variant="row" count={4} />}
-      <div className="k-rows">
-        {upcoming.filter((r) => r.id !== hero?.id || r.kind === "event").map((r) => {
-          if (r.kind === "event") return <RsvpRow key={r.id} ev={toEventRow(r)} />;
-          const rowLive = isLive && r.id === live?.current_stop_id;
-          const isOpen = openStop === r.id;
-          return (
-            <div key={r.id}>
-              <InfoRow
-                lead={whenDay(r)}
-                leadSub={[whenDate(r), whenTime(r)].filter(Boolean).join(" ")}
-                name={r.name}
-                sub={descFor(r, t)}
-                live={rowLive}
-                trailing={<span className={`k-caret${isOpen ? " open" : ""}`} aria-hidden="true">›</span>}
-                onClick={() => setOpenStop(isOpen ? null : r.id)}
-                ariaLabel={`${r.name}, ${rowLive ? "live now" : "upcoming"} — details`}
-                expanded={isOpen}
-              />
-              {isOpen && (
-                <div className="k-detail">
-                  <p>{(r.notes ?? r.note) ?? t("truck.stop_note")}</p>
-                  {rowLive && <button type="button" className="k-chip pri" onClick={() => router.push("/menu")}>Pre-order</button>}
-                  {r.lat != null && r.lng != null && (
-                    <button type="button" className="k-chip sec" style={rowLive ? { marginLeft: 8 } : undefined} onClick={() => openDirections(r.lat as number, r.lng as number)}>Get directions</button>
-                  )}
-                </div>
-              )}
+      <AsyncSection state={board} isEmpty={() => upcoming.length === 0} emptyTitle="Nothing scheduled yet" emptySub="This week's stops and events post here — check back soon." errorTitle="Couldn't load the schedule" loadingLabel="Loading the schedule…">
+        {() => (
+          <>
+            <div className="k-rows">
+              {upcoming.filter((r) => r.id !== hero?.id || r.kind === "event").map((r) => {
+                if (r.kind === "event") return <RsvpRow key={r.id} ev={toEventRow(r)} />;
+                const rowLive = isLive && r.id === live?.current_stop_id;
+                const isOpen = openStop === r.id;
+                return (
+                  <div key={r.id}>
+                    <InfoRow
+                      lead={whenDay(r)}
+                      leadSub={[whenDate(r), whenTime(r)].filter(Boolean).join(" ")}
+                      name={r.name}
+                      sub={descFor(r, t)}
+                      live={rowLive}
+                      trailing={<span className={`k-caret${isOpen ? " open" : ""}`} aria-hidden="true">›</span>}
+                      onClick={() => setOpenStop(isOpen ? null : r.id)}
+                      ariaLabel={`${r.name}, ${rowLive ? "live now" : "upcoming"} — details`}
+                      expanded={isOpen}
+                    />
+                    {isOpen && (
+                      <div className="k-detail">
+                        <p>{(r.notes ?? r.note) ?? t("truck.stop_note")}</p>
+                        {rowLive && <button type="button" className="k-chip pri" onClick={() => router.push("/menu")}>Pre-order</button>}
+                        {r.lat != null && r.lng != null && (
+                          <button type="button" className="k-chip sec" style={rowLive ? { marginLeft: 8 } : undefined} onClick={() => openDirections(r.lat as number, r.lng as number)}>Get directions</button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
-      </div>
-      {loaded && upcoming.length === 0 && <EmptyState title="Nothing scheduled yet" sub="This week's stops and events post here — check back soon." />}
 
-      {past.length > 0 && (
-        <div style={{ marginTop: 10 }}>
-          <button type="button" className="btn-ter" onClick={() => setShowPast((s) => !s)} aria-expanded={showPast}>
-            Past events · {past.length} <span className={`k-caret${showPast ? " open" : ""}`}>›</span>
-          </button>
-          {showPast && <div className="k-rows">{past.map((r) => <RsvpRow key={r.id} ev={toEventRow(r)} />)}</div>}
-        </div>
-      )}
+            {past.length > 0 && (
+              <div style={{ marginTop: 10 }}>
+                <button type="button" className="btn-ter" onClick={() => setShowPast((s) => !s)} aria-expanded={showPast}>
+                  Past events · {past.length} <span className={`k-caret${showPast ? " open" : ""}`}>›</span>
+                </button>
+                {showPast && <div className="k-rows">{past.map((r) => <RsvpRow key={r.id} ev={toEventRow(r)} />)}</div>}
+              </div>
+            )}
 
-      {points.length >= 2 && (
-        <>
-          <SectionHeader label="The Circuit" annotation="tap a stop for directions" />
-          <RouteMap points={points} truck={truckPos} />
-        </>
-      )}
+            {points.length >= 2 && (
+              <>
+                <SectionHeader label="The Circuit" annotation="tap a stop for directions" />
+                <RouteMap points={points} truck={truckPos} />
+              </>
+            )}
+          </>
+        )}
+      </AsyncSection>
 
       <SectionHeader label="Bring Us To You" annotation="private events" />
       <p style={{ fontSize: 14, color: "var(--cream-m)", margin: "14px 2px 12px" }}>Pours, run clubs, launches — we set up anywhere.</p>

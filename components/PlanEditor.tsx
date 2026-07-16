@@ -4,39 +4,47 @@ import { useCallback, useEffect, useState } from "react";
 import { useApp } from "./AppProvider";
 import { isBlank } from "@/lib/formGuard";
 import { supabase } from "@/lib/supabase";
+import { SectionHeader } from "@/components/kit";
+import { useAsyncData } from "@/lib/useAsyncData";
+import AsyncSection from "./AsyncSection";
 
 // MEMBERSHIP PLAN editor — manage subscription tiers in-app (was SQL-only). CRUD on subscription_plans.
+// Fetch state via useAsyncData — a failed load is a real error now, not a silent "No plans yet".
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Plan = { key: string; label: string; price_cents: number; period_days: number; active: boolean };
 
 export default function PlanEditor() {
   const { toast } = useApp();
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const load = useCallback(async () => {
-    if (!supabase) return;
-    const { data } = await supabase.from("subscription_plans").select("*").order("price_cents");
-    setPlans((data as Plan[]) ?? []);
+  const loader = useCallback(async (): Promise<Plan[]> => {
+    if (!supabase) return [];
+    const { data, error } = await supabase.from("subscription_plans").select("*").order("price_cents");
+    if (error) throw new Error(error.message);
+    return (data as Plan[]) ?? [];
   }, []);
-  useEffect(() => { load(); }, [load]);
+  const board = useAsyncData(loader, []);
+  const { reload } = board;
 
   const add = async () => {
     if (!supabase) return;
     const key = prompt("Plan key (lowercase id, e.g. 'pro')")?.trim().toLowerCase();
     if (!key) return;
     const { error } = await supabase.from("subscription_plans").insert({ key, label: "", price_cents: 0, period_days: 14, active: false });
-    if (error) toast(`Error: ${error.message}`, "error"); else load();
+    if (error) toast(`Error: ${error.message}`, "error"); else reload();
   };
 
   return (
-    <div className="adm-sec">
-      <div className="studio-top">
-        <div className="sec" style={{ margin: 0 }}>Membership plans</div>
-        <button type="button" className="rdy-run" onClick={add}>+ New plan</button>
-      </div>
-      <div className="h-sub">The tiers members can subscribe to — name, price, billing period, on/off.</div>
-      {plans.map((p) => <PlanRow key={p.key} p={p} onSaved={load} toast={toast} />)}
-      {plans.length === 0 && <div className="h-sub" style={{ marginTop: 12 }}>No plans yet — add one.</div>}
-    </div>
+    <AsyncSection state={board} isEmpty={(data) => data.length === 0} emptyTitle="No plans yet" emptySub="Add one." errorTitle="Couldn't load plans">
+      {(plans) => (
+        <div className="adm-sec">
+          <div className="studio-top">
+            <SectionHeader label="Membership plans" />
+            <button type="button" className="rdy-run" onClick={add}>+ New plan</button>
+          </div>
+          <div className="h-sub">The tiers members can subscribe to — name, price, billing period, on/off.</div>
+          {plans.map((p) => <PlanRow key={p.key} p={p} onSaved={reload} toast={toast} />)}
+        </div>
+      )}
+    </AsyncSection>
   );
 }
 

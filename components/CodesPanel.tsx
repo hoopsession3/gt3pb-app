@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useApp } from "./AppProvider";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
+import { useAsyncData } from "@/lib/useAsyncData";
+import AsyncSection from "./AsyncSection";
 
 // DISCOUNT CODES — the owner mints redeemable codes as data (member_benefits, scope='code'). A code
 // is a rule: kind (percent_off | price_override | free_refill) × target (whole order, the straight-
@@ -36,8 +38,6 @@ const KIND_LABEL: Record<Kind, string> = { percent_off: "% off", price_override:
 
 export default function CodesPanel() {
   const { toast } = useApp();
-  const [rows, setRows] = useState<CodeRow[]>([]);
-  const [loaded, setLoaded] = useState(false);
   const [open, setOpen] = useState(false);
 
   // mint form
@@ -49,16 +49,18 @@ export default function CodesPanel() {
   const [label, setLabel] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const load = useCallback(async () => {
-    if (!supabase) return;
-    const { data } = await supabase.from("member_benefits")
+  const loader = useCallback(async (): Promise<CodeRow[]> => {
+    if (!supabase) return [];
+    const { data, error } = await supabase.from("member_benefits")
       .select("id, code, kind, target, value_cents, percent, label, active, created_at")
       .eq("scope", "code").order("created_at", { ascending: false });
-    setRows((data as CodeRow[]) ?? []);
-    setLoaded(true);
+    if (error) throw new Error(error.message);
+    return (data as CodeRow[]) ?? [];
   }, []);
-  useEffect(() => { load(); }, [load]);
-  useRealtimeTable("member_benefits", load);
+  const board = useAsyncData(loader, []);
+  const { reload } = board;
+  useRealtimeTable("member_benefits", reload);
+  const rows = board.data ?? [];
 
   const codeClean = code.trim().toUpperCase().replace(/\s+/g, "");
   const dupe = useMemo(() => rows.some((r) => (r.code ?? "").toUpperCase() === codeClean), [rows, codeClean]);
@@ -90,14 +92,14 @@ export default function CodesPanel() {
     if (error) { toast(`Couldn't mint — ${error.message}`, "error"); return; }
     toast(`Minted ${codeClean}`);
     setCode(""); setLabel(""); setOpen(false);
-    load();
+    reload();
   };
 
   const toggle = async (r: CodeRow) => {
     if (!supabase) return;
     const { error } = await supabase.from("member_benefits").update({ active: !r.active }).eq("id", r.id);
     if (error) { toast(`Couldn't update — ${error.message}`, "error"); return; }
-    load();
+    reload();
   };
 
   const valueText = (r: CodeRow) =>
@@ -161,22 +163,24 @@ export default function CodesPanel() {
         </div>
       )}
 
-      <div className="codes-list">
-        {!loaded && <div className="codes-empty">Loading…</div>}
-        {loaded && rows.length === 0 && <div className="codes-empty">No codes yet. Mint one above.</div>}
-        {rows.map((r) => (
-          <div key={r.id} className={`codes-item${r.active ? "" : " off"}`}>
-            <div className="codes-item-main">
-              <span className="codes-code">{r.code}</span>
-              <span className="codes-badge">{valueText(r)}</span>
-              <span className="codes-tgt">{targetText(r)}</span>
-            </div>
-            <button type="button" className={`codes-toggle${r.active ? " on" : ""}`} onClick={() => toggle(r)} role="switch" aria-checked={r.active} aria-label={`${r.code} ${r.active ? "active" : "paused"}`}>
-              {r.active ? "Active" : "Paused"}
-            </button>
+      <AsyncSection state={board} isEmpty={(data) => data.length === 0} emptyTitle="No codes yet" emptySub="Mint one above." errorTitle="Couldn't load codes">
+        {(codeRows) => (
+          <div className="codes-list">
+            {codeRows.map((r) => (
+              <div key={r.id} className={`codes-item${r.active ? "" : " off"}`}>
+                <div className="codes-item-main">
+                  <span className="codes-code">{r.code}</span>
+                  <span className="codes-badge">{valueText(r)}</span>
+                  <span className="codes-tgt">{targetText(r)}</span>
+                </div>
+                <button type="button" className={`codes-toggle${r.active ? " on" : ""}`} onClick={() => toggle(r)} role="switch" aria-checked={r.active} aria-label={`${r.code} ${r.active ? "active" : "paused"}`}>
+                  {r.active ? "Active" : "Paused"}
+                </button>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        )}
+      </AsyncSection>
     </div>
   );
 }

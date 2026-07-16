@@ -57,11 +57,13 @@ export default function MoneyKpis() {
       const rec = (rpc as { data?: { revenue_cents?: number; error?: string } | null }).data;
       const recCents = rec && !rec.error && typeof rec.revenue_cents === "number" ? rec.revenue_cents : null;
       const anyRev = [cupC, packC, delivC, officeC].some((c) => c != null);
+      const allRevOk = [cupC, packC, delivC, officeC].every((c) => c != null);
       const totalC = (cupC ?? 0) + (packC ?? 0) + (delivC ?? 0) + (officeC ?? 0);
+      const revSub = anyRev && !allRevOk ? "Revenue · partial, a channel failed · 7d" : "Revenue · all channels · 7d";
       setKpis([
         recCents != null
           ? { k: "week_rev", v: money(recCents), sub: "Revenue · reconciled · 7d" }
-          : { k: "week_rev", v: anyRev ? money(totalC) : "—", sub: "Revenue · all channels · 7d" },
+          : { k: "week_rev", v: anyRev ? money(totalC) : "—", sub: revSub },
         { k: "today_orders", v: orders.count != null ? String(orders.count) : "—", sub: "Orders today" },
         { k: "subs", v: subs.count != null ? String(subs.count) : "—", sub: "Active subscribers" },
         { k: "reserves", v: reserves.count != null ? String(reserves.count) : "—", sub: "Pack pickups" },

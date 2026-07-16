@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useApp } from "./AppProvider";
 import { DRINKS, type DrinkId } from "@/lib/menu";
+import { SectionHeader } from "@/components/kit";
 
 // ─── answer types ─────────────────────────────────────────────────────────────
 type Sleep    = "great" | "good" | "rough" | "wrecked";
@@ -195,7 +196,7 @@ export default function GenerateDay() {
           <div className="hero-sub">{rec.sub}</div>
         </div></div>
 
-        <div className="sec">Your day, in order</div>
+        <SectionHeader label="Your day, in order" />
         <div className="gen-day">
           {rec.drinks.map((d, i) => (
             <div key={d.id} className={`step s-${i === 0 ? "sun" : i === rec.drinks.length - 1 ? "broth" : "cup"}`}>
@@ -205,7 +206,7 @@ export default function GenerateDay() {
             </div>
           ))}
         </div>
-        <div className="sec">Your stack · what&apos;s in it</div>
+        <SectionHeader label="Your stack" annotation="what's in it" />
 
         {rec.drinks.map((d) => {
           const dk = DRINKS[d.id];
