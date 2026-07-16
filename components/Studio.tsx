@@ -162,7 +162,9 @@ export default function Studio() {
                     {!img && !vid && <span className="ig-ph"><b>{it.title || "Untitled"}</b><span>tap to add a photo</span></span>}
                     {vid && <span className="ig-reel">▶</span>}
                     {(it.media?.length ?? 0) > 1 && <span className="ig-multi">▦</span>}
-                    {(img || vid) && it.status !== "published" && <span className="ig-tag">{STATUS[it.status]?.label ?? it.status}</span>}
+                    {(img || vid) && it.status !== "published" && (
+                      <span className={`ig-tag ${STATUS[it.status]?.cls ?? ""}`} role="status" aria-label={STATUS[it.status]?.label ?? it.status} title={STATUS[it.status]?.label ?? it.status} />
+                    )}
                   </button>
                 );
               })}
@@ -229,6 +231,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   const [mediaList, setMediaList] = useState<Media[]>([]);
   const [active, setActive] = useState(0);
   const [uploading, setUploading] = useState(false);
+  const [aiFilled, setAiFilled] = useState(false); // title/hook/tags were just proposed by studio-photo — clears on first manual edit
   const fileRef = useRef<HTMLInputElement>(null);
   const chRef = useRef<any>(null);
   const saveTimer = useRef<any>(null);
@@ -311,15 +314,43 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   // Attach post media — one or many photos/videos (carousel). Uploads to the public 'content' bucket.
   const uploadMedia = async (files: FileList) => {
     if (!supabase || !files.length) return;
+    const wasEmpty = mediaList.length === 0;
     setUploading(true);
     const added: { url: string; type: string }[] = [];
+    let firstImageMime = "";
     for (const file of Array.from(files)) {
       const res = await uploadToBucket({ bucket: "content", file, prefix: id });
       if ("error" in res) { setPubErr(`Upload: ${res.error}`); continue; }
-      added.push({ url: res.url, type: file.type.startsWith("video") ? "video" : "image" });
+      const type = file.type.startsWith("video") ? "video" : "image";
+      added.push({ url: res.url, type });
+      if (type === "image" && !firstImageMime) firstImageMime = file.type;
     }
     if (added.length) await saveMedia([...mediaList, ...added]);
     setUploading(false);
+    // The first photo dropped on a brand-new, still-untitled piece gets read and proposes a
+    // title/hook/tags (Smart Intake's pattern, scoped to Studio — see app/api/agents/studio-photo).
+    // Only fires once per piece: a later photo added to an existing carousel, or a piece that
+    // already has a title, is left alone.
+    const firstImg = added.find((m) => m.type === "image");
+    if (wasEmpty && firstImg && firstImageMime && isBlank(title)) void classifyPhoto(firstImg.url, firstImageMime);
+  };
+
+  // Best-effort proposal — never blocks or fails the upload, which has already succeeded by the time
+  // this runs. Only fills fields that are still blank (checked against this closure's title/hook/tags,
+  // captured at upload time — a user typing a title in the ~1-2s the classify call is in flight is an
+  // accepted, narrow race, not worth a ref for how rarely it'll actually collide).
+  const classifyPhoto = async (url: string, mime: string) => {
+    try {
+      const r = await authedFetch("/api/agents/studio-photo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url, mime, channel: item?.channel }) });
+      const j = await r.json();
+      if (!j.ok || !j.proposal) return;
+      const { title: t, hook: h, tags: tg } = j.proposal;
+      let filled = false;
+      if (isBlank(title) && t) { edit("title", t); filled = true; }
+      if (isBlank(hook) && h) { edit("hook", h); filled = true; }
+      if (isBlank(tags) && Array.isArray(tg) && tg.length) { edit("tags", tg.join(", ")); filled = true; }
+      if (filled) setAiFilled(true);
+    } catch { /* the photo's already attached either way */ }
   };
   const removeMedia = async (i: number) => {
     const list = mediaList.filter((_, j) => j !== i);
@@ -678,16 +709,17 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
         </Sheet>
       )}
 
-      <input className={`studio-title${titleErr ? " err" : ""}`} value={title} onChange={(e) => { edit("title", e.target.value); if (titleErr) setTitleErr(false); }} placeholder="Title — name it before it goes for review" />
+      <input className={`studio-title${titleErr ? " err" : ""}`} value={title} onChange={(e) => { edit("title", e.target.value); if (titleErr) setTitleErr(false); if (aiFilled) setAiFilled(false); }} placeholder="Title — name it before it goes for review" />
       {titleErr && <div className="studio-title-hint">Give this piece a title first.</div>}
-      <input className="studio-hook" value={hook} onChange={(e) => edit("hook", e.target.value)} placeholder="Hook — the scroll-stopping first line" />
+      {aiFilled && !titleErr && <div className="studio-ai-hint">✨ AI read the photo and filled this in — edit anytime.</div>}
+      <input className="studio-hook" value={hook} onChange={(e) => { edit("hook", e.target.value); if (aiFilled) setAiFilled(false); }} placeholder="Hook — the scroll-stopping first line" />
       <textarea className="studio-caption" value={caption} onChange={(e) => edit("caption", e.target.value)} rows={7} placeholder="Caption…" />
       {lint.length > 0 && (
         <div className="studio-lint">
           {lint.map((f, i) => <div key={i} className={`studio-lint-row ${f.level}`}><span className="studio-lint-tag">{f.tag}</span>{f.msg}</div>)}
         </div>
       )}
-      <input className="studio-tags" value={tags} onChange={(e) => edit("tags", e.target.value)} placeholder="hashtags, comma, separated" />
+      <input className="studio-tags" value={tags} onChange={(e) => { edit("tags", e.target.value); if (aiFilled) setAiFilled(false); }} placeholder="hashtags, comma, separated" />
 
       {/* Caption engine */}
       <div className="studio-engine">

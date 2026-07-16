@@ -2211,12 +2211,24 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .studio-rep-card p{font-family:'Inter';font-size:12.5px;line-height:1.5;color:var(--cream-m);margin:3px 0}
 .studio-rep-card b{color:var(--cream)}
 .studio-rep-beats{margin:4px 0;padding-left:18px;font-family:'Inter';font-size:12.5px;line-height:1.5;color:var(--cream-m)}
-.app.crew-day .ig-cell{background:var(--char3)}
+/* char3 (#ECE4D3) sits almost inside the crew-day page gradient (#F7F2E8→#E9E0CF) — an empty tile
+   rendered in it had almost no separation from the page itself, which read as a gap in the grid
+   rather than a tile awaiting content. --card is the same white already used for every other card
+   surface in this theme (see .studio-rep-card above), so this reads as "a tile" not "a hole." */
+.app.crew-day .ig-cell{background:var(--card)}
 .ig-ph{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:8px;text-align:center;border:1px dashed var(--line2);border-radius:2px}
 .ig-ph-cam{font-size:16px;opacity:.5;margin-bottom:1px}
 .ig-ph b{font-family:'Inter';font-weight:600;font-size:10.5px;line-height:1.2;color:var(--cream-m);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .ig-ph span{font-family:var(--mono);font-size:9px;letter-spacing:.5px;text-transform:uppercase;color:var(--cream-d)}
-.ig-tag{position:absolute;top:5px;right:5px;font-family:var(--mono);font-size:8px;letter-spacing:.4px;text-transform:uppercase;color:#fff;background:rgba(0,0,0,.6);border-radius:5px;padding:2px 5px}
+/* A real grid-preview tool (Canva included) never overlays workflow chrome on the image — the whole
+   point is previewing exactly what the profile will look like. Shrunk from a text pill to a small
+   status-colored dot: still legible (hover/aria for the label) but no longer competes with the photo. */
+.ig-tag{position:absolute;top:6px;right:6px;width:9px;height:9px;border-radius:50%;background:var(--cream-m);box-shadow:0 0 0 1.5px rgba(255,255,255,.9),0 1px 3px rgba(0,0,0,.45)}
+.ig-tag.st-draft{background:var(--cream-m)}
+.ig-tag.st-review{background:var(--gold2)}
+.ig-tag.st-changes{background:#d2554a}
+.ig-tag.st-approved{background:var(--ok)}
+.ig-tag.st-scheduled{background:#6fa8dc}
 .ig-vid{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .ig-reel{position:absolute;top:5px;left:5px;font-size:11px;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.7)}
 .ig-multi{position:absolute;top:4px;right:5px;font-size:12px;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.7)}
@@ -2312,6 +2324,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .studio-title:focus{border-color:var(--gold2)}
 .studio-title.err{border-bottom-color:#c98b7a}
 .studio-title-hint{font-family:'Inter';font-size:11.5px;font-weight:600;color:#c98b7a;margin:-4px 0 8px}
+.studio-ai-hint{font-family:'Inter';font-size:11.5px;font-weight:600;color:var(--gold2);margin:-4px 0 8px}
 .studio-hook,.studio-tags{width:100%;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:11px 13px;color:var(--cream);font-family:'Inter';font-size:15px;margin-bottom:8px;-webkit-appearance:none;appearance:none}
 .studio-caption{width:100%;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:13px 14px;color:var(--cream);font-family:'Inter';font-size:15px;line-height:1.55;resize:vertical;margin-bottom:8px;-webkit-appearance:none;appearance:none}
 .studio-hook:focus,.studio-caption:focus,.studio-tags:focus{border-color:var(--gold2)}
