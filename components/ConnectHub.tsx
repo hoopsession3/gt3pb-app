@@ -7,6 +7,7 @@ import Gt3Mark from "@/components/Gt3Mark";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import { CONNECT_GROUPS, CONNECT_LEADERSHIP, CONNECT_PRIMARY } from "@/lib/connect";
 import { useFocusTrap } from "@/lib/useFocusTrap";
+import Icon from "@/components/Icon";
 
 // CONNECT HUB — a floating, intent-driven "link tree." Pull it up anytime someone asks where to find
 // GT3: it asks what they're here for ("Wanna order?", "Learn the brew?", "Connect?") and drops down
@@ -46,7 +47,7 @@ export default function ConnectHub() {
   return (
     <div className={`chub${open ? " open" : ""}`} ref={ref}>
       <button type="button" className="chub-tab" onClick={() => setOpen((o) => !o)} aria-haspopup="dialog" aria-expanded={open} aria-label="Connect with GT3">
-        <span className="chub-tab-i" aria-hidden>{open ? "×" : "✳"}</span>
+        <span className="chub-tab-i" aria-hidden>{open ? <Icon name="close" /> : "✳"}</span>
         <span className="rail-txt"><b>Connect</b><i>links · socials · order</i></span>
       </button>
 
@@ -71,7 +72,7 @@ export default function ConnectHub() {
                           <>
                             <span className="chub-badge">{l.badge}</span>
                             <span className="chub-link-t"><b>{l.label}</b>{l.sub && <span>{l.sub}</span>}</span>
-                            <span className="chub-go" aria-hidden>{internal ? "›" : "↗"}</span>
+                            <span className="chub-go" aria-hidden>{internal ? "›" : <Icon name="externalLink" />}</span>
                           </>
                         );
                         return internal ? (

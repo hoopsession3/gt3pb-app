@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { buildIcs, googleCalUrl, withBuffer, type CalEvent } from "@/lib/ics";
+import Icon from "@/components/Icon";
 
 const BUFFERS: { v: number; label: string }[] = [
   { v: 0, label: "None" }, { v: 30, label: "30m" }, { v: 60, label: "1h" }, { v: 90, label: "90m" }, { v: 120, label: "2h" },
@@ -38,7 +39,7 @@ export default function AddToCalendar({ ev, label = "Add to calendar", defaultBu
 
   return (
     <div className="atc" ref={ref}>
-      <button type="button" className="atc-btn" onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open}>📅 {label}</button>
+      <button type="button" className="atc-btn" onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open}><Icon name="calendar" /> {label}</button>
       {open && (
         <div className="atc-menu" role="menu">
           {!ev.allDay && (

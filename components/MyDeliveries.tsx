@@ -6,6 +6,7 @@ import { useApp } from "./AppProvider";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { useRealtimeTable } from "@/lib/realtime";
+import Icon from "@/components/Icon";
 
 // YOUR DELIVERIES — the customer's own Sunday-delivery orders, on /3mpire. The delivery success
 // screen promises "track it in your account"; this is what makes that true. Mirrors MyPacks exactly
@@ -93,7 +94,7 @@ export default function MyDeliveries() {
               <b>{p.pack_size}-bottle delivery · {dayLabel(p.delivery_date)}</b>
               <span className="mypack-rt">
                 <span className={`mypack-pay${p.payment_status === "paid" ? " ok" : ""}`}>
-                  {done ? "✓ DELIVERED" : p.payment_status === "paid" ? "PAID" : p.payment_status === "refunded" ? "REFUNDED" : p.payment_status === "failed" ? "payment failed" : "pending"}
+                  {done ? <><Icon name="check" /> DELIVERED</> : p.payment_status === "paid" ? "PAID" : p.payment_status === "refunded" ? "REFUNDED" : p.payment_status === "failed" ? "payment failed" : "pending"}
                 </span>
                 <span className="mypack-car">{isOpen ? "▾" : "▸"}</span>
               </span>

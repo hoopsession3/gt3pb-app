@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useLiveBroadcasts, type Broadcast } from "@/lib/broadcasts";
+import Icon from "@/components/Icon";
 
 // BROADCAST BANNER — the live announcement bar every user sees. Reads the broadcasts RLS lets this
 // viewer see (active + in-window + their audience), shows the newest one they haven't dismissed, and
@@ -33,7 +34,7 @@ export default function BroadcastBanner() {
       {b.cta_label && b.cta_href && (
         <a className="bcast-cta" href={b.cta_href} target={b.cta_href.startsWith("http") ? "_blank" : undefined} rel="noreferrer">{b.cta_label}</a>
       )}
-      <button type="button" className="bcast-close" onClick={dismiss} aria-label="Dismiss">✕</button>
+      <button type="button" className="bcast-close" onClick={dismiss} aria-label="Dismiss"><Icon name="close" /></button>
     </div>
   );
 }
