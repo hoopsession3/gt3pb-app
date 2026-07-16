@@ -128,8 +128,15 @@ export default function DeliveryOps() {
                     <a className="dops-nav" href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${o.address_street}, ${o.address_city} ${o.address_zip}`)}`} target="_blank" rel="noopener noreferrer"><Icon name="compass" /> Navigate</a>
                     {o.phone ? <a className="dops-tel" href={`tel:${o.phone.replace(/[^\d+]/g, "")}`}>Call {o.name.split(" ")[0]}</a> : null}
                   </div>
-                  {o.empties_collected != null && o.empties_collected !== o.empties_expected && (
+                  {/* Was `!==`, which fired the SHORT label on a surplus too (collected > expected —
+                      the customer had extra bottles on hand) — reads as a shortfall when it's the
+                      opposite. Split into its own short/surplus case so reconciling jug inventory
+                      from this screen isn't backwards. */}
+                  {o.empties_collected != null && o.empties_collected < o.empties_expected && (
                     <><br /><em className="dl-held">Empties short: {o.empties_collected}/{o.empties_expected}</em></>
+                  )}
+                  {o.empties_collected != null && o.empties_collected > o.empties_expected && (
+                    <><br /><em className="dl-held">Empties surplus: {o.empties_collected}/{o.empties_expected}</em></>
                   )}
                   <div className="dops-actions">
                     {STATUS_NEXT[o.status] && (

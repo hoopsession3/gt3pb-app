@@ -44,9 +44,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "The crew already has this pack in motion — ask at the truck to move it." }, { status: 400 });
   }
   if (order.drop_date === toDate) return NextResponse.json({ ok: true, toDate });
-  // Current drop must still be open: same day − 3 days at 18:00 rule the drop resolver uses.
-  const cur = new Date(`${order.drop_date}T12:00:00`);
-  const curCutoff = new Date(cur); curCutoff.setDate(cur.getDate() - 3); curCutoff.setHours(18, 0, 0, 0);
+  // Current drop must still be open. Reuse the SAME `offered` map built above (real stops, via
+  // dropForStop) instead of recomputing — this used to hand-roll a "3 days before at 18:00" formula
+  // that's only meant to be the no-real-stops FALLBACK rule (nextDrop()). For any real scheduled
+  // stop that formula is mathematically ~2-3 days earlier than the true dropForStop() cutoff, so this
+  // check was strictly more restrictive than reality: it could reject a move as "closed" up to a full
+  // day before the actual cutoff, even while /api/reserve would still happily accept a brand-new
+  // reservation for that same day. Only fall back to the hand-rolled rule if the original stop is no
+  // longer in the offered map (e.g. archived/removed since the order was placed).
+  let curCutoff = offered.get(order.drop_date);
+  if (!curCutoff) {
+    const cur = new Date(`${order.drop_date}T12:00:00`);
+    curCutoff = new Date(cur); curCutoff.setDate(cur.getDate() - 3); curCutoff.setHours(18, 0, 0, 0);
+  }
   if (Date.now() > curCutoff.getTime()) {
     return NextResponse.json({ error: "This pack's drop has closed — we may already be brewing it. Ask at the truck." }, { status: 400 });
   }

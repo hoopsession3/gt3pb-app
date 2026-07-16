@@ -17,7 +17,11 @@ export default function BookScreen() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!f.name.trim() || !f.email.trim()) return;
+    // .trim() catches empty, but NOT whitespace-only (native `required` is satisfied by a lone
+    // space too) — that combination used to hit this early return with zero feedback: no toast, no
+    // visual change, the tap just visibly did nothing. Toast it like every other validation failure
+    // in this codebase does.
+    if (!f.name.trim() || !f.email.trim()) { toast("Add your name and email", "error"); return; }
     setBusy(true);
     if (supabase) {
       const { error } = await supabase.from("booking_requests").insert({
@@ -30,7 +34,10 @@ export default function BookScreen() {
         notes: f.notes.trim() || null,
       });
       setBusy(false);
-      if (error) { toast(`Couldn't send — ${error.message}`); return; }
+      // Missing the "error" variant meant a failed insert rendered as a GREEN, checkmark-styled
+      // toast — the same look as success — while the form sat there unsubmitted. Every other
+      // error-toast call site in this codebase passes the variant; this was the one that didn't.
+      if (error) { toast(`Couldn't send — try again in a moment`, "error"); return; }
     } else {
       setBusy(false);
     }
@@ -66,8 +73,10 @@ export default function BookScreen() {
         <input id="b-name" className="auth-input" value={f.name} onChange={set("name")} placeholder="Your name" maxLength={200} required />
         <label className="auth-label" htmlFor="b-email">Email</label>
         <input id="b-email" className="auth-input" type="email" inputMode="email" value={f.email} onChange={set("email")} placeholder="you@email.com" maxLength={200} required />
+        <label className="auth-label" htmlFor="b-phone">Phone</label>
+        <input id="b-phone" className="auth-input" type="tel" inputMode="tel" autoComplete="tel" value={f.phone} onChange={set("phone")} placeholder="For a quick call if email doesn't land" maxLength={40} />
         <div className="b-row">
-          <div><label className="auth-label" htmlFor="b-date">Event date</label><input id="b-date" className="auth-input" type="date" value={f.event_date} onChange={set("event_date")} /></div>
+          <div><label className="auth-label" htmlFor="b-date">Event date</label><input id="b-date" className="auth-input" type="date" value={f.event_date} onChange={set("event_date")} min={new Date().toISOString().slice(0, 10)} required /></div>
           <div><label className="auth-label" htmlFor="b-head">Headcount</label><input id="b-head" className="auth-input" type="number" inputMode="numeric" min={1} max={100000} value={f.headcount} onChange={set("headcount")} placeholder="50" /></div>
         </div>
         <label className="auth-label" htmlFor="b-loc">Location</label>
