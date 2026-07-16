@@ -17,6 +17,7 @@ import Sheet from "./Sheet";
 import OrderConfirm from "./OrderConfirm";
 import Skeleton from "./Skeleton";
 import PaymentCard, { type PaymentCardHandle } from "./PaymentCard";
+import Icon from "@/components/Icon";
 
 export default function Checkout() {
   const { cart, inc, dec, toast, checkout, coOpen: open, closeCheckout: onClose } = useApp();
@@ -234,12 +235,12 @@ export default function Checkout() {
               )}
 
               {ordering.open && ordering.pickup && (
-                <div className="co-pickup">🥡 Order-ahead pickup available{ordering.nextName ? ` at ${ordering.nextName}` : ""} — skip the line, we&apos;ll have it ready.</div>
+                <div className="co-pickup"><Icon name="package" /> Order-ahead pickup available{ordering.nextName ? ` at ${ordering.nextName}` : ""} — skip the line, we&apos;ll have it ready.</div>
               )}
 
               {!ordering.open ? (
                 <div className="co-closed">
-                  <div className="co-closed-t">☕ The truck isn&apos;t pouring right now</div>
+                  <div className="co-closed-t"><Icon name="coffee" /> The truck isn&apos;t pouring right now</div>
                   <p className="co-closed-s">
                     Cup pre-orders open <b>closer to service</b> — that&apos;s how &ldquo;ready in ~8 minutes&rdquo; stays true.
                     {ordering.nextAt ? <> Next stop: <b>{new Date(ordering.nextAt).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}{ordering.nextName ? ` · ${ordering.nextName}` : ""}</b>.</> : <> Nothing&apos;s on the schedule yet — check the truck page for the next stop.</>}

@@ -9,6 +9,7 @@ import {
 import { SectionHeader } from "@/components/kit";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import Icon from "@/components/Icon";
 
 // COGS CALCULATOR (Money) — one cohesive place for the cost side: cost per drink (from each
 // product's recipe × ingredient costs), cost per batch (brews, broth — cost/gallon and per 10oz
@@ -92,7 +93,7 @@ export default function CogsCalculator() {
               {openId === p.id && (
                 <div className="cogs-detail">
                   {!cogs.hasRecipe ? (
-                    <div className="cogs-empty">No recipe yet — add this drink&apos;s ingredients in <b>Menu → recipe</b> to cost it.</div>
+                    <div className="cogs-empty">No recipe yet — add this drink&apos;s ingredients in <b>Menu <Icon name="arrowRight" /> recipe</b> to cost it.</div>
                   ) : (
                     <>
                       {cogs.lines.map((l, i) => (
@@ -126,7 +127,7 @@ export default function CogsCalculator() {
               </button>
               {openId === r.id && (
                 <div className="cogs-detail">
-                  <div className="cogs-sub">Batch of {b.batchGal} gal → {b.servableGal} gal servable · {b.bottles} × 10oz bottles</div>
+                  <div className="cogs-sub">Batch of {b.batchGal} gal <Icon name="arrowRight" /> {b.servableGal} gal servable · {b.bottles} × 10oz bottles</div>
                   {b.lines.map((l, i) => (
                     <div key={i} className={`cogs-line${l.costed ? "" : " un"}`}>
                       <span>{l.qty}{l.unit ? ` ${l.unit}` : ""} · {l.name}</span>
@@ -138,7 +139,7 @@ export default function CogsCalculator() {
               )}
             </div>
           ))}
-          {batches.length === 0 && <div className="pnl-note">No brew/broth recipes yet — add them in Plan → Brew.</div>}
+          {batches.length === 0 && <div className="pnl-note">No brew/broth recipes yet — add them in Plan <Icon name="arrowRight" /> Brew.</div>}
           <div className="pnl-note" style={{ marginTop: 8 }}>Batch costs match recipe ingredients to inventory by name — anything flagged <b>uncosted</b> needs a matching inventory item with a unit cost.</div>
         </>
       )}

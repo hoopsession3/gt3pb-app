@@ -181,7 +181,7 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
                 {departure.risks.length > 0 && <div className="dp-leave-risks">{departure.risks.map((r, i) => <span key={i}><Icon name="warning" /> {r}</span>)}</div>}
               </div>
             ) : (
-              <button type="button" className="dp-leave-btn" onClick={genDeparture} disabled={depBusy}>{depBusy ? "Working out when to leave…" : "⏱ When do we leave? — summarize from the schedule"}</button>
+              <button type="button" className="dp-leave-btn" onClick={genDeparture} disabled={depBusy}>{depBusy ? "Working out when to leave…" : <><Icon name="clock" /> When do we leave? — summarize from the schedule</>}</button>
             )
           )}
 
@@ -191,12 +191,12 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
               const k = kindOf(it.kind);
               return (
                 <div key={it.id} className={`dp-item${it.done ? " done" : ""}`} style={{ ["--c" as string]: k.color }}>
-                  <button type="button" className="dp-check" onClick={() => toggle(it)} aria-label="Toggle done">{it.done ? <Icon name="check" /> : "○"}</button>
+                  <button type="button" className="dp-check" onClick={() => toggle(it)} aria-label="Toggle done">{it.done ? <Icon name="check" /> : <Icon name="dotOutline" />}</button>
                   <div className="dp-time">{it.start_time || "—"}{it.end_time ? <span className="dp-time-e">{it.end_time}</span> : null}</div>
                   <div className="dp-item-main">
                     <div className="dp-item-h"><span className="dp-kind" title={k.label}>{k.icon}</span><span className="dp-item-t">{it.title}</span></div>
-                    {(it.location || it.who) && <div className="dp-item-meta">{it.location && <span><Icon name="pin" /> {it.location}</span>}{it.who && <span>👤 {it.who}</span>}</div>}
-                    {it.address && <a className="dp-item-addr" href={`https://maps.google.com/?q=${encodeURIComponent(it.address)}`} target="_blank" rel="noreferrer">🗺️ {it.address}</a>}
+                    {(it.location || it.who) && <div className="dp-item-meta">{it.location && <span><Icon name="pin" /> {it.location}</span>}{it.who && <span>{it.who}</span>}</div>}
+                    {it.address && <a className="dp-item-addr" href={`https://maps.google.com/?q=${encodeURIComponent(it.address)}`} target="_blank" rel="noreferrer">{it.address}</a>}
                     {it.details && <div className="dp-item-det">{it.details}</div>}
                   </div>
                   <div className="dp-item-acts">
@@ -313,7 +313,7 @@ function DraftPanel({ ownerType = "event", eventId, dayIndex, onClose, onAdd }: 
               <div className="dp-draftlist">
                 {rows.map((r, i) => (
                   <button key={i} type="button" className={`dp-draftrow${pick[i] ? " on" : ""}`} style={{ ["--c" as string]: kindOf(r.kind).color }} onClick={() => setPick((p) => ({ ...p, [i]: !p[i] }))}>
-                    <span className="dp-draftck">{pick[i] ? <Icon name="check" /> : "○"}</span>
+                    <span className="dp-draftck">{pick[i] ? <Icon name="check" /> : <Icon name="dotOutline" />}</span>
                     <span className="dp-drafttime">{r.start_time}</span>
                     <span className="dp-draftmain"><b>{kindOf(r.kind).icon} {r.title}</b>{(r.location || r.details) && <span>{[r.location, r.details].filter(Boolean).join(" · ")}</span>}</span>
                   </button>

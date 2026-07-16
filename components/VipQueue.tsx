@@ -7,6 +7,7 @@ import { useAuth } from "./AuthProvider";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import Icon from "@/components/Icon";
 
 // VIP QUEUE — the staff moderation side of VIP verification. A bottle owner's proof photo lands here;
 // Verify promotes them to Founding (which auto-grants the founding perks from 0176) with a reward, or
@@ -84,7 +85,7 @@ export default function VipQueue() {
                   <b>{v.customers?.name?.trim() || "A member"}</b>
                   <span className="vipq-sub">Submitted {new Date(v.created_at).toLocaleDateString()} · now {v.customers?.tier ?? "guest"}</span>
                   <div className="vipq-acts">
-                    <button type="button" className="vipq-yes" onClick={() => verify(v)} disabled={busy === v.id}>✓ Verify → Founding</button>
+                    <button type="button" className="vipq-yes" onClick={() => verify(v)} disabled={busy === v.id}><Icon name="check" /> Verify <Icon name="arrowRight" /> Founding</button>
                     <button type="button" className="vipq-no" onClick={() => reject(v)} disabled={busy === v.id}>Reject</button>
                   </div>
                 </div>
@@ -96,7 +97,7 @@ export default function VipQueue() {
                 {recent.map((v) => (
                   <div key={v.id} className="vipq-done">
                     <span className="vipq-done-t">{v.customers?.name?.trim() || "A member"}</span>
-                    <span className={`vipq-tag st-${v.status}`}>{v.status === "verified" ? `✓ Verified${v.reward ? ` · ${v.reward}` : ""}` : "Rejected"}</span>
+                    <span className={`vipq-tag st-${v.status}`}>{v.status === "verified" ? <><Icon name="check" /> Verified{v.reward ? ` · ${v.reward}` : ""}</> : "Rejected"}</span>
                   </div>
                 ))}
               </>

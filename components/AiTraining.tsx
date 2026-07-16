@@ -6,6 +6,7 @@ import { uploadToBucket } from "@/lib/uploads";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { SectionHeader } from "@/components/kit";
+import Icon from "@/components/Icon";
 
 // TRAIN THE AI (Team → Train the AI, owner/crew) — the correction loop for the freeform agents.
 // The owner writes the truth once (with an optional photo of the recipe card / receipt as proof),
@@ -122,8 +123,8 @@ export default function AiTraining() {
         <textarea className="auth-input" rows={3} value={body} onChange={(e) => setBody(e.target.value)} placeholder="The correct answer, in your words — e.g. Flow is 68 g cacao per gallon of water, so 170 g at 2.5 gal. Not 200." maxLength={1200} />
         <div className="ai-up">
           <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadMedia(f); }} />
-          <button type="button" className="st-discuss" onClick={() => fileRef.current?.click()} disabled={upBusy}>{upBusy ? "Uploading…" : media ? "✓ Proof attached — replace" : "📎 Attach proof (recipe / receipt photo)"}</button>
-          {media && <a className="st-discuss" href={media} target="_blank" rel="noreferrer">View ↗</a>}
+          <button type="button" className="st-discuss" onClick={() => fileRef.current?.click()} disabled={upBusy}>{upBusy ? "Uploading…" : media ? <><Icon name="check" /> Proof attached — replace</> : <><Icon name="link" /> Attach proof (recipe / receipt photo)</>}</button>
+          {media && <a className="st-discuss" href={media} target="_blank" rel="noreferrer">View <Icon name="externalLink" /></a>}
         </div>
         <div className="st-log-btns">
           <button type="button" className="dops-mini" onClick={save} disabled={busy}>{busy ? "Saving…" : `Teach ${AGENT_LABEL[agent]}`}</button>
@@ -139,7 +140,7 @@ export default function AiTraining() {
                 <span className="ai-know-agent">{AGENT_LABEL[k.agent] ?? k.agent}</span>
               </div>
               <p className="ai-know-b">{k.body}</p>
-              {k.media_url && <a className="ai-know-media" href={k.media_url} target="_blank" rel="noreferrer">📎 proof ↗</a>}
+              {k.media_url && <a className="ai-know-media" href={k.media_url} target="_blank" rel="noreferrer"><Icon name="link" /> proof <Icon name="externalLink" /></a>}
               <div className="ai-know-act">
                 <button type="button" className="st-discuss" onClick={() => toggle(k)}>{k.active ? "Turn off" : "Turn on"}</button>
                 <button type="button" className="st-discuss danger" onClick={() => del(k)}>Delete</button>
@@ -161,7 +162,7 @@ export default function AiTraining() {
               {openConvo === c.id && (
                 <div className="ai-convo-a">
                   <p>{c.answer}</p>
-                  <button type="button" className="st-discuss danger" onClick={() => correctFrom(c)}>✕ This was wrong — correct it</button>
+                  <button type="button" className="st-discuss danger" onClick={() => correctFrom(c)}><Icon name="close" /> This was wrong — correct it</button>
                 </div>
               )}
             </div>

@@ -9,6 +9,7 @@ import Skeleton from "./Skeleton";
 import Sheet from "./Sheet";
 import SignIn from "./SignIn";
 import type { Reserve, ReserveClaim } from "@/lib/db";
+import Icon from "@/components/Icon";
 
 // Live limited drops. Stock + claims are server-authoritative (claim_reserve RPC);
 // this view just reflects them and reserves a unit on tap. Pay-at-pickup hold.
@@ -89,7 +90,7 @@ export default function Reserves() {
         const price = `$${(r.price_cents / 100).toFixed(0)}`;
         return (
           <div className="drop" key={r.id}>
-            {r.member_only && <span className="badge">★ Member access</span>}
+            {r.member_only && <span className="badge"><Icon name="star" /> Member access</span>}
             <div className="din">
               <div className="eyb">Limited Reserve</div>
               <h2>{r.name}</h2>
@@ -100,7 +101,7 @@ export default function Reserves() {
               </div>
               {mine ? (
                 <div className="rsv-done">
-                  <span>Reserved{mine.qty > 1 ? ` ·  ${mine.qty}` : ""} ✓ — pay at pickup</span>
+                  <span>Reserved{mine.qty > 1 ? ` ·  ${mine.qty}` : ""} <Icon name="check" /> — pay at pickup</span>
                   <button type="button" className="rsv-cancel" onClick={() => cancel(r)} disabled={busy === r.id}>Release</button>
                 </div>
               ) : (

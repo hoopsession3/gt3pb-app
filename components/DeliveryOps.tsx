@@ -126,17 +126,17 @@ export default function DeliveryOps() {
                   <br />{o.address_street}, {o.address_city} {o.address_zip}{o.access_instructions ? <> · <em>{o.access_instructions}</em></> : null}
                   <div className="dops-drive">
                     <a className="dops-nav" href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${o.address_street}, ${o.address_city} ${o.address_zip}`)}`} target="_blank" rel="noopener noreferrer"><Icon name="compass" /> Navigate</a>
-                    {o.phone ? <a className="dops-tel" href={`tel:${o.phone.replace(/[^\d+]/g, "")}`}>📞 Call {o.name.split(" ")[0]}</a> : null}
+                    {o.phone ? <a className="dops-tel" href={`tel:${o.phone.replace(/[^\d+]/g, "")}`}>Call {o.name.split(" ")[0]}</a> : null}
                   </div>
                   {o.empties_collected != null && o.empties_collected !== o.empties_expected && (
                     <><br /><em className="dl-held">Empties short: {o.empties_collected}/{o.empties_expected}</em></>
                   )}
                   <div className="dops-actions">
                     {STATUS_NEXT[o.status] && (
-                      <button type="button" className="dops-check" onClick={() => setStatus(o, STATUS_NEXT[o.status])}>→ {STATUS_LABEL[STATUS_NEXT[o.status]]}</button>
+                      <button type="button" className="dops-check" onClick={() => setStatus(o, STATUS_NEXT[o.status])}><Icon name="arrowRight" /> {STATUS_LABEL[STATUS_NEXT[o.status]]}</button>
                     )}
                     {o.status === "out_for_delivery" && (
-                      <a className="dops-mini" href="/driver">Log the outcome in driver mode →</a>
+                      <a className="dops-mini" href="/driver">Log the outcome in driver mode <Icon name="arrowRight" /></a>
                     )}
                   </div>
                 </>}

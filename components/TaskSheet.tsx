@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useAuth, roleOf } from "@/components/AuthProvider";
@@ -9,6 +9,7 @@ import Sheet from "@/components/Sheet";
 import { updateTask, deleteTask, type TaskSource } from "@/lib/tasks";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import Icon from "@/components/Icon";
 
 // TASKSHEET — the ONE task-detail sheet, opened from any task chip anywhere via useTaskSheet().
 // It reads the row from the all_tasks spine (0225) — so it doesn't care whether the task is an
@@ -34,7 +35,7 @@ type Crew = { id: string; display_name: string | null; role: string };
 type Prep = { section: string | null; kind: string | null; target_qty: number | null };
 type Board = { t: AllTask | null; prep: Prep | null };
 
-const OP_ICON: Record<string, string> = { event: "📅", stop: "📍", brew: "⚗️" };
+const OP_ICON: Record<string, ReactNode> = { event: <Icon name="calendar" />, stop: <Icon name="pin" />, brew: "⚗️" };
 
 // ── context ───────────────────────────────────────────────────────────────────────────────────────
 const Ctx = createContext<{ openTask: (id: string, source: TaskSource) => void }>({ openTask: () => {} });
@@ -164,10 +165,10 @@ function TaskSheet({ id, source, onClose }: { id: string; source: TaskSource; on
             {/* context — what this task is FOR (from the spine's joins) */}
             {(t.op_name || t.goal_title || t.meeting_note_title || t.initiative_title) && (
               <div className="tsheet-ctx">
-                {t.initiative_title && <span>{t.initiative_emoji || "🎯"} {t.initiative_title}</span>}
+                {t.initiative_title && <span>{t.initiative_emoji || <Icon name="target" />} {t.initiative_title}</span>}
                 {t.op_name && <span>{OP_ICON[t.op_kind ?? ""] ?? "•"} {t.op_name}{t.op_is_live ? " · 🔴 live" : ""}</span>}
                 {t.goal_title && <button type="button" className="tsheet-ctx-link" onClick={() => { onClose(); router.push("/crew?section=goals"); }}>↳ {t.goal_title}</button>}
-                {t.meeting_note_title && <span>📝 {t.meeting_note_title}</span>}
+                {t.meeting_note_title && <span>{t.meeting_note_title}</span>}
               </div>
             )}
 
@@ -252,14 +253,14 @@ function TaskSheet({ id, source, onClose }: { id: string; source: TaskSource; on
             {/* meta */}
             <div className="tsheet-meta">
               {t.category && <span>{t.category}</span>}
-              {t.done && t.done_at && <span>✓ done {new Date(t.done_at).toLocaleDateString()}</span>}
+              {t.done && t.done_at && <span><Icon name="check" /> done {new Date(t.done_at).toLocaleDateString()}</span>}
               <span>owner: {nameOf(t.assignee)}</span>
             </div>
 
             {/* actions */}
             <div className="tsheet-actions">
               <button type="button" className={`tsheet-done${t.done ? " on" : ""}`} onClick={toggleDone} disabled={busy}>
-                {t.done ? "↩ Reopen" : "✓ Mark done"}
+                {t.done ? "↩ Reopen" : <><Icon name="check" /> Mark done</>}
               </button>
               {isAdmin && <button type="button" className="tsheet-del" onClick={remove} disabled={busy}>Delete</button>}
             </div>

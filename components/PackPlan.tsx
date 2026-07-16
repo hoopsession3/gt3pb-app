@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import Sheet from "@/components/Sheet";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import Icon from "@/components/Icon";
 
 // PACK PLAN — the whole event/stop's pack-out in one view: take every batch brewing for it, split each
 // between KEGS (poured on tap) and 10/16oz BOTTLES (grab-and-go in the cooler), and allocate the keg
@@ -80,12 +81,12 @@ export default function PackPlan({ ownerType, ownerId, title, onClose }: { owner
   const allBottle = () => setKegGal(Object.fromEntries(batches.map((b) => [b.id, "0"])));
 
   return (
-    <Sheet open onClose={onClose} label="Pack-out plan" header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow">📦 Pack-out plan · kegs vs bottles</div><div className="dp-title">{title || "Event"} — {totalGal} gal across {batches.length} batch{batches.length === 1 ? "" : "es"}</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
+    <Sheet open onClose={onClose} label="Pack-out plan" header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow"><Icon name="package" /> Pack-out plan · kegs vs bottles</div><div className="dp-title">{title || "Event"} — {totalGal} gal across {batches.length} batch{batches.length === 1 ? "" : "es"}</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}><Icon name="close" /></button></div>}>
       <AsyncSection state={board} isEmpty={(data) => data.batches.length === 0} emptyTitle={`No batches tied to this ${ownerType} yet`} emptySub="Plan a batch in Brew and tie it here, then come back to split it between kegs and bottles." errorTitle="Couldn't load the pack-out plan">
         {() => (
           <>
             <div className="pp-cfg">
-              <div className="ts-chips">{[10, 16].map((n) => <button key={n} type="button" className={`ts-chip${oz === n ? " on" : ""}`} onClick={() => setOz(n)}>🍶 {n}oz</button>)}</div>
+              <div className="ts-chips">{[10, 16].map((n) => <button key={n} type="button" className={`ts-chip${oz === n ? " on" : ""}`} onClick={() => setOz(n)}>{n}oz</button>)}</div>
               <label className="prod-f"><span>{oz}oz bottles on hand</span><input type="number" min="0" value={stock} onChange={(e) => setStock(e.target.value)} /></label>
               <label className="prod-f"><span>Bottles per cooler</span><input type="number" min="1" value={coolerCap} onChange={(e) => setCoolerCap(e.target.value)} /></label>
             </div>
@@ -99,8 +100,8 @@ export default function PackPlan({ ownerType, ownerId, title, onClose }: { owner
                     <input type="number" min="0" step="0.5" max={String(r.b.batch_gal)} value={kegGal[r.b.id] ?? "0"} onChange={(e) => setKeg(r.b.id, e.target.value)} />
                   </label>
                   <div className="pp-out">
-                    <span>🛢 {r.kg > 0 ? (r.kp.length ? kegStr(r.kp) : "—") : "—"}{r.shortfall > 0.01 && <b className="pp-short"> · short {r.shortfall.toFixed(1)}gal</b>}</span>
-                    <span>🍶 <b>{r.bottles}</b> × {oz}oz</span>
+                    <span>{r.kg > 0 ? (r.kp.length ? kegStr(r.kp) : "—") : "—"}{r.shortfall > 0.01 && <b className="pp-short"> · short {r.shortfall.toFixed(1)}gal</b>}</span>
+                    <span><b>{r.bottles}</b> × {oz}oz</span>
                   </div>
                 </div>
               </div>
@@ -110,8 +111,8 @@ export default function PackPlan({ ownerType, ownerId, title, onClose }: { owner
               <div className="pp-tot-row"><span>Bottles to cooler</span><b>{plan.totalBottles} × {oz}oz</b></div>
               <div className="pp-tot-row"><span>UVDTF labels</span><b>{plan.totalBottles}{plan.totalBottles ? ` (order ~${Math.ceil(plan.totalBottles * 1.05)})` : ""}</b></div>
               <div className="pp-tot-row"><span>Coolers needed</span><b>{coolers}</b></div>
-              {shortBottles > 0 && <div className="pp-tot-row warn"><span>⚠ Short on bottles</span><b>need {shortBottles} more {oz}oz</b></div>}
-              {plan.totalKegShort > 0.01 && <div className="pp-tot-row warn"><span>⚠ Not enough keg space</span><b>{plan.totalKegShort.toFixed(1)} gal won&apos;t fit</b></div>}
+              {shortBottles > 0 && <div className="pp-tot-row warn"><span><Icon name="warning" /> Short on bottles</span><b>need {shortBottles} more {oz}oz</b></div>}
+              {plan.totalKegShort > 0.01 && <div className="pp-tot-row warn"><span><Icon name="warning" /> Not enough keg space</span><b>{plan.totalKegShort.toFixed(1)} gal won&apos;t fit</b></div>}
             </div>
             <div className="dp-hint" style={{ marginTop: 10 }}>Tip: tune each batch&apos;s keg gallons until the cooler count and bottle stock work. The fleet is shared — earlier batches claim kegs first.</div>
             <div className="prod-actions" style={{ marginTop: 14 }}><span /><button type="button" className="note-save" onClick={onClose}>Done</button></div>
