@@ -93,9 +93,10 @@ function toEventRow(r: FieldOp): EventRow {
 
 // Shared query, used by both the error-aware initial load and the silent background refresh.
 async function fetchRoad(): Promise<Board> {
-  // Explicit display columns only — NOT select("*"): the row carries venue POC contact PII
-  // (poc_name/phone/email/service_dates) that this public customer road must never fetch to the
-  // browser. Matches the FieldOp type exactly. (Follow-up: revoke those columns from anon at the DB.)
+  // Explicit display columns only — NOT select("*"): matches the FieldOp type exactly, so a column
+  // added to `field_ops` later doesn't silently reach this public customer road unreviewed. (The
+  // venue POC contact columns this comment used to warn about — poc_name/phone/email/service_dates —
+  // were dropped from the table entirely in migration 0240; there's nothing left to leak.)
   const [{ data: fo, error: e1 }, { data: l, error: e2 }] = await Promise.all([
     supabase!.from("field_ops").select("id, kind, name, day, starts_at, ends_at, start_time, end_time, day_label, when_label, time_label, location_text, address, lat, lng, member_only, going_count, capacity, blurb, menu_tier, notes, note, status, completed_at, archived_at, is_public").eq("is_public", true),
     supabase!.from("live_status").select("*").maybeSingle(),

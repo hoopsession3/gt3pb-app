@@ -12,6 +12,7 @@ import { supabase } from "@/lib/supabase";
 import { officeQuote, mondayLabel } from "@/lib/office";
 import { useOfficeSettings } from "@/components/useOfficeSettings";
 import Icon from "@/components/Icon";
+import SignIn from "@/components/SignIn";
 
 // OFFICE PORTAL — the B2B self-serve surface (Phase 3). A business account holder manages their
 // standing weekly order (pause / resume / adjust gallons), sees upcoming Monday deliveries, their
@@ -29,6 +30,7 @@ export default function OfficeScreen() {
   const [orders, setOrders] = useState<Ord[]>([]);
   const [invoices, setInvoices] = useState<Inv[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [busy, setBusy] = useState(false);
   // Live price/minimum (owner-editable via Settings) — this page used to import only the static
   // OFFICE constants, so a returning customer's account page could show "5 gal × $45.00 = $225/wk"
@@ -38,17 +40,22 @@ export default function OfficeScreen() {
 
   const load = useCallback(async () => {
     if (!supabase || !user) return;
-    const { data: a } = await supabase.from("business_accounts").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    const { data: a, error: eAcct } = await supabase.from("business_accounts").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    // A failed fetch must never render identically to "never signed up" — an existing business
+    // customer hitting a transient error would otherwise see their whole account vanish.
+    if (eAcct) { setLoadError(true); setLoaded(true); return; }
+    setLoadError(false);
     const ac = (a as Acct) ?? null; setAcct(ac);
     if (ac) {
       const [o, i] = await Promise.all([
         supabase.from("business_orders").select("id, delivery_date, gallons, total_cents, status, payment_status").is("canceled_at", null).order("delivery_date", { ascending: false }).limit(12),
         supabase.from("invoices").select("id, amount_cents, status, issued_at, terms").eq("business_id", ac.id).order("issued_at", { ascending: false }).limit(8),
       ]);
+      if (o.error || i.error) toast("Some account details didn't load — try refreshing", "error");
       setOrders((o.data as Ord[]) ?? []); setInvoices((i.data as Inv[]) ?? []);
     }
     setLoaded(true);
-  }, [user]);
+  }, [user, toast]);
   useEffect(() => { if (ready && user) load(); }, [ready, user, load]);
 
   const patch = async (p: Partial<Acct>) => {
@@ -60,6 +67,7 @@ export default function OfficeScreen() {
   };
   const adjustGallons = (d: number) => { if (!acct) return; const g = Math.max(settings.minGallons, (acct.standing_gallons ?? settings.minGallons) + d); patch({ standing_gallons: g }); };
 
+  if (enabled && ready && !user) return <SignIn />;
   if (!ready || (enabled && !loaded)) return <section className="screen" id="s-office"><Masthead eyebrow="Office delivery" right={<AccountPill />} /><Skeleton variant="card" count={1} /><Skeleton variant="row" count={3} /></section>;
 
   return (
@@ -67,11 +75,18 @@ export default function OfficeScreen() {
       <Watermark variant="landing" />
       <Masthead eyebrow="Office delivery" right={<AccountPill />} />
 
-      {!acct ? (
+      {loadError ? (
+        <div className="op-none">
+          <div className="op-none-ic"><Icon name="warning" /></div>
+          <h1>Couldn&rsquo;t load your account.</h1>
+          <p>Something went wrong loading your office delivery details.</p>
+          <button type="button" className="handle" onClick={() => load()}><span>Try again</span></button>
+        </div>
+      ) : !acct ? (
         <div className="op-none">
           <div className="op-none-ic"><Icon name="jar" /></div>
           <h1>Bring GT3 to the office.</h1>
-          <p>Fresh cold-extract in amber gallon jugs, delivered Monday 5–8&nbsp;AM, empties swapped for full each week. 3-gallon minimum.</p>
+          <p>Fresh cold-extract in amber gallon jugs, delivered Monday 5–8&nbsp;AM, empties swapped for full each week. {settings.minGallons}-gallon minimum.</p>
           <button type="button" className="handle" onClick={() => router.push("/delivery")}><span>Set up office delivery <Icon name="arrowRight" /></span></button>
         </div>
       ) : (<>

@@ -52,7 +52,7 @@ export default function PlaybookPage() {
         {FLYWHEEL.map((s, i) => <li key={i}><span className="pb-loop-n">{i + 1}</span><span>{s}</span></li>)}
       </ol>
 
-      <SectionHeader label="The Foundations" annotation="locked · tap 💬 to talk it through" />
+      <SectionHeader label="The Foundations" annotation="locked · tap Discuss to talk it through" />
       {STRATEGY_CORE.map((b) => (
         <div className="pb-block" key={b.h}>
           <div className="pb-block-h">{b.h}</div>

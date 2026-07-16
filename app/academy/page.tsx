@@ -450,7 +450,7 @@ function TeamBoard({ onBack }: { onBack: () => void }) {
   const load = useCallback(async () => {
     if (!supabase) { setLoaded(true); return; }
     const [{ data: profs }, { data: prog }, { data: cs }, { data: asg }] = await Promise.all([
-      supabase.from("profiles").select("id,display_name,role"),
+      supabase.from("profiles").select("id,display_name,role").neq("role", "member"),
       supabase.from("academy_progress").select("user_id,module_slug,status"),
       supabase.from("academy_certifications").select("user_id,cert_key"),
       supabase.from("academy_assignments").select("user_id,target_type,target_key,due_at"),

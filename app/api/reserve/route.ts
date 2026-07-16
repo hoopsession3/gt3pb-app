@@ -84,12 +84,14 @@ export async function POST(req: Request) {
   if (glass === "return" && refillIsFree(benefits)) amount = 0;
   else amount = applyOrderPercent(amount, benefits);
 
+  const idemKey = safeIdemKey(body.idempotencyKey);
+
   try {
     // Charge only when a card token was supplied; otherwise it's a pay-at-pickup pre-order.
     let paymentId: string | null = null;
     let paid = false;
     if (wantsCharge) {
-      const charge = await chargeCard({ token: token!, locationId: locationId!, sourceId: body.sourceId!, amountCents: amount, note: `GT3PB order-ahead · ${size}-pack · ${glass} · pickup ${dropDate}`, idempotencyKey: safeIdemKey(body.idempotencyKey) });
+      const charge = await chargeCard({ token: token!, locationId: locationId!, sourceId: body.sourceId!, amountCents: amount, note: `GT3PB order-ahead · ${size}-pack · ${glass} · pickup ${dropDate}`, idempotencyKey: idemKey });
       if (!charge.ok) return NextResponse.json({ error: charge.error }, { status: 400 });
       paymentId = charge.paymentId;
       paid = true;
@@ -103,22 +105,31 @@ export async function POST(req: Request) {
         const { data: already } = await supabaseAdmin.from("drop_orders").select("id").eq("payment_id", paymentId).maybeSingle();
         if (already) return NextResponse.json({ ok: true, id: already.id, paid: true, recorded: true });
       }
+    } else {
+      // Pay-at-pickup pre-order: no payment_id to dedupe on — no charge happens at order time, so the
+      // check above never runs. idemKey is the same per-attempt key the client already sends for the
+      // charge path; check it here too, backed by the unique index in the accompanying migration,
+      // mirroring the payment_id check above for the paid path.
+      const { data: already } = await supabaseAdmin.from("drop_orders").select("id").eq("idempotency_key", idemKey).maybeSingle();
+      if (already) return NextResponse.json({ ok: true, id: already.id, paid: false, recorded: true });
     }
 
     // Canonical customer link (0151) — member-only route, so user.id is the strong key; phone folds
     // any prior guest orders on the same number into this record.
     const customerId = (await supabaseAdmin.rpc("resolve_customer", { p_user_id: user.id, p_phone: phone || null, p_email: null, p_name: name })).data as string | null;
-    const row = { user_id: user.id, customer_id: customerId, name, phone, size, glass, mix, total_cents: amount, paid, payment_id: paymentId, drop_date: dropDate };
+    const row = { user_id: user.id, customer_id: customerId, name, phone, size, glass, mix, total_cents: amount, paid, payment_id: paymentId, idempotency_key: idemKey, drop_date: dropDate };
     let { data: inserted, error: insErr } = await supabaseAdmin.from("drop_orders").insert(row).select("id").single();
     if (insErr) ({ data: inserted, error: insErr } = await supabaseAdmin.from("drop_orders").insert(row).select("id").single()); // retry once
     if (insErr) {
-      // A concurrent request can still lose this exact race even with the pre-charge check above
-      // (both requests can pass it before either insert commits) — the DB unique index is the real
-      // backstop. Confirm the other request's row is there before raising a false "didn't record"
-      // alert, which would otherwise have staff double-add a reservation that's already on the drop.
-      if ((insErr as { code?: string }).code === "23505" && paymentId) {
-        const { data: already2 } = await supabaseAdmin.from("drop_orders").select("id").eq("payment_id", paymentId).maybeSingle();
-        if (already2) return NextResponse.json({ ok: true, id: already2.id, paid, recorded: true });
+      // A concurrent request can still lose this exact race even with the pre-insert checks above
+      // (both requests can pass them before either insert commits) — the DB unique indexes are the
+      // real backstop. Confirm the other request's row is there before raising a false "didn't
+      // record" alert, which would otherwise have staff double-add a reservation already on the drop.
+      if ((insErr as { code?: string }).code === "23505") {
+        const dupe = paymentId
+          ? await supabaseAdmin.from("drop_orders").select("id").eq("payment_id", paymentId).maybeSingle()
+          : await supabaseAdmin.from("drop_orders").select("id").eq("idempotency_key", idemKey).maybeSingle();
+        if (dupe.data) return NextResponse.json({ ok: true, id: dupe.data.id, paid, recorded: true });
       }
       const ref = (paymentId || "").slice(-6).toUpperCase();
       const title = paid ? "Paid reservation didn't record — add it" : "Reservation didn't record — add it";

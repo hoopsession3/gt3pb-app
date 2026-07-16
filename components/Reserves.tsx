@@ -20,6 +20,7 @@ export default function Reserves() {
   const [claims, setClaims] = useState<Record<string, ReserveClaim>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   // Signed-out tap opens sign-in right here instead of redirecting to /3mpire and losing the intent;
   // once signed in, the reserve that was tapped claims automatically.
   const [signInOpen, setSignInOpen] = useState(false);
@@ -27,7 +28,11 @@ export default function Reserves() {
 
   const load = useCallback(async () => {
     if (!supabase) { setLoaded(true); return; }
-    const { data } = await supabase.from("reserves").select("*").in("status", ["live", "sold_out"]).order("sort");
+    const { data, error } = await supabase.from("reserves").select("*").in("status", ["live", "sold_out"]).order("sort");
+    // A failed fetch must not render identically to "no live drops today" (the false-empty-state bug
+    // class fixed crew-side) — keep whatever list is already on screen instead of clobbering it.
+    if (error) { setLoadFailed(true); setLoaded(true); return; }
+    setLoadFailed(false);
     setReserves((data as Reserve[]) ?? []);
     if (user) {
       const { data: c } = await supabase.from("reserve_claims").select("*").eq("user_id", user.id).in("state", ["held", "paid"]);
@@ -81,6 +86,7 @@ export default function Reserves() {
   };
 
   if (!loaded) return <Skeleton variant="card" />;
+  if (loadFailed && reserves.length === 0) return <p className="rsv-err" role="alert">Couldn&rsquo;t load reserves right now — check back shortly.</p>;
   if (reserves.length === 0) return null;
 
   return (

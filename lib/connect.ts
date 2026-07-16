@@ -4,7 +4,8 @@
 export interface ConnectLink { label: string; sub?: string; href: string; badge: string }
 export interface ConnectGroup { q: string; links: ConnectLink[] }
 
-export const CONNECT_PRIMARY = "https://gt3pb.com"; // what the scan QR points at
+export const CONNECT_PRIMARY = "https://gt3pb.com"; // the hub's own multi-intent QR (ConnectHub)
+export const CONNECT_APP = "https://app.gt3pb.com"; // the ordering PWA — what a "scan to order" QR must point at
 
 export const CONNECT_GROUPS: ConnectGroup[] = [
   // Internal routes are RELATIVE ("/reserve") so the hub navigates in-app (clean) instead of opening

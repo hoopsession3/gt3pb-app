@@ -300,6 +300,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
 
   // ── submit ──
   const submitPickup = useCallback(async (sourceId: string | null) => {
+    if (busy) return; // guard a fast double-tap before the button's disabled attribute takes effect
     setErr("");
     if (!name.trim() || !phone.trim()) { setErr("Name and phone are required for the pickup text."); return; }
     if (!count) return;
@@ -330,7 +331,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
       // retry safe either way, so say that instead of asserting something we can't know.
       setErr("Couldn't confirm — safe to try again, you won't be charged twice.");
     }
-  }, [name, phone, count, bringBack, mix, drop, totalCents, codeState, codeClean, replacing, toast]);
+  }, [busy, name, phone, count, bringBack, mix, drop, totalCents, codeState, codeClean, replacing, toast]);
 
   const payDelivery = async () => {
     if (busy) return; // guard a fast double-tap before the button's disabled attribute takes effect
@@ -543,7 +544,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
           <div className="oa-tiles">
             {(mode === "delivery" ? DELIVERY_PACKS : PICKUP_TIERS).map((s) => (
               <button key={s} type="button" className={`oa-tile${count === s ? " sel" : ""}`} onClick={() => pickCount(s)}>
-                {mode === "delivery" && s === 24 && <span className="oa-tag on">FREE DELIVERY</span>}
+                {mode === "delivery" && s >= DELIVERY_PRICING.feeWaivedAt && <span className="oa-tag on">FREE DELIVERY</span>}
                 {mode === "pickup" && PACK_TAG[s] && <span className="oa-tag">{PACK_TAG[s]}</span>}
                 <div className="oa-c">{s}</div><div className="oa-u">BOTTLES</div>
                 <div className="oa-p">{mode === "delivery" ? dollars(quoteDelivery(s, 0, 0, "direct").totalCents) : dollars(packTotal(s, bringBack ? "return" : "new") * 100)}</div>

@@ -43,13 +43,23 @@ const dayLabel = (iso: string): string => {
 export default function MemberInbox() {
   const { user } = useAuth();
   const [items, setItems] = useState<Item[]>([]);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const load = useCallback(async () => {
-    if (!supabase || !user) { setItems([]); return; }
+    if (!supabase || !user) { setItems([]); setLoadFailed(false); return; }
     const dayFloor = new Date(Date.now() - 2 * 86400000).toISOString().slice(0, 10);
     const recent = new Date(Date.now() - 36 * 3600000).toISOString();
-    // Each read is own-rows (RLS) + fail-soft; a missing table/column can never break Today.
-    const safe = async (run: () => PromiseLike<unknown>) => { try { return (await run()) as { data?: unknown[] }; } catch { return { data: [] }; } };
+    // Each read is own-rows (RLS) + fail-soft — a missing table/column can never break Today — but a
+    // real fetch error must still be logged (not silently swallowed) and must never render identically
+    // to "nothing to show": that false-empty-state can hide a genuine ready-drink notification behind
+    // an empty widget with no sign anything went wrong.
+    const safe = async (run: () => PromiseLike<{ data?: unknown[] | null; error?: unknown }>) => {
+      try {
+        const r = await run();
+        if (r?.error) { console.error("[MemberInbox] fetch failed:", r.error); return { data: [] as unknown[], failed: true }; }
+        return { data: r.data ?? [], failed: false };
+      } catch (err) { console.error("[MemberInbox] fetch failed:", err); return { data: [] as unknown[], failed: true }; }
+    };
     const [cups, packs, dels] = await Promise.all([
       safe(() => supabase!.from("orders").select("id, items, status, status_changed_at, created_at").eq("user_id", user.id).in("status", ["new", "preparing", "ready"]).order("created_at", { ascending: false }).limit(5)),
       safe(() => supabase!.from("drop_orders").select("id, size, drop_date, paid, picked_up, canceled_at, status_changed_at, created_at").eq("user_id", user.id).is("canceled_at", null).gte("drop_date", dayFloor).order("drop_date").limit(5)),
@@ -73,6 +83,7 @@ export default function MemberInbox() {
     // Live/soonest first: anything actionable (live/warn) rises above passive "received/done" rows.
     out.sort((a, b) => (a.tone === "live" || a.tone === "warn" ? 0 : 1) - (b.tone === "live" || b.tone === "warn" ? 0 : 1));
     setItems(out);
+    setLoadFailed((cups.failed || packs.failed || dels.failed) && out.length === 0);
   }, [user]);
 
   useEffect(() => { load(); }, [load]);
@@ -80,7 +91,18 @@ export default function MemberInbox() {
   useRealtimeTable({ table: "delivery_orders", filter: `user_id=eq.${user?.id}` }, load, { enabled: !!user });
   useRealtimeTable({ table: "orders", filter: `user_id=eq.${user?.id}` }, load, { enabled: !!user });
 
-  if (!user || items.length === 0) return null;
+  if (!user) return null;
+  if (items.length === 0) {
+    if (!loadFailed) return null;
+    // Don't let a fetch failure look identical to "nothing happening" — show a real signal instead
+    // of silently hiding a possible ready-drink notification.
+    return (
+      <div className="minbox" role="group" aria-label="Your orders">
+        <div className="minbox-h">Your stuff</div>
+        <p className="minbox-err">Couldn&rsquo;t load your orders — check back in a moment.</p>
+      </div>
+    );
+  }
   return (
     <div className="minbox" role="group" aria-label="Your orders">
       <div className="minbox-h">Your stuff</div>
@@ -99,19 +121,26 @@ export default function MemberInbox() {
 // drop" to someone who already has one coming (the contextual half of the decrowd).
 export function useHasActiveOrder(): boolean {
   const { user } = useAuth();
-  const [has, setHas] = useState(false);
+  // Defaults to true (uncertain → assume active) rather than false. This guard exists specifically to
+  // stop upselling "reserve a drop" to someone who already has one coming, so the safe failure
+  // direction — including on a fetch error — is "assume they might," never "confidently say they
+  // don't." A confident-false-on-error was the actual bug: a transient error read as "definitely no
+  // active order" and showed the upsell it exists to suppress.
+  const [has, setHas] = useState(true);
   useEffect(() => {
     if (!supabase || !user) { setHas(false); return; }
     let live = true;
     const today = new Date().toISOString().slice(0, 10);
     (async () => {
       try {
-        const [{ count: p }, { count: d }] = await Promise.all([
+        const [{ count: p, error: e1 }, { count: d, error: e2 }] = await Promise.all([
           supabase!.from("drop_orders").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("canceled_at", null).eq("picked_up", false).gte("drop_date", today),
           supabase!.from("delivery_orders").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("canceled_at", null).neq("status", "delivered"),
         ]);
-        if (live) setHas((p ?? 0) > 0 || (d ?? 0) > 0);
-      } catch { /* leave false */ }
+        if (!live) return;
+        if (e1 || e2) { console.error("[MemberInbox] active-order check failed:", e1 || e2); return; } // leave `has` at its safe default
+        setHas((p ?? 0) > 0 || (d ?? 0) > 0);
+      } catch (err) { if (live) console.error("[MemberInbox] active-order check failed:", err); }
     })();
     return () => { live = false; };
   }, [user]);

@@ -30,8 +30,8 @@ export const STRATEGY_CORE: StrategyBlock[] = [
     lines: [
       "Loop $8 — refill into the customer's returned GT3 bottle. The loyalty + margin engine (78% margin).",
       "New $10 — fresh sealed bottle, customer keeps the glass (67% margin).",
-      "Performance $14 — sealed + MCT oil or grass-fed butter (70% margin).",
-      "House syrup station free at every tier. Loyalty pilot: 5 returns = one free Performance drink (90 days).",
+      "Performance $14 — sealed + the Salted Latte add (70% margin).",
+      "House syrup station free at every tier. Loyalty: every drink earns a stamp, the 10th is free — no window, no minimum return count.",
     ],
   },
   {
@@ -123,7 +123,7 @@ export const GOVERNANCE: StrategyBlock[] = [
   {
     h: "How a change happens",
     lines: [
-      "Talk it through on the block's thread (💬) — that's the live room, and the other owners get pinged.",
+      "Talk it through on the block's thread (tap Discuss) — that's the live room, and the other owners get pinged.",
       "Build or overhaul the play with the guided builder — drafts are visible to everyone, adopted by an owner only.",
       "Log the decision. Append-only, no edits, no deletes — the log is the institution's memory. No strategic call without a log line.",
       "Adopting a draft that changes locked numbers or copy = a doc rev (PR) in the same breath.",

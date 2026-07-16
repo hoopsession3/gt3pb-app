@@ -28,9 +28,9 @@ import MarketingSplash from "./MarketingSplash";
 import BroadcastBanner from "./BroadcastBanner";
 
 // Routes whose page already renders its own visible <h1> — don't add a second one.
-const H1_SKIP = new Set(["/truck", "/craft", "/office", "/display"]);
+const H1_SKIP = new Set(["/truck", "/craft", "/office", "/display", "/events"]);
 const H1_TITLES: Record<string, string> = {
-  menu: "Menu", events: "Events", reserve: "Reserve a pack", book: "Book the truck",
+  menu: "Menu", events: "Events", reserve: "Reserve a pack", book: "Book the bar",
   delivery: "Delivery", scan: "Scan your card", playbook: "Playbook", academy: "Academy",
   architecture: "Architecture", "3mpire": "Your member profile", crew: "Crew console", driver: "Driver run",
 };
