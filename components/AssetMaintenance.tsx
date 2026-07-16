@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 import Sheet from "@/components/Sheet";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import { SectionHeader } from "@/components/kit";
+import Icon from "@/components/Icon";
 
 // ASSET MAINTENANCE — upkeep log for the gear. Each asset shows its last service and what's due next
 // (or overdue); tap to see the full history and log a new service/repair/clean/inspection. Staff-gated
@@ -18,7 +19,7 @@ type Log = { id: string; asset_id: string; kind: string; performed_on: string; s
 type Board = { assets: Asset[]; logs: Log[] };
 
 const KINDS = ["service", "repair", "clean", "inspect", "calibrate", "note"];
-const KIND_ICON: Record<string, string> = { service: "🔧", repair: "🛠️", clean: "🧽", inspect: "🔍", calibrate: "🎚️", note: "📝" };
+const KIND_ICON: Record<string, ReactNode> = { service: <Icon name="wrench" />, repair: <Icon name="wrench" />, clean: "🧽", inspect: <Icon name="search" />, calibrate: "🎚️", note: "📝" };
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 const fmt = (s: string | null) => s ? new Date(`${s}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—";
 
@@ -101,7 +102,7 @@ export default function AssetMaintenance() {
                                     </details>
                                   )}
                                 </span>
-                                <button type="button" className="am-row-x" onClick={() => delLog(m.id)} aria-label="Delete record">✕</button>
+                                <button type="button" className="am-row-x" onClick={() => delLog(m.id)} aria-label="Delete record"><Icon name="close" /></button>
                               </div>
                             ))}
                           </div>
@@ -142,7 +143,7 @@ function LogSheet({ asset, onClose, onSaved }: { asset: Asset; onClose: () => vo
     setBusy(false); onSaved();
   };
   return (
-    <Sheet open onClose={onClose} label="Maintenance log" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Log · {asset.name}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
+    <Sheet open onClose={onClose} label="Maintenance log" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Log · {asset.name}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}><Icon name="close" /></button></div>}>
           <div className="ts-chips">
             {KINDS.map((k) => <button key={k} type="button" className={`ts-chip${kind === k ? " on" : ""}`} onClick={() => setKind(k)}>{KIND_ICON[k]} {k}</button>)}
           </div>

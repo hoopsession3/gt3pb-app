@@ -7,6 +7,7 @@ import { cleanReview, isDisplayable } from "@/lib/reviews";
 import { SectionHeader } from "@/components/kit";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import Icon from "@/components/Icon";
 
 // STAFF REVIEW DESK — approve member feedback and add reviews pulled from Google / Instagram / the
 // feedback album. "Add" inserts pre-approved. Every row shows a live preview of exactly how it'll read
@@ -95,11 +96,11 @@ export default function ReviewsAdmin() {
                 </select>
               </div>
               <div className="rva-stars">
-                {[1, 2, 3, 4, 5].map((n) => <button key={n} type="button" className={`rva-star${n <= f.rating ? " on" : ""}`} onClick={() => setF({ ...f, rating: n })}>★</button>)}
+                {[1, 2, 3, 4, 5].map((n) => <button key={n} type="button" className={`rva-star${n <= f.rating ? " on" : ""}`} onClick={() => setF({ ...f, rating: n })}><Icon name="star" /></button>)}
               </div>
               <textarea className="rva-in" rows={2} maxLength={280} placeholder="The review, word for word…" value={f.body} onChange={(e) => setF({ ...f, body: e.target.value })} />
               {f.body.trim() && (() => { const c = cleanReview(f); const okd = isDisplayable(f); return (
-                <div className={`rva-prev${okd ? "" : " bad"}`}>Preview: {"★".repeat(c.rating)} “{c.text}” — {c.who}{okd ? "" : " · won't show (needs 4★+ and a real sentence)"}</div>
+                <div className={`rva-prev${okd ? "" : " bad"}`}>Preview: {Array.from({ length: c.rating }).map((_, i) => <Icon key={i} name="star" />)} “{c.text}” — {c.who}{okd ? "" : " · won't show (needs 4★+ and a real sentence)"}</div>
               ); })()}
               <button className="adm-btn primary" onClick={add} disabled={!f.body.trim()}>Add + approve</button>
             </div>
@@ -117,12 +118,12 @@ export default function ReviewsAdmin() {
             return (
               <div key={r.id} className="rva-row">
                 <div className="rva-row-body">
-                  <div className="rva-row-meta">{"★".repeat(c.rating)}<span className="rva-src-tag">{r.source}</span>{!okd && <span className="rva-warn">below display bar</span>}</div>
+                  <div className="rva-row-meta">{Array.from({ length: c.rating }).map((_, i) => <Icon key={i} name="star" />)}<span className="rva-src-tag">{r.source}</span>{!okd && <span className="rva-warn">below display bar</span>}</div>
                   <div className="rva-row-q">“{c.text}”</div>
                   <div className="rva-row-who">— {c.who}</div>
                   {sug && (
                     <div className="rva-sug">
-                      <span className="rva-sug-lbl">✨ Simplified</span>
+                      <span className="rva-sug-lbl"><Icon name="sparkles" /> Simplified</span>
                       <div className="rva-sug-q">“{sug}”</div>
                       <div className="rva-sug-actions">
                         <button className="rva-act ok" onClick={() => acceptSuggestion(r.id)}>Use this + approve</button>
@@ -136,9 +137,9 @@ export default function ReviewsAdmin() {
                     ? <button className="rva-act" onClick={() => setApproved(r.id, false)}>Hide</button>
                     : <>
                         <button className="rva-act ok" onClick={() => setApproved(r.id, true)} disabled={!okd} title={okd ? "" : "Below the display bar — simplify or edit it"}>Approve</button>
-                        <button className="rva-act ai" onClick={() => simplify(r)} disabled={busyId === r.id || !r.body?.trim()}>{busyId === r.id ? "…" : "✨ Simplify"}</button>
+                        <button className="rva-act ai" onClick={() => simplify(r)} disabled={busyId === r.id || !r.body?.trim()}>{busyId === r.id ? "…" : <><Icon name="sparkles" /> Simplify</>}</button>
                       </>}
-                  <button className="rva-act del" onClick={() => remove(r.id)} aria-label="Delete">✕</button>
+                  <button className="rva-act del" onClick={() => remove(r.id)} aria-label="Delete"><Icon name="close" /></button>
                 </div>
               </div>
             );

@@ -328,7 +328,7 @@ function Kitchen() {
                 const sev = ageSev(ageMin(o.created_at));
                 return (
                   <div className={`adm-order st-${o.status}${flash.has(o.id) ? " flash" : ""}`} key={o.id}>
-                    <button className="adm-act-more" onClick={() => voidOrder(o)} aria-label={`Void ${o.customer ?? "order"}`}>⋯</button>
+                    <button className="adm-act-more" onClick={() => voidOrder(o)} aria-label={`Void ${o.customer ?? "order"}`}><Icon name="more" /></button>
                     <div className="adm-order-top">
                       <b>{o.customer ?? "Guest"}</b>
                       <span className={`adm-age ${sev}`}>{ago(o.created_at)}</span>
@@ -667,7 +667,6 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
       {held.length > 0 && (
         <div className="digest">
           <button type="button" className="digest-head" onClick={() => setDigestOpen((v) => !v)} aria-expanded={digestOpen}>
-            <span className="digest-i" aria-hidden>🌙</span>
             <span className="digest-t"><b>Quiet hours</b> · {held.length} held · surfaces when quiet hours end</span>
             <span className="digest-x">{digestOpen ? "Hide" : "Review"}</span>
           </button>
@@ -776,7 +775,7 @@ function CommentThread({ subject, notifyIds, label, meId, meName }: {
           <span className="cmt-av">{(nameOf(c.author_id).charAt(0) || "?").toUpperCase()}</span>
           <div className="cmt-bub">
             <span className="cmt-meta">{firstOf(c.author_id)} · {new Date(c.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-              {c.author_id === meId && <button type="button" className="cmt-del" onClick={() => del(c)} aria-label="Delete comment">×</button>}
+              {c.author_id === meId && <button type="button" className="cmt-del" onClick={() => del(c)} aria-label="Delete comment"><Icon name="close" /></button>}
             </span>
             <span className="cmt-body">{c.body}</span>
           </div>
@@ -1063,8 +1062,8 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
         <div className="oa-set">
           <div className="oa-set-h">Ordering at this stop</div>
           <div className="oa-toggles">
-            <button type="button" role="switch" aria-checked={oa} className={`oa-toggle${oa ? " on" : ""}`} onClick={() => setOa((v) => !v)}>🕐 Order ahead<span>{oa ? "On" : "Off"}</span></button>
-            <button type="button" role="switch" aria-checked={pk} className={`oa-toggle${pk ? " on" : ""}`} onClick={() => setPk((v) => !v)}>🥡 Pickup<span>{pk ? "On" : "Off"}</span></button>
+            <button type="button" role="switch" aria-checked={oa} className={`oa-toggle${oa ? " on" : ""}`} onClick={() => setOa((v) => !v)}><Icon name="clock" /> Order ahead<span>{oa ? "On" : "Off"}</span></button>
+            <button type="button" role="switch" aria-checked={pk} className={`oa-toggle${pk ? " on" : ""}`} onClick={() => setPk((v) => !v)}><Icon name="package" /> Pickup<span>{pk ? "On" : "Off"}</span></button>
           </div>
           {oa && <label className="prod-f" style={{ marginTop: 8 }}><span>Order-ahead lead time (min) — blank uses the global window</span><input type="number" min={0} step={15} value={lead} onChange={(e) => setLead(e.target.value)} placeholder="e.g. 240" /></label>}
           <div className="ownerdet-hint">When on, guests can order ahead{pk ? " and choose pickup" : ""} for this stop. Off = the truck’s global setting applies.</div>
@@ -1119,7 +1118,7 @@ function IncidentLog({ ownerCol, ownerId }: { ownerCol: "event_id" | "stop_id"; 
       <div className="brewlink-h"><Icon name="wrench" /> Incident log</div>
       {rows.map((r) => (
         <div key={r.id} className={`inc-row${r.resolved ? " done" : ""}`}>
-          <button type="button" className="inc-ck" onClick={() => toggle(r)} aria-label={r.resolved ? "Mark unresolved" : "Mark resolved"}>{r.resolved ? <Icon name="check" /> : "○"}</button>
+          <button type="button" className="inc-ck" onClick={() => toggle(r)} aria-label={r.resolved ? "Mark unresolved" : "Mark resolved"}>{r.resolved ? <Icon name="check" /> : <Icon name="dotOutline" />}</button>
           <span className="inc-main"><b className={r.severity === "blocker" ? "inc-blk" : ""}>{r.problem}</b><span>{[r.symptom, r.resolved ? "resolved" : null, new Date(r.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })].filter(Boolean).join(" · ")}</span></span>
           <button type="button" className="inc-x" onClick={() => del(r.id)} aria-label="Delete incident"><Icon name="close" /></button>
         </div>
@@ -1154,7 +1153,7 @@ function MenuEditor({ ownerType, ownerId, isAdmin, onChanged }: { ownerType: "ev
   return (
     <div className="menued">
       <button type="button" className="prep-collapse" style={{ marginTop: 10 }} onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        <span className="prep-collapse-l"><b>🍹 Menu &amp; setup</b><span>what we&apos;re pouring · the rig · power &amp; water</span></span>
+        <span className="prep-collapse-l"><b>Menu &amp; setup</b><span>what we&apos;re pouring · the rig · power &amp; water</span></span>
         <span className={`ev-chev${open ? " open" : ""}`}>›</span>
       </button>
       {open && (
@@ -1213,7 +1212,7 @@ function DayBrief({ ownerCol, ownerId, isAdmin }: { ownerCol: "event_id" | "stop
         if (!isAdmin && empty) return null; // nothing to show crew yet
         return (
           <div className="daybrief">
-            <div className="daybrief-h">🧢 Day-of brief · how to show up{isAdmin && !edit && <button type="button" className="daybrief-edit" onClick={() => setEdit(true)}>{empty ? "+ Add" : "Edit"}</button>}</div>
+            <div className="daybrief-h">Day-of brief · how to show up{isAdmin && !edit && <button type="button" className="daybrief-edit" onClick={() => setEdit(true)}>{empty ? "+ Add" : "Edit"}</button>}</div>
             {edit ? (
               <>
                 <label className="prod-f"><span>Dress code — what to wear</span><input className="note-in" value={dress} onChange={(e) => setDress(e.target.value)} placeholder="e.g. Black GT3 tee, dark jeans, closed-toe shoes" maxLength={600} /></label>
@@ -1309,8 +1308,8 @@ function MyDay({ userId, meName, isLeader, canPrep, canBrew }: { userId: string 
               <div className="myday-ev">{e.is_live && <span className="myday-live">LIVE</span>}<span><Icon name="pin" /> {e.title || e.day_label || "Event"}</span></div>
               {(e.dress_code?.trim() || e.crew_brief?.trim()) && (
                 <div className="myday-brief">
-                  {e.dress_code?.trim() && <div className="myday-brief-row"><b>🧢 Wear</b><span>{e.dress_code}</span></div>}
-                  {e.crew_brief?.trim() && <div className="myday-brief-row"><b>📋 Details</b><span style={{ whiteSpace: "pre-wrap" }}>{e.crew_brief}</span></div>}
+                  {e.dress_code?.trim() && <div className="myday-brief-row"><b>Wear</b><span>{e.dress_code}</span></div>}
+                  {e.crew_brief?.trim() && <div className="myday-brief-row"><b>Details</b><span style={{ whiteSpace: "pre-wrap" }}>{e.crew_brief}</span></div>}
                 </div>
               )}
             </div>
@@ -1512,7 +1511,7 @@ function MyTasks({ userId, chip = false }: { userId: string | null; chip?: boole
   if (chip) {
     return (
       <button type="button" className="alerts-strip taskptr" onClick={() => setSection("day")}>
-        <span className="alerts-strip-i" aria-hidden>☑️</span>
+        <span className="alerts-strip-i" aria-hidden><Icon name="check" /></span>
         <span className="alerts-strip-t"><b>{tasks.length} task{tasks.length === 1 ? "" : "s"} on your plate</b>{over ? ` · ${over} overdue` : crit ? ` · ${crit} critical` : ""}</span>
         <span className="alerts-strip-go">Open in My Day <Icon name="arrowRight" /></span>
       </button>
@@ -1601,7 +1600,7 @@ function PrepCard({ title, when, location, live, r, onOpen }: { title: string; w
     <button className={`prep-card${live ? " live" : ""}`} onClick={onOpen} aria-label={`Prep ${title} — ${status}`}>
       <div className="prep-card-top">
         <span className="prep-card-when">{when || "—"}</span>
-        {live && <span className="prep-card-livetag">● Live</span>}
+        {live && <span className="prep-card-livetag"><Icon name="dot" /> Live</span>}
       </div>
       <div className="prep-card-title">{title}</div>
       {location && <div className="prep-card-loc">{location}</div>}
@@ -1961,7 +1960,7 @@ function Garage({ events, stops, liveStopId, loaded }: { events: EventRow[]; sto
     <div className="garage">
       <div className="prep-group-h">The garage <span>rigs · gear · stock</span></div>
       {row("loadout", <Icon name="truck" />, "Load-out & tow plan", packSoon ? "event this week — check the load" : "quiet until an event is near", <TrailerLoadout />)}
-      {row("gear", "🧰", "Gear library", "manuals · specs · how-tos", <GearLibrary />)}
+      {row("gear", <Icon name="wrench" />, "Gear library", "manuals · specs · how-tos", <GearLibrary />)}
       {row("maint", <Icon name="wrench" />, "Asset maintenance", "service log · what's due", <AssetMaintenance />)}
       {row("inventory", <Icon name="package" />, "Inventory", "stock, costs & pars", <InventoryLibrary />)}
     </div>
@@ -2334,7 +2333,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       {/* Brew serving this event/stop — sits right under Menu & rig (a batch can serve several). */}
       {brewBatches.length > 0 && (
         <div className="brewlink">
-          <div className="brewlink-h">🍺 Brew coming to this {isEvent ? "event" : "stop"}</div>
+          <div className="brewlink-h"><Icon name="coffee" /> Brew coming to this {isEvent ? "event" : "stop"}</div>
           {brewBatches.map((b) => (
             <div key={b.id} className="brewlink-row">
               <span className="brewlink-name">{b.recipe_name || "Batch"} · {b.batch_gal} gal</span>
@@ -2347,7 +2346,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       {/* Run-of-show / "when do we leave" planner — identical for events and stops. */}
       {isAdmin && (
         <div className="adm-prep-actions" style={{ marginTop: 10 }}>
-          <button className="adm-regen" onClick={() => setPlanOpen(true)}>🗓️ Schedule · when to leave</button>
+          <button className="adm-regen" onClick={() => setPlanOpen(true)}><Icon name="calendar" /> Schedule · when to leave</button>
         </div>
       )}
       {planOpen && (
@@ -2387,7 +2386,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       {/* Nuke / reset — wipe the prep + schedule built for this event/stop and start clean. */}
       {isAdmin && total > 0 && (
         <div className="adm-reset-row">
-          <button type="button" className="adm-reset-btn" onClick={resetAll} disabled={generating}>🧨 Reset this {isEvent ? "event" : "truck stop"} — clear prep &amp; schedule</button>
+          <button type="button" className="adm-reset-btn" onClick={resetAll} disabled={generating}>Reset this {isEvent ? "event" : "truck stop"} — clear prep &amp; schedule</button>
         </div>
       )}
 
@@ -2447,7 +2446,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
 
       {tasks.some((t) => t.target_qty != null) && (
         <div className="onhand">
-          <div className="onhand-h">On hand <span>plan → confirm what&apos;s real</span></div>
+          <div className="onhand-h">On hand <span>plan <Icon name="arrowRight" /> confirm what&apos;s real</span></div>
           {tasks.filter((t) => t.target_qty != null).map((t) => {
             const a = t.actual_qty, plan = t.target_qty as number;
             const short = a != null && a < plan;
@@ -2753,7 +2752,7 @@ function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive
           <span className="ev-sub">{sub || "Tap to set up"}</span>
         </span>
         <span className="ev-head-badges">
-          {isCur && <span className="ev-badge live">● Live</span>}
+          {isCur && <span className="ev-badge live"><Icon name="dot" /> Live</span>}
           <span className="ev-chev">›</span>
         </span>
       </button>
@@ -3077,7 +3076,7 @@ function LiveControl({ compact = false, manage = false }: { compact?: boolean; m
           {live?.is_live ? (
             <div className="liveinst-row">
               {!broadcasting && !live?.pos_updated_at && <span className="liveinst-warn">Map dot off —</span>}
-              <span className="liveinst-sub">{broadcasting ? "● Broadcasting — dot moves with you" : posLabel}</span>
+              <span className="liveinst-sub">{broadcasting ? <><Icon name="dot" /> Broadcasting — dot moves with you</> : posLabel}</span>
               {broadcasting
                 ? <button className="adm-btn ghost" onClick={stopBroadcast}>Stop</button>
                 : <span style={{ display: "flex", gap: 8 }}><button className="adm-btn ghost" onClick={pinHere} disabled={posBusy}>{posBusy ? "Pinning…" : "Pin once"}</button><button className="adm-btn primary" onClick={startBroadcast}>Broadcast</button></span>}
@@ -3118,7 +3117,7 @@ function LiveControl({ compact = false, manage = false }: { compact?: boolean; m
             <div className="adm-attn" role="alert">Customers can&apos;t see the truck on the map yet — tap <b>Broadcast live</b> so the dot tracks you.</div>
           )}
           <div className="adm-live adm-live-pos">
-            <div className="adm-live-status"><span className="h-sub">{broadcasting ? "● Broadcasting — dot moves with you" : posLabel}</span></div>
+            <div className="adm-live-status"><span className="h-sub">{broadcasting ? <><Icon name="dot" /> Broadcasting — dot moves with you</> : posLabel}</span></div>
             {broadcasting ? (
               <button className="adm-btn ghost" onClick={stopBroadcast}>Stop</button>
             ) : (
@@ -3195,7 +3194,7 @@ function LiveControl({ compact = false, manage = false }: { compact?: boolean; m
                   // insert with sort 0; panel finding), so the clone carries the latest flags.
                   const byDate = [...g.rows].sort((a, b) => new Date(a.starts_at ?? 0).getTime() - new Date(b.starts_at ?? 0).getTime());
                   stopAgain(byDate[byDate.length - 1] ?? g.rows[g.rows.length - 1]);
-                }}>＋ Stop here again — new visit, same place</button>
+                }}><Icon name="plus" /> Stop here again — new visit, same place</button>
               </div>
             );
           });
@@ -3412,7 +3411,7 @@ function MeetingNotes() {
               <summary>Transcript or attachments? Add them and <Icon name="sparkles" /> summarize</summary>
               <NoteAttach onText={(t) => setCBody((b) => (b ? b + "\n\n" + t : t))} />
               <textarea className="note-area" placeholder="Paste a transcript — or attach files above to fill this in…" value={cBody} onChange={(e) => setCBody(e.target.value)} rows={4} />
-              <button type="button" className="note-suggest note-sum" onClick={summarize} disabled={summarizing}>{summarizing ? "Summarizing…" : <><Icon name="sparkles" /> Summarize → title · recap · tasks</>}</button>
+              <button type="button" className="note-suggest note-sum" onClick={summarize} disabled={summarizing}>{summarizing ? "Summarizing…" : <><Icon name="sparkles" /> Summarize <Icon name="arrowRight" /> title · recap · tasks</>}</button>
             </details>
             <div className="note-fu-h">Follow-ups
               <button type="button" className="note-fu-add" onClick={() => setCActions((a) => [...a, { title: "", category: "task", critical: false, assignee: null }])}>+ Add</button>
@@ -3462,7 +3461,7 @@ function MeetingNotes() {
               <MeetingNoteCard
                 key={n.id} note={n} open={openId === n.id} onToggle={() => setOpenId(openId === n.id ? null : n.id)}
                 staff={staff} meId={meId} meName={meName} isAdmin={isAdmin}
-                eventTitle={events.find((e) => e.id === n.event_id)?.title ?? (n.stop_id ? `📍 ${noteStops.find((s) => s.id === n.stop_id)?.name ?? "location"}` : n.vendor_id ? `🤝 ${noteVendors.find((v) => v.id === n.vendor_id)?.name ?? "Partner"}` : n.opportunity_id ? `💼 ${noteOpps.find((o) => o.id === n.opportunity_id)?.label ?? "Opportunity"}` : null)} onDelete={() => remove(n)}
+                eventTitle={events.find((e) => e.id === n.event_id)?.title ?? (n.stop_id ? <><Icon name="pin" /> {noteStops.find((s) => s.id === n.stop_id)?.name ?? "location"}</> : n.vendor_id ? <><Icon name="partners" /> {noteVendors.find((v) => v.id === n.vendor_id)?.name ?? "Partner"}</> : n.opportunity_id ? (noteOpps.find((o) => o.id === n.opportunity_id)?.label ?? "Opportunity") : null)} onDelete={() => remove(n)}
                 onArchive={() => archive(n, !n.archived_at)}
                 onVisibility={(v) => setNotes((prev) => prev.map((x) => (x.id === n.id ? { ...x, visibility: v } : x)))}
               />
@@ -3484,7 +3483,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
   meId: string | null;
   meName: string;
   isAdmin: boolean;
-  eventTitle: string | null;
+  eventTitle: ReactNode | null;
   onDelete: () => void;
   onArchive: () => void;
   onVisibility?: (v: "private" | "team" | "collab") => void;
@@ -3604,7 +3603,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
       <button type="button" className="note-head" onClick={onToggle} aria-expanded={open}>
         <div className="note-head-main">
           <span className="note-title">{note.title}{note.source === "email" && <span className="note-src">email</span>}</span>
-          <span className="note-meta">{fmtNoteDate(note.met_on)}{authorName ? ` · ${authorName}` : ""}{eventTitle ? ` · ${eventTitle}` : ""}{note.visibility === "private" ? <> · <Icon name="lock" /> private</> : note.visibility === "team" ? <> · <Icon name="team" /> team</> : ""}{items.length ? ` · ${openCount}/${items.length} follow-ups` : ""}</span>
+          <span className="note-meta">{fmtNoteDate(note.met_on)}{authorName ? ` · ${authorName}` : ""}{eventTitle ? <> · {eventTitle}</> : ""}{note.visibility === "private" ? <> · <Icon name="lock" /> private</> : note.visibility === "team" ? <> · <Icon name="team" /> team</> : ""}{items.length ? ` · ${openCount}/${items.length} follow-ups` : ""}</span>
         </div>
         <span className={`note-chev${open ? " open" : ""}`} aria-hidden="true">›</span>
       </button>
@@ -3644,7 +3643,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
                 <button type="button" className="note-fu-flag" onClick={() => flag(t)} aria-label="Flag as can't-miss" title="Flag as can't-miss">⚑</button>
                 {!t.ai_proposal && <button type="button" className="note-fu-solve" onClick={() => resolve(t)} disabled={resolving.has(t.id)} title="Propose how to complete this">{resolving.has(t.id) ? "…" : "💡"}</button>}
                 {isAdmin && <button type="button" className="note-fu-flag" onClick={() => openTask(t.id, "event")} aria-label="Edit follow-up" title="Edit follow-up">✎</button>}
-                {isAdmin && <button type="button" className="note-fu-x" onClick={() => removeItem(t)} aria-label="Remove follow-up">×</button>}
+                {isAdmin && <button type="button" className="note-fu-x" onClick={() => removeItem(t)} aria-label="Remove follow-up"><Icon name="close" /></button>}
               </div>
               {t.ai_proposal && (
                 <div className={`fu-prop${t.ai_has_answer ? " has" : ""}`}>
@@ -4280,7 +4279,7 @@ function EventEconomics({ e, econRow, catalog, onSave }: {
               ? <>Break-even ≈ {Math.ceil(proj.breakEvenGuests)} buying guests · you&apos;re projecting {Math.round(proj.projectedGuests)}</>
               : <>Set a unit price to compute break-even</>}
           </div>
-          {uncosted && <div className="pnl-note">Some lines use the blended {pctInt(econ.cogs_pct)}% COGS — set their unit cost in Money → Product economics for exact margin.</div>}
+          {uncosted && <div className="pnl-note">Some lines use the blended {pctInt(econ.cogs_pct)}% COGS — set their unit cost in Money <Icon name="arrowRight" /> Product economics for exact margin.</div>}
         </>
       )}
 
@@ -4381,7 +4380,7 @@ function BriefPanel({ e, proj, inventory }: { e: EventRow; proj: Projection; inv
             {b.ingredients.map((g, i) => (<div key={i} className="ev-ing-row"><span>{g.name}</span><span className="ev-ing-q">{g.qty}</span></div>))}
           </div>
 
-          <div className="ev-sub-h">Inventory check{inventory.enabled && <span className="ev-inv-live"> ● live</span>}</div>
+          <div className="ev-sub-h">Inventory check{inventory.enabled && <span className="ev-inv-live"> <Icon name="dot" /> live</span>}</div>
           {!inventory.enabled ? (
             <div className="pnl-note">Quantities above are estimates. Connect your Notion inventory (set <b>NOTION_TOKEN</b> + share the GT3 — Inventory DB with the integration) to check real on-hand stock against this event here.</div>
           ) : inv.low.length === 0 ? (
@@ -4526,7 +4525,7 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
           {/* Multi-day run of show — leave home → drive → setup → service → teardown, time by time */}
           <button type="button" className={`ev-prep${planCount && planCount > 0 ? " ok" : ""}`} onClick={() => setPlanOpen(true)}>
             <span className="ev-prep-main">
-              <b>🗓️ Daily schedule · run of show</b>
+              <b><Icon name="calendar" /> Daily schedule · run of show</b>
               <span>{planCount === null ? (statusErr ? "Couldn't load — tap to open" : "…") : planCount === 0 ? "Build a time-by-time plan for each day" : `${planCount} block${planCount === 1 ? "" : "s"} across ${Math.max(1, e.plan_days ?? 1)} day${Math.max(1, e.plan_days ?? 1) === 1 ? "" : "s"}`}</span>
             </span>
             <span className="ev-prep-go">Plan ›</span>
@@ -5282,7 +5281,7 @@ function VendorPicker({ vendors, vendorId, onLink, onCreated, onPickLocation }: 
         <option value="">— not linked —</option>
         {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}{v.status === "pending" ? " · pending" : ""}</option>)}
       </select>
-      {linked?.status === "pending" && <div className="vpend">⏳ Pending owner approval — review it in Plan › Vendors.</div>}
+      {linked?.status === "pending" && <div className="vpend">Pending owner approval — review it in Plan › Vendors.</div>}
       {linked && (linked.address || linked.location_text || linked.poc_name || linked.poc_phone || linked.poc_email || linked.service_dates) && (
         <div className="vlink">
           {(linked.address || linked.location_text) && <div className="vlink-row"><span>Address</span><b>{linked.address || linked.location_text}</b></div>}
@@ -5319,7 +5318,7 @@ function VendorPicker({ vendors, vendorId, onLink, onCreated, onPickLocation }: 
           <button type="button" className="ev-arch-btn" onClick={() => { setAddingLoc(false); setLocNm(""); setLocAddr(""); }}>Cancel</button>
         </div>
       ) : (
-        <button type="button" className="vnew-btn" onClick={() => setAddingLoc(true)}>＋ Add a location for {linked.name}</button>
+        <button type="button" className="vnew-btn" onClick={() => setAddingLoc(true)}><Icon name="plus" /> Add a location for {linked.name}</button>
       ))}
       {adding ? (
         <div className="vnew-row">
@@ -5328,7 +5327,7 @@ function VendorPicker({ vendors, vendorId, onLink, onCreated, onPickLocation }: 
           <button type="button" className="ev-arch-btn" onClick={() => { setAdding(false); setNm(""); }}>Cancel</button>
         </div>
       ) : (
-        <button type="button" className="vnew-btn" onClick={() => setAdding(true)}>＋ New venue — send for approval</button>
+        <button type="button" className="vnew-btn" onClick={() => setAdding(true)}><Icon name="plus" /> New venue — send for approval</button>
       )}
       {similar && (
         <VendorResolve name={nm.trim()} candidates={similar} busy={busy}
@@ -5445,7 +5444,7 @@ function SectionGuide({ allowed, current, onGo, onClose }: { allowed: OpSection[
     <Sheet open onClose={onClose} labelledBy="section-guide-title" header={<div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}><div><div className="guide-t" id="section-guide-title">When to use what</div><div className="guide-lede">Each section is one job at one moment. Tap to learn more, then jump straight there.</div></div><button type="button" className="guide-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close"><Icon name="close" /></button></div>}>
         {(allowed.includes("plan") || allowed.includes("prep")) && (
           <button type="button" className="guide-create" onClick={() => { window.dispatchEvent(new CustomEvent("gt3-copilot", { detail: "event-build" })); onClose(); }}>
-            <span className="guide-create-x"><b>✦ Create an event or truck stop</b><span>Say it in plain words — the chief of staff drafts it, you confirm.</span></span>
+            <span className="guide-create-x"><b><Icon name="sparkles" /> Create an event or truck stop</b><span>Say it in plain words — the chief of staff drafts it, you confirm.</span></span>
             <span className="guide-create-go" aria-hidden><Icon name="arrowRight" /></span>
           </button>
         )}
@@ -5458,7 +5457,7 @@ function SectionGuide({ allowed, current, onGo, onClose }: { allowed: OpSection[
                 <button type="button" className="guide-row-h" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? ("" as OpSection) : s)}>
                   <span className="guide-num">{i + 1}</span>
                   <span className="guide-row-tt">
-                    <span className="guide-row-t">{SEC_LABEL[s]}{here && <span className="guide-here-dot">● here now</span>}</span>
+                    <span className="guide-row-t">{SEC_LABEL[s]}{here && <span className="guide-here-dot"><Icon name="dot" /> here now</span>}</span>
                     <span className="guide-row-sub">{SEC_SUB[s]}</span>
                   </span>
                   <span className="guide-when">{SEC_WHEN[s]}</span>
@@ -5614,9 +5613,9 @@ export default function AdminPage() {
             <span aria-hidden><Icon name="bell" /></span>{hdrFlags.length > 0 && <span className={`crew-bell-b${hdrCrit ? " crit" : ""}`}>{hdrFlags.length}</span>}
           </button>
           {/* Jump — touch entry to the command palette (⌘K on desktop; a tap target on mobile). */}
-          <button type="button" className="crew-jump" onClick={() => window.dispatchEvent(new Event("gt3-open-cmdk"))} aria-label="Jump to a section, recent, or action"><span aria-hidden>⌕</span> Jump<kbd className="crew-jump-k" aria-hidden>⌘K</kbd></button>
+          <button type="button" className="crew-jump" onClick={() => window.dispatchEvent(new Event("gt3-open-cmdk"))} aria-label="Jump to a section, recent, or action"><span aria-hidden><Icon name="search" /></span> Jump<kbd className="crew-jump-k" aria-hidden>⌘K</kbd></button>
           {/* Section guide — what each section is for + jump there. */}
-          <button type="button" className="crew-guide" onClick={() => setGuideOpen(true)} aria-haspopup="dialog"><span aria-hidden>ⓘ</span> Guide</button>
+          <button type="button" className="crew-guide" onClick={() => setGuideOpen(true)} aria-haspopup="dialog"><span aria-hidden><Icon name="info" /></span> Guide</button>
           {/* Back = previous section within crew mode; only leaves for /3mpire when there's no
               section history to step back through. */}
           <button type="button" className="pf" aria-label={canGoBack ? "Back" : "Exit Crew Mode"} onClick={() => { if (!back()) router.push("/3mpire"); }}>‹</button>
@@ -5635,7 +5634,7 @@ export default function AdminPage() {
         <div className="op-head-row">
           <div className="op-head-t">{SEC_LABEL[sec]}</div>
           {/* Tap the WHEN pill → the full section guide, opened on this section, with jump links. */}
-          <button type="button" className="op-head-when" onClick={() => setGuideOpen(true)} aria-haspopup="dialog" title="What each section is for">{SEC_WHEN[sec]}<span className="op-head-when-i" aria-hidden>ⓘ</span></button>
+          <button type="button" className="op-head-when" onClick={() => setGuideOpen(true)} aria-haspopup="dialog" title="What each section is for">{SEC_WHEN[sec]}<span className="op-head-when-i" aria-hidden><Icon name="info" /></span></button>
         </div>
         <div className="op-head-s">{SEC_SUB[sec]}</div>
       </div>

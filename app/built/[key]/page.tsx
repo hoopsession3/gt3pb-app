@@ -3,6 +3,7 @@ import { BUSINESS, BUILD_STATS, STATUS_LABEL } from "@/lib/architecture";
 import Watermark from "@/components/Watermark";
 import BuiltBack from "@/components/BuiltBack";
 import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
+import Icon from "@/components/Icon";
 
 // Read-only PARTNER share of "what we've built" — capabilities + build footprint only. NO financials
 // (revenue/inventory/members stay owner-only on /architecture), no auth, no DB; pure manifest data.
@@ -60,7 +61,7 @@ export default async function BuiltShare({ params }: { params: Promise<{ key: st
       <div className="rev-grid">
         {REVIEWS.map((r, i) => (
           <figure key={i} className="rev-card">
-            {r.stars ? <div className="rev-stars" aria-label={`${r.stars} out of 5`}>{"★".repeat(r.stars)}</div> : null}
+            {r.stars ? <div className="rev-stars" aria-label={`${r.stars} out of 5`}>{Array.from({ length: r.stars }).map((_, i) => <Icon key={i} name="star" />)}</div> : null}
             <blockquote className="rev-q">{r.quote}</blockquote>
             <figcaption className="rev-who">— {r.who}</figcaption>
           </figure>

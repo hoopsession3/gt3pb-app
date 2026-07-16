@@ -103,7 +103,7 @@ export default function ChiefOfStaff() {
             <div className="cos-block">
               <div className="cos-block-h">Decisions / risks</div>
               {b.risks.map((r: any, i: number) => (
-                <div key={i} className="cos-risk"><b><Icon name="warning" /> {r.risk}</b><span>→ {r.action}</span></div>
+                <div key={i} className="cos-risk"><b><Icon name="warning" /> {r.risk}</b><span><Icon name="arrowRight" /> {r.action}</span></div>
               ))}
             </div>
           )}

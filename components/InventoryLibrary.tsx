@@ -6,6 +6,7 @@ import { fetchInventory, type InvItem, type InventoryResp } from "@/lib/inventor
 import { supabase } from "@/lib/supabase";
 import InventoryAI from "./InventoryAI";
 import EmptyState from "./EmptyState";
+import Icon from "@/components/Icon";
 
 // Inventory — the GT3 stock register, read from Postgres (system-of-record). Staff add / edit /
 // delete inline; writes go straight to `inventory_items` (RLS: staff-write). Lives next to the
@@ -129,7 +130,7 @@ export default function InventoryLibrary() {
         <div className="gl-body">
           <div className="gl-toolbar">
             <button className="adm-regen" onClick={startNew}>+ Add item</button>
-            <button className="adm-regen" onClick={() => setAi(true)}>✨ AI draft</button>
+            <button className="adm-regen" onClick={() => setAi(true)}><Icon name="sparkles" /> AI draft</button>
           </div>
           {ai && <InventoryAI onClose={() => setAi(false)} onAdded={load} />}
           {editing === "new" && form}
@@ -146,9 +147,9 @@ export default function InventoryLibrary() {
                     <span className="gl-uc">{[it.status, it.category, it.vendor].filter(Boolean).join(" · ")}</span>
                   </div>
                   <div className="gl-links">
-                    {it.reorderLink && <a href={it.reorderLink} target="_blank" rel="noopener noreferrer">Reorder ↗</a>}
+                    {it.reorderLink && <a href={it.reorderLink} target="_blank" rel="noopener noreferrer">Reorder <Icon name="externalLink" /></a>}
                     <button className="gl-edit" onClick={() => startEdit(it)}>Edit</button>
-                    <button className="gl-del" onClick={() => del(it)} aria-label={`Delete ${it.name}`}>✕</button>
+                    <button className="gl-del" onClick={() => del(it)} aria-label={`Delete ${it.name}`}><Icon name="close" /></button>
                   </div>
                 </div>
               )

@@ -11,6 +11,7 @@ import { computeLoadout, towChecks, towChecklist, computeSpace, rigToBox, type T
 import { localToday } from "@/lib/dates";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import Icon from "@/components/Icon";
 
 const fmt = (n: number | null | undefined) => (n ?? 0).toLocaleString();
 const ZONE_LABEL: Record<string, string> = { nose: "Nose (front)", axle: "Over axle", tail: "Tail (rear)" };
@@ -203,12 +204,12 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
                   <select className="tl-vlook-pax" value={veh.pax} onChange={(e) => setVeh((v) => ({ ...v, pax: Number(e.target.value) }))} aria-label="Passengers riding">
                     {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => <option key={n} value={n}>{n} {n === 1 ? "rider" : "riders"}</option>)}
                   </select>
-                  <button className="adm-btn" onClick={lookupVehicle} disabled={veh.busy || !veh.q.trim()}>{veh.busy ? "…" : "✦ Look up & fit"}</button>
+                  <button className="adm-btn" onClick={lookupVehicle} disabled={veh.busy || !veh.q.trim()}>{veh.busy ? "…" : <><Icon name="sparkles" /> Look up & fit</>}</button>
                 </div>
                 {veh.spec && (
                   <div className="tl-vspec">
                     <b>{veh.spec.resolved}</b> · est. tow {Number(veh.spec.tow_capacity_lb).toLocaleString()} lb
-                    <div>{veh.spec.seat_config} → <b>~{veh.spec.usable_cuft} cu ft</b> usable (seats-up {veh.spec.cargo_cuft_all_seats_up} · down {veh.spec.cargo_cuft_all_seats_down})</div>
+                    <div>{veh.spec.seat_config} <Icon name="arrowRight" /> <b>~{veh.spec.usable_cuft} cu ft</b> usable (seats-up {veh.spec.cargo_cuft_all_seats_up} · down {veh.spec.cargo_cuft_all_seats_down})</div>
                     {veh.spec.note && <div className="tl-bar-note">{veh.spec.note}</div>}
                     <div className="tl-bar-note">Expert estimate — applied to the cargo bay below; tune if you’ve measured it.</div>
                   </div>
@@ -238,7 +239,7 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
             <div className="tl-space">
               <div className="tl-space-h">
                 <span>Space · {rig === "vehicle" ? `${tp.tow_vehicle || "Vehicle"} cargo` : tp.name}</span>
-                {labels.length > 0 && <button className="adm-btn" onClick={runPlan} disabled={planning}>{planning ? "Planning…" : "✦ Plan the space"}</button>}
+                {labels.length > 0 && <button className="adm-btn" onClick={runPlan} disabled={planning}>{planning ? "Planning…" : <><Icon name="sparkles" /> Plan the space</>}</button>}
               </div>
               {!space.hasDims ? (
                 <div className="tl-hint">{isOwner ? "Tap “Tune” and add the rig’s interior dimensions to see how much fits." : "Interior dimensions not set yet."}</div>
@@ -256,7 +257,7 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
                   })}
                   {space.items.length > 0 && (
                     <div className="tl-zone-items" style={{ marginTop: 8 }}>
-                      {space.items.map((i) => <span key={i.label} className={`tl-chip${i.src === "measured" ? " measured" : ""}`} title={i.src === "measured" ? `Measured from asset: ${i.asset}` : "Estimated footprint"}>{i.src === "measured" ? "📐 " : ""}{i.label} · {i.cuft}cf</span>)}
+                      {space.items.map((i) => <span key={i.label} className={`tl-chip${i.src === "measured" ? " measured" : ""}`} title={i.src === "measured" ? `Measured from asset: ${i.asset}` : "Estimated footprint"}>{i.label} · {i.cuft}cf</span>)}
                     </div>
                   )}
                 </>

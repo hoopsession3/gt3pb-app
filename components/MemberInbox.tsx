@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/AuthProvider";
@@ -15,7 +15,7 @@ import Icon, { type IconName } from "@/components/Icon";
 // nothing when there's no active/recent activity, so it only ever adds signal, never clutter.
 
 type Item = {
-  key: string; icon: IconName; title: string; line: string; when: string | null;
+  key: string; icon: IconName; title: string; line: ReactNode; when: string | null;
   tone: "live" | "done" | "warn"; href: string;
 };
 
@@ -63,11 +63,11 @@ export default function MemberInbox() {
       out.push({ key: `cup-${o.id}`, icon: "coffee", title: `${n} drink${n === 1 ? "" : "s"} at the truck`, line, when: REL(o.status_changed_at ?? o.created_at), tone: o.status === "ready" ? "live" : "done", href: "/menu" });
     }
     for (const p of (packs.data as { id: string; size: number; drop_date: string; paid: boolean; picked_up: boolean; status_changed_at: string | null; created_at: string }[]) ?? []) {
-      const line = p.picked_up ? "Picked up ✓" : `Pickup ${dayLabel(p.drop_date)}${p.paid ? "" : " · pay at pickup"}`;
+      const line = p.picked_up ? <>Picked up <Icon name="check" /></> : `Pickup ${dayLabel(p.drop_date)}${p.paid ? "" : " · pay at pickup"}`;
       out.push({ key: `pack-${p.id}`, icon: "package", title: `${p.size}-pack`, line, when: REL(p.status_changed_at ?? p.created_at), tone: p.picked_up ? "done" : "live", href: "/reserve" });
     }
     for (const d of (dels.data as { id: string; pack_size: number; delivery_date: string; status: string; status_changed_at: string | null; created_at: string }[]) ?? []) {
-      const map: Record<string, string> = { received: "Order in — brewing soon", brewed: "Brewed & packed", out_for_delivery: "Out for delivery 🚚", held_for_pickup: "Held for pickup", issue: "There's a hiccup — we'll reach out" };
+      const map: Record<string, ReactNode> = { received: "Order in — brewing soon", brewed: "Brewed & packed", out_for_delivery: <>Out for delivery <Icon name="truck" /></>, held_for_pickup: "Held for pickup", issue: "There's a hiccup — we'll reach out" };
       out.push({ key: `del-${d.id}`, icon: "truck", title: `${d.pack_size}-bottle delivery · ${dayLabel(d.delivery_date)}`, line: map[d.status] ?? "On the way", when: REL(d.status_changed_at ?? d.created_at), tone: d.status === "out_for_delivery" ? "live" : d.status === "issue" ? "warn" : "done", href: "/delivery" });
     }
     // Live/soonest first: anything actionable (live/warn) rises above passive "received/done" rows.

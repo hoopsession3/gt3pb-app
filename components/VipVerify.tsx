@@ -6,6 +6,7 @@ import { useAuth } from "./AuthProvider";
 import { uploadToBucket } from "@/lib/uploads";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import Icon from "@/components/Icon";
 
 // VIP VERIFY — the customer side. A signed-in bottle owner uploads a proof photo; it lands in the staff
 // queue (pending). On verify they become a Founding VIP with a reward. Shows the live status. Reuses the
@@ -53,17 +54,17 @@ export default function VipVerify() {
     <AsyncSection state={board} isEmpty={() => false} errorTitle="Couldn't check your VIP status" emptyTitle="Nothing here yet">
       {(data) => {
         if (data.status === "verified") {
-          return <div className="vipv done">★ You&rsquo;re a verified Founding VIP{data.reward ? ` — ${data.reward}` : ""}. Your perks are live.</div>;
+          return <div className="vipv done"><Icon name="star" /> You&rsquo;re a verified Founding VIP{data.reward ? ` — ${data.reward}` : ""}. Your perks are live.</div>;
         }
         if (data.status === "pending") {
-          return <div className="vipv wait">⏳ Your VIP proof is in review — we&rsquo;ll confirm you soon.</div>;
+          return <div className="vipv wait">Your VIP proof is in review — we&rsquo;ll confirm you soon.</div>;
         }
         return (
           <div className="vipv">
-            <div className="vipv-h">★ Own a GT3 bottle? Verify for VIP</div>
+            <div className="vipv-h"><Icon name="star" /> Own a GT3 bottle? Verify for VIP</div>
             <p className="vipv-sub">Snap a photo with your bottle and we&rsquo;ll make you a <b>Founding VIP</b> — free straight-brew refills, member pricing, and a reward.{data.status === "rejected" && data.note ? ` (Last time: ${data.note})` : ""}</p>
             <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) submit(f); e.currentTarget.value = ""; }} />
-            <button type="button" className="vipv-btn" onClick={() => fileRef.current?.click()} disabled={busy}>{busy ? "Uploading…" : data.status === "rejected" ? "📸 Try again" : "📸 Upload bottle photo"}</button>
+            <button type="button" className="vipv-btn" onClick={() => fileRef.current?.click()} disabled={busy}>{busy ? "Uploading…" : data.status === "rejected" ? "Try again" : "Upload bottle photo"}</button>
             {err && <div className="vipv-err">{err}</div>}
           </div>
         );

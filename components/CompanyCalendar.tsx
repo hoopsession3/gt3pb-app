@@ -281,7 +281,7 @@ export default function CompanyCalendar() {
   const Chip = ({ it }: { it: Item }) => (
     <button type="button" draggable={DRAG.has(it.kind)} className={`cc-chip${it.done ? " done" : ""}`} style={{ borderLeftColor: CAT[it.cat]?.color }}
       onDragStart={() => { if (DRAG.has(it.kind) && isEditable(it.kind)) dragId.current = { kind: it.kind, id: it.id }; }} onClick={(e) => { e.stopPropagation(); it.go(); }} title={`${CAT[it.cat]?.label}: ${it.title}`}>
-      {it.kind === "todo" && <span className="cc-check" onClick={(e) => { e.stopPropagation(); it.toggle?.(); }}>{it.done ? <Icon name="check" /> : "○"}</span>}
+      {it.kind === "todo" && <span className="cc-check" onClick={(e) => { e.stopPropagation(); it.toggle?.(); }}>{it.done ? <Icon name="check" /> : <Icon name="dotOutline" />}</span>}
       <span className="cc-dot" style={{ background: CAT[it.cat]?.color }} />{it.title}
     </button>
   );
@@ -446,7 +446,7 @@ export default function CompanyCalendar() {
                 <span>{CAT[it.cat]?.label}{it.meta ? ` · ${it.meta}` : ""}{it.warn ? " · past latest start" : ""}{k === todayKey ? " · today" : ""}</span>
               </button>
               {it.kind === "todo"
-                ? <button type="button" className="dv-go" title="Mark done" onClick={() => it.toggle?.()}>{it.done ? <Icon name="check" /> : "○"}</button>
+                ? <button type="button" className="dv-go" title="Mark done" onClick={() => it.toggle?.()}>{it.done ? <Icon name="check" /> : <Icon name="dotOutline" />}</button>
                 : <button type="button" className="dv-go" title="Open" onClick={() => it.go()}><Icon name="externalLink" /></button>}
             </div>
           );
@@ -524,7 +524,7 @@ function DayView({ dayKey, items, events, onClose, onAdd, onSaved }: { dayKey: s
                   <b>{it.title}</b><span>{CAT[it.cat]?.label}{it.meta ? ` · ${it.meta}` : ` · ${sub[it.kind]}`} · tap to edit</span>
                 </button>
                 {it.kind === "todo"
-                  ? <button type="button" className="dv-go" title="Mark done" onClick={() => it.toggle?.()}>{it.done ? <Icon name="check" /> : "○"}</button>
+                  ? <button type="button" className="dv-go" title="Mark done" onClick={() => it.toggle?.()}>{it.done ? <Icon name="check" /> : <Icon name="dotOutline" />}</button>
                   : <button type="button" className="dv-go" title={it.kind === "content" ? "Open in Studio" : "Open full prep"} onClick={() => { it.go(); onClose(); }}><Icon name="externalLink" /></button>}
               </div>
             ))}

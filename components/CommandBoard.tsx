@@ -14,6 +14,7 @@ import { completeInitiative } from "@/lib/tasks";
 import { SectionHeader, InfoRow } from "@/components/kit";
 import InlineCreate from "./InlineCreate";
 import Sheet from "@/components/Sheet";
+import Icon from "@/components/Icon";
 
 // COMMAND BOARD — the shared war room both founders see: the launch initiatives with a countdown and
 // milestone progress, then This Week · Blockers · Done · Money in one glance. This is the digital twin
@@ -184,7 +185,7 @@ export default function CommandBoard() {
                             key={m.id}
                             name={
                               <>
-                                <span className={`cmd-check${m.done ? " on" : ""}`} aria-hidden>{m.done ? "✓" : ""}</span>
+                                <span className={`cmd-check${m.done ? " on" : ""}`} aria-hidden>{m.done ? <Icon name="check" /> : ""}</span>
                                 <span className="cmd-mile-t" style={{ fontWeight: 400, ...(m.done ? { textDecoration: "line-through", color: "var(--cream-m)" } : {}) }}>{m.title}</span>
                               </>
                             }
@@ -197,7 +198,7 @@ export default function CommandBoard() {
                     </div>
                   )}
                   {isAdmin && <InlineCreate label="+ Milestone" placeholder="Milestone" className="cmd-add" onCreate={(t) => addMilestone(it.id, t)} />}
-                  {isAdmin && <button type="button" className="cmd-finish" onClick={() => finishInit(it)}>✓ Finish initiative — completes every task under it</button>}
+                  {isAdmin && <button type="button" className="cmd-finish" onClick={() => finishInit(it)}><Icon name="check" /> Finish initiative — completes every task under it</button>}
                 </div>
               );
             })}
@@ -227,7 +228,7 @@ export default function CommandBoard() {
             <SectionHeader label="Blockers" annotation="clear these first" />
             {data.incidents.length === 0 && ov.shown.length === 0 ? <div className="cmd-empty">Nothing blocked. 🟢</div> : (
               <div className="k-rows">
-                {data.incidents.map((i) => <InfoRow key={i.id} name={<>🛑 {i.problem}</>} />)}
+                {data.incidents.map((i) => <InfoRow key={i.id} name={<><Icon name="warning" /> {i.problem}</>} />)}
                 {ov.shown.map((w) => (
                   <InfoRow
                     key={`ov-${w.src}-${w.id}`}

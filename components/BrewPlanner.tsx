@@ -247,7 +247,7 @@ export default function BrewPlanner() {
                   <>
                     {b.latest_start_at && (() => {
                       const over = brewStartOverdue(b, now);
-                      return <div className={`brew-startby${over ? " over" : ""}`}>{over ? "🚨 Past the latest start to be ready in time — start now" : <><Icon name="clock" /> Start by {fmtTs(b.latest_start_at)} to be ready in time</>}</div>;
+                      return <div className={`brew-startby${over ? " over" : ""}`}>{over ? <><Icon name="warning" /> Past the latest start to be ready in time — start now</> : <><Icon name="clock" /> Start by {fmtTs(b.latest_start_at)} to be ready in time</>}</div>;
                     })()}
                     <button type="button" className="brew-start" onClick={() => setStarting(b)}>▶ Start brew ({Number(b.extraction_hours) || 20}h)</button>
                   </>
@@ -490,7 +490,7 @@ function BottleLoadout({ batch, onClose }: { batch: Batch; onClose: () => void }
             <>
               <div className="dp-hint">Split the {batch.batch_gal} gal between keg and bottles — I&apos;ll work out the counts, UVDTF labels, and the pack plan.</div>
               <div className="ts-chips" style={{ marginTop: 12 }}>
-                {[10, 16].map((n) => <button key={n} type="button" className={`ts-chip${oz === n ? " on" : ""}`} onClick={() => setOz(n)}>🍶 {n} oz bottles</button>)}
+                {[10, 16].map((n) => <button key={n} type="button" className={`ts-chip${oz === n ? " on" : ""}`} onClick={() => setOz(n)}>{n} oz bottles</button>)}
               </div>
               <div className="prod-grid" style={{ marginTop: 8 }}>
                 <label className="prod-f"><span>To keg (gal)</span><input type="number" min="0" step="0.5" max={String(batch.batch_gal)} value={kegGal} onChange={(e) => setKegGal(e.target.value)} /></label>
@@ -509,11 +509,11 @@ function BottleLoadout({ batch, onClose }: { batch: Batch; onClose: () => void }
               {res.containers?.length > 0 && (
                 <><div className="brew-block-h">Pack them in</div><div className="brew-ing">{res.containers.map((c: any, i: number) => <div key={i} className="brew-ing-row"><b>{c.count}×</b><span>{c.what}{c.note ? ` — ${c.note}` : ""}</span></div>)}</div></>
               )}
-              {res.ice && <div className="brew-when">❄️ {res.ice}</div>}
+              {res.ice && <div className="brew-when">{res.ice}</div>}
               {res.layout?.length > 0 && (<><div className="brew-block-h">How to pack a cooler</div><ol className="ts-steps">{res.layout.map((s: string, i: number) => <li key={i}>{s}</li>)}</ol></>)}
               {res.vehicle && <div className="brew-when"><Icon name="compass" /> {res.vehicle}</div>}
               {res.checklist?.length > 0 && (<><div className="brew-block-h">Before you pull off</div><ul className="brew-checks">{res.checklist.map((s: string, i: number) => <li key={i}>{s}</li>)}</ul></>)}
-              <button type="button" className="brew-pack-btn" style={{ marginTop: 12 }} onClick={() => setAssignTask(true)}>📋 Assign this pack-out as a task <Icon name="arrowRight" /></button>
+              <button type="button" className="brew-pack-btn" style={{ marginTop: 12 }} onClick={() => setAssignTask(true)}>Assign this pack-out as a task <Icon name="arrowRight" /></button>
               <div className="prod-actions" style={{ marginTop: 12 }}>
                 <button type="button" className="note-arch" onClick={() => setRes(null)}>‹ Change</button>
                 <button type="button" className="note-save" onClick={onClose}>Done</button>
@@ -581,7 +581,7 @@ function BrewSheet({ recipe, events, stops, vessels, onClose, onDone }: { recipe
   };
 
   return (
-    <Sheet open onClose={onClose} label="Scale a brew" header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow">🍺 Brew · exact scale to spec</div><div className="dp-title">{recipe.name}</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} title="Close"><Icon name="close" /></button></div>}>
+    <Sheet open onClose={onClose} label="Scale a brew" header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow">Brew · exact scale to spec</div><div className="dp-title">{recipe.name}</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} title="Close"><Icon name="close" /></button></div>}>
           {saved ? (
             <div className="eg-done">
               <div className="eg-done-h"><Icon name="check" /> Batch added to the brew schedule</div>
@@ -619,13 +619,13 @@ function BrewSheet({ recipe, events, stops, vessels, onClose, onDone }: { recipe
               {err && <div className="dp-err">{err}</div>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={onClose} disabled={busy}>Cancel</button>
-                <button type="button" className="note-save" onClick={planIt} disabled={busy || !(Number(gal) > 0)}>{busy ? "Scaling…" : "🍺 Scale + schedule"}</button>
+                <button type="button" className="note-save" onClick={planIt} disabled={busy || !(Number(gal) > 0)}>{busy ? "Scaling…" : "Scale + schedule"}</button>
               </div>
             </>
           ) : (
             <>
               <div className="brew-spec">{res.spec || recipe.target_spec} · <b>{res.batch_gal} gal</b> → ~{res.servings} servings ({res.serve_oz}oz)</div>
-              {res.brew_note && <div className="dp-hint" style={{ marginTop: 0 }}>⏱ {res.brew_note}</div>}
+              {res.brew_note && <div className="dp-hint" style={{ marginTop: 0 }}>{res.brew_note}</div>}
 
               <div className="brew-block-h">Exact recipe — scaled ×{res.factor}</div>
               <div className="brew-ing">

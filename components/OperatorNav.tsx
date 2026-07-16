@@ -8,6 +8,7 @@ import { normalizeCategory } from "@/lib/alertKinds";
 import Sheet from "./Sheet";
 import BottomNav from "./BottomNav";
 import { supabase } from "@/lib/supabase";
+import Icon from "@/components/Icon";
 
 // Employee Mode — a dedicated operator console nav that replaces the customer
 // 5-tab nav while you're in /crew. Sections are role-scoped and the choice is
@@ -251,7 +252,7 @@ function MoreSheet({ lanes, pins, activeId, onOpen, onClose, canPin }: { lanes: 
     refreshProfile();
   };
   return (
-    <Sheet open onClose={onClose} label="Your lanes" header={<div style={{ display: "flex", alignItems: "center" }}><span className="isheet-title">Your lanes</span><button type="button" className="isheet-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close">✕</button></div>}>
+    <Sheet open onClose={onClose} label="Your lanes" header={<div style={{ display: "flex", alignItems: "center" }}><span className="isheet-title">Your lanes</span><button type="button" className="isheet-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close"><Icon name="close" /></button></div>}>
       <div className="lane-legend"><span className="lane-key"><span className="cc-dot" style={{ background: "var(--red-h)" }} />needs you now</span><span className="lane-key"><span className="cc-dot" style={{ background: "var(--gold2)" }} />open items in a lane</span></div>
       <div className="lane-hint">{full ? "Your bar is full (4) — unpin one first." : local.length === 0 ? "Nothing pinned — your bar shows the standard set for your role. Pin lanes to make it yours." : "Tap a lane to open it. Pin up to 4 to your bar — unpin anything, it stays here."}</div>
       {lanes.map((g) => (

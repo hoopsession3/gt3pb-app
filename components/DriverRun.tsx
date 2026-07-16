@@ -13,6 +13,7 @@ import { type PerfMix } from "@/lib/delivery";
 import { etToday } from "@/lib/dates";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import Icon from "@/components/Icon";
 
 // DRIVER RUN — the Sunday porch run, built for one hand at the wheel. Stops ordered by ZIP → street
 // (a compact-zone route), pinned on the map, each a big card with Navigate / Call / one-tap outcome.
@@ -151,14 +152,14 @@ export default function DriverRun() {
         return (
           <div className="driver">
             <div className="driver-head">
-              <div><div className="driver-kick">🚚 Sunday porch run</div><b>{dLabel}</b></div>
+              <div><div className="driver-kick"><Icon name="truck" /> Sunday porch run</div><b>{dLabel}</b></div>
               <div className="driver-prog"><b>{doneCount}</b>/{rows.length}</div>
             </div>
             <div className="driver-bar"><span style={{ width: `${rows.length ? (doneCount / rows.length) * 100 : 0}%` }} /></div>
 
             {points.length > 0 && <RouteMap points={points} />}
             {remaining > 0 && routeHref && (
-              <a className="driver-route-cta" href={routeHref} target="_blank" rel="noopener noreferrer">🗺️ Navigate the whole run ({remaining} stop{remaining === 1 ? "" : "s"}) →</a>
+              <a className="driver-route-cta" href={routeHref} target="_blank" rel="noopener noreferrer">Navigate the whole run ({remaining} stop{remaining === 1 ? "" : "s"}) <Icon name="arrowRight" /></a>
             )}
             {points.length < rows.length && <div className="driver-geohint">Pinning stops on the map…</div>}
 
@@ -170,7 +171,7 @@ export default function DriverRun() {
                 return (
                   <div className={`driver-stop${done ? " done" : ""}${o.status === "issue" ? " issue" : ""}${i === firstOpenIdx ? " next" : ""}`} key={o.id}>
                     <div className="driver-stop-top">
-                      <span className="driver-seq">{done ? (o.status === "issue" ? "!" : "✓") : i + 1}</span>
+                      <span className="driver-seq">{done ? (o.status === "issue" ? "!" : <Icon name="check" />) : i + 1}</span>
                       <div className="driver-who">
                         <b>{o.name}{o.refill_count > 0 && <span className="driver-swap">SWAP ×{o.refill_count}</span>}{o.status === "held_for_pickup" && <span className="driver-held">HELD</span>}</b>
                         <span>{o.pack_size} bottles · {packSummary(o)}</span>
@@ -180,9 +181,9 @@ export default function DriverRun() {
                     {!done && (
                       <>
                         <div className="driver-acts">
-                          <button type="button" className="driver-nav" onClick={() => { haptic(HAPTIC.tap); openAddress(addr); }}>🧭 Navigate</button>
-                          {o.phone && <a className="driver-call" href={`tel:${o.phone.replace(/[^\d+]/g, "")}`}>📞 Call</a>}
-                          <button type="button" className="driver-log" onClick={() => { haptic(HAPTIC.tap); setOpenId(open ? null : o.id); setEmpties((e) => ({ ...e, [o.id]: e[o.id] ?? o.empties_expected })); }}>{open ? "Close" : "Log ✓"}</button>
+                          <button type="button" className="driver-nav" onClick={() => { haptic(HAPTIC.tap); openAddress(addr); }}><Icon name="compass" /> Navigate</button>
+                          {o.phone && <a className="driver-call" href={`tel:${o.phone.replace(/[^\d+]/g, "")}`}>Call</a>}
+                          <button type="button" className="driver-log" onClick={() => { haptic(HAPTIC.tap); setOpenId(open ? null : o.id); setEmpties((e) => ({ ...e, [o.id]: e[o.id] ?? o.empties_expected })); }}>{open ? "Close" : <>Log <Icon name="check" /></>}</button>
                         </div>
                         {open && (
                           <div className="driver-outcome">
@@ -196,16 +197,16 @@ export default function DriverRun() {
                                     <button type="button" onClick={() => { haptic(HAPTIC.tap); setEmpties((e) => ({ ...e, [o.id]: (e[o.id] ?? o.empties_expected) + 1 })); }} aria-label="More">+</button>
                                   </div>
                                 </div>
-                                <button type="button" className="driver-out-ok" onClick={() => swapDone(o)} disabled={busyId === o.id}>✓ Swapped &amp; delivered</button>
+                                <button type="button" className="driver-out-ok" onClick={() => swapDone(o)} disabled={busyId === o.id}><Icon name="check" /> Swapped &amp; delivered</button>
                                 <button type="button" className="driver-out-mid" onClick={() => deliveredFresh(o)} disabled={busyId === o.id}>Delivered fresh — no empties out</button>
-                                <button type="button" className="driver-out-nothome" onClick={() => notHome(o)} disabled={busyId === o.id}>🚪 Not home</button>
-                                <button type="button" className="driver-out-hold" onClick={() => hold(o)} disabled={busyId === o.id}>⚠ No empties out — hold for pickup</button>
+                                <button type="button" className="driver-out-nothome" onClick={() => notHome(o)} disabled={busyId === o.id}>Not home</button>
+                                <button type="button" className="driver-out-hold" onClick={() => hold(o)} disabled={busyId === o.id}><Icon name="warning" /> No empties out — hold for pickup</button>
                               </>
                             ) : (
                               <>
-                                <button type="button" className="driver-out-ok" onClick={() => deliveredFresh(o)} disabled={busyId === o.id}>✓ Delivered</button>
-                                <button type="button" className="driver-out-nothome" onClick={() => notHome(o)} disabled={busyId === o.id}>🚪 Not home</button>
-                                <button type="button" className="driver-out-hold" onClick={() => hold(o)} disabled={busyId === o.id}>⚠ Couldn&rsquo;t deliver — hold for pickup</button>
+                                <button type="button" className="driver-out-ok" onClick={() => deliveredFresh(o)} disabled={busyId === o.id}><Icon name="check" /> Delivered</button>
+                                <button type="button" className="driver-out-nothome" onClick={() => notHome(o)} disabled={busyId === o.id}>Not home</button>
+                                <button type="button" className="driver-out-hold" onClick={() => hold(o)} disabled={busyId === o.id}><Icon name="warning" /> Couldn&rsquo;t deliver — hold for pickup</button>
                               </>
                             )}
                           </div>
@@ -222,7 +223,7 @@ export default function DriverRun() {
                 );
               })}
             </div>
-            {remaining === 0 && <div className="driver-wrap">Run complete — all {rows.length} stops handled. Nice driving. 🏁</div>}
+            {remaining === 0 && <div className="driver-wrap">Run complete — all {rows.length} stops handled. Nice driving.</div>}
           </div>
         );
       }}

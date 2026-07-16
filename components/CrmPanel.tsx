@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import Icon from "@/components/Icon";
 
 // The customer book — first reader of the identity spine. Rows are `customers` (canonical,
 // resolve_customer-backed): every human who's ever ordered, cup, pickup or delivery, whether or
@@ -134,12 +135,12 @@ function CrmDetail({ c }: { c: Customer }) {
                 <span className="crm-tier-l">Tier</span>
                 <div className="crm-tier-seg" role="radiogroup" aria-label="Member tier">
                   {(["member", "founding"] as const).map((t) => (
-                    <button key={t} type="button" role="radio" aria-checked={tier === t} className={`crm-tier-b${tier === t ? " on" : ""}${t === "founding" ? " gold" : ""}`} onClick={() => setCustomerTier(t)}>{t === "founding" ? "★ Founding" : "Member"}</button>
+                    <button key={t} type="button" role="radio" aria-checked={tier === t} className={`crm-tier-b${tier === t ? " on" : ""}${t === "founding" ? " gold" : ""}`} onClick={() => setCustomerTier(t)}>{t === "founding" ? <><Icon name="star" /> Founding</> : "Member"}</button>
                   ))}
                 </div>
               </div>
               {tier === "founding" && perks.length > 0 && (
-                <ul className="crm-perks">{perks.map((pk, i) => <li key={i}>✓ {pk}</li>)}</ul>
+                <ul className="crm-perks">{perks.map((pk, i) => <li key={i}><Icon name="check" /> {pk}</li>)}</ul>
               )}
               <div className="crm-loy">
                 <label>Points<input inputMode="numeric" value={pts} onChange={(e) => setPts(e.target.value)} /></label>
@@ -192,7 +193,7 @@ export default function CrmPanel() {
                   <b>{c.name?.trim() || "No name yet"}</b>
                   <span>{[c.phone, c.email].filter(Boolean).join(" · ") || "no contact info"}</span>
                 </span>
-                <span className={`crm-badge${c.tier === "founding" ? " founding" : c.user_id ? " member" : ""}`}>{c.tier === "founding" ? "★ Founding" : c.user_id ? (c.tier === "member" || !c.tier ? "Member" : c.tier) : "Guest"}</span>
+                <span className={`crm-badge${c.tier === "founding" ? " founding" : c.user_id ? " member" : ""}`}>{c.tier === "founding" ? <><Icon name="star" /> Founding</> : c.user_id ? (c.tier === "member" || !c.tier ? "Member" : c.tier) : "Guest"}</span>
                 <span className={`ev-chev${openId === c.id ? " open" : ""}`} aria-hidden="true">›</span>
               </button>
               {openId === c.id && <CrmDetail c={c} />}

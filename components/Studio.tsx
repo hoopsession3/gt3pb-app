@@ -118,7 +118,7 @@ export default function Studio() {
           <button type="button" className={`studio-view${view === "letter" ? " on" : ""}`} onClick={() => pickView("letter")}>Letter</button>
           <button type="button" className={`studio-view${view === "brand" ? " on" : ""}`} onClick={() => pickView("brand")}>Brand</button>
         </div>
-        {view !== "brand" && view !== "flyer" && view !== "letter" && <button type="button" className="rdy-run" onClick={() => create()}>✦ New piece</button>}
+        {view !== "brand" && view !== "flyer" && view !== "letter" && <button type="button" className="rdy-run" onClick={() => create()}><Icon name="sparkles" /> New piece</button>}
       </div>
 
       {view === "flyer" ? (
@@ -142,7 +142,7 @@ export default function Studio() {
               <button key={k} type="button" className={`subnav-tab${filter === k ? " on" : ""}`} onClick={() => setFilter(k)}>{k === "all" ? "All" : STATUS[k].label}</button>
             ))}
           </div>
-          <div className="ig-note">📱 Instagram feed preview — drag tiles to plan the feed, tap to open.</div>
+          <div className="ig-note">Instagram feed preview — drag tiles to plan the feed, tap to open.</div>
           {shown.length === 0 ? (
             <div className="oa-empty" style={{ padding: "28px 8px" }}>No pieces yet — add a design (export the PNG from Canva) and it shows in the grid.</div>
           ) : (
@@ -157,7 +157,7 @@ export default function Studio() {
                     draggable onDragStart={() => { dragId.current = it.id; }} onDragOver={(e) => e.preventDefault()} onDrop={() => onDropTile(it.id)}
                     style={img ? { backgroundImage: `url(${img})`, backgroundPosition: (cover && "focal" in cover && cover.focal) ? `${cover.focal.x}% ${cover.focal.y}%` : "center" } : undefined} aria-label={it.title || "Untitled"}>
                     {vid && <video className="ig-vid" src={vid} muted playsInline preload="metadata" />}
-                    {!img && !vid && <span className="ig-ph"><span className="ig-ph-cam">📷</span><b>{it.title || "Untitled"}</b><span>tap to add a photo</span></span>}
+                    {!img && !vid && <span className="ig-ph"><b>{it.title || "Untitled"}</b><span>tap to add a photo</span></span>}
                     {vid && <span className="ig-reel">▶</span>}
                     {(it.media?.length ?? 0) > 1 && <span className="ig-multi">▦</span>}
                     {(img || vid) && it.status !== "published" && <span className="ig-tag">{STATUS[it.status]?.label ?? it.status}</span>}
@@ -373,7 +373,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
     // approval notifications (→ alerts spine → in-app inbox + web push)
     const t = (title || "Untitled").slice(0, 80);
     if (next === "review") {
-      await raiseAlertClient({ severity: "important", category: "content", title: `🎨 Content ready for review — ${t}`, body: `${me.name} submitted "${t}" for approval.`, link: `/crew?post=${id}` });
+      await raiseAlertClient({ severity: "important", category: "content", title: `Content ready for review — ${t}`, body: `${me.name} submitted "${t}" for approval.`, link: `/crew?post=${id}` });
     } else if (next === "approved" && item?.created_by && item.created_by !== me.id) {
       await raiseAlertClient({ severity: "fyi", category: "content", kind: "content_approved", subjectId: item.id, title: `✅ Approved — ${t}`, body: `${me.name} approved "${t}". Ready to schedule/publish.`, link: "/crew", targetUserId: item.created_by });
     } else if (next === "changes" && item?.created_by && item.created_by !== me.id) {
@@ -566,11 +566,11 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
       {links.length > 0 && (
         <div className="studio-links">
           {links.map((l) => {
-            const label = l.event_id ? `🎪 ${evs.find((e2) => e2.id === l.event_id)?.title ?? "Event"}`
-              : l.stop_id ? `🚚 ${stops.find((s2) => s2.id === l.stop_id)?.name ?? "Stop"}`
-              : `🎯 ${l.play_key}`;
+            const label = l.event_id ? `${evs.find((e2) => e2.id === l.event_id)?.title ?? "Event"}`
+              : l.stop_id ? `${stops.find((s2) => s2.id === l.stop_id)?.name ?? "Stop"}`
+              : `${l.play_key}`;
             return (
-              <span key={l.id} className="studio-link-chip">{label}
+              <span key={l.id} className="studio-link-chip"><Icon name={l.event_id ? "event" : l.stop_id ? "truck" : "target"} /> {label}
                 <button type="button" aria-label={`Unlink ${label}`} onClick={async () => {
                   if (!supabase) return;
                   setLinks((p) => p.filter((x) => x.id !== l.id));
@@ -601,14 +601,14 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
             <button type="button" onClick={() => scheduleRel(0)}>Day of</button>
             <button type="button" onClick={() => scheduleRel(1)}>Recap +1d</button>
             <button type="button" className="rel-draft" onClick={briefFromEvent}><Icon name="sparkles" /> Draft from event</button>
-            <button type="button" className="rel-camp" onClick={genCampaign} disabled={campBusy}>{campBusy ? "Building…" : "⚡ Generate campaign"}</button>
+            <button type="button" className="rel-camp" onClick={genCampaign} disabled={campBusy}>{campBusy ? "Building…" : <><Icon name="sparkles" /> Generate campaign</>}</button>
           </div>
         </div>
       )}
 
       {/* Post media + a real, format-accurate mockup (post 4:5 · reel/story 9:16 · carousel slides) */}
       <div className="studio-media">
-        <div className="studio-media-fmt">{fmtFor(item.kind).label}{mediaList.length > 1 ? ` · ${mediaList.length} slides` : ""}<button type="button" className="studio-lib-btn" onClick={openLibrary}>📚 Library</button></div>
+        <div className="studio-media-fmt">{fmtFor(item.kind).label}{mediaList.length > 1 ? ` · ${mediaList.length} slides` : ""}<button type="button" className="studio-lib-btn" onClick={openLibrary}>Library</button></div>
         {mediaList.length === 0 ? (
           <button type="button" className="studio-media-add" onClick={() => fileRef.current?.click()} disabled={uploading}>{uploading ? "Uploading…" : "＋ Add photos / video / reel"}</button>
         ) : (
@@ -669,7 +669,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
               <div className="kit-row"><span className="kit-h">Caption</span><button className="kit-copy" onClick={() => copyText(caption)}>Copy</button></div>
               <div className="kit-box" style={{ whiteSpace: "pre-wrap" }}>{caption || "—"}</div>
               {tags.trim() && <><div className="kit-row"><span className="kit-h">Hashtags</span><button className="kit-copy" onClick={() => copyText(tags.split(",").map((t) => `#${t.trim()}`).join(" "))}>Copy</button></div><div className="kit-box">{tags.split(",").map((t) => `#${t.trim()}`).join(" ")}</div></>}
-              {mediaList.length > 0 && <><div className="kit-row"><span className="kit-h">Media ({mediaList.length})</span></div><div className="kit-media">{mediaList.map((m, i) => <a key={i} className="kit-dl" href={m.url} download target="_blank" rel="noreferrer">⬇ {m.type === "video" ? "Video" : "Photo"} {i + 1}</a>)}</div></>}
+              {mediaList.length > 0 && <><div className="kit-row"><span className="kit-h">Media ({mediaList.length})</span></div><div className="kit-media">{mediaList.map((m, i) => <a key={i} className="kit-dl" href={m.url} download target="_blank" rel="noreferrer">{m.type === "video" ? "Video" : "Photo"} {i + 1}</a>)}</div></>}
               <div className="kit-row"><span className="kit-h">Best time to post</span></div>
               <div className="kit-box">{bestTime(item.channel)}</div>
               <div className="pnl-note" style={{ marginTop: 8 }}>Copy the caption, download the media, post in {item.channel}. (Auto-publish needs a connected business account.)</div>
@@ -702,12 +702,12 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
             <button type="button" className="insp-yes" onClick={() => useOption(o)}>Use this</button>
           </div>
         ))}
-        <button type="button" className="studio-act" style={{ marginTop: 6 }} onClick={doRepurpose} disabled={repBusy || !caption.trim()}>{repBusy ? "Repurposing…" : "♻️ Repurpose — Story · Reel · Email · Site"}</button>
+        <button type="button" className="studio-act" style={{ marginTop: 6 }} onClick={doRepurpose} disabled={repBusy || !caption.trim()}>{repBusy ? "Repurposing…" : "Repurpose — Story · Reel · Email · Site"}</button>
       </div>
 
       {rep && (
         <div className="studio-rep">
-          <div className="insp-lbl">♻️ Repurposed <button type="button" className="studio-rep-x" onClick={() => setRep(null)}><Icon name="close" /></button></div>
+          <div className="insp-lbl">Repurposed <button type="button" className="studio-rep-x" onClick={() => setRep(null)}><Icon name="close" /></button></div>
           <div className="studio-rep-card"><div className="studio-rep-h">Story<span><button onClick={() => copyText(rep.story)}>Copy</button><button onClick={() => spinOff("story", rep.story)}>Spin off</button></span></div><p>{rep.story}</p></div>
           <div className="studio-rep-card"><div className="studio-rep-h">Reel script<span><button onClick={() => copyText(`${rep.reel_script.hook}\n${(rep.reel_script.beats || []).join("\n")}\n${rep.reel_script.cta}`)}>Copy</button><button onClick={() => spinOff("reel", `${rep.reel_script.hook}\n\n${(rep.reel_script.beats || []).join("\n")}\n\n${rep.reel_script.cta}`)}>Spin off</button></span></div><p><b>Hook:</b> {rep.reel_script.hook}</p><ol className="studio-rep-beats">{(rep.reel_script.beats || []).map((b: string, i: number) => <li key={i}>{b}</li>)}</ol><p><b>CTA:</b> {rep.reel_script.cta}</p></div>
           <div className="studio-rep-card"><div className="studio-rep-h">Email<span><button onClick={() => copyText(`${rep.email.subject}\n\n${rep.email.body}`)}>Copy</button></span></div><p><b>{rep.email.subject}</b></p><p style={{ whiteSpace: "pre-wrap" }}>{rep.email.body}</p></div>
@@ -744,13 +744,13 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
         <div className="studio-pub">
           <div className="insp-lbl">Design &amp; publish</div>
           <div className="studio-pub-row">
-            <button type="button" className="studio-act" onClick={makeCanva} disabled={!!pubBusy}>{pubBusy === "design" ? "Opening…" : "🎨 Make in Canva"}</button>
+            <button type="button" className="studio-act" onClick={makeCanva} disabled={!!pubBusy}>{pubBusy === "design" ? "Opening…" : "Make in Canva"}</button>
             {pub.edit && <a className="studio-act ghost" href={pub.edit} target="_blank" rel="noreferrer">Open design <Icon name="externalLink" /></a>}
             {pub.edit && <button type="button" className="studio-act" onClick={exportCanva} disabled={!!pubBusy}>{pubBusy === "export" ? "Exporting…" : "Export PNG"}</button>}
             {pub.png && <a className="studio-act ghost" href={pub.png} target="_blank" rel="noreferrer">View graphic <Icon name="externalLink" /></a>}
           </div>
           <div className="studio-pub-row">
-            <button type="button" className="studio-act primary" onClick={publish} disabled={!!pubBusy}>{pubBusy === "publish" ? "Publishing…" : "🌐 Publish to site"}</button>
+            <button type="button" className="studio-act primary" onClick={publish} disabled={!!pubBusy}>{pubBusy === "publish" ? "Publishing…" : "Publish to site"}</button>
             {pub.live && <a className="studio-act ghost" href={pub.live.startsWith("http") ? pub.live : undefined} target="_blank" rel="noreferrer">Live <Icon name="externalLink" /> {pub.live.startsWith("http") ? "" : `(${pub.live})`}</a>}
             {pub.live && <button type="button" className="studio-act ghost" onClick={unpublishSite} disabled={!!pubBusy}>{pubBusy === "unpublish" ? "Removing…" : "↩ Take off site"}</button>}
           </div>

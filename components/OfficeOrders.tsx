@@ -7,6 +7,7 @@ import { authedFetch } from "@/lib/authedFetch";
 import { mondayLabel, nextMondayKey } from "@/lib/office";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import Icon from "@/components/Icon";
 
 // CREW · OFFICE ORDERS — the operator's control surface for the Monday B2B route (0187). See upcoming
 // office deliveries, log the jug swap (full out / empties in) on delivery, and settle billing
@@ -143,7 +144,7 @@ export default function OfficeOrders() {
                       {o.payment_status !== "paid" && o.payment_status !== "invoiced" && (
                         o.billing_terms === "prepaid"
                           ? <>
-                              <button type="button" className="adm-btn" onClick={() => payLink(o)} disabled={busyId === o.id}>💳 Payment link</button>
+                              <button type="button" className="adm-btn" onClick={() => payLink(o)} disabled={busyId === o.id}>Payment link</button>
                               <button type="button" className="adm-btn ghost" onClick={() => setPay(o, "paid")} disabled={busyId === o.id}>Mark paid</button>
                             </>
                           : <button type="button" className="adm-btn" onClick={() => setPay(o, "invoiced")} disabled={busyId === o.id}>Invoice</button>
@@ -160,7 +161,7 @@ export default function OfficeOrders() {
                           <button type="button" onClick={() => setEmpties((e) => ({ ...e, [o.id]: (e[o.id] ?? Math.round(o.gallons)) + 1 }))} aria-label="More">+</button>
                         </div>
                       </div>
-                      <button type="button" className="adm-act go" onClick={() => deliver(o, true)} disabled={busyId === o.id}>✓ Delivered &amp; swapped</button>
+                      <button type="button" className="adm-act go" onClick={() => deliver(o, true)} disabled={busyId === o.id}><Icon name="check" /> Delivered &amp; swapped</button>
                       <button type="button" className="adm-btn" onClick={() => deliver(o, false)} disabled={busyId === o.id}>Delivered — no empties</button>
                       <button type="button" className="adm-btn ghost" onClick={() => setOpenId(null)}>Back</button>
                     </div>

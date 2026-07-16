@@ -12,6 +12,7 @@ import { StrategyThread } from "./StrategyCollab";
 import { SectionHeader } from "@/components/kit";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import Icon from "@/components/Icon";
 
 // GOALS — the true tracker (0163/0164). Three layers, top down:
 //   lane → goal → moves.
@@ -238,12 +239,12 @@ export default function Goals() {
             {goalInits.map((i) => (
               <div key={i.id}>
                 <div className={`goal-init${i.done ? " done" : ""}`}>
-                  <button type="button" className="goal-init-ck" onClick={() => (canLead || i.assignee === user?.id) && toggleInitiative(i)} aria-pressed={i.done} disabled={!canLead && i.assignee !== user?.id}>{i.done ? "✓" : "○"}</button>
+                  <button type="button" className="goal-init-ck" onClick={() => (canLead || i.assignee === user?.id) && toggleInitiative(i)} aria-pressed={i.done} disabled={!canLead && i.assignee !== user?.id}>{i.done ? <Icon name="check" /> : <Icon name="dotOutline" />}</button>
                   <span className="goal-init-t">{i.label}</span>
                   {!canLead && (i.assignee || i.due_at) && (
                     <span className="goal-init-who">{[firstName(i.assignee), i.due_at ? `due ${new Date(i.due_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : null].filter(Boolean).join(" · ")}</span>
                   )}
-                  {canLead && <button type="button" className="goal-init-x" onClick={() => removeInitiative(i)} aria-label={`Remove ${i.label}`}>✕</button>}
+                  {canLead && <button type="button" className="goal-init-x" onClick={() => removeInitiative(i)} aria-label={`Remove ${i.label}`}><Icon name="close" /></button>}
                 </div>
                 {canLead && !i.done && (
                   <div className="goal-init-meta">
@@ -278,8 +279,8 @@ export default function Goals() {
             <button type="button" className="st-discuss" onClick={() => { setLogging(g.id); setLogVal(""); }}>＋ Log progress</button>
           ))}
           {canLead && <button type="button" className="st-discuss" onClick={() => { setInitFor(initFor === g.id ? null : g.id); setInitTitle(""); }}>{initFor === g.id ? "Done adding" : "＋ Break it down"}</button>}
-          {canLead && reached && <button type="button" className="st-discuss" onClick={() => setStatus(g, "hit")}>✓ Mark hit</button>}
-          <button type="button" className="st-discuss" onClick={() => setOpen(open === g.id ? null : g.id)} aria-expanded={open === g.id}>💬 {open === g.id ? "Close" : "Discuss"}</button>
+          {canLead && reached && <button type="button" className="st-discuss" onClick={() => setStatus(g, "hit")}><Icon name="check" /> Mark hit</button>}
+          <button type="button" className="st-discuss" onClick={() => setOpen(open === g.id ? null : g.id)} aria-expanded={open === g.id}><Icon name="chat" /> {open === g.id ? "Close" : "Discuss"}</button>
           {canLead && (
             <select className="goal-lane-pick" value={laneOf(g.stream_key)?.key ?? "business"} onChange={(e) => setStream(g, e.target.value)} aria-label={`Lane for ${g.title}`}>
               {streams.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
@@ -318,7 +319,7 @@ export default function Goals() {
                 {settled.map((g) => (
                   <div className="dops-up-row" key={g.id}>
                     <span><b>{g.title}</b> — {g.current_value}{g.unit && ` ${g.unit}`} of {g.target_value}{g.unit && ` ${g.unit}`}</span>
-                    <span className={`goal-chip ${g.status}`}>{g.status === "hit" ? "✓ hit" : g.status}</span>
+                    <span className={`goal-chip ${g.status}`}>{g.status === "hit" ? <><Icon name="check" /> hit</> : g.status}</span>
                   </div>
                 ))}
               </div>

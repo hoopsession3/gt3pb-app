@@ -373,7 +373,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
   const Toggle = (
     <div className="of-seg" role="tablist" aria-label="Fulfillment">
       <button type="button" role="tab" aria-selected={mode === "pickup"} className={mode === "pickup" ? "on" : ""} onClick={() => switchMode("pickup")}>
-        <b>🏪 Pickup</b><span>Grab it at a truck stop</span>
+        <b>Pickup</b><span>Grab it at a truck stop</span>
       </button>
       <button type="button" role="tab" aria-selected={mode === "delivery"} className={mode === "delivery" ? "on" : ""} onClick={() => switchMode("delivery")}>
         <b><Icon name="truck" /> Delivery</b><span>Prepaid, to your door</span>
@@ -617,7 +617,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
         <Sheet open onClose={() => setDupRows(null)} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Already on the books</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setDupRows(null)} aria-label="Close"><Icon name="close" /></button></div>}>
           <p className="dl-sub" style={{ marginTop: 0 }}>You already have {dupRows.length === 1 ? "an order" : `${dupRows.length} orders`} for <b>{mode === "delivery" ? (slot?.deliveryLabel ?? "that day") : dayName(drop.sat)}</b>:</p>
           <div className="dup-list">
-            {dupRows.map((r, i) => <div key={i} className="dup-row">{r.kind === "pickup" ? "🛎" : <Icon name="truck" />} {r.label}</div>)}
+            {dupRows.map((r, i) => <div key={i} className="dup-row">{r.kind === "pickup" ? <Icon name="bell" /> : <Icon name="truck" />} {r.label}</div>)}
           </div>
           <button type="button" className="oa-cta" onClick={() => { setDupOk(targetDayKey()); setDupRows(null); setStep("pay"); }}>Yes — add this order too <Icon name="arrowRight" /></button>
           <button type="button" className="dup-nvm" onClick={() => setDupRows(null)}>Never mind — keep what I have</button>

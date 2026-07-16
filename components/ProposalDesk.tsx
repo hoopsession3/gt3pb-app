@@ -8,6 +8,7 @@ import { useAuth } from "./AuthProvider";
 import { raiseAlertClient } from "@/lib/clientAlerts";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import Icon from "@/components/Icon";
 
 // PROPOSAL DESK (0180) — the reach-out strategy as a working, co-authored document that moves through
 // a real lifecycle. Any staffer edits the strategy; anyone advances it draft -> in_review -> sent ->
@@ -134,7 +135,7 @@ export default function ProposalDesk({ oppId, vendorName, isAdmin }: { oppId: st
       </div>
 
       {status && !decided && (
-        <div className="pd-steps">{LINEAR.map(stepPill)}<span className="pd-step-arrow">→</span><span className={`pd-step decide${decided ? " on" : ""}`}>Decision</span></div>
+        <div className="pd-steps">{LINEAR.map(stepPill)}<span className="pd-step-arrow"><Icon name="arrowRight" /></span><span className={`pd-step decide${decided ? " on" : ""}`}>Decision</span></div>
       )}
 
       <textarea className="pd-strategy" value={strategy}
@@ -154,7 +155,7 @@ export default function ProposalDesk({ oppId, vendorName, isAdmin }: { oppId: st
       {status && !decided && (
         <div className="pd-controls">
           {prevStatus && <button type="button" className="pd-back" onClick={() => advance(prevStatus)} disabled={busy}>← {LABEL[prevStatus]}</button>}
-          {nextStatus && <button type="button" className="pd-adv" onClick={() => advance(nextStatus)} disabled={busy}>{NEXT_VERB[nextStatus] ?? `To ${LABEL[nextStatus]}`} →</button>}
+          {nextStatus && <button type="button" className="pd-adv" onClick={() => advance(nextStatus)} disabled={busy}>{NEXT_VERB[nextStatus] ?? `To ${LABEL[nextStatus]}`} <Icon name="arrowRight" /></button>}
           {isAdmin && (
             <div className="pd-decide">
               <input className="auth-input" value={decisionNote} onChange={(e) => setDecisionNote(e.target.value)} placeholder="Decision note (optional)" aria-label="Decision note" />
@@ -183,7 +184,7 @@ export default function ProposalDesk({ oppId, vendorName, isAdmin }: { oppId: st
                 <li key={e.id} className="pd-ev">
                   <span className="pd-ev-dot" aria-hidden />
                   <div>
-                    <span className="pd-ev-t">{nameOf(e.actor_id)} {e.from_status ? `moved ${LABEL[e.from_status as Status] ?? e.from_status} → ${LABEL[e.to_status as Status] ?? e.to_status}` : `started the proposal`}</span>
+                    <span className="pd-ev-t">{nameOf(e.actor_id)} {e.from_status ? <>moved {LABEL[e.from_status as Status] ?? e.from_status} <Icon name="arrowRight" /> {LABEL[e.to_status as Status] ?? e.to_status}</> : `started the proposal`}</span>
                     <span className="pd-ev-w">{when(e.at)}</span>
                     {e.note && <p className="pd-ev-note">&ldquo;{e.note}&rdquo;</p>}
                   </div>

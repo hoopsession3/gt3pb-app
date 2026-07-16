@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
+import Icon from "@/components/Icon";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { ARCHITECTURE, ARCH_OVERVIEW, DATABASES, BUSINESS, BUSINESS_OVERVIEW, BUILD_STATS, MANAGE_LABEL, STATUS_LABEL, sotUrl, type ArchLayer, type ArchComponent, type ArchStatus } from "@/lib/architecture";
@@ -78,7 +79,7 @@ export default function ArchitecturePage() {
           <div className="arch-comp-deep">
             {c.detail && <p className="arch-comp-detail">{c.detail}</p>}
             {c.config && <div className="arch-comp-cfg"><span className="arch-cfg-l">Config</span> {c.config}</div>}
-            {c.sot && <a className="arch-comp-sot" href={sotUrl(c.sot)} target="_blank" rel="noreferrer">Source of truth ↗ {c.sot}</a>}
+            {c.sot && <a className="arch-comp-sot" href={sotUrl(c.sot)} target="_blank" rel="noreferrer">Source of truth <Icon name="externalLink" /> {c.sot}</a>}
           </div>
         )}
       </div>
@@ -185,7 +186,7 @@ export default function ArchitecturePage() {
               <div className="arch-overview">
                 <div className="arch-ov-t">The platform in one breath</div>
                 <p className="arch-ov-b">{ARCH_OVERVIEW.summary}</p>
-                <div className="arch-flow">{ARCH_OVERVIEW.flow.map((f, i) => <span key={f} className="arch-flow-i">{f}{i < ARCH_OVERVIEW.flow.length - 1 ? <span className="arch-flow-a">→</span> : null}</span>)}</div>
+                <div className="arch-flow">{ARCH_OVERVIEW.flow.map((f, i) => <span key={f} className="arch-flow-i">{f}{i < ARCH_OVERVIEW.flow.length - 1 ? <span className="arch-flow-a"><Icon name="arrowRight" /></span> : null}</span>)}</div>
               </div>
               <div className="arch-layers">
                 {ARCHITECTURE.map((l) => {
@@ -204,7 +205,7 @@ export default function ArchitecturePage() {
                   );
                 })}
               </div>
-              <a className="arch-sot-all" href="https://github.com/hoopsession3/gt3pb-app" target="_blank" rel="noreferrer">Live source ↗ hoopsession3/gt3pb-app</a>
+              <a className="arch-sot-all" href="https://github.com/hoopsession3/gt3pb-app" target="_blank" rel="noreferrer">Live source <Icon name="externalLink" /> hoopsession3/gt3pb-app</a>
             </>
           )}
           </>)}

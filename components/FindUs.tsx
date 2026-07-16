@@ -13,6 +13,7 @@ import { localToday, relativeDay } from "@/lib/dates";
 import type { LiveStatus, EventRow } from "@/lib/db";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import Icon from "@/components/Icon";
 
 // FIND US — the one answer to "where's GT3?", on the field_ops spine. Stops and events used to
 // live on two strangers of pages; they're one chronological road now, each row self-typing:
@@ -273,7 +274,7 @@ export default function FindUs() {
       <SectionHeader label="Bring Us To You" annotation="private events" />
       <p style={{ fontSize: 14, color: "var(--cream-m)", margin: "14px 2px 12px" }}>Pours, run clubs, launches — we set up anywhere.</p>
       <button type="button" className="btn-ter" onClick={() => router.push("/book")}>
-        Book the bar for your event <b>→</b>
+        Book the bar for your event <b><Icon name="arrowRight" /></b>
       </button>
 
       <ClosingBeat />

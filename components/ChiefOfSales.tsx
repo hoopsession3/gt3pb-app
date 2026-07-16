@@ -88,7 +88,7 @@ export default function ChiefOfSales({ onLeads }: { onLeads?: () => void }) {
                     <b>{o.name}{o.score ? <span className="sales-score" style={{ background: SCORE[o.score]?.c }}>{SCORE[o.score]?.t}</span> : null}</b>
                     <span>{[o.location, o.date].filter(Boolean).join(" · ")}</span>
                     {o.fit && <span className="sales-fit">{o.fit}</span>}
-                    {o.pitch && <span className="sales-pitch">→ {o.pitch}</span>}
+                    {o.pitch && <span className="sales-pitch"><Icon name="arrowRight" /> {o.pitch}</span>}
                     {o.source && <span className="sales-src">{o.source}</span>}
                   </span>
                 </button>

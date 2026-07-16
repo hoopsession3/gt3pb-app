@@ -11,6 +11,7 @@ import { gallonsForBottles, flavorDemand } from "@/lib/brewMath";
 import { dayKey, etToday, relativeDay } from "@/lib/dates";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import Icon from "@/components/Icon";
 
 // DROP OPS — the order-ahead brew sheet + pickup checklist for Saturday's drop. Lives in the admin
 // "Now" section right under the kitchen pass (and pops out of reservation alerts), so walk-up orders
@@ -246,7 +247,7 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
             <>
               <div className="dops-brew">Brew sheet: <b>{FLAVORS.map((f) => `${perF[f]}× ${f}`).join(" · ")}</b></div>
               {batches.length > 0 ? (
-                <div className="dops-plan queued">🫙 Brew plan queued: {batches.map((b) => `${b.recipe_name ?? "?"} — ${b.batch_gal} gal (${b.status})`).join(" · ")}</div>
+                <div className="dops-plan queued"><Icon name="jar" /> Brew plan queued: {batches.map((b) => `${b.recipe_name ?? "?"} — ${b.batch_gal} gal (${b.status})`).join(" · ")}</div>
               ) : bottles > 0 ? (
                 <div className="dops-plan">
                   <span>Friday&rsquo;s brew: {FLAVORS.filter((f) => perF[f] > 0).map((f) => `${gallonsForBottles(perF[f], null)} gal ${f}`).join(" · ")}</span>
@@ -254,7 +255,7 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
                 </div>
               ) : null}
               <button type="button" className={`dops-prog${allDone ? " done" : ""}`} onClick={() => (brief ? onOpen?.() : setListOpen(!showList))} aria-expanded={brief ? undefined : showList}>
-                <span>{allDone ? "✓ All picked up · bottles in" : <><b>{pickedCount}/{rows.length}</b> picked up{returns.length > 0 ? <> · <b>{bottlesInCount}/{returns.length}</b> bottles in</> : null}</>}</span>
+                <span>{allDone ? <><Icon name="check" /> All picked up · bottles in</> : <><b>{pickedCount}/{rows.length}</b> picked up{returns.length > 0 ? <> · <b>{bottlesInCount}/{returns.length}</b> bottles in</> : null}</>}</span>
                 <span>{brief ? "checklist in Service ▸" : showList ? "▾" : "▸"}</span>
               </button>
               {!brief && showList && queue.map((o) => (
@@ -269,7 +270,7 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
                       name={o.name}
                       nameExtra={<span className={`dops-chip ${o.glass === "return" ? "ret" : "new"}`}>{o.glass === "return" ? `GLASS BACK ×${o.size}` : "NEW GLASS"}</span>}
                       meta={<>{mixSummary(o.mix)}{o.phone ? <><br /><a className="dops-tel" href={`tel:${o.phone.replace(/[^\d+]/g, "")}`}>{o.phone}</a></> : null}</>}
-                      trailing={<span className="dops-total">{dollars(o.total_cents / 100)} {o.paid ? "✓" : <em className="dops-owe">due</em>}</span>}
+                      trailing={<span className="dops-total">{dollars(o.total_cents / 100)} {o.paid ? <Icon name="check" /> : <em className="dops-owe">due</em>}</span>}
                     />
                   </div>
                   {/* Fulfillment stepper — tap a stage to jump, or the primary button to advance one.
@@ -285,7 +286,7 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
                             const on = cur === idx, done = cur > idx;
                             return (
                               <button key={st.key} type="button" className={`dops-stage${on ? " on" : ""}${done ? " done" : ""}`} aria-current={on} onClick={() => setStage(o.id, st.key)}>
-                                {done ? "✓ " : ""}{st.label}
+                                {done ? <><Icon name="check" /> {st.label}</> : st.label}
                               </button>
                             );
                           })}
@@ -293,11 +294,11 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
                         <div className="dops-actions">
                           {nextLabel && <button type="button" className="dops-check adv" onClick={() => setStage(o.id, PACK_STAGES[cur + 1].key)}>{nextLabel}</button>}
                           {o.glass === "return" && (
-                            <button type="button" className={`dops-check${o.bottles_returned ? " done" : ""}`} onClick={() => toggle(o.id, "bottles_returned", !o.bottles_returned)}>{o.bottles_returned ? "✓ Bottles in" : "Bottles in"}</button>
+                            <button type="button" className={`dops-check${o.bottles_returned ? " done" : ""}`} onClick={() => toggle(o.id, "bottles_returned", !o.bottles_returned)}>{o.bottles_returned ? <><Icon name="check" /> Bottles in</> : "Bottles in"}</button>
                           )}
                           {!o.picked_up && (
                             <>
-                              <button type="button" className="dops-mini" onClick={() => pushNextWeek(o)}>→ Next drop</button>
+                              <button type="button" className="dops-mini" onClick={() => pushNextWeek(o)}><Icon name="arrowRight" /> Next drop</button>
                               <button type="button" className="dops-mini danger" onClick={() => cancel(o)}>Cancel</button>
                             </>
                           )}
@@ -319,7 +320,7 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
                   <div className="dops-up-h">Upcoming · {new Date(`${d}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} · {os.reduce((a, o) => a + o.size, 0)} bottles</div>
                   {os.map((o) => (
                     <div className="dops-up-row" key={o.id}>
-                      <span><b>{o.name}</b> — {o.size}-pack{o.paid ? " · paid ✓" : ""}</span>
+                      <span><b>{o.name}</b> — {o.size}-pack{o.paid ? <> · paid <Icon name="check" /></> : ""}</span>
                       <span className="dops-up-act">
                         <button type="button" className="dops-mini" onClick={() => pullBack(o)}>← This drop</button>
                         <button type="button" className="dops-mini danger" onClick={() => cancel(o)}>Cancel</button>
@@ -346,7 +347,7 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
                       <div className="dops-hist-row" key={o.id}>
                         <span>{o.name} — {o.size}-pack{o.paid ? "" : " · unpaid"}</span>
                         <span className={`dops-hist-st ${o.canceled_at ? "cx" : o.picked_up ? "ok" : "miss"}`}>
-                          {o.canceled_at ? "canceled" : o.picked_up ? `✓ picked up${o.glass === "return" ? (o.bottles_returned ? " · bottles in" : " · bottles out") : ""}` : "no-show"}
+                          {o.canceled_at ? "canceled" : o.picked_up ? <><Icon name="check" /> picked up{o.glass === "return" ? (o.bottles_returned ? " · bottles in" : " · bottles out") : ""}</> : "no-show"}
                         </span>
                       </div>
                     ))}

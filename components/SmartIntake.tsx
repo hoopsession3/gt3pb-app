@@ -67,7 +67,7 @@ export default function SmartIntake() {
 
       {done ? (
         <div className="eg-done">
-          <div className="eg-done-h">✓ Filed to {done === "asset" ? "Assets / gear" : done === "inventory" ? "Inventory" : "Documents"}</div>
+          <div className="eg-done-h"><Icon name="check" /> Filed to {done === "asset" ? "Assets / gear" : done === "inventory" ? "Inventory" : "Documents"}</div>
           <button type="button" className="cos-redo" onClick={reset}>Drop another file</button>
         </div>
       ) : !p ? (
@@ -119,7 +119,7 @@ export default function SmartIntake() {
           {err && <div className="dp-err" style={{ marginTop: 8 }}>{err}</div>}
           <div className="prod-actions" style={{ marginTop: 12 }}>
             <button type="button" className="note-arch" onClick={reset} disabled={!!busy}>Cancel</button>
-            <button type="button" className="note-save" onClick={file} disabled={!!busy}>{busy || `File it → ${p.kind === "asset" ? "Assets" : p.kind === "inventory" ? "Inventory" : "Documents"}`}</button>
+            <button type="button" className="note-save" onClick={file} disabled={!!busy}>{busy || <>File it <Icon name="arrowRight" /> {p.kind === "asset" ? "Assets" : p.kind === "inventory" ? "Inventory" : "Documents"}</>}</button>
           </div>
         </div>
       )}

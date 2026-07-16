@@ -8,6 +8,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import { completeTask } from "@/lib/tasks";
 import { useTaskSheet } from "./TaskSheet";
+import Icon from "@/components/Icon";
 
 // PREP BOARD — the aggregate readiness triage surface. Every open prep task, ROLLED UP into
 // collapsible groups by the INITIATIVE it's assigned to (0201/0237) — falling back to its event/stop
@@ -24,7 +25,7 @@ type Task = {
 };
 type Crew = { id: string; display_name: string | null };
 type Filter = "all" | "critical" | "mine" | "overdue";
-type Group = { key: string; label: string; kind: "initiative" | "event" | "stop" | "general"; initiativeId: string | null; icon: string; tasks: Task[] };
+type Group = { key: string; label: string; kind: "initiative" | "event" | "stop" | "general"; initiativeId: string | null; icon: React.ReactNode; tasks: Task[] };
 type BoardData = { rows: Task[]; crew: Crew[] };
 
 const nowISO = () => new Date().toISOString();
@@ -85,7 +86,7 @@ export default function PrepBoard() {
       if (!g) {
         const kind: Group["kind"] = t.initiative_id ? "initiative" : t.event_id ? "event" : t.stop_id ? "stop" : "general";
         const label = t.initiative_id ? (t.initiatives?.title || "Initiative") : (t.events?.title || t.stops?.name || t.section || "General");
-        const icon = kind === "initiative" ? (t.initiatives?.emoji || "🎯") : kind === "event" ? "📅" : kind === "stop" ? "📍" : "•";
+        const icon = kind === "initiative" ? (t.initiatives?.emoji || "🎯") : kind === "event" ? <Icon name="calendar" /> : kind === "stop" ? <Icon name="pin" /> : "•";
         g = { key, label, kind, initiativeId: t.initiative_id, icon, tasks: [] };
         map.set(key, g);
       }
@@ -146,7 +147,7 @@ export default function PrepBoard() {
                       onClick={() => (armed === g.key ? completeGroup(g) : setArmed(g.key))}
                       onBlur={() => setArmed((a) => (a === g.key ? null : a))}
                       aria-label={`Complete all ${g.tasks.length} tasks in ${g.label}`}>
-                      {armed === g.key ? `Complete ${g.tasks.length}?` : "✓ all"}
+                      {armed === g.key ? `Complete ${g.tasks.length}?` : <><Icon name="check" /> all</>}
                     </button>
                   </div>
                   {open && (

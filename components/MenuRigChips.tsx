@@ -35,10 +35,10 @@ export const MENU_FLAGS: { key: MenuKey; label: string }[] = [
 
 // The load-out space math keys off "trailer" in the value (lib/loadout.ts rigToBox), so these
 // route automatically.
-export const RIG_OPTIONS: { key: RigKey; label: string }[] = [
+export const RIG_OPTIONS: { key: RigKey; label: React.ReactNode }[] = [
   { key: "cart_only", label: "🛻 Cart" },
-  { key: "trailer_only", label: "🚚 Trailer only" },
-  { key: "trailer_plus_cart", label: "🚚 Trailer + cart" },
+  { key: "trailer_only", label: <><Icon name="truck" /> Trailer only</> },
+  { key: "trailer_plus_cart", label: <><Icon name="truck" /> Trailer + cart</> },
 ];
 
 // The exact column list these chips read/write — use for every supabase select of these flags.

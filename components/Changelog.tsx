@@ -6,6 +6,7 @@ import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import Icon from "@/components/Icon";
 
 // CHANGELOG — "What we've built": the human-readable, categorized record of every improvement shipped,
 // so a cofounder (or any leader) can see the whole build without reading git. Newest first, grouped by
@@ -120,7 +121,7 @@ export default function Changelog() {
 
       <div className="chg-filters">
         <button type="button" className={`chg-chip${filter === "all" ? " on" : ""}`} onClick={() => setFilter("all")}>All</button>
-        <button type="button" className={`chg-chip${filter === "highlight" ? " on" : ""}`} onClick={() => setFilter("highlight")}>★ Headliners</button>
+        <button type="button" className={`chg-chip${filter === "highlight" ? " on" : ""}`} onClick={() => setFilter("highlight")}><Icon name="star" /> Headliners</button>
         {presentCats.map((k) => (
           <button key={k} type="button" className={`chg-chip${filter === k ? " on" : ""}`} onClick={() => setFilter(k)} style={filter === k ? { borderColor: CATS[k].c, color: CATS[k].c } : undefined}>{CATS[k].label}</button>
         ))}
@@ -149,7 +150,7 @@ export default function Changelog() {
               <div key={e.id} className={`chg-row${e.highlight ? " hl" : ""}`}>
                 <span className="chg-cat" style={{ background: CATS[e.category]?.c || "#888" }}>{CATS[e.category]?.label || e.category}</span>
                 <span className="chg-body">
-                  <span className="chg-title">{e.highlight && <span className="chg-star" aria-label="headline">★</span>}{e.title}</span>
+                  <span className="chg-title">{e.highlight && <span className="chg-star" aria-label="headline"><Icon name="star" /></span>}{e.title}</span>
                   <span className="chg-summary">{e.summary}</span>
                   <span className="chg-meta">{e.area ? <span className="chg-area">{e.area}</span> : null}<span className="chg-date">{dayLabel(e.shipped_on)}</span></span>
                 </span>

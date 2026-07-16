@@ -14,6 +14,7 @@ import ProposalDesk from "./ProposalDesk";
 import CountUp from "./CountUp";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import Icon from "@/components/Icon";
 
 // PIPELINE — the sales funnel (0165). Vendor (the account) × deal (from the owner's catalog,
 // gated per vendor type) × rep × stage. The owner articulates what's on the table in the Deal
@@ -376,10 +377,10 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
         <span className={`ev-chev${openId === o.id ? " open" : ""}`} aria-hidden="true">›</span>
       </button>
       {activity[o.id] && openId !== o.id && (
-        <div className="pipe-trail">💬 {activity[o.id].n} · last {new Date(activity[o.id].lastAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}{firstName(activity[o.id].lastBy) ? ` · ${firstName(activity[o.id].lastBy)}` : ""}</div>
+        <div className="pipe-trail"><Icon name="chat" /> {activity[o.id].n} · last {new Date(activity[o.id].lastAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}{firstName(activity[o.id].lastBy) ? ` · ${firstName(activity[o.id].lastBy)}` : ""}</div>
       )}
       {(o.next_step || overdue(o)) && openId !== o.id && (
-        <div className="pipe-next">{overdue(o) ? "⚠ " : "→ "}{o.next_step ?? "next step overdue"}{o.next_step_at ? ` · ${new Date(`${o.next_step_at}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : ""}</div>
+        <div className="pipe-next">{overdue(o) ? <Icon name="warning" /> : <Icon name="arrowRight" />} {o.next_step ?? "next step overdue"}{o.next_step_at ? ` · ${new Date(`${o.next_step_at}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : ""}</div>
       )}
       {openId === o.id && (
         <div className="pipe-body">
@@ -416,12 +417,12 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
             <div className="pipe-notes">
               <b>Notes</b>
               {oppNotes.map((n) => (
-                <span key={n.id} className="pipe-note">📝 {n.title} · {new Date(n.met_on + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}{n.visibility === "private" ? " · 🔒" : n.visibility === "team" ? " · 👥" : ""}</span>
+                <span key={n.id} className="pipe-note">{n.title} · {new Date(n.met_on + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}{n.visibility === "private" ? <> · <Icon name="lock" /></> : n.visibility === "team" ? <> · <Icon name="team" /></> : ""}</span>
               ))}
             </div>
           )}
           <ProposalDesk oppId={o.id} vendorName={o.vendors?.name ?? null} isAdmin={isAdmin} />
-          <button type="button" className="st-discuss" onClick={() => setThreadId(threadId === o.id ? null : o.id)} aria-expanded={threadId === o.id}>💬 {threadId === o.id ? "Close" : "Discuss"}</button>
+          <button type="button" className="st-discuss" onClick={() => setThreadId(threadId === o.id ? null : o.id)} aria-expanded={threadId === o.id}><Icon name="chat" /> {threadId === o.id ? "Close" : "Discuss"}</button>
           {threadId === o.id && <StrategyThread k={`opp:${o.id}`} label={`Pipeline: ${o.vendors?.name ?? "opportunity"}`} link="/crew?s=pipeline" />}
         </div>
       )}
@@ -437,7 +438,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
       {isAdmin && (
         <>
           <button type="button" className="prep-collapse" onClick={() => setCatalogOpen((v) => !v)} aria-expanded={catalogOpen}>
-            <span className="prep-collapse-l"><b>🗂 Deal catalog · {deals.filter((d) => d.active).length} live · {deals.filter((d) => !d.active).length} off</b><span>what reps can offer — per account type; inactive deals disappear from their pickers</span></span>
+            <span className="prep-collapse-l"><b>Deal catalog · {deals.filter((d) => d.active).length} live · {deals.filter((d) => !d.active).length} off</b><span>what reps can offer — per account type; inactive deals disappear from their pickers</span></span>
             <span className={`ev-chev${catalogOpen ? " open" : ""}`}>›</span>
           </button>
           {catalogOpen && (
@@ -454,7 +455,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
                           <button type="button" className="pipe-ord" onClick={() => moveDeal(d, 1)} disabled={i === group.length - 1} aria-label={`Move ${d.title} down`}>↓</button>
                         </span>
                         <button type="button" className="lane-pin" onClick={() => toggleDeal(d)}>{d.active ? "Live" : "Off"}</button>
-                        <button type="button" className="pipe-del" onClick={() => deleteDeal(d)} aria-label={`Remove ${d.title}`}>✕</button>
+                        <button type="button" className="pipe-del" onClick={() => deleteDeal(d)} aria-label={`Remove ${d.title}`}><Icon name="close" /></button>
                       </div>
                       {editId === d.id && (
                         <div className="pipe-dealedit">

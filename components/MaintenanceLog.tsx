@@ -6,6 +6,7 @@ import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import Icon from "@/components/Icon";
 
 // MAINTENANCE & AUDITS (Settings) — the owner's record of every audit run on the app: what kind, when,
 // the prompt used, the result/score, a summary, findings, and a link to the artifact. Opens with a
@@ -148,7 +149,7 @@ export default function MaintenanceLog() {
                           <span className={`mnt-dot st-${a.status}`} />
                           <span className="mnt-row-x">
                             <b>{a.title}</b>
-                            <span className="mnt-row-sub">{KIND_LABEL[a.kind] ?? a.kind} · {daysAgo(a.ran_on)}{a.cadence !== "once" ? ` · ${a.cadence}` : ""}{nd?.overdue ? " · ⚠ overdue" : ""}</span>
+                            <span className="mnt-row-sub">{KIND_LABEL[a.kind] ?? a.kind} · {daysAgo(a.ran_on)}{a.cadence !== "once" ? ` · ${a.cadence}` : ""}{nd?.overdue ? <> · <Icon name="warning" /> overdue</> : ""}</span>
                           </span>
                           {a.score != null && <span className={`mnt-score st-${a.status}`}>{a.score}<small>/10</small></span>}
                           <span className={`mnt-chev${isOpen ? " open" : ""}`} aria-hidden>›</span>
@@ -160,7 +161,7 @@ export default function MaintenanceLog() {
                             {a.prompt && <div className="mnt-field"><span>Prompt</span><p className="mnt-mono">{a.prompt}</p></div>}
                             <div className="mnt-meta">
                               {nd && <span>Next due {nd.due}{nd.overdue ? " (overdue)" : ""}</span>}
-                              {a.artifact_url && <a href={a.artifact_url} target="_blank" rel="noreferrer">Open artifact ↗</a>}
+                              {a.artifact_url && <a href={a.artifact_url} target="_blank" rel="noreferrer">Open artifact <Icon name="externalLink" /></a>}
                               <button type="button" className="mnt-edit" onClick={() => editRow(a)}>Edit</button>
                               <button type="button" className="mnt-del" onClick={() => del(a)}>Delete</button>
                             </div>

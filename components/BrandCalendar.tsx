@@ -11,6 +11,7 @@ import { isBlank } from "@/lib/formGuard";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import Icon from "@/components/Icon";
 
 // BRAND CALENDAR — the planning brain of Studio. Posts (scheduled content) + events roll onto one
 // month view so Ryan + Kayla see the whole picture and build FROM it.
@@ -129,7 +130,7 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
         onDragStart={() => { dragId.current = c.id; }} onClick={(e) => { e.stopPropagation(); onOpen(c.id); }}
         onMouseEnter={() => linked && setFocusEvent(c.event_id)} onMouseLeave={() => setFocusEvent(null)}
         title={`${c.title} · ${c.status}${linked ? ` · ↔ ${evTitle(c.event_id)}` : ""}`}>
-        <span className="cal-chip-dot" style={{ background: STC[c.status] ?? "#9a8f7c" }} />{linked ? "🔗 " : ""}{c.title || "Untitled"}
+        <span className="cal-chip-dot" style={{ background: STC[c.status] ?? "#9a8f7c" }} />{linked ? <><Icon name="link" /> {c.title || "Untitled"}</> : (c.title || "Untitled")}
       </button>
     );
   };
@@ -146,7 +147,7 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
         title={`${c.title} · ${c.status}${linked ? ` · ↔ ${evTitle(c.event_id)}` : ""}`}>
         <span className="calw-chip-rail" />
         <span className="calw-chip-main">
-          <b>{linked ? "🔗 " : ""}{c.title || "Untitled"}</b>
+          <b>{linked ? <><Icon name="link" /> {c.title || "Untitled"}</> : (c.title || "Untitled")}</b>
           <span className="calw-chip-sub">{c.status}{c.channel ? ` · ${c.channel}` : ""}{time ? ` · ${time}` : ""}</span>
         </span>
       </button>
@@ -158,8 +159,8 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
       {() => (
     <div className="cal">
       <div className="cal-titlebar">
-        <span className="cal-eyebrow">🎨 Content schedule</span>
-        <button type="button" className="cal-tolink" onClick={() => { if (typeof window !== "undefined") localStorage.setItem("gt3-plan-tab", "calendar"); goToCompany(); }}>Company calendar ↗</button>
+        <span className="cal-eyebrow">Content schedule</span>
+        <button type="button" className="cal-tolink" onClick={() => { if (typeof window !== "undefined") localStorage.setItem("gt3-plan-tab", "calendar"); goToCompany(); }}>Company calendar <Icon name="externalLink" /></button>
       </div>
       <div className="cal-sticky">
         <div className="cal-bar">
@@ -205,7 +206,7 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
                 </div>
                 <div className="calw-items">
                   {cell.evs.map((e) => (
-                    <button key={e.id} type="button" className="calw-ev" onClick={() => setDayOpen(k)} title={e.title || "Event"}>📍 {e.title || e.day_label || "Event"}</button>
+                    <button key={e.id} type="button" className="calw-ev" onClick={() => setDayOpen(k)} title={e.title || "Event"}><Icon name="pin" /> {e.title || e.day_label || "Event"}</button>
                   ))}
                   {cell.posts.map((c) => <WChip key={c.id} c={c} />)}
                   {cell.posts.length === 0 && cell.evs.length === 0 && (
@@ -232,7 +233,7 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
               <div className="cal-items">
                 {cell.evs.map((e) => (
                   <div key={e.id} className={`cal-ev${focusEvent === e.id ? " lit" : ""}`} title={e.title || "Event"}
-                    onMouseEnter={() => setFocusEvent(e.id)} onMouseLeave={() => setFocusEvent(null)}>📍 {e.title || e.day_label || "Event"}</div>
+                    onMouseEnter={() => setFocusEvent(e.id)} onMouseLeave={() => setFocusEvent(null)}><Icon name="pin" /> {e.title || e.day_label || "Event"}</div>
                 ))}
                 {cell.posts.map((c) => <Chip key={c.id} c={c} inCell />)}
               </div>
@@ -260,23 +261,23 @@ function DayView({ dayKey, posts, evs, evTitle, onClose, onEdit, onOpenFull, onA
   const d = new Date(`${dayKey}T00:00:00`);
   const heading = d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   return (
-    <Sheet open onClose={onClose} label="Content day" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{heading}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
+    <Sheet open onClose={onClose} label="Content day" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{heading}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}><Icon name="close" /></button></div>}>
           {posts.length === 0 && evs.length === 0 && <div className="oa-empty" style={{ padding: "18px 8px" }}>Nothing this day. Tap + New piece to start one.</div>}
           <div className="dv-list">
             {evs.map((e) => (
               <div key={e.id} className="dv-row" style={{ ["--c" as string]: CAL_CAT.event.color }}>
                 <span className="dv-dot" style={{ background: CAL_CAT.event.color }} />
-                <span className="dv-main"><b>📍 {e.title || e.day_label || "Event"}</b><span>event · plan content around it</span></span>
+                <span className="dv-main"><b><Icon name="pin" /> {e.title || e.day_label || "Event"}</b><span>event · plan content around it</span></span>
               </div>
             ))}
             {posts.map((c) => (
               <div key={c.id} className="dv-row" style={{ ["--c" as string]: STC[c.status] ?? "#9a8f7c" }}>
                 <span className="dv-dot" style={{ background: STC[c.status] ?? "#9a8f7c" }} />
                 <button type="button" className="dv-main dv-tap" onClick={() => onEdit(c.id)}>
-                  <b>{c.event_id ? "🔗 " : ""}{c.title || "Untitled"}</b>
+                  <b>{c.event_id ? <><Icon name="link" /> {c.title || "Untitled"}</> : (c.title || "Untitled")}</b>
                   <span>{c.status} · {c.channel}{c.event_id ? ` · ↔ ${evTitle(c.event_id)}` : ""} · tap to edit</span>
                 </button>
-                <button type="button" className="dv-go" title="Open full editor" onClick={() => onOpenFull(c.id)}>↗</button>
+                <button type="button" className="dv-go" title="Open full editor" onClick={() => onOpenFull(c.id)}><Icon name="externalLink" /></button>
               </div>
             ))}
           </div>
@@ -306,7 +307,7 @@ function ContentEdit({ id, events, onClose, onSaved, onOpenFull }: { id: string;
   const timeVal = f.scheduled_for ? localTime(f.scheduled_for) : "09:00";
   const setDT = (date: string, time: string) => { if (!date) { set("scheduled_for", null); return; } set("scheduled_for", new Date(`${date}T${time || "09:00"}:00`).toISOString()); };
   return (
-    <Sheet open onClose={onClose} label="Edit content piece" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Edit piece</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
+    <Sheet open onClose={onClose} label="Edit content piece" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Edit piece</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}><Icon name="close" /></button></div>}>
           <input className="note-in" value={f.title ?? ""} onChange={(e) => set("title", e.target.value)} placeholder="Title" autoFocus />
           <div className="prod-grid" style={{ marginTop: 10 }}>
             <label className="prod-f"><span>Date</span><input type="date" value={dateVal} onChange={(e) => setDT(e.target.value, timeVal)} /></label>
@@ -323,7 +324,7 @@ function ContentEdit({ id, events, onClose, onSaved, onOpenFull }: { id: string;
               </select>
             </label>
           </div>
-          <button type="button" className="cal-tolink" style={{ marginTop: 10, marginLeft: 0 }} onClick={() => onOpenFull(id)}>Open full editor (hook, caption, Canva) ↗</button>
+          <button type="button" className="cal-tolink" style={{ marginTop: 10, marginLeft: 0 }} onClick={() => onOpenFull(id)}>Open full editor (hook, caption, Canva) <Icon name="externalLink" /></button>
           <div className="prod-actions" style={{ marginTop: 14, justifyContent: "space-between" }}>
             <button type="button" className="note-arch" onClick={unschedule} disabled={saving}>Unschedule</button>
             <div style={{ display: "flex", gap: 8 }}>

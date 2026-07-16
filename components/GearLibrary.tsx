@@ -5,6 +5,7 @@ import { SectionHeader } from "@/components/kit";
 import { fetchAssets, type AssetItem, type AssetsResp } from "@/lib/assets";
 import { supabase } from "@/lib/supabase";
 import EmptyState from "./EmptyState";
+import Icon from "@/components/Icon";
 
 // Gear & manuals — the GT3 asset register, read from Postgres (system-of-record). Staff can
 // add / edit / delete inline; writes go straight to the `assets` table (RLS: staff-write).
@@ -154,7 +155,7 @@ export default function GearLibrary() {
                       <div key={it.id} className="gl-item">
                         <div className="gl-item-main">
                           <b>{it.name}{it.qty && it.qty > 1 ? ` ×${it.qty}` : ""}</b>
-                          {cuft(it) != null && <span className="gl-dimtag" title="Used by the load-out space planner">📐 {it.lenIn}×{it.widthIn}×{it.heightIn}in · {cuft(it)} cu ft{it.weightLb ? ` · ${it.weightLb} lb` : ""}</span>}
+                          {cuft(it) != null && <span className="gl-dimtag" title="Used by the load-out space planner">{it.lenIn}×{it.widthIn}×{it.heightIn}in · {cuft(it)} cu ft{it.weightLb ? ` · ${it.weightLb} lb` : ""}</span>}
                           {it.useCase && <span className="gl-uc">{it.useCase}</span>}
                           {it.notes && (
                             <details className="gl-notes">
@@ -164,9 +165,9 @@ export default function GearLibrary() {
                           )}
                         </div>
                         <div className="gl-links">
-                          {it.manual && <a href={it.manual} target="_blank" rel="noopener noreferrer">Manual ↗</a>}
+                          {it.manual && <a href={it.manual} target="_blank" rel="noopener noreferrer">Manual <Icon name="externalLink" /></a>}
                           <button className="gl-edit" onClick={() => startEdit(it)}>Edit</button>
-                          <button className="gl-del" onClick={() => del(it)} aria-label={`Delete ${it.name}`}>✕</button>
+                          <button className="gl-del" onClick={() => del(it)} aria-label={`Delete ${it.name}`}><Icon name="close" /></button>
                         </div>
                       </div>
                     )

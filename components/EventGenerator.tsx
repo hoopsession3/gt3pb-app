@@ -46,7 +46,7 @@ export default function EventGenerator({ onClose, onCreated, initialNotes }: { o
   const ev = plan?.events ?? [];
 
   return (
-    <Sheet open onClose={onClose} label="Create an event from notes" header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow">AI · from your notes</div><div className="dp-title">Create an event from your notes</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button></div>}>
+    <Sheet open onClose={onClose} label="Create an event from notes" header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow">AI · from your notes</div><div className="dp-title">Create an event from your notes</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}><Icon name="close" /></button></div>}>
           {done ? (
             <div className="eg-done">
               <div className="eg-done-h"><Icon name="check" /> Done — here&apos;s what I made</div>
@@ -88,7 +88,7 @@ export default function EventGenerator({ onClose, onCreated, initialNotes }: { o
                 </>
               )}
 
-              <div className="eg-sec">Action items → to-dos</div>
+              <div className="eg-sec">Action items <Icon name="arrowRight" /> to-dos</div>
               {(plan.action_items ?? []).length === 0 ? <div className="dp-hint">No action items found.</div> : plan.action_items.map((a: any, i: number) => (
                 <button key={i} type="button" className={`eg-row${a._skip ? "" : " on"}`} onClick={() => toggle("action_items", i)} style={{ ["--c" as string]: CATC[a.category] || "#9a8f7c" }}>
                   <span className="eg-ck">{a._skip ? <Icon name="dotOutline" /> : <Icon name="check" />}</span>
@@ -99,7 +99,7 @@ export default function EventGenerator({ onClose, onCreated, initialNotes }: { o
               {err && <div className="dp-err">{err}</div>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={() => setPlan(null)} disabled={busy}>‹ Redo</button>
-                <button type="button" className="note-save" onClick={create} disabled={busy}>{busy ? "Creating…" : "Create it →"}</button>
+                <button type="button" className="note-save" onClick={create} disabled={busy}>{busy ? "Creating…" : <>Create it <Icon name="arrowRight" /></>}</button>
               </div>
             </>
           )}

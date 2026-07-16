@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 import { useApp } from "./AppProvider";
 import { useRealtimeTable } from "@/lib/realtime";
 import InlineCreate from "./InlineCreate";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import Icon from "@/components/Icon";
 
 // SHOOT PLANNER (0214) — plan any content shoot: date, location, call time, and a shot list you can
 // assign and check off (planned → shot → in edit). The reusable capability behind the Atlanta shoot
@@ -21,7 +22,7 @@ type Crew = { id: string; display_name: string | null };
 type Board = { shoots: Shoot[]; shots: Shot[]; crew: Crew[] };
 
 const SHOT_NEXT: Record<string, string> = { planned: "shot", shot: "cut", cut: "planned" };
-const SHOT_LABEL: Record<string, string> = { planned: "○ Planned", shot: "● Shot", cut: "✓ In edit" };
+const SHOT_LABEL: Record<string, ReactNode> = { planned: <><Icon name="dotOutline" /> Planned</>, shot: <><Icon name="dot" /> Shot</>, cut: <><Icon name="check" /> In edit</> };
 const dnice = (iso: string | null) => (iso ? new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : null);
 
 export default function ShootPlanner() {
@@ -117,7 +118,7 @@ export default function ShootPlanner() {
                             <button type="button" className={`shoot-st st-${s.status}`} onClick={() => cycleShot(s)}>{SHOT_LABEL[s.status]}</button>
                             <span className="shoot-desc">{s.description}</span>
                             <select className="shoot-assign" value={s.assignee ?? ""} onChange={(e) => assignShot(s, e.target.value)} aria-label="Assign shot"><option value="">—</option>{crew.map((c) => <option key={c.id} value={c.id}>{c.display_name || "Crew"}</option>)}</select>
-                            <button type="button" className="shoot-del" onClick={() => delShot(s.id)} aria-label="Delete shot">✕</button>
+                            <button type="button" className="shoot-del" onClick={() => delShot(s.id)} aria-label="Delete shot"><Icon name="close" /></button>
                           </div>
                         ))}
                       </div>

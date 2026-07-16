@@ -92,7 +92,7 @@ export default function EventCopilot() {
         <div className="ec-start">
           <p className="ec-lead">Tell me about it in your own words — I&apos;ll draft it and you review.</p>
           <textarea className="note-in" rows={3} value={text} onChange={(e) => setText(e.target.value)} placeholder="e.g. Truck event at Wine Express this Saturday, let people order ahead" autoFocus onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) analyze(); }} />
-          <button type="button" className="oa-send" onClick={analyze} disabled={busy || !text.trim()}>{busy ? "Reading…" : "Draft it →"}</button>
+          <button type="button" className="oa-send" onClick={analyze} disabled={busy || !text.trim()}>{busy ? "Reading…" : <>Draft it <Icon name="arrowRight" /></>}</button>
         </div>
       ) : (
         <div className="ec-draft">
