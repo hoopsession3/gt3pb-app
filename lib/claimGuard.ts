@@ -25,9 +25,15 @@ const CLAIM = [
   /\bclinically\b/i, /\bmedicinal\b/i, /\bweight[- ]?loss\b/i,
 ];
 
-// A negator (or "no"/"without") in the ~34 chars right before the match means it's a reframe/denial,
-// not a claim — let it through. Catches "we don't detox", "it's not a cure", "no health claims".
-const NEG = /\b(not|never|no|non|without|isn'?t|aren'?t|wasn'?t|won'?t|can'?t|cannot|don'?t|doesn'?t|didn'?t|wouldn'?t|shouldn'?t|nothing|neither|avoid|skip)\b[^.!?]{0,20}$/i;
+// A negator (or "no"/"without") ANYWHERE in the same sentence as the match means it's a reframe/
+// denial, not a claim — let it through. Catches "we don't detox" (negator before) AND "detox isn't
+// something we claim" (negator after) — sentence-scoped, not a fixed-width lookback, because natural
+// hedges vary in length and routinely put the negator AFTER the trigger word ("immune support isn't
+// something I can speak to"). A backward-only fixed window can never catch that second shape at all,
+// regardless of how wide it is — this bit the concierge for real: Haiku's own compliant hedges (the
+// exact phrasing the system prompt asks for) were tripping the guard and getting silently swapped for
+// the canned CLAIM_FALLBACK, so two different guest questions came back with byte-identical replies.
+const NEG = /\b(not|never|no|non|without|isn'?t|aren'?t|wasn'?t|won'?t|can'?t|cannot|don'?t|doesn'?t|didn'?t|wouldn'?t|shouldn'?t|nothing|neither|avoid|skip)\b/i;
 
 export function claimSafe(text: string): { ok: boolean; hit: string | null } {
   const t = text || "";
@@ -39,8 +45,14 @@ export function claimSafe(text: string): { ok: boolean; hit: string | null } {
     let m: RegExpExecArray | null;
     while ((m = re.exec(t)) !== null) {
       if (m.index === re.lastIndex) re.lastIndex++; // guard against a zero-width match looping forever
-      const before = t.slice(Math.max(0, m.index - 34), m.index);
-      if (NEG.test(before)) continue;    // this occurrence is negated/reframed — check the next one
+      // The sentence containing THIS occurrence — nearest .!? (or string edge) on each side — checked
+      // for a negator in either direction. Recomputed per-occurrence so a later, different sentence
+      // still gets caught even if an earlier one in the same reply was a legitimate negated reframe.
+      const sentStart = Math.max(t.lastIndexOf(".", m.index - 1), t.lastIndexOf("!", m.index - 1), t.lastIndexOf("?", m.index - 1)) + 1;
+      const afterRel = t.slice(re.lastIndex).search(/[.!?]/);
+      const sentEnd = afterRel === -1 ? t.length : re.lastIndex + afterRel;
+      const sentence = t.slice(sentStart, sentEnd);
+      if (NEG.test(sentence)) continue;  // this occurrence is negated/reframed — check the next one
       return { ok: false, hit: m[0] };   // an un-negated occurrence — a real claim
     }
   }
