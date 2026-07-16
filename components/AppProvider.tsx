@@ -20,7 +20,7 @@ interface AppCtx {
   bump: (id: DrinkId) => void;
   inc: (id: DrinkId) => void;
   dec: (id: DrinkId) => void;
-  checkout: () => void;
+  checkout: (opts?: { silentToast?: boolean }) => void;
   // drink sheet
   openId: DrinkId | null;
   openDrink: (id: DrinkId) => void;
@@ -94,13 +94,17 @@ export default function AppProvider({ children }: { children: React.ReactNode })
     return next;
   }), []);
 
-  const checkout = useCallback(() => {
+  const checkout = useCallback((opts?: { silentToast?: boolean }) => {
     const count = Object.values(cart).reduce((s, n) => s + n, 0);
     if (count === 0) {
       toast("Tap + on a drink to build your order");
       return;
     }
-    toast(`${count} drinks pre-ordered — ready in ~8 min`);
+    // Callers that already showed their own (more specific, e.g. a payment reference code) toast
+    // right before calling checkout() pass silentToast — otherwise this generic one and the caller's
+    // fire in the same batched render pass, and only the LAST setState-triggered toast ever renders.
+    // That used to silently swallow a customer's "show this ref at the window" fallback message.
+    if (!opts?.silentToast) toast(`${count} drinks pre-ordered — ready in ~8 min`);
     setCart({});
   }, [cart, toast]);
 

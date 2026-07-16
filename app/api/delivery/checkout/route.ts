@@ -48,10 +48,15 @@ export async function POST(req: Request) {
   const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0);
 
   const name = s(b.name, 80);
+  const phone = s(b.phone, 30);
   const street = s(b.addressStreet, 160);
   const city = s(b.addressCity, 80);
   const zip = s(b.addressZip, 10);
-  if (!b.sourceId || !name || !b.phone || !street || !city || !zip) return NextResponse.json({ error: "Missing delivery details — a phone is required for the delivery-morning text." }, { status: 400 });
+  // Was `!b.phone` (the RAW, untrimmed value) while every sibling field checked its trimmed
+  // variable — a whitespace-only phone is truthy, so it sailed past "phone is required" straight
+  // into `s(b.phone, 30)` trimming it to "", storing `null`, and silently skipping the delivery-
+  // morning SMS the error message itself promises.
+  if (!b.sourceId || !name || !phone || !street || !city || !zip) return NextResponse.json({ error: "Missing delivery details — a phone is required for the delivery-morning text." }, { status: 400 });
   if (!zipInZone(zip)) return NextResponse.json({ error: "That ZIP isn't in the delivery zone." }, { status: 400 });
 
   const packSize = n(b.packSize);
@@ -72,6 +77,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: `Your picks don't add up to ${packSize} bottles.` }, { status: 400 });
   }
 
+  // Premium add-ons are real menu items — the funnel fetches its list once on load with no realtime
+  // refresh, so re-check availability here before charging, the same way the cup-order path
+  // (api/checkout) already does for its items. A stale client shouldn't be able to charge for
+  // something that went sold-out mid-funnel.
+  if (Object.keys(perfMix).length > 0) {
+    const { data: avail } = await supabaseAdmin.from("products").select("slug, sold_out, active").in("slug", Object.keys(perfMix));
+    const blocked = (avail ?? []).filter((p) => (p as { sold_out: boolean | null }).sold_out || (p as { active: boolean | null }).active === false).map((p) => (p as { slug: string }).slug);
+    if (blocked.length) return NextResponse.json({ error: `${blocked.join(", ")} just sold out — remove it and try again.` }, { status: 409 });
+  }
+
   const refills = n(b.refillCount);
   if (refills > maxRefills(packSize, perf)) return NextResponse.json({ error: "Too many refills for this pack." }, { status: 400 });
   if (refills > 0 && b.emptiesAck !== true) {
@@ -84,18 +99,30 @@ export async function POST(req: Request) {
   const choices = deliverySlotChoices(Date.now());
   const slot = choices.find((c) => c.deliveryDateKey === b.deliveryDate) ?? choices[0];
 
+  const idemKey = safeIdemKey(b.idempotencyKey);
+  let charge: Awaited<ReturnType<typeof chargeCard>>;
   try {
     // Delivery always charges on order — no cash on delivery.
-    const charge = await chargeCard({ token, locationId, sourceId: b.sourceId!, amountCents: quote.totalCents, note: `GT3 Sunday delivery ${slot.deliveryDateKey}`, idempotencyKey: safeIdemKey(b.idempotencyKey) });
-    if (!charge.ok) return NextResponse.json({ error: charge.error }, { status: 400 });
-    const paymentId = charge.paymentId;
-    const paid = true;
+    charge = await chargeCard({ token, locationId, sourceId: b.sourceId!, amountCents: quote.totalCents, note: `GT3 Sunday delivery ${slot.deliveryDateKey}`, idempotencyKey: idemKey });
+  } catch (e) {
+    // Same fix as api/checkout: chargeCard's own fetch can throw AFTER Square already received (and
+    // possibly processed) the request — a dropped connection is the classic case. That's a genuine
+    // "may have been charged" state, so alert with what we know (the idempotency key) instead of the
+    // total silence this used to be, and tell the customer retrying is safe instead of implying
+    // nothing happened.
+    await raiseAlert({ severity: "critical", category: "money", title: "Delivery charge status unknown — check Square", body: `A card charge may or may not have gone through (idempotency key ${idemKey}, $${(quote.totalCents / 100).toFixed(2)}, ${name}, ${slot.deliveryLabel}). The request errored before a response came back: ${String(e instanceof Error ? e.message : e).slice(0, 200)}. Check Square by that idempotency key before assuming nothing happened.` });
+    return NextResponse.json({ error: "Couldn't confirm the payment — safe to try again, you won't be charged twice." }, { status: 502 });
+  }
+  if (!charge.ok) return NextResponse.json({ error: charge.error }, { status: 400 });
+  const paymentId = charge.paymentId;
+  const paid = true;
 
+  try {
     // Canonical customer link (0151) — member route; phone folds prior guest/pickup orders in.
-    const customerId = (await supabaseAdmin.rpc("resolve_customer", { p_user_id: user.id, p_phone: s(b.phone, 30) || null, p_email: null, p_name: name })).data as string | null;
+    const customerId = (await supabaseAdmin.rpc("resolve_customer", { p_user_id: user.id, p_phone: phone, p_email: null, p_name: name })).data as string | null;
     const row = {
       user_id: user.id, customer_id: customerId, channel: "direct", delivery_date: slot.deliveryDateKey, delivery_window: "5–8 AM",
-      name, phone: s(b.phone, 30) || null,
+      name, phone,
       address_street: street, address_city: city, address_zip: zip,
       access_instructions: s(b.accessInstructions, 400) || null,
       pack_size: packSize, rise_count: rise, flow_count: flow, dusk_count: dusk,
@@ -117,6 +144,12 @@ export async function POST(req: Request) {
     let { error: insErr } = await supabaseAdmin.from("delivery_orders").insert(row);
     if (insErr) ({ error: insErr } = await supabaseAdmin.from("delivery_orders").insert(row));
     if (insErr) {
+      // A concurrent request can win this race even after the pre-insert check above — confirm the
+      // other request's row is really there before raising a false "didn't record" alert.
+      if ((insErr as { code?: string }).code === "23505" && paymentId) {
+        const { data: already2 } = await supabaseAdmin.from("delivery_orders").select("id").eq("payment_id", paymentId).maybeSingle();
+        if (already2) return NextResponse.json({ ok: true, paymentId, recorded: true, deliveryLabel: slot.deliveryLabel });
+      }
       const ref = (paymentId || "").slice(-6).toUpperCase();
       // A paid card that didn't record is a money emergency; an unpaid pay-on-delivery is just a lost lead.
       await raiseAlert({ severity: paid ? "critical" : "important", category: paid ? "money" : "order", title: paid ? "Paid DELIVERY didn't record — add it" : "DELIVERY order didn't record — add it", body: `${paid ? `Card payment ${paymentId} succeeded but the` : "A pay-on-delivery"} delivery order didn't save. ${name}, ${packSize} bottles for ${slot.deliveryLabel}, ${street}, ${city} ${zip}. Add it by hand${paid ? " and confirm in Square" : ""}.` });
@@ -138,6 +171,7 @@ export async function POST(req: Request) {
     });
     return NextResponse.json({ ok: true, paymentId, recorded: true, deliveryLabel: slot.deliveryLabel, deliveryDateKey: slot.deliveryDateKey, totalCents: quote.totalCents });
   } catch {
-    return NextResponse.json({ error: "Payment service unavailable" }, { status: 502 });
+    // Charge is DONE at this point — an exception here broke while RECORDING, not while paying.
+    return NextResponse.json({ ok: true, paymentId, recorded: false, deliveryLabel: slot.deliveryLabel, warn: "Payment received, but we hit a snag recording your order — we'll follow up to confirm the details." }, { status: 200 });
   }
 }

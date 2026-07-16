@@ -14,6 +14,17 @@ import { preorderWindow, preorderLeadMs } from "@/lib/orderAhead";
 // first here, which meant a reprice via Money > Menu could silently charge the OLD Square/hardcoded
 // price. lib/menu.ts's px stays as the final fallback (revenue continuity beats a hard fail if both
 // products and Square are unreachable) but is never preferred over a real price.
+//
+// Square has no concept of our slugs, so its items are matched back to one by DISPLAY NAME. For 7 of
+// 10 items the lowercased name happens to equal the slug (rise, flow, dusk, tide, forge, hunt, wild),
+// which used to mask this bug: kingme ("KING ME"), maple ("SALTED MAPLE LATTE"), and aide ("NATURE'S
+// AIDE") don't match their slug — so a name-keyed map silently missed the live Square price for those
+// 3 below (line 141 looks this map up BY SLUG) and fell through to the stale lib/menu.ts price instead,
+// whenever this fallback actually fired.
+const NAME_TO_SLUG: Record<string, DrinkId> = Object.fromEntries(
+  (Object.keys(DRINKS) as DrinkId[]).map((slug) => [DRINKS[slug].n.toLowerCase(), slug])
+) as Record<string, DrinkId>;
+
 async function squarePriceMap(token: string): Promise<Record<string, number>> {
   try {
     const res = await fetch(`${SQUARE_BASE}/v2/catalog/list?types=ITEM`, {
@@ -25,7 +36,8 @@ async function squarePriceMap(token: string): Promise<Record<string, number>> {
     for (const o of data?.objects ?? []) {
       const n = o?.item_data?.name?.toLowerCase();
       const a = o?.item_data?.variations?.[0]?.item_variation_data?.price_money?.amount;
-      if (n && typeof a === "number") m[n] = a;
+      const slug = n ? NAME_TO_SLUG[n] : undefined;
+      if (slug && typeof a === "number") m[slug] = a;
     }
     return m;
   } catch {
@@ -45,6 +57,10 @@ export async function POST(req: Request) {
 
   let body: { sourceId?: string; items?: DrinkId[]; tipCents?: number; customer?: string; code?: string; idempotencyKey?: string };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
+  // A literal `null` body (e.g. body: 'null') is valid JSON — req.json() resolves to it without
+  // throwing, so it slips past the try/catch above. Destructuring `null` next would throw a raw
+  // TypeError outside any try block, producing a generic 500 instead of a clean 400.
+  if (!body || typeof body !== "object") return NextResponse.json({ error: "Bad request" }, { status: 400 });
   const { sourceId, items, tipCents } = body;
   if (!Array.isArray(items) || items.length === 0) {
     return NextResponse.json({ error: "Empty order" }, { status: 400 });
@@ -161,11 +177,25 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, amount: subtotal, recorded: true });
   }
 
+  const idemKey = safeIdemKey(body.idempotencyKey);
+  let charge: Awaited<ReturnType<typeof chargeCard>>;
   try {
-    const charge = await chargeCard({ token: token!, locationId: locationId!, sourceId: sourceId!, amountCents: amount, note: "GT3PB pre-order", idempotencyKey: safeIdemKey(body.idempotencyKey) });
-    if (!charge.ok) return NextResponse.json({ error: charge.error }, { status: 400 });
-    const paymentId = charge.paymentId;
+    charge = await chargeCard({ token: token!, locationId: locationId!, sourceId: sourceId!, amountCents: amount, note: "GT3PB pre-order", idempotencyKey: idemKey });
+  } catch (e) {
+    // chargeCard's own fetch/parse can throw BEFORE returning a result — a dropped connection after
+    // Square already received (and possibly processed) the request is the classic case. Unlike every
+    // failure below, this is a genuine "may have been charged" state, so it gets its own alert (with
+    // what we DO know — the idempotency key — so staff can check Square directly) instead of the
+    // total silence this used to be. Retrying is still safe: the idempotency key is unchanged, so
+    // Square will dedupe a genuine double-send — the message below says so instead of implying
+    // nothing happened (which risked a customer paying a SECOND time by another channel).
+    await raiseAlert({ severity: "critical", category: "money", title: "Checkout charge status unknown — check Square", body: `A card charge may or may not have gone through (idempotency key ${idemKey}, $${(amount / 100).toFixed(2)}${customer ? `, name: ${customer}` : ""}). The request errored before a response came back: ${String(e instanceof Error ? e.message : e).slice(0, 200)}. Check Square by that idempotency key before assuming nothing happened.` });
+    return NextResponse.json({ error: "Couldn't confirm the payment — safe to tap Pay and try again, you won't be charged twice." }, { status: 502 });
+  }
+  if (!charge.ok) return NextResponse.json({ error: charge.error }, { status: 400 });
+  const paymentId = charge.paymentId;
 
+  try {
     // Idempotency at the ORDER row: the charge's idempotency key makes a retry return the SAME
     // paymentId, so if we already recorded an order for it (a retry after a lost response), don't
     // insert a SECOND paid order → double fulfillment. (A unique index on payment_id backs this in DB.)
@@ -185,8 +215,17 @@ export async function POST(req: Request) {
       ({ error: insErr } = await supabaseAdmin.from("orders").insert(orderRow));
     }
     if (insErr) {
-      // Still failed: alert the crew immediately with the payment id + items so they add it by hand,
-      // and hand the customer a reference to show at the window. No more "just tell staff".
+      // A concurrent request (a fast double-tap before the button visually disables, or a client-side
+      // retry after a slow response) can lose this exact race — Square already deduped the CHARGE via
+      // idempotency key, so the OTHER request's insert succeeding isn't a failure, it's the dedupe
+      // working. Confirm that row is really there before raising a false "didn't record" alert, which
+      // would otherwise have staff double-add an order that's already correctly on the pass.
+      if ((insErr as { code?: string }).code === "23505" && paymentId) {
+        const { data: already2 } = await supabaseAdmin.from("orders").select("id").eq("payment_id", paymentId).maybeSingle();
+        if (already2) return NextResponse.json({ ok: true, paymentId, amount, recorded: true });
+      }
+      // Still failed, and not a benign race: alert the crew immediately with the payment id + items
+      // so they add it by hand, and hand the customer a reference to show at the window.
       const ref = (paymentId || "").slice(-6).toUpperCase();
       await raiseAlert({ severity: "critical", category: "money", title: "Paid order didn't record — add it", body: `A card payment succeeded (${paymentId}) but the order didn't save. ${customer ? `Name: ${customer}. ` : ""}Items: ${items.join(", ")}. Add it to the pass and confirm in Square.` });
       return NextResponse.json({ ok: true, paymentId, amount, recorded: false, ref, warn: `Payment received${ref ? ` — ref ${ref}` : ""}. We've alerted the crew to add your order; show this ref at the window.` }, { status: 200 });
@@ -196,6 +235,9 @@ export async function POST(req: Request) {
     }
     return NextResponse.json({ ok: true, paymentId, amount, recorded: true });
   } catch {
-    return NextResponse.json({ error: "Payment service unavailable" }, { status: 502 });
+    // The charge is DONE at this point (we have a paymentId) — an exception here means something
+    // broke while RECORDING it, not while paying. "Payment service unavailable" would be actively
+    // wrong (they WERE charged); point them to the crew instead of implying nothing happened.
+    return NextResponse.json({ ok: true, paymentId, amount, recorded: false, warn: "Payment received, but we hit a snag recording your order — show this screen at the window and we'll sort it." }, { status: 200 });
   }
 }

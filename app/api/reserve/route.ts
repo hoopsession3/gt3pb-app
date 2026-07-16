@@ -93,6 +93,16 @@ export async function POST(req: Request) {
       if (!charge.ok) return NextResponse.json({ error: charge.error }, { status: 400 });
       paymentId = charge.paymentId;
       paid = true;
+      // Idempotency at the ORDER row — the same protection /api/checkout has, missing here until now.
+      // A retried request (a fast double-tap before the button visually disables, or a client retry
+      // after a lost response) carries the SAME idempotency key, so Square correctly returns the SAME
+      // paymentId for both — but without this check, both requests would independently insert a row,
+      // producing two funded pack reservations for one charge. (A unique index on
+      // drop_orders.payment_id backs this in the DB — see the accompanying migration.)
+      if (paymentId) {
+        const { data: already } = await supabaseAdmin.from("drop_orders").select("id").eq("payment_id", paymentId).maybeSingle();
+        if (already) return NextResponse.json({ ok: true, id: already.id, paid: true, recorded: true });
+      }
     }
 
     // Canonical customer link (0151) — member-only route, so user.id is the strong key; phone folds
@@ -102,6 +112,14 @@ export async function POST(req: Request) {
     let { data: inserted, error: insErr } = await supabaseAdmin.from("drop_orders").insert(row).select("id").single();
     if (insErr) ({ data: inserted, error: insErr } = await supabaseAdmin.from("drop_orders").insert(row).select("id").single()); // retry once
     if (insErr) {
+      // A concurrent request can still lose this exact race even with the pre-charge check above
+      // (both requests can pass it before either insert commits) — the DB unique index is the real
+      // backstop. Confirm the other request's row is there before raising a false "didn't record"
+      // alert, which would otherwise have staff double-add a reservation that's already on the drop.
+      if ((insErr as { code?: string }).code === "23505" && paymentId) {
+        const { data: already2 } = await supabaseAdmin.from("drop_orders").select("id").eq("payment_id", paymentId).maybeSingle();
+        if (already2) return NextResponse.json({ ok: true, id: already2.id, paid, recorded: true });
+      }
       const ref = (paymentId || "").slice(-6).toUpperCase();
       const title = paid ? "Paid reservation didn't record — add it" : "Reservation didn't record — add it";
       await raiseAlert({ severity: "critical", category: paid ? "money" : "order", kind: "ops_incident", title, body: `${paid ? `A card payment succeeded (${paymentId}) but the` : "A pre-order"} reservation didn't save. ${name} · ${size}-pack ${glass} · ${mixSummary(mix)} · pickup ${dropDate}.${paid ? " Add it and confirm in Square." : " Add it to the drop."}` });

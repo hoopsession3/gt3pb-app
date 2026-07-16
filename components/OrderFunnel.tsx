@@ -209,9 +209,26 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
   // Stable Square idempotency key per charge attempt (reused across "Try again" for the same order,
   // regenerated when the order changes) so an ambiguous failure can't double-charge. Keyed by channel
   // so a pickup and a delivery attempt don't collide. See lib/squareServer.safeIdemKey.
-  const idem = useRef<{ sig: string; key: string }>({ sig: "", key: "" });
+  // Persisted (not just in-memory) so a customer who navigates away mid-charge — plausible on a slow
+  // venue/porch WiFi, which is exactly the environment this app targets — and comes back to retry the
+  // SAME order still gets the SAME idempotency key. A plain useRef reset to empty on every remount
+  // (this page's normal navigate-away-and-back lifecycle, unlike Checkout.tsx's sheet which stays
+  // mounted) meant that retry got a genuinely NEW key, so Square could not dedupe it — a real double
+  // charge, not just a display glitch. sessionStorage survives the remount; wrapped in try/catch since
+  // Safari private mode can throw on access.
+  const IDEM_STORAGE_KEY = "gt3-of-idem";
+  const idem = useRef<{ sig: string; key: string }>((() => {
+    try {
+      const raw = typeof window !== "undefined" ? sessionStorage.getItem(IDEM_STORAGE_KEY) : null;
+      if (raw) return JSON.parse(raw) as { sig: string; key: string };
+    } catch { /* ignore */ }
+    return { sig: "", key: "" };
+  })());
   const idemKeyFor = (sig: string) => {
-    if (idem.current.sig !== sig) idem.current = { sig, key: crypto.randomUUID() };
+    if (idem.current.sig !== sig) {
+      idem.current = { sig, key: crypto.randomUUID() };
+      try { sessionStorage.setItem(IDEM_STORAGE_KEY, JSON.stringify(idem.current)); } catch { /* ignore */ }
+    }
     return idem.current.key;
   };
   const [cardReady, setCardReady] = useState(false);
@@ -245,7 +262,16 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
     haptic(HAPTIC.tap);
     setCount(s);
     // an overfull mix resets when the pack shrinks below it (reference behavior)
-    setMix((m) => (m.rise + m.flow + m.dusk + (mode === "delivery" ? perf : 0) > s ? { rise: 0, flow: 0, dusk: 0 } : m));
+    const overfull = mix.rise + mix.flow + mix.dusk + (mode === "delivery" ? perf : 0) > s;
+    setMix((m) => (overfull ? { rise: 0, flow: 0, dusk: 0 } : m));
+    // Premiums count toward `picked` in delivery mode exactly like mix does, but were never touched
+    // here — shrinking the pack after adding premiums left `picked` stuck over the new `count` (a
+    // permanent, unexplained negative "Pick -N more" on the Build step), and left the refills stepper
+    // showing a count past its own "up to N" cap (quoteDelivery re-clamps the actual CHARGE
+    // independently, so money was always right — only the on-screen numbers were stuck/wrong).
+    const newPerf = mode === "delivery" && overfull ? 0 : perf;
+    if (mode === "delivery" && overfull) setPremiums({});
+    setRefills((r) => Math.min(maxRefills(s, newPerf), r));
     // Both modes operate identically: selecting a size highlights it; the "Build your pack" button
     // advances. (Delivery used to auto-jump on tap, which felt different from pickup.)
   };
@@ -282,7 +308,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
       const res = await authedFetch("/api/reserve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceId: sourceId ?? undefined, idempotencyKey: idemKeyFor("pickup:" + JSON.stringify({ name: name.trim(), phone: phone.trim(), count, bringBack, mix, drop: dropDateKey(drop.sat) })), name: name.trim(), phone: phone.trim(), size: count, glass: (bringBack ? "return" : "new") as GlassPath, mix: { RISE: mix.rise, FLOW: mix.flow, DUSK: mix.dusk }, dropDate: dropDateKey(drop.sat), code: codeState === "ok" ? codeClean : undefined }),
+        body: JSON.stringify({ sourceId: sourceId ?? undefined, idempotencyKey: idemKeyFor("pickup:" + JSON.stringify({ name: name.trim(), phone: phone.trim(), count, bringBack, mix, drop: dropDateKey(drop.sat), code: codeState === "ok" ? codeClean : undefined })), name: name.trim(), phone: phone.trim(), size: count, glass: (bringBack ? "return" : "new") as GlassPath, mix: { RISE: mix.rise, FLOW: mix.flow, DUSK: mix.dusk }, dropDate: dropDateKey(drop.sat), code: codeState === "ok" ? codeClean : undefined }),
       });
       const data = await res.json(); setBusy(false);
       if (!res.ok) { setErr(data.error || "Something went wrong — try again."); return; }
@@ -296,10 +322,18 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
         toast(ok === true ? "Pack updated — your old reservation was canceled" : "New pack is in, but the old one couldn't be canceled — cancel it under Your pack.", ok === true ? undefined : "error");
       }
       setPacksKey((k) => k + "x");
-    } catch { setBusy(false); setErr("Nothing was charged — try again."); }
+    } catch {
+      setBusy(false);
+      // A network exception here can happen AFTER the server already charged the card (the request
+      // reached /api/reserve and Square before the connection dropped) — "nothing was charged" would
+      // be a real lie in that case. The idempotency key (now persisted, see `idem` above) makes a
+      // retry safe either way, so say that instead of asserting something we can't know.
+      setErr("Couldn't confirm — safe to try again, you won't be charged twice.");
+    }
   }, [name, phone, count, bringBack, mix, drop, totalCents, codeState, codeClean, replacing, toast]);
 
   const payDelivery = async () => {
+    if (busy) return; // guard a fast double-tap before the button's disabled attribute takes effect
     setErr("");
     if (!cardReady || !count || !deliveryQuote) return;
     setBusy(true);
@@ -322,9 +356,16 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
       setDone({ total: data.totalCents ?? deliveryQuote.totalCents, label: data.deliveryLabel, warn: data.warn, paid: true });
       trackFunnel("delivery", "done");
       setStep("done");
-    } catch { setBusy(false); setErr("Payment service unavailable"); }
+    } catch {
+      setBusy(false);
+      // Same reasoning as submitPickup's catch: this can fire after the server already charged the
+      // card (response lost after /api/delivery/checkout finished), so "service unavailable" would be
+      // misleading. The idempotency key makes a retry safe regardless.
+      setErr("Couldn't confirm the payment — safe to try again, you won't be charged twice.");
+    }
   };
   const payPickupCard = async () => {
+    if (busy) return; // guard a fast double-tap before the button's disabled attribute takes effect
     setErr("");
     if (!name.trim() || !phone.trim()) { setErr("Name and phone are required for the pickup text."); return; }
     if (!cardReady) return;
@@ -333,7 +374,12 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
       const result = await paymentRef.current!.tokenize();
       if (result.status !== "OK" || !result.token) { setErr("Card details look off — check and retry."); setBusy(false); return; }
       await submitPickup(result.token);
-    } catch { setErr("Payment failed — nothing was charged. Try again."); setBusy(false); }
+    } catch {
+      // Reached only if tokenize() itself throws, before submitPickup (and any network call) ever
+      // runs — "nothing was charged" is accurate here specifically, unlike the messages above.
+      setErr("Payment failed — nothing was charged. Try again.");
+      setBusy(false);
+    }
   };
 
   const targetDayKey = () => (mode === "delivery" ? (slot?.deliveryDateKey ?? "") : dropDateKey(drop.sat));
@@ -600,7 +646,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
                 <span>New sealed bottle, {dollars(1000)}/bottle flat. Bring them back next time to unlock pack pricing.</span>
               </button>
               <div className="dl-quote">
-                <span><b>{count}</b> bottles · {mode === "pickup" && bringBack ? `save $${saveAmount(count)}` : "new glass"}</span>
+                <span><b>{count}</b> bottles · {mode === "pickup" && bringBack ? `save ${dollars(Math.round(saveAmount(count) * 100))}` : "new glass"}</span>
                 <span>${perBottle(count, bringBack ? "return" : "new").toFixed(2)} / bottle</span>
                 <span className="dl-quote-t">total <b>{dollars(pickupTotalCents)}</b></span>
               </div>

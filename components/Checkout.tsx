@@ -25,7 +25,7 @@ export default function Checkout() {
   // The confirmation moment — same shape as pickup/delivery's OrderConfirm. Lines/name are captured
   // at success time because checkout() clears the cart right after (lines would otherwise read empty
   // by the time the confirm screen renders).
-  const [done, setDone] = useState<{ paid: boolean; total: number; lines: [DrinkId, number][]; name: string } | null>(null);
+  const [done, setDone] = useState<{ paid: boolean; total: number; lines: [DrinkId, number][]; name: string; warn?: string; ref?: string } | null>(null);
   useEffect(() => { if (!open) setDone(null); else trackFunnel("order", "open"); }, [open]);
   const { user, profile } = useAuth();
   const [prices, setPrices] = useState<Record<string, number>>({});
@@ -137,12 +137,13 @@ export default function Checkout() {
     const capturedLines = [...lines], capturedName = customer, capturedTotal = totalCents;
     trackFunnel("order", "pickup");
     toast(`${items.length} drink${items.length === 1 ? "" : "s"} pre-ordered — ready in ~8 min`);
-    checkout();
+    checkout({ silentToast: true }); // clears cart — this toast already fired above
     setDone({ paid: false, total: capturedTotal, lines: capturedLines, name: capturedName });
     setBusy(false);
   };
 
   const pay = async () => {
+    if (busy) return; // guard a fast double-tap before the button's disabled attribute takes effect
     setErr("");
     if (!customer) { setErr("Add a name for pickup"); return; }
     if (!ready) return;
@@ -167,8 +168,13 @@ export default function Checkout() {
       trackFunnel("order", "paid");
       const capturedLines = [...lines], capturedName = customer;
       toast(data.warn || `Paid $${total} — order in. Ready in ~8 min.`);
-      checkout(); // clears cart
-      setDone({ paid: true, total: grandCents, lines: capturedLines, name: capturedName });
+      checkout({ silentToast: true }); // clears cart — this toast already fired above
+      // data.warn/data.ref carry the "charged but not yet recorded" fallback (server alerted the
+      // crew and generated a reference code) — capture them into `done` so the PERSISTENT confirm
+      // screen shows it, not just a toast that auto-dismisses in a few seconds. Previously this was
+      // dropped entirely: the toast above never even rendered (React batches it with checkout()'s own
+      // toast and only the last one shows), and `done` had nowhere to put it even if it had.
+      setDone({ paid: true, total: grandCents, lines: capturedLines, name: capturedName, warn: data.warn, ref: data.ref });
     } catch {
       setBusy(false);
       // We can't tell whether the card was captured before the connection dropped, but the idempotency
@@ -178,7 +184,7 @@ export default function Checkout() {
   };
 
   return (
-    <Sheet open={open} onClose={onClose} className="paper" labelledBy="checkout-title"
+    <Sheet open={open} onClose={busy ? () => {} : onClose} className="paper" labelledBy="checkout-title"
       header={<div className="oa-kicker" id="checkout-title">Checkout</div>}>
       {done ? (
         <OrderConfirm
@@ -186,9 +192,11 @@ export default function Checkout() {
           sub={done.paid ? "Ready in ~8 min — we'll have it waiting at the window." : "Ready in ~8 min — pay at the truck when you arrive."}
           totalCents={done.total}
           totalLabel={done.paid ? "paid" : "due at the truck"}
+          warn={done.warn}
           rows={[
             ...done.lines.map(([id, q]) => ({ label: DRINKS[id].n, value: `${q}×` })),
             { label: "For", value: done.name },
+            ...(done.ref ? [{ label: "Ref", value: `#${done.ref}` }] : []),
             { label: done.paid ? "Paid" : "Pay at pickup", value: `$${(done.total / 100).toFixed(2)}` },
           ]}
           ctaLabel="Reserve a Saturday pack →"
@@ -213,9 +221,9 @@ export default function Checkout() {
               {lines.map(([id, q]) => (
                 <div className="co-line" key={id}>
                   <span className="co-qty">
-                    <button type="button" className="co-step" aria-label={`Remove one ${DRINKS[id].n}`} onClick={() => dec(id)}>−</button>
+                    <button type="button" className="co-step" aria-label={`Remove one ${DRINKS[id].n}`} onClick={() => dec(id)} disabled={busy}>−</button>
                     <b>{q}</b>
-                    <button type="button" className="co-step" aria-label={`Add one ${DRINKS[id].n}`} onClick={() => inc(id)}>+</button>
+                    <button type="button" className="co-step" aria-label={`Add one ${DRINKS[id].n}`} onClick={() => inc(id)} disabled={busy}>+</button>
                     {DRINKS[id].n}
                   </span>
                   <span>${((priceOf(id) * q) / 100).toFixed(2)}</span>

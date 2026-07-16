@@ -37,7 +37,7 @@ const PaymentCard = forwardRef<PaymentCardHandle, {
 
   useEffect(() => {
     if (!squareClientReady) return;
-    let dead = false, hardError = false, polls = 0;
+    let dead = false, polls = 0;
     let iv: ReturnType<typeof setInterval> | undefined;
     const tryMount = async (Square: any): Promise<boolean> => {
       if (dead || cardRef.current) return true;
@@ -50,9 +50,15 @@ const PaymentCard = forwardRef<PaymentCardHandle, {
         onReadyRef.current?.(true); onErrorRef.current?.(null);
         return true;
       } catch (e) {
-        hardError = true;
-        onErrorRef.current?.(`Card form error — ${e instanceof Error ? e.message : "Square rejected the request"}. Check the app is live, then refresh.`);
-        return true;
+        // Transient failure (SDK init still settling, a slow/flaky resource load right after the
+        // script tag fires, etc.) — the FIRST failure must not be treated as fatal. Return false so
+        // the 300ms×25 retry loop below actually runs; only polls>=25 (every attempt exhausted)
+        // surfaces a user-visible error. This was the real bug: every path here used to return
+        // `true` unconditionally, including this catch — which skipped the retry loop entirely and
+        // turned every transient hiccup into an immediate, permanent "Card form error," with the Pay
+        // button stuck on "Loading card…" forever.
+        console.warn("[PaymentCard] mount attempt failed, will retry:", e instanceof Error ? e.message : e);
+        return false;
       }
     };
     (async () => {
@@ -62,9 +68,9 @@ const PaymentCard = forwardRef<PaymentCardHandle, {
       if (await tryMount(Square)) return;
       iv = setInterval(async () => {
         polls += 1;
-        if (dead || cardRef.current || hardError) { if (iv) clearInterval(iv); return; }
+        if (dead || cardRef.current) { if (iv) clearInterval(iv); return; }
         if (await tryMount(Square)) { if (iv) clearInterval(iv); return; }
-        if (polls >= 25) { if (iv) clearInterval(iv); if (!cardRef.current && !hardError) onErrorRef.current?.("Card form didn't load. Refresh and try again — if it keeps happening, tell us."); }
+        if (polls >= 25) { if (iv) clearInterval(iv); if (!cardRef.current) onErrorRef.current?.("Card form didn't load. Refresh and try again — if it keeps happening, tell us."); }
       }, 300);
     })();
     return () => { dead = true; if (iv) clearInterval(iv); cardRef.current?.destroy?.(); cardRef.current = null; onReadyRef.current?.(false); };
