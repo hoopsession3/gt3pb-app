@@ -49,6 +49,14 @@ export default function Goals() {
   const [adding, setAdding] = useState(false);
   const [savingGoal, setSavingGoal] = useState(false);
   const [ng, setNg] = useState({ title: "", target: "", unit: "", play: "", due: "", stream: "business", source: "" });
+  // Edit + archive (2026-07-16) — a goal could be created and have its owner/lane/progress changed,
+  // but never its own title/description/target/unit/due date, and never removed. Confirmed gap from
+  // the crew-console audit; "archive" (not a hard delete) matches the status column that already had
+  // an unused 'archived' value and the query that already excludes it (line ~57) — the plumbing was
+  // half there, just no button called it.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [eg, setEg] = useState({ title: "", metric: "", target: "", unit: "", due: "", play: "" });
+  const [savingEdit, setSavingEdit] = useState(false);
   const canLead = LEADERSHIP_ROLES.includes(roleOf(profile)) || !!profile?.is_admin;
 
   const loader = useCallback(async (): Promise<Board> => {
@@ -105,8 +113,33 @@ export default function Goals() {
     const { error } = await supabase.from("goals").update({ status, updated_at: new Date().toISOString() }).eq("id", g.id);
     if (error) { toast(`Couldn't update — ${error.message}`, "error"); }
     else if (status === "hit") toast("Goal hit — log the decision on the Playbook");
+    else if (status === "archived") toast("Archived — off the board");
     reload();
   };
+
+  // The fields nothing else here can touch: title, description, target, unit, due date. Owner/lane/
+  // horizon/progress already had their own controls — this is the rest of "edit a goal."
+  const startEdit = (g: Goal) => {
+    setEditingId(g.id);
+    setEg({ title: g.title, metric: g.metric ?? "", target: String(g.target_value), unit: g.unit ?? "", due: g.due_date ?? "", play: g.play ?? "" });
+  };
+  const saveEdit = async (g: Goal) => {
+    if (!supabase || savingEdit) return;
+    const target = Number(eg.target);
+    if (!eg.title.trim() || !Number.isFinite(target) || target <= 0) { toast("A goal needs a name and a real target", "error"); return; }
+    setSavingEdit(true);
+    const { error } = await supabase.from("goals").update({
+      title: eg.title.trim(), metric: eg.metric.trim() || null, target_value: target,
+      unit: g.metric_source ? g.unit : eg.unit.trim(), // a live-bound goal's unit comes from its metric source, not free text
+      due_date: eg.due || null, play: eg.play.trim() || null, updated_at: new Date().toISOString(),
+    }).eq("id", g.id);
+    setSavingEdit(false);
+    if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
+    setEditingId(null);
+    toast("Goal updated");
+    reload();
+  };
+  const archiveGoal = (g: Goal) => { setEditingId(null); setStatus(g, "archived"); };
 
   const setStream = async (g: Goal, stream_key: string) => {
     if (!supabase) return;
@@ -201,18 +234,44 @@ export default function Goals() {
     const doneN = goalInits.filter((i) => i.done).length;
     return (
       <div className="goal-card" key={g.id}>
-        <div className="goal-top">
-          <span className="goal-title">{g.title}</span>
-          {g.metric_source && <span className="goal-live" title={METRIC_SOURCES[g.metric_source]?.hint}>live</span>}
-          {g.horizon && <span className={`goal-tier tier-${g.horizon}`}>{g.horizon}</span>}
-          {g.play && <span className="goal-play">{g.play}</span>}
-        </div>
-        {g.metric && <p className="goal-metric">{g.metric}</p>}
-        <div className={`goal-bar${reached ? " hit" : ""}`}><i style={{ width: `${pct}%` }} /></div>
-        <div className="goal-nums">
-          <span><b>{cur}</b> of <b>{g.target_value}</b>{g.unit && ` ${g.unit}`}</span>
-          <span>{goalInits.length > 0 && `${doneN}/${goalInits.length} moves · `}{g.due_date ? `by ${new Date(`${g.due_date}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : g.source ? "standing" : ""}</span>
-        </div>
+        {editingId === g.id ? (
+          <div className="goal-edit">
+            <div className="goal-edit-h">Editing this goal</div>
+            <input className="auth-input" value={eg.title} onChange={(e) => setEg({ ...eg, title: e.target.value })} placeholder="Goal title" maxLength={80} aria-label="Goal title" />
+            <input className="auth-input" value={eg.metric} onChange={(e) => setEg({ ...eg, metric: e.target.value })} placeholder="Description (optional)" maxLength={140} aria-label="Description" />
+            <div className="goal-new-row">
+              <input className="auth-input" inputMode="decimal" value={eg.target} onChange={(e) => setEg({ ...eg, target: e.target.value })} placeholder="Target (number)" aria-label="Target" />
+              {g.metric_source
+                ? <input className="auth-input" value={eg.unit} disabled aria-label="Unit (set by the live metric)" />
+                : <input className="auth-input" value={eg.unit} onChange={(e) => setEg({ ...eg, unit: e.target.value })} placeholder="Unit — $/mo, %, orders" maxLength={16} aria-label="Unit" />}
+            </div>
+            <div className="goal-new-row">
+              <input className="auth-input" value={eg.play} onChange={(e) => setEg({ ...eg, play: e.target.value })} placeholder="Which play it serves (optional)" maxLength={60} aria-label="Play" />
+              <input className="auth-input" type="date" value={eg.due} onChange={(e) => setEg({ ...eg, due: e.target.value })} aria-label="Due date" />
+            </div>
+            <div className="st-log-btns">
+              <button type="button" className="dops-mini" onClick={() => saveEdit(g)} disabled={savingEdit}>{savingEdit ? "Saving…" : "Save"}</button>
+              <button type="button" className="st-discuss" onClick={() => setEditingId(null)}>Cancel</button>
+              <button type="button" className="st-discuss goal-archive" onClick={() => archiveGoal(g)}>Archive goal</button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="goal-top">
+              <span className="goal-title">{g.title}</span>
+              {g.metric_source && <span className="goal-live" title={METRIC_SOURCES[g.metric_source]?.hint}>live</span>}
+              {g.horizon && <span className={`goal-tier tier-${g.horizon}`}>{g.horizon}</span>}
+              {g.play && <span className="goal-play">{g.play}</span>}
+              {canLead && <button type="button" className="goal-edit-btn" onClick={() => startEdit(g)} aria-label={`Edit ${g.title}`}><Icon name="edit" size={12} /></button>}
+            </div>
+            {g.metric && <p className="goal-metric">{g.metric}</p>}
+            <div className={`goal-bar${reached ? " hit" : ""}`}><i style={{ width: `${pct}%` }} /></div>
+            <div className="goal-nums">
+              <span><b>{cur}</b> of <b>{g.target_value}</b>{g.unit && ` ${g.unit}`}</span>
+              <span>{goalInits.length > 0 && `${doneN}/${goalInits.length} moves · `}{g.due_date ? `by ${new Date(`${g.due_date}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : g.source ? "standing" : ""}</span>
+            </div>
+          </>
+        )}
 
         <div className="goal-owner">
           <span className="goal-owner-l">Owner</span>

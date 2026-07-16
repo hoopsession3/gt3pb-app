@@ -114,12 +114,14 @@ import VendorResolve from "@/components/VendorResolve";
 import Icon from "@/components/Icon";
 
 // money helpers for the economics panels
-// Per-lane phase labels: the Service lane reads as the operator's loop — Plan → Prep → Run → Delivery
-// — instead of the old ad-hoc Live Ops · Readiness · Route · Delivery. Only overrides labels inside a
-// given lane's toggle, so shared sections (prep/now) keep their normal names elsewhere.
-const PHASE_LABEL: Record<string, Partial<Record<OpSection, string>>> = {
-  service: { stops: "Schedule", prep: "Prep", now: "Run", driver: "Delivery" },
-};
+// 2026-07-16: PHASE_LABEL used to rename the Service lane's own segmented tabs (Route → "Schedule",
+// Live Ops → "Run", Readiness → "Prep") while the page header sitting directly above that same strip
+// (SEC_LABEL, below) kept the plain names — so you'd tap "Run" and land on a screen titled "Live
+// Ops." Confirmed as the single biggest driver of "everything's named three different things" in
+// this round's crew-console audit (the comment describing the intended reading order didn't even
+// match the renames it made). Retired rather than reconciled the other way: Route/Live Ops/Readiness
+// are the names already used by SEC_LABEL, the in-app Guide, and OperatorNav's own SECTION_LABEL —
+// this was the one outlier, not the other three.
 const usd = (cents: number) => `$${(cents / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 const toCents = (s: string) => Math.max(0, Math.round((parseFloat(s) || 0) * 100));
 const pctInt = (n: number) => Math.round(n * 100);
@@ -2806,9 +2808,13 @@ function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive
               <div className="ev-group-h">Location</div>
               <div className="stop-coords ok" style={{ marginTop: 0 }}>{displayName || "Untitled location"}{stopWhen ? ` · ${stopWhen}` : " · no date"}</div>
               <div className={`stop-coords${hasCoords ? " ok" : ""}`}>{hasCoords ? `Pinned · ${(row.lat as number).toFixed(4)}, ${(row.lng as number).toFixed(4)}` : "No pin yet — add the address for accurate directions"}</div>
-              {/* the facts change HERE, in two taps (FieldOpSheet) — the prep hub stays the deep surface */}
+              {/* the facts change HERE, in two taps (FieldOpSheet) — the prep hub stays the deep surface.
+                  The one door to the hub lives in the footer below (ev-card-foot) — this group used to
+                  ALSO carry its own "Full prep" button, on top of two more in the footer. Three buttons,
+                  one destination — exactly the "why is prep on the screen twice" complaint that opened
+                  this audit. FieldOpSheet still offers its own single door to the hub on demand; that one
+                  stays (different surface, on-demand only, already correctly singular). */}
               <button type="button" className="adm-btn" onClick={() => setEditFacts(true)}>Edit name, date, time &amp; address ›</button>
-              {onOpenPrep && <button type="button" className="adm-btn" onClick={onOpenPrep}>Full prep — menu, staffing, run-of-show ›</button>}
               {editFacts && (
                 <FieldOpSheet kind="stop" id={row.id} onClose={() => setEditFacts(false)}
                   onSaved={() => { setEditFacts(false); onChanged(); }} onOpenPrep={onOpenPrep} />
@@ -2864,8 +2870,12 @@ function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive
           )}
 
           <div className="ev-card-foot">
-            {kind === "stop" && onOpenPrep && <button className="adm-btn" style={{ marginRight: "auto" }} onClick={onOpenPrep}>Open prep hub ›</button>}
-            {kind === "stop" && onOpenPrep && <button className="ev-archive ev-complete" onClick={onOpenPrep}><Icon name="check" /> Wrap up in the hub ›</button>}
+            {/* One door to the hub, not three. Used to also duplicate the Location group's button above,
+                plus a second footer button styled and labeled as if "Wrap up in the hub" were a distinct
+                complete-this-stop action — it wasn't: both buttons called this exact same onOpenPrep with
+                no differentiating state, so the green "complete" styling and check icon promised something
+                that never happened. */}
+            {kind === "stop" && onOpenPrep && <button className="adm-btn" style={{ marginRight: "auto" }} onClick={onOpenPrep}>Full prep — menu, staffing, run-of-show ›</button>}
             {kind === "vendor" && <button className="ev-archive" onClick={onArchive}>Archive</button>}
             {kind === "vendor" && <button className="ev-delete" onClick={remove}>Delete</button>}
           </div>
@@ -5726,7 +5736,7 @@ export default function AdminPage() {
         return (
           <div className="grp-toggle" role="tablist" aria-label={grp!.label}>
             {members.map((m: OpSection) => (
-              <button key={m} type="button" role="tab" aria-selected={sec === m} className={`grp-seg${sec === m ? " on" : ""}`} onClick={() => setSection(m)}>{PHASE_LABEL[grp!.id]?.[m] ?? SECTION_LABEL[m]}</button>
+              <button key={m} type="button" role="tab" aria-selected={sec === m} className={`grp-seg${sec === m ? " on" : ""}`} onClick={() => setSection(m)}>{SECTION_LABEL[m]}</button>
             ))}
           </div>
         );
@@ -5844,6 +5854,12 @@ export default function AdminPage() {
           <Panel id="set-ai" title="AI copilots · the full catalog"><CopilotDirectory /></Panel>
           {isAdmin && <Panel id="set-spend" title="AI spend · what your copilots cost"><AiSpend /></Panel>}
           {isAdmin && <Panel id="set-digest" title="Founder digest · the daily business roll-up"><FounderDigest /></Panel>}
+
+          {/* 2026-07-16 scope assessment: changelog + the audit log are tools ABOUT the software
+              itself (what shipped, what got reviewed) rather than tools for running the business —
+              they don't need equal billing with Copy/Broadcast/Office, which get touched daily. Same
+              access, same panels, just moved behind their own divider instead of interleaved. */}
+          <div className="crew-group">Advanced</div>
           <Panel id="set-changelog" title="What we've built · changelog"><Changelog /></Panel>
           {isAdmin && (
             <Panel id="set-audit" title="Audit & maintenance · every review run, scored &amp; dated">
