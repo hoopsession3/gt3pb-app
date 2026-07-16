@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { MENU_SLUG_FLAGS } from "@/lib/packlist";
+import Icon from "@/components/Icon";
 
 // MENU & RIG CHIPS — the ONE editor for the menu/rig/site flags that events and stops share
 // (menu_*, rig, power_available, water_available). The July 2026 redundancy audit found two
@@ -132,12 +133,12 @@ export default function MenuRigChips({ value, onPatch, variant, ownerType, owner
                 const on = ownerCol ? picked.has(p.slug) : !!(flag && value[flag]);
                 return (
                   <button key={p.slug} type="button" className={`${c.chip}${on ? " on" : ""}`} aria-pressed={on}
-                    onClick={() => toggleProduct(p.slug)}>{on ? "✓ " : ""}{p.name}</button>
+                    onClick={() => toggleProduct(p.slug)}>{on && <><Icon name="check" /> </>}{p.name}</button>
                 );
               })
           : MENU_FLAGS.map((m) => (
               <button key={m.key} type="button" className={`${c.chip}${value[m.key] ? " on" : ""}`} aria-pressed={!!value[m.key]}
-                onClick={() => onPatch({ [m.key]: !value[m.key] })}>{value[m.key] ? "✓ " : ""}{m.label}</button>
+                onClick={() => onPatch({ [m.key]: !value[m.key] })}>{value[m.key] && <><Icon name="check" /> </>}{m.label}</button>
             ))}
       </div>
       <div className={c.h}>Setup — the rig we bring</div>

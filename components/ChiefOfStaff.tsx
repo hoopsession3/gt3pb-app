@@ -4,6 +4,7 @@ import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import AssignTaskSheet from "./AssignTaskSheet";
+import Icon from "@/components/Icon";
 
 // CHIEF OF STAFF — the executive-assistant briefing. Pick a horizon (week / month / quarter) and it
 // reads the whole org and tells you what to focus on and in what order: headline, ranked priorities,
@@ -54,14 +55,14 @@ export default function ChiefOfStaff() {
   return (
     <div className="cos">
       <div className="cos-head">
-        <div className="cos-eyebrow">🧭 Chief of Staff</div>
+        <div className="cos-eyebrow"><Icon name="compass" /> Chief of Staff</div>
         <div className="cos-toggle">
           {PERIODS.map((p) => <button key={p.key} type="button" className={`cos-tg${period === p.key ? " on" : ""}`} onClick={() => pick(p.key)}>{p.label}</button>)}
         </div>
       </div>
 
       {!b ? (
-        <button type="button" className="cos-go" onClick={() => run()} disabled={busy}>{busy ? "Reading everything…" : `✨ Brief & lead my ${period === "week" ? "week" : period}`}</button>
+        <button type="button" className="cos-go" onClick={() => run()} disabled={busy}>{busy ? "Reading everything…" : <><Icon name="sparkles" /> Brief &amp; lead my {period === "week" ? "week" : period}</>}</button>
       ) : (
         <>
           <div className="cos-headline">{b.headline}</div>
@@ -80,9 +81,9 @@ export default function ChiefOfStaff() {
                       <b>{p.title}</b>{p.why ? <span>{p.why}</span> : null}
                       <span className="cos-prio-acts">
                         {ref && (isDone
-                          ? <span className="cos-doneflag">✓ Done</span>
-                          : <button type="button" className="cos-act" onClick={() => complete(ref)}>✓ Done</button>)}
-                        <button type="button" className="cos-act" onClick={() => setAssignTitle(p.title)}>＋ Task</button>
+                          ? <span className="cos-doneflag"><Icon name="check" /> Done</span>
+                          : <button type="button" className="cos-act" onClick={() => complete(ref)}><Icon name="check" /> Done</button>)}
+                        <button type="button" className="cos-act" onClick={() => setAssignTitle(p.title)}><Icon name="plus" /> Task</button>
                       </span>
                     </span>
                   </div>
@@ -94,7 +95,7 @@ export default function ChiefOfStaff() {
           {b.lead_plan?.length > 0 && (
             <div className="cos-block">
               <div className="cos-block-h">Lead the {period === "week" ? "week" : period}</div>
-              <ol className="cos-plan">{b.lead_plan.map((s: string, i: number) => <li key={i}><span>{s}</span><button type="button" className="cos-act sm" onClick={() => setAssignTitle(s)} aria-label="Make a task from this step">＋</button></li>)}</ol>
+              <ol className="cos-plan">{b.lead_plan.map((s: string, i: number) => <li key={i}><span>{s}</span><button type="button" className="cos-act sm" onClick={() => setAssignTitle(s)} aria-label="Make a task from this step"><Icon name="plus" /></button></li>)}</ol>
             </div>
           )}
 
@@ -102,7 +103,7 @@ export default function ChiefOfStaff() {
             <div className="cos-block">
               <div className="cos-block-h">Decisions / risks</div>
               {b.risks.map((r: any, i: number) => (
-                <div key={i} className="cos-risk"><b>⚠ {r.risk}</b><span>→ {r.action}</span></div>
+                <div key={i} className="cos-risk"><b><Icon name="warning" /> {r.risk}</b><span>→ {r.action}</span></div>
               ))}
             </div>
           )}
