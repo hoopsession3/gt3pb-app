@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
+import { authedFetch } from "@/lib/authedFetch";
 import { useApp } from "./AppProvider";
 import { useRealtimeTable } from "@/lib/realtime";
 import InlineCreate from "./InlineCreate";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
+import Sheet from "@/components/Sheet";
 
 // SHOOT PLANNER (0214) — plan any content shoot: date, location, call time, and a shot list you can
 // assign and check off (planned → shot → in edit). The reusable capability behind the Atlanta shoot
@@ -30,6 +32,7 @@ export default function ShootPlanner() {
   const [shoots, setShoots] = useState<Shoot[]>([]);
   const [shots, setShots] = useState<Shot[]>([]);
   const [open, setOpen] = useState<string | null>(null);
+  const [drafting, setDrafting] = useState<string | null>(null); // shoot id currently getting an AI shot-list draft
 
   const loader = useCallback(async (): Promise<Board> => {
     if (!supabase) return { shoots: [], shots: [], crew: [] };
@@ -68,9 +71,12 @@ export default function ShootPlanner() {
     if (!supabase || (typeof window !== "undefined" && !window.confirm("Delete this shoot and its shot list?"))) return;
     await supabase.from("shoots").delete().eq("id", id); setOpen(null); reload();
   };
-  const addShot = async (shootId: string, description: string) => {
+  const addShot = async (shootId: string, description: string, sortOverride?: number) => {
     if (!supabase) return;
-    const n = shots.filter((s) => s.shoot_id === shootId).length;
+    // sortOverride lets a caller adding several shots in one go (the AI draft panel) assign each its
+    // own position — reading shots.length fresh inside a loop would give every one the same sort,
+    // since this component's state doesn't re-render mid-loop.
+    const n = sortOverride ?? shots.filter((s) => s.shoot_id === shootId).length;
     await supabase.from("shots").insert({ shoot_id: shootId, description, sort: n }); reload();
   };
   const cycleShot = async (s: Shot) => {
@@ -123,6 +129,7 @@ export default function ShootPlanner() {
                         ))}
                       </div>
                       <InlineCreate label="+ Shot" placeholder="Shot description" className="shoot-add" onCreate={(t) => addShot(sh.id, t)} />
+                      <button type="button" className="dp-draft" onClick={() => setDrafting(sh.id)}><Icon name="sparkles" /> Draft shots with AI</button>
                       <button type="button" className="shoot-delshoot" onClick={() => delShoot(sh.id)}>Delete shoot</button>
                     </div>
                   )}
@@ -133,6 +140,73 @@ export default function ShootPlanner() {
         )}
       </AsyncSection>
       <InlineCreate label="+ New shoot" placeholder="Shoot name (e.g. Atlanta brand shoot)" className="shoot-new" onCreate={createShoot} />
+      {drafting && (
+        <ShotDraftPanel shootId={drafting} onClose={() => setDrafting(null)}
+          onAdd={async (descriptions) => {
+            const shootId = drafting;
+            const base = shots.filter((s) => s.shoot_id === shootId).length;
+            for (let i = 0; i < descriptions.length; i++) await addShot(shootId, descriptions[i], base + i);
+            setDrafting(null);
+          }} />
+      )}
     </div>
+  );
+}
+
+// AI draft — notes in, a proposed shot list out. Crew picks what to keep. Same "propose it, the crew
+// approves" shape as the event day planner's DraftPanel (EventDayPlanner.tsx); see app/api/agents/
+// shotlist for the endpoint. Nothing here writes to the DB — onAdd hands picked descriptions back to
+// addShot exactly like typing them into "+ Shot" by hand.
+function ShotDraftPanel({ shootId, onClose, onAdd }: { shootId: string; onClose: () => void; onAdd: (descriptions: string[]) => void | Promise<void> }) {
+  const [notes, setNotes] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [shotList, setShotList] = useState<string[] | null>(null);
+  const [pick, setPick] = useState<Record<number, boolean>>({});
+
+  const run = async () => {
+    setLoading(true); setErr(null);
+    try {
+      const r = await authedFetch("/api/agents/shotlist", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ shoot_id: shootId, notes }) });
+      const j = await r.json();
+      if (!j.ok) { setErr(j.error || "Draft failed"); setShotList(null); }
+      else { setShotList(j.shots ?? []); setPick(Object.fromEntries((j.shots ?? []).map((_: unknown, i: number) => [i, true]))); }
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+    setLoading(false);
+  };
+
+  return (
+    <Sheet open onClose={onClose} label="Draft the shot list" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}><Icon name="sparkles" /> Draft shots</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} title="Close"><Icon name="close" /></button></div>}>
+      {!shotList && (
+        <>
+          <div className="dp-hint">A few notes — the setting, what you want to show off, anything specific — and AI proposes a shot list. You approve what to keep.</div>
+          <textarea className="note-in" rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Sunset shots at the lake, 3-4 hero shots of the truck, action shots of pours, close-ups of the product" autoFocus />
+          {err && <div className="dp-err">{err}</div>}
+          <div className="prod-actions" style={{ marginTop: 14 }}>
+            <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
+            <button type="button" className="note-save" onClick={run} disabled={loading}>{loading ? "Drafting…" : "Draft the shot list"}</button>
+          </div>
+        </>
+      )}
+      {shotList && (
+        <>
+          <div className="dp-hint">{shotList.length} shot{shotList.length === 1 ? "" : "s"} proposed. Untick anything you don&apos;t want, then add.</div>
+          <div className="dp-draftlist">
+            {shotList.map((s, i) => (
+              <button key={i} type="button" className={`dp-draftrow${pick[i] ? " on" : ""}`} onClick={() => setPick((p) => ({ ...p, [i]: !p[i] }))}>
+                <span className="dp-draftck">{pick[i] ? <Icon name="check" /> : <Icon name="dotOutline" />}</span>
+                <span className="dp-draftmain">{s}</span>
+              </button>
+            ))}
+          </div>
+          <div className="prod-actions" style={{ marginTop: 14 }}>
+            <button type="button" className="note-arch" onClick={() => setShotList(null)}>‹ Redo</button>
+            <button type="button" className="note-save" onClick={() => onAdd(shotList.filter((_, i) => pick[i]))} disabled={!Object.values(pick).some(Boolean)}>Add {Object.values(pick).filter(Boolean).length} to shot list</button>
+          </div>
+        </>
+      )}
+    </Sheet>
   );
 }
