@@ -97,13 +97,19 @@ export const COPY_META: CopyMeta[] = [
   { key: "pitch.fine", group: "Reserve card", label: "Fine print", multiline: true,
     default: "Order ahead · pickup at the truck · bring bottles back for the best price." },
   // ── Reserve flow (order-ahead). {cutoff}/{pickup}/{size} are filled in live. ──
-  { key: "reserve.kicker", group: "Reserve flow", label: "Kicker", default: "Order Ahead" },
+  // 2026-07-17: this whole group used to have no render site anywhere in the app — see round o's
+  // delivery notes. Now wired into app/reserve/page.tsx + OrderFunnel.tsx. Three of these (kicker,
+  // cutoff, confirm_return/confirm_new) turned out to already be live as hand-typed duplicates
+  // elsewhere in OrderFunnel.tsx — their defaults below were updated to match that live wording
+  // exactly, so wiring them up didn't silently change anything a customer sees. headline and window
+  // had no live equivalent at all — genuinely new copy, added in round p.
+  { key: "reserve.kicker", group: "Reserve flow", label: "Kicker", default: "Order ahead" },
   { key: "reserve.headline", group: "Reserve flow", label: "Headline", multiline: true, default: "Tell us you're coming, we'll brew it to order." },
-  { key: "reserve.cutoff", group: "Reserve flow", label: "Cutoff line (uses {cutoff} and {pickup})", default: "Order by {cutoff} · pickup {pickup}" },
-  { key: "reserve.fresh", group: "Reserve flow", label: "Fresh line", multiline: true, default: "Clean caffeine, whole-food botanicals — brewed to order, fresh 7 days." },
+  { key: "reserve.cutoff", group: "Reserve flow", label: "Cutoff line (uses {cutoff} and {pickup}; pickup mode only — delivery has its own line)", default: "Drop closes {cutoff} · pickup {pickup}" },
+  { key: "reserve.fresh", group: "Reserve flow", label: "Fresh line", multiline: true, default: "Cold-extracted Rise, Flow & Dusk — smooth, low-acid bottles for your week. Reserve now, grab them at the truck." },
   { key: "reserve.window", group: "Reserve flow", label: "Footer / walk-up prices", multiline: true, default: "No commitment, no plan — just this drop.\nAt the window: $10 new · $8 bring-back · single bottle $10" },
-  { key: "reserve.confirm_return", group: "Reserve flow", label: "Confirmation — bringing bottles back (uses {size})", multiline: true, default: "Don't forget your empties. Rinse them out and bring all {size} — that's what your pack price is built on. Fresh 7 days from pickup." },
-  { key: "reserve.confirm_new", group: "Reserve flow", label: "Confirmation — new glass", multiline: true, default: "Your bottles are yours to keep — or bring them back next drop and unlock pack pricing. Fresh 7 days from pickup." },
+  { key: "reserve.confirm_return", group: "Reserve flow", label: "Confirmation — bringing bottles back (uses {size})", multiline: true, default: "Don't forget your empties — rinse and bring all {size}; that's what your pack price is built on. Fresh 7 days from pickup." },
+  { key: "reserve.confirm_new", group: "Reserve flow", label: "Confirmation — new glass", multiline: true, default: "Bottles are yours to keep — or bring them back next drop and unlock pack pricing. Fresh 7 days from pickup." },
   // ── Menu header ──
   { key: "menu.statement", group: "Menu", label: "Menu statement", multiline: true,
     default: "Drawn cold, simmered slow, blended from whole ingredients — every cup made the moment you order." },

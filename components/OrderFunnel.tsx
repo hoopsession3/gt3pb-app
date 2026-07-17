@@ -7,6 +7,8 @@ import { useAuth } from "./AuthProvider";
 import { usePayAtPickup } from "./usePayAtPickup";
 import SignIn from "@/components/SignIn";
 import OrderConfirm from "@/components/OrderConfirm";
+import EditableCopy from "@/components/EditableCopy";
+import { useSiteCopy, fillCopy } from "@/lib/copy";
 import PaymentCard, { type PaymentCardHandle } from "./PaymentCard";
 import MyPacks, { packMix, packDayLabel, type MyPack } from "./MyPacks";
 import OfficeOrder from "./OfficeOrder";
@@ -55,6 +57,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
   const { user, profile } = useAuth();
   const payLater = usePayAtPickup();
   const router = useRouter();
+  const t = useSiteCopy();
 
   const [mode, setMode] = useState<Mode>(initialMode);
   // Funnel analytics (anonymous, no PII): which flow the visitor entered.
@@ -428,10 +431,17 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
     </div>
   );
 
-  // deadline line
+  // deadline line — pickup's wording is owner-editable (reserve.cutoff), 2026-07-17. Delivery's
+  // stays exactly as it was: reserve.cutoff's {cutoff}/{pickup} shape was written for pickup and
+  // has no {delivery} token, so improvising it into a second mode would be guessing at a template
+  // nobody designed, not the mechanical swap everywhere else got. Trade-off worth flagging: the
+  // pickup line loses the bold emphasis on the two dynamic values below, since EditableCopy can only
+  // show flat text — the live countdown/pickup-day VALUES are unchanged, just no longer bolded.
+  const pickupCutoffVal = countdown ? `in ${countdown}` : dayName(drop.cutoff);
+  const pickupPickupVal = `${dayName(drop.sat)}${stop?.name ? ` · ${stop.name}` : ""}`;
   const deadline = mode === "delivery"
     ? <>Drop closes <b>{slot.cutoffLabel}</b> · delivery <b>{slot.deliveryLabel}</b></>
-    : <>Drop closes <b>{countdown ? `in ${countdown}` : `${dayName(drop.cutoff)}`}</b> · pickup <b>{dayName(drop.sat)}{stop?.name ? ` · ${stop.name}` : ""}</b></>;
+    : <EditableCopy k="reserve.cutoff" value={t("reserve.cutoff")} displayValue={fillCopy(t("reserve.cutoff"), { cutoff: pickupCutoffVal, pickup: pickupPickupVal })} />;
 
   return (
     <div className="of">
@@ -509,9 +519,13 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
       {step === "size" && (
         <div className="dl-step">
           <h2 className="dl-h">{mode === "delivery" ? "We deliver to you. Pick a Sunday and a size." : stops.length > 1 ? "Order ahead. Pick a day and a size." : `Order ahead for ${dayName(drop.sat).split(",")[0]}. Pick a size.`}</h2>
-          {mode === "pickup" && <p className="dl-sub">Cold-extracted Rise, Flow &amp; Dusk — smooth, low-acid bottles for your week. Reserve now, grab them at the truck.</p>}
+          {mode === "pickup" && <EditableCopy k="reserve.fresh" value={t("reserve.fresh")} as="p" className="dl-sub" />}
 
           {mode === "pickup" && <p className="dl-pricemode">{bringBack ? "Prices with bring-back empties — need new glass? It\u2019s $10 a bottle, picked at the next step." : "New-glass prices — bring your empties back next drop and pay less."}</p>}
+          {/* New this round — reserve.window had no render site anywhere (round o's discovery). Added
+              here as an additive note in the same dl-sub style as the fresh line above; this is new
+              visible copy, not a rewire of something that was already on screen. */}
+          {mode === "pickup" && <EditableCopy k="reserve.window" value={t("reserve.window")} as="p" className="dl-sub" multiline />}
           {mode === "delivery" ? (
             <>
               <div className="oa-slabel">Which Sunday</div>
@@ -776,7 +790,14 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
           totalCents={done.total}
           totalLabel={done.paid ? "paid" : "due at pickup"}
           warn={done.warn}
-          note={mode === "pickup" ? (bringBack ? `Don\u2019t forget your empties — rinse and bring all ${count}; that\u2019s what your pack price is built on. Fresh 7 days from pickup.` : "Bottles are yours to keep — or bring them back next drop and unlock pack pricing. Fresh 7 days from pickup.") : undefined}
+          // Sourced from the copy system now (reserve.confirm_return / reserve.confirm_new) instead
+          // of duplicated here — this text used to be hand-typed and happened to match those keys'
+          // stored defaults almost word for word; nobody had actually wired them together (round o's
+          // discovery). Not wrapped in EditableCopy for click-to-edit like everywhere else this
+          // round: this is the post-purchase confirmation screen, only reachable after finishing a
+          // real order, which makes it a much less practical spot to inline-edit from than a page
+          // you can just browse to. Still fully owner-editable through Settings → Front-end copy.
+          note={mode === "pickup" ? (bringBack ? fillCopy(t("reserve.confirm_return"), { size: String(count) }) : t("reserve.confirm_new")) : undefined}
           rows={[
             { label: "Pack", value: `${count} bottles` },
             ...(mode === "delivery"
