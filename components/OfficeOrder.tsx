@@ -6,9 +6,8 @@ import Gt3Mark from "@/components/Gt3Mark";
 import Icon from "@/components/Icon";
 import { useAuth } from "@/components/AuthProvider";
 import { useApp } from "@/components/AppProvider";
-import { supabase } from "@/lib/supabase";
-import { raiseAlertClient } from "@/lib/clientAlerts";
-import { OFFICE, officeQuote, nextMondayKey, mondayLabel } from "@/lib/office";
+import { authedFetch } from "@/lib/authedFetch";
+import { OFFICE, officeQuote, mondayLabel } from "@/lib/office";
 import { useOfficeSettings } from "./useOfficeSettings";
 import { zipInZone } from "@/lib/delivery";
 
@@ -36,8 +35,10 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
   const [done, setDone] = useState<{ gallons: number; date: string } | null>(null);
 
   const settings = useOfficeSettings();
+  // Display-only quote: the price shown here is a preview. The server (/api/office) recomputes gallons,
+  // per-gallon, and total from the live owner-set price and is the sole authority on what's charged —
+  // a tampered client total can't reach business_orders.
   const q = officeQuote(gallons, { priceCents: settings.priceCents, minGallons: settings.minGallons });
-  const dateKey = nextMondayKey();
   // Prepaid texts a secure payment link, so a phone is required on that path (no phone = no way to pay).
   const needsPhone = billing === "prepaid";
   // Same delivery-zone check the residential funnel already enforces before it lets anyone check out
@@ -49,7 +50,7 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
 
   const submit = async () => {
     if (busy) return;
-    if (!supabase || !user) { toast("Sign in to set up office delivery", "error"); return; }
+    if (!user) { toast("Sign in to set up office delivery", "error"); return; }
     if (!ready) {
       if (zip.trim().length >= 5 && !zoneOk) { toast("That ZIP looks outside our delivery route — text us and we'll see what we can do", "error"); return; }
       toast(needsPhone && !phone.trim() ? "Add a phone — prepaid sends the payment link by text" : "Add your company and address first", "error");
@@ -57,60 +58,22 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
     }
     setBusy(true);
 
-    // A standing account (weekly Mondays) is created/linked so the generator can refill it (P2).
-    let businessId: string | null = null;
-    if (standing) {
-      const companyNorm = company.trim().replace(/\s+/g, " ");
-      const acctRow = {
-        user_id: user.id, company: companyNorm, contact_name: contact.trim() || null, contact_phone: phone.trim() || null,
-        contact_email: user.email ?? null, address_street: street.trim(), address_city: city.trim(), address_zip: zip.trim(),
-        headcount: headcount ? Math.max(0, parseInt(headcount) || 0) : null, billing_terms: billing,
-        standing_active: true, standing_gallons: q.gallons,
-      };
-      // REUSE this office's existing standing account (update it) instead of blind-inserting a NEW one
-      // every week — duplicate accounts make the weekly generator ship duplicate deliveries + invoices.
-      // Surface a real failure instead of silently downgrading to a one-off.
-      // Case/whitespace-insensitive match (ilike + escaped wildcards) so "Acme Corp" and "Acme  corp"
-      // resolve to the same account — a bare .eq() only caught byte-identical strings. This closes the
-      // common (typed-differently-next-time) case; the accompanying migration adds a DB-level unique
-      // index on (user_id, lower(company)) as the backstop against a genuine concurrent double-submit,
-      // which no amount of client-side normalization alone can fully close.
-      const { data: existing } = await supabase.from("business_accounts").select("id").eq("user_id", user.id).ilike("company", companyNorm.replace(/[%_\\]/g, (c) => `\\${c}`)).maybeSingle();
-      if (existing?.id) {
-        const { error } = await supabase.from("business_accounts").update(acctRow).eq("id", existing.id);
-        if (error) { toast(`Couldn't update your standing account — ${error.message}`, "error"); setBusy(false); return; }
-        businessId = existing.id;
-      } else {
-        const { data: acct, error } = await supabase.from("business_accounts").insert(acctRow).select("id").single();
-        if (error) { toast(`Couldn't set up your standing account — ${error.message}`, "error"); setBusy(false); return; }
-        businessId = acct?.id ?? null;
-      }
+    // The server route recomputes the price, re-checks the zone, handles the standing-account
+    // create/link, writes business_orders with the service role, and raises the crew alert — the
+    // browser no longer inserts (or prices) anything. The quote above is display only.
+    try {
+      const res = await authedFetch("/api/office", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ company, contact, phone, headcount, street, city, zip, access, gallons, standing, billing }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.ok) { toast(j.error || "Couldn't book it — try again", "error"); setBusy(false); return; }
+      setBusy(false);
+      setDone({ gallons: j.gallons, date: j.date });
+    } catch {
+      toast("Couldn't reach the server — check your connection", "error");
+      setBusy(false);
     }
-
-    const { data: order, error } = await supabase.from("business_orders").insert({
-      business_id: businessId, user_id: user.id, company: company.trim(),
-      contact_name: contact.trim() || null, contact_phone: phone.trim() || null,
-      address_street: street.trim(), address_city: city.trim(), address_zip: zip.trim(),
-      access_instructions: access.trim() || null, delivery_date: dateKey, delivery_window: OFFICE.window,
-      // Record the SAME per-gallon price the quote charged (the live_status override, 0189) — not the
-      // hardcoded OFFICE constant, which drifted from settings.priceCents and mis-recorded the price.
-      gallons: q.gallons, price_per_gallon_cents: settings.priceCents,
-      subtotal_cents: q.subtotalCents, delivery_fee_cents: q.deliveryFeeCents, tax_cents: q.taxCents, total_cents: q.totalCents,
-      billing_terms: billing, standing,
-    }).select("id").single();
-
-    if (error) { toast(`Couldn't book it — ${error.message}`, "error"); setBusy(false); return; }
-
-    // Tell the crew a new office order landed (same alerts spine as every other order).
-    await raiseAlertClient({
-      severity: "important", category: "order", kind: "office_order_new", subjectId: order?.id,
-      title: `New office order — ${company.trim()}`,
-      body: `${q.gallons} gal · ${mondayLabel(dateKey)} 5–8 AM · ${billing === "prepaid" ? "prepaid" : "invoice"}${standing ? " · standing weekly" : ""}. ${dollars(q.totalCents)}. ${phone.trim()}`.trim(),
-      link: "/crew?s=now",
-    });
-
-    setBusy(false);
-    setDone({ gallons: q.gallons, date: dateKey });
   };
 
   const header = (
