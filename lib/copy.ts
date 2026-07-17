@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { supabase } from "./supabase";
+import { useRealtimeTable } from "./realtime";
 import { DRINKS, MENU, type DrinkId } from "./menu";
 
 // SITE COPY — owner/admin-editable front-end text. Every editable string has a stable key and a
@@ -119,6 +120,11 @@ export const COPY_META: CopyMeta[] = [
     default: "Saturday packs" },
   { key: "menu.packs_note", group: "Menu", label: "Packs — bring-back note", multiline: true,
     default: "Bring your empties back for pack pricing — or take new glass at $10 a bottle. You choose when you reserve." },
+  // Drink sheet, truck-closed state: replaces the old hardcoded "Packs are brewed to order
+  // anytime" (2026-07-17 — false: order-ahead has a real cutoff, lib/orderAhead's dropForStop/
+  // nextDrop). {cutoff}/{pickup} are filled in live via fillCopy() below — see DrinkSheet.tsx.
+  { key: "menu.packs_cutoff", group: "Menu", label: "Packs line when the truck's closed (uses {cutoff} and {pickup})", multiline: true,
+    default: "Packs are brewed to order — reserve by {cutoff} for pickup {pickup}." },
   // ── Truck page · the "what's on board" tagline per stop (keyed by the stop's menu tier) ──
   { key: "truck.tier.full", group: "Truck", label: "Tagline — full bar", default: "Full bar on board" },
   { key: "truck.tier.coffee", group: "Truck", label: "Tagline — coffee bar", default: "Coffee bar" },
@@ -151,6 +157,15 @@ export const COPY_META: CopyMeta[] = [
 
 export const COPY_DEFAULTS: Record<string, string> = Object.fromEntries(COPY_META.map((m) => [m.key, m.default]));
 export const copyDefault = (key: string): string => COPY_DEFAULTS[key] ?? "";
+
+// Fill a copy string's {placeholder} tokens from a value map — the one substitution helper every
+// templated key (menu.packs_cutoff, reserve.cutoff, reserve.confirm_return/new, …) should go
+// through, so "how do placeholders get filled" only has one answer app-wide. Unknown {tokens} are
+// left as-is rather than silently blanked, so a typo in a key or an owner-edited override that
+// drops a token is obvious instead of quietly eating text.
+export function fillCopy(template: string, vars: Record<string, string>): string {
+  return template.replace(/\{(\w+)\}/g, (whole, name) => (name in vars ? vars[name] : whole));
+}
 
 // ── The live-copy edit bridge (2026-07-16) ──────────────────────────────────────────────────────
 // Two one-tap jumps between where copy is EDITED (SiteCopyEditor, /crew Settings) and where it's
@@ -189,17 +204,34 @@ export function copyGroupRoute(group: string): string {
   return "/";
 }
 
-// Client hook: load overrides once, resolve default-or-override. Returns a stable t(key) function.
-// Falls back to defaults if Supabase isn't configured or the row doesn't exist.
+// Client hook: load overrides, resolve default-or-override, and stay live. Realtime (not a
+// one-time fetch) so a save from EITHER editor — the SiteCopyEditor form or an inline EditableCopy
+// on the live page itself — lands in every open t() consumer, including a "View live" tab someone
+// left open, without a manual reload. Falls back to defaults if Supabase isn't configured.
 export function useSiteCopy(): (key: string) => string {
   const [over, setOver] = useState<Record<string, string>>({});
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!supabase) return;
-    let live = true;
-    supabase.from("site_copy").select("key, value").then(({ data }) => {
-      if (live && data) setOver(Object.fromEntries((data as { key: string; value: string }[]).map((r) => [r.key, r.value])));
-    });
-    return () => { live = false; };
+    const { data } = await supabase.from("site_copy").select("key, value");
+    if (data) setOver(Object.fromEntries((data as { key: string; value: string }[]).map((r) => [r.key, r.value])));
   }, []);
+  useRealtimeTable("site_copy", load, { loadOnMount: true });
   return (key: string) => over[key] ?? COPY_DEFAULTS[key] ?? "";
+}
+
+// Shared write path for BOTH copy editors (SiteCopyEditor's form, EditableCopy's inline popover) —
+// one place that knows the site_copy row shape, so the two UIs can't drift into saving slightly
+// different things. save() rejects empty values (Reset is the intended way back to the default,
+// not an empty override that'd show blank copy on the live site).
+export async function saveCopy(key: string, value: string, userId?: string | null): Promise<{ error?: string }> {
+  if (!supabase) return { error: "Not connected" };
+  const trimmed = value.trim();
+  if (!trimmed) return { error: "Copy can't be empty — use Reset to go back to the default" };
+  const { error } = await supabase.from("site_copy").upsert({ key, value: trimmed, updated_by: userId ?? null, updated_at: new Date().toISOString() });
+  return error ? { error: error.message } : {};
+}
+export async function resetCopy(key: string): Promise<{ error?: string }> {
+  if (!supabase) return { error: "Not connected" };
+  const { error } = await supabase.from("site_copy").delete().eq("key", key);
+  return error ? { error: error.message } : {};
 }

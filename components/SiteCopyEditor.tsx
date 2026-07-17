@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
-import { COPY_META, copyGroupAnchor, copyGroupRoute } from "@/lib/copy";
+import { COPY_META, copyGroupAnchor, copyGroupRoute, saveCopy, resetCopy } from "@/lib/copy";
 import { SectionHeader } from "@/components/kit";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
@@ -43,24 +43,23 @@ export default function SiteCopyEditor() {
   const valueOf = (key: string, def: string) => (draft[key] ?? over[key] ?? def);
   const dirty = (key: string, def: string) => (draft[key] !== undefined && draft[key] !== (over[key] ?? def));
 
+  // Shared write path (lib/copy.ts) — the same save()/reset() an inline EditableCopy edit on the
+  // live page itself now goes through, so this form and on-page editing can never save a key two
+  // slightly different ways.
   const save = async (key: string, def: string) => {
-    if (!supabase) return;
-    const value = (draft[key] ?? over[key] ?? def).trim();
-    if (!value) { toast("Copy can't be empty — use Reset to go back to the default", "error"); return; }
     setBusy(key);
-    const { error } = await supabase.from("site_copy").upsert({ key, value, updated_by: user?.id ?? null, updated_at: new Date().toISOString() });
+    const { error } = await saveCopy(key, draft[key] ?? over[key] ?? def, user?.id);
     setBusy("");
-    if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
+    if (error) { toast(`Couldn't save — ${error}`, "error"); return; }
     setDraft((p) => { const n = { ...p }; delete n[key]; return n; });
     toast("Copy saved — live on the site");
     reload();
   };
   const reset = async (key: string) => {
-    if (!supabase) return;
     setBusy(key);
-    const { error } = await supabase.from("site_copy").delete().eq("key", key);
+    const { error } = await resetCopy(key);
     setBusy("");
-    if (error) { toast(`Couldn't reset — ${error.message}`, "error"); return; }
+    if (error) { toast(`Couldn't reset — ${error}`, "error"); return; }
     setDraft((p) => { const n = { ...p }; delete n[key]; return n; });
     toast("Reset to the default");
     reload();

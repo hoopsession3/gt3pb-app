@@ -17,6 +17,7 @@ import Toast from "./Toast";
 import Notifications from "./Notifications";
 import ServiceWorkerRegister from "./ServiceWorkerRegister";
 import DisplayToggle, { readDisplay, displayClass, DISPLAY_KEY } from "./DisplayToggle";
+import EditModeToggle from "./EditModeToggle";
 import ConnectHub from "./ConnectHub";
 import CommandPalette from "./CommandPalette";
 import FloatRail from "./FloatRail";
@@ -130,6 +131,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {!isShare && (
           <FloatRail>
             <DisplayToggle />
+            <EditModeToggle />
             <ConnectHub />
             {customerSurface && <Concierge />}
           </FloatRail>

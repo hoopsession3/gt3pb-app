@@ -1504,6 +1504,17 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .edit-copy-pill{display:flex;align-items:center;gap:4px;height:32px;padding:0 11px;border-radius:20px;background:rgba(184,144,47,.12);border:1px solid rgba(184,144,47,.4);color:var(--gold2,#B8902F);font-family:'Inter',sans-serif;font-size:11.5px;font-weight:700;letter-spacing:.02em;cursor:pointer}
 .edit-copy-pill:active{background:rgba(184,144,47,.22)}
 
+/* Inline, on-page copy editing (EditableCopy + EditModeToggle) — owner-only, gated behind the
+   float-rail toggle. .ec-editable is the resting/hover affordance on a piece of copy; .ec-in is
+   the input/textarea it swaps to on click, styled to inherit the surrounding type instead of
+   looking like a generic form field dropped into a heading or a paragraph. */
+.ec-editable{cursor:pointer;border-radius:4px;text-decoration:underline;text-decoration-style:dotted;text-decoration-thickness:1.5px;text-decoration-color:rgba(200,166,97,.55);text-underline-offset:3px;transition:background-color .15s}
+.ec-editable:hover,.ec-editable:focus-visible{background:rgba(200,166,97,.14);outline:none}
+.ec-in{display:block;width:100%;box-sizing:border-box;font:inherit;color:inherit;letter-spacing:inherit;line-height:inherit;background:rgba(200,166,97,.1);border:1.5px solid var(--gold2,#B8902F);border-radius:8px;padding:3px 7px;outline:none}
+.ec-multi{resize:vertical;min-height:2.6em}
+.ec-toggle.on{background:var(--gold2,#B8902F);border-color:transparent;color:#0e0d0b}
+.ec-toggle.on .rail-txt i{color:rgba(14,13,11,.6)}
+
 /* Account avatar — coconut mark + role-aware dropdown */
 .acct{position:relative;flex:0 0 auto}
 .acct-av{position:relative;display:flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:50%;background:#1a1310;border:2px solid var(--gold2);cursor:pointer;padding:0}

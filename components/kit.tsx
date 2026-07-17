@@ -42,7 +42,11 @@ export function Masthead({ eyebrow, live = false, right, tone = "dark" }: { eyeb
   );
 }
 
-export function SectionHeader({ label, annotation, right }: { label: string; annotation?: string; right?: ReactNode }) {
+// label/annotation take ReactNode (not just string) so a caller can pass an EditableCopy element
+// in place of a plain string — every existing caller passes a plain string today, which is still
+// valid ReactNode, so this is purely additive. Nothing inside this component does string-specific
+// work on either prop (no .length, no concatenation) — both are only ever interpolated into JSX.
+export function SectionHeader({ label, annotation, right }: { label: ReactNode; annotation?: ReactNode; right?: ReactNode }) {
   return (
     <div className="k-sec">
       <span className="k-sec-lbl">
