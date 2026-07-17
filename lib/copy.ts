@@ -81,6 +81,23 @@ export const COPY_META: CopyMeta[] = [
     default: "Five questions and I'll build your stack for the day." },
   { key: "home.dialed_title", group: "Home · signed-in", label: "Stack section — title", default: "Dialed For Today" },
   { key: "home.dialed_sub", group: "Home · signed-in", label: "Stack section — subtitle", default: "your stack, built" },
+  // ── Loyalty card (Today home) · the tap-to-open stamp card ── Settings-only, not inline-click-
+  // editable: the whole card is ONE tap target (clickable() in lib/a11y — role="button" on the
+  // outer <section>, opens the member's status card), so wrapping any of this text in EditableCopy
+  // would nest a second interactive control inside that button — the nested-interactive-element
+  // problem excluded elsewhere (Craft's CTAs, the truck route rows), except here it's the WHOLE
+  // card, not one row, so there's no safe sibling spot to lift text out to either (contrast
+  // truck.stop_note, which sits in a detail panel outside its row's button). Reachable only via the
+  // Edit pill added to the Today masthead — see app/page.tsx.
+  { key: "stamp.kicker", group: "Loyalty card", label: "Small label, top-left of the card", default: "Your card" },
+  { key: "stamp.badge_full", group: "Loyalty card", label: "Top-right badge — card just completed", default: "Card full" },
+  { key: "stamp.badge_earned_one", group: "Loyalty card", label: "Top-right badge — exactly 1 free drink earned so far (uses {count})", default: "{count} free drink earned" },
+  { key: "stamp.badge_earned_other", group: "Loyalty card", label: "Top-right badge — 2+ free drinks earned so far (uses {count})", default: "{count} free drinks earned" },
+  { key: "stamp.badge_default", group: "Loyalty card", label: "Top-right badge — no free drinks earned yet", default: "10th is on us" },
+  { key: "stamp.foot_full", group: "Loyalty card", label: "Footer line — card just completed", default: "Your 10th is on us — mention it at the window." },
+  { key: "stamp.foot_near", group: "Loyalty card", label: "Footer line — 1-2 stamps from a free drink (uses {count})", default: "So close — just {count} more till a free cup." },
+  { key: "stamp.foot_progress", group: "Loyalty card", label: "Footer line — default progress, 3+ stamps to go (uses {count})", default: "{count} more drinks till your next free one." },
+  { key: "stamp.open_cta", group: "Loyalty card", label: "Footer, right side — opens the member card", default: "Open your card ›" },
   // ── Home · the three pillars (signed-out "What We Make") ──
   { key: "home.pillar1_t", group: "Home · pillars", label: "Pillar 1 — title", default: "Activation" },
   { key: "home.pillar1_d", group: "Home · pillars", label: "Pillar 1 — line", default: "Cold-extracted coffee to start the day clear." },
@@ -198,6 +215,7 @@ const COPY_GROUP_ROUTE: Record<string, string> = {
   "Home · signed-out": "/reserve",
   "Home · signed-in": "/",
   "Home · pillars": "/reserve",
+  "Loyalty card": "/",
   "Member card": "/",
   "Craft page": "/craft",
   "Reserve card": "/",

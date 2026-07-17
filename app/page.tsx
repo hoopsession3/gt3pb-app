@@ -13,6 +13,7 @@ import MemberInbox, { useHasActiveOrder } from "@/components/MemberInbox";
 import Skeleton from "@/components/Skeleton";
 import Watermark from "@/components/Watermark";
 import EditableCopy from "@/components/EditableCopy";
+import EditCopyPill from "@/components/EditCopyPill";
 import { useSiteCopy } from "@/lib/copy";
 import { supabase } from "@/lib/supabase";
 import { DRINKS, type DrinkId } from "@/lib/menu";
@@ -83,14 +84,21 @@ function TodayReal({ t }: { t: (k: string) => string }) {
       <Masthead
         eyebrow="Today"
         right={
-          <Link
-            className={`pf${profile?.avatar_url ? " pf-photo" : ""}`}
-            href="/3mpire"
-            aria-label="Your 3MPIRE"
-            style={profile?.avatar_url ? { backgroundImage: `url(${profile.avatar_url})` } : undefined}
-          >
-            {profile?.avatar_url ? "" : name.charAt(0)}
-          </Link>
+          // stamp.* (Loyalty card) can't be inline-click-edited — see StampCard.tsx — so this pill
+          // is its only door into Settings from the live page, same idea as Reserve's confirm_return/
+          // confirm_new. "Home · signed-in" itself stays implicitly pill-free here: every key in
+          // that group is already inline-editable below, this pill is strictly for the stamp card.
+          <div className="mast-right">
+            <EditCopyPill group="Loyalty card" />
+            <Link
+              className={`pf${profile?.avatar_url ? " pf-photo" : ""}`}
+              href="/3mpire"
+              aria-label="Your 3MPIRE"
+              style={profile?.avatar_url ? { backgroundImage: `url(${profile.avatar_url})` } : undefined}
+            >
+              {profile?.avatar_url ? "" : name.charAt(0)}
+            </Link>
+          </div>
         }
       />
       <h1 className="k-title">{now ? `${greet(now)}, ` : ""}{name}.</h1>
