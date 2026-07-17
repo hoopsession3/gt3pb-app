@@ -16,6 +16,17 @@ const ET_FMT = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", 
 export const etDayKey = (d: Date) => ET_FMT.format(d);
 export const etToday = () => etDayKey(new Date());
 
+// Humanized weekday + time, pinned to America/New_York regardless of where the code runs — a
+// server-side route (Node on Vercel, UTC) calling toLocaleTimeString(undefined, ...) silently
+// formats in the SERVER's timezone, not the business's. The concierge API told guests the next
+// stop was hours off from its real time this way (2026-07-17) before this existed. Any surface
+// that needs to say a stop/event time in words server-side should use this, not an unqualified
+// toLocaleDateString/toLocaleTimeString — that's exactly how this class of bug keeps recurring
+// (see this file's header comment re: the earlier 'today' audit).
+const ET_WD_FMT = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short" });
+const ET_TIME_FMT = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" });
+export const etTimeLabel = (d: Date): string => `${ET_WD_FMT.format(d)} ${ET_TIME_FMT.format(d)}`;
+
 // Humanized, UNAMBIGUOUS relative day for the OPERATOR's local wall-clock (pairs with localToday).
 // The crew Route board glued a static "next ·" label to a weekday, so "next · Sat Jul 18" misread as
 // "next Saturday" when the visit was THIS Saturday. This returns a qualifier that can't be misread —

@@ -4,6 +4,7 @@ import { callClaude, anthropicEnabled, MODELS, type ClaudeMsg } from "@/lib/anth
 import { menuKnowledge } from "@/lib/conciergeKb";
 import { ownerCorrections, logConvo } from "@/lib/agentKnowledge";
 import { claimSafe, CLAIM_FALLBACK } from "@/lib/claimGuard";
+import { etTimeLabel } from "@/lib/dates";
 
 export const runtime = "nodejs";
 
@@ -97,8 +98,11 @@ export async function POST(req: Request) {
           .is("archived_at", null).neq("status", "done").gte("starts_at", new Date().toISOString())
           .order("starts_at").limit(1).maybeSingle();
         if (n && (n as any).starts_at) {
-          const d = new Date((n as any).starts_at);
-          next = `${(n as any).name}, ${d.toLocaleDateString(undefined, { weekday: "short" })} ${d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+          // etTimeLabel, not toLocaleDateString/toLocaleTimeString(undefined, ...) — this route
+          // runs server-side (Node on Vercel), where an unqualified locale format renders in the
+          // SERVER's timezone (UTC), not the business's actual Eastern time. That's the bug that
+          // told a guest the next stop was hours off from when it really is.
+          next = `${(n as any).name}, ${etTimeLabel(new Date((n as any).starts_at))}`;
         }
       }
       live = (ls.data as any).is_live
