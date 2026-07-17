@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import AccountPill from "@/components/AccountPill";
-import EditCopyPill from "@/components/EditCopyPill";
 import EditableCopy from "@/components/EditableCopy";
 import Watermark from "@/components/Watermark";
 import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
@@ -50,7 +49,13 @@ export default function MenuScreen() {
   return (
     <section className="screen menu" id="s-menu">
       <Watermark variant="menu" />
-      <Masthead tone="light" eyebrow="The Menu" right={<div className="mast-right"><EditCopyPill group="Menu" /><AccountPill /></div>} />
+      {/* No EditCopyPill here (unlike Reserve/Craft/Truck/Member card): every key in the "Menu"
+          group is now covered by inline EditableCopy on this page (plus the drink sheet, for
+          menu.packs_cutoff) — 2026-07-17, Ryan: a pill that jumps away to Settings is a broken
+          affordance, not just a redundant one, once the whole point is staying on the page. Turn
+          on Edit mode from the float rail instead — it never leaves this screen. Re-add a pill here
+          only if a new Menu-group key ships that ISN'T wired to EditableCopy somewhere in this flow. */}
+      <Masthead tone="light" eyebrow="The Menu" right={<AccountPill />} />
 
       <EditableCopy k="menu.statement" value={t("menu.statement")} as="p" className="mast-stmt" multiline />
       <EditableCopy k="menu.order_line" value={t("menu.order_line")} as="div" className="mast-order" />
