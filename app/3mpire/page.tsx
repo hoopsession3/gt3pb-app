@@ -231,7 +231,7 @@ function MpireDemo() {
         </div>
         <div className="mt">
           <div className="eyb"><Icon name="star" /> Founding Member</div>
-          <h2>Ryan T.</h2>
+          <h2>Alex R.</h2>
           <p>Your 10th pour is on us. A point on every drink.</p>
         </div>
       </div></div>

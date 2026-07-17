@@ -261,7 +261,7 @@ function ItemForm({ item, onClose, onSave }: { item: Item | null; onClose: () =>
           <div className="prod-grid" style={{ marginTop: 10 }}>
             <label className="prod-f"><span>Start</span><input value={f.start_time ?? ""} onChange={(e) => set("start_time", e.target.value)} placeholder="9:00a" /></label>
             <label className="prod-f"><span>End</span><input value={f.end_time ?? ""} onChange={(e) => set("end_time", e.target.value)} placeholder="optional" /></label>
-            <label className="prod-f"><span>Who</span><input value={f.who ?? ""} onChange={(e) => set("who", e.target.value)} placeholder="Ryan / Kayla / Both" /></label>
+            <label className="prod-f"><span>Who</span><input value={f.who ?? ""} onChange={(e) => set("who", e.target.value)} placeholder="Crew on site" /></label>
             <label className="prod-f"><span>Place</span><input value={f.location ?? ""} onChange={(e) => set("location", e.target.value)} placeholder="Airbnb, venue…" /></label>
           </div>
           <label className="prod-f" style={{ marginTop: 8 }}><span>Address (tap-to-map)</span><input value={f.address ?? ""} onChange={(e) => set("address", e.target.value)} placeholder="123 Peach St, Atlanta GA" /></label>

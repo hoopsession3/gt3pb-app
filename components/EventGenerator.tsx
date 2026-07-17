@@ -61,7 +61,7 @@ export default function EventGenerator({ onClose, onCreated, initialNotes }: { o
           ) : !plan ? (
             <>
               <div className="dp-hint">Say what you talked through. It&apos;ll draft the event(s), a team note in your format, and a to-do list from the action items — all linked. You review before anything is created.</div>
-              <textarea className="note-in" rows={6} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Me & Kayla talked about the Beltline event and Mercedes-Benz Buckhead this weekend — coffee cart only at Beltline, trailer at Buckhead…" autoFocus disabled={busy} />
+              <textarea className="note-in" rows={6} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Talked with the crew about the Beltline event and Mercedes-Benz Buckhead this weekend — coffee cart only at Beltline, trailer at Buckhead…" autoFocus disabled={busy} />
               {err && <div className="dp-err">{err}</div>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={onClose} disabled={busy}>Cancel</button>

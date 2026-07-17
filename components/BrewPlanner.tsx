@@ -331,7 +331,7 @@ function StartBrewSheet({ batch, onClose, onStart }: { batch: Batch; onClose: ()
     <Sheet open onClose={onClose} label="Start brew" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Start brew · {batch.recipe_name}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} title="Close"><Icon name="close" /></button></div>}>
           <div className="brew-spec">{batch.batch_gal} gal{batch.vessel ? ` · ${batch.vessel}` : ""} · {hrs}h cold extraction → ready ~{new Date(Date.now() + hrs * 3600000).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}</div>
           <label className="prod-f"><span>Coffee lot — origin · roast date (for traceability)</span><input value={lot} onChange={(e) => setLot(e.target.value)} placeholder="e.g. Colombia single-origin · roasted 6/20" autoFocus /></label>
-          <label className="prod-f" style={{ marginTop: 8 }}><span>Brewer</span><input value={brewer} onChange={(e) => setBrewer(e.target.value)} placeholder="Ryan / Kayla" /></label>
+          <label className="prod-f" style={{ marginTop: 8 }}><span>Brewer</span><input value={brewer} onChange={(e) => setBrewer(e.target.value)} placeholder="Barista on duty" /></label>
           <div className="prod-actions" style={{ marginTop: 14 }}>
             <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
             <button type="button" className="note-save" onClick={async () => { setBusy(true); await onStart({ coffee_lot: lot, brewer }); }} disabled={busy}>{busy ? "Starting…" : `▶ Start the ${hrs}h brew`}</button>
@@ -410,7 +410,7 @@ function BatchLog({ batch, events, stops, onClose, onSaved }: { batch: Batch; ev
             </label>
             <label className="prod-f"><span>OG / spec</span><input value={f.og ?? ""} onChange={(e) => set("og", e.target.value)} placeholder="e.g. on spec" /></label>
             <label className="prod-f"><span>Coffee lot (origin · roast date)</span><input value={f.coffee_lot ?? ""} onChange={(e) => set("coffee_lot", e.target.value)} placeholder="e.g. Colombia · roasted 6/20" /></label>
-            <label className="prod-f"><span>Brewer</span><input value={f.brewer ?? ""} onChange={(e) => set("brewer", e.target.value)} placeholder="Ryan / Kayla" /></label>
+            <label className="prod-f"><span>Brewer</span><input value={f.brewer ?? ""} onChange={(e) => set("brewer", e.target.value)} placeholder="Barista on duty" /></label>
           </div>
           <div className="brew-score" style={{ marginTop: 10 }}>Signal Score
             {[6, 7, 8, 9, 10].map((n) => <button key={n} type="button" className={`brew-score-b${f.signal_score === n ? " on" : ""}`} onClick={() => set("signal_score", n)}>{n}</button>)}

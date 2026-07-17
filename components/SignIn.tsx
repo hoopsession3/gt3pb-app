@@ -226,7 +226,7 @@ export default function SignIn() {
               {intent === "join" && (
                 <>
                   <label className="auth-label" htmlFor="auth-name">First name <span>(so we can greet you)</span></label>
-                  <input id="auth-name" className="auth-input" type="text" autoComplete="given-name" placeholder="Ryan" value={name} onChange={(e) => setName(e.target.value)} />
+                  <input id="auth-name" className="auth-input" type="text" autoComplete="given-name" placeholder="Maverick" value={name} onChange={(e) => setName(e.target.value)} />
                 </>
               )}
               <label className="auth-label" htmlFor="auth-email">Email</label>
@@ -247,7 +247,7 @@ export default function SignIn() {
               {isNew && (
                 <>
                   <label className="auth-label" htmlFor="pw-name">First name <span>(optional)</span></label>
-                  <input id="pw-name" className="auth-input" type="text" autoComplete="given-name" placeholder="Ryan" value={name} onChange={(e) => setName(e.target.value)} />
+                  <input id="pw-name" className="auth-input" type="text" autoComplete="given-name" placeholder="Maverick" value={name} onChange={(e) => setName(e.target.value)} />
                 </>
               )}
               <label className="auth-label" htmlFor="pw-email">Email</label>

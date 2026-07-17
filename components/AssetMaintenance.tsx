@@ -152,7 +152,7 @@ function LogSheet({ asset, onClose, onSaved }: { asset: Asset; onClose: () => vo
             <label className="prod-f"><span>Done on</span><input type="date" value={performedOn} onChange={(e) => setPerformedOn(e.target.value)} /></label>
             <label className="prod-f"><span>Next due (optional)</span><input type="date" value={nextDue} onChange={(e) => setNextDue(e.target.value)} /></label>
             <label className="prod-f"><span>Cost (optional)</span><input type="number" min="0" step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="0.00" /></label>
-            <label className="prod-f"><span>By (optional)</span><input value={who} onChange={(e) => setWho(e.target.value)} placeholder="Ryan / shop" /></label>
+            <label className="prod-f"><span>By (optional)</span><input value={who} onChange={(e) => setWho(e.target.value)} placeholder="Pit crew / shop" /></label>
           </div>
           <label className="prod-f" style={{ marginTop: 8 }}><span>How-to / steps (optional — one per line)</span><textarea className="note-in" rows={3} value={howTo} onChange={(e) => setHowTo(e.target.value)} placeholder="Steps to do this next time" /></label>
           <div className="prod-actions" style={{ marginTop: 14 }}>
