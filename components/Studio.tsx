@@ -22,6 +22,7 @@ import SiteCopyEditor from "./SiteCopyEditor";
 import EmptyState from "./EmptyState";
 import { lintCaption } from "@/lib/captionLint";
 import { isBlank } from "@/lib/formGuard";
+import { clickable } from "@/lib/a11y";
 
 // STUDIO — the collaborative marketing studio. Her money-maker, his taste → built around
 // collaboration: real-time co-editing (Supabase Realtime presence + broadcast), real version
@@ -672,8 +673,8 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
               <button type="button" key={i} className={`studio-thumb${i === active ? " on" : ""}`} onClick={() => setActive(i)} style={m.type !== "video" ? { backgroundImage: `url(${m.url})` } : undefined} aria-label={`Slide ${i + 1}`}>
                 {m.type === "video" && <video src={m.url} muted playsInline preload="metadata" />}
                 {i === 0 && <span className="studio-thumb-cover">Cover</span>}
-                <span className="studio-thumb-x" role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); removeMedia(i); }} aria-label="Remove"><Icon name="close" /></span>
-                {i !== 0 && <span className="studio-thumb-cv" role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); makeCover(i); }} aria-label="Make cover"><Icon name="star" /></span>}
+                <span className="studio-thumb-x" {...clickable(() => removeMedia(i))} onClick={(e) => { e.stopPropagation(); removeMedia(i); }} aria-label="Remove"><Icon name="close" /></span>
+                {i !== 0 && <span className="studio-thumb-cv" {...clickable(() => makeCover(i))} onClick={(e) => { e.stopPropagation(); makeCover(i); }} aria-label="Make cover"><Icon name="star" /></span>}
               </button>
             ))}
             <button type="button" className="studio-thumb add" onClick={() => fileRef.current?.click()} disabled={uploading} aria-label="Add more">{uploading ? "…" : "＋"}</button>

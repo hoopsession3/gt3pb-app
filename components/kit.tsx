@@ -46,7 +46,11 @@ export function SectionHeader({ label, annotation, right }: { label: string; ann
   return (
     <div className="k-sec">
       <span className="k-sec-lbl">
-        <span className="l">{label}</span>
+        {/* Real heading (was a span) — this one component backs every section title app-wide, so it was
+            the single highest-leverage a11y gap: screen-reader users had no heading outline anywhere.
+            h2 is correct under AppShell's one-per-route h1 (see H1_SKIP); annotation stays outside the
+            heading's accessible name since it's supplementary, not part of the label. */}
+        <h2 className="l">{label}</h2>
         {annotation && <span className="a">{annotation}</span>}
       </span>
       {right && <span className="k-sec-r">{right}</span>}

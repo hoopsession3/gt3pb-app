@@ -119,7 +119,7 @@ export default function AcademyPage() {
   // only employees reach it; everyone else gets a friendly wall, not internal content.
   if (!isStaff(profile)) return (
     <section className="screen">
-      <div className="h-title">GT3 Academy</div>
+      <h1 className="h-title">GT3 Academy</h1>
       <div className="h-sub">This is our crew training space — for GT3 team members. If you&apos;re on the crew and seeing this, ask an admin to set your role.</div>
       <Link className="btn" href="/">← Back to GT3</Link>
     </section>

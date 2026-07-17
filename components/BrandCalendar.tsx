@@ -13,6 +13,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
+import { clickable } from "@/lib/a11y";
 
 // BRAND CALENDAR — the planning brain of Studio. Posts (scheduled content) + events roll onto one
 // month view so Ryan + Kayla see the whole picture and build FROM it.
@@ -224,8 +225,7 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
           const k = key(d); const cell = byDay[k]; const dim = d.getMonth() !== cursor.getMonth();
           const dayEv = cell.evs[0]?.id ?? null;
           return (
-            <div key={k} role="button" tabIndex={0} className={`cal-cell${dim ? " dim" : ""}${over === k ? " over" : ""}${k === todayKey ? " today" : ""}`}
-              onClick={() => setDayOpen(k)}
+            <div key={k} {...clickable(() => setDayOpen(k))} className={`cal-cell${dim ? " dim" : ""}${over === k ? " over" : ""}${k === todayKey ? " today" : ""}`}
               onDragOver={(e) => { e.preventDefault(); setOver(k); }} onDragLeave={() => setOver((o) => (o === k ? null : o))} onDrop={() => drop(k)}>
               <div className="cal-cell-h">
                 <span className="cal-date">{d.getDate()}</span>

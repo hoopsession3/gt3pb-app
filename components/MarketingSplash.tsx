@@ -128,7 +128,11 @@ export default function MarketingSplash() {
           bypass). Only the CTA and Skip stop the bubble, so they do their own thing instead. */}
       <div className="spl-wrap">
         <div className="spl-kick">Sunday delivery · Greenville</div>
-        <h1 className="spl-head">{copy.head1}{copy.head2 ? <><br />{copy.head2}</> : null}</h1>
+        {/* Was an <h1> — MarketingSplash is an overlay that mounts ON TOP of whatever route is showing
+            underneath (it doesn't replace the page), so it was creating a second <h1> on every
+            customer-facing route for as long as it's up. The scrim's own aria-label already names this
+            dialog for assistive tech; this text is promotional copy, not a document heading. */}
+        <p className="spl-head">{copy.head1}{copy.head2 ? <><br />{copy.head2}</> : null}</p>
         <p className="spl-sub">{copy.sub} <b>From <span className="spl-price">$8</span> a bottle.</b></p>
         <button type="button" className="spl-cta" onClick={(e) => { e.stopPropagation(); go(); }}>{copy.cta}</button>
         <div className="spl-foot">Mix &amp; match · free delivery at 24+</div>

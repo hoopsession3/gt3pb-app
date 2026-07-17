@@ -13,6 +13,7 @@ import { etToday } from "@/lib/dates";
 import { useWorkStreams } from "@/lib/streams";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import { useOperatorSection } from "./OperatorNav";
+import { clickable } from "@/lib/a11y";
 import { isBlank } from "@/lib/formGuard";
 import { resolveVendor, type ResolveDecision, type VendorMatch } from "@/lib/vendorLink";
 import VendorResolve from "./VendorResolve";
@@ -349,7 +350,7 @@ export default function CompanyCalendar() {
           {gridMonth(cursor).map((d) => {
             const k = key(d); const items = byDay[k] || []; const dim = d.getMonth() !== cursor.getMonth();
             return (
-              <div key={k} role="button" tabIndex={0} className={`cal-cell${dim ? " dim" : ""}${k === todayKey ? " today" : ""}${over === k ? " over" : ""}${warnDays.has(k) ? " heat" : ""}`} onClick={() => setDayOpen(k)}
+              <div key={k} {...clickable(() => setDayOpen(k))} className={`cal-cell${dim ? " dim" : ""}${k === todayKey ? " today" : ""}${over === k ? " over" : ""}${warnDays.has(k) ? " heat" : ""}`}
                 onDragOver={(e) => { e.preventDefault(); setOver(k); }} onDragLeave={() => setOver((o) => o === k ? null : o)} onDrop={() => { setOver(null); const dg = dragId.current; dragId.current = null; if (dg) reschedule(dg.kind, dg.id, k); }}>
                 <div className="cal-cell-h"><span className="cal-date">{d.getDate()}</span><button type="button" className="cal-add" onClick={(e) => { e.stopPropagation(); setAddDay(k); }} aria-label="Add">+</button></div>
                 <div className="cal-marks">
@@ -370,7 +371,7 @@ export default function CompanyCalendar() {
             return (
               <div key={k} className={`cal-wrow${k === todayKey ? " today" : ""}${over === k ? " over" : ""}${warnDays.has(k) ? " heat" : ""}`}
                 onDragOver={(e) => { e.preventDefault(); setOver(k); }} onDragLeave={() => setOver((o) => o === k ? null : o)} onDrop={() => { setOver(null); const dg = dragId.current; dragId.current = null; if (dg) reschedule(dg.kind, dg.id, k); }}>
-                <div className="cal-wday" role="button" tabIndex={0} onClick={() => setDayOpen(k)}><b>{DOW[d.getDay()]}</b><span>{d.getDate()}</span><button type="button" className="cal-add wk" onClick={(e) => { e.stopPropagation(); setAddDay(k); }} aria-label="Add">+</button></div>
+                <div className="cal-wday" {...clickable(() => setDayOpen(k))}><b>{DOW[d.getDay()]}</b><span>{d.getDate()}</span><button type="button" className="cal-add wk" onClick={(e) => { e.stopPropagation(); setAddDay(k); }} aria-label="Add">+</button></div>
                 <div className="cal-witems">{items.length === 0 ? <span className="cal-wnone">—</span> : items.map((it) => <Chip key={`${it.kind}-${it.id}`} it={it} />)}</div>
               </div>
             );

@@ -135,7 +135,7 @@ export default function SignIn() {
       {/* ── email-confirmed waiting state ── */}
       {step === "confirm" && (
         <>
-          <h1 className="auth-headline">Check your email.</h1>
+          <h2 className="auth-headline">Check your email.</h2>
           <p className="auth-sub">We sent a confirmation link to <b>{email}</b>. Tap it to activate your account, then come back and sign in.</p>
           <button className="handle" onClick={reset} style={{ marginTop: 20 }}><span>Back to sign in</span></button>
         </>
@@ -144,7 +144,7 @@ export default function SignIn() {
       {/* ── password reset link sent ── */}
       {step === "reset-sent" && (
         <>
-          <h1 className="auth-headline">Check your email.</h1>
+          <h2 className="auth-headline">Check your email.</h2>
           <p className="auth-sub">We sent a password-reset link to <b>{email}</b>. Tap it, set a new password, and you&apos;re back in.</p>
           <p className="auth-paste-hint" style={{ marginTop: 8 }}>Don&apos;t see it? Check spam / promotions. Open the link in <b>this same browser</b>.</p>
           {err && <div className="auth-err">{err}</div>}
@@ -155,7 +155,7 @@ export default function SignIn() {
       {/* ── passwordless verify step ── */}
       {step === "sent" && (
         <>
-          <h1 className="auth-headline">Check your email.</h1>
+          <h2 className="auth-headline">Check your email.</h2>
           <p className="auth-sub">We sent a sign-in link to <b>{email}</b> — tap it and you&apos;re in.</p>
           <p className="auth-paste-hint" style={{ marginTop: 8 }}>Don&apos;t see it? Check spam / promotions. Open the link in <b>this same browser</b> (Safari or Chrome) — not from inside another app.</p>
           {err && <div className="auth-err">{err}</div>}
@@ -204,7 +204,7 @@ export default function SignIn() {
         <>
           {/* The 3 in 3MPIRE is the real brand glyph (Mpire → public/brand/gt3-3.png), not a font
               character — display-scale brand words carry the mark, same law as the GT3 masthead. */}
-          <h1 className="auth-headline">{intent === "join" ? <>Grow your <Mpire />.</> : "Welcome back."}</h1>
+          <h2 className="auth-headline">{intent === "join" ? <>Grow your <Mpire />.</> : "Welcome back."}</h2>
           <p className="auth-sub">
             {intent === "join"
               ? <>Free to join — points on every pour, first taste of reserves, order-ahead perks.</>
