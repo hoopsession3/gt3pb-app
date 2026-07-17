@@ -103,7 +103,10 @@ function TodayReal({ t }: { t: (k: string) => string }) {
       {/* Don't upsell "reserve a drop" to someone who already has a pack/delivery coming. */}
       {!hasActive && <ReservePitch />}
 
-      <SectionHeader label="Dialed For Today" annotation="your stack, built" />
+      <SectionHeader
+        label={<EditableCopy k="home.dialed_title" value={t("home.dialed_title")} />}
+        annotation={<EditableCopy k="home.dialed_sub" value={t("home.dialed_sub")} />}
+      />
       <EditableCopy k="home.questions" value={t("home.questions")} as="p" style={{ fontSize: 14, color: "var(--cream-m)", margin: "14px 2px 4px" }} />
       <GenerateDay />
 

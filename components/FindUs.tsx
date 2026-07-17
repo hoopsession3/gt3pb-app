@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AccountPill from "@/components/AccountPill";
 import EditCopyPill from "@/components/EditCopyPill";
+import EditableCopy from "@/components/EditableCopy";
 import { Masthead, SectionHeader, InfoRow, ClosingBeat } from "@/components/kit";
 import { RsvpRow } from "@/components/RsvpRow";
 import RouteMap, { type RoutePoint } from "@/components/RouteMap";
@@ -78,6 +79,11 @@ const TIER_KEYS = new Set(["full", "coffee", "nitro", "beer"]);
 // a full bar. Only override the static tier tagline when the menu is near-empty (Ryan's call:
 // lightweight severity flag, not per-item tracking — see truck.tier.limited in lib/copy.ts).
 const MENU_DEPLETED_RATIO = 0.75;
+// truck.tier.* stays Settings-only for now (2026-07-17): this picks ONE of five keys per stop,
+// dynamically, from live sold-out data — and several stops can be on screen at once, each resolving
+// independently. Making that inline-editable safely means descFor returning which key it resolved
+// (not just the text) so the right stops re-render live, not a mechanical t(key)->EditableCopy swap
+// like everywhere else this round. Flagged as a real follow-up, not skipped by oversight.
 function descFor(s: FieldOp, t: (k: string) => string, avail: { soldOut: Set<string>; activeTotal: number }): string {
   const note = (s.notes ?? s.note)?.trim();
   if (note) return note;
@@ -251,7 +257,7 @@ export default function FindUs() {
                     />
                     {isOpen && (
                       <div className="k-detail">
-                        <p>{(r.notes ?? r.note) ?? t("truck.stop_note")}</p>
+                        <p>{(r.notes ?? r.note) ?? <EditableCopy k="truck.stop_note" value={t("truck.stop_note")} as="span" />}</p>
                         {rowLive && <button type="button" className="k-chip pri" onClick={() => router.push("/menu")}>Pre-order</button>}
                         {r.lat != null && r.lng != null && (
                           <button type="button" className="k-chip k-chip-sec" style={rowLive ? { marginLeft: 8 } : undefined} onClick={() => openDirections(r.lat as number, r.lng as number)}>Get directions</button>

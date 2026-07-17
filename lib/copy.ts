@@ -79,6 +79,8 @@ export const COPY_META: CopyMeta[] = [
   // ── Home · signed-in (Today) ──
   { key: "home.questions", group: "Home · signed-in", label: "Stack-builder intro", multiline: true,
     default: "Five questions and I'll build your stack for the day." },
+  { key: "home.dialed_title", group: "Home · signed-in", label: "Stack section — title", default: "Dialed For Today" },
+  { key: "home.dialed_sub", group: "Home · signed-in", label: "Stack section — subtitle", default: "your stack, built" },
   // ── Home · the three pillars (signed-out "What We Make") ──
   { key: "home.pillar1_t", group: "Home · pillars", label: "Pillar 1 — title", default: "Activation" },
   { key: "home.pillar1_d", group: "Home · pillars", label: "Pillar 1 — line", default: "Cold-extracted coffee to start the day clear." },

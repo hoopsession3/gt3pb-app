@@ -5,7 +5,7 @@ import { useAuth } from "./AuthProvider";
 import { useApp } from "./AppProvider";
 import Sheet from "./Sheet";
 import Icon from "@/components/Icon";
-import EditCopyPill from "@/components/EditCopyPill";
+import EditableCopy from "@/components/EditableCopy";
 import { supabase } from "@/lib/supabase";
 import { uploadToBucket } from "@/lib/uploads";
 import { useSiteCopy } from "@/lib/copy";
@@ -330,10 +330,13 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
   if (!open) return null;
   return (
     <Sheet open onClose={onClose} label="Member card & status" className="status-lux"
-      header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Your member card &amp; status</b><span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}><EditCopyPill group="Member card" /><button type="button" className="qd-x" onClick={onClose} aria-label="Close"><Icon name="close" /></button></span></div>}
+      header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Your member card &amp; status</b><button type="button" className="qd-x" onClick={onClose} aria-label="Close" style={{ marginLeft: "auto" }}><Icon name="close" /></button></div>}
       footer={<button type="button" className="status-share" onClick={share} disabled={!ready}>Share your status <Icon name="externalLink" /></button>}>
 
-      {founding && <div className="fc-founding" role="status">{t("card.founding_thanks")}</div>}
+      {/* Member card group is just this one key — 100% inline coverage — so the Edit pill that used
+          to sit in this header (jump to Settings → Front-end copy → Member card) came off, 2026-07-17,
+          same reasoning as Menu: a working inline field right here made the jump-away redundant. */}
+      {founding && <EditableCopy k="card.founding_thanks" value={t("card.founding_thanks")} as="div" className="fc-founding" role="status" />}
 
       {/* the object they own — tap to spin, drag to tilt */}
       <div className={`fc-scene f-${finish}${founding ? " founding" : ""}`}>

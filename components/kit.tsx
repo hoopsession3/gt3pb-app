@@ -22,7 +22,9 @@ import Gt3Mark from "@/components/Gt3Mark";
 // the deliberate "silence is the signal" exception, not a gap.
 // ============================================================
 
-export function Masthead({ eyebrow, live = false, right, tone = "dark" }: { eyebrow?: string; live?: boolean; right?: ReactNode; tone?: "dark" | "light" }) {
+// eyebrow takes ReactNode (not just string), same reason as SectionHeader's label/annotation below —
+// so a caller can pass an EditableCopy element (Craft page's eyebrow is owner-editable copy).
+export function Masthead({ eyebrow, live = false, right, tone = "dark" }: { eyebrow?: ReactNode; live?: boolean; right?: ReactNode; tone?: "dark" | "light" }) {
   return (
     <>
       <header className={`k-mast${tone === "light" ? " k-mast-light" : ""}`}>

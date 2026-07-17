@@ -29,7 +29,7 @@ import { EDIT_MODE_KEY, readEditMode } from "@/lib/editModeToggle";
 // today's date into the copy forever and silently kill the dynamism; keeping the template as the
 // thing that's actually edited is what keeps {cutoff}/{pickup} alive across saves.
 export default function EditableCopy({
-  k, value, displayValue, multiline = false, as = "span", className, style,
+  k, value, displayValue, multiline = false, as = "span", className, style, role,
 }: {
   k: string;
   value: string;
@@ -38,6 +38,7 @@ export default function EditableCopy({
   as?: ElementType;
   className?: string;
   style?: React.CSSProperties;
+  role?: string;
 }) {
   const As = as;
   const shown = displayValue ?? value;
@@ -71,7 +72,12 @@ export default function EditableCopy({
   useEffect(() => { if (!activeRef.current) setDraft(value); }, [value]);
   useEffect(() => { if (active) { ref.current?.focus(); ref.current?.select(); } }, [active]);
 
-  if (!isOwner || !editMode) return <As className={className} style={style}>{shown}</As>;
+  // `role` only applies here — this branch is the "renders exactly what the caller would have
+  // rendered directly" contract the header comment promises, so a caller's role (e.g. the founding-
+  // member banner's role="status" for screen readers) has to survive. The click-to-edit branch below
+  // already sets its own role="button" — that's a real, deliberate semantic change (this element
+  // becomes a button once it's interactive), so it isn't a caller-role passthrough spot too.
+  if (!isOwner || !editMode) return <As className={className} style={style} role={role}>{shown}</As>;
 
   const cancel = () => { setActive(false); setDraft(value); };
   const commit = async () => {
