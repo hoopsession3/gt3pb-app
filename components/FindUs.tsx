@@ -79,19 +79,24 @@ const TIER_KEYS = new Set(["full", "coffee", "nitro", "beer"]);
 // a full bar. Only override the static tier tagline when the menu is near-empty (Ryan's call:
 // lightweight severity flag, not per-item tracking — see truck.tier.limited in lib/copy.ts).
 const MENU_DEPLETED_RATIO = 0.75;
-// truck.tier.* stays Settings-only for now (2026-07-17): this picks ONE of five keys per stop,
-// dynamically, from live sold-out data — and several stops can be on screen at once, each resolving
-// independently. Making that inline-editable safely means descFor returning which key it resolved
-// (not just the text) so the right stops re-render live, not a mechanical t(key)->EditableCopy swap
-// like everywhere else this round. Flagged as a real follow-up, not skipped by oversight.
-function descFor(s: FieldOp, t: (k: string) => string, avail: { soldOut: Set<string>; activeTotal: number }): string {
+// truck.tier.* (2026-07-17): this picks ONE of five keys per stop, dynamically, from live sold-out
+// data — and several stops can be on screen at once, each resolving independently, so descFor
+// returns WHICH key it resolved (not just the text) rather than a mechanical t(key)->EditableCopy
+// swap like everywhere else this rollout. That unblocks wiring, but doesn't clear every render site:
+// the "On The Road" list below renders each stop as a whole-row <button> (tap-to-expand), so an
+// EditableCopy there would nest an editable control inside a native button — same excluded case as
+// Craft's CTAs. Only the hero line above the list (a plain <p>, no button ancestor) is a safe click
+// target, so that's the one instance actually wrapped; the list rows keep reading .text directly.
+type StopDesc = { key: string | null; text: string };
+function descFor(s: FieldOp, t: (k: string) => string, avail: { soldOut: Set<string>; activeTotal: number }): StopDesc {
   const note = (s.notes ?? s.note)?.trim();
-  if (note) return note;
+  if (note) return { key: null, text: note };
   if (avail.activeTotal > 0 && avail.soldOut.size / avail.activeTotal >= MENU_DEPLETED_RATIO) {
-    return t("truck.tier.limited");
+    return { key: "truck.tier.limited", text: t("truck.tier.limited") };
   }
   const tier = s.menu_tier && TIER_KEYS.has(s.menu_tier) ? s.menu_tier : "full";
-  return t(`truck.tier.${tier}`);
+  const key = `truck.tier.${tier}`;
+  return { key, text: t(key) };
 }
 // The road is read in time order: stops carry a real instant; events carry a day (+ start_time).
 function sortKey(r: FieldOp): number {
@@ -201,6 +206,8 @@ export default function FindUs() {
       ? [heroRel, whenDate(hero)].filter(Boolean).join(" · ")
       : [whenDay(hero), whenDate(hero)].filter(Boolean).join(" ");
   const heroOpen = hero ? (hero.kind === "stop" ? fmt12(whenTime(hero)) ?? "" : fmt12(hero.start_time) ?? "") : "";
+  // Only the hero copy (below) is a safe EditableCopy target — see the comment on descFor.
+  const heroDesc = hero?.kind === "stop" ? descFor(hero, t, avail) : null;
 
   const points: RoutePoint[] = useMemo(() => ops
     .filter((r) => r.lat != null && r.lng != null)
@@ -219,7 +226,13 @@ export default function FindUs() {
       />
 
       <h1 className="k-title lg">{hero?.name ?? (board.status === "error" ? "Couldn't load" : board.status === "ready" ? "No stops yet" : "…")}</h1>
-      {hero && <p className="k-sub">{hero.kind === "stop" ? descFor(hero, t, avail) : (hero.blurb ?? hero.location_text ?? "")}</p>}
+      {hero && (
+        <p className="k-sub">
+          {heroDesc
+            ? (heroDesc.key ? <EditableCopy k={heroDesc.key} value={heroDesc.text} as="span" /> : heroDesc.text)
+            : (hero.blurb ?? hero.location_text ?? "")}
+        </p>
+      )}
 
       <div className="k-facts">
         <div className="f"><div className="fk">{isLive ? "Status" : "Day"}</div><div className={`fv${isLive ? " ok" : ""}`}>{isLive ? "Live" : heroWhen || "Soon"}</div></div>
@@ -248,7 +261,7 @@ export default function FindUs() {
                       lead={whenDay(r)}
                       leadSub={[whenDate(r), whenTime(r)].filter(Boolean).join(" ")}
                       name={r.name}
-                      sub={descFor(r, t, avail)}
+                      sub={descFor(r, t, avail).text}
                       live={rowLive}
                       trailing={<span className={`k-caret${isOpen ? " open" : ""}`} aria-hidden="true">›</span>}
                       onClick={() => setOpenStop(isOpen ? null : r.id)}
