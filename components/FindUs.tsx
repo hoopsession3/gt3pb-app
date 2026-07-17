@@ -10,6 +10,7 @@ import RouteMap, { type RoutePoint } from "@/components/RouteMap";
 import { openDirections } from "@/lib/maps";
 import { supabase } from "@/lib/supabase";
 import { useSiteCopy } from "@/lib/copy";
+import { useAvailability } from "@/lib/availability";
 import { localToday, relativeDay } from "@/lib/dates";
 import type { LiveStatus, EventRow } from "@/lib/db";
 import { useAsyncData } from "@/lib/useAsyncData";
@@ -73,9 +74,16 @@ function whenDate(s: FieldOp): string {
   return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 const TIER_KEYS = new Set(["full", "coffee", "nitro", "beer"]);
-function descFor(s: FieldOp, t: (k: string) => string): string {
+// A couple of 86'd items doesn't make "Full bar on board" untrue — the truck genuinely still has
+// a full bar. Only override the static tier tagline when the menu is near-empty (Ryan's call:
+// lightweight severity flag, not per-item tracking — see truck.tier.limited in lib/copy.ts).
+const MENU_DEPLETED_RATIO = 0.75;
+function descFor(s: FieldOp, t: (k: string) => string, avail: { soldOut: Set<string>; activeTotal: number }): string {
   const note = (s.notes ?? s.note)?.trim();
   if (note) return note;
+  if (avail.activeTotal > 0 && avail.soldOut.size / avail.activeTotal >= MENU_DEPLETED_RATIO) {
+    return t("truck.tier.limited");
+  }
   const tier = s.menu_tier && TIER_KEYS.has(s.menu_tier) ? s.menu_tier : "full";
   return t(`truck.tier.${tier}`);
 }
@@ -119,6 +127,7 @@ async function fetchRoad(): Promise<Board> {
 export default function FindUs() {
   const router = useRouter();
   const t = useSiteCopy();
+  const avail = useAvailability();
   const [ops, setOps] = useState<FieldOp[]>([]);
   const [live, setLive] = useState<LiveStatus | null>(null);
   const [openStop, setOpenStop] = useState<string | null>(null);
@@ -204,7 +213,7 @@ export default function FindUs() {
       />
 
       <h1 className="k-title lg">{hero?.name ?? (board.status === "error" ? "Couldn't load" : board.status === "ready" ? "No stops yet" : "…")}</h1>
-      {hero && <p className="k-sub">{hero.kind === "stop" ? descFor(hero, t) : (hero.blurb ?? hero.location_text ?? "")}</p>}
+      {hero && <p className="k-sub">{hero.kind === "stop" ? descFor(hero, t, avail) : (hero.blurb ?? hero.location_text ?? "")}</p>}
 
       <div className="k-facts">
         <div className="f"><div className="fk">{isLive ? "Status" : "Day"}</div><div className={`fv${isLive ? " ok" : ""}`}>{isLive ? "Live" : heroWhen || "Soon"}</div></div>
@@ -233,7 +242,7 @@ export default function FindUs() {
                       lead={whenDay(r)}
                       leadSub={[whenDate(r), whenTime(r)].filter(Boolean).join(" ")}
                       name={r.name}
-                      sub={descFor(r, t)}
+                      sub={descFor(r, t, avail)}
                       live={rowLive}
                       trailing={<span className={`k-caret${isOpen ? " open" : ""}`} aria-hidden="true">›</span>}
                       onClick={() => setOpenStop(isOpen ? null : r.id)}

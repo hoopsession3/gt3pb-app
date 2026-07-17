@@ -124,6 +124,11 @@ export const COPY_META: CopyMeta[] = [
   { key: "truck.tier.coffee", group: "Truck", label: "Tagline — coffee bar", default: "Coffee bar" },
   { key: "truck.tier.nitro", group: "Truck", label: "Tagline — nitro bar", default: "Nitro bar" },
   { key: "truck.tier.beer", group: "Truck", label: "Tagline — beer & wine", default: "Beer & wine on board" },
+  // Dynamic override, not tied to a specific tier: shown instead of whichever tier tagline above
+  // would otherwise apply, when live 86 data says most/all of today's active menu is sold out (see
+  // FindUs.tsx's descFor) — the truck effectively has nothing to sell, so claiming "full bar on
+  // board" would overclaim. A couple of 86'd items doesn't trigger this; near-empty does.
+  { key: "truck.tier.limited", group: "Truck", label: "Tagline — most/all items 86'd today", default: "Limited menu today" },
   { key: "truck.stop_note", group: "Truck", label: "Route row — note when a stop has none", multiline: true,
     default: "Full bar on board. Order ahead or save a reminder." },
   // ── Menu · sections + every drink. Names, tags, and descriptions are copy — PRICES ARE NOT:
