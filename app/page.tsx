@@ -12,6 +12,7 @@ import StampCard from "@/components/StampCard";
 import MemberInbox, { useHasActiveOrder } from "@/components/MemberInbox";
 import Skeleton from "@/components/Skeleton";
 import Watermark from "@/components/Watermark";
+import EditableCopy from "@/components/EditableCopy";
 import { useSiteCopy } from "@/lib/copy";
 import { supabase } from "@/lib/supabase";
 import { DRINKS, type DrinkId } from "@/lib/menu";
@@ -103,7 +104,7 @@ function TodayReal({ t }: { t: (k: string) => string }) {
       {!hasActive && <ReservePitch />}
 
       <SectionHeader label="Dialed For Today" annotation="your stack, built" />
-      <p style={{ fontSize: 14, color: "var(--cream-m)", margin: "14px 2px 4px" }}>{t("home.questions")}</p>
+      <EditableCopy k="home.questions" value={t("home.questions")} as="p" style={{ fontSize: 14, color: "var(--cream-m)", margin: "14px 2px 4px" }} />
       <GenerateDay />
 
       <ClosingBeat />

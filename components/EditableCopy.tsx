@@ -29,7 +29,7 @@ import { EDIT_MODE_KEY, readEditMode } from "@/lib/editModeToggle";
 // today's date into the copy forever and silently kill the dynamism; keeping the template as the
 // thing that's actually edited is what keeps {cutoff}/{pickup} alive across saves.
 export default function EditableCopy({
-  k, value, displayValue, multiline = false, as = "span", className,
+  k, value, displayValue, multiline = false, as = "span", className, style,
 }: {
   k: string;
   value: string;
@@ -37,6 +37,7 @@ export default function EditableCopy({
   multiline?: boolean;
   as?: ElementType;
   className?: string;
+  style?: React.CSSProperties;
 }) {
   const As = as;
   const shown = displayValue ?? value;
@@ -70,7 +71,7 @@ export default function EditableCopy({
   useEffect(() => { if (!activeRef.current) setDraft(value); }, [value]);
   useEffect(() => { if (active) { ref.current?.focus(); ref.current?.select(); } }, [active]);
 
-  if (!isOwner || !editMode) return <As className={className}>{shown}</As>;
+  if (!isOwner || !editMode) return <As className={className} style={style}>{shown}</As>;
 
   const cancel = () => { setActive(false); setDraft(value); };
   const commit = async () => {
@@ -91,6 +92,7 @@ export default function EditableCopy({
     const shared = {
       value: draft,
       disabled: saving,
+      style,
       onChange: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setDraft(e.target.value),
       onBlur: commit,
       onClick: (e: MouseEvent) => e.stopPropagation(),
@@ -107,6 +109,7 @@ export default function EditableCopy({
   return (
     <As
       className={`ec-editable${className ? ` ${className}` : ""}`}
+      style={style}
       role="button"
       tabIndex={0}
       title="Click to edit this line"
