@@ -9,6 +9,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
+import PromptSheet from "./PromptSheet";
 
 // VIP QUEUE — the staff moderation side of VIP verification. A bottle owner's proof photo lands here;
 // Verify promotes them to Founding (which auto-grants the founding perks from 0176) with a reward, or
@@ -49,9 +50,14 @@ export default function VipQueue() {
   useRealtimeTable("vip_verifications", reload);
   const photoUrl = (v: Vip) => (board.data?.signed ?? {})[decodeURIComponent(v.photo_url.split("/vip/")[1] ?? "")] ?? v.photo_url;
 
-  const verify = async (v: Vip) => {
+  // Verify/reject each take a short note — a reward to log, or a reason the member sees. Was
+  // window.prompt(): unstyled, blocks the page, no cancel-on-tap-outside on mobile. Now a PromptSheet;
+  // `asking` holds which flow + which row while it's open, the actual write happens in doVerify/
+  // doReject once the sheet's onSubmit fires.
+  const [asking, setAsking] = useState<{ kind: "verify" | "reject"; v: Vip } | null>(null);
+
+  const doVerify = async (v: Vip, reward: string) => {
     if (!supabase || busy) return;
-    const reward = typeof window !== "undefined" ? (window.prompt("Reward to note (e.g. “free bottle”) — or leave blank:", "free bottle") ?? "") : "";
     setBusy(v.id);
     const { error } = await supabase.from("vip_verifications").update({ status: "verified", reviewed_by: user?.id ?? null, reviewed_at: new Date().toISOString(), reward: reward.trim() || null }).eq("id", v.id);
     if (error) { toast(`Couldn't verify — ${error.message}`, "error"); setBusy(null); return; }
@@ -61,16 +67,15 @@ export default function VipQueue() {
     toast(promoErr ? `Verified — but promotion to Founding failed: ${promoErr.message}. Set their tier by hand.` : "Verified — Founding VIP", promoErr ? "error" : undefined);
     setBusy(null); reload();
   };
-  const reject = async (v: Vip) => {
+  const doReject = async (v: Vip, note: string) => {
     if (!supabase || busy) return;
-    const note = typeof window !== "undefined" ? window.prompt("Why? (the member sees this)", "") : "";
-    if (note === null) return;
     setBusy(v.id);
     await supabase.from("vip_verifications").update({ status: "rejected", reviewed_by: user?.id ?? null, reviewed_at: new Date().toISOString(), note: note.trim() || null }).eq("id", v.id);
     setBusy(null); reload();
   };
 
   return (
+    <>
     <AsyncSection state={board} isEmpty={() => false} errorTitle="Couldn't load the VIP queue" emptyTitle="Nothing here yet">
       {(data) => {
         const pending = data.rows.filter((r) => r.status === "pending");
@@ -86,8 +91,8 @@ export default function VipQueue() {
                   <b>{v.customers?.name?.trim() || "A member"}</b>
                   <span className="vipq-sub">Submitted {new Date(v.created_at).toLocaleDateString()} · now {v.customers?.tier ?? "guest"}</span>
                   <div className="vipq-acts">
-                    <button type="button" className="vipq-yes" onClick={() => verify(v)} disabled={busy === v.id}><Icon name="check" /> Verify <Icon name="arrowRight" /> Founding</button>
-                    <button type="button" className="vipq-no" onClick={() => reject(v)} disabled={busy === v.id}>Reject</button>
+                    <button type="button" className="vipq-yes" onClick={() => setAsking({ kind: "verify", v })} disabled={busy === v.id}><Icon name="check" /> Verify <Icon name="arrowRight" /> Founding</button>
+                    <button type="button" className="vipq-no" onClick={() => setAsking({ kind: "reject", v })} disabled={busy === v.id}>Reject</button>
                   </div>
                 </div>
               </div>
@@ -107,5 +112,23 @@ export default function VipQueue() {
         );
       }}
     </AsyncSection>
+    {asking && (
+      <PromptSheet
+        open
+        title={asking.kind === "verify" ? "Verify — add a reward note" : "Reject — reason for the member"}
+        hint={asking.kind === "verify" ? "Optional — shown to the team, not the member." : "The member sees this."}
+        placeholder={asking.kind === "verify" ? "free bottle" : "Why?"}
+        defaultValue={asking.kind === "verify" ? "free bottle" : ""}
+        confirmLabel={asking.kind === "verify" ? "Verify" : "Reject"}
+        onCancel={() => setAsking(null)}
+        onSubmit={async (val) => {
+          const a = asking;
+          setAsking(null);
+          if (!a) return;
+          if (a.kind === "verify") await doVerify(a.v, val); else await doReject(a.v, val);
+        }}
+      />
+    )}
+    </>
   );
 }

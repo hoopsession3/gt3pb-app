@@ -14,6 +14,7 @@ import CountUp from "./CountUp";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
+import PromptSheet from "./PromptSheet";
 
 // PIPELINE — the sales funnel (0165). Vendor (the account) × deal (from the owner's catalog,
 // gated per vendor type) × rep × stage. The owner articulates what's on the table in the Deal
@@ -220,10 +221,15 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
     reload();
   };
 
-  const setStage = async (o: Opp, stage: Stage) => {
+  // Marking an opportunity "lost" takes a one-line reason — was window.prompt(); every other input
+  // in this app is a styled Sheet, so this now opens a PromptSheet instead and commits once it
+  // submits. Every other stage change still commits immediately, same as before.
+  const [askingLost, setAskingLost] = useState<Opp | null>(null);
+
+  const commitStage = async (o: Opp, stage: Stage, lostReason?: string) => {
     const p: Record<string, unknown> = { stage };
     if (stage === "won") p.won_at = new Date().toISOString();
-    if (stage === "lost") { p.lost_at = new Date().toISOString(); const r = typeof window !== "undefined" ? window.prompt("What lost it? (one line, for the record)") : null; if (r?.trim()) p.lost_reason = r.trim(); }
+    if (stage === "lost") { p.lost_at = new Date().toISOString(); if (lostReason?.trim()) p.lost_reason = lostReason.trim(); }
     await patch(o.id, p);
     const label = STAGES.find((s) => s.key === stage)?.label ?? stage;
     logActivity(o.id, `→ ${label}${stage === "lost" && p.lost_reason ? ` — ${p.lost_reason}` : ""}`);
@@ -233,6 +239,10 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
         : line === "truck_stop" ? "Won — nice. Add the location in Route when dates land."
         : "Won — nice. Book it in Plan › Events when dates land.");
     }
+  };
+  const setStage = async (o: Opp, stage: Stage) => {
+    if (stage === "lost") { setAskingLost(o); return; }
+    await commitStage(o, stage);
   };
 
   const assignRep = async (o: Opp, uid: string) => {
@@ -621,6 +631,21 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
           onUse={(c) => { setResolve(null); addOpp({ linkTo: c.id }); }}
           onCreateDistinct={() => { setResolve(null); addOpp({ createDistinct: true }); }}
           onClose={() => setResolve(null)}
+        />
+      )}
+      {askingLost && (
+        <PromptSheet
+          open
+          title="Mark as lost"
+          hint="What lost it? One line, for the record."
+          placeholder="e.g. went with a competitor on price"
+          confirmLabel="Mark lost"
+          onCancel={() => setAskingLost(null)}
+          onSubmit={async (val) => {
+            const o = askingLost;
+            setAskingLost(null);
+            if (o) await commitStage(o, "lost", val);
+          }}
         />
       )}
     </div>
