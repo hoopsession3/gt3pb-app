@@ -60,6 +60,17 @@ const bestTime = (channel: string) => channel === "tiktok"
   : channel === "email" ? "Tue/Thu mornings, 9–11am."
   : "Tue–Fri, 11am–1pm or 7–9pm ET — IG lunch + evening windows.";
 
+// <video preload="metadata"> with no `poster` shows blank/white (especially iOS Safari) until played —
+// metadata-only preload doesn't decode a paintable frame. Seeking to a small offset once metadata is
+// known forces the browser to decode and paint that frame, giving every video tile a real thumbnail.
+function VideoThumb({ src }: { src: string }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  return (
+    <video ref={ref} className="ig-vid" src={src} muted playsInline preload="metadata"
+      onLoadedMetadata={() => { const v = ref.current; if (v) v.currentTime = Math.min(0.15, v.duration > 0 ? v.duration / 2 : 0.15); }} />
+  );
+}
+
 export default function Studio() {
   const { setSection } = useOperatorSection();
   const goCompanyCal = () => { try { localStorage.setItem("gt3-plan-tab", "calendar"); } catch { /* ignore */ } setSection("plan"); };
@@ -69,6 +80,11 @@ export default function Studio() {
   const [filter, setFilter] = useState<string>("all");
   const [openId, setOpenId] = useState<string | null>(null);
   const dragId = useRef<string | null>(null);
+  // Grid-preview covers that failed to load (expired/broken URL) — background-image fails silently with
+  // no error event, so a broken cover used to render as a blank tile with only a status dot on it,
+  // nothing telling the crew it needed a re-add. Tracked so a broken cover falls back to the same
+  // "tap to add a photo" placeholder a genuinely-empty piece gets.
+  const [brokenCovers, setBrokenCovers] = useState<Set<string>>(new Set());
   const [view, setView] = useState<"calendar" | "board" | "grid" | "flyer" | "letter" | "brand">(() => {
     const v = typeof window !== "undefined" ? localStorage.getItem("gt3-studio-view") : null;
     return v === "board" || v === "brand" || v === "grid" || v === "flyer" || v === "letter" ? v : "calendar";
@@ -153,13 +169,21 @@ export default function Studio() {
               {feed.map((it) => {
                 // cover = first item of the media array (source of truth), else the synced cover, else the Canva export
                 const cover = (Array.isArray(it.media) && it.media[0]) || (it.media_url ? { url: it.media_url, type: it.media_type || "image" } : null);
-                const img = cover && cover.type !== "video" ? cover.url : (it.export_url || null);
+                const rawImg = cover && cover.type !== "video" ? cover.url : (it.export_url || null);
                 const vid = cover && cover.type === "video" ? cover.url : null;
+                // background-image fails silently on a broken/expired URL — a real <img> + onError lets a
+                // broken cover fall back to the same placeholder an empty piece gets, instead of a blank tile.
+                const img = rawImg && !brokenCovers.has(it.id) ? rawImg : null;
                 return (
                   <button key={it.id} type="button" className="ig-cell" onClick={() => setOpenId(it.id)}
                     draggable onDragStart={() => { dragId.current = it.id; }} onDragOver={(e) => e.preventDefault()} onDrop={() => onDropTile(it.id)}
-                    style={img ? { backgroundImage: `url(${img})`, backgroundPosition: (cover && "focal" in cover && cover.focal) ? `${cover.focal.x}% ${cover.focal.y}%` : "center" } : undefined} aria-label={it.title || "Untitled"}>
-                    {vid && <video className="ig-vid" src={vid} muted playsInline preload="metadata" />}
+                    aria-label={it.title || "Untitled"}>
+                    {img && (
+                      <img className="ig-img" src={img} alt=""
+                        style={(cover && "focal" in cover && cover.focal) ? { objectPosition: `${cover.focal.x}% ${cover.focal.y}%` } : undefined}
+                        onError={() => setBrokenCovers((s) => (s.has(it.id) ? s : new Set(s).add(it.id)))} />
+                    )}
+                    {vid && <VideoThumb src={vid} />}
                     {!img && !vid && <span className="ig-ph"><b>{it.title || "Untitled"}</b><span>tap to add a photo</span></span>}
                     {vid && <span className="ig-reel">▶</span>}
                     {(it.media?.length ?? 0) > 1 && <span className="ig-multi">▦</span>}
