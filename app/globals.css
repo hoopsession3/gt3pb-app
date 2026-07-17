@@ -1519,7 +1519,15 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .acct-item.danger{color:var(--red)}
 
 /* ── ACCOUNT SHEET — the customer's things that matter, in the canonical LV popout ── */
-.acs-sheet{max-width:460px}
+/* A founding + staff member with a recent order stacks every optional section at once (hero,
+   stats, reorder, member card, Manage×3, Account×3, sign out) — tall enough to run past one
+   screen on most phones. .sheet2-body already scrolls (the canonical Sheet contract), but
+   nothing hinted more sat below, so the last row read as clipped instead of "scroll for more."
+   Same fade-to-hint move as .co-foot::before elsewhere in this file, just anchored to the
+   sheet's own bottom edge instead of a sticky footer. Decoration only — pointer-events:none so
+   it never steals the tap from Sign out or whatever row lands underneath it. */
+.acs-sheet{max-width:460px;position:relative}
+.acs-sheet::after{content:"";position:absolute;left:0;right:0;bottom:0;height:32px;background:linear-gradient(transparent,var(--bg,#161310));pointer-events:none;z-index:2}
 .acs-head{display:flex;align-items:center;width:100%}
 .acs-head-t{display:flex;align-items:center;gap:9px;font-family:'Inter';font-weight:700;font-size:15px;color:var(--cream)}
 .acs-head-t .g3{font-size:15px}
