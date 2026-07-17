@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import AccountPill from "@/components/AccountPill";
 import EditCopyPill from "@/components/EditCopyPill";
+import EditableCopy from "@/components/EditableCopy";
 import Watermark from "@/components/Watermark";
 import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
 import { useSiteCopy } from "@/lib/copy";
@@ -51,8 +52,8 @@ export default function MenuScreen() {
       <Watermark variant="menu" />
       <Masthead tone="light" eyebrow="The Menu" right={<div className="mast-right"><EditCopyPill group="Menu" /><AccountPill /></div>} />
 
-      <p className="mast-stmt">{t("menu.statement")}</p>
-      <div className="mast-order">{t("menu.order_line")}</div>
+      <EditableCopy k="menu.statement" value={t("menu.statement")} as="p" className="mast-stmt" multiline />
+      <EditableCopy k="menu.order_line" value={t("menu.order_line")} as="div" className="mast-order" />
 
       <div className="menu-chips" role="tablist" aria-label="Menu categories">
         {MENU.map((cat, ci) => (
@@ -62,7 +63,10 @@ export default function MenuScreen() {
 
       {MENU.map((cat, ci) => (
         <div key={cat.name} ref={(el) => { catRefs.current[cat.name] = el; }} data-cat={cat.name}>
-          <SectionHeader label={t(`menu.sec.${ci}.name`)} annotation={t(`menu.sec.${ci}.sub`)} />
+          <SectionHeader
+            label={<EditableCopy k={`menu.sec.${ci}.name`} value={t(`menu.sec.${ci}.name`)} />}
+            annotation={t(`menu.sec.${ci}.sub`) ? <EditableCopy k={`menu.sec.${ci}.sub`} value={t(`menu.sec.${ci}.sub`)} /> : undefined}
+          />
 
           {cat.rows.map((id) => {
             const d = DRINKS[id];
@@ -99,7 +103,10 @@ export default function MenuScreen() {
 
       {/* Pack upsell — the take-home path. Prices come from the order-ahead grid (lib/orderAhead),
           both glass paths shown honestly; the bring-back-or-new choice itself is made in Reserve. */}
-      <SectionHeader label={t("menu.packs_title")} annotation={t("menu.packs_sub")} />
+      <SectionHeader
+        label={<EditableCopy k="menu.packs_title" value={t("menu.packs_title")} />}
+        annotation={t("menu.packs_sub") ? <EditableCopy k="menu.packs_sub" value={t("menu.packs_sub")} /> : undefined}
+      />
       <div className="mpack">
         {PACK_SIZES.map((s) => (
           <div className="mpack-row" key={s}>
@@ -107,12 +114,12 @@ export default function MenuScreen() {
             <span className="mpack-px"><b>{dollars(packTotal(s, "return"))}</b> bring-back</span>
           </div>
         ))}
-        <div className="mpack-note">{t("menu.packs_note")}</div>
+        <EditableCopy k="menu.packs_note" value={t("menu.packs_note")} as="div" className="mpack-note" multiline />
         <Link href="/reserve" className="mpack-cta">Reserve your pack ›</Link>
       </div>
 
-      <div className="menu-integrity">{t("menu.integrity")}</div>
-      <div className="menu-mto">{t("menu.mto")}</div>
+      <EditableCopy k="menu.integrity" value={t("menu.integrity")} as="div" className="menu-integrity" />
+      <EditableCopy k="menu.mto" value={t("menu.mto")} as="div" className="menu-mto" />
 
       <ClosingBeat />
     </section>
