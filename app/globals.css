@@ -595,7 +595,12 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .ac-overdue{margin-left:8px;font-family:var(--mono);font-size:8.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--red-h);background:rgba(184,36,32,.16);border-radius:5px;padding:2px 6px;vertical-align:middle}
 
 /* ---- route map (Truck) ---- */
-.routemap-wrap{position:relative;margin-top:4px}
+/* isolation:isolate contains Leaflet's internal pane z-indexes (200-700+) and .rm-go's z-index:500
+   to THIS element's own stacking context. Without it, position:relative alone doesn't stop them from
+   competing directly against page-level z-index values like .sheet2-scrim's 80 — so opening any Sheet
+   (e.g. the account/membership popout) while this map is on screen left the map's tiles, zoom control,
+   and Directions button rendering unblurred and in front of the modal's scrim instead of behind it. */
+.routemap-wrap{position:relative;margin-top:4px;isolation:isolate}
 .routemap{height:240px;border-radius:18px;overflow:hidden;border:1px solid var(--line2);background:#100d09;box-shadow:0 6px 16px rgba(0,0,0,.2)}
 .routemap .leaflet-container{background:#100d09;font-family:'Inter';cursor:default}
 .routemap .leaflet-interactive{cursor:pointer}
