@@ -1125,8 +1125,12 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .mast-brand .g3{font-family:'Archivo Black';font-size:22px;letter-spacing:.4px;color:#221F18;line-height:1}
 .mast-brand .pb{font-family:'Inter';font-weight:600;font-size:8.5px;letter-spacing:3px;text-transform:uppercase;color:#6f6a59;margin-top:5px}
 .mast-stmt{font-family:'Fraunces';font-weight:400;font-size:17px;line-height:1.5;color:#33301f;margin-top:18px;letter-spacing:.1px}
-.mast-order{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:#9A7A2A;margin-top:12px}
-.menu-chips{position:sticky;top:0;z-index:6;display:flex;gap:8px;overflow-x:auto;padding:11px 0;margin-top:16px;background:#F4EFE3;border-bottom:1px solid rgba(34,31,24,.1)}
+/* Tighter than mast-stmt's own top margin on purpose (2026-07-17): order_line already echoes the
+   page eyebrow's type treatment (same 11px/uppercase/gold, see .menu .k-eyb below) — at the old 12px
+   this read as a third stacked block bracketing the statement instead of its paired caption. Pulling
+   it in makes the statement + order-line read as one unit before the chips, not two. */
+.mast-order{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:#9A7A2A;margin-top:6px}
+.menu-chips{position:sticky;top:0;z-index:6;display:flex;gap:8px;overflow-x:auto;padding:11px 0;margin-top:12px;background:#F4EFE3;border-bottom:1px solid rgba(34,31,24,.1)}
 .menu-chips::-webkit-scrollbar{display:none}
 .menu-chip{flex:0 0 auto;font-family:'Inter';font-weight:650;font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;color:#9A7A2A;background:transparent;border:1px solid rgba(34,31,24,.18);border-radius:20px;padding:9px 15px;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s,border-color .15s,transform .1s}
 .menu-chip:not(.on):hover{border-color:rgba(34,31,24,.5);color:#221F18;background:rgba(34,31,24,.05)}
