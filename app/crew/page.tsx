@@ -945,7 +945,7 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
     if (!supabase) throw new Error("Supabase client not configured");
     // recap moved to the staff-only ops sibling (event_ops / stop_ops, 0181); the per-stop order-ahead
     // columns stay on the public stop row. Fetch both in parallel and merge so the UI is unchanged.
-    const sel = isEvent ? "title, day, location_text, stage, default_buffer_min, completed_at" : "name, starts_at, location_text, address, status, default_buffer_min, completed_at, order_ahead_enabled, pickup_enabled, order_ahead_lead_min";
+    const sel = isEvent ? "title, day, location_text, stage, default_buffer_min, completed_at" : "name, starts_at, ends_at, location_text, address, status, default_buffer_min, completed_at, order_ahead_enabled, pickup_enabled, order_ahead_lead_min";
     const [{ data }, { data: ops }] = await Promise.all([
       supabase.from(table).select(sel).eq("id", ownerId).maybeSingle(),
       supabase.from(opsTable).select("recap").eq(opsKey, ownerId).maybeSingle(),
@@ -1002,6 +1002,15 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
     const dayKey = f?.starts_at ? new Date(f.starts_at).toLocaleDateString("en-CA") : new Date().toLocaleDateString("en-CA");
     set("starts_at", new Date(`${dayKey}T${v}:00`).toISOString());
   };
+  // Close time (stops.ends_at) — the customer truck page auto-drops "Live" 60 min before this and
+  // closes online ordering 45 min before it. Empty = no auto wind-down. Shares the start's date.
+  const endTimeVal = !f || isEvent || !f.ends_at ? "" : (() => { const d = new Date(f.ends_at); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; })();
+  const onEndTime = (v: string) => {
+    if (isEvent) return;
+    if (!v) { set("ends_at", null); return; }
+    const dayKey = f?.starts_at ? new Date(f.starts_at).toLocaleDateString("en-CA") : new Date().toLocaleDateString("en-CA");
+    set("ends_at", new Date(`${dayKey}T${v}:00`).toISOString());
+  };
 
   const save = async () => {
     if (!supabase || !f) return;
@@ -1010,7 +1019,7 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
     const buf = f.default_buffer_min != null && String(f.default_buffer_min).trim() !== "" ? Math.max(0, Number(f.default_buffer_min)) : null;
     const patch: Record<string, string | number | boolean | null> = isEvent
       ? { title: nm, day: f.day || null, location_text: f.location_text?.trim() || null, default_buffer_min: buf }
-      : { name: nm, starts_at: f.starts_at || null, location_text: f.location_text?.trim() || null, address: f.address?.trim() || null, default_buffer_min: buf,
+      : { name: nm, starts_at: f.starts_at || null, ends_at: f.ends_at || null, location_text: f.location_text?.trim() || null, address: f.address?.trim() || null, default_buffer_min: buf,
           order_ahead_enabled: oa, pickup_enabled: pk, order_ahead_lead_min: oa && lead.trim() !== "" ? Math.max(0, Number(lead)) : null };
     // stage/status: write ONLY a deliberate change from what the form opened with (same rule as
     // FieldOpSheet) — every save used to rewrite this unconditionally, which could clobber
@@ -1102,6 +1111,7 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
         {isEvent
           ? <label className="prod-f"><span>Location</span><input value={f.location_text ?? ""} onChange={(e) => set("location_text", e.target.value)} placeholder="Where" /></label>
           : <label className="prod-f"><span>Start time</span><input type="time" value={timeVal} onChange={(e) => onTime(e.target.value)} /></label>}
+        {!isEvent && <label className="prod-f"><span>End time</span><input type="time" value={endTimeVal} onChange={(e) => onEndTime(e.target.value)} /></label>}
       </div>
       {!isEvent && <label className="prod-f" style={{ marginTop: 8 }}><span>Where</span><input value={f.location_text ?? ""} onChange={(e) => set("location_text", e.target.value)} placeholder="Where" /></label>}
       {!isEvent && <label className="prod-f" style={{ marginTop: 8 }}><span>Address (tap-to-map)</span><input value={f.address ?? ""} onChange={(e) => set("address", e.target.value)} placeholder="123 Peach St, Atlanta GA" /></label>}

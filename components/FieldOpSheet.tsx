@@ -95,7 +95,7 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
 
   useEffect(() => {
     if (!supabase) return;
-    const sel = isEvent ? "title, day, location_text, stage" : "name, starts_at, location_text, address, status, completed_at, vendor_id";
+    const sel = isEvent ? "title, day, location_text, stage" : "name, starts_at, ends_at, location_text, address, status, completed_at, vendor_id";
     supabase.from(table).select(sel).eq("id", id).maybeSingle()
       .then(({ data }) => {
         const row = ((data ?? {}) as unknown) as Record<string, string | null>;
@@ -124,6 +124,16 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
     const dayKey = f?.starts_at ? new Date(f.starts_at).toLocaleDateString("en-CA") : new Date().toLocaleDateString("en-CA");
     set("starts_at", new Date(`${dayKey}T${v}:00`).toISOString());
   };
+  // Close time (stops.ends_at) — the truck auto-goes offline 60 min before this and online ordering
+  // closes 45 min before it (FindUs). Empty = no auto wind-down. Same day as the start.
+  const endTimeVal = !f || isEvent || !f.ends_at ? "" : (() => { const d = new Date(f.ends_at); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; })();
+  const onEndTime = (v: string) => {
+    if (isEvent) return;
+    if (!v) { set("ends_at", null); return; }
+    setTouchedWhen(true);
+    const dayKey = f?.starts_at ? new Date(f.starts_at).toLocaleDateString("en-CA") : new Date().toLocaleDateString("en-CA");
+    set("ends_at", new Date(`${dayKey}T${v}:00`).toISOString());
+  };
 
   // The actual write, shared by the normal save path and every VendorResolve decision below.
   const finishSave = async (patch: Record<string, string | number | null>, message?: string) => {
@@ -144,7 +154,7 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
     const nm = rawName || (isEvent ? "Event" : "Stop");
     const patch: Record<string, string | number | null> = isEvent
       ? { title: nm, day: f.day || null, location_text: f.location_text?.trim() || null }
-      : { name: nm, starts_at: f.starts_at || null, location_text: f.location_text?.trim() || null, address: f.address?.trim() || null };
+      : { name: nm, starts_at: f.starts_at || null, ends_at: f.ends_at || null, location_text: f.location_text?.trim() || null, address: f.address?.trim() || null };
     // stage/status: write ONLY a deliberate change (lifecycle automation owns it otherwise)
     const stageNow = (isEvent ? f.stage : f.status) ?? null;
     if (stageNow !== origStage.current) patch[isEvent ? "stage" : "status"] = stageNow;
@@ -190,6 +200,7 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
       <div className="prod-grid" style={{ marginTop: 10 }}>
         <label className="prod-f"><span>Date</span><input type="date" value={dateVal} onChange={(e) => onDate(e.target.value)} /></label>
         {!isEvent && <label className="prod-f"><span>Start time</span><input type="time" value={timeVal} onChange={(e) => onTime(e.target.value)} /></label>}
+        {!isEvent && <label className="prod-f"><span>End time</span><input type="time" value={endTimeVal} onChange={(e) => onEndTime(e.target.value)} /></label>}
         {isEvent && (
           <label className="prod-f"><span>Stage</span>
             <select value={f.stage ?? "confirmed"} onChange={(e) => set("stage", e.target.value)}>

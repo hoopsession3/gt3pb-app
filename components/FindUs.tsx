@@ -189,7 +189,19 @@ export default function FindUs() {
   }, [refreshQuietly]);
 
   const today = localToday();
-  const isLive = Boolean(live?.is_live);
+  // A stop can carry a close time (stops.ends_at). Two automatic wind-downs hang off it, so the
+  // operator never has to remember to flip anything at the end of service:
+  //   • the truck stops reading "Live" 60 min before that close time, and
+  //   • online pre-ordering closes 45 min before it.
+  // No close time set → neither fires (the manual is_live flag stands and ordering stays open). These
+  // are computed at render (re-evaluated on the 20s poll), so no cron has to write a flag on the tick.
+  const LIVE_OFF_BEFORE_MS = 60 * 60_000;
+  const ORDERS_CLOSE_BEFORE_MS = 45 * 60_000;
+  const nowMs = Date.now();
+  const liveStop = live?.is_live ? ops.find((r) => r.id === live.current_stop_id) : undefined;
+  const liveEndsMs = liveStop?.ends_at ? new Date(liveStop.ends_at).getTime() : null;
+  const isLive = Boolean(live?.is_live) && (liveEndsMs == null || nowMs < liveEndsMs - LIVE_OFF_BEFORE_MS);
+  const ordersOpen = liveEndsMs == null || nowMs < liveEndsMs - ORDERS_CLOSE_BEFORE_MS;
   // past events fold below (stops age out of the query window instead)
   const upcoming = ops.filter((r) => r.kind === "stop" || !r.day || r.day >= today);
   const past = ops.filter((r) => r.kind === "event" && r.day && r.day < today);
@@ -206,6 +218,9 @@ export default function FindUs() {
       ? [heroRel, whenDate(hero)].filter(Boolean).join(" · ")
       : [whenDay(hero), whenDate(hero)].filter(Boolean).join(" ");
   const heroOpen = hero ? (hero.kind === "stop" ? fmt12(whenTime(hero)) ?? "" : fmt12(hero.start_time) ?? "") : "";
+  const heroClose = !hero ? "" : hero.kind === "stop"
+    ? (hero.ends_at ? fmt12(`${String(new Date(hero.ends_at).getHours()).padStart(2, "0")}:${String(new Date(hero.ends_at).getMinutes()).padStart(2, "0")}`) ?? "" : "")
+    : (fmt12(hero.end_time) ?? "");
   // Only the hero copy (below) is a safe EditableCopy target — see the comment on descFor.
   const heroDesc = hero?.kind === "stop" ? descFor(hero, t, avail) : null;
 
@@ -236,14 +251,18 @@ export default function FindUs() {
 
       <div className="k-facts">
         <div className="f"><div className="fk">{isLive ? "Status" : "Day"}</div><div className={`fv${isLive ? " ok" : ""}`}>{isLive ? "Live" : heroWhen || "Soon"}</div></div>
-        <div className="f"><div className="fk">{hero?.kind === "event" ? "Starts" : "Open"}</div><div className="fv">{heroOpen || "—"}</div></div>
+        <div className="f"><div className="fk">{hero?.kind === "event" ? "Starts" : heroClose ? "Hours" : "Open"}</div><div className="fv">{heroClose ? `${heroOpen || "—"} – ${heroClose}` : heroOpen || "—"}</div></div>
         {hero?.kind === "event" && hero.going_count != null && hero.going_count > 0 && (
           <div className="f"><div className="fk">Going</div><div className="fv">{hero.going_count}</div></div>
         )}
       </div>
 
-      {/* ONE red action per screen: pre-order when the truck is the story. */}
-      <button type="button" className="btn-pri k-cta" onClick={() => router.push("/menu")}>PRE-ORDER · SKIP THE LINE</button>
+      {/* ONE red action per screen: pre-order when the truck is the story. Auto-closes 45 min before
+          the live stop's end time (ordersOpen) — past that, we say so instead of taking an order the
+          truck can't fill before it packs up. */}
+      {ordersOpen
+        ? <button type="button" className="btn-pri k-cta" onClick={() => router.push("/menu")}>PRE-ORDER · SKIP THE LINE</button>
+        : <p className="k-sub" style={{ marginTop: 4 }}>Online ordering’s closed for today — come see us at the bar before we pack up.</p>}
 
 
       <SectionHeader label="On The Road" annotation="stops & events, in order" />
