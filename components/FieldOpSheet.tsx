@@ -124,8 +124,8 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
     const dayKey = f?.starts_at ? new Date(f.starts_at).toLocaleDateString("en-CA") : new Date().toLocaleDateString("en-CA");
     set("starts_at", new Date(`${dayKey}T${v}:00`).toISOString());
   };
-  // Close time (stops.ends_at) — the truck auto-goes offline 60 min before this and online ordering
-  // closes 45 min before it (FindUs). Empty = no auto wind-down. Same day as the start.
+  // Close time (stops.ends_at) — online ordering auto-closes 60 min before this and the truck goes
+  // offline 45 min before it (FindUs). Empty = no auto wind-down. Same day as the start.
   const endTimeVal = !f || isEvent || !f.ends_at ? "" : (() => { const d = new Date(f.ends_at); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; })();
   const onEndTime = (v: string) => {
     if (isEvent) return;

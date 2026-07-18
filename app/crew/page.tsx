@@ -1002,8 +1002,8 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
     const dayKey = f?.starts_at ? new Date(f.starts_at).toLocaleDateString("en-CA") : new Date().toLocaleDateString("en-CA");
     set("starts_at", new Date(`${dayKey}T${v}:00`).toISOString());
   };
-  // Close time (stops.ends_at) — the customer truck page auto-drops "Live" 60 min before this and
-  // closes online ordering 45 min before it. Empty = no auto wind-down. Shares the start's date.
+  // Close time (stops.ends_at) — the customer truck page auto-closes online ordering 60 min before
+  // this and drops "Live" 45 min before it. Empty = no auto wind-down. Shares the start's date.
   const endTimeVal = !f || isEvent || !f.ends_at ? "" : (() => { const d = new Date(f.ends_at); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; })();
   const onEndTime = (v: string) => {
     if (isEvent) return;

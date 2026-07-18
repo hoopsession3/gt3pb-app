@@ -191,12 +191,14 @@ export default function FindUs() {
   const today = localToday();
   // A stop can carry a close time (stops.ends_at). Two automatic wind-downs hang off it, so the
   // operator never has to remember to flip anything at the end of service:
-  //   • the truck stops reading "Live" 60 min before that close time, and
-  //   • online pre-ordering closes 45 min before it.
-  // No close time set → neither fires (the manual is_live flag stands and ordering stays open). These
-  // are computed at render (re-evaluated on the 20s poll), so no cron has to write a flag on the tick.
-  const LIVE_OFF_BEFORE_MS = 60 * 60_000;
-  const ORDERS_CLOSE_BEFORE_MS = 45 * 60_000;
+  //   • online pre-ordering closes 60 min before that close time (stop taking orders you can't fill
+  //     before packing up), and
+  //   • the truck stops reading "Live" 45 min before it.
+  // Ordering closes FIRST, then the truck goes offline — never the reverse. No close time set →
+  // neither fires (the manual is_live flag stands and ordering stays open). Both are computed at
+  // render (re-evaluated on the 20s poll), so no cron has to write a flag on the tick.
+  const ORDERS_CLOSE_BEFORE_MS = 60 * 60_000;
+  const LIVE_OFF_BEFORE_MS = 45 * 60_000;
   const nowMs = Date.now();
   const liveStop = live?.is_live ? ops.find((r) => r.id === live.current_stop_id) : undefined;
   const liveEndsMs = liveStop?.ends_at ? new Date(liveStop.ends_at).getTime() : null;
@@ -257,7 +259,7 @@ export default function FindUs() {
         )}
       </div>
 
-      {/* ONE red action per screen: pre-order when the truck is the story. Auto-closes 45 min before
+      {/* ONE red action per screen: pre-order when the truck is the story. Auto-closes 60 min before
           the live stop's end time (ordersOpen) — past that, we say so instead of taking an order the
           truck can't fill before it packs up. */}
       {ordersOpen
