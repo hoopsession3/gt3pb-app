@@ -2763,10 +2763,13 @@ function SupplyPicker({ ev, title, have, onAdd, onClose }: {
 // address pin, POC trio, service dates, notes, archive/delete); the stop adds go-live, a calendar date,
 // and the vendor picker. Unifies what used to be StopControl + VendorCard (near-identical), and upgrades
 // the vendor to the stop's nicer modal address-pin flow. Stop-only props are optional.
-function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive, isCur, onGoLive, vendors, onLinkVendor, onOpenPrep, nameOverride }: {
+function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive, isCur, onGoLive, onGoOffline, vendors, onLinkVendor, onOpenPrep, nameOverride }: {
   kind: "stop" | "vendor"; row: Stop | Vendor; index: number; isCur?: boolean; open: boolean; onToggle: () => void;
   onArchive: () => void; onChanged: () => void;
-  onGoLive?: (id: string) => void; vendors?: Vendor[]; onLinkVendor?: (v: Vendor | null) => void; onOpenPrep?: () => void;
+  // onGoOffline is optional on top of onGoLive: without it the live banner below just stays a status
+  // readout (today's Go-offline-only-from-elsewhere behavior); with it, the banner itself becomes the
+  // one-tap way to end service on the live stop — see the ev-golive button.
+  onGoLive?: (id: string) => void; onGoOffline?: () => void; vendors?: Vendor[]; onLinkVendor?: (v: Vendor | null) => void; onOpenPrep?: () => void;
   // When a stop is vendor-linked, the VENDOR is the place's identity — show its canonical name on
   // every visit row so two visits to one place can't read as two different names (panel finding).
   nameOverride?: string | null;
@@ -2841,10 +2844,20 @@ function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive
       {open && (
         <div className="ev-body">
           {kind === "stop" && onGoLive && (
-            <button className={`ev-golive${isCur ? " on" : ""}`} onClick={() => onGoLive(row.id)} disabled={isCur}>
+            // Was a dead end while live: disabled unconditionally, so the one banner telling you
+            // the truck IS live had no way to take it back offline from here — you had to already
+            // know a separate "Go offline" button existed elsewhere. Now: live + onGoOffline wired
+            // up = this IS that button (same confirm-and-archive flow as everywhere else Go offline
+            // lives, since onGoOffline is just `pause`). No onGoOffline passed → falls back to the
+            // old disabled status-only banner, so nothing breaks for any caller that doesn't wire it.
+            <button
+              className={`ev-golive${isCur ? " on" : ""}`}
+              onClick={() => (isCur ? onGoOffline?.() : onGoLive(row.id))}
+              disabled={isCur && !onGoOffline}
+            >
               <span className="ev-golive-dot" />
-              <span>{isCur ? "Live here now — guests see this location" : "Go live at this location"}</span>
-              <span className="ev-golive-state">{isCur ? "LIVE" : "GO"}</span>
+              <span>{isCur ? (onGoOffline ? "Live here now — tap to take the truck offline" : "Live here now — guests see this location") : "Go live at this location"}</span>
+              <span className="ev-golive-state">{isCur ? (onGoOffline ? "END" : "LIVE") : "GO"}</span>
             </button>
           )}
 
@@ -3198,7 +3211,11 @@ function LiveControl({ compact = false, manage = false }: { compact?: boolean; m
             ))}
           </div>
         </div>}
-        {!manage && live?.is_live && <button className="adm-btn ghost" onClick={pause}>Go offline</button>}
+        {/* Status readout above stays manage-only (redundant with the LIVE pill already on the stop
+            card below), but the action can't be — this was the only "Go offline" button reachable
+            anywhere outside the Now tab's compact instrument, and that one disappears once you're
+            past the pulse screen. Hiding it here left no way to end service from Stops at all. */}
+        {live?.is_live && <button className="adm-btn ghost" onClick={pause}>Go offline</button>}
       </div>
       {!manage && live?.is_live && (
         <>
@@ -3260,6 +3277,7 @@ function LiveControl({ compact = false, manage = false }: { compact?: boolean; m
                   open={openStopId === s.id}
                   onToggle={() => setOpenStopId(openStopId === s.id ? null : s.id)}
                   onGoLive={goLive}
+                  onGoOffline={pause}
                   onArchive={() => archiveStop(s.id)}
                   onChanged={load}
                   vendors={vendors}
