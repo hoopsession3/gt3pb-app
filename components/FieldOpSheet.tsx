@@ -195,7 +195,13 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
   return (
     <>
     <Sheet open onClose={onClose} className="dp-form" label={`Edit ${isEvent ? "event" : "truck stop"}`}
-      header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{isEvent ? "Event" : "Truck stop"}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}><Icon name="close" /></button></div>}>
+      header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{isEvent ? "Event" : "Truck stop"}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}><Icon name="close" /></button></div>}
+      footer={
+        <div className="prod-actions" style={{ marginTop: 0 }}>
+          <button type="button" className="note-arch" onClick={onClose} disabled={saving}>Cancel</button>
+          <button type="button" className="note-save" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
+        </div>
+      }>
       <input className="note-in" value={f[isEvent ? "title" : "name"] ?? ""} onChange={(e) => set(isEvent ? "title" : "name", e.target.value)} placeholder={isEvent ? "Event name" : f.vendor_id ? "Stop name" : "Stop name — matches your vendor book on save"} autoFocus />
       <div className="prod-grid" style={{ marginTop: 10 }}>
         <label className="prod-f"><span>Date</span><input type="date" value={dateVal} onChange={(e) => onDate(e.target.value)} /></label>
@@ -225,10 +231,6 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
       )}
       <div className="ownerdet-danger" style={{ marginTop: 12 }}>
         <button type="button" className="ownerdet-arch" onClick={archive} disabled={saving}>Archive</button>
-      </div>
-      <div className="prod-actions" style={{ marginTop: 12 }}>
-        <button type="button" className="note-arch" onClick={onClose} disabled={saving}>Cancel</button>
-        <button type="button" className="note-save" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
       </div>
     </Sheet>
     {vendorSimilar && (
