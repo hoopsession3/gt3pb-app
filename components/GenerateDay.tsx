@@ -98,7 +98,10 @@ function buildRec(a: Complete): Rec {
     flow:  "The same cold-extraction base, infused with organic cacao nibs. Reads richer and steadier for heads-down work — no added sugar, same caffeine as the rest of the line.",
     dusk:  "Ceylon cinnamon and green cardamom over the same cold-extraction base. Warm and spiced for the back half of the day — same caffeine as Rise and Flow, not a wind-down.",
     kingme: "Our FLOW brew served on nitrogen — a velvety, naturally creamy, subtly sweet texture from microbubbles, nothing added. Same clean cold-extraction base.",
-    maple: "Organic A2 grass-fed goat milk with organic maple and a pinch of sea salt. Rich, naturally sweet and smooth — a treat that still names every ingredient.",
+    // 2026-07-17, Ryan: was missing its DUSK coffee base entirely — same bug as lib/menu.ts's maple
+    // entry (see that file for the full note). Caffeine-parity phrasing now matches how rise/flow/
+    // dusk describe theirs, since this drink carries the same caffeine, not a "treat" exception.
+    maple: "Our DUSK brew — Ceylon cinnamon and green cardamom over the cold-extraction base — with organic A2 grass-fed goat milk, real maple, and a pinch of sea salt. Rich, naturally sweet and smooth, same caffeine as the rest of the line.",
     tide:  "Whole-food hydration — young coconut water blended with young organic Thai coconut meat and a touch of organic local honey (we always name it). Blended to order, never a powder or concentrate.",
     aide:  "Coconut water and mineral water with organic maple and a pinch of sea salt. Light, clean hydration for the middle of the work — real ingredients, not a powder.",
     forge: "Slow-simmered beef bone broth, pasture-raised. Deep, rich and mineral-forward — real food for the rebuild after training, not a supplement.",

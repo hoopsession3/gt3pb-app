@@ -54,11 +54,15 @@ export const DRINKS: Record<DrinkId, DrinkDetail> = {
     no: ["Sugar", "Dairy", "Syrups", "Preservatives"],
     when: "BEFORE", whenT: "The same clean lift, with a creamy nitro texture.",
   },
+  // 2026-07-17, Ryan: was missing its coffee base entirely — it's built on DUSK, not just milk +
+  // maple + salt. This is the canonical source for both the menu list AND the concierge
+  // (lib/conciergeKb.ts reads DRINKS directly) — a guest asking "does this have coffee?" was being
+  // told no.
   maple: {
     n: "SALTED MAPLE LATTE", px: "$14", grad: "linear-gradient(140deg,#5a3826,#b8902f)", dot: "#B8902F",
-    lines: ["Organic A2 grass-fed goat milk","Organic maple · Sea salt"],
+    lines: ["DUSK brew with Organic A2 grass-fed goat milk", "Organic maple · Sea salt"],
     why: "Rich, naturally sweet and smooth.",
-    has: ["Organic A2 grass-fed goat milk", "Organic maple syrup", "Sea salt"],
+    has: ["DUSK cold-extraction (Ceylon cinnamon · green cardamom)", "Organic A2 grass-fed goat milk", "Organic maple syrup", "Sea salt"],
     no: ["Refined sugar", "Seed oils", "Preservatives"],
     when: "BEFORE", whenT: "An afternoon treat that still eats clean.",
   },
