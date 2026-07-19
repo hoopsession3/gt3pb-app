@@ -5962,7 +5962,11 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .k-facts .f{flex:1;padding:14px 0;min-width:0}
 .k-facts .f+.f{border-left:1px solid var(--line);padding-left:18px}
 .k-facts .fk{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--cream-d)}
-.k-facts .fv{font-family:'Inter';font-weight:700;font-size:19px;margin-top:5px;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Was white-space:nowrap + ellipsis — silently clipped ("Next Fri · 7...") the moment a relative-day
+   date or an hours range ran long in these equal-width columns. k-facts is hero-only (FindUs.tsx),
+   so letting a value wrap costs nothing elsewhere: the row's a flex container with default stretch,
+   so the column dividers already span whichever column ends up tallest. */
+.k-facts .fv{font-family:'Inter';font-weight:700;font-size:19px;margin-top:5px;color:var(--cream);line-height:1.25}
 .k-facts .fv.ok{color:#7fce82}
 .k-cta{margin-top:22px}
 /* 07 · Closing beat — every page ends on purpose */

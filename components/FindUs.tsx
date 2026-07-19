@@ -219,7 +219,11 @@ export default function FindUs() {
     : /^(Today|Tomorrow|Yesterday|This |Next )/.test(heroRel) || heroRel.endsWith("d ago")
       ? [heroRel, whenDate(hero)].filter(Boolean).join(" · ")
       : [whenDay(hero), whenDate(hero)].filter(Boolean).join(" ");
-  const heroOpen = hero ? (hero.kind === "stop" ? fmt12(whenTime(hero)) ?? "" : fmt12(hero.start_time) ?? "") : "";
+  // Events used to read start_time only — if that field was never set (even with a perfectly good
+  // starts_at timestamp, the same one the Day column above derives from), Starts silently showed
+  // "—". whenTime() already has the right fallback chain (label, then derive from starts_at) and
+  // stops were already using it; events just weren't falling through to it. now they do.
+  const heroOpen = hero ? fmt12(hero.kind === "event" ? hero.start_time || whenTime(hero) : whenTime(hero)) ?? "" : "";
   const heroClose = !hero ? "" : hero.kind === "stop"
     ? (hero.ends_at ? fmt12(`${String(new Date(hero.ends_at).getHours()).padStart(2, "0")}:${String(new Date(hero.ends_at).getMinutes()).padStart(2, "0")}`) ?? "" : "")
     : (fmt12(hero.end_time) ?? "");
