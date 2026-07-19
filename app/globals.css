@@ -3454,10 +3454,18 @@ body:has(.conc-sheet) .rail{display:flex}
 .qd-fab{z-index:110}
 /* The floating Ask-GT3 FAB lives at the app root; an open sheet's scrim is nested deep in the
    scrolling body (a lower stacking context) so it can't paint over the FAB no matter its z-index.
-   Hide the FAB outright while any sheet is open — every sheet has its own ✕ and tap-to-dismiss. */
+   Hide the FAB outright while any sheet is open — every sheet has its own ✕ and tap-to-dismiss.
+   2026-07-19: this list predates .sheet2-scrim (the canonical Sheet, e.g. FieldOpSheet) — missing
+   it meant qd-fab (z-index 110, bottom-right) sat on top of every canonical sheet's footer, right
+   where a footer Save button usually lands. Ryan hit this directly: could see the stop editor but
+   the Save tap was landing on the FAB underneath it instead. theme-toggle sits in the same bottom
+   band (z-index 60, bottom-left) — hidden here too so it can't shadow a Cancel button the same way,
+   even though its lower z-index mostly kept it visually behind the scrim already. */
 .app:has(.qd-scrim) .qd-fab,
 .app:has(.prep-scrim) .qd-fab,
-.app:has(.isheet-scrim) .qd-fab{opacity:0;pointer-events:none}
+.app:has(.isheet-scrim) .qd-fab,
+.app:has(.sheet2-scrim) .qd-fab,
+.app:has(.sheet2-scrim) .theme-toggle{opacity:0;pointer-events:none}
 
 /* Trailer load-out: event picker in the header */
 .tl-evsel{margin-left:8px;background:rgba(0,0,0,.22);border:1px solid var(--line2);border-radius:8px;color:var(--cream);font-family:'Inter';font-weight:600;font-size:13px;padding:4px 8px;-webkit-appearance:none;appearance:none;max-width:60%}
