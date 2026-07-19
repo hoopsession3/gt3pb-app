@@ -768,9 +768,20 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .ev-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .ev-f{display:flex;flex-direction:column;gap:5px;font-family:var(--mono);font-weight:500;font-size:8.5px;letter-spacing:1.6px;text-transform:uppercase;color:var(--cream-d);min-width:0}
 .ev-f.wide{grid-column:span 2}
+/* Date gets its own full row: a native <input type="date"> renders browser-controlled MM/DD/YYYY
+   segments that need more room than a 1-of-4 grid column gives them, so at normal and narrow widths
+   alike it was clipping/overlapping the Day field beside it (2026-07-19 report). Full-width sidesteps
+   the crowding at every breakpoint instead of hand-tuning column widths per media query; it also
+   leaves Day/Start/End/Going as a clean, evenly-filled 4-up row instead of a 5th item wrapping alone. */
+.ev-f.full{grid-column:1/-1}
 .ev-f input,.ev-f select{width:100%;background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:9px;padding:10px;color:var(--cream);font-family:'DM Mono';font-size:15px;outline:none;min-width:0}
 .ev-f select{font-family:'Inter';font-weight:600}
 .ev-f input:focus,.ev-f select:focus{border-color:var(--gold2)}
+/* Day/Start/End use plausible-looking example placeholders ("SAT", "9:00") so an empty field can be
+   mistaken for a saved value (2026-07-19 report) — the "A11y fix pack" above (line ~2621) covered
+   .isheet-in's placeholder contrast but missed this one. Muted, clearly-hint-toned text closes that gap;
+   the "e.g." wording change alongside this (app/crew/page.tsx) removes the ambiguity regardless of color. */
+.ev-f input::placeholder{color:rgba(245,241,232,.5)}
 .ev-chips{display:flex;flex-wrap:wrap;gap:7px}
 .ev-chip{font-family:var(--mono);font-weight:500;font-size:11px;letter-spacing:.8px;text-transform:uppercase;padding:9px 13px;border-radius:9px;border:1px solid var(--line2);background:transparent;color:var(--cream-m);cursor:pointer;transition:.12s}
 .ev-chip.on{border-color:var(--red);background:rgba(184,36,32,.16);color:#fff}
@@ -2627,6 +2638,7 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .app.crew-day .gl-f input,.app.crew-day .gl-f select,.app.crew-day .gl-f textarea,
 .app.crew-day .isheet-in{background:var(--card);color:var(--cream);border-color:var(--ink-onLight-24)}
 .app.crew-day .isheet-in::placeholder{color:rgba(34,31,24,.55)}
+.app.crew-day .ev-f input::placeholder{color:rgba(34,31,24,.55)}
 .app.crew-day .tm-av,.app.crew-day .alert-ack,.app.crew-day .offchip,.app.crew-day .sw-update{background:var(--card)}
 /* contrast fix (2026-07-15 crew-day audit): .tm-av.tone-red's own background:var(--red) loses to the
    higher-specificity override above (3 classes beats 2), forcing a white avatar chip — but its

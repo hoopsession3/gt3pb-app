@@ -30,8 +30,15 @@ export const etTimeLabel = (d: Date): string => `${ET_WD_FMT.format(d)} ${ET_TIM
 // Humanized, UNAMBIGUOUS relative day for the OPERATOR's local wall-clock (pairs with localToday).
 // The crew Route board glued a static "next ·" label to a weekday, so "next · Sat Jul 18" misread as
 // "next Saturday" when the visit was THIS Saturday. This returns a qualifier that can't be misread —
-// "Today" / "Tomorrow" / "Yesterday" / "This Sat" / "Next Sat" / "3d ago" — and falls back to an
-// absolute "Mon D" beyond two weeks. Callers append the absolute date for belt-and-suspenders clarity.
+// "Today" / "Tomorrow" / "Yesterday" / "This Sat" / "3d ago" — and falls back to an absolute "Mon D"
+// for anything a week or more out. Callers append the absolute date for belt-and-suspenders clarity.
+//
+// Deliberately no "Next Sat" bucket: a former diff 7–13 bucket returned "Next {wd}" for events up to
+// two weeks out, so a Friday 12 days away read as "Next Fri" — but the Friday a normal reader means by
+// "next Friday" is the one 5–6 days out, which already prints as "This Fri" above. "Next Fri" on a
+// 12-day-out date was reliably read as the wrong Friday (2026-07-19 report: an event dated Jul 31 read
+// as "Next Fri" the same week Jul 24 — the actual next Friday — existed). Once a date is a week or more
+// out, a plain "Mon D" is unambiguous; only "This"/"Today"/"Tomorrow" are close enough to earn a relative word.
 export const relativeDay = (input: Date | string): string => {
   const d = typeof input === "string"
     ? new Date(input.length <= 10 ? `${input}T12:00:00` : input)
@@ -45,7 +52,6 @@ export const relativeDay = (input: Date | string): string => {
   if (diff === 1) return "Tomorrow";
   if (diff === -1) return "Yesterday";
   if (diff > 1 && diff < 7) return `This ${wd}`;
-  if (diff >= 7 && diff < 14) return `Next ${wd}`;
   if (diff <= -2 && diff > -7) return `${-diff}d ago`;
   return d.toLocaleDateString([], { month: "short", day: "numeric" });
 };

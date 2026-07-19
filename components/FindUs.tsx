@@ -210,13 +210,13 @@ export default function FindUs() {
   // the hero is the next PLACE TO FIND US — live stop first, else first upcoming stop or event
   const hero = (isLive && upcoming.find((r) => r.id === live?.current_stop_id)) || upcoming[0];
   // Humanize the hero's "when" (the one "where's the truck next" answer): relativeDay returns an
-  // unambiguous near-term qualifier — "Today" / "This Sat" / "Next Sat" — which we pair with the
-  // numeric date for clarity ("This Sat · 7/18"). Anything past two weeks (or with no date) keeps
-  // the original absolute weekday + M/D exactly as before.
+  // unambiguous near-term qualifier — "Today" / "This Sat" — which we pair with the numeric date for
+  // clarity ("This Sat · 7/18"). Anything a week or more out (or with no date) keeps the original
+  // absolute weekday + M/D — no "Next {wd}", which misread a 12-day-out Friday as the wrong Friday.
   const heroRel = hero ? relativeDay(hero.starts_at ?? (hero.day ? `${hero.day}T12:00:00` : "")) : "";
   const heroWhen = !hero
     ? ""
-    : /^(Today|Tomorrow|Yesterday|This |Next )/.test(heroRel) || heroRel.endsWith("d ago")
+    : /^(Today|Tomorrow|Yesterday|This )/.test(heroRel) || heroRel.endsWith("d ago")
       ? [heroRel, whenDate(hero)].filter(Boolean).join(" · ")
       : [whenDay(hero), whenDate(hero)].filter(Boolean).join(" ");
   // Events used to read start_time only — if that field was never set (even with a perfectly good

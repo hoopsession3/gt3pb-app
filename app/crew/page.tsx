@@ -4671,11 +4671,11 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
             <label className="ev-fld">Location / venue<input className="ev-input" maxLength={200} defaultValue={e.location_text ?? ""} placeholder="e.g. Duncan Town Square" aria-label="Location"
               onBlur={(ev) => (ev.target.value.trim() || null) !== e.location_text && onUpdate({ location_text: ev.target.value.trim() || null })} /></label>
             <div className="ev-grid">
-              <label className="ev-f">Date<input type="date" defaultValue={e.day ?? ""} aria-label="Event date"
+              <label className="ev-f full">Date<input type="date" defaultValue={e.day ?? ""} aria-label="Event date"
                 onBlur={(ev) => { const v = ev.target.value || null; if (v !== (e.day ?? null)) { const upd: { day: string | null; day_label?: string } = { day: v }; if (v) upd.day_label = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"][new Date(`${v}T12:00:00`).getDay()]; onUpdate(upd); } }} /></label>
-              <label className="ev-f">Day<input defaultValue={e.day_label ?? ""} placeholder="SAT" onBlur={(ev) => ev.target.value !== e.day_label && onUpdate({ day_label: ev.target.value })} /></label>
-              <label className="ev-f">Start<input defaultValue={e.start_time ?? ""} placeholder="9:00" onBlur={(ev) => (ev.target.value.trim() || null) !== e.start_time && onUpdate({ start_time: ev.target.value.trim() || null })} /></label>
-              <label className="ev-f">End<input defaultValue={e.end_time ?? ""} placeholder="2:00" onBlur={(ev) => (ev.target.value.trim() || null) !== e.end_time && onUpdate({ end_time: ev.target.value.trim() || null })} /></label>
+              <label className="ev-f">Day<input defaultValue={e.day_label ?? ""} placeholder="e.g. SAT" aria-label="Day label" onBlur={(ev) => ev.target.value !== e.day_label && onUpdate({ day_label: ev.target.value })} /></label>
+              <label className="ev-f">Start<input defaultValue={e.start_time ?? ""} placeholder="e.g. 9:00" aria-label="Start time" onBlur={(ev) => (ev.target.value.trim() || null) !== e.start_time && onUpdate({ start_time: ev.target.value.trim() || null })} /></label>
+              <label className="ev-f">End<input defaultValue={e.end_time ?? ""} placeholder="e.g. 2:00" aria-label="End time" onBlur={(ev) => (ev.target.value.trim() || null) !== e.end_time && onUpdate({ end_time: ev.target.value.trim() || null })} /></label>
               <label className="ev-f">Going<input type="text" readOnly value={`${e.going_count ?? 0} · from RSVPs`} title="Live headcount from member RSVPs — not editable" /></label>
             </div>
             <button className={`ev-toggle${e.member_only ? " on" : ""}`} onClick={() => onUpdate({ member_only: !e.member_only })} aria-pressed={e.member_only}>
