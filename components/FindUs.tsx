@@ -62,9 +62,21 @@ function whenTime(s: FieldOp): string {
 }
 function fmt12(v?: string | null): string | null {
   if (!v) return v ?? null;
-  const m = /^(\d{1,2}):(\d{2})$/.exec(v.trim());
+  // Events' start_time/end_time are free text the crew types by hand (no input format is enforced —
+  // see the EventCard editor), so this has to handle both a bare 24h "H:MM" (the derived/label path
+  // always produces this) AND crew-typed input that already includes am/pm in some casing/spacing
+  // ("6:00PM", "6:00 pm", ...). Reported live (2026-07-19): an event's Starts read "6:00PM" next to
+  // stops formatted "6:00pm" elsewhere on the same page — same fact, visibly inconsistent styling —
+  // because the old bare-digits-only regex didn't match a string with "PM" already on it and passed
+  // it through untouched instead of normalizing it.
+  const m = /^(\d{1,2}):(\d{2})\s*(am|pm)?$/i.exec(v.trim());
   if (!m) return v;
   const h = Number(m[1]);
+  const explicitPeriod = m[3]?.toLowerCase();
+  if (explicitPeriod) {
+    // Already has a period — normalize casing/spacing only; don't reinterpret the hour the crew typed.
+    return h === 0 || h > 12 ? v : `${h}:${m[2]}${explicitPeriod}`;
+  }
   if (h > 23) return v;
   return `${h % 12 || 12}:${m[2]}${h >= 12 ? "pm" : "am"}`;
 }
