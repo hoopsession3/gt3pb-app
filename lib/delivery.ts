@@ -9,8 +9,8 @@
 import { FRESH_PER_BOTTLE_CENTS, FLAT_BRING_BACK_CENTS } from "./bottlePricing";
 
 export type DeliveryChannel = "direct" | "uber_eats" | "doordash" | "instacart";
-export type DeliveryPackSize = 12 | 24 | 36;
-export const DELIVERY_PACKS: readonly DeliveryPackSize[] = [12, 24, 36] as const;
+export type DeliveryPackSize = 6 | 12 | 24;
+export const DELIVERY_PACKS: readonly DeliveryPackSize[] = [6, 12, 24] as const;
 
 export const DELIVERY_PRICING = {
   refill: FLAT_BRING_BACK_CENTS,       // Loop tier — into a returned bottle (direct channel only). Same flat rate as pickup's walk-up bring-back (lib/bottlePricing.ts) — no pack-size discount here; see that file for why.
