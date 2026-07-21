@@ -522,6 +522,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
           {mode === "pickup" && <EditableCopy k="reserve.fresh" value={t("reserve.fresh")} as="p" className="dl-sub" />}
 
           {mode === "pickup" && <p className="dl-pricemode">{bringBack ? "Prices with bring-back empties — need new glass? It\u2019s $10 a bottle, picked at the next step." : "New-glass prices — bring your empties back next drop and pay less."}</p>}
+          {mode === "delivery" && <p className="dl-pricemode">{bringBack ? "Prices with empties back — first delivery? Switch to “need all new” at the next step." : "New-bottle prices — bring your empties back next time and pay less."}</p>}
           {/* New this round — reserve.window had no render site anywhere (round o's discovery). Added
               here as an additive note in the same dl-sub style as the fresh line above; this is new
               visible copy, not a rewire of something that was already on screen. */}
@@ -561,7 +562,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
                 {mode === "delivery" && s >= DELIVERY_PRICING.feeWaivedAt && <span className="oa-tag on">FREE DELIVERY</span>}
                 {mode === "pickup" && PACK_TAG[s] && <span className="oa-tag">{PACK_TAG[s]}</span>}
                 <div className="oa-c">{s}</div><div className="oa-u">BOTTLES</div>
-                <div className="oa-p">{mode === "delivery" ? dollars(quoteDelivery(s, 0, 0, "direct").totalCents) : dollars(packTotal(s, bringBack ? "return" : "new") * 100)}</div>
+                <div className="oa-p">{mode === "delivery" ? dollars(quoteDelivery(s, 0, bringBack ? s : 0, "direct").totalCents) : dollars(packTotal(s, bringBack ? "return" : "new") * 100)}</div>
               </button>
             ))}
           </div>
