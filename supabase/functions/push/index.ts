@@ -46,6 +46,28 @@ async function insertAlert(a: { severity: string; category: string; title: strin
   await supabase.from("alerts").insert({ severity: a.severity, category: a.category, title: a.title, body: a.body ?? null, link: a.link ?? "/admin" });
 }
 
+// Email the owner/manager list (public.admin_emails — 0004) via Resend. Push needs a subscribed
+// device and Teams needs its webhook configured; email is the one channel that doesn't depend on
+// either, so it's the net under both for anything that must not silently go cold. Secrets are on
+// this function's own env (Supabase Edge Function secrets), separate from the Next app's Vercel
+// env — RESEND_API_KEY / NOTIFY_FROM_EMAIL must be set here too, or this is a clean no-op, same
+// contract as lib/notify.ts on the app side.
+async function emailAdmins(subject: string, body: string) {
+  const key = Deno.env.get("RESEND_API_KEY");
+  const from = Deno.env.get("NOTIFY_FROM_EMAIL");
+  if (!key || !from) return;
+  const { data: admins } = await supabase.from("admin_emails").select("email");
+  const to = (admins ?? []).map((a: { email: string }) => a.email);
+  if (!to.length) return;
+  try {
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from, to, subject: subject.slice(0, 200), text: body }),
+    });
+  } catch (_e) { /* never fail the webhook on a mail-provider hiccup */ }
+}
+
 Deno.serve(async (req) => {
   try {
     const { table, type, record, old_record } = await req.json();
@@ -91,9 +113,27 @@ Deno.serve(async (req) => {
       message = `${record.name ?? "Someone"}${record.event_date ? " - " + record.event_date : ""}${record.location_text ? " - " + record.location_text : ""}`;
       url = "/admin";
       targets = await subsFor((q) => q.eq("is_admin", true));
-      // Producer: a new lead → inbox + Teams so it's chased before it goes cold.
+      // Producer: a new lead → inbox + Teams + email so it's chased before it goes cold. Email is
+      // the one channel here that doesn't depend on a subscribed device or a configured webhook —
+      // an owner who's away from the crew app for a day still finds out a lead came in, and when.
       await insertAlert({ severity: "important", category: "booking", title: "New booking lead", body: message });
       await postTeams("important", "New booking lead", message);
+      await emailAdmins(
+        `New booking request${record.name ? ` — ${record.name}` : ""}`,
+        [
+          `${record.name ?? "Someone"} wants to book GT3PB.`,
+          "",
+          `Submitted: ${new Date(record.created_at ?? Date.now()).toLocaleString("en-US", { timeZone: "America/New_York", dateStyle: "medium", timeStyle: "short" })} ET`,
+          record.event_date ? `Event date: ${record.event_date}` : null,
+          record.headcount ? `Headcount: ${record.headcount}` : null,
+          record.location_text ? `Location: ${record.location_text}` : null,
+          record.email ? `Email: ${record.email}` : null,
+          record.phone ? `Phone: ${record.phone}` : null,
+          record.notes ? `Notes: ${record.notes}` : null,
+          "",
+          "Manage it: https://app.gt3pb.com/crew?s=pipeline",
+        ].filter((line) => line !== null).join("\n"),
+      );
 
     } else if (table === "event_tasks" && type === "UPDATE" && record.assignee) {
       // Crew assignment → tell the assigned member they're on a task. Only on a real

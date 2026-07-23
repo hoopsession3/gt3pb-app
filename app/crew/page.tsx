@@ -3907,8 +3907,8 @@ function Bookings() {
       {reqs.map((r) => (
         <div className={`adm-req${r.status === "new" ? " new" : ""}`} key={r.id}>
           <div className="adm-member-top">
-            <b>{r.name ?? "—"}{r.event_date && <span className="adm-pill">{r.event_date}</span>}</b>
-            <span className="adm-ref">{r.headcount ? `${r.headcount} ppl` : ""}</span>
+            <b>{r.name ?? "—"}{r.event_date && <span className="adm-pill" title={`Requested event date: ${r.event_date}`}>Event {relativeDay(r.event_date)}</span>}</b>
+            <span className="adm-ref">{[r.headcount ? `${r.headcount} ppl` : null, `submitted ${relativeDay(r.created_at)}`].filter(Boolean).join(" · ")}</span>
           </div>
           <div className="meta">
             {r.email && <><a href={`mailto:${r.email}`}>{r.email}</a>{r.phone ? " · " : ""}</>}{r.phone}
