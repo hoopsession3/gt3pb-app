@@ -132,6 +132,13 @@ export const COPY_META: CopyMeta[] = [
     default: "Drawn cold, simmered slow, blended from whole ingredients — every cup made the moment you order." },
   { key: "menu.order_line", group: "Menu", label: "Order prompt",
     default: "Order here, and it'll be waiting when you reach the window." },
+  // 2026-07-27: system-design pass on where to teach the "why" behind the menu (Ryan asked for a
+  // strategic placement audit, not just "put it on Menu") — this is placement #1 of 4. Menu's own
+  // categories (Activation/Hydration/…, lib/menu.ts MENU) already ARE Craft's three pillars; this
+  // just tells the customer that connection exists. Plain text inside a <button> — same nested-
+  // interactive rule as craft.cta_menu/cta_reserve, not inline-click-editable.
+  { key: "menu.craft_link", group: "Menu", label: "Craft-page teaser button (sits above the category chips)",
+    default: "Grouped by what your body needs — see the full chemistry" },
   // ── Reserve (the signed-out storefront's story page) ──
   { key: "reserve.order_bar", group: "Reserve", label: "Order-from-the-bar button",
     default: "Order from the bar" },
@@ -162,6 +169,12 @@ export const COPY_META: CopyMeta[] = [
   { key: "truck.tier.limited", group: "Truck", label: "Tagline — most/all items 86'd today", default: "Limited menu today" },
   { key: "truck.stop_note", group: "Truck", label: "Route row — note when a stop has none", multiline: true,
     default: "Full bar on board. Order ahead or save a reminder." },
+  // 2026-07-27: placement #3 of the craft-education audit — Find Us is the guest's real "home"
+  // (/ redirects here for anyone signed out), but its one job is "where/when," so this stays a
+  // single quiet line at the very bottom, not a pitch. Plain text inside a <button>, same
+  // nested-interactive rule as "Book the bar for your event" just above it.
+  { key: "truck.craft_link", group: "Truck", label: "Craft-page teaser button (sits above the closing beat)",
+    default: "What's really in the cup — and why" },
   // ── Menu · sections + every drink. Names, tags, and descriptions are copy — PRICES ARE NOT:
   // the charge is computed server-side from the locked catalog / Square, so px stays in code.
   ...MENU.flatMap((s, i) => [

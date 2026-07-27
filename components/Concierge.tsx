@@ -6,11 +6,19 @@ import Gt3Mark from "./Gt3Mark";
 import Icon from "./Icon";
 
 // Render the assistant's light markdown — **bold** becomes real bold (guests were seeing raw
-// asterisks). Newlines are already handled by the bubble's white-space:pre-wrap.
+// asterisks), and [text](/path) becomes a real tap-through link (2026-07-27, for the concierge's
+// new [See the full science →](/craft) pointer — see the SYSTEM prompt). The link pattern only
+// matches a URL starting with "/" on purpose: an internal route is always safe to render as a real
+// <a>, and it means a forged/off-script "link" the model might emit to some other domain just
+// renders as inert text instead of becoming clickable. Newlines are already handled by the
+// bubble's white-space:pre-wrap.
 function rich(text: string): ReactNode[] {
-  return text.split(/(\*\*[^*]+\*\*)/g).map((seg, i) => {
+  return text.split(/(\*\*[^*]+\*\*|\[[^\]]+\]\(\/[^)]+\))/g).map((seg, i) => {
     const b = /^\*\*([^*]+)\*\*$/.exec(seg);
-    return b ? <strong key={i}>{b[1]}</strong> : <span key={i}>{seg}</span>;
+    if (b) return <strong key={i}>{b[1]}</strong>;
+    const l = /^\[([^\]]+)\]\((\/[^)]+)\)$/.exec(seg);
+    if (l) return <a key={i} href={l[2]} className="conc-link">{l[1]}</a>;
+    return <span key={i}>{seg}</span>;
   });
 }
 

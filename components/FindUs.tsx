@@ -344,6 +344,14 @@ export default function FindUs() {
         Book the bar for your event <b><Icon name="arrowRight" /></b>
       </button>
 
+      {/* Placement #2 of the craft-education audit (2026-07-27): this IS the guest home page (see
+          the redirect in app/page.tsx), but its one job is "where/when" — so one quiet line at the
+          very bottom, not a pitch. Plain text, not EditableCopy: same nested-interactive rule as
+          the button above it. */}
+      <button type="button" className="btn-ter" onClick={() => router.push("/craft")}>
+        {t("truck.craft_link")} <b><Icon name="arrowRight" /></b>
+      </button>
+
       <ClosingBeat />
     </section>
   );

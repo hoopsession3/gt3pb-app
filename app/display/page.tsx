@@ -9,18 +9,22 @@ import { supabase } from "@/lib/supabase";
 import Gt3Mark from "@/components/Gt3Mark";
 import Icon from "@/components/Icon";
 
-// TRUCK DISPLAY — a full-screen, auto-rotating loop for a tablet or TV at the bar. Four scenes: the
-// live menu, a cleaned + anonymized guest review, the brand line, and a QR/social connect card.
-// Public (no login). Reviews are staff-approved and scrubbed by lib/reviews before they ever reach
-// this screen. Route: /display.
-type Scene = "menu" | "brand" | "review" | "connect";
-const ORDER: Scene[] = ["menu", "review", "brand", "connect"];
+// TRUCK DISPLAY — a full-screen, auto-rotating loop for a tablet or TV at the bar. Five scenes: the
+// live menu, the craft/chemistry teaser, a cleaned + anonymized guest review, the brand line, and a
+// QR/social connect card. Public (no login). Reviews are staff-approved and scrubbed by lib/reviews
+// before they ever reach this screen. Route: /display.
+// "craft" (2026-07-27, placement #4 of the craft-education strategic audit — the real "ad when you
+// come in": a captive line-waiting audience already staring at this board, stronger than any paid
+// ad hook) sits right after "menu" — you just saw what's pouring, here's why it's built this way.
+type Scene = "menu" | "craft" | "brand" | "review" | "connect";
+const ORDER: Scene[] = ["menu", "craft", "review", "brand", "connect"];
 const DWELL = 9000;
 
 export default function DisplayPage() {
   const [reviews, setReviews] = useState<CleanReview[]>([]);
   const [step, setStep] = useState(0);
   const [qr, setQr] = useState("");
+  const [craftQr, setCraftQr] = useState("");
   // Live prices (products.price_cents, the one authority — same /api/menu the ordering screens use)
   // so a reprice via Money > Menu shows up on this public board, not just the frozen lib/menu.ts copy.
   const [prices, setPrices] = useState<Record<string, number>>({});
@@ -31,6 +35,7 @@ export default function DisplayPage() {
 
   useEffect(() => {
     QRCode.toDataURL(CONNECT_APP, { margin: 1, width: 640, color: { dark: "#15120D", light: "#ffffff" } }).then(setQr).catch(() => setQr(""));
+    QRCode.toDataURL(`${CONNECT_APP}/craft`, { margin: 1, width: 640, color: { dark: "#15120D", light: "#ffffff" } }).then(setCraftQr).catch(() => setCraftQr(""));
   }, []);
 
   useEffect(() => {
@@ -77,6 +82,17 @@ export default function DisplayPage() {
             ))}
           </div>
           <div className="tvl-foot">Drawn cold · made to order · poured into glass</div>
+        </div>
+      )}
+
+      {scene === "craft" && (
+        <div className="tvl-scene tvl-connect">
+          <div className="tvl-connect-l">
+            <div className="tvl-hero-mark"><Gt3Mark tone="cream" /></div>
+            <div className="tvl-connect-h">Art. And chemistry.</div>
+            <div className="tvl-sub">Every ingredient, chosen for what it does — not just how it tastes.</div>
+          </div>
+          {craftQr && <div className="tvl-connect-qr"><img src={craftQr} alt="Scan to read the full ingredient science at app.gt3pb.com/craft" /><span>Scan for the full breakdown</span></div>}
         </div>
       )}
 

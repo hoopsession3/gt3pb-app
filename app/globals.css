@@ -2976,6 +2976,7 @@ body:has(.conc-sheet) .rail{display:flex}
 .conc-msg{max-width:84%;padding:10px 13px;border-radius:14px;font-family:'Inter';font-size:14px;line-height:1.5;white-space:pre-wrap}
 .conc-msg.assistant{align-self:flex-start;background:#262318;color:#f0e7d5;border-bottom-left-radius:5px}
 .conc-msg.user{align-self:flex-end;background:var(--gold2);color:#15140f;border-bottom-right-radius:5px;font-weight:500}
+.conc-link{color:var(--gold2);font-weight:600;text-decoration:underline;text-underline-offset:2px}
 .conc-typing{display:flex;gap:4px;align-items:center}
 .conc-typing span{width:6px;height:6px;border-radius:50%;background:#a59c86;animation:concb 1s infinite}
 .conc-typing span:nth-child(2){animation-delay:.15s}.conc-typing span:nth-child(3){animation-delay:.3s}

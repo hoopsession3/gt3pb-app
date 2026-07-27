@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import AccountPill from "@/components/AccountPill";
@@ -15,6 +16,7 @@ import { clickable } from "@/lib/a11y";
 import Icon from "@/components/Icon";
 
 export default function MenuScreen() {
+  const router = useRouter();
   const { openDrink, isInCart, cartCount } = useApp();
   const t = useSiteCopy();
   const { soldOut } = useAvailability();
@@ -59,6 +61,13 @@ export default function MenuScreen() {
 
       <EditableCopy k="menu.statement" value={t("menu.statement")} as="p" className="mast-stmt" multiline />
       <EditableCopy k="menu.order_line" value={t("menu.order_line")} as="div" className="mast-order" />
+
+      {/* Menu's own categories below (Activation/Hydration/…) already ARE Craft's three pillars —
+          this just names that connection for the customer. Plain text, not EditableCopy: same
+          nested-interactive rule as craft.cta_menu/cta_reserve (button, not a wrapped popover). */}
+      <button type="button" className="btn-ter" onClick={() => router.push("/craft")}>
+        {t("menu.craft_link")} <b><Icon name="arrowRight" /></b>
+      </button>
 
       <div className="menu-chips" role="tablist" aria-label="Menu categories">
         {MENU.map((cat, ci) => (
