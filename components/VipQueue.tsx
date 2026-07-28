@@ -12,12 +12,14 @@ import Icon from "@/components/Icon";
 import PromptSheet from "./PromptSheet";
 
 // VIP QUEUE — the staff moderation side of VIP verification. A bottle owner's proof photo lands here;
-// Verify promotes them to Founding (which auto-grants the founding perks from 0176) with a reward, or
-// Reject sends a reason back. Mirrors the reviews-moderation pattern. Reads vip_verifications (0203).
+// staff either Reject with a reason, or Verify and choose which grant it earns — plain Founding, or
+// Founding VIP (0251: the two are staff's call per-proof, not an automatic package deal) — with a
+// reward note either way. Mirrors the reviews-moderation pattern. Reads vip_verifications (0203).
 // Fetch state via useAsyncData — a failed load is a real error now, not a silent "no proofs waiting 🟢".
 type Vip = {
   id: string; user_id: string; customer_id: string | null; photo_url: string;
   status: string; reward: string | null; note: string | null; created_at: string;
+  granted_tier: "founding" | "founding_vip" | null;
   customers: { name: string | null; tier: string } | null;
 };
 type VipBoard = { rows: Vip[]; signed: Record<string, string> };
@@ -30,7 +32,7 @@ export default function VipQueue() {
   const loader = useCallback(async (): Promise<VipBoard> => {
     if (!supabase) return { rows: [], signed: {} };
     const { data, error } = await supabase.from("vip_verifications")
-      .select("id, user_id, customer_id, photo_url, status, reward, note, created_at, customers(name, tier)")
+      .select("id, user_id, customer_id, photo_url, status, reward, note, created_at, granted_tier, customers(name, tier)")
       .order("created_at", { ascending: false }).limit(60);
     if (error) throw new Error(error.message);
     const rows = (data as unknown as Vip[]) ?? [];
@@ -52,19 +54,25 @@ export default function VipQueue() {
 
   // Verify/reject each take a short note — a reward to log, or a reason the member sees. Was
   // window.prompt(): unstyled, blocks the page, no cancel-on-tap-outside on mobile. Now a PromptSheet;
-  // `asking` holds which flow + which row while it's open, the actual write happens in doVerify/
-  // doReject once the sheet's onSubmit fires.
-  const [asking, setAsking] = useState<{ kind: "verify" | "reject"; v: Vip } | null>(null);
+  // `asking` holds which flow + which row (+ which grant, for verify) while it's open, the actual
+  // write happens in doVerify/doReject once the sheet's onSubmit fires.
+  // Two verify outcomes, not one (0251): Ryan — "I should be ask to select founding member or VIP
+  // member" / "verification overlaps" — the old flow granted vip_verified on every verify, with no
+  // way to accept the proof as plain Founding only. Staff now pick which before the reward note.
+  const [asking, setAsking] = useState<{ kind: "verify"; v: Vip; grant: "founding" | "founding_vip" } | { kind: "reject"; v: Vip } | null>(null);
 
-  const doVerify = async (v: Vip, reward: string) => {
+  const doVerify = async (v: Vip, reward: string, grant: "founding" | "founding_vip") => {
     if (!supabase || busy) return;
     setBusy(v.id);
-    const { error } = await supabase.from("vip_verifications").update({ status: "verified", reviewed_by: user?.id ?? null, reviewed_at: new Date().toISOString(), reward: reward.trim() || null }).eq("id", v.id);
+    const { error } = await supabase.from("vip_verifications").update({ status: "verified", reviewed_by: user?.id ?? null, reviewed_at: new Date().toISOString(), reward: reward.trim() || null, granted_tier: grant }).eq("id", v.id);
     if (error) { toast(`Couldn't verify — ${error.message}`, "error"); setBusy(null); return; }
-    // Promote to Founding (auto-grants founding perks). Surface a failure — never claim "Founding VIP"
-    // when the promotion didn't land, or staff + the member both believe perks are live when they aren't.
+    // Promote to Founding either way — VIP is a layer on top of Founding, not a separate tier (0249/
+    // 0250), so both outcomes need the tier grant; granted_tier alone decides whether the 0251 trigger
+    // also flips vip_verified. Surface a failure — never claim the grant landed when it didn't, or
+    // staff + the member both believe perks are live when they aren't.
     const { error: promoErr } = await supabase.rpc("admin_set_customer_tier", { p_user: v.user_id, p_tier: "founding" });
-    toast(promoErr ? `Verified — but promotion to Founding failed: ${promoErr.message}. Set their tier by hand.` : "Verified — Founding VIP", promoErr ? "error" : undefined);
+    const label = grant === "founding_vip" ? "Founding VIP" : "Founding";
+    toast(promoErr ? `Verified — but promotion to Founding failed: ${promoErr.message}. Set their tier by hand.` : `Verified — ${label}`, promoErr ? "error" : undefined);
     setBusy(null); reload();
   };
   const doReject = async (v: Vip, note: string) => {
@@ -91,7 +99,8 @@ export default function VipQueue() {
                   <b>{v.customers?.name?.trim() || "A member"}</b>
                   <span className="vipq-sub">Submitted {new Date(v.created_at).toLocaleDateString()} · now {v.customers?.tier ?? "guest"}</span>
                   <div className="vipq-acts">
-                    <button type="button" className="vipq-yes" onClick={() => setAsking({ kind: "verify", v })} disabled={busy === v.id}><Icon name="check" /> Verify <Icon name="arrowRight" /> Founding</button>
+                    <button type="button" className="vipq-yes" onClick={() => setAsking({ kind: "verify", v, grant: "founding" })} disabled={busy === v.id}><Icon name="check" /> Verify <Icon name="arrowRight" /> Founding</button>
+                    <button type="button" className="vipq-yes vip" onClick={() => setAsking({ kind: "verify", v, grant: "founding_vip" })} disabled={busy === v.id}><Icon name="star" /> Verify <Icon name="arrowRight" /> Founding VIP</button>
                     <button type="button" className="vipq-no" onClick={() => setAsking({ kind: "reject", v })} disabled={busy === v.id}>Reject</button>
                   </div>
                 </div>
@@ -103,7 +112,7 @@ export default function VipQueue() {
                 {recent.map((v) => (
                   <div key={v.id} className="vipq-done">
                     <span className="vipq-done-t">{v.customers?.name?.trim() || "A member"}</span>
-                    <span className={`vipq-tag st-${v.status}`}>{v.status === "verified" ? <><Icon name="check" /> Verified{v.reward ? ` · ${v.reward}` : ""}</> : "Rejected"}</span>
+                    <span className={`vipq-tag st-${v.status}`}>{v.status === "verified" ? <><Icon name={v.granted_tier === "founding_vip" ? "star" : "check"} /> {v.granted_tier === "founding_vip" ? "Founding VIP" : "Founding"}{v.reward ? ` · ${v.reward}` : ""}</> : "Rejected"}</span>
                   </div>
                 ))}
               </>
@@ -115,7 +124,7 @@ export default function VipQueue() {
     {asking && (
       <PromptSheet
         open
-        title={asking.kind === "verify" ? "Verify — add a reward note" : "Reject — reason for the member"}
+        title={asking.kind === "verify" ? `Verify — ${asking.grant === "founding_vip" ? "Founding VIP" : "Founding"} (reward note)` : "Reject — reason for the member"}
         hint={asking.kind === "verify" ? "Optional — shown to the team, not the member." : "The member sees this."}
         placeholder={asking.kind === "verify" ? "free bottle" : "Why?"}
         defaultValue={asking.kind === "verify" ? "free bottle" : ""}
@@ -125,7 +134,7 @@ export default function VipQueue() {
           const a = asking;
           setAsking(null);
           if (!a) return;
-          if (a.kind === "verify") await doVerify(a.v, val); else await doReject(a.v, val);
+          if (a.kind === "verify") await doVerify(a.v, val, a.grant); else await doReject(a.v, val);
         }}
       />
     )}

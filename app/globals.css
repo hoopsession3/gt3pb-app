@@ -4639,8 +4639,14 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .vipq-main{display:flex;flex-direction:column;gap:2px;min-width:0}
 .vipq-main b{font-family:'Inter';font-weight:700;font-size:14px;color:var(--cream)}
 .vipq-sub{font-family:'Inter';font-size:11.5px;color:var(--cream-m)}
-.vipq-acts{display:flex;gap:8px;margin-top:7px}
+.vipq-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:7px}
 .vipq-yes{font-family:'Inter';font-weight:700;font-size:12px;padding:6px 12px;border-radius:9px;border:none;background:var(--gold);color:#1a1610;cursor:pointer}
+/* .vip: the Founding-VIP verify choice (0251) — same shape as .vipq-yes, but an outlined gold chip
+   (var(--gold) text on a translucent fill, like .rf-ai) instead of a solid fill. Reads as "the elevated
+   option" next to plain Founding without a second competing solid-gold button, and — unlike .vipq-yes's
+   hardcoded #1a1610 — every color here is a var, so it doesn't need an entry in the light-theme
+   .app.crew-day override list below (that list exists exactly for the hardcoded-text-on-gold case). */
+.vipq-yes.vip{border:1px solid var(--gold);background:rgba(184,144,47,.14);color:var(--gold)}
 .vipq-no{font-family:'Inter';font-weight:600;font-size:12px;padding:6px 12px;border-radius:9px;border:1px solid var(--line2);background:none;color:var(--cream-m);cursor:pointer}
 .vipq-done{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;border-radius:9px;background:rgba(255,255,255,.03)}
 .vipq-done-t{font-family:'Inter';font-size:12.5px;color:var(--cream)}
