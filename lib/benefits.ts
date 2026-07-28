@@ -61,11 +61,17 @@ export async function benefitsForUser(userId: string | null, code?: string | nul
   if (!supabaseAdmin || !userId) return [];
   const out: Benefit[] = [];
   try {
-    const { data: cust } = await supabaseAdmin.from("customers").select("tier").eq("user_id", userId).maybeSingle();
+    const { data: cust } = await supabaseAdmin.from("customers").select("tier, vip_verified").eq("user_id", userId).maybeSingle();
     const tier = (cust as { tier?: string } | null)?.tier ?? "guest";
+    // Founding VIP (0250): a bottle-verified Founding member gets every plain-Founding perk PLUS
+    // whatever's tagged requires_vip — additive, not a separate track. A non-VIP customer just never
+    // matches the requires_vip=true rows, so they're filtered out at the query, not the client.
+    const vipVerified = Boolean((cust as { vip_verified?: boolean } | null)?.vip_verified);
     if (tier !== "guest") {
-      const { data } = await supabaseAdmin.from("member_benefits").select("scope, tier, code, kind, target, value_cents, percent, label")
+      let q = supabaseAdmin.from("member_benefits").select("scope, tier, code, kind, target, value_cents, percent, label")
         .eq("active", true).eq("scope", "tier").eq("tier", tier);
+      if (!vipVerified) q = q.eq("requires_vip", false);
+      const { data } = await q;
       out.push(...((data ?? []) as Benefit[]));
     }
     if (code && code.trim()) {

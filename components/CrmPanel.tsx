@@ -37,7 +37,8 @@ const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 const CH_LABEL: Record<CrmOrder["channel"], string> = { cup: "Cup", pickup: "Pickup", delivery: "Delivery" };
 
 type Loyalty = { points: number | null; credit_cents: number | null; founding_member: boolean | null } | null;
-type Detail = { orders: CrmOrder[]; loyalty: Loyalty; perks: string[] };
+type Perk = { label: string; requires_vip: boolean };
+type Detail = { orders: CrmOrder[]; loyalty: Loyalty; perks: Perk[] };
 
 function CrmDetail({ c }: { c: Customer }) {
   const { toast } = useApp();
@@ -50,6 +51,11 @@ function CrmDetail({ c }: { c: Customer }) {
 
   const loader = useCallback(async (): Promise<Detail> => {
     if (!supabase) return { orders: [], loyalty: null, perks: [] };
+    // Founding VIP (0250): a bottle-verified customer sees every plain-Founding perk PLUS the
+    // requires_vip ones; everyone else only sees the non-VIP set. Filtered here, not client-side,
+    // so this card can never show a perk staff would need to explain "well, actually you don't get."
+    let perkQuery = supabase.from("member_benefits").select("label, requires_vip").eq("active", true).eq("scope", "tier").eq("tier", "founding");
+    if (!c.vip_verified) perkQuery = perkQuery.eq("requires_vip", false);
     const [ords, prof, perkRes] = await Promise.all([
       supabase.from("all_orders")
         .select("id, channel, total_cents, payment_status, fulfillment_status, created_at")
@@ -57,7 +63,7 @@ function CrmDetail({ c }: { c: Customer }) {
       c.user_id
         ? supabase.from("profiles").select("points, credit_cents, founding_member").eq("id", c.user_id).maybeSingle()
         : Promise.resolve({ data: null, error: null }),
-      supabase.from("member_benefits").select("label").eq("active", true).eq("scope", "tier").eq("tier", "founding"),
+      perkQuery,
     ]);
     if (ords.error) throw new Error(ords.error.message);
     if (prof.error) throw new Error(prof.error.message);
@@ -65,9 +71,9 @@ function CrmDetail({ c }: { c: Customer }) {
     return {
       orders: (ords.data as CrmOrder[]) ?? [],
       loyalty: prof.data as Loyalty,
-      perks: ((perkRes.data ?? []) as { label: string }[]).map((b) => b.label),
+      perks: (perkRes.data as Perk[] | null) ?? [],
     };
-  }, [c.id, c.user_id]);
+  }, [c.id, c.user_id, c.vip_verified]);
   const board = useAsyncData(loader, [c.id, c.user_id]);
   const orders = board.data?.orders ?? [];
   const perks = board.data?.perks ?? [];
@@ -148,7 +154,7 @@ function CrmDetail({ c }: { c: Customer }) {
                 <div className="crm-note" style={{ marginTop: 6 }}><Icon name="check" /> Verified bottle owner — a real Founding VIP, not just a tier grant.</div>
               )}
               {tier === "founding" && perks.length > 0 && (
-                <ul className="crm-perks">{perks.map((pk, i) => <li key={i}><Icon name="check" /> {pk}</li>)}</ul>
+                <ul className="crm-perks">{perks.map((pk, i) => <li key={i}><Icon name={pk.requires_vip ? "star" : "check"} /> {pk.label}</li>)}</ul>
               )}
               <div className="crm-loy">
                 <label>Points<input inputMode="numeric" value={pts} onChange={(e) => setPts(e.target.value)} /></label>
