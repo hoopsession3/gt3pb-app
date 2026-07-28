@@ -21,6 +21,7 @@ type Customer = {
   phone: string | null;
   email: string | null;
   tier: string | null;
+  vip_verified: boolean | null;
   created_at: string;
 };
 type CrmOrder = {
@@ -140,6 +141,12 @@ function CrmDetail({ c }: { c: Customer }) {
                   ))}
                 </div>
               </div>
+              {/* vip_verified (0249) is independent of tier on purpose — set only by an actual bottle-proof
+                  verification (VipQueue), never by this tier toggle. Shown regardless of current tier so the
+                  fact they once verified never quietly disappears if someone later clicks them back to Member. */}
+              {c.vip_verified && (
+                <div className="crm-note" style={{ marginTop: 6 }}><Icon name="check" /> Verified bottle owner — a real Founding VIP, not just a tier grant.</div>
+              )}
               {tier === "founding" && perks.length > 0 && (
                 <ul className="crm-perks">{perks.map((pk, i) => <li key={i}><Icon name="check" /> {pk}</li>)}</ul>
               )}
@@ -164,7 +171,7 @@ export default function CrmPanel() {
   const loader = useCallback(async (): Promise<Customer[]> => {
     if (!supabase) return [];
     const { data, error } = await supabase.from("customers")
-      .select("id, user_id, name, phone, email, tier, created_at")
+      .select("id, user_id, name, phone, email, tier, vip_verified, created_at")
       .order("created_at", { ascending: false }).limit(500);
     if (error) throw new Error(error.message);
     return (data as Customer[]) ?? [];
@@ -174,9 +181,12 @@ export default function CrmPanel() {
   useRealtimeTable("customers", reload);
   const rows = board.data ?? [];
 
+  // "Founding VIP" is searchable as its own term, distinct from plain "Founding" (0249) — a staff
+  // member typing "vip" should land on genuinely bottle-verified customers, not every tier-bumped one.
+  const tierWords = (c: Customer) => c.tier === "founding" ? (c.vip_verified ? "founding vip" : "founding") : c.user_id ? "member" : "guest";
   const ql = q.trim().toLowerCase();
   const shown = rows.filter((c) =>
-    !ql || (c.name ?? "").toLowerCase().includes(ql) || (c.phone ?? "").includes(ql) || (c.email ?? "").toLowerCase().includes(ql)
+    !ql || (c.name ?? "").toLowerCase().includes(ql) || (c.phone ?? "").includes(ql) || (c.email ?? "").toLowerCase().includes(ql) || tierWords(c).includes(ql)
   );
 
   return (
@@ -194,7 +204,7 @@ export default function CrmPanel() {
                   <b>{c.name?.trim() || "No name yet"}</b>
                   <span>{[c.phone, c.email].filter(Boolean).join(" · ") || "no contact info"}</span>
                 </span>
-                <span className={`crm-badge${c.tier === "founding" ? " founding" : c.user_id ? " member" : ""}`}>{c.tier === "founding" ? <><Icon name="star" /> Founding</> : c.user_id ? (c.tier === "member" || !c.tier ? "Member" : c.tier) : "Guest"}</span>
+                <span className={`crm-badge${c.tier === "founding" ? " founding" : c.user_id ? " member" : ""}`}>{c.tier === "founding" ? <><Icon name="star" /> Founding{c.vip_verified ? " VIP" : ""}</> : c.user_id ? (c.tier === "member" || !c.tier ? "Member" : c.tier) : "Guest"}</span>
                 <span className={`ev-chev${openId === c.id ? " open" : ""}`} aria-hidden="true">›</span>
               </button>
               {openId === c.id && <CrmDetail c={c} />}
