@@ -39,6 +39,29 @@ export const etTimeLabel = (d: Date): string => `${ET_WD_FMT.format(d)} ${ET_TIM
 // 12-day-out date was reliably read as the wrong Friday (2026-07-19 report: an event dated Jul 31 read
 // as "Next Fri" the same week Jul 24 — the actual next Friday — existed). Once a date is a week or more
 // out, a plain "Mon D" is unambiguous; only "This"/"Today"/"Tomorrow" are close enough to earn a relative word.
+// Normalizes a crew-typed time string to lowercase "6:30pm" / "6pm" style. Events' start_time/
+// end_time are free text the crew types by hand (no input format enforced) — arrives as either a
+// bare 24h "H:MM" (the derived/label path always produces this) or already-12h text in any
+// casing/spacing the crew happened to type ("6:00PM", "6:00 pm", …). Moved here (2026-07-29,
+// formerly private to FindUs.tsx) after the identical inconsistency turned up a second place: an
+// event's list-row time read "6:00PM" raw while the stop row right next to it went through this and
+// read "6:00pm" — same bug the hero section already fixed once (reported live, 2026-07-19), just
+// not everywhere yet. Anywhere an event's time sits next to a stop's (or another event's) on the
+// same screen should run both through this — not one raw, one derived — or the drift comes back.
+export function fmt12(v?: string | null): string | null {
+  if (!v) return v ?? null;
+  const m = /^(\d{1,2}):(\d{2})\s*(am|pm)?$/i.exec(v.trim());
+  if (!m) return v;
+  const h = Number(m[1]);
+  const explicitPeriod = m[3]?.toLowerCase();
+  if (explicitPeriod) {
+    // Already has a period — normalize casing/spacing only; don't reinterpret the hour as typed.
+    return h === 0 || h > 12 ? v : `${h}:${m[2]}${explicitPeriod}`;
+  }
+  if (h > 23) return v;
+  return `${h % 12 || 12}:${m[2]}${h >= 12 ? "pm" : "am"}`;
+}
+
 export const relativeDay = (input: Date | string): string => {
   const d = typeof input === "string"
     ? new Date(input.length <= 10 ? `${input}T12:00:00` : input)

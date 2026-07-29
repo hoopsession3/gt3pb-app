@@ -12,7 +12,7 @@ import { openDirections } from "@/lib/maps";
 import { supabase } from "@/lib/supabase";
 import { useSiteCopy } from "@/lib/copy";
 import { useAvailability } from "@/lib/availability";
-import { localToday, relativeDay } from "@/lib/dates";
+import { localToday, relativeDay, fmt12 } from "@/lib/dates";
 import type { LiveStatus, EventRow } from "@/lib/db";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
@@ -60,26 +60,9 @@ function whenTime(s: FieldOp): string {
   if (s.starts_at) return new Date(s.starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }).replace(":00", "").replace(" ", "").toLowerCase();
   return "";
 }
-function fmt12(v?: string | null): string | null {
-  if (!v) return v ?? null;
-  // Events' start_time/end_time are free text the crew types by hand (no input format is enforced —
-  // see the EventCard editor), so this has to handle both a bare 24h "H:MM" (the derived/label path
-  // always produces this) AND crew-typed input that already includes am/pm in some casing/spacing
-  // ("6:00PM", "6:00 pm", ...). Reported live (2026-07-19): an event's Starts read "6:00PM" next to
-  // stops formatted "6:00pm" elsewhere on the same page — same fact, visibly inconsistent styling —
-  // because the old bare-digits-only regex didn't match a string with "PM" already on it and passed
-  // it through untouched instead of normalizing it.
-  const m = /^(\d{1,2}):(\d{2})\s*(am|pm)?$/i.exec(v.trim());
-  if (!m) return v;
-  const h = Number(m[1]);
-  const explicitPeriod = m[3]?.toLowerCase();
-  if (explicitPeriod) {
-    // Already has a period — normalize casing/spacing only; don't reinterpret the hour the crew typed.
-    return h === 0 || h > 12 ? v : `${h}:${m[2]}${explicitPeriod}`;
-  }
-  if (h > 23) return v;
-  return `${h % 12 || 12}:${m[2]}${h >= 12 ? "pm" : "am"}`;
-}
+// fmt12 moved to lib/dates.ts (2026-07-29) — RsvpRow's event time needed the exact same
+// normalization and a private copy here couldn't cross the file boundary. See it there for the
+// full history; this page now shares one implementation with the event rows instead of drifting.
 function whenDate(s: FieldOp): string {
   const iso = s.starts_at ?? (s.day ? `${s.day}T12:00:00` : null);
   if (!iso) return "";

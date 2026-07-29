@@ -9,6 +9,7 @@ import Sheet from "@/components/Sheet";
 import SignIn from "@/components/SignIn";
 import { calFromEvent } from "@/lib/ics";
 import { supabase } from "@/lib/supabase";
+import { fmt12 } from "@/lib/dates";
 import type { EventRow } from "@/lib/db";
 import Icon from "@/components/Icon";
 
@@ -17,8 +18,14 @@ import Icon from "@/components/Icon";
 // any future surface render the SAME row. An event and a stop are the same InfoRow; only the
 // trailing slot differs.
 
+// 2026-07-29 audit: printed start_time/end_time raw — whatever casing the crew happened to type
+// ("6:00PM"). The stop row right next to this one on Find Us already runs its time through fmt12
+// (lowercase "6:30pm"); this didn't, so the two could visibly disagree on the same list for the
+// exact same reason fmt12 exists in the first place. Now both go through the one shared formatter.
 export function evTime(ev: EventRow) {
-  return ev.end_time ? `${ev.start_time ?? ""}–${ev.end_time}` : ev.start_time ?? "";
+  const start = fmt12(ev.start_time) ?? "";
+  const end = fmt12(ev.end_time) ?? "";
+  return end ? `${start}–${end}` : start;
 }
 // "Sat, Jul 12" from events.day — parsed as local calendar parts, NOT new Date(iso),
 // which reads as UTC midnight and shows yesterday for evening viewers.
@@ -33,10 +40,15 @@ export function evLeadDay(ev: EventRow) {
   const [y, m, d] = ev.day.split("-").map(Number);
   return new Date(y, m - 1, d).toLocaleDateString("en-US", { weekday: "short" }).toUpperCase();
 }
+// 2026-07-29 audit: this rendered "Jul 31" while the stop row right below it (FindUs.tsx's
+// whenDate, and the hero line above both) renders "8/1" — same page, same kind of fact, two
+// different date conventions. Ryan: "the event says July 31st and stop says 8/1, they need to be
+// cohesive." Matching whenDate's numeric M/D here (not the other way around) since that's already
+// the convention the hero and every stop row use — this was the one outlier, not the rule.
 export function evLeadDate(ev: EventRow) {
   if (!ev.day) return "";
-  const [y, m, d] = ev.day.split("-").map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const [, m, d] = ev.day.split("-").map(Number);
+  return `${m}/${d}`;
 }
 
 export function RsvpRow({ ev }: { ev: EventRow }) {
