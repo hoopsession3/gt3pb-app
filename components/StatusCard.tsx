@@ -312,6 +312,25 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
   };
   const offTilt = () => { const el = tiltRef.current; if (el) { el.style.removeProperty("--tx"); el.style.removeProperty("--ty"); } setPointer(false); };
 
+  // ── Share your status — ONE button, multiple ways out, in order of how well each actually works.
+  // Ryan (2026-07-29): "Share your status is not working, don't duplicate, make share your status
+  // have multi function to post to whatever media outlet, IG, FB, TikTok etc." The previous round
+  // added a SECOND button that tried an undocumented, iOS-only Instagram deep link (copy the image
+  // to the clipboard, then open `instagram-stories://` and hope Instagram picks it up) — exactly the
+  // kind of unofficial trick flagged as unverified when it shipped, and the most likely reason
+  // something read as broken. Pulled that whole path out rather than patch it: there's no reliable
+  // way to auto-post into a specific platform from a website without that platform's own SDK, so a
+  // second attempt at the same trick for Facebook or TikTok would just risk the same failure mode
+  // again. Back to one button, now with a better fallback than a silent download.
+  //
+  // 1) navigator.share() with the image file — the actual multi-platform picker. On a real phone
+  //    this opens the OS share sheet, which lists Instagram, Facebook, TikTok, Messages, Mail,
+  //    WhatsApp — literally "whatever media outlet" is installed. This was always the mechanism;
+  //    it's unchanged here.
+  // 2) No share sheet available (desktop browser, or canShare says no) — copy the image to the
+  //    clipboard AND download it, so however the person gets into Instagram/Facebook/TikTok/wherever,
+  //    the image is one paste or one upload away, instead of just a file sitting in Downloads with a
+  //    toast that doesn't say what to do with it.
   const share = async () => {
     const cv = canvasRef.current; if (!cv) return;
     haptic(HAPTIC.success);
@@ -321,59 +340,24 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
     const shareText = `I'm a GT3 ${founding ? "Founding Member" : "Member"}. ${motto}.${code ? ` Join with ${code} → app.gt3pb.com` : " app.gt3pb.com"}`;
     const nav = navigator as Navigator & { canShare?: (d: unknown) => boolean };
     if (nav.share && nav.canShare?.({ files: [file] })) {
-      try { await nav.share({ files: [file], text: shareText }); return; } catch { /* cancelled → save */ }
+      try { await nav.share({ files: [file], text: shareText }); return; } catch { /* cancelled → fall through to the fallback below */ }
     }
-    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "gt3-status.png"; a.click();
-    toast("Saved — post it and tag @gt3pb");
-  };
-
-  // ── Share to Instagram Story — a one-tap deep link into IG's story composer with the card
-  // pre-loaded as the background. This is NOT an official Meta API: there's no documented way for a
-  // website to set Instagram's story background, short of a community-established pattern — copy the
-  // PNG onto the system clipboard, then open Instagram's private `instagram-stories://` URL scheme,
-  // which (undocumented, but relied on by plenty of other web apps) picks up the most recent
-  // clipboard image as the story background if Stories opens within a few seconds of the copy. Only
-  // iOS resolves that scheme the way this pattern expects, so the direct hand-off is only ATTEMPTED
-  // there. Everywhere else — Android, desktop, or if the hand-off doesn't visibly happen within
-  // ~1.4s — this falls straight back to share() above, which already surfaces Instagram (including
-  // "Your Story") as a normal share-sheet target on Android. No Meta/Facebook developer app is
-  // registered anywhere in this codebase, so `source_application` is omitted; Instagram opens Stories
-  // with no "back to GT3PB" attribution chip — that chip can be added later if Ryan registers one.
-  const isIOS = () => {
-    if (typeof navigator === "undefined") return false;
-    const ua = navigator.userAgent || "";
-    return /iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  };
-  const shareToInstagramStory = async () => {
-    const cv = canvasRef.current; if (!cv) return;
-    haptic(HAPTIC.success);
-    const blob: Blob | null = await new Promise((res) => cv.toBlob((b) => res(b), "image/png"));
-    if (!blob) { toast("Couldn't make the image — try again", "error"); return; }
-
-    const canTryDirect = isIOS() && typeof window !== "undefined" && "ClipboardItem" in window && Boolean(navigator.clipboard?.write);
-    if (canTryDirect) {
-      try {
+    let copied = false;
+    try {
+      if (typeof window !== "undefined" && "ClipboardItem" in window && navigator.clipboard?.write) {
         await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-        let handedOff = false;
-        const onHide = () => { handedOff = true; };
-        document.addEventListener("visibilitychange", onHide, { once: true });
-        window.location.href = "instagram-stories://share";
-        await new Promise((r) => setTimeout(r, 1400));
-        document.removeEventListener("visibilitychange", onHide);
-        if (handedOff || document.hidden) return; // Instagram took over — the copied image is its background now
-      } catch { /* clipboard blocked (permissions / non-secure context) — fall through to the normal sheet */ }
-    }
-    await share();
+        copied = true;
+      }
+    } catch { /* clipboard blocked (permissions / non-secure context) — the download below still covers it */ }
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "gt3-status.png"; a.click();
+    toast(copied ? "Copied and saved — paste it into Instagram, Facebook, TikTok, wherever, and tag @gt3pb" : "Saved — post it and tag @gt3pb");
   };
 
   if (!open) return null;
   return (
     <Sheet open onClose={onClose} label="Member card & status" className="status-lux"
       header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Your member card &amp; status</b><button type="button" className="qd-x" onClick={onClose} aria-label="Close" style={{ marginLeft: "auto" }}><Icon name="close" /></button></div>}
-      footer={<div className="status-acts">
-        <button type="button" className="status-ig" onClick={shareToInstagramStory} disabled={!ready}><Icon name="instagram" /> Share to Instagram Story</button>
-        <button type="button" className="status-share" onClick={share} disabled={!ready}>Share your status <Icon name="externalLink" /></button>
-      </div>}>
+      footer={<button type="button" className="status-share" onClick={share} disabled={!ready}>Share your status <Icon name="externalLink" /></button>}>
 
       {/* Member card group is just this one key — 100% inline coverage — so the Edit pill that used
           to sit in this header (jump to Settings → Front-end copy → Member card) came off, 2026-07-17,

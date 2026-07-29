@@ -28,11 +28,7 @@ export type IconName =
   // small utility set, cheap to include, comes up constantly in retrofit work
   | "plus" | "info" | "search" | "more"
   // owner-only "edit this" affordance (2026-07-16, the live-copy edit bridge)
-  | "edit"
-  // share-target glyph, one-off addition (2026-07-29, StatusCard's "Share to Instagram Story") — a
-  // generic lens-in-a-frame silhouette, not a locked Instagram brand mark, so it's fair game to live
-  // in this generic UI-icon set rather than the brand-locked assets in /brand.
-  | "instagram";
+  | "edit";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   // = OperatorNav ICONS.studio / STREAM_ICONS.brand (reused verbatim — same "AI/brand moment" glyph)
@@ -82,9 +78,6 @@ const PATHS: Record<IconName, React.ReactNode> = {
   more: <><circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" /></>,
   // simple pencil — the owner-only "edit this on the live page" affordance
   edit: <><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></>,
-  // rounded frame + lens + flash dot — a generic camera/story glyph, not the Instagram wordmark or
-  // gradient glyph (trademarked assets) — reads clearly as "share to a photo story" at icon size.
-  instagram: <><rect x="3" y="3" width="18" height="18" rx="5.5" /><circle cx="12" cy="12" r="4.2" /><circle cx="17.2" cy="6.8" r="1.1" fill="currentColor" stroke="none" /></>,
 };
 
 export function Icon({
