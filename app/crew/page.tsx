@@ -529,7 +529,7 @@ function ContentApprovalSheet({ contentId, meName, meId, onClose, onActioned }: 
             <div className="capprove-t">{item.title}</div>
             <label className="prod-f"><span>Caption — edit here to revise</span><textarea rows={5} value={caption} onChange={(e) => setCaption(e.target.value)} /></label>
             {item.hashtags?.length ? <div className="capprove-tags">{item.hashtags.map((h) => `#${h}`).join(" ")}</div> : null}
-            <input className="ev-input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="What to change (only if requesting changes)" />
+            <input className="ev-input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="What to change (only if requesting changes)" aria-label="What to change" />
             <div className="capprove-acts">
               <button type="button" className="oa-cta" disabled={busy} onClick={() => decide("approved")}>{busy ? "…" : <><Icon name="check" /> Approve</>}</button>
               <button type="button" className="studio-act" disabled={busy} onClick={() => decide("changes")}>Request changes</button>
@@ -805,7 +805,7 @@ function CommentThread({ subject, notifyIds, label, meId, meName }: {
         </div>
       ))}
       <div className="cmt-add">
-        <input className="note-in" placeholder="Reply… (@name to notify)" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }} />
+        <input className="note-in" placeholder="Reply… (@name to notify)" aria-label="Reply to comment" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }} />
         <button type="button" className="note-fu-addbtn" onClick={send} disabled={!text.trim() || sending}>Send</button>
       </div>
     </div>
@@ -1102,7 +1102,7 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
   }
   return (
     <div className="ownerdet editing">
-      <input className="note-in" value={f[nameCol] ?? ""} onChange={(e) => set(nameCol, e.target.value)} placeholder={isEvent ? "Event name" : "Stop name"} />
+      <input className="note-in" value={f[nameCol] ?? ""} onChange={(e) => set(nameCol, e.target.value)} placeholder={isEvent ? "Event name" : "Stop name"} aria-label={isEvent ? "Event name" : "Stop name"} />
       <div className="ownerdet-typehint">{isEvent
         ? <><Icon name="calendar" /> Event — a booked gig with prep, a crew & a run-of-show. (A quick roll-up-and-serve visit is a Truck stop.)</>
         : <><Icon name="pin" /> Truck stop — you roll up, serve, and leave. (A booked gig with prep & crew should be an Event.)</>}</div>
@@ -1368,7 +1368,9 @@ function MyDay({ userId, meName, isLeader, canPrep, canBrew }: { userId: string 
       <div className="myday-hero">
         {now && (
           <>
-            <h1 className="k-title">{greet.replace("Good ", "")}{named ? `, ${named}` : ""}.</h1>
+            {/* h2, not h1 — op-head-t directly above this is now the section's real h1 ("My Day");
+                this greeting is content within that section, one level down. */}
+            <h2 className="k-title">{greet.replace("Good ", "")}{named ? `, ${named}` : ""}.</h2>
             <p className="k-sub">{now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}{motto ? ` — ${motto}` : ""}</p>
           </>
         )}
@@ -1827,8 +1829,8 @@ function InspectionPrep() {
       {open && (
       <div className="rdy" style={{ marginTop: 10 }}>
         <div className="insp-form">
-          <input className="insp-in insp-st" value={state} onChange={(e) => setState(e.target.value)} placeholder="State (GA)" maxLength={4} />
-          <input className="insp-in" value={county} onChange={(e) => setCounty(e.target.value)} placeholder="County (optional)" />
+          <input className="insp-in insp-st" value={state} onChange={(e) => setState(e.target.value)} placeholder="State (GA)" aria-label="State" maxLength={4} />
+          <input className="insp-in" value={county} onChange={(e) => setCounty(e.target.value)} placeholder="County (optional)" aria-label="County" />
           <select className="insp-in" value={eventId} onChange={(e) => setEventId(e.target.value)}>
             <option value="">No event — just brief me</option>
             {events.map((ev) => <option key={ev.id} value={ev.id}>{ev.day_label || ev.day || ""} · {ev.title || "Event"}</option>)}
@@ -2057,6 +2059,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   const { openTask } = useTaskSheet(); // the ONE task editor, on the spine
   const { user, profile } = useAuth();
   const { toast } = useApp();
+  const { setSection } = useOperatorSection();
   const isAdmin = roleOf(profile) === "admin" || roleOf(profile) === "owner";
   const isEvent = target.kind === "event";
   const ownerCol = isEvent ? "event_id" : "stop_id";
@@ -2412,16 +2415,32 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       {/* Menu & rig — the same flags an event carries; drives "Generate pack list from menu" for both. */}
       <MenuEditor ownerType={target.kind} ownerId={target.id} isAdmin={isAdmin} onChanged={load} />
 
-      {/* Brew serving this event/stop — sits right under Menu & rig (a batch can serve several). */}
-      {brewBatches.length > 0 && (
+      {/* Brew serving this event/stop — sits right under Menu & rig (a batch can serve several).
+          2026-07-29: used to be read-only — seeing an already-linked batch here but having no way
+          to start a NEW one without leaving for the separate Brew section and hunting through every
+          event/stop ever made for this one. The button below skips all of that: it drops this exact
+          target into Brew's picker (already pre-selected) and jumps straight there. */}
+      {(brewBatches.length > 0 || isAdmin) && (
         <div className="brewlink">
-          <div className="brewlink-h"><Icon name="coffee" /> Brew coming to this {isEvent ? "event" : "stop"}</div>
-          {brewBatches.map((b) => (
-            <div key={b.id} className="brewlink-row">
-              <span className="brewlink-name">{b.recipe_name || "Batch"} · {b.batch_gal} gal</span>
-              <span className="brewlink-st">{b.status}{b.ready_at && (b.status === "brewing" || b.status === "planned") ? ` · ready ${new Date(b.ready_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : ""}</span>
-            </div>
-          ))}
+          {brewBatches.length > 0 && (
+            <>
+              <div className="brewlink-h"><Icon name="coffee" /> Brew coming to this {isEvent ? "event" : "stop"}</div>
+              {brewBatches.map((b) => (
+                <div key={b.id} className="brewlink-row">
+                  <span className="brewlink-name">{b.recipe_name || "Batch"} · {b.batch_gal} gal</span>
+                  <span className="brewlink-st">{b.status}{b.ready_at && (b.status === "brewing" || b.status === "planned") ? ` · ready ${new Date(b.ready_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : ""}</span>
+                </div>
+              ))}
+            </>
+          )}
+          {isAdmin && (
+            <button type="button" className="brewlink-plan" onClick={() => {
+              try { localStorage.setItem("gt3-brew-target", `${isEvent ? "e" : "s"}:${target.id}`); } catch { /* ignore */ }
+              setSection("brew");
+            }}>
+              <Icon name="coffee" /> {brewBatches.length > 0 ? "Plan another brew for this" : "Plan a brew for this"} {isEvent ? "event" : "stop"}
+            </button>
+          )}
         </div>
       )}
 
@@ -3110,20 +3129,38 @@ function LiveControl({ compact = false, manage = false }: { compact?: boolean; m
     else { if (data) setOpenStopId((data as { id: string }).id); toast("Location added — fill in its details"); }
     load();
   };
+  // Next date on/after today matching tpl's weekday, at tpl's own time-of-day — operator-local,
+  // same convention as localYMD/lib/dates' localToday (crew-facing "today" is wall-clock, not UTC).
+  const nextWeekdayAt = (tpl: Date): Date => {
+    const now = new Date();
+    const result = new Date(now);
+    result.setHours(tpl.getHours(), tpl.getMinutes(), 0, 0);
+    let diff = (tpl.getDay() - now.getDay() + 7) % 7;
+    if (diff === 0 && result <= now) diff = 7; // today's weekday, but that time already passed
+    result.setDate(result.getDate() + diff);
+    return result;
+  };
   // "Stop here again" (0226 route redesign): a repeat visit clones the place's identity — name,
-  // location, vendor link, menu/rig — into a fresh UNDATED stop. The place stays ONE place on the
-  // route; only the visit is new. (A real recurrence engine is deliberately not built — a clone +
-  // date is the flexible version of it.)
+  // location, vendor link, menu/rig — into a fresh stop. The place stays ONE place on the route;
+  // only the visit is new. (A real recurrence engine is deliberately not built — a clone + date is
+  // the flexible version of it.)
+  // 2026-07-29: used to leave the new visit fully undated ("Set its date & time.") — every repeat
+  // stop meant re-typing a time the crew had just typed for the template. Prefilled to the next
+  // occurrence of the template's own weekday/time instead; still just a starting point; the date
+  // picker is right there to change it if this particular repeat lands differently.
   const stopAgain = async (tpl: Stop) => {
+    const starts_at = tpl.starts_at ? nextWeekdayAt(new Date(tpl.starts_at)).toISOString() : null;
     const { data, error } = await supabase!.from("stops").insert({
       name: tpl.name, location_text: tpl.location_text, address: tpl.address, lat: tpl.lat, lng: tpl.lng,
       vendor_id: tpl.vendor_id ?? null, rig: tpl.rig ?? null, menu_tier: tpl.menu_tier ?? null,
       order_ahead_enabled: tpl.order_ahead_enabled ?? false, pickup_enabled: tpl.pickup_enabled ?? false,
-      status: "upcoming", sort: stops.length,
+      status: "upcoming", sort: stops.length, starts_at,
     }).select("id").single();
     if (error) { toast(`Couldn't add the visit — ${error.message}`, "error"); return; }
     if (data) setOpenStopId((data as { id: string }).id);
-    toast(`${tpl.name} — new visit added. Set its date & time.`);
+    toast(starts_at
+      ? `${tpl.name} — new visit added for ${new Date(starts_at).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}. Check the date & time.`
+      : `${tpl.name} — new visit added. Set its date & time.`);
     load();
   };
   // Archive a location out of the active list (keeps the record). If it was live, close it.
@@ -3558,7 +3595,7 @@ function MeetingNotes() {
         return (
           <>
             <div className="note-filter">
-              <input className="note-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search notes…" />
+              <input className="note-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search notes…" aria-label="Search notes" />
               <div className="note-tabs">
                 <button type="button" className={`note-tab${mineOnly ? " on" : ""}`} onClick={() => setMineOnly((v) => !v)}>Mine</button>
                 <button type="button" className={`note-tab${tab === "active" ? " on" : ""}`} onClick={() => setTab("active")}>Active</button>
@@ -4271,7 +4308,7 @@ function Members() {
         </button>
       )}
       {staff.length > 5 && (
-        <input className="auth-input tm-search" placeholder="Search name, code, or role" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className="auth-input tm-search" placeholder="Search name, code, or role" aria-label="Search team" value={q} onChange={(e) => setQ(e.target.value)} />
       )}
       {TIERS.map((tier) => {
         const rows = shown
@@ -4790,7 +4827,10 @@ function EventsAdmin() {
   const addEvent = async (title: string) => {
     // Born dated (next Saturday) — a dateless event is invisible to the calendar, which reads as "it vanished".
     const nextSat = (() => { const d = new Date(); d.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7 || 7)); return localYMD(d); })();
-    const { data, error } = await supabase!.from("events").insert({ title, day_label: "SAT", day: nextSat, sort: events.length }).select("id").single();
+    // Born at 11:00 — the same de facto standard start time stops already get (FieldOpSheet,
+    // AddSheet, CalEdit's defTime all default here); a blank Start field was the one place an event
+    // didn't match. Still just a starting point — fully editable on the card.
+    const { data, error } = await supabase!.from("events").insert({ title, day_label: "SAT", day: nextSat, start_time: "11:00", sort: events.length }).select("id").single();
     toast(error ? `Error: ${error.message}` : "Event added");
     if (!error) { if (data) setOpenId((data as { id: string }).id); load(); } // open the new one for editing
   };
@@ -5803,7 +5843,10 @@ export default function AdminPage() {
         {/* Breadcrumb trail — only appears once a deep view registers a crumb (e.g. Prep › event). */}
         <Breadcrumbs root={SEC_LABEL[sec]} />
         <div className="op-head-row">
-          <div className="op-head-t">{SEC_LABEL[sec]}</div>
+          {/* 2026-07-29 a11y: real per-section h1 (was a div) — AppShell's route-level sr-only h1
+              is static ("Crew console") and never reflected which of the 17 sections you were in;
+              /crew joined H1_SKIP so this is the one heading now, and it actually updates with sec. */}
+          <h1 className="op-head-t">{SEC_LABEL[sec]}</h1>
           {/* Tap the WHEN pill → the full section guide, opened on this section, with jump links.
               The one-line "what this section is for" description used to repeat here EVERY visit
               (op-head-s) — cut (2026-07-16, decrowd): SectionGuide already shows the identical

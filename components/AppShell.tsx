@@ -29,7 +29,10 @@ import MarketingSplash from "./MarketingSplash";
 import BroadcastBanner from "./BroadcastBanner";
 
 // Routes whose page already renders its own visible <h1> — don't add a second one.
-const H1_SKIP = new Set(["/truck", "/craft", "/office", "/display", "/events", "/academy"]);
+// "/crew" joined this list 2026-07-29: the console's op-head-t now renders as a real per-section
+// <h1> (was a plain div — 17 sections, 1 static sr-only h1 that never reflected which one you were
+// in). Without this skip, that would stack a second, stale "Crew console" h1 behind it on every screen.
+const H1_SKIP = new Set(["/truck", "/craft", "/office", "/display", "/events", "/academy", "/crew"]);
 const H1_TITLES: Record<string, string> = {
   menu: "Menu", events: "Events", reserve: "Reserve a pack", book: "Book the bar",
   delivery: "Delivery", scan: "Scan your card", playbook: "Playbook", academy: "Academy",

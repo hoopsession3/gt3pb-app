@@ -92,7 +92,7 @@ const ROLE_SECTIONS: Record<string, OpSection[]> = {
   server: ["day", "now", "notes", "driver"],
   contractor: ["day", "now", "prep", "garage", "notes", "driver"],
   operator: ["day", "now", "prep", "brew", "garage", "pipeline", "notes", "driver"],
-  event_manager: ["day", "now", "command", "prep", "plan", "pipeline", "studio", "goals", "notes", "stops", "driver"],
+  event_manager: ["day", "now", "command", "prep", "plan", "pipeline", "studio", "brew", "goals", "notes", "stops", "driver"],
   admin: ["day", "now", "command", "prep", "plan", "pipeline", "studio", "brew", "garage", "goals", "notes", "stops", "driver", "money", "customers", "team", "settings"],
   owner: ["day", "now", "command", "prep", "plan", "pipeline", "studio", "brew", "garage", "goals", "notes", "stops", "driver", "money", "customers", "team", "settings"],
 };
@@ -128,7 +128,7 @@ export function streamGroups(streams: WorkStream[], role: string): NavGroup[] {
 const DEFAULT_PINS: Record<string, string[]> = {
   owner: ["today", "service", "events", "brand", "business"],
   admin: ["today", "service", "events", "brand", "business"],
-  event_manager: ["today", "events", "service", "brand"],
+  event_manager: ["today", "events", "service", "brand", "production"],
   operator: ["today", "service", "production", "events"],
   contractor: ["today", "service", "production"],
   server: ["today", "service"],
@@ -225,6 +225,9 @@ export default function OperatorNav() {
   };
   return (
     <>
+    {/* Landmark so screen-reader users can jump straight to primary nav — role="tablist" alone is a
+        widget role, not a landmark, so it wasn't reachable via landmark navigation before this. */}
+    <nav aria-label="Section navigation">
     <div className="nav opnav" role="tablist" aria-label="Crew console" onKeyDown={onNavKey}>
       {groups.map((g) => {
         const on = activeGroup.id === g.id;
@@ -240,6 +243,7 @@ export default function OperatorNav() {
         <span className="tl">More</span>
       </button>
     </div>
+    </nav>
     {moreOpen && <MoreSheet lanes={allGroups} pins={groups.map((g) => g.id)} activeId={activeGroup.id} onOpen={openGroup} onClose={() => setMoreOpen(false)} canPin={Boolean(user)} />}
     </>
   );

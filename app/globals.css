@@ -1295,7 +1295,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .guide-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
 .guide-t{font-family:'Inter','Helvetica Neue',Arial,sans-serif;font-style:normal;font-weight:800;font-size:22px;color:var(--cream);line-height:1}
 .guide-lede{font-family:'Inter';font-size:12px;color:var(--cream-m);margin-top:5px;line-height:1.4}
-.guide-x{flex:0 0 auto;width:30px;height:30px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid var(--line2);color:var(--cream-m);font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.guide-x{flex:0 0 auto;width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid var(--line2);color:var(--cream-m);font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none}
 .app.crew-day .guide-x{background:var(--ink-onLight-05)}
 .guide-list{display:flex;flex-direction:column;gap:8px}
 .guide-row{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:rgba(255,255,255,.02)}
@@ -1402,10 +1402,14 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 /* crew chips with manager tag */
 .admin .adm-crew-chip{padding:6px 6px 6px 4px}
 .adm-crew-chip.mgr{background:rgba(184,36,32,.16);color:#e7b6b3}
-.adm-crew-chip .crew-mgr{background:none;border:none;color:var(--gold2);font-size:14px;cursor:pointer;padding:0 2px;-webkit-appearance:none;appearance:none}
+/* 2026-07-29 a11y: 0 2px / 0 3px padding left these at ~font-size (14px/12px) tall — under the
+   WCAG 24px tap-target minimum. Padded up toward it; a full 44px here would blow out the compact
+   chip's height, so this is the smaller AA-consistent target, not the 44px used on standalone
+   controls elsewhere. */
+.adm-crew-chip .crew-mgr{background:none;border:none;color:var(--gold2);font-size:14px;cursor:pointer;padding:6px;-webkit-appearance:none;appearance:none}
 .adm-crew-chip.mgr .crew-mgr{color:var(--red)}
 .adm-crew-chip .crew-name{padding:0 2px}
-.adm-crew-chip .crew-x{background:none;border:none;color:inherit;opacity:.6;font-size:12px;cursor:pointer;padding:0 3px;-webkit-appearance:none;appearance:none}
+.adm-crew-chip .crew-x{background:none;border:none;color:inherit;opacity:.6;font-size:12px;cursor:pointer;padding:6px;-webkit-appearance:none;appearance:none}
 
 /* prep sign-off (owner + managers) */
 .adm-approve{margin-top:12px;background:var(--card);border:1px solid var(--line2);border-radius:14px;padding:13px 15px}
@@ -3295,7 +3299,10 @@ body:has(.conc-sheet) .rail{display:flex}
 .brew-start{margin-top:9px;width:100%;background:linear-gradient(135deg,#a97c3f,#caa35f);border:none;border-radius:9px;padding:10px;color:#1a1409;font-family:'Inter';font-weight:800;font-size:13.5px;cursor:pointer;-webkit-appearance:none;appearance:none}
 /* back-scheduled "start by" hint on a planned batch (0084 brew alert ladder) */
 .brew-startby{margin-top:9px;font-family:'Inter';font-weight:700;font-size:12px;color:var(--cream-m);background:rgba(245,241,232,.05);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
-.app.crew-day .brew-startby{background:var(--card);color:var(--muted2-onLight)}
+/* 2026-07-29 a11y: was also swapping to --muted2-onLight, an ink tone meant for a light surface,
+   on top of --card (still a dark-ish surface in day theme) — ~3:1, under the 4.5:1 AA minimum for
+   this size text. Keep the base rule's light-on-dark color; only the background needs to change here. */
+.app.crew-day .brew-startby{background:var(--card)}
 .brew-startby.over{color:var(--red-h);border-color:var(--red-h);background:rgba(184,36,32,.1)}
 .brew-timer{display:flex;align-items:center;gap:11px;margin-top:9px;background:rgba(43,179,163,.13);border:1px solid rgba(43,179,163,.5);border-radius:11px;padding:10px 12px}
 .pring{position:relative;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}
@@ -3572,6 +3579,9 @@ body:has(.conc-sheet) .rail{display:flex}
 .brewlink-name{color:var(--cream)}
 .app.crew-day .brewlink-name{color:var(--cream)}
 .brewlink-st{font-size:12px;color:var(--muted);text-transform:capitalize;white-space:nowrap}
+/* 2026-07-29: the shortcut into Brew, pre-targeted at this exact event/stop — see PrepDetail. */
+.brewlink-plan{display:flex;align-items:center;gap:7px;width:100%;margin-top:8px;padding-top:8px;background:none;border:none;border-top:1px solid rgba(201,166,97,.25);color:var(--gold2);font-family:'Inter';font-weight:700;font-size:13px;cursor:pointer;-webkit-appearance:none;appearance:none;text-align:left}
+.brewlink-plan:first-child{margin-top:0;padding-top:0;border-top:none}
 
 /* Delete affordances — batch log, owner (event/stop) danger zone, maintenance rows */
 .brew-del{color:#e07a76;border-color:rgba(184,36,32,.4)}
@@ -3991,7 +4001,7 @@ body:has(.conc-sheet) .rail{display:flex}
 
 /* Brew card operational rows — coverage, serve-by, stock check */
 .brew-oprow{margin-top:9px;font-family:'Inter';font-size:12px;line-height:1.4;color:var(--cream-m);background:rgba(245,241,232,.05);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-variant-numeric:tabular-nums}
-.app.crew-day .brew-oprow{background:var(--card);color:var(--muted2-onLight)}
+.app.crew-day .brew-oprow{background:var(--card)}
 .brew-oprow.ok{border-color:rgba(43,179,163,.45);color:var(--cream)}
 .brew-oprow.warn{border-color:var(--warn);background:rgba(207,154,74,.14);color:var(--cream);font-weight:600}
 .brew-oprow.over{border-color:var(--red-h);background:rgba(184,36,32,.1);color:var(--red-h);font-weight:700}

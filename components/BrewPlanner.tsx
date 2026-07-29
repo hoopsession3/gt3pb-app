@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { FLAVORS } from "@/lib/orderAhead";
 import { bottlesFor, brewStartOverdue } from "@/lib/brewMath";
+import { localToday } from "@/lib/dates";
 import AssignTaskSheet from "@/components/AssignTaskSheet";
 import Sheet from "@/components/Sheet";
 import ProgressRing from "@/components/ProgressRing";
@@ -27,7 +28,7 @@ type ScaledIng = { name: string; qty: number | string; unit?: string | null };
 type Batch = { id: string; recipe_id: string | null; recipe_name: string | null; batch_gal: number; brew_date: string | null; ready_at: string | null; event_id: string | null; stop_id: string | null; status: string; og: string | null; signal_score: number | null; target_spec: string | null; extraction_hours: number | null; brew_started_at: string | null; vessel: string | null; coffee_lot: string | null; brewer: string | null; taste_notes: string | null; created_at?: string | null; needed_by: string | null; latest_start_at: string | null; drop_date: string | null; hold_hours: number | null; scaled: ScaledIng[] | null };
 type InvItem = { name: string; qty: number | null; unit: string | null };
 type Ev = { id: string; title: string | null; day: string | null; day_label: string | null };
-type St = { id: string; name: string; starts_at: string | null };
+type St = { id: string; name: string; starts_at: string | null; status: string | null };
 type BrewBoard = { recipes: Recipe[]; vessels: Vessel[]; batches: Batch[]; events: Ev[]; stops: St[]; inv: InvItem[]; demand: Record<string, Record<string, number>> };
 
 const STATUS: { key: string; label: string }[] = [
@@ -76,6 +77,9 @@ const remain = (target: string | null, now: number) => {
 
 export default function BrewPlanner() {
   const [plan, setPlan] = useState<Recipe | null>(null);
+  // Set by PrepDetail's "Plan a brew for this event/stop" (localStorage bridge, same pattern as
+  // gt3-plan-tab) — carries the target into the sheet BrewSheet opens next, then clears itself.
+  const [pendingTarget, setPendingTarget] = useState<string | null>(null);
   const [pack, setPack] = useState<Batch | null>(null);
   const [logBatch, setLogBatch] = useState<Batch | null>(null);
   const [starting, setStarting] = useState<Batch | null>(null);
@@ -90,7 +94,7 @@ export default function BrewPlanner() {
       supabase.from("brew_batches").select("id, recipe_id, recipe_name, batch_gal, brew_date, ready_at, event_id, stop_id, status, og, signal_score, target_spec, extraction_hours, brew_started_at, vessel, coffee_lot, brewer, taste_notes, created_at, needed_by, latest_start_at, drop_date, hold_hours, scaled").order("created_at", { ascending: false }),
       supabase.from("events").select("id, title, day, day_label").is("archived_at", null).order("day"),
       supabase.from("brew_vessels").select("id, name, capacity_gal, filter_type").is("archived_at", null).order("sort"),
-      supabase.from("stops").select("id, name, starts_at").is("archived_at", null).order("starts_at", { ascending: true, nullsFirst: false }),
+      supabase.from("stops").select("id, name, starts_at, status").is("archived_at", null).order("starts_at", { ascending: true, nullsFirst: false }),
       supabase.from("inventory_items").select("name, qty, unit"),
     ]);
     const firstErr = [r, b, e, v, st, ii].find((x) => x.error)?.error;
@@ -120,6 +124,18 @@ export default function BrewPlanner() {
   const stops = board.data?.stops ?? [];
   const inv = board.data?.inv ?? [];
   const demand = board.data?.demand ?? {};
+
+  // Pick up a jump-in target left by PrepDetail, once recipes are loaded (need one to open the
+  // sheet — mirrors the manual "+ Plan a batch" button's own default of recipes[0]).
+  useEffect(() => {
+    if (!recipes.length) return;
+    let pending: string | null = null;
+    try { pending = localStorage.getItem("gt3-brew-target"); } catch { /* ignore */ }
+    if (!pending) return;
+    try { localStorage.removeItem("gt3-brew-target"); } catch { /* ignore */ }
+    setPlan(recipes[0]);
+    setPendingTarget(pending);
+  }, [recipes]);
 
   // Live clock — ticks while a brew countdown or serve-by window is on screen, so both stay current.
   const ticking = batches.some((b) => b.status === "brewing" || b.status === "ready" || b.status === "kegged");
@@ -309,7 +325,7 @@ export default function BrewPlanner() {
       </div>
       </>)}
 
-      {plan && <BrewSheet recipe={plan} events={events} stops={stops} vessels={vessels} onClose={() => setPlan(null)} onDone={() => { setPlan(null); reload(); }} />}
+      {plan && <BrewSheet recipe={plan} events={events} stops={stops} vessels={vessels} initialTarget={pendingTarget ?? undefined} onClose={() => { setPlan(null); setPendingTarget(null); }} onDone={() => { setPlan(null); setPendingTarget(null); reload(); }} />}
       {pack && <BottleLoadout batch={pack} onClose={() => setPack(null)} />}
       {logBatch && <BatchLog batch={logBatch} events={events} stops={stops} onClose={() => setLogBatch(null)} onSaved={() => { setLogBatch(null); reload(); }} />}
       {starting && <StartBrewSheet batch={starting} onClose={() => setStarting(null)} onStart={async (extras) => { await startBrew(starting, extras); setStarting(null); }} />}
@@ -535,7 +551,7 @@ function BottleLoadout({ batch, onClose }: { batch: Batch; onClose: () => void }
   );
 }
 
-function BrewSheet({ recipe, events, stops, vessels, onClose, onDone }: { recipe: Recipe; events: Ev[]; stops: St[]; vessels: Vessel[]; onClose: () => void; onDone: () => void }) {
+function BrewSheet({ recipe, events, stops, vessels, initialTarget, onClose, onDone }: { recipe: Recipe; events: Ev[]; stops: St[]; vessels: Vessel[]; initialTarget?: string; onClose: () => void; onDone: () => void }) {
   const [vesselId, setVesselId] = useState(vessels[0]?.id ?? "");
   const [vesselCount, setVesselCount] = useState(1);
   const vessel = vessels.find((v) => v.id === vesselId) || null;
@@ -548,7 +564,18 @@ function BrewSheet({ recipe, events, stops, vessels, onClose, onDone }: { recipe
     if (v) setGal(String(+(v.capacity_gal * count).toFixed(2)));
   };
   const vesselLabel = vessel ? `${vesselCount > 1 ? `${vesselCount}× ` : ""}${vessel.name} (${vessel.capacity_gal} gal${vesselCount > 1 ? ` ea` : ""})` : undefined;
-  const [targets, setTargets] = useState<string[]>([]); // ["e:<id>"|"s:<id>"] — a batch can serve several; first is primary (back-schedule)
+  // Upcoming only, soonest first. The raw lists are every event/stop ever (no date floor, oldest
+  // first for events) — scanning all of history to find "the next one" was the actual complaint
+  // ("planning a brew for the event and next truck stop is frustrating"). Pre-select the soonest of
+  // each below so the common case — brewing for what's coming up — needs zero scrolling.
+  const today = localToday();
+  const upcomingEvents = events.filter((e) => e.day && e.day >= today);
+  const upcomingStops = stops.filter((s) => s.status !== "done");
+  const [targets, setTargets] = useState<string[]>(() => {
+    if (initialTarget) return [initialTarget];
+    return [upcomingEvents[0] ? `e:${upcomingEvents[0].id}` : null, upcomingStops[0] ? `s:${upcomingStops[0].id}` : null]
+      .filter((x): x is string => Boolean(x));
+  }); // ["e:<id>"|"s:<id>"] — a batch can serve several; first is primary (back-schedule)
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [res, setRes] = useState<any | null>(null);
@@ -612,9 +639,9 @@ function BrewSheet({ recipe, events, stops, vessels, onClose, onDone }: { recipe
               </div>
               <div className="prod-f" style={{ marginTop: 8 }}><span>Serving which events / stops? (optional · pick any — first one drives the back-schedule)</span>
                 <div className="ts-chips" style={{ marginTop: 4 }}>
-                  {events.map((ev) => { const k = `e:${ev.id}`; const on = targets.includes(k); return <button key={ev.id} type="button" className={`ts-chip${on ? " on" : ""}`} onClick={() => setTargets((p) => on ? p.filter((x) => x !== k) : [...p, k])}>{on && <><Icon name="check" /> </>}<Icon name="event" /> {ev.title || ev.day_label}</button>; })}
-                  {stops.map((s) => { const k = `s:${s.id}`; const on = targets.includes(k); return <button key={s.id} type="button" className={`ts-chip${on ? " on" : ""}`} onClick={() => setTargets((p) => on ? p.filter((x) => x !== k) : [...p, k])}>{on && <><Icon name="check" /> </>}<Icon name="truck" /> {s.name}</button>; })}
-                  {events.length === 0 && stops.length === 0 && <span className="dp-hint">No events or stops yet.</span>}
+                  {upcomingEvents.map((ev) => { const k = `e:${ev.id}`; const on = targets.includes(k); return <button key={ev.id} type="button" className={`ts-chip${on ? " on" : ""}`} onClick={() => setTargets((p) => on ? p.filter((x) => x !== k) : [...p, k])}>{on && <><Icon name="check" /> </>}<Icon name="event" /> {ev.title || ev.day_label}</button>; })}
+                  {upcomingStops.map((s) => { const k = `s:${s.id}`; const on = targets.includes(k); return <button key={s.id} type="button" className={`ts-chip${on ? " on" : ""}`} onClick={() => setTargets((p) => on ? p.filter((x) => x !== k) : [...p, k])}>{on && <><Icon name="check" /> </>}<Icon name="truck" /> {s.name}</button>; })}
+                  {upcomingEvents.length === 0 && upcomingStops.length === 0 && <span className="dp-hint">No upcoming events or stops yet.</span>}
                 </div>
               </div>
               {err && <div className="dp-err">{err}</div>}

@@ -30,6 +30,7 @@ export function AsyncSection<T>({
   if (state.status === "error") {
     return (
       <EmptyState
+        role="alert"
         title={errorTitle ?? "Couldn't load this"}
         sub={state.error?.message || "Something went wrong on that request."}
         action={<button type="button" className="btn-ter" onClick={state.reload}>Try again</button>}
@@ -39,7 +40,7 @@ export function AsyncSection<T>({
   const data = state.data as T;
   const empty = isEmpty ? isEmpty(data) : Array.isArray(data) ? data.length === 0 : !data;
   if (empty) {
-    return <EmptyState title={emptyTitle} sub={emptySub} action={emptyAction} />;
+    return <EmptyState role="status" title={emptyTitle} sub={emptySub} action={emptyAction} />;
   }
   return <>{children(data)}</>;
 }

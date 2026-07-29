@@ -121,7 +121,7 @@ export function RsvpRow({ ev }: { ev: EventRow }) {
         expanded={hasDetail ? open : undefined}
         trailing={
           <>
-            <button type="button" className={`k-chip${going ? " on" : " sec"}`} onClick={onRsvp}>{going ? <>Going <Icon name="check" /></> : "I'm in"}</button>
+            <button type="button" className={`k-chip${going ? " on" : " sec"}`} onClick={onRsvp} aria-pressed={going} aria-label={`${going ? "Going" : "I'm in"} — ${ev.title}`}>{going ? <>Going <Icon name="check" /></> : "I'm in"}</button>
             {hasDetail && <span className={`k-caret${open ? " open" : ""}`} aria-hidden="true">›</span>}
           </>
         }
