@@ -105,7 +105,11 @@ export type NavGroup = { id: string; label: string; icon: string; members: OpSec
 // The Today lane is defined ONCE here and reused by both the bottom bar AND the secondary section
 // toggle (crew page), so a section added to it can never again go missing from one of them.
 export const TODAY_GROUP: NavGroup = { id: "today", label: "Today", icon: "day", members: ["day", "now", "command"] };
-const MAX_PINS = 4; // total tabs on the bar (Today counts — it's pinnable like any lane)
+// total tabs on the bar (Today counts — it's pinnable like any lane). Was 4; bumped to 5 (2026-07-29
+// audit) so Events can sit on the owner/admin default bar instead of hiding behind More — see
+// DEFAULT_PINS below. .tab uses flex:1 (globals.css), so a 5th tab just makes each one a hair
+// narrower; nothing breaks at 6 total (5 pins + More) on a normal phone width.
+const MAX_PINS = 5;
 const isSection = (x: string): x is OpSection => (VALID as Set<string>).has(x) || x === "ask";
 export function streamGroups(streams: WorkStream[], role: string): NavGroup[] {
   const allowed = sectionsForRole(role);
@@ -115,9 +119,15 @@ export function streamGroups(streams: WorkStream[], role: string): NavGroup[] {
 }
 // Role defaults until the user pins their own bar. Explicit pins are respected exactly —
 // an unpinned lane was unpinned on purpose, so nothing auto-fills behind the user's back.
+// 2026-07-29 audit: owner/admin never had "events" pinned — 0243's own note said as much
+// ("Events lives behind More unless someone pins it"), an accepted tradeoff at the time. Turns out
+// it doesn't hold for an owner who's actually hands-on with events day to day: "why can't I find my
+// events" + a screenshot of the Service tab, not Events, was the tell. Added, not swapped in over
+// something else — this only touches users who haven't customized their own bar yet (nav_pins is
+// per-user and always wins over this once set), so nobody who already pinned their own 4 loses one.
 const DEFAULT_PINS: Record<string, string[]> = {
-  owner: ["today", "service", "brand", "business"],
-  admin: ["today", "service", "brand", "business"],
+  owner: ["today", "service", "events", "brand", "business"],
+  admin: ["today", "service", "events", "brand", "business"],
   event_manager: ["today", "events", "service", "brand"],
   operator: ["today", "service", "production", "events"],
   contractor: ["today", "service", "production"],

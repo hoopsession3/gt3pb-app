@@ -4297,7 +4297,7 @@ function Members() {
 // ───────────────────────── live event HUD (command center) ─────────────────────────
 // The 3 numbers that matter mid-event, scoped to the live event. Sales = paid app orders
 // + Square POS mirror (event_sales), so walk-up cart sales count too.
-function EventHUD() {
+function EventHUD({ onGoEvents }: { onGoEvents?: () => void }) {
   const [ev, setEv] = useState<EventRow | null>(null);
   const [stats, setStats] = useState<{ cents: number; orders: number; firstAt: string | null }>({ cents: 0, orders: 0, firstAt: null });
   const [econ, setEcon] = useState<EventEcon | null>(null);
@@ -4335,9 +4335,17 @@ function EventHUD() {
     // whether an event is live, so a manager always sees a tappable panel — which most of the time
     // (no live event) used to open onto a totally blank body. Same EmptyState pattern used
     // elsewhere in this file for an empty Panel body.
+    // 2026-07-29 audit: this told you where to go ("Sales and pace will show here once an event
+    // goes live") without a way to actually get there — same dead-end pattern as the KPI tiles and
+    // Overview's glance line. EmptyState already had an `action` slot built for exactly this; it
+    // just wasn't being used here.
     return (
       <div className="adm-sec adm-hud">
-        <EmptyState title="No event live" sub="Sales and pace will show here once an event goes live." />
+        <EmptyState
+          title="No event live"
+          sub="Sales and pace will show here once an event goes live."
+          action={onGoEvents ? <button type="button" className="btn-ter" onClick={onGoEvents}>Go to Events →</button> : undefined}
+        />
       </div>
     );
   }
@@ -4975,18 +4983,27 @@ function EnableAlerts({ userId }: { userId: string | null }) {
   const [perm, setPerm] = useState<NotificationPermission | "unknown">("unknown");
   useEffect(() => { if (typeof Notification !== "undefined") setPerm(Notification.permission); }, []);
   if (perm === "unknown" || perm === "granted") return null;
+  // 2026-07-29 audit: this used to render as a bare, unlabeled full-width button dropped right
+  // after My Tasks, with no heading and no context — the one thing on the Live Ops screen that
+  // didn't get a crew-group divider or a Panel. Ryan: "Turn on order alerts out of place, WTF."
+  // Same content, same single tap — just given the label + one-line "why" every other block here
+  // already has, so it reads as a real feature instead of a leftover.
   return (
-    <button
-      className="btn2"
-      style={{ marginTop: 0, marginBottom: 4 }}
-      onClick={async () => {
-        const p = await Notification.requestPermission();
-        setPerm(p);
-        if (p === "granted") subscribePush(userId, true); // background push for the kitchen
-      }}
-    >
-      Turn on order alerts
-    </button>
+    <div className="adm-sec">
+      <div className="crew-group">Notifications</div>
+      <div className="h-sub" style={{ marginTop: 0, marginBottom: 10 }}>Get a push alert the moment a new order lands on the pass — even with the app in your pocket.</div>
+      <button
+        className="btn2"
+        style={{ marginTop: 0, marginBottom: 4 }}
+        onClick={async () => {
+          const p = await Notification.requestPermission();
+          setPerm(p);
+          if (p === "granted") subscribePush(userId, true); // background push for the kitchen
+        }}
+      >
+        Turn on order alerts
+      </button>
+    </div>
   );
 }
 
@@ -5056,7 +5073,11 @@ function Overview({ onGo, onOpenTarget }: { onGo: (t: string) => void; onOpenTar
                 <span className="adm-pill due">LIVE</span> <b>{s.live.title}</b> — running now · tap for prep
               </div>
             ) : (
-              <div className="h-sub" style={{ marginTop: 12 }}>No event live. Set one live under Events when you open.</div>
+              // 2026-07-29 audit: was static text naming "Events" without linking there — the same
+              // dead-end pattern as the KPI tiles. Now .bo-line (matching the line right above it,
+              // which already has working inline buttons) instead of .h-sub, so "Events" is a real
+              // tap target via the same onGo the two buttons above already use.
+              <p className="bo-line" style={{ marginTop: 12 }}>No event live. Set one live under <button type="button" onClick={() => onGo("events")}>Events</button> when you open.</p>
             )}
           </div>
         );
@@ -5833,7 +5854,7 @@ export default function AdminPage() {
               <OfficeOrders />
             </>
           )}
-          {canManage && <Panel id="hud" title="Event heads-up"><EventHUD /></Panel>}
+          {canManage && <Panel id="hud" title="Event heads-up"><EventHUD onGoEvents={() => goSection("events")} /></Panel>}
           <MyTasks userId={user?.id ?? null} chip />
           <EnableAlerts userId={user?.id ?? null} />
         </>

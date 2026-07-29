@@ -4517,6 +4517,13 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .mkpi-tile{background:var(--card);border:1px solid var(--line2);border-radius:16px;padding:15px 14px}
 .mkpi-v{font-family:'Inter';font-weight:800;font-size:25px;letter-spacing:-.02em;line-height:1;color:var(--gold2,#C8A661)}
 .mkpi-k{font-family:'Inter';font-weight:600;font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--cream-m);margin-top:6px}
+/* Tappable tiles (2026-07-29 audit) — a <button> version of the same card. The base .mkpi-tile rule
+   already overrides the UA button background/border/radius/padding, this just cleans up the rest
+   (button text-align defaults to center, iOS adds its own chrome without appearance:none) and adds
+   a small "leads somewhere" chevron so a tappable tile reads differently from a static one. */
+button.mkpi-tile{display:block;width:100%;font:inherit;text-align:left;cursor:pointer;-webkit-appearance:none;appearance:none;position:relative;transition:transform .1s}
+button.mkpi-tile:active{transform:scale(.98)}
+.mkpi-go::after{content:"›";position:absolute;top:12px;right:13px;font-family:'Inter';font-weight:700;font-size:16px;line-height:1;color:var(--cream-m);opacity:.5}
 .crew-group{font-family:'Inter';font-weight:800;font-size:11.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--gold);margin:22px 2px 9px}
 .app.crew-day .mkpi-tile{background:var(--card);border-color:var(--ink2-onLight-10);box-shadow:0 1px 2px rgba(26,22,16,.04)}
 

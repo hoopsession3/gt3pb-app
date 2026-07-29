@@ -2,16 +2,37 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useOperatorSection, type OpSection } from "@/components/OperatorNav";
 
 // Shared KPI strip — the cohesion audit's "generalize MoneyKpis into one KpiRow" recommendation. One
 // engine renders the .mkpi glance grid that opens Money/Customers/Team/Prep/Garage; each tab just
 // hands it a static list of tiles. Every tile's query is isolated and defensive (fails to "—") so a
 // schema gap can never break the section — the number just goes quiet.
+//
+// 2026-07-29 UI audit: every tile here used to be a plain, unclickable div — it's shaped exactly
+// like a tappable card (rounded, bordered, a number + a label) but nothing happened when you tapped
+// one. Ryan: "Nothing happens when clicking on these, this not next level stuff." `to` is optional
+// per tile — set it and the tile becomes a real button; leave it off and it renders exactly as
+// before. Reuses the same {section, planTab, anchor} shape AlertsInbox's alertDest already uses to
+// jump across sections (down to the same "gt3-plan-tab" localStorage bridge), so this is one more
+// caller of an existing, proven mechanism — not a new one.
 type Sb = NonNullable<typeof supabase>;
-export type KpiTile = { key: string; label: string; load: (db: Sb) => PromiseLike<{ count?: number | null }> };
+export type KpiDest = { section?: OpSection; planTab?: "calendar" | "events" | "vendors"; anchor?: string; openPanel?: string };
+export type KpiTile = { key: string; label: string; load: (db: Sb) => PromiseLike<{ count?: number | null }>; to?: KpiDest };
+
+function goToDest(d: KpiDest, setSection: (s: OpSection) => void) {
+  // Order matters: stash the sub-tab and force-open the target panel BEFORE switching section, so
+  // whatever mounts as a result of setSection already sees them (same order the alert-click handler
+  // in app/crew/page.tsx uses for the identical bridge).
+  if (d.planTab) { try { localStorage.setItem("gt3-plan-tab", d.planTab); } catch { /* ignore */ } }
+  if (d.openPanel) { try { localStorage.setItem(`gt3-mpanel-${d.openPanel}`, "1"); } catch { /* ignore */ } }
+  if (d.section) setSection(d.section);
+  if (d.anchor) setTimeout(() => document.getElementById(d.anchor!)?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
+}
 
 function KpiStrip({ tiles, label }: { tiles: KpiTile[]; label: string }) {
   const [vals, setVals] = useState<Record<string, string>>({});
+  const { setSection } = useOperatorSection();
   useEffect(() => {
     if (!supabase) return;
     let live = true;
@@ -28,12 +49,20 @@ function KpiStrip({ tiles, label }: { tiles: KpiTile[]; label: string }) {
   }, [tiles]);
   return (
     <div className="mkpi" role="group" aria-label={label}>
-      {tiles.map((t) => (
-        <div className="mkpi-tile" key={t.key}>
-          <div className="mkpi-v">{vals[t.key] ?? "—"}</div>
-          <div className="mkpi-k">{t.label}</div>
-        </div>
-      ))}
+      {tiles.map((t) => {
+        const v = vals[t.key] ?? "—";
+        return t.to ? (
+          <button key={t.key} type="button" className="mkpi-tile mkpi-go" onClick={() => goToDest(t.to!, setSection)}>
+            <div className="mkpi-v">{v}</div>
+            <div className="mkpi-k">{t.label}</div>
+          </button>
+        ) : (
+          <div className="mkpi-tile" key={t.key}>
+            <div className="mkpi-v">{v}</div>
+            <div className="mkpi-k">{t.label}</div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -50,9 +79,14 @@ const TEAM_TILES: KpiTile[] = [
 
 // ── Prep ── what's open before the next event
 const PREP_TILES: KpiTile[] = [
-  { key: "open", label: "Open prep tasks", load: (db) => head(db, "event_tasks").eq("done", false) },
-  { key: "crit", label: "Critical open", load: (db) => head(db, "event_tasks").eq("done", false).eq("critical", true) },
-  { key: "events", label: "Events on the books", load: (db) => head(db, "events") },
+  // Open/Critical both point at the exact board sitting right below this strip on the same
+  // screen — force it open (it defaults open, but don't trust that if someone previously
+  // collapsed it — same belt-and-suspenders the Settings deep-links already use) and scroll to it.
+  { key: "open", label: "Open prep tasks", load: (db) => head(db, "event_tasks").eq("done", false), to: { anchor: "prep-board", openPanel: "prep-board" } },
+  { key: "crit", label: "Critical open", load: (db) => head(db, "event_tasks").eq("done", false).eq("critical", true), to: { anchor: "prep-board", openPanel: "prep-board" } },
+  // Events on the books isn't reachable from anywhere on THIS screen — it's a real cross-section
+  // jump to Plan → Events (the only place events are actually managed).
+  { key: "events", label: "Events on the books", load: (db) => head(db, "events"), to: { section: "plan", planTab: "events" } },
 ];
 
 // ── Assets ── assets + stock health (internal "garage" naming kept for the section key/tiles below,
