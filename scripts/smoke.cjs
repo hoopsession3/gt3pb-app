@@ -326,6 +326,53 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("claim: fallback is non-empty & on-brand", typeof CG.CLAIM_FALLBACK === "string" && CG.CLAIM_FALLBACK.length > 20);
 }
 
+// --- dates & event-row formatters (2026-07-29): the recurring drift class. Every case named
+// "(live bug)" shipped broken at least once — these assertions are what make those fixes STAY fixed. ---
+{
+  const DT = require("../.smoke/dates.js");
+  ok("fmt12: bare 24h → 12h lowercase", DT.fmt12("18:30") === "6:30pm", DT.fmt12("18:30"));
+  ok("fmt12: '6:00PM' → '6:00pm' (2026-07-19 live bug, refixed 07-29)", DT.fmt12("6:00PM") === "6:00pm", DT.fmt12("6:00PM"));
+  ok("fmt12: spaced period collapses", DT.fmt12("6:00 pm") === "6:00pm", DT.fmt12("6:00 pm"));
+  ok("fmt12: noon is 12:00pm", DT.fmt12("12:00") === "12:00pm", DT.fmt12("12:00"));
+  ok("fmt12: 24h midnight is 12:xxam", DT.fmt12("0:15") === "12:15am", DT.fmt12("0:15"));
+  ok("fmt12: morning 24h", DT.fmt12("9:30") === "9:30am", DT.fmt12("9:30"));
+  ok("fmt12: free text passes through untouched", DT.fmt12("noonish") === "noonish");
+  ok("fmt12: hour>23 passes through", DT.fmt12("25:00") === "25:00");
+  ok("fmt12: null → null", DT.fmt12(null) === null);
+  ok("evTime: both ends normalized (raw-vs-derived can't drift)", DT.evTime({ start_time: "6:00PM", end_time: "21:00" }) === "6:00pm–9:00pm", DT.evTime({ start_time: "6:00PM", end_time: "21:00" }));
+  ok("evTime: start only", DT.evTime({ start_time: "11:00" }) === "11:00am", DT.evTime({ start_time: "11:00" }));
+  ok("evTime: no times → empty", DT.evTime({}) === "");
+  ok("evLeadDate: numeric M/D, matches stop rows ('Jul 31' vs '8/1' live bug)", DT.evLeadDate({ day: "2026-07-31" }) === "7/31", DT.evLeadDate({ day: "2026-07-31" }));
+  ok("evLeadDate: no day → empty", DT.evLeadDate({}) === "");
+  ok("evLeadDay: crew-typed label wins", DT.evLeadDay({ day: "2026-07-31", day_label: "FRI NIGHT" }) === "FRI NIGHT");
+  ok("evLeadDay: derived weekday, uppercase", DT.evLeadDay({ day: "2026-07-31" }) === "FRI", DT.evLeadDay({ day: "2026-07-31" }));
+  ok("evDate: local calendar parse (no UTC-midnight 'yesterday' bug)", DT.evDate({ day: "2026-07-31" }) === "Fri, Jul 31", DT.evDate({ day: "2026-07-31" }));
+  ok("evDate: no day → null", DT.evDate({}) === null);
+  ok("dayKey zero-pads", DT.dayKey(new Date(2026, 0, 5)) === "2026-01-05", DT.dayKey(new Date(2026, 0, 5)));
+  ok("etDayKey: UTC evening = prior ET day (the 8pm flip bug)", DT.etDayKey(new Date("2026-07-30T02:00:00Z")) === "2026-07-29", DT.etDayKey(new Date("2026-07-30T02:00:00Z")));
+  ok("relativeDay: today", DT.relativeDay(DT.dayKey(new Date())) === "Today", DT.relativeDay(DT.dayKey(new Date())));
+  ok("relativeDay: tomorrow", DT.relativeDay(DT.dayKey(new Date(Date.now() + 86400000))) === "Tomorrow");
+  // nextWeekdayAt — the "Stop here again" prefill (2026-07-29); `now` pinned for determinism
+  const wed6pm = new Date(2026, 6, 29, 18, 0);                       // Wed Jul 29 2026, 6:00pm
+  const n1 = DT.nextWeekdayAt(wed6pm, new Date(2026, 6, 29, 20, 0)); // now = same Wed, 8pm
+  ok("nextWeekdayAt: same weekday, time passed → +7 days", DT.dayKey(n1) === "2026-08-05" && n1.getHours() === 18, DT.dayKey(n1));
+  const n2 = DT.nextWeekdayAt(wed6pm, new Date(2026, 6, 27, 9, 0));  // now = Mon 9am
+  ok("nextWeekdayAt: upcoming weekday this week, time kept", DT.dayKey(n2) === "2026-07-29" && n2.getHours() === 18 && n2.getMinutes() === 0, DT.dayKey(n2));
+  const n3 = DT.nextWeekdayAt(wed6pm, new Date(2026, 6, 29, 12, 0)); // now = same Wed, noon
+  ok("nextWeekdayAt: today still counts if the time is ahead", DT.dayKey(n3) === "2026-07-29", DT.dayKey(n3));
+}
+
+// --- brew math: bottles↔gallons and start-by — the numbers DropOps/BrewPlanner/My Day all share ---
+{
+  const BM = require("../.smoke/brewMath.js");
+  ok("brew: bottlesFor 4gal @ .92 yield = 47", BM.bottlesFor(4, 0.92) === 47, BM.bottlesFor(4, 0.92));
+  ok("brew: bottlesFor null yield = raw 51", BM.bottlesFor(4, null) === 51, BM.bottlesFor(4, null));
+  ok("brew: gallonsForBottles always covers the demand it was asked for", BM.bottlesFor(BM.gallonsForBottles(47, 0.92), 0.92) >= 47, BM.gallonsForBottles(47, 0.92));
+  ok("brew: quarterGal rounds up to the pourable step", BM.quarterGal(3.01) === 3.25 && BM.quarterGal(0.1) === 0.25, BM.quarterGal(3.01));
+  ok("brew: planned batch past latest start flags overdue", BM.brewStartOverdue({ status: "planned", latest_start_at: "2026-07-01T00:00:00Z" }, Date.parse("2026-07-02T00:00:00Z")) === true);
+  ok("brew: a batch already brewing never flags", BM.brewStartOverdue({ status: "brewing", latest_start_at: "2026-07-01T00:00:00Z" }, Date.parse("2026-07-02T00:00:00Z")) === false);
+  ok("brew: flavorDemand sums mixes, tolerates null mix", JSON.stringify(BM.flavorDemand([{ mix: { RISE: 2 } }, { mix: { RISE: 1, FLOW: 3 } }, { mix: null }], ["RISE", "FLOW"])) === JSON.stringify({ RISE: 3, FLOW: 3 }));
+}
 
 console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
 console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);

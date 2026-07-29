@@ -62,6 +62,52 @@ export function fmt12(v?: string | null): string | null {
   return `${h % 12 || 12}:${m[2]}${h >= 12 ? "pm" : "am"}`;
 }
 
+// ── Event-row formatters (moved from components/RsvpRow.tsx, 2026-07-29) ──
+// Pure string/date logic with a bug history (the "Jul 31" vs "8/1" drift; the "6:00PM" casing bug,
+// twice), so they live HERE — a zero-dependency module the smoke harness compiles and asserts on
+// every CI run. The shape is structural (EventRow satisfies it) so this file keeps zero imports.
+export type EvLike = { day?: string | null; day_label?: string | null; start_time?: string | null; end_time?: string | null };
+
+// Both times through the ONE normalizer — an event's list-row time read "6:00PM" raw while the
+// stop row next to it read "6:00pm" (2026-07-29 audit; same class as the 2026-07-19 hero fix).
+export function evTime(ev: EvLike) {
+  const start = fmt12(ev.start_time) ?? "";
+  const end = fmt12(ev.end_time) ?? "";
+  return end ? `${start}–${end}` : start;
+}
+// "Fri, Jul 31" from events.day — parsed as local calendar parts, NOT new Date(iso),
+// which reads as UTC midnight and shows yesterday for evening viewers.
+export function evDate(ev: EvLike) {
+  if (!ev.day) return null;
+  const [y, m, d] = ev.day.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+}
+export function evLeadDay(ev: EvLike) {
+  if (ev.day_label?.trim()) return ev.day_label;
+  if (!ev.day) return "";
+  const [y, m, d] = ev.day.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", { weekday: "short" }).toUpperCase();
+}
+// Numeric M/D — matches the stop rows' and hero's convention. This rendered "Jul 31" next to a
+// stop's "8/1" until 2026-07-29 (Ryan: "they need to be cohesive"); the smoke test pins it now.
+export function evLeadDate(ev: EvLike) {
+  if (!ev.day) return "";
+  const [, m, d] = ev.day.split("-").map(Number);
+  return `${m}/${d}`;
+}
+
+// Next date on/after `now` matching tpl's weekday, at tpl's own time-of-day — operator-local wall
+// clock, same convention as localToday. Used by "Stop here again" to prefill a repeat visit
+// (2026-07-29); `now` is a parameter so the smoke harness can pin it.
+export function nextWeekdayAt(tpl: Date, now: Date = new Date()): Date {
+  const result = new Date(now);
+  result.setHours(tpl.getHours(), tpl.getMinutes(), 0, 0);
+  let diff = (tpl.getDay() - now.getDay() + 7) % 7;
+  if (diff === 0 && result <= now) diff = 7; // today's weekday, but that time already passed
+  result.setDate(result.getDate() + diff);
+  return result;
+}
+
 export const relativeDay = (input: Date | string): string => {
   const d = typeof input === "string"
     ? new Date(input.length <= 10 ? `${input}T12:00:00` : input)
