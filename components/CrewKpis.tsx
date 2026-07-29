@@ -74,7 +74,8 @@ const TEAM_TILES: KpiTile[] = [
   { key: "staff", label: "Team members", load: (db) => head(db, "profiles").neq("role", "member") },
   { key: "leaders", label: "Leadership", load: (db) => head(db, "profiles").in("role", ["owner", "admin", "event_manager"]) },
   { key: "crew", label: "Crew", load: (db) => head(db, "profiles").in("role", ["server", "contractor", "operator"]) },
-  { key: "members", label: "Members", load: (db) => head(db, "profiles").eq("role", "member") },
+  // Members are customers, not team — the tile's real home is the CRM, so it jumps there.
+  { key: "members", label: "Members", load: (db) => head(db, "profiles").eq("role", "member"), to: { section: "customers" } },
 ];
 
 // ── Prep ── what's open before the next event
