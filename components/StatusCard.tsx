@@ -327,11 +327,53 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
     toast("Saved — post it and tag @gt3pb");
   };
 
+  // ── Share to Instagram Story — a one-tap deep link into IG's story composer with the card
+  // pre-loaded as the background. This is NOT an official Meta API: there's no documented way for a
+  // website to set Instagram's story background, short of a community-established pattern — copy the
+  // PNG onto the system clipboard, then open Instagram's private `instagram-stories://` URL scheme,
+  // which (undocumented, but relied on by plenty of other web apps) picks up the most recent
+  // clipboard image as the story background if Stories opens within a few seconds of the copy. Only
+  // iOS resolves that scheme the way this pattern expects, so the direct hand-off is only ATTEMPTED
+  // there. Everywhere else — Android, desktop, or if the hand-off doesn't visibly happen within
+  // ~1.4s — this falls straight back to share() above, which already surfaces Instagram (including
+  // "Your Story") as a normal share-sheet target on Android. No Meta/Facebook developer app is
+  // registered anywhere in this codebase, so `source_application` is omitted; Instagram opens Stories
+  // with no "back to GT3PB" attribution chip — that chip can be added later if Ryan registers one.
+  const isIOS = () => {
+    if (typeof navigator === "undefined") return false;
+    const ua = navigator.userAgent || "";
+    return /iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  };
+  const shareToInstagramStory = async () => {
+    const cv = canvasRef.current; if (!cv) return;
+    haptic(HAPTIC.success);
+    const blob: Blob | null = await new Promise((res) => cv.toBlob((b) => res(b), "image/png"));
+    if (!blob) { toast("Couldn't make the image — try again", "error"); return; }
+
+    const canTryDirect = isIOS() && typeof window !== "undefined" && "ClipboardItem" in window && Boolean(navigator.clipboard?.write);
+    if (canTryDirect) {
+      try {
+        await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+        let handedOff = false;
+        const onHide = () => { handedOff = true; };
+        document.addEventListener("visibilitychange", onHide, { once: true });
+        window.location.href = "instagram-stories://share";
+        await new Promise((r) => setTimeout(r, 1400));
+        document.removeEventListener("visibilitychange", onHide);
+        if (handedOff || document.hidden) return; // Instagram took over — the copied image is its background now
+      } catch { /* clipboard blocked (permissions / non-secure context) — fall through to the normal sheet */ }
+    }
+    await share();
+  };
+
   if (!open) return null;
   return (
     <Sheet open onClose={onClose} label="Member card & status" className="status-lux"
       header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Your member card &amp; status</b><button type="button" className="qd-x" onClick={onClose} aria-label="Close" style={{ marginLeft: "auto" }}><Icon name="close" /></button></div>}
-      footer={<button type="button" className="status-share" onClick={share} disabled={!ready}>Share your status <Icon name="externalLink" /></button>}>
+      footer={<div className="status-acts">
+        <button type="button" className="status-ig" onClick={shareToInstagramStory} disabled={!ready}><Icon name="instagram" /> Share to Instagram Story</button>
+        <button type="button" className="status-share" onClick={share} disabled={!ready}>Share your status <Icon name="externalLink" /></button>
+      </div>}>
 
       {/* Member card group is just this one key — 100% inline coverage — so the Edit pill that used
           to sit in this header (jump to Settings → Front-end copy → Member card) came off, 2026-07-17,
