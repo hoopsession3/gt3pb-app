@@ -15,12 +15,18 @@ import Icon from "@/components/Icon";
 // shared (context) so the nav (rendered in the shell) and the page content stay
 // in sync; persisted so you return to the same section.
 
-export type OpSection = "day" | "now" | "ask" | "command" | "prep" | "plan" | "pipeline" | "studio" | "brew" | "garage" | "goals" | "driver" | "stops" | "notes" | "money" | "customers" | "team" | "settings";
+// 2026-07-29 design-merge: "goals" and "stops" are no longer sections. Goals renders ON Command
+// (both answer "are we steering right?" for the same leadership roles), and Route is now a tab of
+// Plan (events and stops are the same kind of planned thing — the customer side already unified
+// them as field_ops; going LIVE at a location stays in Live Ops, which always had its own
+// LiveControl). Stale ?s=/localStorage values for the removed keys fail VALID below and fall back
+// gracefully; migration 0253 cleans the work_streams lane arrays to match.
+export type OpSection = "day" | "now" | "ask" | "command" | "prep" | "plan" | "pipeline" | "studio" | "brew" | "garage" | "driver" | "notes" | "money" | "customers" | "team" | "settings";
 
 const Ctx = createContext<{ section: OpSection; setSection: (s: OpSection) => void; back: () => boolean; canGoBack: boolean; groupId: string | null; setGroupId: (g: string | null) => void }>({ section: "day", setSection: () => {}, back: () => false, canGoBack: false, groupId: null, setGroupId: () => {} });
 export const useOperatorSection = () => useContext(Ctx);
 
-const VALID = new Set<OpSection>(["day", "now", "command", "prep", "plan", "pipeline", "studio", "brew", "garage", "goals", "driver", "stops", "notes", "money", "customers", "team", "settings"]);
+const VALID = new Set<OpSection>(["day", "now", "command", "prep", "plan", "pipeline", "studio", "brew", "garage", "driver", "notes", "money", "customers", "team", "settings"]);
 
 export function OperatorSectionProvider({ children }: { children: React.ReactNode }) {
   const [section, setSectionState] = useState<OpSection>("day");
@@ -92,9 +98,9 @@ const ROLE_SECTIONS: Record<string, OpSection[]> = {
   server: ["day", "now", "notes", "driver"],
   contractor: ["day", "now", "prep", "garage", "notes", "driver"],
   operator: ["day", "now", "prep", "brew", "garage", "pipeline", "notes", "driver"],
-  event_manager: ["day", "now", "command", "prep", "plan", "pipeline", "studio", "brew", "goals", "notes", "stops", "driver"],
-  admin: ["day", "now", "command", "prep", "plan", "pipeline", "studio", "brew", "garage", "goals", "notes", "stops", "driver", "money", "customers", "team", "settings"],
-  owner: ["day", "now", "command", "prep", "plan", "pipeline", "studio", "brew", "garage", "goals", "notes", "stops", "driver", "money", "customers", "team", "settings"],
+  event_manager: ["day", "now", "command", "prep", "plan", "pipeline", "studio", "brew", "notes", "driver"],
+  admin: ["day", "now", "command", "prep", "plan", "pipeline", "studio", "brew", "garage", "notes", "driver", "money", "customers", "team", "settings"],
+  owner: ["day", "now", "command", "prep", "plan", "pipeline", "studio", "brew", "garage", "notes", "driver", "money", "customers", "team", "settings"],
 };
 export const sectionsForRole = (role: string): OpSection[] => ROLE_SECTIONS[role] ?? ["now"];
 
@@ -163,17 +169,15 @@ const ICONS: Record<OpSection, React.ReactNode> = {
   plan: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></>,
   brew: <><path d="M12 3c3 3.8 5.5 6.7 5.5 10a5.5 5.5 0 0 1-11 0C6.5 9.7 9 6.8 12 3z" /><path d="M9.5 13.5a2.5 2.5 0 0 0 2.5 2.5" /></>,
   garage: <><path d="M3 10l9-6 9 6" /><path d="M5 9.5V20h14V9.5" /><rect x="8.5" y="13" width="7" height="7" /></>,
-  goals: <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1.4" /></>,
   driver: <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="2.4" /><path d="M12 3v6.6M4.2 16.5l6-3M19.8 16.5l-6-3" /></>,
   pipeline: <><path d="M4 5h16l-5.5 7v6l-5 2v-8z" /></>,
-  stops: <><path d="M12 21s-6.5-5.4-6.5-10a6.5 6.5 0 0 1 13 0c0 4.6-6.5 10-6.5 10z" /><circle cx="12" cy="10.6" r="2.3" /></>,
   notes: <><rect x="5" y="3.5" width="14" height="17" rx="2" /><path d="M9 8h6M9 12h6M9 16h4" /></>,
   money: <><circle cx="12" cy="12" r="9" /><path d="M12 7v10M9.5 9.5c0-1 1-1.6 2.5-1.6s2.5.6 2.5 1.6-1 1.5-2.5 1.5-2.5.5-2.5 1.5 1 1.6 2.5 1.6 2.5-.6 2.5-1.6" /></>,
   customers: <><rect x="3" y="5" width="18" height="15" rx="2" /><circle cx="9" cy="11" r="2.2" /><path d="M5.8 17c.5-1.7 1.7-2.6 3.2-2.6s2.7.9 3.2 2.6M15 9.5h4M15 13h4" /></>,
   team: <><circle cx="9" cy="8" r="3" /><path d="M3 20c0-3 3-5 6-5s6 2 6 5" /><path d="M16 5.2a3 3 0 0 1 0 5.6M21 20c0-2.4-1.8-4-4-4.6" /></>,
   settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 13.5a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></>,
 };
-const LABELS: Record<OpSection, string> = { day: "My Day", now: "Live Ops", ask: "Ask", command: "Command", prep: "Readiness", plan: "Plan", pipeline: "Pipeline", studio: "Studio", brew: "Brew", garage: "Assets", goals: "Goals", driver: "Delivery", stops: "Route", notes: "Notes", money: "Money", customers: "Customers", team: "Team", settings: "Settings" };
+const LABELS: Record<OpSection, string> = { day: "My Day", now: "Live Ops", ask: "Ask", command: "Command", prep: "Readiness", plan: "Plan", pipeline: "Pipeline", studio: "Studio", brew: "Brew", garage: "Assets", driver: "Delivery", notes: "Notes", money: "Money", customers: "Customers", team: "Team", settings: "Settings" };
 export const SECTION_LABEL = LABELS;
 
 

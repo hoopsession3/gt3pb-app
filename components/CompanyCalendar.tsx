@@ -215,8 +215,10 @@ export default function CompanyCalendar() {
     for (const s of stops) if (s.starts_at && pass("stop")) push(key(new Date(s.starts_at)), { id: s.id, title: s.name, cat: "stop", kind: "stop", go: () => openStopPrep(s.id) });
     for (const c of content) if (c.scheduled_for && pass("content")) push(key(new Date(c.scheduled_for)), { id: c.id, title: c.title || "Content", cat: "content", kind: "content", go: () => setSection("studio") });
     for (const t of todos) if (t.due_on && pass(t.category)) push(t.due_on, { id: t.id, title: t.title, cat: CAT[t.category] ? t.category : "ops", kind: "todo", done: t.done, go: () => { if (t.event_id) openEventPrep(t.event_id); else if (t.meeting_note_id) setSection("plan"); }, toggle: () => toggleTodo(t) });
-    for (const t of prepTasks) if (t.due_at && pass("task")) push(key(new Date(t.due_at)), { id: t.id, title: t.label, cat: "task", kind: "task", go: () => { if (t.event_id) openEventPrep(t.event_id); else if (t.stop_id) openStopPrep(t.stop_id); else if (t.meeting_note_id) setSection("notes"); else if (t.goal_id) setSection("goals"); } });
-    for (const g of goals) if (g.due_date && pass("goal")) push(g.due_date, { id: g.id, title: g.title, cat: "goal", kind: "goal", meta: g.status === "hit" ? "Hit" : g.horizon, go: () => setSection("goals") });
+    // Goals render ON Command since the 2026-07-29 merge — jump there and land on the #goals block.
+    const goGoals = () => { setSection("command"); setTimeout(() => document.getElementById("goals")?.scrollIntoView({ behavior: "smooth", block: "start" }), 120); };
+    for (const t of prepTasks) if (t.due_at && pass("task")) push(key(new Date(t.due_at)), { id: t.id, title: t.label, cat: "task", kind: "task", go: () => { if (t.event_id) openEventPrep(t.event_id); else if (t.stop_id) openStopPrep(t.stop_id); else if (t.meeting_note_id) setSection("notes"); else if (t.goal_id) goGoals(); } });
+    for (const g of goals) if (g.due_date && pass("goal")) push(g.due_date, { id: g.id, title: g.title, cat: "goal", kind: "goal", meta: g.status === "hit" ? "Hit" : g.horizon, go: goGoals });
     if (pass("brew")) for (const b of brews) if (b.brew_date) push(b.brew_date, { id: b.id, title: `Brew · ${b.recipe_name || "Batch"} ${Number(b.batch_gal ?? 1)} gal`, cat: "brew", kind: "brew", warn: brewStartOverdue(b), go: openBrew });
     if (pass("drop")) {
       const agg: Record<string, number> = {};
