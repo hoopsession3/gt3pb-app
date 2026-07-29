@@ -5561,10 +5561,16 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 .crm-badge.founding{background:linear-gradient(135deg,rgba(200,166,97,.24),rgba(184,144,47,.14));color:var(--gold2);border:1px solid var(--gold2);box-shadow:0 0 14px -4px rgba(200,166,97,.6)}
 .crm-tier{display:flex;align-items:center;gap:12px;margin-top:12px}
 .crm-tier-l{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--cream-m);flex:0 0 auto}
-.crm-tier-seg{display:flex;gap:6px}
+.crm-tier-seg{display:flex;gap:6px;flex-wrap:wrap}
 .crm-tier-b{font-family:'Inter';font-weight:650;font-size:12.5px;padding:8px 14px;border-radius:999px;border:1px solid var(--line2);background:transparent;color:var(--cream-m);cursor:pointer;-webkit-appearance:none;appearance:none;min-height:38px}
 .crm-tier-b.on{border-color:var(--gold2);color:var(--gold2);background:rgba(200,166,97,.1)}
 .crm-tier-b.gold.on{background:linear-gradient(135deg,rgba(200,166,97,.2),rgba(184,144,47,.1));box-shadow:0 0 18px -4px rgba(200,166,97,.6)}
+/* Founding VIP (0252) — same outlined-gold-chip treatment as .vipq-yes.vip (0251) and .status-ig
+   (member card's Instagram button): a secondary/adjacent gold action next to the solid-gold
+   ".gold.on" primary, not a second competing solid fill. Every color here is a var(), so — same
+   reasoning already noted on .vipq-yes.vip — it needs no separate .app.crew-day override; the vars
+   themselves already resolve to the light-theme palette in that scope. */
+.crm-tier-b.vip.on{border-color:var(--gold);color:var(--gold);background:rgba(184,144,47,.14)}
 .app.crew-day .crm-tier-b{background:var(--card)}
 .app.crew-day .crm-tier-b.on{color:var(--gold2)}
 .crm-perks{list-style:none;margin:10px 0 0;padding:11px 13px;border:1px solid rgba(200,166,97,.3);border-radius:12px;background:rgba(200,166,97,.06)}

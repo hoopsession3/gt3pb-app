@@ -38,7 +38,12 @@ const CH_LABEL: Record<CrmOrder["channel"], string> = { cup: "Cup", pickup: "Pic
 
 type Loyalty = { points: number | null; credit_cents: number | null; founding_member: boolean | null } | null;
 type Perk = { label: string; requires_vip: boolean };
-type Detail = { orders: CrmOrder[]; loyalty: Loyalty; perks: Perk[] };
+type Detail = { orders: CrmOrder[]; loyalty: Loyalty; perks: Perk[]; hasProof: boolean };
+// The three states staff actually pick between (0252). VIP stays exactly what 0249/0250 built — a
+// bonus layer that only ever sits on top of Founding, never its own rung — this is just a derived
+// view over the two real columns (tier, vip_verified) so the radiogroup below can render one
+// mutually-exclusive choice instead of a tier toggle plus a disconnected VIP note.
+type UiTier = "member" | "founding" | "founding_vip";
 
 function CrmDetail({ c }: { c: Customer }) {
   const { toast } = useApp();
@@ -48,15 +53,17 @@ function CrmDetail({ c }: { c: Customer }) {
   const [hasLoyalty, setHasLoyalty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [tier, setTier] = useState<string>(c.tier ?? (c.user_id ? "member" : "guest"));
+  const [vip, setVip] = useState<boolean>(Boolean(c.vip_verified));
+  const uiTier: UiTier = tier === "founding" ? (vip ? "founding_vip" : "founding") : "member";
 
   const loader = useCallback(async (): Promise<Detail> => {
-    if (!supabase) return { orders: [], loyalty: null, perks: [] };
+    if (!supabase) return { orders: [], loyalty: null, perks: [], hasProof: false };
     // Founding VIP (0250): a bottle-verified customer sees every plain-Founding perk PLUS the
     // requires_vip ones; everyone else only sees the non-VIP set. Filtered here, not client-side,
     // so this card can never show a perk staff would need to explain "well, actually you don't get."
     let perkQuery = supabase.from("member_benefits").select("label, requires_vip").eq("active", true).eq("scope", "tier").eq("tier", "founding");
     if (!c.vip_verified) perkQuery = perkQuery.eq("requires_vip", false);
-    const [ords, prof, perkRes] = await Promise.all([
+    const [ords, prof, perkRes, proofRes] = await Promise.all([
       supabase.from("all_orders")
         .select("id, channel, total_cents, payment_status, fulfillment_status, created_at")
         .eq("customer_id", c.id).order("created_at", { ascending: false }).limit(200),
@@ -64,19 +71,26 @@ function CrmDetail({ c }: { c: Customer }) {
         ? supabase.from("profiles").select("points, credit_cents, founding_member").eq("id", c.user_id).maybeSingle()
         : Promise.resolve({ data: null, error: null }),
       perkQuery,
+      // Staff can now mark VIP by hand too (0252), so vip_verified alone no longer means "genuinely
+      // bottle-proved" — check whether an actual verified proof row backs it, so the note below can
+      // still tell the two apart instead of quietly losing that distinction 0249 was built to show.
+      supabase.from("vip_verifications").select("id").eq("customer_id", c.id).eq("status", "verified").limit(1),
     ]);
     if (ords.error) throw new Error(ords.error.message);
     if (prof.error) throw new Error(prof.error.message);
     if (perkRes.error) throw new Error(perkRes.error.message);
+    if (proofRes.error) throw new Error(proofRes.error.message);
     return {
       orders: (ords.data as CrmOrder[]) ?? [],
       loyalty: prof.data as Loyalty,
       perks: (perkRes.data as Perk[] | null) ?? [],
+      hasProof: ((proofRes.data as { id: string }[] | null)?.length ?? 0) > 0,
     };
   }, [c.id, c.user_id, c.vip_verified]);
   const board = useAsyncData(loader, [c.id, c.user_id]);
   const orders = board.data?.orders ?? [];
   const perks = board.data?.perks ?? [];
+  const hasProof = board.data?.hasProof ?? false;
 
   // Seed the editable loyalty fields once the detail loads (each customer row mounts a fresh
   // CrmDetail instance, so there's no "in-flight edit" to protect across a reload here).
@@ -104,13 +118,27 @@ function CrmDetail({ c }: { c: Customer }) {
     toast("Loyalty updated");
   };
 
-  const setCustomerTier = async (t: string) => {
+  // One entry point for all three states (0252) — picking a target button may need to change tier,
+  // vip, or both. E.g. clicking "Founding VIP" from "Member" sets tier='founding' AND vip=true in
+  // one action (mirrors VipQueue's existing "Verify → Founding VIP" convenience); clicking plain
+  // "Founding" while currently Founding VIP clears vip — a direct, visible click on a specific
+  // button, not an incidental side effect, so it doesn't run into 0249's "shouldn't quietly vanish"
+  // concern (that was about automatic/hidden clearing, not a deliberate 3-way pick).
+  const setUiTier = async (target: UiTier) => {
     if (!supabase || !c.user_id) return;
-    setTier(t);
-    const { error } = await supabase.rpc("admin_set_customer_tier", { p_user: c.user_id, p_tier: t });
-    if (error) { toast(`Couldn't set tier — ${error.message}`, "error"); return; }
-    setFounding(t === "founding");
-    toast(t === "founding" ? "★ Founding member — perks are live" : `Set to ${t}`);
+    const targetTier = target === "member" ? "member" : "founding";
+    const targetVip = target === "founding_vip";
+    const tierChanged = targetTier !== tier, vipChanged = targetVip !== vip;
+    setTier(targetTier); setVip(targetVip); setFounding(targetTier === "founding");
+    if (tierChanged) {
+      const { error } = await supabase.rpc("admin_set_customer_tier", { p_user: c.user_id, p_tier: targetTier });
+      if (error) { toast(`Couldn't set tier — ${error.message}`, "error"); return; }
+    }
+    if (vipChanged) {
+      const { error } = await supabase.rpc("admin_set_customer_vip", { p_user: c.user_id, p_vip: targetVip });
+      if (error) { toast(`Couldn't set VIP — ${error.message}`, "error"); return; }
+    }
+    toast(target === "founding_vip" ? "★ Founding VIP — perks are live" : target === "founding" ? "★ Founding member — perks are live" : `Set to ${targetTier}`);
   };
 
   const lifetime = orders.filter((o) => o.payment_status === "paid").reduce((s, o) => s + (o.total_cents ?? 0), 0);
@@ -141,17 +169,30 @@ function CrmDetail({ c }: { c: Customer }) {
             <>
               <div className="crm-tier">
                 <span className="crm-tier-l">Tier</span>
-                <div className="crm-tier-seg" role="radiogroup" aria-label="Member tier">
-                  {(["member", "founding"] as const).map((t) => (
-                    <button key={t} type="button" role="radio" aria-checked={tier === t} className={`crm-tier-b${tier === t ? " on" : ""}${t === "founding" ? " gold" : ""}`} onClick={() => setCustomerTier(t)}>{t === "founding" ? <><Icon name="star" /> Founding</> : "Member"}</button>
+                {/* Three mutually-exclusive states (0252), not a tier toggle plus a separate VIP
+                    note — Member / Founding / Founding VIP. VIP still only ever exists on top of
+                    Founding (0249/0250's design, kept as-is per Ryan); this just gives staff a
+                    direct button for it instead of requiring an actual bottle-photo verification. */}
+                <div className="crm-tier-seg" role="radiogroup" aria-label="Member tier and VIP status">
+                  {(["member", "founding", "founding_vip"] as const).map((t) => (
+                    <button key={t} type="button" role="radio" aria-checked={uiTier === t}
+                      className={`crm-tier-b${uiTier === t ? " on" : ""}${t === "founding" ? " gold" : ""}${t === "founding_vip" ? " vip" : ""}`}
+                      onClick={() => setUiTier(t)}>
+                      {t === "founding_vip" ? <><Icon name="star" /> Founding VIP</> : t === "founding" ? <><Icon name="star" /> Founding</> : "Member"}
+                    </button>
                   ))}
                 </div>
               </div>
-              {/* vip_verified (0249) is independent of tier on purpose — set only by an actual bottle-proof
-                  verification (VipQueue), never by this tier toggle. Shown regardless of current tier so the
-                  fact they once verified never quietly disappears if someone later clicks them back to Member. */}
-              {c.vip_verified && (
-                <div className="crm-note" style={{ marginTop: 6 }}><Icon name="check" /> Verified bottle owner — a real Founding VIP, not just a tier grant.</div>
+              {/* Whether this VIP came from an actual bottle-photo verification (VipQueue) or a
+                  direct staff grant (0252) is worth keeping visible, not just the flag itself — that
+                  was the whole point 0249 built vip_verified for. hasProof checks for a real verified
+                  vip_verifications row separately from the flag, so a manual grant can't quietly read
+                  as "genuinely proved" and a real proof never stops being shown as one, even if
+                  staff later flip the flag off and back on by hand. */}
+              {vip && (
+                <div className="crm-note" style={{ marginTop: 6 }}>
+                  <Icon name="check" /> {hasProof ? "Verified bottle owner — a real Founding VIP." : "Marked VIP by staff — no photo verification on file."}
+                </div>
               )}
               {tier === "founding" && perks.length > 0 && (
                 <ul className="crm-perks">{perks.map((pk, i) => <li key={i}><Icon name={pk.requires_vip ? "star" : "check"} /> {pk.label}</li>)}</ul>
