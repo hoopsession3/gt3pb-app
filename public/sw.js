@@ -1,8 +1,12 @@
 /* GT3PB service worker — offline shell + asset cache (runbook Phase 6).
    Native Web Push (VAPID) handlers below; opt-in happens after a couple visits.
    Bump CACHE on any shell/icon change so installed clients refresh cleanly. */
-const CACHE = "gt3pb-v24"; // v24: never cache non-ok responses (a cached 404 CSS = unstyled app forever)
-const SHELL = ["/", "/truck", "/menu", "/events", "/3mpire", "/book", "/manifest.webmanifest"];
+// v25 (2026-07-29, field round): +/crew +/driver in the shell — the two screens the crew actually
+// stands in a field with. With the console now code-split, each section's chunk is runtime-cached
+// (cache-first below) the first time it's opened, so the sections you use daily become available
+// offline BY use; never-opened sections need one online visit first.
+const CACHE = "gt3pb-v25";
+const SHELL = ["/", "/truck", "/menu", "/events", "/3mpire", "/book", "/crew", "/driver", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
   // Don't auto-activate: a new build waits until the user taps "Update" (SKIP_WAITING),
@@ -45,7 +49,9 @@ self.addEventListener("fetch", (event) => {
           }
           return res;
         })
-        .catch(() => caches.match(request).then((r) => r || caches.match("/")))
+        // ignoreSearch: the crew console navigates as /crew?s=prep — the query must not miss the
+        // cached /crew shell, or offline opens the dino page while the shell sits in cache.
+        .catch(() => caches.match(request, { ignoreSearch: true }).then((r) => r || caches.match("/")))
     );
     return;
   }
@@ -83,11 +89,14 @@ self.addEventListener("push", (event) => {
       icon: data.icon || "/icon-192.png",
       badge: "/icon-192.png",
       tag: "gt3pb",
+      data: { url: data.url || "/" },
     });
   })());
 });
 
+// Deep-link: a push that carries a url (e.g. an order alert pointing at the pass) opens THERE,
+// not the home page (v25 — was hardcoded "/").
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  event.waitUntil(self.clients.openWindow("/"));
+  event.waitUntil(self.clients.openWindow(event.notification.data?.url || "/"));
 });
