@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { useApp } from "@/components/AppProvider";
 import { SectionHeader, InfoRow } from "@/components/kit";
 import FieldOpSheet from "@/components/FieldOpSheet";
@@ -1878,8 +1878,10 @@ function InspectionPrep() {
   );
 }
 
-function EventPrep({ onGo }: { onGo: (t: string) => void }) {
-  const [selected, setSelected] = useState<PrepTarget | null>(null);
+function EventPrep({ onGo, sel, setSel }: { onGo: (t: string) => void; sel: PrepTarget | null; setSel: Dispatch<SetStateAction<PrepTarget | null>> }) {
+  // Selection lives in the PARENT (2026-07-30): the KPI strip above this list re-scopes to the
+  // drilled-in target, so the two components share one selection instead of this one hoarding it.
+  const selected = sel, setSelected = setSel;
   const [dir, setDir] = useState<"asc" | "desc">("asc");
   const [sheet, setSheet] = useState(false);
 
@@ -5644,6 +5646,10 @@ export default function AdminPage() {
     return () => window.removeEventListener("gt3-open-inbox", open);
   }, []);
   useEffect(() => { setInboxOpen(false); }, [sec]);
+  // Prep drill-in, lifted (2026-07-30): EventPrep drives it, PrepKpis re-scopes its tiles to it —
+  // one selection, two readers. Living here (not inside EventPrep) also means stepping out to
+  // another section and back no longer loses your place mid-prep.
+  const [prepSel, setPrepSel] = useState<PrepTarget | null>(null);
   // Service mode — full-screen KDS (pass + pickups). Esc exits; leaving Now exits.
   const [svc, setSvc] = useState(false);
   useEffect(() => {
@@ -5835,19 +5841,23 @@ export default function AdminPage() {
 
       {sec === "prep" && canPrep && (
         <>
-          {/* Money template: glance-first KPIs → crew-group dividers → the modules. */}
-          <PrepKpis />
-          <div className="crew-group">All open prep · one board</div>
-          <Panel id="prep-board" title="Work every open task — critical first" defaultOpen><PrepBoard /></Panel>
+          {/* Money template: glance-first KPIs → crew-group dividers → the modules. The strip
+              re-scopes itself to whichever event/stop is drilled into below (Ryan, 2026-07-30:
+              "when a event or truck stop is clicked into the above dashboard should [be]
+              dynamic"), and the global all-prep board bows out while a single target has the
+              floor — its numbers would contradict the scoped tiles right above it. */}
+          <PrepKpis target={prepSel} />
+          {!prepSel && <div className="crew-group">All open prep · one board</div>}
+          {!prepSel && <Panel id="prep-board" title="Work every open task — critical first" defaultOpen><PrepBoard /></Panel>}
           {/* 2026-07-30 (Ryan's screenshot): this screen used to stack the stock-check agent +
               Inspection prep ABOVE the actual work, and an "At a glance" block (Overview)
               summarized the exact target cards rendered right below it. The glance is deleted
               (the cards ARE the glance; live status is Live Ops' job), the stock-check moved home
               to Assets beside the inventory it reads, and Inspection prep — real prep, but
               occasional-use by its own copy — parks at the bottom, collapsed, instead of first. */}
-          <div className="crew-group">Event prep · by stop</div>
-          <EventPrep onGo={goSection} />
-          {canManage && <InspectionPrep />}
+          {!prepSel && <div className="crew-group">Event prep · by stop</div>}
+          <EventPrep onGo={goSection} sel={prepSel} setSel={setPrepSel} />
+          {!prepSel && canManage && <InspectionPrep />}
         </>
       )}
 

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useRealtimeTable } from "@/lib/realtime";
 import { useOperatorSection, type OpSection } from "@/components/OperatorNav";
 
 // Shared KPI strip — the cohesion audit's "generalize MoneyKpis into one KpiRow" recommendation. One
@@ -99,5 +100,37 @@ const GARAGE_TILES: KpiTile[] = [
 ];
 
 export const TeamKpis = () => <KpiStrip tiles={TEAM_TILES} label="Team at a glance" />;
-export const PrepKpis = () => <KpiStrip tiles={PREP_TILES} label="Readiness at a glance" />;
 export const GarageKpis = () => <KpiStrip tiles={GARAGE_TILES} label="Assets at a glance" />;
+
+// ── Prep, aware of the drill-in ── (2026-07-30, Ryan's screenshot of Readiness › WineXpress with
+// the strip still reading the global 21/13/6: "When a event or truck stop is clicked into the
+// above dashboard should [be] dynamic.") With no target this is the same global strip as ever;
+// hand it the selected event/stop and Open/Critical narrow to that target's own tasks, while
+// "Events on the books" — meaningless inside one event — gives its slot to "Days to go". Scoped
+// tiles don't navigate: their answer (the task list) is the very screen you're standing on.
+// One realtime ear on event_tasks keeps both flavors honest as tasks get checked off — the bump
+// mints a fresh tiles identity, and KpiStrip's [tiles] effect refetches.
+export function PrepKpis({ target }: { target?: { kind: "event" | "stop"; id: string } | null }) {
+  const [bump, setBump] = useState(0);
+  useRealtimeTable("event_tasks", () => setBump((b) => b + 1));
+  const tiles = useMemo<KpiTile[]>(() => {
+    void bump; // dependency only — each change re-mints the array so the strip re-queries
+    if (!target) return [...PREP_TILES];
+    const col = target.kind === "event" ? "event_id" : "stop_id";
+    return [
+      { key: "open", label: `Open tasks · this ${target.kind === "event" ? "event" : "stop"}`, load: (db) => head(db, "event_tasks").eq("done", false).eq(col, target.id) },
+      { key: "crit", label: "Critical open", load: (db) => head(db, "event_tasks").eq("done", false).eq("critical", true).eq(col, target.id) },
+      {
+        key: "days", label: "Days to go", load: async (db) => {
+          const iso = target.kind === "event"
+            ? ((await db.from("events").select("day").eq("id", target.id).maybeSingle()).data as { day: string | null } | null)?.day
+            : (((await db.from("stops").select("starts_at").eq("id", target.id).maybeSingle()).data as { starts_at: string | null } | null)?.starts_at ?? null)?.slice(0, 10);
+          if (!iso) return { count: null };
+          const today = new Date(); today.setHours(0, 0, 0, 0);
+          return { count: Math.max(0, Math.round((new Date(`${iso}T00:00:00`).getTime() - today.getTime()) / 86400000)) };
+        },
+      },
+    ];
+  }, [target, bump]);
+  return <KpiStrip tiles={tiles} label={target ? "This target's readiness" : "Readiness at a glance"} />;
+}
