@@ -59,7 +59,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     const vv = typeof window !== "undefined" ? window.visualViewport : null;
     if (!vv) return;
     const root = document.documentElement;
-    const update = () => root.style.setProperty("--kb", `${Math.max(0, window.innerHeight - vv.height - vv.offsetTop)}px`);
+    const update = () => {
+      const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      root.style.setProperty("--kb", `${kb}px`);
+      // Keyboard up on iOS: Safari pans the page so its input-accessory bar lands exactly where
+      // the bottom nav sits — tabs + float rail ghosting through the OS chrome (Ryan's 2026-07-30
+      // booking-form screenshots: "overlapping CSS"). Hide both while typing; neither is tappable
+      // under the keyboard anyway. CSS uses visibility so the flex layout doesn't reflow mid-pan.
+      root.classList.toggle("kb-open", kb > 60);
+    };
     update();
     vv.addEventListener("resize", update);
     vv.addEventListener("scroll", update);
