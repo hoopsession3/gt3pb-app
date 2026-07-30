@@ -4155,6 +4155,12 @@ body:has(.conc-sheet) .rail{display:flex}
 .ownerdet-stage.st-prep,.ownerdet-stage.st-confirmed{color:var(--gold2,#B8902F);border-color:rgba(184,144,47,.4)}
 .ownerdet-complete{font-size:12.5px;font-weight:600;color:#cfe6c0;background:rgba(127,168,107,.12);border:1px solid rgba(127,168,107,.4);border-radius:10px;padding:7px 13px;cursor:pointer;font-family:'Inter',sans-serif}
 .ownerdet-completed{font-size:12.5px;font-weight:600;color:#7FA86B}
+/* Day-theme legibility (2026-07-30, Ryan's Readiness screenshot: "Complete stop" rendered as a
+   ghost). The greens above are picked for the dark theme — pale mint text on a 12% mint wash
+   disappears on cream. Same-shape overrides in the established on-light green. */
+.app.crew-day .ownerdet-life .ownerdet-complete{color:var(--green-onLight);background:rgba(107,148,87,.13);border-color:rgba(90,130,70,.45)}
+.app.crew-day .ownerdet-stage.st-live{color:var(--green-onLight);background:rgba(107,148,87,.15);border-color:rgba(90,130,70,.5)}
+.app.crew-day .ownerdet-completed{color:var(--green-onLight)}
 .ownerdet-wrap{margin:8px 0;padding:12px;border:1px solid var(--hair,rgba(245,241,232,.16));border-radius:12px}
 .ownerdet-wrap-lbl{font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:600;color:var(--muted);margin-bottom:7px}
 .ownerdet-wrap-lbl span{text-transform:none;letter-spacing:0;font-weight:400;opacity:.7}
@@ -4528,6 +4534,14 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 /* Money → Checkout & payments */
 /* Money dashboard — KPI header + grouped module labels (the flat-list fix) */
 .mkpi{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:2px 0 8px}
+/* 2026-07-30 (Ryan: "maybe the UI just needed adjusting?") — a 3-tile strip used to render 2+1
+   with a dead hole beside the third tile on phones (his Readiness screenshot). The odd last tile
+   now takes the full row; on wider screens 3- and 4-tile strips sit as one even row instead. */
+.mkpi>.mkpi-tile:last-child:nth-child(odd){grid-column:1/-1}
+@media (min-width:560px){
+  .mkpi{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+  .mkpi>.mkpi-tile:last-child:nth-child(odd){grid-column:auto}
+}
 .mkpi-tile{background:var(--card);border:1px solid var(--line2);border-radius:16px;padding:15px 14px}
 .mkpi-v{font-family:'Inter';font-weight:800;font-size:25px;letter-spacing:-.02em;line-height:1;color:var(--gold2,#C8A661)}
 .mkpi-k{font-family:'Inter';font-weight:600;font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--cream-m);margin-top:6px}
@@ -5994,7 +6008,7 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .btn-ter{display:inline-flex;align-items:center;gap:6px;background:none;border:none;padding:2px 0;color:var(--gold2);cursor:pointer;font-family:'Inter';font-weight:600;font-size:14px}
 .btn-ter b,.btn-ter span{color:var(--gold);font-weight:600}
 /* 04 · Section header — label + italic annotation + hairline */
-.k-sec{display:flex;align-items:baseline;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:9px;margin:30px 0 4px}
+.k-sec{display:flex;align-items:baseline;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding-bottom:9px;margin:30px 0 4px}
 .k-sec .l{margin:0;font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.2em;text-transform:uppercase;color:var(--gold)}
 .k-sec .a{font-family:'Fraunces',Georgia,serif;font-style:italic;font-size:13px;color:var(--cream-d)}
 .k-sec-lbl{display:inline-flex;align-items:baseline;gap:8px;min-width:0}
