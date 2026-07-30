@@ -4328,7 +4328,7 @@ function EventHUD({ onGoEvents }: { onGoEvents?: () => void }) {
     const [{ data: ords }, { data: sales }, { data: cat }, { data: ec }] = await Promise.all([
       supabase.from("orders").select("total_cents, paid, created_at").eq("event_id", eid),
       supabase.from("event_sales").select("amount_cents, created_at").eq("event_id", eid),
-      supabase.from("product_economics").select("*").eq("active", true).order("sort"),
+      supabase.from("product_economics_live").select("*").eq("active", true).order("sort"),
       supabase.from("event_economics").select("*").eq("event_id", eid).maybeSingle(),
     ]);
     const o = (ords as { total_cents: number; paid: boolean; created_at: string }[]) ?? [];
@@ -4452,13 +4452,19 @@ function EventEconomics({ e, econRow, catalog, onSave }: {
   );
 }
 
-// Owner-set price + unit cost per menu line (Money tab). Drives exact per-product COGS.
+// Per-category price + unit cost feeding every event ROI projection (Money tab). Since 0256 the
+// numbers are LIVE where they can be: price = avg of the category's active products (Menu &
+// products — the same price checkout charges), cost = avg recipe-derived COGS (the same math as
+// the COGS calculator below, so the two displays can't disagree). The inputs here remain ONLY as
+// the fallback for unmapped/uncosted lines (e.g. `bottles`, a pack format with no drink recipe)
+// — editing a live number happens where it lives: price in Menu & products, cost in the recipes.
+type LiveEcon = ProductEcon & { price_live?: boolean; cost_live?: boolean };
 function ProductCatalog() {
   const { toast } = useApp();
-  const catalogState = useAsyncData<ProductEcon[]>(async () => {
+  const catalogState = useAsyncData<LiveEcon[]>(async () => {
     if (!supabase) throw new Error("Supabase client not configured");
-    const { data } = await supabase.from("product_economics").select("*").order("sort");
-    return (data as ProductEcon[]) ?? [];
+    const { data } = await supabase.from("product_economics_live").select("*").order("sort");
+    return (data as LiveEcon[]) ?? [];
   }, []);
   const save = async (key: string, patch: Partial<ProductEcon>) => {
     const { error } = await supabase!.from("product_economics").update(patch).eq("product_key", key);
@@ -4476,12 +4482,16 @@ function ProductCatalog() {
       {(rows) => (
         <div className="adm-sec">
           <SectionHeader label="Product economics" />
-          <div className="pnl-note" style={{ marginBottom: 10 }}>Representative price &amp; unit cost per line — these set exact COGS for every event&apos;s ROI projection.</div>
+          <div className="pnl-note" style={{ marginBottom: 10 }}>What every event ROI projects on. <b>Live</b> numbers flow in from Menu &amp; products (price) and the drink recipes (cost) — change them there. The inputs are the manual fallback for lines with no mapped drinks.</div>
           {rows.map((r) => (
             <div className="cat-row" key={r.product_key}>
               <div className="cat-name">{r.label}</div>
-              <label className="ev-f">Price $<input type="number" min={0} defaultValue={(r.price_cents / 100) || 0} onBlur={(ev) => toCents(ev.target.value) !== r.price_cents && save(r.product_key, { price_cents: toCents(ev.target.value) })} /></label>
-              <label className="ev-f">Cost $<input type="number" min={0} defaultValue={r.unit_cost_cents != null ? (r.unit_cost_cents / 100) : ""} placeholder="—" onBlur={(ev) => save(r.product_key, { unit_cost_cents: ev.target.value.trim() ? toCents(ev.target.value) : null })} /></label>
+              {r.price_live
+                ? <div className="ev-f cat-live" title="Average of this line's active drinks in Menu & products — edit prices there.">Price ${(r.price_cents / 100).toFixed(2)} <span className="cat-live-tag">live</span></div>
+                : <label className="ev-f">Price $<input type="number" min={0} defaultValue={(r.price_cents / 100) || 0} onBlur={(ev) => toCents(ev.target.value) !== r.price_cents && save(r.product_key, { price_cents: toCents(ev.target.value) })} /></label>}
+              {r.cost_live
+                ? <div className="ev-f cat-live" title="Recipe-derived: ingredients × inventory unit costs, same math as the COGS calculator.">Cost ${((r.unit_cost_cents ?? 0) / 100).toFixed(2)} <span className="cat-live-tag">recipes</span></div>
+                : <label className="ev-f">Cost $<input type="number" min={0} defaultValue={r.unit_cost_cents != null ? (r.unit_cost_cents / 100) : ""} placeholder="—" onBlur={(ev) => save(r.product_key, { unit_cost_cents: ev.target.value.trim() ? toCents(ev.target.value) : null })} /></label>}
               <div className="cat-margin">{r.unit_cost_cents != null && r.price_cents > 0 ? `${pctInt((r.price_cents - r.unit_cost_cents) / r.price_cents)}%` : "—"}</div>
             </div>
           ))}
@@ -4759,7 +4769,7 @@ function EventsAdmin() {
     // (catalog/econ/vendors tables may not exist pre-migration — fail soft).
     const [evs, cat, ec, vs] = await Promise.all([
       supabase.from("events").select("*").order("sort"),
-      supabase.from("product_economics").select("*").eq("active", true).order("sort"),
+      supabase.from("product_economics_live").select("*").eq("active", true).order("sort"),
       supabase.from("event_economics").select("*"),
       supabase.from("vendors").select("*").order("sort"),
     ]);

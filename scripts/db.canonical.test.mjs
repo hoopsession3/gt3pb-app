@@ -383,5 +383,44 @@ ok("resolve_customer cross-collision: no throw (order writes never fail on ident
 ok("resolve_customer cross-collision: kept the phone match, skipped the colliding email",
   resolved === CA && (await q1(`select email from customers where id='${CA}'`)).email === null);
 
+
+// ── 0256: products drive economics (audit P0 — the two-price-table fix) ──
+// Fixtures to prod shape (0028/0044/0062 columns the minimal products fixture lacks), then 0256
+// applied VERBATIM from its file — the harness's own philosophy. A category with mapped drinks
+// gets LIVE numbers (avg menu price, recipe-derived cost); an unmapped one keeps its stored
+// fallback. This is the event-ROI money math — lock it.
+await db.exec(`
+  alter table public.products add column if not exists line text;
+  alter table public.products add column if not exists active boolean not null default true;
+  create table if not exists public.product_economics (
+    product_key text primary key, label text not null, price_cents int not null default 0,
+    unit_cost_cents int, active boolean not null default true, sort int not null default 0,
+    updated_at timestamptz not null default now());
+  create table if not exists public.inventory_items (
+    id uuid primary key default gen_random_uuid(), name text not null, unit_cost numeric);
+  create table if not exists public.product_components (
+    id uuid primary key default gen_random_uuid(),
+    product_id uuid not null references public.products(id) on delete cascade,
+    inventory_item_id uuid not null references public.inventory_items(id) on delete cascade,
+    qty_per_serving numeric, unit text, unique (product_id, inventory_item_id));
+`);
+await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0256_products_drive_economics.sql"), "utf8"));
+await db.exec(`insert into product_economics (product_key, label, price_cents, unit_cost_cents, active, sort)
+  values ('nitro','Nitro',700,250,true,1),('bottles','Bottles',1200,500,true,5)`);
+const INV0256 = (await q1(`insert into inventory_items (name, unit_cost) values ('0256 Beans', 0.50) returning id`)).id;
+const P0256 = (await q1(`insert into products (slug, name, price_cents, active, econ_key) values ('t0256-a','T Nitro A',1000,true,'nitro') returning id`)).id;
+await db.exec(`insert into products (slug, name, price_cents, active, econ_key) values ('t0256-b','T Nitro B',1400,true,'nitro')`);
+await db.exec(`insert into product_components (product_id, inventory_item_id, qty_per_serving, unit) values ('${P0256}','${INV0256}',2,'oz')`);
+const live0256 = await q1(`select price_cents, unit_cost_cents, price_live, cost_live from product_economics_live where product_key='nitro'`);
+ok("0256 live category price = avg of its drinks' menu prices (not the stale stored $7)",
+  live0256.price_cents === 1200 && live0256.price_live === true, live0256);
+ok("0256 live category cost = recipe-derived (2 × $0.50), same math as the COGS calculator",
+  live0256.unit_cost_cents === 100 && live0256.cost_live === true, live0256);
+const fb0256 = await q1(`select price_cents, unit_cost_cents, price_live from product_economics_live where product_key='bottles'`);
+ok("0256 unmapped category falls back to its stored manual price/cost (bottles)",
+  fb0256.price_cents === 1200 && fb0256.unit_cost_cents === 500 && fb0256.price_live === false, fb0256);
+ok("0256 re-applied whole is a no-op (view + seed idempotent)",
+  await (async () => { try { await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0256_products_drive_economics.sql"), "utf8")); return true; } catch { return false; } })());
+
 console.log(`CANONICAL-DB CONTRACT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

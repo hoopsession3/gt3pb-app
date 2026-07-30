@@ -948,6 +948,11 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .cat-name{flex:1;min-width:0;font-family:'Inter';font-weight:650;font-size:13.5px;letter-spacing:-.2px;color:var(--cream);align-self:center}
 .cat-row .ev-f{flex:0 1 64px;min-width:44px}
 .cat-margin{flex:0 0 auto;align-self:center;font-family:var(--mono);font-size:12px;color:var(--gold2);min-width:36px;text-align:right}
+/* 0256 — live (derived) price/cost read-outs replacing the inputs when a category's numbers flow
+   in from Menu & products / recipes. The tag says where the number comes from. */
+.cat-live{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--cream);white-space:nowrap}
+.cat-live-tag{font-size:8.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 6px;border-radius:5px;background:rgba(127,168,107,.14);color:#9fc48b;border:1px solid rgba(127,168,107,.35)}
+.app.crew-day .cat-live-tag{color:var(--green-onLight);background:rgba(107,148,87,.13);border-color:rgba(90,130,70,.4)}
 /* COGS calculator */
 .cogs-tabs{display:flex;gap:6px;margin:4px 0 10px}
 .cogs-tab{flex:1;padding:8px;border-radius:10px;border:1px solid var(--line2);background:transparent;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:12px;cursor:pointer}

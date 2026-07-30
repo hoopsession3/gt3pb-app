@@ -183,7 +183,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   const staff = board.data?.staff ?? [];
   useEffect(() => {
     if (!supabase) return;
-    supabase.from("product_economics").select("price_cents, unit_cost_cents, active").then(({ data }) => {
+    supabase.from("product_economics_live").select("price_cents, unit_cost_cents, active").then(({ data }) => {
       const rows = ((data ?? []) as { price_cents: number; unit_cost_cents: number | null; active: boolean }[])
         .filter((r) => r.active && r.price_cents > 0 && r.unit_cost_cents != null);
       if (!rows.length) return; // admin-only table or nothing costed → the flat give rule stands in
