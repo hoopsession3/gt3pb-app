@@ -1,5 +1,8 @@
 // Supabase Edge Function - sends native Web Push on order / subscription / booking changes.
-// Triggered by Database Webhooks (orders INSERT/UPDATE, subscriptions UPDATE, booking_requests INSERT).
+// Triggered by Database Webhooks (orders INSERT/UPDATE, subscriptions UPDATE, booking_requests
+// INSERT, alerts INSERT, event_tasks UPDATE, profiles INSERT, delivery_orders INSERT,
+// drop_orders INSERT — the last three added 2026-07-30, Ryan: "should get one when users sign
+// up, orders, deliveries, all of it").
 // Secrets: VAPID_PUBLIC, VAPID_PRIVATE. SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY are auto-injected.
 // Deploy: Supabase dashboard -> Edge Functions -> "push" -> paste -> deploy.
 import webpush from "npm:web-push@3.6.7";
@@ -135,9 +138,51 @@ Deno.serve(async (req) => {
           record.phone ? `Phone: ${record.phone}` : null,
           record.notes ? `Notes: ${record.notes}` : null,
           "",
-          "Manage it: https://app.gt3pb.com/crew?s=pipeline",
+          "Manage it: https://app.gt3pb.com/crew?s=plan",
         ].filter((line) => line !== null).join("\n"),
       );
+
+    } else if (table === "profiles" && type === "INSERT") {
+      // New sign-up (2026-07-30). Low-volume, high-signal: inbox alert + email; push rides the
+      // alert fan-out (the alerts INSERT webhook), so no direct targets here. Teams skips fyi.
+      const who = record.display_name?.trim() || "Someone new";
+      const role = record.role && record.role !== "member" ? ` (${record.role})` : "";
+      message = `${who}${role} just joined.`;
+      await insertAlert({ severity: "fyi", category: "system", title: "New member signed up", body: message, link: "/crew?s=customers" });
+      await emailAdmins("New member signed up", [
+        `${who}${role} just created an account.`,
+        "",
+        "Customer book: https://app.gt3pb.com/crew?s=customers",
+      ].join("\n"));
+      return new Response("ok: signup");
+
+    } else if (table === "delivery_orders" && type === "INSERT") {
+      // New delivery order (2026-07-30): low-volume revenue — alert + Teams + email + admin push.
+      title = "New delivery order";
+      message = `${record.pack_size ?? "?"}-bottle delivery for ${record.delivery_date ?? "soon"}`;
+      url = "/admin";
+      targets = await subsFor((q) => q.eq("is_admin", true));
+      await insertAlert({ severity: "important", category: "delivery", title, body: message, link: "/crew?s=driver" });
+      await postTeams("important", title, message);
+      await emailAdmins(`New delivery order — ${record.pack_size ?? "?"}-pack`, [
+        message + ".",
+        "",
+        "Run sheet: https://app.gt3pb.com/crew?s=driver",
+      ].join("\n"));
+
+    } else if (table === "drop_orders" && type === "INSERT") {
+      // New reserve (2026-07-30): same trio as deliveries — these are the bottles brews get sized to.
+      title = "New reserve";
+      message = `${record.size ?? "?"}-pack reserved for ${record.drop_date ?? "the next drop"}${record.paid ? " · paid" : " · pay at pickup"}`;
+      url = "/admin";
+      targets = await subsFor((q) => q.eq("is_admin", true));
+      await insertAlert({ severity: "important", category: "drop", title, body: message, link: "/crew?s=now" });
+      await postTeams("important", title, message);
+      await emailAdmins(`New reserve — ${record.size ?? "?"}-pack for ${record.drop_date ?? "next drop"}`, [
+        message + ".",
+        "",
+        "Drop board: https://app.gt3pb.com/crew?s=now",
+      ].join("\n"));
 
     } else if (table === "event_tasks" && type === "UPDATE" && record.assignee) {
       // Crew assignment → tell the assigned member they're on a task. Only on a real
