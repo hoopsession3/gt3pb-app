@@ -133,7 +133,9 @@ export default function MenuScreen() {
       </div>
 
       <EditableCopy k="menu.integrity" value={t("menu.integrity")} as="div" className="menu-integrity" />
-      <EditableCopy k="menu.mto" value={t("menu.mto")} as="div" className="menu-mto" />
+      {/* menu.mto retired 2026-07-30 (redundancy audit): "Made to order" was the third telling of
+          the same message on this one page — the hero already closes "every cup made the moment
+          you order" and the integrity line above says it again. One message, one home. */}
 
       <ClosingBeat />
     </section>

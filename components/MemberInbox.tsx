@@ -60,18 +60,17 @@ export default function MemberInbox() {
         return { data: r.data ?? [], failed: false };
       } catch (err) { console.error("[MemberInbox] fetch failed:", err); return { data: [] as unknown[], failed: true }; }
     };
-    const [cups, packs, dels] = await Promise.all([
-      safe(() => supabase!.from("orders").select("id, items, status, status_changed_at, created_at").eq("user_id", user.id).in("status", ["new", "preparing", "ready"]).order("created_at", { ascending: false }).limit(5)),
+    // Live cup orders deliberately ABSENT here (2026-07-30 redundancy audit): the OrderStatus
+    // banner — mounted globally on every customer route, with the richer actions (ETA, cancel) —
+    // is live cup status's ONE home. This inbox used to run the identical query and render the
+    // same in-flight order a second time on the same screen, with its own realtime subscription
+    // and poll on the same table. Packs & deliveries stay: they have no other live surface.
+    const [packs, dels] = await Promise.all([
       safe(() => supabase!.from("drop_orders").select("id, size, drop_date, paid, picked_up, canceled_at, status_changed_at, created_at").eq("user_id", user.id).is("canceled_at", null).gte("drop_date", dayFloor).order("drop_date").limit(5)),
       safe(() => supabase!.from("delivery_orders").select("id, pack_size, delivery_date, status, payment_status, canceled_at, status_changed_at, created_at").eq("user_id", user.id).is("canceled_at", null).neq("status", "delivered").order("delivery_date").limit(5)),
     ]);
 
     const out: Item[] = [];
-    for (const o of (cups.data as { id: string; items: string[]; status: string; status_changed_at: string | null; created_at: string }[]) ?? []) {
-      const n = o.items?.length ?? 0;
-      const line = o.status === "ready" ? "Ready — come grab it" : o.status === "preparing" ? "We're making it now" : "Order received";
-      out.push({ key: `cup-${o.id}`, icon: "coffee", title: `${n} drink${n === 1 ? "" : "s"} at the truck`, line, when: REL(o.status_changed_at ?? o.created_at), tone: o.status === "ready" ? "live" : "done", href: "/menu" });
-    }
     for (const p of (packs.data as { id: string; size: number; drop_date: string; paid: boolean; picked_up: boolean; status_changed_at: string | null; created_at: string }[]) ?? []) {
       const line = p.picked_up ? <>Picked up <Icon name="check" /></> : `Pickup ${dayLabel(p.drop_date)}${p.paid ? "" : " · pay at pickup"}`;
       out.push({ key: `pack-${p.id}`, icon: "package", title: `${p.size}-pack`, line, when: REL(p.status_changed_at ?? p.created_at), tone: p.picked_up ? "done" : "live", href: "/reserve" });
@@ -83,13 +82,12 @@ export default function MemberInbox() {
     // Live/soonest first: anything actionable (live/warn) rises above passive "received/done" rows.
     out.sort((a, b) => (a.tone === "live" || a.tone === "warn" ? 0 : 1) - (b.tone === "live" || b.tone === "warn" ? 0 : 1));
     setItems(out);
-    setLoadFailed((cups.failed || packs.failed || dels.failed) && out.length === 0);
+    setLoadFailed((packs.failed || dels.failed) && out.length === 0);
   }, [user]);
 
   useEffect(() => { load(); }, [load]);
   useRealtimeTable({ table: "drop_orders", filter: `user_id=eq.${user?.id}` }, load, { enabled: !!user });
   useRealtimeTable({ table: "delivery_orders", filter: `user_id=eq.${user?.id}` }, load, { enabled: !!user });
-  useRealtimeTable({ table: "orders", filter: `user_id=eq.${user?.id}` }, load, { enabled: !!user });
 
   if (!user) return null;
   if (items.length === 0) {

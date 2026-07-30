@@ -518,7 +518,9 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
       {/* ── SIZE ── */}
       {step === "size" && (
         <div className="dl-step">
-          <h2 className="dl-h">{mode === "delivery" ? "We deliver to you. Pick a Sunday and a size." : stops.length > 1 ? "Order ahead. Pick a day and a size." : `Order ahead for ${dayName(drop.sat).split(",")[0]}. Pick a size.`}</h2>
+          {/* Pickup h2 is instruction-only (2026-07-30 audit): /reserve's page eyebrow already says
+              "Order ahead" — the old h2 opened by repeating it verbatim, two lines apart. */}
+          <h2 className="dl-h">{mode === "delivery" ? "We deliver to you. Pick a Sunday and a size." : stops.length > 1 ? "Pick a day and a size." : `Pick a size for ${dayName(drop.sat).split(",")[0]}.`}</h2>
           {mode === "pickup" && <EditableCopy k="reserve.fresh" value={t("reserve.fresh")} as="p" className="dl-sub" />}
 
           {mode === "pickup" && <p className="dl-pricemode">{bringBack ? "Prices with bring-back empties — need new glass? It\u2019s $10 a bottle, picked at the next step." : "New-glass prices — bring your empties back next drop and pay less."}</p>}

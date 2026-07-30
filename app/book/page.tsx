@@ -42,7 +42,8 @@ export default function BookScreen() {
       setBusy(false);
     }
     setDone(true);
-    toast("Request sent — Kayla will reach out");
+    // No success toast (2026-07-30 audit) — the full-screen "Request received" card below IS the
+    // confirmation; a toast over it said the same thing twice at the same moment. Error toasts stay.
   };
 
   if (done) {
