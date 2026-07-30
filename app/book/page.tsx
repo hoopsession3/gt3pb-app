@@ -88,7 +88,8 @@ export default function BookScreen() {
         <textarea id="b-notes" className="auth-input" value={f.notes} onChange={set("notes")} placeholder="Vibe, timing, must-haves…" rows={3} maxLength={2000} />
         <button className="handle" type="submit" disabled={busy} style={{ marginTop: 18 }}><span>{busy ? "Sending…" : "Send request"}</span></button>
       </form>
-      <p className="auth-fine">Every event is priced personally — we reply within a day with your quote.</p>
+      {/* Pricing footnote removed entirely at Ryan's call (2026-07-30) — the form ends at the
+          button; the success card carries the "we reply within a day" expectation. */}
       <ClosingBeat />
     </section>
   );
