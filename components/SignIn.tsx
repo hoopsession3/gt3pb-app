@@ -11,6 +11,8 @@ type Intent = "join" | "signin";
 
 export default function SignIn() {
   const { sendCode, verifyCode, signInWithUrl, signInWithPassword, signUp, resetPassword } = useAuth();
+  // iPadOS reports itself as MacIntel — the touch-points check catches it (see the paste-URL block).
+  const isIOS = typeof navigator !== "undefined" && (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
 
   // The first question is WHO you are (new vs returning) — the auth method comes second.
   const [intent, setIntent] = useState<Intent>("join");
@@ -181,21 +183,30 @@ export default function SignIn() {
           </button>
           <button className="auth-link" onClick={reset}>← Different email</button>
 
-          <div className="auth-divider" />
-          <div className="auth-label" style={{ marginTop: 4 }}>On iOS? Paste your sign-in URL</div>
-          <p className="auth-paste-hint">If the link opened in Safari, copy the URL from the address bar and paste it here.</p>
-          <input
-            className="auth-input"
-            type="url"
-            inputMode="url"
-            placeholder="Paste URL here…"
-            value={pastedUrl}
-            onChange={(e) => { setPastedUrl(e.target.value); setPasteErr(""); }}
-          />
-          {pasteErr && <div className="auth-err">{pasteErr}</div>}
-          <button className="handle ghost" disabled={!pastedUrl.trim() || pasteBusy} onClick={handlePastedUrl} style={{ marginTop: 10 }}>
-            <span>{pasteBusy ? "Signing in…" : "Sign in with pasted link"}</span>
-          </button>
+          {/* iOS-only escape hatch (2026-07-30, Ryan signing in on desktop Chrome: "this iOS url
+              thing doesn't need to be done here, code works fine"). The paste-the-link workaround
+              exists because iOS opens magic links in Safari instead of the installed PWA — on any
+              other platform it's dead weight under the code field, so it only renders on iOS
+              (incl. iPadOS, which masquerades as MacIntel but exposes touch points). */}
+          {isIOS && (
+            <>
+              <div className="auth-divider" />
+              <div className="auth-label" style={{ marginTop: 4 }}>On iOS? Paste your sign-in URL</div>
+              <p className="auth-paste-hint">If the link opened in Safari, copy the URL from the address bar and paste it here.</p>
+              <input
+                className="auth-input"
+                type="url"
+                inputMode="url"
+                placeholder="Paste URL here…"
+                value={pastedUrl}
+                onChange={(e) => { setPastedUrl(e.target.value); setPasteErr(""); }}
+              />
+              {pasteErr && <div className="auth-err">{pasteErr}</div>}
+              <button className="handle ghost" disabled={!pastedUrl.trim() || pasteBusy} onClick={handlePastedUrl} style={{ marginTop: 10 }}>
+                <span>{pasteBusy ? "Signing in…" : "Sign in with pasted link"}</span>
+              </button>
+            </>
+          )}
         </>
       )}
 
