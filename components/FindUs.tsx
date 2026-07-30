@@ -9,6 +9,8 @@ import { Masthead, SectionHeader, InfoRow, ClosingBeat } from "@/components/kit"
 import { RsvpRow } from "@/components/RsvpRow";
 import RouteMap, { type RoutePoint } from "@/components/RouteMap";
 import { openDirections } from "@/lib/maps";
+import { subscribePush } from "@/lib/push";
+import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
 import { useSiteCopy } from "@/lib/copy";
 import { useAvailability } from "@/lib/availability";
@@ -271,6 +273,9 @@ export default function FindUs() {
         ? <button type="button" className="btn-pri k-cta" onClick={() => router.push("/menu")}>PRE-ORDER · SKIP THE LINE</button>
         : <p className="k-sub" style={{ marginTop: 4 }}>Online ordering’s closed for today — come see us at the bar before we pack up.</p>}
 
+      {/* The customer side of the push pipeline (0257): raise a hand, get pinged the moment the
+          truck flips live. Quiet by design — a chip, not a second red CTA. */}
+      <LivePingButton />
 
       <SectionHeader label="On The Road" annotation="stops & events, in order" />
       <AsyncSection state={board} isEmpty={() => upcoming.length === 0} emptyTitle="Nothing scheduled yet" emptySub="This week's stops and events post here — check back soon." errorTitle="Couldn't load the schedule" loadingLabel="Loading the schedule…">
@@ -348,5 +353,46 @@ export default function FindUs() {
 
       <ClosingBeat />
     </section>
+  );
+}
+
+// "Ping me when the truck goes live" — the public opt-in for the go-live push (0257). Renders
+// only where background push can actually work (needs PushManager: installed PWA or desktop —
+// an iOS Safari TAB has no PushManager, so the chip simply doesn't appear there rather than
+// dead-ending someone). Signed-in visitors keep their user_id/is_admin on the row (the same
+// upsert Checkout/ProfileSheet use — wants_live is one more preference on the device row, not a
+// second subscription). Anon subscribers can't read their row back (RLS is owner/admin-only),
+// so the chip's on/off label rides localStorage — a courtesy memory, not an audit.
+function LivePingButton() {
+  const { user, profile } = useAuth();
+  const [state, setState] = useState<"hidden" | "off" | "on" | "busy">("hidden");
+  useEffect(() => {
+    if (typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && typeof Notification !== "undefined") {
+      let on = false;
+      try { on = localStorage.getItem("gt3-live-ping") === "1"; } catch { /* ignore */ }
+      setState(on ? "on" : "off");
+    }
+  }, []);
+  const toggle = async () => {
+    if (state === "busy" || state === "hidden") return;
+    const turningOn = state === "off";
+    setState("busy");
+    try {
+      if (turningOn) {
+        const p = Notification.permission === "default" ? await Notification.requestPermission() : Notification.permission;
+        if (p !== "granted") { setState("off"); return; }
+      }
+      await subscribePush(user?.id ?? null, !!profile?.is_admin, { wantsLive: turningOn });
+      try { localStorage.setItem("gt3-live-ping", turningOn ? "1" : "0"); } catch { /* ignore */ }
+      setState(turningOn ? "on" : "off");
+    } catch {
+      setState(turningOn ? "off" : "on");
+    }
+  };
+  if (state === "hidden") return null;
+  return (
+    <button type="button" className={`fu-ping${state === "on" ? " on" : ""}`} onClick={toggle} aria-pressed={state === "on"} disabled={state === "busy"}>
+      <Icon name="bell" /> {state === "busy" ? "One sec…" : state === "on" ? "You're on the list — we'll ping you when we're live" : "Ping me when the truck goes live"}
+    </button>
   );
 }

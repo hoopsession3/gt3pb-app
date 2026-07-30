@@ -948,6 +948,12 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .cat-name{flex:1;min-width:0;font-family:'Inter';font-weight:650;font-size:13.5px;letter-spacing:-.2px;color:var(--cream);align-self:center}
 .cat-row .ev-f{flex:0 1 64px;min-width:44px}
 .cat-margin{flex:0 0 auto;align-self:center;font-family:var(--mono);font-size:12px;color:var(--gold2);min-width:36px;text-align:right}
+/* Find Us — the go-live ping chip (0257). Quiet by design: a hand-raise, not a second CTA. */
+.fu-ping{display:inline-flex;align-items:center;gap:7px;margin-top:10px;font-family:'Inter';font-size:12.5px;font-weight:600;color:var(--cream-m);background:none;border:1px solid var(--line2);border-radius:20px;padding:8px 14px;cursor:pointer}
+.fu-ping.on{color:var(--gold2);border-color:rgba(184,144,47,.45);background:rgba(184,144,47,.08)}
+.fu-ping:disabled{opacity:.6}
+.fu-ping svg{width:14px;height:14px}
+
 /* 0256 — live (derived) price/cost read-outs replacing the inputs when a category's numbers flow
    in from Menu & products / recipes. The tag says where the number comes from. */
 .cat-live{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--cream);white-space:nowrap}

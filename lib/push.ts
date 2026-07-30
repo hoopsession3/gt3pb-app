@@ -13,7 +13,10 @@ function urlBase64ToUint8Array(base64String: string) {
 
 // Subscribe this device to background web push and store the subscription so the
 // Supabase Edge Function can reach it (admins → new orders/bookings; members → their order).
-export async function subscribePush(userId: string | null, isAdmin: boolean) {
+// opts.wantsLive (0257) opts the device in/out of the public "truck is live" ping — omitted
+// entirely for existing callers, so their upserts never clobber a choice made on Find Us
+// (supabase upsert only touches the columns present in the payload).
+export async function subscribePush(userId: string | null, isAdmin: boolean, opts?: { wantsLive?: boolean }) {
   try {
     if (!VAPID_PUBLIC || !supabase) return;
     if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) return;
@@ -29,7 +32,7 @@ export async function subscribePush(userId: string | null, isAdmin: boolean) {
     const j = sub.toJSON();
     if (!j.endpoint || !j.keys?.p256dh || !j.keys?.auth) return;
     await supabase.from("push_subscriptions").upsert(
-      { endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, user_id: userId, is_admin: isAdmin },
+      { endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, user_id: userId, is_admin: isAdmin, ...(opts?.wantsLive !== undefined ? { wants_live: opts.wantsLive } : {}) },
       { onConflict: "endpoint" }
     );
     // Keep ONE active device per user. Reinstalls / different browsers mint new

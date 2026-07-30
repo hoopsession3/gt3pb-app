@@ -1,8 +1,7 @@
 // Supabase Edge Function - sends native Web Push on order / subscription / booking changes.
 // Triggered by Database Webhooks (orders INSERT/UPDATE, subscriptions UPDATE, booking_requests
 // INSERT, alerts INSERT, event_tasks UPDATE, profiles INSERT, delivery_orders INSERT,
-// drop_orders INSERT — the last three added 2026-07-30, Ryan: "should get one when users sign
-// up, orders, deliveries, all of it").
+// drop_orders INSERT, live_status UPDATE — the customer go-live ping, 0257).
 // Secrets: VAPID_PUBLIC, VAPID_PRIVATE. SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY are auto-injected.
 // Deploy: Supabase dashboard -> Edge Functions -> "push" -> paste -> deploy.
 import webpush from "npm:web-push@3.6.7";
@@ -230,6 +229,24 @@ Deno.serve(async (req) => {
           "Your day: https://app.gt3pb.com/crew?s=day",
         ].join("\n"));
       }
+
+    } else if (table === "live_status" && type === "UPDATE") {
+      // Customer go-live ping (0257) — the truck flips live, everyone who raised a hand on the
+      // Find Us chip gets ONE push. Fires only on the false→true flip: location changes while
+      // already live, and going offline, stay silent (nobody wants a "we left" buzz). These are
+      // guests, not crew — no alert row, no Teams, no email; the push IS the product.
+      const wentLive = !!record.is_live && !!old_record && !old_record.is_live;
+      if (!wentLive) return new Response("skip: not a go-live flip");
+      let where = "";
+      if (record.current_stop_id) {
+        const { data: s } = await supabase.from("stops").select("name, location_text").eq("id", record.current_stop_id).maybeSingle();
+        if (s?.name) where = ` at ${s.name}`;
+        else if (s?.location_text) where = ` at ${s.location_text}`;
+      }
+      title = "GT3 is LIVE";
+      message = `We're pouring${where} — come thru.`;
+      url = "/";
+      targets = await subsFor((q) => q.eq("wants_live", true));
 
     } else if (table === "alerts" && type === "INSERT") {
       // Alert spine (0050) — fan one alert out to the chosen channels by severity.
