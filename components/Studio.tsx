@@ -18,7 +18,6 @@ import BrandCalendar from "./BrandCalendar";
 import BrandKit from "./BrandKit";
 import RoadFlyer from "./RoadFlyer";
 import LetterFlyer from "./LetterFlyer";
-import SiteCopyEditor from "./SiteCopyEditor";
 import EmptyState from "./EmptyState";
 import { lintCaption } from "@/lib/captionLint";
 import { isBlank } from "@/lib/formGuard";
@@ -74,6 +73,13 @@ function VideoThumb({ src }: { src: string }) {
 export default function Studio() {
   const { setSection } = useOperatorSection();
   const goCompanyCal = () => { try { localStorage.setItem("gt3-plan-tab", "calendar"); } catch { /* ignore */ } setSection("plan"); };
+  // Door to the one copy editor (Settings › set-copy) — force the panel open + scroll to it, the
+  // same mpanel/anchor bridge the KPI tiles and alert jumps use.
+  const goCopy = () => {
+    try { localStorage.setItem("gt3-mpanel-set-copy", "1"); } catch { /* ignore */ }
+    setSection("settings");
+    setTimeout(() => document.getElementById("set-copy")?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
+  };
   const { user, profile } = useAuth();
   const me = useMemo(() => ({ id: user?.id ?? "anon", name: profile?.display_name || user?.email?.split("@")[0] || "Crew" }), [user?.id, profile?.display_name, user?.email]);
   const [items, setItems] = useState<Item[]>([]);
@@ -145,7 +151,17 @@ export default function Studio() {
       ) : view === "letter" ? (
         <LetterFlyer />
       ) : view === "brand" ? (
-        <><BrandKit canEdit /><SiteCopyEditor /></>
+        <>
+          <BrandKit canEdit />
+          {/* SiteCopyEditor no longer mounts here (2026-07-30 audit): Settings › "Copy & wording"
+              declares itself the one home for every guest-facing line ("so nothing is duplicated
+              or piecemeal") — yet this tab mounted the identical full editor. One editor, one
+              home; this is the door, on the same bridge the calendar link above already uses. */}
+          <div className="cal-xlink">
+            <span className="cal-xlink-t">Every line guests read is edited in <b>Settings › Copy &amp; wording</b>.</span>
+            <button type="button" className="cal-xlink-go" onClick={goCopy}>Open the copy editor <Icon name="arrowRight" /></button>
+          </div>
+        </>
       ) : view === "calendar" ? (
         <>
           <div className="cal-xlink">

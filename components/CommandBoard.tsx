@@ -8,8 +8,8 @@ import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
-import MoneyKpis from "./MoneyKpis";
 import LaunchReadiness from "./LaunchReadiness";
+import { useOperatorSection } from "@/components/OperatorNav";
 import { useTaskSheet } from "./TaskSheet";
 import { completeInitiative } from "@/lib/tasks";
 import { SectionHeader, InfoRow } from "@/components/kit";
@@ -48,6 +48,7 @@ export default function CommandBoard() {
   const { user, profile } = useAuth();
   const isAdmin = !!profile?.is_admin;
   const { openTask } = useTaskSheet(); // the ONE task editor, on the spine
+  const { setSection } = useOperatorSection(); // for the Money pointer below
   const [manage, setManage] = useState<Milestone | null>(null);   // milestone open in the manage sheet
 
   const loader = useCallback(async (): Promise<BoardData> => {
@@ -252,9 +253,11 @@ export default function CommandBoard() {
               </div>
             )}
 
-            {/* ── Money ── */}
-            <SectionHeader label="Money" annotation="the number" />
-            <MoneyKpis />
+            {/* ── Money ── a pointer, not a second KPI strip (2026-07-30 redundancy audit): the
+                full MoneyKpis grid already opens the Money section — mounting it here duplicated
+                all five tiles, and for event managers (Command is canManage, the money queries are
+                admin-gated) they rendered as a block of dead "—"s. One strip, one home. */}
+            <button type="button" className="adm-golink" onClick={() => setSection("money")}>Money — the live glance · Money ›</button>
 
             {manage && (
               <MilestoneManage

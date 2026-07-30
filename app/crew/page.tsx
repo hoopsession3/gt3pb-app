@@ -45,7 +45,6 @@ const MaintenanceLog = dynamic(() => import("@/components/MaintenanceLog"), { lo
 import OpsPlan from "@/components/OpsPlan";
 import NoteAttach from "@/components/NoteAttach";
 import Goals from "@/components/Goals";
-import PlanningBoard from "@/components/PlanningBoard";
 import { useSiteCopy } from "@/lib/copy";
 import { useLocationSuggestions } from "@/components/useLocationSuggestions";
 import { completeTask } from "@/lib/tasks";
@@ -1940,8 +1939,9 @@ function EventPrep({ onGo }: { onGo: (t: string) => void }) {
 
   return (
     <>
-    {/* Overview + loadout show on the list only — opening a target gives prep the full screen. */}
-    <Overview onGo={onGo} onOpenTarget={(kind, id) => setSelected({ kind, id })} />
+    {/* Opening a target gives prep the full screen. (The "At a glance" Overview block that opened
+        this list died 2026-07-30 — it restated the exact target cards below it and Live Ops' own
+        live status. Ryan: "feels unnecessary and like it's in other sections. Redundant.") */}
     <div className="adm-sec adm-prep">
       <div style={{ display: "flex" }}><button className="adm-prep-view" onClick={() => setSheet(true)} aria-haspopup="dialog">View ⌄</button></div>
       <AsyncSection
@@ -3822,13 +3822,11 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
 }
 
 // ───────────────────────── booking requests ─────────────────────────
-// Inbound (this tab) and outbound (Business › Pipeline) are two lead funnels that BRIDGE, not
-// merge (July 2026 redundancy audit): a request can be promoted into a pursuit, and won
-// private-event deals surface down here — every event booking visible in one room either way.
-type WonPipelineDeal = {
-  id: string; value_cents: number | null; won_at: string | null;
-  vendors: { name: string } | null; deals: { title: string; line: string | null } | null;
-};
+// Inbound requests land here; promoting one opens a pursuit on the Pipeline board below. The
+// "Won on the pipeline" mirror this used to render (the July bridge) died in the 2026-07-30
+// redundancy audit: Bookings and PipelinePanel now share ONE screen, so the mirror showed every
+// won private-event deal twice, one card above the other — and its "Open in Pipeline" button was
+// a no-op (you were already there). PipelinePanel's Won stage is the one home.
 function Bookings() {
   const { toast } = useApp();
   const { user } = useAuth();
@@ -3836,22 +3834,16 @@ function Bookings() {
   const [reqs, setReqs] = useState<BookingRequest[]>([]);
   const [promoting, setPromoting] = useState<string | null>(null);
   const [promoteResolve, setPromoteResolve] = useState<{ req: BookingRequest; name: string; candidates: VendorMatch[] } | null>(null);
-  const bookingsState = useAsyncData<{ reqs: BookingRequest[]; wonDeals: WonPipelineDeal[] }>(async () => {
+  const bookingsState = useAsyncData<{ reqs: BookingRequest[] }>(async () => {
     if (!supabase) throw new Error("Supabase client not configured");
-    const [{ data: reqData }, { data: wonData }] = await Promise.all([
-      supabase.from("booking_requests").select("*").order("created_at", { ascending: false }),
-      supabase.from("opportunities")
-        .select("id, value_cents, won_at, vendors(name), deals!inner(title, line)")
-        .eq("stage", "won").eq("deals.line", "private_event")
-        .order("won_at", { ascending: false, nullsFirst: false }).limit(20),
-    ]);
-    return { reqs: (reqData as BookingRequest[]) ?? [], wonDeals: (wonData as unknown as WonPipelineDeal[]) ?? [] };
+    const { data: reqData } = await supabase.from("booking_requests").select("*").order("created_at", { ascending: false });
+    return { reqs: (reqData as BookingRequest[]) ?? [] };
   }, []);
   const load = bookingsState.reload;
   // reqs stays the editable/optimistic local copy — del() below removes a row instantly, before
-  // the round-trip — reseeded from the fetch on every load/reload; wonDeals is display-only.
+  // the round-trip — reseeded from the fetch on every load/reload.
   useEffect(() => { if (bookingsState.data) setReqs(bookingsState.data.reqs); }, [bookingsState.data]);
-  useRealtimeTable(["booking_requests", "opportunities"], load);
+  useRealtimeTable(["booking_requests"], load);
 
   const setStatus = async (id: string, status: BookingRequest["status"]) => {
     const { error } = await supabase!.from("booking_requests").update({ status }).eq("id", id);
@@ -3928,7 +3920,6 @@ function Bookings() {
   const open = reqs.filter((r) => r.status === "new").length;
   return (
     <div className="adm-sec">
-      <ChiefOfSales onLeads={load} />
       <AsyncSection
         state={bookingsState}
         isEmpty={() => false}
@@ -3936,7 +3927,7 @@ function Bookings() {
         loadingLabel="Loading booking requests…"
         errorTitle="Couldn't load booking requests"
       >
-        {(d) => (
+        {() => (
           <>
       <SectionHeader label="Booking requests" right={open > 0 ? <span className="adm-pill">{open} new</span> : undefined} />
       {reqs.map((r) => (
@@ -3965,27 +3956,13 @@ function Bookings() {
         </div>
       ))}
       {reqs.length === 0 && <EmptyState title="No requests yet" sub="They land here from the Book the bar form." />}
-      {d.wonDeals.length > 0 && (
-        <>
-          <SectionHeader label="Won on the pipeline" right={<span className="adm-pill">{d.wonDeals.length}</span>} />
-          <p className="h-sub">Private-event deals the crew closed outbound. Book the dates in Events when they land.</p>
-          {d.wonDeals.map((w) => (
-            <div className="adm-req" key={w.id}>
-              <div className="adm-member-top">
-                <b>{w.vendors?.name ?? "Account"}</b>
-                <span className="adm-ref">{w.won_at ? `won ${new Date(w.won_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : "won"}</span>
-              </div>
-              <div className="meta">{w.deals?.title ?? "Private event"}{w.value_cents != null && <> · ${(w.value_cents / 100).toLocaleString()}</>}</div>
-              <div className="adm-status">
-                <button className="adm-req-mk" onClick={() => setSection("pipeline")}>Open in Pipeline <Icon name="arrowRight" /></button>
-              </div>
-            </div>
-          ))}
-        </>
-      )}
           </>
         )}
       </AsyncSection>
+      {/* Scout agent — monthly-ish planning tool, parked BELOW the daily queue (2026-07-30 audit:
+          it used to open the section, pushing the booking requests down — the same misplacement
+          class as the Readiness agents that moved this round). */}
+      <ChiefOfSales onLeads={load} />
       {promoteResolve && (
         <VendorResolve name={promoteResolve.name} candidates={promoteResolve.candidates}
           onUse={(c) => { const { req } = promoteResolve; setPromoteResolve(null); promote(req, { linkTo: c.id }); }}
@@ -5046,84 +5023,14 @@ function EnableAlerts({ userId }: { userId: string | null }) {
   );
 }
 
-// ───────────────────────── back office: overview command center ─────────────────────────
+// ───────────────────────── back office ─────────────────────────
+// The "Overview / At a glance" component that lived here died 2026-07-30 (Ryan's screenshot:
+// "feels unnecessary and like it's in other sections. Redundant"): its coming-up line restated
+// the exact This week / Truck locations cards rendered directly below it on the prep list, and
+// its live-status line was Live Ops' job (which always had its own LiveControl). Two fetches, a
+// realtime subscription and a debounce timer, all to summarize the screen they sat on.
+// OverdueTask outlives it — My Day's needs-you list still uses the shape.
 type OverdueTask = { taskId: string; label: string; kind: "event" | "stop"; ownerId: string; ownerName: string };
-function Overview({ onGo, onOpenTarget }: { onGo: (t: string) => void; onOpenTarget?: (kind: "event" | "stop", id: string) => void }) {
-  // Operator-first glance: what's coming (events, stops), what's new (booking requests),
-  // and what's overdue (open team tasks past their due date / owner date). Each card jumps
-  // to where you act on it. (Sales metrics — subs/waitlist — live in Money, not here.)
-  // Prep-only context now: what's coming + what's live. The ACTION rows (booking replies,
-  // overdue tasks, restock) moved to My Day's NeedsYou — the console has ONE glance screen.
-  type Glance = {
-    eventsUp: number; nextEvent: { title: string; label: string } | null;
-    stopsUp: number; nextStop: { name: string; label: string; id: string } | null;
-    live: EventRow | null;
-  };
-  const glanceState = useAsyncData<Glance>(async () => {
-    if (!supabase) throw new Error("Supabase client not configured");
-    const today = localYMD(new Date()); // operator-local date, not UTC
-    const [ev, evs, st] = await Promise.all([
-      supabase.from("events").select("*").eq("is_live", true).maybeSingle(),
-      supabase.from("events").select("*").order("day"),
-      supabase.from("stops").select("id, name, when_label, starts_at, status, archived_at").order("starts_at"),
-    ]);
-    const allEv = ((evs.data as EventRow[]) ?? []).filter((e) => !e.archived_at);
-    const upEv = allEv.filter((e) => e.day && e.day >= today);
-    const ne = upEv[0];
-    const allSt = ((st.data as Stop[]) ?? []).filter((x) => !x.archived_at);
-    const upSt = allSt.filter((x) => x.status !== "done");
-    const ns = upSt.find((x) => x.status === "live") ?? upSt[0];
-    return {
-      eventsUp: upEv.length, nextEvent: ne ? { title: ne.title ?? "Event", label: ne.day_label || ne.day || "" } : null,
-      stopsUp: upSt.length, nextStop: ns ? { name: ns.name ?? "Stop", label: ns.when_label || "", id: ns.id } : null,
-      live: (ev.data as EventRow) ?? null,
-    };
-  }, []);
-  // Debounce realtime: a burst of task check-offs during prep should collapse into one reload,
-  // not fire a full 6-query load() per row.
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
-  useRealtimeTable(["events", "stops"], () => {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => glanceState.reload(), 500);
-  });
-  return (
-    <AsyncSection
-      state={glanceState}
-      isEmpty={() => false}
-      emptyTitle="Nothing to show yet"
-      loadingLabel="Loading…"
-      errorTitle="Couldn't load the glance"
-    >
-      {(s) => {
-        const openStop = () => { if (s.nextStop && onOpenTarget) onOpenTarget("stop", s.nextStop.id); else onGo("stops"); };
-        return (
-          <div className="adm-sec">
-            <SectionHeader label="At a glance" />
-            <p className="bo-line">
-              <button type="button" onClick={() => onGo("events")}><b>{s.eventsUp}</b> event{s.eventsUp === 1 ? "" : "s"}</button>
-              {" · "}
-              <button type="button" onClick={openStop}><b>{s.stopsUp}</b> truck stop{s.stopsUp === 1 ? "" : "s"}</button>
-              {" coming up"}
-              {(s.nextEvent || s.nextStop) && <> — next: <b>{s.nextEvent ? `${s.nextEvent.label ? `${s.nextEvent.label} · ` : ""}${s.nextEvent.title}` : `${s.nextStop!.label ? `${s.nextStop!.label} · ` : ""}${s.nextStop!.name}`}</b></>}
-            </p>
-            {s.live ? (
-              <div className="bo-live" role="button" tabIndex={0} onClick={() => onOpenTarget ? onOpenTarget("event", s.live!.id) : onGo("events")} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (onOpenTarget ? onOpenTarget("event", s.live!.id) : onGo("events"))}>
-                <span className="adm-pill due">LIVE</span> <b>{s.live.title}</b> — running now · tap for prep
-              </div>
-            ) : (
-              // 2026-07-29 audit: was static text naming "Events" without linking there — the same
-              // dead-end pattern as the KPI tiles. Now .bo-line (matching the line right above it,
-              // which already has working inline buttons) instead of .h-sub, so "Events" is a real
-              // tap target via the same onGo the two buttons above already use.
-              <p className="bo-line" style={{ marginTop: 12 }}>No event live. Set one live under <button type="button" onClick={() => onGo("events")}>Events</button> when you open.</p>
-            )}
-          </div>
-        );
-      }}
-    </AsyncSection>
-  );
-}
 
 // ───────────────────────── vendors (relational venue records) ─────────────────────────
 type VendorSug = { kind: "stop" | "event"; id: string; name: string; sub: string; stop?: Stop; event?: EventRow };
@@ -5875,9 +5782,11 @@ export default function AdminPage() {
           <CommandBoard />
           {/* Goals moved home 2026-07-29 (was its own section): "are we on track?" and "where are
               we steering?" are the same leadership conversation — one screen answers both now.
-              Goals keeps its id="goals" anchor, so strategy alerts land right on it. */}
-          <div className="crew-group">Goals &amp; planning</div>
-          <PlanningBoard />
+              Goals keeps its id="goals" anchor, so strategy alerts land right on it.
+              PlanningBoard cut 2026-07-30 (redundancy audit): it re-listed every goal card below
+              it — same title, progress, owner — as a non-tappable horizon grid, and the horizon
+              already sits on each card as its tier chip. One list, one home. */}
+          <div className="crew-group">Goals</div>
           <Goals />
         </>
       )}
@@ -5933,11 +5842,15 @@ export default function AdminPage() {
           <PrepKpis />
           <div className="crew-group">All open prep · one board</div>
           <Panel id="prep-board" title="Work every open task — critical first" defaultOpen><PrepBoard /></Panel>
-          {canManage && <div className="crew-group">Readiness</div>}
-          {canManage && <ReadinessAgent />}
-          {canManage && <InspectionPrep />}
+          {/* 2026-07-30 (Ryan's screenshot): this screen used to stack the stock-check agent +
+              Inspection prep ABOVE the actual work, and an "At a glance" block (Overview)
+              summarized the exact target cards rendered right below it. The glance is deleted
+              (the cards ARE the glance; live status is Live Ops' job), the stock-check moved home
+              to Assets beside the inventory it reads, and Inspection prep — real prep, but
+              occasional-use by its own copy — parks at the bottom, collapsed, instead of first. */}
           <div className="crew-group">Event prep · by stop</div>
           <EventPrep onGo={goSection} />
+          {canManage && <InspectionPrep />}
         </>
       )}
 
@@ -6074,6 +5987,10 @@ export default function AdminPage() {
       {sec === "garage" && canPrep && (
         <>
           <GarageKpis />
+          {/* Stock-check agent moved here from Readiness (2026-07-30): "are we stocked for the
+              next two weeks" is a question about THIS screen's inventory — it lives with its
+              subject now instead of squatting above the prep list. */}
+          {canManage && <ReadinessAgent />}
           <div className="crew-group">Assets &amp; stock</div>
           <GarageSection />
         </>
