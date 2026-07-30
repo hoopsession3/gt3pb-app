@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { createPortal } from "react-dom";
 
 const FOCUSABLE = 'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
@@ -28,6 +29,17 @@ export default function Sheet({
   // region by contract; this just exposes a handle to it instead of a per-sheet nested scroll div.
   bodyRef?: RefObject<HTMLDivElement | null>;
 }) {
+  // Portal the sheet out of wherever it was rendered (2026-07-30). Most callers live inside
+  // <main class="body">, and .body is a stacking-context trap on iOS (-webkit-overflow-scrolling:
+  // touch, plus zoom under the readability tiers) — a fixed scrim rendered inside it stacks UNDER
+  // the bottom nav (z 30) no matter that the scrim says z 80. That's the "blurred screen with
+  // nothing tappable" / "can't reach the sheet's fields" bug (membership sheet screenshot: the
+  // scrim's backdrop blur painted, the panel's lower half hid behind the nav). Portal target is
+  // .app, NOT document.body: the theme variables (--bg for crew day mode) live on .app, and .app
+  // creates no stacking context of its own, so the sheet joins the root context and outranks the
+  // nav everywhere. Falls back to body if .app is ever absent.
+  const [host, setHost] = useState<HTMLElement | null>(null);
+  useEffect(() => { setHost(document.querySelector<HTMLElement>(".app") ?? document.body); }, []);
   const [drag, setDrag] = useState(0);
   const startY = useRef<number | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -118,7 +130,7 @@ export default function Sheet({
     setDrag((d) => { if (d > 88) requestClose(); return 0; }); // past the threshold → flick away
   }, [requestClose]);
 
-  if (phase === "closed") return null;
+  if (phase === "closed" || !host) return null;
   // Only the grab handle + header are drag-to-dismiss zones — the body scrolls normally, no conflict.
   const dragZone = {
     onTouchStart: (e: React.TouchEvent) => start(e.touches[0].clientY),
@@ -130,7 +142,7 @@ export default function Sheet({
     : undefined;
 
   const out = phase === "closing" ? " out" : "";
-  return (
+  return createPortal(
     <div className={`sheet2-scrim${out}`} onClick={requestClose}>
       <div className={`sheet2 ${className}${out}`} ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={labelledBy}
         aria-label={labelledBy ? undefined : (label ?? "Dialog")}
@@ -140,6 +152,7 @@ export default function Sheet({
         <div className="sheet2-body" ref={bodyRef}>{children}</div>
         {footer && <div className="sheet2-foot">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    host,
   );
 }
