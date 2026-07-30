@@ -49,30 +49,42 @@ async function insertAlert(a: { severity: string; category: string; title: strin
   await supabase.from("alerts").insert({ severity: a.severity, category: a.category, title: a.title, body: a.body ?? null, link: a.link ?? "/admin" });
 }
 
-// Email the owner/manager list (public.admin_emails — 0004) via Resend. Push needs a subscribed
-// device and Teams needs its webhook configured; email is the one channel that doesn't depend on
-// either, so it's the net under both for anything that must not silently go cold. Secrets are on
-// this function's own env (Supabase Edge Function secrets), separate from the Next app's Vercel
-// env — RESEND_API_KEY / NOTIFY_FROM_EMAIL must be set here too, or this is a clean no-op, same
-// contract as lib/notify.ts on the app side.
-async function emailAdmins(subject: string, body: string) {
+// The ONE Resend send under emailAdmins/emailUser. First address on To, the rest BCC
+// (2026-07-30 — Ryan: "Why can you see CC, maybe BCC?"): one visible To keeps deliverability
+// happy; BCC keeps the list private and the header clean. RESEND_API_KEY / NOTIFY_FROM_EMAIL
+// must be set on this function's env or this is a clean no-op — same contract as lib/notify.ts.
+async function sendEmail(to: string[], subject: string, body: string) {
   const key = Deno.env.get("RESEND_API_KEY");
   const from = Deno.env.get("NOTIFY_FROM_EMAIL");
-  if (!key || !from) return;
-  const { data: admins } = await supabase.from("admin_emails").select("email");
-  const list = (admins ?? []).map((a: { email: string }) => a.email);
-  if (!list.length) return;
+  if (!key || !from || !to.length) return;
   try {
-    // First admin on To, everyone else BCC (2026-07-30 — Ryan, holding the first live delivery:
-    // "Why can you see CC, maybe BCC?"). The old single send put the entire admin list on the To
-    // line, so every recipient saw everyone's address. One visible To keeps deliverability happy;
-    // BCC keeps the list private and the header clean.
     await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from, to: list.slice(0, 1), ...(list.length > 1 ? { bcc: list.slice(1) } : {}), subject: subject.slice(0, 200), text: body }),
+      body: JSON.stringify({ from, to: to.slice(0, 1), ...(to.length > 1 ? { bcc: to.slice(1) } : {}), subject: subject.slice(0, 200), text: body }),
     });
   } catch (_e) { /* never fail the webhook on a mail-provider hiccup */ }
+}
+
+// Email the owner/manager list (public.admin_emails — 0004). Push needs a subscribed device and
+// Teams needs its webhook configured; email is the net under both for anything that must not
+// silently go cold.
+async function emailAdmins(subject: string, body: string) {
+  const { data: admins } = await supabase.from("admin_emails").select("email");
+  await sendEmail(((admins ?? []) as { email: string }[]).map((a) => a.email), subject, body);
+}
+
+// Email ONE user by id (2026-07-30, Ryan: "I want to get emails on critical notes and tasks as
+// well. Owners of those should get [them]"). The service role this function runs with can look
+// the address up via the auth admin API. A critical must never go cold: if the owner's email
+// can't be resolved, the admin list gets it instead.
+async function emailUser(userId: string, subject: string, body: string) {
+  try {
+    const { data } = await supabase.auth.admin.getUserById(userId);
+    const em = data?.user?.email;
+    if (em) { await sendEmail([em], subject, body); return; }
+  } catch (_e) { /* fall through to the admin list */ }
+  await emailAdmins(subject, body);
 }
 
 Deno.serve(async (req) => {
@@ -187,9 +199,12 @@ Deno.serve(async (req) => {
       ].join("\n"));
 
     } else if (table === "event_tasks" && type === "UPDATE" && record.assignee) {
-      // Crew assignment → tell the assigned member they're on a task. Only on a real
-      // assignee change (skip done-toggles and re-saves that don't touch the assignee).
-      if (old_record && old_record.assignee === record.assignee) return new Response("skip: no assignee change");
+      // Crew assignment → tell the assigned member they're on a task. Fires on a real assignee
+      // change — and, since 2026-07-30 (Ryan: critical tasks email their owner), also when a task
+      // FLIPS to critical with an assignee already on it. Done-toggles and re-saves still skip.
+      const assigneeChanged = !old_record || old_record.assignee !== record.assignee;
+      const becameCritical = !!record.critical && !!old_record && !old_record.critical;
+      if (!assigneeChanged && !becameCritical) return new Response("skip: no assignee/critical change");
       let ctx = " - an event";
       if (record.event_id) {
         const { data: e } = await supabase.from("events").select("title").eq("id", record.event_id).maybeSingle();
@@ -200,10 +215,21 @@ Deno.serve(async (req) => {
         ctx = m?.title ? ` - follow-up - ${m.title}` : " - meeting follow-up";
       }
       const name = await nameForUser(record.assignee);
-      title = "You're on the crew";
-      message = `${name ? name + ", you're" : "You're"} on: ${record.label}${ctx}`;
+      title = becameCritical && !assigneeChanged ? "Task flagged critical" : "You're on the crew";
+      message = becameCritical && !assigneeChanged
+        ? `Critical now: ${record.label}${ctx}`
+        : `${name ? name + ", you're" : "You're"} on: ${record.label}${ctx}`;
       url = "/admin";
       targets = await subsFor((q) => q.eq("user_id", record.assignee));
+      // Critical tasks EMAIL their owner too (push alone depends on a subscribed device) — both
+      // when a critical task is assigned and when an assigned task turns critical.
+      if (record.critical) {
+        await emailUser(record.assignee, `Critical task — ${record.label}`, [
+          message + ".",
+          "",
+          "Your day: https://app.gt3pb.com/crew?s=day",
+        ].join("\n"));
+      }
 
     } else if (table === "alerts" && type === "INSERT") {
       // Alert spine (0050) — fan one alert out to the chosen channels by severity.
@@ -211,6 +237,15 @@ Deno.serve(async (req) => {
       // 1) Teams (classic Incoming Webhook / MessageCard). If you wired a Power Automate
       // "Workflows" webhook instead, it expects an Adaptive Card — say so and I'll switch it.
       await postTeams(sev, record.title, record.body || "");
+      // Critical alerts EMAIL as well (2026-07-30, Ryan: "emails on critical notes... owners of
+      // those should get"): the alert's own target user when there is one, the admin list when
+      // there isn't. Push needs a subscribed device; a critical can't depend on that.
+      if (sev === "critical") {
+        const subj = `Critical — ${record.title}`;
+        const bodyTxt = [record.body || record.title, "", `Open it: https://app.gt3pb.com${record.link || "/crew?s=day"}`].join("\n");
+        if (record.target_user_id) await emailUser(record.target_user_id, subj, bodyTxt);
+        else await emailAdmins(subj, bodyTxt);
+      }
       // 2) Web push: to the target user, or all leadership when there's no specific target.
       title = (sev === "critical" ? "Critical — " : "") + record.title;
       message = record.body || "";
