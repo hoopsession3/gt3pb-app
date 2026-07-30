@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useApp } from "@/components/AppProvider";
 import { SectionHeader, InfoRow } from "@/components/kit";
@@ -26,50 +27,57 @@ import { recordRecent } from "@/components/recents";
 import { queueOrderStatus, isNetworkError, saveSnapshot, readSnapshot, readQueue, OFFLINE_EVENT } from "@/components/offline";
 import { snapshotUsable } from "@/lib/offline";
 import MenuRigChips, { MENU_RIG_COLUMNS, type MenuRigPatch, type MenuRigValue } from "@/components/MenuRigChips";
-import TrailerLoadout from "@/components/TrailerLoadout";
+// ── Code-split (2026-07-29, speed round): every component below renders only inside ONE section
+// (or opens on a tap), so it loads as its own chunk on demand instead of riding in the /crew
+// route's first paint. Daily-path components (My Day, Live Ops' DropOps/DeliveryOps/EightySix,
+// PrepBoard, CommandBoard/Goals) stay static imports on purpose — the morning screen and service
+// screen must never wait on a chunk. Once fetched, the SW's cache-first asset rule keeps each
+// chunk available offline. next/dynamic on a default export keeps full prop-type inference.
+const TrailerLoadout = dynamic(() => import("@/components/TrailerLoadout"), { loading: () => <PourFill label="Loading…" /> });
 import DropOps from "@/components/DropOps";
 import OfficeOrders from "@/components/OfficeOrders";
-import SiteCopyEditor from "@/components/SiteCopyEditor";
-import OfficeSettings from "@/components/OfficeSettings";
-import CopilotDirectory from "@/components/CopilotDirectory";
-import AiSpend from "@/components/AiSpend";
-import BroadcastEditor from "@/components/BroadcastEditor";
-import MaintenanceLog from "@/components/MaintenanceLog";
+const SiteCopyEditor = dynamic(() => import("@/components/SiteCopyEditor"), { loading: () => <PourFill label="Loading…" /> });
+const OfficeSettings = dynamic(() => import("@/components/OfficeSettings"), { loading: () => <PourFill label="Loading…" /> });
+const CopilotDirectory = dynamic(() => import("@/components/CopilotDirectory"), { loading: () => <PourFill label="Loading…" /> });
+const AiSpend = dynamic(() => import("@/components/AiSpend"), { loading: () => <PourFill label="Loading…" /> });
+const BroadcastEditor = dynamic(() => import("@/components/BroadcastEditor"), { loading: () => <PourFill label="Loading…" /> });
+const MaintenanceLog = dynamic(() => import("@/components/MaintenanceLog"), { loading: () => <PourFill label="Loading…" /> });
 import OpsPlan from "@/components/OpsPlan";
 import NoteAttach from "@/components/NoteAttach";
 import Goals from "@/components/Goals";
 import PlanningBoard from "@/components/PlanningBoard";
 import { useSiteCopy } from "@/lib/copy";
+import { useLocationSuggestions } from "@/components/useLocationSuggestions";
 import { completeTask } from "@/lib/tasks";
-import AiTraining from "@/components/AiTraining";
-import PromoEditor from "@/components/PromoEditor";
+const AiTraining = dynamic(() => import("@/components/AiTraining"), { loading: () => <PourFill label="Loading…" /> });
+const PromoEditor = dynamic(() => import("@/components/PromoEditor"), { loading: () => <PourFill label="Loading…" /> });
 import EightySix from "@/components/EightySix";
-import ReviewsAdmin from "@/components/ReviewsAdmin";
+const ReviewsAdmin = dynamic(() => import("@/components/ReviewsAdmin"), { loading: () => <PourFill label="Loading…" /> });
 import DeliveryOps from "@/components/DeliveryOps";
 import PackPlan from "@/components/PackPlan";
-import OrgChart from "@/components/OrgChart";
-import WorkloadBoard from "@/components/WorkloadBoard";
-import InviteTeammate from "@/components/InviteTeammate";
-import CrmPanel from "@/components/CrmPanel";
-import CodesPanel from "@/components/CodesPanel";
-import PerksPanel from "@/components/PerksPanel";
+const OrgChart = dynamic(() => import("@/components/OrgChart"), { loading: () => <PourFill label="Loading…" /> });
+const WorkloadBoard = dynamic(() => import("@/components/WorkloadBoard"), { loading: () => <PourFill label="Loading…" /> });
+const InviteTeammate = dynamic(() => import("@/components/InviteTeammate"), { loading: () => <PourFill label="Loading…" /> });
+const CrmPanel = dynamic(() => import("@/components/CrmPanel"), { loading: () => <PourFill label="Loading…" /> });
+const CodesPanel = dynamic(() => import("@/components/CodesPanel"), { loading: () => <PourFill label="Loading…" /> });
+const PerksPanel = dynamic(() => import("@/components/PerksPanel"), { loading: () => <PourFill label="Loading…" /> });
 import CustomerKpis from "@/components/CustomerKpis";
-import VipQueue from "@/components/VipQueue";
-import FunnelReport from "@/components/FunnelReport";
+const VipQueue = dynamic(() => import("@/components/VipQueue"), { loading: () => <PourFill label="Loading…" /> });
+const FunnelReport = dynamic(() => import("@/components/FunnelReport"), { loading: () => <PourFill label="Loading…" /> });
 import { TeamKpis, PrepKpis, GarageKpis } from "@/components/CrewKpis";
 import PrepBoard from "@/components/PrepBoard";
 import InlineCreate from "@/components/InlineCreate";
-import Changelog from "@/components/Changelog";
+const Changelog = dynamic(() => import("@/components/Changelog"), { loading: () => <PourFill label="Loading…" /> });
 import CommandBoard from "@/components/CommandBoard";
-import FounderDigest from "@/components/FounderDigest";
-import SpendBudget from "@/components/SpendBudget";
-import DriverDash from "@/components/DriverDash";
-import PipelinePanel from "@/components/PipelinePanel";
-import GearLibrary from "@/components/GearLibrary";
-import InventoryLibrary from "@/components/InventoryLibrary";
-import Reports from "@/components/Reports";
-import SnapshotReport from "@/components/SnapshotReport";
-import EventPnlReport from "@/components/EventPnlReport";
+const FounderDigest = dynamic(() => import("@/components/FounderDigest"), { loading: () => <PourFill label="Loading…" /> });
+const SpendBudget = dynamic(() => import("@/components/SpendBudget"), { loading: () => <PourFill label="Loading…" /> });
+const DriverDash = dynamic(() => import("@/components/DriverDash"), { loading: () => <PourFill label="Loading…" /> });
+const PipelinePanel = dynamic(() => import("@/components/PipelinePanel"), { loading: () => <PourFill label="Loading…" /> });
+const GearLibrary = dynamic(() => import("@/components/GearLibrary"), { loading: () => <PourFill label="Loading…" /> });
+const InventoryLibrary = dynamic(() => import("@/components/InventoryLibrary"), { loading: () => <PourFill label="Loading…" /> });
+const Reports = dynamic(() => import("@/components/Reports"), { loading: () => <PourFill label="Loading…" /> });
+const SnapshotReport = dynamic(() => import("@/components/SnapshotReport"), { loading: () => <PourFill label="Loading…" /> });
+const EventPnlReport = dynamic(() => import("@/components/EventPnlReport"), { loading: () => <PourFill label="Loading…" /> });
 import SignIn from "@/components/SignIn";
 import InputSheet from "@/components/InputSheet";
 import Sheet from "@/components/Sheet";
@@ -77,26 +85,26 @@ import { NumberRoll } from "@/components/CountUp";
 import PourFill from "@/components/PourFill";
 import AlertAction, { alertHasInlineAction } from "@/components/AlertAction";
 import { supabase } from "@/lib/supabase";
-import AskGT3 from "@/components/AskGT3";
-import Studio from "@/components/Studio";
-import ShootPlanner from "@/components/ShootPlanner";
-import MenuManager from "@/components/MenuManager";
-import PaymentSettings from "@/components/PaymentSettings";
-import MoneyKpis from "@/components/MoneyKpis";
-import PlanEditor from "@/components/PlanEditor";
-import CompanyCalendar from "@/components/CompanyCalendar";
-import EventDayPlanner from "@/components/EventDayPlanner";
-import EventGenerator from "@/components/EventGenerator";
-import EventPrepAI from "@/components/EventPrepAI";
-import TroubleshootAI from "@/components/TroubleshootAI";
-import BrewPlanner from "@/components/BrewPlanner";
-import CogsCalculator from "@/components/CogsCalculator";
+const AskGT3 = dynamic(() => import("@/components/AskGT3"), { loading: () => <PourFill label="Loading…" /> });
+const Studio = dynamic(() => import("@/components/Studio"), { loading: () => <PourFill label="Loading…" /> });
+const ShootPlanner = dynamic(() => import("@/components/ShootPlanner"), { loading: () => <PourFill label="Loading…" /> });
+const MenuManager = dynamic(() => import("@/components/MenuManager"), { loading: () => <PourFill label="Loading…" /> });
+const PaymentSettings = dynamic(() => import("@/components/PaymentSettings"), { loading: () => <PourFill label="Loading…" /> });
+const MoneyKpis = dynamic(() => import("@/components/MoneyKpis"), { loading: () => <PourFill label="Loading…" /> });
+const PlanEditor = dynamic(() => import("@/components/PlanEditor"), { loading: () => <PourFill label="Loading…" /> });
+const CompanyCalendar = dynamic(() => import("@/components/CompanyCalendar"), { loading: () => <PourFill label="Loading…" /> });
+const EventDayPlanner = dynamic(() => import("@/components/EventDayPlanner"), { loading: () => <PourFill label="Loading…" /> });
+const EventGenerator = dynamic(() => import("@/components/EventGenerator"), { loading: () => <PourFill label="Loading…" /> });
+const EventPrepAI = dynamic(() => import("@/components/EventPrepAI"), { loading: () => <PourFill label="Loading…" /> });
+const TroubleshootAI = dynamic(() => import("@/components/TroubleshootAI"), { loading: () => <PourFill label="Loading…" /> });
+const BrewPlanner = dynamic(() => import("@/components/BrewPlanner"), { loading: () => <PourFill label="Loading…" /> });
+const CogsCalculator = dynamic(() => import("@/components/CogsCalculator"), { loading: () => <PourFill label="Loading…" /> });
 import AddToCalendar from "@/components/AddToCalendar";
 import { calFromEvent, calFromStop } from "@/lib/ics";
-import AssetMaintenance from "@/components/AssetMaintenance";
-import ChiefOfStaff from "@/components/ChiefOfStaff";
-import ChiefOfSales from "@/components/ChiefOfSales";
-import SmartIntake from "@/components/SmartIntake";
+const AssetMaintenance = dynamic(() => import("@/components/AssetMaintenance"), { loading: () => <PourFill label="Loading…" /> });
+const ChiefOfStaff = dynamic(() => import("@/components/ChiefOfStaff"), { loading: () => <PourFill label="Loading…" /> });
+const ChiefOfSales = dynamic(() => import("@/components/ChiefOfSales"), { loading: () => <PourFill label="Loading…" /> });
+const SmartIntake = dynamic(() => import("@/components/SmartIntake"), { loading: () => <PourFill label="Loading…" /> });
 import Markdown from "@/components/Markdown";
 import { subscribePush } from "@/lib/push";
 import { chime, unlockAudio } from "@/lib/chime";
@@ -111,7 +119,7 @@ import { fetchInventory, inventoryForEvent, rollupLowStock, type InventoryResp, 
 import { fetchAssets, type AssetsResp } from "@/lib/assets";
 import type { Stop, LiveStatus, EventRow, EventTask, BookingRequest, Order, Reserve, Subscription, Vendor, VendorLocation, MeetingNote, Alert, Comment } from "@/lib/db";
 import { resolveVendor, addVendorLocation, type VendorMatch, type ResolveDecision } from "@/lib/vendorLink";
-import VendorResolve from "@/components/VendorResolve";
+const VendorResolve = dynamic(() => import("@/components/VendorResolve"), { loading: () => <PourFill label="Loading…" /> });
 import Icon from "@/components/Icon";
 
 // money helpers for the economics panels
@@ -4592,6 +4600,7 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
 }) {
   const [planOpen, setPlanOpen] = useState(false);
   const [prepAIOpen, setPrepAIOpen] = useState(false);
+  const locSugs = useLocationSuggestions(); // venue datalist — one shared cache across all cards
   // Lazy per-card status: the loader no-ops while collapsed (avoids firing prep/schedule queries
   // for every event in a long list), and re-fetches for real once the card opens. useAsyncData's
   // status still gives this a real loading vs. error split instead of a "…" that never resolved.
@@ -4703,8 +4712,9 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
               onBlur={(ev) => ev.target.value !== e.title && onUpdate({ title: ev.target.value })} /></label>
             <label className="ev-fld">Details guests see<textarea className="ev-input ev-area" maxLength={300} rows={2} defaultValue={e.blurb ?? ""} placeholder="One line guests read when they tap this event" aria-label="Event details"
               onBlur={(ev) => (ev.target.value.trim() || null) !== e.blurb && onUpdate({ blurb: ev.target.value.trim() || null })} /></label>
-            <label className="ev-fld">Location / venue<input className="ev-input" maxLength={200} defaultValue={e.location_text ?? ""} placeholder="e.g. Duncan Town Square" aria-label="Location"
+            <label className="ev-fld">Location / venue<input className="ev-input" maxLength={200} defaultValue={e.location_text ?? ""} placeholder="e.g. Duncan Town Square" aria-label="Location" list={`gt3-locs-${e.id}`}
               onBlur={(ev) => (ev.target.value.trim() || null) !== e.location_text && onUpdate({ location_text: ev.target.value.trim() || null })} /></label>
+            {locSugs.length > 0 && <datalist id={`gt3-locs-${e.id}`}>{locSugs.map((s) => <option key={s} value={s} />)}</datalist>}
             <div className="ev-grid">
               <label className="ev-f full">Date<input type="date" defaultValue={e.day ?? ""} aria-label="Event date"
                 onBlur={(ev) => { const v = ev.target.value || null; if (v !== (e.day ?? null)) { const upd: { day: string | null; day_label?: string } = { day: v }; if (v) upd.day_label = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"][new Date(`${v}T12:00:00`).getDay()]; onUpdate(upd); } }} /></label>
