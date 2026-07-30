@@ -133,7 +133,7 @@ export default function Changelog() {
 
       {groups.length === 0 ? (
         <EmptyState title="Nothing logged in this view yet" />
-      ) : groups.map(([mk, items], gi) => {
+      ) : groups.map(([mk, items]) => {
         // Default: only the newest month expanded — the rest roll up into a one-line summary you tap open.
         const openSet = openM ?? new Set(groups.slice(0, 1).map(([m]) => m));
         const open = openSet.has(mk);

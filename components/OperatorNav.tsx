@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { useAuth, roleOf, LEADERSHIP_ROLES } from "./AuthProvider";
+import { useAuth, roleOf } from "./AuthProvider";
 import { useMyAlerts } from "@/lib/useMyAlerts";
 import { useWorkStreams, streamOfCategory, type WorkStream } from "@/lib/streams";
 import { normalizeCategory } from "@/lib/alertKinds";

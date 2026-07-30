@@ -30,7 +30,7 @@ export const SALTED_LATTE = { key: "salted_latte", label: "Salted Latte", price:
 export type PerfMix = Record<string, number>;
 export const perfTotal = (mix: PerfMix) => Object.values(mix).reduce((s, n) => s + (n || 0), 0);
 
-export const refillAllowed = (channel: DeliveryChannel) => channel === "direct";
+const refillAllowed = (channel: DeliveryChannel) => channel === "direct";
 
 /** Max bottles that may be refills: Performance always ships fresh. */
 export const maxRefills = (totalBottles: number, performanceCount: number) =>
@@ -95,7 +95,7 @@ export function deliverySlotChoices(nowMs: number): [DeliverySlot, DeliverySlot]
 }
 
 // ── Phase-1 zone (ZIP allowlist). Ryan verifies against the 20-mi radius before launch. ──
-export const DELIVERY_ZIPS: readonly string[] = [
+const DELIVERY_ZIPS: readonly string[] = [
   "29601", "29605", "29607", "29609", "29611", "29615", "29617", // Greenville
   "29650", "29651",                                              // Greer
   "29680", "29681",                                              // Simpsonville

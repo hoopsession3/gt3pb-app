@@ -409,7 +409,6 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
   const resetOrder = () => { setMix({ rise: 0, flow: 0, dusk: 0 }); setPremiums({}); setRefills(0); setAck(false); setErr(""); setDone(null); setStep(mode === "delivery" ? "size" : "size"); };
 
   // step gating
-  const buildReady = count != null && picked === count;
   const glassReady = mode === "delivery" ? bringBack !== null && !(bringBack && refills > 0 && !ack) : true;
 
   // back navigation per mode

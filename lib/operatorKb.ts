@@ -4,7 +4,7 @@ import { MODULES, PRODUCTS } from "./academy";
 // "what red is that?", "how do we use the logo?" directly. These are the ACTUAL values the app
 // renders (app/globals.css @font-face + CSS tokens, components/Gt3Mark.tsx, brand_kit seed 0057).
 // Kept here (not only in the DB brand_kit) so the answer never depends on that table being loaded.
-export function brandFacts(): string {
+function brandFacts(): string {
   return `# BRAND IDENTITY (typography · color · logo — the house style)
 Fonts, by role:
 - Display / headlines: Archivo Black (headlines ONLY — never body copy).

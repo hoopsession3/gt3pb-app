@@ -100,7 +100,6 @@ export default function CommandPalette() {
   return (
     <div className="cmdk-scrim" onMouseDown={() => setOpen(false)}>
       <div className="cmdk" role="dialog" aria-modal="true" aria-label="Jump to" onMouseDown={(e) => e.stopPropagation()}>
-        {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
         <input autoFocus className="cmdk-in" placeholder="Jump to a section or action…" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={onInputKey} aria-label="Search" />
         <div className="cmdk-list">
           {filtered.map((i, idx) => (

@@ -12,7 +12,6 @@ import Icon from "@/components/Icon";
 // (or overdue); tap to see the full history and log a new service/repair/clean/inspection. Staff-gated
 // via RLS. Lives under the gear library. Fetch state via useAsyncData — a failed load is a real error
 // now, not an empty "No assets yet" painted before the first request even resolves.
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 type Asset = { id: string; name: string; make_model: string | null; brand: string | null };
 type Log = { id: string; asset_id: string; kind: string; performed_on: string; summary: string; how_to: string | null; next_due_on: string | null; cost_cents: number | null; performed_by: string | null };

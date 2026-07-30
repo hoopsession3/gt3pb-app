@@ -36,7 +36,7 @@ function ScanInner() {
     setMember(m);
     setState(error || !m ? "notfound" : "idle");
   };
-  useEffect(() => { if (isStaff) load(); /* eslint-disable-next-line */ }, [isStaff, code]);
+  useEffect(() => { if (isStaff) load(); }, [isStaff, code]);
 
   const addStamp = async () => {
     if (!supabase || !code || busy) return; // guard the double-tap → double point

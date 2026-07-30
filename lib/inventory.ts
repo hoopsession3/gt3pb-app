@@ -42,7 +42,7 @@ const MENU_USECASE: Record<string, string> = {
 };
 
 // the use-cases an event draws on (its menu + always-on setup/cleaning + power)
-export function eventUseCases(e: EventRow): string[] {
+function eventUseCases(e: EventRow): string[] {
   const set = new Set<string>(["Setup/Booth", "Cleaning"]);
   (Object.keys(MENU_USECASE) as string[]).forEach((k) => { if (e[k as keyof EventRow]) set.add(MENU_USECASE[k]); });
   if (e.power_available) set.add("Power");
@@ -54,7 +54,7 @@ const relevantTo = (it: InvItem, cases: Set<string>) =>
   it.useCases.some((u) => cases.has(u)) || it.requiredFor.includes("All Events") || it.critical;
 // Reorder math runs on effective on-hand (ledger balance when we have one, else static qty) so real
 // logged consumption — not just hand-edits — trips the threshold. Mirrors the 0205 inventory_status view.
-export const effOnHand = (it: InvItem) => it.onHand ?? it.qty;
+const effOnHand = (it: InvItem) => it.onHand ?? it.qty;
 const isLow = (it: InvItem) => { const q = effOnHand(it); return q != null && it.reorderPoint != null && q <= it.reorderPoint; };
 
 export interface InvCheck { relevant: InvItem[]; low: InvItem[]; out: InvItem[]; onHandCount: number }

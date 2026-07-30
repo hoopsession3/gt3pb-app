@@ -77,7 +77,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
   const loadProfile = useCallback(async (uid: string) => {
     if (!supabase) return;
-    let { data, error } = await supabase.from("profiles").select("*").eq("id", uid).maybeSingle();
+    const first = await supabase.from("profiles").select("*").eq("id", uid).maybeSingle();
+    let data = first.data;
+    const error = first.error;
     // First load with no referrer yet + a stored ?ref= code → attach it (write-once, server-validated).
     if (!error && data && !(data as Profile).referred_by && typeof window !== "undefined") {
       const code = localStorage.getItem("gt3_ref");

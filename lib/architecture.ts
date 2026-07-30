@@ -2,7 +2,7 @@
 // Each component points to its source-of-truth (SOT) path in the repo, so the map drills into real
 // files/configs and stays honest. Rendered owner-only at /architecture.
 
-export const REPO = "hoopsession3/gt3pb-app";
+const REPO = "hoopsession3/gt3pb-app";
 export const sotUrl = (path: string) => `https://github.com/${REPO}/blob/main/${path}`;
 
 export type ArchStatus = "live" | "configured" | "staged" | "planned";

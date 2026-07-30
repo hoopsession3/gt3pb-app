@@ -48,7 +48,6 @@ export default function MemberInbox() {
   const load = useCallback(async () => {
     if (!supabase || !user) { setItems([]); setLoadFailed(false); return; }
     const dayFloor = new Date(Date.now() - 2 * 86400000).toISOString().slice(0, 10);
-    const recent = new Date(Date.now() - 36 * 3600000).toISOString();
     // Each read is own-rows (RLS) + fail-soft — a missing table/column can never break Today — but a
     // real fetch error must still be logged (not silently swallowed) and must never render identically
     // to "nothing to show": that false-empty-state can hide a genuine ready-drink notification behind

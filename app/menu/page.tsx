@@ -11,13 +11,13 @@ import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
 import { useSiteCopy } from "@/lib/copy";
 import { useAvailability } from "@/lib/availability";
 import { DRINKS, MENU, type DrinkId } from "@/lib/menu";
-import { PACK_SIZES, PACK_TAG, packTotal, newGlassTotal, dollars } from "@/lib/orderAhead";
+import { PACK_SIZES, PACK_TAG, packTotal, dollars } from "@/lib/orderAhead";
 import { clickable } from "@/lib/a11y";
 import Icon from "@/components/Icon";
 
 export default function MenuScreen() {
   const router = useRouter();
-  const { openDrink, isInCart, cartCount } = useApp();
+  const { openDrink, isInCart } = useApp();
   const t = useSiteCopy();
   const { soldOut } = useAvailability();
   const [prices, setPrices] = useState<Record<string, number>>({});

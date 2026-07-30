@@ -10,7 +10,6 @@ export interface ComplianceItem extends PackItem { link?: string }
 
 const norm = (s?: string | null) => (s ?? "").trim().toLowerCase().replace("georgia", "ga");
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function complianceFor(e: EventRow, supabase: SupabaseClient | null): Promise<ComplianceItem[]> {
   const items: ComplianceItem[] = [];
   const st = norm(e.state), co = norm(e.county);

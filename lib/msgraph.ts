@@ -12,7 +12,7 @@ export function outlookConfigured(): boolean {
 
 // The redirect URI must match between authorize and token exchange. Derive from the request origin
 // (works across preview/prod) unless explicitly pinned via env.
-export function redirectUri(origin: string): string {
+function redirectUri(origin: string): string {
   return process.env.MS_REDIRECT_URI || `${origin}/api/outlook/callback`;
 }
 

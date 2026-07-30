@@ -132,7 +132,7 @@ function DealRoi({ model, rate, econ, vol, setVol }: { model: string; rate: numb
 
 export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   const { toast } = useApp();
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const [openId, setOpenId] = useState<string | null>(null);   // expanded opportunity
   const [oppNotes, setOppNotes] = useState<{ id: string; title: string; met_on: string; visibility?: string }[]>([]);
   useEffect(() => {

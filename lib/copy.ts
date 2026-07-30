@@ -193,8 +193,7 @@ export const COPY_META: CopyMeta[] = [
   }),
 ];
 
-export const COPY_DEFAULTS: Record<string, string> = Object.fromEntries(COPY_META.map((m) => [m.key, m.default]));
-export const copyDefault = (key: string): string => COPY_DEFAULTS[key] ?? "";
+const COPY_DEFAULTS: Record<string, string> = Object.fromEntries(COPY_META.map((m) => [m.key, m.default]));
 
 // Fill a copy string's {placeholder} tokens from a value map — the one substitution helper every
 // templated key (menu.packs_cutoff, reserve.cutoff, reserve.confirm_return/new, …) should go

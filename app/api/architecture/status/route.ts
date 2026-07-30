@@ -6,7 +6,6 @@ import { webflowEnabled } from "@/lib/webflow";
 
 export const runtime = "nodejs";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // Live status for the architecture map. Owner-only. Returns ONLY booleans/status strings derived
 // from env presence + table existence — never any secret value. Keys match component.key in the manifest.
 const TABLES: Record<string, string> = {

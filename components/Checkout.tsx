@@ -15,7 +15,6 @@ import { squareClientReady } from "@/lib/square";
 import { trackFunnel } from "@/lib/funnel";
 import Sheet from "./Sheet";
 import OrderConfirm from "./OrderConfirm";
-import Skeleton from "./Skeleton";
 import PaymentCard, { type PaymentCardHandle } from "./PaymentCard";
 import Icon from "@/components/Icon";
 

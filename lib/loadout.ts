@@ -25,7 +25,7 @@ const WEIGHTS: { match: string; lb: number }[] = [
   { match: "kds tablet", lb: 2 }, { match: "square reader", lb: 1 },
 ];
 
-export function weightFor(label: string): number {
+function weightFor(label: string): number {
   const l = label.toLowerCase();
   for (const w of WEIGHTS) if (l.includes(w.match)) return w.lb;
   return 0; // unknown / paperwork (permits, COI) = no load weight
@@ -137,7 +137,7 @@ const r1 = (n: number) => Math.round(n * 10) / 10;
 export function rigToBox(rig: string | null | undefined): SpaceRig {
   return (rig ?? "").toLowerCase().includes("trailer") ? "trailer" : "vehicle";
 }
-export function spaceBox(p: TrailerProfile, rig: SpaceRig) {
+function spaceBox(p: TrailerProfile, rig: SpaceRig) {
   return rig === "vehicle"
     ? { name: p.tow_vehicle || "Vehicle cargo", len: p.veh_cargo_len_in, wid: p.veh_cargo_width_in, hei: p.veh_cargo_height_in, usable: p.veh_usable_pct }
     : { name: p.name || "Trailer", len: p.interior_len_in, wid: p.interior_width_in, hei: p.interior_height_in, usable: p.usable_pct };

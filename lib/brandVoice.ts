@@ -37,7 +37,7 @@ Never invent or imply nutrition / health / caffeine claims beyond the GT3 knowle
 // (she runs the content); the agents learn her cadence: short declaratives, product-by-product,
 // "built around when you actually need them," a quiet close. Live approved captions are appended on
 // top of these at request time, so the voice keeps learning from what the team actually ships.
-export const VOICE_ANCHORS: string[] = [
+const VOICE_ANCHORS: string[] = [
   `GT3 exists for one reason: to make the most honest, pure beverage we can — then hand it to you the moment you actually need it.\n\nThree cold brews. Built around when you actually need them. Rise starts the morning — single-origin, cold-extracted ~18 hours, finished with organic coconut water. Round, clean, no burnt bite.\n\nFlow carries the mid-day. Same organic beans infused with whole cacao nibs. A richer, steadier cup for the hours you're locked in.\n\nDusk closes the day. 🌙 Cinnamon and cardamom steeped into the same clean base. Warm, spiced, same lift.\n\nEvery ingredient is there for a reason. Every bottle is made to order.`,
 ];
 

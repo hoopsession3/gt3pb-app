@@ -28,7 +28,7 @@ export function refillIsFree(benefits: Benefit[]): boolean {
 // Order-level percent-off (the whole pack/reserve order). A code minted as percent_off with target
 // null or 'straight_brew' discounts the order; price_override targets a specific slug (cups channel),
 // so it never applies here. Returns the deepest single percent (they don't stack). Pure.
-export function percentOffOrder(benefits: Benefit[]): number {
+function percentOffOrder(benefits: Benefit[]): number {
   let pct = 0;
   for (const b of benefits) {
     if (b.kind !== "percent_off") continue;

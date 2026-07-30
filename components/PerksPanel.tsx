@@ -69,7 +69,6 @@ export default function PerksPanel() {
   const board = useAsyncData(loader, []);
   const { reload } = board;
   useRealtimeTable("member_benefits", reload);
-  const rows = board.data ?? [];
 
   const autoLabel = () => {
     const tgt = TARGETS.find((t) => t.v === target)?.label ?? "Whole order";

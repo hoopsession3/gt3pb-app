@@ -21,7 +21,7 @@ export type WorkStream = {
   sort: number;
 };
 
-export const DEFAULT_STREAMS: WorkStream[] = [
+const DEFAULT_STREAMS: WorkStream[] = [
   // 2026-07-29 design-merge: "stops" (Route) is now Plan's Route tab and "goals" renders on
   // Command — neither is a section key anymore (see OperatorNav's OpSection note; 0253 cleans the
   // DB rows the same way).

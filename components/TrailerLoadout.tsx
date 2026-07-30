@@ -61,7 +61,6 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
   }, [lockTo?.kind, lockTo?.id]);
   const board = useAsyncData(loader, [lockTo?.kind, lockTo?.id]);
   const { reload } = board;
-  const tp = board.data?.tp ?? null;
   const assets = board.data?.assets ?? [];
   const events = board.data?.events ?? [];
   const stops = board.data?.stops ?? [];

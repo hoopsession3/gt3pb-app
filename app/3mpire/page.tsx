@@ -131,7 +131,6 @@ function MpireReal() {
   const { profile, user, signOut } = useAuth();
   const router = useRouter();
 
-  const name = profile?.display_name || (user?.email ? user.email.split("@")[0] : "Member");
   const points = profile?.points ?? 0;
   const freeEarned = Math.floor(points / 10); // lifetime free drinks — derived from the real points column
   const credit = ((profile?.credit_cents ?? 0) / 100).toFixed(2);

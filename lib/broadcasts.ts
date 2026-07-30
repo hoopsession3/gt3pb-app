@@ -34,7 +34,7 @@ export function useLiveBroadcasts(): Broadcast[] {
       (!b.starts_at || new Date(b.starts_at).getTime() <= now) &&
       (!b.ends_at || new Date(b.ends_at).getTime() >= now)));
   };
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  useEffect(() => { load(); }, []);
   useRealtimeTable(["broadcasts"], load);
   return rows;
 }

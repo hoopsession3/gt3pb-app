@@ -337,7 +337,7 @@ const s1 = (await q1(`insert into stops (name, status, starts_at) values ('Stale
 const s2 = (await q1(`insert into stops (name, status, starts_at) values ('Yesterday, still fresh', 'upcoming', now() - interval '1 day') returning id`)).id;
 // s3 = THE MAIN PATH: go-offline wraps AND archives in the same moment (crew LiveControl) — the
 // recap must still fire (panel blocker: the first draft filtered archived stops and never asked).
-const s3 = (await q1(`insert into stops (name, status, starts_at, completed_at, archived_at) values ('Ran + wrapped 4h ago', 'done', now() - interval '7 hours', now() - interval '4 hours', now() - interval '4 hours') returning id`)).id;
+await q1(`insert into stops (name, status, starts_at, completed_at, archived_at) values ('Ran + wrapped 4h ago', 'done', now() - interval '7 hours', now() - interval '4 hours', now() - interval '4 hours') returning id`);
 const s4 = (await q1(`insert into stops (name, status, starts_at, completed_at) values ('Ancient done stop', 'done', now() - interval '10 days', now() - interval '10 days') returning id`)).id;
 // s5 = crew already typed the recap in the wrap dialog — nothing to ask for
 const s5 = (await q1(`insert into stops (name, status, starts_at, completed_at) values ('Wrapped with recap typed', 'done', now() - interval '8 hours', now() - interval '5 hours') returning id`)).id;

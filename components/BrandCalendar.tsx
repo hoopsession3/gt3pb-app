@@ -39,7 +39,6 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
   const goToCompany = () => setSection("plan");
   const now = new Date();
   const [cursor, setCursor] = useState(() => new Date(now.getFullYear(), now.getMonth(), now.getDate())); // always open on today
-  const setMonth = (d: Date) => setCursor(d);
   const [over, setOver] = useState<string | null>(null);
   const [focusEvent, setFocusEvent] = useState<string | null>(null); // highlight a relationship
   const [dayOpen, setDayOpen] = useState<string | null>(null); // tap a day → its detail

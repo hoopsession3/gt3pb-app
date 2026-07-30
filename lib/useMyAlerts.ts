@@ -29,7 +29,7 @@ export type MyFlag = {
 
 // Quiet hours: is the local clock currently inside [start, end)? Wrap-aware (22→7 spans midnight).
 // A null bound or an empty window (start === end) means "no quiet window".
-export function inQuietHours(now: Date, start: number | null | undefined, end: number | null | undefined): boolean {
+function inQuietHours(now: Date, start: number | null | undefined, end: number | null | undefined): boolean {
   if (start == null || end == null || start === end) return false;
   const h = now.getHours();
   return start < end ? (h >= start && h < end) : (h >= start || h < end);

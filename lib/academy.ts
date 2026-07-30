@@ -967,7 +967,7 @@ export const CERTS: Cert[] = [
 
 // ─────────────────────────── role learning paths ───────────────────────────
 export interface RolePath { role: Role; certs: string[] }
-export const ROLE_PATHS: RolePath[] = [
+const ROLE_PATHS: RolePath[] = [
   { role: "contractor", certs: ["brand", "cx", "event"] },
   { role: "staff", certs: ["brand", "cx", "product", "science"] },
   { role: "operator", certs: ["brand", "cx", "product", "science", "equipment", "ops", "inventory", "event"] },
@@ -989,7 +989,7 @@ export const READINESS: Readiness[] = [
 
 // ─────────────────────────── certification expiry ───────────────────────────
 // Food-safety-adjacent certs expire and must be renewed. 0 = no expiry.
-export const CERT_EXPIRY_DAYS: Record<string, number> = {
+const CERT_EXPIRY_DAYS: Record<string, number> = {
   brand: 0, cx: 365, product: 730, science: 0, equipment: 365, event: 365,
   inventory: 365, ops: 365, trailer: 365, excellence: 365, leadership: 0, philosophy: 0,
 };

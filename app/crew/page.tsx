@@ -116,7 +116,7 @@ import { projectEvent, reconcile, DEFAULT_ECON, type EventEcon, type ProductEcon
 import { buildBrief } from "@/lib/eventbrief";
 import { fetchInventory, inventoryForEvent, rollupLowStock, type InventoryResp, type InvItem } from "@/lib/inventory";
 import { fetchAssets, type AssetsResp } from "@/lib/assets";
-import type { Stop, LiveStatus, EventRow, EventTask, BookingRequest, Order, Reserve, Subscription, Vendor, VendorLocation, MeetingNote, Alert, Comment } from "@/lib/db";
+import type { Stop, LiveStatus, EventRow, EventTask, BookingRequest, Order, Reserve, Subscription, Vendor, VendorLocation, MeetingNote, Comment } from "@/lib/db";
 import { resolveVendor, addVendorLocation, type VendorMatch, type ResolveDecision } from "@/lib/vendorLink";
 const VendorResolve = dynamic(() => import("@/components/VendorResolve"), { loading: () => <PourFill label="Loading…" /> });
 import Icon from "@/components/Icon";
@@ -430,7 +430,6 @@ function ServicePulse({ onEnter }: { onEnter: () => void }) {
 // ───────────────────────── alerts: the "don't-miss" spine ─────────────────────────
 // Leadership tier comes from the one shared definition (AuthProvider) — the audit found this list
 // re-typed seven ways with drift. Alerts themselves are staff-wide since 0157.
-const isLeader = (role: string | null | undefined) => (LEADERSHIP_ROLES as readonly string[]).includes(role ?? "");
 
 // Raise an alert. The INSERT is the whole contract — the alerts_push_fanout trigger (0157)
 // delivers push + Teams for every row, same as the server and pg_cron producers. Category is the
@@ -621,7 +620,7 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
   // One source of truth for "what needs me" — the same hook drives My Day's flags and the nav
   // badge, so the three counters that used to disagree now agree by construction. Ack semantics
   // live in the hook: row-ack for targeted alerts, per-user read for broadcasts (0157).
-  const { flags: mine, held, quietActive, critCount: crit, ack, clearAll, clearHeld, snooze } = useMyAlerts(userId);
+  const { flags: mine, held, critCount: crit, ack, clearAll, clearHeld, snooze } = useMyAlerts(userId);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [digestOpen, setDigestOpen] = useState(false);
   const streams = useWorkStreams();
@@ -1878,7 +1877,7 @@ function InspectionPrep() {
   );
 }
 
-function EventPrep({ onGo, sel, setSel }: { onGo: (t: string) => void; sel: PrepTarget | null; setSel: Dispatch<SetStateAction<PrepTarget | null>> }) {
+function EventPrep({ sel, setSel }: { sel: PrepTarget | null; setSel: Dispatch<SetStateAction<PrepTarget | null>> }) {
   // Selection lives in the PARENT (2026-07-30): the KPI strip above this list re-scopes to the
   // drilled-in target, so the two components share one selection instead of this one hoarding it.
   const selected = sel, setSelected = setSel;
@@ -2985,7 +2984,6 @@ function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive
 // ───────────────────────── live truck control ─────────────────────────
 function LiveControl({ compact = false, manage = false }: { compact?: boolean; manage?: boolean }) {
   const { toast } = useApp();
-  const router = useRouter();
   const { setSection } = useOperatorSection();
   const openPrep = (id: string) => { try { localStorage.setItem("gt3-prep-open", `stop:${id}`); } catch { /* ignore */ } setSection("prep"); };
   const [stops, setStops] = useState<Stop[]>([]);
@@ -3839,7 +3837,6 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
 function Bookings() {
   const { toast } = useApp();
   const { user } = useAuth();
-  const { setSection } = useOperatorSection();
   const [reqs, setReqs] = useState<BookingRequest[]>([]);
   const [promoting, setPromoting] = useState<string | null>(null);
   const [promoteResolve, setPromoteResolve] = useState<{ req: BookingRequest; name: string; candidates: VendorMatch[] } | null>(null);
@@ -5863,7 +5860,7 @@ export default function AdminPage() {
               to Assets beside the inventory it reads, and Inspection prep — real prep, but
               occasional-use by its own copy — parks at the bottom, collapsed, instead of first. */}
           {!prepSel && <div className="crew-group">Event prep · by stop</div>}
-          <EventPrep onGo={goSection} sel={prepSel} setSel={setPrepSel} />
+          <EventPrep sel={prepSel} setSel={setPrepSel} />
           {!prepSel && canManage && <InspectionPrep />}
         </>
       )}

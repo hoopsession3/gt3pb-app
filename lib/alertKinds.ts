@@ -5,7 +5,7 @@
 // anything else is a type error at the producer.
 export type AlertSeverity = "critical" | "important" | "fyi";
 
-export const ALERT_CATEGORIES = {
+const ALERT_CATEGORIES = {
   order: "order",       // a customer order needs the pass (cup, pack, delivery)
   money: "money",       // payments, payouts, recording failures
   brew: "brew",         // brew ladder: start windows, ready, holds

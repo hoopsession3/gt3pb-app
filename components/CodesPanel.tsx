@@ -35,7 +35,6 @@ const TARGETS: { v: string; label: string }[] = [
   { v: "salted-latte", label: "Latte (bulk)" },
 ];
 
-const KIND_LABEL: Record<Kind, string> = { percent_off: "% off", price_override: "Set price", free_refill: "Free" };
 
 export default function CodesPanel() {
   const { toast } = useApp();

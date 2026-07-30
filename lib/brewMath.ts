@@ -6,8 +6,8 @@
 // one 10-oz serving; 128 oz to the gallon; a recipe's yield_factor is the share of the vessel
 // that actually becomes pourable product (default 0.92 when a recipe hasn't measured its own).
 
-export const GAL_PER_BOTTLE = 10 / 128;
-export const DEFAULT_YIELD = 0.92;
+const GAL_PER_BOTTLE = 10 / 128;
+const DEFAULT_YIELD = 0.92;
 
 /** Vessels fill in quarter-gallon steps — round demand up to the step a crew can actually pour. */
 export const quarterGal = (g: number) => Math.max(0.25, Math.ceil(g * 4) / 4);
