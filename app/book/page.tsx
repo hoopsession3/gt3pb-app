@@ -53,7 +53,9 @@ export default function BookScreen() {
         <div className="bookcard">
           <div className="eyb">Request received</div>
           <h2>We&apos;re on it.</h2>
-          <p>Thanks, {f.name.split(" ")[0]}. Kayla will reach out within a day to lock your date and the bar. Pricing &amp; prep run through Booking Tool v5.</p>
+          {/* 2026-07-30 (Ryan): no internal tool names ("Booking Tool v5") and no crew first names
+              in guest-facing copy — "it's not professional." The card speaks as the business. */}
+          <p>Thanks, {f.name.split(" ")[0]}. We&apos;ll reach out within a day to lock your date and the details.</p>
         </div>
         <ClosingBeat />
       </section>
@@ -66,7 +68,7 @@ export default function BookScreen() {
       <div className="bookcard">
         <div className="eyb">Bring GT3PB to your event</div>
         <h2>Book the bar.</h2>
-        <p>Offsites, run clubs, launches, weddings. We bring the full bar and pour on site. Tell us the basics — Kayla takes it from there.</p>
+        <p>Offsites, run clubs, launches, weddings. We bring the full bar and pour on site. Tell us the basics — we take it from there.</p>
       </div>
 
       <form className="auth-form" onSubmit={submit} style={{ marginTop: 18 }}>
@@ -86,7 +88,7 @@ export default function BookScreen() {
         <textarea id="b-notes" className="auth-input" value={f.notes} onChange={set("notes")} placeholder="Vibe, timing, must-haves…" rows={3} maxLength={2000} />
         <button className="handle" type="submit" disabled={busy} style={{ marginTop: 18 }}><span>{busy ? "Sending…" : "Send request"}</span></button>
       </form>
-      <p className="auth-fine">Pricing &amp; prep handled by Booking Tool v5 — the app never quotes.</p>
+      <p className="auth-fine">Every event is priced personally — we reply within a day with your quote.</p>
       <ClosingBeat />
     </section>
   );
