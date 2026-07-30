@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { geocode } from "@/lib/geocode";
 import { resolveVendor, addVendorLocation, type VendorMatch } from "@/lib/vendorLink";
 import VendorResolve from "@/components/VendorResolve";
+import { useLocationSuggestions } from "@/components/useLocationSuggestions";
 import Icon from "@/components/Icon";
 
 // FIELD-OP SHEET — the ONE quick editor for a field op's core facts (name · date · time ·
@@ -78,6 +79,7 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
   onOpenPrep?: () => void;       // optional door to the full prep hub
 }) {
   const { toast } = useApp();
+  const locSugs = useLocationSuggestions(); // datalist under Where/Address — the venues repeat
   const isEvent = kind === "event";
   const table = isEvent ? "events" : "stops";
   const [f, setF] = useState<Record<string, string | null> | null>(null);
@@ -215,8 +217,9 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
           </label>
         )}
       </div>
-      <label className="prod-f" style={{ marginTop: 8 }}><span>Where</span><input value={f.location_text ?? ""} onChange={(e) => set("location_text", e.target.value)} placeholder="Where" /></label>
-      {!isEvent && <label className="prod-f" style={{ marginTop: 8 }}><span>Address (pins the map + directions)</span><input value={f.address ?? ""} onChange={(e) => set("address", e.target.value)} placeholder="123 Peach St, Atlanta GA" /></label>}
+      <label className="prod-f" style={{ marginTop: 8 }}><span>Where</span><input value={f.location_text ?? ""} onChange={(e) => set("location_text", e.target.value)} placeholder="Where" list="gt3-locs-fieldop" /></label>
+      {!isEvent && <label className="prod-f" style={{ marginTop: 8 }}><span>Address (pins the map + directions)</span><input value={f.address ?? ""} onChange={(e) => set("address", e.target.value)} placeholder="123 Peach St, Atlanta GA" list="gt3-locs-fieldop" /></label>}
+      {locSugs.length > 0 && <datalist id="gt3-locs-fieldop">{locSugs.map((s) => <option key={s} value={s} />)}</datalist>}
       {!isEvent && (
         <label className="prod-f" style={{ marginTop: 8 }}><span>Status</span>
           <select value={f.status ?? "upcoming"} onChange={(e) => set("status", e.target.value)}>
