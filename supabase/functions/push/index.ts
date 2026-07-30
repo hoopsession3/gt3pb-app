@@ -57,13 +57,17 @@ async function emailAdmins(subject: string, body: string) {
   const from = Deno.env.get("NOTIFY_FROM_EMAIL");
   if (!key || !from) return;
   const { data: admins } = await supabase.from("admin_emails").select("email");
-  const to = (admins ?? []).map((a: { email: string }) => a.email);
-  if (!to.length) return;
+  const list = (admins ?? []).map((a: { email: string }) => a.email);
+  if (!list.length) return;
   try {
+    // First admin on To, everyone else BCC (2026-07-30 — Ryan, holding the first live delivery:
+    // "Why can you see CC, maybe BCC?"). The old single send put the entire admin list on the To
+    // line, so every recipient saw everyone's address. One visible To keeps deliverability happy;
+    // BCC keeps the list private and the header clean.
     await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from, to, subject: subject.slice(0, 200), text: body }),
+      body: JSON.stringify({ from, to: list.slice(0, 1), ...(list.length > 1 ? { bcc: list.slice(1) } : {}), subject: subject.slice(0, 200), text: body }),
     });
   } catch (_e) { /* never fail the webhook on a mail-provider hiccup */ }
 }
