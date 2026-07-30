@@ -119,7 +119,9 @@ Deno.serve(async (req) => {
       title = "New booking request";
       message = `${record.name ?? "Someone"}${record.event_date ? " - " + record.event_date : ""}${record.location_text ? " - " + record.location_text : ""}`;
       url = "/admin";
-      targets = await subsFor((q) => q.eq("is_admin", true));
+      // No direct push targets here (2026-07-30, Ryan's screenshot: "Should I have gotten three?").
+      // insertAlert below fans out to leadership via the alerts webhook — pushing directly here TOO
+      // meant every booking notified twice from this function alone. One event, one push.
       // Producer: a new lead → inbox + Teams + email so it's chased before it goes cold. Email is
       // the one channel here that doesn't depend on a subscribed device or a configured webhook —
       // an owner who's away from the crew app for a day still finds out a lead came in, and when.
@@ -157,11 +159,11 @@ Deno.serve(async (req) => {
       return new Response("ok: signup");
 
     } else if (table === "delivery_orders" && type === "INSERT") {
-      // New delivery order (2026-07-30): low-volume revenue — alert + Teams + email + admin push.
+      // New delivery order (2026-07-30): alert (fans out push) + Teams + email. No direct targets —
+      // the alert webhook is the ONE push path (see the booking case's triple-notification note).
       title = "New delivery order";
       message = `${record.pack_size ?? "?"}-bottle delivery for ${record.delivery_date ?? "soon"}`;
       url = "/admin";
-      targets = await subsFor((q) => q.eq("is_admin", true));
       await insertAlert({ severity: "important", category: "delivery", title, body: message, link: "/crew?s=driver" });
       await postTeams("important", title, message);
       await emailAdmins(`New delivery order — ${record.pack_size ?? "?"}-pack`, [
@@ -171,11 +173,11 @@ Deno.serve(async (req) => {
       ].join("\n"));
 
     } else if (table === "drop_orders" && type === "INSERT") {
-      // New reserve (2026-07-30): same trio as deliveries — these are the bottles brews get sized to.
+      // New reserve (2026-07-30): same single-push contract as deliveries — the alert fan-out
+      // carries the push; direct targets here would double it.
       title = "New reserve";
       message = `${record.size ?? "?"}-pack reserved for ${record.drop_date ?? "the next drop"}${record.paid ? " · paid" : " · pay at pickup"}`;
       url = "/admin";
-      targets = await subsFor((q) => q.eq("is_admin", true));
       await insertAlert({ severity: "important", category: "drop", title, body: message, link: "/crew?s=now" });
       await postTeams("important", title, message);
       await emailAdmins(`New reserve — ${record.size ?? "?"}-pack for ${record.drop_date ?? "next drop"}`, [
