@@ -57,7 +57,10 @@ function whenDay(s: FieldOp): string {
 }
 function whenTime(s: FieldOp): string {
   if (s.time_label?.trim()) return s.time_label;
-  if (s.starts_at) return new Date(s.starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }).replace(":00", "").replace(" ", "").toLowerCase();
+  // Keep the minutes ("7:00am", never "7am") — the event rows on the same list always carry
+  // minutes (fmt12's "6:00pm"), and the two conventions sat side by side until 2026-07-30
+  // (Ryan's screenshot: stop lead said "7AM", event meta said "6:00pm").
+  if (s.starts_at) return new Date(s.starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }).replace(" ", "").toLowerCase();
   return "";
 }
 // fmt12 moved to lib/dates.ts (2026-07-29) — RsvpRow's event time needed the exact same
@@ -251,7 +254,10 @@ export default function FindUs() {
       )}
 
       <div className="k-facts">
-        <div className="f"><div className="fk">{isLive ? "Status" : "Day"}</div><div className={`fv${isLive ? " ok" : ""}`}>{isLive ? "Live" : heroWhen || "Soon"}</div></div>
+        {/* Day stays Day even when live — the masthead eyebrow + pulse dot already announce
+            "Live now"; a Status:Live cell here said it twice and hid the date to do it
+            (2026-07-30 redundancy audit). */}
+        <div className="f"><div className="fk">Day</div><div className="fv">{heroWhen || "Soon"}</div></div>
         <div className="f"><div className="fk">{hero?.kind === "event" ? "Starts" : heroClose ? "Hours" : "Open"}</div><div className="fv">{heroClose ? `${heroOpen || "—"} – ${heroClose}` : heroOpen || "—"}</div></div>
         {hero?.kind === "event" && hero.going_count != null && hero.going_count > 0 && (
           <div className="f"><div className="fk">Going</div><div className="fv">{hero.going_count}</div></div>
@@ -279,9 +285,14 @@ export default function FindUs() {
                   <div key={r.id}>
                     <InfoRow
                       lead={whenDay(r)}
-                      leadSub={[whenDate(r), whenTime(r)].filter(Boolean).join(" ")}
+                      leadSub={whenDate(r)}
                       name={r.name}
                       sub={descFor(r, t, avail).text}
+                      /* Time rides in the meta line — the same slot and lowercase format as the
+                         event rows' evTime. It used to sit inside the lead stamp, where the
+                         stamp's CSS uppercased it: "8/1 7AM" beside an event's "6:00pm" — two
+                         conventions on one list (2026-07-30). Lead = day + date only, both kinds. */
+                      meta={whenTime(r) || undefined}
                       live={rowLive}
                       trailing={<span className={`k-caret${isOpen ? " open" : ""}`} aria-hidden="true">›</span>}
                       onClick={() => setOpenStop(isOpen ? null : r.id)}
