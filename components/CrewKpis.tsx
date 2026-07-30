@@ -107,7 +107,10 @@ export const GarageKpis = () => <KpiStrip tiles={GARAGE_TILES} label="Assets at 
 // above dashboard should [be] dynamic.") With no target this is the same global strip as ever;
 // hand it the selected event/stop and Open/Critical narrow to that target's own tasks, while
 // "Events on the books" — meaningless inside one event — gives its slot to "Days to go". Scoped
-// tiles don't navigate: their answer (the task list) is the very screen you're standing on.
+// tiles still drill, each to its own spot on the detail below (Ryan: "It should still drill to
+// that when warranted … put it where it makes sense"): Open → the checklist, Critical → the
+// first open critical line, Days to go → the identity/date card. All same-screen anchors — no
+// section hop — and a missing anchor (0 criticals) is a quiet no-op: nothing to drill to.
 // One realtime ear on event_tasks keeps both flavors honest as tasks get checked off — the bump
 // mints a fresh tiles identity, and KpiStrip's [tiles] effect refetches.
 export function PrepKpis({ target }: { target?: { kind: "event" | "stop"; id: string } | null }) {
@@ -118,8 +121,8 @@ export function PrepKpis({ target }: { target?: { kind: "event" | "stop"; id: st
     if (!target) return [...PREP_TILES];
     const col = target.kind === "event" ? "event_id" : "stop_id";
     return [
-      { key: "open", label: `Open tasks · this ${target.kind === "event" ? "event" : "stop"}`, load: (db) => head(db, "event_tasks").eq("done", false).eq(col, target.id) },
-      { key: "crit", label: "Critical open", load: (db) => head(db, "event_tasks").eq("done", false).eq("critical", true).eq(col, target.id) },
+      { key: "open", label: `Open tasks · this ${target.kind === "event" ? "event" : "stop"}`, load: (db) => head(db, "event_tasks").eq("done", false).eq(col, target.id), to: { anchor: "prep-target-tasks" } },
+      { key: "crit", label: "Critical open", load: (db) => head(db, "event_tasks").eq("done", false).eq("critical", true).eq(col, target.id), to: { anchor: "prep-first-crit" } },
       {
         key: "days", label: "Days to go", load: async (db) => {
           const iso = target.kind === "event"
@@ -129,6 +132,7 @@ export function PrepKpis({ target }: { target?: { kind: "event" | "stop"; id: st
           const today = new Date(); today.setHours(0, 0, 0, 0);
           return { count: Math.max(0, Math.round((new Date(`${iso}T00:00:00`).getTime() - today.getTime()) / 86400000)) };
         },
+        to: { anchor: "prep-target-details" },
       },
     ];
   }, [target, bump]);

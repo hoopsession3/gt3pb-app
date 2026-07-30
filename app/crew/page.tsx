@@ -2388,8 +2388,11 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
         {isEvent && ev?.is_live && <span className="adm-pill due">LIVE</span>}
         {!isEvent && <span className="adm-pill">Location</span>}
       </>} />
-      {/* Identity / date / place / status — managed right here, so a stop or event is one screen end to end. */}
-      <OwnerDetails ownerType={target.kind} ownerId={target.id} isAdmin={isAdmin} onSaved={(nm) => { setName(nm); load(); }} onRemoved={onBack} />
+      {/* Identity / date / place / status — managed right here, so a stop or event is one screen
+          end to end. The wrapper id is the scoped "Days to go" KPI tile's drill target. */}
+      <div id="prep-target-details">
+        <OwnerDetails ownerType={target.kind} ownerId={target.id} isAdmin={isAdmin} onSaved={(nm) => { setName(nm); load(); }} onRemoved={onBack} />
+      </div>
       {total > 0 ? (
         <>
           <div className={`adm-ready-bar${ready ? " ok" : critOut.length ? " miss" : ""}`}>
@@ -2575,11 +2578,14 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
         </div>
       )}
 
+      {/* The checklist — wrapper id is the scoped "Open tasks" tile's drill target; the first open
+          critical line carries its own id for the "Critical open" tile (absent when 0: no-op). */}
+      <div id="prep-target-tasks">
       {sections.map((sec) => (
         <div key={sec} className="adm-prep-sec">
           <div className="adm-prep-label">{sec}</div>
           {tasks.filter((t) => (t.section ?? "Task") === sec).map((t) => (
-            <div key={t.id} className="adm-task-wrap">
+            <div key={t.id} className="adm-task-wrap" id={t.id === critOut[0]?.id ? "prep-first-crit" : undefined}>
               <div className={`adm-task${t.done ? " done" : ""}${t.critical ? " crit" : t.warn ? " warn" : ""}`}>
                 <button type="button" className="task-check" aria-pressed={t.done} onClick={() => toggle(t)} aria-label={`${t.done ? "Mark not loaded" : "Mark loaded"}: ${t.label}`}>
                   <span className="task-box">{t.done && <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7" /></svg>}</span>
@@ -2607,6 +2613,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
           ))}
         </div>
       ))}
+      </div>
       {isAdmin && total > 0 && (
         <div className="adm-task-add">
           <input className="subpitch-email" style={{ marginBottom: 0 }} placeholder="Add a task…" value={newTask} onChange={(e) => setNewTask(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addTask()} aria-label="Add a task" />
