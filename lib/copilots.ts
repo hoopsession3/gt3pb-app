@@ -18,7 +18,7 @@ export const COPILOTS: Copilot[] = [
   { id: "summarize", label: "Summarize a transcript",                desc: "Transcript → title · recap · tasks",             section: "notes",    cat: "Chief of staff" },
   { id: "chief",     label: "Brief me on the whole business",        desc: "Executive read of the week / month",             section: "day",      cat: "Chief of staff" },
   // Growth · sales & marketing
-  { id: "sales",     label: "Work the sales pipeline",               desc: "Chief-of-sales moves on every deal",             section: "pipeline", cat: "Growth" },
+  { id: "sales",     label: "Work the sales pipeline",               desc: "Chief-of-sales moves on every deal",             section: "plan",     cat: "Growth" },
   { id: "intake",    label: "Turn a booking request into a lead",    desc: "Inbound → a structured opportunity",             section: "plan",     cat: "Growth" },
   { id: "campaign",  label: "Draft a campaign",                      desc: "A multi-channel content plan",                   section: "studio",   cat: "Growth" },
   { id: "caption",   label: "Write post captions",                   desc: "On-brand captions for a post",                   section: "studio",   cat: "Growth" },

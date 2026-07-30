@@ -473,7 +473,7 @@ function alertDest(category: string | null | undefined, title?: string | null): 
   if (cat === "order") return { section: "now", anchor: "kitchen-pass" };  // land ON the pass, even from the pass screen
   if (cat === "money") return { section: "money" };
   if (cat === "brew") return { section: "brew" };
-  if (cat === "booking") return { section: "pipeline" };
+  if (cat === "booking") return { section: "plan", planTab: "leads" }; // leads live on Plan now (2026-07-30 merge)
   if (cat === "prep") return { section: "prep" };
   if (cat === "content" && !/content ready for review/i.test(title || "")) return { section: "studio" };
   if (cat === "strategy") return { section: "command", anchor: "goals" }; // goals live ON Command now (2026-07-29 merge)
@@ -1489,7 +1489,7 @@ function NeedsYou() {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => load(), 500);
   });
-  const goBookings = () => { setSection("pipeline"); };   // leads live in Pipeline now (one funnel)
+  const goBookings = () => { try { localStorage.setItem("gt3-plan-tab", "leads"); } catch { /* ignore */ } setSection("plan"); };   // leads live on Plan › Leads (2026-07-30 merge)
   const openTarget = (kind: "event" | "stop", id: string) => { try { localStorage.setItem("gt3-prep-open", kind === "stop" ? `stop:${id}` : id); } catch { /* ignore */ } setSection("prep"); };
   if (news === 0 && overdue.length === 0 && low.length === 0) return null;
   return (
@@ -3947,7 +3947,7 @@ function Bookings() {
             ))}
             <button className="adm-req-mk" onClick={() => makeEvent(r)}><Icon name="arrowRight" /> Make it an event</button>
             {r.opportunity_id ? (
-              <button className="adm-req-mk" onClick={() => setSection("pipeline")}>On the pipeline <Icon name="arrowRight" /></button>
+              <button className="adm-req-mk" onClick={() => document.getElementById("pipeline-board")?.scrollIntoView({ behavior: "smooth", block: "start" })}>On the pipeline <Icon name="arrowRight" /></button>
             ) : (
               <button className="adm-req-mk" onClick={() => promote(r)} disabled={promoting === r.id}>{promoting === r.id ? "Promoting…" : <><Icon name="arrowRight" /> Promote to Pipeline</>}</button>
             )}
@@ -5456,10 +5456,10 @@ function VendorPicker({ vendors, vendorId, onLink, onCreated, onPickLocation }: 
 // ───────────────────────── section metadata (shared by header + the guide) ─────────────────────────
 // Each section = one job at one moment. LABEL names it, WHEN says when to reach for it (header pill),
 // SUB is the one-liner, MORE explains it, INSIDE lists what lives there. Order = the shift timeline.
-const SEC_LABEL: Record<OpSection, string> = { day: "My Day", now: "Live Ops", ask: "Ask GT3", command: "Command", prep: "Readiness", plan: "Plan", pipeline: "Pipeline", studio: "Studio", brew: "Brew", garage: "Assets", driver: "Delivery", notes: "Notes", money: "Money", customers: "Customers", team: "Team", settings: "Settings" };
+const SEC_LABEL: Record<OpSection, string> = { day: "My Day", now: "Live Ops", ask: "Ask GT3", command: "Command", prep: "Readiness", plan: "Plan", studio: "Studio", brew: "Brew", garage: "Assets", driver: "Delivery", notes: "Notes", money: "Money", customers: "Customers", team: "Team", settings: "Settings" };
 const SEC_WHEN: Record<OpSection, string> = {
   day: "Start of shift", now: "During service", ask: "When you're stuck", command: "Are we on track?", prep: "Before the event",
-  plan: "Booking ahead", pipeline: "Working the leads", studio: "Promoting a drop", brew: "Production days", garage: "Assets & stock", driver: "Delivery days", notes: "Any time", money: "The books", customers: "Your regulars", team: "People & roles", settings: "Managing the app",
+  plan: "Booking ahead", studio: "Promoting a drop", brew: "Production days", garage: "Assets & stock", driver: "Delivery days", notes: "Any time", money: "The books", customers: "Your regulars", team: "People & roles", settings: "Managing the app",
 };
 const SEC_SUB: Record<OpSection, string> = {
   day: "Your tasks, flags, needs-you & what's on today.",
@@ -5467,8 +5467,7 @@ const SEC_SUB: Record<OpSection, string> = {
   now: "The pass, pack pickups & the 86 board — live service.",
   ask: "Recipes, gear, stock & how-to — from the GT3 playbook.",
   prep: "Stock, readiness & the pack list for what's next.",
-  plan: "Calendar, events, the route & vendors.",
-  pipeline: "The sales funnel — accounts, deals, reps & next steps.",
+  plan: "Calendar, events, the route, leads & vendors.",
   notes: "Notes — private or shared; follow-ups become tasks.",
   studio: "Draft, schedule & post — brand & marketing.",
   brew: "Schedule, start & log brews — sized to what's reserved.",
@@ -5484,8 +5483,7 @@ const SEC_MORE: Record<OpSection, string> = {
   command: "The shared war room both founders see — the digital version of the magnetic board. Your initiatives (a dated program like the Aug-1 launch) with a countdown and milestone progress, then This Week, Blockers, Done and Money in one glance. This is where you answer “are we on track?” together, instead of over text. Company goals live here too — owners, progress and check-ins — so the scoreboard and the steering wheel share one screen.",
   now: "The glance before the work. Alerts land here, the service pulse shows what's waiting (orders on the pass, items 86'd), and one tap opens The Pass — the working screen with the pass board, pickup checklist and 86 board. Prep lives here too: the drop's brew sheet and Sunday delivery.",
   prep: "Get ready before you roll. Build the pack list, check stock and readiness, and sign off that the truck's loaded for the next event or stop.",
-  plan: "The forward calendar. Book events, plan the truck's route (locations, dates, the ordering dial), work incoming booking requests, and manage vendors and venues — weeks and months out. An event and a stop are the same planned thing here, side by side, the way the calendar already shows them.",
-  pipeline: "The sales board. Every account with its deal (from the owner's catalog, matched to the account type), its rep, its stage and its next step — argued out on the thread, won or lost on the record.",
+  plan: "The forward calendar. Book events, plan the truck's route (locations, dates, the ordering dial), work the leads — incoming booking requests and the sales board — and manage vendors and venues, weeks and months out. The whole arc lives here: a lead becomes an event becomes a stop on the route, without changing sections.",
   notes: "Every note, yours and the team's. Jot one for yourself (🔒 just me), share one with the crew, or file a meeting recap — tag follow-ups and they land in people's tasks with a ping. The ✦ button jots one from any screen.",
   studio: "Your marketing studio. Draft posts and flyers, keep them on-brand, plan the feed, schedule around your drops, and moderate the guest reviews that feed the truck display.",
   brew: "Production's home. Schedule brews sized to demand, hit start-by deadlines, log every batch — with coverage, serve-by and stock checks right on the card.",
@@ -5502,8 +5500,7 @@ const SEC_INSIDE: Record<OpSection, string[]> = {
   command: ["Initiatives — a dated program (e.g. the Aug-1 launch) with countdown & milestone progress", "This week — everything due across both task lists", "Blockers — stopped-service incidents + anything overdue", "Done this week — momentum at a glance", "Money — the live glance", "Goals & planning — owners, progress check-ins & threads"],
   now: ["Service pulse — live counts, one tap into the working screen", "The Pass — the pass board (guests ping it: on my way · outside · late), pickup checklist & 86 board on ONE screen", "The drop — brew sheet & window money (the checklist lives in Service)", "Delivery run — run sheet, brew totals & packout (outcomes are logged in driver mode)", "Live truck: go live, GPS broadcast (locations & the ordering dial live in Plan › Route)", "Alerts & your tasks — pointers into My Day"],
   prep: ["Per-event & per-stop pack lists", "Readiness & inspection checks", "Crew assignments & sign-off", "Load-out & gear moved to Production › Assets"],
-  plan: ["Company calendar", "Events", "Route — locations, go live & the cup-ordering dial", "Booking requests", "Vendors & venues"],
-  pipeline: ["Prospect → first attempt → talking → proposal → won", "Deal catalog — owner-set, per account type", "Rep assignment with a ping", "Per-deal discussion threads"],
+  plan: ["Company calendar", "Events", "Route — locations, go live & the cup-ordering dial", "Leads — booking requests & the sales board (prospect → won)", "Vendors & venues"],
   notes: ["Private notes — 🔒 just for you", "Team notes & meeting recaps", "Follow-ups → assigned tasks", "✨ Transcript → summary"],
   studio: ["Post & flyer drafting", "Brand copy & front-end copy", "Feed planning grid", "Repurpose engine", "Publishing & scheduling", "Review Desk → the truck display (/display): add or approve reviews; ✨ Simplify de-claims + trims one to display-safe"],
   brew: ["Brew schedule with start-by deadlines", "Coverage — makes vs reserved", "Serve-by freshness windows", "Batch log & recipes"],
@@ -5609,7 +5606,7 @@ export default function AdminPage() {
   // a prep deep-link should land somewhere that explains itself, and the URL/localStorage must not
   // keep re-teleporting her on every cold open.
   const sec: OpSection = allowed.includes(section) ? section : "day";
-  const [planTab, setPlanTab] = useState<"calendar" | "events" | "vendors" | "route">("calendar");
+  const [planTab, setPlanTab] = useState<"calendar" | "events" | "vendors" | "route" | "leads">("calendar");
   const [guideOpen, setGuideOpen] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
   const { flags: hdrFlags, critCount: hdrCrit } = useMyAlerts(user?.id ?? null, canManage);   // header 🔔 badge
@@ -5668,7 +5665,7 @@ export default function AdminPage() {
   useEffect(() => {
     if (sec !== "plan" || typeof window === "undefined") return;
     const t = localStorage.getItem("gt3-plan-tab");
-    if (t && (["calendar", "events", "vendors", "route"] as const).includes(t as typeof planTab)) {
+    if (t && (["calendar", "events", "vendors", "route", "leads"] as const).includes(t as typeof planTab)) {
       localStorage.removeItem("gt3-plan-tab"); setPlanTab(t as typeof planTab);
     }
   }, [sec]);
@@ -5703,8 +5700,8 @@ export default function AdminPage() {
   // Overview's jump links map onto the operator sections — and the Plan sub-tab when relevant,
   // so "Events" actually lands on Plan→Events instead of whatever tab was last open.
   const goSection = (t: string) => {
-    const map: Record<string, OpSection> = { events: "plan", vendors: "plan", bookings: "pipeline", money: "money", members: "team", stops: "plan", tasks: "day" };
-    const tab: Record<string, typeof planTab> = { events: "events", vendors: "vendors", stops: "route" };
+    const map: Record<string, OpSection> = { events: "plan", vendors: "plan", bookings: "plan", money: "money", members: "team", stops: "plan", tasks: "day" };
+    const tab: Record<string, typeof planTab> = { events: "events", vendors: "vendors", stops: "route", bookings: "leads" };
     if (tab[t]) setPlanTab(tab[t]);
     setSection(map[t] ?? "prep");
   };
@@ -5863,7 +5860,10 @@ export default function AdminPage() {
             {/* Route joined Plan 2026-07-29 (was its own "stops" section): an event and a stop are
                 the same planned thing — the calendar above already rolls both up, and the customer
                 page unified them as field_ops. Planning them in two sections was the seam. */}
-            {([["calendar", "Calendar", 0], ["events", "Events", planCounts.events], ["route", "Route", 0]] as const).map(([k, label, n]) => (
+            {/* Leads joined Plan 2026-07-30 (Ryan: "Pipeline plan yes") — the last section merge:
+                a lead becomes an event becomes a route stop without leaving the section. Operators
+                lose lead visibility by Ryan's explicit call (sales is leadership work). */}
+            {([["calendar", "Calendar", 0], ["events", "Events", planCounts.events], ["route", "Route", 0], ["leads", "Leads", planCounts.bookings]] as const).map(([k, label, n]) => (
               <button key={k} type="button" role="tab" aria-selected={planTab === k} className={`subnav-tab${planTab === k ? " on" : ""}`} onClick={() => setPlanTab(k)}>
                 {label}{n > 0 && <span className="subnav-badge">{n}</span>}
               </button>
@@ -5877,6 +5877,15 @@ export default function AdminPage() {
           {planTab === "calendar" && <CompanyCalendar />}
           {planTab === "events" && <EventsAdmin />}
           {planTab === "route" && <LiveControl manage />}
+          {planTab === "leads" && (
+            <>
+              {/* One lead funnel (typed): inbound booking requests are the intake stage, then the
+                  B2B pipeline board. Formerly its own section; merged 2026-07-30. */}
+              <Bookings />
+              <div className="crew-group" id="pipeline-board">Pipeline</div>
+              <PipelinePanel isAdmin={isAdmin} />
+            </>
+          )}
           {planTab === "vendors" && <VendorsAdmin />}
         </>
       )}
@@ -5973,15 +5982,6 @@ export default function AdminPage() {
         </>
       )}
 
-      {sec === "pipeline" && canPrep && (
-        <>
-          {/* One lead funnel (typed): inbound booking requests are the intake stage, then the B2B
-              pipeline. Consolidated here so leads live in ONE place, not split across Plan + Pipeline. */}
-          <Bookings />
-          <div className="crew-group">Pipeline</div>
-          <PipelinePanel isAdmin={isAdmin} />
-        </>
-      )}
       {sec === "notes" && <MeetingNotes />}
       {sec === "brew" && canPrep && <BrewPlanner />}
       {sec === "garage" && canPrep && (

@@ -111,9 +111,9 @@ export default function ProposalDesk({ oppId, vendorName, isAdmin }: { oppId: st
     const meFirst = (profile?.display_name || "Crew").split(" ")[0];
     const label = vendorName ?? "an opportunity";
     if (to === "in_review") staff.filter((s) => (s.role === "owner" || s.role === "admin") && s.id !== user?.id)
-      .forEach((s) => raiseAlertClient({ severity: "important", category: "strategy", kind: "thread_reply", subjectId: oppId, title: `Proposal ready for review — ${label}`, body: `${meFirst} sent the ${label} proposal for your review.`, link: "/crew?s=pipeline", targetUserId: s.id }));
+      .forEach((s) => raiseAlertClient({ severity: "important", category: "strategy", kind: "thread_reply", subjectId: oppId, title: `Proposal ready for review — ${label}`, body: `${meFirst} sent the ${label} proposal for your review.`, link: "/crew?s=plan", targetUserId: s.id }));
     if (to === "won" || to === "lost") staff.filter((s) => s.id !== user?.id)
-      .forEach((s) => raiseAlertClient({ severity: to === "won" ? "important" : "fyi", category: "strategy", kind: "thread_reply", subjectId: oppId, title: `Proposal ${to.toUpperCase()} — ${label}`, body: `${meFirst} recorded the decision on ${label}: ${to}.${note ? ` "${note.slice(0, 100)}"` : ""}`, link: "/crew?s=pipeline", targetUserId: s.id }));
+      .forEach((s) => raiseAlertClient({ severity: to === "won" ? "important" : "fyi", category: "strategy", kind: "thread_reply", subjectId: oppId, title: `Proposal ${to.toUpperCase()} — ${label}`, body: `${meFirst} recorded the decision on ${label}: ${to}.${note ? ` "${note.slice(0, 100)}"` : ""}`, link: "/crew?s=plan", targetUserId: s.id }));
     reload();
   };
 

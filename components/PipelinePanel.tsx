@@ -249,7 +249,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
     await patch(o.id, { rep_id: uid || null });
     logActivity(o.id, uid ? `→ assigned to ${firstName(uid) ?? "a rep"}` : "→ unassigned");
     if (uid && uid !== user?.id) {
-      raiseAlertClient({ severity: "important", category: "booking", title: `Pipeline: ${o.vendors?.name ?? "an account"} is yours`.slice(0, 140), body: o.deals?.title ? `Deal: ${o.deals.title}` : "Pick the deal and make first contact.", link: "/crew?s=pipeline", targetUserId: uid });
+      raiseAlertClient({ severity: "important", category: "booking", title: `Pipeline: ${o.vendors?.name ?? "an account"} is yours`.slice(0, 140), body: o.deals?.title ? `Deal: ${o.deals.title}` : "Pick the deal and make first contact.", link: "/crew?s=plan", targetUserId: uid });
     }
   };
 
@@ -275,7 +275,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
     if (error) { toast(`Couldn't add — ${error.message}`, "error"); return; }
     if (no.repId && no.repId !== user.id) {
       const vn = vendors.find((v) => v.id === vendorId)?.name ?? no.newVendor;
-      raiseAlertClient({ severity: "important", category: "booking", title: `Pipeline: ${vn} is yours`.slice(0, 140), body: "New opportunity — make first contact.", link: "/crew?s=pipeline", targetUserId: no.repId });
+      raiseAlertClient({ severity: "important", category: "booking", title: `Pipeline: ${vn} is yours`.slice(0, 140), body: "New opportunity — make first contact.", link: "/crew?s=plan", targetUserId: no.repId });
     }
     setAdding(false); setNo({ vendorId: "", newVendor: "", newType: "gym", dealId: "", repId: "", value: "", nextStep: "" });
     toast("On the board"); reload();
@@ -432,7 +432,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
           )}
           <ProposalDesk oppId={o.id} vendorName={o.vendors?.name ?? null} isAdmin={isAdmin} />
           <button type="button" className="st-discuss" onClick={() => setThreadId(threadId === o.id ? null : o.id)} aria-expanded={threadId === o.id}><Icon name="chat" /> {threadId === o.id ? "Close" : "Discuss"}</button>
-          {threadId === o.id && <StrategyThread k={`opp:${o.id}`} label={`Pipeline: ${o.vendors?.name ?? "opportunity"}`} link="/crew?s=pipeline" />}
+          {threadId === o.id && <StrategyThread k={`opp:${o.id}`} label={`Pipeline: ${o.vendors?.name ?? "opportunity"}`} link="/crew?s=plan" />}
         </div>
       )}
     </div>
