@@ -12,14 +12,14 @@ import { raiseAlertClient } from "@/lib/clientAlerts";
 import { authedFetch } from "@/lib/authedFetch";
 import { normalizeCategory, type AlertCategory } from "@/lib/alertKinds";
 import { useMyAlerts, type MyFlag } from "@/lib/useMyAlerts";
-import { localToday, etToday, dayKey, relativeDay, nextWeekdayAt } from "@/lib/dates";
+import { localToday, etToday, dayKey, relativeDay, nextWeekdayAt, ageLabel } from "@/lib/dates";
 import { brewStartOverdue } from "@/lib/brewMath";
 import { useWorkStreams, streamOfCategory } from "@/lib/streams";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "@/components/AsyncSection";
 import EmptyState from "@/components/EmptyState";
-import { useOperatorSection, sectionsForRole, streamGroups, SECTION_LABEL, TODAY_GROUP, type OpSection } from "@/components/OperatorNav";
+import { useOperatorSection, sectionsForRole, streamGroups, SECTION_LABEL, TODAY_GROUP, VALID as VALID_SECTIONS, type OpSection } from "@/components/OperatorNav";
 import { useTaskSheet } from "@/components/TaskSheet";
 import GtmCard from "@/components/GtmCard";
 import { CrumbProvider, Breadcrumbs, useCrumb } from "@/components/Crumbs";
@@ -464,7 +464,20 @@ async function commentCounts(col: "event_task_id" | "meeting_note_id" | "alert_i
 function alertIsReservation(title: string | null | undefined): boolean {
   return /reservation/i.test(title || "");
 }
-function alertDest(category: string | null | undefined, title?: string | null): { section: OpSection; planTab?: string; anchor?: string } {
+function alertDest(category: string | null | undefined, title?: string | null, link?: string | null): { section: OpSection; planTab?: string; anchor?: string } | null {
+  // Priority (2026-07-30, Ryan: "When I hit open my alert from command, it takes me back to my
+  // day… It doesn't flow"):
+  //  1) The alert's OWN link, when it names a real section (?s=…) — the producer knows its home
+  //     better than any category map (sign-ups link Customers, deliveries link Driver, and the
+  //     old router threw all of that away and bounced them to My Day's task list).
+  //  2) The category map below.
+  //  3) null — this alert has NO home beyond its own card, so the card doesn't render Open at
+  //     all. Teleporting somewhere unrelated and closing the inbox was the no-flow.
+  const s = /[?&]s=([a-z-]+)/.exec(link || "");
+  if (s && VALID_SECTIONS.has(s[1] as OpSection)) {
+    const a = /[?&]a=([a-z0-9-]+)/.exec(link || "");
+    return { section: s[1] as OpSection, ...(a ? { anchor: a[1] } : {}) };
+  }
   // normalizeCategory folds the legacy vocabulary (orders/billing/assignment/note/…) into the
   // closed set, so historic rows route correctly too. The audit found the old router matched
   // "order" (which nothing emitted) while every real order ping fell through to My Day.
@@ -476,7 +489,8 @@ function alertDest(category: string | null | undefined, title?: string | null): 
   if (cat === "prep") return { section: "prep" };
   if (cat === "content" && !/content ready for review/i.test(title || "")) return { section: "studio" };
   if (cat === "strategy") return { section: "command", anchor: "goals" }; // goals live ON Command now (2026-07-29 merge)
-  return { section: "day", anchor: "my-day-tasks" }; // task + system → My Day tasks (scroll target)
+  if (cat === "task") return { section: "day", anchor: "my-day-tasks" }; // your tasks DO live on My Day
+  return null; // system & anything homeless: the card is the content
 }
 // After a section switch React needs a beat to mount the destination before we can scroll to it.
 function scrollToAnchor(anchor?: string) {
@@ -645,7 +659,8 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
       toast("Couldn't find that post — it may have been removed. Check Business → Studio.", "error");
       return;
     }
-    const d = alertDest(a.category, a.title);
+    const d = alertDest(a.category, a.title, a.link);
+    if (!d) return;              // homeless alert — the card is the content; Open isn't rendered for these
     if (d.planTab) { try { localStorage.setItem("gt3-plan-tab", d.planTab); } catch { /* ignore */ } }
     onNavigate?.();              // close the inbox sheet FIRST — else the destination renders behind it
     setSection(d.section);
@@ -704,7 +719,7 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
               {held.map((a) => (
                 <div key={a.id} className={`digest-item sev-${a.severity}`}>
                   <button type="button" className="digest-item-go" onClick={() => gotoAlert(a)}>
-                    <span className="digest-item-t">{a.title}</span>
+                    <span className="digest-item-t">{a.title}<span className="alert-when">{ageLabel(a.created_at)}</span></span>
                     {a.body && <span className="digest-item-b">{a.body}</span>}
                   </button>
                   <button type="button" className="digest-item-x" onClick={() => ack(a)} aria-label={`Dismiss ${a.title}`}><Icon name="close" /></button>
@@ -720,11 +735,13 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
         <div key={a.id} className={`alert sev-${a.severity}`}>
           <div className="alert-row">
             <div className="alert-main">
-              <span className="alert-title">{a.title}{myLane(a.category) && <span className="myday-lane">your lane</span>}</span>
+              <span className="alert-title">{a.title}{myLane(a.category) && <span className="myday-lane">your lane</span>}<span className="alert-when">{ageLabel(a.created_at)}</span></span>
               {a.body && <span className="alert-body">{a.body}</span>}
             </div>
             {counts[a.id] ? <button type="button" className="alert-discuss" onClick={() => setOpenThread(openThread === a.id ? null : a.id)} aria-label="Discuss"><Icon name="chat" /><span className="cmt-count">{counts[a.id]}</span></button> : null}
-            <button type="button" className={alertHasInlineAction(a.kind) ? "alert-open ghost" : "alert-open"} onClick={() => gotoAlert(a)}>{alertHasInlineAction(a.kind) ? "Open" : <>Open <Icon name="arrowRight" /></>}</button>
+            {(alertIsReservation(a.title) || alertIsContentReview(a.title) || alertDest(a.category, a.title, a.link) != null) && (
+              <button type="button" className={alertHasInlineAction(a.kind) ? "alert-open ghost" : "alert-open"} onClick={() => gotoAlert(a)}>{alertHasInlineAction(a.kind) ? "Open" : <>Open <Icon name="arrowRight" /></>}</button>
+            )}
             {a.severity !== "critical" && <button type="button" className="alert-snz" onClick={() => snooze(a, new Date(Date.now() + 3600_000))} aria-label="Snooze 1 hour" title="Snooze 1 hour"><Icon name="clock" /></button>}
             <button type="button" className="alert-ack" onClick={() => ack(a)} aria-label="Got it"><Icon name="check" /></button>
           </div>

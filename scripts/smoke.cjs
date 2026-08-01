@@ -360,6 +360,18 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("nextWeekdayAt: upcoming weekday this week, time kept", DT.dayKey(n2) === "2026-07-29" && n2.getHours() === 18 && n2.getMinutes() === 0, DT.dayKey(n2));
   const n3 = DT.nextWeekdayAt(wed6pm, new Date(2026, 6, 29, 12, 0)); // now = same Wed, noon
   ok("nextWeekdayAt: today still counts if the time is ahead", DT.dayKey(n3) === "2026-07-29", DT.dayKey(n3));
+
+  // ageLabel — the one clock every alert card renders (2026-07-30, Ryan: "put dates to these
+  // alerts"); `now` pinned for determinism.
+  const at = (y, mo, d, h, mi) => new Date(y, mo, d, h, mi).toISOString();
+  const NOW = new Date(2026, 6, 30, 14, 0); // Thu Jul 30 2026, 2:00pm
+  ok("ageLabel: under a minute → just now", DT.ageLabel(at(2026, 6, 30, 13, 59, 40), NOW) === "just now" || DT.ageLabel(at(2026, 6, 30, 14, 0), NOW) === "just now");
+  ok("ageLabel: minutes", DT.ageLabel(at(2026, 6, 30, 13, 48), NOW) === "12m ago", DT.ageLabel(at(2026, 6, 30, 13, 48), NOW));
+  ok("ageLabel: hours, same day", DT.ageLabel(at(2026, 6, 30, 11, 0), NOW) === "3h ago", DT.ageLabel(at(2026, 6, 30, 11, 0), NOW));
+  ok("ageLabel: yesterday carries the clock time", /^Yesterday /.test(DT.ageLabel(at(2026, 6, 29, 16, 12), NOW)), DT.ageLabel(at(2026, 6, 29, 16, 12), NOW));
+  ok("ageLabel: inside a week → weekday + time", /^Sun /.test(DT.ageLabel(at(2026, 6, 26, 9, 30), NOW)), DT.ageLabel(at(2026, 6, 26, 9, 30), NOW));
+  ok("ageLabel: older → month + day", DT.ageLabel(at(2026, 6, 12, 9, 30), NOW) === "Jul 12", DT.ageLabel(at(2026, 6, 12, 9, 30), NOW));
+  ok("ageLabel: garbage → empty", DT.ageLabel("not-a-date", NOW) === "");
 }
 
 // --- brew math: bottles↔gallons and start-by — the numbers DropOps/BrewPlanner/My Day all share ---

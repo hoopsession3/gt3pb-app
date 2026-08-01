@@ -25,6 +25,7 @@ export type MyFlag = {
   created_by: string | null;
   kind: string | null;         // 0174 action contract — names the inline handler
   subject_id: string | null;   // the row that handler acts on
+  created_at: string;          // 2026-07-30 (Ryan: "put dates to these alerts") — an alert with no age is a rumor
 };
 
 // Quiet hours: is the local clock currently inside [start, end)? Wrap-aware (22→7 spans midnight).
@@ -45,7 +46,7 @@ export function useMyAlerts(userId: string | null, enabled = true) {
     const nowIso = new Date().toISOString();
     const [{ data: alerts }, { data: reads }, { data: prefsRow }, { data: snz }] = await Promise.all([
       supabase.from("alerts")
-        .select("id, severity, title, body, category, link, target_user_id, created_by, kind, subject_id")
+        .select("id, severity, title, body, category, link, target_user_id, created_by, kind, subject_id, created_at")
         .or(`target_user_id.eq.${userId},target_user_id.is.null`)
         .is("ack_at", null)
         .order("created_at", { ascending: false })

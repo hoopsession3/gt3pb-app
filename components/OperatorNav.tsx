@@ -29,7 +29,7 @@ export type OpSection = "day" | "now" | "ask" | "command" | "prep" | "plan" | "s
 const Ctx = createContext<{ section: OpSection; setSection: (s: OpSection) => void; back: () => boolean; canGoBack: boolean; groupId: string | null; setGroupId: (g: string | null) => void }>({ section: "day", setSection: () => {}, back: () => false, canGoBack: false, groupId: null, setGroupId: () => {} });
 export const useOperatorSection = () => useContext(Ctx);
 
-const VALID = new Set<OpSection>(["day", "now", "command", "prep", "plan", "studio", "brew", "garage", "driver", "notes", "money", "customers", "team", "settings"]);
+export const VALID = new Set<OpSection>(["day", "now", "command", "prep", "plan", "studio", "brew", "garage", "driver", "notes", "money", "customers", "team", "settings"]);
 
 export function OperatorSectionProvider({ children }: { children: React.ReactNode }) {
   const [section, setSectionState] = useState<OpSection>("day");

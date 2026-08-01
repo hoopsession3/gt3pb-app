@@ -124,3 +124,27 @@ export const relativeDay = (input: Date | string): string => {
   if (diff <= -2 && diff > -7) return `${-diff}d ago`;
   return d.toLocaleDateString([], { month: "short", day: "numeric" });
 };
+
+// How long ago a timestamp fired, at alert-card granularity (2026-07-30, Ryan: "put dates to
+// these alerts, alerting system is not useful atp"). An alert with no age is a rumor — this is
+// the one clock every alert surface renders. `now` is a parameter so the smoke harness can pin
+// it. Buckets: seconds → "just now", minutes → "12m ago", hours → "3h ago", yesterday →
+// "Yesterday 4:12 PM", inside a week → "Tue 4:12 PM", older → "Jul 12".
+export function ageLabel(iso: string, now: Date = new Date()): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const mins = Math.floor((now.getTime() - d.getTime()) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  if (mins < 24 * 60) {
+    const midnight = new Date(now); midnight.setHours(0, 0, 0, 0);
+    if (d >= midnight) return `${Math.floor(mins / 60)}h ago`;
+  }
+  const t = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const yStart = new Date(now); yStart.setHours(0, 0, 0, 0); yStart.setDate(yStart.getDate() - 1);
+  const yEnd = new Date(now); yEnd.setHours(0, 0, 0, 0);
+  if (d >= yStart && d < yEnd) return `Yesterday ${t}`;
+  const weekAgo = new Date(now); weekAgo.setDate(weekAgo.getDate() - 7);
+  if (d >= weekAgo) return `${d.toLocaleDateString([], { weekday: "short" })} ${t}`;
+  return d.toLocaleDateString([], { month: "short", day: "numeric" });
+}
