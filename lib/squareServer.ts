@@ -1,8 +1,12 @@
 // Server-only Square REST helpers (the access token never leaves the server).
+// Environment follows the APP ID's own prefix (see lib/square.ts SQUARE_ENV) — the app ID decides
+// where nonces are minted, so the charge must go to the same side. The old NEXT_PUBLIC_SQUARE_ENV
+// switch could disagree with the app ID, which is exactly the "Card nonce not found in this
+// application environment" Ryan hit live (sandbox app ID tokenizing, production base charging).
 export const SQUARE_BASE =
-  process.env.NEXT_PUBLIC_SQUARE_ENV === "production"
-    ? "https://connect.squareup.com"
-    : "https://connect.squareupsandbox.com";
+  (process.env.NEXT_PUBLIC_SQUARE_APP_ID || "").startsWith("sandbox-")
+    ? "https://connect.squareupsandbox.com"
+    : "https://connect.squareup.com";
 
 export const SQUARE_VERSION = "2025-01-23";
 

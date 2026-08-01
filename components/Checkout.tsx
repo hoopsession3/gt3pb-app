@@ -35,8 +35,11 @@ export default function Checkout() {
   const paymentRef = useRef<PaymentCardHandle>(null);
   // A Square idempotency key that stays stable across "Try again" taps for the SAME order, so an
   // ambiguous failure (card captured but the response was lost) dedupes at Square on resubmit instead
-  // of charging twice. It regenerates only when the order itself changes (items/tip/name) — that's a
-  // genuinely new charge. See lib/squareServer.safeIdemKey (server side).
+  // of charging twice. It regenerates when the order itself changes (items/tip/name) — OR when the
+  // card nonce does (2026-07-30, Ryan's live test: a nonce is single-use, so retrying with a fresh
+  // card mints a fresh nonce; reusing the old key with new params is Square's "Different request
+  // parameters used for the same idempotency_key" wall). The ambiguous-network case still dedupes:
+  // a true resubmit replays the SAME nonce, so the signature — and the key — hold still.
   const idem = useRef<{ sig: string; key: string }>({ sig: "", key: "" });
   const idemKeyFor = (sig: string) => {
     if (idem.current.sig !== sig) idem.current = { sig, key: crypto.randomUUID() };
@@ -159,7 +162,7 @@ export default function Checkout() {
       const res = await authedFetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceId: result.token, items, tipCents, customer, idempotencyKey: idemKeyFor(JSON.stringify({ items, tipCents, customer })) }),
+        body: JSON.stringify({ sourceId: result.token, items, tipCents, customer, idempotencyKey: idemKeyFor(JSON.stringify({ items, tipCents, customer, sourceId: result.token })) }),
       });
       const data = await res.json();
       setBusy(false);

@@ -1,7 +1,13 @@
 // Square config (client-safe bits use NEXT_PUBLIC_*; the access token stays server-only).
 export const SQUARE_APP_ID = process.env.NEXT_PUBLIC_SQUARE_APP_ID || "";
 export const SQUARE_LOCATION_ID = process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID || "";
-export const SQUARE_ENV = (process.env.NEXT_PUBLIC_SQUARE_ENV || "sandbox") as "sandbox" | "production";
+// The ONE environment truth (2026-07-30, Ryan's live checkout: "Card nonce not found in this
+// application environment"): DERIVED from the app ID's own prefix, not a second env var that can
+// disagree with it. A sandbox- app ID tokenizes sandbox nonces no matter what
+// NEXT_PUBLIC_SQUARE_ENV claims, so the charge side must follow the app ID — the mismatch class
+// dies here. NEXT_PUBLIC_SQUARE_ENV is retired (ignored); lib/squareServer derives the REST base
+// from the same prefix.
+export const SQUARE_ENV: "sandbox" | "production" = SQUARE_APP_ID.startsWith("sandbox-") ? "sandbox" : "production";
 
 // Whether the client can render the card form (real charges still require the server token + Square activation).
 export const squareClientReady = Boolean(SQUARE_APP_ID && SQUARE_LOCATION_ID);
