@@ -91,7 +91,8 @@ export async function POST(req: Request) {
     let paymentId: string | null = null;
     let paid = false;
     if (wantsCharge) {
-      const charge = await chargeCard({ token: token!, locationId: locationId!, sourceId: body.sourceId!, amountCents: amount, note: `GT3PB order-ahead · ${size}-pack · ${glass} · pickup ${dropDate}`, idempotencyKey: idemKey });
+      // buyerEmail → Square emails the customer a receipt (enterprise round P3).
+      const charge = await chargeCard({ token: token!, locationId: locationId!, sourceId: body.sourceId!, amountCents: amount, note: `GT3PB order-ahead · ${size}-pack · ${glass} · pickup ${dropDate}`, idempotencyKey: idemKey, buyerEmail: await accountEmail(user.id) });
       if (!charge.ok) return NextResponse.json({ error: charge.error }, { status: 400 });
       paymentId = charge.paymentId;
       paid = true;

@@ -448,5 +448,38 @@ const biz0259b = await q1(`select sections, categories from work_streams where k
 ok("0259 re-applied is a no-op (guards hold — no double plan/pipe/meeting)",
   biz0259b.sections.join(",") === "plan,notes,money,customers,team" && biz0259b.categories.filter((c) => c === "pipe").length === 1, biz0259b);
 
+// ── 0260: admin audit trail (enterprise round P1 — who changed what, when) ──
+// Fixtures: an auth.uid() stub (the harness has no live session; the trigger must tolerate a
+// null actor — that IS the contract for service-role writes), plus the hot tables 0260 hooks
+// that the harness doesn't already carry. Then 0260 VERBATIM, twice (re-apply must be a no-op).
+await db.exec(`
+  create schema if not exists auth;
+  create or replace function auth.uid() returns uuid language sql stable as 'select null::uuid';
+  create table if not exists public.deals (
+    id uuid primary key default gen_random_uuid(), title text not null, vendor_type text not null default 'gym',
+    model text not null default 'rev_share', rate_pct numeric, monthly_cents int, price_label text, blurb text,
+    line text, active boolean not null default true, sort int not null default 0, updated_at timestamptz);
+  create table if not exists public.budgets (
+    tenant_id uuid not null default '00000000-0000-0000-0000-000000000001', category text not null,
+    monthly_limit_cents int not null default 0, updated_at timestamptz, primary key (tenant_id, category));
+  create table if not exists public.site_copy (key text primary key, value text);
+`);
+await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0260_admin_audit_trail.sql"), "utf8"));
+const D0260 = (await q1(`insert into deals (title) values ('Gym fridge') returning id`)).id;
+await db.exec(`update deals set title = 'Gym fridge partnership', rate_pct = 10 where id = '${D0260}'`);
+const au1 = await q1(`select action, table_name, row_pk, summary from admin_audit where table_name='deals' and action='UPDATE' order by id desc limit 1`);
+ok("0260 UPDATE logs a human diff (old → new, changed columns only)",
+  au1 && au1.row_pk === D0260 && /title: Gym fridge → Gym fridge partnership/.test(au1.summary) && /rate_pct: ∅ → 10/.test(au1.summary) && !/updated_at/.test(au1.summary), au1);
+await db.exec(`update deals set title = title where id = '${D0260}'`);
+ok("0260 a no-change save logs NOTHING (timestamp-only touches aren't history)",
+  (await q1(`select count(*)::int n from admin_audit where table_name='deals' and action='UPDATE'`)).n === 1);
+await db.exec(`delete from deals where id = '${D0260}'`);
+ok("0260 DELETE keeps the old row snapshot",
+  (await q1(`select old_row->>'title' t from admin_audit where table_name='deals' and action='DELETE' limit 1`)).t === "Gym fridge partnership");
+ok("0260 null actor allowed (service-role/system writes still log)",
+  (await q1(`select count(*)::int n from admin_audit where actor is null`)).n >= 2);
+ok("0260 re-applied whole is a no-op",
+  await (async () => { try { await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0260_admin_audit_trail.sql"), "utf8")); return true; } catch { return false; } })());
+
 console.log(`CANONICAL-DB CONTRACT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

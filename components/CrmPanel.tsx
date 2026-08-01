@@ -8,6 +8,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
+import { downloadCsv } from "@/lib/csv";
 
 // The customer book — first reader of the identity spine. Rows are `customers` (canonical,
 // resolve_customer-backed): every human who's ever ordered, cup, pickup or delivery, whether or
@@ -244,6 +245,12 @@ export default function CrmPanel() {
           {rows.length > 5 && (
             <input className="crm-search" placeholder="Search name, phone, or email" value={q} onChange={(e) => setQ(e.target.value)} />
           )}
+          {/* "It's my data" (enterprise round P2) — the accountant/CRM handoff, from the rows on screen */}
+          <button type="button" className="dops-mini" style={{ margin: "6px 0 8px" }} onClick={() => downloadCsv("gt3-customers.csv", shown.map((c) => ({
+            name: c.name ?? "", phone: c.phone ?? "", email: c.email ?? "",
+            tier: c.tier === "founding" ? (c.vip_verified ? "founding vip" : "founding") : c.user_id ? "member" : "guest",
+            since: c.created_at,
+          })))}>Export CSV</button>
           {shown.map((c) => (
             <div className="crm-row" key={c.id}>
               <button type="button" className="crm-head" onClick={() => setOpenId(openId === c.id ? null : c.id)} aria-expanded={openId === c.id}>

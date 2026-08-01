@@ -37,6 +37,9 @@ export function safeIdemKey(v: unknown): string {
 // subscription — not a single charge, so it isn't a candidate for this helper.)
 export async function chargeCard(opts: {
   token: string; locationId: string; sourceId: string; amountCents: number; note: string; idempotencyKey: string;
+  // Square emails the buyer a receipt when this is present (2026-08-01 enterprise round P3) —
+  // optional, so guest checkouts without an account email charge exactly as before.
+  buyerEmail?: string | null;
 }): Promise<{ ok: true; paymentId: string | null } | { ok: false; error: string }> {
   const res = await fetch(`${SQUARE_BASE}/v2/payments`, {
     method: "POST",
@@ -47,6 +50,7 @@ export async function chargeCard(opts: {
       amount_money: { amount: opts.amountCents, currency: "USD" },
       location_id: opts.locationId,
       note: opts.note,
+      ...(opts.buyerEmail ? { buyer_email_address: opts.buyerEmail } : {}),
     }),
   });
   const data = await res.json();

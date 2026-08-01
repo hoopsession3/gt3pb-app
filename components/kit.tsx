@@ -114,6 +114,8 @@ export function ClosingBeat() {
       <div className="rule" />
       <Gt3Mark tone="cream" />
       <div className="sig">Carolinas, Georgia</div>
+      {/* the legal footer (2026-08-01 enterprise round P5) — quiet, but present on every page */}
+      <div className="k-legal"><a href="/privacy">Privacy</a><span aria-hidden> · </span><a href="/terms">Terms</a></div>
     </div>
   );
 }

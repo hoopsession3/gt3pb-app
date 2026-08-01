@@ -180,7 +180,8 @@ export async function POST(req: Request) {
   const idemKey = safeIdemKey(body.idempotencyKey);
   let charge: Awaited<ReturnType<typeof chargeCard>>;
   try {
-    charge = await chargeCard({ token: token!, locationId: locationId!, sourceId: sourceId!, amountCents: amount, note: "GT3PB pre-order", idempotencyKey: idemKey });
+    // buyerEmail → Square emails the customer a receipt (enterprise round P3); guests charge as before.
+    charge = await chargeCard({ token: token!, locationId: locationId!, sourceId: sourceId!, amountCents: amount, note: "GT3PB pre-order", idempotencyKey: idemKey, buyerEmail: user?.id ? await accountEmail(user.id) : null });
   } catch (e) {
     // chargeCard's own fetch/parse can throw BEFORE returning a result — a dropped connection after
     // Square already received (and possibly processed) the request is the classic case. Unlike every

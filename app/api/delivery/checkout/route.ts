@@ -103,7 +103,8 @@ export async function POST(req: Request) {
   let charge: Awaited<ReturnType<typeof chargeCard>>;
   try {
     // Delivery always charges on order — no cash on delivery.
-    charge = await chargeCard({ token, locationId, sourceId: b.sourceId!, amountCents: quote.totalCents, note: `GT3 Sunday delivery ${slot.deliveryDateKey}`, idempotencyKey: idemKey });
+    // buyerEmail → Square emails the customer a receipt (enterprise round P3).
+    charge = await chargeCard({ token, locationId, sourceId: b.sourceId!, amountCents: quote.totalCents, note: `GT3 Sunday delivery ${slot.deliveryDateKey}`, idempotencyKey: idemKey, buyerEmail: await accountEmail(user.id) });
   } catch (e) {
     // Same fix as api/checkout: chargeCard's own fetch can throw AFTER Square already received (and
     // possibly processed) the request — a dropped connection is the classic case. That's a genuine

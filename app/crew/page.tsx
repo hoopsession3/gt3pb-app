@@ -13,6 +13,7 @@ import { authedFetch } from "@/lib/authedFetch";
 import { normalizeCategory, type AlertCategory } from "@/lib/alertKinds";
 import { useMyAlerts, type MyFlag } from "@/lib/useMyAlerts";
 import { localToday, etToday, dayKey, relativeDay, nextWeekdayAt, ageLabel } from "@/lib/dates";
+import { downloadCsv } from "@/lib/csv";
 import { brewStartOverdue } from "@/lib/brewMath";
 import { useWorkStreams, streamOfCategory } from "@/lib/streams";
 import { useRealtimeTable } from "@/lib/realtime";
@@ -103,6 +104,8 @@ import { calFromEvent, calFromStop } from "@/lib/ics";
 const AssetMaintenance = dynamic(() => import("@/components/AssetMaintenance"), { loading: () => <PourFill label="Loading…" /> });
 const ChiefOfStaff = dynamic(() => import("@/components/ChiefOfStaff"), { loading: () => <PourFill label="Loading…" /> });
 const ChiefOfSales = dynamic(() => import("@/components/ChiefOfSales"), { loading: () => <PourFill label="Loading…" /> });
+const AuditTrail = dynamic(() => import("@/components/AuditTrail"), { loading: () => <PourFill label="Loading…" /> });
+const IntegrationsPanel = dynamic(() => import("@/components/IntegrationsPanel"), { loading: () => <PourFill label="Loading…" /> });
 const SmartIntake = dynamic(() => import("@/components/SmartIntake"), { loading: () => <PourFill label="Loading…" /> });
 import Markdown from "@/components/Markdown";
 import { subscribePush } from "@/lib/push";
@@ -5013,6 +5016,12 @@ function OrdersHistory() {
           : rows;
         return (
           <div className="adm-sec">
+            {/* "It's my data" (enterprise round P2) — the accountant handoff, from the rows shown */}
+            <button type="button" className="dops-mini" style={{ marginBottom: 8 }} onClick={() => downloadCsv("gt3-orders.csv", shown.map((o) => ({
+              when: o.status_changed_at ?? "", order: o.id.slice(0, 4), customer: o.customer ?? "guest",
+              items: o.items.map((i) => DRINKS[i as DrinkId]?.n ?? i).join(" · "),
+              total: (o.total_cents / 100).toFixed(2), status: o.status, paid: o.paid ? "paid online" : "at pickup",
+            })))}>Export CSV</button>
             <SectionHeader label="Order history" right={done > 0 ? <span className="adm-pill">{done} completed</span> : undefined} />
             <input className="adm-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name · order # · item · amount" aria-label="Search order history" />
             {term && <div className="h-sub" style={{ margin: "2px 2px 10px" }}>{shown.length} match{shown.length === 1 ? "" : "es"}</div>}
@@ -5983,6 +5992,11 @@ export default function AdminPage() {
               they don't need equal billing with Copy/Broadcast/Office, which get touched daily. Same
               access, same panels, just moved behind their own divider instead of interleaved. */}
           <div className="crew-group">Advanced</div>
+          {/* Enterprise round (2026-08-01): the two capabilities the control room lacked — an
+              admin change log (who changed what, when — 0260) and one honest pane of what's
+              connected. Both admin-only, both read-only. */}
+          {isAdmin && <Panel id="set-admintrail" title="Change log · who changed what, when"><AuditTrail /></Panel>}
+          {isAdmin && <Panel id="set-integrations" title="Integrations & security · what's connected"><IntegrationsPanel /></Panel>}
           <Panel id="set-changelog" title="What we've built · changelog"><Changelog /></Panel>
           {isAdmin && (
             <Panel id="set-audit" title="Audit & maintenance · every review run, scored &amp; dated">
@@ -6026,7 +6040,12 @@ export default function AdminPage() {
           <div className="crew-group">Spend & budget</div>
           <Panel id="spend" title="Spend & budget · what the business spends" defaultOpen><SpendBudget /></Panel>
           <div className="crew-group">Get paid</div>
-          <Panel id="pay" title="Checkout & payments" defaultOpen><PaymentSettings /></Panel>
+          <Panel id="pay" title="Checkout & payments" defaultOpen>
+            <PaymentSettings />
+            {/* Refunds live in Square by design (the card data never touches this app) — but the
+                DOOR to them belongs here (enterprise round P3). */}
+            <a className="adm-golink" style={{ display: "inline-block", marginTop: 10 }} href="https://squareup.com/dashboard/sales/transactions" target="_blank" rel="noreferrer">Refunds &amp; disputes — Square Dashboard <Icon name="externalLink" /></a>
+          </Panel>
           <div className="crew-group">The numbers</div>
           <Panel id="sales" title="Sales"><Reports /></Panel>
           <Panel id="snapshot" title="Business snapshot"><SnapshotReport /></Panel>
