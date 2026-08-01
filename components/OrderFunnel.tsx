@@ -422,7 +422,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
   const Toggle = (
     <div className="of-seg" role="tablist" aria-label="Fulfillment">
       <button type="button" role="tab" aria-selected={mode === "pickup"} className={mode === "pickup" ? "on" : ""} onClick={() => switchMode("pickup")}>
-        <b>Pickup</b><span>Grab it at a truck stop</span>
+        <b><Icon name="package" /> Pickup</b><span>Grab it at a truck stop</span>
       </button>
       <button type="button" role="tab" aria-selected={mode === "delivery"} className={mode === "delivery" ? "on" : ""} onClick={() => switchMode("delivery")}>
         <b><Icon name="truck" /> Delivery</b><span>Prepaid, to your door</span>
@@ -473,7 +473,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
       {mode === "delivery" && step === "start" && (
         <div className="dl-step">
           <div className="dl-hero">
-            <h2 className="dl-h dl-h-xl">Your week, <em>delivered.</em></h2>
+            <h2 className="dl-h serif dl-h-xl">Your week, <em>delivered.</em></h2>
           </div>
 
           {/* Who's it for? — one question, two doors. Never blurs a home order into an office order. */}
@@ -519,7 +519,9 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
         <div className="dl-step">
           {/* Pickup h2 is instruction-only (2026-07-30 audit): /reserve's page eyebrow already says
               "Order ahead" — the old h2 opened by repeating it verbatim, two lines apart. */}
-          <h2 className="dl-h">{mode === "delivery" ? "We deliver to you. Pick a Sunday and a size." : stops.length > 1 ? "Pick a day and a size." : `Pick a size for ${dayName(drop.sat).split(",")[0]}.`}</h2>
+          {/* serif (2026-08-01 type-voice pass): the one customer headline that spoke system sans —
+              Menu, Craft, and Today's pitch are all Fraunces; Reserve now speaks the same house. */}
+          <h2 className="dl-h serif">{mode === "delivery" ? "We deliver to you. Pick a Sunday and a size." : stops.length > 1 ? "Pick a day and a size." : `Pick a size for ${dayName(drop.sat).split(",")[0]}.`}</h2>
           {mode === "pickup" && <EditableCopy k="reserve.fresh" value={t("reserve.fresh")} as="p" className="dl-sub" />}
 
           {mode === "pickup" && <p className="dl-pricemode">{bringBack ? "Prices with bring-back empties — need new glass? It\u2019s $10 a bottle, picked at the next step." : "New-glass prices — bring your empties back next drop and pay less."}</p>}
@@ -569,7 +571,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
           </div>
           {mode === "delivery"
             ? <p className="dl-note">Delivery {dollars(DELIVERY_PRICING.feeCents)} flat — free at {DELIVERY_PRICING.feeWaivedAt}+ bottles.</p>
-            : <div className="dl-note" dangerouslySetInnerHTML={{ __html: count ? `≈ <b>${PACK_HINT[count]}</b>` : "" }} />}
+            : <div className="dl-note">{count ? <>That&rsquo;s <b>{PACK_HINT[count]}</b></> : null}</div>}
           {count != null && (
             <button type="button" className="oa-cta" disabled={!count} onClick={() => setStep("build")}>Build your pack <Icon name="arrowRight" /></button>
           )}

@@ -17,11 +17,24 @@ let seq = 0;
 // funnel earlier — every payment surface gets that robustness now, not just the one that happened
 // to get patched. Mount/unmount (not a prop) drives the lifecycle: render this only where you want
 // it live, same as the plain `<div id="…">` each surface used to hand-roll.
+// Square hosted-field theming per surface (2026-08-01, LV pass): the default iframe fields are a
+// stark white block — fine as a defined field on the dark funnel, a visible seam on the paper
+// checkout sheet. tone="paper" tints the inputs to the sheet's own cream so the card form reads
+// as part of the page, not an embed. Keys are Square's documented card style surface.
+const CARD_STYLE: Record<string, object> = {
+  paper: {
+    input: { backgroundColor: "#FBF8EF", color: "#221F18" },
+    "input::placeholder": { color: "#9a8f7c" },
+    ".input-container": { borderColor: "#D8CFBB", borderRadius: "10px" },
+    ".input-container.is-focus": { borderColor: "#8a6f31" },
+  },
+};
 const PaymentCard = forwardRef<PaymentCardHandle, {
   className?: string;
+  tone?: "paper" | "dark";
   onReady?: (ready: boolean) => void;
   onError?: (message: string | null) => void;
-}>(function PaymentCard({ className, onReady, onError }, ref) {
+}>(function PaymentCard({ className, tone, onReady, onError }, ref) {
   const idRef = useRef(`pay-card-${++seq}`);
   const cardRef = useRef<{ tokenize: () => Promise<{ status: string; token?: string }>; destroy?: () => void } | null>(null);
   // Latest-callback refs — onReady/onError are inline arrows at every call site, so a new function
@@ -43,7 +56,8 @@ const PaymentCard = forwardRef<PaymentCardHandle, {
       if (dead || cardRef.current) return true;
       try {
         const payments = Square.payments(SQUARE_APP_ID, SQUARE_LOCATION_ID);
-        const card = await payments.card();
+        const style = tone ? CARD_STYLE[tone] : undefined;
+        const card = await payments.card(style ? { style } : undefined);
         if (dead) { card.destroy?.(); return true; }
         await card.attach(`#${idRef.current}`);
         cardRef.current = card;
@@ -74,7 +88,7 @@ const PaymentCard = forwardRef<PaymentCardHandle, {
       }, 300);
     })();
     return () => { dead = true; if (iv) clearInterval(iv); cardRef.current?.destroy?.(); cardRef.current = null; onReadyRef.current?.(false); };
-  }, []);
+  }, [tone]);
 
   return <div id={idRef.current} className={className} />;
 });

@@ -28,7 +28,7 @@ export default function OrderConfirm({
   return (
     <div className="dl-step dl-done">
       <div className="dl-crest"><span><Icon name="check" /></span></div>
-      <h2 className="dl-h dl-done-h">{title}</h2>
+      <h2 className="dl-h serif dl-done-h">{title}</h2>
       {sub && <p className="dl-done-sub">{sub}</p>}
       <div className="dl-done-total" data-eyebrow={totalLabel}><CountUp cents={totalCents} /></div>
       {rows.length > 0 && (

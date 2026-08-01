@@ -232,7 +232,9 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 .subpitch h2{font-family:'Fraunces';font-weight:400;font-size:26px;letter-spacing:-.3px;line-height:1.12;margin:9px 0 9px;color:var(--cream)}
 .subpitch p{font-family:'Inter';font-size:13px;line-height:1.6;color:var(--cream-m);max-width:330px}
 .subpitch-packs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:16px 0}
-.subpitch-pack{display:flex;flex-direction:column;align-items:center;gap:1px;padding:13px 4px;border:1px solid var(--line2);border-radius:13px;background:rgba(0,0,0,.22);color:var(--cream);cursor:pointer;text-align:center}
+/* pack-card geometry matches .oa-tile (Reserve) — one family of cards on Today and Reserve,
+   per Ryan's parity rule (2026-08-01 audit item 5). */
+.subpitch-pack{display:flex;flex-direction:column;align-items:center;gap:1px;padding:13px 4px;border:1.5px solid var(--line2);border-radius:14px;background:rgba(0,0,0,.22);color:var(--cream);cursor:pointer;text-align:center}
 .subpitch-pack.on{border-color:var(--red);background:rgba(184,36,32,.14);box-shadow:inset 0 0 0 1px var(--red)}
 .subpitch-email{width:100%;margin-bottom:10px;background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:12px;padding:13px 14px;color:var(--cream);font-family:'Inter';font-size:16px;outline:none}
 .subpitch-email:focus{border-color:var(--gold2)}
@@ -447,6 +449,9 @@ html.kb-open .nav,html.kb-open .rail{visibility:hidden}
 .tab svg{width:22px;height:22px}
 .tab .tl{font-family:'Inter';font-weight:600;font-size:9.5px;letter-spacing:.6px;text-transform:uppercase}
 .toast{position:absolute;left:22px;right:22px;bottom:96px;background:var(--ok);color:#fff;border-radius:15px;padding:14px 16px;font-family:'Inter';font-weight:600;letter-spacing:.4px;font-size:12.5px;z-index:60;transform:translateY(220%);opacity:0;pointer-events:none;transition:transform .3s,opacity .3s;display:flex;gap:10px;align-items:center;line-height:1.35}
+/* never cover the CartBar (2026-08-01 audit: "Added — keep building" landed ON the Review bar it
+   was pointing at) — with the bar in the shell, the toast rides one story higher. */
+.app:has(.cartbar) .toast{bottom:150px}
 .toast.show{transform:translateY(0);opacity:1}.toast svg{width:18px;height:18px;flex:0 0 auto}
 .toast.err{background:var(--red)}.toast.err svg{stroke:#fff}
 
@@ -830,6 +835,9 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .oa-toggle.on{border-color:var(--gold2);background:rgba(200,166,97,.1);color:var(--cream)}
 .oa-toggle.on span{color:var(--gold2)}
 .co-pickup{margin-top:8px;background:rgba(200,166,97,.1);border:1px solid rgba(200,166,97,.34);border-radius:11px;padding:9px 12px;font-family:'Inter';font-size:12.5px;color:var(--cream);line-height:1.4}
+/* On the PAPER checkout sheet the dark-theme cream token was near-white on pale gold — the washed,
+   illegible notice from the 2026-08-01 audit. Paper context gets ink. */
+:is(.sheet,.sheet2).paper .co-pickup{color:#3a3427;background:rgba(184,144,47,.14);border-color:rgba(138,111,49,.42)}
 /* change item type (event ↔ truck stop) */
 .ownerdet-convert{display:flex;align-items:center;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
 .ownerdet-convert-l{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--cream-d)}
@@ -1153,6 +1161,9 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .mast-brand .g3{font-family:'Archivo Black';font-size:22px;letter-spacing:.4px;color:#221F18;line-height:1}
 .mast-brand .pb{font-family:'Inter';font-weight:600;font-size:8.5px;letter-spacing:3px;text-transform:uppercase;color:#6f6a59;margin-top:5px}
 .mast-stmt{font-family:'Fraunces';font-weight:400;font-size:17px;line-height:1.5;color:#33301f;margin-top:18px;letter-spacing:.1px}
+/* mast-stmt was born on the paper menu (ink #33301f) — on the DARK reserve screen that ink was
+   near-invisible, Ryan's loudest 2026-08-01 audit finding. Dark surface → cream serif. */
+#s-reserve .mast-stmt{color:var(--cream)}
 /* Tighter than mast-stmt's own top margin on purpose (2026-07-17): order_line already echoes the
    page eyebrow's type treatment (same 11px/uppercase/gold, see .menu .k-eyb below) — at the old 12px
    this read as a third stacked block bracketing the statement instead of its paired caption. Pulling
@@ -1179,6 +1190,11 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .entry-tag{font-family:'Inter';font-weight:600;font-size:8.5px;letter-spacing:1.2px;text-transform:uppercase;color:#9A7A2A;background:rgba(154,122,42,.12);border:1px solid rgba(154,122,42,.3);padding:3px 7px;border-radius:6px;flex:0 0 auto;align-self:center}
 .entry-in{font-family:'Inter';font-weight:700;font-size:11px;color:#6aa05c}
 .entry-px{font-family:'DM Mono';font-weight:500;font-size:13px;color:#5f5a49}
+/* the price IS the order affordance (2026-08-01 audit): a quiet gold pill with a + — visual only,
+   the whole row is the tap target (no nested button). Sold-out rows keep the plain struck price. */
+.entry-px.order{border:1px solid rgba(138,111,49,.42);border-radius:999px;padding:3px 10px;color:#8a6f31;font-weight:600}
+.entry-px.order::before{content:"+ ";font-weight:700}
+.menu-taphint{font-family:'DM Mono';font-weight:500;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#9a8f7c;margin:8px 2px 0}
 .entry-body{margin-left:17px;margin-top:7px}
 .entry-ing{font-family:'Fraunces';font-size:13.5px;color:#2c291d;line-height:1.5}
 .entry-why{font-family:'Fraunces';font-style:italic;font-size:12.5px;color:#6f6a59;margin-top:6px;line-height:1.4}
@@ -1694,7 +1710,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .office-portal .op-h{font-family:'Inter';font-weight:750;font-size:26px;letter-spacing:-.4px;color:var(--cream);margin:14px 0 4px}
 .op-none{text-align:center;padding:38px 10px}
 .op-none-ic{font-size:48px}
-.op-none h1{font-family:'Inter';font-weight:750;font-size:26px;color:var(--cream);margin:12px 0 8px}
+.op-none h1{font-family:'Fraunces';font-weight:600;font-size:27px;letter-spacing:-.2px;color:var(--cream);margin:12px 0 8px}
 .op-none p{font-family:'Inter';font-size:14px;line-height:1.55;color:var(--cream-m);max-width:34ch;margin:0 auto 20px}
 .op-k{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold2)}
 .op-card{background:linear-gradient(150deg,#1c1811,#221a10 55%,#2a1c12);border:1px solid rgba(200,166,97,.3);border-radius:16px;padding:16px;margin-top:14px}
@@ -4999,6 +5015,10 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 /* funnel steps settle into place instead of hard-cutting — the 'glide through gears' feel */
 @keyframes stepGlide{from{opacity:0;transform:translateY(14px) scale(.992)}to{opacity:1;transform:none}}
 .dl-h{font-family:'Inter','Helvetica Neue',Arial,sans-serif;font-style:normal;font-weight:800;font-size:24px;line-height:1.15;margin:0}
+/* the customer type voice (2026-08-01): order-flow headlines speak Fraunces like Menu/Craft/Today —
+   opt-in per heading so crew sheets that share .dl-h keep their utilitarian face. */
+.dl-h.serif{font-family:'Fraunces';font-weight:600;letter-spacing:-.2px}
+.dl-h.serif em{font-style:italic;font-weight:500}
 .dl-sub{font-family:'Inter';font-size:13px;line-height:1.5;color:var(--cream-m);margin:0}
 .dl-sub.ok{color:var(--gold2)}
 .dl-sub em{font-style:normal;color:var(--cream-d)}

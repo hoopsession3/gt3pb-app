@@ -73,6 +73,26 @@ export default function AppProvider({ children }: { children: React.ReactNode })
 
   const [cart, setCart] = useState<Record<string, number>>({});
   const cartCount = Object.values(cart).reduce((s, n) => s + n, 0);
+  // The order follows the customer (2026-08-01, 10/10-flow round): the CartBar already rides
+  // every screen in-session — what the cart did NOT survive was a refresh or the PWA being
+  // closed and reopened mid-build. Mirror it to localStorage: hydrate once on mount (in an
+  // effect, not the useState initializer, so SSR HTML and the first client render agree — and
+  // never clobbering a cart already being built this session), validate ids against the live
+  // menu so a retired drink can't resurrect into an order, then persist every change. A cleared
+  // cart (checkout success) writes the empty object through the same mirror.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("gt3-cart");
+      if (!raw) return;
+      const saved = JSON.parse(raw) as Record<string, unknown>;
+      const clean: Record<string, number> = {};
+      for (const [id, q] of Object.entries(saved)) {
+        if (DRINKS[id as DrinkId] && typeof q === "number" && Number.isFinite(q) && q > 0) clean[id] = Math.min(9, Math.floor(q));
+      }
+      if (Object.keys(clean).length) setCart((c) => (Object.keys(c).length ? c : clean));
+    } catch { /* ignore */ }
+  }, []);
+  useEffect(() => { try { localStorage.setItem("gt3-cart", JSON.stringify(cart)); } catch { /* ignore */ } }, [cart]);
   const isInCart = useCallback((id: DrinkId) => (cart[id] ?? 0) > 0, [cart]);
   const qtyOf = useCallback((id: DrinkId) => cart[id] ?? 0, [cart]);
 

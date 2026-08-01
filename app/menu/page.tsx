@@ -74,6 +74,7 @@ export default function MenuScreen() {
           <button key={cat.name} type="button" role="tab" aria-selected={active === cat.name} className={`menu-chip${active === cat.name ? " on" : ""}`} onClick={() => jumpTo(cat.name)}>{t(`menu.sec.${ci}.name`)}</button>
         ))}
       </div>
+      <div className="menu-taphint">tap any drink to order it</div>
 
       {MENU.map((cat, ci) => (
         <div key={cat.name} ref={(el) => { catRefs.current[cat.name] = el; }} data-cat={cat.name}>
@@ -101,7 +102,10 @@ export default function MenuScreen() {
                   {out ? <span className="entry-out">SOLD OUT</span> : tag ? <span className="entry-tag">{tag}</span> : null}
                   <span className="entry-gap" />
                   {on && !out && <span className="entry-in" aria-label="in your order"><Icon name="check" /></span>}
-                  <span className="entry-px">{priceLabel(id)}</span>
+                  {/* the price is the order affordance (2026-08-01 audit: rows read as a printed
+                      menu). A styled pill — not a nested <button>; the whole row is already the
+                      tap target (clickable above), same a11y rule as the category chips. */}
+                  <span className={`entry-px${out ? "" : " order"}`}>{priceLabel(id)}</span>
                 </div>
                 <div className="entry-body">
                   {t(`menu.${id}.lines`).split("\n").filter(Boolean).map((l) => (

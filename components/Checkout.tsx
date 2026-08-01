@@ -272,7 +272,7 @@ export default function Checkout() {
                   </div>
                   <div className="spec-label" style={{ marginTop: 16 }}>Card</div>
                   <div className="sq-wrap">
-                    <PaymentCard ref={paymentRef} className="sq-card" onReady={setReady} onError={(m) => setErr(m ?? "")} />
+                    <PaymentCard ref={paymentRef} className="sq-card" tone="paper" onReady={setReady} onError={(m) => setErr(m ?? "")} />
                     {!ready && <div className="sk sq-sk-bar" />}
                   </div>
                   {err && <div className="auth-err">{err}</div>}
