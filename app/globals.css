@@ -3171,6 +3171,12 @@ body:has(.conc-sheet) .rail{display:flex}
 .cal-nudge b{color:var(--gold2)}
 .cal-nudge button{margin-left:auto;flex:0 0 auto;background:var(--gold2);border:none;border-radius:8px;padding:7px 13px;color:#1a1409;font-family:'Inter';font-weight:700;font-size:12.5px;cursor:pointer}
 .cal-nudge button:disabled{opacity:.6}
+/* The walkable-editor pill: fixed above the sheet scrim (z 80 — see Sheet's portal note), portaled
+   to .app so iOS stacking traps in .body can't swallow it. ‹ › walk the calendar's item spine. */
+.cal-swipenav{position:fixed;top:calc(10px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:85;display:flex;align-items:center;gap:2px;background:rgba(21,17,13,.94);border:1px solid var(--line2);border-radius:999px;padding:4px 6px;box-shadow:0 10px 30px rgba(0,0,0,.45);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.cal-swipenav span{font-family:'DM Mono';font-size:12px;color:var(--cream-m);padding:0 7px;white-space:nowrap}
+.cal-swipenav button{width:34px;height:34px;border-radius:50%;border:none;background:var(--gold2);color:#1a1409;font-size:19px;line-height:1;font-weight:700;cursor:pointer;-webkit-appearance:none;appearance:none;display:flex;align-items:center;justify-content:center}
+.cal-swipenav button:disabled{opacity:.32;cursor:default}
 
 /* ── Event lifecycle stage ── */
 .ev-badge.stage{background:rgba(255,255,255,.06);border:1px solid var(--c,var(--line2));color:var(--c,var(--cream))}

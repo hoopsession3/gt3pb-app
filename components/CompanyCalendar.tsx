@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { useRealtimeTable } from "@/lib/realtime";
@@ -58,12 +59,16 @@ type Lead = { id: string; name: string | null; event_date: string; status: strin
 type Opp = { id: string; stage: string; next_step: string | null; next_step_at: string; vendors: { name: string } | null };
 type Meeting = { id: string; title: string | null; met_on: string };
 type Item = { id: string; title: string; cat: string; kind: "event" | "content" | "todo" | "stop" | "task" | "brew" | "drop" | "delivery" | "goal" | "lead" | "pipe" | "meeting"; done?: boolean; warn?: boolean; meta?: string; go: () => void; toggle?: () => void };
-// kinds that back a SRC row and can be edited/dragged here; brew/drop/delivery are read-only rollups.
-// "task" is deliberately NOT editable here — CalEdit had no task branch, so a tap+Save fell into
-// the content form and renamed the task/wiped its due date. Tasks route to their prep hub (it.go).
-type EditKind = "event" | "content" | "todo" | "stop" | "task";
-const isEditable = (k: Item["kind"]): k is EditKind => k !== "task" && k in SRC;
-const DRAG = new Set<Item["kind"]>(["event", "stop", "content", "todo"]); // event_task + rollups stay put
+// EVERY single-row kind opens + edits in place now (2026-08-01, Ryan: "every item on the calendar
+// can be opened and edited right on screen, pop out screen, same standard as all others"). The one
+// exception: drop/delivery chips are AGGREGATES of many customer orders — there's no single row to
+// edit, so they keep their tap-through to Live Ops / Driver where those orders are actually worked.
+// ("task" was excluded while CalEdit had no task branch — it has a real one now, via lib/tasks.)
+type EditKind = "event" | "content" | "todo" | "stop" | "task" | "brew" | "goal" | "lead" | "pipe" | "meeting";
+const isEditable = (k: Item["kind"]): k is EditKind => k in SRC;
+// drag-to-reschedule: every editable kind whose date is a plan (not a record) — meetings are
+// history (met_on documents what happened), so they edit but don't drag; aggregates stay put.
+const DRAG = new Set<Item["kind"]>(["event", "stop", "content", "todo", "task", "brew", "goal", "lead", "pipe"]);
 
 // Everything the calendar fetches, in one shape — combined behind useAsyncData so a failed query is a
 // real error state (AsyncSection) instead of the old try/catch that quietly kept the last-known board.
@@ -191,16 +196,7 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
   // operate and look identical. (The run-of-show / time blocks live inside the hub and on CalEdit.)
   const openEventPrep = (eventId: string) => { if (typeof window !== "undefined") localStorage.setItem("gt3-prep-open", `event:${eventId}`); setSection("prep"); };
   const openStopPrep = (stopId: string) => { if (typeof window !== "undefined") localStorage.setItem("gt3-prep-open", `stop:${stopId}`); setSection("prep"); };
-  // Jump to a sibling Plan tab from INSIDE the plan section. The gt3-plan-tab localStorage
-  // deep-link only gets consumed on a section CHANGE (page.tsx effect keyed on sec), and here sec
-  // is already "plan" — so we also fire gt3-plan-tab-set, which the page listens for while on Plan.
-  const openPlanTab = (tab: string, anchor?: string) => {
-    if (typeof window === "undefined") return;
-    try { localStorage.setItem("gt3-plan-tab", tab); } catch { /* ignore */ }
-    window.dispatchEvent(new Event("gt3-plan-tab-set"));
-    setSection("plan");
-    if (anchor) setTimeout(() => document.getElementById(anchor)?.scrollIntoView({ behavior: "smooth", block: "start" }), 260);
-  };
+  const openPlanTab = (tab: string, anchor?: string) => goPlanTab(setSection, tab, anchor);
   const toggleTodo = async (t: Todo) => {
     if (!supabase || readOnly) return;
     await updateTask("todo", t.id, { done: !t.done });   // ONE write path (lib/tasks)
@@ -213,12 +209,17 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
     const cfg = SRC[kind];
     let val: string = dayKey;
     if (cfg.dateIsTimestamp) {
-      const prev = kind === "stop" ? stops.find((x) => x.id === id)?.starts_at : content.find((x) => x.id === id)?.scheduled_for;
+      const prev = kind === "stop" ? stops.find((x) => x.id === id)?.starts_at
+        : kind === "content" ? content.find((x) => x.id === id)?.scheduled_for
+        : kind === "task" ? prepTasks.find((x) => x.id === id)?.due_at
+        : kind === "pipe" ? opps.find((x) => x.id === id)?.next_step_at
+        : null;
       const old = prev ? new Date(prev) : null;
       const hh = old ? `${pad(old.getHours())}:${pad(old.getMinutes())}` : cfg.defTime;
       val = new Date(`${dayKey}T${hh}:00`).toISOString();
     }
-    await supabase.from(cfg.table).update({ [cfg.dateCol]: val }).eq("id", id);
+    if (kind === "task") await updateTask("event", id, { dueISO: val });   // ONE write path (lib/tasks)
+    else await supabase.from(cfg.table).update({ [cfg.dateCol]: val }).eq("id", id);
     reload();
   };
   const unschedule = async (kind: EditKind, id: string) => {
@@ -289,6 +290,19 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
     out.sort((a, b) => a.k.localeCompare(b.k));
     return out;
   }, [byDay]);
+  // The SWIPE SPINE (2026-08-01): every editable item, date-sorted. One pop-out editor walks it —
+  // ‹ › buttons, arrow keys, or a horizontal swipe move to the previous/next item without closing,
+  // so the owner can flick through the whole schedule editing as she goes.
+  const spine = useMemo(() => flat.filter(({ it }) => isEditable(it.kind)), [flat]);
+  const [selIdx, setSelIdx] = useState<number | null>(null);
+  const openItem = (it: Item, k?: string) => {
+    if (readOnly || !isEditable(it.kind)) return;
+    const exact = spine.findIndex((e) => e.it.kind === it.kind && e.it.id === it.id && (!k || e.k === k));
+    const any = exact >= 0 ? exact : spine.findIndex((e) => e.it.kind === it.kind && e.it.id === it.id);
+    if (any >= 0) setSelIdx(any);
+    else setEdit({ kind: it.kind, id: it.id });   // off-spine (backlog) → single editor, no swipe
+  };
+  const moveSel = (d: number) => setSelIdx((i) => { if (i == null) return i; const n = i + d; return n < 0 || n >= spine.length ? i : n; });
   const backlogItems = useMemo(() => {
     const out: Item[] = [];
     for (const t of backlogT) if (pass(CAT[t.category] ? t.category : "ops")) out.push({ id: t.id, title: t.title, cat: CAT[t.category] ? t.category : "ops", kind: "todo", done: t.done, go: () => { if (t.event_id) openEventPrep(t.event_id); }, toggle: () => toggleTodo(t) });
@@ -328,9 +342,13 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
   })();
 
   const VIEWS: View[] = ["list", "board", "cards", "week", "month", "quarter", "year"];
-  const Chip = ({ it }: { it: Item }) => (
+  // Chip tap = open the pop-out editor in place (the "same standard as all others" rule) —
+  // teleporting to another section on a bare tap is reserved for the aggregates (drop/delivery)
+  // that have no single row to edit. Each editor still carries a jump link to its full surface.
+  const Chip = ({ it, onOpen }: { it: Item; onOpen?: () => void }) => (
     <button type="button" draggable={!readOnly && DRAG.has(it.kind)} className={`cc-chip${it.done ? " done" : ""}`} style={{ borderLeftColor: CAT[it.cat]?.color }}
-      onDragStart={() => { if (!readOnly && DRAG.has(it.kind) && isEditable(it.kind)) dragId.current = { kind: it.kind, id: it.id }; }} onClick={(e) => { e.stopPropagation(); it.go(); }} title={`${CAT[it.cat]?.label}: ${it.title}`}>
+      onDragStart={() => { if (!readOnly && DRAG.has(it.kind) && isEditable(it.kind)) dragId.current = { kind: it.kind, id: it.id }; }}
+      onClick={(e) => { e.stopPropagation(); if (onOpen && !readOnly && isEditable(it.kind)) onOpen(); else it.go(); }} title={`${CAT[it.cat]?.label}: ${it.title}`}>
       {it.kind === "todo" && it.toggle && <span className="cc-check" onClick={(e) => { e.stopPropagation(); it.toggle?.(); }}>{it.done ? <Icon name="check" /> : <Icon name="dotOutline" />}</span>}
       <span className="cc-dot" style={{ background: CAT[it.cat]?.color }} />{it.title}
     </button>
@@ -346,7 +364,7 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
           EventsAdmin/VendorsAdmin subnav siblings; the tap-to-edit hint is genuine first-run
           orientation copy (not stated anywhere above), so it stays as its own line. */}
       <SectionHeader label="Calendar" />
-      <div className="cal-titlesub">{readOnly ? "everything dated — the whole company, one pane" : "everything dated — tap any day to open & edit"}</div>
+      <div className="cal-titlesub">{readOnly ? "everything dated — the whole company, one pane" : "everything dated — tap anything to edit · swipe ‹ › to walk it"}</div>
       {!readOnly && stale > 0 && (
         <div className="cal-nudge">
           <span><b>{stale}</b> post{stale === 1 ? "" : "s"} went past their date unpublished.</span>
@@ -419,7 +437,7 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
               <div key={k} className={`cal-wrow${k === todayKey ? " today" : ""}${over === k ? " over" : ""}${warnDays.has(k) ? " heat" : ""}`}
                 onDragOver={(e) => { e.preventDefault(); setOver(k); }} onDragLeave={() => setOver((o) => o === k ? null : o)} onDrop={() => { setOver(null); const dg = dragId.current; dragId.current = null; if (dg) reschedule(dg.kind, dg.id, k); }}>
                 <div className="cal-wday" {...clickable(() => setDayOpen(k))}><b>{DOW[d.getDay()]}</b><span>{d.getDate()}</span>{!readOnly && <button type="button" className="cal-add wk" onClick={(e) => { e.stopPropagation(); setAddDay(k); }} aria-label="Add">+</button>}</div>
-                <div className="cal-witems">{items.length === 0 ? <span className="cal-wnone">—</span> : items.map((it) => <Chip key={`${it.kind}-${it.id}`} it={it} />)}</div>
+                <div className="cal-witems">{items.length === 0 ? <span className="cal-wnone">—</span> : items.map((it) => <Chip key={`${it.kind}-${it.id}`} it={it} onOpen={() => openItem(it, k)} />)}</div>
               </div>
             );
           })}
@@ -437,7 +455,7 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
               return (
                 <div key={k} className={`cal-lrow${k === todayKey ? " today" : ""}`}>
                   <div className="cal-ldate"><b>{d.getDate()}</b><span>{DOW[d.getDay()]}</span><span className="cal-lmon">{MON3[d.getMonth()]}</span></div>
-                  <div className="cal-litems">{items.map((it) => <Chip key={`${it.kind}-${it.id}`} it={it} />)}</div>
+                  <div className="cal-litems">{items.map((it) => <Chip key={`${it.kind}-${it.id}`} it={it} onOpen={() => openItem(it, k)} />)}</div>
                 </div>
               );
             })}
@@ -481,7 +499,7 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
                   {rows.length === 0 ? <div className="bd-empty">{col.id === "overdue" ? "nothing slipped" : "clear"}</div> : rows.map(({ k, it }) => (
                     <div key={`${it.kind}-${it.id}-${k}`} className="bd-card">
                       {k && <span className="bd-date">{fmtK(k)}{it.warn ? <> <Icon name="warning" /></> : ""}</span>}
-                      <Chip it={it} />
+                      <Chip it={it} onOpen={() => openItem(it, k || undefined)} />
                     </div>
                   ))}
                 </div>
@@ -500,7 +518,7 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
           return (
             <div key={`${it.kind}-${it.id}-${k}`} className={`calcard${it.done ? " done" : ""}${it.warn ? " warn" : ""}`} style={{ borderLeftColor: CAT[it.cat]?.color }}>
               <div className="calcard-d"><b>{d.getDate()}</b><span>{DOW[d.getDay()]}</span><span>{MON3[d.getMonth()]}</span></div>
-              <button type="button" className="calcard-m" onClick={() => { if (!readOnly && isEditable(it.kind)) setEdit({ kind: it.kind, id: it.id }); else it.go(); }}>
+              <button type="button" className="calcard-m" onClick={() => { if (!readOnly && isEditable(it.kind)) openItem(it, k); else it.go(); }}>
                 <b>{it.title}</b>
                 <span>{CAT[it.cat]?.label}{it.meta ? ` · ${it.meta}` : ""}{it.warn ? " · past latest start" : ""}{k === todayKey ? " · today" : ""}</span>
               </button>
@@ -535,7 +553,24 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
         ? <FieldOpSheet kind={edit.kind} id={edit.id} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); reload(); }}
             onOpenPrep={() => { try { localStorage.setItem("gt3-prep-open", edit.kind === "stop" ? `stop:${edit.id}` : edit.id); } catch { /* ignore */ } setSection("prep"); setEdit(null); }} />
         : <CalEdit kind={edit.kind} id={edit.id} events={events} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); reload(); }} />)}
-      {dayOpen && <DayView dayKey={dayOpen} items={byDay[dayOpen] || []} events={events} readOnly={readOnly} onClose={() => setDayOpen(null)} onAdd={() => { const k = dayOpen; setDayOpen(null); setAddDay(k); }} onSaved={reload} />}
+      {/* THE walkable editor (2026-08-01): one pop-out over the date-sorted spine — ‹ › / arrows /
+          swipe move between items with the editor staying open. key= remounts per item so each
+          fetch is fresh; moving away without Save simply discards, same as Cancel. */}
+      {selIdx != null && spine[selIdx] && (() => {
+        const it = spine[selIdx].it;
+        const close = () => setSelIdx(null);
+        const saved = () => { setSelIdx(null); reload(); };
+        return it.kind === "event" || it.kind === "stop"
+          ? <FieldOpSheet key={`${it.kind}-${it.id}`} kind={it.kind} id={it.id} onClose={close} onSaved={saved}
+              onOpenPrep={() => { try { localStorage.setItem("gt3-prep-open", it.kind === "stop" ? `stop:${it.id}` : `event:${it.id}`); } catch { /* ignore */ } setSection("prep"); close(); }} />
+          : <CalEdit key={`${it.kind}-${it.id}`} kind={it.kind as EditKind} id={it.id} events={events} onClose={close} onSaved={saved} />;
+      })()}
+      {selIdx != null && spine[selIdx] && spine.length > 1 && (() => {
+        const d = new Date(`${spine[selIdx].k}T00:00:00`);
+        return <SwipeNav i={selIdx} n={spine.length} label={`${DOW[d.getDay()]} ${MON3[d.getMonth()]} ${d.getDate()}`} onMove={moveSel} />;
+      })()}
+      {dayOpen && <DayView dayKey={dayOpen} items={byDay[dayOpen] || []} events={events} readOnly={readOnly} onClose={() => setDayOpen(null)} onAdd={() => { const k = dayOpen; setDayOpen(null); setAddDay(k); }} onSaved={reload}
+        onEdit={readOnly ? undefined : (it) => { const k = dayOpen; setDayOpen(null); openItem(it, k ?? undefined); }} />}
       {addDay && <AddSheet day={addDay} events={events} onClose={() => setAddDay(null)} onDone={() => { setAddDay(null); reload(); }} setSection={setSection} />}
     </div>
       )}
@@ -543,11 +578,49 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
   );
 }
 
+// Floating ‹ › pill + arrow keys + horizontal swipe while the walkable editor is open. Portaled to
+// .app (the same host Sheet uses) so it joins the root stacking context ABOVE the sheet scrim
+// (z 80 — see the Sheet portal note); rendered inside .body it would trap under the nav on iOS.
+// Arrow keys are ignored while typing in a field; swipe needs a mostly-horizontal 64px flick so it
+// never fights the sheet's vertical scroll or its drag-to-dismiss handle.
+function SwipeNav({ i, n, label, onMove }: { i: number; n: number; label: string; onMove: (d: number) => void }) {
+  const [host, setHost] = useState<HTMLElement | null>(null);
+  useEffect(() => { setHost(document.querySelector<HTMLElement>(".app") ?? document.body); }, []);
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      if (e.key === "ArrowLeft") onMove(-1);
+      else if (e.key === "ArrowRight") onMove(1);
+    };
+    let sx = 0, sy = 0, live = false;
+    const ts = (e: TouchEvent) => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; live = true; };
+    const te = (e: TouchEvent) => {
+      if (!live) return; live = false;
+      const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
+      if (Math.abs(dx) > 64 && Math.abs(dy) < 48) onMove(dx < 0 ? 1 : -1);
+    };
+    window.addEventListener("keydown", key);
+    window.addEventListener("touchstart", ts, { passive: true });
+    window.addEventListener("touchend", te, { passive: true });
+    return () => { window.removeEventListener("keydown", key); window.removeEventListener("touchstart", ts); window.removeEventListener("touchend", te); };
+  }, [onMove]);
+  if (!host) return null;
+  return createPortal(
+    <div className="cal-swipenav" role="group" aria-label="Walk the calendar">
+      <button type="button" onClick={() => onMove(-1)} disabled={i === 0} aria-label="Previous item">‹</button>
+      <span>{label} · {i + 1}/{n}</span>
+      <button type="button" onClick={() => onMove(1)} disabled={i === n - 1} aria-label="Next item">›</button>
+    </div>,
+    host,
+  );
+}
+
 // One day, expanded. Tap ANY card — event, truck stop, ops/admin to-do, or content — to EDIT it
 // right here. Every edit saves straight back to its source row, so it relates back everywhere that
 // row appears (Prep, Studio, My Tasks). The "↗" opens its full prep / run-of-show / studio. Archived
 // events show here (and only here) so a removed event is still reachable by opening its day.
-function DayView({ dayKey, items, events, readOnly = false, onClose, onAdd, onSaved }: { dayKey: string; items: Item[]; events: Ev[]; readOnly?: boolean; onClose: () => void; onAdd: () => void; onSaved: () => void }) {
+function DayView({ dayKey, items, events, readOnly = false, onClose, onAdd, onSaved, onEdit }: { dayKey: string; items: Item[]; events: Ev[]; readOnly?: boolean; onClose: () => void; onAdd: () => void; onSaved: () => void; onEdit?: (it: Item) => void }) {
   const { setSection } = useOperatorSection();
   const [archived, setArchived] = useState<{ id: string; title: string | null; day_label: string | null }[]>([]);
   const [edit, setEdit] = useState<{ kind: EditKind; id: string } | null>(null);
@@ -558,6 +631,7 @@ function DayView({ dayKey, items, events, readOnly = false, onClose, onAdd, onSa
   const d = new Date(`${dayKey}T00:00:00`);
   const heading = d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   const sub: Record<Item["kind"], string> = { event: "event", stop: "on-the-ground op", todo: "to-do", content: "content", task: "task due", brew: "brew day", drop: "pack pickup", delivery: "delivery run", goal: "goal", lead: "booking request", pipe: "pipeline next step", meeting: "meeting" };
+  const goTitle: Record<Item["kind"], string> = { event: "Open full prep", stop: "Open full prep", todo: "Open its hub", content: "Open in Studio", task: "Open its hub", brew: "Open Production", drop: "Open Live Ops", delivery: "Open Live Ops", goal: "Open Goals", lead: "Open Leads", pipe: "Open the pipeline", meeting: "Open in Notes" };
   const clash = items.some((i) => i.kind === "event") && items.some((i) => i.kind === "stop");
   const brewLate = items.some((i) => i.warn);
   return (
@@ -585,13 +659,14 @@ function DayView({ dayKey, items, events, readOnly = false, onClose, onAdd, onSa
             ) : (
               <div key={`${it.kind}-${it.id}`} className={`dv-row${it.done ? " done" : ""}`} style={{ ["--c" as string]: CAT[it.cat]?.color }}>
                 <span className="dv-dot" style={{ background: CAT[it.cat]?.color }} />
-                {/* every editable kind edits in place — tap the card to open its editor */}
-                <button type="button" className="dv-main dv-tap" onClick={() => setEdit({ kind: it.kind as EditKind, id: it.id })}>
+                {/* every editable kind edits in place — tap the card to open its editor (the
+                    walkable one when the calendar provides onEdit; local fallback otherwise) */}
+                <button type="button" className="dv-main dv-tap" onClick={() => { if (onEdit) onEdit(it); else setEdit({ kind: it.kind as EditKind, id: it.id }); }}>
                   <b>{it.title}</b><span>{CAT[it.cat]?.label}{it.meta ? ` · ${it.meta}` : ` · ${sub[it.kind]}`} · tap to edit</span>
                 </button>
                 {it.kind === "todo"
                   ? <button type="button" className="dv-go" title="Mark done" onClick={() => it.toggle?.()}>{it.done ? <Icon name="check" /> : <Icon name="dotOutline" />}</button>
-                  : <button type="button" className="dv-go" title={it.kind === "content" ? "Open in Studio" : "Open full prep"} onClick={() => { it.go(); onClose(); }}><Icon name="externalLink" /></button>}
+                  : <button type="button" className="dv-go" title={goTitle[it.kind]} onClick={() => { it.go(); onClose(); }}><Icon name="externalLink" /></button>}
               </div>
             ))}
             {archived.length > 0 && (
@@ -618,21 +693,52 @@ function DayView({ dayKey, items, events, readOnly = false, onClose, onAdd, onSa
 // command surface over the database, not a copy. The "Link to event" control on to-dos and content
 // writes the foreign key that relates those rows back to an event. Reachable wherever the item shows.
 const SRC: Record<EditKind, { table: string; nameCol: string; dateCol: string; dateIsTimestamp: boolean; defTime: string; noun: string }> = {
-  event:   { table: "events",        nameCol: "title", dateCol: "day",           dateIsTimestamp: false, defTime: "11:00", noun: "event" },
-  stop:    { table: "stops",         nameCol: "name",  dateCol: "starts_at",     dateIsTimestamp: true,  defTime: "11:00", noun: "truck stop" },
-  todo:    { table: "todos",         nameCol: "title", dateCol: "due_on",        dateIsTimestamp: false, defTime: "09:00", noun: "to-do" },
-  content: { table: "content_items", nameCol: "title", dateCol: "scheduled_for", dateIsTimestamp: true,  defTime: "09:00", noun: "content" },
-  task:    { table: "event_tasks",   nameCol: "label", dateCol: "due_at",        dateIsTimestamp: true,  defTime: "23:59", noun: "task" },
+  event:   { table: "events",           nameCol: "title",       dateCol: "day",           dateIsTimestamp: false, defTime: "11:00", noun: "event" },
+  stop:    { table: "stops",            nameCol: "name",        dateCol: "starts_at",     dateIsTimestamp: true,  defTime: "11:00", noun: "truck stop" },
+  todo:    { table: "todos",            nameCol: "title",       dateCol: "due_on",        dateIsTimestamp: false, defTime: "09:00", noun: "to-do" },
+  content: { table: "content_items",    nameCol: "title",       dateCol: "scheduled_for", dateIsTimestamp: true,  defTime: "09:00", noun: "content" },
+  task:    { table: "event_tasks",      nameCol: "label",       dateCol: "due_at",        dateIsTimestamp: true,  defTime: "23:59", noun: "task" },
+  // 2026-08-01 (every-item-edits round). Name+date edit in place; lifecycle stays on each row's own
+  // surface (brew status transitions carry side-effect fields, goal hit/missed lives on Goals) —
+  // the editor's jump link takes you there in one tap.
+  brew:    { table: "brew_batches",     nameCol: "recipe_name", dateCol: "brew_date",     dateIsTimestamp: false, defTime: "09:00", noun: "brew" },
+  goal:    { table: "goals",            nameCol: "title",       dateCol: "due_date",      dateIsTimestamp: false, defTime: "09:00", noun: "goal" },
+  lead:    { table: "booking_requests", nameCol: "name",        dateCol: "event_date",    dateIsTimestamp: false, defTime: "09:00", noun: "lead" },
+  pipe:    { table: "opportunities",    nameCol: "next_step",   dateCol: "next_step_at",  dateIsTimestamp: true,  defTime: "09:00", noun: "pipeline step" },
+  meeting: { table: "meeting_notes",    nameCol: "title",       dateCol: "met_on",        dateIsTimestamp: false, defTime: "09:00", noun: "meeting" },
 };
+// Jump to a sibling Plan tab (shared by the calendar chips and the editors' cross-links). Fires the
+// gt3-plan-tab-set event so the jump works even when already ON the plan section — the localStorage
+// deep-link alone is only consumed on a section change.
+function goPlanTab(setSection: (s: "plan") => void, tab: string, anchor?: string) {
+  if (typeof window === "undefined") return;
+  try { localStorage.setItem("gt3-plan-tab", tab); } catch { /* ignore */ }
+  window.dispatchEvent(new Event("gt3-plan-tab-set"));
+  setSection("plan");
+  if (anchor) setTimeout(() => document.getElementById(anchor)?.scrollIntoView({ behavior: "smooth", block: "start" }), 260);
+}
+// Stage/status vocabularies mirrored from each kind's own surface (PipelinePanel STAGES, Bookings
+// STATUSES) so the calendar's quick editor and the full surface can never offer different words.
+const PIPE_STAGES: { key: string; label: string }[] = [
+  { key: "prospect", label: "Prospect" }, { key: "first_attempt", label: "First attempt" }, { key: "talking", label: "In conversation" },
+  { key: "proposal", label: "Proposal sent" }, { key: "won", label: "Won" }, { key: "lost", label: "Lost" },
+];
+const LEAD_STATUSES = ["new", "contacted", "booked", "declined"] as const;
 function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: string; events: Ev[]; onClose: () => void; onSaved: () => void }) {
-  // events + stops route to FieldOpSheet (the one quick editor) before reaching here —
-  // CalEdit now handles only todo / content / task rows.
+  // events + stops route to FieldOpSheet (the one quick editor) before reaching here — CalEdit
+  // handles every other kind: todo / content / task / brew / goal / lead / pipe / meeting.
   const cfg = SRC[kind];
   const { setSection } = useOperatorSection();
   const [f, setF] = useState<any | null>(null);
   const [saving, setSaving] = useState(false);
   const sel = kind === "todo" ? "title, due_on, category, event_id, done"
-    : "title, scheduled_for, status, event_id";
+    : kind === "content" ? "title, scheduled_for, status, event_id"
+    : kind === "task" ? "label, due_at, done, event_id, stop_id, meeting_note_id, goal_id"
+    : kind === "brew" ? "recipe_name, brew_date, batch_gal, status"
+    : kind === "goal" ? "title, due_date, status, horizon"
+    : kind === "lead" ? "name, event_date, status"
+    : kind === "pipe" ? "next_step, next_step_at, stage, vendors(name)"
+    : "title, met_on";   // meeting
   useEffect(() => {
     if (!supabase) return;
     supabase.from(cfg.table).select(sel).eq("id", id).maybeSingle().then(({ data }) => setF(data ?? {}));
@@ -648,35 +754,70 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: s
     const hh = old ? `${String(old.getHours()).padStart(2, "0")}:${String(old.getMinutes()).padStart(2, "0")}` : cfg.defTime;
     set(cfg.dateCol, new Date(`${v}T${hh}:00`).toISOString());
   };
+  // pipe's "name" is the next step (an account with no next step yet is a valid row), and brew /
+  // lead / meeting names are nullable in their own tables — blank saves null there, so a date-only
+  // edit on an unnamed row is never blocked. The task/todo/content/goal engines require real names.
+  const nameRequired = kind === "todo" || kind === "content" || kind === "task" || kind === "goal";
   const save = async () => {
     if (!supabase || !f) return;
-    if (isBlank(f[cfg.nameCol])) return;   // require a real name — no generic-placeholder fallback
+    if (nameRequired && isBlank(f[cfg.nameCol])) return;   // require a real name — no generic-placeholder fallback
     setSaving(true);
-    const name = (f[cfg.nameCol] || "").trim() || (kind === "todo" ? "To-do" : "Content");
-    const patch: any = { [cfg.nameCol]: name, [cfg.dateCol]: f[cfg.dateCol] || null };
-    if (kind === "todo") { patch.category = f.category || "ops"; patch.event_id = f.event_id || null; }
-    else if (kind === "content") { patch.status = f.status || "scheduled"; patch.event_id = f.event_id || null; }
-    await supabase.from(cfg.table).update(patch).eq("id", id);
+    const name = (f[cfg.nameCol] || "").trim();
+    if (kind === "task") {
+      // ONE write path (lib/tasks) — done carries done_at/done_by bookkeeping a raw update would miss
+      await updateTask("event", id, { title: name, dueISO: f.due_at || null, done: !!f.done });
+    } else {
+      const patch: any = { [cfg.nameCol]: name || null, [cfg.dateCol]: f[cfg.dateCol] || null };
+      if (kind === "todo") { patch.category = f.category || "ops"; patch.event_id = f.event_id || null; }
+      else if (kind === "content") { patch.status = f.status || "scheduled"; patch.event_id = f.event_id || null; }
+      else if (kind === "brew") patch.batch_gal = Math.max(1, Number(f.batch_gal) || 1);
+      else if (kind === "lead") patch.status = f.status || "new";
+      else if (kind === "pipe") patch.stage = f.stage || "prospect";
+      if (kind === "meeting" && !patch.met_on) delete patch.met_on;   // met_on is NOT NULL — clearing keeps the old date
+      await supabase.from(cfg.table).update(patch).eq("id", id);
+    }
     setSaving(false); onSaved();
   };
-  // "Remove from calendar" — kind-appropriate: archive the event/stop, unschedule content, delete the to-do.
+  // "Remove" — only where the calendar is the right authority: delete a to-do, unschedule content.
+  // Everything else (brews, goals, leads, pipeline, meetings, tasks) has its own lifecycle on its
+  // own surface — the jump link below is the door; a delete button here would be a foot-gun.
+  const removable = kind === "todo" || kind === "content";
   const remove = async () => {
-    if (!supabase) return;
-    if (typeof window !== "undefined" && !window.confirm(kind === "content" ? "Unschedule this from the calendar? (It stays in Studio.)" : kind === "todo" ? "Delete this to-do?" : "Remove from the calendar?")) return;
+    if (!supabase || !removable) return;
+    if (typeof window !== "undefined" && !window.confirm(kind === "content" ? "Unschedule this from the calendar? (It stays in Studio.)" : "Delete this to-do?")) return;
     setSaving(true);
     if (kind === "todo") await deleteTask("todo", id);   // ONE write path (lib/tasks)
-    else if (kind === "content") await supabase.from("content_items").update({ scheduled_for: null }).eq("id", id);
-    else await supabase.from(cfg.table).update({ archived_at: new Date().toISOString() }).eq("id", id);
+    else await supabase.from("content_items").update({ scheduled_for: null }).eq("id", id);
     setSaving(false); onSaved();
   };
   if (!f) return null;
   const linkable = kind === "todo" || kind === "content";
+  // The interoperability door: every kind's editor carries a one-tap jump to its full surface.
+  const jump = (() => {
+    const close = onClose;
+    const goGoals = () => { setSection("command"); setTimeout(() => document.getElementById("goals")?.scrollIntoView({ behavior: "smooth", block: "start" }), 120); close(); };
+    const prep = (key: string) => { try { localStorage.setItem("gt3-prep-open", key); } catch { /* ignore */ } setSection("prep"); close(); };
+    if (kind === "content") return { label: "Open full editor in Studio", go: () => { setSection("studio"); close(); } };
+    if (kind === "brew") return { label: "Open in Production", go: () => { setSection("brew"); close(); } };
+    if (kind === "goal") return { label: "Open Goals", go: goGoals };
+    if (kind === "lead") return { label: "Open Leads", go: () => { goPlanTab(setSection, "leads"); close(); } };
+    if (kind === "pipe") return { label: "Open the pipeline board", go: () => { goPlanTab(setSection, "leads", "pipeline-board"); close(); } };
+    if (kind === "meeting") return { label: "Open in Notes", go: () => { setSection("notes"); close(); } };
+    if (kind === "task") {
+      if (f.event_id) return { label: "Open its event prep", go: () => prep(`event:${f.event_id}`) };
+      if (f.stop_id) return { label: "Open its stop prep", go: () => prep(`stop:${f.stop_id}`) };
+      if (f.meeting_note_id) return { label: "Open in Notes", go: () => { setSection("notes"); close(); } };
+      if (f.goal_id) return { label: "Open Goals", go: goGoals };
+    }
+    return null;
+  })();
   return (
     <>
     <Sheet open onClose={onClose} className="dp-form" label="Edit calendar item" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{`Edit ${cfg.noun}`}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} title="Close"><Icon name="close" /></button></div>}>
-          <input className="note-in" value={f[cfg.nameCol] ?? ""} onChange={(e) => set(cfg.nameCol, e.target.value)} placeholder={`${cfg.noun[0].toUpperCase() + cfg.noun.slice(1)} name`} autoFocus />
+          {kind === "pipe" && f.vendors?.name && <div className="dv-sub" style={{ marginBottom: 6 }}>Account · {f.vendors.name}</div>}
+          <input className="note-in" value={f[cfg.nameCol] ?? ""} onChange={(e) => set(cfg.nameCol, e.target.value)} placeholder={kind === "pipe" ? "Next step — e.g. send the proposal" : `${cfg.noun[0].toUpperCase() + cfg.noun.slice(1)} name`} autoFocus />
           <div className="prod-grid" style={{ marginTop: 10 }}>
-            <label className="prod-f"><span>Date</span><input type="date" value={dateVal} onChange={(e) => onDate(e.target.value)} /></label>
+            <label className="prod-f"><span>{kind === "pipe" ? "Next step by" : kind === "meeting" ? "Met on" : kind === "task" ? "Due" : "Date"}</span><input type="date" value={dateVal} onChange={(e) => onDate(e.target.value)} /></label>
             {kind === "todo" && (
               <label className="prod-f"><span>Category</span>
                 <select value={f.category ?? "ops"} onChange={(e) => set("category", e.target.value)}>
@@ -691,6 +832,32 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: s
                 </select>
               </label>
             )}
+            {kind === "lead" && (
+              <label className="prod-f"><span>Status</span>
+                <select value={f.status ?? "new"} onChange={(e) => set("status", e.target.value)}>
+                  {LEAD_STATUSES.map((s) => <option key={s} value={s}>{s[0].toUpperCase() + s.slice(1)}</option>)}
+                </select>
+              </label>
+            )}
+            {kind === "pipe" && (
+              <label className="prod-f"><span>Stage</span>
+                <select value={f.stage ?? "prospect"} onChange={(e) => set("stage", e.target.value)}>
+                  {PIPE_STAGES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+                </select>
+              </label>
+            )}
+            {kind === "brew" && (
+              <label className="prod-f"><span>Gallons</span>
+                <input type="number" min={1} step={1} value={f.batch_gal ?? 1} onChange={(e) => set("batch_gal", e.target.value)} />
+              </label>
+            )}
+            {kind === "task" && (
+              <label className="prod-f"><span>Done</span>
+                <select value={f.done ? "1" : "0"} onChange={(e) => set("done", e.target.value === "1")}>
+                  <option value="0">Open</option><option value="1">Done</option>
+                </select>
+              </label>
+            )}
           </div>
           {linkable && (
             <label className="prod-f" style={{ marginTop: 8 }}><span>Link to event</span>
@@ -700,12 +867,12 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: s
               </select>
             </label>
           )}
-          {kind === "content" && <button type="button" className="cal-tolink" style={{ marginTop: 10, marginLeft: 0 }} onClick={() => { setSection("studio"); onClose(); }}>Open full editor in Studio <Icon name="externalLink" /></button>}
+          {jump && <button type="button" className="cal-tolink" style={{ marginTop: 10, marginLeft: 0 }} onClick={jump.go}>{jump.label} <Icon name="externalLink" /></button>}
           <div className="prod-actions" style={{ marginTop: 14, justifyContent: "space-between" }}>
-            <button type="button" className="note-arch" onClick={remove} disabled={saving}>{kind === "content" ? "Unschedule" : kind === "todo" ? "Delete" : "Remove"}</button>
+            {removable ? <button type="button" className="note-arch" onClick={remove} disabled={saving}>{kind === "content" ? "Unschedule" : "Delete"}</button> : <span />}
             <div style={{ display: "flex", gap: 8 }}>
               <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
-              <button type="button" className="note-save" onClick={save} disabled={saving || isBlank(f[cfg.nameCol])}>{saving ? "Saving…" : "Save"}</button>
+              <button type="button" className="note-save" onClick={save} disabled={saving || (nameRequired && isBlank(f[cfg.nameCol]))}>{saving ? "Saving…" : "Save"}</button>
             </div>
           </div>
     </Sheet>
