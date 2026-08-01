@@ -121,6 +121,13 @@ export interface EventRow {
   start_time: string | null;
   end_time: string | null;
   location_text: string | null;
+  // Optional geo (2026-08-01, the Where round): rows sourced from field_ops carry the spine's
+  // address/lat/lng so event rows can offer turn-by-turn directions exactly like stop rows.
+  // Optional because older constructors (events-table loaders) don't select them — the UI falls
+  // back to a maps search on location_text when coords are absent.
+  address?: string | null;
+  lat?: number | null;
+  lng?: number | null;
   member_only: boolean;
   capacity: number | null;
   going_count: number | null;

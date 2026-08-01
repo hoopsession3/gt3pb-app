@@ -10,6 +10,7 @@ import SignIn from "@/components/SignIn";
 import { calFromEvent } from "@/lib/ics";
 import { supabase } from "@/lib/supabase";
 import { evTime, evDate, evLeadDay, evLeadDate } from "@/lib/dates";
+import { openDirections, openAddress } from "@/lib/maps";
 import type { EventRow } from "@/lib/db";
 import Icon from "@/components/Icon";
 
@@ -112,7 +113,14 @@ export function RsvpRow({ ev }: { ev: EventRow }) {
           )}
           {ev.blurb && <p>{ev.blurb}</p>}
           {ev.member_only && <p className="k-cap">Members only — sign in to RSVP.</p>}
-          <div style={{ marginTop: 10 }}><AddToCalendar ev={calFromEvent({ id: ev.id, title: ev.title, day: ev.day, start_time: ev.start_time, end_time: ev.end_time, location_text: ev.location_text, blurb: ev.blurb })} /></div>
+          <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            {/* stop/event parity (2026-08-01): the same Get-directions chip the stop rows carry —
+                turn-by-turn off the pin when geocoded, else a maps handoff on the address text */}
+            {((ev.lat != null && ev.lng != null) || ev.location_text) && (
+              <button type="button" className="k-chip k-chip-sec" onClick={() => { if (ev.lat != null && ev.lng != null) openDirections(ev.lat, ev.lng); else if (ev.location_text) openAddress(ev.location_text); }}>Get directions</button>
+            )}
+            <AddToCalendar ev={calFromEvent({ id: ev.id, title: ev.title, day: ev.day, start_time: ev.start_time, end_time: ev.end_time, location_text: ev.location_text, blurb: ev.blurb })} />
+          </div>
         </div>
       )}
       <Sheet open={signInOpen} onClose={() => { pendingRsvp.current = false; setSignInOpen(false); }} labelledBy={`rsvp-signin-${ev.id}`}>

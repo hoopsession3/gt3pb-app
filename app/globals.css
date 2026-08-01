@@ -948,11 +948,13 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .cat-name{flex:1;min-width:0;font-family:'Inter';font-weight:650;font-size:13.5px;letter-spacing:-.2px;color:var(--cream);align-self:center}
 .cat-row .ev-f{flex:0 1 64px;min-width:44px}
 .cat-margin{flex:0 0 auto;align-self:center;font-family:var(--mono);font-size:12px;color:var(--gold2);min-width:36px;text-align:right}
-/* Find Us — the go-live ping chip (0257). Quiet by design: a hand-raise, not a second CTA. */
-.fu-ping{display:inline-flex;align-items:center;gap:7px;margin-top:10px;font-family:'Inter';font-size:12.5px;font-weight:600;color:var(--cream-m);background:none;border:1px solid var(--line2);border-radius:20px;padding:8px 14px;cursor:pointer}
+/* Find Us — the quiet chip row (never a second CTA): Get-directions (the Where round, 2026-08-01)
+   + the go-live ping chip (0257). ONE shared recipe so the two chips can never drift apart. */
+.fu-chips{display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap}
+.fu-ping,.fu-dir{display:inline-flex;align-items:center;gap:7px;margin-top:10px;font-family:'Inter';font-size:12.5px;font-weight:600;color:var(--cream-m);background:none;border:1px solid var(--line2);border-radius:20px;padding:8px 14px;cursor:pointer}
 .fu-ping.on{color:var(--gold2);border-color:rgba(184,144,47,.45);background:rgba(184,144,47,.08)}
 .fu-ping:disabled{opacity:.6}
-.fu-ping svg{width:14px;height:14px}
+.fu-ping svg,.fu-dir svg{width:14px;height:14px}
 
 /* 0256 — live (derived) price/cost read-outs replacing the inputs when a category's numbers flow
    in from Menu & products / recipes. The tag says where the number comes from. */
@@ -6071,6 +6073,10 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
    so the column dividers already span whichever column ends up tallest. */
 .k-facts .fv{font-family:'Inter';font-weight:700;font-size:19px;margin-top:5px;color:var(--cream);line-height:1.25}
 .k-facts .fv.ok{color:#7fce82}
+/* Where cell (2026-08-01): real street addresses run long — smaller weight/size keeps a full
+   address presentable in a third of the row; TBA reads muted, a state not a value. */
+.k-facts .fv.where{font-size:13.5px;font-weight:600;line-height:1.4;overflow-wrap:anywhere}
+.k-facts .fv.where.tba{color:var(--cream-d);font-style:italic}
 .k-cta{margin-top:22px}
 /* 07 · Closing beat — every page ends on purpose */
 .k-beat{text-align:center;padding:34px 0 10px}

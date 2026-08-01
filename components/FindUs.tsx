@@ -8,7 +8,7 @@ import EditableCopy from "@/components/EditableCopy";
 import { Masthead, SectionHeader, InfoRow, ClosingBeat } from "@/components/kit";
 import { RsvpRow } from "@/components/RsvpRow";
 import RouteMap, { type RoutePoint } from "@/components/RouteMap";
-import { openDirections } from "@/lib/maps";
+import { openDirections, openAddress } from "@/lib/maps";
 import { subscribePush } from "@/lib/push";
 import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
@@ -229,6 +229,12 @@ export default function FindUs() {
     : (fmt12(hero.end_time) ?? "");
   // Only the hero copy (below) is a safe EditableCopy target — see the comment on descFor.
   const heroDesc = hero?.kind === "stop" ? descFor(hero, t, avail) : null;
+  // THE WHERE (2026-08-01, Ryan's 4/10 audit: "how would a client know where the truck is?").
+  // One derivation feeds the hero's Where cell + its Get-directions chip, identically for stops
+  // and events (the spine carries location_text/address/lat/lng for both kinds). Nothing set →
+  // the cell says "Location TBA" honestly and the chip simply doesn't render.
+  const heroWhere = hero ? ((hero.location_text?.trim() || hero.address?.trim()) || null) : null;
+  const heroHasCoords = hero?.lat != null && hero?.lng != null;
 
   const points: RoutePoint[] = useMemo(() => ops
     .filter((r) => r.lat != null && r.lng != null)
@@ -251,11 +257,15 @@ export default function FindUs() {
         <p className="k-sub">
           {heroDesc
             ? (heroDesc.key ? <EditableCopy k={heroDesc.key} value={heroDesc.text} as="span" /> : heroDesc.text)
-            : (hero.blurb ?? hero.location_text ?? "")}
+            : (hero.blurb ?? "")   /* the address left this slot for its own Where cell below — no more double-print */}
         </p>
       )}
 
       <div className="k-facts">
+        {/* WHERE leads — it's the page's primary question and it was the one fact this row never
+            answered (2026-08-01 audit). Same cell for stops and events; smaller type (.where) so
+            a real street address stays presentable in a third of the row. */}
+        {hero && <div className="f"><div className="fk">Where</div><div className={`fv where${heroWhere ? "" : " tba"}`}>{heroWhere ?? "Location TBA"}</div></div>}
         {/* Day stays Day even when live — the masthead eyebrow + pulse dot already announce
             "Live now"; a Status:Live cell here said it twice and hid the date to do it
             (2026-07-30 redundancy audit). */}
@@ -273,16 +283,28 @@ export default function FindUs() {
         ? <button type="button" className="btn-pri k-cta" onClick={() => router.push("/menu")}>PRE-ORDER · SKIP THE LINE</button>
         : <p className="k-sub" style={{ marginTop: 4 }}>Online ordering’s closed for today — come see us at the bar before we pack up.</p>}
 
-      {/* The customer side of the push pipeline (0257): raise a hand, get pinged the moment the
-          truck flips live. Quiet by design — a chip, not a second red CTA. */}
-      <LivePingButton />
+      {/* Quiet chip row — never a second red CTA. Get directions is the hero's one-tap "take me
+          there": native turn-by-turn off the pin when the stop is geocoded, else a maps handoff on
+          the plain address text — so it works the day a stop is created, before anyone pins it.
+          Identical for stops and events. LivePing is the push opt-in (0257). */}
+      <div className="fu-chips">
+        {hero && (heroHasCoords || heroWhere) && (
+          <button type="button" className="fu-dir" onClick={() => { if (heroHasCoords) openDirections(hero.lat as number, hero.lng as number); else if (heroWhere) openAddress(heroWhere); }}>
+            <Icon name="pin" /> Get directions
+          </button>
+        )}
+        <LivePingButton />
+      </div>
 
       <SectionHeader label="On The Road" annotation="stops & events, in order" />
       <AsyncSection state={board} isEmpty={() => upcoming.length === 0} emptyTitle="Nothing scheduled yet" emptySub="This week's stops and events post here — check back soon." errorTitle="Couldn't load the schedule" loadingLabel="Loading the schedule…">
         {() => (
           <>
             <div className="k-rows">
-              {upcoming.filter((r) => r.id !== hero?.id || r.kind === "event").map((r) => {
+              {/* The hero's own row stays IN the list (2026-08-01) — hero events always did, hero
+                  stops were deduped out, which made the next stop's notes + directions the ONE
+                  set of details you couldn't reach. Both kinds keep their row now, same rule. */}
+              {upcoming.map((r) => {
                 if (r.kind === "event") return <RsvpRow key={r.id} ev={toEventRow(r)} />;
                 const rowLive = isLive && r.id === live?.current_stop_id;
                 const isOpen = openStop === r.id;
@@ -306,11 +328,20 @@ export default function FindUs() {
                     />
                     {isOpen && (
                       <div className="k-detail">
+                        {/* Where — the same pin-link the event rows carry (RsvpRow), stop/event parity */}
+                        {(r.location_text || r.address) && (
+                          <div className="k-det-row"><span className="k-det-k">Where</span>
+                            <a href={`https://maps.google.com/?q=${encodeURIComponent((r.location_text ?? r.address) as string)}`} target="_blank" rel="noreferrer"><Icon name="pin" /> {r.location_text ?? r.address}</a>
+                          </div>
+                        )}
                         <p>{(r.notes ?? r.note) ?? <EditableCopy k="truck.stop_note" value={t("truck.stop_note")} as="span" />}</p>
                         {rowLive && <button type="button" className="k-chip pri" onClick={() => router.push("/menu")}>Pre-order</button>}
-                        {r.lat != null && r.lng != null && (
+                        {/* directions works ungecoded too — coords when pinned, else maps handoff on the address text */}
+                        {(r.lat != null && r.lng != null) ? (
                           <button type="button" className="k-chip k-chip-sec" style={rowLive ? { marginLeft: 8 } : undefined} onClick={() => openDirections(r.lat as number, r.lng as number)}>Get directions</button>
-                        )}
+                        ) : (r.location_text || r.address) ? (
+                          <button type="button" className="k-chip k-chip-sec" style={rowLive ? { marginLeft: 8 } : undefined} onClick={() => openAddress((r.location_text ?? r.address) as string)}>Get directions</button>
+                        ) : null}
                       </div>
                     )}
                   </div>
@@ -327,7 +358,10 @@ export default function FindUs() {
               </div>
             )}
 
-            {points.length >= 2 && (
+            {/* One pinned stop is a map too (2026-08-01) — RouteMap already frames a single point
+                with street context (fitBounds maxZoom cap); requiring 2+ left a one-stop week with
+                no map at all, exactly when a new customer most needs the pin. */}
+            {points.length >= 1 && (
               <>
                 <SectionHeader label="The Circuit" annotation="tap a stop for directions" />
                 <RouteMap points={points} truck={truckPos} />
