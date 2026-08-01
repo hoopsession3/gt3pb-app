@@ -3,6 +3,7 @@ import "./globals.css";
 import AuthProvider from "@/components/AuthProvider";
 import AppProvider from "@/components/AppProvider";
 import AppShell from "@/components/AppShell";
+import OfflineBanner from "@/components/OfflineBanner";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://app.gt3pb.com"),
@@ -62,6 +63,7 @@ export default function RootLayout({
       <body>
         <AuthProvider>
           <AppProvider>
+            <OfflineBanner />
             <AppShell>{children}</AppShell>
           </AppProvider>
         </AuthProvider>

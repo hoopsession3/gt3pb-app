@@ -125,6 +125,7 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
           <input className="auth-input" placeholder="# of people" inputMode="numeric" value={headcount} onChange={(e) => setHeadcount(e.target.value.replace(/\D/g, "").slice(0, 4))} aria-label="Headcount" />
         </div>
         <input className="auth-input" placeholder="Phone (delivery-morning texts)" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} aria-label="Phone" />
+        <p className="tel-consent">Your number gets delivery texts from GT3 only — never marketing. Reply STOP anytime.</p>
         <input className="auth-input" placeholder="Street address" value={street} onChange={(e) => setStreet(e.target.value)} maxLength={120} aria-label="Street" />
         <div className="office-two">
           <input className="auth-input" placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} maxLength={60} aria-label="City" />

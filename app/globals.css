@@ -5191,6 +5191,11 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .legal-wrap p{font-family:'Inter';font-size:14px;line-height:1.7;color:var(--cream-m);margin:0 0 14px}
 .legal-wrap p b{color:var(--cream)}
 .legal-fine{font-size:11.5px;font-style:italic;color:var(--cream-d)}
+/* ── Blind-spot round (2026-08-01): consent microcopy, offline state, batch picker ── */
+.tel-consent{font-family:'Inter';font-size:10px;line-height:1.5;color:var(--cream-d);margin:4px 2px 0}
+.offline-bar{position:fixed;top:0;left:0;right:0;z-index:95;background:#3a2f16;color:#e8ddc2;border-bottom:1px solid rgba(200,166,97,.4);font-family:'Inter';font-weight:600;font-size:12px;text-align:center;padding:8px 14px calc(8px + env(safe-area-inset-top) * 0)}
+.dops-batchsel{font-family:'DM Mono';font-size:11px;padding:6px 8px;border-radius:9px;border:1px solid var(--line2);background:transparent;color:var(--cream-m);max-width:150px}
+.dops-batchsel.set{border-color:rgba(184,144,47,.45);color:var(--gold2)}
 .pipe-card.late{border-color:var(--warn)}
 .pipe-head{display:flex;align-items:center;gap:9px;width:100%;background:none;border:none;padding:11px 12px;cursor:pointer;text-align:left;color:var(--cream);-webkit-appearance:none;appearance:none}
 .pipe-name{flex:1;min-width:0}

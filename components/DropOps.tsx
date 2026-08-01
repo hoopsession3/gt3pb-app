@@ -28,6 +28,7 @@ type DropOrder = {
   id: string; name: string; phone: string | null; size: number; glass: GlassPath;
   mix: Mix; total_cents: number; paid: boolean; drop_date: string; picked_up: boolean; bottles_returned: boolean;
   stage?: PackStage | null; canceled_at?: string | null;
+  batch_id?: string | null;   // recall traceability (0261): which brew filled this pack
 };
 type PlannedBatch = { id: string; recipe_name: string | null; batch_gal: number; status: string };
 type Board = { rows: DropOrder[]; batches: PlannedBatch[]; history: DropOrder[]; upcoming: DropOrder[] };
@@ -117,6 +118,13 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
   const setStage = async (id: string, stage: PackStage) => {
     if (!supabase) return;
     await supabase.from("drop_orders").update({ stage }).eq("id", id);
+    reload();
+  };
+  // Recall traceability (0261, blind-spot round): stamp WHICH brew filled the pack at pack-out.
+  // One tap per pack; "which customers got batch X?" becomes a query instead of a shrug.
+  const setBatch = async (id: string, batchId: string) => {
+    if (!supabase) return;
+    await supabase.from("drop_orders").update({ batch_id: batchId || null }).eq("id", id);
     reload();
   };
 
@@ -296,6 +304,12 @@ export default function DropOps({ brief = false, onOpen, canPlan = false }: { br
                         </div>
                         <div className="dops-actions">
                           {nextLabel && <button type="button" className="dops-check adv" onClick={() => setStage(o.id, PACK_STAGES[cur + 1].key)}>{nextLabel}</button>}
+                          {batches.length > 0 && (
+                            <select className={`dops-batchsel${o.batch_id ? " set" : ""}`} value={o.batch_id ?? ""} onChange={(e) => setBatch(o.id, e.target.value)} aria-label="Filled from batch" title="Filled from batch — recall traceability">
+                              <option value="">batch?</option>
+                              {batches.map((b) => <option key={b.id} value={b.id}>{(b.recipe_name || "Batch")} · {Number(b.batch_gal)} gal</option>)}
+                            </select>
+                          )}
                           {o.glass === "return" && (
                             <button type="button" className={`dops-check${o.bottles_returned ? " done" : ""}`} onClick={() => toggle(o.id, "bottles_returned", !o.bottles_returned)}>{o.bottles_returned ? <><Icon name="check" /> Bottles in</> : "Bottles in"}</button>
                           )}

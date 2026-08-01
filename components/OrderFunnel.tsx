@@ -702,6 +702,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
             <>
               <input className="auth-input" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} aria-label="Name" />
               <input className="auth-input" placeholder="Phone — for delivery-morning texts" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} aria-label="Phone" />
+              <p className="tel-consent">Your number gets order texts from GT3 only — never marketing. Reply STOP anytime.</p>
               <input className="auth-input" placeholder="Street address" value={street} onChange={(e) => setStreet(e.target.value)} maxLength={120} aria-label="Street address" />
               <div className="dl-ziprow">
                 <input className="auth-input" placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} maxLength={60} aria-label="City" />
@@ -714,6 +715,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
             <>
               <input className="auth-input" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" maxLength={80} aria-label="Name" />
               <input className="auth-input" placeholder="Phone (for pickup-day text)" type="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} aria-label="Phone" />
+              <p className="tel-consent">Your number gets order texts from GT3 only — never marketing. Reply STOP anytime.</p>
               <div className="dl-quote">
                 <span>{count} bottles · {bringBack ? "bring-back" : "new glass"}</span>
                 <span>pickup {dayName(drop.sat)}{stop?.name ? ` · ${stop.name}` : ""}</span>

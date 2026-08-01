@@ -78,6 +78,7 @@ export default function BookScreen() {
         <input id="b-email" className="auth-input" type="email" inputMode="email" value={f.email} onChange={set("email")} placeholder="you@email.com" maxLength={200} required />
         <label className="auth-label" htmlFor="b-phone">Phone</label>
         <input id="b-phone" className="auth-input" type="tel" inputMode="tel" autoComplete="tel" value={f.phone} onChange={set("phone")} placeholder="For a quick call if email doesn't land" maxLength={40} />
+        <p className="tel-consent">Adding your number means GT3 may text you about this request — event texts only, never marketing. Reply STOP anytime.</p>
         <div className="b-row">
           <div><label className="auth-label" htmlFor="b-date">Event date</label><input id="b-date" className="auth-input" type="date" value={f.event_date} onChange={set("event_date")} min={new Date().toISOString().slice(0, 10)} required /></div>
           <div><label className="auth-label" htmlFor="b-head">Headcount</label><input id="b-head" className="auth-input" type="number" inputMode="numeric" min={1} max={100000} value={f.headcount} onChange={set("headcount")} placeholder="50" /></div>

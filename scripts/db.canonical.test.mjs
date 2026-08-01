@@ -481,5 +481,33 @@ ok("0260 null actor allowed (service-role/system writes still log)",
 ok("0260 re-applied whole is a no-op",
   await (async () => { try { await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0260_admin_audit_trail.sql"), "utf8")); return true; } catch { return false; } })());
 
+// ── 0261: batch → order traceability (recall readiness) ──
+// Fixtures where the harness lacks them, 0261 VERBATIM, then the recall contract: stamp a batch
+// on a pack, ask "who got batch X", and confirm deleting the batch clears (not blocks) the ref.
+await db.exec(`
+  create table if not exists public.brew_batches (
+    id uuid primary key default gen_random_uuid(), recipe_name text, batch_gal numeric, status text not null default 'planned',
+    brew_date date, drop_date date);
+  create table if not exists public.drop_orders (
+    id uuid primary key default gen_random_uuid(), name text, phone text, size int not null default 6,
+    drop_date date not null default current_date, canceled_at timestamptz);
+  create table if not exists public.delivery_orders (
+    id uuid primary key default gen_random_uuid(), delivery_date date not null default current_date, canceled_at timestamptz);
+  -- the harness may already carry these tables in a slimmer shape — top up the columns the test uses
+  alter table public.drop_orders add column if not exists name text;
+  alter table public.drop_orders add column if not exists phone text;
+`);
+await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0261_batch_traceability.sql"), "utf8"));
+const B0261 = (await q1(`insert into brew_batches (recipe_name, batch_gal, status) values ('Flow OG', 2.5, 'ready') returning id`)).id;
+const P0261 = (await q1(`insert into drop_orders (name, phone) values ('Meena', '864') returning id`)).id;
+await db.exec(`update drop_orders set batch_id = '${B0261}' where id = '${P0261}'`);
+ok("0261 recall query answers 'who got batch X'",
+  (await q1(`select name from drop_orders where batch_id = '${B0261}'`)).name === "Meena");
+await db.exec(`delete from brew_batches where id = '${B0261}'`);
+ok("0261 deleting a batch CLEARS the pack's reference (set null, never blocks cleanup)",
+  (await q1(`select batch_id from drop_orders where id = '${P0261}'`)).batch_id === null);
+ok("0261 re-applied whole is a no-op",
+  await (async () => { try { await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0261_batch_traceability.sql"), "utf8")); return true; } catch { return false; } })());
+
 console.log(`CANONICAL-DB CONTRACT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
