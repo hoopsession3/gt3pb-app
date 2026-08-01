@@ -97,10 +97,13 @@ export function OperatorSectionProvider({ children }: { children: React.ReactNod
 // roles resolve" predates that widening.
 
 // which sections each role gets — and in what order (Ask floats via QuickDock, so it's not here)
+// Every role gets "plan" (2026-08-01, the one-calendar round): the company calendar is the shared
+// schedule the whole team anchors on — crew open it READ-ONLY (the page gates the manage tabs and
+// all editing), so a server can always answer "what's coming this week?" without asking a manager.
 const ROLE_SECTIONS: Record<string, OpSection[]> = {
-  server: ["day", "now", "notes", "driver"],
-  contractor: ["day", "now", "prep", "garage", "notes", "driver"],
-  operator: ["day", "now", "prep", "brew", "garage", "notes", "driver"],
+  server: ["day", "now", "plan", "notes", "driver"],
+  contractor: ["day", "now", "prep", "plan", "garage", "notes", "driver"],
+  operator: ["day", "now", "prep", "plan", "brew", "garage", "notes", "driver"],
   event_manager: ["day", "now", "command", "prep", "plan", "studio", "brew", "notes", "driver"],
   admin: ["day", "now", "command", "prep", "plan", "studio", "brew", "garage", "notes", "driver", "money", "customers", "team", "settings"],
   owner: ["day", "now", "command", "prep", "plan", "studio", "brew", "garage", "notes", "driver", "money", "customers", "team", "settings"],

@@ -422,5 +422,31 @@ ok("0256 unmapped category falls back to its stored manual price/cost (bottles)"
 ok("0256 re-applied whole is a no-op (view + seed idempotent)",
   await (async () => { try { await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0256_products_drive_economics.sql"), "utf8")); return true; } catch { return false; } })());
 
+// ── 0259: one company calendar (Business lane leads with "plan"; lead/pipe/meeting join lanes) ──
+// Fixture to 0159 shape (minus FKs the contract doesn't exercise), rows seeded to the PRE-0259
+// prod state, then 0259 applied VERBATIM from its file. The re-apply contract is the whole point:
+// array_prepend/append with no guard would double-add on every deploy replay.
+await db.exec(`
+  create table if not exists public.work_streams (
+    id uuid primary key default gen_random_uuid(), key text not null unique, label text not null,
+    color text not null default '#8a8a8a', categories text[] not null default '{}',
+    sections text[] not null default '{}', owner_role text, sort int not null default 0);
+  insert into work_streams (key, label, categories, sections, sort) values
+    ('events','Events','{event,booking,ops}','{plan,prep}',2),
+    ('business','Business','{money,admin,strategy,task,system}','{notes,money,customers,team}',5);
+`);
+await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0259_one_company_calendar.sql"), "utf8"));
+const biz0259 = await q1(`select sections, categories from work_streams where key='business'`);
+ok("0259 Business lane now LEADS with plan (the shared calendar is the landing)",
+  biz0259.sections[0] === "plan" && biz0259.sections.join(",") === "plan,notes,money,customers,team", biz0259);
+ok("0259 pipe + meeting joined the Business lane's categories",
+  biz0259.categories.includes("pipe") && biz0259.categories.includes("meeting"), biz0259);
+ok("0259 lead joined the Events lane's categories",
+  (await q1(`select categories from work_streams where key='events'`)).categories.join(",") === "event,booking,ops,lead");
+await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0259_one_company_calendar.sql"), "utf8"));
+const biz0259b = await q1(`select sections, categories from work_streams where key='business'`);
+ok("0259 re-applied is a no-op (guards hold — no double plan/pipe/meeting)",
+  biz0259b.sections.join(",") === "plan,notes,money,customers,team" && biz0259b.categories.filter((c) => c === "pipe").length === 1, biz0259b);
+
 console.log(`CANONICAL-DB CONTRACT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

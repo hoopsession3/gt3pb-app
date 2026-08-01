@@ -26,10 +26,14 @@ const DEFAULT_STREAMS: WorkStream[] = [
   // Command — neither is a section key anymore (see OperatorNav's OpSection note; 0253 cleans the
   // DB rows the same way).
   { key: "service", icon: "service",    label: "Service",    color: "#5b9a6b", categories: ["stop", "drop", "delivery", "order", "prep"],    sections: ["prep", "now", "driver"],              owner_role: "operator",      owner_user_id: null, sort: 1 },
-  { key: "events", icon: "events",     label: "Events",     color: "#6fa8dc", categories: ["event", "booking", "ops"],                      sections: ["plan", "prep"],             owner_role: "event_manager", owner_user_id: null, sort: 2 },
+  { key: "events", icon: "events",     label: "Events",     color: "#6fa8dc", categories: ["event", "booking", "ops", "lead"],              sections: ["plan", "prep"],             owner_role: "event_manager", owner_user_id: null, sort: 2 },
   { key: "production", icon: "production", label: "Production", color: "#c9a227", categories: ["brew", "inventory"],                            sections: ["brew", "garage"],                     owner_role: "operator",      owner_user_id: null, sort: 3 },
   { key: "brand", icon: "brand",      label: "Brand",      color: "#2bb3a3", categories: ["content"],                                      sections: ["studio"],                   owner_role: "admin",         owner_user_id: null, sort: 4 },
-  { key: "business", icon: "business",   label: "Business",   color: "#8b5cf6", categories: ["money", "admin", "strategy", "task", "system"], sections: ["notes", "money", "customers", "team"], owner_role: "owner",       owner_user_id: null, sort: 5 },
+  // Business LEADS with the shared calendar (Ryan, 2026-07-31: "when we click on business, should
+  // it not focus on what we're doing to make the money?" — operations before money). "plan" first
+  // makes the company calendar the lane's landing; pipe/meeting put the sales rhythm under the
+  // lane filter. 0259 reshapes the live work_streams rows the same way.
+  { key: "business", icon: "business",   label: "Business",   color: "#8b5cf6", categories: ["money", "admin", "strategy", "task", "system", "pipe", "meeting"], sections: ["plan", "notes", "money", "customers", "team"], owner_role: "owner",       owner_user_id: null, sort: 5 },
 ];
 
 export const streamOfCategory = (cat: string | null | undefined, streams: WorkStream[]): WorkStream | null =>

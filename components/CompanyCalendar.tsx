@@ -51,7 +51,13 @@ const VLABEL: Record<View, string> = { list: "Agenda", board: "Board", cards: "C
 type Stop = { id: string; name: string; location_text: string | null; starts_at: string | null; status: string | null };
 type Brew = { id: string; recipe_name: string | null; batch_gal: number | null; status: string; brew_date: string | null; ready_at: string | null; latest_start_at: string | null };
 type Goal = { id: string; title: string; due_date: string | null; status: string; horizon: string };
-type Item = { id: string; title: string; cat: string; kind: "event" | "content" | "todo" | "stop" | "task" | "brew" | "drop" | "delivery" | "goal"; done?: boolean; warn?: boolean; meta?: string; go: () => void; toggle?: () => void };
+// The sales/relationship rhythm (2026-08-01, Ryan: "opportunities and meetings for prospects and
+// pipelines should roll up to the one business calendar"). Read-only rollups like brew/drop —
+// the rows live on Plan › Leads (leads + pipeline) and Notes (meetings).
+type Lead = { id: string; name: string | null; event_date: string; status: string };
+type Opp = { id: string; stage: string; next_step: string | null; next_step_at: string; vendors: { name: string } | null };
+type Meeting = { id: string; title: string | null; met_on: string };
+type Item = { id: string; title: string; cat: string; kind: "event" | "content" | "todo" | "stop" | "task" | "brew" | "drop" | "delivery" | "goal" | "lead" | "pipe" | "meeting"; done?: boolean; warn?: boolean; meta?: string; go: () => void; toggle?: () => void };
 // kinds that back a SRC row and can be edited/dragged here; brew/drop/delivery are read-only rollups.
 // "task" is deliberately NOT editable here — CalEdit had no task branch, so a tap+Save fell into
 // the content form and renamed the task/wiped its due date. Tasks route to their prep hub (it.go).
@@ -64,18 +70,25 @@ const DRAG = new Set<Item["kind"]>(["event", "stop", "content", "todo"]); // eve
 type Board = {
   events: Ev[]; content: Content[]; todos: Todo[]; stops: Stop[]; prepTasks: PrepTask[]; brews: Brew[];
   drops: { drop_date: string; size: number }[]; dels: { delivery_date: string }[]; biz: { delivery_date: string; gallons: number }[];
-  backlogT: Todo[]; backlogC: Content[]; goals: Goal[];
+  backlogT: Todo[]; backlogC: Content[]; goals: Goal[]; leads: Lead[]; opps: Opp[]; meets: Meeting[];
 };
-const EMPTY_BOARD: Board = { events: [], content: [], todos: [], stops: [], prepTasks: [], brews: [], drops: [], dels: [], biz: [], backlogT: [], backlogC: [], goals: [] };
+const EMPTY_BOARD: Board = { events: [], content: [], todos: [], stops: [], prepTasks: [], brews: [], drops: [], dels: [], biz: [], backlogT: [], backlogC: [], goals: [], leads: [], opps: [], meets: [] };
 
 function gridMonth(cursor: Date): Date[] { const s = new Date(cursor.getFullYear(), cursor.getMonth(), 1); s.setDate(1 - s.getDay()); return Array.from({ length: 42 }, (_, i) => { const d = new Date(s); d.setDate(s.getDate() + i); return d; }); }
 function gridWeek(cursor: Date): Date[] { const s = new Date(cursor); s.setDate(cursor.getDate() - cursor.getDay()); return Array.from({ length: 7 }, (_, i) => { const d = new Date(s); d.setDate(s.getDate() + i); return d; }); }
 const qStart = (cursor: Date) => Math.floor(cursor.getMonth() / 3) * 3;
 
-export default function CompanyCalendar() {
+// readOnly (2026-08-01): crew roles open this exact calendar from their own Plan tab — same data,
+// same views, zero write affordances (no add / edit / drag / check / tidy). The shared schedule is
+// the team's anchor; My Day stays each person's actionable lens on it.
+export default function CompanyCalendar({ readOnly = false }: { readOnly?: boolean } = {}) {
   const { setSection } = useOperatorSection();
   const { profile } = useAuth();
-  const isOwner = roleOf(profile) === "owner";
+  const role = roleOf(profile);
+  const isOwner = role === "owner";
+  // Sales stays leadership work (Ryan's explicit call, 0254): leads + pipeline roll up only for
+  // roles that can open Plan › Leads — crew calendars simply don't fetch them.
+  const canSales = isOwner || role === "admin" || role === "event_manager";
   const now = new Date();
   const todayKey = key(now);
   // Default is LIST, not the month grid — on a phone the 30-day grid is a wall of tiny cells that
@@ -116,7 +129,8 @@ export default function CompanyCalendar() {
     const from = key(range.start);
     // Shared UTC-bounding math (lib/calendarMath) — date columns keep the local key strings.
     const { fromISO, toISO } = localDayBoundsISO(range.start, range.end);
-    const [e, c, t, s, pt, bb, dr, dv, bt, bc, bo, gl] = await Promise.all([
+    const none = Promise.resolve({ data: [], error: null });   // role-gated source → empty, never an error
+    const [e, c, t, s, pt, bb, dr, dv, bt, bc, bo, gl, bk, op, mn] = await Promise.all([
       supabase.from("events").select("id, title, day, day_label, is_live, category, plan_days, stage").is("archived_at", null).gte("day", eFrom).lte("day", to),
       supabase.from("content_items").select("id, title, scheduled_for, status").is("archived_at", null).not("scheduled_for", "is", null).gte("scheduled_for", fromISO).lt("scheduled_for", toISO),
       supabase.from("todos").select("id, title, category, due_on, done, event_id, meeting_note_id").not("due_on", "is", null).gte("due_on", from).lte("due_on", to),
@@ -129,18 +143,25 @@ export default function CompanyCalendar() {
       supabase.from("content_items").select("id, title, scheduled_for, status").is("archived_at", null).is("scheduled_for", null).neq("status", "published").limit(30),
       supabase.from("business_orders").select("delivery_date, gallons").is("canceled_at", null).gte("delivery_date", from).lte("delivery_date", to),
       supabase.from("goals").select("id, title, due_date, status, horizon").not("due_date", "is", null).neq("status", "archived").gte("due_date", from).lte("due_date", to),
+      // The sales/relationship rhythm (2026-08-01): live leads by their event date, pipeline
+      // opportunities by their next-step date (won/lost are history, not schedule), meetings by
+      // met_on (RLS already scopes private notes to their author).
+      canSales ? supabase.from("booking_requests").select("id, name, event_date, status").in("status", ["new", "contacted"]).not("event_date", "is", null).gte("event_date", from).lte("event_date", to) : none,
+      canSales ? supabase.from("opportunities").select("id, stage, next_step, next_step_at, vendors(name)").not("next_step_at", "is", null).not("stage", "in", "(won,lost)").gte("next_step_at", fromISO).lt("next_step_at", toISO) : none,
+      supabase.from("meeting_notes").select("id, title, met_on").is("archived_at", null).gte("met_on", from).lte("met_on", to),
     ]);
-    const firstErr = [e, c, t, s, pt, bb, dr, dv, bt, bc, bo, gl].find((x) => x.error)?.error;
+    const firstErr = [e, c, t, s, pt, bb, dr, dv, bt, bc, bo, gl, bk, op, mn].find((x) => x.error)?.error;
     if (firstErr) throw new Error(firstErr.message);
     return {
       events: (e.data as Ev[]) ?? [], content: (c.data as Content[]) ?? [], todos: (t.data as Todo[]) ?? [], stops: (s.data as Stop[]) ?? [], prepTasks: (pt.data as PrepTask[]) ?? [],
       brews: (bb.data as Brew[]) ?? [], drops: (dr.data as { drop_date: string; size: number }[]) ?? [], dels: (dv.data as { delivery_date: string }[]) ?? [], biz: (bo.data as { delivery_date: string; gallons: number }[]) ?? [],
       backlogT: (bt.data as Todo[]) ?? [], backlogC: (bc.data as Content[]) ?? [], goals: (gl.data as Goal[]) ?? [],
+      leads: (bk.data as Lead[]) ?? [], opps: (op.data as unknown as Opp[]) ?? [], meets: (mn.data as Meeting[]) ?? [],
     };
-  }, [range]);
+  }, [range, canSales]);
   const board = useAsyncData(loader, [range]);
   const { reload } = board;
-  useRealtimeTable(["todos", "content_items", "events", "stops", "event_tasks", "brew_batches", "drop_orders", "delivery_orders", "goals"], reload);
+  useRealtimeTable(["todos", "content_items", "events", "stops", "event_tasks", "brew_batches", "drop_orders", "delivery_orders", "goals", "booking_requests", "opportunities", "meeting_notes"], reload);
   const events = board.data?.events ?? [];
   const content = board.data?.content ?? [];
   const todos = board.data?.todos ?? [];
@@ -153,6 +174,9 @@ export default function CompanyCalendar() {
   const backlogT = board.data?.backlogT ?? [];
   const backlogC = board.data?.backlogC ?? [];
   const goals = board.data?.goals ?? [];
+  const leads = board.data?.leads ?? [];
+  const opps = board.data?.opps ?? [];
+  const meets = board.data?.meets ?? [];
 
   const loadStale = useCallback(async () => { if (!supabase) return; const { data } = await supabase.rpc("stale_content_count"); setStale(typeof data === "number" ? data : 0); }, []);
   useEffect(() => { loadStale(); }, [loadStale]);
@@ -167,15 +191,25 @@ export default function CompanyCalendar() {
   // operate and look identical. (The run-of-show / time blocks live inside the hub and on CalEdit.)
   const openEventPrep = (eventId: string) => { if (typeof window !== "undefined") localStorage.setItem("gt3-prep-open", `event:${eventId}`); setSection("prep"); };
   const openStopPrep = (stopId: string) => { if (typeof window !== "undefined") localStorage.setItem("gt3-prep-open", `stop:${stopId}`); setSection("prep"); };
+  // Jump to a sibling Plan tab from INSIDE the plan section. The gt3-plan-tab localStorage
+  // deep-link only gets consumed on a section CHANGE (page.tsx effect keyed on sec), and here sec
+  // is already "plan" — so we also fire gt3-plan-tab-set, which the page listens for while on Plan.
+  const openPlanTab = (tab: string, anchor?: string) => {
+    if (typeof window === "undefined") return;
+    try { localStorage.setItem("gt3-plan-tab", tab); } catch { /* ignore */ }
+    window.dispatchEvent(new Event("gt3-plan-tab-set"));
+    setSection("plan");
+    if (anchor) setTimeout(() => document.getElementById(anchor)?.scrollIntoView({ behavior: "smooth", block: "start" }), 260);
+  };
   const toggleTodo = async (t: Todo) => {
-    if (!supabase) return;
+    if (!supabase || readOnly) return;
     await updateTask("todo", t.id, { done: !t.done });   // ONE write path (lib/tasks)
     reload();
   };
   // Drag-to-reschedule for every editable kind — same rule as CalEdit's onDate: plain-date columns
   // take the day key, timestamp columns keep their existing time-of-day.
   const reschedule = async (kind: EditKind, id: string, dayKey: string) => {
-    if (!supabase) return;
+    if (!supabase || readOnly) return;
     const cfg = SRC[kind];
     let val: string = dayKey;
     if (cfg.dateIsTimestamp) {
@@ -188,7 +222,7 @@ export default function CompanyCalendar() {
     reload();
   };
   const unschedule = async (kind: EditKind, id: string) => {
-    if (!supabase || (kind !== "todo" && kind !== "content")) return;
+    if (!supabase || readOnly || (kind !== "todo" && kind !== "content")) return;
     await supabase.from(SRC[kind].table).update({ [SRC[kind].dateCol]: null }).eq("id", id);
     reload();
   };
@@ -201,7 +235,12 @@ export default function CompanyCalendar() {
   const pass = (cat: string) => filter === "all" || filter === cat || Boolean(laneFilter?.categories.includes(cat));
   const byDay = useMemo(() => {
     const m: Record<string, Item[]> = {};
-    const push = (k: string, it: Item) => { (m[k] ||= []).push(it); };
+    // Read-only mode: EVERY tap opens the day sheet instead of the item's own surface. Crew roles
+    // don't hold prep/studio/command, so per-item go() targets would bounce them to My Day (the
+    // section fallback) — the exact "doesn't flow" failure the alerts round killed. The day sheet
+    // always answers "what is this?" without teleporting anyone. toggle is stripped so no check
+    // control renders anywhere downstream.
+    const push = (k: string, it: Item) => { (m[k] ||= []).push(readOnly ? { ...it, go: () => setDayOpen(k), toggle: undefined } : it); };
     for (const e of events) {
       const cat = e.category && CAT[e.category] ? e.category : "event";
       if (!e.day || !pass(cat)) continue;
@@ -219,6 +258,11 @@ export default function CompanyCalendar() {
     const goGoals = () => { setSection("command"); setTimeout(() => document.getElementById("goals")?.scrollIntoView({ behavior: "smooth", block: "start" }), 120); };
     for (const t of prepTasks) if (t.due_at && pass("task")) push(key(new Date(t.due_at)), { id: t.id, title: t.label, cat: "task", kind: "task", go: () => { if (t.event_id) openEventPrep(t.event_id); else if (t.stop_id) openStopPrep(t.stop_id); else if (t.meeting_note_id) setSection("notes"); else if (t.goal_id) goGoals(); } });
     for (const g of goals) if (g.due_date && pass("goal")) push(g.due_date, { id: g.id, title: g.title, cat: "goal", kind: "goal", meta: g.status === "hit" ? "Hit" : g.horizon, go: goGoals });
+    // The sales/relationship rhythm (2026-08-01) — read-only rollups; the rows live on Plan › Leads
+    // and Notes, so go() jumps to the sibling tab (openPlanTab) rather than editing here.
+    for (const l of leads) if (l.event_date && pass("lead")) push(l.event_date, { id: l.id, title: `Lead · ${l.name || "Booking request"}`, cat: "lead", kind: "lead", meta: l.status === "new" ? "New" : "Contacted", go: () => openPlanTab("leads") });
+    for (const o of opps) if (o.next_step_at && pass("pipe")) push(key(new Date(o.next_step_at)), { id: o.id, title: `Pipeline · ${o.vendors?.name ?? "Account"}`, cat: "pipe", kind: "pipe", meta: o.next_step || (o.stage ? o.stage[0].toUpperCase() + o.stage.slice(1) : ""), go: () => openPlanTab("leads", "pipeline-board") });
+    for (const mt of meets) if (mt.met_on && pass("meeting")) push(mt.met_on, { id: mt.id, title: `Meeting · ${mt.title || "Notes"}`, cat: "meeting", kind: "meeting", go: () => setSection("notes") });
     if (pass("brew")) for (const b of brews) if (b.brew_date) push(b.brew_date, { id: b.id, title: `Brew · ${b.recipe_name || "Batch"} ${Number(b.batch_gal ?? 1)} gal`, cat: "brew", kind: "brew", warn: brewStartOverdue(b), go: openBrew });
     if (pass("drop")) {
       const agg: Record<string, number> = {};
@@ -236,7 +280,7 @@ export default function CompanyCalendar() {
       for (const [dk, g] of Object.entries(agg)) push(dk, { id: `office-${dk}`, title: `Office route · ${g} gal`, cat: "delivery", kind: "delivery", go: openNow });
     }
     return m;
-  }, [events, content, todos, stops, prepTasks, brews, drops, dels, biz, goals, filter, streams]);
+  }, [events, content, todos, stops, prepTasks, brews, drops, dels, biz, goals, leads, opps, meets, filter, streams, readOnly]);
 
   // Flat date-sorted spine for Board / Cards / Rails.
   const flat = useMemo(() => {
@@ -285,9 +329,9 @@ export default function CompanyCalendar() {
 
   const VIEWS: View[] = ["list", "board", "cards", "week", "month", "quarter", "year"];
   const Chip = ({ it }: { it: Item }) => (
-    <button type="button" draggable={DRAG.has(it.kind)} className={`cc-chip${it.done ? " done" : ""}`} style={{ borderLeftColor: CAT[it.cat]?.color }}
-      onDragStart={() => { if (DRAG.has(it.kind) && isEditable(it.kind)) dragId.current = { kind: it.kind, id: it.id }; }} onClick={(e) => { e.stopPropagation(); it.go(); }} title={`${CAT[it.cat]?.label}: ${it.title}`}>
-      {it.kind === "todo" && <span className="cc-check" onClick={(e) => { e.stopPropagation(); it.toggle?.(); }}>{it.done ? <Icon name="check" /> : <Icon name="dotOutline" />}</span>}
+    <button type="button" draggable={!readOnly && DRAG.has(it.kind)} className={`cc-chip${it.done ? " done" : ""}`} style={{ borderLeftColor: CAT[it.cat]?.color }}
+      onDragStart={() => { if (!readOnly && DRAG.has(it.kind) && isEditable(it.kind)) dragId.current = { kind: it.kind, id: it.id }; }} onClick={(e) => { e.stopPropagation(); it.go(); }} title={`${CAT[it.cat]?.label}: ${it.title}`}>
+      {it.kind === "todo" && it.toggle && <span className="cc-check" onClick={(e) => { e.stopPropagation(); it.toggle?.(); }}>{it.done ? <Icon name="check" /> : <Icon name="dotOutline" />}</span>}
       <span className="cc-dot" style={{ background: CAT[it.cat]?.color }} />{it.title}
     </button>
   );
@@ -302,8 +346,8 @@ export default function CompanyCalendar() {
           EventsAdmin/VendorsAdmin subnav siblings; the tap-to-edit hint is genuine first-run
           orientation copy (not stated anywhere above), so it stays as its own line. */}
       <SectionHeader label="Calendar" />
-      <div className="cal-titlesub">everything dated — tap any day to open &amp; edit</div>
-      {stale > 0 && (
+      <div className="cal-titlesub">{readOnly ? "everything dated — the whole company, one pane" : "everything dated — tap any day to open & edit"}</div>
+      {!readOnly && stale > 0 && (
         <div className="cal-nudge">
           <span><b>{stale}</b> post{stale === 1 ? "" : "s"} went past their date unpublished.</span>
           <button type="button" onClick={tidy} disabled={tidying}>{tidying ? "Tidying…" : "Tidy up"}</button>
@@ -335,7 +379,8 @@ export default function CompanyCalendar() {
                 </button>
               ))}
               <div className="dv-sub" style={{ margin: "10px 0 4px" }}>By category</div>
-              {FILTERS.filter((f) => f !== "all").map((f) => (
+              {/* lead/pipe never have rows for non-sales roles (loader gates them) — hide the dead chips */}
+              {FILTERS.filter((f) => f !== "all" && (canSales || (f !== "lead" && f !== "pipe"))).map((f) => (
                 <button key={f} type="button" className={`prep-sheet-opt${filter === f ? " on" : ""}`} onClick={() => { setFilter(f); setFilterSheet(false); }}>
                   {`${CAT[f].icon} ${CAT[f].label}`}
                 </button>
@@ -354,7 +399,7 @@ export default function CompanyCalendar() {
             return (
               <div key={k} {...clickable(() => setDayOpen(k))} className={`cal-cell${dim ? " dim" : ""}${k === todayKey ? " today" : ""}${over === k ? " over" : ""}${warnDays.has(k) ? " heat" : ""}`}
                 onDragOver={(e) => { e.preventDefault(); setOver(k); }} onDragLeave={() => setOver((o) => o === k ? null : o)} onDrop={() => { setOver(null); const dg = dragId.current; dragId.current = null; if (dg) reschedule(dg.kind, dg.id, k); }}>
-                <div className="cal-cell-h"><span className="cal-date">{d.getDate()}</span><button type="button" className="cal-add" onClick={(e) => { e.stopPropagation(); setAddDay(k); }} aria-label="Add">+</button></div>
+                <div className="cal-cell-h"><span className="cal-date">{d.getDate()}</span>{!readOnly && <button type="button" className="cal-add" onClick={(e) => { e.stopPropagation(); setAddDay(k); }} aria-label="Add">+</button>}</div>
                 <div className="cal-marks">
                   {[...new Set(items.map((it) => it.cat))].slice(0, 4).map((c) => <span key={c} className="cal-mark" style={{ background: CAT[c]?.color }} />)}
                   {items.length > 0 && <span className="cal-mark-n">{items.length}</span>}
@@ -373,7 +418,7 @@ export default function CompanyCalendar() {
             return (
               <div key={k} className={`cal-wrow${k === todayKey ? " today" : ""}${over === k ? " over" : ""}${warnDays.has(k) ? " heat" : ""}`}
                 onDragOver={(e) => { e.preventDefault(); setOver(k); }} onDragLeave={() => setOver((o) => o === k ? null : o)} onDrop={() => { setOver(null); const dg = dragId.current; dragId.current = null; if (dg) reschedule(dg.kind, dg.id, k); }}>
-                <div className="cal-wday" {...clickable(() => setDayOpen(k))}><b>{DOW[d.getDay()]}</b><span>{d.getDate()}</span><button type="button" className="cal-add wk" onClick={(e) => { e.stopPropagation(); setAddDay(k); }} aria-label="Add">+</button></div>
+                <div className="cal-wday" {...clickable(() => setDayOpen(k))}><b>{DOW[d.getDay()]}</b><span>{d.getDate()}</span>{!readOnly && <button type="button" className="cal-add wk" onClick={(e) => { e.stopPropagation(); setAddDay(k); }} aria-label="Add">+</button>}</div>
                 <div className="cal-witems">{items.length === 0 ? <span className="cal-wnone">—</span> : items.map((it) => <Chip key={`${it.kind}-${it.id}`} it={it} />)}</div>
               </div>
             );
@@ -420,9 +465,11 @@ export default function CompanyCalendar() {
           { id: "later", label: "Later", drop: addDaysKey(todayKey, 21), sub: `drop here → ${fmtK(addDaysKey(todayKey, 21))}` },
           { id: "backlog", label: "Unscheduled", drop: "unschedule", sub: "drop a to-do or post here to park it" },
         ];
+        // read-only: parked-work management is a manager surface, and "drop here →" hints would lie
+        const showCols = readOnly ? cols.filter((c) => c.id !== "backlog").map((c) => ({ ...c, sub: undefined })) : cols;
         return (
           <div className="cal-board">
-            {cols.map((col) => {
+            {showCols.map((col) => {
               const rows = col.id === "backlog" ? backlogItems.map((it) => ({ k: "", it })) : buckets[col.id];
               return (
                 <div key={col.id} className={`bd-col${over === `bd-${col.id}` ? " over" : ""}`}
@@ -453,11 +500,11 @@ export default function CompanyCalendar() {
           return (
             <div key={`${it.kind}-${it.id}-${k}`} className={`calcard${it.done ? " done" : ""}${it.warn ? " warn" : ""}`} style={{ borderLeftColor: CAT[it.cat]?.color }}>
               <div className="calcard-d"><b>{d.getDate()}</b><span>{DOW[d.getDay()]}</span><span>{MON3[d.getMonth()]}</span></div>
-              <button type="button" className="calcard-m" onClick={() => { if (isEditable(it.kind)) setEdit({ kind: it.kind, id: it.id }); else it.go(); }}>
+              <button type="button" className="calcard-m" onClick={() => { if (!readOnly && isEditable(it.kind)) setEdit({ kind: it.kind, id: it.id }); else it.go(); }}>
                 <b>{it.title}</b>
                 <span>{CAT[it.cat]?.label}{it.meta ? ` · ${it.meta}` : ""}{it.warn ? " · past latest start" : ""}{k === todayKey ? " · today" : ""}</span>
               </button>
-              {it.kind === "todo"
+              {it.kind === "todo" && it.toggle
                 ? <button type="button" className="dv-go" title="Mark done" onClick={() => it.toggle?.()}>{it.done ? <Icon name="check" /> : <Icon name="dotOutline" />}</button>
                 : <button type="button" className="dv-go" title="Open" onClick={() => it.go()}><Icon name="externalLink" /></button>}
             </div>
@@ -482,13 +529,13 @@ export default function CompanyCalendar() {
       )}
 
       {isOwner && <OutlookBar onSynced={reload} />}
-      {!isOwner && <div className="insp-foot" style={{ marginTop: 12 }}><Icon name="calendar" /> Outlook two-way sync is managed by the owner.</div>}
+      {!isOwner && !readOnly && <div className="insp-foot" style={{ marginTop: 12 }}><Icon name="calendar" /> Outlook two-way sync is managed by the owner.</div>}
 
       {edit && (edit.kind === "event" || edit.kind === "stop"
         ? <FieldOpSheet kind={edit.kind} id={edit.id} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); reload(); }}
             onOpenPrep={() => { try { localStorage.setItem("gt3-prep-open", edit.kind === "stop" ? `stop:${edit.id}` : edit.id); } catch { /* ignore */ } setSection("prep"); setEdit(null); }} />
         : <CalEdit kind={edit.kind} id={edit.id} events={events} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); reload(); }} />)}
-      {dayOpen && <DayView dayKey={dayOpen} items={byDay[dayOpen] || []} events={events} onClose={() => setDayOpen(null)} onAdd={() => { const k = dayOpen; setDayOpen(null); setAddDay(k); }} onSaved={reload} />}
+      {dayOpen && <DayView dayKey={dayOpen} items={byDay[dayOpen] || []} events={events} readOnly={readOnly} onClose={() => setDayOpen(null)} onAdd={() => { const k = dayOpen; setDayOpen(null); setAddDay(k); }} onSaved={reload} />}
       {addDay && <AddSheet day={addDay} events={events} onClose={() => setAddDay(null)} onDone={() => { setAddDay(null); reload(); }} setSection={setSection} />}
     </div>
       )}
@@ -500,7 +547,7 @@ export default function CompanyCalendar() {
 // right here. Every edit saves straight back to its source row, so it relates back everywhere that
 // row appears (Prep, Studio, My Tasks). The "↗" opens its full prep / run-of-show / studio. Archived
 // events show here (and only here) so a removed event is still reachable by opening its day.
-function DayView({ dayKey, items, events, onClose, onAdd, onSaved }: { dayKey: string; items: Item[]; events: Ev[]; onClose: () => void; onAdd: () => void; onSaved: () => void }) {
+function DayView({ dayKey, items, events, readOnly = false, onClose, onAdd, onSaved }: { dayKey: string; items: Item[]; events: Ev[]; readOnly?: boolean; onClose: () => void; onAdd: () => void; onSaved: () => void }) {
   const { setSection } = useOperatorSection();
   const [archived, setArchived] = useState<{ id: string; title: string | null; day_label: string | null }[]>([]);
   const [edit, setEdit] = useState<{ kind: EditKind; id: string } | null>(null);
@@ -510,7 +557,7 @@ function DayView({ dayKey, items, events, onClose, onAdd, onSaved }: { dayKey: s
   }, [dayKey]);
   const d = new Date(`${dayKey}T00:00:00`);
   const heading = d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-  const sub: Record<Item["kind"], string> = { event: "event", stop: "on-the-ground op", todo: "to-do", content: "content", task: "task due", brew: "brew day", drop: "pack pickup", delivery: "delivery run", goal: "goal" };
+  const sub: Record<Item["kind"], string> = { event: "event", stop: "on-the-ground op", todo: "to-do", content: "content", task: "task due", brew: "brew day", drop: "pack pickup", delivery: "delivery run", goal: "goal", lead: "booking request", pipe: "pipeline next step", meeting: "meeting" };
   const clash = items.some((i) => i.kind === "event") && items.some((i) => i.kind === "stop");
   const brewLate = items.some((i) => i.warn);
   return (
@@ -520,7 +567,14 @@ function DayView({ dayKey, items, events, onClose, onAdd, onSaved }: { dayKey: s
           {clash && <div className="dv-heads">Heads up: event + truck stop share this day.</div>}
           {brewLate && <div className="dv-heads">Heads up: a brew here is past its latest start.</div>}
           <div className="dv-list">
-            {items.map((it) => !isEditable(it.kind) ? (
+            {items.map((it) => readOnly ? (
+              // crew read-only: the day sheet IS the destination — plain info rows, no tap-through
+              // (items' go() already points back here) and no edit affordances at all.
+              <div key={`${it.kind}-${it.id}`} className={`dv-row${it.done ? " done" : ""}`} style={{ ["--c" as string]: CAT[it.cat]?.color }}>
+                <span className="dv-dot" style={{ background: CAT[it.cat]?.color }} />
+                <span className="dv-main"><b>{it.title}</b><span>{CAT[it.cat]?.label}{it.meta ? ` · ${it.meta}` : ` · ${sub[it.kind]}`}{it.warn ? " · past latest start" : ""}</span></span>
+              </div>
+            ) : !isEditable(it.kind) ? (
               // read-only rollup (brew / drop / delivery) — the rows live on their own surface; tap through
               <div key={`${it.kind}-${it.id}`} className="dv-row" style={{ ["--c" as string]: CAT[it.cat]?.color }}>
                 <span className="dv-dot" style={{ background: CAT[it.cat]?.color }} />
@@ -549,7 +603,7 @@ function DayView({ dayKey, items, events, onClose, onAdd, onSaved }: { dayKey: s
               </>
             )}
           </div>
-          <div className="prod-actions" style={{ marginTop: 14 }}><span /><button type="button" className="note-save" onClick={onAdd}>+ Add to this day</button></div>
+          {!readOnly && <div className="prod-actions" style={{ marginTop: 14 }}><span /><button type="button" className="note-save" onClick={onAdd}>+ Add to this day</button></div>}
     </Sheet>
     {edit && (edit.kind === "event" || edit.kind === "stop"
       ? <FieldOpSheet kind={edit.kind} id={edit.id} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); onSaved(); }}

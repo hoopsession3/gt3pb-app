@@ -8,6 +8,14 @@ export const CAL_CAT: Record<string, { label: string; color: string; icon: strin
   brew: { label: "Brew", color: "#c9a227", icon: "🍺" }, drop: { label: "Drops", color: "#c25b8e", icon: "📦" },
   delivery: { label: "Delivery", color: "#5c6bc0", icon: "🏠" },
   goal: { label: "Goals", color: "#c8a661", icon: "🎯" },
+  // 2026-08-01 (Ryan: "events, truck stops, opportunities, and meetings … roll up to the one
+  // business calendar"): the sales/relationship rhythm joins the grammar. lead = an inbound
+  // booking request's event date; pipe = a pipeline opportunity's next-step date; meeting = a
+  // meeting note's met_on. All three are read-only rollups on the calendar — the rows live on
+  // Plan › Leads and Notes.
+  lead: { label: "Leads", color: "#3fb0c9", icon: "🤝" },
+  pipe: { label: "Pipeline", color: "#9aa83a", icon: "📈" },
+  meeting: { label: "Meetings", color: "#8d6e63", icon: "🗣️" },
 };
 
 // content_items.status → chip color (Brand calendar + Studio surfaces).

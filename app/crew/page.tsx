@@ -5698,13 +5698,20 @@ export default function AdminPage() {
     if (firstSecRef.current) { firstSecRef.current = false; return; }
     opBodyRef.current?.focus();
   }, [section]);
-  // deep-link from Studio's "Company calendar ↗" → land on the Plan calendar
+  // deep-link from Studio's "Company calendar ↗" → land on the Plan calendar. Also listens for
+  // gt3-plan-tab-set while ON Plan: the calendar's lead/pipeline chips jump to the Leads tab from
+  // inside the section, where a sec change alone would never re-run this consume.
   useEffect(() => {
     if (sec !== "plan" || typeof window === "undefined") return;
-    const t = localStorage.getItem("gt3-plan-tab");
-    if (t && (["calendar", "events", "vendors", "route", "leads"] as const).includes(t as typeof planTab)) {
-      localStorage.removeItem("gt3-plan-tab"); setPlanTab(t as typeof planTab);
-    }
+    const consume = () => {
+      const t = localStorage.getItem("gt3-plan-tab");
+      if (t && (["calendar", "events", "vendors", "route", "leads"] as const).includes(t as typeof planTab)) {
+        localStorage.removeItem("gt3-plan-tab"); setPlanTab(t as typeof planTab);
+      }
+    };
+    consume();
+    window.addEventListener("gt3-plan-tab-set", consume);
+    return () => window.removeEventListener("gt3-plan-tab-set", consume);
   }, [sec]);
   const [planCounts, setPlanCounts] = useState<{ bookings: number; events: number }>({ bookings: 0, events: 0 });
   useEffect(() => {
@@ -5930,6 +5937,12 @@ export default function AdminPage() {
           {planTab === "vendors" && <VendorsAdmin />}
         </>
       )}
+
+      {/* Crew Plan = the ONE company calendar, read-only (2026-08-01, Ryan: "so I can see
+          everything in one stop pane" — and the 10/10 engagement call: every role sees the same
+          shared schedule; My Day stays their actionable lens). No subnav — the manage tabs
+          (Events/Route/Leads/Vendors) are leadership surfaces. */}
+      {sec === "plan" && !canManage && <CompanyCalendar readOnly />}
 
       {sec === "studio" && canManage && (
         <>
