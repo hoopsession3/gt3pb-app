@@ -670,15 +670,16 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
   const rank = (s: string) => (s === "critical" ? 0 : s === "important" ? 1 : 2);
   const sorted = [...mine].sort((a, b) => rank(a.severity) - rank(b.severity));
 
-  // Compact strip (used in Now) — alerts have ONE home, the My Day inbox. During service Now shows
-  // just a one-line pointer so the same cards don't render in two places; tap jumps to My Day.
+  // Compact strip (used in Now) — alerts have ONE home, the inbox. Opens it RIGHT HERE via
+  // gt3-open-inbox (any screen can summon it) instead of routing through My Day first — the exact
+  // bounce the alerts round killed (2026-08-01 audit).
   if (compact) {
     if (mine.length === 0) return null;   // during quiet hours the held digest stays off the service strip
     return (
-      <button type="button" className={`alerts-strip${crit ? " crit" : ""}`} onClick={() => setSection("day")}>
+      <button type="button" className={`alerts-strip${crit ? " crit" : ""}`} onClick={() => window.dispatchEvent(new Event("gt3-open-inbox"))}>
         <span className="alerts-strip-i" aria-hidden>{crit ? <Icon name="warning" /> : <Icon name="bell" />}</span>
         <span className="alerts-strip-t"><b>{mine.length} {mine.length === 1 ? "alert needs" : "alerts need"} you</b>{crit ? ` · ${crit} critical` : ""}</span>
-        <span className="alerts-strip-go">Open in My Day <Icon name="arrowRight" /></span>
+        <span className="alerts-strip-go">Open inbox <Icon name="arrowRight" /></span>
       </button>
     );
   }
@@ -3952,7 +3953,7 @@ function Bookings() {
       >
         {() => (
           <>
-      <SectionHeader label="Booking requests" right={open > 0 ? <span className="adm-pill">{open} new</span> : undefined} />
+      <SectionHeader label="Inbox · booking requests" annotation="each one becomes an event, a pipeline account, or a decline" right={open > 0 ? <span className="adm-pill">{open} new</span> : undefined} />
       {reqs.map((r) => (
         <div className={`adm-req${r.status === "new" ? " new" : ""}`} key={r.id}>
           <div className="adm-member-top">
@@ -3964,17 +3965,25 @@ function Bookings() {
             {r.location_text && <> · {r.location_text}</>}
             {r.notes && <><br />{r.notes}</>}
           </div>
+          {/* Decision anatomy (2026-08-01 audit): the status ladder and the forward doors were seven
+              identically-dressed mysteries on one row. Two LABELED groups now — "Status" (choose a
+              state) and "Turn it into" (go somewhere) — with delete as a quiet text action, not a
+              floating red circle that read as close-this-card. */}
           <div className="adm-status">
+            <span className="adm-ctl-k">Status</span>
             {STATUSES.map((s) => (
               <button key={s} className={r.status === s ? "on" : ""} onClick={() => setStatus(r.id, s)}>{s}</button>
             ))}
-            <button className="adm-req-mk" onClick={() => makeEvent(r)}><Icon name="arrowRight" /> Make it an event</button>
+          </div>
+          <div className="adm-status adm-doors">
+            <span className="adm-ctl-k">Turn it into</span>
+            <button className="adm-req-mk" onClick={() => makeEvent(r)}><Icon name="arrowRight" /> An event</button>
             {r.opportunity_id ? (
-              <button className="adm-req-mk" onClick={() => document.getElementById("pipeline-board")?.scrollIntoView({ behavior: "smooth", block: "start" })}>On the pipeline <Icon name="arrowRight" /></button>
+              <button className="adm-req-mk linked" onClick={() => document.getElementById("pipeline-board")?.scrollIntoView({ behavior: "smooth", block: "start" })}>On the pipeline <Icon name="arrowRight" /></button>
             ) : (
-              <button className="adm-req-mk" onClick={() => promote(r)} disabled={promoting === r.id}>{promoting === r.id ? "Promoting…" : <><Icon name="arrowRight" /> Promote to Pipeline</>}</button>
+              <button className="adm-req-mk" onClick={() => promote(r)} disabled={promoting === r.id}>{promoting === r.id ? "Promoting…" : <><Icon name="arrowRight" /> A pipeline account</>}</button>
             )}
-            <button className="adm-req-del" onClick={() => del(r)} aria-label={`Delete booking request from ${r.name ?? "contact"}`}><Icon name="close" /></button>
+            <button className="adm-req-quietdel" onClick={() => del(r)} aria-label={`Delete booking request from ${r.name ?? "contact"}`}>Delete</button>
           </div>
         </div>
       ))}
@@ -3982,10 +3991,8 @@ function Bookings() {
           </>
         )}
       </AsyncSection>
-      {/* Scout agent — monthly-ish planning tool, parked BELOW the daily queue (2026-07-30 audit:
-          it used to open the section, pushing the booking requests down — the same misplacement
-          class as the Readiness agents that moved this round). */}
-      <ChiefOfSales onLeads={load} />
+      {/* Chief of Sales moved to the leads tab's bottom Tools zone (2026-08-01 audit) — a monthly
+          planning tool no longer interrupts between the inbox and the pipeline. */}
       {promoteResolve && (
         <VendorResolve name={promoteResolve.name} candidates={promoteResolve.candidates}
           onUse={(c) => { const { req } = promoteResolve; setPromoteResolve(null); promote(req, { linkTo: c.id }); }}
@@ -5928,10 +5935,13 @@ export default function AdminPage() {
           {planTab === "leads" && (
             <>
               {/* One lead funnel (typed): inbound booking requests are the intake stage, then the
-                  B2B pipeline board. Formerly its own section; merged 2026-07-30. */}
+                  B2B pipeline board, then the Tools zone (Chief of Sales + the deal catalog rides
+                  PipelinePanel's own bottom block) — daily flow above, monthly setup below. */}
               <Bookings />
-              <div className="crew-group" id="pipeline-board">Pipeline</div>
+              <div className="crew-group" id="pipeline-board">Pipeline <span className="crew-group-sub">accounts being worked — stage by stage to Won</span></div>
               <PipelinePanel isAdmin={isAdmin} />
+              <div className="crew-group">Tools</div>
+              <ChiefOfSales />
             </>
           )}
           {planTab === "vendors" && <VendorsAdmin />}

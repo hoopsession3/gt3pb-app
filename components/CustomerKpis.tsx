@@ -17,7 +17,7 @@ export default function CustomerKpis() {
     { k: "members", v: "—", sub: "Members" },
     { k: "founding", v: "—", sub: "Founding" },
     { k: "new", v: "—", sub: "New · 7 days" },
-    { k: "codes", v: "—", sub: "Live codes" },
+    { k: "codes", v: "—", sub: "Check-in codes live" },
   ]);
 
   useEffect(() => {
@@ -43,7 +43,7 @@ export default function CustomerKpis() {
         { k: "members", v: v(members), sub: "Members" },
         { k: "founding", v: v(founding), sub: "Founding" },
         { k: "new", v: v(fresh), sub: "New · 7 days" },
-        { k: "codes", v: v(codes), sub: "Live codes" },
+        { k: "codes", v: v(codes), sub: "Check-in codes live" },
       ]);
     })();
     return () => { live = false; };

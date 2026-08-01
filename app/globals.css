@@ -5140,7 +5140,29 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 
 /* PIPELINE — the sales funnel: stage groups, account cards, the owner's deal catalog */
 .pipe-stage{margin-bottom:14px}
-.pipe-card{border:1px solid var(--line);border-radius:13px;background:var(--card);margin-bottom:8px;overflow:hidden}
+.pipe-card{border:1px solid var(--line);border-left:3px solid transparent;border-radius:13px;background:var(--card);margin-bottom:8px;overflow:hidden}
+/* ── The funnel's shape (2026-08-01 ops-grammar round) ─────────────────────────────────────── */
+.pipe-flow{display:flex;flex-direction:column}
+.pipe-toolsblock{order:9;margin-top:22px}
+.pipe-tools-h{margin:0 0 6px}
+.pipe-kpi{grid-template-columns:repeat(3,1fr)}
+.pipe-kpi>.mkpi-tile:last-child:nth-child(odd){grid-column:auto}
+.pipe-rail{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 10px}
+.pipe-rail-chip{display:inline-flex;align-items:center;gap:6px;font-family:'Inter';font-weight:600;font-size:11.5px;padding:7px 11px;border-radius:999px;border:1px solid var(--line2);background:transparent;color:var(--cream-m);cursor:pointer;-webkit-appearance:none;appearance:none}
+.pipe-rail-chip b{font-family:'DM Mono';font-weight:500;font-size:11px;color:var(--gold2)}
+.pipe-rail-chip:disabled{opacity:.38;cursor:default}
+.pipe-src{font-style:normal;font-family:'Inter';font-weight:600;font-size:9px;letter-spacing:.04em;text-transform:uppercase;color:var(--gold2);background:rgba(184,144,47,.12);border:1px solid rgba(184,144,47,.3);border-radius:8px;padding:2px 6px;margin-left:6px}
+.pipe-next.today{color:var(--gold2);font-weight:600}
+/* Request-card decision anatomy: labeled control groups + quiet delete */
+.adm-ctl-k{flex:0 0 100%;font-family:var(--mono);font-weight:500;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--cream-d)}
+.adm-doors{margin-top:9px}
+.adm-req-mk.linked{border-color:rgba(184,144,47,.45)}
+.adm-req-quietdel{margin-left:auto;background:none;border:none;padding:6px 4px;font-family:'Inter';font-size:11px;color:var(--cream-d);text-decoration:underline;cursor:pointer;-webkit-appearance:none;appearance:none}
+.adm-req .adm-member-top b{color:var(--cream)}
+.crew-group-sub{font-family:'Inter';font-weight:500;font-size:10.5px;letter-spacing:0;text-transform:none;color:var(--cream-d)}
+/* FAB clearance (audit: the moon/star floaters sat ON list content) — the last rows always
+   scroll clear of both floating buttons. */
+.screen.admin{padding-bottom:170px}
 .pipe-card.late{border-color:var(--warn)}
 .pipe-head{display:flex;align-items:center;gap:9px;width:100%;background:none;border:none;padding:11px 12px;cursor:pointer;text-align:left;color:var(--cream);-webkit-appearance:none;appearance:none}
 .pipe-name{flex:1;min-width:0}

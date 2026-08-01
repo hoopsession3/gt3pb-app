@@ -33,6 +33,7 @@ export default function SpendBudget() {
   const [ee, setEe] = useState({ amount: "", cat: "supplies", desc: "", vendor: "" });
   const [savingExp, setSavingExp] = useState(false);
   const [confirmDelId, setConfirmDelId] = useState<string | null>(null);
+  const [setupOpen, setSetupOpen] = useState(false);   // zero-state: category list waits behind one prompt
 
   const loader = useCallback(async (): Promise<Board> => {
     if (!supabase) return { rep: null, vendors: [], items: [] };
@@ -112,6 +113,15 @@ export default function SpendBudget() {
         return (
           <div className="spb">
             <div className="spb-head"><b>{money(rep.total_spent_cents)}</b> spent<span className="spb-sub"> of {money(rep.total_budget_cents)} budget · {rep.month}</span></div>
+            {/* Zero-state (2026-08-01 audit): eight identical "$0 / set budget" flatlines rendered
+                emptiness as furniture. Until anything is spent or budgeted, ONE prompt stands in
+                for the wall — tap it and the full category list opens for setup. */}
+            {rep.total_spent_cents === 0 && rep.total_budget_cents === 0 && !setupOpen ? (
+              <button type="button" className="dl-card st-build" onClick={() => setSetupOpen(true)}>
+                <b>No spend logged, no budgets set</b>
+                <span>Tap to open the categories and set your first budget — or just log the first expense below.</span>
+              </button>
+            ) : (<></>)}
             {/* Kit InfoRow replaces the ad-hoc .spb-row/.spb-row-h markup: category → name (a bare
                 inline textTransform:capitalize style stands in for the old .spb-cat rule, since
                 k-nm doesn't capitalize on its own — same fix Studio's version list makes via a
@@ -122,6 +132,7 @@ export default function SpendBudget() {
                 migrated list in this app already makes for its meta content (e.g. WorkloadBoard's
                 own bar rides InfoRow's trailing). No data, state, or calculations changed below —
                 presentation only. */}
+            {(rep.total_spent_cents > 0 || rep.total_budget_cents > 0 || setupOpen) && (
             <div className="spb-list k-rows">
               {rep.by_category.map((c) => {
                 const pct = c.budget_cents > 0 ? Math.min(100, Math.round((c.spent_cents / c.budget_cents) * 100)) : 0;
@@ -144,6 +155,7 @@ export default function SpendBudget() {
                 );
               })}
             </div>
+            )}
 
             {/* The individual rows behind the category totals above — logged, but until now never
                 shown again, so a typo'd amount couldn't be found, let alone fixed. Scoped to this

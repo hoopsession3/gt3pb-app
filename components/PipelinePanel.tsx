@@ -31,6 +31,12 @@ const STAGES = [
   { key: "lost", label: "Lost" },
 ] as const;
 type Stage = (typeof STAGES)[number]["key"];
+// Stage color tokens (2026-08-01, the funnel-shape round): each stage owns a hue, worn as the
+// rail chip's dot, the stage header's dot, and every card's left rail — the same left-rail
+// grammar the company calendar's chips use, so "colored left edge = category" reads app-wide.
+const STAGE_COLOR: Record<Stage, string> = {
+  prospect: "#8a8f5a", first_attempt: "#9aa83a", talking: "#b8902f", proposal: "#c9762b", won: "#5b9a6b", lost: "#9a8f7c",
+};
 
 type Deal = { id: string; title: string; blurb: string | null; vendor_type: string; price_label: string | null; active: boolean; sort: number; model: string; rate_pct: number | null; monthly_cents: number | null; line: string };
 
@@ -86,6 +92,7 @@ const belowFloor = (d: Deal, econ: Econ): boolean => {
 type Vendor = { id: string; name: string; vendor_type: string | null; archived_at?: string | null };
 type Opp = {
   id: string; vendor_id: string; deal_id: string | null; rep_id: string | null; stage: Stage;
+  source?: string | null;
   value_cents: number | null; next_step: string | null; next_step_at: string | null;
   lost_reason: string | null; created_at: string;
   vendors: { name: string; vendor_type: string | null } | null;
@@ -159,7 +166,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   const loader = useCallback(async (): Promise<Board> => {
     if (!supabase) return { opps: [], deals: [], vendors: [], staff: [] };
     const [o, d, v, st] = await Promise.all([
-      supabase.from("opportunities").select("id, vendor_id, deal_id, rep_id, stage, value_cents, next_step, next_step_at, lost_reason, created_at, vendors(name, vendor_type), deals(title, line)").order("created_at", { ascending: false }),
+      supabase.from("opportunities").select("id, vendor_id, deal_id, rep_id, stage, source, value_cents, next_step, next_step_at, lost_reason, created_at, vendors(name, vendor_type), deals(title, line)").order("created_at", { ascending: false }),
       supabase.from("deals").select("id, title, blurb, vendor_type, price_label, active, sort, model, rate_pct, monthly_cents, line").order("sort").order("created_at"),
       supabase.from("vendors").select("id, name, vendor_type, archived_at").is("archived_at", null).order("name"),
       supabase.from("profiles").select("id, display_name").neq("role", "member").order("display_name"),
@@ -374,12 +381,13 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   const wonValue = opps.filter((o) => o.stage === "won").reduce((s, o) => s + (o.value_cents ?? 0), 0);
   const overdue = (o: Opp) => o.next_step_at && o.next_step_at < new Date().toISOString().slice(0, 10) && o.stage !== "won" && o.stage !== "lost";
 
+  const todayKey = new Date().toISOString().slice(0, 10);
   const card = (o: Opp) => (
-    <div key={o.id} className={`pipe-card${overdue(o) ? " late" : ""}`}>
+    <div key={o.id} className={`pipe-card${overdue(o) ? " late" : ""}`} style={{ borderLeftColor: STAGE_COLOR[o.stage] }}>
       <button type="button" className="pipe-head" onClick={() => setOpenId(openId === o.id ? null : o.id)} aria-expanded={openId === o.id}>
-        <span className="pipe-name"><b>{o.vendors?.name ?? "Account"}</b>{o.vendors?.vendor_type && <i className="pipe-type">{o.vendors.vendor_type}</i>}</span>
+        <span className="pipe-name"><b>{o.vendors?.name ?? "Account"}</b>{o.vendors?.vendor_type && <i className="pipe-type">{o.vendors.vendor_type}</i>}{o.source === "inbound" && <i className="pipe-src">from a booking request</i>}</span>
         <span className="pipe-meta">
-          {o.deals?.title ? <span className="pipe-deal">{o.deals.title}{lineLabel(o.deals.line) ? ` · ${lineLabel(o.deals.line)}` : ""}</span> : <span className="pipe-deal none">no deal attached</span>}
+          {o.deals?.title ? <span className="pipe-deal">{o.deals.title}{lineLabel(o.deals.line) ? ` · ${lineLabel(o.deals.line)}` : ""}</span> : <span className="pipe-deal none">＋ attach a deal</span>}
           {o.value_cents != null && <span className="pipe-val">{money(o.value_cents)}</span>}
           {o.rep_id && <span className="pipe-rep">{firstName(o.rep_id)}</span>}
         </span>
@@ -389,7 +397,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
         <div className="pipe-trail"><Icon name="chat" /> {activity[o.id].n} · last {new Date(activity[o.id].lastAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}{firstName(activity[o.id].lastBy) ? ` · ${firstName(activity[o.id].lastBy)}` : ""}</div>
       )}
       {(o.next_step || overdue(o)) && openId !== o.id && (
-        <div className="pipe-next">{overdue(o) ? <Icon name="warning" /> : <Icon name="arrowRight" />} {o.next_step ?? "next step overdue"}{o.next_step_at ? ` · ${new Date(`${o.next_step_at}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : ""}</div>
+        <div className={`pipe-next${overdue(o) ? "" : o.next_step_at === todayKey ? " today" : ""}`}>{overdue(o) ? <Icon name="warning" /> : <Icon name="arrowRight" />} {o.next_step ?? "next step overdue"}{o.next_step_at ? ` · ${o.next_step_at === todayKey ? "today" : new Date(`${o.next_step_at}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : ""}</div>
       )}
       {openId === o.id && (
         <div className="pipe-body">
@@ -438,15 +446,40 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
     </div>
   );
 
+  const weekKey = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+  const dueSoon = openOpps.filter((o) => o.next_step_at && o.next_step_at <= weekKey).length;
   return (
-    <div className="adm-sec">
-      <p className="h-sub" style={{ marginBottom: 12 }}>{openOpps.length > 0 && `${openOpps.length} open. `}Every account, its deal, its rep, its next step. Won so far: <b><CountUp cents={wonValue} /></b>.</p>
+    <div className="adm-sec pipe-flow">
+      {/* Scoreboard, not sentence (2026-08-01 audit): the ops stat-tile grammar Prep/Money/Team
+          already speak. "Won $0.00" stays silent until there's a win — honest without the gut-punch. */}
+      <div className="mkpi pipe-kpi">
+        <div className="mkpi-tile"><div className="mkpi-v">{openOpps.length}</div><div className="mkpi-k">Open pursuits</div></div>
+        <div className="mkpi-tile"><div className="mkpi-v">{dueSoon}</div><div className="mkpi-k">Next steps · 7 days</div></div>
+        <div className="mkpi-tile">{wonValue > 0 ? <><div className="mkpi-v"><CountUp cents={wonValue} /></div><div className="mkpi-k">Won</div></> : <><div className="mkpi-v">—</div><div className="mkpi-k">First win pending</div></>}</div>
+      </div>
+      {/* The funnel gets its shape: a stage rail — count per stage, tap to jump. Won/Lost appear
+          once they exist; a funnel that doesn't look like a funnel forfeits its advantage. */}
+      <div className="pipe-rail" aria-label="Pipeline stages">
+        {STAGES.map((s) => {
+          const n = opps.filter((o) => o.stage === s.key).length;
+          if ((s.key === "won" || s.key === "lost") && n === 0) return null;
+          return (
+            <button key={s.key} type="button" className="pipe-rail-chip" disabled={n === 0}
+              onClick={() => document.getElementById(`pipe-stage-${s.key}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}>
+              <span className="cc-dot" style={{ background: STAGE_COLOR[s.key] }} />{s.label}<b>{n}</b>
+            </button>
+          );
+        })}
+      </div>
 
-      {/* The owner's table — what reps are allowed to offer, per account type. */}
+      {/* The owner's table — what reps are allowed to offer, per account type. SETUP, not daily
+          flow — .pipe-toolsblock rides flex order to the BOTTOM of the page (2026-08-01 audit:
+          a settings card was interrupting the river between the scoreboard and the stages). */}
       {isAdmin && (
-        <>
+        <div className="pipe-toolsblock">
+          <div className="dv-sub pipe-tools-h">Setup · monthly, not the daily flow</div>
           <button type="button" className="prep-collapse" onClick={() => setCatalogOpen((v) => !v)} aria-expanded={catalogOpen}>
-            <span className="prep-collapse-l"><b>Deal catalog · {deals.filter((d) => d.active).length} live · {deals.filter((d) => !d.active).length} off</b><span>what reps can offer — per account type; inactive deals disappear from their pickers</span></span>
+            <span className="prep-collapse-l">{deals.length === 0 ? <b>Deal catalog — set up your first deal</b> : <b>Deal catalog · {deals.filter((d) => d.active).length} live · {deals.filter((d) => !d.active).length} off</b>}<span>what reps can offer — per account type; inactive deals disappear from their pickers</span></span>
             <span className={`ev-chev${catalogOpen ? " open" : ""}`}>›</span>
           </button>
           {catalogOpen && (
@@ -543,7 +576,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
               <button type="button" className="dops-mini" style={{ marginTop: 8 }} onClick={addDeal} disabled={!nd.title.trim()}>Put it on the table</button>
             </div>
           )}
-        </>
+        </div>
       )}
 
       {(() => {
@@ -571,8 +604,8 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
                 .sort((a, b) => (a.next_step_at ?? "9999").localeCompare(b.next_step_at ?? "9999"));
               if (rows.length === 0) return null;
               return (
-                <div key={s.key} className="pipe-stage">
-                  <div className="dops-up-h">{s.label} · {rows.length}</div>
+                <div key={s.key} id={`pipe-stage-${s.key}`} className="pipe-stage">
+                  <div className="dops-up-h"><span className="cc-dot" style={{ background: STAGE_COLOR[s.key], marginRight: 6 }} />{s.label} · {rows.length}</div>
                   {rows.map(card)}
                 </div>
               );

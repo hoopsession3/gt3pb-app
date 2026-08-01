@@ -947,7 +947,9 @@ function OutlookBar({ onSynced }: { onSynced: () => void }) {
       <div className="ol-top"><span className="ol-i"><Icon name="calendar" /></span><b>Outlook sync</b>
         {st.connected ? <span className="ol-state on">Connected</span> : st.configured ? <span className="ol-state">Not connected</span> : <span className="ol-state off">Not configured</span>}
       </div>
-      {!st.configured && <div className="ol-note">Set <code>MS_CLIENT_ID</code> and <code>MS_CLIENT_SECRET</code> (Azure app) to enable two-way sync.</div>}
+      {/* Owner language, not env vars (2026-08-01 audit): MS_CLIENT_ID/Azure jargon leaked onto an
+          owner surface. Say what it means and whose job it is. */}
+      {!st.configured && <div className="ol-note">Two-way Outlook sync needs a one-time Microsoft app setup on the server — a developer task. Once it&rsquo;s configured, a Connect button appears here.</div>}
       {st.configured && !st.connected && <button type="button" className="ol-btn primary" onClick={connect} disabled={busy === "connect"}>{busy === "connect" ? "Opening Microsoft…" : "Connect Outlook"}</button>}
       {st.connected && (
         <>

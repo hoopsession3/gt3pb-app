@@ -9,6 +9,7 @@ import { SectionHeader } from "@/components/kit";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
+import { useOperatorSection } from "./OperatorNav";
 
 // The driver's tab — the next run at a glance, one action: open driver mode (map + run list).
 // Run OPS (statuses, outcomes, pack-out) stay in Live Ops; this is the wheel view. Fetch state via
@@ -16,6 +17,7 @@ import Icon from "@/components/Icon";
 type Row = { id: string; delivery_date: string; status: string | null; address_zip: string | null };
 
 export default function DriverDash({ isLead }: { isLead: boolean }) {
+  const { setSection } = useOperatorSection();
   const loader = useCallback(async (): Promise<Row[]> => {
     if (!supabase) return [];
     const { data, error } = await supabase.from("delivery_orders")
@@ -49,7 +51,9 @@ export default function DriverDash({ isLead }: { isLead: boolean }) {
           );
         }}
       </AsyncSection>
-      {isLead && <div className="h-sub" style={{ marginTop: 10 }}>Run ops — statuses, outcomes &amp; pack-out — live in Live Ops › Delivery.</div>}
+      {/* A pointer must point (2026-08-01 audit): this was plain text naming a destination with no
+          door. When the section's whole job is directing you onward, the direction is a button. */}
+      {isLead && <button type="button" className="adm-golink" style={{ marginTop: 10 }} onClick={() => setSection("now")}>Run ops — statuses, outcomes &amp; pack-out · Live Ops › Delivery <Icon name="arrowRight" /></button>}
     </div>
   );
 }
