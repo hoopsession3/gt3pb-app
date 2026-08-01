@@ -15,6 +15,7 @@ import { supabase } from "@/lib/supabase";
 import { useSiteCopy } from "@/lib/copy";
 import { useAvailability } from "@/lib/availability";
 import { localToday, relativeDay, fmt12 } from "@/lib/dates";
+import { clickable } from "@/lib/a11y";
 import type { LiveStatus, EventRow } from "@/lib/db";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
@@ -235,6 +236,15 @@ export default function FindUs() {
   // the cell says "Location TBA" honestly and the chip simply doesn't render.
   const heroWhere = hero ? ((hero.location_text?.trim() || hero.address?.trim()) || null) : null;
   const heroHasCoords = hero?.lat != null && hero?.lng != null;
+  // Ryan's polish pass ("is it giving 10/10 CSS?"): a raw one-string address wraps wherever it
+  // runs out of column — "…Simpsonville, SC / 29681" with an orphaned ZIP. Split it into a
+  // DELIBERATE two-line lockup instead: street as the value, city/state as a quiet support line,
+  // ZIP off the display entirely (noise to a human; directions still get the full string). A
+  // place name with no comma stays one line untouched.
+  const whereParts = (heroWhere ?? "").split(/,\s*/);
+  const whereLoc = whereParts.length >= 2 ? whereParts.slice(1).join(", ").replace(/\s+\d{5}(?:-\d{4})?\s*$/, "").trim() : "";
+  const whereStreet = whereLoc ? whereParts[0] : heroWhere;
+  const goHero = () => { if (heroHasCoords) openDirections(hero!.lat as number, hero!.lng as number); else if (heroWhere) openAddress(heroWhere); };
 
   const points: RoutePoint[] = useMemo(() => ops
     .filter((r) => r.lat != null && r.lng != null)
@@ -265,7 +275,19 @@ export default function FindUs() {
         {/* WHERE leads — it's the page's primary question and it was the one fact this row never
             answered (2026-08-01 audit). Same cell for stops and events; smaller type (.where) so
             a real street address stays presentable in a third of the row. */}
-        {hero && <div className="f"><div className="fk">Where</div><div className={`fv where${heroWhere ? "" : " tba"}`}>{heroWhere ?? "Location TBA"}</div></div>}
+        {hero && (
+          <div className="f"><div className="fk">Where</div>
+            {heroWhere ? (
+              /* the address IS the tap target too — same directions handoff as the chip below */
+              <div className="fv where go" {...clickable(goHero)} title="Get directions">
+                {whereStreet}
+                {whereLoc && <span className="where-loc">{whereLoc}</span>}
+              </div>
+            ) : (
+              <div className="fv where tba">Location TBA</div>
+            )}
+          </div>
+        )}
         {/* Day stays Day even when live — the masthead eyebrow + pulse dot already announce
             "Live now"; a Status:Live cell here said it twice and hid the date to do it
             (2026-07-30 redundancy audit). */}
