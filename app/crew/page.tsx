@@ -3634,6 +3634,7 @@ function MeetingNotes() {
                 eventTitle={events.find((e) => e.id === n.event_id)?.title ?? (n.stop_id ? <><Icon name="pin" /> {noteStops.find((s) => s.id === n.stop_id)?.name ?? "location"}</> : n.vendor_id ? <><Icon name="partners" /> {noteVendors.find((v) => v.id === n.vendor_id)?.name ?? "Partner"}</> : n.opportunity_id ? (noteOpps.find((o) => o.id === n.opportunity_id)?.label ?? "Opportunity") : null)} onDelete={() => remove(n)}
                 onArchive={() => archive(n, !n.archived_at)}
                 onVisibility={(v) => setNotes((prev) => prev.map((x) => (x.id === n.id ? { ...x, visibility: v } : x)))}
+                onRenamed={(t) => setNotes((prev) => prev.map((x) => (x.id === n.id ? { ...x, title: t } : x)))}
               />
             ))}
             {shown.length === 0 && !composing && (
@@ -3650,7 +3651,7 @@ function MeetingNotes() {
   );
 }
 
-function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, eventTitle, onDelete, onArchive, onVisibility }: {
+function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, eventTitle, onDelete, onArchive, onVisibility, onRenamed }: {
   note: MeetingNote;
   open: boolean;
   onToggle: () => void;
@@ -3662,6 +3663,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
   onDelete: () => void;
   onArchive: () => void;
   onVisibility?: (v: "private" | "team" | "collab") => void;
+  onRenamed?: (t: string) => void;
 }) {
   const { openTask } = useTaskSheet(); // the ONE task editor, on the spine
   const { user, profile } = useAuth();
@@ -3669,6 +3671,19 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
   const [items, setItems] = useState<EventTask[]>([]);
   const [newItem, setNewItem] = useState("");
   const [assignFor, setAssignFor] = useState<EventTask | null>(null);
+  // Rename (2026-08-01, Ryan: "I can't edit the name of notes") — the title was the ONE thing on
+  // this card with no editor: visibility, follow-ups, links all edit in place; the name was fixed
+  // at creation. Author-or-admin, same gate as the visibility row.
+  const [renaming, setRenaming] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(note.title);
+  const saveTitle = async () => {
+    if (!supabase || !titleDraft.trim()) return;
+    const v = titleDraft.trim().slice(0, 120);
+    if (v === note.title) { setRenaming(false); return; }
+    const { error } = await supabase.from("meeting_notes").update({ title: v }).eq("id", note.id);
+    toast(error ? `Couldn't rename — ${error.message}` : "Renamed");
+    if (!error) { setRenaming(false); onRenamed?.(v); }
+  };
   const [openThread, setOpenThread] = useState<string | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [suggesting, setSuggesting] = useState(false);
@@ -3784,6 +3799,19 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
       </button>
       {open && (
         <div className="note-body">
+          {(note.created_by === meId || isAdmin) && (
+            renaming ? (
+              <div className="note-rename">
+                <input className="note-in" value={titleDraft} autoFocus maxLength={120} aria-label="Note name"
+                  onChange={(e) => setTitleDraft(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") saveTitle(); if (e.key === "Escape") { setRenaming(false); setTitleDraft(note.title); } }} />
+                <button type="button" className="note-save" onClick={saveTitle} disabled={!titleDraft.trim()}>Save</button>
+                <button type="button" className="note-arch" onClick={() => { setRenaming(false); setTitleDraft(note.title); }}>Cancel</button>
+              </div>
+            ) : (
+              <button type="button" className="note-renamelink" onClick={() => { setTitleDraft(note.title); setRenaming(true); }}>✎ Rename this note</button>
+            )
+          )}
           {(note.created_by === meId || isAdmin) && (
             <div className="note-vis-row">
               <span>Who sees this</span>
