@@ -68,17 +68,30 @@ export function StrategyThread({ k, label, link = "/playbook" }: { k: string; la
 // ── decision log ──
 // Append-only governance ledger — a failed load is a real error now, not a silent "Nothing logged
 // yet" (which would misread as "no decisions have ever been made" on this record-of-truth).
-type Decision = { id: string; key: string; decision: string; why: string | null; author_name: string | null; created_at: string };
+type Decision = { id: string; key: string; decision: string; why: string | null; author_name: string | null; created_at: string; note_id?: string | null; follow_up_task_id?: string | null };
+type LedgerData = { rows: Decision[]; noteTitle: Record<string, string>; task: Record<string, { label: string; done: boolean }> };
 export function DecisionLog({ canWrite }: { canWrite: boolean }) {
   const { toast } = useApp();
   const { user, profile } = useAuth();
   const [adding, setAdding] = useState(false);
   const [f, setF] = useState({ key: "", decision: "", why: "" });
-  const loader = useCallback(async (): Promise<Decision[]> => {
-    if (!supabase) return [];
+  const loader = useCallback(async (): Promise<LedgerData> => {
+    if (!supabase) return { rows: [], noteTitle: {}, task: {} };
     const { data, error } = await supabase.from("strategy_decisions").select("*").order("created_at", { ascending: false }).limit(50);
     if (error) throw new Error(error.message);
-    return (data as Decision[]) ?? [];
+    const rows = (data as Decision[]) ?? [];
+    // 0263 — the ledger shows WHAT HAPPENED NEXT: which note the call was made in, and the state
+    // of the follow-up task it spawned. Two batched lookups; RLS trims what the viewer can't see.
+    const noteIds = rows.map((r) => r.note_id).filter(Boolean) as string[];
+    const taskIds = rows.map((r) => r.follow_up_task_id).filter(Boolean) as string[];
+    const [ns, ts] = await Promise.all([
+      noteIds.length ? supabase.from("meeting_notes").select("id, title").in("id", noteIds) : Promise.resolve({ data: [] }),
+      taskIds.length ? supabase.from("event_tasks").select("id, label, done").in("id", taskIds) : Promise.resolve({ data: [] }),
+    ]);
+    const noteTitle: LedgerData["noteTitle"] = {}; const task: LedgerData["task"] = {};
+    for (const n of ((ns.data ?? []) as { id: string; title: string }[])) noteTitle[n.id] = n.title;
+    for (const t of ((ts.data ?? []) as { id: string; label: string; done: boolean }[])) task[t.id] = { label: t.label, done: t.done };
+    return { rows, noteTitle, task };
   }, []);
   const board = useAsyncData(loader, []);
   const { reload } = board;
@@ -94,7 +107,7 @@ export function DecisionLog({ canWrite }: { canWrite: boolean }) {
   };
   return (
     <AsyncSection state={board} isEmpty={() => false} errorTitle="Couldn't load the decision log" emptyTitle="Nothing here yet">
-      {(rows) => (
+      {({ rows, noteTitle, task }) => (
         <div className="st-log">
           {canWrite && (
             adding ? (
@@ -115,6 +128,14 @@ export function DecisionLog({ canWrite }: { canWrite: boolean }) {
               <div className="st-log-top"><span className="st-log-key">{d.key}</span><span className="st-when">{d.author_name?.split(" ")[0] || "Owner"} · {new Date(d.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span></div>
               <b>{d.decision}</b>
               {d.why && <p>{d.why}</p>}
+              {((d.note_id && noteTitle[d.note_id]) || (d.follow_up_task_id && task[d.follow_up_task_id])) && (
+                <div className="st-log-next">
+                  {d.note_id && noteTitle[d.note_id] && <span className="st-log-srcnote">from note · {noteTitle[d.note_id]}</span>}
+                  {d.follow_up_task_id && task[d.follow_up_task_id] && (
+                    <span className={`st-log-fu${task[d.follow_up_task_id].done ? " done" : ""}`}>→ {task[d.follow_up_task_id].label} · {task[d.follow_up_task_id].done ? "done ✓" : "open"}</span>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>

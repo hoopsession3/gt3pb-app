@@ -6269,3 +6269,56 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .note-discuss{display:inline-flex;align-items:center;gap:7px;margin-top:12px;background:none;border:1px solid var(--line2);border-radius:999px;padding:6px 13px;cursor:pointer;font-family:'Inter';font-weight:650;font-size:12px;color:var(--cream-m);-webkit-appearance:none;appearance:none}
 .note-discuss svg{width:13px;height:13px}
 .note-discuss .cmt-count{margin-left:2px}
+/* ── 0263 exec operating rhythm (2026-08-02, "Build all recommended improvements") — the review
+   step installed as a surface: rituals atop Plan, check-ins on goals, the ledger with
+   follow-through, program→goal links on Command, one Discussions rail. */
+.rhythm-pulse{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:2px 0 12px;font-family:'Inter';font-weight:650;font-size:12px}
+.rhythm-risk{color:var(--warn)}
+.rhythm-quiet{color:var(--cream-m)}
+.rhythm-pulse-hint{font-weight:500;font-size:11px;color:var(--cream-m)}
+.rhythm-cards{display:grid;grid-template-columns:1fr;gap:10px}
+@media (min-width:640px){.rhythm-cards{grid-template-columns:1fr 1fr}}
+.rhythm-card{border:1px solid var(--line2);border-radius:14px;padding:14px 15px;background:rgba(0,0,0,.18);display:flex;flex-direction:column;gap:8px}
+.rhythm-k{font-family:'Archivo Black';font-size:13px;letter-spacing:.4px;color:var(--cream)}
+.rhythm-sub{font-family:'Inter';font-size:12px;line-height:1.5;color:var(--cream-m);margin:0}
+.rhythm-last{display:inline-flex;align-items:center;gap:6px;background:none;border:none;padding:0;font-family:'Inter';font-weight:600;font-size:11.5px;color:var(--gold2);cursor:pointer;text-align:left;-webkit-appearance:none;appearance:none}
+.rhythm-last svg{width:11px;height:11px}
+.rhythm-go{display:inline-flex;align-items:center;justify-content:center;gap:7px;margin-top:auto;background:rgba(200,166,97,.1);border:1px solid var(--gold2);border-radius:999px;padding:8px 14px;cursor:pointer;font-family:'Inter';font-weight:700;font-size:12.5px;color:var(--gold2);-webkit-appearance:none;appearance:none}
+.rhythm-go:disabled{opacity:.55;cursor:default}
+.rhythm-go svg{width:13px;height:13px}
+.rhythm-ledger{margin-top:14px}
+.rhythm-ledger>summary{font-family:'Inter';font-weight:650;font-size:12.5px;color:var(--gold2);cursor:pointer;list-style:none}
+.rhythm-ledger>summary::-webkit-details-marker{display:none}
+.rhythm-ledger>summary::before{content:'›';display:inline-block;margin-right:6px;transition:transform .15s}
+.rhythm-ledger[open]>summary::before{transform:rotate(90deg)}
+.disc-rail{display:flex;flex-direction:column;gap:8px}
+.disc-row{display:block;width:100%;text-align:left;background:rgba(0,0,0,.18);border:1px solid var(--line2);border-radius:12px;padding:10px 12px;cursor:pointer;-webkit-appearance:none;appearance:none;color:var(--cream)}
+.disc-top{display:flex;align-items:center;gap:8px;min-width:0}
+.disc-kind{font-style:normal;font-family:'DM Mono',ui-monospace,monospace;font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:var(--gold2);border:1px solid var(--line2);border-radius:999px;padding:2px 7px;flex:0 0 auto}
+.disc-kind.strategy{color:var(--cream-m)}
+.disc-title{flex:1;min-width:0;font-family:'Inter';font-weight:650;font-size:12.5px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.disc-n{display:inline-flex;align-items:center;gap:3px;font-family:'DM Mono',ui-monospace,monospace;font-size:10.5px;color:var(--cream-m)}
+.disc-n svg{width:11px;height:11px}
+.disc-latest{margin-top:4px;font-family:'Inter';font-size:11.5px;line-height:1.45;color:var(--cream-m);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.disc-latest b{color:var(--cream);font-weight:650}
+.goal-checkin{display:flex;align-items:center;gap:7px;margin-top:9px;flex-wrap:wrap}
+.goal-checkin-k{font-family:'DM Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.7px;text-transform:uppercase;color:var(--cream-m)}
+.goal-chip{background:none;border:1px solid var(--line2);border-radius:999px;padding:4px 11px;cursor:pointer;font-family:'Inter';font-weight:650;font-size:11px;color:var(--cream-m);-webkit-appearance:none;appearance:none}
+.goal-chip.ok.on{border-color:var(--good, #4a8);color:var(--good, #4a8);background:rgba(68,170,136,.08)}
+.goal-chip.risk.on{border-color:var(--warn);color:var(--warn);background:rgba(200,120,40,.08)}
+.goal-quiet{font-family:'Inter';font-size:10.5px;color:var(--cream-m)}
+.goal-card.atrisk{border-color:var(--warn)}
+.cmd-serves{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:2px 0 10px}
+.cmd-serves-k{font-family:'DM Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.7px;text-transform:uppercase;color:var(--cream-m)}
+.cmd-serves-none{font-family:'Inter';font-size:11px;font-style:italic;color:var(--cream-m)}
+.cmd-goalchip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line2);border-radius:999px;padding:3px 9px;font-family:'Inter';font-weight:600;font-size:11px;color:var(--cream)}
+.cmd-goalchip.risk{border-color:var(--warn);color:var(--warn)}
+.cmd-goalchip button{background:none;border:none;padding:0 0 0 2px;color:var(--cream-m);cursor:pointer;font-size:13px;line-height:1;-webkit-appearance:none;appearance:none}
+.cmd-goalsel{background:rgba(0,0,0,.25);border:1px solid var(--line2);border-radius:999px;padding:3px 9px;font-family:'Inter';font-weight:650;font-size:11px;color:var(--gold2);max-width:120px}
+.cmd-risklab{color:var(--warn);font-weight:700}
+.note-decbox{margin-top:12px;padding:12px;border:1px solid var(--line2);border-radius:12px;background:rgba(0,0,0,.18);display:flex;flex-direction:column;gap:8px}
+.note-decbox-h{font-family:'Inter';font-weight:650;font-size:11.5px;color:var(--gold2)}
+.note-src.rite{background:rgba(200,166,97,.12);color:var(--gold2)}
+.st-log-next{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.st-log-srcnote,.st-log-fu{font-family:'Inter';font-weight:600;font-size:10.5px;border:1px solid var(--line2);border-radius:999px;padding:2px 8px;color:var(--cream-m)}
+.st-log-fu.done{border-color:var(--good, #4a8);color:var(--good, #4a8)}

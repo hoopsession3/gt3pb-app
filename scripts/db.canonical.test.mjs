@@ -562,5 +562,66 @@ ok("0262 deleting the note cascades its continuation (addenda + file rows go wit
 ok("0262 re-applied whole is a no-op",
   await (async () => { try { await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0262_note_continuation.sql"), "utf8")); return true; } catch { return false; } })());
 
+// ── 0263: executive operating rhythm (check-ins, decision follow-through, program↔goal links, nudges) ──
+// Fixtures: the exec tables the harness never carried (goals / strategy_decisions / initiatives /
+// event_tasks-minimal). meeting_notes + alerts persist from earlier blocks. Then 0263 VERBATIM,
+// twice — its cron blocks self-skip here (no pg_cron), the nudge FUNCTION is tested directly.
+await db.exec(`
+  create table if not exists public.goals (
+    id uuid primary key default gen_random_uuid(), title text not null, unit text default '',
+    target_value numeric not null default 0, current_value numeric not null default 0,
+    status text not null default 'active', owner_user_id uuid,
+    updated_at timestamptz not null default now(), created_at timestamptz not null default now());
+  create table if not exists public.strategy_decisions (
+    id uuid primary key default gen_random_uuid(), key text not null, decision text not null, why text,
+    author_id uuid, author_name text, created_at timestamptz not null default now());
+  create table if not exists public.initiatives (
+    id uuid primary key default gen_random_uuid(), title text not null, status text not null default 'active');
+  create table if not exists public.event_tasks (
+    id uuid primary key default gen_random_uuid(), label text not null, done boolean not null default false);
+`);
+await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0263_exec_rhythm.sql"), "utf8"));
+const G0263 = (await q1(`insert into goals (title, target_value, owner_user_id) values ('Wholesale accounts', 10, '${U1}') returning id`)).id;
+ok("0263 check-in accepts the two honest answers and rejects invented ones",
+  await (async () => {
+    await db.exec(`update goals set checkin_status = 'at_risk', checkin_at = now(), checkin_by = '${U1}' where id = '${G0263}'`);
+    const good = (await q1(`select checkin_status from goals where id = '${G0263}'`)).checkin_status === "at_risk";
+    let rejected = false;
+    try { await db.exec(`update goals set checkin_status = 'vibes' where id = '${G0263}'`); } catch { rejected = true; }
+    return good && rejected;
+  })());
+const DN0263 = (await q1(`insert into meeting_notes (title, created_by) values ('Strategy Session · test', '${U1}') returning id`)).id;
+const DT0263 = (await q1(`insert into event_tasks (label) values ('Call the distributor') returning id`)).id;
+const D0263 = (await q1(`insert into strategy_decisions (key, decision, note_id, follow_up_task_id) values ('wholesale', 'Go direct, skip the middleman', '${DN0263}', '${DT0263}') returning id`)).id;
+ok("0263 the ledger outlives its sources: note deleted → decision stands, provenance nulled, task link intact",
+  await (async () => {
+    await db.exec(`delete from meeting_notes where id = '${DN0263}'`);
+    const d = await q1(`select note_id, follow_up_task_id, decision from strategy_decisions where id = '${D0263}'`);
+    return d.decision === "Go direct, skip the middleman" && d.note_id === null && d.follow_up_task_id === DT0263;
+  })());
+const I0263 = (await q1(`insert into initiatives (title) values ('August launch') returning id`)).id;
+await db.exec(`insert into initiative_goals (initiative_id, goal_id) values ('${I0263}', '${G0263}')`);
+ok("0263 program ↔ goal link exists and cascades with the goal (no orphan junctions)",
+  await (async () => {
+    const linked = (await q1(`select count(*)::int n from initiative_goals where initiative_id = '${I0263}'`)).n === 1;
+    const G2 = (await q1(`insert into goals (title, target_value) values ('Temp', 1) returning id`)).id;
+    await db.exec(`insert into initiative_goals (initiative_id, goal_id) values ('${I0263}', '${G2}')`);
+    await db.exec(`delete from goals where id = '${G2}'`);
+    return linked && (await q1(`select count(*)::int n from initiative_goals where initiative_id = '${I0263}'`)).n === 1;
+  })());
+ok("0263 the Monday nudge pings a quiet goal's owner ONCE (unacked dedupe), and skips checked-in goals",
+  await (async () => {
+    await db.exec(`update goals set checkin_status = null, checkin_at = null, updated_at = now() - interval '8 days' where id = '${G0263}'`);
+    const GQ = (await q1(`insert into goals (title, target_value, owner_user_id) values ('Fresh checked-in goal', 5, '${U2}') returning id`)).id;
+    await db.exec(`update goals set checkin_at = now(), updated_at = now() - interval '8 days' where id = '${GQ}'`);
+    await db.exec(`select public.goal_checkin_nudges()`);
+    await db.exec(`select public.goal_checkin_nudges()`);
+    const mine = (await q1(`select count(*)::int n from alerts where category = 'strategy' and target_user_id = '${U1}' and title like '%Wholesale accounts%'`)).n;
+    const theirs = (await q1(`select count(*)::int n from alerts where category = 'strategy' and target_user_id = '${U2}'`)).n;
+    return mine === 1 && theirs === 0;
+  })());
+ok("0263 re-applied whole is a no-op",
+  await (async () => { try { await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0263_exec_rhythm.sql"), "utf8")); return true; } catch { return false; } })());
+
 console.log(`CANONICAL-DB CONTRACT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

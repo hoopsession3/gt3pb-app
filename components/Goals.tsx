@@ -32,6 +32,7 @@ type Goal = {
   author_name: string | null; updated_at: string;
   stream_key: string | null; metric_source: string | null; owner_user_id: string | null;
   horizon: "strategic" | "tactical" | "operational";
+  checkin_status?: "on_track" | "at_risk" | null; checkin_at?: string | null;
 };
 type Move = { id: string; goal_id: string; label: string; done: boolean; assignee: string | null; due_at: string | null; sort: number };
 type Staff = { id: string; display_name: string | null };
@@ -117,6 +118,22 @@ export default function Goals() {
     else if (status === "archived") toast("Archived — off the board");
     reload();
   };
+
+  // 0263 exec-rhythm P4 — the one-tap weekly check-in, separate from the hit/missed LIFECYCLE:
+  // this is "how's it going this week". At-risk rolls straight onto the Command Board's Blockers
+  // line; either answer quiets the Monday nudge. Tapping the lit chip again clears it.
+  const checkIn = async (g: Goal, s: "on_track" | "at_risk") => {
+    if (!supabase) return;
+    const next = g.checkin_status === s ? null : s;
+    const { error } = await supabase.from("goals").update({
+      checkin_status: next, checkin_at: next ? new Date().toISOString() : null, checkin_by: next ? user?.id ?? null : null,
+    }).eq("id", g.id);
+    if (error) toast(`Couldn't check in — ${error.message}`, "error");
+    else if (next === "at_risk") toast("Flagged at risk — it's on the Command Board's blockers now");
+    else if (next === "on_track") toast("Checked in — on track");
+    reload();
+  };
+  const quietDays = (g: Goal) => { const d = Math.floor((Date.now() - new Date(g.updated_at).getTime()) / 864e5); return d >= 7 ? d : null; };
 
   // The fields nothing else here can touch: title, description, target, unit, due date. Owner/lane/
   // horizon/progress already had their own controls — this is the rest of "edit a goal."
@@ -235,7 +252,7 @@ export default function Goals() {
     const goalInits = inits.filter((i) => i.goal_id === g.id);
     const doneN = goalInits.filter((i) => i.done).length;
     return (
-      <div className="goal-card" key={g.id}>
+      <div className={`goal-card${g.checkin_status === "at_risk" ? " atrisk" : ""}`} key={g.id}>
         {editingId === g.id ? (
           <div className="goal-edit">
             <div className="goal-edit-h">Editing this goal</div>
@@ -272,6 +289,14 @@ export default function Goals() {
               <span><b>{cur}</b> of <b>{g.target_value}</b>{g.unit && ` ${g.unit}`}</span>
               <span>{goalInits.length > 0 && `${doneN}/${goalInits.length} moves · `}{g.due_date ? `by ${new Date(`${g.due_date}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : g.source ? "standing" : ""}</span>
             </div>
+            {canLead && (
+              <div className="goal-checkin">
+                <span className="goal-checkin-k">Check-in</span>
+                <button type="button" className={`goal-chip ok${g.checkin_status === "on_track" ? " on" : ""}`} onClick={() => checkIn(g, "on_track")} aria-pressed={g.checkin_status === "on_track"}>On track</button>
+                <button type="button" className={`goal-chip risk${g.checkin_status === "at_risk" ? " on" : ""}`} onClick={() => checkIn(g, "at_risk")} aria-pressed={g.checkin_status === "at_risk"}>At risk</button>
+                {quietDays(g) !== null && <span className="goal-quiet">💤 quiet {quietDays(g)}d</span>}
+              </div>
+            )}
           </>
         )}
 

@@ -27,11 +27,14 @@ type Initiative = { id: string; title: string; summary: string | null; target_da
 type Milestone = { id: string; initiative_id: string; title: string; due_on: string | null; done: boolean; workstream: string | null; sort: number };
 type Work = { id: string; title: string; due: string | null; src: "todo" | "task" };
 type Incident = { id: string; problem: string; severity: string; created_at: string };
+// 0263 — programs ↔ outcomes: the goals an initiative serves, and at-risk goals on the Blockers line.
+type GoalLite = { id: string; title: string; checkin_status: string | null; current_value: number; target_value: number; unit: string | null };
 type BoardData = {
   inits: Initiative[]; miles: Milestone[]; links: { initiative_id: string; milestone_id: string }[];
   week: Work[]; incidents: Incident[]; overdue: Work[]; done: Work[];
+  goals: GoalLite[]; goalLinks: { initiative_id: string; goal_id: string }[];
 };
-const EMPTY_BOARD: BoardData = { inits: [], miles: [], links: [], week: [], incidents: [], overdue: [], done: [] };
+const EMPTY_BOARD: BoardData = { inits: [], miles: [], links: [], week: [], incidents: [], overdue: [], done: [], goals: [], goalLinks: [] };
 
 const todayKey = () => new Date().toISOString().slice(0, 10);
 const weekAheadKey = () => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().slice(0, 10); };
@@ -65,12 +68,19 @@ export default function CommandBoard() {
       supabase.from("todos").select("id, title, due_on, done_at").eq("done", true).gte("done_at", wago),
       supabase.from("event_tasks").select("id, label, due_at, done_at").eq("done", true).gte("done_at", wago),
     ]);
+    // 0263 additions ride a second Promise.all so the 0262-era harness order above stays byte-stable.
+    const [gls, glnk] = await Promise.all([
+      supabase.from("goals").select("id, title, checkin_status, current_value, target_value, unit").eq("status", "active"),
+      supabase.from("initiative_goals").select("initiative_id, goal_id"),
+    ]);
     const firstErr = [ini, mil, lnk, tThis, eThis, inc, tOver, eOver, tDone, eDone].find((r) => r.error)?.error;
     if (firstErr) throw new Error(firstErr.message);
     return {
       inits: (ini.data as Initiative[]) ?? [],
       miles: (mil.data as Milestone[]) ?? [],
       links: (lnk.data as { initiative_id: string; milestone_id: string }[]) ?? [],
+      goals: (gls.data as GoalLite[]) ?? [],
+      goalLinks: (glnk.data as { initiative_id: string; goal_id: string }[]) ?? [],
       week: [...toWork(tThis.data ?? [], "todo"), ...toWork(eThis.data ?? [], "task")].sort((a, b) => (a.due ?? "").localeCompare(b.due ?? "")),
       incidents: (inc.data as Incident[]) ?? [],
       overdue: [...toWork(tOver.data ?? [], "todo"), ...toWork(eOver.data ?? [], "task")].sort((a, b) => (a.due ?? "").localeCompare(b.due ?? "")),
@@ -79,7 +89,19 @@ export default function CommandBoard() {
   }, []);
   const board = useAsyncData(loader, []);
   const { reload } = board;
-  useRealtimeTable(["initiatives", "initiative_milestones", "initiative_milestone_links", "todos", "event_tasks", "incident_log"], reload);
+  useRealtimeTable(["initiatives", "initiative_milestones", "initiative_milestone_links", "initiative_goals", "goals", "todos", "event_tasks", "incident_log"], reload);
+
+  // 0263 — link/unlink the goals a program serves (admin; the junction cascades on either delete).
+  const linkGoal = async (initiativeId: string, goalId: string) => {
+    if (!supabase || !isAdmin || !goalId) return;
+    const { error } = await supabase.from("initiative_goals").insert({ initiative_id: initiativeId, goal_id: goalId });
+    if (error) toast(`Couldn't link — ${error.message}`, "error"); else reload();
+  };
+  const unlinkGoal = async (initiativeId: string, goalId: string) => {
+    if (!supabase || !isAdmin) return;
+    const { error } = await supabase.from("initiative_goals").delete().eq("initiative_id", initiativeId).eq("goal_id", goalId);
+    if (error) toast(`Couldn't unlink — ${error.message}`, "error"); else reload();
+  };
 
   const miles = board.data?.miles ?? [];
   const links = board.data?.links ?? [];
@@ -168,6 +190,31 @@ export default function CommandBoard() {
                     />
                   </div>
                   <div className="cmd-prog"><span className="cmd-prog-bar"><span style={{ width: `${pct}%` }} /></span><span className="cmd-prog-n">{doneN}/{ms.length} · {pct}%</span></div>
+                  {/* 0263 — the goals this program serves: one story, program → numbers. */}
+                  {(() => {
+                    const served = data.goalLinks.filter((l) => l.initiative_id === it.id)
+                      .map((l) => data.goals.find((g) => g.id === l.goal_id)).filter(Boolean) as GoalLite[];
+                    const linkable = data.goals.filter((g) => !served.some((s) => s.id === g.id));
+                    if (!served.length && !isAdmin) return null;
+                    return (
+                      <div className="cmd-serves">
+                        <span className="cmd-serves-k">Serves</span>
+                        {served.map((g) => (
+                          <span key={g.id} className={`cmd-goalchip${g.checkin_status === "at_risk" ? " risk" : ""}`}>
+                            🎯 {g.title} · {Math.min(100, Math.round((Number(g.current_value) / Math.max(1, Number(g.target_value))) * 100))}%
+                            {isAdmin && <button type="button" onClick={() => unlinkGoal(it.id, g.id)} aria-label={`Unlink ${g.title}`}>×</button>}
+                          </span>
+                        ))}
+                        {served.length === 0 && <span className="cmd-serves-none">no goal linked yet</span>}
+                        {isAdmin && linkable.length > 0 && (
+                          <select className="cmd-goalsel" value="" onChange={(e) => linkGoal(it.id, e.target.value)} aria-label="Link a goal this initiative serves">
+                            <option value="">+ goal</option>
+                            {linkable.map((g) => <option key={g.id} value={g.id}>{g.title}</option>)}
+                          </select>
+                        )}
+                      </div>
+                    );
+                  })()}
                   {ms.length > 0 && (
                     <div className="k-rows">
                       {ms.map((m) => {
@@ -227,8 +274,12 @@ export default function CommandBoard() {
 
             {/* ── Blockers ── */}
             <SectionHeader label="Blockers" annotation="clear these first" />
-            {data.incidents.length === 0 && ov.shown.length === 0 ? <EmptyState title="Nothing blocked" /> : (
+            {data.incidents.length === 0 && ov.shown.length === 0 && data.goals.filter((g) => g.checkin_status === "at_risk").length === 0 ? <EmptyState title="Nothing blocked" /> : (
               <div className="k-rows">
+                {/* 0263 — a goal its owner flagged at risk IS a blocker; it sits with the rest. */}
+                {data.goals.filter((g) => g.checkin_status === "at_risk").map((g) => (
+                  <InfoRow key={`risk-${g.id}`} name={<>🎯 {g.title} — <span className="cmd-risklab">at risk</span></>} trailing={<span className="cmd-row-due late">check-in</span>} onClick={() => document.getElementById("goals")?.scrollIntoView({ behavior: "smooth" })} ariaLabel={`At-risk goal: ${g.title}`} />
+                ))}
                 {data.incidents.map((i) => <InfoRow key={i.id} name={<><Icon name="warning" /> {i.problem}</>} />)}
                 {ov.shown.map((w) => (
                   <InfoRow

@@ -57,6 +57,8 @@ import DeliveryOps from "@/components/DeliveryOps";
 import PackPlan from "@/components/PackPlan";
 const OrgChart = dynamic(() => import("@/components/OrgChart"), { loading: () => <PourFill label="Loading…" /> });
 const WorkloadBoard = dynamic(() => import("@/components/WorkloadBoard"), { loading: () => <PourFill label="Loading…" /> });
+const OperatingRhythm = dynamic(() => import("@/components/OperatingRhythm"), { loading: () => <PourFill label="Loading…" /> });
+const Discussions = dynamic(() => import("@/components/Discussions"), { loading: () => <PourFill label="Loading…" /> });
 const InviteTeammate = dynamic(() => import("@/components/InviteTeammate"), { loading: () => <PourFill label="Loading…" /> });
 const CrmPanel = dynamic(() => import("@/components/CrmPanel"), { loading: () => <PourFill label="Loading…" /> });
 const CodesPanel = dynamic(() => import("@/components/CodesPanel"), { loading: () => <PourFill label="Loading…" /> });
@@ -3800,6 +3802,27 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
     await supabase.storage.from("note-files").remove([f.path]);   // best-effort; the row is the gate
     toast("File removed"); load();
   };
+  // ⚖ Log a decision (0263 exec-rhythm P2) — a strategic call made IN this note lands in the
+  // append-only ledger with provenance (note_id) and, optionally, the follow-through task it
+  // spawns — filed on this very note, so "what happened next" is answerable forever.
+  const [logging, setLogging] = useState(false);
+  const [dec, setDec] = useState({ key: "", decision: "", why: "", fu: "" });
+  const saveDecision = async () => {
+    if (!supabase || !dec.decision.trim()) return;
+    let follow_up_task_id: string | null = null;
+    if (dec.fu.trim()) {
+      const { data: t } = await supabase.from("event_tasks").insert({ meeting_note_id: note.id, label: dec.fu.trim().slice(0, 300), kind: "task", section: "Follow-up", sort: 999 }).select("id").single();
+      follow_up_task_id = (t as { id: string } | null)?.id ?? null;
+    }
+    const { error } = await supabase.from("strategy_decisions").insert({
+      key: dec.key.trim().slice(0, 60) || note.title.slice(0, 60), decision: dec.decision.trim(), why: dec.why.trim() || null,
+      author_id: meId, author_name: profile?.display_name ?? null, note_id: note.id, follow_up_task_id,
+    });
+    if (error) { toast(`Couldn't log — ${error.message}`, "error"); return; }
+    toast("Logged — the record stands");
+    setDec({ key: "", decision: "", why: "", fu: "" }); setLogging(false); load();
+  };
+
   // ✦ Refresh recap — recompute the summary from the ENTIRE immutable record (original body +
   // every addendum). Derived content only: sources are never touched, and the change log ignores
   // summary churn on purpose (0262).
@@ -3899,7 +3922,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
     <div className={`note-card${open ? " open" : ""}`}>
       <button type="button" className="note-head" onClick={onToggle} aria-expanded={open}>
         <div className="note-head-main">
-          <span className="note-title">{note.title}{note.source === "email" && <span className="note-src">email</span>}</span>
+          <span className="note-title">{note.title}{note.source === "email" && <span className="note-src">email</span>}{note.source === "review" && <span className="note-src rite">weekly review</span>}{note.source === "strategy" && <span className="note-src rite">strategy session</span>}</span>
           <span className="note-meta">{fmtNoteDate(note.met_on)}{authorName ? ` · ${authorName}` : ""}{eventTitle ? <> · {eventTitle}</> : ""}{note.visibility === "private" ? <> · <Icon name="lock" /> private</> : note.visibility === "team" ? <> · <Icon name="team" /> team</> : ""}{items.length ? ` · ${openCount}/${items.length} follow-ups` : ""}</span>
         </div>
         <span className={`note-chev${open ? " open" : ""}`} aria-hidden="true">›</span>
@@ -4001,6 +4024,23 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
                 <CommentThread subject={{ col: "meeting_note_id", id: note.id }} notifyIds={[note.created_by]} label={note.title} meId={meId} meName={meName} />
               )}
             </>
+          )}
+          {isAdmin && (
+            logging ? (
+              <div className="note-decbox">
+                <div className="note-decbox-h">⚖ Log a decision — append-only, it can never be edited or deleted</div>
+                <input className="note-in" placeholder={`What it concerns (blank = "${note.title.slice(0, 36)}${note.title.length > 36 ? "…" : ""}")`} value={dec.key} onChange={(e) => setDec({ ...dec, key: e.target.value })} maxLength={60} />
+                <input className="note-in" placeholder="The decision, one sentence" value={dec.decision} onChange={(e) => setDec({ ...dec, decision: e.target.value })} />
+                <input className="note-in" placeholder="Why (optional — future-you will ask)" value={dec.why} onChange={(e) => setDec({ ...dec, why: e.target.value })} />
+                <input className="note-in" placeholder="Follow-up task (optional — files on this note)" value={dec.fu} onChange={(e) => setDec({ ...dec, fu: e.target.value })} />
+                <div className="note-addbox-r">
+                  <button type="button" className="note-arch" onClick={() => { setLogging(false); setDec({ key: "", decision: "", why: "", fu: "" }); }}>Cancel</button>
+                  <button type="button" className="note-save" onClick={saveDecision} disabled={!dec.decision.trim()}>Log it</button>
+                </div>
+              </div>
+            ) : (
+              <button type="button" className="note-renamelink" onClick={() => setLogging(true)}>⚖ Log a decision</button>
+            )
           )}
           <OpsPlan noteId={note.id} />
           <div className="note-fu-h">Follow-ups
@@ -6138,7 +6178,15 @@ export default function AdminPage() {
               <button key={k} type="button" role="tab" aria-selected={planTab === k} className={`subnav-tab back${planTab === k ? " on" : ""}`} onClick={() => setPlanTab(k)}>{label}</button>
             ))}
           </div>
-          {planTab === "calendar" && <CompanyCalendar />}
+          {planTab === "calendar" && (
+            <>
+              {/* 0263 exec rhythm — the review step lives at the TOP of Plan: rituals first, then
+                  the calendar they feed, then collaboration's front door (collapsed). */}
+              <OperatingRhythm isAdmin={isAdmin} onOpenNotes={() => setSection("notes")} />
+              <CompanyCalendar />
+              <Panel id="plan-discussions" title="Discussions · every open thread, one place"><Discussions onOpenNotes={() => setSection("notes")} /></Panel>
+            </>
+          )}
           {planTab === "events" && <EventsAdmin />}
           {planTab === "route" && <LiveControl manage />}
           {planTab === "leads" && (
