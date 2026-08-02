@@ -119,7 +119,8 @@ import { projectEvent, reconcile, DEFAULT_ECON, type EventEcon, type ProductEcon
 import { buildBrief } from "@/lib/eventbrief";
 import { fetchInventory, inventoryForEvent, rollupLowStock, type InventoryResp, type InvItem } from "@/lib/inventory";
 import { fetchAssets, type AssetsResp } from "@/lib/assets";
-import type { Stop, LiveStatus, EventRow, EventTask, BookingRequest, Order, Reserve, Subscription, Vendor, VendorLocation, MeetingNote, Comment } from "@/lib/db";
+import type { Stop, LiveStatus, EventRow, EventTask, BookingRequest, Order, Reserve, Subscription, Vendor, VendorLocation, MeetingNote, NoteAddendum, NoteFile, Comment } from "@/lib/db";
+import { uploadToBucket } from "@/lib/uploads";
 import { resolveVendor, addVendorLocation, type VendorMatch, type ResolveDecision } from "@/lib/vendorLink";
 const VendorResolve = dynamic(() => import("@/components/VendorResolve"), { loading: () => <PourFill label="Loading…" /> });
 import Icon from "@/components/Icon";
@@ -3445,6 +3446,9 @@ function MeetingNotes() {
   const [cLink, setCLink] = useState(""); // "" | event:<id> | stop:<id> | opp:<id>
   const [cVis, setCVis] = useState<"private" | "team" | "collab">("private");
   const [visTouched, setVisTouched] = useState(false);
+  // 0262 — attachments now KEEP the file (private note-files bucket), not just its transcription.
+  // Held here until save (the note id doesn't exist yet), then uploaded + rowed in note_files.
+  const [cFiles, setCFiles] = useState<File[]>([]);
   const [noteOpps, setNoteOpps] = useState<{ id: string; label: string }[]>([]);
   const [noteVendors, setNoteVendors] = useState<{ id: string; name: string | null }[]>([]);
   const [saving, setSaving] = useState(false);
@@ -3527,11 +3531,23 @@ function MeetingNotes() {
           target_user_id: t.assignee, created_by: meId });
       }
     }
+    // 0262 — the files themselves, kept. Upload failures degrade to a toast, never to a lost note
+    // (the transcription already rode into the body, so the words survive either way).
+    let filed = 0, fileErr = 0;
+    if (!error && noteId && cFiles.length) {
+      for (const f of cFiles) {
+        const up = await uploadToBucket({ bucket: "note-files", file: f, prefix: noteId });
+        if ("error" in up) { fileErr++; continue; }
+        const { error: fe } = await supabase.from("note_files").insert({
+          note_id: noteId, path: up.path, name: f.name.slice(0, 160), mime: f.type || null, size_bytes: f.size, created_by: meId });
+        if (fe) fileErr++; else filed++;
+      }
+    }
     setSaving(false);
     if (error) { toast(`Error: ${error.message}`, "error"); return; }
     const dest = linkEvent ? "the event's prep list" : linkStop ? "the stop's prep list" : "the note";
-    toast(`Note saved${cActions.length ? ` · ${cActions.length} task${cActions.length === 1 ? "" : "s"} → ${dest}` : ""}`);
-    setCTitle(""); setCSummary(""); setCBody(""); setCLink(""); setCVis("private"); setVisTouched(false); setCActions([]); setComposing(false);
+    toast(`Note saved${cActions.length ? ` · ${cActions.length} task${cActions.length === 1 ? "" : "s"} → ${dest}` : ""}${filed ? ` · ${filed} file${filed === 1 ? "" : "s"} kept` : ""}${fileErr ? ` · ${fileErr} file${fileErr === 1 ? "" : "s"} couldn't upload` : ""}`, fileErr ? "error" : undefined);
+    setCTitle(""); setCSummary(""); setCBody(""); setCLink(""); setCVis("private"); setVisTouched(false); setCActions([]); setCFiles([]); setComposing(false);
     load();
   };
   const remove = async (n: MeetingNote) => {
@@ -3544,13 +3560,13 @@ function MeetingNotes() {
   return (
     <div className="adm-sec">
       <SectionHeader label="Notes" right={<span className="adm-pill">{notes.length}</span>} />
-      <div className="h-sub note-intro">For yourself or the team — pick who sees each one (<Icon name="lock" /> just me · <Icon name="team" /> team · <Icon name="partners" /> team + comments). Tag follow-ups and they land in My&nbsp;Tasks with a notification. Meeting recap? Paste the transcript and <Icon name="sparkles" /> summarize.</div>
+      <div className="h-sub note-intro">For yourself or the team — pick who sees each one (<Icon name="lock" /> just me · <Icon name="team" /> team · <Icon name="partners" /> team + comments). Tag follow-ups and they land in My&nbsp;Tasks with a notification. Meeting recap? Paste the transcript and <Icon name="sparkles" /> summarize. Notes grow — <b>＋&nbsp;add to them</b> anytime, attachments stay on the note, nothing is ever overwritten.</div>
 
       <button type="button" className="note-new" onClick={() => setComposing(true)}>✎ New note</button>
       {composing && (
-        <Sheet open onClose={() => { setComposing(false); setCActions([]); }} label="New note" className="note-lux"
-          header={<div className="note-lux-head"><span className="note-lux-eyb">New note</span><button type="button" className="qd-x" onClick={() => { setComposing(false); setCActions([]); }} aria-label="Close"><Icon name="close" /></button></div>}
-          footer={<div className="note-actions"><button type="button" className="note-cancel" onClick={() => { setComposing(false); setCActions([]); }}>Cancel</button><button type="button" className="note-save" disabled={!cTitle.trim() || saving} onClick={save}>{saving ? "Saving…" : "Save note"}</button></div>}>
+        <Sheet open onClose={() => { setComposing(false); setCActions([]); setCFiles([]); }} label="New note" className="note-lux"
+          header={<div className="note-lux-head"><span className="note-lux-eyb">New note</span><button type="button" className="qd-x" onClick={() => { setComposing(false); setCActions([]); setCFiles([]); }} aria-label="Close"><Icon name="close" /></button></div>}
+          footer={<div className="note-actions"><button type="button" className="note-cancel" onClick={() => { setComposing(false); setCActions([]); setCFiles([]); }}>Cancel</button><button type="button" className="note-save" disabled={!cTitle.trim() || saving} onClick={save}>{saving ? "Saving…" : "Save note"}</button></div>}>
           <div className="note-composer">
             <input className="note-in note-lux-title" placeholder="What&rsquo;s this note about?" value={cTitle} onChange={(e) => setCTitle(e.target.value)} autoFocus />
             <div className="note-row">
@@ -3579,7 +3595,15 @@ function MeetingNotes() {
             <textarea className="note-area" placeholder="The note — a thought, a plan, a recap…" value={cSummary} onChange={(e) => setCSummary(e.target.value)} rows={cSummary.length > 200 ? 10 : 3} />
             <details className="note-transcript">
               <summary>Transcript or attachments? Add them and <Icon name="sparkles" /> summarize</summary>
-              <NoteAttach onText={(t) => setCBody((b) => (b ? b + "\n\n" + t : t))} />
+              <NoteAttach onText={(t) => setCBody((b) => (b ? b + "\n\n" + t : t))} onFiles={(fs) => setCFiles((p) => [...p, ...fs].slice(0, 8))} />
+              {cFiles.length > 0 && (
+                <div className="note-pfiles">
+                  {cFiles.map((f, i) => (
+                    <span key={i} className="note-pfile">📎 {f.name}<button type="button" onClick={() => setCFiles((p) => p.filter((_, j) => j !== i))} aria-label={`Remove ${f.name}`}><Icon name="close" /></button></span>
+                  ))}
+                  <span className="note-pfiles-hint">kept on the note when you save</span>
+                </div>
+              )}
               <textarea className="note-area" placeholder="Paste a transcript — or attach files above to fill this in…" value={cBody} onChange={(e) => setCBody(e.target.value)} rows={4} />
               <button type="button" className="note-suggest note-sum" onClick={summarize} disabled={summarizing}>{summarizing ? "Summarizing…" : <><Icon name="sparkles" /> Summarize <Icon name="arrowRight" /> title · recap · tasks</>}</button>
             </details>
@@ -3635,6 +3659,7 @@ function MeetingNotes() {
                 onArchive={() => archive(n, !n.archived_at)}
                 onVisibility={(v) => setNotes((prev) => prev.map((x) => (x.id === n.id ? { ...x, visibility: v } : x)))}
                 onRenamed={(t) => setNotes((prev) => prev.map((x) => (x.id === n.id ? { ...x, title: t } : x)))}
+                onSummary={(s) => setNotes((prev) => prev.map((x) => (x.id === n.id ? { ...x, summary: s } : x)))}
               />
             ))}
             {shown.length === 0 && !composing && (
@@ -3651,7 +3676,7 @@ function MeetingNotes() {
   );
 }
 
-function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, eventTitle, onDelete, onArchive, onVisibility, onRenamed }: {
+function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, eventTitle, onDelete, onArchive, onVisibility, onRenamed, onSummary }: {
   note: MeetingNote;
   open: boolean;
   onToggle: () => void;
@@ -3664,6 +3689,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
   onArchive: () => void;
   onVisibility?: (v: "private" | "team" | "collab") => void;
   onRenamed?: (t: string) => void;
+  onSummary?: (s: string) => void;
 }) {
   const { openTask } = useTaskSheet(); // the ONE task editor, on the spine
   const { user, profile } = useAuth();
@@ -3688,19 +3714,39 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [suggesting, setSuggesting] = useState(false);
   const [resolving, setResolving] = useState<Set<string>>(new Set());
+  // 0262 note continuation — the note is append-only now, never frozen: addenda (timestamped,
+  // attributed additions), kept files (private bucket + signed URLs), a note-level Discuss thread
+  // (the "Team + comments" promise, finally plugged in), and a summary refresh over the whole
+  // immutable record. Ryan (2026-08-02): "can I add to a note … and not override the current note?"
+  const [addenda, setAddenda] = useState<NoteAddendum[]>([]);
+  const [files, setFiles] = useState<NoteFile[]>([]);
+  const [noteCmts, setNoteCmts] = useState(0);
+  const [noteThread, setNoteThread] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [addDraft, setAddDraft] = useState("");
+  const [addFiles, setAddFiles] = useState<File[]>([]);
+  const [addSaving, setAddSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    const { data } = await supabase.from("event_tasks").select("*").or(`meeting_note_id.eq.${note.id},origin_note_id.eq.${note.id}`).order("sort");
+    const [{ data }, { data: adds }, { data: fls }] = await Promise.all([
+      supabase.from("event_tasks").select("*").or(`meeting_note_id.eq.${note.id},origin_note_id.eq.${note.id}`).order("sort"),
+      supabase.from("note_addenda").select("*").eq("note_id", note.id).order("created_at"),
+      supabase.from("note_files").select("*").eq("note_id", note.id).order("created_at"),
+    ]);
     const rows = (data as EventTask[]) ?? [];
     setItems(rows);
+    setAddenda((adds as NoteAddendum[]) ?? []);
+    setFiles((fls as NoteFile[]) ?? []);
     setCounts(await commentCounts("event_task_id", rows.map((r) => r.id)));
+    setNoteCmts((await commentCounts("meeting_note_id", [note.id]))[note.id] ?? 0);
   }, [note.id]);
   useEffect(() => {
     if (!open) return;
     load();
   }, [open, load]);
-  useRealtimeTable([{ table: "event_tasks", filter: `meeting_note_id=eq.${note.id}` }, "comments"], load, { enabled: open });
+  useRealtimeTable([{ table: "event_tasks", filter: `meeting_note_id=eq.${note.id}` }, { table: "note_addenda", filter: `note_id=eq.${note.id}` }, "comments"], load, { enabled: open });
 
   const staffName = (uid: string) => staff.find((s) => s.id === uid)?.display_name?.trim() || (uid === meId ? meName : "Unnamed crew");
   const firstNameOf = (uid: string) => staffName(uid).split(" ")[0];
@@ -3711,6 +3757,67 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
     const { error } = await supabase.from("event_tasks").insert({ meeting_note_id: note.id, label: newItem.trim(), kind: "task", section: "Follow-up", sort: items.length });
     setNewItem("");
     if (error) toast(`Error: ${error.message}`, "error"); else load();
+  };
+  // ── 0262 continuation handlers ──
+  // "Add to this note" — a new attributed, timestamped addendum row. The original body/summary are
+  // never written; there is no update path to an addendum either (append-only by RLS design).
+  const saveAdd = async () => {
+    if (!supabase || addSaving || (!addDraft.trim() && addFiles.length === 0)) return;
+    setAddSaving(true);
+    let addendumId: string | null = null;
+    if (addDraft.trim()) {
+      const { data, error } = await supabase.from("note_addenda")
+        .insert({ note_id: note.id, body: addDraft.trim().slice(0, 8000), created_by: meId }).select("id").single();
+      if (error) { toast(`Couldn't add — ${error.message}`, "error"); setAddSaving(false); return; }
+      addendumId = (data as { id: string } | null)?.id ?? null;
+    }
+    let filed = 0, fileErr = 0;
+    for (const f of addFiles) {
+      const up = await uploadToBucket({ bucket: "note-files", file: f, prefix: note.id });
+      if ("error" in up) { fileErr++; continue; }
+      const { error: fe } = await supabase.from("note_files").insert({
+        note_id: note.id, addendum_id: addendumId, path: up.path, name: f.name.slice(0, 160), mime: f.type || null, size_bytes: f.size, created_by: meId });
+      if (fe) fileErr++; else filed++;
+    }
+    setAddSaving(false);
+    toast(`Added to the note${filed ? ` · ${filed} file${filed === 1 ? "" : "s"} kept` : ""}${fileErr ? ` · ${fileErr} couldn't upload` : ""}`, fileErr ? "error" : undefined);
+    setAddDraft(""); setAddFiles([]); setAdding(false);
+    load();
+  };
+  // Kept files open through short-lived signed URLs — the bucket is private; visibility rides the
+  // note_files RLS (you can only list what you can read), the link itself expires in 10 minutes.
+  const openFile = async (f: NoteFile) => {
+    if (!supabase) return;
+    const { data, error } = await supabase.storage.from("note-files").createSignedUrl(f.path, 600);
+    if (error || !data?.signedUrl) { toast("Couldn't open the file — try again", "error"); return; }
+    window.open(data.signedUrl, "_blank", "noopener");
+  };
+  const removeFile = async (f: NoteFile) => {
+    if (!supabase) return;
+    if (typeof window !== "undefined" && !window.confirm(`Remove "${f.name}" from this note?`)) return;
+    const { error } = await supabase.from("note_files").delete().eq("id", f.id);
+    if (error) { toast(`Couldn't remove — ${error.message}`, "error"); return; }
+    await supabase.storage.from("note-files").remove([f.path]);   // best-effort; the row is the gate
+    toast("File removed"); load();
+  };
+  // ✦ Refresh recap — recompute the summary from the ENTIRE immutable record (original body +
+  // every addendum). Derived content only: sources are never touched, and the change log ignores
+  // summary churn on purpose (0262).
+  const refresh = async () => {
+    if (!supabase || refreshing) return;
+    const src = [note.body || note.summary || "", ...addenda.map((a) => `Addition (${fmtNoteDate(a.created_at.slice(0, 10))}):\n${a.body}`)].filter(Boolean).join("\n\n");
+    if (!src.trim()) return;
+    setRefreshing(true);
+    try {
+      const r = await authedFetch("/api/agents/summarize", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: src.slice(0, 14000) }) });
+      const j = await r.json();
+      if (j.ok && j.summary) {
+        const { error } = await supabase.from("meeting_notes").update({ summary: j.summary }).eq("id", note.id);
+        if (error) toast(`Couldn't save the recap — ${error.message}`, "error");
+        else { onSummary?.(j.summary); toast("Recap refreshed — additions folded in"); }
+      } else toast(String(j.error ?? "").includes("ANTHROPIC") ? "AI isn't switched on yet — add the API key" : `Error: ${j.error ?? r.status}`, "error");
+    } catch { toast("Couldn't reach the summarizer", "error"); }
+    setRefreshing(false);
   };
   // Agent #1 — let Claude pull the follow-ups out of the recap, proposed for review.
   // Propose how to COMPLETE a follow-up (surfacing answers we already have). Persists on the task.
@@ -3830,6 +3937,71 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
           )}
           {note.summary && <Markdown source={note.summary} className="note-summary" />}
           {note.body && <details className="note-full"><summary>Full notes</summary><p>{note.body}</p></details>}
+          {/* 0262 — the continuation record: additions render as attributed, timestamped blocks
+              UNDER the original (which is never edited); kept files open via signed URLs. */}
+          {addenda.map((a) => (
+            <div key={a.id} className="note-addm">
+              <div className="note-addm-h">
+                <span>Added {fmtNoteDate(a.created_at.slice(0, 10))}{a.created_by ? ` · ${a.created_by === meId ? "you" : firstNameOf(a.created_by)}` : ""}</span>
+                {(a.created_by === meId || isAdmin) && <button type="button" className="note-addm-x" onClick={async () => {
+                  if (!supabase || (typeof window !== "undefined" && !window.confirm("Remove this addition? Files it brought stay on the note."))) return;
+                  const { error } = await supabase.from("note_addenda").delete().eq("id", a.id);
+                  if (error) toast(`Couldn't remove — ${error.message}`, "error"); else { toast("Addition removed"); load(); }
+                }} aria-label="Remove this addition"><Icon name="close" /></button>}
+              </div>
+              <p className="note-addm-b">{a.body}</p>
+            </div>
+          ))}
+          {files.length > 0 && (
+            <div className="note-files">
+              {files.map((f) => (
+                <div key={f.id} className="note-file">
+                  <button type="button" className="note-file-open" onClick={() => openFile(f)} title="Open (secure link, 10 min)">
+                    <span aria-hidden="true">📎</span> {f.name}{f.size_bytes ? <i>{f.size_bytes > 1048576 ? `${(f.size_bytes / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(f.size_bytes / 1024))} KB`}</i> : null}
+                  </button>
+                  {(f.created_by === meId || isAdmin) && <button type="button" className="note-addm-x" onClick={() => removeFile(f)} aria-label={`Remove ${f.name}`}><Icon name="close" /></button>}
+                </div>
+              ))}
+            </div>
+          )}
+          {(note.created_by === meId || isAdmin) && (
+            adding ? (
+              <div className="note-addbox">
+                <textarea className="note-area" placeholder="What's new since — a call, a decision, the next conversation…" value={addDraft}
+                  onChange={(e) => setAddDraft(e.target.value)} rows={addDraft.length > 200 ? 8 : 3} autoFocus />
+                <NoteAttach onText={(t) => setAddDraft((b) => (b ? b + "\n\n" + t : t))} onFiles={(fs) => setAddFiles((p) => [...p, ...fs].slice(0, 8))} />
+                {addFiles.length > 0 && (
+                  <div className="note-pfiles">
+                    {addFiles.map((f, i) => (
+                      <span key={i} className="note-pfile">📎 {f.name}<button type="button" onClick={() => setAddFiles((p) => p.filter((_, j) => j !== i))} aria-label={`Remove ${f.name}`}><Icon name="close" /></button></span>
+                    ))}
+                    <span className="note-pfiles-hint">kept on the note</span>
+                  </div>
+                )}
+                <div className="note-addbox-r">
+                  <button type="button" className="note-arch" onClick={() => { setAdding(false); setAddDraft(""); setAddFiles([]); }}>Cancel</button>
+                  <button type="button" className="note-save" onClick={saveAdd} disabled={addSaving || (!addDraft.trim() && addFiles.length === 0)}>{addSaving ? "Adding…" : "Add to note"}</button>
+                </div>
+              </div>
+            ) : (
+              <div className="note-cont-row">
+                <button type="button" className="note-renamelink" onClick={() => setAdding(true)}>＋ Add to this note</button>
+                {addenda.length > 0 && (note.body || note.summary) && (
+                  <button type="button" className="note-renamelink" onClick={refresh} disabled={refreshing}>{refreshing ? "Refreshing…" : <><Icon name="sparkles" /> Refresh recap</>}</button>
+                )}
+              </div>
+            )
+          )}
+          {(note.visibility === "collab" || note.created_by === meId) && (
+            <>
+              <button type="button" className="note-discuss" onClick={() => setNoteThread((v) => !v)} aria-expanded={noteThread}>
+                <Icon name="chat" /> Discuss this note{noteCmts ? <span className="cmt-count">{noteCmts}</span> : null}
+              </button>
+              {noteThread && (
+                <CommentThread subject={{ col: "meeting_note_id", id: note.id }} notifyIds={[note.created_by]} label={note.title} meId={meId} meName={meName} />
+              )}
+            </>
+          )}
           <OpsPlan noteId={note.id} />
           <div className="note-fu-h">Follow-ups
             <button type="button" className="note-suggest" onClick={suggest} disabled={suggesting}>{suggesting ? "Reading…" : <><Icon name="sparkles" /> Suggest</>}</button>

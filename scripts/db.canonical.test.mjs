@@ -509,5 +509,58 @@ ok("0261 deleting a batch CLEARS the pack's reference (set null, never blocks cl
 ok("0261 re-applied whole is a no-op",
   await (async () => { try { await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0261_batch_traceability.sql"), "utf8")); return true; } catch { return false; } })());
 
+// ── 0262: note continuation (addenda + kept files + notes in the change log) ──
+// Fixtures: harness has no meeting_notes (notes never had a canonical block before — the freeze
+// WAS the bug), and its profiles is the slim 0001 shape — top up is_admin, which the 0262
+// leadership policies reference. Then 0262 VERBATIM (its storage DO block self-skips: no storage
+// schema here), twice. The audit trigger rides 0260's function, live from the block above.
+await db.exec(`
+  create table if not exists public.meeting_notes (
+    id uuid primary key default gen_random_uuid(), title text not null, summary text, body text,
+    visibility text not null default 'collab', created_by uuid references auth.users(id) on delete set null,
+    archived_at timestamptz, created_at timestamptz not null default now());
+  alter table public.profiles add column if not exists is_admin boolean not null default false;
+`);
+await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0262_note_continuation.sql"), "utf8"));
+const N0262 = (await q1(`insert into meeting_notes (title, body, created_by) values ('Vendor sit-down', 'Original body — never edited.', '${U1}') returning id`)).id;
+const A0262 = (await q1(`insert into note_addenda (note_id, body, created_by) values ('${N0262}', 'Added after the follow-up call.', '${U1}') returning id`)).id;
+ok("0262 an addendum lands attributed + timestamped, original body untouched",
+  await (async () => {
+    const a = await q1(`select body, created_by, created_at from note_addenda where id = '${A0262}'`);
+    const n = await q1(`select body from meeting_notes where id = '${N0262}'`);
+    return a.body === "Added after the follow-up call." && a.created_by === U1 && !!a.created_at && n.body === "Original body — never edited.";
+  })());
+await db.exec(`insert into note_files (note_id, addendum_id, path, name, mime, size_bytes, created_by)
+  values ('${N0262}', '${A0262}', '${N0262}/123-abc.pdf', 'contract.pdf', 'application/pdf', 52000, '${U1}')`);
+ok("0262 a kept file records its real name + key; deleting its addendum orphans (set null), never blocks",
+  await (async () => {
+    const f1 = await q1(`select name, addendum_id from note_files where note_id = '${N0262}'`);
+    await db.exec(`delete from note_addenda where id = '${A0262}'`);
+    const f2 = await q1(`select addendum_id from note_files where note_id = '${N0262}'`);
+    return f1.name === "contract.pdf" && f1.addendum_id === A0262 && f2.addendum_id === null;
+  })());
+await db.exec(`update meeting_notes set title = 'Vendor sit-down · August' where id = '${N0262}'`);
+await db.exec(`update meeting_notes set summary = 'refreshed recap v2' where id = '${N0262}'`);
+ok("0262 a rename hits the admin change log; a summary refresh (derived content) does NOT",
+  await (async () => {
+    const logged = await q1(`select count(*)::int n from admin_audit where table_name='meeting_notes' and summary like '%Vendor sit-down · August%'`);
+    const spam = await q1(`select count(*)::int n from admin_audit where table_name='meeting_notes' and summary like '%refreshed recap%'`);
+    return logged.n === 1 && spam.n === 0;
+  })());
+ok("0262 policy sets complete: 3 on addenda, 3 on files, and NO addenda update policy (append-only)",
+  await (async () => {
+    const pa = await q1(`select count(*)::int n from pg_policies where tablename = 'note_addenda'`);
+    const pf = await q1(`select count(*)::int n from pg_policies where tablename = 'note_files'`);
+    const upd = await q1(`select count(*)::int n from pg_policies where tablename = 'note_addenda' and cmd = 'UPDATE'`);
+    return pa.n === 3 && pf.n === 3 && upd.n === 0;
+  })());
+ok("0262 deleting the note cascades its continuation (addenda + file rows go with it)",
+  await (async () => {
+    await db.exec(`delete from meeting_notes where id = '${N0262}'`);
+    return (await q1(`select count(*)::int n from note_files where note_id = '${N0262}'`)).n === 0;
+  })());
+ok("0262 re-applied whole is a no-op",
+  await (async () => { try { await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0262_note_continuation.sql"), "utf8")); return true; } catch { return false; } })());
+
 console.log(`CANONICAL-DB CONTRACT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

@@ -11,7 +11,7 @@ import Icon from "@/components/Icon";
 const readB64 = (f: File) => new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1] || ""); r.onerror = rej; r.readAsDataURL(f); });
 const readText = (f: File) => new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result || "")); r.onerror = rej; r.readAsText(f); });
 
-export default function NoteAttach({ onText }: { onText: (t: string) => void }) {
+export default function NoteAttach({ onText, onFiles }: { onText: (t: string) => void; onFiles?: (files: File[]) => void }) {
   const { toast } = useApp();
   const ref = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -21,6 +21,9 @@ export default function NoteAttach({ onText }: { onText: (t: string) => void }) 
     const files = Array.from(list ?? []).slice(0, 8);
     if (!files.length) return;
     if (files.some((f) => f.size > 12 * 1024 * 1024)) { toast("Each file must be under 12 MB", "error"); return; }
+    // 0262 note continuation — the caller can KEEP the originals (private note-files bucket), not
+    // just the transcription. Hand the File objects up before the transcribe round-trip.
+    onFiles?.(files);
     setBusy(true); setCount(files.length);
     try {
       const parts: string[] = [];

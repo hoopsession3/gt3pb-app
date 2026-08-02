@@ -202,6 +202,27 @@ export interface MeetingNote {
   updated_at: string;
 }
 
+// 0262 note continuation — "Add to this note" additions (append-only, attributed) and the
+// attachments that now KEEP the file (private note-files bucket; path is the storage key).
+export interface NoteAddendum {
+  id: string;
+  note_id: string;
+  body: string;
+  created_by: string | null;
+  created_at: string;
+}
+export interface NoteFile {
+  id: string;
+  note_id: string;
+  addendum_id: string | null;
+  path: string;
+  name: string;
+  mime: string | null;
+  size_bytes: number | null;
+  created_by: string | null;
+  created_at: string;
+}
+
 // Event location/jurisdiction lives on EventRow (state/county, 0026) for compliance.
 
 // Alerts (0050) — tenant-scoped, severity-tiered "don't-miss" inbox. Producers insert rows; the
