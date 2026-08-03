@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 // when the tab closes) lets the report order steps within one attempt without identifying anyone or
 // tracking across sessions. Fire-and-forget: analytics must NEVER break or slow a real flow, so every
 // call is guarded and the insert is not awaited. Server writes go to funnel_events (0199).
-export type Funnel = "order" | "reserve" | "delivery" | "signup" | "office";
+export type Funnel = "order" | "reserve" | "delivery" | "signup" | "office" | "coupon";   // coupon: QR scans (0268) — step = the code
 
 function sessionToken(): string | null {
   if (typeof window === "undefined") return null;

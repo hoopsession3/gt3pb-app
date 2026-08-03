@@ -776,5 +776,83 @@ ok("0267 no client write path exists: zero insert/update policies on both tables
 ok("0267 re-applied whole is a no-op",
   await (async () => { try { await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0267_utilization.sql"), "utf8")); return true; } catch { return false; } })());
 
+// ── 0268: activation economics — extend the engines, never clone them ──
+// Fixtures: the engines 0268 EXTENDS, at their pre-0268 shapes (member_benefits with the ORIGINAL
+// three-kind check, funnel_events with the ORIGINAL five-funnel check) — so these tests prove the
+// widening actually widens. stamp_tenant is the house tenant-stamp trigger fn, absent from base.
+await db.exec(`
+  create or replace function public.stamp_tenant() returns trigger language plpgsql as $$
+    begin new.tenant_id = coalesce(new.tenant_id, public.effective_tenant()); return new; end $$;
+  create table if not exists public.member_benefits (
+    id uuid primary key default gen_random_uuid(),
+    tenant_id uuid not null references public.tenants(id) default '00000000-0000-0000-0000-000000000001',
+    scope text not null check (scope in ('tier','code')),
+    tier text, code text,
+    kind text not null check (kind in ('free_refill','price_override','percent_off')),
+    target text, value_cents int, percent int, label text not null,
+    active boolean not null default true, created_at timestamptz not null default now());
+  create unique index if not exists member_benefits_code on public.member_benefits(lower(code)) where code is not null;
+  create table if not exists public.funnel_events (
+    id bigint generated always as identity primary key,
+    tenant_id uuid references public.tenants(id) default '00000000-0000-0000-0000-000000000001',
+    funnel text not null check (funnel in ('order','reserve','delivery','signup','office')),
+    step text not null check (char_length(step) <= 40),
+    session text, at timestamptz not null default now());
+  create table if not exists public.business_accounts (
+    id uuid primary key default gen_random_uuid(), company text not null);
+`);
+await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0268_activation_economics.sql"), "utf8"));
+await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0268_activation_economics.sql"), "utf8"));   // twice, on purpose
+const OPP0268 = (await q1(`insert into opportunities (vendor_id) values ('${V0265}') returning id`)).id;
+ok("0268 the schema enforces the no-double-count contract: 'delivery' is not an activity type",
+  await (async () => {
+    const deliveryRefused = await refused(`insert into account_activities (opportunity_id, type) values ('${OPP0268}', 'delivery')`);
+    await db.exec(`insert into account_activities (opportunity_id, type, sampled, buyers, revenue_cents, cost_cents) values ('${OPP0268}', 'popup', 50, 12, 8600, 6500)`);
+    const r = await q1(`select sampled, buyers, cost_cents from account_activities where opportunity_id = '${OPP0268}' limit 1`);
+    return deliveryRefused && r.sampled === 50 && r.buyers === 12 && r.cost_cents === 6500;
+  })());
+ok("0268 restock rows carry the sell-through math columns (bottles/pulled/stock_after), negatives refused",
+  await (async () => {
+    await db.exec(`insert into account_activities (opportunity_id, type, bottles, pulled, stock_after) values ('${OPP0268}', 'restock', 24, 2, 18)`);
+    const negRefused = await refused(`insert into account_activities (opportunity_id, type, bottles) values ('${OPP0268}', 'restock', -5)`);
+    return negRefused;
+  })());
+ok("0268 loop ledger: $2 credit and 1 return ride the defaults; a zero-return row is refused",
+  await (async () => {
+    const r = await q1(`insert into loop_txns (opportunity_id) values ('${OPP0268}') returning returns, credit_cents`);
+    const zeroRefused = await refused(`insert into loop_txns (returns) values (0)`);
+    return r.returns === 1 && r.credit_cents === 200 && zeroRefused;
+  })());
+ok("0268 the code engine learns amount_off — and the seed lands ONCE despite double apply",
+  await (async () => {
+    const seeded = await q1(`select count(*)::int n, max(kind) k, max(value_cents)::int v from member_benefits where lower(code) = 'gt3-5off'`);
+    const bogusRefused = await refused(`insert into member_benefits (scope, code, kind, label) values ('code', 'X-BOGUS', 'teleport', 'nope')`);
+    return seeded.n === 1 && seeded.k === "amount_off" && seeded.v === 500 && bogusRefused;
+  })());
+ok("0268 the funnel spine learns 'coupon'; unknown funnels still refused",
+  await (async () => {
+    await db.exec(`insert into funnel_events (funnel, step) values ('coupon', 'GT3-5OFF')`);
+    const bogus = await refused(`insert into funnel_events (funnel, step) values ('teleport', 'x')`);
+    return bogus;
+  })());
+ok("0268 redemption is a recorded fact: benefit_code lands on both order spines; the revenue wire links",
+  await (async () => {
+    await db.exec(`insert into orders (user_id, items, total_cents, benefit_code) values ('${U1}', array['rise'], 900, 'GT3-5OFF')`);
+    await db.exec(`insert into drop_orders (user_id, size, total_cents, benefit_code) values ('${U1}', 12, 3100, 'GT3-5OFF')`);
+    const ba = (await q1(`insert into business_accounts (company) values ('Upstate Spine & Sport — office') returning id`)).id;
+    await db.exec(`update opportunities set business_account_id = '${ba}' where id = '${OPP0268}'`);
+    const n = (await q1(`select count(*)::int n from orders where benefit_code = 'GT3-5OFF'`)).n;
+    const wired = (await q1(`select (business_account_id is not null) w from opportunities where id = '${OPP0268}'`)).w;
+    return n === 1 && wired === true;
+  })());
+ok("0268 RLS shape: activities 3 policies (staff read/write + tenant); loop 5 (read/insert staff, update+delete admin, tenant)",
+  await (async () => {
+    const a = (await q1(`select count(*)::int n from pg_policies where tablename = 'account_activities'`)).n;
+    const l = (await q1(`select count(*)::int n from pg_policies where tablename = 'loop_txns'`)).n;
+    return a === 3 && l === 5;
+  })());
+ok("0268 re-applied whole is a no-op",
+  await (async () => { try { await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0268_activation_economics.sql"), "utf8")); return true; } catch { return false; } })());
+
 console.log(`CANONICAL-DB CONTRACT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

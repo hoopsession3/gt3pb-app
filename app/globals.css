@@ -6398,3 +6398,34 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .kpib-live{font-style:normal;margin-left:6px;color:#5b9a6b;letter-spacing:.6px}
 .brew-taste{margin-left:10px;background:none;border:1px solid var(--line2);border-radius:999px;padding:3px 10px;cursor:pointer;font-family:'Inter';font-weight:650;font-size:10.5px;color:var(--cream);-webkit-appearance:none;appearance:none}
 .mkpi-stage{font-family:'Fraunces',serif;font-style:italic;font-size:13px;color:var(--cream-m);margin:0 0 10px}
+
+/* ── activation economics (0268) — uplift rail · activity desk · loop log · coupon landing ── */
+.pipe-uplift{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--cream-m);padding:2px 12px 8px;letter-spacing:.2px}
+.act-desk{margin:10px 0 4px;border-top:1px dashed var(--line2);padding-top:8px}
+.act-sum{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.act-sum-l{font-size:12px;color:var(--cream-m)}
+.act-sum-l b{color:var(--cream);margin-right:4px}
+.act-wire{display:block;font-size:11.5px;color:var(--cream-m);margin:8px 0 2px}
+.act-wire i{font-style:italic;opacity:.8}
+.act-wire select{display:block;width:100%;margin-top:4px}
+.act-list{display:flex;flex-direction:column;gap:2px;margin-top:8px}
+.act-row{display:flex;align-items:center;gap:6px}
+.act-row-t{flex:1;text-align:left;background:none;border:0;cursor:pointer;font-size:11.5px;color:var(--cream-m);padding:3px 0;font-family:'Inter'}
+.act-row-t:hover{color:var(--cream)}
+.act-row-t i{font-style:italic;opacity:.75}
+.act-form{margin-top:8px}
+.act-hint{font-size:11px;font-style:italic;color:var(--cream-m);margin:6px 0 2px}
+.dops-loop{display:flex;align-items:center;gap:8px;margin:8px 0;font-size:12px;color:var(--cream-m);flex-wrap:wrap}
+.dops-loop-l{font-weight:650;color:var(--cream)}
+.dops-loop input{width:74px;background:var(--well);border:1px solid var(--line2);border-radius:8px;padding:5px 8px;color:var(--cream);font-family:'Inter';font-size:12px}
+.dops-loop-m{font-style:italic;font-size:11px}
+.codes-trail{display:flex;align-items:center;gap:6px}
+.codes-qr{background:none;border:1px solid var(--line2);border-radius:999px;padding:3px 9px;cursor:pointer;font-family:'Inter';font-weight:650;font-size:10.5px;color:var(--cream);-webkit-appearance:none;appearance:none}
+.cpn{min-height:100dvh;display:grid;place-items:center;padding:24px;position:relative}
+.cpn-card{max-width:400px;width:100%;text-align:center;background:var(--panel,rgba(255,255,255,.03));border:1px solid var(--line2);border-radius:18px;padding:34px 26px;position:relative;z-index:1}
+.cpn-brand{font-family:'Inter';font-weight:800;font-size:11px;letter-spacing:3px;color:var(--cream-m);margin-bottom:14px}
+.cpn-offer{font-family:'Fraunces',serif;font-size:26px;line-height:1.15;margin:0 0 10px;color:var(--cream)}
+.cpn-sub{font-size:13.5px;color:var(--cream-m);line-height:1.5;margin:0 0 18px}
+.cpn-cta{display:inline-block;background:var(--gt-red,#a33);color:#fff;border-radius:999px;padding:11px 22px;font-family:'Inter';font-weight:700;font-size:13.5px;text-decoration:none}
+.cpn-code{margin-top:14px;font-size:11.5px;letter-spacing:1px;color:var(--cream-m)}
+.cpn-code b{color:var(--cream)}

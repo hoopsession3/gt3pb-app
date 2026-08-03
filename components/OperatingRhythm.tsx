@@ -41,7 +41,7 @@ export default function OperatingRhythm({ isAdmin, onOpenNotes }: { isAdmin: boo
       const r = await authedFetch("/api/agents/session-extract", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: transcript }) });
       const j = await r.json();
       if (j.ok) {
-        toast(`Filed: ${j.decisions} decision${j.decisions === 1 ? "" : "s"} · ${j.open_items} follow-up${j.open_items === 1 ? "" : "s"} · ${j.events} event${j.events === 1 ? "" : "s"} · ${j.pipeline_moves} pipeline move${j.pipeline_moves === 1 ? "" : "s"}${j.skipped?.length ? ` · couldn't match: ${j.skipped.join(", ")}` : ""}`);
+        toast(`Filed: ${j.decisions} decision${j.decisions === 1 ? "" : "s"} · ${j.open_items} follow-up${j.open_items === 1 ? "" : "s"} · ${j.events} event${j.events === 1 ? "" : "s"} · ${j.pipeline_moves} pipeline move${j.pipeline_moves === 1 ? "" : "s"}${j.activities ? ` · ${j.activities} activit${j.activities === 1 ? "y" : "ies"}` : ""}${j.skipped?.length ? ` · couldn't match: ${j.skipped.join(", ")}` : ""}`);
         setExtractOpen(false); setTranscript(""); onOpenNotes();
       } else toast(String(j.error ?? "").includes("ANTHROPIC") ? "AI isn't switched on yet — add the API key" : `Couldn't extract — ${j.error ?? r.status}`, "error");
     } catch { toast("Couldn't reach the extractor", "error"); }

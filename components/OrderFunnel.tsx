@@ -117,12 +117,22 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
   // is a live PREVIEW so the customer sees the code land before they pay. Percent-off and free-refill
   // codes discount the pack order; slug-targeted / set-price codes belong to the cups channel, so we
   // accept them as valid but don't move the pack total (a gentle note explains).
-  type CodeBenefit = { kind: "percent_off" | "price_override" | "free_refill"; target: string | null; percent: number | null; value_cents: number | null; label: string };
+  type CodeBenefit = { kind: "percent_off" | "price_override" | "free_refill" | "amount_off"; target: string | null; percent: number | null; value_cents: number | null; label: string };
   const [code, setCode] = useState("");
   const [codeOpen, setCodeOpen] = useState(false);
   const [codeState, setCodeState] = useState<"idle" | "checking" | "ok" | "bad">("idle");
   const [codeBenefit, setCodeBenefit] = useState<CodeBenefit | null>(null);
   const codeClean = code.trim().toUpperCase().replace(/\s+/g, "");
+  // QR hand-off (0268): /c/CODE sends people here as /reserve?code=CODE — the box opens itself with
+  // the code in it, so "scan → order → it applies" is zero typing. Plain location.search (not the
+  // useSearchParams hook) keeps this client component out of a Suspense boundary requirement.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const c = new URLSearchParams(window.location.search).get("code");
+      if (c && c.trim()) { setCode(c.trim().toUpperCase().slice(0, 40)); setCodeOpen(true); }
+    } catch { /* a malformed query string never breaks the funnel */ }
+  }, []);
 
   const checkCode = useCallback(async () => {
     if (!supabase || !codeClean) { setCodeState("idle"); setCodeBenefit(null); return; }
@@ -156,6 +166,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
     const wholeOrder = codeBenefit.target === null || codeBenefit.target === "straight_brew";
     if (codeBenefit.kind === "free_refill" && wholeOrder && bringBack) return baseTotalCents;
     if (codeBenefit.kind === "percent_off" && wholeOrder && typeof codeBenefit.percent === "number") return Math.round(baseTotalCents * (codeBenefit.percent / 100));
+    if (codeBenefit.kind === "amount_off" && wholeOrder && typeof codeBenefit.value_cents === "number") return Math.min(baseTotalCents, codeBenefit.value_cents);   // the $5-off QR card (0268)
     return 0;
   }, [codeState, codeBenefit, baseTotalCents, mode, bringBack]);
   const totalCents = Math.max(0, baseTotalCents - codeDiscountCents);

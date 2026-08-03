@@ -296,3 +296,40 @@ export interface Subscription {
   created_at: string;
   updated_at: string;
 }
+
+// Activation economics (0268 · Playbook v1.1 §05). One activation touch with a cost — the row
+// that makes "cost to uplift an opportunity" a live number. Deliveries are NOT a type here:
+// they're already orders; re-logging them would double-count revenue.
+export interface AccountActivity {
+  id: string;
+  opportunity_id: string;
+  event_id: string | null;
+  type: "popup" | "sampler" | "event" | "restock" | "other";
+  on_date: string;
+  bottles: number | null;
+  pulled: number | null;
+  stock_after: number | null;
+  sampled: number | null;
+  buyers: number | null;
+  revenue_cents: number | null;
+  cost_cents: number | null;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Loop return ledger (0268). NOT the office jug float (business_accounts.jug_balance) and NOT a
+// second rewards engine (profiles.points, 0012) — a pure count of bottles coming back, with the
+// decided $2 credit riding each row. The 8/6 loyalty decision reads this for real behavior.
+export interface LoopTxn {
+  id: string;
+  on_date: string;
+  returns: number;
+  credit_cents: number;
+  customer_id: string | null;
+  opportunity_id: string | null;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
+}

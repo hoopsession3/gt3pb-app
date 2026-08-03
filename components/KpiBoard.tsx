@@ -10,12 +10,11 @@ import AsyncSection from "./AsyncSection";
 import { SectionHeader } from "@/components/kit";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// THE TWELVE (0264 · Playbook v1 §12) — every KPI in the strategy, defined once, entered on
-// Mondays until each goes live-computed. Manual entry is the honest v1: the doc's own plan is
-// "manual Monday entry until live," and the audit's Signal criterion reads THIS board. A value
-// re-entered for the same week updates in place (unique metric+period); history accrues for
-// trends. Live automation lands per-metric as its source object ships (restock activities →
-// bottles/wk per cooler, etc.) — no speculative wiring.
+// THE TWELVE (0264 · Playbook v1 §12; 0268 flipped the board live) — every KPI in the strategy,
+// defined once. Eleven now compute from their source objects (orders, the activity ledger, coupon
+// codes on orders, the Loop ledger) exactly as p.14 mapped them; manual Monday entry remains for
+// bottle_return (no per-bottle sales count exists yet — honesty over a proxy) and as the fallback
+// whenever a live source has nothing to say. Same-week re-entry updates in place; history accrues.
 
 const KPIS: { key: string; label: string; unit: string; cadence: string }[] = [
   { key: "mrr",              label: "MRR by account (total)",   unit: "$",        cadence: "monthly" },
@@ -35,10 +34,12 @@ const KPIS: { key: string; label: string; unit: string; cadence: string }[] = [
 type Snap = { metric: string; period: string; value: number };
 type BoardData = { snaps: Snap[]; live: Record<string, number> };
 
-// Live-computable metrics (2026-08-03, Ryan: "I can start tracking all") — three of the twelve
-// already read straight from order data; they show a LIVE chip and take no manual entry. The
-// rest stay Monday-entry until their source object ships (restock activities, coupon scans, …) —
-// wiring a metric before its data exists would just be a prettier guess.
+// Live-computable metrics (2026-08-03, Ryan: "I can start tracking all"; 0268 flipped eight more).
+// Eleven of the twelve now read straight from their source objects — orders, the activity ledger,
+// recorded benefit codes, the Loop ledger — and show a LIVE chip with no manual entry. Each block
+// is isolated: a missing table (pre-migration) or empty source just leaves that metric on Monday
+// entry. bottle_return stays manual ON PURPOSE: its denominator is bottles SOLD, which no object
+// counts per-bottle yet — wiring it to a proxy would be a prettier guess, not a measurement.
 async function computeLive(): Promise<Record<string, number>> {
   if (!supabase) return {};
   const out: Record<string, number> = {};
@@ -61,6 +62,62 @@ async function computeLive(): Promise<Record<string, number>> {
     const counts = new Map<string, number>();
     for (const o of ((data ?? []) as any[])) counts.set(o.customer_id, (counts.get(o.customer_id) ?? 0) + 1);
     if (counts.size > 0) out.repeat_rate = Math.round(([...counts.values()].filter((n) => n >= 2).length / counts.size) * 100);
+  } catch { /* stays manual */ }
+  try {   // MRR (monthly): the live/expand book, straight off the pipeline's per-account MRR fields
+    const { data } = await supabase.from("opportunities").select("mrr_cents, stage").in("stage", ["live", "expand"]);
+    const rows = ((data ?? []) as any[]).filter((o) => typeof o.mrr_cents === "number" && o.mrr_cents > 0);
+    if (rows.length > 0) out.mrr = Math.round(rows.reduce((s, o) => s + o.mrr_cents, 0) / 100);
+  } catch { /* stays manual */ }
+  try {   // The activity-ledger family (0268): one fetch, five derivations
+    const d35 = new Date(Date.now() - 35 * 864e5).toISOString().slice(0, 10);
+    const { data, error } = await supabase.from("account_activities")
+      .select("opportunity_id, type, on_date, bottles, pulled, stock_after, sampled, buyers, revenue_cents").gte("on_date", d35);
+    if (!error && data) {
+      const acts = data as any[];
+      const d30 = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
+      const d7 = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
+      // Avg revenue / event: pop-ups + events with revenue, 30d
+      const evs = acts.filter((a) => (a.type === "popup" || a.type === "event") && a.on_date >= d30 && typeof a.revenue_cents === "number");
+      if (evs.length > 0) out.rev_event = Math.round(evs.reduce((s, a) => s + a.revenue_cents, 0) / 100 / evs.length);
+      // Bottles/wk per cooler: restocked bottles ÷ distinct locations, 7d
+      const rst7 = acts.filter((a) => a.type === "restock" && a.on_date >= d7 && typeof a.bottles === "number");
+      if (rst7.length > 0) out.bottles_cooler = Math.round(rst7.reduce((s, a) => s + a.bottles, 0) / new Set(rst7.map((a) => a.opportunity_id)).size);
+      // Sample → purchase: buyers ÷ sampled across activations, 30d
+      const smp = acts.filter((a) => a.on_date >= d30 && typeof a.sampled === "number" && a.sampled > 0);
+      const sampled = smp.reduce((s, a) => s + a.sampled, 0);
+      if (sampled > 0) out.sample_purchase = Math.round((smp.reduce((s, a) => s + (a.buyers ?? 0), 0) / sampled) * 100);
+      // Sell-through & spoilage: consecutive restock pairs per location — sold between visits =
+      // (last visit's shelf + this visit's adds) − pulled − shelf on leaving. Needs shelf counts.
+      const byOpp = new Map<string, any[]>();
+      for (const a of acts.filter((x) => x.type === "restock")) { const l = byOpp.get(a.opportunity_id) ?? []; l.push(a); byOpp.set(a.opportunity_id, l); }
+      let stocked = 0, sold = 0, pulled = 0;
+      for (const rows of byOpp.values()) {
+        rows.sort((a, b) => String(a.on_date).localeCompare(String(b.on_date)));
+        for (let i = 1; i < rows.length; i++) {
+          const prev = rows[i - 1], cur = rows[i];
+          if (prev.stock_after == null || cur.stock_after == null) continue;
+          const base = prev.stock_after + (cur.bottles ?? 0);
+          const s = Math.max(0, base - (cur.pulled ?? 0) - cur.stock_after);
+          stocked += base; sold += s; pulled += cur.pulled ?? 0;
+        }
+      }
+      if (stocked > 0) { out.sell_through = Math.round((sold / stocked) * 100); out.spoilage = Math.round((pulled / stocked) * 100); }
+    }
+  } catch { /* stays manual */ }
+  try {   // Coupon redemptions (weekly): VALIDATED codes recorded on orders at checkout (0268)
+    const [a, b] = await Promise.all([
+      supabase.from("orders").select("id", { count: "exact", head: true }).not("benefit_code", "is", null).gte("created_at", week),
+      supabase.from("drop_orders").select("id", { count: "exact", head: true }).not("benefit_code", "is", null).gte("created_at", week),
+    ]);
+    if (a.count != null || b.count != null) out.coupon_redeem = (a.count ?? 0) + (b.count ?? 0);
+  } catch { /* stays manual */ }
+  try {   // Loop participation (monthly): return transactions ÷ paid orders
+    const [lt, ao] = await Promise.all([
+      supabase.from("loop_txns").select("id", { count: "exact", head: true }).gte("on_date", monthStart),
+      supabase.from("all_orders").select("total_cents, payment_status, created_at").gte("created_at", `${monthStart}T00:00:00`),
+    ]);
+    const paidN = ((ao.data ?? []) as any[]).filter((o) => o.payment_status === "paid").length;
+    if (lt.count != null && paidN > 0) out.loop_part = Math.round((lt.count / paidN) * 100);
   } catch { /* stays manual */ }
   return out;
 }

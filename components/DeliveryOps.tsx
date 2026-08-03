@@ -120,6 +120,7 @@ export default function DeliveryOps() {
       <div className="dops-brew">Brew: <b>{(["RISE", "FLOW", "DUSK"] as const).filter((f) => perF[f] > 0).map((f) => `${perF[f]}× ${f}`).join(" · ") || "—"}</b>
         {premiumTotal > 0 && <> · Premium: <b>{Object.keys(premiumMix).length ? Object.entries(premiumMix).map(([k, n]) => `${n}× ${k}`).join(" · ") : premiumTotal}</b></>}
       </div>
+      <LoopQuickLog />
       <a className="dops-driver-link" href="/driver"><Icon name="truck" /> Open the driver run — map &amp; turn-by-turn <Icon name="arrowRight" /></a>
       <button type="button" className="dops-assign-link" onClick={() => setAssign(true)}><Icon name="team" /> Assign this run to a driver <Icon name="arrowRight" /></button>
       <button type="button" className="dops-assign-link" onClick={() => setPackout(true)}><Icon name="package" /> Vehicle packout plan <Icon name="arrowRight" /></button>
@@ -185,6 +186,31 @@ export default function DeliveryOps() {
 
 // Deterministic vehicle packout for the whole Sunday run — scales the cooler/ice plan from the
 // bottle loadout to the day's total bottles. Uses the qd-sheet · dp-body popout (bulletproof scroll).
+// LOOP RETURNS (0268) — the return ledger's quick entry, on the surface where bottles actually come
+// back. One count, one tap; the decided $2 credit rides the row default (loop_txns.credit_cents).
+// Feeds the Loop-participation KPI and gives the 8/6 loyalty-mechanic decision real behavior to
+// read. NOT the office jug float (business_accounts.jug_balance) — different container, on purpose.
+function LoopQuickLog() {
+  const [n, setN] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+  const log = async () => {
+    if (!supabase) return;
+    const v = Math.round(Number(n));
+    if (!Number.isFinite(v) || v <= 0) { setMsg("count first"); return; }
+    const { error } = await supabase.from("loop_txns").insert({ returns: v });
+    setMsg(error ? `couldn't log — ${error.message}` : `logged ${v} return${v === 1 ? "" : "s"} · $${(v * 2).toFixed(0)} credit owed`);
+    if (!error) setN("");
+  };
+  return (
+    <div className="dops-loop">
+      <span className="dops-loop-l">Loop returns</span>
+      <input inputMode="numeric" value={n} onChange={(e) => { setN(e.target.value.replace(/\D/g, "")); setMsg(null); }} placeholder="bottles" aria-label="Loop bottles returned" />
+      <button type="button" className="dops-mini" onClick={log} disabled={!n}>Log</button>
+      {msg && <i className="dops-loop-m">{msg}</i>}
+    </div>
+  );
+}
+
 function DeliveryPackout({ bottles, orders, refills, onClose }: { bottles: number; orders: number; refills: number; onClose: () => void }) {
   const coolers = Math.max(1, Math.ceil(bottles / 24));      // ~24 glass bottles upright per hard cooler
   const gelPacks = coolers * 5;                               // 4–6 per cooler; 5 is the safe middle

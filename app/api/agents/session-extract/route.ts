@@ -41,6 +41,17 @@ const TOOL: ToolDef = {
         stage: { type: "string", enum: STAGES },
         next_move: { type: "string" },
         next_move_at: { type: "string", description: "YYYY-MM-DD if stated." } }, required: ["account"] } },
+      activities: { type: "array", items: { type: "object", properties: {
+        account: { type: "string", description: "Account/vendor name as spoken." },
+        type: { type: "string", enum: ["popup", "sampler", "event", "restock", "other"] },
+        date: { type: "string", description: "YYYY-MM-DD if stated; omit otherwise." },
+        sampled: { type: "number", description: "Pours given, if a number was stated." },
+        buyers: { type: "number", description: "Pours that converted to purchases, if stated." },
+        bottles: { type: "number", description: "Bottles stocked/restocked, if stated." },
+        revenue: { type: "number", description: "Dollars taken at the activation, if stated." },
+        cost: { type: "number", description: "Dollars SPENT on the activation, if stated." },
+        note: { type: "string" } }, required: ["account", "type"] },
+        description: "Activation touches the transcript reports as HAVING HAPPENED (a pop-up run, a sampler dropped, a restock done) — with any numbers actually stated. Plans for future activations are next moves, not activities." },
     },
     required: ["title", "summary_md", "decisions", "open_items", "calendar", "pipeline_moves"],
   },
@@ -61,7 +72,7 @@ export async function POST(req: Request) {
   try {
     const r = await callClaude({ label: "session-extract",
       model: MODELS.sonnet, maxTokens: 3000, temperature: 0.1,
-      system: "You are the post-session pipeline for GT3 Performance Bar (mobile beverage business, two operators). Extract ONLY what the transcript supports: decisions actually made (definitive calls, not discussion), open items explicitly left open, calendar commitments with dates, pipeline account moves. Known pipeline stages: lead → warm → sampled → pilot → live → expand (+ lost). Always answer with the session_extraction tool. Never invent an item, a date, or an account name.",
+      system: "You are the post-session pipeline for GT3 Performance Bar (mobile beverage business, two operators). Extract ONLY what the transcript supports: decisions actually made (definitive calls, not discussion), open items explicitly left open, calendar commitments with dates, pipeline account moves, and activation activities that ALREADY HAPPENED (a pop-up run, a sampler dropped, a restock done — with any counts, revenue, or spend actually stated; planned activations are next moves, not activities). Known pipeline stages: lead → warm → sampled → pilot → live → expand (+ lost). Always answer with the session_extraction tool. Never invent an item, a number, a date, or an account name.",
       messages: [{ role: "user", content: `Session transcript:\n\n${text}` }],
       tools: [TOOL], tool_choice: { type: "tool", name: "session_extraction" },
     });
@@ -119,15 +130,18 @@ export async function POST(req: Request) {
   // 5 · pipeline moves — resolver rules (0226 spirit): exact / space-insensitive / containment.
   // A uniquely matched vendor updates its open account (or opens one at the stated stage).
   // No match = SKIPPED and reported — the extractor never mints accounts from a heard name.
+  const { data: vends } = await supabaseAdmin.from("vendors").select("id, name").is("archived_at", null);
+  const flat = (s: string) => s.toLowerCase().replace(/\s+/g, "");
+  const vendorHit = (nm: string) => {
+    const hits = ((vends ?? []) as any[]).filter((v) =>
+      v.name === nm || flat(v.name) === flat(nm) || nm.toLowerCase().includes(v.name.toLowerCase()) || v.name.toLowerCase().includes(nm.toLowerCase()));
+    return hits.length === 1 ? hits[0].id : null;
+  };
   let moves = 0; const skipped: string[] = [];
   for (const m of ((out.pipeline_moves ?? []) as any[]).filter((m) => m?.account?.trim())) {
     const nm = m.account.trim();
-    const { data: vends } = await supabaseAdmin.from("vendors").select("id, name").is("archived_at", null);
-    const flat = (s: string) => s.toLowerCase().replace(/\s+/g, "");
-    const hits = ((vends ?? []) as any[]).filter((v) =>
-      v.name === nm || flat(v.name) === flat(nm) || nm.toLowerCase().includes(v.name.toLowerCase()) || v.name.toLowerCase().includes(nm.toLowerCase()));
-    if (hits.length !== 1) { skipped.push(nm); continue; }
-    const vid = hits[0].id;
+    const vid = vendorHit(nm);
+    if (!vid) { skipped.push(nm); continue; }
     const stage = STAGES.includes(m.stage) ? m.stage : null;
     const patch: any = {};
     if (stage) patch.stage = stage;
@@ -139,5 +153,25 @@ export async function POST(req: Request) {
     else { const { error } = await supabaseAdmin.from("opportunities").insert({ vendor_id: vid, stage: stage ?? "lead", ...patch, source: "manual" }); if (!error) moves++; }
   }
 
-  return NextResponse.json({ ok: true, note_id: noteId, title: out.title, decisions: dec, open_items: items, events: evs, pipeline_moves: moves, skipped });
+  // 6 · activities that already happened → the uplift ledger (0268). Same resolver, same rule:
+  // an ambiguous or unknown account name is SKIPPED and reported, never guessed onto a card.
+  let actsFiled = 0;
+  const cents = (v: any) => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.round(v * 100) : null);
+  const cnt = (v: any) => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.round(v) : null);
+  for (const a of ((out.activities ?? []) as any[]).filter((a) => a?.account?.trim() && ["popup", "sampler", "event", "restock", "other"].includes(a?.type))) {
+    const nm = a.account.trim();
+    const vid = vendorHit(nm);
+    if (!vid) { if (!skipped.includes(nm)) skipped.push(nm); continue; }
+    const { data: opp } = await supabaseAdmin.from("opportunities").select("id").eq("vendor_id", vid).neq("stage", "lost").limit(1).maybeSingle();
+    if (!opp) { if (!skipped.includes(nm)) skipped.push(nm); continue; }
+    const { error } = await supabaseAdmin.from("account_activities").insert({
+      opportunity_id: (opp as any).id, type: a.type, on_date: okDate(a.date) ?? today,
+      sampled: cnt(a.sampled), buyers: cnt(a.buyers), bottles: cnt(a.bottles),
+      revenue_cents: cents(a.revenue), cost_cents: cents(a.cost),
+      note: a.note?.trim()?.slice(0, 240) || null, created_by: caller?.id ?? null,
+    });
+    if (!error) actsFiled++;
+  }
+
+  return NextResponse.json({ ok: true, note_id: noteId, title: out.title, decisions: dec, open_items: items, events: evs, pipeline_moves: moves, activities: actsFiled, skipped });
 }

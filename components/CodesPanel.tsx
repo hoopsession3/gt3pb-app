@@ -14,7 +14,7 @@ import { InfoRow } from "@/components/kit";
 // order funnel); the server reprices authoritatively via lib/benefits, so a minted code needs no
 // deploy. Staff-gated by RLS ("benefits staff write"). Pairs with the tier perks on the customer card.
 
-type Kind = "percent_off" | "price_override" | "free_refill";
+type Kind = "percent_off" | "price_override" | "free_refill" | "amount_off";
 type CodeRow = {
   id: string;
   code: string | null;
@@ -46,6 +46,7 @@ export default function CodesPanel() {
   const [target, setTarget] = useState("");
   const [percent, setPercent] = useState("15");
   const [price, setPrice] = useState("8");
+  const [amount, setAmount] = useState("5");   // amount_off (0268) — the '$5 off' QR-card kind
   const [label, setLabel] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -69,6 +70,7 @@ export default function CodesPanel() {
     const tgt = TARGETS.find((t) => t.v === target)?.label ?? "Whole order";
     if (kind === "percent_off") return `${percent}% off · ${tgt}`;
     if (kind === "price_override") return `$${price} · ${tgt}`;
+    if (kind === "amount_off") return `$${amount} off · ${tgt}`;
     return `Free · ${tgt}`;
   };
 
@@ -79,11 +81,12 @@ export default function CodesPanel() {
     if (kind === "percent_off" && (!Number(percent) || Number(percent) < 1 || Number(percent) > 100)) { toast("Percent must be 1–100", "error"); return; }
     if (kind === "price_override" && !(Number(price) >= 0)) { toast("Enter a valid price", "error"); return; }
     if (kind === "price_override" && !target) { toast("Set-price codes need a product target", "error"); return; }
+    if (kind === "amount_off" && !(Number(amount) > 0)) { toast("Enter the $ off (e.g. 5)", "error"); return; }
     setSaving(true);
     const row = {
       scope: "code" as const, code: codeClean, tier: null,
       kind, target: target || null,
-      value_cents: kind === "price_override" ? Math.round(Number(price) * 100) : null,
+      value_cents: kind === "price_override" ? Math.round(Number(price) * 100) : kind === "amount_off" ? Math.round(Number(amount) * 100) : null,
       percent: kind === "percent_off" ? Math.round(Number(percent)) : null,
       label: (label.trim() || autoLabel()), active: true,
     };
@@ -105,7 +108,15 @@ export default function CodesPanel() {
   const valueText = (r: CodeRow) =>
     r.kind === "percent_off" ? `${r.percent}% off`
     : r.kind === "price_override" ? `$${((r.value_cents ?? 0) / 100).toFixed(2)}`
+    : r.kind === "amount_off" ? `$${((r.value_cents ?? 0) / 100).toFixed(0)} off`
     : "Free";
+  // Every code has a printable QR target (/c/CODE, 0268) — scans count themselves in the coupon
+  // funnel, and the landing routes by what the code is TODAY, so printed cards never go stale.
+  const copyQr = async (r: CodeRow) => {
+    const url = `${typeof window !== "undefined" ? window.location.origin : "https://app.gt3pb.com"}/c/${encodeURIComponent(r.code ?? "")}`;
+    try { await navigator.clipboard.writeText(url); toast("QR link copied — point the printed QR here"); }
+    catch { toast(url); }
+  };
   const targetText = (r: CodeRow) => TARGETS.find((t) => t.v === (r.target ?? ""))?.label ?? r.target ?? "Whole order";
 
   return (
@@ -127,6 +138,7 @@ export default function CodesPanel() {
               <span>Kind</span>
               <select className="auth-input" value={kind} onChange={(e) => setKind(e.target.value as Kind)} aria-label="Discount kind">
                 <option value="percent_off">Percent off</option>
+                <option value="amount_off">$ off the order</option>
                 <option value="price_override">Set a price</option>
                 <option value="free_refill">Free</option>
               </select>
@@ -149,6 +161,12 @@ export default function CodesPanel() {
               <label className="codes-f">
                 <span>Price ($)</span>
                 <input className="auth-input" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value.replace(/[^\d.]/g, ""))} placeholder="8" aria-label="Set price in dollars" />
+              </label>
+            )}
+            {kind === "amount_off" && (
+              <label className="codes-f">
+                <span>$ off</span>
+                <input className="auth-input" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ""))} placeholder="5" aria-label="Dollars off the order" />
               </label>
             )}
           </div>
@@ -185,9 +203,12 @@ export default function CodesPanel() {
                   nameExtra={<span className="codes-badge">{valueText(r)}</span>}
                   sub={targetText(r)}
                   trailing={
-                    <button type="button" className={`codes-toggle${r.active ? " on" : ""}`} onClick={() => toggle(r)} role="switch" aria-checked={r.active} aria-label={`${r.code} ${r.active ? "active" : "paused"}`}>
-                      {r.active ? "Active" : "Paused"}
-                    </button>
+                    <span className="codes-trail">
+                      <button type="button" className="codes-qr" onClick={() => copyQr(r)} aria-label={`Copy QR link for ${r.code}`}>QR ⧉</button>
+                      <button type="button" className={`codes-toggle${r.active ? " on" : ""}`} onClick={() => toggle(r)} role="switch" aria-checked={r.active} aria-label={`${r.code} ${r.active ? "active" : "paused"}`}>
+                        {r.active ? "Active" : "Paused"}
+                      </button>
+                    </span>
                   }
                 />
               </div>

@@ -3,7 +3,7 @@ import { DRINKS, type DrinkId } from "@/lib/menu";
 import { SQUARE_BASE, SQUARE_VERSION, chargeCard, safeIdemKey } from "@/lib/squareServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
-import { benefitsForUser, priceForSlug } from "@/lib/benefits";
+import { benefitsForUser, priceForSlug, acceptedCode } from "@/lib/benefits";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { notifyCustomer, accountEmail } from "@/lib/notify";
 import { preorderWindow, preorderLeadMs } from "@/lib/orderAhead";
@@ -153,6 +153,10 @@ export async function POST(req: Request) {
     const base = productPrices[id] ?? squarePrices[id] ?? Math.round(parseFloat(DRINKS[id].px.replace("$", "")) * 100);
     subtotal += priceForSlug(benefits, id, base);
   }
+  // Which code to RECORD on the order (0268): only one that can actually reprice this channel.
+  // amount_off is order-level (packs) — validating it here without a discount would inflate the
+  // coupon-redemption KPI with rows where nothing was redeemed.
+  const cupsCode = acceptedCode(benefits.filter((b) => b.scope !== "code" || b.kind !== "amount_off"), body.code);
   // Tip is additive and capped at the subtotal as a fat-finger guard. Pay-at-pickup has no tip yet
   // (nothing charged here to attach it to) — the field is ignored on that path.
   const tip = paying && typeof tipCents === "number" && Number.isFinite(tipCents) && tipCents > 0 ? Math.min(Math.round(tipCents), subtotal) : 0;
@@ -166,7 +170,7 @@ export async function POST(req: Request) {
 
   if (!paying) {
     // Pay-at-pickup: record unpaid, no Square call — the crew charges in person at the window.
-    const orderRow = { items, total_cents: subtotal, paid: false, payment_id: null, customer, user_id: user?.id ?? null, customer_id: customerId, status: "new" };
+    const orderRow = { items, total_cents: subtotal, paid: false, payment_id: null, customer, user_id: user?.id ?? null, customer_id: customerId, status: "new", benefit_code: cupsCode };
     const { error: insErr } = await supabaseAdmin.from("orders").insert(orderRow);
     if (insErr) return NextResponse.json({ error: "That didn't go through — give it another tap" }, { status: 500 });
     // Confirmation email — cup orders carry no phone (a quick on-the-spot order, not a form), so this
@@ -208,7 +212,7 @@ export async function POST(req: Request) {
     // Record the paid order server-side (paid + payment_id are trustworthy here).
     // total_cents is the GOODS subtotal (tip excluded) so history + the referral floor
     // are consistent across paid and pre-order paths.
-    const orderRow = { items, total_cents: subtotal, paid: true, payment_id: paymentId, customer, user_id: user?.id ?? null, customer_id: customerId, status: "new" };
+    const orderRow = { items, total_cents: subtotal, paid: true, payment_id: paymentId, customer, user_id: user?.id ?? null, customer_id: customerId, status: "new", benefit_code: cupsCode };
     let { error: insErr } = await supabaseAdmin.from("orders").insert(orderRow);
     if (insErr) {
       // Charge succeeded but recording failed. Retry once — a transient DB blip must not cost the

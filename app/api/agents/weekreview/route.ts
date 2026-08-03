@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     .eq("source", "review").gte("met_on", day(new Date(now.getTime() - 6 * 864e5))).limit(1).maybeSingle();
   if (existing) return NextResponse.json({ ok: true, note_id: existing.id, title: existing.title, existing: true });
 
-  const [revThis, revPrior, goalsQ, initsQ, milesQ, eventsQ, incOpenQ, incFixedQ, decQ, overdueQ, next7Q, doneQ, portQ] = await Promise.all([
+  const [revThis, revPrior, goalsQ, initsQ, milesQ, eventsQ, incOpenQ, incFixedQ, decQ, overdueQ, next7Q, doneQ, portQ, actsQ] = await Promise.all([
     revenue(d7.toISOString(), now.toISOString()),
     revenue(d14.toISOString(), d7.toISOString()),
     supabaseAdmin.from("goals").select("title, unit, target_value, current_value, updated_at, checkin_status").eq("status", "active"),
@@ -65,6 +65,8 @@ export async function POST(req: Request) {
     supabaseAdmin.from("all_tasks").select("id", { count: "exact", head: true }).eq("done", false).gte("due", today).lte("due", ahead7),
     supabaseAdmin.from("all_tasks").select("id", { count: "exact", head: true }).eq("done", true).gte("done_at", d7.toISOString()),
     supabaseAdmin.from("os_workstreams").select("name, owner, status, health, next_action, blocker, last_audited").order("sort"),
+    // Activation ledger (0268) — soft: absent table (pre-migration) degrades to no section.
+    supabaseAdmin.from("account_activities").select("opportunity_id, on_date, cost_cents, revenue_cents"),
   ]);
 
   const goals = (goalsQ.data ?? []) as any[];
@@ -97,6 +99,17 @@ export async function POST(req: Request) {
   const sub8 = portActive.filter((w) => w.health < 8);
   const wsLine = (w: any) => `- **${w.health}** · ${w.name} (${w.owner})${w.status === "blocked" ? " · BLOCKED" : ""} — ${w.next_action ?? "no next action"}${w.blocker ? ` · ⚠ ${w.blocker}` : ""}`;
 
+  // Activation economics (0268 · Playbook §05): capital deployed vs the ~$6.0K Phase-1 plan, and
+  // this week's spend. GP-recovered narrates at the §05 conservative margin; the per-account rail
+  // on the pipeline card carries the precise live figure.
+  const acts = ((actsQ?.data ?? []) as any[]);
+  const spendAll = acts.reduce((s, a) => s + (a.cost_cents ?? 0), 0);
+  const spendWk = acts.filter((a) => a.on_date >= day(d7)).reduce((s, a) => s + (a.cost_cents ?? 0), 0);
+  const actRevAll = acts.reduce((s, a) => s + (a.revenue_cents ?? 0), 0);
+  const actLine = spendAll > 0
+    ? `- **Activation capital:** ${money(spendAll)} deployed of the ~$6.0K Phase-1 plan${spendWk > 0 ? ` (${money(spendWk)} this week)` : ""} · activation revenue ${money(actRevAll)} — per-account payback lives on the pipeline cards`
+    : acts.length > 0 ? `- **Activation capital:** activities logged, no spend recorded yet — add cost to touches so uplift math can run` : ``;
+
   const focus: string[] = [];
   for (const w of sub8.slice(0, 2)) focus.push(`**${w.name}** (${w.health}/10): ${w.blocker ?? w.next_action ?? "name the next action"}`);
   for (const g of atRisk.slice(0, 2)) focus.push(`Get **${g.title}** back on track — it's flagged at risk.`);
@@ -112,6 +125,7 @@ export async function POST(req: Request) {
     ran.length ? `- **Events run:** ${ran.map((e) => `${e.title} (${nice(e.day)})`).join(" · ")}` : `- **Events run:** none this week`,
     `- **Incidents:** ${blockers.length ? blockers.map((b) => b.problem).join(" · ") : "no open blockers"}${(incFixedQ.count ?? 0) > 0 ? ` · ${incFixedQ.count} resolved this week` : ""}`,
     decisions.length ? `- **Decisions logged:** ${decisions.map((d) => `${d.key} — ${d.decision}`).join(" · ")}` : `- **Decisions logged:** none — if calls were made this week, they belong in the ledger`,
+    actLine,
     ``,
     port.length ? `## Portfolio — the Monday audit${portMean !== null ? ` · mean ${portMean.toFixed(1)}` : ""}\n${port.map(wsLine).join("\n")}${sub8.length ? `\n\nBelow green: ${sub8.map((w) => `**${w.name}**`).join(" · ")} — the audit just wrote this week's agenda.` : "\n\nAll streams green or amber — rare air."}\n` : ``,
     `## Goals`,

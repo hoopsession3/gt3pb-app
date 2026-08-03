@@ -15,6 +15,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
 import PromptSheet from "./PromptSheet";
+import { bandFor, fmtBand, paybackPct, paybackWeeks, FALLBACK_MARGIN_PCT } from "@/lib/uplift";
 
 // PIPELINE — the sales funnel (0165). Vendor (the account) × deal (from the owner's catalog,
 // gated per vendor type) × rep × stage. The owner articulates what's on the table in the Deal
@@ -102,12 +103,21 @@ type Opp = {
   source?: string | null;
   value_cents: number | null; next_step: string | null; next_step_at: string | null;
   mrr_cents?: number | null; priority?: string | null; category?: string | null;   // 0265 — the Playbook's Account fields
+  business_account_id?: string | null;   // 0268 — the revenue wire: a LIVE account's real B2B orders answer its payback
   lost_reason: string | null; created_at: string;
   vendors: { name: string; vendor_type: string | null } | null;
   deals: { title: string; line?: string | null } | null;
 };
 type Staff = { id: string; display_name: string | null };
-type Board = { opps: Opp[]; deals: Deal[]; vendors: Vendor[]; staff: Staff[] };
+// ACTIVITY (0268 · Playbook p.14) — one activation touch with a COST. Deliveries are deliberately
+// not a type here: they're already orders; re-logging them would double-count revenue.
+type Activity = {
+  id: string; opportunity_id: string; type: string; on_date: string;
+  bottles: number | null; pulled: number | null; stock_after: number | null;
+  sampled: number | null; buyers: number | null; revenue_cents: number | null; cost_cents: number | null; note: string | null;
+};
+type BizAcct = { id: string; company: string };
+type Board = { opps: Opp[]; deals: Deal[]; vendors: Vendor[]; staff: Staff[]; acts: Activity[]; bizAccts: BizAcct[] };
 
 const money = (c: number | null) => (c == null ? "" : `$${(c / 100).toLocaleString()}`);
 
@@ -145,6 +155,127 @@ function DealRoi({ model, rate, econ, vol, setVol }: { model: string; rate: numb
   );
 }
 
+// ACTIVITY DESK (0268 · Playbook §05) — the uplift ledger, on the card it belongs to. Every
+// activation touch is one row with a cost, so "cost to uplift this account" is a live number.
+// Adds write into the SAME chronological thread as stage moves (onLog) — one pursuit record.
+const ACT_TYPES = [
+  { key: "popup", label: "Pop-up" },
+  { key: "sampler", label: "Sampler drop" },
+  { key: "event", label: "Event" },
+  { key: "restock", label: "Restock" },
+  { key: "other", label: "Other" },
+] as const;
+const actBlank = () => ({ type: "popup", on_date: new Date().toISOString().slice(0, 10), sampled: "", buyers: "", bottles: "", pulled: "", stock_after: "", revenue: "", cost: "", note: "" });
+function ActivityDesk({ o, rows, bizAccts, marginPct, onLog, onChanged, onWire }: {
+  o: Opp; rows: Activity[]; bizAccts: BizAcct[]; marginPct: number;
+  onLog: (line: string) => void; onChanged: () => void; onWire: (id: string | null) => void;
+}) {
+  const { toast } = useApp();
+  const { user } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [f, setF] = useState(actBlank());
+  const spend = rows.reduce((s, r) => s + (r.cost_cents ?? 0), 0);
+  const rev = rows.reduce((s, r) => s + (r.revenue_cents ?? 0), 0);
+  const band = bandFor(o.category);
+  const pb = paybackPct(rev, spend, marginPct);
+  const live = o.stage === "live" || o.stage === "expand";
+  const wks = live && (o.mrr_cents ?? 0) > 0 && spend > 0 ? paybackWeeks(spend, rev * (marginPct / 100), o.mrr_cents as number, marginPct) : null;
+  const num = (s: string) => (s.trim() === "" ? null : Math.max(0, Math.round(Number(s))));
+  const cents = (s: string) => (s.trim() === "" ? null : Math.max(0, Math.round(Number(s) * 100)));
+  const startEdit = (r: Activity) => {
+    setEditing(r.id); setOpen(true);
+    setF({ type: r.type, on_date: r.on_date, sampled: r.sampled != null ? String(r.sampled) : "", buyers: r.buyers != null ? String(r.buyers) : "", bottles: r.bottles != null ? String(r.bottles) : "", pulled: r.pulled != null ? String(r.pulled) : "", stock_after: r.stock_after != null ? String(r.stock_after) : "", revenue: r.revenue_cents != null ? String(r.revenue_cents / 100) : "", cost: r.cost_cents != null ? String(r.cost_cents / 100) : "", note: r.note ?? "" });
+  };
+  const save = async () => {
+    if (!supabase) return;
+    const row = { opportunity_id: o.id, type: f.type, on_date: f.on_date, sampled: num(f.sampled), buyers: num(f.buyers), bottles: num(f.bottles), pulled: num(f.pulled), stock_after: num(f.stock_after), revenue_cents: cents(f.revenue), cost_cents: cents(f.cost), note: f.note.trim() || null };
+    const { error } = editing
+      ? await supabase.from("account_activities").update({ ...row, updated_at: new Date().toISOString() }).eq("id", editing)
+      : await supabase.from("account_activities").insert({ ...row, created_by: user?.id ?? null });
+    if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
+    if (!editing) {
+      const bits = [ACT_TYPES.find((t) => t.key === f.type)?.label ?? f.type];
+      if (row.sampled) bits.push(`${row.sampled} sampled${row.buyers != null ? ` → ${row.buyers} bought` : ""}`);
+      if (row.bottles) bits.push(`+${row.bottles} stocked`);
+      if (row.pulled) bits.push(`${row.pulled} pulled`);
+      if (row.revenue_cents) bits.push(`$${Math.round(row.revenue_cents / 100)} rev`);
+      if (row.cost_cents) bits.push(`$${Math.round(row.cost_cents / 100)} cost`);
+      onLog(`⚡ ${bits.join(" · ")}`);
+    }
+    setEditing(null); setF(actBlank()); setOpen(false);
+    toast(editing ? "Activity updated" : "Logged — the uplift math has it"); onChanged();
+  };
+  const del = async (r: Activity) => {
+    if (!supabase) return;
+    if (typeof window !== "undefined" && !window.confirm("Remove this activity? The uplift math forgets it.")) return;
+    const { error } = await supabase.from("account_activities").delete().eq("id", r.id);
+    if (error) toast(`Couldn't remove — ${error.message}`, "error");
+    else { toast("Removed"); onChanged(); }
+  };
+  const actLine = (r: Activity) => {
+    const bits: string[] = [];
+    if (r.sampled) bits.push(`${r.sampled}→${r.buyers ?? 0}`);
+    if (r.bottles != null || r.pulled != null || r.stock_after != null) bits.push(`+${r.bottles ?? 0}/−${r.pulled ?? 0}${r.stock_after != null ? `/=${r.stock_after}` : ""}`);
+    if (r.revenue_cents) bits.push(`$${Math.round(r.revenue_cents / 100)}`);
+    if (r.cost_cents) bits.push(`cost $${Math.round(r.cost_cents / 100)}`);
+    return bits.join(" · ");
+  };
+  return (
+    <div className="act-desk">
+      <div className="act-sum">
+        <span className="act-sum-l"><b>Uplift</b> {spend > 0 ? `$${(spend / 100).toLocaleString()} spent` : "no spend logged yet"}{band ? ` · band ${fmtBand(band)} ${band.label}` : ""}{pb != null ? ` · GP back ≈${pb}%` : ""}{wks != null ? (wks === 0 ? " · paid back ✓" : ` · ≈${wks} wk to payback at MRR`) : ""}</span>
+        <button type="button" className="dops-mini" onClick={() => { setEditing(null); setF(actBlank()); setOpen((v) => !v); }} aria-expanded={open}>{open ? "Close" : "⚡ Log activity"}</button>
+      </div>
+      {live && bizAccts.length > 0 && (
+        <label className="act-wire">Revenue wire <i>— this account&apos;s office orders count toward payback</i>
+          <select value={o.business_account_id ?? ""} onChange={(e) => onWire(e.target.value || null)}>
+            <option value="">Not linked</option>
+            {bizAccts.map((b) => <option key={b.id} value={b.id}>{b.company}</option>)}
+          </select>
+        </label>
+      )}
+      {rows.length > 0 && (
+        <div className="act-list">
+          {rows.slice(0, 8).map((r) => (
+            <div key={r.id} className="act-row">
+              <button type="button" className="act-row-t" onClick={() => startEdit(r)}>
+                {new Date(`${r.on_date}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })} · {ACT_TYPES.find((t) => t.key === r.type)?.label ?? r.type}{actLine(r) ? ` · ${actLine(r)}` : ""}{r.note ? <i> — {r.note}</i> : null}
+              </button>
+              <button type="button" className="pipe-del" onClick={() => del(r)} aria-label="Remove activity"><Icon name="close" /></button>
+            </div>
+          ))}
+        </div>
+      )}
+      {open && (
+        <div className="act-form">
+          <div className="pipe-grid">
+            <label>Type
+              <select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}>
+                {ACT_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+              </select>
+            </label>
+            <label>Date<input type="date" value={f.on_date} onChange={(e) => setF({ ...f, on_date: e.target.value })} /></label>
+            <label>Sampled<input inputMode="numeric" value={f.sampled} onChange={(e) => setF({ ...f, sampled: e.target.value })} placeholder="pours" /></label>
+            <label>Bought<input inputMode="numeric" value={f.buyers} onChange={(e) => setF({ ...f, buyers: e.target.value })} placeholder="converted" /></label>
+            <label>Bottles added<input inputMode="numeric" value={f.bottles} onChange={(e) => setF({ ...f, bottles: e.target.value })} placeholder="restock" /></label>
+            <label>Pulled<input inputMode="numeric" value={f.pulled} onChange={(e) => setF({ ...f, pulled: e.target.value })} placeholder="expired" /></label>
+            <label>Shelf after<input inputMode="numeric" value={f.stock_after} onChange={(e) => setF({ ...f, stock_after: e.target.value })} placeholder="count on leave" /></label>
+            <label>Revenue $<input inputMode="decimal" value={f.revenue} onChange={(e) => setF({ ...f, revenue: e.target.value })} placeholder="0" /></label>
+            <label>Cost $<input inputMode="decimal" value={f.cost} onChange={(e) => setF({ ...f, cost: e.target.value })} placeholder="uplift spend" /></label>
+            <label>Note<input value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} maxLength={240} placeholder="what happened" /></label>
+          </div>
+          {f.type === "restock" && <div className="act-hint">Restock rows power sell-through &amp; spoilage — count the shelf when you leave.</div>}
+          <div className="st-log-btns">
+            <button type="button" className="dops-mini" onClick={save}>{editing ? "Save changes" : "Log it"}</button>
+            <button type="button" className="st-discuss" onClick={() => { setEditing(null); setF(actBlank()); setOpen(false); }}>Cancel</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   const { toast } = useApp();
   const { user } = useAuth();
@@ -172,12 +303,16 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   const [ed, setEd] = useState({ title: "", vendor_type: "gym", price_label: "", blurb: "", model: "rev_share", rate: "", amount: "", line: "wholesale" });
 
   const loader = useCallback(async (): Promise<Board> => {
-    if (!supabase) return { opps: [], deals: [], vendors: [], staff: [] };
-    const [o, d, v, st] = await Promise.all([
-      supabase.from("opportunities").select("id, vendor_id, deal_id, rep_id, stage, source, value_cents, next_step, next_step_at, mrr_cents, priority, category, lost_reason, created_at, vendors(name, vendor_type), deals(title, line)").order("created_at", { ascending: false }),
+    if (!supabase) return { opps: [], deals: [], vendors: [], staff: [], acts: [], bizAccts: [] };
+    const [o, d, v, st, a, ba] = await Promise.all([
+      supabase.from("opportunities").select("id, vendor_id, deal_id, rep_id, stage, source, value_cents, next_step, next_step_at, mrr_cents, priority, category, business_account_id, lost_reason, created_at, vendors(name, vendor_type), deals(title, line)").order("created_at", { ascending: false }),
       supabase.from("deals").select("id, title, blurb, vendor_type, price_label, active, sort, model, rate_pct, monthly_cents, line").order("sort").order("created_at"),
       supabase.from("vendors").select("id, name, vendor_type, archived_at").is("archived_at", null).order("name"),
       supabase.from("profiles").select("id, display_name").neq("role", "member").order("display_name"),
+      // SOFT reads (0268): during a deploy→migration gap these don't exist yet — the BOARD must not
+      // die for the uplift rail's sake. They render empty until the migration lands.
+      supabase.from("account_activities").select("id, opportunity_id, type, on_date, bottles, pulled, stock_after, sampled, buyers, revenue_cents, cost_cents, note").order("on_date", { ascending: false }).limit(600),
+      supabase.from("business_accounts").select("id, company").order("company"),
     ]);
     if (o.error) throw new Error(o.error.message);
     if (d.error) throw new Error(d.error.message);
@@ -188,6 +323,8 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
       deals: (d.data as Deal[]) ?? [],
       vendors: (v.data as Vendor[]) ?? [],
       staff: (st.data as Staff[]) ?? [],
+      acts: a.error ? [] : ((a.data as Activity[]) ?? []),
+      bizAccts: ba.error ? [] : ((ba.data as BizAcct[]) ?? []),
     };
   }, []);
   const board = useAsyncData(loader, []);
@@ -206,7 +343,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
       setEcon({ marginPct, costed: rows.length });
     });
   }, []);
-  useRealtimeTable(["opportunities", "deals", "vendors"], reload);
+  useRealtimeTable(["opportunities", "deals", "vendors", "account_activities"], reload);
 
   const firstName = (uid: string | null) => (staff.find((s) => s.id === uid)?.display_name || "").trim().split(/\s+/)[0] || null;
   // Milestones write into the opportunity's thread (comments + strategy_key — dated, attributed),
@@ -391,6 +528,15 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   // Live/expand accounts keep next-step discipline too (restocks, QBRs) — only lost is exempt.
   const overdue = (o: Opp) => o.next_step_at && o.next_step_at < new Date().toISOString().slice(0, 10) && o.stage !== "lost";
 
+  // Uplift ledger (0268), grouped once per render — the card line and the desk read the same rows.
+  const acts = board.data?.acts ?? [];
+  const bizAccts = board.data?.bizAccts ?? [];
+  const actsByOpp = new Map<string, Activity[]>();
+  for (const a of acts) { const l = actsByOpp.get(a.opportunity_id) ?? []; l.push(a); actsByOpp.set(a.opportunity_id, l); }
+  // Payback prices GP with the SAME blended margin the deal floor uses (product_economics_live) —
+  // one margin, no disagreement between "is this deal ok" and "has this spend paid back".
+  const marginPct = econ?.marginPct ?? FALLBACK_MARGIN_PCT;
+
   const todayKey = new Date().toISOString().slice(0, 10);
   const card = (o: Opp) => (
     <div key={o.id} className={`pipe-card${overdue(o) ? " late" : ""}`} style={{ borderLeftColor: STAGE_COLOR[o.stage] }}>
@@ -409,6 +555,12 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
       {(o.next_step || overdue(o)) && openId !== o.id && (
         <div className={`pipe-next${overdue(o) ? "" : o.next_step_at === todayKey ? " today" : ""}`}>{overdue(o) ? <Icon name="warning" /> : <Icon name="arrowRight" />} {o.next_step ?? "next step overdue"}{o.next_step_at ? ` · ${o.next_step_at === todayKey ? "today" : new Date(`${o.next_step_at}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : ""}</div>
       )}
+      {openId !== o.id && (() => {   // collapsed uplift line (0268) — spend at a glance, only once real
+        const rs = actsByOpp.get(o.id); if (!rs) return null;
+        const sp = rs.reduce((s, r) => s + (r.cost_cents ?? 0), 0); if (!sp) return null;
+        const b = bandFor(o.category);
+        return <div className="pipe-uplift">⚡ ${(sp / 100).toLocaleString()}{b ? ` of ${fmtBand(b)}` : ""} uplift · {rs.length} {rs.length === 1 ? "touch" : "touches"}</div>;
+      })()}
       {openId === o.id && (
         <div className="pipe-body">
           <div className="pipe-grid">
@@ -448,6 +600,8 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
               <input type="date" value={o.next_step_at ?? ""} onChange={(e) => patch(o.id, { next_step_at: e.target.value || null })} />
             </label>
           </div>
+          <ActivityDesk o={o} rows={actsByOpp.get(o.id) ?? []} bizAccts={bizAccts} marginPct={marginPct}
+            onLog={(l) => logActivity(o.id, l)} onChanged={reload} onWire={(id) => patch(o.id, { business_account_id: id })} />
           {o.stage === "lost" && o.lost_reason && <div className="pipe-lost">Lost: {o.lost_reason}</div>}
           {oppNotes.length > 0 && (
             <div className="pipe-notes">

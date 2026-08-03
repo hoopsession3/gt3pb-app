@@ -3,7 +3,7 @@ import { chargeCard, safeIdemKey } from "@/lib/squareServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
-import { benefitsForUser, refillIsFree, applyOrderPercent } from "@/lib/benefits";
+import { benefitsForUser, refillIsFree, applyOrderBenefits, acceptedCode } from "@/lib/benefits";
 import { notifyCustomer, accountEmail } from "@/lib/notify";
 import { PRICING, FLAVORS, isPackSize, packTotal, toCents, mixComplete, mixSummary, nextDrop, dropForStop, dropDateKey, dollars, type GlassPath, type Mix } from "@/lib/orderAhead";
 
@@ -82,7 +82,7 @@ export async function POST(req: Request) {
   // percent-off code discounts the whole order (new or return). Best benefit wins.
   const benefits = await benefitsForUser(user.id, (body as { code?: string }).code);
   if (glass === "return" && refillIsFree(benefits)) amount = 0;
-  else amount = applyOrderPercent(amount, benefits);
+  else amount = applyOrderBenefits(amount, benefits);   // deepest percent, then amount-off (0268), floored at 0
 
   const idemKey = safeIdemKey(body.idempotencyKey);
 
@@ -118,7 +118,8 @@ export async function POST(req: Request) {
     // Canonical customer link (0151) — member-only route, so user.id is the strong key; phone folds
     // any prior guest orders on the same number into this record.
     const customerId = (await supabaseAdmin.rpc("resolve_customer", { p_user_id: user.id, p_phone: phone || null, p_email: null, p_name: name })).data as string | null;
-    const row = { user_id: user.id, customer_id: customerId, name, phone, size, glass, mix, total_cents: amount, paid, payment_id: paymentId, idempotency_key: idemKey, drop_date: dropDate };
+    // The VALIDATED code rides the order row (0268) — coupon redemptions become a query, not a tally.
+    const row = { user_id: user.id, customer_id: customerId, name, phone, size, glass, mix, total_cents: amount, paid, payment_id: paymentId, idempotency_key: idemKey, drop_date: dropDate, benefit_code: acceptedCode(benefits, (body as { code?: string }).code) };
     let { data: inserted, error: insErr } = await supabaseAdmin.from("drop_orders").insert(row).select("id").single();
     if (insErr) ({ data: inserted, error: insErr } = await supabaseAdmin.from("drop_orders").insert(row).select("id").single()); // retry once
     if (insErr) {
