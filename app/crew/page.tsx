@@ -61,6 +61,8 @@ const OperatingRhythm = dynamic(() => import("@/components/OperatingRhythm"), { 
 const Discussions = dynamic(() => import("@/components/Discussions"), { loading: () => <PourFill label="Loading…" /> });
 const OsRegistry = dynamic(() => import("@/components/OsRegistry"), { loading: () => <PourFill label="Loading…" /> });
 const KpiBoard = dynamic(() => import("@/components/KpiBoard"), { loading: () => <PourFill label="Loading…" /> });
+const UtilizationPanel = dynamic(() => import("@/components/UtilizationPanel"), { loading: () => <PourFill label="Loading…" /> });
+const DayHeadline = dynamic(() => import("@/components/DayHeadline"), { loading: () => null });
 const InviteTeammate = dynamic(() => import("@/components/InviteTeammate"), { loading: () => <PourFill label="Loading…" /> });
 const CrmPanel = dynamic(() => import("@/components/CrmPanel"), { loading: () => <PourFill label="Loading…" /> });
 const CodesPanel = dynamic(() => import("@/components/CodesPanel"), { loading: () => <PourFill label="Loading…" /> });
@@ -3564,7 +3566,7 @@ function MeetingNotes() {
   return (
     <div className="adm-sec">
       <SectionHeader label="Notes" right={<span className="adm-pill">{notes.length}</span>} />
-      <div className="h-sub note-intro">For yourself or the team — pick who sees each one (<Icon name="lock" /> just me · <Icon name="team" /> team · <Icon name="partners" /> team + comments). Tag follow-ups and they land in My&nbsp;Tasks with a notification. Meeting recap? Paste the transcript and <Icon name="sparkles" /> summarize. Notes grow — <b>＋&nbsp;add to them</b> anytime, attachments stay on the note, nothing is ever overwritten.</div>
+      <div className="h-sub note-intro">Pick who sees each one (<Icon name="lock" /> me · <Icon name="team" /> team · <Icon name="partners" /> team&nbsp;+&nbsp;comments). Follow-ups land in My&nbsp;Tasks; <Icon name="sparkles" /> summarize turns a transcript into the note. Notes grow — <b>＋&nbsp;add</b> anytime; nothing is ever overwritten.</div>
 
       <button type="button" className="note-new" onClick={() => setComposing(true)}>✎ New note</button>
       {composing && (
@@ -5935,6 +5937,9 @@ export default function AdminPage() {
     return () => window.removeEventListener("gt3-open-inbox", open);
   }, []);
   useEffect(() => { setInboxOpen(false); }, [sec]);
+  // Utilization (0267): each section visit is an action ping — "last action" reads like
+  // "crew:command" in the report. Throttled inside lib/track (1/15s), fire-and-forget.
+  useEffect(() => { import("@/lib/track").then((m) => m.trackUser(`crew:${sec}`), () => {}); }, [sec]);
   // Prep drill-in, lifted (2026-07-30): EventPrep drives it, PrepKpis re-scopes its tiles to it —
   // one selection, two readers. Living here (not inside EventPrep) also means stepping out to
   // another section and back no longer loses your place mid-prep.
@@ -6075,7 +6080,14 @@ export default function AdminPage() {
           fades+slides in. planTab changes keep the same key, so sub-tabs don't re-animate.
           role=region + focus-on-change: keyboard/SR users land in the new section, not adrift. */}
       <div className="op-trans" key={sec} ref={opBodyRef} tabIndex={-1} role="region" aria-label={`${SEC_LABEL[sec]} section`}>
-      {sec === "day" && <MyDay userId={user?.id ?? null} meName={profile?.display_name?.trim() || "Me"} isLeader={canManage} canPrep={canPrep} canBrew={canManage || role === "operator"} />}
+      {sec === "day" && (
+        <>
+          {/* P3 (2026-08-03): a leader's day opens with the headline — today's op + top 3 due —
+              before the plates. Renders nothing on a quiet day. */}
+          {canManage && <DayHeadline />}
+          <MyDay userId={user?.id ?? null} meName={profile?.display_name?.trim() || "Me"} isLeader={canManage} canPrep={canPrep} canBrew={canManage || role === "operator"} />
+        </>
+      )}
       {sec === "command" && canManage && (
         <>
           {/* GT3 COMMAND (2026-08-03): the Executive OS lands. The portfolio registry LEADS —
@@ -6352,6 +6364,10 @@ export default function AdminPage() {
       {sec === "team" && isAdmin && (
         <>
           <TeamKpis />
+          {/* Utilization (0267, Ryan: "so you don't have to ask me this no more") — who's actually
+              IN the system: active days, sign-ins, actions, last-seen per person, plus the
+              anonymous guest pulse. Admin-only data by RLS. */}
+          <UtilizationPanel />
           {isOwner && <div className="crew-group">Invite a teammate</div>}
           {isOwner && <InviteTeammate />}
           <div className="crew-group">Who&apos;s on what</div>

@@ -33,6 +33,37 @@ const KPIS: { key: string; label: string; unit: string; cadence: string }[] = [
 ];
 
 type Snap = { metric: string; period: string; value: number };
+type BoardData = { snaps: Snap[]; live: Record<string, number> };
+
+// Live-computable metrics (2026-08-03, Ryan: "I can start tracking all") — three of the twelve
+// already read straight from order data; they show a LIVE chip and take no manual entry. The
+// rest stay Monday-entry until their source object ships (restock activities, coupon scans, …) —
+// wiring a metric before its data exists would just be a prettier guess.
+async function computeLive(): Promise<Record<string, number>> {
+  if (!supabase) return {};
+  const out: Record<string, number> = {};
+  const week = new Date(Date.now() - 7 * 864e5).toISOString();
+  const monthStart = `${new Date().toISOString().slice(0, 8)}01`;
+  try {   // Revenue / route (weekly): paid delivery revenue ÷ distinct run days
+    const { data } = await supabase.from("delivery_orders").select("total_cents, delivery_date, payment_status").gte("created_at", week).is("canceled_at", null);
+    const paid = ((data ?? []) as any[]).filter((o) => o.payment_status === "paid");
+    const days = new Set(paid.map((o) => o.delivery_date)).size;
+    if (days > 0) out.rev_route = Math.round(paid.reduce((s, o) => s + (o.total_cents ?? 0), 0) / 100 / days);
+  } catch { /* stays manual */ }
+  try {   // Revenue / operating day (weekly): all paid revenue ÷ distinct days with sales
+    const { data } = await supabase.from("all_orders").select("total_cents, payment_status, created_at").gte("created_at", week);
+    const paid = ((data ?? []) as any[]).filter((o) => o.payment_status === "paid");
+    const days = new Set(paid.map((o) => String(o.created_at).slice(0, 10))).size;
+    if (days > 0) out.rev_op_day = Math.round(paid.reduce((s, o) => s + (o.total_cents ?? 0), 0) / 100 / days);
+  } catch { /* stays manual */ }
+  try {   // Repeat purchase rate (monthly): customers with 2+ paid orders ÷ customers with any
+    const { data } = await supabase.from("orders").select("customer_id, paid").gte("created_at", `${monthStart}T00:00:00`).eq("paid", true).not("customer_id", "is", null);
+    const counts = new Map<string, number>();
+    for (const o of ((data ?? []) as any[])) counts.set(o.customer_id, (counts.get(o.customer_id) ?? 0) + 1);
+    if (counts.size > 0) out.repeat_rate = Math.round(([...counts.values()].filter((n) => n >= 2).length / counts.size) * 100);
+  } catch { /* stays manual */ }
+  return out;
+}
 
 export default function KpiBoard() {
   const { user, profile } = useAuth();
@@ -40,11 +71,14 @@ export default function KpiBoard() {
   const isAdmin = !!profile?.is_admin || ["owner", "admin"].includes(String((profile as any)?.role ?? ""));
   const [entry, setEntry] = useState<Record<string, string>>({});
 
-  const loader = useCallback(async (): Promise<Snap[]> => {
-    if (!supabase) return [];
-    const { data, error } = await supabase.from("kpi_snapshots").select("metric, period, value").order("period", { ascending: false }).limit(96);
+  const loader = useCallback(async (): Promise<BoardData> => {
+    if (!supabase) return { snaps: [], live: {} };
+    const [{ data, error }, live] = await Promise.all([
+      supabase.from("kpi_snapshots").select("metric, period, value").order("period", { ascending: false }).limit(96),
+      computeLive(),
+    ]);
     if (error) throw new Error(error.message);
-    return (data as Snap[]) ?? [];
+    return { snaps: (data as Snap[]) ?? [], live };
   }, []);
   const state = useAsyncData(loader, []);
   useRealtimeTable(["kpi_snapshots"], state.reload);
@@ -67,17 +101,19 @@ export default function KpiBoard() {
       <SectionHeader label="The twelve" annotation="Monday entry until live" />
       <div className="h-sub">The Playbook's KPI framework — the audit's Signal criterion reads this board. Same week re-entry updates in place.</div>
       <AsyncSection state={state} isEmpty={() => false} emptyTitle="—" loadingLabel="Loading KPIs…" errorTitle="Couldn't load KPIs">
-        {(snaps) => (
+        {({ snaps, live }) => (
           <div className="kpib">
             {KPIS.map((k) => {
+              const isLive = live[k.key] !== undefined;
               const mine = snaps.filter((s) => s.metric === k.key);
               const latest = mine[0]; const prior = mine[1];
-              const trend = latest && prior ? (latest.value > prior.value ? "↑" : latest.value < prior.value ? "↓" : "→") : "";
+              const shown = isLive ? live[k.key] : latest?.value;
+              const trend = !isLive && latest && prior ? (latest.value > prior.value ? "↑" : latest.value < prior.value ? "↓" : "→") : "";
               return (
                 <div key={k.key} className="kpib-row">
-                  <span className="kpib-l">{k.label}<i>{k.cadence}</i></span>
-                  <span className="kpib-v">{latest ? `${k.unit === "$" ? "$" : ""}${latest.value.toLocaleString()}${k.unit === "%" ? "%" : ""}` : "—"}{trend && <i className={`kpib-t${trend === "↓" ? " down" : ""}`}>{trend}</i>}</span>
-                  {isAdmin && (
+                  <span className="kpib-l">{k.label}<i>{k.cadence}{isLive && <em className="kpib-live">live</em>}</i></span>
+                  <span className="kpib-v">{shown !== undefined ? `${k.unit === "$" ? "$" : ""}${Number(shown).toLocaleString()}${k.unit === "%" ? "%" : ""}` : "—"}{trend && <i className={`kpib-t${trend === "↓" ? " down" : ""}`}>{trend}</i>}</span>
+                  {isAdmin && !isLive && (
                     <span className="kpib-in">
                       <input inputMode="decimal" placeholder={k.unit} value={entry[k.key] ?? ""} onChange={(e) => setEntry((s) => ({ ...s, [k.key]: e.target.value }))} onKeyDown={(e) => { if (e.key === "Enter") save(k.key); }} aria-label={`Enter ${k.label}`} />
                       <button type="button" onClick={() => save(k.key)} disabled={!(entry[k.key] ?? "").trim()}>Log</button>

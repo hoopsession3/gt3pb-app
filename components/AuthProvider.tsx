@@ -113,12 +113,20 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       // profile load, so we don't fetch (or attach_referral) twice on cold start.
       setUser(data.session?.user ?? null);
       setReady(true);
+      // Utilization (0267): no session = an anonymous visitor — count the visit (daily counter,
+      // no IDs, throttled to one ping per device per hour in lib/track).
+      if (!data.session?.user) import("@/lib/track").then((m) => m.trackGuest(), () => {});
     });
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       const u = session?.user ?? null;
       setUser(u);
       if (u) loadProfile(u.id);
       else setProfile(null);
+      // Utilization (0267): a real sign-in bumps the login counter; INITIAL_SESSION (cold-start
+      // session restore) counts as presence, not a login — so "logins" answers "how many times
+      // did they actually sign in," not "how many times did the PWA wake up."
+      if (u && event === "SIGNED_IN") import("@/lib/track").then((m) => m.trackUser("login", true), () => {});
+      else if (u && event === "INITIAL_SESSION") import("@/lib/track").then((m) => m.trackUser("open"), () => {});
       // Clicking a reset link signs the user in with a short-lived recovery session and fires this
       // event — gate the app behind a "set a new password" overlay until they pick one.
       if (event === "PASSWORD_RECOVERY") setRecovery(true);

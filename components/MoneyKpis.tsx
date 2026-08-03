@@ -75,14 +75,21 @@ export default function MoneyKpis() {
     return () => { live = false; };
   }, []);
 
+  // Pre-revenue staging (P3, 2026-08-03): a wall of $0 reads like something is broken. It isn't —
+  // the meters are wired and waiting. Say so, once, above the tiles; the line deletes itself the
+  // day the first dollar lands.
+  const preRevenue = kpis.length > 0 && kpis[0].k === "week_rev" && (kpis[0].v === "$0.00" || kpis[0].v === "$0");
   return (
-    <div className="mkpi" role="group" aria-label="Money at a glance">
-      {kpis.map((t) => (
-        <div className="mkpi-tile" key={t.k}>
-          <div className="mkpi-v">{t.v}</div>
-          <div className="mkpi-k">{t.sub}</div>
-        </div>
-      ))}
-    </div>
+    <>
+      {preRevenue && <p className="mkpi-stage">Pre-revenue — every meter below is wired and starts counting the day the first bottle sells.</p>}
+      <div className="mkpi" role="group" aria-label="Money at a glance">
+        {kpis.map((t) => (
+          <div className="mkpi-tile" key={t.k}>
+            <div className="mkpi-v">{t.v}</div>
+            <div className="mkpi-k">{t.sub}</div>
+          </div>
+        ))}
+      </div>
+    </>
   );
 }

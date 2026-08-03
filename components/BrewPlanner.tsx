@@ -301,6 +301,16 @@ export default function BrewPlanner() {
                       return (
                         <div className={`brew-oprow${ms <= 0 ? " over" : ms < 12 * 3600000 ? " warn" : " ok"}`}>
                           {ms <= 0 ? `Serve by ${label} — past its window` : `Serve by ${label} · ${h > 0 ? `${h}h` : `${m}m`} left`}
+                          {/* Alarm-fatigue fix (P3, 2026-08-03): a past-window batch used to just sit
+                              red while the 0084 ladder kept pushing. Taste it and make the call —
+                              "still good" extends the hold 24h (quiets the ladder for a day, on the
+                              record), or archive it from the status controls if it's done. */}
+                          {ms <= 0 && (
+                            <button type="button" className="brew-taste" onClick={async () => {
+                              if (!supabase) return;
+                              await supabase.from("brew_batches").update({ hold_hours: Number(b.hold_hours ?? 72) + 24 }).eq("id", b.id);
+                            }}>Tasted — still good, +24h</button>
+                          )}
                         </div>
                       );
                     })()}

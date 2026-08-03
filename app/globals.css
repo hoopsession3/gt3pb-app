@@ -6370,3 +6370,31 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .osr-add{display:flex;gap:8px;align-items:center}
 .osr-add .note-in{flex:1;margin:0}
 .osr-remove{margin-top:2px;align-self:flex-start}
+/* ── 0267 do-all round (2026-08-03) — utilization report, day headline, KPI live chips,
+   brew taste-ack, pre-revenue staging line. */
+.util-rows{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.util-row{display:flex;flex-direction:column;gap:3px;background:rgba(0,0,0,.18);border:1px solid var(--line2);border-radius:12px;padding:10px 13px}
+.util-row.idle{opacity:.6}
+.util-name{font-family:'Inter';font-weight:700;font-size:13px;color:var(--cream);display:flex;align-items:center;gap:8px}
+.util-name i{font-style:normal;font-family:'DM Mono',ui-monospace,monospace;font-size:9px;letter-spacing:.7px;text-transform:uppercase;color:var(--gold2)}
+.util-stats{font-family:'Inter';font-size:12px;color:var(--cream-m)}
+.util-stats b{color:var(--cream)}
+.util-last{font-family:'DM Mono',ui-monospace,monospace;font-size:10.5px;color:var(--cream-m)}
+.util-guests{margin-top:12px;display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;font-family:'Inter';font-size:12.5px;color:var(--cream)}
+.util-guests-k{font-family:'DM Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.7px;text-transform:uppercase;color:var(--gold2)}
+.util-guests b{font-family:'Archivo Black';font-size:15px}
+.util-guests i{font-style:normal;color:var(--cream-m);font-size:11.5px}
+.util-guests-note{width:100%;font-size:10.5px;color:var(--cream-m);font-style:italic}
+.dayhead{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
+.dayhead-op{border:1px solid var(--gold2);border-radius:14px;padding:12px 15px;background:rgba(200,166,97,.07);display:flex;flex-direction:column;gap:2px}
+.dayhead-op.live{border-color:#5b9a6b;background:rgba(91,154,107,.08)}
+.dayhead-k{font-family:'DM Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.8px;text-transform:uppercase;color:var(--gold2)}
+.dayhead-op.live .dayhead-k{color:#5b9a6b}
+.dayhead-op b{font-family:'Archivo Black';font-size:16px;color:var(--cream)}
+.dayhead-top{display:flex;flex-direction:column;gap:6px}
+.dayhead-t{display:flex;align-items:center;gap:7px;text-align:left;background:rgba(0,0,0,.18);border:1px solid var(--line2);border-radius:11px;padding:9px 12px;cursor:pointer;font-family:'Inter';font-weight:600;font-size:12.5px;color:var(--cream);-webkit-appearance:none;appearance:none}
+.dayhead-t.crit{border-color:var(--warn)}
+.dayhead-t svg{width:13px;height:13px;color:var(--warn);flex:0 0 auto}
+.kpib-live{font-style:normal;margin-left:6px;color:#5b9a6b;letter-spacing:.6px}
+.brew-taste{margin-left:10px;background:none;border:1px solid var(--line2);border-radius:999px;padding:3px 10px;cursor:pointer;font-family:'Inter';font-weight:650;font-size:10.5px;color:var(--cream);-webkit-appearance:none;appearance:none}
+.mkpi-stage{font-family:'Fraunces',serif;font-style:italic;font-size:13px;color:var(--cream-m);margin:0 0 10px}

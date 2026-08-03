@@ -742,5 +742,39 @@ ok("0266 decisions carry provenance to the session note; Corporate Delivery seed
     return withNote === 1 && cd.stage === "live" && Number(cd.mrr_cents) === 177300 && cd.live_at === true;
   })());
 
+// ── 0267: utilization (definer-RPC-only writes, admin-only reads, honest counters) ──
+await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0267_utilization.sql"), "utf8"));
+ok("0267 track_guest counts once per call, same-day rows merge",
+  await (async () => {
+    await db.exec(`select public.track_guest()`);
+    await db.exec(`select public.track_guest()`);
+    const r = await q1(`select count(*)::int n, max(hits)::int h from guest_daily`);
+    return r.n === 1 && r.h >= 2;
+  })());
+ok("0267 track_user is a no-op with no session (anon can never write a user's row)",
+  await (async () => {
+    await db.exec(`select public.track_user('crew:command', false)`);   // harness auth.uid() = null
+    return (await q1(`select count(*)::int n from user_activity`)).n === 0;
+  })());
+ok("0267 with a session: logins and actions accumulate on ONE daily row, last_action updates",
+  await (async () => {
+    await db.exec(`create or replace function auth.uid() returns uuid language sql stable as $$ select '${U1}'::uuid $$`);
+    await db.exec(`select public.track_user('login', true)`);
+    await db.exec(`select public.track_user('crew:command', false)`);
+    await db.exec(`select public.track_user('crew:plan', false)`);
+    const r = await q1(`select count(*)::int n from user_activity where user_id = '${U1}'`);
+    const row = await q1(`select logins, actions, last_action from user_activity where user_id = '${U1}' limit 1`);
+    await db.exec(`create or replace function auth.uid() returns uuid language sql stable as $$ select null::uuid $$`);
+    return r.n === 1 && row.logins === 1 && row.actions === 3 && row.last_action === "crew:plan";
+  })());
+ok("0267 no client write path exists: zero insert/update policies on both tables (RPC is the only door)",
+  await (async () => {
+    const w = await q1(`select count(*)::int n from pg_policies where tablename in ('user_activity','guest_daily') and cmd in ('INSERT','UPDATE','DELETE','ALL')`);
+    const r = await q1(`select count(*)::int n from pg_policies where tablename in ('user_activity','guest_daily') and cmd = 'SELECT'`);
+    return w.n === 0 && r.n === 2;
+  })());
+ok("0267 re-applied whole is a no-op",
+  await (async () => { try { await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0267_utilization.sql"), "utf8")); return true; } catch { return false; } })());
+
 console.log(`CANONICAL-DB CONTRACT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

@@ -30,6 +30,7 @@ type DOrder = {
   total_cents: number; payment_status: string; status: string;
   driver_outcome: string | null; empties_expected: number; empties_collected: number | null;
   delivery_date: string; canceled_at: string | null;
+  batch_id?: string | null;   // 0261 recall traceability — which brew filled this porch
 };
 
 const STATUS_NEXT: Record<string, string> = { received: "brewed", brewed: "out_for_delivery" };
@@ -66,6 +67,20 @@ export default function DeliveryOps() {
   const setStatus = async (o: DOrder, status: string) => {
     if (!supabase) return;
     await supabase.from("delivery_orders").update({ status }).eq("id", o.id);
+    load();
+  };
+  // 0261's delivery side, delivered (the DropOps picker's twin): stamp which brew filled this
+  // porch, and "who got batch X" covers the Sunday run too — recall traceability across BOTH
+  // order families. Only works if the crew uses it; same habit as pack-out.
+  const [batches, setBatches] = useState<{ id: string; recipe_name: string | null; batch_gal: number }[]>([]);
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.from("brew_batches").select("id, recipe_name, batch_gal").in("status", ["ready", "kegged"]).order("created_at", { ascending: false }).limit(12)
+      .then(({ data }) => setBatches((data as { id: string; recipe_name: string | null; batch_gal: number }[]) ?? []));
+  }, [date]);
+  const setBatch = async (id: string, batchId: string) => {
+    if (!supabase) return;
+    await supabase.from("delivery_orders").update({ batch_id: batchId || null }).eq("id", id);
     load();
   };
   // Outcomes (swap done / fresh / hold / not home) are logged in DRIVER MODE only (/driver) —
@@ -147,6 +162,12 @@ export default function DeliveryOps() {
                   <div className="dops-actions">
                     {STATUS_NEXT[o.status] && (
                       <button type="button" className="dops-check" onClick={() => setStatus(o, STATUS_NEXT[o.status])}><Icon name="arrowRight" /> {STATUS_LABEL[STATUS_NEXT[o.status]]}</button>
+                    )}
+                    {batches.length > 0 && (
+                      <select className={`dops-batchsel${o.batch_id ? " set" : ""}`} value={o.batch_id ?? ""} onChange={(e) => setBatch(o.id, e.target.value)} aria-label="Filled from batch" title="Filled from batch — recall traceability">
+                        <option value="">batch?</option>
+                        {batches.map((b) => <option key={b.id} value={b.id}>{(b.recipe_name || "Batch")} · {Number(b.batch_gal)} gal</option>)}
+                      </select>
                     )}
                     {o.status === "out_for_delivery" && (
                       <a className="dops-mini" href="/driver">Log the outcome in driver mode <Icon name="arrowRight" /></a>

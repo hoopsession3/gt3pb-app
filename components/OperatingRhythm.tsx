@@ -8,6 +8,7 @@ import { authedFetch } from "@/lib/authedFetch";
 import { useApp } from "./AppProvider";
 import { DecisionLog } from "./StrategyCollab";
 import { SectionHeader } from "@/components/kit";
+import Sheet from "@/components/Sheet";
 import Icon from "@/components/Icon";
 
 // OPERATING RHYTHM (2026-08-02 exec-rhythm P1–P3) — the review step of plan → execute → REVIEW →
@@ -27,6 +28,25 @@ const nice = (iso: string) => new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleD
 export default function OperatingRhythm({ isAdmin, onOpenNotes }: { isAdmin: boolean; onOpenNotes: () => void }) {
   const { toast } = useApp();
   const [busy, setBusy] = useState<"review" | "session" | null>(null);
+  // The Post-Session Pipeline, automated (the OS's rhythm #3): paste the transcript, the five
+  // extractions file themselves — decisions → ledger, open items → dated follow-ups, calendar →
+  // events, pipeline moves → matched accounts (unmatched names reported, never minted).
+  const [extractOpen, setExtractOpen] = useState(false);
+  const [transcript, setTranscript] = useState("");
+  const [extracting, setExtracting] = useState(false);
+  const runExtract = async () => {
+    if (!transcript.trim() || extracting) return;
+    setExtracting(true);
+    try {
+      const r = await authedFetch("/api/agents/session-extract", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: transcript }) });
+      const j = await r.json();
+      if (j.ok) {
+        toast(`Filed: ${j.decisions} decision${j.decisions === 1 ? "" : "s"} · ${j.open_items} follow-up${j.open_items === 1 ? "" : "s"} · ${j.events} event${j.events === 1 ? "" : "s"} · ${j.pipeline_moves} pipeline move${j.pipeline_moves === 1 ? "" : "s"}${j.skipped?.length ? ` · couldn't match: ${j.skipped.join(", ")}` : ""}`);
+        setExtractOpen(false); setTranscript(""); onOpenNotes();
+      } else toast(String(j.error ?? "").includes("ANTHROPIC") ? "AI isn't switched on yet — add the API key" : `Couldn't extract — ${j.error ?? r.status}`, "error");
+    } catch { toast("Couldn't reach the extractor", "error"); }
+    setExtracting(false);
+  };
 
   const loader = useCallback(async (): Promise<Pulse> => {
     if (!supabase) return { review: null, strategy: null, atRisk: 0, quiet: 0 };
@@ -82,8 +102,17 @@ export default function OperatingRhythm({ isAdmin, onOpenNotes }: { isAdmin: boo
           <p className="rhythm-sub">The agenda nobody has to remember: open threads, goals needing a call, plays on the table, program hygiene, aging blockers. Close every call with ⚖ Log a decision.</p>
           {p?.strategy && <button type="button" className="rhythm-last" onClick={onOpenNotes}>Latest: {nice(p.strategy.met_on)} — open in Notes <Icon name="arrowRight" /></button>}
           {isAdmin && <button type="button" className="rhythm-go" onClick={() => assemble("session")} disabled={busy !== null}>{busy === "session" ? "Assembling…" : <><Icon name="sparkles" /> Start a strategy session</>}</button>}
+          {isAdmin && <button type="button" className="rhythm-last" onClick={() => setExtractOpen(true)}>⇣ Had the session already? Paste the transcript — extract &amp; file</button>}
         </div>
       </div>
+      {extractOpen && (
+        <Sheet open onClose={() => setExtractOpen(false)} label="Extract a session"
+          header={<div className="note-lux-head"><span className="note-lux-eyb">Post-session pipeline</span><button type="button" className="qd-x" onClick={() => setExtractOpen(false)} aria-label="Close"><Icon name="close" /></button></div>}
+          footer={<div className="note-actions"><button type="button" className="note-cancel" onClick={() => setExtractOpen(false)}>Cancel</button><button type="button" className="note-save" onClick={runExtract} disabled={!transcript.trim() || extracting}>{extracting ? "Extracting…" : "Extract & file"}</button></div>}>
+          <p className="rhythm-sub">The five extractions, filed on their spines in one pass: decisions → the ledger (with provenance) · open items → dated follow-ups · calendar → events · pipeline moves → matched accounts. Account names it can&rsquo;t match are reported, never guessed into new accounts. The transcript itself is kept on the session note.</p>
+          <textarea className="note-area" rows={12} placeholder="Paste the whole transcript or your raw session notes…" value={transcript} onChange={(e) => setTranscript(e.target.value)} autoFocus />
+        </Sheet>
+      )}
       <details className="rhythm-ledger">
         <summary>⚖ Decision ledger — append-only, with follow-through</summary>
         <DecisionLog canWrite={isAdmin} />
