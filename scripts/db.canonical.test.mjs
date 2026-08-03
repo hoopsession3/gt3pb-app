@@ -854,5 +854,33 @@ ok("0268 RLS shape: activities 3 policies (staff read/write + tenant); loop 5 (r
 ok("0268 re-applied whole is a no-op",
   await (async () => { try { await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0268_activation_economics.sql"), "utf8")); return true; } catch { return false; } })());
 
+// ── 0269: changelog wave 3 + the no-drift rule ──
+// Fixture: the 0200 changelog table WITH its real category check — so every wave entry is
+// validated against the actual vocabulary, not just inserted blind.
+await db.exec(`
+  create table if not exists public.changelog (
+    id uuid primary key default gen_random_uuid(),
+    tenant_id uuid references public.tenants(id) default '00000000-0000-0000-0000-000000000001',
+    title text not null,
+    category text not null default 'feature'
+      check (category in ('feature','improvement','fix','brand','growth','ops','money','security','design')),
+    area text, summary text not null,
+    shipped_on date not null default current_date,
+    highlight boolean not null default false,
+    created_by uuid, created_at timestamptz not null default now());
+`);
+await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0269_changelog_wave3_no_drift.sql"), "utf8"));
+await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0269_changelog_wave3_no_drift.sql"), "utf8"));   // twice, on purpose
+ok("0269 the wave lands ONCE despite double apply: 23 entries, every category legal, latest = 2026-08-03",
+  await (async () => {
+    const r = await q1(`select count(*)::int n, (max(shipped_on) = '2026-08-03') latest_ok, count(*) filter (where highlight)::int hi from changelog`);
+    return r.n === 23 && r.latest_ok === true && r.hi === 7;
+  })());
+ok("0269 the record covers the whole gap: every ship date Jul 18 → Aug 3 present, none before the wave floor",
+  await (async () => {
+    const r = await q1(`select count(distinct shipped_on)::int days, (min(shipped_on) >= '2026-07-18') floor_ok from changelog`);
+    return r.days >= 10 && r.floor_ok === true;
+  })());
+
 console.log(`CANONICAL-DB CONTRACT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
