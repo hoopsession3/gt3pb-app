@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     .eq("source", "review").gte("met_on", day(new Date(now.getTime() - 6 * 864e5))).limit(1).maybeSingle();
   if (existing) return NextResponse.json({ ok: true, note_id: existing.id, title: existing.title, existing: true });
 
-  const [revThis, revPrior, goalsQ, initsQ, milesQ, eventsQ, incOpenQ, incFixedQ, decQ, overdueQ, next7Q, doneQ] = await Promise.all([
+  const [revThis, revPrior, goalsQ, initsQ, milesQ, eventsQ, incOpenQ, incFixedQ, decQ, overdueQ, next7Q, doneQ, portQ] = await Promise.all([
     revenue(d7.toISOString(), now.toISOString()),
     revenue(d14.toISOString(), d7.toISOString()),
     supabaseAdmin.from("goals").select("title, unit, target_value, current_value, updated_at, checkin_status").eq("status", "active"),
@@ -64,6 +64,7 @@ export async function POST(req: Request) {
     supabaseAdmin.from("all_tasks").select("id", { count: "exact", head: true }).eq("done", false).lt("due", today),
     supabaseAdmin.from("all_tasks").select("id", { count: "exact", head: true }).eq("done", false).gte("due", today).lte("due", ahead7),
     supabaseAdmin.from("all_tasks").select("id", { count: "exact", head: true }).eq("done", true).gte("done_at", d7.toISOString()),
+    supabaseAdmin.from("os_workstreams").select("name, owner, status, health, next_action, blocker, last_audited").order("sort"),
   ]);
 
   const goals = (goalsQ.data ?? []) as any[];
@@ -88,7 +89,16 @@ export async function POST(req: Request) {
     return `${i.emoji ? `${i.emoji} ` : ""}**${i.title}**${dl}${hit.length ? ` · hit this week: ${hit.join(", ")}` : ""}${next ? ` · next: ${next.title}${next.due_on ? ` (${nice(next.due_on)})` : ""}` : ""}`;
   };
 
+  // The Monday audit writes the agenda (0264): the portfolio table + sub-8 streams named with
+  // their blockers. Absent registry (pre-0264 environments) degrades to no section.
+  const port = ((portQ?.data ?? []) as any[]);
+  const portActive = port.filter((w) => w.status !== "parked");
+  const portMean = portActive.length ? (portActive.reduce((s: number, w: any) => s + w.health, 0) / portActive.length) : null;
+  const sub8 = portActive.filter((w) => w.health < 8);
+  const wsLine = (w: any) => `- **${w.health}** · ${w.name} (${w.owner})${w.status === "blocked" ? " · BLOCKED" : ""} — ${w.next_action ?? "no next action"}${w.blocker ? ` · ⚠ ${w.blocker}` : ""}`;
+
   const focus: string[] = [];
+  for (const w of sub8.slice(0, 2)) focus.push(`**${w.name}** (${w.health}/10): ${w.blocker ?? w.next_action ?? "name the next action"}`);
   for (const g of atRisk.slice(0, 2)) focus.push(`Get **${g.title}** back on track — it's flagged at risk.`);
   if (blockers.length) focus.push(`Clear the blocker: ${blockers[0].problem}`);
   if (overdue > 0) focus.push(`Work the overdue list down — ${overdue} task${overdue === 1 ? "" : "s"} past due.`);
@@ -103,6 +113,7 @@ export async function POST(req: Request) {
     `- **Incidents:** ${blockers.length ? blockers.map((b) => b.problem).join(" · ") : "no open blockers"}${(incFixedQ.count ?? 0) > 0 ? ` · ${incFixedQ.count} resolved this week` : ""}`,
     decisions.length ? `- **Decisions logged:** ${decisions.map((d) => `${d.key} — ${d.decision}`).join(" · ")}` : `- **Decisions logged:** none — if calls were made this week, they belong in the ledger`,
     ``,
+    port.length ? `## Portfolio — the Monday audit${portMean !== null ? ` · mean ${portMean.toFixed(1)}` : ""}\n${port.map(wsLine).join("\n")}${sub8.length ? `\n\nBelow green: ${sub8.map((w) => `**${w.name}**`).join(" · ")} — the audit just wrote this week's agenda.` : "\n\nAll streams green or amber — rare air."}\n` : ``,
     `## Goals`,
     moved.length ? `Moved this week:\n${moved.map((g) => `- ${gLine(g)}`).join("\n")}` : `- No goal moved this week.`,
     quiet.length ? `\nQuiet for a week 💤:\n${quiet.map((g) => `- ${gLine(g)}`).join("\n")}` : ``,
@@ -113,11 +124,12 @@ export async function POST(req: Request) {
     coming.length ? `- **Events:** ${coming.map((e) => `${e.title} (${nice(e.day)})`).join(" · ")}` : `- **Events:** nothing on the calendar in the next two weeks — worth fixing in itself`,
     `- **Tasks due next 7 days:** ${dueNext}`,
     ``,
-    `## Retro — keep · change · start`,
+    `## Retro — keep · change · start · learned`,
     `Tap **＋ Add to this note** and leave yours — the additions are the retro record:`,
     `- **Keep:** what worked this week`,
     `- **Change:** what we do differently`,
     `- **Start:** what we begin`,
+    `- **Learned:** market signal worth keeping — it feeds pitch scripts, pricing, and the risk register`,
     ``,
     `## Proposed focus`,
     focus.map((f, i) => `${i + 1}. ${f}`).join("\n"),

@@ -22,12 +22,16 @@ import PromptSheet from "./PromptSheet";
 // rides the existing engines: per-opportunity threads, rep-assignment pings via the alerts spine.
 
 export const VENDOR_TYPES = ["gym", "corporate", "cafe", "venue", "school", "market", "other"] as const;
+// THE PLAYBOOK ENUM (0265, 2026-08-03 GT3 Command build): LEAD → WARM → SAMPLED → PILOT → LIVE →
+// EXPAND, + lost as the terminal. The old close-the-deal ladder (prospect…won) couldn't express
+// the business: a LIVE cooler account isn't "won and done" — it's operating, and should EXPAND.
 const STAGES = [
-  { key: "prospect", label: "Prospects" },
-  { key: "first_attempt", label: "First attempt" },
-  { key: "talking", label: "In conversation" },
-  { key: "proposal", label: "Proposal sent" },
-  { key: "won", label: "Won" },
+  { key: "lead", label: "Leads" },
+  { key: "warm", label: "Warm" },
+  { key: "sampled", label: "Sampled" },
+  { key: "pilot", label: "Pilot" },
+  { key: "live", label: "Live" },
+  { key: "expand", label: "Expand" },
   { key: "lost", label: "Lost" },
 ] as const;
 type Stage = (typeof STAGES)[number]["key"];
@@ -35,8 +39,11 @@ type Stage = (typeof STAGES)[number]["key"];
 // rail chip's dot, the stage header's dot, and every card's left rail — the same left-rail
 // grammar the company calendar's chips use, so "colored left edge = category" reads app-wide.
 const STAGE_COLOR: Record<Stage, string> = {
-  prospect: "#8a8f5a", first_attempt: "#9aa83a", talking: "#b8902f", proposal: "#c9762b", won: "#5b9a6b", lost: "#9a8f7c",
+  lead: "#8a8f5a", warm: "#9aa83a", sampled: "#b8902f", pilot: "#c9762b", live: "#5b9a6b", expand: "#3f8f7f", lost: "#9a8f7c",
 };
+// Working funnel vs operating book: pursuit stages feed the pipeline value; live/expand ARE the
+// business (their number is MRR, not pipeline value).
+const PURSUIT: Stage[] = ["lead", "warm", "sampled", "pilot"];
 
 type Deal = { id: string; title: string; blurb: string | null; vendor_type: string; price_label: string | null; active: boolean; sort: number; model: string; rate_pct: number | null; monthly_cents: number | null; line: string };
 
@@ -94,6 +101,7 @@ type Opp = {
   id: string; vendor_id: string; deal_id: string | null; rep_id: string | null; stage: Stage;
   source?: string | null;
   value_cents: number | null; next_step: string | null; next_step_at: string | null;
+  mrr_cents?: number | null; priority?: string | null; category?: string | null;   // 0265 — the Playbook's Account fields
   lost_reason: string | null; created_at: string;
   vendors: { name: string; vendor_type: string | null } | null;
   deals: { title: string; line?: string | null } | null;
@@ -166,7 +174,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   const loader = useCallback(async (): Promise<Board> => {
     if (!supabase) return { opps: [], deals: [], vendors: [], staff: [] };
     const [o, d, v, st] = await Promise.all([
-      supabase.from("opportunities").select("id, vendor_id, deal_id, rep_id, stage, source, value_cents, next_step, next_step_at, lost_reason, created_at, vendors(name, vendor_type), deals(title, line)").order("created_at", { ascending: false }),
+      supabase.from("opportunities").select("id, vendor_id, deal_id, rep_id, stage, source, value_cents, next_step, next_step_at, mrr_cents, priority, category, lost_reason, created_at, vendors(name, vendor_type), deals(title, line)").order("created_at", { ascending: false }),
       supabase.from("deals").select("id, title, blurb, vendor_type, price_label, active, sort, model, rate_pct, monthly_cents, line").order("sort").order("created_at"),
       supabase.from("vendors").select("id, name, vendor_type, archived_at").is("archived_at", null).order("name"),
       supabase.from("profiles").select("id, display_name").neq("role", "member").order("display_name"),
@@ -235,16 +243,16 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
 
   const commitStage = async (o: Opp, stage: Stage, lostReason?: string) => {
     const p: Record<string, unknown> = { stage };
-    if (stage === "won") p.won_at = new Date().toISOString();
+    if (stage === "live") p.won_at = new Date().toISOString();   // won_at = "went live" on the Playbook enum
     if (stage === "lost") { p.lost_at = new Date().toISOString(); if (lostReason?.trim()) p.lost_reason = lostReason.trim(); }
     await patch(o.id, p);
     const label = STAGES.find((s) => s.key === stage)?.label ?? stage;
     logActivity(o.id, `→ ${label}${stage === "lost" && p.lost_reason ? ` — ${p.lost_reason}` : ""}`);
-    if (stage === "won") {
+    if (stage === "live") {
       const line = o.deals?.line;
-      toast(line === "wholesale" || line === "standing" ? "Won — nice. Set up the recurring delivery in Live Ops › Delivery."
-        : line === "truck_stop" ? "Won — nice. Add the location in Route when dates land."
-        : "Won — nice. Book it in Plan › Events when dates land.");
+      toast(line === "wholesale" || line === "standing" ? "Live — set up the recurring delivery in Live Ops › Delivery, and set the account's MRR."
+        : line === "truck_stop" ? "Live — add the location in Route when dates land."
+        : "Live — book it in Plan › Events when dates land. Set the account's MRR if it recurs.");
     }
   };
   const setStage = async (o: Opp, stage: Stage) => {
@@ -376,19 +384,21 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   };
 
   const newVendorType = no.vendorId ? (vendors.find((v) => v.id === no.vendorId)?.vendor_type ?? null) : no.newType;
-  const openOpps = opps.filter((o) => o.stage !== "won" && o.stage !== "lost");
+  const openOpps = opps.filter((o) => (PURSUIT as string[]).includes(o.stage));
   const mineCount = openOpps.filter((o) => o.rep_id === user?.id).length;
-  const wonValue = opps.filter((o) => o.stage === "won").reduce((s, o) => s + (o.value_cents ?? 0), 0);
-  const overdue = (o: Opp) => o.next_step_at && o.next_step_at < new Date().toISOString().slice(0, 10) && o.stage !== "won" && o.stage !== "lost";
+  const liveAccounts = opps.filter((o) => o.stage === "live" || o.stage === "expand");
+  const liveMrr = liveAccounts.reduce((s, o) => s + (o.mrr_cents ?? 0), 0);
+  // Live/expand accounts keep next-step discipline too (restocks, QBRs) — only lost is exempt.
+  const overdue = (o: Opp) => o.next_step_at && o.next_step_at < new Date().toISOString().slice(0, 10) && o.stage !== "lost";
 
   const todayKey = new Date().toISOString().slice(0, 10);
   const card = (o: Opp) => (
     <div key={o.id} className={`pipe-card${overdue(o) ? " late" : ""}`} style={{ borderLeftColor: STAGE_COLOR[o.stage] }}>
       <button type="button" className="pipe-head" onClick={() => setOpenId(openId === o.id ? null : o.id)} aria-expanded={openId === o.id}>
-        <span className="pipe-name"><b>{o.vendors?.name ?? "Account"}</b>{o.vendors?.vendor_type && <i className="pipe-type">{o.vendors.vendor_type}</i>}{o.source === "inbound" && <i className="pipe-src">from a booking request</i>}</span>
+        <span className="pipe-name"><b>{o.vendors?.name ?? "Account"}</b>{o.priority && <i className={`pipe-pri ${o.priority.toLowerCase()}`}>{o.priority}</i>}{o.vendors?.vendor_type && <i className="pipe-type">{o.vendors.vendor_type}</i>}{o.category && <i className="pipe-type">{o.category}</i>}{o.source === "inbound" && <i className="pipe-src">from a booking request</i>}</span>
         <span className="pipe-meta">
           {o.deals?.title ? <span className="pipe-deal">{o.deals.title}{lineLabel(o.deals.line) ? ` · ${lineLabel(o.deals.line)}` : ""}</span> : <span className="pipe-deal none">＋ attach a deal</span>}
-          {o.value_cents != null && <span className="pipe-val">{money(o.value_cents)}</span>}
+          {o.mrr_cents != null && o.mrr_cents > 0 ? <span className="pipe-val">{money(o.mrr_cents)}/mo</span> : o.value_cents != null && <span className="pipe-val">{money(o.value_cents)}</span>}
           {o.rep_id && <span className="pipe-rep">{firstName(o.rep_id)}</span>}
         </span>
         <span className={`ev-chev${openId === o.id ? " open" : ""}`} aria-hidden="true">›</span>
@@ -422,6 +432,15 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
             <label>Value $
               <input inputMode="decimal" defaultValue={o.value_cents != null ? String(o.value_cents / 100) : ""} onBlur={(e) => patch(o.id, { value_cents: e.target.value ? Math.round(Number(e.target.value) * 100) : null })} placeholder="500" />
             </label>
+            <label>Priority <i>(any lead can outrank its category)</i>
+              <select value={o.priority ?? ""} onChange={(e) => patch(o.id, { priority: e.target.value || null })}>
+                <option value="">—</option>
+                {["P1", "P2", "P3", "P4"].map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </label>
+            <label>MRR $/mo <i>(once live)</i>
+              <input inputMode="decimal" defaultValue={o.mrr_cents != null ? String(o.mrr_cents / 100) : ""} onBlur={(e) => patch(o.id, { mrr_cents: e.target.value ? Math.round(Number(e.target.value) * 100) : null })} placeholder="1773" />
+            </label>
             <label>Next step
               <input defaultValue={o.next_step ?? ""} onBlur={(e) => { const v = e.target.value.trim() || null; if (v !== o.next_step) { patch(o.id, { next_step: v }); if (v) logActivity(o.id, `→ next: ${v}`); } }} placeholder="Call back Tuesday, send the one-pager…" />
             </label>
@@ -453,16 +472,16 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
       {/* Scoreboard, not sentence (2026-08-01 audit): the ops stat-tile grammar Prep/Money/Team
           already speak. "Won $0.00" stays silent until there's a win — honest without the gut-punch. */}
       <div className="mkpi pipe-kpi">
-        <div className="mkpi-tile"><div className="mkpi-v">{openOpps.length}</div><div className="mkpi-k">Open pursuits</div></div>
-        <div className="mkpi-tile"><div className="mkpi-v">{dueSoon}</div><div className="mkpi-k">Next steps · 7 days</div></div>
-        <div className="mkpi-tile">{wonValue > 0 ? <><div className="mkpi-v"><CountUp cents={wonValue} /></div><div className="mkpi-k">Won</div></> : <><div className="mkpi-v">—</div><div className="mkpi-k">First win pending</div></>}</div>
+        <div className="mkpi-tile"><div className="mkpi-v">{openOpps.length}</div><div className="mkpi-k">In pursuit</div></div>
+        <div className="mkpi-tile"><div className="mkpi-v">{liveAccounts.length}</div><div className="mkpi-k">Live accounts</div></div>
+        <div className="mkpi-tile">{liveMrr > 0 ? <><div className="mkpi-v"><CountUp cents={liveMrr} /></div><div className="mkpi-k">MRR</div></> : <><div className="mkpi-v">{dueSoon}</div><div className="mkpi-k">Next steps · 7 days</div></>}</div>
       </div>
-      {/* The funnel gets its shape: a stage rail — count per stage, tap to jump. Won/Lost appear
+      {/* The funnel gets its shape: a stage rail — count per stage, tap to jump. Expand/Lost appear
           once they exist; a funnel that doesn't look like a funnel forfeits its advantage. */}
       <div className="pipe-rail" aria-label="Pipeline stages">
         {STAGES.map((s) => {
           const n = opps.filter((o) => o.stage === s.key).length;
-          if ((s.key === "won" || s.key === "lost") && n === 0) return null;
+          if ((s.key === "expand" || s.key === "lost") && n === 0) return null;
           return (
             <button key={s.key} type="button" className="pipe-rail-chip" disabled={n === 0}
               onClick={() => document.getElementById(`pipe-stage-${s.key}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}>

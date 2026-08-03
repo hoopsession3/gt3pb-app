@@ -623,5 +623,124 @@ ok("0263 the Monday nudge pings a quiet goal's owner ONCE (unacked dedupe), and 
 ok("0263 re-applied whole is a no-op",
   await (async () => { try { await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0263_exec_rhythm.sql"), "utf8")); return true; } catch { return false; } })());
 
+// ── 0264: GT3 Command — the workstream registry, Monday audit, KPI snapshots ──
+await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0264_gt3_command_registry.sql"), "utf8"));
+ok("0264 the 8/2 portfolio seeds verbatim: 10 streams, mean 7.0, all audited 8/2",
+  await (async () => {
+    const n = (await q1(`select count(*)::int n from os_workstreams`)).n;
+    const mean = (await q1(`select round(avg(health),1)::text m from os_workstreams`)).m;
+    const audited = (await q1(`select count(*)::int n from workstream_audits where week_of = '2026-08-02'`)).n;
+    return n === 10 && mean === "7.0" && audited === 10;
+  })());
+ok("0264 one audit per stream per week (unique) — re-audit updates, never duplicates",
+  await (async () => {
+    const ws = (await q1(`select id from os_workstreams where name = 'Events'`)).id;
+    await db.exec(`insert into workstream_audits (workstream_id, week_of, c_owner, c_next, c_blockers, c_artifacts, c_signal, total)
+      values ('${ws}', '2026-08-03', 2, 2, 1, 2, 1, 8)`);
+    let dup = false;
+    try { await db.exec(`insert into workstream_audits (workstream_id, week_of, total) values ('${ws}', '2026-08-03', 9)`); } catch { dup = true; }
+    return dup;
+  })());
+ok("0264 the Monday nudge posts ONE leadership-wide alert and dedupes while unacked",
+  await (async () => {
+    await db.exec(`select public.os_audit_nudge()`);
+    await db.exec(`select public.os_audit_nudge()`);
+    return (await q1(`select count(*)::int n from alerts where title like '🗂 Monday audit%'`)).n === 1;
+  })());
+ok("0264 KPI snapshots: same metric+week re-entry updates in place",
+  await (async () => {
+    await db.exec(`insert into kpi_snapshots (metric, period, value) values ('loop_part', '2026-08-03', 10)
+      on conflict (metric, period) do update set value = excluded.value`);
+    await db.exec(`insert into kpi_snapshots (metric, period, value) values ('loop_part', '2026-08-03', 12)
+      on conflict (metric, period) do update set value = excluded.value`);
+    const r = await q1(`select count(*)::int n, max(value)::int v from kpi_snapshots where metric = 'loop_part'`);
+    return r.n === 1 && r.v === 12;
+  })());
+ok("0264 re-applied whole is a no-op (still 10 streams, still one 8/2 audit each)",
+  await (async () => {
+    try { await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0264_gt3_command_registry.sql"), "utf8")); } catch { return false; }
+    return (await q1(`select count(*)::int n from os_workstreams`)).n === 10
+        && (await q1(`select count(*)::int n from workstream_audits where week_of = '2026-08-02'`)).n === 10;
+  })());
+
+// ── 0265: the pipeline moves onto the Playbook enum ──
+// Fixture: opportunities in the OLD vocabulary (the harness never carried the table), rows in
+// every legacy stage, then 0265 VERBATIM — the migration map is the contract.
+await db.exec(`
+  create table if not exists public.vendors (id uuid primary key default gen_random_uuid(), name text not null default 'New vendor', archived_at timestamptz, confirmed_distinct boolean not null default false);
+  create table if not exists public.opportunities (
+    id uuid primary key default gen_random_uuid(),
+    vendor_id uuid not null references public.vendors(id) on delete cascade,
+    stage text not null default 'prospect'
+      check (stage in ('prospect','first_attempt','talking','proposal','won','lost')),
+    value_cents int, next_step text, next_step_at date, source text not null default 'manual',
+    notes text, lost_reason text, won_at timestamptz, lost_at timestamptz,
+    created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+`);
+const V0265 = (await q1(`insert into vendors (name) values ('Enum Test Gym') returning id`)).id;
+await db.exec(`insert into opportunities (vendor_id, stage) values
+  ('${V0265}','prospect'),('${V0265}','first_attempt'),('${V0265}','talking'),('${V0265}','proposal'),('${V0265}','won'),('${V0265}','lost')`);
+await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0265_pipeline_playbook_enum.sql"), "utf8"));
+ok("0265 every legacy row lands on the Playbook enum (prospect→lead, first_attempt/talking→warm, proposal→sampled, won→live, lost stays)",
+  await (async () => {
+    const r = await q1(`select
+      count(*) filter (where stage='lead')::int lead, count(*) filter (where stage='warm')::int warm,
+      count(*) filter (where stage='sampled')::int sam, count(*) filter (where stage='live')::int live,
+      count(*) filter (where stage='lost')::int lost,
+      count(*) filter (where stage in ('prospect','first_attempt','talking','proposal','won'))::int legacy
+      from opportunities where vendor_id = '${V0265}'`);
+    return r.lead === 1 && r.warm === 2 && r.sam === 1 && r.live === 1 && r.lost === 1 && r.legacy === 0;
+  })());
+ok("0265 the new law holds: legacy stages rejected, default is 'lead', priority vocabulary enforced",
+  await (async () => {
+    const oldRejected = await refused(`insert into opportunities (vendor_id, stage) values ('${V0265}', 'prospect')`);
+    const def = (await q1(`insert into opportunities (vendor_id) values ('${V0265}') returning stage`)).stage;
+    const priRejected = await refused(`update opportunities set priority = 'P9' where vendor_id = '${V0265}'`);
+    await db.exec(`update opportunities set priority = 'P1', mrr_cents = 177300 where stage = 'live' and vendor_id = '${V0265}'`);
+    return oldRejected && def === "lead" && priRejected;
+  })());
+ok("0265 re-applied whole is a no-op",
+  await (async () => { try { await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0265_pipeline_playbook_enum.sql"), "utf8")); return true; } catch { return false; } })());
+
+// ── 0266: the 8/2 state seeds — and seeds exactly once ──
+// events table exists (harness base). readiness_checks + initiatives fixtures where missing.
+await db.exec(`
+  alter table public.events add column if not exists location_text text;
+  alter table public.meeting_notes add column if not exists met_on date not null default current_date;
+  alter table public.meeting_notes add column if not exists source text not null default 'manual';
+  alter table public.event_tasks add column if not exists meeting_note_id uuid;
+  alter table public.event_tasks add column if not exists kind text;
+  alter table public.event_tasks add column if not exists section text;
+  alter table public.event_tasks add column if not exists critical boolean not null default false;
+  alter table public.event_tasks add column if not exists due_at timestamptz;
+  alter table public.event_tasks add column if not exists sort int;
+  alter table public.initiatives add column if not exists created_at timestamptz not null default now();
+  create table if not exists public.readiness_checks (
+    id uuid primary key default gen_random_uuid(),
+    initiative_id uuid references public.initiatives(id) on delete cascade,
+    label text not null, category text, status text not null default 'at_risk',
+    critical boolean not null default true, note text, sort int not null default 0,
+    created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+`);
+await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0266_seed_8_2_state.sql"), "utf8"));
+await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0266_seed_8_2_state.sql"), "utf8"));   // twice, on purpose
+ok("0266 the whole 8/2 session lands ONCE despite double apply: 8 ledger lines, 9 follow-ups, 13 accounts, 3 events, 5 gates, 2 notes",
+  await (async () => {
+    const dec = (await q1(`select count(*)::int n from strategy_decisions where key in ('cooler','gtm:sampling','pricing:loop','product:latte','print:options','gtm:coupons','pipeline:upstate','parked:vending')`)).n;
+    const note = (await q1(`select id from meeting_notes where title = 'Strategy Session · Aug 2 — the cooler session'`)).id;
+    const fu = (await q1(`select count(*)::int n from event_tasks where meeting_note_id = '${note}'`)).n;
+    const accts = (await q1(`select count(*)::int n from opportunities o join vendors v on v.id = o.vendor_id where v.name in ('Upstate Spine & Sport','Soul Yoga','Corporate Delivery','Wine Xpress')`)).n;
+    const evs = (await q1(`select count(*)::int n from events where title in ('Soul Yoga Workshop — serve window','Sassafras Flower Farm','Greenville Fit Fest')`)).n;
+    const gates = (await q1(`select count(*)::int n from readiness_checks where label like 'Gate %'`)).n;
+    const shelf = (await q1(`select count(*)::int n from meeting_notes where title = 'Playbook v1.0 — Strategy of Record'`)).n;
+    return dec === 8 && fu === 9 && accts === 4 && evs === 3 && (gates === 5 || gates === 0) && shelf === 1;
+  })());
+ok("0266 decisions carry provenance to the session note; Corporate Delivery seeds LIVE with MRR + won_at",
+  await (async () => {
+    const withNote = (await q1(`select count(*)::int n from strategy_decisions where key = 'cooler' and note_id is not null`)).n;
+    const cd = await q1(`select o.stage, o.mrr_cents, (o.won_at is not null) as live_at from opportunities o join vendors v on v.id = o.vendor_id where v.name = 'Corporate Delivery' limit 1`);
+    return withNote === 1 && cd.stage === "live" && Number(cd.mrr_cents) === 177300 && cd.live_at === true;
+  })());
+
 console.log(`CANONICAL-DB CONTRACT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

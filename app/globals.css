@@ -6322,3 +6322,51 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .st-log-next{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .st-log-srcnote,.st-log-fu{font-family:'Inter';font-weight:600;font-size:10.5px;border:1px solid var(--line2);border-radius:999px;padding:2px 8px;color:var(--cream-m)}
 .st-log-fu.done{border-color:var(--good, #4a8);color:var(--good, #4a8)}
+/* ── 0264–0266 GT3 Command (2026-08-03) — the portfolio registry, Monday audit sheet, the twelve
+   KPIs, pipeline priority badges. The registry leads Command: health dot = the audit total. */
+.osr-mean{font-family:'DM Mono',ui-monospace,monospace;font-size:11px;padding:3px 10px;border-radius:999px;border:1px solid var(--line2)}
+.osr-mean.ok{color:var(--good,#4a8)}.osr-mean.warn{color:var(--warn)}
+.osr-rows{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.osr-row{display:flex;align-items:flex-start;gap:11px;width:100%;text-align:left;background:rgba(0,0,0,.18);border:1px solid var(--line2);border-radius:13px;padding:11px 13px;cursor:pointer;color:var(--cream);-webkit-appearance:none;appearance:none}
+.osr-row:disabled{cursor:default}
+.osr-row.parked{opacity:.55}
+.osr-dot{flex:0 0 auto;width:30px;height:30px;border-radius:999px;display:grid;place-items:center;font-family:'Archivo Black';font-size:12.5px;color:#1c1712;background:var(--cream-m)}
+.osr-dot.green{background:#5b9a6b}.osr-dot.amber{background:#c8a661}.osr-dot.red{background:var(--warn)}.osr-dot.park{background:rgba(255,255,255,.25);color:var(--cream-m)}
+.osr-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.osr-name{font-family:'Inter';font-weight:700;font-size:13.5px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.osr-owner{font-style:normal;font-family:'DM Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.7px;text-transform:uppercase;color:var(--gold2);border:1px solid var(--line2);border-radius:999px;padding:2px 7px}
+.osr-flag{font-style:normal;font-family:'Inter';font-weight:700;font-size:9.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--warn)}
+.osr-flag.park{color:var(--cream-m)}
+.osr-next{font-family:'Inter';font-size:12px;color:var(--cream-m);line-height:1.45}
+.osr-block{font-family:'Inter';font-weight:600;font-size:11.5px;color:var(--warn);display:flex;align-items:center;gap:5px}
+.osr-block svg{width:12px;height:12px;flex:0 0 auto}
+.osr-owes{font-family:'Inter';font-weight:650;font-size:11px;color:var(--gold2)}
+.osr-when{flex:0 0 auto;font-family:'DM Mono',ui-monospace,monospace;font-size:10px;color:var(--cream-m);padding-top:3px}
+.osr-when.stale{color:var(--warn)}
+.osr-audit{display:flex;flex-direction:column;gap:13px}
+.osr-crit{display:flex;flex-direction:column;gap:6px}
+.osr-crit-h{display:flex;flex-direction:column;gap:1px}
+.osr-crit-h b{font-family:'Inter';font-weight:700;font-size:13px}
+.osr-crit-h span{font-family:'Inter';font-size:11px;color:var(--cream-m);line-height:1.4}
+.osr-crit-chips{display:flex;gap:8px}
+.osr-chip{width:44px;height:34px;border-radius:10px;border:1px solid var(--line2);background:none;color:var(--cream-m);font-family:'DM Mono',ui-monospace,monospace;font-size:14px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.osr-chip.on{border-color:var(--gold2);color:var(--gold2);background:rgba(200,166,97,.1)}
+.osr-chip.full.on{border-color:#5b9a6b;color:#5b9a6b;background:rgba(91,154,107,.1)}
+.osr-chip.zero.on{border-color:var(--warn);color:var(--warn);background:rgba(200,120,40,.08)}
+.osr-audit-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.osr-total{margin-right:auto;font-family:'Archivo Black';font-size:15px;color:var(--gold2)}
+.kpib{display:flex;flex-direction:column;gap:7px;margin-top:10px}
+.kpib-row{display:flex;align-items:center;gap:10px;background:rgba(0,0,0,.18);border:1px solid var(--line2);border-radius:11px;padding:9px 12px}
+.kpib-l{flex:1;min-width:0;font-family:'Inter';font-weight:600;font-size:12.5px;color:var(--cream);display:flex;flex-direction:column}
+.kpib-l i{font-style:normal;font-family:'DM Mono',ui-monospace,monospace;font-size:9px;letter-spacing:.6px;text-transform:uppercase;color:var(--cream-m)}
+.kpib-v{font-family:'DM Mono',ui-monospace,monospace;font-size:13px;color:var(--cream);display:flex;align-items:center;gap:5px}
+.kpib-t{font-style:normal;color:#5b9a6b}.kpib-t.down{color:var(--warn)}
+.kpib-in{display:flex;gap:6px}
+.kpib-in input{width:76px;background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:9px;padding:6px 9px;color:var(--cream);font-family:'DM Mono',ui-monospace,monospace;font-size:12px;outline:none}
+.kpib-in button{background:rgba(200,166,97,.1);border:1px solid var(--gold2);border-radius:9px;padding:6px 11px;color:var(--gold2);font-family:'Inter';font-weight:700;font-size:11px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.kpib-in button:disabled{opacity:.45;cursor:default}
+.pipe-pri{font-style:normal;font-family:'Archivo Black';font-size:9px;letter-spacing:.5px;border-radius:6px;padding:2px 6px;color:#1c1712;background:var(--cream-m)}
+.pipe-pri.p1{background:var(--gold2)}.pipe-pri.p2{background:#b8902f}
+.osr-add{display:flex;gap:8px;align-items:center}
+.osr-add .note-in{flex:1;margin:0}
+.osr-remove{margin-top:2px;align-self:flex-start}

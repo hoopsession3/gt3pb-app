@@ -152,7 +152,7 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
       // opportunities by their next-step date (won/lost are history, not schedule), meetings by
       // met_on (RLS already scopes private notes to their author).
       canSales ? supabase.from("booking_requests").select("id, name, event_date, status").in("status", ["new", "contacted"]).not("event_date", "is", null).gte("event_date", from).lte("event_date", to) : none,
-      canSales ? supabase.from("opportunities").select("id, stage, next_step, next_step_at, vendors(name)").not("next_step_at", "is", null).not("stage", "in", "(won,lost)").gte("next_step_at", fromISO).lt("next_step_at", toISO) : none,
+      canSales ? supabase.from("opportunities").select("id, stage, next_step, next_step_at, vendors(name)").not("next_step_at", "is", null).neq("stage", "lost").gte("next_step_at", fromISO).lt("next_step_at", toISO) : none,
       supabase.from("meeting_notes").select("id, title, met_on").is("archived_at", null).gte("met_on", from).lte("met_on", to),
     ]);
     const firstErr = [e, c, t, s, pt, bb, dr, dv, bt, bc, bo, gl, bk, op, mn].find((x) => x.error)?.error;
@@ -720,8 +720,8 @@ function goPlanTab(setSection: (s: "plan") => void, tab: string, anchor?: string
 // Stage/status vocabularies mirrored from each kind's own surface (PipelinePanel STAGES, Bookings
 // STATUSES) so the calendar's quick editor and the full surface can never offer different words.
 const PIPE_STAGES: { key: string; label: string }[] = [
-  { key: "prospect", label: "Prospect" }, { key: "first_attempt", label: "First attempt" }, { key: "talking", label: "In conversation" },
-  { key: "proposal", label: "Proposal sent" }, { key: "won", label: "Won" }, { key: "lost", label: "Lost" },
+  { key: "lead", label: "Lead" }, { key: "warm", label: "Warm" }, { key: "sampled", label: "Sampled" },
+  { key: "pilot", label: "Pilot" }, { key: "live", label: "Live" }, { key: "expand", label: "Expand" }, { key: "lost", label: "Lost" },
 ];
 const LEAD_STATUSES = ["new", "contacted", "booked", "declined"] as const;
 function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: string; events: Ev[]; onClose: () => void; onSaved: () => void }) {
@@ -772,7 +772,7 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: s
       else if (kind === "content") { patch.status = f.status || "scheduled"; patch.event_id = f.event_id || null; }
       else if (kind === "brew") patch.batch_gal = Math.max(1, Number(f.batch_gal) || 1);
       else if (kind === "lead") patch.status = f.status || "new";
-      else if (kind === "pipe") patch.stage = f.stage || "prospect";
+      else if (kind === "pipe") patch.stage = f.stage || "lead";
       if (kind === "meeting" && !patch.met_on) delete patch.met_on;   // met_on is NOT NULL — clearing keeps the old date
       await supabase.from(cfg.table).update(patch).eq("id", id);
     }
@@ -841,7 +841,7 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: s
             )}
             {kind === "pipe" && (
               <label className="prod-f"><span>Stage</span>
-                <select value={f.stage ?? "prospect"} onChange={(e) => set("stage", e.target.value)}>
+                <select value={f.stage ?? "lead"} onChange={(e) => set("stage", e.target.value)}>
                   {PIPE_STAGES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
                 </select>
               </label>

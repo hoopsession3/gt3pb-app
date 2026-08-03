@@ -59,6 +59,8 @@ const OrgChart = dynamic(() => import("@/components/OrgChart"), { loading: () =>
 const WorkloadBoard = dynamic(() => import("@/components/WorkloadBoard"), { loading: () => <PourFill label="Loading…" /> });
 const OperatingRhythm = dynamic(() => import("@/components/OperatingRhythm"), { loading: () => <PourFill label="Loading…" /> });
 const Discussions = dynamic(() => import("@/components/Discussions"), { loading: () => <PourFill label="Loading…" /> });
+const OsRegistry = dynamic(() => import("@/components/OsRegistry"), { loading: () => <PourFill label="Loading…" /> });
+const KpiBoard = dynamic(() => import("@/components/KpiBoard"), { loading: () => <PourFill label="Loading…" /> });
 const InviteTeammate = dynamic(() => import("@/components/InviteTeammate"), { loading: () => <PourFill label="Loading…" /> });
 const CrmPanel = dynamic(() => import("@/components/CrmPanel"), { loading: () => <PourFill label="Loading…" /> });
 const CodesPanel = dynamic(() => import("@/components/CodesPanel"), { loading: () => <PourFill label="Loading…" /> });
@@ -3495,7 +3497,7 @@ function MeetingNotes() {
     if (!supabase) return;
     supabase.from("events").select("id, title").is("archived_at", null).order("day", { ascending: false }).then(({ data }) => setEvents((data as { id: string; title: string }[]) ?? []));
     supabase.from("stops").select("id, name").is("archived_at", null).neq("status", "done").then(({ data }) => setNoteStops((data as { id: string; name: string | null }[]) ?? []));
-    supabase.from("opportunities").select("id, stage, vendors(name)").not("stage", "in", "(won,lost)").then(({ data }) =>
+    supabase.from("opportunities").select("id, stage, vendors(name)").neq("stage", "lost").then(({ data }) =>
       setNoteOpps((((data ?? []) as unknown) as { id: string; vendors: { name: string } | null }[]).map((o) => ({ id: o.id, label: o.vendors?.name ?? "Opportunity" }))));
     supabase.from("vendors").select("id, name").is("archived_at", null).order("name").then(({ data }) => setNoteVendors((data as { id: string; name: string | null }[]) ?? []));
     supabase.from("profiles").select("id, display_name, role").neq("role", "member").then(({ data }) => setStaff((data as { id: string; display_name: string | null; role?: string | null }[]) ?? []));
@@ -5786,10 +5788,10 @@ const SEC_MORE: Record<OpSection, string> = {
 };
 const SEC_INSIDE: Record<OpSection, string[]> = {
   day: ["Your open tasks & due dates", "Alerts flagged for you — with discussion threads", "Needs you (leadership): booking replies, past-due tasks, restock", "What's on the calendar today", "Day-of brief — dress code & call time"],
-  command: ["Initiatives — a dated program (e.g. the Aug-1 launch) with countdown & milestone progress", "This week — everything due across both task lists", "Blockers — stopped-service incidents + anything overdue", "Done this week — momentum at a glance", "Money — the live glance", "Goals & planning — owners, progress check-ins & threads"],
+  command: ["The portfolio — ten workstreams, one owner each, audited every Monday /10", "Initiatives — a dated program with countdown & milestone progress + the goals it serves", "This week — everything due across both task lists", "Blockers — incidents, overdue work & at-risk goals", "Done this week — momentum at a glance", "Goals — owners, live numbers, one-tap check-ins", "The twelve — the Playbook's KPI board, Monday entry"],
   now: ["Service pulse — live counts, one tap into the working screen", "The Pass — the pass board (guests ping it: on my way · outside · late), pickup checklist & 86 board on ONE screen", "The drop — brew sheet & window money (the checklist lives in Service)", "Delivery run — run sheet, brew totals & packout (outcomes are logged in driver mode)", "Live truck: go live, GPS broadcast (locations & the ordering dial live in Plan › Route)", "Alerts & your tasks — pointers into My Day"],
   prep: ["Per-event & per-stop pack lists", "Readiness & inspection checks", "Crew assignments & sign-off", "Load-out & gear moved to Production › Assets"],
-  plan: ["Company calendar", "Events", "Route — locations, go live & the cup-ordering dial", "Leads — booking requests & the sales board (prospect → won)", "Vendors & venues"],
+  plan: ["Company calendar", "Events", "Route — locations, go live & the cup-ordering dial", "Leads — booking requests & the sales board (lead → live → expand)", "Vendors & venues"],
   notes: ["Private notes — 🔒 just for you", "Team notes & meeting recaps", "Follow-ups → assigned tasks", "✨ Transcript → summary"],
   studio: ["Post & flyer drafting", "Brand copy & front-end copy", "Feed planning grid", "Repurpose engine", "Publishing & scheduling", "Review Desk → the truck display (/display): add or approve reviews; ✨ Simplify de-claims + trims one to display-safe"],
   brew: ["Brew schedule with start-by deadlines", "Coverage — makes vs reserved", "Serve-by freshness windows", "Batch log & recipes"],
@@ -6076,6 +6078,10 @@ export default function AdminPage() {
       {sec === "day" && <MyDay userId={user?.id ?? null} meName={profile?.display_name?.trim() || "Me"} isLeader={canManage} canPrep={canPrep} canBrew={canManage || role === "operator"} />}
       {sec === "command" && canManage && (
         <>
+          {/* GT3 COMMAND (2026-08-03): the Executive OS lands. The portfolio registry LEADS —
+              ten workstreams, Monday-audited — then the war room, then goals, then the twelve
+              KPIs. One screen = the state of the company; Plan = the cadence that changes it. */}
+          <OsRegistry />
           <CommandBoard />
           {/* Goals moved home 2026-07-29 (was its own section): "are we on track?" and "where are
               we steering?" are the same leadership conversation — one screen answers both now.
@@ -6085,6 +6091,7 @@ export default function AdminPage() {
               already sits on each card as its tier chip. One list, one home. */}
           <div className="crew-group">Goals</div>
           <Goals />
+          <KpiBoard />
         </>
       )}
 

@@ -82,7 +82,7 @@ export async function POST(req: Request) {
     supabaseAdmin.from("vendors").select("name").limit(120),
     supabaseAdmin.from("stops").select("name").is("archived_at", null).limit(60),
   ]);
-  const snapshot = `Known vendors/venues: ${list(vendors.data) || "(none yet)"}\nKnown truck stops/locations: ${list(stops.data) || "(none yet)"}\nPipeline stages: prospect → contacted → talking → proposal → won/lost.`;
+  const snapshot = `Known vendors/venues: ${list(vendors.data) || "(none yet)"}\nKnown truck stops/locations: ${list(stops.data) || "(none yet)"}\nPipeline stages: lead → warm → sampled → pilot → live → expand (lost is the terminal).`;
 
   const system = [
     "You are GT3 Performance Bar's chief of staff — an operations expert for a mobile whole-food beverage business (a coffee/juice truck + delivery + B2B office route).",
