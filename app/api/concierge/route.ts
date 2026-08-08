@@ -88,8 +88,11 @@ export async function POST(req: Request) {
       // PUBLIC events only — this is a guest-facing context and the service role bypasses RLS,
       // so the visibility rule applies here too (panel catch: internal ops rows and private
       // bookings were being fed to the guest concierge).
-      supabaseAdmin.from("events").select("title, day_label, day, start_time, location_text, member_only").is("archived_at", null)
+      // PUBLISHED public events only (0270): the service role bypasses RLS, so the guest-visibility
+      // rule is applied by hand here too — published_at gates it, public_title is the guest name.
+      supabaseAdmin.from("events").select("title, public_title, day_label, day, start_time, location_text, member_only").is("archived_at", null)
         .eq("category", "event").or("archetype.is.null,archetype.neq.private_booking")
+        .not("published_at", "is", null)
         .gte("day", today).order("day").limit(8),
       supabaseAdmin.from("subscription_plans").select("label, price_cents, period_days, active").eq("active", true).order("price_cents"),
     ]);
@@ -119,7 +122,7 @@ export async function POST(req: Request) {
         ? `The truck is OPEN now${where ? ` at ${where}` : ""}.`
         : `The truck is not currently open${next ? `. Next: ${next}` : ""}.`;
     }
-    events = (ev.data ?? []).filter((e: any) => !e.member_only).map((e: any) => `- ${e.title ?? "Event"}${e.day_label ? ` (${e.day_label})` : e.day ? ` (${e.day})` : ""}${e.start_time ? ` ${e.start_time}` : ""}${e.location_text ? ` — ${e.location_text}` : ""}`).join("\n");
+    events = (ev.data ?? []).filter((e: any) => !e.member_only).map((e: any) => `- ${e.public_title || e.title || "Event"}${e.day_label ? ` (${e.day_label})` : e.day ? ` (${e.day})` : ""}${e.start_time ? ` ${e.start_time}` : ""}${e.location_text ? ` — ${e.location_text}` : ""}`).join("\n");
     plans = (pl.data ?? []).map((p: any) => `- ${p.label}: $${((p.price_cents ?? 0) / 100).toFixed(2)} every ${p.period_days} days`).join("\n");
   }
 

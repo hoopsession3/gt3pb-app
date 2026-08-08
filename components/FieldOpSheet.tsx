@@ -97,7 +97,7 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
 
   useEffect(() => {
     if (!supabase) return;
-    const sel = isEvent ? "title, day, location_text, stage" : "name, starts_at, ends_at, location_text, address, status, completed_at, vendor_id";
+    const sel = isEvent ? "title, day, location_text, stage, published_at, public_title" : "name, starts_at, ends_at, location_text, address, status, completed_at, vendor_id";
     supabase.from(table).select(sel).eq("id", id).maybeSingle()
       .then(({ data }) => {
         const row = ((data ?? {}) as unknown) as Record<string, string | null>;
@@ -155,7 +155,10 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
     const rawName = (f[isEvent ? "title" : "name"] || "").trim();
     const nm = rawName || (isEvent ? "Event" : "Stop");
     const patch: Record<string, string | number | null> = isEvent
-      ? { title: nm, day: f.day || null, location_text: f.location_text?.trim() || null }
+      ? { title: nm, day: f.day || null, location_text: f.location_text?.trim() || null,
+          // Publish gate (0270): published_at carries the guest-visibility decision; public_title is
+          // the optional guest-facing name. Both are set by the toggle/field below, written verbatim.
+          published_at: f.published_at || null, public_title: f.public_title?.trim() || null }
       : { name: nm, starts_at: f.starts_at || null, ends_at: f.ends_at || null, location_text: f.location_text?.trim() || null, address: f.address?.trim() || null };
     // stage/status: write ONLY a deliberate change (lifecycle automation owns it otherwise)
     const stageNow = (isEvent ? f.stage : f.status) ?? null;
@@ -226,6 +229,29 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
             <option value="upcoming">Upcoming</option><option value="done">Done</option>
           </select>
         </label>
+      )}
+      {isEvent && (
+        // GUEST VISIBILITY (0270) — the publish decision, on the event everyone already edits here.
+        // Toggling it flips published_at; guests see the event only once it's on. Truck stops have no
+        // such control — they're always customer-facing. The optional public name lets an internal
+        // title ("Soul Yoga pilot #2 · compliance pending") face guests as something cleaner.
+        <div className={`fop-pub${f.published_at ? " on" : ""}`} style={{ marginTop: 12 }}>
+          <button type="button" className="fop-pub-toggle" role="switch" aria-checked={!!f.published_at}
+            onClick={() => set("published_at", f.published_at ? null : new Date().toISOString())}>
+            <span className="fop-pub-dot" aria-hidden="true" />
+            <span className="fop-pub-l">
+              <b>{f.published_at ? "Published to guests" : "Hidden from guests"}</b>
+              <span>{f.published_at
+                ? `Live on the customer calendar${f.published_at.length >= 10 ? ` · since ${new Date(f.published_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : ""}`
+                : "Only the crew can see this — tap to publish"}</span>
+            </span>
+          </button>
+          {f.published_at && (
+            <label className="prod-f" style={{ marginTop: 8 }}><span>Public name <i>(optional — blank uses the event name)</i></span>
+              <input value={f.public_title ?? ""} onChange={(e) => set("public_title", e.target.value)} placeholder={f.title ?? "Name guests see"} maxLength={120} />
+            </label>
+          )}
+        </div>
       )}
       {onOpenPrep && (
         <button type="button" className="btn-ter" style={{ marginTop: 12 }} onClick={onOpenPrep}>

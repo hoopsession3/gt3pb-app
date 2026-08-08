@@ -31,7 +31,7 @@ import { SectionHeader } from "@/components/kit";
 // Fetch state via useAsyncData — a failed load is a real error now, not a silently stale calendar.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-type Ev = { id: string; title: string | null; day: string; day_label: string | null; is_live: boolean | null; category: string | null; plan_days: number | null; stage: string | null };
+type Ev = { id: string; title: string | null; day: string; day_label: string | null; is_live: boolean | null; category: string | null; plan_days: number | null; stage: string | null; published_at: string | null };
 type Content = { id: string; title: string; scheduled_for: string | null; status: string };
 type Todo = { id: string; title: string; category: string; due_on: string | null; done: boolean; event_id: string | null; meeting_note_id: string | null };
 type PrepTask = { id: string; label: string; due_at: string | null; event_id: string | null; stop_id: string | null; meeting_note_id: string | null; goal_id: string | null };
@@ -136,7 +136,7 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
     const { fromISO, toISO } = localDayBoundsISO(range.start, range.end);
     const none = Promise.resolve({ data: [], error: null });   // role-gated source → empty, never an error
     const [e, c, t, s, pt, bb, dr, dv, bt, bc, bo, gl, bk, op, mn] = await Promise.all([
-      supabase.from("events").select("id, title, day, day_label, is_live, category, plan_days, stage").is("archived_at", null).gte("day", eFrom).lte("day", to),
+      supabase.from("events").select("id, title, day, day_label, is_live, category, plan_days, stage, published_at").is("archived_at", null).gte("day", eFrom).lte("day", to),
       supabase.from("content_items").select("id, title, scheduled_for, status").is("archived_at", null).not("scheduled_for", "is", null).gte("scheduled_for", fromISO).lt("scheduled_for", toISO),
       supabase.from("todos").select("id, title, category, due_on, done, event_id, meeting_note_id").not("due_on", "is", null).gte("due_on", from).lte("due_on", to),
       supabase.from("stops").select("id, name, location_text, starts_at, status").is("archived_at", null).not("starts_at", "is", null).neq("status", "done").gte("starts_at", fromISO).lt("starts_at", toISO),
@@ -248,7 +248,12 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
       const span = Math.max(1, e.plan_days ?? 1);
       for (let di = 0; di < span; di++) {
         const base = e.title || e.day_label || "Event";
-        const meta = e.is_live ? "Live" : (e.stage ? e.stage[0].toUpperCase() + e.stage.slice(1) : "");
+        const stageMeta = e.is_live ? "Live" : (e.stage ? e.stage[0].toUpperCase() + e.stage.slice(1) : "");
+        // Publish marker (0270): a real event category that isn't published reads "hidden" so a glance
+        // at the month shows exactly what guests can't see. Ops/admin categories aren't guest-facing
+        // at all, so they carry no marker.
+        const guestFacing = (e.category ?? "event") === "event";
+        const meta = [stageMeta, guestFacing && !e.published_at ? "hidden" : ""].filter(Boolean).join(" · ");
         push(addDaysKey(e.day, di), { id: e.id, title: span > 1 ? `${base} · D${di + 1}` : base, cat, kind: "event", meta, go: () => openEventPrep(e.id) });
       }
     }

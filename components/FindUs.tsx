@@ -39,7 +39,7 @@ import Icon from "@/components/Icon";
 //    local mirror the initial load fills.
 
 type FieldOp = {
-  id: string; kind: "event" | "stop"; name: string;
+  id: string; kind: "event" | "stop"; name: string; public_title?: string | null; published_at?: string | null;
   day: string | null; starts_at: string | null; ends_at: string | null;
   start_time: string | null; end_time: string | null;
   day_label: string | null; when_label: string | null; time_label: string | null;
@@ -118,7 +118,7 @@ async function fetchRoad(): Promise<Board> {
   // venue POC contact columns this comment used to warn about — poc_name/phone/email/service_dates —
   // were dropped from the table entirely in migration 0240; there's nothing left to leak.)
   const [{ data: fo, error: e1 }, { data: l, error: e2 }] = await Promise.all([
-    supabase!.from("field_ops").select("id, kind, name, day, starts_at, ends_at, start_time, end_time, day_label, when_label, time_label, location_text, address, lat, lng, member_only, going_count, capacity, blurb, menu_tier, notes, note, status, completed_at, archived_at, is_public").eq("is_public", true),
+    supabase!.from("field_ops").select("id, kind, name, public_title, day, starts_at, ends_at, start_time, end_time, day_label, when_label, time_label, location_text, address, lat, lng, member_only, going_count, capacity, blurb, menu_tier, notes, note, status, completed_at, archived_at, is_public, published_at").eq("is_public", true),
     supabase!.from("live_status").select("*").maybeSingle(),
   ]);
   if (e1) throw new Error(e1.message);
@@ -127,8 +127,12 @@ async function fetchRoad(): Promise<Board> {
   const liveId = lstat?.is_live ? lstat.current_stop_id : null;
   const nowT = Date.now();
   // the road AHEAD: hide completed/past (8h grace for stops through their evening; events
-  // stay through their whole day) — the live stop always shows
+  // stay through their whole day) — the live stop always shows. Publish gate (0270): RLS already
+  // hides unpublished events from guests; this mirrors it client-side so a STAFF preview of Find Us
+  // shows exactly what a guest sees. Stops are always public; an event needs published_at.
   const ops = ((fo as FieldOp[]) ?? [])
+    .filter((r) => (r.kind === "stop" || r.published_at))
+    .map((r) => (r.public_title ? { ...r, name: r.public_title } : r))   // guest-facing name wins on the public road
     .filter((r) => r.status !== "done" && !r.completed_at
       && (r.id === liveId
         || (r.kind === "stop" ? (!r.starts_at || new Date(r.starts_at).getTime() > nowT - 8 * 3600 * 1000) : true)))

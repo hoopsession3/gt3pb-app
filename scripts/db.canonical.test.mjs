@@ -882,5 +882,93 @@ ok("0269 the record covers the whole gap: every ship date Jul 18 → Aug 3 prese
     return r.days >= 10 && r.floor_ok === true;
   })());
 
+// ── 0270: event publish gate — is_public stays the floor, published_at is the manual door ──
+// Fixture rebuilds the PRE-0270 reality: events + field_ops each with the 0233 is_public generated
+// column and the guest-read policy, so the test proves 0270 EXTENDS them (the backfill keeps the
+// current public set visible; new events default hidden; the mirror carries the new column). No
+// 0222 mirror TRIGGER is installed here on purpose — 0270's own backfill exercises both doors
+// directly, and the 40-column mirror insert isn't what's under test (its column list is asserted
+// from the function text instead).
+await db.exec(`
+  drop table if exists public.field_ops cascade;
+  alter table public.events add column if not exists category text not null default 'event';
+  alter table public.events add column if not exists archetype text;
+  alter table public.events add column if not exists is_public boolean generated always as (
+    archived_at is null and coalesce(category,'event')='event' and (archetype is null or archetype <> 'private_booking')
+  ) stored;
+  drop policy if exists "public read events" on public.events;
+  create policy "public read events" on public.events for select using (is_public or (select public.is_staff()));
+  create table public.field_ops (
+    id uuid primary key, kind text not null, name text, day date, category text default 'event',
+    archetype text, archived_at timestamptz,
+    is_public boolean generated always as (
+      archived_at is null and (kind='stop' or (coalesce(category,'event')='event' and (archetype is null or archetype <> 'private_booking')))
+    ) stored
+  );
+  alter table public.field_ops enable row level security;
+  create policy "field ops read" on public.field_ops for select using (is_public or (select public.is_staff()));
+`);
+// Seed the pre-0270 world: a normal public event, a private booking, an archived event, a truck stop.
+const EV_PUB  = (await q1(`insert into events (title, day, category) values ('Soul Yoga Workshop', current_date + 10, 'event') returning id`)).id;
+const EV_PRIV = (await q1(`insert into events (title, day, category, archetype) values ('Private corp gig', current_date + 5, 'event', 'private_booking') returning id`)).id;
+await db.exec(`insert into events (title, day, category, archived_at) values ('Old wrapped event', current_date - 20, 'event', now())`);
+await db.exec(`insert into field_ops (id, kind, name, day, category) values (gen_random_uuid(), 'stop', 'Tuesday truck stop', current_date + 2, 'event')`);
+await db.exec(`insert into field_ops (id, kind, name, day, category) values ('${EV_PUB}', 'event', 'Soul Yoga Workshop', current_date + 10, 'event')`);
+await db.exec(`insert into field_ops (id, kind, name, day, category, archetype) values ('${EV_PRIV}', 'event', 'Private corp gig', current_date + 5, 'event', 'private_booking')`);
+
+await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0270_event_publish_gate.sql"), "utf8"));
+await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0270_event_publish_gate.sql"), "utf8"));   // twice, on purpose
+
+ok("0270 backfill keeps the CURRENT public set visible: the plain event got published_at, the private booking and the archived one did not",
+  await (async () => {
+    const pub = await q1(`select published_at is not null p from events where id = '${EV_PUB}'`);
+    const priv = await q1(`select published_at is not null p from events where id = '${EV_PRIV}'`);
+    const arch = (await q1(`select count(*)::int n from events where title='Old wrapped event' and published_at is not null`)).n;
+    return pub.p === true && priv.p === false && arch === 0;
+  })());
+ok("0270 new events are born HIDDEN: no published_at unless set — publishing is a decision",
+  await (async () => {
+    const def = await q1(`insert into events (title, day, category) values ('Brand new event', current_date + 30, 'event') returning published_at`);
+    return def.published_at === null;
+  })());
+ok("0270 is_public stays the untouched privacy FLOOR: still true for a public-category event, still false for a private booking — regardless of publish state",
+  await (async () => {
+    const pub = await q1(`select is_public from events where id = '${EV_PUB}'`);
+    const priv = await q1(`select is_public from events where id = '${EV_PRIV}'`);
+    const newHidden = await q1(`select is_public from events where title='Brand new event'`);
+    return pub.is_public === true && priv.is_public === false && newHidden.is_public === true;   // is_public true but published_at null = crew-only
+  })());
+ok("0270 the guest DOOR now demands the publish gate on events: the events policy qual references published_at",
+  await (async () => {
+    const q = (await q1(`select qual from pg_policies where tablename='events' and policyname='public read events'`)).qual;
+    return /published_at/.test(String(q));
+  })());
+ok("0270 truck stops stay auto-public (no gate): the field_ops policy keeps the kind='stop' escape, and the seeded stop needs no published_at",
+  await (async () => {
+    const q = (await q1(`select qual from pg_policies where tablename='field_ops' and policyname='field ops read'`)).qual;
+    const stopPub = await q1(`select is_public from field_ops where kind='stop'`);
+    return /published_at/.test(String(q)) && /stop/.test(String(q)) && stopPub.is_public === true;
+  })());
+ok("0270 the field_ops backfill mirrored the events decision: the public event row is published there too",
+  await (async () => {
+    const foPub = await q1(`select published_at is not null p from field_ops where id='${EV_PUB}'`);
+    const foPriv = await q1(`select published_at is not null p from field_ops where id='${EV_PRIV}'`);
+    return foPub.p === true && foPriv.p === false;
+  })());
+ok("0270 the mirror function learned the new columns (published_at + public_title in its INSERT list)",
+  await (async () => {
+    const src = (await q1(`select pg_get_functiondef(oid) def from pg_proc where proname='mirror_event_to_field_ops'`)).def;
+    return /published_at/.test(String(src)) && /public_title/.test(String(src));
+  })());
+ok("0270 unpublish is one write: clearing published_at drops it back below the guest door (is_public unchanged, gate closed)",
+  await (async () => {
+    await db.exec(`update events set published_at = null where id = '${EV_PUB}'`);
+    const r = await q1(`select is_public, published_at is null hidden from events where id = '${EV_PUB}'`);
+    await db.exec(`update events set published_at = now() where id = '${EV_PUB}'`);   // restore
+    return r.is_public === true && r.hidden === true;
+  })());
+ok("0270 wrote its own changelog entry (the no-drift gate is satisfied by content, not just by declaration)",
+  (await q1(`select count(*)::int n from changelog where title = 'You choose which events guests see'`)).n === 1);
+
 console.log(`CANONICAL-DB CONTRACT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
