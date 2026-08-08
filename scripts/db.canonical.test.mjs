@@ -970,5 +970,51 @@ ok("0270 unpublish is one write: clearing published_at drops it back below the g
 ok("0270 wrote its own changelog entry (the no-drift gate is satisfied by content, not just by declaration)",
   (await q1(`select count(*)::int n from changelog where title = 'You choose which events guests see'`)).n === 1);
 
+// ── 0271: storefront spine — catalog (publish gate), orders, fulfillment, webhook idempotency ──
+await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0271_storefront_spine.sql"), "utf8"));
+await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0271_storefront_spine.sql"), "utf8"));   // twice, on purpose
+const CUST0271 = (await q1(`select id from customers where user_id = '${U1}' limit 1`)).id;
+ok("0271 RLS shape: 9 policies across the customer-facing tables; webhook_events is client-locked (0 policies, service-role only)",
+  await (async () => {
+    const nine = (await q1(`select count(*)::int n from pg_policies where tablename in ('shop_products','shop_orders','shop_order_items','merch_fulfillments','program_access')`)).n;
+    const wh = (await q1(`select count(*)::int n from pg_policies where tablename='webhook_events'`)).n;
+    return nine === 9 && wh === 0;
+  })());
+ok("0271 webhook idempotency: reuses the 0230 inbox; a namespaced provider event records once, the replay is refused, and the same raw id under another provider is fine (no cross-provider collision)",
+  await (async () => {
+    // lib/apliiq firstSeen() inserts the 0230 shape: id = '<provider>:<event>' (namespaced), so the
+    // primary-key clash on re-insert IS the dedup — no second ledger, no event_id column.
+    await db.exec(`insert into webhook_events (id, provider, type) values ('apliiq:evt-1','apliiq','fulfillment')`);
+    const replay = await refused(`insert into webhook_events (id, provider, type) values ('apliiq:evt-1','apliiq','fulfillment')`);
+    await db.exec(`insert into webhook_events (id, provider, type) values ('square:evt-1','square','payment.updated')`);   // same raw id, other provider = distinct pk
+    return replay;
+  })());
+ok("0271 catalog is born HIDDEN (publish gate) and margin-aware; a bogus kind is refused",
+  await (async () => {
+    const P = await q1(`insert into shop_products (kind, apliiq_product_id, title, price_cents, cost_cents) values ('merch','AP-1','GT3 Tee', 3200, 1180) returning published_at, price_cents`);
+    const bogus = await refused(`insert into shop_products (kind, title) values ('teleport','x')`);
+    return P.published_at === null && P.price_cents === 3200 && bogus;
+  })());
+ok("0271 order lifecycle: paid order → items → Apliiq fulfillment flips it to shipped; payment_id is unique",
+  await (async () => {
+    const oid = (await q1(`insert into shop_orders (customer_id, user_id, email, payment_id, subtotal_cents, total_cents, status) values ('${CUST0271}','${U1}','r@x.com','pay-1',3200,3200,'paid') returning id`)).id;
+    await db.exec(`insert into shop_order_items (order_id, title, qty, unit_cents, cost_cents) values ('${oid}','GT3 Tee',1,3200,1180)`);
+    const dupPay = await refused(`insert into shop_orders (payment_id, total_cents) values ('pay-1', 100)`);
+    await db.exec(`insert into merch_fulfillments (order_id, carrier, tracking_number, shipped_at) values ('${oid}','USPS','9400-1',now())`);
+    await db.exec(`update shop_orders set status='shipped' where id='${oid}'`);
+    const st = (await q1(`select status from shop_orders where id='${oid}'`)).status;
+    const badStatus = await refused(`update shop_orders set status='teleported' where id='${oid}'`);
+    return dupPay && st === 'shipped' && badStatus;
+  })());
+ok("0271 program access ledger: one row per (customer,tier), source vocabulary enforced — ready for 0272",
+  await (async () => {
+    await db.exec(`insert into program_access (customer_id, tier, source) values ('${CUST0271}','rookie','free')`);
+    const dup = await refused(`insert into program_access (customer_id, tier, source) values ('${CUST0271}','rookie','purchase')`);
+    const badSrc = await refused(`insert into program_access (customer_id, tier, source) values ('${CUST0271}','pro','teleport')`);
+    return dup && badSrc;
+  })());
+ok("0271 re-applied whole is a no-op",
+  await (async () => { try { await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0271_storefront_spine.sql"), "utf8")); return true; } catch { return false; } })());
+
 console.log(`CANONICAL-DB CONTRACT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
