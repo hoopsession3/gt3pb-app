@@ -95,6 +95,7 @@ const AskGT3 = dynamic(() => import("@/components/AskGT3"), { loading: () => <Po
 const Studio = dynamic(() => import("@/components/Studio"), { loading: () => <PourFill label="Loading…" /> });
 const ShootPlanner = dynamic(() => import("@/components/ShootPlanner"), { loading: () => <PourFill label="Loading…" /> });
 const MenuManager = dynamic(() => import("@/components/MenuManager"), { loading: () => <PourFill label="Loading…" /> });
+const LessonsManager = dynamic(() => import("@/components/LessonsManager"), { loading: () => <PourFill label="Loading…" /> });
 const PaymentSettings = dynamic(() => import("@/components/PaymentSettings"), { loading: () => <PourFill label="Loading…" /> });
 const MoneyKpis = dynamic(() => import("@/components/MoneyKpis"), { loading: () => <PourFill label="Loading…" /> });
 const PlanEditor = dynamic(() => import("@/components/PlanEditor"), { loading: () => <PourFill label="Loading…" /> });
@@ -6321,6 +6322,7 @@ export default function AdminPage() {
           <div className="crew-group">Catalog &amp; pricing</div>
           <Panel id="menu" title="Menu & products"><MenuManager /></Panel>
           <Panel id="econ" title="Product economics"><ProductCatalog /></Panel>
+          <Panel id="lessons" title="Return to Primal · lessons"><LessonsManager /></Panel>
           <Panel id="cogs" title="COGS calculator"><CogsCalculator /></Panel>
           <div className="crew-group">Members &amp; subscriptions</div>
           <Panel id="plans" title="Membership plans"><PlanEditor /></Panel>

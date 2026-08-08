@@ -32,7 +32,7 @@ import BroadcastBanner from "./BroadcastBanner";
 // "/crew" joined this list 2026-07-29: the console's op-head-t now renders as a real per-section
 // <h1> (was a plain div — 17 sections, 1 static sr-only h1 that never reflected which one you were
 // in). Without this skip, that would stack a second, stale "Crew console" h1 behind it on every screen.
-const H1_SKIP = new Set(["/truck", "/craft", "/office", "/display", "/events", "/academy", "/crew"]);
+const H1_SKIP = new Set(["/truck", "/craft", "/office", "/display", "/events", "/academy", "/crew", "/primal"]);
 const H1_TITLES: Record<string, string> = {
   menu: "Menu", events: "Events", reserve: "Reserve a pack", book: "Book the bar",
   delivery: "Delivery", scan: "Scan your card", playbook: "Playbook", academy: "Academy",
@@ -121,7 +121,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {/* The one <main> landmark (a11y: landmark-one-main / region). A per-route sr-only <h1> gives
             every screen a level-one heading; pages that render their own visible h1 are skipped. */}
         <main className="body" ref={bodyRef} id="body" tabIndex={-1}>
-          {!isShare && !H1_SKIP.has(pathname) && <h1 className="sr-only">{routeTitle(pathname)}</h1>}
+          {!isShare && !H1_SKIP.has(pathname) && !pathname.startsWith("/primal/") && <h1 className="sr-only">{routeTitle(pathname)}</h1>}
           {children}
         </main>
         <DrinkSheet />
