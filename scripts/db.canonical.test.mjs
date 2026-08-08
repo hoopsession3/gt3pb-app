@@ -1016,5 +1016,60 @@ ok("0271 program access ledger: one row per (customer,tier), source vocabulary e
 ok("0271 re-applied whole is a no-op",
   await (async () => { try { await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0271_storefront_spine.sql"), "utf8")); return true; } catch { return false; } })());
 
+// ── 0272: Return To Primal — native nutrition academy on the storefront spine ──
+// Fixture products to prod shape (0062 timing/accent the minimal fixture lacks) + touch_updated_at,
+// then apply VERBATIM. Proves the two interop seams the brief demanded: tier↔program_access (funnel)
+// and lesson↔menu (meal-stack). rise/flow already exist; add the rest of the seeded stacks' products.
+await db.exec(`
+  alter table public.products add column if not exists timing text;
+  alter table public.products add column if not exists accent text;
+  create or replace function public.touch_updated_at() returns trigger language plpgsql as $$ begin new.updated_at := now(); return new; end; $$;
+  update public.products set line='Activation', timing='BEFORE' where slug in ('rise','flow');
+  insert into public.products (slug, name, price_cents, active, line, timing) values
+    ('dusk','DUSK',700,true,'Activation','BEFORE'),
+    ('forge','FORGE',900,false,'Recovery','AFTER'),
+    ('hunt','HUNT',900,false,'Recovery','AFTER'),
+    ('aide','NATURE AIDE',1000,true,'Hydration','DURING')
+  on conflict (slug) do update set line=excluded.line, timing=excluded.timing, active=excluded.active;
+`);
+await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0272_primal_academy.sql"), "utf8"));
+await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0272_primal_academy.sql"), "utf8"));   // twice, on purpose
+ok("0272 RLS shape: 10 policies across the five primal tables (each read+write; lessons/products carry the funnel gate)",
+  (await q1(`select count(*)::int n from pg_policies where tablename like 'primal_%'`)).n === 10);
+ok("0272 seed is real and published: 5 pillars, 5 nutrition modules, 3 Rookie lessons, 6 menu links",
+  await (async () => {
+    const p = (await q1(`select count(*)::int n from primal_pillars`)).n;
+    const m = (await q1(`select count(*)::int n from primal_modules`)).n;
+    const l = (await q1(`select count(*)::int n from primal_lessons`)).n;
+    const lp = (await q1(`select count(*)::int n from primal_lesson_products`)).n;
+    return p === 5 && m === 5 && l === 3 && lp === 6;
+  })());
+ok("0272 lesson gate: tier vocabulary enforced, unique per module, a new lesson is born HIDDEN",
+  await (async () => {
+    const MOD = (await q1(`select id from primal_modules where slug='macronutrients'`)).id;
+    const badTier = await refused(`insert into primal_lessons (module_id, slug, title, tier) values ('${MOD}','x','X','platinum')`);
+    const dup = await refused(`insert into primal_lessons (module_id, slug, title) values ('${MOD}','power-carbs','Dup')`);
+    const born = (await q1(`insert into primal_lessons (module_id, slug, title) values ('${MOD}','born-hidden-x','BH') returning published_at`)).published_at;
+    return badTier && dup && born === null;
+  })());
+ok("0272 MEAL-STACK interop: primal_menu_for_lesson returns the lesson's stack off the LIVE menu, ordered BEFORE→DURING→AFTER",
+  await (async () => {
+    const LES = (await q1(`select id from primal_lessons where slug='power-carbs'`)).id;
+    const r = await q1(`select count(*)::int n, bool_and(orderable) allo,
+      (select timing from public.primal_menu_for_lesson('${LES}') limit 1) ft
+      from public.primal_menu_for_lesson('${LES}')`);
+    return r.n === 3 && r.allo === true && r.ft === 'BEFORE';
+  })());
+ok("0272 progress ledger: one row per (customer,lesson), status vocabulary enforced (reuses the customer spine)",
+  await (async () => {
+    const LES = (await q1(`select id from primal_lessons where slug='ruminant-red'`)).id;
+    await db.exec(`insert into primal_progress (customer_id, lesson_id, status) values ('${CUST0271}','${LES}','started')`);
+    const dup = await refused(`insert into primal_progress (customer_id, lesson_id) values ('${CUST0271}','${LES}')`);
+    const badStatus = await refused(`insert into primal_progress (customer_id, lesson_id, status) values ('${CUST0271}','${LES}','mastered')`);
+    return dup && badStatus;
+  })());
+ok("0272 re-applied whole is a no-op",
+  await (async () => { try { await db.exec(readFileSync(join(ROOT, "supabase/migrations", "0272_primal_academy.sql"), "utf8")); return true; } catch { return false; } })());
+
 console.log(`CANONICAL-DB CONTRACT: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
