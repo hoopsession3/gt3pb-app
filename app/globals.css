@@ -6552,3 +6552,68 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .pr-locked-ic{display:inline-flex;width:56px;height:56px;align-items:center;justify-content:center;border-radius:50%;background:var(--ink-onLight-05);border:1px solid var(--line2);color:var(--gold2);font-size:24px;margin:0 0 8px}
 .pr-locked-cta{display:flex;flex-direction:column;align-items:center;gap:12px;margin:22px 0 0}
 .pr-locked-note{font-family:'Inter';font-size:13px;color:var(--oa-cream-faint);display:flex;align-items:center;gap:8px}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════════
+   THE SHOP (0273) — merch storefront on the light "paper" surface, same editorial world as the Menu.
+   ═══════════════════════════════════════════════════════════════════════════════════════════════ */
+.shop{background:#F4EFE3;min-height:100%;color:#221F18}
+.shop-stmt{font-family:'Fraunces';font-style:italic;font-size:16px;line-height:1.5;color:#5a5142;margin:14px 0 20px;max-width:52ch}
+.shop-note{margin:24px 0;text-align:center;font-family:'Inter';font-size:14.5px;color:#5a5142}
+.shop-note.err{color:var(--red)}
+.shop-h1{font-family:'Fraunces';font-weight:600;font-size:clamp(34px,10vw,50px);line-height:1;letter-spacing:-.5px;color:#221F18;margin:8px 0 0}
+.shop-h1 i{font-style:italic;color:var(--red)}
+.shop-h1.sm{font-size:clamp(26px,7vw,34px);margin:12px 0 0}
+/* grid */
+.shop-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:6px 0 0}
+.shop-card{display:flex;flex-direction:column;text-align:left;background:#FBF8EF;border:1px solid rgba(34,31,24,.1);border-radius:14px;overflow:hidden;cursor:pointer;padding:0;transition:transform .16s,box-shadow .16s}
+.shop-card:hover,.shop-card:focus-visible{transform:translateY(-2px);box-shadow:0 10px 24px rgba(34,31,24,.12)}
+.shop-thumb{aspect-ratio:1;background:#EFE7D6;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.shop-thumb img{width:100%;height:100%;object-fit:cover}
+.shop-thumb-ph{color:rgba(34,31,24,.25);font-size:34px}
+.shop-thumb-ph.lg{font-size:56px}
+.shop-card-b{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:11px 13px 13px}
+.shop-card-t{font-family:'Archivo Black';font-size:13px;letter-spacing:.3px;color:#221F18;line-height:1.15}
+.shop-card-px{font-family:var(--mono);font-size:13px;color:#8a6f31;font-weight:500;white-space:nowrap}
+/* detail */
+.shop-detail,.shop-checkout{animation:fade .22s}
+.shop-back{margin:10px 0 6px;color:#8a6f31}
+.shop-hero{aspect-ratio:1;max-height:360px;background:#EFE7D6;border-radius:16px;display:flex;align-items:center;justify-content:center;overflow:hidden;margin:6px 0 0}
+.shop-hero img{width:100%;height:100%;object-fit:cover}
+.shop-detail-px{font-family:var(--mono);font-size:18px;color:#8a6f31;font-weight:500;margin:10px 0 0}
+.shop-blurb{font-family:'Inter';font-size:15px;line-height:1.6;color:#4a4335;margin:12px 0 0;max-width:56ch}
+.shop-vari{display:flex;flex-direction:column;gap:6px;margin:18px 0 0}
+.shop-vari span{font-family:'Inter';font-weight:750;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:#8a6f31}
+.shop-vari select{padding:12px;border:1px solid rgba(34,31,24,.2);border-radius:10px;background:#FBF8EF;color:#221F18;font-family:'Inter';font-size:15px}
+.shop-qty{display:flex;align-items:center;gap:0;margin:16px 0;width:fit-content;border:1px solid rgba(34,31,24,.2);border-radius:var(--r-pill);overflow:hidden}
+.shop-qty button{width:44px;height:42px;background:#FBF8EF;border:0;font-size:20px;color:#221F18;cursor:pointer}
+.shop-qty span{min-width:44px;text-align:center;font-family:var(--mono);font-size:15px}
+/* sticky cart bar */
+.shop-cartbar{position:sticky;bottom:calc(12px + env(safe-area-inset-bottom));z-index:5;width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;margin:20px 0 0;padding:15px 18px;background:var(--red);color:#fff;border:0;border-radius:14px;cursor:pointer;box-shadow:0 12px 28px rgba(184,36,32,.36)}
+.shop-cartbar-n{font-family:'Inter';font-weight:700;font-size:13px;letter-spacing:.3px}
+.shop-cartbar-go{display:inline-flex;align-items:center;gap:7px;font-family:'Inter';font-weight:800;font-size:14px}
+/* checkout */
+.shop-lines{margin:16px 0 0;border-top:1px solid rgba(34,31,24,.12)}
+.shop-line{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px dashed rgba(34,31,24,.14)}
+.shop-line-x{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.shop-line-t{font-family:'Archivo Black';font-size:13px;color:#221F18}
+.shop-line-v{font-family:'Inter';font-size:12px;color:#7a7160}
+.shop-line-qty{display:flex;align-items:center;border:1px solid rgba(34,31,24,.18);border-radius:var(--r-pill);overflow:hidden}
+.shop-line-qty button{width:32px;height:30px;background:#FBF8EF;border:0;font-size:16px;color:#221F18;cursor:pointer}
+.shop-line-qty span{min-width:30px;text-align:center;font-family:var(--mono);font-size:13px}
+.shop-line-px{font-family:var(--mono);font-size:14px;color:#221F18;min-width:56px;text-align:right}
+.shop-total{display:flex;align-items:baseline;justify-content:space-between;padding:14px 0 0}
+.shop-total span{font-family:'Inter';font-weight:750;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:#7a7160}
+.shop-total b{font-family:'Fraunces';font-weight:600;font-size:24px;color:#221F18}
+.shop-ship,.shop-pay{margin:24px 0 0}
+.shop-ship-n{font-family:'Inter';font-weight:750;font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:#8a6f31;margin:0 0 10px}
+.shop-ship input,.shop-ship-row input{width:100%;padding:13px 14px;margin:0 0 9px;border:1px solid rgba(34,31,24,.2);border-radius:10px;background:#FBF8EF;color:#221F18;font-family:'Inter';font-size:15px}
+.shop-ship input::placeholder,.shop-ship-row input::placeholder{color:#9a8f7c}
+.shop-ship-row{display:flex;gap:9px}
+.shop-err{font-family:'Inter';font-size:13.5px;color:var(--red);margin:10px 0}
+.shop-fine{font-family:'Inter';font-size:12px;line-height:1.5;color:#7a7160;margin:12px 0 0;text-align:center}
+.shop-pay .mpack-cta{margin-top:14px}
+/* done */
+.shop-done{text-align:center;margin:44px 0}
+.shop-done-ic{display:inline-flex;width:60px;height:60px;align-items:center;justify-content:center;border-radius:50%;background:rgba(106,160,92,.14);color:var(--ok);font-size:28px;margin:0 0 10px}
+.shop-lede{font-family:'Inter';font-size:15.5px;line-height:1.6;color:#4a4335;max-width:44ch;margin:14px auto 22px}
+.shop .btn-sec{color:#221F18;border-color:rgba(34,31,24,.25)}

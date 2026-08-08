@@ -71,6 +71,9 @@ export default function MenuScreen() {
       <button type="button" className="btn-ter" onClick={() => router.push("/primal")} style={{ marginLeft: 18 }}>
         Return to Primal <b><Icon name="arrowRight" /></b>
       </button>
+      <button type="button" className="btn-ter" onClick={() => router.push("/shop")} style={{ marginLeft: 18 }}>
+        Shop <b><Icon name="arrowRight" /></b>
+      </button>
 
       <div className="menu-chips" role="tablist" aria-label="Menu categories">
         {MENU.map((cat, ci) => (
