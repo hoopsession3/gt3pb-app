@@ -10,22 +10,28 @@ const SECRET = process.env.APLIIQ_SHARED_SECRET || "";
 const APP_KEY = process.env.APLIIQ_APP_KEY || "";
 const API_BASE = "https://api.apliiq.com/v1";
 
-// Verify an inbound Apliiq webhook. Computes HMAC-SHA256(secret, rawBody) and timing-safe compares
-// it to the signature Apliiq sends. The exact header name is confirmed against the first live call
-// (their public docs cover the product object, not the webhook envelope) — we accept the couple of
-// names Apliiq is known to use and log a miss so it's a one-line adjust, never a silent accept.
-// Returns false when no secret is configured — webhooks stay CLOSED until env is set (safe default).
+// Verify an inbound Apliiq call against their documented HMAC scheme. Apliiq authenticates with an
+//   Authorization: x-apliiq-auth  RTS:SIG:APPID:STATE
+// header, where SIG = base64( HMAC-SHA256( APPID + RTS + STATE + base64(body), shared_secret ) ).
+// We re-derive SIG from the parts they send (APPID/RTS/STATE + the raw body we received) and
+// timing-safe compare. Returns false when no secret is configured — inbound calls stay CLOSED until
+// the env is set (safe default). The signed string is faithful to Apliiq's Authentication Guide.
 export function verifyApliiq(rawBody: string, headers: Headers): boolean {
   if (!SECRET) return false;
-  const provided =
-    headers.get("x-apliiq-signature") ||
-    headers.get("x-apliiq-hmac-sha256") ||
-    (headers.get("x-apliiq-auth") || "").split(":")[1] ||   // "RTS:SIG:APPID:STATE" → SIG
-    "";
-  if (!provided) return false;
-  const expected = crypto.createHmac("sha256", SECRET).update(rawBody).digest("base64");
+  // Accept the token whether it arrives under Authorization (with the scheme word) or a bare header.
+  const raw = headers.get("authorization") || headers.get("x-apliiq-auth") || "";
+  const token = raw.replace(/^\s*x-apliiq-auth\s+/i, "").trim();
+  const parts = token.split(":");
+  if (parts.length < 4) return false;
+  const [rts, sig, appid, state] = parts;
+  if (!rts || !sig || !appid || !state) return false;
+  const b64 = rawBody ? Buffer.from(rawBody).toString("base64") : "";
+  const expected = crypto
+    .createHmac("sha256", SECRET)
+    .update(appid + rts + state + b64)
+    .digest("base64");
   try {
-    const a = Buffer.from(provided);
+    const a = Buffer.from(sig);
     const b = Buffer.from(expected);
     return a.length === b.length && crypto.timingSafeEqual(a, b);
   } catch {
@@ -33,14 +39,37 @@ export function verifyApliiq(rawBody: string, headers: Headers): boolean {
   }
 }
 
-// The signed auth header for OUTBOUND calls to Apliiq's API (order submission). Their scheme is
-// `x-apliiq-auth RTS:SIG:APPID:STATE` — RTS (request timestamp) + SIG (HMAC of the request) + the
-// app id + a state nonce. Built from env; never logs the secret.
+// The signed auth header for OUTBOUND calls to Apliiq's API. Per their Authentication Guide the value
+// is `x-apliiq-auth RTS:SIG:APPID:STATE`, where
+//   RTS   = request timestamp (unix seconds)
+//   STATE = a random per-request nonce
+//   SIG   = base64( HMAC-SHA256( APPID + RTS + STATE + base64(body), shared_secret ) )
+// A GET (or any empty body) signs base64("") = "". Built from env; never logs the secret.
 function outboundAuthHeader(bodyRaw: string): string {
   const rts = Math.floor(Date.now() / 1000).toString();
   const state = crypto.randomBytes(8).toString("hex");
-  const sig = crypto.createHmac("sha256", SECRET).update(rts + bodyRaw + state).digest("base64");
+  const b64 = bodyRaw ? Buffer.from(bodyRaw).toString("base64") : "";
+  const sig = crypto
+    .createHmac("sha256", SECRET)
+    .update(APP_KEY + rts + state + b64)
+    .digest("base64");
   return `x-apliiq-auth ${rts}:${sig}:${APP_KEY}:${state}`;
+}
+
+// Authenticated GET against Apliiq's API (e.g. "/Product" to list the catalog, "/Product/:id" for
+// one). Empty body → the signed base64(body) is "". Returns parsed JSON; throws on a non-2xx so the
+// caller can surface the status. Never throws the secret into a message.
+export async function apliiqGet(path: string): Promise<unknown> {
+  if (!SECRET || !APP_KEY) throw new Error("Apliiq not configured (env)");
+  const url = path.startsWith("http")
+    ? path
+    : `${API_BASE}${path.startsWith("/") ? "" : "/"}${path}`;
+  const r = await fetch(url, {
+    method: "GET",
+    headers: { Accept: "application/json", Authorization: outboundAuthHeader("") },
+  });
+  if (!r.ok) throw new Error(`Apliiq GET ${path} → ${r.status}`);
+  return r.json();
 }
 
 // Idempotency gate: record a provider event once. Returns true if THIS is the first time we've seen
