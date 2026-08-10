@@ -11,10 +11,12 @@ import { useSiteCopy, fillCopy } from "@/lib/copy";
 import Sheet from "@/components/Sheet";
 import EditableCopy from "@/components/EditableCopy";
 
+// Pillar tag per drink timing — copy keys now (sheet.pillar_*), resolved via t() at render since the
+// key→text map lives in site_copy. The d.when → key mapping itself is menu data, not copy.
 const PILLAR: Record<"BEFORE" | "DURING" | "AFTER", string> = {
-  BEFORE: "Activation · Before the work",
-  DURING: "Hydration · During the work",
-  AFTER: "Fuel · After the work",
+  BEFORE: "sheet.pillar_before",
+  DURING: "sheet.pillar_during",
+  AFTER: "sheet.pillar_after",
 };
 
 export default function DrinkSheet() {
@@ -51,7 +53,7 @@ export default function DrinkSheet() {
     <Sheet open={!!openId} onClose={closeDrink} className="paper" labelledBy="drink-sheet-title">
       {d && openId && (
         <>
-          <div className="sheet-pillar">{PILLAR[d.when]}</div>
+          <div className="sheet-pillar">{t(PILLAR[d.when])}</div>
           <div className="sheet-mark">
             <span className="sheet-dot" style={{ background: d.dot }} />
             {/* Name / lines / why read the SAME menu.<id>.* copy keys the /menu list uses
@@ -73,14 +75,14 @@ export default function DrinkSheet() {
 
           <div className="sheet-rule" />
 
-          <div className="sheet-sec">In the bottle</div>
+          <EditableCopy k="sheet.in_bottle" value={t("sheet.in_bottle")} as="div" className="sheet-sec" />
           <ul className="sheet-list">
             {d.has.map((x) => (
               <li key={x}>{x}</li>
             ))}
           </ul>
 
-          <div className="sheet-sec">Never</div>
+          <EditableCopy k="sheet.never" value={t("sheet.never")} as="div" className="sheet-sec" />
           <ul className="sheet-list no">
             {d.no.map((x) => (
               <li key={x}>{x}</li>
@@ -88,14 +90,14 @@ export default function DrinkSheet() {
           </ul>
 
           <div className="sheet-when">
-            <span className="sheet-when-k">When</span>
+            <EditableCopy k="sheet.when_label" value={t("sheet.when_label")} as="span" className="sheet-when-k" />
             <span className="sheet-when-v">{d.whenT}</span>
           </div>
 
           {!ordering.open && !on ? (
             <>
               <button className="order-bar" onClick={() => { closeDrink(); router.push("/reserve"); }}>
-                Truck&apos;s closed — reserve a pack ›
+                {t("sheet.closed_cta")}
               </button>
               <div className="sheet-signoff">
                 Cup orders open {ordering.nextAt ? <>closer to the next stop — <b>{new Date(ordering.nextAt).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}{ordering.nextName ? ` · ${ordering.nextName}` : ""}</b></> : "when the truck goes live"}. <EditableCopy k="menu.packs_cutoff" value={t("menu.packs_cutoff")} displayValue={packsCutoffLine} multiline />
@@ -104,9 +106,9 @@ export default function DrinkSheet() {
           ) : (
             <>
               <button className={`order-bar${out && !on ? " order-bar-86" : ""}`} disabled={out && !on} onClick={() => { if (out && !on) { toast("Sold out today — back on the next brew", "error"); return; } if (!on) toast("Added — keep building your order"); bump(openId); closeDrink(); }}>
-                {on ? "Remove from order" : out ? "Sold out today" : "Add to order"}
+                {on ? t("sheet.remove") : out ? t("sheet.soldout") : t("sheet.add")}
               </button>
-              <div className="sheet-signoff">Made the moment you order, and you&apos;ll taste it.</div>
+              <EditableCopy k="sheet.made_moment" value={t("sheet.made_moment")} as="div" className="sheet-signoff" />
             </>
           )}
         </>

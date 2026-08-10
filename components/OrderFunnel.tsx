@@ -433,10 +433,10 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
   const Toggle = (
     <div className="of-seg" role="tablist" aria-label="Fulfillment">
       <button type="button" role="tab" aria-selected={mode === "pickup"} className={mode === "pickup" ? "on" : ""} onClick={() => switchMode("pickup")}>
-        <b><Icon name="package" /> Pickup</b><span>Grab it at a truck stop</span>
+        <b><Icon name="package" /> {t("funnel.toggle_pickup")}</b><span>{t("funnel.toggle_pickup_sub")}</span>
       </button>
       <button type="button" role="tab" aria-selected={mode === "delivery"} className={mode === "delivery" ? "on" : ""} onClick={() => switchMode("delivery")}>
-        <b><Icon name="truck" /> Delivery</b><span>Prepaid, to your door</span>
+        <b><Icon name="truck" /> {t("funnel.toggle_delivery")}</b><span>{t("funnel.toggle_delivery_sub")}</span>
       </button>
     </div>
   );
@@ -484,41 +484,41 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
       {mode === "delivery" && step === "start" && (
         <div className="dl-step">
           <div className="dl-hero">
-            <h2 className="dl-h serif dl-h-xl">Your week, <em>delivered.</em></h2>
+            <h2 className="dl-h serif dl-h-xl"><EditableCopy k="funnel.hero_h1" value={t("funnel.hero_h1")} /> <em><EditableCopy k="funnel.hero_em" value={t("funnel.hero_em")} /></em></h2>
           </div>
 
           {/* Who's it for? — one question, two doors. Never blurs a home order into an office order. */}
           <div className="aud-fork" role="radiogroup" aria-label="Delivery type">
             <button type="button" role="radio" aria-checked={audience === "home"} className={`aud${audience === "home" ? " on" : ""}`} onClick={() => setAudience("home")}>
-              <span className="aud-ic">🏠</span><b>My home</b><span className="aud-d">Sunday packs</span>
+              <span className="aud-ic">🏠</span><b>{t("funnel.aud_home")}</b><span className="aud-d">{t("funnel.aud_home_sub")}</span>
             </button>
             <button type="button" role="radio" aria-checked={audience === "office"} className={`aud${audience === "office" ? " on" : ""}`} onClick={() => setAudience("office")}>
-              <span className="aud-ic">🏢</span><b>My office</b><span className="aud-d">Mon · gallons</span>
+              <span className="aud-ic">🏢</span><b>{t("funnel.aud_office")}</b><span className="aud-d">{t("funnel.aud_office_sub")}</span>
             </button>
           </div>
 
           {audience === "office" ? (
             <div className="aud-office">
               <p className="dl-sub">Fresh cold-extract for the whole team — <b>amber gallon jugs</b>, delivered <b>Monday 5–8&nbsp;AM</b>, empties swapped for full each week. 3-gallon minimum.</p>
-              <button type="button" className="handle" onClick={() => setOfficeOpen(true)}><span>Set up office delivery <Icon name="arrowRight" /></span></button>
+              <button type="button" className="handle" onClick={() => setOfficeOpen(true)}><span>{t("funnel.office_cta")} <Icon name="arrowRight" /></span></button>
               {officeOpen && <OfficeOrder onClose={() => setOfficeOpen(false)} />}
             </div>
           ) : (<>
-          <p className="dl-sub dl-zlead">Enter your ZIP &mdash; we&rsquo;ll check your porch.</p>
+          <EditableCopy k="funnel.zip_lead" value={t("funnel.zip_lead")} as="p" className="dl-sub dl-zlead" />
           <div className="dl-ziprow dl-ziprow-xl">
-            <input className="auth-input" inputMode="numeric" maxLength={5} placeholder="ZIP code" value={zip} onChange={(e) => { setZip(e.target.value.replace(/\D/g, "")); setZone("ask"); }} aria-label="ZIP code" />
-            <button type="button" className="handle" onClick={checkZone} disabled={zip.length !== 5}><span>Check</span></button>
+            <input className="auth-input" inputMode="numeric" maxLength={5} placeholder={t("funnel.zip_ph")} value={zip} onChange={(e) => { setZip(e.target.value.replace(/\D/g, "")); setZone("ask"); }} aria-label="ZIP code" />
+            <button type="button" className="handle" onClick={checkZone} disabled={zip.length !== 5}><span>{t("funnel.zip_check")}</span></button>
           </div>
           {zone === "out" && (
             <div className="dl-out">
-              <p className="dl-sub"><b>Not in our delivery zone yet.</b> Drop your email — or grab it at a truck stop instead.</p>
-              {wlSent ? <p className="dl-sub ok"><Icon name="check" /> You&rsquo;re on the list.</p> : (
+              <p className="dl-sub"><b>{t("funnel.oz_title")}</b> {t("funnel.oz_body")}</p>
+              {wlSent ? <p className="dl-sub ok"><Icon name="check" /> {t("funnel.wl_done")}</p> : (
                 <div className="dl-ziprow">
                   <input className="auth-input" type="email" placeholder="you@email.com" value={wlEmail} onChange={(e) => setWlEmail(e.target.value)} aria-label="Email" />
-                  <button type="button" className="handle" onClick={joinWaitlist}><span>Notify me</span></button>
+                  <button type="button" className="handle" onClick={joinWaitlist}><span>{t("funnel.notify")}</span></button>
                 </div>
               )}
-              <button type="button" className="oa-cta ghost" onClick={() => switchMode("pickup")}>Switch to pickup <Icon name="arrowRight" /></button>
+              <button type="button" className="oa-cta ghost" onClick={() => switchMode("pickup")}>{t("funnel.switch_pickup")} <Icon name="arrowRight" /></button>
             </div>
           )}
           </>)}
@@ -532,18 +532,18 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
               "Order ahead" — the old h2 opened by repeating it verbatim, two lines apart. */}
           {/* serif (2026-08-01 type-voice pass): the one customer headline that spoke system sans —
               Menu, Craft, and Today's pitch are all Fraunces; Reserve now speaks the same house. */}
-          <h2 className="dl-h serif">{mode === "delivery" ? "We deliver to you. Pick a Sunday and a size." : stops.length > 1 ? "Pick a day and a size." : `Pick a size for ${dayName(drop.sat).split(",")[0]}.`}</h2>
+          <h2 className="dl-h serif">{mode === "delivery" ? t("funnel.size_h_delivery") : stops.length > 1 ? t("funnel.size_h_pickup_multi") : fillCopy(t("funnel.size_h_pickup"), { day: dayName(drop.sat).split(",")[0] })}</h2>
           {mode === "pickup" && <EditableCopy k="reserve.fresh" value={t("reserve.fresh")} as="p" className="dl-sub" />}
 
-          {mode === "pickup" && <p className="dl-pricemode">{bringBack ? "Prices with bring-back empties — need new glass? It\u2019s $10 a bottle, picked at the next step." : "New-glass prices — bring your empties back next drop and pay less."}</p>}
-          {mode === "delivery" && <p className="dl-pricemode">{bringBack ? "Prices with empties back — first delivery? Switch to “need all new” at the next step." : "New-bottle prices — bring your empties back next time and pay less."}</p>}
+          {mode === "pickup" && <p className="dl-pricemode">{bringBack ? t("funnel.pricemode_pickup_back") : t("funnel.pricemode_pickup_new")}</p>}
+          {mode === "delivery" && <p className="dl-pricemode">{bringBack ? t("funnel.pricemode_del_back") : t("funnel.pricemode_del_new")}</p>}
           {/* New this round — reserve.window had no render site anywhere (round o's discovery). Added
               here as an additive note in the same dl-sub style as the fresh line above; this is new
               visible copy, not a rewire of something that was already on screen. */}
           {mode === "pickup" && <EditableCopy k="reserve.window" value={t("reserve.window")} as="p" className="dl-sub" multiline />}
           {mode === "delivery" ? (
             <>
-              <div className="oa-slabel">Which Sunday</div>
+              <EditableCopy k="funnel.which_sunday" value={t("funnel.which_sunday")} as="div" className="oa-slabel" />
               <div className="dl-days">
                 {choices.map((c, i) => (
                   <button key={c.deliveryDateKey} type="button" className={`oa-day${when === i ? " sel" : ""}`} onClick={() => setWhen(i)}>
@@ -555,7 +555,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
             </>
           ) : stops.length > 1 ? (
             <>
-              <div className="oa-slabel">Pickup day — your call</div>
+              <EditableCopy k="funnel.pickup_day_label" value={t("funnel.pickup_day_label")} as="div" className="oa-slabel" />
               <div className="dl-days">
                 {stops.map((st, i) => {
                   const d = dropForStop(st.starts_at);
@@ -569,22 +569,22 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
             </>
           ) : null}
 
-          <div className="oa-slabel">How many bottles</div>
+          <EditableCopy k="funnel.how_many" value={t("funnel.how_many")} as="div" className="oa-slabel" />
           <div className="oa-tiles">
             {(mode === "delivery" ? DELIVERY_PACKS : PICKUP_TIERS).map((s) => (
               <button key={s} type="button" className={`oa-tile${count === s ? " sel" : ""}`} onClick={() => pickCount(s)}>
-                {mode === "delivery" && s >= DELIVERY_PRICING.feeWaivedAt && <span className="oa-tag on">FREE DELIVERY</span>}
+                {mode === "delivery" && s >= DELIVERY_PRICING.feeWaivedAt && <span className="oa-tag on">{t("funnel.free_delivery")}</span>}
                 {mode === "pickup" && PACK_TAG[s] && <span className="oa-tag">{PACK_TAG[s]}</span>}
-                <div className="oa-c">{s}</div><div className="oa-u">BOTTLES</div>
+                <div className="oa-c">{s}</div><div className="oa-u">{t("funnel.bottles_unit")}</div>
                 <div className="oa-p">{mode === "delivery" ? dollars(quoteDelivery(s, 0, bringBack ? s : 0, "direct").totalCents) : dollars(packTotal(s, bringBack ? "return" : "new") * 100)}</div>
               </button>
             ))}
           </div>
           {mode === "delivery"
-            ? <p className="dl-note">Delivery {dollars(DELIVERY_PRICING.feeCents)} flat — free at {DELIVERY_PRICING.feeWaivedAt}+ bottles.</p>
+            ? <EditableCopy k="funnel.delivery_fee_note" value={t("funnel.delivery_fee_note")} displayValue={fillCopy(t("funnel.delivery_fee_note"), { fee: dollars(DELIVERY_PRICING.feeCents), min: String(DELIVERY_PRICING.feeWaivedAt) })} as="p" className="dl-note" />
             : <div className="dl-note">{count ? <>That&rsquo;s <b>{PACK_HINT[count]}</b></> : null}</div>}
           {count != null && (
-            <button type="button" className="oa-cta" disabled={!count} onClick={() => setStep("build")}>Build your pack <Icon name="arrowRight" /></button>
+            <button type="button" className="oa-cta" disabled={!count} onClick={() => setStep("build")}>{t("funnel.build_cta")} <Icon name="arrowRight" /></button>
           )}
         </div>
       )}
@@ -592,8 +592,9 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
       {/* ── BUILD (flavors + premium) ── */}
       {step === "build" && count && (
         <div className="dl-step">
-          <h2 className="dl-h">Build your pack.</h2>
-          <p className="dl-sub">Rise, Flow, Dusk — mix as you go. <b>{picked} / {count}</b> bottles picked.</p>
+          <EditableCopy k="funnel.build_h" value={t("funnel.build_h")} as="h2" className="dl-h" />
+          {/* Prefix is editable copy; the live picked/count counter stays dynamic. */}
+          <p className="dl-sub"><EditableCopy k="funnel.build_sub" value={t("funnel.build_sub")} /> <b>{picked} / {count}</b> bottles picked.</p>
           {FLAVS.map((k) => (
             <div className="dl-ctr" key={k}>
               <span className="dl-ctr-n">{FLAV_LABEL[k]} <em>{FLAV_DESC[k]}</em></span>
@@ -620,7 +621,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
             </div>
           )}
           <button type="button" className="oa-cta" disabled={picked !== count} onClick={() => setStep("glass")}>
-            {picked === count ? <>Your bottles <Icon name="arrowRight" /></> : `Pick ${count - picked} more`}
+            {picked === count ? <>{t("funnel.build_next")} <Icon name="arrowRight" /></> : fillCopy(t("funnel.build_more"), { n: String(count - picked) })}
           </button>
         </div>
       )}
@@ -628,16 +629,16 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
       {/* ── GLASS / bring-back vs new ── */}
       {step === "glass" && count && (
         <div className="dl-step">
-          <h2 className="dl-h">Your bottles.</h2>
+          <EditableCopy k="funnel.glass_h" value={t("funnel.glass_h")} as="h2" className="dl-h" />
           {mode === "delivery" ? (
             <>
               <button type="button" className={`dl-card${bringBack ? " on" : ""}`} onClick={() => { glassTouched.current = true; setBringBack(true); setRefills((r) => Math.min(refillCap, r || refillCap)); }}>
-                <b>Bringing mine back — best price</b>
-                <span>Rinse your empties, set them out. We swap them for your new order. {dollars(DELIVERY_PRICING.refill)}/bottle instead of {dollars(DELIVERY_PRICING.fresh)}.</span>
+                <b>{t("funnel.glass_back_title")}</b>
+                <span>{fillCopy(t("funnel.glass_back_del_sub"), { refill: dollars(DELIVERY_PRICING.refill), fresh: dollars(DELIVERY_PRICING.fresh) })}</span>
               </button>
               {bringBack && (
                 <div className="dl-loop">
-                  <label className="dl-sub" htmlFor="of-ref">How many empties are you returning? <em>(up to {refillCap})</em></label>
+                  <label className="dl-sub" htmlFor="of-ref">{t("funnel.empties_q")} <em>(up to {refillCap})</em></label>
                   <div className="dl-ctr-b lone">
                     <button type="button" onClick={() => setRefills((r) => Math.max(0, r - 1))} aria-label="Fewer">−</button>
                     <b id="of-ref">{refills}</b>
@@ -646,14 +647,14 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
                   {refills > 0 && (
                     <>
                       <p className="dl-callout">Set your rinsed empties on the porch by <b>5 AM Sunday</b>. No empties out, no swap — you&rsquo;ll pick up at GT3PB instead.</p>
-                      <label className="dl-ack"><input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} /><span>Got it — empties out by 5 AM Sunday.</span></label>
+                      <label className="dl-ack"><input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} /><span>{t("funnel.empties_ack")}</span></label>
                     </>
                   )}
                 </div>
               )}
               <button type="button" className={`dl-card${!bringBack ? " on" : ""}`} onClick={() => { glassTouched.current = true; setBringBack(false); setRefills(0); setAck(false); }}>
-                <b>Need all new</b>
-                <span>Sealed bottles delivered fresh. {dollars(DELIVERY_PRICING.fresh)}/bottle.</span>
+                <b>{t("funnel.glass_new_del_title")}</b>
+                <span>{fillCopy(t("funnel.glass_new_del_sub"), { fresh: dollars(DELIVERY_PRICING.fresh) })}</span>
               </button>
               {deliveryQuote && (
                 <div className="dl-quote">
@@ -668,12 +669,12 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
           ) : (
             <>
               <button type="button" className={`dl-card${bringBack ? " on" : ""}`} onClick={() => { glassTouched.current = true; setBringBack(true); }}>
-                <b>Bringing mine back — best price</b>
-                <span>Pack pricing. Rinse your empties and bring them Saturday. ${perBottle(count, "return").toFixed(2)}/bottle.</span>
+                <b>{t("funnel.glass_back_title")}</b>
+                <span>{fillCopy(t("funnel.glass_back_pickup_sub"), { price: `$${perBottle(count, "return").toFixed(2)}` })}</span>
               </button>
               <button type="button" className={`dl-card${!bringBack ? " on" : ""}`} onClick={() => setBringBack(false)}>
-                <b>Need new glass</b>
-                <span>New sealed bottle, {dollars(1000)}/bottle flat. Bring them back next time to unlock pack pricing.</span>
+                <b>{t("funnel.glass_new_pickup_title")}</b>
+                <span>{fillCopy(t("funnel.glass_new_pickup_sub"), { price: dollars(1000) })}</span>
               </button>
               <div className="dl-quote">
                 <span><b>{count}</b> bottles · {mode === "pickup" && bringBack ? `save ${dollars(Math.round(saveAmount(count) * 100))}` : "new glass"}</span>
@@ -683,7 +684,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
             </>
           )}
           <button type="button" className="oa-cta" disabled={!glassReady} onClick={() => setStep("details")}>
-            {mode === "delivery" ? <>Delivery details <Icon name="arrowRight" /></> : <>Who's it for? <Icon name="arrowRight" /></>}
+            {mode === "delivery" ? <>{t("funnel.glass_next_del")} <Icon name="arrowRight" /></> : <>{t("funnel.glass_next_pickup")} <Icon name="arrowRight" /></>}
           </button>
         </div>
       )}
@@ -703,36 +704,36 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
 
       {step === "details" && (
         <div className="dl-step">
-          <h2 className="dl-h">{mode === "delivery" ? "Where do we bring it?" : "Who's this drop for?"}</h2>
+          <h2 className="dl-h">{mode === "delivery" ? t("funnel.details_h_del") : t("funnel.details_h_pickup")}</h2>
           {!user ? (
             <>
-              <p className="dl-sub">Sign in so your order is yours to track and manage.</p>
+              <EditableCopy k="funnel.signin_prompt" value={t("funnel.signin_prompt")} as="p" className="dl-sub" />
               <SignIn />
             </>
           ) : mode === "delivery" ? (
             <>
-              <input className="auth-input" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} aria-label="Name" />
-              <input className="auth-input" placeholder="Phone — for delivery-morning texts" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} aria-label="Phone" />
-              <p className="tel-consent">Your number gets order texts from GT3 only — never marketing. Reply STOP anytime.</p>
-              <input className="auth-input" placeholder="Street address" value={street} onChange={(e) => setStreet(e.target.value)} maxLength={120} aria-label="Street address" />
+              <input className="auth-input" placeholder={t("funnel.f_name")} value={name} onChange={(e) => setName(e.target.value)} maxLength={80} aria-label="Name" />
+              <input className="auth-input" placeholder={t("funnel.f_phone_del")} inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} aria-label="Phone" />
+              <EditableCopy k="funnel.tel_consent" value={t("funnel.tel_consent")} as="p" className="tel-consent" multiline />
+              <input className="auth-input" placeholder={t("funnel.f_street")} value={street} onChange={(e) => setStreet(e.target.value)} maxLength={120} aria-label="Street address" />
               <div className="dl-ziprow">
-                <input className="auth-input" placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} maxLength={60} aria-label="City" />
+                <input className="auth-input" placeholder={t("funnel.f_city")} value={city} onChange={(e) => setCity(e.target.value)} maxLength={60} aria-label="City" />
                 <input className="auth-input dl-zip" value={zip} readOnly aria-label="ZIP (from your zone check)" />
               </div>
-              <input className="auth-input" placeholder="Gate code / access notes (optional)" value={access} onChange={(e) => setAccess(e.target.value)} maxLength={200} aria-label="Access instructions" />
-              <button type="button" className="oa-cta" disabled={!name.trim() || !phone.trim() || !street.trim() || !city.trim()} onClick={toPayment}>Payment <Icon name="arrowRight" /></button>
+              <input className="auth-input" placeholder={t("funnel.f_access")} value={access} onChange={(e) => setAccess(e.target.value)} maxLength={200} aria-label="Access instructions" />
+              <button type="button" className="oa-cta" disabled={!name.trim() || !phone.trim() || !street.trim() || !city.trim()} onClick={toPayment}>{t("funnel.details_pay")} <Icon name="arrowRight" /></button>
             </>
           ) : (
             <>
-              <input className="auth-input" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" maxLength={80} aria-label="Name" />
-              <input className="auth-input" placeholder="Phone (for pickup-day text)" type="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} aria-label="Phone" />
-              <p className="tel-consent">Your number gets order texts from GT3 only — never marketing. Reply STOP anytime.</p>
+              <input className="auth-input" placeholder={t("funnel.f_name")} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" maxLength={80} aria-label="Name" />
+              <input className="auth-input" placeholder={t("funnel.f_phone_pickup")} type="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} aria-label="Phone" />
+              <EditableCopy k="funnel.tel_consent" value={t("funnel.tel_consent")} as="p" className="tel-consent" multiline />
               <div className="dl-quote">
                 <span>{count} bottles · {bringBack ? "bring-back" : "new glass"}</span>
                 <span>pickup {dayName(drop.sat)}{stop?.name ? ` · ${stop.name}` : ""}</span>
                 <span className="dl-quote-t">total <b>{dollars(pickupTotalCents)}</b></span>
               </div>
-              <button type="button" className="oa-cta" disabled={!name.trim() || !phone.trim()} onClick={toPayment}>Payment <Icon name="arrowRight" /></button>
+              <button type="button" className="oa-cta" disabled={!name.trim() || !phone.trim()} onClick={toPayment}>{t("funnel.details_pay")} <Icon name="arrowRight" /></button>
             </>
           )}
         </div>
@@ -741,7 +742,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
       {/* ── PAY ── */}
       {step === "pay" && (
         <div className="dl-step">
-          <h2 className="dl-h">Lock it in.</h2>
+          <EditableCopy k="funnel.pay_h" value={t("funnel.pay_h")} as="h2" className="dl-h" />
           <div className="dl-quote">
             <span>{count} bottles{mode === "delivery" ? "" : ` · pickup ${dayName(drop.sat)}`}</span>
             <span className="dl-quote-t">{codeDiscountCents > 0 ? <><s className="dl-was">{dollars(baseTotalCents)}</s> <b>{dollars(totalCents)}</b></> : <>total <b>{dollars(totalCents)}</b></>}</span>
@@ -750,7 +751,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
           {mode === "pickup" && (
             <div className="oa-code">
               {!codeOpen && codeState !== "ok" ? (
-                <button type="button" className="oa-code-toggle" onClick={() => setCodeOpen(true)}>Have a code?</button>
+                <button type="button" className="oa-code-toggle" onClick={() => setCodeOpen(true)}>{t("funnel.have_code")}</button>
               ) : codeState === "ok" && codeBenefit ? (
                 <div className="oa-code-ok">
                   <span className="oa-code-tag">{codeClean}</span>
@@ -761,8 +762,8 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
                 <div className="oa-code-in">
                   <input className="auth-input" value={code} onChange={(e) => { setCode(e.target.value); if (codeState !== "idle") setCodeState("idle"); }}
                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); checkCode(); } }}
-                    placeholder="Discount code" aria-label="Discount code" autoCapitalize="characters" />
-                  <button type="button" className="oa-code-apply" onClick={checkCode} disabled={!codeClean || codeState === "checking"}>{codeState === "checking" ? "…" : "Apply"}</button>
+                    placeholder={t("funnel.code_ph")} aria-label="Discount code" autoCapitalize="characters" />
+                  <button type="button" className="oa-code-apply" onClick={checkCode} disabled={!codeClean || codeState === "checking"}>{codeState === "checking" ? "…" : t("funnel.code_apply")}</button>
                 </div>
               )}
               {codeState === "bad" && <p className="oa-code-bad">That code isn&rsquo;t valid — check it and try again.</p>}
@@ -772,15 +773,15 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
 
           {squareClientReady ? (
             <>
-              <p className="dl-sub">{mode === "delivery" ? "One charge now — nothing due at the door." : "Pay now, or reserve and pay at pickup."}</p>
+              <p className="dl-sub">{mode === "delivery" ? t("funnel.pay_sub_del") : t("funnel.pay_sub_pickup")}</p>
               <PaymentCard ref={paymentRef} className="sq-card" onReady={setCardReady} onError={(m) => setErr(m ?? "")} />
               {err && <p className="dl-err" role="alert">{err}</p>}
               <button type="button" className="oa-cta" disabled={!cardReady || busy} onClick={mode === "delivery" ? payDelivery : payPickupCard}>
-                {busy ? "Charging…" : `Pay ${dollars(totalCents)}`}
+                {busy ? "Charging…" : fillCopy(t("funnel.pay_cta"), { total: dollars(totalCents) })}
               </button>
               {mode === "pickup" && payLater.on && (
                 <button type="button" className="oa-paylater" onClick={() => submitPickup(null)} disabled={busy}>
-                  {busy ? "Reserving…" : "or reserve now — pay at pickup"}
+                  {busy ? "Reserving…" : t("funnel.pay_later")}
                 </button>
               )}
               <p className="dl-trust">Secured by Square — your card never touches our servers. The charge shows as <b>GT3 Performance Bar</b>.{mode === "pickup" ? " Change of plans? Cancel from My packs before the drop closes and a paid pack is refunded." : ""}</p>
@@ -789,12 +790,12 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
             <>
               {err && <p className="dl-err" role="alert">{err}</p>}
               <button type="button" className="oa-cta" onClick={() => submitPickup(null)} disabled={busy}>
-                {busy ? "Reserving…" : `Reserve ${dollars(totalCents)} — pay at pickup`}
+                {busy ? "Reserving…" : fillCopy(t("funnel.reserve_pay_later"), { total: dollars(totalCents) })}
               </button>
-              <p className="dl-sub">Reserve here and pay at the window on pickup day.</p>
+              <EditableCopy k="funnel.reserve_window_note" value={t("funnel.reserve_window_note")} as="p" className="dl-sub" />
             </>
           ) : (
-            <p className="dl-sub">Checkout isn&rsquo;t switched on yet — card payments arrive with the Square keys.</p>
+            <EditableCopy k="funnel.checkout_off" value={t("funnel.checkout_off")} as="p" className="dl-sub" />
           )}
         </div>
       )}
@@ -802,8 +803,8 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
       {/* ── DONE ── */}
       {step === "done" && done && (
         <OrderConfirm
-          title={done.paid ? "You're in." : "You're reserved."}
-          sub={mode === "delivery" ? "We'll be there before sunrise Sunday." : `See you ${dayName(drop.sat).split(",")[0]}${name ? `, ${name.split(" ")[0]}` : ""}.`}
+          title={done.paid ? t("funnel.done_title_paid") : t("funnel.done_title_reserved")}
+          sub={mode === "delivery" ? t("funnel.done_sub_del") : fillCopy(t("funnel.done_sub_pickup"), { day: dayName(drop.sat).split(",")[0], name: name ? `, ${name.split(" ")[0]}` : "" })}
           totalCents={done.total}
           totalLabel={done.paid ? "paid" : "due at pickup"}
           warn={done.warn}
@@ -830,7 +831,7 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
                   { label: done.paid ? "Paid" : "Pay at pickup", value: dollars(done.total) },
                 ]),
           ]}
-          ctaLabel={mode === "delivery" ? "Track it in your account" : "Reserve another"}
+          ctaLabel={mode === "delivery" ? t("funnel.done_cta_del") : t("funnel.done_cta_pickup")}
           onCta={mode === "delivery" ? () => router.push("/3mpire") : resetOrder}
         />
       )}

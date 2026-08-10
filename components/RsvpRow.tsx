@@ -12,6 +12,7 @@ import { supabase } from "@/lib/supabase";
 import { evTime, evDate, evLeadDay, evLeadDate } from "@/lib/dates";
 import { openDirections, openAddress } from "@/lib/maps";
 import type { EventRow } from "@/lib/db";
+import { useSiteCopy } from "@/lib/copy";
 import Icon from "@/components/Icon";
 
 // RSVP ROW — one event row on the kit InfoRow, with the full RSVP machine (optimistic toggle,
@@ -27,6 +28,7 @@ export { evTime, evDate, evLeadDay, evLeadDate };
 export function RsvpRow({ ev }: { ev: EventRow }) {
   const { toast } = useApp();
   const { user } = useAuth();
+  const t = useSiteCopy();
   const [going, setGoing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
@@ -117,7 +119,7 @@ export function RsvpRow({ ev }: { ev: EventRow }) {
             {/* stop/event parity (2026-08-01): the same Get-directions chip the stop rows carry —
                 turn-by-turn off the pin when geocoded, else a maps handoff on the address text */}
             {((ev.lat != null && ev.lng != null) || ev.location_text) && (
-              <button type="button" className="k-chip k-chip-sec" onClick={() => { if (ev.lat != null && ev.lng != null) openDirections(ev.lat, ev.lng); else if (ev.location_text) openAddress(ev.location_text); }}>Get directions</button>
+              <button type="button" className="k-chip k-chip-sec" onClick={() => { if (ev.lat != null && ev.lng != null) openDirections(ev.lat, ev.lng); else if (ev.location_text) openAddress(ev.location_text); }}>{t("findus.directions")}</button>
             )}
             <AddToCalendar ev={calFromEvent({ id: ev.id, title: ev.title, day: ev.day, start_time: ev.start_time, end_time: ev.end_time, location_text: ev.location_text, blurb: ev.blurb })} />
           </div>

@@ -280,25 +280,27 @@ export default function FindUs() {
             answered (2026-08-01 audit). Same cell for stops and events; smaller type (.where) so
             a real street address stays presentable in a third of the row. */}
         {hero && (
-          <div className="f"><div className="fk">Where</div>
+          <div className="f"><EditableCopy k="findus.fact_where" value={t("findus.fact_where")} as="div" className="fk" />
             {heroWhere ? (
               /* the address IS the tap target too — same directions handoff as the chip below */
-              <div className="fv where go" {...clickable(goHero)} title="Get directions">
+              <div className="fv where go" {...clickable(goHero)} title={t("findus.directions")}>
                 {whereStreet}
                 {whereLoc && <span className="where-loc">{whereLoc}</span>}
               </div>
             ) : (
-              <div className="fv where tba">Location TBA</div>
+              <EditableCopy k="findus.loc_tba" value={t("findus.loc_tba")} as="div" className="fv where tba" />
             )}
           </div>
         )}
         {/* Day stays Day even when live — the masthead eyebrow + pulse dot already announce
             "Live now"; a Status:Live cell here said it twice and hid the date to do it
-            (2026-07-30 redundancy audit). */}
-        <div className="f"><div className="fk">Day</div><div className="fv">{heroWhen || "Soon"}</div></div>
-        <div className="f"><div className="fk">{hero?.kind === "event" ? "Starts" : heroClose ? "Hours" : "Open"}</div><div className="fv">{heroClose ? `${heroOpen || "—"} – ${heroClose}` : heroOpen || "—"}</div></div>
+            (2026-07-30 redundancy audit). The "Soon" fallback shares a slot with the live day
+            value, so it's plain t() (dynamically-selected slot), not inline. */}
+        <div className="f"><EditableCopy k="findus.fact_day" value={t("findus.fact_day")} as="div" className="fk" /><div className="fv">{heroWhen || t("findus.day_tba")}</div></div>
+        {/* The third label is chosen dynamically (Starts / Hours / Open) → plain t() per slot. */}
+        <div className="f"><div className="fk">{hero?.kind === "event" ? t("findus.fact_starts") : heroClose ? t("findus.fact_hours") : t("findus.fact_open")}</div><div className="fv">{heroClose ? `${heroOpen || "—"} – ${heroClose}` : heroOpen || "—"}</div></div>
         {hero?.kind === "event" && hero.going_count != null && hero.going_count > 0 && (
-          <div className="f"><div className="fk">Going</div><div className="fv">{hero.going_count}</div></div>
+          <div className="f"><EditableCopy k="findus.fact_going" value={t("findus.fact_going")} as="div" className="fk" /><div className="fv">{hero.going_count}</div></div>
         )}
       </div>
 
@@ -316,7 +318,7 @@ export default function FindUs() {
       <div className="fu-chips">
         {hero && (heroHasCoords || heroWhere) && (
           <button type="button" className="fu-dir" onClick={() => { if (heroHasCoords) openDirections(hero.lat as number, hero.lng as number); else if (heroWhere) openAddress(heroWhere); }}>
-            <Icon name="pin" /> Get directions
+            <Icon name="pin" /> {t("findus.directions")}
           </button>
         )}
         <LivePingButton />
@@ -362,12 +364,12 @@ export default function FindUs() {
                           </div>
                         )}
                         <p>{(r.notes ?? r.note) ?? <EditableCopy k="truck.stop_note" value={t("truck.stop_note")} as="span" />}</p>
-                        {rowLive && <button type="button" className="k-chip pri" onClick={() => router.push("/menu")}>Pre-order</button>}
+                        {rowLive && <button type="button" className="k-chip pri" onClick={() => router.push("/menu")}>{t("findus.preorder")}</button>}
                         {/* directions works ungecoded too — coords when pinned, else maps handoff on the address text */}
                         {(r.lat != null && r.lng != null) ? (
-                          <button type="button" className="k-chip k-chip-sec" style={rowLive ? { marginLeft: 8 } : undefined} onClick={() => openDirections(r.lat as number, r.lng as number)}>Get directions</button>
+                          <button type="button" className="k-chip k-chip-sec" style={rowLive ? { marginLeft: 8 } : undefined} onClick={() => openDirections(r.lat as number, r.lng as number)}>{t("findus.directions")}</button>
                         ) : (r.location_text || r.address) ? (
-                          <button type="button" className="k-chip k-chip-sec" style={rowLive ? { marginLeft: 8 } : undefined} onClick={() => openAddress((r.location_text ?? r.address) as string)}>Get directions</button>
+                          <button type="button" className="k-chip k-chip-sec" style={rowLive ? { marginLeft: 8 } : undefined} onClick={() => openAddress((r.location_text ?? r.address) as string)}>{t("findus.directions")}</button>
                         ) : null}
                       </div>
                     )}
@@ -379,7 +381,7 @@ export default function FindUs() {
             {past.length > 0 && (
               <div style={{ marginTop: 10 }}>
                 <button type="button" className="btn-ter" onClick={() => setShowPast((s) => !s)} aria-expanded={showPast}>
-                  Past events · {past.length} <span className={`k-caret${showPast ? " open" : ""}`}>›</span>
+                  {t("findus.past_events")} · {past.length} <span className={`k-caret${showPast ? " open" : ""}`}>›</span>
                 </button>
                 {showPast && <div className="k-rows">{past.map((r) => <RsvpRow key={r.id} ev={toEventRow(r)} />)}</div>}
               </div>
@@ -401,7 +403,7 @@ export default function FindUs() {
       <SectionHeader label={<EditableCopy k="findus.byo_title" value={t("findus.byo_title")} />} annotation={<EditableCopy k="findus.byo_note" value={t("findus.byo_note")} />} />
       <EditableCopy k="findus.byo_pitch" value={t("findus.byo_pitch")} as="p" style={{ fontSize: 14, color: "var(--cream-m)", margin: "14px 2px 12px" }} multiline />
       <button type="button" className="btn-ter" onClick={() => router.push("/book")}>
-        Book the bar for your event <b><Icon name="arrowRight" /></b>
+        {t("findus.book_cta")} <b><Icon name="arrowRight" /></b>
       </button>
 
       {/* Placement #2 of the craft-education audit (2026-07-27): this IS the guest home page (see
@@ -426,6 +428,7 @@ export default function FindUs() {
 // so the chip's on/off label rides localStorage — a courtesy memory, not an audit.
 function LivePingButton() {
   const { user, profile } = useAuth();
+  const t = useSiteCopy();
   const [state, setState] = useState<"hidden" | "off" | "on" | "busy">("hidden");
   useEffect(() => {
     if (typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && typeof Notification !== "undefined") {
@@ -453,7 +456,7 @@ function LivePingButton() {
   if (state === "hidden") return null;
   return (
     <button type="button" className={`fu-ping${state === "on" ? " on" : ""}`} onClick={toggle} aria-pressed={state === "on"} disabled={state === "busy"}>
-      <Icon name="bell" /> {state === "busy" ? "One sec…" : state === "on" ? "You're on the list — we'll ping you when we're live" : "Ping me when the truck goes live"}
+      <Icon name="bell" /> {state === "busy" ? "One sec…" : state === "on" ? t("findus.ping_on") : t("findus.ping_off")}
     </button>
   );
 }

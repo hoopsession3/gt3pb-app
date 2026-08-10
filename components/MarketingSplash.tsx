@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useFocusTrap } from "@/lib/useFocusTrap";
+import { useSiteCopy } from "@/lib/copy";
 
 // MARKETING SPLASH — the sales word-art the app opens to for guests. Fixed premium copy ("Own your
 // week."), so it ships with NO database dependency and shows the moment we deploy. Once per app
@@ -37,6 +38,7 @@ const reducedMotion = () =>
 
 export default function MarketingSplash() {
   const router = useRouter();
+  const t = useSiteCopy();
   const [copy, setCopy] = useState<Copy>(DEFAULT);
   const [show, setShow] = useState(false);
   const [dissolving, setDissolving] = useState(false); // false only under reduced motion (static splash)
@@ -127,15 +129,19 @@ export default function MarketingSplash() {
       {/* No tap-guard on the copy: tapping ANYWHERE on the ad bursts it into smoke (the scrim's
           bypass). Only the CTA and Skip stop the bubble, so they do their own thing instead. */}
       <div className="spl-wrap">
-        <div className="spl-kick">Sunday delivery · Greenville</div>
+        {/* Plain t() throughout: the whole scrim is a tap-to-dismiss dialog (onClick={bypass}) and the
+            takeover auto-dissolves, so inline click-to-edit isn't viable here — these edit through
+            Settings → the Splash group. head1/head2/sub/cta stay promo-driven (promos table, 0144). */}
+        <div className="spl-kick">{t("splash.kicker")}</div>
         {/* Was an <h1> — MarketingSplash is an overlay that mounts ON TOP of whatever route is showing
             underneath (it doesn't replace the page), so it was creating a second <h1> on every
             customer-facing route for as long as it's up. The scrim's own aria-label already names this
             dialog for assistive tech; this text is promotional copy, not a document heading. */}
         <p className="spl-head">{copy.head1}{copy.head2 ? <><br />{copy.head2}</> : null}</p>
-        <p className="spl-sub">{copy.sub} <b>From <span className="spl-price">$8</span> a bottle.</b></p>
+        {/* The price keeps its own .spl-price span (styling preserved) between two editable text keys. */}
+        <p className="spl-sub">{copy.sub} <b>{t("splash.price_pre")} <span className="spl-price">{t("splash.price_amt")}</span> {t("splash.price_suf")}</b></p>
         <button type="button" className="spl-cta" onClick={(e) => { e.stopPropagation(); go(); }}>{copy.cta}</button>
-        <div className="spl-foot">Mix &amp; match · free delivery at 24+</div>
+        <div className="spl-foot">{t("splash.foot")}</div>
       </div>
 
       {/* Finale — the brand red "3" condenses out of the smoke, sharpens and glows, then fades. */}
@@ -145,9 +151,9 @@ export default function MarketingSplash() {
       {/* …then ONE composed lockup resolves below the 3: the welcome over the signature, joined by a
           gold hairline — it holds and fades as a single title card, not two piecemeal reveals. */}
       <div className="spl-lockup" aria-hidden="true">
-        <span className="spl-kicker">Welcome to the bar</span>
+        <span className="spl-kicker">{t("splash.welcome")}</span>
         <span className="spl-rule" />
-        <span className="spl-sign">Grow Your <img className="spl-sign-3" src="/brand/gt3-3.png" alt="" />mpire</span>
+        <span className="spl-sign">{t("splash.sign_pre")} <img className="spl-sign-3" src="/brand/gt3-3.png" alt="" />{t("splash.sign_suf")}</span>
       </div>
     </div>
   );

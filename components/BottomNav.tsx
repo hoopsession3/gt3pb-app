@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "./AuthProvider";
+import { useSiteCopy } from "@/lib/copy";
 
 // The nav tells the truth about who you are. Members: Today first — their home. Guests: the truck
 // IS home (first tab), and the last slot is the door ("Join") instead of a Today tab that would
@@ -29,20 +30,22 @@ const JOIN = {
 export default function BottomNav() {
   const pathname = usePathname();
   const { ready, enabled, user } = useAuth();
+  const t = useSiteCopy();
   const guest = enabled && ready && !user;
   const tabs = guest ? [...CORE, JOIN] : [TODAY, ...CORE];
   return (
     <nav className="nav" aria-label="Primary">
-      {tabs.map((t) => {
-        const on = t.href === "/" ? pathname === "/" : pathname.startsWith(t.href);
+      {tabs.map((tab) => {
+        const on = tab.href === "/" ? pathname === "/" : pathname.startsWith(tab.href);
         return (
-          <Link key={t.key} href={t.href} className={`tab${on ? " on" : ""}`} aria-current={on ? "page" : undefined}>
+          <Link key={tab.key} href={tab.href} className={`tab${on ? " on" : ""}`} aria-current={on ? "page" : undefined}>
             <span className="ti">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                {t.icon}
+                {tab.icon}
               </svg>
             </span>
-            <span className="tl">{t.label}</span>
+            {/* Labels inside a <Link> → plain t(), keyed by the tab's stable key (nav.today/find/…). */}
+            <span className="tl">{t(`nav.${tab.key}`)}</span>
           </Link>
         );
       })}

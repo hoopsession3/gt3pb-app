@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
+import EditableCopy from "@/components/EditableCopy";
 import { SectionHeader } from "@/components/kit";
 import { useSiteCopy } from "@/lib/copy";
 import Icon from "@/components/Icon";
@@ -20,12 +21,13 @@ export default function StorefrontStory() {
   if (user) return null;
   return (
     <>
-      <SectionHeader label="What We Make" annotation="three acts" />
+      <SectionHeader label={<EditableCopy k="story.make_label" value={t("story.make_label")} />} annotation={<EditableCopy k="story.make_note" value={t("story.make_note")} />} />
       <div className="pillar"><span className="pdot" style={{ background: "#B8902F" }} /><div className="px"><b>{t("home.pillar1_t")}</b><p>{t("home.pillar1_d")}</p></div></div>
       <div className="pillar"><span className="pdot" style={{ background: "#3f7d6e" }} /><div className="px"><b>{t("home.pillar2_t")}</b><p>{t("home.pillar2_d")}</p></div></div>
       <div className="pillar"><span className="pdot" style={{ background: "#B82420" }} /><div className="px"><b>{t("home.pillar3_t")}</b><p>{t("home.pillar3_d")}</p></div></div>
 
-      <button className="btn-ter" onClick={() => router.push("/craft")}>Our craft — the how <b><Icon name="arrowRight" /></b></button>
+      {/* Inside a <button> → plain t(), same nested-interactive rule as the order-bar CTA below. */}
+      <button className="btn-ter" onClick={() => router.push("/craft")}>{t("story.craft_link")} <b><Icon name="arrowRight" /></b></button>
 
       <div className="arr-cta">
         <button className="arr-order" onClick={() => router.push("/menu")}>{t("reserve.order_bar")}</button>

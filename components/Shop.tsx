@@ -13,7 +13,7 @@ import EditableCopy from "@/components/EditableCopy";
 import Watermark from "@/components/Watermark";
 import Icon from "@/components/Icon";
 import { Masthead, ClosingBeat } from "@/components/kit";
-import { useSiteCopy } from "@/lib/copy";
+import { useSiteCopy, fillCopy } from "@/lib/copy";
 
 // THE SHOP (0273) — GT3 merch on the 0271 storefront spine. Reads published merch through RLS, a simple
 // cart in memory, and the shared Square card mount + /api/shop/checkout for a real one-time charge that
@@ -111,7 +111,7 @@ export default function Shop() {
       {count > 0 && view !== "done" && view !== "checkout" && (
         <button type="button" className="shop-cartbar" onClick={() => setView("checkout")}>
           <span className="shop-cartbar-n">{count} item{count > 1 ? "s" : ""}</span>
-          <span className="shop-cartbar-go">Checkout · {money(total)} <Icon name="arrowRight" size={15} /></span>
+          <span className="shop-cartbar-go">{t("checkout.title")} · {money(total)} <Icon name="arrowRight" size={15} /></span>
         </button>
       )}
 
@@ -121,20 +121,21 @@ export default function Shop() {
 }
 
 function ProductDetail({ product, onBack, onAdd }: { product: Product; onBack: () => void; onAdd: (v: Variant | null, qty: number) => void }) {
+  const t = useSiteCopy();
   const [vi, setVi] = useState(0);
   const [qty, setQty] = useState(1);
   const hasVariants = product.variants.length > 0;
   const variant = hasVariants ? product.variants[vi] : null;
   return (
     <div className="shop-detail">
-      <button type="button" className="btn-ter shop-back" onClick={onBack}><b style={{ transform: "rotate(180deg)", display: "inline-flex" }}><Icon name="arrowRight" size={14} /></b> Shop</button>
+      <button type="button" className="btn-ter shop-back" onClick={onBack}><b style={{ transform: "rotate(180deg)", display: "inline-flex" }}><Icon name="arrowRight" size={14} /></b> {t("shop.back")}</button>
       <div className="shop-hero">{product.image_url ? <img src={product.image_url} alt={product.title} /> : <span className="shop-thumb-ph lg"><Icon name="package" /></span>}</div>
       <h1 className="shop-h1 sm">{product.title}</h1>
       <div className="shop-detail-px">{money(product.price_cents)}</div>
       {product.blurb && <p className="shop-blurb">{product.blurb}</p>}
       {hasVariants && (
         <label className="shop-vari">
-          <span>Options</span>
+          <span>{t("shop.options")}</span>
           <select value={vi} onChange={(e) => setVi(Number(e.target.value))}>
             {product.variants.map((v, i) => <option key={i} value={i}>{variantLabel(v) || v.sku || `Option ${i + 1}`}</option>)}
           </select>
@@ -145,7 +146,7 @@ function ProductDetail({ product, onBack, onAdd }: { product: Product; onBack: (
         <span>{qty}</span>
         <button type="button" onClick={() => setQty((q) => Math.min(20, q + 1))} aria-label="More">+</button>
       </div>
-      <button type="button" className="mpack-cta" onClick={() => onAdd(variant, qty)}>Add to cart · {money(product.price_cents * qty)}</button>
+      <button type="button" className="mpack-cta" onClick={() => onAdd(variant, qty)}>{t("shop.add_cart")} · {money(product.price_cents * qty)}</button>
     </div>
   );
 }
@@ -153,6 +154,7 @@ function ProductDetail({ product, onBack, onAdd }: { product: Product; onBack: (
 function CheckoutView({ cart, total, isMember, setQty, onBack, onDone }: {
   cart: CartLine[]; total: number; isMember: boolean; setQty: (idx: number, qty: number) => void; onBack: () => void; onDone: (warn?: string) => void;
 }) {
+  const t = useSiteCopy();
   const payRef = useRef<PaymentCardHandle>(null);
   const [ready, setReady] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -183,8 +185,8 @@ function CheckoutView({ cart, total, isMember, setQty, onBack, onDone }: {
 
   return (
     <div className="shop-checkout">
-      <button type="button" className="btn-ter shop-back" onClick={onBack}><b style={{ transform: "rotate(180deg)", display: "inline-flex" }}><Icon name="arrowRight" size={14} /></b> Shop</button>
-      <h1 className="shop-h1 sm">Checkout</h1>
+      <button type="button" className="btn-ter shop-back" onClick={onBack}><b style={{ transform: "rotate(180deg)", display: "inline-flex" }}><Icon name="arrowRight" size={14} /></b> {t("shop.back")}</button>
+      <EditableCopy k="checkout.title" value={t("checkout.title")} as="h1" className="shop-h1 sm" />
 
       <div className="shop-lines">
         {cart.map((l, i) => (
@@ -201,32 +203,33 @@ function CheckoutView({ cart, total, isMember, setQty, onBack, onDone }: {
             <span className="shop-line-px">{money(l.product.price_cents * l.qty)}</span>
           </div>
         ))}
-        <div className="shop-total"><span>Total</span><b>{money(total)}</b></div>
+        <div className="shop-total"><span>{t("checkout.total")}</span><b>{money(total)}</b></div>
       </div>
 
       <div className="shop-ship">
-        <div className="shop-ship-n">Ship to</div>
-        <input placeholder="Full name" value={ship.name} onChange={(e) => setShip({ ...ship, name: e.target.value })} autoComplete="name" />
-        <input placeholder="Street address" value={ship.street} onChange={(e) => setShip({ ...ship, street: e.target.value })} autoComplete="address-line1" />
+        <EditableCopy k="checkout.ship_to" value={t("checkout.ship_to")} as="div" className="shop-ship-n" />
+        <input placeholder={t("checkout.ph_name")} value={ship.name} onChange={(e) => setShip({ ...ship, name: e.target.value })} autoComplete="name" />
+        <input placeholder={t("checkout.ph_street")} value={ship.street} onChange={(e) => setShip({ ...ship, street: e.target.value })} autoComplete="address-line1" />
         <div className="shop-ship-row">
-          <input placeholder="City" value={ship.city} onChange={(e) => setShip({ ...ship, city: e.target.value })} autoComplete="address-level2" />
-          <input placeholder="State" value={ship.state} onChange={(e) => setShip({ ...ship, state: e.target.value })} autoComplete="address-level1" style={{ maxWidth: 90 }} />
-          <input placeholder="ZIP" value={ship.zip} onChange={(e) => setShip({ ...ship, zip: e.target.value })} autoComplete="postal-code" style={{ maxWidth: 100 }} />
+          <input placeholder={t("checkout.ph_city")} value={ship.city} onChange={(e) => setShip({ ...ship, city: e.target.value })} autoComplete="address-level2" />
+          <input placeholder={t("checkout.ph_state")} value={ship.state} onChange={(e) => setShip({ ...ship, state: e.target.value })} autoComplete="address-level1" style={{ maxWidth: 90 }} />
+          <input placeholder={t("checkout.ph_zip")} value={ship.zip} onChange={(e) => setShip({ ...ship, zip: e.target.value })} autoComplete="postal-code" style={{ maxWidth: 100 }} />
         </div>
-        {!isMember && <input placeholder="Email (for your receipt + tracking)" value={ship.email} onChange={(e) => setShip({ ...ship, email: e.target.value })} autoComplete="email" type="email" />}
+        {!isMember && <input placeholder={t("checkout.ph_email")} value={ship.email} onChange={(e) => setShip({ ...ship, email: e.target.value })} autoComplete="email" type="email" />}
       </div>
 
       <div className="shop-pay">
-        <div className="shop-ship-n">Payment</div>
+        <EditableCopy k="checkout.payment" value={t("checkout.payment")} as="div" className="shop-ship-n" />
         {squareClientReady ? (
           <>
             <PaymentCard ref={payRef} tone="paper" onReady={setReady} onError={(m) => setErr(m)} />
             {err && <div className="shop-err">{err}</div>}
-            <button type="button" className="mpack-cta" onClick={pay} disabled={!canPay}>{busy ? "Charging…" : `Pay ${money(total)}`}</button>
-            <p className="shop-fine">Printed on demand and shipped to you. You’ll get tracking by email when it ships.</p>
+            {/* Pay button + 'Charging…' loading label inside a <button> → plain t()/fillCopy. */}
+            <button type="button" className="mpack-cta" onClick={pay} disabled={!canPay}>{busy ? "Charging…" : fillCopy(t("checkout.pay"), { total: money(total) })}</button>
+            <EditableCopy k="checkout.fine" value={t("checkout.fine")} as="p" className="shop-fine" multiline />
           </>
         ) : (
-          <div className="shop-note err">Card checkout isn’t switched on yet.</div>
+          <EditableCopy k="checkout.off" value={t("checkout.off")} as="div" className="shop-note err" />
         )}
       </div>
     </div>

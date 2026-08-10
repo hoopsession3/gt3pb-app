@@ -45,6 +45,7 @@ function greet(d: Date) {
 function YourUsual() {
   const { reorder } = useApp();
   const { user } = useAuth();
+  const t = useSiteCopy();
   const [last, setLast] = useState<Order | null>(null);
   useEffect(() => {
     if (!supabase || !user) return;
@@ -56,11 +57,11 @@ function YourUsual() {
   return (
     <div className="k-rows" style={{ marginTop: 18 }}>
       <InfoRow
-        lead="Your"
-        leadSub="usual"
+        lead={t("today.usual_lead")}
+        leadSub={t("today.usual_leadsub")}
         name={names}
-        sub="same order, one tap"
-        trailing={<span className="k-chip k-chip-sec">Order again</span>}
+        sub={t("today.usual_sub")}
+        trailing={<span className="k-chip k-chip-sec">{t("today.usual_cta")}</span>}
         onClick={() => reorder(last.items as DrinkId[])}
         ariaLabel={`Order your usual again: ${names}`}
       />

@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { trackFunnel } from "@/lib/funnel";
+import EditableCopy from "@/components/EditableCopy";
 import Watermark from "@/components/Watermark";
+import { useSiteCopy } from "@/lib/copy";
 
 // COUPON LANDING (0268) — where a printed QR points. The scan COUNTS ITSELF (funnel_events, the
 // same zero-PII spine every storefront funnel uses), then the page routes by what the code IS in
@@ -15,6 +17,7 @@ import Watermark from "@/components/Watermark";
 type Cpn = { ok: boolean; code?: string; kind?: string; label?: string; active?: boolean };
 
 export default function CouponLanding({ code }: { code: string }) {
+  const t = useSiteCopy();
   const [cpn, setCpn] = useState<Cpn | null>(null);
   useEffect(() => {
     trackFunnel("coupon", code.toUpperCase().slice(0, 40));   // the scan counter — fire once per landing
@@ -36,22 +39,23 @@ export default function CouponLanding({ code }: { code: string }) {
             <h1 className="cpn-offer">{cpn.label}</h1>
             {checkoutKind ? (
               <>
-                <p className="cpn-sub">Your code is in — it applies itself at checkout.</p>
-                <Link className="cpn-cta" href={`/reserve?code=${encodeURIComponent(cpn.code ?? code)}`}>Order your bottles →</Link>
-                <div className="cpn-code">code <b>{cpn.code}</b></div>
+                <EditableCopy k="coupon.checkout_sub" value={t("coupon.checkout_sub")} as="p" className="cpn-sub" />
+                {/* CTAs sit inside a <Link> → plain t(), not inline-editable. */}
+                <Link className="cpn-cta" href={`/reserve?code=${encodeURIComponent(cpn.code ?? code)}`}>{t("coupon.checkout_cta")}</Link>
+                <div className="cpn-code">{t("coupon.code_label")} <b>{cpn.code}</b></div>
               </>
             ) : (
               <>
-                <p className="cpn-sub">Bring your empty GT3 bottle back to any pop-up or pickup — show this screen, get your pour, and the bottle goes back into the Loop.</p>
-                <Link className="cpn-cta" href="/menu">See what&apos;s pouring →</Link>
+                <EditableCopy k="coupon.loop_body" value={t("coupon.loop_body")} as="p" className="cpn-sub" multiline />
+                <Link className="cpn-cta" href="/menu">{t("coupon.loop_cta")}</Link>
               </>
             )}
           </>
         ) : (
           <>
-            <h1 className="cpn-offer">That offer has wrapped</h1>
-            <p className="cpn-sub">This card&apos;s run has ended — but the good stuff hasn&apos;t.</p>
-            <Link className="cpn-cta" href="/menu">See the menu →</Link>
+            <EditableCopy k="coupon.ended_title" value={t("coupon.ended_title")} as="h1" className="cpn-offer" />
+            <EditableCopy k="coupon.ended_sub" value={t("coupon.ended_sub")} as="p" className="cpn-sub" />
+            <Link className="cpn-cta" href="/menu">{t("coupon.ended_cta")}</Link>
           </>
         )}
       </div>

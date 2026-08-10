@@ -20,7 +20,7 @@ export default function DeliveryPage() {
       <section className="screen" id="s-delivery">
         <Watermark variant="landing" />
         <Masthead eyebrow={<EditableCopy k="masthead.delivery" value={t("masthead.delivery")} />} right={<AccountPill />} />
-        <div className="dops-empty">Delivery isn&apos;t live yet — check back soon.</div>
+        <EditableCopy k="delivery.not_live" value={t("delivery.not_live")} as="div" className="dops-empty" />
         <ClosingBeat />
       </section>
     );

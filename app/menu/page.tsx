@@ -69,10 +69,10 @@ export default function MenuScreen() {
         {t("menu.craft_link")} <b><Icon name="arrowRight" /></b>
       </button>
       <button type="button" className="btn-ter" onClick={() => router.push("/primal")} style={{ marginLeft: 18 }}>
-        Return to Primal <b><Icon name="arrowRight" /></b>
+        {t("menu.nav_primal")} <b><Icon name="arrowRight" /></b>
       </button>
       <button type="button" className="btn-ter" onClick={() => router.push("/shop")} style={{ marginLeft: 18 }}>
-        Shop <b><Icon name="arrowRight" /></b>
+        {t("menu.nav_shop")} <b><Icon name="arrowRight" /></b>
       </button>
 
       <div className="menu-chips" role="tablist" aria-label="Menu categories">
@@ -80,7 +80,7 @@ export default function MenuScreen() {
           <button key={cat.name} type="button" role="tab" aria-selected={active === cat.name} className={`menu-chip${active === cat.name ? " on" : ""}`} onClick={() => jumpTo(cat.name)}>{t(`menu.sec.${ci}.name`)}</button>
         ))}
       </div>
-      <div className="menu-taphint">tap any drink to order it</div>
+      <EditableCopy k="menu.taphint" value={t("menu.taphint")} as="div" className="menu-taphint" />
 
       {MENU.map((cat, ci) => (
         <div key={cat.name} ref={(el) => { catRefs.current[cat.name] = el; }} data-cat={cat.name}>
@@ -105,7 +105,7 @@ export default function MenuScreen() {
                 <div className="entry-head">
                   <span className="entry-dot" style={{ background: d.dot }} />
                   <span className="entry-name">{name}</span>
-                  {out ? <span className="entry-out">SOLD OUT</span> : tag ? <span className="entry-tag">{tag}</span> : null}
+                  {out ? <span className="entry-out">{t("menu.sold_out")}</span> : tag ? <span className="entry-tag">{tag}</span> : null}
                   <span className="entry-gap" />
                   {on && !out && <span className="entry-in" aria-label="in your order"><Icon name="check" /></span>}
                   {/* the price is the order affordance (2026-08-01 audit: rows read as a printed
@@ -139,7 +139,7 @@ export default function MenuScreen() {
           </div>
         ))}
         <EditableCopy k="menu.packs_note" value={t("menu.packs_note")} as="div" className="mpack-note" multiline />
-        <Link href="/reserve" className="mpack-cta">Reserve your pack ›</Link>
+        <Link href="/reserve" className="mpack-cta">{t("menu.reserve_pack")}</Link>
       </div>
 
       <EditableCopy k="menu.integrity" value={t("menu.integrity")} as="div" className="menu-integrity" />

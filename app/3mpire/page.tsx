@@ -34,6 +34,7 @@ function histDate(iso: string) {
 function OrderHistory() {
   const { reorder } = useApp();
   const { user } = useAuth();
+  const t = useSiteCopy();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [showAll, setShowAll] = useState(false); // quiet by default: 4 rows, the rest fold
@@ -48,7 +49,7 @@ function OrderHistory() {
 
   return (
     <>
-      <SectionHeader label="Recent Orders" annotation="order again" />
+      <SectionHeader label={<EditableCopy k="account.orders_label" value={t("account.orders_label")} />} annotation={<EditableCopy k="account.orders_note" value={t("account.orders_note")} />} />
       {(showAll ? orders : orders.slice(0, 4)).map((o) => (
         <div className="hist-row" key={o.id}>
           <div className="hist-row-l">
@@ -86,7 +87,7 @@ function ReferralCard({ code }: { code: string }) {
   const { toast } = useApp();
   const { user } = useAuth();
   const t = useSiteCopy();
-  const [copyLbl, setCopyLbl] = useState("Copy");
+  const [copyLbl, setCopyLbl] = useState(t("account.copy"));
   const [stats, setStats] = useState<{ n: number; earned: number } | null>(null);
 
   // Real earned-credit stats from the referral ledger (referrer = me).
@@ -109,8 +110,8 @@ function ReferralCard({ code }: { code: string }) {
   };
   const copyCode = async () => {
     try { await navigator.clipboard.writeText(code); } catch { /* clipboard may be blocked */ }
-    setCopyLbl("Copied!");
-    setTimeout(() => setCopyLbl("Copy"), 1400);
+    setCopyLbl(t("account.copied"));
+    setTimeout(() => setCopyLbl(t("account.copy")), 1400);
     toast("Referral code copied");
   };
 
@@ -120,7 +121,7 @@ function ReferralCard({ code }: { code: string }) {
       <EditableCopy k="mpire.ref_title" value={t("mpire.ref_title")} as="h3" />
       <EditableCopy k="mpire.ref_body" value={t("mpire.ref_body")} as="p" className="ref-sub" multiline />
       <div className="code"><b>{code}</b><span className="cp" aria-label={`Copy referral code ${code}`} {...clickable(copyCode)}>{copyLbl}</span></div>
-      <button type="button" className="ref-share" onClick={share}>Share invite</button>
+      <button type="button" className="ref-share" onClick={share}>{t("account.share")}</button>
       {stats && stats.n > 0 && (
         <div className="ref-stat">{stats.n} {stats.n === 1 ? "friend" : "friends"} joined · ${(stats.earned / 100).toFixed(0)} earned</div>
       )}
@@ -133,6 +134,7 @@ function MpireReal() {
   const { toast } = useApp();
   const { profile, user, signOut } = useAuth();
   const router = useRouter();
+  const t = useSiteCopy();
 
   const points = profile?.points ?? 0;
   const freeEarned = Math.floor(points / 10); // lifetime free drinks — derived from the real points column
@@ -151,7 +153,7 @@ function MpireReal() {
 
   return (
     <section className="screen" id="s-mpire">
-      <Masthead eyebrow="Your 3MPIRE" right={<AccountPill />} />
+      <Masthead eyebrow={<EditableCopy k="mpire.eyebrow" value={t("mpire.eyebrow")} />} right={<AccountPill />} />
 
       {/* The card IS the hero — name, tier, stamps, code, QR, the free-pour promise. The old ring
           card + stat tiles repeated all of it (name ×2, 5/10 ×3); everything they added now lives
@@ -178,32 +180,32 @@ function MpireReal() {
 
       <ReferralCard code={code} />
 
-      <SectionHeader label="Your Account" annotation="manage" />
+      <SectionHeader label={<EditableCopy k="account.section_label" value={t("account.section_label")} />} annotation={<EditableCopy k="account.section_note" value={t("account.section_note")} />} />
       <div className="rows">
         {/* "Switch to Crew Mode" lives in the account popout (the pill, top-right of THIS page and
             every screen) — an inline duplicate here was clutter. Academy is the staff door kept. */}
         {roleOf(profile) !== "member" && (
           <div className="row" aria-label="GT3 Academy" {...clickable(() => router.push("/academy"))}>
             <div className="ri"><svg viewBox="0 0 24 24" strokeWidth="2"><path d="M12 3L2 8l10 5 10-5-10-5z" /><path d="M6 10v5c0 1 3 3 6 3s6-2 6-3v-5" /></svg></div>
-            <div className="rl"><b>GT3 Academy</b><span>Training · certifications · cookbook</span></div>
+            <div className="rl"><b>{t("account.academy")}</b><span>{t("account.academy_sub")}</span></div>
             <div className="rr">›</div>
           </div>
         )}
         {roleOf(profile) === "owner" && (
           <div className="row" aria-label="System architecture" {...clickable(() => router.push("/architecture"))}>
             <div className="ri"><svg viewBox="0 0 24 24" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg></div>
-            <div className="rl"><b>System architecture</b><span>How the platform is built · owner</span></div>
+            <div className="rl"><b>{t("account.arch")}</b><span>{t("account.arch_sub")}</span></div>
             <div className="rr">›</div>
           </div>
         )}
         <div className="row" aria-label="Book the bar — B2B" {...clickable(() => router.push("/book"))}>
           <div className="ri"><svg viewBox="0 0 24 24" strokeWidth="2"><path d="M3 9h18M3 9l2-5h14l2 5M5 9v11h14V9M9 13h6" /></svg></div>
-          <div className="rl"><b>Book the bar</b><span>Bring GT3PB to your event — B2B</span></div>
+          <div className="rl"><b>{t("account.book")}</b><span>{t("account.book_sub")}</span></div>
           <div className="rr">›</div>
         </div>
         <div className="row" aria-label="Sign out" {...clickable(() => { signOut(); toast("Signed out"); })}>
           <div className="ri"><svg viewBox="0 0 24 24" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" /></svg></div>
-          <div className="rl"><b>Sign out</b><span>{user?.email}</span></div>
+          <div className="rl"><b>{t("account.signout")}</b><span>{user?.email}</span></div>
           <div className="rr">›</div>
         </div>
       </div>
@@ -217,10 +219,11 @@ function MpireReal() {
 function MpireDemo() {
   const { toast } = useApp();
   const router = useRouter();
+  const t = useSiteCopy();
   const ringRef = useRingFill(0.7);
   return (
     <section className="screen" id="s-mpire">
-      <Masthead eyebrow="Your 3MPIRE" right={<AccountPill />} />
+      <Masthead eyebrow={<EditableCopy k="mpire.eyebrow" value={t("mpire.eyebrow")} />} right={<AccountPill />} />
 
       <MembershipCard />
       <div className="memcard"><div className="min">
@@ -248,7 +251,7 @@ function MpireDemo() {
 
       <ReferralCard code="RYAN-3MP" />
 
-      <SectionHeader label="Your Account" annotation="manage" />
+      <SectionHeader label={<EditableCopy k="account.section_label" value={t("account.section_label")} />} annotation={<EditableCopy k="account.section_note" value={t("account.section_note")} />} />
       <div className="rows">
         <div className="row" aria-label="Order History" {...clickable(() => toast("Showing your last 6 orders"))}>
           <div className="ri"><svg viewBox="0 0 24 24" strokeWidth="2"><path d="M3 3h18v4H3zM5 7v14h14V7M9 11h6" /></svg></div>
@@ -257,7 +260,7 @@ function MpireDemo() {
         </div>
         <div className="row" aria-label="Book the bar — B2B" {...clickable(() => router.push("/book"))}>
           <div className="ri"><svg viewBox="0 0 24 24" strokeWidth="2"><path d="M3 9h18M3 9l2-5h14l2 5M5 9v11h14V9M9 13h6" /></svg></div>
-          <div className="rl"><b>Book the bar</b><span>Bring GT3PB to your event — B2B</span></div>
+          <div className="rl"><b>{t("account.book")}</b><span>{t("account.book_sub")}</span></div>
           <div className="rr">›</div>
         </div>
       </div>

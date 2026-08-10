@@ -76,23 +76,25 @@ export default function BookScreen() {
         <EditableCopy k="book.lede" value={t("book.lede")} as="p" multiline />
       </div>
 
+      {/* Form field labels use htmlFor (a11y association), which EditableCopy's wrapper wouldn't carry,
+          so labels + placeholders render as plain t() — editable via Settings → the Book group. */}
       <form className="auth-form" onSubmit={submit} style={{ marginTop: 18 }}>
-        <label className="auth-label" htmlFor="b-name">Name</label>
-        <input id="b-name" className="auth-input" value={f.name} onChange={set("name")} placeholder="Your name" maxLength={200} required />
-        <label className="auth-label" htmlFor="b-email">Email</label>
-        <input id="b-email" className="auth-input" type="email" inputMode="email" value={f.email} onChange={set("email")} placeholder="you@email.com" maxLength={200} required />
-        <label className="auth-label" htmlFor="b-phone">Phone</label>
-        <input id="b-phone" className="auth-input" type="tel" inputMode="tel" autoComplete="tel" value={f.phone} onChange={set("phone")} placeholder="For a quick call if email doesn't land" maxLength={40} />
-        <p className="tel-consent">Adding your number means GT3 may text you about this request — event texts only, never marketing. Reply STOP anytime.</p>
+        <label className="auth-label" htmlFor="b-name">{t("book.f_name")}</label>
+        <input id="b-name" className="auth-input" value={f.name} onChange={set("name")} placeholder={t("book.ph_name")} maxLength={200} required />
+        <label className="auth-label" htmlFor="b-email">{t("book.f_email")}</label>
+        <input id="b-email" className="auth-input" type="email" inputMode="email" value={f.email} onChange={set("email")} placeholder={t("book.ph_email")} maxLength={200} required />
+        <label className="auth-label" htmlFor="b-phone">{t("book.f_phone")}</label>
+        <input id="b-phone" className="auth-input" type="tel" inputMode="tel" autoComplete="tel" value={f.phone} onChange={set("phone")} placeholder={t("book.ph_phone")} maxLength={40} />
+        <EditableCopy k="book.consent" value={t("book.consent")} as="p" className="tel-consent" multiline />
         <div className="b-row">
-          <div><label className="auth-label" htmlFor="b-date">Event date</label><input id="b-date" className="auth-input" type="date" value={f.event_date} onChange={set("event_date")} min={new Date().toISOString().slice(0, 10)} required /></div>
-          <div><label className="auth-label" htmlFor="b-head">Headcount</label><input id="b-head" className="auth-input" type="number" inputMode="numeric" min={1} max={100000} value={f.headcount} onChange={set("headcount")} placeholder="50" /></div>
+          <div><label className="auth-label" htmlFor="b-date">{t("book.f_date")}</label><input id="b-date" className="auth-input" type="date" value={f.event_date} onChange={set("event_date")} min={new Date().toISOString().slice(0, 10)} required /></div>
+          <div><label className="auth-label" htmlFor="b-head">{t("book.f_headcount")}</label><input id="b-head" className="auth-input" type="number" inputMode="numeric" min={1} max={100000} value={f.headcount} onChange={set("headcount")} placeholder={t("book.ph_headcount")} /></div>
         </div>
-        <label className="auth-label" htmlFor="b-loc">Location</label>
-        <input id="b-loc" className="auth-input" value={f.location_text} onChange={set("location_text")} placeholder="Your address, venue, or city" maxLength={300} />
-        <label className="auth-label" htmlFor="b-notes">Anything else</label>
-        <textarea id="b-notes" className="auth-input" value={f.notes} onChange={set("notes")} placeholder="Vibe, timing, must-haves…" rows={3} maxLength={2000} />
-        <button className="handle" type="submit" disabled={busy} style={{ marginTop: 18 }}><span>{busy ? "Sending…" : "Send request"}</span></button>
+        <label className="auth-label" htmlFor="b-loc">{t("book.f_location")}</label>
+        <input id="b-loc" className="auth-input" value={f.location_text} onChange={set("location_text")} placeholder={t("book.ph_location")} maxLength={300} />
+        <label className="auth-label" htmlFor="b-notes">{t("book.f_notes")}</label>
+        <textarea id="b-notes" className="auth-input" value={f.notes} onChange={set("notes")} placeholder={t("book.ph_notes")} rows={3} maxLength={2000} />
+        <button className="handle" type="submit" disabled={busy} style={{ marginTop: 18 }}><span>{busy ? "Sending…" : t("book.submit")}</span></button>
       </form>
       {/* Pricing footnote removed entirely at Ryan's call (2026-07-30) — the form ends at the
           button; the success card carries the "we reply within a day" expectation. */}
