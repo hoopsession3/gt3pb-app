@@ -6,9 +6,12 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/AuthProvider";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AccountPill from "@/components/AccountPill";
+import EditCopyPill from "@/components/EditCopyPill";
+import EditableCopy from "@/components/EditableCopy";
 import Watermark from "@/components/Watermark";
 import Icon from "@/components/Icon";
 import { Masthead, ClosingBeat } from "@/components/kit";
+import { useSiteCopy } from "@/lib/copy";
 
 // RETURN TO PRIMAL — the native nutrition academy index (round 0273). Reads the published primal_*
 // tree through RLS (rookie lessons open to all, pro only to entitled/staff), lays it out systematically
@@ -30,6 +33,9 @@ const ICON: Record<string, Parameters<typeof Icon>[0]["name"]> = {
 
 export default function PrimalAcademy() {
   const { user } = useAuth();
+  // `t` is the loaded lesson tree below (board.data), so the site-copy hook is `copy` here to
+  // avoid shadowing it — the one file in this pass where the house `t = useSiteCopy()` name collides.
+  const copy = useSiteCopy();
   const [q, setQ] = useState("");
 
   const loader = useCallback(async (): Promise<Tree> => {
@@ -74,15 +80,12 @@ export default function PrimalAcademy() {
   return (
     <section className="screen primal" id="s-primal">
       <Watermark variant="landing" />
-      <Masthead eyebrow="Return to Primal" right={<AccountPill />} />
+      <Masthead eyebrow={<EditableCopy k="primal.eyebrow" value={copy("primal.eyebrow")} />} right={<div className="mast-right"><EditCopyPill group="Primal" /><AccountPill /></div>} />
 
       <header className="pr-hero">
-        <div className="pr-eye">The nutrition system</div>
-        <h1 className="pr-h1">Return to <i>Primal</i></h1>
-        <p className="pr-lede">
-          Real fuel, explained simply. Five pillars, quick to reference, free to start — and every lesson
-          ends in a stack you can actually order. Educational, never medical.
-        </p>
+        <EditableCopy k="primal.hero_eye" value={copy("primal.hero_eye")} as="div" className="pr-eye" />
+        <h1 className="pr-h1"><EditableCopy k="primal.hero_h1" value={copy("primal.hero_h1")} /> <i><EditableCopy k="primal.hero_h1_em" value={copy("primal.hero_h1_em")} /></i></h1>
+        <EditableCopy k="primal.hero_lede" value={copy("primal.hero_lede")} as="p" className="pr-lede" multiline />
         {t && t.total > 0 && (
           <div className="pr-progress" aria-label={`${doneCount} of ${t.total} lessons complete`}>
             <div className="pr-bar"><span style={{ width: `${Math.round((doneCount / Math.max(1, t.total)) * 100)}%` }} /></div>
@@ -103,7 +106,7 @@ export default function PrimalAcademy() {
       {board.status === "loading" && <div className="pr-note">Loading the academy…</div>}
       {board.status === "error" && <div className="pr-note pr-note-err">Couldn’t load lessons. Pull to refresh, or try again in a moment.</div>}
       {t && t.total === 0 && board.status === "ready" && (
-        <div className="pr-note">The academy is being written. Check back soon — the first lessons drop this week.</div>
+        <EditableCopy k="primal.empty" value={copy("primal.empty")} as="div" className="pr-note" multiline />
       )}
 
       {t && t.pillars.map((p) => {
@@ -160,9 +163,10 @@ export default function PrimalAcademy() {
 
       {t && t.total > 0 && (
         <div className="pr-cta-block">
-          <div className="pr-cta-n">Go deeper</div>
-          <p className="pr-cta-body">The full Return to Primal system — every pillar, the Pro modules, and your personal protocol — is coming to a membership. Rookie stays free, always.</p>
-          <Link href="/reserve" className="mpack-cta pr-cta">Start with a stack ›</Link>
+          <EditableCopy k="primal.cta_eye" value={copy("primal.cta_eye")} as="div" className="pr-cta-n" />
+          <EditableCopy k="primal.cta_body" value={copy("primal.cta_body")} as="p" className="pr-cta-body" multiline />
+          {/* CTA text is inside a <Link> — plain copy(), not EditableCopy (nested-interactive rule). */}
+          <Link href="/reserve" className="mpack-cta pr-cta">{copy("primal.cta_link")}</Link>
         </div>
       )}
 

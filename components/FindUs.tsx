@@ -261,12 +261,12 @@ export default function FindUs() {
   return (
     <section className="screen truck" id="s-find">
       <Masthead
-        eyebrow={isLive ? "Live now" : hero?.kind === "event" ? "Next event" : "Next stop"}
+        eyebrow={isLive ? t("findus.eyebrow_live") : hero?.kind === "event" ? t("findus.eyebrow_event") : t("findus.eyebrow_stop")}
         live={isLive}
         right={<div className="mast-right"><EditCopyPill group="Truck" /><AccountPill /></div>}
       />
 
-      <h1 className="k-title lg">{hero?.name ?? (board.status === "error" ? "Couldn't load" : board.status === "ready" ? "No stops yet" : "…")}</h1>
+      <h1 className="k-title lg">{hero?.name ?? (board.status === "error" ? "Couldn't load" : board.status === "ready" ? t("findus.no_stops") : "…")}</h1>
       {hero && (
         <p className="k-sub">
           {heroDesc
@@ -306,8 +306,8 @@ export default function FindUs() {
           the live stop's end time (ordersOpen) — past that, we say so instead of taking an order the
           truck can't fill before it packs up. */}
       {ordersOpen
-        ? <button type="button" className="btn-pri k-cta" onClick={() => router.push("/menu")}>PRE-ORDER · SKIP THE LINE</button>
-        : <p className="k-sub" style={{ marginTop: 4 }}>Online ordering’s closed for today — come see us at the bar before we pack up.</p>}
+        ? <button type="button" className="btn-pri k-cta" onClick={() => router.push("/menu")}>{t("findus.cta_preorder")}</button>
+        : <EditableCopy k="findus.cta_closed" value={t("findus.cta_closed")} as="p" className="k-sub" style={{ marginTop: 4 }} multiline />}
 
       {/* Quiet chip row — never a second red CTA. Get directions is the hero's one-tap "take me
           there": native turn-by-turn off the pin when the stop is geocoded, else a maps handoff on
@@ -322,8 +322,9 @@ export default function FindUs() {
         <LivePingButton />
       </div>
 
-      <SectionHeader label="On The Road" annotation="stops & events, in order" />
-      <AsyncSection state={board} isEmpty={() => upcoming.length === 0} emptyTitle="Nothing scheduled yet" emptySub="This week's stops and events post here — check back soon." errorTitle="Couldn't load the schedule" loadingLabel="Loading the schedule…">
+      <SectionHeader label={<EditableCopy k="findus.road_title" value={t("findus.road_title")} />} annotation={<EditableCopy k="findus.road_note" value={t("findus.road_note")} />} />
+      {/* emptyTitle/emptySub are typed string (AsyncSection), so plain t() here — not EditableCopy. */}
+      <AsyncSection state={board} isEmpty={() => upcoming.length === 0} emptyTitle={t("findus.road_empty_title")} emptySub={t("findus.road_empty_sub")} errorTitle="Couldn't load the schedule" loadingLabel="Loading the schedule…">
         {() => (
           <>
             <div className="k-rows">
@@ -389,7 +390,7 @@ export default function FindUs() {
                 no map at all, exactly when a new customer most needs the pin. */}
             {points.length >= 1 && (
               <>
-                <SectionHeader label="The Circuit" annotation="tap a stop for directions" />
+                <SectionHeader label={<EditableCopy k="findus.circuit_title" value={t("findus.circuit_title")} />} annotation={<EditableCopy k="findus.circuit_note" value={t("findus.circuit_note")} />} />
                 <RouteMap points={points} truck={truckPos} />
               </>
             )}
@@ -397,8 +398,8 @@ export default function FindUs() {
         )}
       </AsyncSection>
 
-      <SectionHeader label="Bring Us To You" annotation="private events" />
-      <p style={{ fontSize: 14, color: "var(--cream-m)", margin: "14px 2px 12px" }}>Pours, run clubs, launches — we set up anywhere.</p>
+      <SectionHeader label={<EditableCopy k="findus.byo_title" value={t("findus.byo_title")} />} annotation={<EditableCopy k="findus.byo_note" value={t("findus.byo_note")} />} />
+      <EditableCopy k="findus.byo_pitch" value={t("findus.byo_pitch")} as="p" style={{ fontSize: 14, color: "var(--cream-m)", margin: "14px 2px 12px" }} multiline />
       <button type="button" className="btn-ter" onClick={() => router.push("/book")}>
         Book the bar for your event <b><Icon name="arrowRight" /></b>
       </button>

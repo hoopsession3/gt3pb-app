@@ -6,9 +6,11 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/AuthProvider";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AccountPill from "@/components/AccountPill";
+import EditableCopy from "@/components/EditableCopy";
 import Watermark from "@/components/Watermark";
 import Icon from "@/components/Icon";
 import { Masthead, ClosingBeat } from "@/components/kit";
+import { useSiteCopy } from "@/lib/copy";
 
 // A single Return to Primal lesson (round 0273). Systematic + referenceable: the key points sit up top
 // as scannable chips, the body reads clean, and the MEAL-STACK rail turns the teaching into an order —
@@ -35,6 +37,7 @@ const money = (c: number | null) => (c == null ? "" : `$${(c / 100).toFixed(c % 
 
 export default function PrimalLesson({ slug }: { slug: string }) {
   const { user } = useAuth();
+  const t = useSiteCopy();
   const [saving, setSaving] = useState(false);
   const [justDone, setJustDone] = useState(false);
 
@@ -90,18 +93,18 @@ export default function PrimalLesson({ slug }: { slug: string }) {
     if (!error) { setJustDone(true); board.reload(); }
   };
 
-  if (board.status === "loading") return <section className="screen primal"><Masthead eyebrow="Return to Primal" right={<AccountPill />} /><div className="pr-note">Loading…</div></section>;
+  if (board.status === "loading") return <section className="screen primal"><Masthead eyebrow={t("primal.eyebrow")} right={<AccountPill />} /><div className="pr-note">Loading…</div></section>;
 
   if (!v || !v.found) {
     // Either a Pro lesson the reader hasn't unlocked, or a bad link — offer the path forward, never a dead end.
     return (
       <section className="screen primal" id="s-primal-locked">
         <Watermark variant="landing" />
-        <Masthead eyebrow="Return to Primal" right={<AccountPill />} />
+        <Masthead eyebrow={t("primal.eyebrow")} right={<AccountPill />} />
         <div className="pr-locked">
           <span className="pr-locked-ic"><Icon name="lock" /></span>
-          <h1 className="pr-h1">This one’s <i>Pro</i></h1>
-          <p className="pr-lede">This lesson is part of the Pro program, or the link has moved. Rookie lessons are always free — start there, or unlock the full system.</p>
+          <h1 className="pr-h1"><EditableCopy k="primal.locked_h1" value={t("primal.locked_h1")} /> <i><EditableCopy k="primal.locked_h1_em" value={t("primal.locked_h1_em")} /></i></h1>
+          <EditableCopy k="primal.locked_lede" value={t("primal.locked_lede")} as="p" className="pr-lede" multiline />
           <div className="pr-locked-cta">
             <Link href="/primal" className="btn-sec">Browse free lessons</Link>
             {!user && <span className="pr-locked-note">Already a member? <AccountPill /></span>}
@@ -127,7 +130,7 @@ export default function PrimalLesson({ slug }: { slug: string }) {
   return (
     <section className="screen primal" id="s-primal-lesson" style={{ "--accent": accent } as React.CSSProperties}>
       <Watermark variant="share" />
-      <Masthead eyebrow="Return to Primal" right={<AccountPill />} />
+      <Masthead eyebrow={t("primal.eyebrow")} right={<AccountPill />} />
 
       <nav className="pr-crumb" aria-label="Breadcrumb">
         <Link href="/primal">Academy</Link>
@@ -160,12 +163,12 @@ export default function PrimalLesson({ slug }: { slug: string }) {
         <section className="pr-stack">
           <div className="pr-stack-h">
             <div>
-              <div className="pr-stack-n">Your stack</div>
-              <h2 className="pr-stack-t">Order what you just learned</h2>
+              <EditableCopy k="primal.stack_eye" value={t("primal.stack_eye")} as="div" className="pr-stack-n" />
+              <EditableCopy k="primal.stack_title" value={t("primal.stack_title")} as="h2" className="pr-stack-t" />
             </div>
             <Icon name="coffee" />
           </div>
-          <p className="pr-stack-lede">The drinks that put this lesson to work — in the order they fit your day.</p>
+          <EditableCopy k="primal.stack_lede" value={t("primal.stack_lede")} as="p" className="pr-stack-lede" multiline />
           {timings.map((tk) => (
             <div className="pr-stack-group" key={tk || "none"}>
               {TIMING_LABEL[tk] && <div className="pr-stack-when">{TIMING_LABEL[tk]}</div>}

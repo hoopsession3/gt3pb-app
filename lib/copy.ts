@@ -175,6 +175,80 @@ export const COPY_META: CopyMeta[] = [
   // nested-interactive rule as "Book the bar for your event" just above it.
   { key: "truck.craft_link", group: "Truck", label: "Craft-page teaser button (sits above the closing beat)",
     default: "What's really in the cup — and why" },
+  // ── Shop (/shop) — the merch storefront. Adoption pass 2026-08-10. ──
+  { key: "shop.eyebrow", group: "Shop", label: "Masthead eyebrow", default: "The Shop" },
+  { key: "shop.tagline", group: "Shop", label: "Storefront tagline", multiline: true,
+    default: "Wear the standard. Printed on demand, shipped to you — the same no-shortcuts ethos as the cup." },
+  { key: "shop.empty", group: "Shop", label: "Empty state — no products yet",
+    default: "New drops are on the way — check back soon." },
+  { key: "shop.done_title", group: "Shop", label: "Order-placed — headline", default: "Order" },
+  { key: "shop.done_title_em", group: "Shop", label: "Order-placed — headline emphasis", default: "in" },
+  { key: "shop.done_lede", group: "Shop", label: "Order-placed — confirmation lede", multiline: true,
+    default: "Thanks — we’ve got it. You’ll get an email now, and tracking the moment it ships." },
+  { key: "shop.keep", group: "Shop", label: "Order-placed — keep-shopping button", default: "Keep shopping" },
+  // ── Primal academy (/primal) — Return to Primal index. ──
+  { key: "primal.eyebrow", group: "Primal", label: "Masthead eyebrow", default: "Return to Primal" },
+  { key: "primal.hero_eye", group: "Primal", label: "Hero eyebrow", default: "The nutrition system" },
+  { key: "primal.hero_h1", group: "Primal", label: "Hero headline", default: "Return to" },
+  { key: "primal.hero_h1_em", group: "Primal", label: "Hero headline emphasis", default: "Primal" },
+  { key: "primal.hero_lede", group: "Primal", label: "Hero lede", multiline: true,
+    default: "Real fuel, explained simply. Five pillars, quick to reference, free to start — and every lesson ends in a stack you can actually order. Educational, never medical." },
+  { key: "primal.empty", group: "Primal", label: "Empty state — no lessons yet", multiline: true,
+    default: "The academy is being written. Check back soon — the first lessons drop this week." },
+  { key: "primal.cta_eye", group: "Primal", label: "Go-deeper block — label", default: "Go deeper" },
+  { key: "primal.cta_body", group: "Primal", label: "Go-deeper block — body", multiline: true,
+    default: "The full Return to Primal system — every pillar, the Pro modules, and your personal protocol — is coming to a membership. Rookie stays free, always." },
+  { key: "primal.cta_link", group: "Primal", label: "Go-deeper block — button", default: "Start with a stack ›" },
+  // ── Primal lesson (/primal/l/…) — locked state + the meal-stack rail. ──
+  { key: "primal.locked_h1", group: "Primal", label: "Locked lesson — headline", default: "This one’s" },
+  { key: "primal.locked_h1_em", group: "Primal", label: "Locked lesson — headline emphasis", default: "Pro" },
+  { key: "primal.locked_lede", group: "Primal", label: "Locked lesson — lede", multiline: true,
+    default: "This lesson is part of the Pro program, or the link has moved. Rookie lessons are always free — start there, or unlock the full system." },
+  { key: "primal.stack_eye", group: "Primal", label: "Lesson stack — label", default: "Your stack" },
+  { key: "primal.stack_title", group: "Primal", label: "Lesson stack — title", default: "Order what you just learned" },
+  { key: "primal.stack_lede", group: "Primal", label: "Lesson stack — lede", multiline: true,
+    default: "The drinks that put this lesson to work — in the order they fit your day." },
+  // ── Find Us (/, /truck, /events) — the public front door. This group is distinct from the
+  //    "Truck" group above (dynamic tier taglines etc.), which also renders on this page. ──
+  { key: "findus.eyebrow_live", group: "Find Us", label: "Masthead eyebrow — truck is live", default: "Live now" },
+  { key: "findus.eyebrow_event", group: "Find Us", label: "Masthead eyebrow — next up is an event", default: "Next event" },
+  { key: "findus.eyebrow_stop", group: "Find Us", label: "Masthead eyebrow — next up is a stop", default: "Next stop" },
+  { key: "findus.no_stops", group: "Find Us", label: "Headline — nothing on the schedule", default: "No stops yet" },
+  { key: "findus.cta_preorder", group: "Find Us", label: "Primary CTA — pre-order (inside a button)", default: "PRE-ORDER · SKIP THE LINE" },
+  { key: "findus.cta_closed", group: "Find Us", label: "Primary CTA — after online ordering closes", multiline: true,
+    default: "Online ordering’s closed for today — come see us at the bar before we pack up." },
+  { key: "findus.road_title", group: "Find Us", label: "On The Road — section title", default: "On The Road" },
+  { key: "findus.road_note", group: "Find Us", label: "On The Road — annotation", default: "stops & events, in order" },
+  { key: "findus.road_empty_title", group: "Find Us", label: "On The Road — empty title", default: "Nothing scheduled yet" },
+  { key: "findus.road_empty_sub", group: "Find Us", label: "On The Road — empty subtitle", multiline: true,
+    default: "This week’s stops and events post here — check back soon." },
+  { key: "findus.circuit_title", group: "Find Us", label: "The Circuit — section title", default: "The Circuit" },
+  { key: "findus.circuit_note", group: "Find Us", label: "The Circuit — annotation", default: "tap a stop for directions" },
+  { key: "findus.byo_title", group: "Find Us", label: "Bring Us To You — section title", default: "Bring Us To You" },
+  { key: "findus.byo_note", group: "Find Us", label: "Bring Us To You — annotation", default: "private events" },
+  { key: "findus.byo_pitch", group: "Find Us", label: "Bring Us To You — pitch line", multiline: true,
+    default: "Pours, run clubs, launches — we set up anywhere." },
+  // ── Book (/book) — the "book the bar" B2B intake. No wiring before this pass. ──
+  { key: "book.eyebrow", group: "Book", label: "Masthead eyebrow", default: "Book the bar" },
+  { key: "book.eye", group: "Book", label: "Form — eyebrow", default: "Bring GT3PB to your event" },
+  { key: "book.title", group: "Book", label: "Form — headline", default: "Book the bar." },
+  { key: "book.lede", group: "Book", label: "Form — lede", multiline: true,
+    default: "Offsites, run clubs, launches, weddings. We bring the full bar and pour on site. Tell us the basics — we take it from there." },
+  { key: "book.done_eye", group: "Book", label: "Success card — eyebrow", default: "Request received" },
+  { key: "book.done_title", group: "Book", label: "Success card — headline", default: "We're on it." },
+  { key: "book.done_thanks", group: "Book", label: "Success card — thanks line (uses {name})", multiline: true,
+    default: "Thanks, {name}. We'll reach out within a day to lock your date and the details." },
+  // ── 3MPIRE (/3mpire) — the referral card hero. ──
+  { key: "mpire.ref_eye", group: "3MPIRE", label: "Referral card — eyebrow", default: "Grow The 3MPIRE" },
+  { key: "mpire.ref_title", group: "3MPIRE", label: "Referral card — headline", default: "Give $5, get $5." },
+  { key: "mpire.ref_body", group: "3MPIRE", label: "Referral card — body", multiline: true,
+    default: "When a friend joins with your code and makes their first order, you each get $5 credit." },
+  // ── Masthead eyebrows (context labels) on pages otherwise covered by their own groups above.
+  //    Keys carry a masthead.* prefix but sit in each page's natural group so "View live →" lands
+  //    on the exact page. (Shop/Primal/Book/3MPIRE eyebrows live in those groups above.) ──
+  { key: "masthead.today", group: "Home · signed-in", label: "Masthead eyebrow (Today)", default: "Today" },
+  { key: "masthead.menu", group: "Menu", label: "Masthead eyebrow (The Menu)", default: "The Menu" },
+  { key: "masthead.delivery", group: "Delivery", label: "Masthead eyebrow (Order ahead)", default: "Order ahead" },
   // ── Menu · sections + every drink. Names, tags, and descriptions are copy — PRICES ARE NOT:
   // the charge is computed server-side from the locked catalog / Square, so px stays in code.
   ...MENU.flatMap((s, i) => [
@@ -235,6 +309,12 @@ const COPY_GROUP_ROUTE: Record<string, string> = {
   "Menu": "/menu",
   "Menu · sections": "/menu",
   "Truck": "/truck",
+  "Shop": "/shop",
+  "Primal": "/primal",
+  "Find Us": "/",
+  "Book": "/book",
+  "3MPIRE": "/3mpire",
+  "Delivery": "/delivery",
 };
 export function copyGroupRoute(group: string): string {
   if (COPY_GROUP_ROUTE[group]) return COPY_GROUP_ROUTE[group];

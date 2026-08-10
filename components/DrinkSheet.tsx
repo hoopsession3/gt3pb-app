@@ -54,18 +54,22 @@ export default function DrinkSheet() {
           <div className="sheet-pillar">{PILLAR[d.when]}</div>
           <div className="sheet-mark">
             <span className="sheet-dot" style={{ background: d.dot }} />
-            <span className="sheet-name" id="drink-sheet-title">{d.n}</span>
+            {/* Name / lines / why read the SAME menu.<id>.* copy keys the /menu list uses
+                (app/menu/page.tsx), not the frozen lib/menu.ts d.n/d.lines/d.why — so an owner's
+                menu edits show in BOTH the list and this popup instead of drifting apart. The
+                in-the-bottle (d.has) / never (d.no) lists stay on lib/menu.ts for now. */}
+            <span className="sheet-name" id="drink-sheet-title">{t(`menu.${openId}.name`)}</span>
             {/* Live price (products.price_cents via AppProvider), not the frozen lib/menu.ts value —
                 so the very first price a customer sees always matches what checkout charges. */}
             <span className="sheet-px">${(priceCents(openId) / 100).toFixed(priceCents(openId) % 100 === 0 ? 0 : 2)}</span>
           </div>
 
           <div className="sheet-lines">
-            {d.lines.map((l) => (
+            {t(`menu.${openId}.lines`).split("\n").filter(Boolean).map((l) => (
               <div className="sheet-line" key={l}>{l}</div>
             ))}
           </div>
-          <p className="sheet-why">{d.why}</p>
+          <p className="sheet-why">{t(`menu.${openId}.why`)}</p>
 
           <div className="sheet-rule" />
 

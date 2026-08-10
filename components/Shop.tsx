@@ -8,9 +8,12 @@ import { authedFetch } from "@/lib/authedFetch";
 import { squareClientReady } from "@/lib/square";
 import PaymentCard, { type PaymentCardHandle } from "@/components/PaymentCard";
 import AccountPill from "@/components/AccountPill";
+import EditCopyPill from "@/components/EditCopyPill";
+import EditableCopy from "@/components/EditableCopy";
 import Watermark from "@/components/Watermark";
 import Icon from "@/components/Icon";
 import { Masthead, ClosingBeat } from "@/components/kit";
+import { useSiteCopy } from "@/lib/copy";
 
 // THE SHOP (0273) — GT3 merch on the 0271 storefront spine. Reads published merch through RLS, a simple
 // cart in memory, and the shared Square card mount + /api/shop/checkout for a real one-time charge that
@@ -28,6 +31,7 @@ const newKey = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypt
 
 export default function Shop() {
   const { user } = useAuth();
+  const t = useSiteCopy();
   const [view, setView] = useState<"grid" | "product" | "checkout" | "done">("grid");
   const [active, setActive] = useState<Product | null>(null);
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -59,14 +63,14 @@ export default function Shop() {
   return (
     <section className="screen shop" id="s-shop">
       <Watermark variant="menu" />
-      <Masthead tone="light" eyebrow="The Shop" right={<AccountPill />} />
+      <Masthead tone="light" eyebrow={<EditableCopy k="shop.eyebrow" value={t("shop.eyebrow")} />} right={<div className="mast-right"><EditCopyPill group="Shop" /><AccountPill /></div>} />
 
       {view === "grid" && (
         <>
-          <p className="shop-stmt">Wear the standard. Printed on demand, shipped to you — the same no-shortcuts ethos as the cup.</p>
+          <EditableCopy k="shop.tagline" value={t("shop.tagline")} as="p" className="shop-stmt" multiline />
           {board.status === "loading" && <div className="shop-note">Loading the shop…</div>}
           {board.status === "error" && <div className="shop-note err">Couldn’t load the shop. Try again in a moment.</div>}
-          {board.status === "ready" && products.length === 0 && <div className="shop-note">New drops are on the way — check back soon.</div>}
+          {board.status === "ready" && products.length === 0 && <EditableCopy k="shop.empty" value={t("shop.empty")} as="div" className="shop-note" />}
           <div className="shop-grid">
             {products.map((p) => (
               <button type="button" key={p.id} className="shop-card" onClick={() => { setActive(p); setView("product"); }}>
@@ -93,9 +97,13 @@ export default function Shop() {
       {view === "done" && (
         <div className="shop-done">
           <span className="shop-done-ic"><Icon name="check" /></span>
-          <h1 className="shop-h1">Order <i>in</i></h1>
-          <p className="shop-lede">{doneRef?.warn || "Thanks — we’ve got it. You’ll get an email now, and tracking the moment it ships."}</p>
-          <button type="button" className="btn-sec" onClick={() => setView("grid")}>Keep shopping</button>
+          <h1 className="shop-h1"><EditableCopy k="shop.done_title" value={t("shop.done_title")} /> <i><EditableCopy k="shop.done_title_em" value={t("shop.done_title_em")} /></i></h1>
+          {doneRef?.warn
+            ? <p className="shop-lede">{doneRef.warn}</p>
+            : <EditableCopy k="shop.done_lede" value={t("shop.done_lede")} as="p" className="shop-lede" multiline />}
+          {/* "Keep shopping" is inside a <button> — plain t(), not EditableCopy (same nested-
+              interactive rule as Craft's CTAs). Editable via Settings → the Shop group. */}
+          <button type="button" className="btn-sec" onClick={() => setView("grid")}>{t("shop.keep")}</button>
         </div>
       )}
 

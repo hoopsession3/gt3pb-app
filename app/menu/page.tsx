@@ -57,7 +57,7 @@ export default function MenuScreen() {
           affordance, not just a redundant one, once the whole point is staying on the page. Turn
           on Edit mode from the float rail instead — it never leaves this screen. Re-add a pill here
           only if a new Menu-group key ships that ISN'T wired to EditableCopy somewhere in this flow. */}
-      <Masthead tone="light" eyebrow="The Menu" right={<AccountPill />} />
+      <Masthead tone="light" eyebrow={<EditableCopy k="masthead.menu" value={t("masthead.menu")} />} right={<AccountPill />} />
 
       <EditableCopy k="menu.statement" value={t("menu.statement")} as="p" className="mast-stmt" multiline />
       <EditableCopy k="menu.order_line" value={t("menu.order_line")} as="div" className="mast-order" />

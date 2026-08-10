@@ -3,13 +3,17 @@
 import { useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import AccountPill from "@/components/AccountPill";
+import EditCopyPill from "@/components/EditCopyPill";
+import EditableCopy from "@/components/EditableCopy";
 import { Masthead, ClosingBeat } from "@/components/kit";
 import { supabase } from "@/lib/supabase";
+import { useSiteCopy, fillCopy } from "@/lib/copy";
 
 // "Book the bar" intake — captures B2B/event requests into Supabase (admins manage them
 // in the back office). Booking Tool v5 stays the rate source of truth; the app never quotes.
 export default function BookScreen() {
   const { toast } = useApp();
+  const t = useSiteCopy();
   const [f, setF] = useState({ name: "", email: "", phone: "", event_date: "", headcount: "", location_text: "", notes: "" });
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
@@ -49,13 +53,14 @@ export default function BookScreen() {
   if (done) {
     return (
       <section className="screen bookwrap" id="s-book">
-        <Masthead eyebrow="Book the bar" right={<AccountPill />} />
+        <Masthead eyebrow={<EditableCopy k="book.eyebrow" value={t("book.eyebrow")} />} right={<div className="mast-right"><EditCopyPill group="Book" /><AccountPill /></div>} />
         <div className="bookcard">
-          <div className="eyb">Request received</div>
-          <h2>We&apos;re on it.</h2>
+          <EditableCopy k="book.done_eye" value={t("book.done_eye")} as="div" className="eyb" />
+          <EditableCopy k="book.done_title" value={t("book.done_title")} as="h2" />
           {/* 2026-07-30 (Ryan): no internal tool names ("Booking Tool v5") and no crew first names
-              in guest-facing copy — "it's not professional." The card speaks as the business. */}
-          <p>Thanks, {f.name.split(" ")[0]}. We&apos;ll reach out within a day to lock your date and the details.</p>
+              in guest-facing copy — "it's not professional." The card speaks as the business.
+              {name} is filled live via fillCopy; the raw template is what's edited/saved. */}
+          <EditableCopy k="book.done_thanks" value={t("book.done_thanks")} displayValue={fillCopy(t("book.done_thanks"), { name: f.name.split(" ")[0] })} as="p" multiline />
         </div>
         <ClosingBeat />
       </section>
@@ -64,11 +69,11 @@ export default function BookScreen() {
 
   return (
     <section className="screen bookwrap" id="s-book">
-      <Masthead eyebrow="Book the bar" right={<AccountPill />} />
+      <Masthead eyebrow={<EditableCopy k="book.eyebrow" value={t("book.eyebrow")} />} right={<div className="mast-right"><EditCopyPill group="Book" /><AccountPill /></div>} />
       <div className="bookcard">
-        <div className="eyb">Bring GT3PB to your event</div>
-        <h2>Book the bar.</h2>
-        <p>Offsites, run clubs, launches, weddings. We bring the full bar and pour on site. Tell us the basics — we take it from there.</p>
+        <EditableCopy k="book.eye" value={t("book.eye")} as="div" className="eyb" />
+        <EditableCopy k="book.title" value={t("book.title")} as="h2" />
+        <EditableCopy k="book.lede" value={t("book.lede")} as="p" multiline />
       </div>
 
       <form className="auth-form" onSubmit={submit} style={{ marginTop: 18 }}>

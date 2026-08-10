@@ -6,6 +6,7 @@ import { useApp } from "@/components/AppProvider";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import SignIn from "@/components/SignIn";
 import AccountPill from "@/components/AccountPill";
+import EditableCopy from "@/components/EditableCopy";
 import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
 import ReviewPrompt from "@/components/ReviewPrompt";
 import MembershipCard from "@/components/MembershipCard";
@@ -18,6 +19,7 @@ import { supabase } from "@/lib/supabase";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import type { Order } from "@/lib/db";
 import { clickable } from "@/lib/a11y";
+import { useSiteCopy } from "@/lib/copy";
 
 const RING = 232; // 2πr for r=37, matches prototype stroke-dasharray
 
@@ -83,6 +85,7 @@ function useRingFill(fill: number) {
 function ReferralCard({ code }: { code: string }) {
   const { toast } = useApp();
   const { user } = useAuth();
+  const t = useSiteCopy();
   const [copyLbl, setCopyLbl] = useState("Copy");
   const [stats, setStats] = useState<{ n: number; earned: number } | null>(null);
 
@@ -113,9 +116,9 @@ function ReferralCard({ code }: { code: string }) {
 
   return (
     <div className="referral">
-      <div className="eyb">Grow The 3MPIRE</div>
-      <h3>Give $5, get $5.</h3>
-      <p className="ref-sub">When a friend joins with your code and makes their first order, you each get $5 credit.</p>
+      <EditableCopy k="mpire.ref_eye" value={t("mpire.ref_eye")} as="div" className="eyb" />
+      <EditableCopy k="mpire.ref_title" value={t("mpire.ref_title")} as="h3" />
+      <EditableCopy k="mpire.ref_body" value={t("mpire.ref_body")} as="p" className="ref-sub" multiline />
       <div className="code"><b>{code}</b><span className="cp" aria-label={`Copy referral code ${code}`} {...clickable(copyCode)}>{copyLbl}</span></div>
       <button type="button" className="ref-share" onClick={share}>Share invite</button>
       {stats && stats.n > 0 && (

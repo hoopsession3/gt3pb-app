@@ -82,7 +82,7 @@ function TodayReal({ t }: { t: (k: string) => string }) {
     <section className="screen" id="s-today">
       <Watermark variant="landing" />
       <Masthead
-        eyebrow="Today"
+        eyebrow={<EditableCopy k="masthead.today" value={t("masthead.today")} />}
         right={
           // stamp.* (Loyalty card) can't be inline-click-edited — see StampCard.tsx — so this pill
           // is its only door into Settings from the live page, same idea as Reserve's confirm_return/
