@@ -10,7 +10,7 @@
 -- Also: ARCHIVE the 500 blank catalog items the first Apliiq sync pulled in (they're generic apparel
 -- blanks with no mockups — noise in the crew view). Archiving is a soft, reversible flag; a re-sync of
 -- a real designed product is unaffected. Idempotent; apply after 0273 (code) is deployed so the SVGs
--- are served at /shop/<slug>.svg.
+-- are served at /shop/<slug>.svg.  APPLIED TO PROD 2026-08-10 (verified: 6 live, 500 archived).
 
 -- ── seed the capsule (born PUBLISHED; idempotent by title) ────────────────────────────────────────
 insert into public.shop_products (kind, title, public_title, blurb, price_cents, cost_cents, image_url, images, variants, published_at, sort)
@@ -21,7 +21,7 @@ from (values
    3400, 1500, '/shop/tee-charcoal.svg', '["/shop/tee-charcoal.svg"]',
    '[{"size":"S"},{"size":"M"},{"size":"L"},{"size":"XL"},{"size":"XXL"}]', 1),
   ('merch','GT3 Pullover Hoodie','Pullover Hoodie',
-   'Brushed-fleece pullover, hood lined, kangaroo pocket. Cream on charcoal — quiet and heavy.',
+   'Brushed-fleece pullover, hood lined, kangaroo pocket. Cream on charcoal, quiet and heavy.',
    6800, 3200, '/shop/hoodie-cream.svg', '["/shop/hoodie-cream.svg"]',
    '[{"size":"S"},{"size":"M"},{"size":"L"},{"size":"XL"},{"size":"XXL"}]', 2),
   ('merch','GT3 Crewneck','Crewneck',
