@@ -60,7 +60,7 @@
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
 }
-html,body{height:100%}
+html,body{height:100%;-webkit-text-size-adjust:100%;text-size-adjust:100%}
 body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream);
   -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility;
   display:flex;align-items:flex-start;justify-content:center;min-height:100dvh}
