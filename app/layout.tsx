@@ -40,6 +40,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        {/* Stop iOS Safari from auto-inflating text (some calendar rows rendered huge on iPhone).
+            This MUST live in a raw <style> — the CSS-module minifier strips `text-size-adjust`
+            from globals.css, so the rule never reaches the browser from there. Inline it survives. */}
+        <style dangerouslySetInnerHTML={{ __html: "html{-webkit-text-size-adjust:100%;-moz-text-size-adjust:100%;text-size-adjust:100%}" }} />
         {/* Warm the connection to Supabase (auth/session + the first data query) so its TLS handshake
             overlaps with the initial render instead of starting only when the auth layer fires. */}
         {process.env.NEXT_PUBLIC_SUPABASE_URL && (

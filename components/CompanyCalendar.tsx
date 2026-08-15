@@ -355,7 +355,7 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
       onDragStart={() => { if (!readOnly && DRAG.has(it.kind) && isEditable(it.kind)) dragId.current = { kind: it.kind, id: it.id }; }}
       onClick={(e) => { e.stopPropagation(); if (onOpen && !readOnly && isEditable(it.kind)) onOpen(); else it.go(); }} title={`${CAT[it.cat]?.label}: ${it.title}`}>
       {it.kind === "todo" && it.toggle && <span className="cc-check" onClick={(e) => { e.stopPropagation(); it.toggle?.(); }}>{it.done ? <Icon name="check" /> : <Icon name="dotOutline" />}</span>}
-      <span className="cc-dot" style={{ background: CAT[it.cat]?.color }} />{it.title}
+      <span className="cc-dot" style={{ background: CAT[it.cat]?.color }} /><span className="cc-title">{it.title}</span>
     </button>
   );
 
