@@ -196,6 +196,19 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
     onSaved();
   };
 
+  // Publish/hide toggle — persists IMMEDIATELY (like archive), not just local state. Before, flipping
+  // it only updated the on-screen label and relied on the separate Save press; hiding an event from
+  // guests silently didn't stick if you closed without saving. Optimistic flip + write, revert on error.
+  const togglePublish = async () => {
+    if (!supabase || !f || !isEvent) return;
+    const next = f.published_at ? null : new Date().toISOString();
+    set("published_at", next);
+    const { error } = await supabase.from(table).update({ published_at: next }).eq("id", id);
+    if (error) { set("published_at", f.published_at ?? null); toast(`Couldn't ${next ? "publish" : "hide"} — ${error.message}`, "error"); return; }
+    toast(next ? "Published — live to guests" : "Hidden from guests");
+    onSaved();
+  };
+
   if (!f) return null;
   return (
     <>
@@ -237,7 +250,7 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
         // title ("Soul Yoga pilot #2 · compliance pending") face guests as something cleaner.
         <div className={`fop-pub${f.published_at ? " on" : ""}`} style={{ marginTop: 12 }}>
           <button type="button" className="fop-pub-toggle" role="switch" aria-checked={!!f.published_at}
-            onClick={() => set("published_at", f.published_at ? null : new Date().toISOString())}>
+            onClick={togglePublish}>
             <span className="fop-pub-dot" aria-hidden="true" />
             <span className="fop-pub-l">
               <b>{f.published_at ? "Published to guests" : "Hidden from guests"}</b>
