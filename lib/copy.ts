@@ -177,6 +177,8 @@ export const COPY_META: CopyMeta[] = [
     default: "What's really in the cup — and why" },
   // ── Shop (/shop) — the merch storefront. Adoption pass 2026-08-10. ──
   { key: "shop.eyebrow", group: "Shop", label: "Masthead eyebrow", default: "The Shop" },
+  { key: "shop.sec_bottles", group: "Shop", label: "Aisle tab — Bottles (pack reserve)", default: "Bottles" },
+  { key: "shop.sec_merch", group: "Shop", label: "Aisle tab — Merch (capsule)", default: "Merch" },
   { key: "shop.tagline", group: "Shop", label: "Storefront tagline", multiline: true,
     default: "Wear the standard. Printed on demand, shipped to you — the same no-shortcuts ethos as the cup." },
   { key: "shop.empty", group: "Shop", label: "Empty state — no products yet",
@@ -432,6 +434,7 @@ export const COPY_META: CopyMeta[] = [
   { key: "nav.find", group: "Nav", label: "Tab — Find Us", default: "Find Us" },
   { key: "nav.menu", group: "Nav", label: "Tab — Menu", default: "Menu" },
   { key: "nav.reserve", group: "Nav", label: "Tab — Reserve", default: "Reserve" },
+  { key: "nav.shop", group: "Nav", label: "Tab — Shop", default: "Shop" },
   { key: "nav.join", group: "Nav", label: "Tab — Join (guests)", default: "Join" },
   // ── 3MPIRE / account page — masthead eyebrow + Your-usual row (Today). ──
   { key: "mpire.eyebrow", group: "3MPIRE", label: "Masthead eyebrow", default: "Your 3MPIRE" },

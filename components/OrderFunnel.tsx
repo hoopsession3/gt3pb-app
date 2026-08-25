@@ -52,7 +52,7 @@ const sunLabel = (key: string) => {
 };
 const PICKUP_TIERS = PACK_SIZES as readonly number[]; // [3, 6, 12]
 
-export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
+export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMode: Mode; syncUrl?: boolean }) {
   const { toast } = useApp();
   const { user, profile } = useAuth();
   const payLater = usePayAtPickup();
@@ -262,7 +262,9 @@ export default function OrderFunnel({ initialMode }: { initialMode: Mode }) {
     if (next === "pickup") { setPremiums({}); setRefills(0); setAck(false); }
     setMode(next);
     setCount(nextCount);
-    try { window.history.replaceState(null, "", next === "delivery" ? "/delivery" : "/reserve"); } catch { /* ignore */ }
+    // When embedded off its own route (the Shop "Bottles" aisle passes syncUrl={false}), don't drift
+    // the URL to /reserve|/delivery on a mode flip — the page didn't actually navigate there.
+    if (syncUrl) { try { window.history.replaceState(null, "", next === "delivery" ? "/delivery" : "/reserve"); } catch { /* ignore */ } }
     // Delivery can't be ordered without a verified zone. If we haven't checked one, land on the zone
     // hero (cart intact). Otherwise show size so the new tiers/pricing are visible with the mix kept.
     if (next === "delivery" && zone !== "in") { setStep("start"); return; }

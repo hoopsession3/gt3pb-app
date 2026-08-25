@@ -1175,6 +1175,9 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .menu-chip:not(.on):hover{border-color:rgba(34,31,24,.5);color:#221F18;background:rgba(34,31,24,.05)}
 .menu-chip:active{transform:scale(.96)}
 .menu-chip.on{background:#221F18;color:#F4EFE3;border-color:#221F18}
+/* Shop's two-aisle switch (Bottles · Merch) reuses the Menu category-chip grammar on the same light
+   paper surface; just give the aisle content a little breathing room below the sticky chip band. */
+.shop-sections{margin-bottom:6px}
 
 .chapter{display:flex;align-items:baseline;justify-content:space-between;margin:34px 0 0}
 .chapter .chn{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:2.6px;text-transform:uppercase;color:#9A7A2A}

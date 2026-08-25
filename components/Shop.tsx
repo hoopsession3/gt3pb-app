@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/AuthProvider";
 import { useAsyncData } from "@/lib/useAsyncData";
@@ -14,6 +14,9 @@ import Watermark from "@/components/Watermark";
 import Icon from "@/components/Icon";
 import { Masthead, ClosingBeat } from "@/components/kit";
 import { useSiteCopy, fillCopy } from "@/lib/copy";
+import OrderFunnel from "@/components/OrderFunnel";
+import Reserves from "@/components/Reserves";
+import StorefrontStory from "@/components/StorefrontStory";
 
 // THE SHOP (0273) — GT3 merch on the 0271 storefront spine. Reads published merch through RLS, a simple
 // cart in memory, and the shared Square card mount + /api/shop/checkout for a real one-time charge that
@@ -36,6 +39,13 @@ export default function Shop() {
   const [active, setActive] = useState<Product | null>(null);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [doneRef, setDoneRef] = useState<{ warn?: string } | null>(null);
+  // Two aisles under one roof (2026-08): Bottles = the Saturday-drop pack reserve (the old /reserve
+  // flow, embedded) · Merch = the capsule below. Default Bottles — the everyday take-home, and it
+  // keeps continuity with the Reserve tab this replaced. ?tab=merch|bottles deep-links either aisle.
+  const [section, setSection] = useState<"bottles" | "merch">("bottles");
+  useEffect(() => {
+    try { const q = new URLSearchParams(window.location.search).get("tab"); if (q === "merch" || q === "bottles") setSection(q); } catch { /* ignore */ }
+  }, []);
 
   const loader = useCallback(async (): Promise<Product[]> => {
     if (!supabase) return [];
@@ -65,7 +75,31 @@ export default function Shop() {
       <Watermark variant="menu" />
       <Masthead tone="light" eyebrow={<EditableCopy k="shop.eyebrow" value={t("shop.eyebrow")} />} right={<div className="mast-right"><EditCopyPill group="Shop" /><AccountPill /></div>} />
 
-      {view === "grid" && (
+      {/* One h1 per rendered state: the hub views (Bottles, or the Merch grid) get an sr-only h1;
+          the Merch product/checkout/done views render their own visible <h1>. /shop stays in
+          AppShell's H1_SKIP, so this is the page's only h1 at any moment. */}
+      {(section === "bottles" || view === "grid") && <h1 className="sr-only">{t("nav.shop") || "Shop"}</h1>}
+
+      {/* Two aisles: Bottles (pack reserve) · Merch (capsule). Hidden while inside a Merch sub-view
+          (product/checkout/done) so those flows read as their own focused screen. */}
+      {(section === "bottles" || view === "grid") && (
+        <div className="menu-chips shop-sections" role="tablist" aria-label="Shop">
+          <button type="button" role="tab" aria-selected={section === "bottles"} className={`menu-chip${section === "bottles" ? " on" : ""}`} onClick={() => setSection("bottles")}>{t("shop.sec_bottles")}</button>
+          <button type="button" role="tab" aria-selected={section === "merch"} className={`menu-chip${section === "merch" ? " on" : ""}`} onClick={() => setSection("merch")}>{t("shop.sec_merch")}</button>
+        </div>
+      )}
+
+      {section === "bottles" && (
+        <>
+          <EditableCopy k="reserve.headline" value={t("reserve.headline")} as="p" className="shop-stmt" multiline />
+          <Reserves />
+          <OrderFunnel initialMode="pickup" syncUrl={false} />
+          <StorefrontStory />
+          <ClosingBeat />
+        </>
+      )}
+
+      {section === "merch" && view === "grid" && (
         <>
           <EditableCopy k="shop.tagline" value={t("shop.tagline")} as="p" className="shop-stmt" multiline />
           {board.status === "loading" && <div className="shop-note">Loading the shop…</div>}
@@ -85,16 +119,16 @@ export default function Shop() {
         </>
       )}
 
-      {view === "product" && active && (
+      {section === "merch" && view === "product" && active && (
         <ProductDetail product={active} onBack={() => setView("grid")} onAdd={(v, q) => { addToCart(active, v, q); setView("grid"); }} />
       )}
 
-      {view === "checkout" && (
+      {section === "merch" && view === "checkout" && (
         <CheckoutView cart={cart} total={total} isMember={!!user} setQty={setQty}
           onBack={() => setView("grid")} onDone={(warn) => { setDoneRef({ warn }); setCart([]); setView("done"); }} />
       )}
 
-      {view === "done" && (
+      {section === "merch" && view === "done" && (
         <div className="shop-done">
           <span className="shop-done-ic"><Icon name="check" /></span>
           <h1 className="shop-h1"><EditableCopy k="shop.done_title" value={t("shop.done_title")} /> <i><EditableCopy k="shop.done_title_em" value={t("shop.done_title_em")} /></i></h1>
@@ -108,14 +142,14 @@ export default function Shop() {
       )}
 
       {/* sticky cart bar */}
-      {count > 0 && view !== "done" && view !== "checkout" && (
+      {section === "merch" && count > 0 && view !== "done" && view !== "checkout" && (
         <button type="button" className="shop-cartbar" onClick={() => setView("checkout")}>
           <span className="shop-cartbar-n">{count} item{count > 1 ? "s" : ""}</span>
           <span className="shop-cartbar-go">{t("checkout.title")} · {money(total)} <Icon name="arrowRight" size={15} /></span>
         </button>
       )}
 
-      {view === "grid" && <ClosingBeat />}
+      {section === "merch" && view === "grid" && <ClosingBeat />}
     </section>
   );
 }
