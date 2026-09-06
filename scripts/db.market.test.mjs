@@ -93,7 +93,10 @@ await db.exec(`
 
   create table public.inventory_items (
     id uuid primary key default gen_random_uuid(), tenant_id uuid not null default '${T1}',
-    name text not null, qty numeric, reorder_point numeric, unit text, reorder_link text);
+    name text not null, qty numeric, reorder_point numeric, unit text, reorder_link text,
+    -- category arrived in 0044 and is what 0295 classifies from. Omitting it here would have made
+    -- 0295's backfill look like a no-op and passed a migration that classifies nothing.
+    category text);
   -- Column list from 0090 plus the later alters, not invented. The first version omitted "note"
   -- and 0293 failed on it. Third time a stub in this file has been thinner than production; the
   -- rule that keeps earning its keep is that a fixture must answer what production answers.
@@ -896,6 +899,222 @@ await db.exec(`select set_config('gt3.allow_hard_delete','on',false);
 ok("0294: a deliberate exception can still dump an unlogged batch",
    (await q1(`select status from public.brew_batches where id='dddddddd-0000-0000-0000-00000000000a'`))?.status === "dumped");
 
+// ═══ 0295 — four lifecycles on one shelf ════════════════════════════════════════════════════════
+await db.exec(`
+  create table public.brew_vessels (
+    id uuid primary key default gen_random_uuid(),
+    name text not null, capacity_gal numeric not null default 1,
+    filter_type text, notes text, sort int not null default 0,
+    archived_at timestamptz);
+  alter table public.brew_vessels enable row level security;
+  grant select, insert, update on public.brew_vessels to authenticated;
+  insert into public.brew_vessels (name, capacity_gal) values
+    ('Toddy (commercial)', 2.5), ('Cold Brew Avenue', 5.0);
+
+  -- the four categories production actually carries, plus one it cannot classify
+  update public.inventory_items set category = 'Ingredients'
+    where name in ('Yupik Organic Raw Cacao Nibs 2.2 lb');
+  insert into public.inventory_items (name, market, qty, reorder_point, unit, category) values
+    ('Vevor Stainless Work Table',  'greenville', 1,  1, 'each', 'Tools/Hardware'),
+    ('Melitta #4 Cone Filters',     'greenville', 40, 20, 'each', 'Cleaning/Sanitation'),
+    ('GT3 Bottle 12oz',             'greenville', 90, 24, 'each', 'Packaging'),
+    ('Window decal run',            'greenville', 1,  null, 'each', 'Marketing');
+`);
+
+await db.exec(mig("0295_item_lifecycles.sql"));
+
+const kinds = Object.fromEntries((await db.query(
+  `select coalesce(kind,'(null)') k, count(*)::int n from public.inventory_items group by 1`
+)).rows.map((r) => [r.k, Number(r.n)]));
+ok("0295: Ingredients classify as ingredient", (kinds.ingredient ?? 0) >= 1, JSON.stringify(kinds));
+ok("0295: Tools/Hardware classifies as equipment", (kinds.equipment ?? 0) >= 1, JSON.stringify(kinds));
+ok("0295: Packaging classifies as packaging", (kinds.packaging ?? 0) >= 1, JSON.stringify(kinds));
+ok("0295: Cleaning/Sanitation classifies as consumable", (kinds.consumable ?? 0) >= 1, JSON.stringify(kinds));
+ok("0295: a category nobody can bucket is left unsaid, not guessed",
+   (await q1(`select count(*)::int n from public.v_item_kind_gaps where name='Window decal run'`)).n === 1);
+
+// ── equipment does not get reordered ──
+await db.exec(`insert into public.inventory_ledger (item, market, qty, kind, note)
+               values ('Vevor Stainless Work Table','greenville', -1, 'adjust', 'moved to the truck');`);
+ok("0295: equipment raises no reorder alert even at its reorder point",
+   Number((await q1(`select count(*)::int n from public.alerts
+                      where ack_at is null and title like '%Vevor%'`)).n) === 0);
+// ...while a real consumable still does, so the skip is targeted and not a blanket mute.
+await db.exec(`insert into public.inventory_ledger (item, market, qty, kind, note)
+               values ('Melitta #4 Cone Filters','greenville', -35, 'use', 'a run of brews');`);
+ok("0295: a consumable at its reorder point still raises one",
+   Number((await q1(`select count(*)::int n from public.alerts
+                      where ack_at is null and title like '%Melitta%'`)).n) === 1);
+
+// ── a recipe may not draw down the grinder ──
+const eqMap = await raises(`select public.map_ingredient('Some step',
+  (select id from public.inventory_items where name='Vevor Stainless Work Table'),
+  1, 'nonsense', 'greenville')`);
+ok("0295: mapping a recipe line to equipment is refused",
+   eqMap !== null && /equipment, not something a batch uses up/.test(eqMap), eqMap);
+
+// A row written before the rule existed still cannot resolve: the guard is on the read path too.
+await db.exec(`insert into public.recipe_ingredient_map
+  (ingredient, market, inventory_item_id, shelf_qty_per_recipe_unit, basis)
+  select 'Legacy equipment line', 'greenville', id, 1, 'written before 0295'
+    from public.inventory_items where name='Vevor Stainless Work Table';`);
+ok("0295: and a pre-existing equipment map row cannot resolve either",
+   (await q1(`select count(*)::int n from public.resolve_ingredient('Legacy equipment line','greenville')`)).n === 0);
+
+// ── the scaling fix ──
+// A recipe defined per 1 gal with one filter that does NOT scale, brewed at 4 gal.
+await db.exec(`
+  insert into public.brew_recipes (id, name, base_water_gal, ingredients) values
+    ('eeeeeeee-0000-0000-0000-000000000002', 'Filter Test', 1, '[
+       {"name":"Melitta #4 Cone Filters","qty":1,"unit":"each","scales":false},
+       {"name":"Organic cacao nibs (mix with grounds)","qty":10,"unit":"g","scales":true}]'::jsonb);
+  insert into public.brew_batches (id, recipe_id, recipe_name, batch_gal, status, scaled)
+    values ('dddddddd-0000-0000-0000-00000000000b','eeeeeeee-0000-0000-0000-000000000002',
+            'Filter Test', 4, 'ready', null);
+  select public.map_ingredient('Melitta #4 Cone Filters',
+    (select id from public.inventory_items where name='Melitta #4 Cone Filters' and market='greenville'),
+    1, 'one filter is one filter', 'greenville', 'each');
+`);
+const fres = await q1(`select public.log_batch_consumption('dddddddd-0000-0000-0000-00000000000b') r`);
+const fr = typeof fres.r === "string" ? JSON.parse(fres.r) : fres.r;
+const filterDraw = await q1(`select qty from public.inventory_ledger
+                              where batch_id='dddddddd-0000-0000-0000-00000000000b'
+                                and item='Melitta #4 Cone Filters'`);
+ok("0295: a non-scaling line draws ONE, not one per gallon",
+   Number(filterDraw?.qty) === -1, `${filterDraw?.qty} (was -4 before the fix)`);
+const nibDraw = await q1(`select qty from public.inventory_ledger
+                           where batch_id='dddddddd-0000-0000-0000-00000000000b'
+                             and item like 'Yupik%'`);
+ok("0295: while a scaling line in the same batch still scales",
+   Math.abs(Number(nibDraw?.qty) + (10 * 4) / (2.2 * 453.59237)) < 1e-9, nibDraw?.qty);
+
+// ── a vessel belongs to a city ──
+ok("0295: both existing vessels are Greenville's",
+   Number((await q1(`select count(*)::int n from public.brew_vessels where market='greenville'`)).n) === 2);
+const gvCap = await q1(`select * from public.market_brew_capacity('greenville')`);
+ok("0295: Greenville's ceiling is its biggest vessel, not the sum",
+   Number(gvCap.largest_gal) === 5 && Number(gvCap.total_gal) === 7.5, JSON.stringify(gvCap));
+const atlCap = await q1(`select * from public.market_brew_capacity('atlanta')`);
+ok("0295: a city with no vessel reads as unknown, not as zero capacity",
+   Number(atlCap.vessels) === 0 && atlCap.largest_gal === null, JSON.stringify(atlCap));
+
+// ═══ 0296 — can this city open? ═════════════════════════════════════════════════════════════════
+await db.exec(mig("0296_market_readiness.sql"));
+
+ok("0296: the state is set explicitly, not parsed out of free text",
+   (await q1(`select state from public.markets where slug='greenville'`))?.state === 'SC' &&
+   (await q1(`select state from public.markets where slug='atlanta'`))?.state === 'GA');
+
+const board = await db.query(`select market, area, check_name, status, detail, blocking
+                                from public.v_market_readiness order by market, area, check_name`);
+ok("0296: every market gets the full set of checks",
+   board.rows.filter((r) => r.market === "greenville").length ===
+   board.rows.filter((r) => r.market === "atlanta").length, JSON.stringify(board.rows.length));
+ok("0296: a status is only ever ready, blocked or unknown",
+   board.rows.every((r) => ["ready","blocked","unknown"].includes(r.status)),
+   JSON.stringify([...new Set(board.rows.map((r) => r.status))]));
+ok("0296: every row explains itself",
+   board.rows.every((r) => (r.detail ?? "").length > 0));
+
+const cell = (mkt, chk) => board.rows.find((r) => r.market === mkt && r.check_name === chk);
+
+// The distinction the view exists to make: nothing recorded is not the same as recorded-and-failing.
+ok("0296: a market with no vessel reads unknown, not blocked",
+   cell("atlanta", "A vessel to brew in")?.status === "unknown",
+   JSON.stringify(cell("atlanta", "A vessel to brew in")));
+ok("0296: a market with vessels reads ready and states its ceiling",
+   cell("greenville", "A vessel to brew in")?.status === "ready" &&
+   /5 gal/.test(cell("greenville", "A vessel to brew in")?.detail ?? ""),
+   cell("greenville", "A vessel to brew in")?.detail);
+
+// Atlanta cannot draw a single recipe line — that IS evidence, so it blocks.
+ok("0296: a city whose recipes cannot find a shelf is blocked",
+   cell("atlanta", "Every recipe line can be drawn")?.status === "blocked",
+   cell("atlanta", "Every recipe line can be drawn")?.detail);
+
+// Greenville was counted to zero in 0293, so its ingredient shelves are empty — and the board says so
+// rather than reporting a city with nothing on the shelf as ready to pour.
+ok("0296: shelves counted to zero block the city that owns them",
+   cell("greenville", "Ingredient shelves have stock")?.status === "blocked",
+   cell("greenville", "Ingredient shelves have stock")?.detail);
+
+ok("0296: a lead-less market is blocked on crew",
+   ["blocked","ready"].includes(cell("atlanta", "Someone leads this market")?.status ?? ""),
+   cell("atlanta", "Someone leads this market")?.detail);
+
+// The count(*) trap: on a LEFT JOIN a market with NO matching row still yields one row, so count(*)
+// reads 1 and the "nothing recorded" branch is unreachable. Atlanta has no packaging item at all and
+// would have reported "every packaging line is at zero" — stating as fact something never recorded,
+// which is exactly the confusion this view was built to prevent. Caught by reading the view, not by
+// the first round of tests, so it gets one of its own per check that joins.
+ok("0296: a market with no packaging item reads unknown, not 'all at zero'",
+   cell("atlanta", "Bottles on the shelf")?.status === "unknown" &&
+   /No packaging item exists/.test(cell("atlanta", "Bottles on the shelf")?.detail ?? ""),
+   JSON.stringify(cell("atlanta", "Bottles on the shelf")));
+ok("0296: while a market that HAS packaging in stock reads ready",
+   cell("greenville", "Bottles on the shelf")?.status === "ready",
+   cell("greenville", "Bottles on the shelf")?.detail);
+ok("0296: no check reports a null detail, which is how the count(*) bug first showed",
+   board.rows.every((r) => r.detail != null && String(r.detail).trim().length > 0),
+   JSON.stringify(board.rows.filter((r) => !r.detail).map((r) => r.market + "/" + r.check_name)));
+
+// Advisory checks must never hold a city shut.
+const advisory = board.rows.filter((r) => r.blocking === false);
+ok("0296: the advisory checks are marked non-blocking", advisory.length >= 2, JSON.stringify(advisory.length));
+ok("0296: batch history is advisory, not a gate",
+   cell("greenville", "Every batch accounted for")?.blocking === false);
+
+const summary = await db.query(`select * from public.v_market_readiness_summary order by market`);
+ok("0296: the summary counts one row per market", summary.rows.length === 2, JSON.stringify(summary.rows));
+ok("0296: can_open is false while any blocking check is unmet",
+   summary.rows.every((r) => r.can_open === (Number(r.blocked) + Number(r.unknown) === 0)),
+   JSON.stringify(summary.rows));
+ok("0296: advisories do not count against can_open",
+   Number(summary.rows.find((r) => r.market === 'greenville')?.advisories) >= 0);
+
+// ═══ 0297 — the readiness board reads the resolved switch ═══════════════════════════════════════
+// The board must report the RESOLVED switch (0285: null on a market means inherit the company one),
+// not the raw column. Every case below sets the state it is testing rather than inheriting whatever
+// an earlier block left behind — the first version of this test assumed production's values, passed
+// nothing, and knocked over a later assertion by restoring the wrong baseline.
+await db.exec(mig("0297_readiness_live_resolution.sql"));
+
+const liveCell = async (mkt) => await q1(`select status, detail from public.v_market_readiness
+                                           where market='${mkt}' and check_name='Storefront switched on'`);
+
+// company switch OFF, market inheriting → blocked, and it says which switch is off
+await db.exec(`update public.live_status set is_live = false where id = 1;
+               update public.markets set is_live = null where slug = 'greenville';`);
+ok("0297: an inherited-off switch is blocked, not unknown",
+   (await liveCell("greenville"))?.status === "blocked", JSON.stringify(await liveCell("greenville")));
+ok("0297: and it names the company-wide switch rather than claiming nobody set it",
+   /company-wide switch is off/.test((await liveCell("greenville"))?.detail ?? ""),
+   (await liveCell("greenville"))?.detail);
+
+// company switch ON, market still inheriting → ready, without touching the market row
+await db.exec(`update public.live_status set is_live = true where id = 1;`);
+ok("0297: a market inheriting an ON switch reads ready",
+   (await liveCell("greenville"))?.status === "ready", JSON.stringify(await liveCell("greenville")));
+
+// market overrides OFF while the company switch is ON → the override wins
+await db.exec(`update public.markets set is_live = false where slug = 'greenville';`);
+ok("0297: a market's own override beats the company switch",
+   (await liveCell("greenville"))?.status === "blocked", JSON.stringify(await liveCell("greenville")));
+
+// a held market with an opening date says the date instead of the generic line
+await db.exec(`update public.markets set is_live = false, opens_on = date '2026-12-01' where slug = 'atlanta';`);
+ok("0297: a held market reports its opening date",
+   /Dec 1, 2026/.test((await liveCell("atlanta"))?.detail ?? ""), (await liveCell("atlanta"))?.detail);
+
+// 'unknown' still means genuinely unrecorded, not merely off
+ok("0297: 'unknown' is still reserved for what nobody has recorded",
+   (await q1(`select status from public.v_market_readiness
+               where market='atlanta' and check_name='A vessel to brew in'`))?.status === "unknown");
+
+// Put back exactly what the 0285 block left: company switch on, Greenville inheriting.
+await db.exec(`update public.live_status set is_live = true where id = 1;
+               update public.markets set is_live = null where slug = 'greenville';`);
+
 // ═══ every file is idempotent, in order ═════════════════════════════════════════════════════════
 const snap = async () => JSON.stringify({
   cl: (await q1(`select count(*)::int n from public.changelog`)).n,
@@ -909,12 +1128,17 @@ const before = await snap();
 // that is Postgres being right, not a defect: an older migration is not meant to run after a newer
 // one has redefined the same view. Dropping them first lets the loop check what it is actually for,
 // which is that re-running the files does not duplicate a row or re-seed a table.
-await db.exec(`drop view if exists public.v_unaccounted_batches;
+await db.exec(`drop view if exists public.v_market_readiness_summary;
+               drop view if exists public.v_market_readiness;
+               drop view if exists public.v_unaccounted_batches;
                drop view if exists public.v_batch_traceability;`);
 for (const f of ["0284_compliance_freshness.sql", "0285_market_live_switch.sql",
                  "0286_offer_letter_statutory.sql", "0287_supply_sourcing.sql",
                  "0288_inventory_per_market.sql", "0289_market_ownership.sql", "0291_market_read_scope.sql", "0292_receipts_and_spend.sql", "0293_count_and_batch_chain.sql",
-                 "0294_ingredient_map.sql"]) {
+                 "0294_ingredient_map.sql",
+                 "0295_item_lifecycles.sql",
+                 "0296_market_readiness.sql",
+                 "0297_readiness_live_resolution.sql"]) {
   await db.exec(mig(f));
 }
 ok("re-running 0284–0288 in order changes nothing", (await snap()) === before, await snap());
