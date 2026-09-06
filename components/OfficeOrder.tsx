@@ -9,7 +9,8 @@ import { useApp } from "@/components/AppProvider";
 import { authedFetch } from "@/lib/authedFetch";
 import { OFFICE, officeQuote, mondayLabel } from "@/lib/office";
 import { useOfficeSettings } from "./useOfficeSettings";
-import { zipInZone } from "@/lib/delivery";
+import { zipMarket } from "@/lib/delivery";
+import { marketServes } from "@/lib/markets";
 
 // OFFICE DELIVERY — the B2B bulk order (amber gallon jugs, Monday 5–8 AM, 3-gal minimum). Purpose-built
 // so it never entangles the residential pack cart. Books a business_order (0187); a standing toggle also
@@ -45,7 +46,10 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
   // (lib/delivery.zipInZone) — office had none at all, client or server, so a mistyped or
   // out-of-territory ZIP sailed straight through to a confirmed "you're on the Monday route" with
   // staff only discovering it was unreachable while planning the actual route.
-  const zoneOk = zipInZone(zip);
+  // Market-aware: any market that fulfils corporate delivery is in-zone, not just the founding one.
+  // Mirrors the server check in /api/office exactly, so the button and the API agree.
+  const zoneMarket = zipMarket(zip);
+  const zoneOk = !!zoneMarket && marketServes(zoneMarket, "corporate");
   const ready = company.trim() && street.trim() && city.trim() && zip.trim().length >= 5 && zoneOk && gallons >= settings.minGallons && (!needsPhone || phone.trim().length > 0);
 
   const submit = async () => {

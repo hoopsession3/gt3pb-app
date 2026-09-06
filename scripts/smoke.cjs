@@ -289,6 +289,19 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("delivery: third-party channel gets no refill tier", D.quoteDelivery(12, 0, 12, "doordash").refillCount === 0);
   ok("delivery: zone accepts 29607, rejects 29999", D.zipInZone("29607") && !D.zipInZone("29999"));
   ok("delivery: zone covers Taylors + Fountain Inn", D.zipInZone("29687") && D.zipInZone("29644"));
+  // ── markets (0275): the zero-regression contract, asserted rather than asserted-about ──
+  // zipInZone with NO market argument must still mean Greenville and ONLY Greenville, so consumer
+  // Sunday delivery is byte-identical to the single-market build. zipMarket is the new market-aware
+  // door that corporate delivery uses.
+  ok("markets: default zone is still Greenville-only", D.zipInZone("29601") && !D.zipInZone("30303"));
+  ok("markets: Atlanta zone resolves only when asked for", D.zipInZone("30303", "atlanta") && !D.zipInZone("29601", "atlanta"));
+  ok("markets: zipMarket routes a ZIP to its own city", D.zipMarket("29607") === "greenville" && D.zipMarket("30309") === "atlanta");
+  ok("markets: zipMarket is null outside every zone", D.zipMarket("99999") === null);
+  const M = require("../.smoke/markets.js");
+  ok("markets: Atlanta serves corporate, not consumer delivery",
+    M.marketServes("atlanta", "corporate") && !M.marketServes("atlanta", "consumerDelivery"));
+  ok("markets: unknown/absent market falls back to founding",
+    M.toMarket("nowhere") === "greenville" && M.toMarket(undefined) === "greenville");
   const chc = D.deliverySlotChoices(Date.UTC(2026, 6, 8, 16));
   ok("delivery: two Sundays offered, a week apart",
     (new Date(chc[1].deliveryDateKey + "T00:00:00Z") - new Date(chc[0].deliveryDateKey + "T00:00:00Z")) === 7 * 864e5);

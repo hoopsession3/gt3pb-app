@@ -7,6 +7,7 @@
 // third-party driver can't verify empties. `refillAllowed(channel)` is the single gate.
 
 import { FRESH_PER_BOTTLE_CENTS, FLAT_BRING_BACK_CENTS } from "./bottlePricing";
+import { MARKETS, FOUNDING_MARKET, type Market } from "./markets";
 
 export type DeliveryChannel = "direct" | "uber_eats" | "doordash" | "instacart";
 export type DeliveryPackSize = 6 | 12 | 24;
@@ -94,14 +95,48 @@ export function deliverySlotChoices(nowMs: number): [DeliverySlot, DeliverySlot]
   return [nextDeliverySlot(nowMs), nextDeliverySlot(nowMs + 7 * DAY)];
 }
 
-// ── Phase-1 zone (ZIP allowlist). Ryan verifies against the 20-mi radius before launch. ──
-const DELIVERY_ZIPS: readonly string[] = [
-  "29601", "29605", "29607", "29609", "29611", "29615", "29617", // Greenville
-  "29650", "29651",                                              // Greer
-  "29680", "29681",                                              // Simpsonville
-  "29662",                                                       // Mauldin
-  "29690",                                                       // Travelers Rest
-  "29687",                                                       // Taylors
-  "29644",                                                       // Fountain Inn
-] as const;
-export const zipInZone = (zip: string) => DELIVERY_ZIPS.includes(zip.trim().slice(0, 5));
+// ── Zone (ZIP allowlist), PER MARKET. Verify each list against that market's real route radius
+// before its first order. Greenville's list is byte-identical to the single-market build, and
+// zipInZone() called with no market still resolves to exactly this list — so every caller written
+// before markets existed behaves exactly as it did.
+const MARKET_ZIPS: Record<Market, readonly string[]> = {
+  greenville: [
+    "29601", "29605", "29607", "29609", "29611", "29615", "29617", // Greenville
+    "29650", "29651",                                              // Greer
+    "29680", "29681",                                              // Simpsonville
+    "29662",                                                       // Mauldin
+    "29690",                                                       // Travelers Rest
+    "29687",                                                       // Taylors
+    "29644",                                                       // Fountain Inn
+  ],
+  // ATLANTA — a CORPORATE footprint, not a residential one: the business districts where the office
+  // towers are, because Atlanta opens on standing office orders rather than home delivery. STARTER
+  // SET — confirm against the actual Monday route radius before the first standing account goes live.
+  atlanta: [
+    "30303", "30308", "30313",           // Downtown
+    "30309",                             // Midtown
+    "30318",                             // West Midtown
+    "30312", "30316",                    // Old Fourth Ward · Reynoldstown
+    "30305", "30326", "30327", "30342",  // Buckhead
+    "30328", "30338", "30346",           // Perimeter · Dunwoody
+    "30339",                             // Cumberland · Galleria
+    "30322", "30329",                    // Emory
+    "30030",                             // Decatur
+  ],
+};
+
+const normZip = (zip: string) => zip.trim().slice(0, 5);
+
+// Which market serves this ZIP, or null if it falls outside every zone. Prefer this at validation
+// points: it accepts any market's ZIP and tells you WHICH one, instead of silently assuming
+// Greenville and rejecting a legitimate address in another city.
+export function zipMarket(zip: string): Market | null {
+  const z = normZip(zip);
+  for (const m of MARKETS) if (MARKET_ZIPS[m].includes(z)) return m;
+  return null;
+}
+
+// Unchanged signature, unchanged result for every existing caller: with no market argument this
+// checks the founding market's list, exactly as it did before markets existed.
+export const zipInZone = (zip: string, market: Market = FOUNDING_MARKET): boolean =>
+  (MARKET_ZIPS[market] ?? MARKET_ZIPS[FOUNDING_MARKET]).includes(normZip(zip));

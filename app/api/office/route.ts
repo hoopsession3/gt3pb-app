@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { OFFICE, officeQuote, nextMondayKey, mondayLabel } from "@/lib/office";
-import { zipInZone } from "@/lib/delivery";
+import { zipMarket } from "@/lib/delivery";
+import { marketServes } from "@/lib/markets";
 
 export const runtime = "nodejs";
 
@@ -63,7 +64,12 @@ export async function POST(req: Request) {
 
   // Validate — this is the real enforcement point, mirroring the client's pre-check.
   if (!company || !street || !city || zip.length < 5) return NextResponse.json({ error: "Add your company and full address first." }, { status: 400 });
-  if (!zipInZone(zip)) return NextResponse.json({ error: "That ZIP looks outside our delivery route — text us and we'll see what we can do." }, { status: 400 });
+  // Zone check, market-aware. Instead of assuming the founding market and rejecting every other
+  // city's ZIP, resolve WHICH market serves this address and require that market to actually fulfil
+  // corporate delivery. Greenville ZIPs resolve exactly as they did before; an Atlanta business ZIP
+  // now resolves to Atlanta rather than being turned away as "outside our route".
+  const market = zipMarket(zip);
+  if (!market || !marketServes(market, "corporate")) return NextResponse.json({ error: "That ZIP looks outside our delivery route — text us and we'll see what we can do." }, { status: 400 });
   if (billing === "prepaid" && !phone) return NextResponse.json({ error: "Add a phone — prepaid sends the payment link by text." }, { status: 400 });
 
   // Delivery day is server-derived (next Monday) — never trust a client clock.

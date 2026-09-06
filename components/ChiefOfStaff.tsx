@@ -45,7 +45,10 @@ export default function ChiefOfStaff() {
     try {
       const r = await authedFetch("/api/agents/chief", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ period: p }) });
       const j = await r.json();
-      if (!j.ok) setErr(j.error || "Couldn't build the briefing."); else setRes(j);
+      // This panel renders for any leader, but /api/agents/chief is gated to is_owner() — so a
+      // non-owner admin got the bare word "unauthorized" and no idea why. State the actual rule.
+      if (r.status === 401 || r.status === 403) setErr("The Chief of Staff briefing is owner-only. Ask an owner to run it for you.");
+      else if (!j.ok) setErr(j.error || "Couldn't build the briefing."); else setRes(j);
     } catch (e: any) { setErr(String(e?.message ?? e)); }
     setBusy(false);
   };
