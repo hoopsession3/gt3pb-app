@@ -94,9 +94,14 @@ await db.exec(`
   create table public.inventory_items (
     id uuid primary key default gen_random_uuid(), tenant_id uuid not null default '${T1}',
     name text not null, qty numeric, reorder_point numeric, unit text, reorder_link text);
+  -- Column list from 0090 plus the later alters, not invented. The first version omitted "note"
+  -- and 0293 failed on it. Third time a stub in this file has been thinner than production; the
+  -- rule that keeps earning its keep is that a fixture must answer what production answers.
   create table public.inventory_ledger (
     id uuid primary key default gen_random_uuid(), tenant_id uuid not null default '${T1}',
-    item text not null, kind text not null default 'confirm', qty numeric not null,
+    item text not null, event_id uuid, stop_id uuid, task_id uuid,
+    kind text not null default 'confirm', qty numeric not null, note text,
+    inventory_item_id uuid, item_id uuid,
     created_by uuid, created_at timestamptz not null default now());
   create or replace view public.inventory_on_hand with (security_invoker = on) as
     select item, sum(qty) as on_hand, max(created_at) as last_movement
@@ -666,6 +671,102 @@ ok("0292: so are budgets",
    (await q1(`select count(*)::int n from pg_trigger t join pg_class c on c.oid=t.tgrelid
               where c.relname='budgets' and t.tgname='audit_budgets'`)).n === 1);
 
+// ═══ 0293 — the count, and the chain from a pound to a bottle ═══════════════════════════════════
+await db.exec(`
+  create table public.brew_recipes (id uuid primary key default gen_random_uuid(), name text);
+  create table public.brew_batches (
+    id uuid primary key default gen_random_uuid(),
+    tenant_id uuid default '${T1}',
+    recipe_id uuid references public.brew_recipes(id) on delete set null,
+    recipe_name text, batch_gal numeric not null default 1, brew_date date,
+    status text not null default 'planned'
+      check (status in ('planned','brewing','ready','kegged','served','dumped')),
+    signal_score int, notes text, created_by uuid, created_at timestamptz not null default now());
+  alter table public.brew_batches enable row level security;
+  grant select, insert, update on public.brew_batches to authenticated;
+
+  -- the five already-served batches, as production has them
+  insert into public.brew_batches (id, recipe_name, batch_gal, brew_date, status) values
+    ('dddddddd-0000-0000-0000-000000000001','Nitro',        5, current_date - 30, 'served'),
+    ('dddddddd-0000-0000-0000-000000000002','Salted Maple', 3, current_date - 20, 'served');
+
+  -- a stale shelf: a hand-typed qty and no ledger movement at all, which is 21 of 49 in production
+  insert into public.inventory_items (name, market, qty, reorder_point, unit)
+    values ('Stale Beans', 'greenville', 14, 2, 'lb');
+`);
+
+await db.exec(mig("0293_count_and_batch_chain.sql"));
+
+// The count: a movement, not an erasure.
+ok("0293: a shelf with a hand-typed number reads as stocked before the count",
+   Number((await q1(`select effective_on_hand e from public.inventory_status where name='Stale Beans'`))?.e) === 14);
+const noWhy = await raises(`select public.reset_inventory_count('greenville', '   ');`);
+ok("0293: zeroing without a reason is refused", noWhy !== null && /no reason/.test(noWhy), noWhy);
+const badMarket = await raises(`select public.reset_inventory_count('nowhere', 'x');`);
+ok("0293: an unknown market is refused", badMarket !== null);
+
+const reset = await q1(`select public.reset_inventory_count('greenville', 'Physical count — starting fresh') as n`);
+ok("0293: the count moved the shelves that had something on them", Number(reset.n) >= 1, reset.n);
+ok("0293: the shelf now reads zero",
+   Number((await q1(`select effective_on_hand e from public.inventory_status where name='Stale Beans'`))?.e) === 0);
+ok("0293: and the number it used to claim is still on the record",
+   /Previous balance: 14/.test((await q1(`select note from public.inventory_ledger
+      where item='Stale Beans' and kind='count'`))?.note ?? ""));
+ok("0293: the hand-typed qty was cleared so it cannot resurrect",
+   Number((await q1(`select qty from public.inventory_items where name='Stale Beans'`))?.qty) === 0);
+ok("0293: the other city was not touched",
+   Number((await q1(`select effective_on_hand e from public.inventory_status
+      where name='Mountain Valley 1L' and market='atlanta'`))?.e) !== 0);
+
+// Receiving a lot puts it on the shelf in one act.
+const noShelf = await raises(`select public.receive_lot('greenville','Nothing Called This', 5);`);
+ok("0293: receiving into a shelf that does not exist is refused", noShelf !== null && /No shelf/.test(noShelf), noShelf);
+
+const lot = await q1(`select (public.receive_lot('greenville','Stale Beans', 10, 'lb', 1599, 'LOT-A')).id as id`);
+const LOT = lot.id;
+ok("0293: the lot exists", !!lot.id);
+ok("0293: and the shelf went up by exactly that much",
+   Number((await q1(`select effective_on_hand e from public.inventory_status where name='Stale Beans'`))?.e) === 10);
+ok("0293: the movement names the lot it came from",
+   (await q1(`select count(*)::int n from public.inventory_ledger where lot_id = $1`, [LOT])).n === 1);
+
+// A batch cannot be finished without saying what it used.
+await db.exec(`insert into public.brew_batches (id, recipe_name, batch_gal, brew_date, status)
+  values ('dddddddd-0000-0000-0000-000000000003','Rise', 4, current_date, 'brewing');`);
+await db.exec(`update public.brew_batches set status='ready' where id='dddddddd-0000-0000-0000-000000000003';`);
+ok("0293: brewing and ready are not blocked — nothing stops mid-shift",
+   (await q1(`select status from public.brew_batches where id='dddddddd-0000-0000-0000-000000000003'`))?.status === "ready");
+
+const unaccounted = await raises(`update public.brew_batches set status='served'
+  where id='dddddddd-0000-0000-0000-000000000003';`);
+ok("0293: a batch cannot be served with nothing drawn down", unaccounted !== null && /nothing drawn down/.test(unaccounted), unaccounted);
+const dumped = await raises(`update public.brew_batches set status='dumped'
+  where id='dddddddd-0000-0000-0000-000000000003';`);
+ok("0293: nor dumped — a dumped batch still consumed the coffee", dumped !== null);
+
+await db.exec(`select public.log_batch_use('dddddddd-0000-0000-0000-000000000003', 'Stale Beans', 4, '` + LOT + `');`);
+ok("0293: the draw came off the shelf",
+   Number((await q1(`select effective_on_hand e from public.inventory_status where name='Stale Beans'`))?.e) === 6);
+await db.exec(`update public.brew_batches set status='served' where id='dddddddd-0000-0000-0000-000000000003';`);
+ok("0293: once it says what it used, it can be served",
+   (await q1(`select status from public.brew_batches where id='dddddddd-0000-0000-0000-000000000003'`))?.status === "served");
+
+const zeroDraw = await raises(`select public.log_batch_use('dddddddd-0000-0000-0000-000000000003','Stale Beans', 0);`);
+ok("0293: a draw of zero is refused", zeroDraw !== null);
+
+// The chain, readable end to end.
+const trace = await q1(`select * from public.v_batch_traceability where batch_id='dddddddd-0000-0000-0000-000000000003'`);
+ok("0293: the batch reports what it used", Number(trace?.qty_used) === 4, trace?.qty_used);
+ok("0293: and what that cost, from the lot's own price", Number(trace?.cost_dollars) === 63.96, trace?.cost_dollars);
+ok("0293: and which lot it came from", trace?.lot_codes === "LOT-A", trace?.lot_codes);
+ok("0293: and that it is accounted for", trace?.accounted === true);
+
+const open = await rows(`select recipe_name, why from public.v_unaccounted_batches`);
+ok("0293: the batches served before the rule are listed, not forgiven", open.length === 2, open.length);
+ok("0293: and the list says why they are there", /predates the rule/.test(open[0]?.why ?? ""), open[0]?.why);
+ok("0293: the accounted batch is not in the list",
+   !open.some((b) => b.recipe_name === "Rise"));
+
 // ═══ every file is idempotent, in order ═════════════════════════════════════════════════════════
 const snap = async () => JSON.stringify({
   cl: (await q1(`select count(*)::int n from public.changelog`)).n,
@@ -676,16 +777,21 @@ const snap = async () => JSON.stringify({
 const before = await snap();
 for (const f of ["0284_compliance_freshness.sql", "0285_market_live_switch.sql",
                  "0286_offer_letter_statutory.sql", "0287_supply_sourcing.sql",
-                 "0288_inventory_per_market.sql", "0289_market_ownership.sql", "0291_market_read_scope.sql", "0292_receipts_and_spend.sql"]) {
+                 "0288_inventory_per_market.sql", "0289_market_ownership.sql", "0291_market_read_scope.sql", "0292_receipts_and_spend.sql", "0293_count_and_batch_chain.sql"]) {
   await db.exec(mig(f));
 }
 ok("re-running 0284–0288 in order changes nothing", (await snap()) === before, await snap());
 ok("re-run: Greenville still resolves live",
    (await q1(`select is_live from public.market_live where market='greenville'`))?.is_live === true);
-// 12 restocked, 5 used, 30 restocked = 37 — and none of Atlanta's 60 anywhere in it.
-ok("re-run: Greenville's stock is still its own",
-   Number((await q1(`select effective_on_hand from public.inventory_status where name='Mountain Valley 1L' and market='greenville'`))?.effective_on_hand) === 37,
+// Greenville reached 37 (12 restocked, 5 used, 30 restocked) and none of Atlanta's ever leaked in.
+// 0293's count then took it to zero, which is what a count is for — so the assertion that matters
+// after the whole lineage has run is that the reset reached this shelf and Atlanta's is untouched.
+ok("re-run: the count zeroed Greenville's shelf",
+   Number((await q1(`select effective_on_hand from public.inventory_status where name='Mountain Valley 1L' and market='greenville'`))?.effective_on_hand) === 0,
    (await q1(`select effective_on_hand from public.inventory_status where name='Mountain Valley 1L' and market='greenville'`))?.effective_on_hand);
+ok("re-run: and left the other city's shelf alone",
+   Number((await q1(`select effective_on_hand from public.inventory_status where name='Mountain Valley 1L' and market='atlanta'`))?.effective_on_hand) === 5,
+   (await q1(`select effective_on_hand from public.inventory_status where name='Mountain Valley 1L' and market='atlanta'`))?.effective_on_hand);
 
 console.log(`MARKET SPINE: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
