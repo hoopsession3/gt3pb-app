@@ -4520,6 +4520,122 @@ function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; is
   );
 }
 
+// PROMOTE — the member → crew door. The roster filters everyone at role 'member' out of view, so
+// until now the one transition the app had no control for was bringing a customer in. These are the
+// same people: 14 of the 15 customers already hold a profile. One RPC does role, market and
+// market-lead together (0299) because they have a required order and two of the three have no client
+// path at all — profiles has carried only an own-profile update policy since 0001.
+const HIRE_ROLES: RoleKey[] = ["server", "contractor", "operator", "event_manager"];
+
+function PromotePanel({ onDone }: { onDone: () => void }) {
+  const { toast } = useApp();
+  const [open, setOpen] = useState(false);
+  const [rows, setRows] = useState<{ id: string; display_name: string | null; email: string | null; customer_name: string | null }[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [q, setQ] = useState("");
+  const [pick, setPick] = useState<string | null>(null);
+  const [role, setRole] = useState<string>("operator");
+  const [market, setMarket] = useState<string>("");
+  const [lead, setLead] = useState(false);
+  const [markets, setMarkets] = useState<{ slug: string; name: string }[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!supabase) return;
+    setLoading(true);
+    const [{ data: p }, { data: mk }] = await Promise.all([
+      supabase.from("v_promotable").select("id, display_name, email, customer_name"),
+      supabase.from("markets").select("slug, name").order("slug"),
+    ]);
+    setRows((p as typeof rows) ?? []);
+    setMarkets((mk as typeof markets) ?? []);
+    setMarket((prev) => prev || ((mk as typeof markets) ?? [])[0]?.slug || "");
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { if (open) load(); }, [open, load]);
+
+  const promote = async () => {
+    if (!supabase || !pick) return;
+    const who = rows.find((r) => r.id === pick);
+    const name = who?.display_name || who?.customer_name || "this person";
+    if (!window.confirm(`Bring ${name} onto the crew as ${ROLE_META[role as RoleKey].label}${market ? ` in ${market}` : ""}${lead ? `, leading ${market}` : ""}?`)) return;
+    setBusy(true);
+    const { error } = await supabase.rpc("promote_to_crew", {
+      p_member: pick, p_role: role, p_market: market || null, p_lead: lead,
+    });
+    setBusy(false);
+    if (error) { toast(`Error: ${error.message}`); return; }
+    toast(`${name} → ${ROLE_META[role as RoleKey].label}${lead ? ` · leads ${market}` : ""}`);
+    setPick(null); setLead(false);
+    load();
+    onDone();
+  };
+
+  const ql = q.trim().toLowerCase();
+  const shown = rows.filter((r) => !ql
+    || (r.display_name ?? "").toLowerCase().includes(ql)
+    || (r.customer_name ?? "").toLowerCase().includes(ql)
+    || (r.email ?? "").toLowerCase().includes(ql));
+
+  return (
+    <div className="tm-hire">
+      <button type="button" className="tm-hire-open" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        Bring someone onto the crew <span className={`ev-chev${open ? " open" : ""}`} aria-hidden="true">›</span>
+      </button>
+      {open && (
+        <div className="tm-hire-body">
+          {loading && <div className="h-sub">Loading…</div>}
+          {!loading && rows.length === 0 && <div className="h-sub">Nobody to bring in — every account is already on the crew.</div>}
+          {!loading && rows.length > 0 && (
+            <>
+              {rows.length > 5 && (
+                <input className="auth-input" placeholder="Search name or email" aria-label="Search people"
+                       value={q} onChange={(e) => setQ(e.target.value)} />
+              )}
+              <div className="tm-hire-list">
+                {shown.map((r) => (
+                  <button key={r.id} type="button"
+                          className={`tm-hire-row${pick === r.id ? " on" : ""}`}
+                          onClick={() => setPick(pick === r.id ? null : r.id)}>
+                    <b>{r.display_name || r.customer_name || "Unnamed"}</b>
+                    <i>{r.email || "no email on file"}</i>
+                  </button>
+                ))}
+                {shown.length === 0 && <div className="h-sub">No match for &ldquo;{q}&rdquo;.</div>}
+              </div>
+              {pick && (
+                <div className="tm-hire-form">
+                  <label>Role
+                    <select value={role} onChange={(e) => setRole(e.target.value)}>
+                      {HIRE_ROLES.map((r) => <option key={r} value={r}>{ROLE_META[r].label}</option>)}
+                    </select>
+                  </label>
+                  <label>City
+                    <select value={market} onChange={(e) => setMarket(e.target.value)}>
+                      {markets.map((m) => <option key={m.slug} value={m.slug}>{m.name || m.slug}</option>)}
+                    </select>
+                  </label>
+                  {/* Leading a market requires operator or above — the same rule set_market_lead enforces. */}
+                  <label className="adm-check">
+                    <input type="checkbox" checked={lead}
+                           disabled={!["operator", "event_manager"].includes(role)}
+                           onChange={(e) => setLead(e.target.checked)} />
+                    Leads this city
+                  </label>
+                  <button className="adm-btn primary" onClick={promote} disabled={busy}>
+                    {busy ? "…" : "Bring on"}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Members() {
   const { user } = useAuth();
   const { setSection } = useOperatorSection();
@@ -4563,6 +4679,7 @@ function Members() {
           {customerCount} customer account{customerCount === 1 ? "" : "s"} moved to <b>Customers</b> — the CRM. This roster is leadership &amp; crew. ›
         </button>
       )}
+      <PromotePanel onDone={membersState.reload} />
       {staff.length > 5 && (
         <input className="auth-input tm-search" placeholder="Search name, code, or role" aria-label="Search team" value={q} onChange={(e) => setQ(e.target.value)} />
       )}

@@ -4307,6 +4307,32 @@ body:has(.conc-sheet) .rail{display:flex}
 .crm-note{font-size:11.5px;color:var(--cream-d);margin-top:8px}
 .team-crm-link{display:block;width:100%;text-align:left;background:none;border:1px dashed var(--line2);border-radius:12px;padding:12px 14px;color:var(--cream-m);font-family:'Inter';font-size:12.5px;cursor:pointer;margin:4px 0 16px;-webkit-appearance:none;appearance:none}
 .team-crm-link b{color:var(--gold2)}
+/* The hire door, under the CRM banner. Tokens are the ones .team-crm-link and .adm-* already resolve
+   in BOTH the dark console and the .crew-day paper theme — --cream, --cream-m, --line2, --gold2 are
+   all redeclared by .app.crew-day, so nothing here goes grey-on-cream. */
+.tm-hire{margin:-8px 0 16px}
+.tm-hire-open{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:none;
+  border:1px solid var(--line2);border-radius:12px;padding:11px 14px;cursor:pointer;
+  font-family:'Inter';font-size:13px;font-weight:700;color:var(--gold2);-webkit-appearance:none;appearance:none}
+.tm-hire-open .ev-chev{margin-left:auto}
+.tm-hire-body{border:1px solid var(--line2);border-top:none;border-radius:0 0 12px 12px;padding:12px 14px;
+  display:flex;flex-direction:column;gap:10px}
+.tm-hire-list{display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto}
+.tm-hire-row{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;text-align:left;
+  background:none;border:1px solid var(--line2);border-radius:10px;padding:9px 12px;cursor:pointer;
+  -webkit-appearance:none;appearance:none}
+.tm-hire-row b{font-family:'Inter';font-size:13.5px;color:var(--cream)}
+.tm-hire-row i{font-style:normal;font-family:'Inter';font-size:11.5px;color:var(--cream-m)}
+.tm-hire-row.on{border-color:var(--gold2);background:color-mix(in srgb, var(--gold2) 12%, transparent)}
+.tm-hire-form{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;
+  border-top:1px solid var(--line2);padding-top:11px}
+.tm-hire-form label{display:flex;flex-direction:column;gap:4px;font-family:'Inter';font-size:11px;
+  letter-spacing:.3px;text-transform:uppercase;color:var(--cream-m)}
+.tm-hire-form select{font-family:'Inter';font-size:13px;color:var(--cream);background:var(--card);
+  border:1px solid var(--line2);border-radius:8px;padding:7px 9px}
+.tm-hire-form .adm-check{flex-direction:row;align-items:center;gap:6px;text-transform:none;
+  letter-spacing:0;font-size:12.5px}
+.tm-hire-form .adm-btn{margin-left:auto}
 
 /* order-history search box */
 .adm-search{width:100%;background:rgba(0,0,0,.28);border:1.5px solid var(--hair,color-mix(in srgb, var(--brand-cream) 14%, transparent));border-radius:12px;padding:11px 14px;color:var(--cream,#F5F1E8);font-size:14px;font-family:'Inter',sans-serif;margin:2px 0 12px}

@@ -1215,6 +1215,83 @@ ok("0298: equipment is not in the ingredient cost view",
    Number((await q1(`select count(*)::int n from public.v_ingredient_cost
                       where kind = 'equipment'`)).n) === 0);
 
+// ═══ 0299 — the hire door ═══════════════════════════════════════════════════════════════════════
+// profiles carries referral_code in production and customers is a real table; v_promotable reads
+// both. Sixth time this fixture has needed to catch up with production — the rule holds.
+await db.exec(`
+  alter table public.profiles add column if not exists referral_code text;
+  create table public.customers (
+    id uuid primary key default gen_random_uuid(),
+    user_id uuid unique references auth.users(id) on delete set null,
+    name text, phone text, email text, tenant_id uuid,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now());
+
+  -- A customer who already holds an account and a profile, exactly like Niño.
+  insert into auth.users (id) values ('cccccccc-0000-0000-0000-000000000001');
+  insert into public.profiles (id, display_name, role) values
+    ('cccccccc-0000-0000-0000-000000000001', 'Nino', 'member');
+  insert into public.customers (user_id, name, email) values
+    ('cccccccc-0000-0000-0000-000000000001', 'Niño', 'nino@example.com');
+`);
+
+await db.exec(mig("0299_promote_to_crew.sql"));
+
+const NINO = "cccccccc-0000-0000-0000-000000000001";
+
+ok("0299: a customer holding a profile shows as promotable",
+   Number((await q1(`select count(*)::int n from public.v_promotable where id='${NINO}'`)).n) === 1);
+ok("0299: and carries the CRM identity so you know who you are hiring",
+   /nino@example.com/.test((await q1(`select email from public.v_promotable where id='${NINO}'`))?.email ?? ""));
+ok("0299: while someone already on the crew is not promotable",
+   Number((await q1(`select count(*)::int n from public.v_promotable where display_name='Ryan'`)).n) === 0);
+
+// The door only opens one way.
+const toOwner = await raises(`select public.promote_to_crew('${NINO}', 'owner')`);
+ok("0299: it will not make an owner", toOwner !== null && /team roster/.test(toOwner), toOwner);
+const toMember = await raises(`select public.promote_to_crew('${NINO}', 'member')`);
+ok("0299: nor move someone back to a customer", toMember !== null && /team roster/.test(toMember), toMember);
+
+// Leading a market needs a market named.
+const noMarket = await raises(`select public.promote_to_crew('${NINO}', 'operator', null, true)`);
+ok("0299: leading nowhere is refused", noMarket !== null && /which market/.test(noMarket), noMarket);
+ok("0299: and a refused promotion left the role alone",
+   (await q1(`select role from public.profiles where id='${NINO}'`))?.role === "member",
+   "the whole point of one transaction");
+
+// The real thing: Niño becomes the Atlanta city operator.
+const promo = await q1(`select public.promote_to_crew('${NINO}', 'operator', 'atlanta', true) r`);
+const promoted = typeof promo.r === "string" ? JSON.parse(promo.r) : promo.r;
+ok("0299: the promotion reports what it did", promoted?.role === "operator" && promoted?.market === "atlanta" && promoted?.leads === true, JSON.stringify(promoted));
+const after = await q1(`select role, market, leads_market from public.profiles where id='${NINO}'`);
+ok("0299: role, market and market-lead all landed together",
+   after?.role === "operator" && after?.market === "atlanta" && after?.leads_market === "atlanta",
+   JSON.stringify(after));
+
+// Which is exactly what the readiness board was blocked on.
+ok("0299: Atlanta now has a lead on the readiness board",
+   (await q1(`select status from public.v_market_readiness
+               where market='atlanta' and check_name='Someone leads this market'`))?.status === "ready");
+
+ok("0299: and he drops off the promotable list, being crew now",
+   Number((await q1(`select count(*)::int n from public.v_promotable where id='${NINO}'`)).n) === 0);
+const again = await raises(`select public.promote_to_crew('${NINO}', 'server')`);
+ok("0299: promoting someone already on the crew is refused, not silently re-run",
+   again !== null && /already on the crew/.test(again), again);
+
+// set_market_market is owner-gated: a non-owner who leads nothing cannot move people between cities.
+await db.exec(`insert into auth.users (id) values ('cccccccc-0000-0000-0000-000000000002');
+               insert into public.profiles (id, display_name, role) values
+                 ('cccccccc-0000-0000-0000-000000000002', 'Someone', 'member');
+               set test.owner = 'off';`);
+const notOwnerMkt = await raises(`select public.set_member_market('cccccccc-0000-0000-0000-000000000002', 'atlanta')`);
+ok("0299: a non-owner who leads no market cannot move someone into one",
+   notOwnerMkt !== null && /owner, or the lead/.test(notOwnerMkt), notOwnerMkt);
+await db.exec(`set test.owner = 'on';`);
+
+const badMkt = await raises(`select public.set_member_market('cccccccc-0000-0000-0000-000000000002', 'nowhere')`);
+ok("0299: an unknown market is refused", badMkt !== null && /No such market/.test(badMkt), badMkt);
+
 // ═══ every file is idempotent, in order ═════════════════════════════════════════════════════════
 const snap = async () => JSON.stringify({
   cl: (await q1(`select count(*)::int n from public.changelog`)).n,
@@ -1239,7 +1316,8 @@ for (const f of ["0284_compliance_freshness.sql", "0285_market_live_switch.sql",
                  "0295_item_lifecycles.sql",
                  "0296_market_readiness.sql",
                  "0297_readiness_live_resolution.sql",
-                 "0298_supply_side.sql"]) {
+                 "0298_supply_side.sql",
+                 "0299_promote_to_crew.sql"]) {
   await db.exec(mig(f));
 }
 ok("re-running 0284–0288 in order changes nothing", (await snap()) === before, await snap());
