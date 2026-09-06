@@ -349,6 +349,118 @@ ok("0288: and leaves Atlanta's alone",
    (await q1(`select count(*)::int n from public.alerts
               where ack_at is null and title='📦 Reorder — Mountain Valley 1L (atlanta)'`)).n === 1);
 
+// ═══ 0289 — an operator can run a market ════════════════════════════════════════════════════════
+await db.exec(mig("0289_market_ownership.sql"));
+
+const SAM = "33333333-3333-3333-3333-333333333333";
+const GV_SERVER = "44444444-4444-4444-4444-444444444444";
+const ATL_SERVER = "55555555-5555-5555-5555-555555555555";
+await db.exec(`insert into auth.users (id, email) values
+    ('${SAM}','sam@example.com'), ('${GV_SERVER}','gv@example.com'), ('${ATL_SERVER}','atl@example.com');
+  insert into public.profiles (id, display_name, role, market) values
+    ('${SAM}','Sam','operator','atlanta'),
+    ('${GV_SERVER}','Gwen','server','greenville'),
+    ('${ATL_SERVER}','Ade','member','atlanta');`);
+
+ok("0289: everyone who existed before is in the founding market",
+   (await q1(`select count(*)::int n from public.profiles where id in ('${RYAN}','${KAYLA}') and market='greenville'`)).n === 2);
+ok("0289: nobody leads anything until an owner says so",
+   (await q1(`select count(*)::int n from public.profiles where leads_market is not null`)).n === 0);
+
+// a market lead has to be senior enough to be one
+const tooJunior = await raises(`select public.set_market_lead('${ATL_SERVER}', 'atlanta');`);
+ok("0289: a member cannot be handed a market", tooJunior !== null && /operator, event manager/.test(tooJunior), tooJunior);
+
+await db.exec(`select public.set_market_lead('${SAM}', 'atlanta');`);
+ok("0289: an owner can put the operator in charge of Atlanta",
+   (await q1(`select leads_market from public.profiles where id='${SAM}'`))?.leads_market === "atlanta");
+
+await db.exec(`set test.owner = 'off';`);
+await db.exec(`set test.uid = '${SAM}';`);
+
+ok("0289: the lead is recognised as leading their market",
+   (await q1(`select public.is_market_lead('atlanta') as v`))?.v === true);
+ok("0289: and not as leading the other one",
+   (await q1(`select public.is_market_lead('greenville') as v`))?.v === false);
+
+// what the lead CAN do
+await db.exec(`select public.admin_set_role('${ATL_SERVER}', 'server');`);
+ok("0289: the lead can make someone in their own city a server",
+   (await q1(`select role from public.profiles where id='${ATL_SERVER}'`))?.role === "server");
+ok("0289: and the is_admin mirror stayed false",
+   (await q1(`select is_admin from public.profiles where id='${ATL_SERVER}'`))?.is_admin === false);
+
+// what the lead CANNOT do — each bound asserted separately, because each is a different way in
+const crossCity = await raises(`select public.admin_set_role('${GV_SERVER}', 'member');`);
+ok("0289: the lead cannot reach into the other city", crossCity !== null && /own market/.test(crossCity), crossCity);
+ok("0289: and that person was untouched",
+   (await q1(`select role from public.profiles where id='${GV_SERVER}'`))?.role === "server");
+
+const makeAdmin = await raises(`select public.admin_set_role('${ATL_SERVER}', 'admin');`);
+ok("0289: the lead cannot mint an admin", makeAdmin !== null && /owner decision/.test(makeAdmin), makeAdmin);
+const makeOwner = await raises(`select public.admin_set_role('${ATL_SERVER}', 'owner');`);
+ok("0289: the lead cannot mint an owner", makeOwner !== null, makeOwner);
+const makeOperator = await raises(`select public.admin_set_role('${ATL_SERVER}', 'operator');`);
+ok("0289: the lead cannot mint another operator", makeOperator !== null, makeOperator);
+
+const selfPromote = await raises(`select public.admin_set_role('${SAM}', 'admin');`);
+ok("0289: the lead cannot promote themselves", selfPromote !== null && /your own role/.test(selfPromote), selfPromote);
+ok("0289: the lead is still an operator", (await q1(`select role from public.profiles where id='${SAM}'`))?.role === "operator");
+
+// someone with no market at all is refused outright
+await db.exec(`set test.uid = '${ATL_SERVER}';`);
+const notLead = await raises(`select public.admin_set_role('${SAM}', 'member');`);
+ok("0289: a plain server cannot assign roles at all", notLead !== null && /owner only/.test(notLead), notLead);
+// The refusal must not leak whether an id exists: an unauthorised caller gets the SAME message
+// whether the target is real or invented.
+const probeReal = await raises(`select public.admin_set_role('${SAM}', 'member');`);
+const probeFake = await raises(`select public.admin_set_role('99999999-9999-9999-9999-999999999999', 'member');`);
+ok("0289: an unauthorised caller cannot probe which profiles exist", probeReal === probeFake, [probeReal, probeFake]);
+
+await db.exec(`set test.owner = 'on'; set test.uid = '${RYAN}';`);
+
+// the owner path is untouched, including 0280's last-owner guard
+await db.exec(`select public.admin_set_role('${GV_SERVER}', 'admin');`);
+ok("0289: an owner can still do what an owner could do",
+   (await q1(`select role, is_admin from public.profiles where id='${GV_SERVER}'`))?.is_admin === true);
+await db.exec(`select public.admin_set_role('${GV_SERVER}', 'server');`);
+ok("0289: demotion still clears the admin mirror",
+   (await q1(`select is_admin from public.profiles where id='${GV_SERVER}'`))?.is_admin === false);
+
+await db.exec(`update public.profiles set role='member' where id='${KAYLA}';`);
+const lastOwner = await raises(`select public.admin_set_role('${RYAN}', 'admin');`);
+ok("0289: 0280's last-owner guard survived the rewrite", lastOwner !== null && /last owner/.test(lastOwner), lastOwner);
+await db.exec(`update public.profiles set role='owner' where id='${KAYLA}';`);
+
+// one lead per market, enforced
+await db.exec(`insert into auth.users (id,email) values ('66666666-6666-6666-6666-666666666666','two@example.com');
+  insert into public.profiles (id, display_name, role, market)
+  values ('66666666-6666-6666-6666-666666666666','Rae','operator','atlanta');
+  select public.set_market_lead('66666666-6666-6666-6666-666666666666', 'atlanta');`);
+ok("0289: handing the market to someone else takes it from the first",
+   (await q1(`select count(*)::int n from public.profiles where leads_market='atlanta'`)).n === 1);
+ok("0289: and it is the new person",
+   (await q1(`select leads_market from public.profiles where id='66666666-6666-6666-6666-666666666666'`))?.leads_market === "atlanta");
+
+// moving cities drops the lead rather than leaving them holding the wrong crew
+await db.exec(`update public.profiles set market='greenville' where id='66666666-6666-6666-6666-666666666666';`);
+ok("0289: moving someone to another city takes their market with it",
+   (await q1(`select leads_market from public.profiles where id='66666666-6666-6666-6666-666666666666'`))?.leads_market === null);
+
+// equity: eligibility and scope only, and frozen once accepted
+ok("0289: a deal starts not eligible and undecided about scope",
+   (await q1(`select equity_eligible, equity_scope from public.operator_agreements
+              where id='bbbbbbbb-0000-0000-0000-000000000001'`))?.equity_scope === "undecided");
+const badScope = await raises(`update public.operator_agreements set equity_scope='whatever'
+  where id='bbbbbbbb-0000-0000-0000-000000000001';`);
+ok("0289: equity scope is a closed set", badScope !== null, badScope);
+const frozenEquity = await raises(`update public.operator_agreements set equity_eligible=true
+  where id='bbbbbbbb-0000-0000-0000-000000000001';`);
+ok("0289: equity eligibility is final once the deal is accepted", frozenEquity !== null && /terms are final/.test(frozenEquity), frozenEquity);
+ok("0289: no percentage column was invented anywhere",
+   (await q1(`select count(*)::int n from information_schema.columns
+              where table_name='operator_agreements' and column_name like 'equity%'`)).n === 3);
+
 // ═══ every file is idempotent, in order ═════════════════════════════════════════════════════════
 const snap = async () => JSON.stringify({
   cl: (await q1(`select count(*)::int n from public.changelog`)).n,
@@ -359,7 +471,7 @@ const snap = async () => JSON.stringify({
 const before = await snap();
 for (const f of ["0284_compliance_freshness.sql", "0285_market_live_switch.sql",
                  "0286_offer_letter_statutory.sql", "0287_supply_sourcing.sql",
-                 "0288_inventory_per_market.sql"]) {
+                 "0288_inventory_per_market.sql", "0289_market_ownership.sql"]) {
   await db.exec(mig(f));
 }
 ok("re-running 0284–0288 in order changes nothing", (await snap()) === before, await snap());

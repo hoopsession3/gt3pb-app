@@ -6970,3 +6970,61 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
   margin:0 0 7px;display:flex;align-items:center;gap:7px}
 .ofr-warn-h svg{width:15px;height:15px;flex:none;color:var(--warn)}
 .ofr-warn p{font-family:'Inter';font-size:12.5px;line-height:1.55;color:var(--cream-m);margin:0;max-width:66ch}
+
+/* ── the offer, printed as a letter (0286) ──────────────────────────────────────────────────────── */
+/* Portalled to <body>, so the print rule hides body's other children rather than descendants. */
+.ofl-root{position:fixed;inset:0;z-index:120;background:rgba(20,18,14,.72);
+  display:flex;flex-direction:column;align-items:center;overflow:auto;padding:0 0 40px}
+.ofl-bar{position:sticky;top:0;z-index:2;width:100%;display:flex;align-items:center;gap:14px;
+  justify-content:space-between;padding:11px 16px;background:var(--char);border-bottom:1px solid var(--line2)}
+.ofl-bar-note{font-family:'Inter';font-size:12px;line-height:1.4;color:var(--cream-m);margin:0;
+  flex:1;text-align:center;min-width:0}
+
+/* The sheet itself is always paper, in both themes: it is a document, not a screen. */
+.ofl-sheet{width:min(760px,100%);margin:24px 0 0;padding:54px 60px 60px;
+  background:#FBF8EF;color:#221F18;border-radius:4px;
+  font-family:'Inter',system-ui,sans-serif;font-size:14px;line-height:1.62}
+@media (max-width:640px){ .ofl-sheet{padding:34px 24px 40px;margin-top:12px} }
+.ofl-sheet p{margin:0 0 13px;max-width:none}
+.ofl-head{margin:0 0 26px}
+.ofl-mark{font-weight:700;font-size:22px;letter-spacing:.01em;margin:0 0 2px}
+.ofl-mark i{font-style:normal;color:#B82420}
+.ofl-sub{font-size:10.5px;letter-spacing:.19em;text-transform:uppercase;color:rgba(34,31,24,.62);margin:0}
+
+/* S.C. Code 41-1-110: underlined capital letters, first page. The style IS the requirement. */
+.ofl-disclaimer{text-transform:uppercase;text-decoration:underline;font-weight:600;
+  font-size:11.5px;line-height:1.65;letter-spacing:.02em;margin:0 0 26px;
+  padding:12px 0;border-top:1px solid rgba(34,31,24,.18);border-bottom:1px solid rgba(34,31,24,.18)}
+.ofl-disclaimer.missing{color:#9d1d1a;border-color:rgba(157,29,26,.4);
+  background:rgba(157,29,26,.06);padding:12px 14px}
+
+.ofl-date{color:rgba(34,31,24,.62);font-size:12.5px;margin:0 0 20px}
+.ofl-to{margin:0 0 22px;font-weight:600}
+.ofl-to-mail{font-weight:400;color:rgba(34,31,24,.62);font-size:12.5px}
+.ofl-h{font-size:11px;letter-spacing:.15em;text-transform:uppercase;font-weight:600;
+  color:rgba(34,31,24,.58);margin:26px 0 8px}
+.ofl-terms{margin:0;display:flex;flex-direction:column;gap:9px}
+.ofl-terms > div{display:grid;grid-template-columns:170px minmax(0,1fr);gap:14px}
+@media (max-width:560px){ .ofl-terms > div{grid-template-columns:1fr;gap:1px} }
+.ofl-terms dt{font-weight:600;font-size:12.5px}
+.ofl-terms dd{margin:0;font-size:13.5px}
+.ofl-gap{color:#9d1d1a;font-style:italic}
+.ofl-pack{margin:0;padding-left:19px;display:flex;flex-direction:column;gap:5px}
+.ofl-access{color:rgba(34,31,24,.78)}
+.ofl-close{margin-top:24px}
+.ofl-sigs{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:26px;margin-top:46px}
+.ofl-rule{display:block;border-bottom:1px solid rgba(34,31,24,.42);height:34px}
+.ofl-sigs p{font-size:11.5px;color:rgba(34,31,24,.62);margin:6px 0 0}
+
+.ofr-letter-do{margin-top:12px}
+
+@media print{
+  /* Everything that isn't the letter is screen furniture. */
+  body.printing-offer > *:not(.ofl-root){display:none !important}
+  body.printing-offer{background:#fff}
+  .ofl-root{position:static;background:none;padding:0;overflow:visible;display:block}
+  .ofl-bar{display:none}
+  .ofl-sheet{width:auto;margin:0;padding:0;border-radius:0;background:#fff;font-size:11.5pt}
+  .ofl-disclaimer{break-inside:avoid;page-break-inside:avoid}
+  .ofl-sigs{break-inside:avoid;page-break-inside:avoid}
+}

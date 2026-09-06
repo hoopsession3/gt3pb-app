@@ -9,6 +9,7 @@ import AsyncSection from "./AsyncSection";
 import { SectionHeader } from "@/components/kit";
 import Icon from "@/components/Icon";
 import { MARKETS, MARKET_LABEL, toMarket } from "@/lib/markets";
+import OfferLetterPrint, { type LetterRow } from "./OfferLetterPrint";
 import {
   ROLE_ACCESS, OFFERABLE_ROLES, toRoleKey, toOfferStatus, isEditable, money, summarize,
   validateOffer, classificationFlags, emptyOffer, approvalTally, STATUTORY_FIELDS, missingStatutory,
@@ -63,21 +64,27 @@ export default function OfferLetters() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [draft, setDraft] = useState<OfferTerms | null>(null);
   const [busy, setBusy] = useState(false);
+  const [printing, setPrinting] = useState<LetterRow | null>(null);
 
   const loader = useCallback(async () => {
-    if (!supabase) return { rows: [] as Row[], approvals: [] as Approval[], events: [] as Ev[] };
+    if (!supabase) return { rows: [] as Row[], approvals: [] as Approval[], events: [] as Ev[], letters: [] as LetterRow[] };
     const [{ data: rows, error }, { data: ap }, { data: ev }] = await Promise.all([
       supabase.from("offer_letters").select("*").order("updated_at", { ascending: false }),
       supabase.from("offer_approvals").select("offer_id, approver_id, decision, note, decided_at"),
       supabase.from("offer_events").select("id, offer_id, at, kind, note, from_status, to_status").order("at", { ascending: false }),
     ]);
     if (error) throw new Error(error.message);
-    return { rows: (rows as Row[]) ?? [], approvals: (ap as Approval[]) ?? [], events: (ev as Ev[]) ?? [] };
+    // v_offer_letter (0286) carries the market's disclaimer alongside the offer, so the printed
+    // letter is one read and cannot disagree with the record it came from.
+    const { data: letters } = await supabase.from("v_offer_letter").select("*");
+    return { rows: (rows as Row[]) ?? [], approvals: (ap as Approval[]) ?? [], events: (ev as Ev[]) ?? [],
+             letters: (letters as LetterRow[]) ?? [] };
   }, []);
   const board = useAsyncData(loader, []);
   const rows = board.data?.rows ?? [];
   const approvals = board.data?.approvals ?? [];
   const events = board.data?.events ?? [];
+  const letters = board.data?.letters ?? [];
 
   const open = rows.find((r) => r.id === openId) ?? null;
   const openApprovals = useMemo(() => approvals.filter((a) => a.offer_id === openId), [approvals, openId]);
@@ -132,6 +139,7 @@ export default function OfferLetters() {
 
   return (
     <div className="ofr">
+      {printing && <OfferLetterPrint row={printing} onClose={() => setPrinting(null)} />}
       <SectionHeader label="Offer letters" annotation="write · approve · send" />
 
       <AsyncSection state={board} loadingLabel="Loading offers…" errorTitle="Couldn’t load offers" emptyTitle="No offers yet">{() => (
@@ -194,6 +202,13 @@ export default function OfferLetters() {
                 <div><dt>Deductions</dt><dd>{open.deductions ?? "Not set"}</dd></div>
               </dl>
               <RoleReach role={toRoleKey(open.role)} />
+              <div className="ofr-letter-do">
+                <button type="button" className="btn-ter"
+                  onClick={() => { const l = letters.find((x) => x.id === open.id); if (l) setPrinting(l); }}
+                  disabled={!letters.some((x) => x.id === open.id)}>
+                  <Icon name="package" /> View as a letter
+                </button>
+              </div>
             </div>
 
             {/* The approving co-owner reads this. 0286 writes a disclaimer_missing event at submit
