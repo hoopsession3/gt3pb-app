@@ -523,6 +523,105 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     OD.toTier("wizard") === "associate" && OD.toStage("vibes") === "ramp" && OD.toStatus(undefined) === "draft");
 }
 
+// ── SHOP MEDIA (0278) — photos + video on a product ───────────────────────────────────────────────
+{
+  const SM = require("../.smoke/shopMedia.js");
+
+  // Reading: a row from BEFORE 0278 must still open. This is the back-compat contract in one test.
+  const legacy = { image_url: "https://cdn/a.jpg", images: ["https://cdn/a.jpg", "https://cdn/b.jpg"] };
+  const lm = SM.readMedia(legacy);
+  ok("media: a legacy product synthesises media from image_url + images",
+    lm.length === 2 && lm[0].url === "https://cdn/a.jpg" && lm[1].url === "https://cdn/b.jpg");
+  ok("media: everything legacy reads as an image", lm.every((m) => m.kind === "image"));
+  ok("media: the hero sorts first even when it also appears in images", lm[0].url === legacy.image_url);
+  ok("media: a duplicate url is collapsed, not rendered twice", lm.length === 2);
+  ok("media: nothing in, nothing out (never throws)",
+    SM.readMedia(null).length === 0 && SM.readMedia({}).length === 0 && SM.readMedia({ images: "not-an-array" }).length === 0);
+
+  // Reading: the new shape wins outright, and junk inside it is dropped rather than rendered.
+  const modern = SM.readMedia({ image_url: "https://cdn/old.jpg", media: [
+    { id: "p/1/x.mp4", url: "https://cdn/x.mp4", kind: "video", poster: "https://cdn/x.jpg" },
+    { id: "p/1/y.jpg", url: "https://cdn/y.jpg", kind: "image", alt: "On the truck" },
+    { url: "" }, null, 42,
+  ] });
+  ok("media: a real media array supersedes the legacy columns",
+    modern.length === 2 && !modern.some((m) => m.url === "https://cdn/old.jpg"));
+  ok("media: video keeps its kind and poster", modern[0].kind === "video" && modern[0].poster === "https://cdn/x.jpg");
+  ok("media: alt text survives the read", modern[1].alt === "On the truck");
+  ok("media: unparseable entries are dropped, not rendered as holes", modern.length === 2);
+  ok("media: an unknown kind falls back to image, never null",
+    SM.toKind("gif") === "image" && SM.toKind(undefined) === "image" && SM.toKind("video") === "video");
+
+  // Covers: a video contributes its poster, and only its poster.
+  ok("media: a video's thumbnail is its poster", SM.thumbOf(modern[0]) === "https://cdn/x.jpg");
+  ok("media: a poster-less video has no thumbnail (the caller draws a placeholder)",
+    SM.thumbOf({ id: "a", url: "u", kind: "video" }) === null);
+  ok("media: the cover is the first showable item", SM.coverOf(modern) === "https://cdn/x.jpg");
+  ok("media: a video-only, poster-less product has no cover",
+    SM.coverOf([{ id: "a", url: "u", kind: "video" }]) === null);
+  ok("media: hasVideo/countKind agree", SM.hasVideo(modern) && SM.countKind(modern, "image") === 1);
+
+  // Validation: the gate that runs before a byte is uploaded.
+  ok("media: a jpeg under the cap passes",
+    SM.validateFile({ name: "a.jpg", type: "image/jpeg", size: 2e6 }).ok);
+  ok("media: an oversized photo is refused with a reason naming the file",
+    (() => { const r = SM.validateFile({ name: "huge.png", type: "image/png", size: 20e6 });
+             return !r.ok && r.reason.includes("huge.png"); })());
+  ok("media: video gets the bigger cap, not the photo cap",
+    SM.validateFile({ name: "c.mp4", type: "video/mp4", size: 40e6 }).ok &&
+    !SM.validateFile({ name: "c.jpg", type: "image/jpeg", size: 40e6 }).ok);
+  ok("media: a pdf is not media", !SM.validateFile({ name: "x.pdf", type: "application/pdf", size: 10 }).ok);
+  ok("media: a phone's odd mime still resolves by prefix",
+    SM.kindOfType("video/mp4;codecs=avc1") === "video" && SM.kindOfType("image/heic") === "image");
+  ok("media: an empty type is not guessed into media", SM.kindOfType("") === null);
+  ok("media: the accept list covers both families",
+    SM.ACCEPT.includes("image/jpeg") && SM.ACCEPT.includes("video/mp4"));
+
+  // Ordering: every reorder is a no-op or a valid permutation — never a crash, never a lost item.
+  const four = ["a", "b", "c", "d"].map((id) => ({ id, url: `https://cdn/${id}`, kind: "image" }));
+  ok("media: move reorders", SM.move(four, 0, 2).map((m) => m.id).join("") === "bcad");
+  ok("media: an out-of-range move is a no-op, not a crash",
+    SM.move(four, -1, 2).map((m) => m.id).join("") === "abcd" &&
+    SM.move(four, 0, 9).map((m) => m.id).join("") === "abcd");
+  ok("media: no reorder ever loses or duplicates an item",
+    [[0,3],[3,0],[1,2],[2,2],[-5,9]].every(([f,t]) => {
+      const r = SM.move(four, f, t);
+      return r.length === 4 && new Set(r.map((m) => m.id)).size === 4;
+    }));
+  ok("media: makeCover promotes to position 0", SM.makeCover(four, "c")[0].id === "c");
+  ok("media: making the cover the cover changes nothing", SM.makeCover(four, "a").map((m) => m.id).join("") === "abcd");
+  ok("media: makeCover on a missing id is a no-op", SM.makeCover(four, "zz").map((m) => m.id).join("") === "abcd");
+  ok("media: removeAt removes exactly one", SM.removeAt(four, "b").map((m) => m.id).join("") === "acd");
+  ok("media: setAlt blanks to undefined rather than storing an empty string",
+    SM.setAlt(four, "a", "   ")[0].alt === undefined && SM.setAlt(four, "a", " x ")[0].alt === "x");
+  ok("media: the source array is never mutated", four.map((m) => m.id).join("") === "abcd");
+
+  // Writing: the legacy columns stay DERIVED, which is what keeps every pre-0278 reader working.
+  const cols = SM.toColumns(modern);
+  ok("media: image_url is derived, never stale", cols.image_url === "https://cdn/y.jpg");
+  ok("media: images carries only images, in order", cols.images.join(",") === "https://cdn/y.jpg");
+  ok("media: a video-only product still gets a hero from its poster",
+    SM.toColumns([{ id: "v", url: "https://cdn/v.mp4", kind: "video", poster: "https://cdn/v.jpg" }]).image_url === "https://cdn/v.jpg");
+  ok("media: a product with no media writes a null hero, not undefined",
+    SM.toColumns([]).image_url === null && SM.toColumns([]).images.length === 0);
+  ok("media: round-tripping through the columns is stable",
+    SM.readMedia({ media: SM.toColumns(modern).media }).length === modern.length);
+  ok("media: writing never exceeds the item cap",
+    SM.toColumns(Array.from({ length: 30 }, (_, n) => ({ id: `i${n}`, url: `u${n}`, kind: "image" }))).media.length === SM.MAX_ITEMS);
+  ok("media: slotsLeft never goes negative",
+    SM.slotsLeft(new Array(99).fill(0)) === 0 && SM.slotsLeft([]) === SM.MAX_ITEMS);
+
+  // The story's clock and its edges.
+  ok("story: the left third goes back, the rest forward",
+    SM.tapZone(10, 390) === "prev" && SM.tapZone(200, 390) === "next" && SM.tapZone(389, 390) === "next");
+  ok("story: a zero-width stage still resolves (no divide-by-zero)", SM.tapZone(0, 0) === "next");
+  ok("story: step stops hard at both ends",
+    SM.step(0, 3, -1) === null && SM.step(2, 3, 1) === null && SM.step(1, 3, 1) === 2 && SM.step(1, 3, -1) === 0);
+  ok("story: an empty story has nowhere to go", SM.step(0, 0, 1) === null);
+  ok("story: a photo holds long enough to read but not to annoy",
+    SM.STORY_IMAGE_MS >= 3000 && SM.STORY_IMAGE_MS <= 6000);
+}
+
 console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
 console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);
 process.exit(fail ? 1 : 0);

@@ -17,6 +17,8 @@ import { useSiteCopy, fillCopy } from "@/lib/copy";
 import OrderFunnel from "@/components/OrderFunnel";
 import Reserves from "@/components/Reserves";
 import StorefrontStory from "@/components/StorefrontStory";
+import StoryViewer from "@/components/StoryViewer";
+import { readMedia, coverOf, hasVideo, type MediaItem } from "@/lib/shopMedia";
 
 // THE SHOP (0273) — GT3 merch on the 0271 storefront spine. Reads published merch through RLS, a simple
 // cart in memory, and the shared Square card mount + /api/shop/checkout for a real one-time charge that
@@ -25,7 +27,7 @@ import StorefrontStory from "@/components/StorefrontStory";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 type Variant = { size?: string; color?: string; sku?: string; apliiq_variant_id?: string; [k: string]: unknown };
-type Product = { id: string; title: string; blurb: string | null; price_cents: number; image_url: string | null; images: string[]; variants: Variant[]; public_title: string | null };
+type Product = { id: string; title: string; blurb: string | null; price_cents: number; image_url: string | null; images: string[]; variants: Variant[]; public_title: string | null; media?: unknown };
 type CartLine = { product: Product; variant: Variant | null; qty: number };
 
 const money = (c: number) => `$${(c / 100).toFixed(c % 100 === 0 ? 0 : 2)}`;
@@ -50,7 +52,7 @@ export default function Shop() {
   const loader = useCallback(async (): Promise<Product[]> => {
     if (!supabase) return [];
     const { data, error } = await supabase.from("shop_products")
-      .select("id, title, blurb, price_cents, image_url, images, variants, public_title")
+      .select("id, title, blurb, price_cents, image_url, images, variants, public_title, media")
       .eq("kind", "merch").not("published_at", "is", null).is("archived_at", null).order("sort");
     if (error) throw new Error(error.message);
     return ((data as any[]) ?? []).map((p) => ({ ...p, images: Array.isArray(p.images) ? p.images : [], variants: Array.isArray(p.variants) ? p.variants : [] }));
@@ -108,7 +110,9 @@ export default function Shop() {
           <div className="shop-grid">
             {products.map((p) => (
               <button type="button" key={p.id} className="shop-card" onClick={() => { setActive(p); setView("product"); }}>
-                <div className="shop-thumb">{p.image_url ? <img src={p.image_url} alt={p.title} loading="lazy" /> : <span className="shop-thumb-ph"><Icon name="package" /></span>}</div>
+                <div className="shop-thumb">{(() => { const m = readMedia(p); const cover = coverOf(m); return cover
+                  ? <><img src={cover} alt={p.title} loading="lazy" />{m.length > 1 && <span className="shop-story-dot" aria-hidden>{hasVideo(m) ? "▶" : m.length}</span>}</>
+                  : <span className="shop-thumb-ph"><Icon name="package" /></span>; })()}</div>
                 <div className="shop-card-b">
                   <span className="shop-card-t">{p.public_title || p.title}</span>
                   <span className="shop-card-px">{money(p.price_cents)}</span>
@@ -158,12 +162,30 @@ function ProductDetail({ product, onBack, onAdd }: { product: Product; onBack: (
   const t = useSiteCopy();
   const [vi, setVi] = useState(0);
   const [qty, setQty] = useState(1);
+  // The hero is the door into the story — one tap, full screen, tap through. A product with a
+  // single photo has no story to tell, so the hero stays a plain image and nothing pretends.
+  const media: MediaItem[] = readMedia(product);
+  const cover = coverOf(media);
+  const storyable = media.length > 1 || (media.length === 1 && media[0].kind === "video");
+  const [storyAt, setStoryAt] = useState<number | null>(null);
   const hasVariants = product.variants.length > 0;
   const variant = hasVariants ? product.variants[vi] : null;
   return (
     <div className="shop-detail">
       <button type="button" className="btn-ter shop-back" onClick={onBack}><b style={{ transform: "rotate(180deg)", display: "inline-flex" }}><Icon name="arrowRight" size={14} /></b> {t("shop.back")}</button>
-      <div className="shop-hero">{product.image_url ? <img src={product.image_url} alt={product.title} /> : <span className="shop-thumb-ph lg"><Icon name="package" /></span>}</div>
+      {storyable ? (
+        <button type="button" className="shop-hero as-story" onClick={() => setStoryAt(0)}
+          aria-label={`Open ${product.title} — ${media.length} photo${media.length === 1 ? "" : "s"} and video, full screen`}>
+          {cover ? <img src={cover} alt="" /> : <span className="shop-thumb-ph lg"><Icon name="package" /></span>}
+          <span className="shop-hero-cue" aria-hidden>{hasVideo(media) ? "▶ Watch" : `${media.length} photos`}</span>
+          <span className="shop-hero-pips" aria-hidden>{media.map((m) => <i key={m.id} />)}</span>
+        </button>
+      ) : (
+        <div className="shop-hero">{cover ? <img src={cover} alt={product.title} /> : <span className="shop-thumb-ph lg"><Icon name="package" /></span>}</div>
+      )}
+      {storyAt !== null && (
+        <StoryViewer items={media} start={storyAt} title={product.public_title || product.title} onClose={() => setStoryAt(null)} />
+      )}
       <h1 className="shop-h1 sm">{product.title}</h1>
       <div className="shop-detail-px">{money(product.price_cents)}</div>
       {product.blurb && <p className="shop-blurb">{product.blurb}</p>}
