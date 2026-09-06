@@ -715,6 +715,110 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("offer: commission alone is a valid offer",
     O.validateOffer({ candidateName:"A", candidateEmail:"a@b.co", title:"T", market:"atlanta", role:"operator", commissionPct: 50, ...STAT }).ok);
 
+  // ── the deal explainer: the signer's side of the same math ─────────────────────────────────────
+  const DX = require("../.smoke/dealExplainer.js");
+  const T = (supplyFunding, stage = "profitable", tier = "operator") => ({ supplyFunding, stage, tier });
+
+  ok("explainer: the three shares are all explained", DX.plainSplit(T(50)).length === 3);
+  ok("explainer: reinvestment is described as fixed",
+    /does not move/.test(DX.plainSplit(T(50)).find((l) => l.key === "market").means));
+  ok("explainer: during ramp the royalty line says no royalty is taken",
+    /not before|Nothing, while/.test(DX.plainSplit(T(50, "ramp")).find((l) => l.key === "royalty").means));
+
+  // Breakeven — the number a proposal never volunteers.
+  ok("explainer: funding nothing has no breakeven to clear", DX.breakevenRevenueCents(T(0), 500000) === null);
+  const be = DX.breakevenRevenueCents(T(100), 500000);
+  ok("explainer: funding everything has a real breakeven", typeof be === "number" && be > 0, be);
+  ok("explainer: breakeven is where the operator's net is zero", (() => {
+    const p = require("../.smoke/operatorDeal.js").project(T(100), be, 500000);
+    return Math.abs(p.operatorNetCents) <= 2;   // rounding only
+  })(), be);
+  ok("explainer: funding more supplies raises the bar you have to clear",
+    DX.breakevenRevenueCents(T(100), 500000) > DX.breakevenRevenueCents(T(50), 500000));
+
+  // Margin per dollar, and the point where it goes negative.
+  ok("explainer: cheap supplies leave every position profitable", DX.fundingCeiling(T(50), 5) === 100);
+  ok("explainer: expensive supplies put a ceiling on how much you should fund",
+    DX.fundingCeiling(T(50), 95) < 100, DX.fundingCeiling(T(50), 95));
+  ok("explainer: the margin per dollar CAN come out negative — it is allowed to say no",
+    DX.netPerDollarCents({ supplyFunding: 100, stage: "profitable", tier: "associate" }, 100) < 0,
+    DX.netPerDollarCents({ supplyFunding: 100, stage: "profitable", tier: "associate" }, 100));
+
+  // The ladder, and the verdict that reads it honestly.
+  const lad = DX.fundingLadder(T(50), 20000000, 4000000, 10);
+  ok("explainer: the ladder covers the whole slider", lad.length === 11 && lad[0].funding === 0 && lad[10].funding === 100);
+  ok("explainer: exactly one position is marked best", lad.filter((s) => s.best).length === 1);
+  ok("explainer: the best position pays at least as much as any other",
+    lad.every((s) => s.netCents <= lad.find((x) => x.best).netCents));
+  const verdictLow = DX.fundingVerdict(T(0), 20000000, 4000000);
+  ok("explainer: the verdict is a sentence a person can act on", typeof verdictLow === "string" && verdictLow.length > 20);
+  ok("explainer: a position that pays nothing is called out as paying nothing",
+    /pays you nothing/.test(DX.fundingVerdict({ supplyFunding: 100, stage: "profitable", tier: "associate" }, 100000, 900000)),
+    DX.fundingVerdict({ supplyFunding: 100, stage: "profitable", tier: "associate" }, 100000, 900000));
+
+  // Who put what in, and when it comes back — "more owner puts in, slower return".
+  ok("explainer: no contribution means nothing to pay back", DX.paybackMonths(0, 500000) === null);
+  ok("explainer: nothing coming back never pays back", DX.paybackMonths(500000, 0) === Infinity);
+  ok("explainer: payback rounds UP, so it never flatters the deal", DX.paybackMonths(1000, 300) === 4);
+
+  const pic = DX.investmentPicture({
+    terms: T(50), monthlyRevenueCents: 2000000, monthlySuppliesCents: 400000,
+    gt3ContributionCents: 4000000, operatorContributionCents: 1500000,
+  });
+  ok("explainer: GT3 funding everything gives the operator the SMALLER share",
+    pic.ifGt3FundedAll.operatorPct < pic.ifOperatorFundedAll.operatorPct,
+    [pic.ifGt3FundedAll.operatorPct, pic.ifOperatorFundedAll.operatorPct]);
+  ok("explainer: and therefore the SLOWER return on the operator's own money",
+    pic.ifGt3FundedAll.operatorMonths >= pic.ifOperatorFundedAll.operatorMonths,
+    [pic.ifGt3FundedAll.operatorMonths, pic.ifOperatorFundedAll.operatorMonths]);
+  ok("explainer: the trade is named in months, not just percent",
+    /months/.test(pic.tradeoff) && /slower return/.test(pic.tradeoff), pic.tradeoff);
+  ok("explainer: GT3's own contribution gets a payback too", typeof pic.gt3.months === "number" && pic.gt3.months > 0, pic.gt3.months);
+  ok("explainer: an operator who puts in nothing is told the cost is the share, not the wait",
+    /nothing for you to earn back/.test(DX.investmentPicture({
+      terms: T(50), monthlyRevenueCents: 2000000, monthlySuppliesCents: 400000,
+      gt3ContributionCents: 4000000, operatorContributionCents: 0,
+    }).tradeoff));
+  ok("explainer: the operator's own position is reported, not just the two ends",
+    pic.operator.monthlyCents > 0 && pic.operator.contributionCents === 1500000);
+
+  // Where they sit on the ladder.
+  const tl = DX.tierLadder("senior");
+  ok("explainer: the tier ladder shows every rung", tl.length === 4);
+  ok("explainer: exactly one rung is current", tl.filter((t) => t.current).length === 1);
+  ok("explainer: rungs already passed are marked reached", tl.filter((t) => t.reached).length === 3);
+  ok("explainer: the top tier still says what comes next", DX.whatIsNext("partner").length > 10);
+
+  // What signing does.
+  const undecided = DX.whatYouAreSigning({ stage: "ramp" });
+  ok("explainer: an undecided supply arrangement is flagged heavy",
+    undecided.some((f) => f.heavy && /undecided/i.test(f.k)));
+  ok("explainer: the finality of the terms is always stated first",
+    DX.whatYouAreSigning({}).at(0).heavy === true);
+  const markup = DX.whatYouAreSigning({ supplySourcing: "gt3_supplied", priceBasis: "cost_plus" });
+  ok("explainer: a markup on required supplies is named as a real cost",
+    markup.some((f) => f.heavy && /markup/i.test(f.v)));
+  ok("explainer: at-cost supply is not overstated as a markup",
+    !DX.whatYouAreSigning({ supplySourcing: "gt3_supplied", priceBasis: "at_cost" }).some((f) => /markup/i.test(f.v)));
+  ok("explainer: equity eligibility is never described as a grant",
+    DX.whatYouAreSigning({ equityEligible: true, equityScope: "market_entity" })
+      .some((f) => /not the same as granted/i.test(f.v)));
+  ok("explainer: the right to counter is always stated",
+    DX.whatYouAreSigning({}).some((f) => /counter/i.test(f.k) || /counter/i.test(f.v)));
+
+  // The employee side.
+  const pay = DX.payAtVolumes({ baseCents: 5200000, ratePer: "year", commissionPct: 2 }, DX.DEFAULT_VOLUMES);
+  ok("explainer: three volumes are shown, not one", pay.length === 3);
+  ok("explainer: a bigger year pays more", pay[2].totalCents > pay[0].totalCents);
+  ok("explainer: base with no commission is flat across volumes", (() => {
+    const p = DX.payAtVolumes({ baseCents: 5200000, ratePer: "year", commissionPct: 0 }, DX.DEFAULT_VOLUMES);
+    return p[0].totalCents === p[2].totalCents;
+  })());
+  ok("explainer: an hourly base is annualised before it is compared",
+    DX.payAtVolumes({ baseCents: 2500, ratePer: "hour", commissionPct: 0 }, DX.DEFAULT_VOLUMES)[0].totalCents === 2500 * 2080);
+  ok("explainer: a commission-only offer still reads as a range",
+    DX.payAtVolumes({ baseCents: 0, ratePer: null, commissionPct: 10 }, DX.DEFAULT_VOLUMES)[0].totalCents > 0);
+
   // ── the statutory four (0286) ──────────────────────────────────────────────────────────────────
   const complete = { candidateName:"A", candidateEmail:"a@b.co", title:"T", market:"greenville",
                      role:"server", baseCents: 5200000, ratePer:"year", ...STAT };

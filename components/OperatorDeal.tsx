@@ -9,6 +9,7 @@ import AsyncSection from "./AsyncSection";
 import { SectionHeader } from "@/components/kit";
 import Icon from "@/components/Icon";
 import { MARKETS, MARKET_LABEL, toMarket, type Market } from "@/lib/markets";
+import DealExplainer from "./DealExplainer";
 import {
   computeSplit, project, bestFundingForOperator, summarize,
   TIERS, TIER, nextTier, STAGES, STAGE_LABEL, STATUS_LABEL,
@@ -57,7 +58,7 @@ export default function OperatorDeal() {
   const loader = useCallback(async (): Promise<Row[]> => {
     if (!supabase) return [];
     const { data, error } = await supabase.from("operator_agreements")
-      .select("id, market, operator_name, operator_email, operator_user_id, status, tier, stage, supply_funding, operator_pct, royalty_pct, market_pct, package, notes, created_at")
+      .select("id, market, operator_name, operator_email, operator_user_id, status, tier, stage, supply_funding, operator_pct, royalty_pct, market_pct, package, notes, created_at, supply_sourcing, supply_price_basis, equity_eligible, equity_scope")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
     return ((data as any[]) ?? []).map((r) => ({ ...r, package: Array.isArray(r.package) ? r.package : [] }));
@@ -176,11 +177,13 @@ function AgreementRow({ row, open, onToggle, onSaved, toast, meId }: {
 
   // The operator's own response goes through the RPC — it can move status and record what they said,
   // and it cannot touch a single term.
-  const respond = async (action: "accept" | "request_changes" | "counter") => {
+  const respond = async (action: "accept" | "request_changes" | "counter", preset?: string) => {
     if (!supabase) return;
-    const note = typeof window !== "undefined"
+    // A preset comes from the explainer, where the operator has already said what they want by
+    // moving the slider — asking them to retype it in a prompt box would be the worse experience.
+    const note = preset ?? (typeof window !== "undefined"
       ? window.prompt(action === "accept" ? "Anything to note with your acceptance? (optional)" : "What would you like changed?") ?? ""
-      : "";
+      : "");
     if (action !== "accept" && !note.trim()) { toast("Say what you'd like changed so it's on the record.", "error"); return; }
     setBusy(true);
     const { error } = await supabase.rpc("respond_to_agreement", { p_id: row.id, p_action: action, p_note: note.trim() || null });
@@ -337,6 +340,18 @@ function AgreementRow({ row, open, onToggle, onSaved, toast, meId }: {
           </div>
           {!editable && !isMine && (
             <div className="od-note">Terms are locked once an agreement has been agreed. Move it back to draft to renegotiate.</div>
+          )}
+
+          {/* The operator's own view of their own agreement. Shown for their record whatever its
+              status — understanding what you signed matters after you sign it too — and the counter
+              affordance only appears while a counter is still possible. */}
+          {isMine && (
+            <DealExplainer
+              row={row as any}
+              onCounter={status === "sent" || status === "countered"
+                ? (note) => respond("counter", note)
+                : undefined}
+            />
           )}
 
           <Trail agreementId={row.id} />
