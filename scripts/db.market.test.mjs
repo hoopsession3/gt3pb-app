@@ -529,6 +529,143 @@ ok("0291: an unattributed row stays visible rather than disappearing silently",
 await db.exec("reset role;");
 await db.exec(`set test.owner = 'on'; set test.admin = 'on'; set test.uid = '${RYAN}';`);
 
+// ═══ 0292 — receipts, and spend brought to standard ═════════════════════════════════════════════
+// Fixture mirrors 0209's live shape plus the storage schema the receipts bucket needs.
+await db.exec(`
+  create schema if not exists storage;
+  create table storage.buckets (id text primary key, name text, public boolean, file_size_limit bigint);
+  create table storage.objects (id uuid primary key default gen_random_uuid(),
+    bucket_id text, name text, owner uuid);
+  alter table storage.objects enable row level security;
+
+  create table public.vendors (id uuid primary key default gen_random_uuid(), name text);
+
+  create table public.expenses (
+    id uuid primary key default gen_random_uuid(),
+    tenant_id uuid default '${T1}',
+    vendor_id uuid references public.vendors(id) on delete set null,
+    category text not null default 'other',
+    description text,
+    amount_cents int not null check (amount_cents >= 0),
+    spent_on date not null default current_date,
+    status text not null default 'paid' check (status in ('paid','pending')),
+    created_by uuid, created_at timestamptz not null default now());
+
+  create table public.budgets (
+    id uuid primary key default gen_random_uuid(),
+    tenant_id uuid default '${T1}',
+    category text not null,
+    monthly_limit_cents int not null default 0 check (monthly_limit_cents >= 0),
+    created_at timestamptz not null default now(), updated_at timestamptz not null default now(),
+    constraint budgets_tenant_id_category_key unique (tenant_id, category));
+
+  alter table public.expenses enable row level security;
+  alter table public.budgets enable row level security;
+  grant select, insert, update, delete on public.expenses, public.budgets to authenticated;
+
+  insert into public.budgets (category, monthly_limit_cents) values
+    ('ingredients', 100000), ('marketing', 20000), ('supplies', 0), ('equipment', 0),
+    ('fees', 0), ('labor', 0), ('other', 0);
+`);
+
+await db.exec(mig("0292_receipts_and_spend.sql"));
+
+// categories
+ok("0292: the seven categories exist as rows, not strings",
+   (await q1(`select count(*)::int n from public.spend_categories`)).n === 7);
+ok("0292: the receipt rule lives on the category",
+   Number((await q1(`select receipt_required_over_cents r from public.spend_categories where slug='marketing'`))?.r) === 2500);
+
+// the category FK closes the typo hole
+const typo = await raises(`insert into public.expenses (category, amount_cents) values ('ingrediants', 500);`);
+ok("0292: a mistyped category is refused instead of silently creating one", typo !== null, typo);
+
+// market + receipt + void columns
+ok("0292: an expense belongs to a city",
+   (await q1(`select count(*)::int n from information_schema.columns
+              where table_name='expenses' and column_name='market'`)).n === 1);
+ok("0292: and can carry a receipt",
+   (await q1(`select count(*)::int n from information_schema.columns
+              where table_name='expenses' and column_name='receipt_path'`)).n === 1);
+
+await db.exec(`insert into public.expenses (id, category, amount_cents, spent_on, market, description) values
+  ('cccccccc-0000-0000-0000-000000000001','ingredients', 90000, current_date, 'greenville', 'Beans'),
+  ('cccccccc-0000-0000-0000-000000000002','marketing',    2000, current_date, 'greenville', 'Small ad'),
+  ('cccccccc-0000-0000-0000-000000000003','ingredients', 50000, current_date, 'atlanta',    'ATL beans');`);
+
+// deleting is refused; voiding is the way
+const del = await raises(`delete from public.expenses where id='cccccccc-0000-0000-0000-000000000001';`);
+ok("0292: an expense cannot be deleted", del !== null && /void them instead/.test(del), del);
+ok("0292: and it is still there afterwards",
+   (await q1(`select count(*)::int n from public.expenses where id='cccccccc-0000-0000-0000-000000000001'`)).n === 1);
+
+const noReason = await raises(`select public.void_expense('cccccccc-0000-0000-0000-000000000001', '  ');`);
+ok("0292: voiding without a reason is refused — a void with no reason is a delete",
+   noReason !== null && /why it is being voided/.test(noReason), noReason);
+
+await db.exec(`select public.void_expense('cccccccc-0000-0000-0000-000000000001', 'Duplicate of the Sysco invoice');`);
+ok("0292: a voided expense keeps its row and its reason",
+   /Duplicate/.test((await q1(`select void_reason v from public.expenses where id='cccccccc-0000-0000-0000-000000000001'`))?.v ?? ""));
+const revoid = await raises(`select public.void_expense('cccccccc-0000-0000-0000-000000000001', 'again');`);
+ok("0292: voiding twice is refused", revoid !== null);
+
+// the report
+const rep = await q1(`select public.report_spend(current_date, 'greenville') as r`);
+const r = rep.r;
+ok("0292: the report drops voided spend from the total", Number(r.total_spent_cents) === 2000, r.total_spent_cents);
+ok("0292: and reports it separately rather than hiding it", Number(r.voided_cents) === 90000, r.voided_cents);
+ok("0292: the other city's spend is not in this city's number", Number(r.total_spent_cents) === 2000);
+const atlRep = (await q1(`select public.report_spend(current_date, 'atlanta') as r`)).r;
+ok("0292: asking for the other city gets the other city", Number(atlRep.total_spent_cents) === 50000, atlRep.total_spent_cents);
+ok("0292: categories come back with their labels", r.by_category.some((c) => c.label === "Ingredients"));
+
+// a budget belongs to a month
+await db.exec(`insert into public.budgets (category, market, monthly_limit_cents, effective_from)
+  values ('ingredients', 'greenville', 250000, date_trunc('month', current_date)::date);`);
+ok("0292: two budgets for the same category can coexist when they start on different dates",
+   (await q1(`select count(*)::int n from public.budgets where category='ingredients'`)).n === 2);
+const thisMonth = (await q1(`select public.report_spend(current_date, 'greenville') as r`)).r;
+const lastMonth = (await q1(`select public.report_spend((date_trunc('month', current_date) - interval '1 month')::date, 'greenville') as r`)).r;
+const ingNow = thisMonth.by_category.find((c) => c.category === 'ingredients');
+const ingThen = lastMonth.by_category.find((c) => c.category === 'ingredients');
+ok("0292: this month reads the new budget", Number(ingNow.budget_cents) === 250000, ingNow.budget_cents);
+ok("0292: last month still reads what was planned then — changing July no longer rewrites June",
+   Number(ingThen.budget_cents) === 100000, ingThen.budget_cents);
+
+// receipt gaps
+const gaps = await rows(`select id, amount_cents, why from public.v_receipt_gaps order by amount_cents desc`);
+ok("0292: the small marketing spend is under its threshold and not chased",
+   !gaps.some((g) => g.id === 'cccccccc-0000-0000-0000-000000000002'), gaps.map((g) => g.id));
+ok("0292: the voided one is not chased either",
+   !gaps.some((g) => g.id === 'cccccccc-0000-0000-0000-000000000001'));
+ok("0292: the Atlanta beans are chased", gaps.some((g) => g.id === 'cccccccc-0000-0000-0000-000000000003'));
+ok("0292: a big one says to get that one first", /get this one first/.test(gaps[0]?.why ?? ""), gaps[0]?.why);
+
+await db.exec(`update public.expenses set receipt_path = 'receipts/atl-beans.jpg', receipt_uploaded_at = now()
+  where id='cccccccc-0000-0000-0000-000000000003';`);
+ok("0292: attaching a receipt clears the gap",
+   (await q1(`select count(*)::int n from public.v_receipt_gaps`)).n === 0);
+ok("0292: and the touch trigger recorded the change",
+   !!(await q1(`select updated_at from public.expenses where id='cccccccc-0000-0000-0000-000000000003'`))?.updated_at);
+
+// the bucket is private, unlike the shop one
+ok("0292: the receipts bucket exists",
+   (await q1(`select count(*)::int n from storage.buckets where id='receipts'`)).n === 1);
+ok("0292: and is PRIVATE — a receipt carries a vendor, a price and an address",
+   (await q1(`select public from storage.buckets where id='receipts'`))?.public === false);
+
+// audit coverage caught up
+ok("0292: expenses are audited now",
+   (await q1(`select count(*)::int n from pg_trigger t join pg_class c on c.oid=t.tgrelid
+              where c.relname='expenses' and t.tgname='audit_expenses'`)).n === 1);
+ok("0292: spend is now inside 0291's market scope, which it could not be before",
+   (await q1(`select market_scoped from public.v_market_scope where table_name='expenses'`))?.market_scoped === true);
+ok("0292: and so are budgets",
+   (await q1(`select market_scoped from public.v_market_scope where table_name='budgets'`))?.market_scoped === true);
+ok("0292: so are budgets",
+   (await q1(`select count(*)::int n from pg_trigger t join pg_class c on c.oid=t.tgrelid
+              where c.relname='budgets' and t.tgname='audit_budgets'`)).n === 1);
+
 // ═══ every file is idempotent, in order ═════════════════════════════════════════════════════════
 const snap = async () => JSON.stringify({
   cl: (await q1(`select count(*)::int n from public.changelog`)).n,
@@ -539,7 +676,7 @@ const snap = async () => JSON.stringify({
 const before = await snap();
 for (const f of ["0284_compliance_freshness.sql", "0285_market_live_switch.sql",
                  "0286_offer_letter_statutory.sql", "0287_supply_sourcing.sql",
-                 "0288_inventory_per_market.sql", "0289_market_ownership.sql", "0291_market_read_scope.sql"]) {
+                 "0288_inventory_per_market.sql", "0289_market_ownership.sql", "0291_market_read_scope.sql", "0292_receipts_and_spend.sql"]) {
   await db.exec(mig(f));
 }
 ok("re-running 0284–0288 in order changes nothing", (await snap()) === before, await snap());

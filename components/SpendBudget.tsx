@@ -9,6 +9,8 @@ import AsyncSection from "./AsyncSection";
 import { InfoRow } from "@/components/kit";
 import Icon from "@/components/Icon";
 import { downloadCsv } from "@/lib/csv";
+import { MARKETS, MARKET_LABEL, FOUNDING_MARKET, toMarket, type Market } from "@/lib/markets";
+import { receiptGaps, totals, headline, type SpendCategory, type ExpenseRow as SpendRow, type BudgetRow } from "@/lib/spend";
 
 // SPEND & BUDGET (0209) — the procurement side of Money. Log what the business spends (optionally to a
 // real vendor / event) and track it against a per-category monthly budget. Reads report_spend(); every
@@ -21,8 +23,8 @@ import { downloadCsv } from "@/lib/csv";
 // thing you couldn't edit). The DB already allowed editing/deleting expenses; this adds the list.
 type Cat = { category: string; budget_cents: number; spent_cents: number };
 type Report = { month: string; total_spent_cents: number; total_budget_cents: number; by_category: Cat[] };
-type ExpenseRow = { id: string; amount_cents: number; category: string; description: string | null; vendor_id: string | null; created_at: string };
-type Board = { rep: Report | null; vendors: { id: string; name: string }[]; items: ExpenseRow[] };
+type ExpenseRow = { id: string; amount_cents: number; category: string; description: string | null; vendor_id: string | null; created_at: string; spent_on?: string; market?: string | null; receipt_path?: string | null; voided_at?: string | null };
+type Board = { rep: Report | null; vendors: { id: string; name: string }[]; items: ExpenseRow[]; cats: SpendCategory[] };
 const money = (c: number) => `$${Math.round(c / 100).toLocaleString()}`;
 
 export default function SpendBudget() {
@@ -35,15 +37,21 @@ export default function SpendBudget() {
   const [savingExp, setSavingExp] = useState(false);
   const [confirmDelId, setConfirmDelId] = useState<string | null>(null);
   const [setupOpen, setSetupOpen] = useState(false);   // zero-state: category list waits behind one prompt
+  const [market, setMarket] = useState<Market>(FOUNDING_MARKET);
+  const [uploading, setUploading] = useState<string | null>(null);
 
   const loader = useCallback(async (): Promise<Board> => {
-    if (!supabase) return { rep: null, vendors: [], items: [] };
+    if (!supabase) return { rep: null, vendors: [], items: [], cats: [] };
     const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
-    const [r, v, e] = await Promise.all([
+    const [r, v, e, c] = await Promise.all([
       supabase.rpc("report_spend"),
       supabase.from("vendors").select("id, name").is("archived_at", null).order("name"),
-      supabase.from("expenses").select("id, amount_cents, category, description, vendor_id, created_at")
+      // 0292: receipt_path, market and voided_at are what make the gap list and the per-city
+      // totals possible; without them this panel can only ever show a company-wide guess.
+      supabase.from("expenses")
+        .select("id, amount_cents, category, description, vendor_id, created_at, spent_on, market, receipt_path, voided_at")
         .gte("created_at", monthStart.toISOString()).order("created_at", { ascending: false }),
+      supabase.from("spend_categories").select("slug, label, sort, active, receipt_required_over_cents").order("sort"),
     ]);
     if (r.error) throw new Error(r.error.message);
     if (v.error) throw new Error(v.error.message);
@@ -51,19 +59,49 @@ export default function SpendBudget() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rep = r.data && !(r.data as any).error ? (r.data as Report) : null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return { rep, vendors: (v.data as any) ?? [], items: (e.data as ExpenseRow[]) ?? [] };
+    return { rep, vendors: (v.data as any) ?? [], items: (e.data as ExpenseRow[]) ?? [],
+             cats: (c.data as SpendCategory[]) ?? [] };
   }, []);
   const board = useAsyncData(loader, []);
   const { reload } = board;
   useRealtimeTable(["expenses", "budgets"], reload);
   const vendors = board.data?.vendors ?? [];
+  const cats = board.data?.cats ?? [];
+  const items = board.data?.items ?? [];
+
+  // The honest read of the month, computed from the same tested module the tests use rather than
+  // re-derived in JSX. gaps is the list an accountant would ask for.
+  const month = new Date().toISOString().slice(0, 7);
+  const spendRows = items as unknown as SpendRow[];
+  const gaps = receiptGaps(spendRows, cats);
+  const sum = totals(month, spendRows, [] as BudgetRow[], cats, null);
+  const line = headline({ ...sum, budgetCents: board.data?.rep?.total_budget_cents ?? 0,
+    remainingCents: (board.data?.rep?.total_budget_cents ?? 0) - sum.spentCents,
+    overCategories: (board.data?.rep?.by_category ?? []).filter((c) => c.budget_cents > 0 && c.spent_cents > c.budget_cents).length });
+
+  // A receipt goes straight into the PRIVATE receipts bucket (0292) under the expense's own id, so
+  // the path is derivable and two people cannot overwrite each other.
+  const attachReceipt = async (row: ExpenseRow, file: File) => {
+    if (!supabase) return;
+    if (file.size > 20 * 1024 * 1024) { toast("That file is over 20MB — photograph it instead of scanning it.", "error"); return; }
+    setUploading(row.id);
+    const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const path = `${row.market ?? FOUNDING_MARKET}/${row.id}.${ext}`;
+    const up = await supabase.storage.from("receipts").upload(path, file, { upsert: true });
+    if (up.error) { setUploading(null); toast(up.error.message, "error"); return; }
+    const { error } = await supabase.from("expenses")
+      .update({ receipt_path: path, receipt_uploaded_at: new Date().toISOString() }).eq("id", row.id);
+    setUploading(null);
+    if (error) { toast(error.message, "error"); return; }
+    toast("Receipt attached"); reload();
+  };
 
   const addExpense = async () => {
     if (!supabase || busy) return;
     const cents = Math.round(parseFloat(amount) * 100);
     if (!Number.isFinite(cents) || cents <= 0) { toast("Enter an amount", "error"); return; }
     setBusy(true);
-    const { error } = await supabase.from("expenses").insert({ amount_cents: cents, category: cat, description: desc.trim() || null, vendor_id: vendor || null });
+    const { error } = await supabase.from("expenses").insert({ amount_cents: cents, category: cat, description: desc.trim() || null, vendor_id: vendor || null, market });
     setBusy(false);
     if (error) { toast(`Couldn't add — ${error.message}`, "error"); return; }
     setAmount(""); setDesc(""); setVendor(""); toast("Expense logged"); reload();
@@ -73,7 +111,16 @@ export default function SpendBudget() {
     const cents = Math.round(parseFloat(editVal) * 100);
     setEditCat(null);
     if (!Number.isFinite(cents) || cents < 0) return;
-    await supabase.from("budgets").upsert({ category, monthly_limit_cents: cents, updated_at: new Date().toISOString() }, { onConflict: "tenant_id,category" });
+    // 0292 replaced the old (tenant, category) unique key with (tenant, market, category,
+    // effective_from), so a budget belongs to a month instead of being rewritten in place. Upserting
+    // against the retired constraint would have failed outright the moment 0292 landed. A change
+    // saved today takes effect from the first of this month and leaves earlier months alone.
+    const from = new Date(); from.setDate(1);
+    await supabase.from("budgets").upsert(
+      { category, market, monthly_limit_cents: cents, effective_from: from.toISOString().slice(0, 10),
+        updated_at: new Date().toISOString() },
+      { onConflict: "tenant_id,market,category,effective_from" },
+    );
     reload();
   };
 
@@ -97,12 +144,19 @@ export default function SpendBudget() {
     reload();
   };
   // Two taps, not a native confirm() — tap the ✕, the row swaps to a real Confirm/Cancel pair.
-  const deleteExpense = async (id: string) => {
+  // 0292: expenses are never deleted. A book of record that can lose a row is not a record, so the
+  // database refuses the delete and this voids instead — the row stays, with who and why on it, and
+  // leaves every total. The reason is required, because a void with no reason is a delete.
+  const voidExpense = async (id: string) => {
     if (!supabase) return;
-    const { error } = await supabase.from("expenses").delete().eq("id", id);
-    if (error) { toast(`Couldn't delete — ${error.message}`, "error"); return; }
+    const reason = typeof window !== "undefined"
+      ? window.prompt("Why is this being voided? (duplicate, wrong amount, refunded…)") ?? ""
+      : "";
+    if (!reason.trim()) { toast("Say why — it goes on the record.", "error"); return; }
+    const { error } = await supabase.rpc("void_expense", { p_id: id, p_reason: reason.trim() });
+    if (error) { toast(error.message, "error"); return; }
     setConfirmDelId(null);
-    toast("Expense deleted");
+    toast("Voided — the record stays");
     reload();
   };
 
@@ -200,24 +254,64 @@ export default function SpendBudget() {
                       </span>
                       <span className="spb-item-date">{new Date(row.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
                     </button>
+                    {row.voided_at ? (
+                      <span className="spb-void" title="Voided — kept on the record">voided</span>
+                    ) : row.receipt_path ? (
+                      <span className="spb-rcpt has" title={row.receipt_path}><Icon name="check" size={12} /> receipt</span>
+                    ) : (
+                      <label className={`spb-rcpt want${uploading === row.id ? " busy" : ""}`}>
+                        {uploading === row.id ? "…" : "+ receipt"}
+                        <input type="file" accept="image/*,application/pdf" capture="environment"
+                          onChange={(e) => { const f = e.target.files?.[0]; if (f) attachReceipt(row, f); e.currentTarget.value = ""; }} />
+                      </label>
+                    )}
                     {confirmDelId === row.id ? (
                       <span className="spb-item-confirm">
-                        <button type="button" className="st-discuss goal-archive" onClick={() => deleteExpense(row.id)}>Confirm</button>
+                        <button type="button" className="st-discuss goal-archive" onClick={() => voidExpense(row.id)}>Void it</button>
                         <button type="button" className="st-discuss" onClick={() => setConfirmDelId(null)}>Cancel</button>
                       </span>
                     ) : (
-                      <button type="button" className="spb-item-del" onClick={() => setConfirmDelId(row.id)} aria-label={`Delete ${money(row.amount_cents)} expense`}><Icon name="close" size={12} /></button>
+                      <button type="button" className="spb-item-del" onClick={() => setConfirmDelId(row.id)} aria-label={`Void ${money(row.amount_cents)} expense`}><Icon name="close" size={12} /></button>
                     )}
                   </div>
                 );
               })}
             </div>
 
+            {/* The month in one sentence, from lib/spend.ts — which leads with the bad news when
+                there is bad news rather than opening with "on track" while three categories are over. */}
+            <p className={`spb-line${sum.overCategories > 0 || gaps.length > 0 ? " flag" : ""}`}>{line}</p>
+
+            {gaps.length > 0 && (
+              <div className="spb-gaps">
+                <p className="insp-lbl">Missing a receipt — biggest first</p>
+                <ul>
+                  {gaps.slice(0, 5).map((g) => (
+                    <li key={g.id}>
+                      <b>{money(g.amount_cents)}</b>
+                      <span>{g.description || g.category}</span>
+                      <em>{g.spent_on ?? ""}</em>
+                    </li>
+                  ))}
+                </ul>
+                {gaps.length > 5 && <p className="spb-gaps-more">and {gaps.length - 5} more</p>}
+                <p className="spb-gaps-why">
+                  This is the list your accountant asks for. Photograph the receipt with the button
+                  on each row — it stores privately, not on a public link.
+                </p>
+              </div>
+            )}
+
             <div className="spb-add">
               <input className="note-in spb-amt" inputMode="decimal" placeholder="$0" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))} aria-label="Amount" />
               <select className="note-in" value={cat} onChange={(e) => setCat(e.target.value)} aria-label="Category">{rep.by_category.map((c) => <option key={c.category} value={c.category}>{c.category}</option>)}</select>
               <input className="note-in spb-desc" placeholder="What for?" value={desc} onChange={(e) => setDesc(e.target.value)} aria-label="Description" />
               <select className="note-in" value={vendor} onChange={(e) => setVendor(e.target.value)} aria-label="Vendor"><option value="">Vendor (optional)</option>{vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select>
+              {/* 0292: spend belongs to a city. Without this every expense lands in Greenville and
+                  the two markets share one number, which is what the report used to do. */}
+              <select className="note-in" value={market} onChange={(e) => setMarket(toMarket(e.target.value))} aria-label="City">
+                {MARKETS.map((m) => <option key={m} value={m}>{MARKET_LABEL[m]}</option>)}
+              </select>
               <button type="button" className="note-save" onClick={addExpense} disabled={busy}>{busy ? "…" : "Log expense"}</button>
             </div>
           </div>

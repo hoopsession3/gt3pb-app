@@ -715,6 +715,101 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("offer: commission alone is a valid offer",
     O.validateOffer({ candidateName:"A", candidateEmail:"a@b.co", title:"T", market:"atlanta", role:"operator", commissionPct: 50, ...STAT }).ok);
 
+  // ── spend, budgets and the receipt rule (0292) ─────────────────────────────────────────────────
+  const SP = require("../.smoke/spend.js");
+  const CATS = [
+    { slug: "ingredients", label: "Ingredients", sort: 10, active: true, receipt_required_over_cents: 0 },
+    { slug: "marketing",   label: "Marketing",   sort: 40, active: true, receipt_required_over_cents: 2500 },
+    { slug: "retired",     label: "Retired",     sort: 99, active: false, receipt_required_over_cents: 0 },
+  ];
+  const ex = (o) => ({ id: o.id ?? Math.random().toString(36).slice(2), market: o.market ?? "greenville",
+    category: o.category, amount_cents: o.amount_cents, spent_on: o.spent_on,
+    receipt_path: o.receipt_path ?? null, voided_at: o.voided_at ?? null });
+
+  ok("spend: a month key is the first seven characters, nothing cleverer", SP.monthKey("2026-09-14") === "2026-09");
+
+  // The receipt rule.
+  ok("spend: an expense with a receipt owes nothing",
+    !SP.needsReceipt(ex({ category: "ingredients", amount_cents: 9000, spent_on: "2026-09-01", receipt_path: "x.jpg" }), CATS));
+  ok("spend: a category with a zero threshold always owes a receipt",
+    SP.needsReceipt(ex({ category: "ingredients", amount_cents: 100, spent_on: "2026-09-01" }), CATS));
+  ok("spend: under a category's threshold owes nothing",
+    !SP.needsReceipt(ex({ category: "marketing", amount_cents: 2400, spent_on: "2026-09-01" }), CATS));
+  ok("spend: at the threshold it does owe one — the boundary is inclusive",
+    SP.needsReceipt(ex({ category: "marketing", amount_cents: 2500, spent_on: "2026-09-01" }), CATS));
+  ok("spend: an unknown category is treated as always-required, the safe way to be wrong",
+    SP.needsReceipt(ex({ category: "mystery", amount_cents: 1, spent_on: "2026-09-01" }), CATS));
+  ok("spend: a voided expense owes nothing",
+    !SP.needsReceipt(ex({ category: "ingredients", amount_cents: 9000, spent_on: "2026-09-01", voided_at: "2026-09-02" }), CATS));
+
+  const gapRows = [
+    ex({ id: "small", category: "ingredients", amount_cents: 500,   spent_on: "2026-09-01" }),
+    ex({ id: "big",   category: "ingredients", amount_cents: 90000, spent_on: "2026-09-05" }),
+    ex({ id: "done",  category: "ingredients", amount_cents: 70000, spent_on: "2026-09-03", receipt_path: "r.jpg" }),
+  ];
+  ok("spend: gaps are worst first", SP.receiptGaps(gapRows, CATS)[0].id === "big");
+  ok("spend: a receipted expense is not a gap", SP.receiptGaps(gapRows, CATS).length === 2);
+  ok("spend: the gap is reported as money, not just a count", SP.unreceiptedCents(gapRows, CATS) === 90500);
+
+  // A budget belongs to a month — the point of 0292's effective_from.
+  const BUDG = [
+    { market: "greenville", category: "ingredients", monthly_limit_cents: 100000, effective_from: "2026-01-01" },
+    { market: "greenville", category: "ingredients", monthly_limit_cents: 150000, effective_from: "2026-09-01" },
+    { market: "atlanta",    category: "ingredients", monthly_limit_cents:  50000, effective_from: "2026-01-01" },
+  ];
+  ok("spend: an earlier month reads the budget that was in force THEN",
+    SP.budgetFor("ingredients", "2026-06", BUDG, "greenville") === 100000);
+  ok("spend: the month it changed reads the new one",
+    SP.budgetFor("ingredients", "2026-09", BUDG, "greenville") === 150000);
+  ok("spend: a later month keeps the new one",
+    SP.budgetFor("ingredients", "2026-12", BUDG, "greenville") === 150000);
+  ok("spend: another city has its own budget", SP.budgetFor("ingredients", "2026-09", BUDG, "atlanta") === 50000);
+  ok("spend: no budget is zero, not a crash", SP.budgetFor("nothing", "2026-09", BUDG, "greenville") === 0);
+
+  // Variance.
+  const ROWS = [
+    ex({ category: "ingredients", amount_cents: 160000, spent_on: "2026-09-04" }),
+    ex({ category: "marketing",   amount_cents: 1000,   spent_on: "2026-09-06" }),
+    ex({ category: "retired",     amount_cents: 4000,   spent_on: "2026-09-07" }),
+    ex({ category: "ingredients", amount_cents: 999999, spent_on: "2026-08-30" }),   // another month
+    ex({ category: "ingredients", amount_cents: 888888, spent_on: "2026-09-09", voided_at: "2026-09-10" }),
+    ex({ category: "ingredients", amount_cents: 777777, spent_on: "2026-09-09", market: "atlanta" }),
+  ];
+  const v = SP.variance("2026-09", ROWS, BUDG, CATS, "greenville");
+  const ing = v.find((l) => l.category === "ingredients");
+  ok("spend: last month's spend is not counted in this month", ing.spentCents === 160000, ing.spentCents);
+  ok("spend: a voided expense is not counted", ing.spentCents === 160000);
+  ok("spend: another city's spend is not counted", ing.spentCents === 160000);
+  ok("spend: over budget is reported as over", ing.over === true && ing.remainingCents < 0, ing.remainingCents);
+  ok("spend: percentage used is reported", ing.pctUsed === 107, ing.pctUsed);
+  ok("spend: a category with no budget has no percentage rather than a fake one",
+    SP.variance("2026-09", ROWS, [], CATS, "greenville").find((l) => l.category === "marketing").pctUsed === null);
+  ok("spend: money in a RETIRED category still shows up — it cannot hide",
+    v.some((l) => l.category === "retired" && l.spentCents === 4000));
+  ok("spend: lines are ordered by what was actually spent", v[0].category === "ingredients");
+
+  const t = SP.totals("2026-09", ROWS, BUDG, CATS, "greenville");
+  ok("spend: totals add the lines up", t.spentCents === 165000, t.spentCents);
+  ok("spend: totals count the categories that are over", t.overCategories === 1);
+  ok("spend: totals carry the unreceipted amount too", t.unreceiptedCents === 164000, t.unreceiptedCents);
+
+  // The headline leads with bad news when there is bad news.
+  ok("spend: over budget is said first", /over budget/.test(SP.headline(t)), SP.headline(t));
+  const clean = SP.totals("2026-09",
+    [ex({ category: "ingredients", amount_cents: 1000, spent_on: "2026-09-02", receipt_path: "r.jpg" })],
+    BUDG, CATS, "greenville");
+  ok("spend: a clean month says everything is receipted", /everything receipted/.test(SP.headline(clean)), SP.headline(clean));
+  const noBudget = SP.totals("2026-09",
+    [ex({ category: "ingredients", amount_cents: 1000, spent_on: "2026-09-02", receipt_path: "r.jpg" })], [], CATS, "greenville");
+  ok("spend: spending against no budget says so instead of reading as fine",
+    /no budget/.test(SP.headline(noBudget)), SP.headline(noBudget));
+  ok("spend: an empty month says nothing has happened",
+    /Nothing spent/.test(SP.headline(SP.totals("2026-09", [], [], CATS, "greenville"))));
+  const receiptsMissing = SP.totals("2026-09",
+    [ex({ category: "ingredients", amount_cents: 1000, spent_on: "2026-09-02" })], BUDG, CATS, "greenville");
+  ok("spend: on budget but unreceipted is not reported as clean",
+    /no receipt/.test(SP.headline(receiptsMissing)), SP.headline(receiptsMissing));
+
   // ── the deal explainer: the signer's side of the same math ─────────────────────────────────────
   const DX = require("../.smoke/dealExplainer.js");
   const T = (supplyFunding, stage = "profitable", tier = "operator") => ({ supplyFunding, stage, tier });
