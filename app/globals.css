@@ -6958,10 +6958,15 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 /* ── offer letters · the statutory four + the disclaimer notice (0286) ──────────────────────────── */
 /* Set apart from the rest of the form on purpose: these four are not house style, they are what
    S.C. Code 41-10-30 requires in writing at hire, and the block says so where it is being filled in. */
+/* Tokens chosen for the surfaces this actually renders on, not the one I had in mind. --well and
+   --ink-whisper are PAPER-scope tokens: the crew console does not redefine either, so they fell
+   through to the :root dark values and produced a grey slab with near-invisible text on a cream
+   page. --gold, --line2 and --cream-m are defined in every scope, which is the whole reason to
+   reach for them here. Caught on the live page, not in the file. */
 .ofr-stat{margin:14px 0 0;padding:13px 14px 14px;border:1px solid var(--line2);border-radius:10px;
-  background:var(--well)}
+  background:color-mix(in srgb, var(--gold) 7%, transparent)}
 .ofr-stat .insp-lbl{margin:0 0 5px}
-.ofr-stat-why{font-family:'Inter';font-size:12px;line-height:1.55;color:var(--ink-whisper);margin:0 0 11px;max-width:64ch}
+.ofr-stat-why{font-family:'Inter';font-size:12px;line-height:1.55;color:var(--cream-m);margin:0 0 11px;max-width:64ch}
 
 .ofr-warn{margin:14px 0 0;padding:13px 15px 14px;border-radius:10px;
   border:1px solid color-mix(in srgb, var(--warn) 42%, transparent);
