@@ -34,15 +34,31 @@ p,.entry-why,.gl-uc,.k-sub{text-wrap:pretty}
      across the four colours — accretion, not a scale. Consolidating to the canonical steps changes
      what renders, so it is a deliberate design pass, not this mechanical one. */
   --brand-red:#B82420; --brand-cream:#F5F1E8; --brand-gold:#a97c3f; --brand-gold2:#c8a661;
+  /* --surface-ink is "the ink of whatever surface this is", where --brand-cream is "the brand's
+     cream, always". 4bff4df derived every tint from --brand-* so tints could never drift from the
+     brand — correct, but it also froze the handful of rules that meant "a tint of the TEXT colour"
+     to cream, which renders as invisible-on-invisible the moment a dark-built component lands on a
+     light screen (see .shop below). Rules that mean surface ink use this; rules that mean the brand
+     colour keep --brand-cream. Identical in dark: this resolves to --brand-cream here. */
+  --surface-ink:var(--brand-cream);
+  /* The quietest legible tier (closing-beat signature, sign-off). Its two call sites had drifted
+     to 28% and 46% cream — 2.33:1 and 4.30:1, i.e. BOTH under AA on the dark surface, which is why
+     the shop audit found them: they were never legible anywhere, the light ground just made it
+     obvious. One token, set to the AA floor on each surface so a whisper stays a whisper. */
+  --ink-whisper:color-mix(in srgb, var(--brand-cream) 50%, transparent);
+  /* Input + card-mount wells were two near-identical black washes written five years apart
+     (.auth-input .28, .sq-card .25). Tokenised at their EXACT existing values — byte-identical in
+     dark — so a light surface can restate them as paper instead of punching black holes in it. */
+  --field:rgba(0,0,0,.28); --well:rgba(0,0,0,.25);
 
-  --red:#B82420;--red-d:#9d1d1a;--red-h:#d64b46;--cream:#F5F1E8;--cream-m:color-mix(in srgb, var(--brand-cream) 72%, transparent);--cream-d:color-mix(in srgb, var(--brand-cream) 48%, transparent);--cream2:#EFE7D6;
+  --red:#B82420;--red-d:#9d1d1a;--red-h:#dd5651;--cream:#F5F1E8;--cream-m:color-mix(in srgb, var(--brand-cream) 72%, transparent);--cream-d:color-mix(in srgb, var(--brand-cream) 48%, transparent);--cream2:#EFE7D6;
   /* --oa-* used to be scoped to the old .oa wrapper (see "ORDER-AHEAD" block below) — that wrapper
      is gone from every customer-facing screen except AskGT3 now (OrderFunnel etc. use .of), so every
      .oa-cta/.oa-tile/.of-seg rule referencing var(--oa-red) etc. was silently resolving to nothing:
      the primary "Build your pack" CTA rendered with a fully transparent background in production.
      Promoted to :root so they resolve everywhere; identical values, so AskGT3's .oa block below is
      now a harmless redundant re-declaration, not a behavior change. */
-  --oa-cream:#F5F1E8;--oa-cream-dim:color-mix(in srgb, var(--brand-cream) 60%, transparent);--oa-cream-faint:color-mix(in srgb, var(--brand-cream) 34%, transparent);
+  --oa-cream:#F5F1E8;--oa-cream-dim:color-mix(in srgb, var(--brand-cream) 60%, transparent);--oa-cream-faint:color-mix(in srgb, var(--brand-cream) 48%, transparent);
   --oa-gold:#B8902F;--oa-red:#B82420;--oa-red-tint:color-mix(in srgb, var(--brand-red) 15%, transparent);--oa-hair:color-mix(in srgb, var(--brand-cream) 14%, transparent);--oa-green:#7FA86B;
   --char:#15120d;--char2:#1a1610;--char3:#100e0a;--card:#191510;--ink:#000;
   /* --gold2 is the de facto PRIMARY gold in practice (468 usages vs 137 for --gold) despite the name —
@@ -183,7 +199,7 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 .did .dt{flex:1}.did .dt b{font-family:'Inter';font-weight:600;font-size:13.5px;letter-spacing:.2px;display:block}
 .did .dt span{font-size:11.5px;color:var(--cream-m);display:block;margin-top:2px}
 .did .okc{color:var(--ok);opacity:.8}.did .okc svg{width:16px;height:16px}
-.signoff{text-align:center;font-family:'Fraunces';font-style:italic;font-size:13px;color:color-mix(in srgb, var(--brand-cream) 46%, transparent);margin-top:24px}
+.signoff{text-align:center;font-family:'Fraunces';font-style:italic;font-size:13px;color:var(--ink-whisper);margin-top:24px}
 
 /* ===== TRUCK ===== */
 .livebadge{display:inline-flex;align-items:center;gap:8px;font-family:'Inter';font-weight:600;letter-spacing:1.5px;text-transform:uppercase;font-size:10.5px;color:#7fce82;margin-bottom:10px}
@@ -657,7 +673,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .co-line span:last-child{font-family:'DM Mono';font-weight:500;color:var(--cream-m)}
 .co-total{border-bottom:none;margin-top:2px}
 .co-total span{font-weight:700;color:var(--cream)!important}
-.sq-card{background:rgba(0,0,0,.25);border:1px solid var(--line2);border-radius:13px;padding:11px 13px;margin-top:4px;min-height:54px}
+.sq-card{background:var(--well);border:1px solid var(--line2);border-radius:13px;padding:11px 13px;margin-top:4px;min-height:54px}
 .sq-wrap{position:relative;margin-top:4px}
 .sq-sk-bar{position:absolute;inset:0;border-radius:13px}
 /* sticky pay footer so Total + Pay stay visible while the order scrolls */
@@ -1123,7 +1139,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .auth-form{opacity:0;animation:authRise .7s ease 1.45s both}
 .auth-label{display:block;font-family:'Inter';font-weight:650;letter-spacing:1.2px;text-transform:uppercase;font-size:10px;color:var(--cream-m);margin:18px 0 7px}
 .auth-label span{color:color-mix(in srgb, var(--brand-cream) 32%, transparent);letter-spacing:.5px}
-.auth-input{width:100%;background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:14px;padding:15px 16px;color:var(--cream);font-family:'Inter';font-size:16px;outline:none;transition:border-color .15s,box-shadow .15s}
+.auth-input{width:100%;background:var(--field);border:1px solid var(--line2);border-radius:14px;padding:15px 16px;color:var(--cream);font-family:'Inter';font-size:16px;outline:none;transition:border-color .15s,box-shadow .15s}
 .auth-input:focus{border-color:rgba(184,144,47,.55);box-shadow:0 0 0 3px rgba(184,144,47,.1)}
 .auth-input::placeholder{color:color-mix(in srgb, var(--brand-cream) 50%, transparent)}
 .auth-code{font-family:'DM Mono';letter-spacing:8px;text-align:center;font-size:22px}
@@ -1193,10 +1209,10 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
    page eyebrow's type treatment (same 11px/uppercase/gold, see .menu .k-eyb below) — at the old 12px
    this read as a third stacked block bracketing the statement instead of its paired caption. Pulling
    it in makes the statement + order-line read as one unit before the chips, not two. */
-.mast-order{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:#9A7A2A;margin-top:6px}
+.mast-order{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:#7a5a1e;margin-top:6px}
 .menu-chips{position:sticky;top:0;z-index:6;display:flex;gap:8px;overflow-x:auto;padding:11px 0;margin-top:12px;background:#F4EFE3;border-bottom:1px solid rgba(34,31,24,.1)}
 .menu-chips::-webkit-scrollbar{display:none}
-.menu-chip{flex:0 0 auto;font-family:'Inter';font-weight:650;font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;color:#9A7A2A;background:transparent;border:1px solid rgba(34,31,24,.18);border-radius:20px;padding:9px 15px;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s,border-color .15s,transform .1s}
+.menu-chip{flex:0 0 auto;font-family:'Inter';font-weight:650;font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;color:#7a5a1e;background:transparent;border:1px solid rgba(34,31,24,.18);border-radius:20px;padding:9px 15px;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s,border-color .15s,transform .1s}
 .menu-chip:not(.on):hover{border-color:rgba(34,31,24,.5);color:#221F18;background:rgba(34,31,24,.05)}
 .menu-chip:active{transform:scale(.96)}
 .menu-chip.on{background:#221F18;color:#F4EFE3;border-color:#221F18}
@@ -1205,7 +1221,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .shop-sections{margin-bottom:6px}
 
 .chapter{display:flex;align-items:baseline;justify-content:space-between;margin:34px 0 0}
-.chapter .chn{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:2.6px;text-transform:uppercase;color:#9A7A2A}
+.chapter .chn{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:2.6px;text-transform:uppercase;color:#7a5a1e}
 .chapter .chw{font-family:'Fraunces';font-style:italic;font-size:12.5px;color:#6f6a59}
 .chrule{height:1px;background:#221F18;opacity:.55;margin:9px 0 2px}
 
@@ -1215,19 +1231,19 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .entry-dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto;transform:translateY(-1px)}
 .entry-name{flex:0 0 auto;font-family:'Archivo Black';font-size:15px;letter-spacing:.4px;color:#221F18;line-height:1}
 .entry-gap{flex:1}
-.entry-tag{font-family:'Inter';font-weight:600;font-size:8.5px;letter-spacing:1.2px;text-transform:uppercase;color:#9A7A2A;background:rgba(154,122,42,.12);border:1px solid rgba(154,122,42,.3);padding:3px 7px;border-radius:6px;flex:0 0 auto;align-self:center}
+.entry-tag{font-family:'Inter';font-weight:600;font-size:8.5px;letter-spacing:1.2px;text-transform:uppercase;color:#7a5a1e;background:rgba(154,122,42,.12);border:1px solid rgba(154,122,42,.3);padding:3px 7px;border-radius:6px;flex:0 0 auto;align-self:center}
 .entry-in{font-family:'Inter';font-weight:700;font-size:11px;color:#6aa05c}
 .entry-px{font-family:'DM Mono';font-weight:500;font-size:13px;color:#5f5a49}
 /* the price IS the order affordance (2026-08-01 audit): a quiet gold pill with a + — visual only,
    the whole row is the tap target (no nested button). Sold-out rows keep the plain struck price. */
-.entry-px.order{border:1px solid rgba(138,111,49,.42);border-radius:999px;padding:3px 10px;color:#8a6f31;font-weight:600}
+.entry-px.order{border:1px solid rgba(138,111,49,.42);border-radius:999px;padding:3px 10px;color:#7a5a1e;font-weight:600}
 .entry-px.order::before{content:"+ ";font-weight:700}
-.menu-taphint{font-family:'DM Mono';font-weight:500;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#9a8f7c;margin:8px 2px 0}
+.menu-taphint{font-family:'DM Mono';font-weight:500;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#6b6555;margin:8px 2px 0}
 .entry-body{margin-left:17px;margin-top:7px}
 .entry-ing{font-family:'Fraunces';font-size:13.5px;color:#2c291d;line-height:1.5}
 .entry-why{font-family:'Fraunces';font-style:italic;font-size:12.5px;color:#6f6a59;margin-top:6px;line-height:1.4}
 
-.menu-integrity{font-family:'Inter';font-weight:600;font-size:10px;letter-spacing:1.6px;text-transform:uppercase;color:#7a7361;text-align:center;margin-top:26px;line-height:1.8}
+.menu-integrity{font-family:'Inter';font-weight:600;font-size:10px;letter-spacing:1.6px;text-transform:uppercase;color:#6b6555;text-align:center;margin-top:26px;line-height:1.8}
 .menu-mto{font-family:'Fraunces';font-style:italic;font-size:12.5px;color:#6f6a59;text-align:center;margin-top:7px}
 .order-bar{width:100%;margin-top:20px;border:none;cursor:pointer;font-family:'Inter';font-weight:600;letter-spacing:1.5px;text-transform:uppercase;font-size:12.5px;padding:16px;border-radius:14px;background:var(--red);color:#fff;box-shadow:0 8px 20px color-mix(in srgb, var(--brand-red) 26%, transparent)}
 .order-bar:active{transform:scale(.99)}
@@ -1235,7 +1251,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 /* cream detail sheet — a card lifted off the menu */
 :is(.sheet,.sheet2).paper{background:#F4EFE3;border-top:1px solid rgba(34,31,24,.14)}
 :is(.sheet,.sheet2).paper .grab{background:rgba(34,31,24,.22)}
-.sheet-pillar{font-family:'Inter';font-weight:600;font-size:9.5px;letter-spacing:2px;text-transform:uppercase;color:#9A7A2A;margin-top:6px}
+.sheet-pillar{font-family:'Inter';font-weight:600;font-size:9.5px;letter-spacing:2px;text-transform:uppercase;color:#7a5a1e;margin-top:6px}
 .sheet-mark{display:flex;align-items:baseline;gap:11px;margin-top:12px}
 .sheet-dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;transform:translateY(-2px)}
 .sheet-name{flex:1;font-family:'Archivo Black';font-size:26px;letter-spacing:-.3px;color:#221F18;line-height:1;text-transform:uppercase}
@@ -1244,25 +1260,24 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .sheet-line{font-family:'Fraunces';font-size:16px;color:#2c291d;line-height:1.55}
 .sheet-why{font-family:'Fraunces';font-style:italic;font-size:13.5px;color:#6f6a59;margin-top:9px;line-height:1.5}
 .sheet-rule{height:1px;background:rgba(34,31,24,.14);margin:20px 0 4px}
-.sheet-sec{font-family:'Inter';font-weight:600;font-size:10px;letter-spacing:1.8px;text-transform:uppercase;color:#9A7A2A;margin:16px 0 9px}
+.sheet-sec{font-family:'Inter';font-weight:600;font-size:10px;letter-spacing:1.8px;text-transform:uppercase;color:#7a5a1e;margin:16px 0 9px}
 .sheet-list{list-style:none;display:flex;flex-wrap:wrap;gap:7px}
 .sheet-list li{font-family:'DM Mono';font-size:11.5px;color:#2c291d;background:rgba(34,31,24,.05);border:1px solid rgba(34,31,24,.12);padding:6px 10px;border-radius:9px}
-.sheet-list li:before{content:"• ";color:#9A7A2A}
+.sheet-list li:before{content:"• ";color:#7a5a1e}
 .sheet-list.no li{color:#9a4742;border-color:color-mix(in srgb, var(--brand-red) 30%, transparent)}
 .sheet-list.no li:before{content:"✕ ";color:#B82420}
 .sheet-when{display:flex;gap:12px;align-items:baseline;background:rgba(34,31,24,.04);border:1px solid rgba(34,31,24,.1);border-radius:13px;padding:13px 15px;margin-top:18px}
-.sheet-when-k{font-family:'Inter';font-weight:600;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#9A7A2A;flex:0 0 auto}
+.sheet-when-k{font-family:'Inter';font-weight:600;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#7a5a1e;flex:0 0 auto}
 .sheet-when-v{font-family:'Fraunces';font-size:13.5px;color:#2c291d}
 :is(.sheet,.sheet2).paper .order-bar{margin-top:18px}
 .sheet-signoff{text-align:center;font-family:'Fraunces';font-style:italic;font-size:13px;color:#6f6a59;margin-top:18px}
 
 /* cream checkout — recolour the legacy dark internals (scoped to the paper sheet) */
-:is(.sheet,.sheet2).paper .spec-label{color:#9A7A2A}
+:is(.sheet,.sheet2).paper .spec-label{color:#7a5a1e}
 :is(.sheet,.sheet2).paper .co-line{color:#221F18;border-bottom-color:rgba(34,31,24,.12)}
 :is(.sheet,.sheet2).paper .co-line span:last-child{color:#5f5a49}
 :is(.sheet,.sheet2).paper .co-total span{color:#221F18!important}
 :is(.sheet,.sheet2).paper .sq-card{background:rgba(34,31,24,.04);border-color:rgba(34,31,24,.16)}
-:is(.sheet,.sheet2).paper .signoff{color:#6f6a59}
 :is(.sheet,.sheet2).paper .honest{background:color-mix(in srgb, var(--brand-red) 7%, transparent);border-color:color-mix(in srgb, var(--brand-red) 20%, transparent);color:#3a2b22}
 :is(.sheet,.sheet2).paper .honest b{color:#221F18}
 :is(.sheet,.sheet2).paper .auth-err{color:#9a4742;background:color-mix(in srgb, var(--brand-red) 8%, transparent);border-color:color-mix(in srgb, var(--brand-red) 28%, transparent)}
@@ -3914,7 +3929,7 @@ body:has(.conc-sheet) .rail{display:flex}
 .dl-done-sub{color:var(--cream-m);font-family:'Inter';font-size:14px;margin-top:4px}
 .dl-done-total{font-family:'Archivo Black';font-size:46px;letter-spacing:-1px;line-height:1;margin:18px 0 2px;color:var(--cream)}
 .dl-done-total::before{content:attr(data-eyebrow);display:block;font-family:var(--mono);font-weight:500;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--gold2);margin-bottom:5px}
-.dl-receipt{margin:16px auto 0;max-width:340px;background:color-mix(in srgb, var(--brand-cream) 4%, transparent);border:1px solid var(--line);border-radius:14px;padding:4px 16px;text-align:left}
+.dl-receipt{margin:16px auto 0;max-width:340px;background:color-mix(in srgb, var(--surface-ink) 4%, transparent);border:1px solid var(--line);border-radius:14px;padding:4px 16px;text-align:left}
 .dl-receipt-row{display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:11px 0;border-bottom:1px dashed var(--line)}
 .dl-receipt-row:last-child{border-bottom:none}
 .dl-receipt-row>span{font-family:var(--mono);font-size:9.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--cream-d);flex:0 0 auto}
@@ -5085,7 +5100,7 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .of{display:flex;flex-direction:column}
 /* Segmented fulfillment toggle: flipping it keeps the pack — that's the whole point, so it reads
    as one control, not two links. Active segment lifts on a red-tinted plate; the other stays quiet. */
-.of-seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:5px;margin:0 0 16px;border:1px solid var(--line2);border-radius:16px;background:color-mix(in srgb, var(--brand-cream) 3%, transparent)}
+.of-seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:5px;margin:0 0 16px;border:1px solid var(--line2);border-radius:16px;background:color-mix(in srgb, var(--surface-ink) 3%, transparent)}
 .of-seg button{display:flex;flex-direction:column;align-items:center;gap:2px;padding:11px 8px 10px;border:1px solid transparent;border-radius:12px;background:none;cursor:pointer;-webkit-appearance:none;appearance:none;text-align:center;transition:transform .12s var(--ease),background .16s,border-color .16s}
 .of-seg button:active{transform:scale(.97)}
 .of-seg button b{font-family:'Inter';font-weight:800;font-size:14px;letter-spacing:.01em;color:var(--cream-m)}
@@ -6255,7 +6270,7 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .k-beat{text-align:center;padding:34px 0 10px}
 .k-beat .rule{height:1px;background:var(--line);margin:0 auto 16px;max-width:120px}
 .k-beat .g3{font-family:'Archivo Black';font-size:15px;color:var(--cream-m);justify-content:center}
-.k-beat .sig{font-family:var(--mono);font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:color-mix(in srgb, var(--brand-cream) 28%, transparent);margin-top:10px}
+.k-beat .sig{font-family:var(--mono);font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--ink-whisper);margin-top:10px}
 /* row detail drawer (expanded InfoRow) */
 .k-detail{padding:4px 0 16px 80px;border-bottom:1px solid var(--line)}
 .k-detail p{font-size:13.5px;color:var(--cream-m);line-height:1.55;margin:0 0 10px}
@@ -6268,13 +6283,12 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 /* KIT · light (paper) context — the cream Menu keeps its palette, same anatomy */
 .k-mast-light .g3{color:#221F18}
 .k-mast-light .k-pb{color:#6f6a59}
-.menu .k-eyb,.paper .k-eyb{color:#9A7A2A}
+.menu .k-eyb,.paper .k-eyb{color:#7a5a1e}
 .menu .k-sec,.paper .k-sec{border-color:rgba(34,31,24,.16)}
-.menu .k-sec .l,.paper .k-sec .l{color:#9A7A2A}
+.menu .k-sec .l,.paper .k-sec .l{color:#7a5a1e}
 .menu .k-sec .a,.paper .k-sec .a{color:#5d5748}
 .menu .k-beat .rule,.paper .k-beat .rule{background:rgba(34,31,24,.16)}
 .menu .k-beat .g3,.paper .k-beat .g3{color:#221F18}
-.menu .k-beat .sig,.paper .k-beat .sig{color:rgba(34,31,24,.45)}
 /* 08 · Kit extensions (Wave 2, 2026-07-15) — the button/card audit found real gaps, not just
    duplication: segmented toggles (~52 bespoke instances), icon-only circular buttons (~9), and a
    dashed "add new" affordance (~17) had no kit equivalent, so every screen reinvented its own. */
@@ -6644,6 +6658,49 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
    THE SHOP (0273) — merch storefront on the light "paper" surface, same editorial world as the Menu.
    ═══════════════════════════════════════════════════════════════════════════════════════════════ */
 .shop{background:#F4EFE3;min-height:100%;color:#221F18}
+/* ── The paper surface, as a TOKEN SCOPE (2026-09) ────────────────────────────────────────────────
+   Shop is a light screen hosting dark-built components. OrderFunnel (.of/.dl/.oa), Reserves,
+   StorefrontStory and the closing beat were all written against the charcoal app surface, where
+   "cream" means "text". Embedding the Bottles aisle here put cream text on a cream ground: a
+   MEASURED 1.02:1 on the fulfilment toggle — literally invisible — and what read on screen as a big
+   empty gap above the pack tiles was three paragraphs of live copy nobody could see. 19 text nodes
+   failed AA. Patching those rules one at a time would leave the next dark-built component to
+   rediscover the same bug, so this takes the .app.crew-day route instead: redeclare the ink family
+   once for this surface and let every component — including ones not written yet — inherit a
+   correct palette. Values carry a 4.5:1 floor on #F4EFE3, computed rather than eyeballed, and the
+   quiet tiers stay a real ramp: faint 5.0 · dim 5.7 · muted 6.5 · full ink 14.3. The greys and
+   golds are the ones the hand-written .shop-* rules below already use, so paper is ONE palette
+   now, not two that drift apart. Menu and the paper order sheets are the SAME surface and had the
+   same disease — /menu measured 26 AA failures, its footer links at 1.01:1 — so they share the
+   scope rather than keep accumulating the per-rule overrides that had already piled up under
+   :is(.sheet,.sheet2).paper. One surface, one palette, declared once. */
+.shop,.menu,:is(.sheet,.sheet2).paper{
+  --cream:#221F18; --cream-m:rgba(34,31,24,.74); --cream-d:rgba(34,31,24,.66); --cream2:#3a352b;
+  --oa-cream:#221F18; --oa-cream-dim:rgba(34,31,24,.70); --oa-cream-faint:rgba(34,31,24,.66);
+  --surface-ink:#221F18;
+  --card:#FBF8EF; --char:#EFE7D6; --char2:#EFE7D6; --char3:#E9E0CF; --field:#FBF8EF; --well:#FBF8EF;
+  --line:rgba(34,31,24,.12); --line2:rgba(34,31,24,.22); --oa-hair:rgba(34,31,24,.20);
+  --gold:#86581f; --gold2:#7a5a1e; --bronze:#7d5622; --oa-gold:#7a5a1e;
+  --muted:rgba(34,31,24,.66); --ok:#3f6b2f; --warn:#8a5a17; --red-h:#9d1d1a;
+  --ink-whisper:rgba(34,31,24,.64);
+  /* 15% brand red reads as loud pink on paper; 8% reads as a considered selection */
+  --oa-red-tint:color-mix(in srgb, var(--brand-red) 8%, transparent);
+}
+/* Dark islands re-assert their own ink. A surface that is genuinely dark inside a light screen is
+   not a bug to flatten — it's a panel — so it restates the charcoal palette rather than inheriting
+   paper. Two kinds live here: the drop card (a dark panel by design) and the red CTAs/tags, where
+   cream ON red is the correct foreground and paper ink would be the regression. */
+:is(.shop,.menu,.sheet,.sheet2) .drop{
+  --cream:#F5F1E8; --cream-m:color-mix(in srgb, var(--brand-cream) 72%, transparent);
+  --cream-d:color-mix(in srgb, var(--brand-cream) 48%, transparent); --cream2:#EFE7D6;
+  --surface-ink:var(--brand-cream);
+  --line:color-mix(in srgb, var(--brand-cream) 12%, transparent);
+  --line2:color-mix(in srgb, var(--brand-cream) 20%, transparent);
+  --gold:#a97c3f; --gold2:#c8a661; --bronze:#a97c3f; --ok:#6aa05c; --red-h:#dd5651;
+  --ink-whisper:color-mix(in srgb, var(--brand-cream) 50%, transparent);
+}
+:is(.shop,.menu,.sheet,.sheet2) :is(.oa-cta,.subpitch-cta,.sub-cta,.t-order,.arr-order,.mpack-cta):not(.ghost),
+:is(.shop,.menu,.sheet,.sheet2) .oa-tile .oa-tag{--oa-cream:#F5F1E8;--cream:#F5F1E8}
 .shop-stmt{font-family:'Fraunces';font-style:italic;font-size:16px;line-height:1.5;color:#5a5142;margin:14px 0 20px;max-width:52ch}
 .shop-note{margin:24px 0;text-align:center;font-family:'Inter';font-size:14.5px;color:#5a5142}
 .shop-note.err{color:var(--red)}
@@ -6660,16 +6717,16 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .shop-thumb-ph.lg{font-size:56px}
 .shop-card-b{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:11px 13px 13px}
 .shop-card-t{font-family:'Archivo Black';font-size:13px;letter-spacing:.3px;color:#221F18;line-height:1.15}
-.shop-card-px{font-family:var(--mono);font-size:13px;color:#8a6f31;font-weight:500;white-space:nowrap}
+.shop-card-px{font-family:var(--mono);font-size:13px;color:#7a5a1e;font-weight:500;white-space:nowrap}
 /* detail */
 .shop-detail,.shop-checkout{animation:fade .22s}
-.shop-back{margin:10px 0 6px;color:#8a6f31}
+.shop-back{margin:10px 0 6px;color:#7a5a1e}
 .shop-hero{aspect-ratio:1;max-height:360px;background:#EFE7D6;border-radius:16px;display:flex;align-items:center;justify-content:center;overflow:hidden;margin:6px 0 0}
 .shop-hero img{width:100%;height:100%;object-fit:cover}
-.shop-detail-px{font-family:var(--mono);font-size:18px;color:#8a6f31;font-weight:500;margin:10px 0 0}
+.shop-detail-px{font-family:var(--mono);font-size:18px;color:#7a5a1e;font-weight:500;margin:10px 0 0}
 .shop-blurb{font-family:'Inter';font-size:15px;line-height:1.6;color:#4a4335;margin:12px 0 0;max-width:56ch}
 .shop-vari{display:flex;flex-direction:column;gap:6px;margin:18px 0 0}
-.shop-vari span{font-family:'Inter';font-weight:750;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:#8a6f31}
+.shop-vari span{font-family:'Inter';font-weight:750;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:#7a5a1e}
 .shop-vari select{padding:12px;border:1px solid rgba(34,31,24,.2);border-radius:10px;background:#FBF8EF;color:#221F18;font-family:'Inter';font-size:15px}
 .shop-qty{display:flex;align-items:center;gap:0;margin:16px 0;width:fit-content;border:1px solid rgba(34,31,24,.2);border-radius:var(--r-pill);overflow:hidden}
 .shop-qty button{width:44px;height:42px;background:#FBF8EF;border:0;font-size:20px;color:#221F18;cursor:pointer}
@@ -6692,9 +6749,9 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .shop-total span{font-family:'Inter';font-weight:750;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:#7a7160}
 .shop-total b{font-family:'Fraunces';font-weight:600;font-size:24px;color:#221F18}
 .shop-ship,.shop-pay{margin:24px 0 0}
-.shop-ship-n{font-family:'Inter';font-weight:750;font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:#8a6f31;margin:0 0 10px}
+.shop-ship-n{font-family:'Inter';font-weight:750;font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:#7a5a1e;margin:0 0 10px}
 .shop-ship input,.shop-ship-row input{width:100%;padding:13px 14px;margin:0 0 9px;border:1px solid rgba(34,31,24,.2);border-radius:10px;background:#FBF8EF;color:#221F18;font-family:'Inter';font-size:15px}
-.shop-ship input::placeholder,.shop-ship-row input::placeholder{color:#9a8f7c}
+.shop-ship input::placeholder,.shop-ship-row input::placeholder{color:#6b6555}
 .shop-ship-row{display:flex;gap:9px}
 .shop-err{font-family:'Inter';font-size:13.5px;color:var(--red);margin:10px 0}
 .shop-fine{font-family:'Inter';font-size:12px;line-height:1.5;color:#7a7160;margin:12px 0 0;text-align:center}
@@ -6704,3 +6761,88 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .shop-done-ic{display:inline-flex;width:60px;height:60px;align-items:center;justify-content:center;border-radius:50%;background:rgba(106,160,92,.14);color:var(--ok);font-size:28px;margin:0 0 10px}
 .shop-lede{font-family:'Inter';font-size:15.5px;line-height:1.6;color:#4a4335;max-width:44ch;margin:14px auto 22px}
 .shop .btn-sec{color:#221F18;border-color:rgba(34,31,24,.25)}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════════
+   SHOP MEDIA (0278) — the story affordance on paper, the story itself on black.
+   ═══════════════════════════════════════════════════════════════════════════════════════════════ */
+/* Grid card: a quiet count/▶ pip so a shopper can tell which products have more to show. */
+.shop-thumb{position:relative}
+.shop-story-dot{position:absolute;top:8px;right:8px;min-width:20px;height:20px;padding:0 6px;border-radius:999px;
+  display:inline-flex;align-items:center;justify-content:center;background:color-mix(in srgb, #221F18 72%, transparent);
+  color:#F5F1E8;font-family:var(--mono);font-size:10px;font-weight:600;line-height:1;backdrop-filter:blur(3px)}
+/* Detail hero as a door: same box, now a button, with the story's pips drawn along the bottom. */
+.shop-hero.as-story{position:relative;padding:0;border:0;cursor:pointer;width:100%;-webkit-appearance:none;appearance:none;
+  transition:transform .16s var(--ease),box-shadow .16s}
+.shop-hero.as-story:active{transform:scale(.995)}
+@media (hover:hover){.shop-hero.as-story:hover{box-shadow:0 12px 30px rgba(34,31,24,.16)}}
+.shop-hero-cue{position:absolute;left:12px;bottom:14px;display:inline-flex;align-items:center;gap:6px;
+  padding:6px 11px;border-radius:999px;background:color-mix(in srgb, #221F18 74%, transparent);color:#F5F1E8;
+  font-family:'Inter';font-weight:650;font-size:11.5px;letter-spacing:.02em;backdrop-filter:blur(4px)}
+.shop-hero-pips{position:absolute;left:12px;right:12px;bottom:6px;display:flex;gap:3px}
+.shop-hero-pips i{flex:1;height:2px;border-radius:2px;background:color-mix(in srgb, #F5F1E8 62%, transparent)}
+
+/* ── The owner's media studio (crew console — dark surface, so it uses the root tokens) ───────── */
+.ms{margin:10px 0 4px}
+.ms-locked{display:flex;align-items:flex-start;gap:8px;margin:6px 0 0;font-family:'Inter';font-size:12.5px;
+  line-height:1.5;color:var(--cream-m);border:1px dashed var(--line2);border-radius:12px;padding:10px 12px}
+.ms-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(122px,1fr));gap:10px;margin:8px 0 0}
+.ms-item{display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);border-radius:12px;padding:7px;background:var(--card)}
+.ms-item.cover{border-color:var(--gold2)}
+.ms-thumb{position:relative;aspect-ratio:1;border-radius:9px;overflow:hidden;background:var(--char3);display:flex;align-items:center;justify-content:center}
+.ms-thumb img{width:100%;height:100%;object-fit:cover}
+.ms-ph{color:var(--cream-d);font-size:26px;display:inline-flex}
+.ms-badge{position:absolute;top:5px;left:5px;padding:2px 7px;border-radius:999px;background:color-mix(in srgb, #000 62%, transparent);
+  color:#F5F1E8;font-family:'Inter';font-weight:650;font-size:9px;letter-spacing:.06em;text-transform:uppercase}
+.ms-badge.cover{left:auto;right:5px;background:var(--gold2);color:#1a1610}
+.ms-row{display:flex;gap:4px}
+.ms-b{flex:1;min-width:0;min-height:32px;padding:0 6px;border:1px solid var(--line2);border-radius:9px;background:transparent;
+  color:var(--cream);font-family:'Inter';font-weight:600;font-size:11px;cursor:pointer;-webkit-appearance:none;appearance:none;
+  display:inline-flex;align-items:center;justify-content:center}
+.ms-b:disabled{opacity:.35;cursor:default}
+.ms-b.del{flex:0 0 34px;color:var(--red-h)}
+@media (hover:hover){.ms-b:not(:disabled):hover{border-color:var(--gold2)}}
+.ms-alt{width:100%;min-height:32px;padding:6px 8px;border:1px solid var(--line);border-radius:9px;background:var(--field);
+  color:var(--cream);font-family:'Inter';font-size:12px;outline:none}
+.ms-alt::placeholder{color:var(--cream-d)}
+.ms-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:12px 0 0}
+.ms-room{font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--cream-d)}
+.ms-busy{font-family:'Inter';font-size:12.5px;color:var(--gold2);margin:8px 0 0}
+.ms-errs{margin:8px 0 0;padding-left:18px;font-family:'Inter';font-size:12.5px;line-height:1.5;color:var(--red-h)}
+
+/* ── The story ────────────────────────────────────────────────────────────────────────────────────
+   Portalled to <body>, so it is deliberately OUTSIDE any surface scope: a story is black, whatever
+   screen opened it. Fixed to the visual viewport with dvh so mobile browser chrome can't crop it. */
+.sv{position:fixed;inset:0;z-index:220;background:#000;display:flex;flex-direction:column;
+  height:100dvh;padding:calc(8px + env(safe-area-inset-top)) 0 calc(8px + env(safe-area-inset-bottom));
+  animation:svIn .2s var(--ease);outline:none;overscroll-behavior:contain}
+@keyframes svIn{from{opacity:0;transform:scale(.985)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.sv{animation:none}}
+.sv-bars{display:flex;gap:3px;padding:0 10px;flex:0 0 auto}
+.sv-bar{flex:1;height:2.5px;border-radius:3px;background:color-mix(in srgb, var(--brand-cream) 26%, transparent);overflow:hidden}
+.sv-bar i{display:block;height:100%;background:var(--brand-cream);transform-origin:left center;transform:scaleX(0);will-change:transform}
+.sv-top{display:flex;align-items:center;gap:10px;padding:10px 14px 6px;flex:0 0 auto}
+.sv-title{flex:1;min-width:0;font-family:'Inter';font-weight:700;font-size:13.5px;letter-spacing:.01em;color:#F5F1E8;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sv-top-b{display:flex;gap:4px;flex:0 0 auto}
+.sv-ic{width:40px;height:40px;border:0;border-radius:50%;background:color-mix(in srgb, var(--brand-cream) 10%, transparent);
+  color:#F5F1E8;font-size:15px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;-webkit-appearance:none;appearance:none}
+@media (hover:hover){.sv-ic:hover{background:color-mix(in srgb, var(--brand-cream) 20%, transparent)}}
+.sv-stage{position:relative;flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;touch-action:pan-y}
+.sv-media{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;display:block;background:#000}
+.sv-fallback{display:flex;align-items:center;justify-content:center;width:100%;height:100%}
+.sv-fallback-t{font-family:'Inter';font-size:14px;color:color-mix(in srgb, var(--brand-cream) 66%, transparent)}
+/* Tap zones are real buttons sitting over the media; the arrow only shows to pointer users. */
+.sv-zone{position:absolute;top:0;bottom:0;border:0;background:none;cursor:pointer;-webkit-appearance:none;appearance:none;
+  display:flex;align-items:center;padding:0 10px;color:#F5F1E8;-webkit-tap-highlight-color:transparent}
+.sv-zone.prev{left:0;width:33%;justify-content:flex-start}
+.sv-zone.next{right:0;width:67%;justify-content:flex-end}
+.sv-zone:disabled{cursor:default}
+.sv-arrow{font-size:30px;line-height:1;opacity:0;transition:opacity .15s;
+  text-shadow:0 2px 10px rgba(0,0,0,.6)}
+@media (hover:hover){.sv-zone:not(:disabled):hover .sv-arrow{opacity:.85}}
+.sv-zone:focus-visible .sv-arrow{opacity:.9}
+.sv-paused{position:absolute;top:12px;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:10px;
+  letter-spacing:.18em;text-transform:uppercase;color:#F5F1E8;background:color-mix(in srgb, #000 55%, transparent);
+  padding:4px 10px;border-radius:999px;pointer-events:none}
+.sv-count{flex:0 0 auto;margin:8px 16px 0;text-align:center;font-family:'Inter';font-size:12px;line-height:1.4;
+  color:color-mix(in srgb, var(--brand-cream) 70%, transparent)}
