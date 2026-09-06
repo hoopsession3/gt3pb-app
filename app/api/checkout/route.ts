@@ -7,6 +7,7 @@ import { benefitsForUser, priceForSlug, acceptedCode } from "@/lib/benefits";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { notifyCustomer, accountEmail } from "@/lib/notify";
 import { preorderWindow, preorderLeadMs } from "@/lib/orderAhead";
+import { toMarket } from "@/lib/markets";
 
 // Square Catalog as a secondary sync — used ONLY for items missing from `products` (a catalog gap),
 // never as the primary source. products.price_cents is the one price authority (0062, and the same
@@ -115,9 +116,15 @@ export async function POST(req: Request) {
   // same rule, this is the authoritative check before any charge). If these reads fail the gate
   // closes — better to refuse an order than charge a card we can't record.
   {
+    // MARKET (0279): the authoritative gate has to ask about the buyer's city, not "is any stop
+    // anywhere next". Unfiltered, a stop in one city could open the ordering window in another and
+    // authorise a charge for a truck that is nowhere near them. Defaults to the founding market, so
+    // a client that sends nothing is gated exactly as it was.
+    const orderMarket = toMarket((body as { market?: unknown }).market);
     const [{ data: ls }, { data: st }] = await Promise.all([
       supabaseAdmin.from("live_status").select("is_live, preorder_lead_h").maybeSingle(),
       supabaseAdmin.from("stops").select("starts_at").is("archived_at", null).neq("status", "done").not("starts_at", "is", null)
+        .eq("market", orderMarket)
         .gte("starts_at", new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString())
         .order("starts_at", { ascending: true }).limit(1).maybeSingle(),
     ]);

@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useApp } from "./AppProvider";
 import { useAvailability } from "@/lib/availability";
+import { useViewerMarket } from "@/components/useViewerMarket";
 import { useOrderingOpen } from "./useOrderingOpen";
 import { DRINKS } from "@/lib/menu";
 import { dropForStop, nextDrop } from "@/lib/orderAhead";
@@ -26,7 +27,8 @@ export default function DrinkSheet() {
   const t = useSiteCopy();
   // Ordering is gated at the FIRST touchpoint, not just checkout: outside the truck's window the
   // add button routes to the pack reserve instead (same rule as checkout + /api/checkout).
-  const ordering = useOrderingOpen(!!openId);
+  const { market: viewerMarket } = useViewerMarket();
+  const ordering = useOrderingOpen(!!openId, viewerMarket);
   // Packs are a SEPARATE product from cup pre-orders and were never gated by the truck's live
   // status — that part of the old copy ("brewed to order anytime") was true. What wasn't true: a
   // real cutoff always exists (lib/orderAhead — 24h before the next stop, or the weekly Wed-6pm

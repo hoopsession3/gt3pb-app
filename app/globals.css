@@ -6846,3 +6846,15 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
   padding:4px 10px;border-radius:999px;pointer-events:none}
 .sv-count{flex:0 0 auto;margin:8px 16px 0;text-align:center;font-family:'Inter';font-size:12px;line-height:1.4;
   color:color-mix(in srgb, var(--brand-cream) 70%, transparent)}
+
+/* ── City switcher (0279) — only rendered when a second market is actually on the road ──────────
+   Sits on the dark truck surface, so it uses the root ink tokens. Sized to the same 44px touch
+   floor as every other control; `on` reads as the selected city rather than a hover accident. */
+.mkt-switch{display:flex;gap:7px;flex-wrap:wrap;margin:14px 0 2px}
+.mkt-chip{flex:0 0 auto;min-height:34px;padding:7px 15px;border-radius:var(--r-pill);border:1px solid var(--line2);
+  background:transparent;color:var(--cream-m);font-family:'Inter';font-weight:650;font-size:11.5px;
+  letter-spacing:.09em;text-transform:uppercase;cursor:pointer;-webkit-appearance:none;appearance:none;
+  transition:background .15s,border-color .15s,color .15s}
+.mkt-chip.on{background:var(--cream);border-color:var(--cream);color:var(--char)}
+@media (hover:hover){.mkt-chip:not(.on):hover{border-color:var(--gold2);color:var(--cream)}}
+.mkt-chip:active{transform:scale(.97)}

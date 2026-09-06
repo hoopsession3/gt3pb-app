@@ -9,6 +9,7 @@ import { resolveVendor, addVendorLocation, type VendorMatch } from "@/lib/vendor
 import VendorResolve from "@/components/VendorResolve";
 import { useLocationSuggestions } from "@/components/useLocationSuggestions";
 import Icon from "@/components/Icon";
+import { MARKETS, MARKET_LABEL, toMarket, FOUNDING_MARKET } from "@/lib/markets";
 
 // FIELD-OP SHEET — the ONE quick editor for a field op's core facts (name · date · time ·
 // place · status), reachable in two taps from anywhere a stop or event shows (calendar,
@@ -97,7 +98,7 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
 
   useEffect(() => {
     if (!supabase) return;
-    const sel = isEvent ? "title, day, location_text, stage, published_at, public_title" : "name, starts_at, ends_at, location_text, address, status, completed_at, vendor_id";
+    const sel = isEvent ? "title, day, location_text, stage, published_at, public_title, market" : "name, starts_at, ends_at, location_text, address, status, completed_at, vendor_id, market";
     supabase.from(table).select(sel).eq("id", id).maybeSingle()
       .then(({ data }) => {
         const row = ((data ?? {}) as unknown) as Record<string, string | null>;
@@ -155,11 +156,11 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
     const rawName = (f[isEvent ? "title" : "name"] || "").trim();
     const nm = rawName || (isEvent ? "Event" : "Stop");
     const patch: Record<string, string | number | null> = isEvent
-      ? { title: nm, day: f.day || null, location_text: f.location_text?.trim() || null,
+      ? { title: nm, day: f.day || null, location_text: f.location_text?.trim() || null, market: toMarket(f.market),
           // Publish gate (0270): published_at carries the guest-visibility decision; public_title is
           // the optional guest-facing name. Both are set by the toggle/field below, written verbatim.
           published_at: f.published_at || null, public_title: f.public_title?.trim() || null }
-      : { name: nm, starts_at: f.starts_at || null, ends_at: f.ends_at || null, location_text: f.location_text?.trim() || null, address: f.address?.trim() || null };
+      : { name: nm, starts_at: f.starts_at || null, ends_at: f.ends_at || null, location_text: f.location_text?.trim() || null, address: f.address?.trim() || null, market: toMarket(f.market) };
     // stage/status: write ONLY a deliberate change (lifecycle automation owns it otherwise)
     const stageNow = (isEvent ? f.stage : f.status) ?? null;
     if (stageNow !== origStage.current) patch[isEvent ? "stage" : "status"] = stageNow;
@@ -236,6 +237,17 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
       <label className="prod-f" style={{ marginTop: 8 }}><span>Where</span><input value={f.location_text ?? ""} onChange={(e) => set("location_text", e.target.value)} placeholder="Where" list="gt3-locs-fieldop" /></label>
       {!isEvent && <label className="prod-f" style={{ marginTop: 8 }}><span>Address (pins the map + directions)</span><input value={f.address ?? ""} onChange={(e) => set("address", e.target.value)} placeholder="123 Peach St, Atlanta GA" list="gt3-locs-fieldop" /></label>}
       {locSugs.length > 0 && <datalist id="gt3-locs-fieldop">{locSugs.map((s) => <option key={s} value={s} />)}</datalist>}
+      {/* MARKET (0279) — which city this belongs to. It lives HERE, in the one sheet that reaches
+          every stop and event in two taps, rather than in each of the three places a stop can be
+          created: one control to find, and re-tagging something created in the wrong city is the
+          same two taps as fixing its time. Defaults to the founding market, exactly like the column,
+          so a crew member who never opens this row changes nothing. */}
+      <label className="prod-f" style={{ marginTop: 8 }}>
+        <span>City {f.market && toMarket(f.market) !== FOUNDING_MARKET ? <i>(guests in other cities won&rsquo;t see this)</i> : null}</span>
+        <select value={toMarket(f.market)} onChange={(e) => set("market", e.target.value)}>
+          {MARKETS.map((m) => <option key={m} value={m}>{MARKET_LABEL[m]}</option>)}
+        </select>
+      </label>
       {!isEvent && (
         <label className="prod-f" style={{ marginTop: 8 }}><span>Status</span>
           <select value={f.status ?? "upcoming"} onChange={(e) => set("status", e.target.value)}>

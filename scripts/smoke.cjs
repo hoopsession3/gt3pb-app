@@ -622,6 +622,44 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     SM.STORY_IMAGE_MS >= 3000 && SM.STORY_IMAGE_MS <= 6000);
 }
 
+// ── VIEWER MARKET (0279) — which city is this person looking at ───────────────────────────────────
+{
+  const M = require("../.smoke/markets.js");
+
+  // The zero-regression claim, as a test: one market on the road = the founding market, no choice.
+  ok("viewer: one market on the road means no choice to offer",
+    !M.shouldOfferMarketChoice(M.marketsPresent([{ market: "greenville" }, { market: "greenville" }])));
+  ok("viewer: with only greenville running, the viewer is in greenville",
+    M.pickViewerMarket(null, ["greenville"]) === "greenville");
+  ok("viewer: and every row passes the filter",
+    [{ market: "greenville" }, { market: null }, {}].every((r) => M.rowInMarket(r, "greenville")));
+
+  // A stored choice is honoured — but only while that city still has something on.
+  ok("viewer: a stored choice wins", M.pickViewerMarket("atlanta", ["greenville", "atlanta"]) === "atlanta");
+  ok("viewer: a stored choice for a city that went quiet falls back to founding",
+    M.pickViewerMarket("atlanta", ["greenville"]) === "greenville");
+  ok("viewer: junk in storage never escapes",
+    M.pickViewerMarket("mars", ["greenville", "atlanta"]) === "greenville" &&
+    M.pickViewerMarket(42, ["atlanta"]) === "atlanta" &&
+    M.pickViewerMarket(undefined, []) === "greenville");
+  ok("viewer: nobody is shown an empty road while another city is running",
+    M.pickViewerMarket(null, ["atlanta"]) === "atlanta");
+  ok("viewer: the answer is never null, whatever goes in",
+    [null, "", "atlanta", 0, {}, []].every((v) => M.MARKETS.includes(M.pickViewerMarket(v, []))));
+
+  // Presence is derived from loaded rows, so the switcher can't appear for a city with nothing on.
+  ok("viewer: presence is derived from rows, in a stable order",
+    M.marketsPresent([{ market: "atlanta" }, { market: "greenville" }, { market: "atlanta" }]).join(",")
+      === "greenville,atlanta");
+  ok("viewer: rows with no market read as the founding market",
+    M.marketsPresent([{}, { market: null }]).length === 0 &&
+    M.rowInMarket({}, "greenville") && !M.rowInMarket({}, "atlanta"));
+  ok("viewer: two markets on the road is a real choice",
+    M.shouldOfferMarketChoice(M.marketsPresent([{ market: "greenville" }, { market: "atlanta" }])));
+  ok("viewer: a row belongs to exactly one market",
+    M.rowInMarket({ market: "atlanta" }, "atlanta") && !M.rowInMarket({ market: "atlanta" }, "greenville"));
+}
+
 console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
 console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);
 process.exit(fail ? 1 : 0);

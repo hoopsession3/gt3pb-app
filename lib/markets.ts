@@ -61,3 +61,47 @@ export const toMarket = (v: unknown): Market => (isMarket(v) ? v : FOUNDING_MARK
 /** Does this market currently fulfil this channel? Unknown markets fall back to the founding one. */
 export const marketServes = (market: Market, channel: Channel): boolean =>
   (MARKET_CHANNELS[market] ?? MARKET_CHANNELS[FOUNDING_MARKET])[channel];
+
+// ── WHICH MARKET IS THE VIEWER LOOKING AT? (0279) ────────────────────────────────────────────────
+//
+// The audit's step 02 — filter Find Us and the ordering window by city — needs an answer to "which
+// city is this person in", and the honest answer is that the app cannot know. It has no reliable
+// signal: geolocation is a permission prompt for a question most people would rather just be asked,
+// and an IP guess is wrong often enough to be worse than a default.
+//
+// So the rule is deliberately dumb, and dumb in the safe direction:
+//   1. If the viewer has chosen a city, use it — as long as that city still has something on.
+//   2. Otherwise the founding market, if it has something on. Today that is always true, which is
+//      exactly why nothing changes for anyone until a second city genuinely has a stop.
+//   3. Otherwise the first market that does have something on — so a viewer is never shown an empty
+//      road while another city is running.
+//   4. Otherwise the founding market. Never null, never a crash.
+//
+// `available` is derived from the rows the screen ALREADY loaded, not from a second query — which is
+// why a switcher can only appear when a second market really is on the road, and why this costs
+// nothing while Greenville runs alone.
+
+export const MARKET_CHOICE_KEY = "gt3.market";
+
+export function pickViewerMarket(stored: unknown, available: readonly string[] = []): Market {
+  const live = available.filter(isMarket);
+  if (isMarket(stored) && live.includes(stored)) return stored;
+  if (live.includes(FOUNDING_MARKET)) return FOUNDING_MARKET;
+  return live[0] ?? FOUNDING_MARKET;
+}
+
+/** The distinct markets present in a set of loaded rows, in MARKETS order so the switcher is stable
+ *  (a switcher whose buttons reorder as data loads is worse than no switcher). */
+export function marketsPresent(rows: readonly { market?: unknown }[]): Market[] {
+  const seen = new Set<Market>();
+  for (const r of rows) if (isMarket(r?.market)) seen.add(r.market);
+  return MARKETS.filter((m) => seen.has(m));
+}
+
+/** Show a city switcher only when the choice is real. One market on the road = no chrome. */
+export const shouldOfferMarketChoice = (present: readonly Market[]): boolean => present.length > 1;
+
+/** Keep a row if it belongs to this market. Rows with no market read as the founding market, so a
+ *  row written before 0275 (or by a path that never set it) stays visible where it always was. */
+export const rowInMarket = (row: { market?: unknown }, market: Market): boolean =>
+  toMarket(row?.market) === market;

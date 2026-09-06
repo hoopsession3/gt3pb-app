@@ -13,6 +13,8 @@ import { subscribePush } from "@/lib/push";
 import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
 import { useSiteCopy } from "@/lib/copy";
+import { marketsPresent, rowInMarket, shouldOfferMarketChoice, MARKET_LABEL } from "@/lib/markets";
+import { useViewerMarket } from "@/components/useViewerMarket";
 import { useAvailability } from "@/lib/availability";
 import { localToday, relativeDay, fmt12 } from "@/lib/dates";
 import { clickable } from "@/lib/a11y";
@@ -39,7 +41,7 @@ import Icon from "@/components/Icon";
 //    local mirror the initial load fills.
 
 type FieldOp = {
-  id: string; kind: "event" | "stop"; name: string; public_title?: string | null; published_at?: string | null;
+  id: string; kind: "event" | "stop"; name: string; public_title?: string | null; published_at?: string | null; market?: string | null;
   day: string | null; starts_at: string | null; ends_at: string | null;
   start_time: string | null; end_time: string | null;
   day_label: string | null; when_label: string | null; time_label: string | null;
@@ -118,7 +120,7 @@ async function fetchRoad(): Promise<Board> {
   // venue POC contact columns this comment used to warn about — poc_name/phone/email/service_dates —
   // were dropped from the table entirely in migration 0240; there's nothing left to leak.)
   const [{ data: fo, error: e1 }, { data: l, error: e2 }] = await Promise.all([
-    supabase!.from("field_ops").select("id, kind, name, public_title, day, starts_at, ends_at, start_time, end_time, day_label, when_label, time_label, location_text, address, lat, lng, member_only, going_count, capacity, blurb, menu_tier, notes, note, status, completed_at, archived_at, is_public, published_at").eq("is_public", true),
+    supabase!.from("field_ops").select("id, kind, name, public_title, day, starts_at, ends_at, start_time, end_time, day_label, when_label, time_label, location_text, address, lat, lng, member_only, going_count, capacity, blurb, menu_tier, notes, note, status, completed_at, archived_at, is_public, published_at, market").eq("is_public", true),
     supabase!.from("live_status").select("*").maybeSingle(),
   ]);
   if (e1) throw new Error(e1.message);
@@ -205,13 +207,24 @@ export default function FindUs() {
   const ORDERS_CLOSE_BEFORE_MS = 60 * 60_000;
   const LIVE_OFF_BEFORE_MS = 45 * 60_000;
   const nowMs = Date.now();
-  const liveStop = live?.is_live ? ops.find((r) => r.id === live.current_stop_id) : undefined;
+  // MARKET (0279) — the audit's step 02. This road used to be every public stop everywhere, sorted
+  // by time, shown to everyone: a Greenville member's "where's the truck next" could answer with a
+  // stop four hours away. The QUERY stays unfiltered on purpose, because the screen needs to see
+  // which cities are actually running in order to know whether a choice is even worth offering —
+  // filtering here costs nothing and keeps it to one round trip.
+  //
+  // With one city on the road, `present` is ["greenville"], `viewerMarket` is greenville, and every
+  // row passes: byte-identical to before. The switcher does not render at all.
+  const present = marketsPresent(ops);
+  const { market: viewerMarket, choose: chooseMarket } = useViewerMarket(present);
+  const roadOps = ops.filter((r) => rowInMarket(r, viewerMarket));
+  const liveStop = live?.is_live ? roadOps.find((r) => r.id === live.current_stop_id) : undefined;
   const liveEndsMs = liveStop?.ends_at ? new Date(liveStop.ends_at).getTime() : null;
   const isLive = Boolean(live?.is_live) && (liveEndsMs == null || nowMs < liveEndsMs - LIVE_OFF_BEFORE_MS);
   const ordersOpen = liveEndsMs == null || nowMs < liveEndsMs - ORDERS_CLOSE_BEFORE_MS;
   // past events fold below (stops age out of the query window instead)
-  const upcoming = ops.filter((r) => r.kind === "stop" || !r.day || r.day >= today);
-  const past = ops.filter((r) => r.kind === "event" && r.day && r.day < today);
+  const upcoming = roadOps.filter((r) => r.kind === "stop" || !r.day || r.day >= today);
+  const past = roadOps.filter((r) => r.kind === "event" && r.day && r.day < today);
   // the hero is the next PLACE TO FIND US — live stop first, else first upcoming stop or event
   const hero = (isLive && upcoming.find((r) => r.id === live?.current_stop_id)) || upcoming[0];
   // Humanize the hero's "when" (the one "where's the truck next" answer): relativeDay returns an
@@ -265,6 +278,20 @@ export default function FindUs() {
         live={isLive}
         right={<div className="mast-right"><EditCopyPill group="Truck" /><AccountPill /></div>}
       />
+
+      {/* City switcher — renders ONLY once a second market genuinely has something on the road.
+          While Greenville runs alone there is no choice to make, so there is no control to explain,
+          no state to get wrong, and the screen is exactly what it was. */}
+      {shouldOfferMarketChoice(present) && (
+        <div className="mkt-switch" role="group" aria-label="Choose a city">
+          {present.map((m) => (
+            <button key={m} type="button" className={`mkt-chip${m === viewerMarket ? " on" : ""}`}
+              aria-pressed={m === viewerMarket} onClick={() => chooseMarket(m)}>
+              {MARKET_LABEL[m]}
+            </button>
+          ))}
+        </div>
+      )}
 
       <h1 className="k-title lg">{hero?.name ?? (board.status === "error" ? "Couldn't load" : board.status === "ready" ? t("findus.no_stops") : "…")}</h1>
       {hero && (

@@ -9,6 +9,7 @@ import { subscribePush } from "@/lib/push";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import { useAvailability } from "@/lib/availability";
 import { perBottle, PRICING } from "@/lib/orderAhead";
+import { useViewerMarket } from "@/components/useViewerMarket";
 import { useOrderingOpen } from "./useOrderingOpen";
 import { usePayAtPickup } from "./usePayAtPickup";
 import { squareClientReady } from "@/lib/square";
@@ -52,7 +53,8 @@ export default function Checkout() {
   // "Ready in ~8 min" is only true when there's a truck to make it. One shared rule
   // (useOrderingOpen → lib/orderAhead.preorderWindow, operator-adjustable lead, also enforced in
   // /api/checkout): outside the window the sheet offers the pack reserve instead.
-  const ordering = useOrderingOpen(open);
+  const { market: viewerMarket } = useViewerMarket();
+  const ordering = useOrderingOpen(open, viewerMarket);
   // Operator's pay-later switch (Money section). Governs whether the "pay at the truck" pre-order
   // path is offered — on its own when Square is off, or alongside the card when Square is on.
   const payLater = usePayAtPickup(open);
@@ -113,7 +115,7 @@ export default function Checkout() {
       const res = await authedFetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items, customer }),
+        body: JSON.stringify({ items, customer, market: viewerMarket }),
       });
       const data = await res.json();
       if (!res.ok) return { error: { message: data?.error || "That didn't go through — try again." } };
@@ -162,7 +164,7 @@ export default function Checkout() {
       const res = await authedFetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceId: result.token, items, tipCents, customer, idempotencyKey: idemKeyFor(JSON.stringify({ items, tipCents, customer, sourceId: result.token })) }),
+        body: JSON.stringify({ sourceId: result.token, items, tipCents, customer, market: viewerMarket, idempotencyKey: idemKeyFor(JSON.stringify({ items, tipCents, customer, sourceId: result.token })) }),
       });
       const data = await res.json();
       setBusy(false);

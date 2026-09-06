@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { preorderWindow, preorderLeadMs, PREORDER_TAIL_MS } from "@/lib/orderAhead";
+import { FOUNDING_MARKET, type Market } from "@/lib/markets";
 
 // IS THE TRUCK TAKING CUP ORDERS? — one hook, one answer, used by every ordering surface (menu
 // drink sheet + checkout sheet; /api/checkout runs the same rule server-side before any charge).
@@ -16,7 +17,11 @@ export type OrderingOpen = {
   pickup: boolean;                  // does THIS stop offer pickup? (per-stop opt-in, 0191)
 };
 
-export function useOrderingOpen(active: boolean): OrderingOpen {
+// MARKET (0279): "the next stop" has to mean the next stop IN THIS CITY. Unfiltered, whichever
+// stop was chronologically next ANYWHERE decided whether ordering was open and printed its name
+// at checkout — so an Atlanta stop could open Greenville's window, and name itself on the receipt.
+// Defaults to the founding market, so every existing caller behaves exactly as it did.
+export function useOrderingOpen(active: boolean, market: Market = FOUNDING_MARKET): OrderingOpen {
   const [state, setState] = useState<OrderingOpen>({ open: true, checked: false, nextAt: null, nextName: null, pickup: false });
   useEffect(() => {
     if (!active || !supabase) return;
@@ -25,6 +30,7 @@ export function useOrderingOpen(active: boolean): OrderingOpen {
       const [{ data: ls }, { data: st }] = await Promise.all([
         supabase!.from("live_status").select("is_live, preorder_lead_h").maybeSingle(),
         supabase!.from("stops").select("name, starts_at, order_ahead_enabled, order_ahead_lead_min, pickup_enabled").is("archived_at", null).neq("status", "done").not("starts_at", "is", null)
+          .eq("market", market)
           .gte("starts_at", new Date(Date.now() - PREORDER_TAIL_MS).toISOString()) // an in-progress stop still counts
           .order("starts_at", { ascending: true }).limit(1).maybeSingle(),
       ]);
@@ -38,6 +44,6 @@ export function useOrderingOpen(active: boolean): OrderingOpen {
       setState({ open: win.open, checked: true, nextAt: s?.starts_at ?? null, nextName: s?.name ?? null, pickup: !!s?.pickup_enabled });
     })();
     return () => { liveFlag = false; };
-  }, [active]);
+  }, [active, market]);
   return state;
 }
