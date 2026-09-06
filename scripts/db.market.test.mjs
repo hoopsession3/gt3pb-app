@@ -42,7 +42,12 @@ await db.exec(`
     select coalesce(current_setting('test.owner',  true) <> 'off', true) $$;
   create or replace function public.is_staff()  returns boolean language sql stable as $$
     select coalesce(current_setting('test.staff',  true) <> 'off', true) $$;
-  create or replace function public.is_admin()  returns boolean language sql stable as $$ select true $$;
+  -- Keyed off a GUC like the other two. A blanket always-true stub here made 0291 look like
+  -- it did nothing: market_visible() lets admins see every city, so a stub that says everyone
+  -- is an admin hid the entire policy. Second time a stub has flattered a migration in this
+  -- file; both times the fix was to make the stub answer the question production answers.
+  create or replace function public.is_admin()  returns boolean language sql stable as $$
+    select coalesce(current_setting('test.admin', true) <> 'off', true) $$;
   create or replace function public.audit_row() returns trigger language plpgsql as $$ begin return new; end $$;
   create or replace function public.effective_tenant() returns uuid language sql stable as $$ select '${T1}'::uuid $$;
   create or replace function public.stamp_tenant() returns trigger language plpgsql as $$
@@ -461,6 +466,69 @@ ok("0289: no percentage column was invented anywhere",
    (await q1(`select count(*)::int n from information_schema.columns
               where table_name='operator_agreements' and column_name like 'equity%'`)).n === 3);
 
+// ═══ 0291 — reading is scoped to your own city ══════════════════════════════════════════════════
+// A money table with a market and RLS on, plus an operational one that must stay shared.
+await db.exec(`
+  create table public.business_orders (
+    id serial primary key, market text not null default 'greenville',
+    company text, total_cents int, tenant_id uuid default '${T1}');
+  alter table public.business_orders enable row level security;
+  grant select on public.business_orders to authenticated;
+  create policy "staff read" on public.business_orders for select using (public.is_staff());
+
+  create table public.events (
+    id serial primary key, market text not null default 'greenville', title text);
+  alter table public.events enable row level security;
+  grant select on public.events to authenticated;
+  create policy "staff read" on public.events for select using (public.is_staff());
+
+  insert into public.business_orders (market, company, total_cents) values
+    ('greenville','Gwen Co', 90000), ('atlanta','Ade Co', 120000);
+  insert into public.events (market, title) values ('greenville','GV pour'), ('atlanta','ATL pour');
+`);
+
+await db.exec(mig("0291_market_read_scope.sql"));
+
+ok("0291: the money table is scoped",
+   (await q1(`select market_scoped from public.v_market_scope where table_name='business_orders'`))?.market_scoped === true);
+ok("0291: the operational table is left shared, and says so",
+   /shared on purpose/.test((await q1(`select verdict from public.v_market_scope where table_name='events'`))?.verdict ?? ""));
+
+// An owner sees both cities.
+await db.exec(`set test.owner = 'on'; set test.uid = '${RYAN}';`);
+await db.exec("set role authenticated;");
+ok("0291: an owner still reads every city's money",
+   (await q1(`select count(*)::int n from public.business_orders`)).n === 2,
+   (await q1(`select count(*)::int n from public.business_orders`)).n);
+
+// A non-owner in Atlanta sees Atlanta only.
+await db.exec("reset role;");
+await db.exec(`set test.owner = 'off'; set test.admin = 'off'; set test.uid = '${ATL_SERVER}';`);
+await db.exec("set role authenticated;");
+const atlSees = await rows(`select market from public.business_orders`);
+ok("0291: a non-owner sees exactly one city's money", atlSees.length === 1, atlSees.length);
+ok("0291: and it is their own city", atlSees[0]?.market === "atlanta", atlSees[0]?.market);
+ok("0291: the other city's revenue is not reachable at all",
+   (await q1(`select count(*)::int n from public.business_orders where market='greenville'`)).n === 0);
+
+// …but the operational table is still shared, which is the point of not scoping it.
+ok("0291: the same person still sees both cities' events",
+   (await q1(`select count(*)::int n from public.events`)).n === 2,
+   (await q1(`select count(*)::int n from public.events`)).n);
+
+await db.exec("reset role;");
+await db.exec(`set test.owner = 'on'; set test.admin = 'on'; set test.uid = '${RYAN}';`);
+
+// A row with no city attributed to it must not vanish.
+await db.exec(`alter table public.business_orders alter column market drop not null;
+  insert into public.business_orders (market, company, total_cents) values (null, 'Unattributed', 500);`);
+await db.exec(`set test.owner = 'off'; set test.admin = 'off'; set test.uid = '${ATL_SERVER}';`);
+await db.exec("set role authenticated;");
+ok("0291: an unattributed row stays visible rather than disappearing silently",
+   (await q1(`select count(*)::int n from public.business_orders where company='Unattributed'`)).n === 1);
+await db.exec("reset role;");
+await db.exec(`set test.owner = 'on'; set test.admin = 'on'; set test.uid = '${RYAN}';`);
+
 // ═══ every file is idempotent, in order ═════════════════════════════════════════════════════════
 const snap = async () => JSON.stringify({
   cl: (await q1(`select count(*)::int n from public.changelog`)).n,
@@ -471,7 +539,7 @@ const snap = async () => JSON.stringify({
 const before = await snap();
 for (const f of ["0284_compliance_freshness.sql", "0285_market_live_switch.sql",
                  "0286_offer_letter_statutory.sql", "0287_supply_sourcing.sql",
-                 "0288_inventory_per_market.sql", "0289_market_ownership.sql"]) {
+                 "0288_inventory_per_market.sql", "0289_market_ownership.sql", "0291_market_read_scope.sql"]) {
   await db.exec(mig(f));
 }
 ok("re-running 0284–0288 in order changes nothing", (await snap()) === before, await snap());

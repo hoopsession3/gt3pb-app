@@ -85,7 +85,7 @@ The data sensitivity is what keeps the consequence non-trivial.
 
 - **Opened:** 2026-06-23
 - **Severity:** Medium (latent — no live exposure while single-tenant)
-- **Status:** Open (DB half DONE — `0134` applied to prod 2026-07-07; remaining: service-role route sweep)
+- **Status:** Open — quantified and ratcheted 2026-09-06 (DB half DONE; 63 latent service-role reads remain, none customer-facing)
 - **Owner:** Ryan
 
 **Description.** Migration `0040` laid the multi-tenant foundation (`tenants` table, `tenant_id`
@@ -117,6 +117,33 @@ zero RLS-off exceptions** in the verify queries.
 to scope queries with `tenantFromRequest()` (`lib/apiAuth.ts`) — the service role bypasses RLS,
 (b) run the two-tenant smoke in `0134`'s footer with a scratch tenant, (c) decide per-table on any
 tables still lacking `tenant_id` (incl. cross-tenant push fan-out in the edge function).
+
+**Progress (2026-09-06).** All three remaining actions moved.
+
+- **(a) The service-role sweep is now a gate, not a chore.** `scripts/service-role.audit.mjs` walks
+  every `app/api` route, derives the tenant-scoped table list from the migrations themselves, and
+  classifies each `supabaseAdmin` table access. First honest count of R-002's real surface: **164
+  accesses, of which 63 are unscoped reads across 31 routes.** The rest are accounted for — 27 on
+  genuinely global tables, 32 inserts (tenanted by 0134's `stamp_tenant` trigger, which is why plan
+  step 1 is closed), 5 scoped to the caller's own rows, 4 in routes exempted with a written reason,
+  1 with an inline `// scoped-by:` proof.
+- **What the 63 actually are.** Staff-gated `agents/*` routes reading business data to feed a model.
+  No customer-facing route is among them: `checkout` touches only the catalogue and its own inserts,
+  `orders/cancel` filters `.eq("user_id", …)` and mutates through an RPC as the user, and
+  `subscriptions/*` key off the caller's own id throughout. So the exposure remains what the
+  severity says — latent, and requiring a second tenant to bite.
+- **A ratchet rather than a sprint.** The count is a baseline in the script; the build fails if it
+  grows. Demanding 63 → 0 before anything else ships would be theatre. Demanding it never gets worse
+  is not.
+- **(b) The two-tenant smoke is automated instead of manual.** `scripts/db.tenant.test.mjs` builds
+  two tenants on an in-process Postgres, executes `0283` verbatim, and asserts a cross-tenant read
+  and a cross-tenant insert are both refused. That is a stronger check than a scratch tenant in
+  production, and it re-runs on every `npm test` instead of once.
+- **(c) Tables lacking `tenant_id` are now a query.** `0283` added `v_tenant_isolation_gaps`; it
+  found eight tables that were stamped but never isolated — `shop_orders` among them — and closed
+  them. It reports zero open findings today.
+
+**Remaining to close:** scope the 63 agent-route reads, or record a decision to stay single-tenant.
 
 **Close when:** tenant-scoped RLS is enforced and verified — **or** a decision to remain
 single-tenant is recorded here.

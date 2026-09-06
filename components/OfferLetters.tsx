@@ -13,8 +13,10 @@ import OfferLetterPrint, { type LetterRow } from "./OfferLetterPrint";
 import {
   ROLE_ACCESS, OFFERABLE_ROLES, toRoleKey, toOfferStatus, isEditable, money, summarize,
   validateOffer, classificationFlags, emptyOffer, approvalTally, STATUTORY_FIELDS, missingStatutory,
+  money as fmtMoney,
   type OfferStatus, type OfferTerms, type RoleKey,
 } from "@/lib/offerLetter";
+import { payAtVolumes, DEFAULT_VOLUMES } from "@/lib/dealExplainer";
 
 // OFFER LETTERS (0281) — the owner's side of hiring someone.
 //
@@ -202,6 +204,7 @@ export default function OfferLetters() {
                 <div><dt>Deductions</dt><dd>{open.deductions ?? "Not set"}</dd></div>
               </dl>
               <RoleReach role={toRoleKey(open.role)} />
+              <PayRange offer={open} />
               <div className="ofr-letter-do">
                 <button type="button" className="btn-ter"
                   onClick={() => { const l = letters.find((x) => x.id === open.id); if (l) setPrinting(l); }}
@@ -354,6 +357,44 @@ function ReviewPanel({ onDecide, busy }: { onDecide: (a: "approve" | "request_ch
         <button type="button" className="btn-sec" disabled={busy} onClick={() => onDecide("request_changes", note)}>Ask for changes</button>
         <button type="button" className="btn-pri" disabled={busy} onClick={() => onDecide("approve", note)}>Approve</button>
       </div>
+    </div>
+  );
+}
+
+// WHAT THE OFFER ACTUALLY PAYS.
+// "A base and 2% commission" tells a candidate almost nothing. The same three volumes for every
+// offer, so two offers can be compared and so nobody reads the best case as the expected one. An
+// offer with no commission says so instead of drawing a flat chart nobody needs.
+function PayRange({ offer }: { offer: Row }) {
+  const pts = payAtVolumes(
+    { baseCents: offer.base_cents, ratePer: offer.rate_per, commissionPct: offer.commission_pct },
+    DEFAULT_VOLUMES,
+  );
+  if (!offer.commission_pct) {
+    return (
+      <p className="ofr-payflat">
+        Flat pay — {offer.base_cents ? `${fmtMoney(offer.base_cents)} per ${offer.rate_per === "hour" ? "hour" : "year"}` : "no base set"},
+        the same whatever the year does.
+      </p>
+    );
+  }
+  const max = Math.max(...pts.map((p) => p.totalCents), 1);
+  return (
+    <div className="ofr-pay">
+      <p className="insp-lbl">What this pays, across a year</p>
+      <div className="ofr-pay-rows">
+        {pts.map((p) => (
+          <div className="ofr-pay-row" key={p.label}>
+            <span className="ofr-pay-l">{p.label}</span>
+            <span className="ofr-pay-bar"><i style={{ width: `${(p.totalCents / max) * 100}%` }} /></span>
+            <span className="ofr-pay-v">{fmtMoney(p.totalCents)}</span>
+          </div>
+        ))}
+      </div>
+      <p className="ofr-pay-n">
+        Base plus {offer.commission_pct}% of what the market takes in. The middle row is the plan;
+        the top one is not a promise.
+      </p>
     </div>
   );
 }

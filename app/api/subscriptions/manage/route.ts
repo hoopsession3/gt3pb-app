@@ -36,6 +36,9 @@ export async function POST(req: Request) {
     const optimistic = action === "cancel" ? "canceled" : action === "pause" ? "paused" : "active";
     const next = mapSubStatus(data?.subscription?.status);
     const written = action === "cancel" ? "canceled" : next === "pending" ? optimistic : next;
+    // scoped-by: `id` was read above with .eq("user_id", user.id), so it is provably this
+    // caller's own subscription. The update keys off that verified id, not off anything the
+    // request supplied — the ownership check is two statements up, where a regex cannot see it.
     await supabaseAdmin.from("subscriptions")
       .update({ status: written, updated_at: new Date().toISOString() })
       .eq("square_subscription_id", id);

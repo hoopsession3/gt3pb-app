@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { MARKET_LABEL, toMarket } from "@/lib/markets";
 import { ROLE_ACCESS, toRoleKey, money, STATUTORY_FIELDS } from "@/lib/offerLetter";
+import { payAtVolumes, DEFAULT_VOLUMES } from "@/lib/dealExplainer";
 
 // THE LETTER, AS A LETTER (0286).
 //
@@ -114,6 +115,20 @@ export default function OfferLetterPrint({ row, onClose }: { row: LetterRow; onC
 
         <h2 className="ofl-h">Your pay</h2>
         <p>{pay.length ? pay.join(", plus ") + "." : "To be confirmed in writing before your start date."}</p>
+        {/* A percentage is not a number until it is set against real volume. Three cases, so the
+            best one cannot be mistaken for the expected one. */}
+        {!!row.commission_pct && (
+          <>
+            <ul className="ofl-pay">
+              {payAtVolumes({ baseCents: row.base_cents, ratePer: row.rate_per, commissionPct: row.commission_pct }, DEFAULT_VOLUMES)
+                .map((p) => <li key={p.label}><span>{p.label}</span><b>{money(p.totalCents)}</b></li>)}
+            </ul>
+            <p className="ofl-pay-n">
+              Illustrations, not guarantees — your base is fixed and the commission follows what the
+              market actually takes in.
+            </p>
+          </>
+        )}
 
         {/* The statutory four, laid out as a definition list so none of them can be quietly dropped. */}
         <h2 className="ofl-h">Hours, payment and deductions</h2>
