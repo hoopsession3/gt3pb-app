@@ -14,6 +14,14 @@ export interface AssetItem {
   notes: string | null;
   notionUrl: string | null;
   lenIn: number | null; widthIn: number | null; heightIn: number | null; weightLb: number | null;
+  // Lifecycle (0276). Defaulted in the API mapper, so these are safe to read even before the
+  // migration is applied: an un-migrated row reads as an active Greenville asset, which is exactly
+  // what every row meant before equipment had a lifecycle.
+  market: string;
+  status: string;
+  criticality: string;
+  disposition: string | null;
+  retiredOn: string | null;
 }
 export interface AssetsResp { enabled: boolean; items: AssetItem[]; error?: string }
 

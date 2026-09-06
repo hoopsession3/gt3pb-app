@@ -41,6 +41,13 @@ export async function GET(req: Request) {
       widthIn: typeof a.width_in === "number" ? a.width_in : null,
       heightIn: typeof a.height_in === "number" ? a.height_in : null,
       weightLb: typeof a.weight_lb === "number" ? a.weight_lb : null,
+      // Lifecycle (0276), defaulted so this route keeps working identically if the migration hasn't
+      // landed yet — no column, no problem: the row reads as an active Greenville asset.
+      market: a.market ?? "greenville",
+      status: a.status ?? "active",
+      criticality: a.criticality ?? "standard",
+      disposition: a.disposition ?? null,
+      retiredOn: a.retired_on ?? null,
     }))
     .sort((x: any, y: any) => (rank[x.brand] ?? 3) - (rank[y.brand] ?? 3) || x.name.localeCompare(y.name));
 

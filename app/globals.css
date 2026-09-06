@@ -1936,6 +1936,24 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .gl-links a:active{opacity:.7}
 /* gear / inventory editor */
 .gl-toolbar{display:flex;justify-content:flex-end;margin-bottom:8px}
+/* ── Equipment lifecycle (0276) — market filter, status chips, retire panel ── */
+.gl-toolbar{flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center}
+.gl-filters{display:flex;flex-wrap:wrap;gap:6px}
+.gl-chip{background:transparent;border:1px solid var(--line);border-radius:20px;padding:5px 11px;color:var(--cream-d);font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:.04em;cursor:pointer;-webkit-appearance:none;appearance:none;transition:color .13s,border-color .13s,background .13s}
+.gl-chip:hover{color:var(--cream);border-color:var(--line2)}
+.gl-chip.on{background:rgba(169,124,63,.14);border-color:var(--gold2);color:var(--gold2)}
+.gl-tags{display:inline-flex;flex-wrap:wrap;gap:5px;margin:3px 0 1px;vertical-align:middle}
+.gl-status,.gl-market,.gl-crit{font-family:'Inter';font-weight:650;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:3px;white-space:nowrap}
+.gl-market{background:rgba(255,255,255,.05);color:var(--cream-d);border:1px solid var(--line)}
+.gl-crit{background:rgba(184,36,32,.14);color:#d9776e;border:1px solid rgba(184,36,32,.32)}
+.gl-status-active{background:rgba(106,160,92,.16);color:#8fc47f}
+.gl-status-planned{background:rgba(255,255,255,.06);color:var(--cream-d)}
+.gl-status-maintenance{background:rgba(224,137,43,.16);color:#e0a45f}
+.gl-status-reserve{background:rgba(169,124,63,.14);color:var(--gold2)}
+.gl-status-retired{background:rgba(255,255,255,.05);color:var(--cream-d);border:1px solid var(--line)}
+.gl-item-retired{opacity:.62}
+.gl-retire{border-left:3px solid var(--oa-red,#B82420)}
+.gl-retire-note{font-family:'Inter';font-size:12px;line-height:1.5;color:var(--cream-m);margin:0 0 10px}
 .gl-edit{background:none;border:none;font-family:'Inter';font-size:11px;color:var(--cream-m);cursor:pointer;padding:0}
 .gl-edit:active{opacity:.6}
 .gl-del{background:none;border:none;font-size:12px;color:var(--cream-d);cursor:pointer;padding:0;line-height:1}

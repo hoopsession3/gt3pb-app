@@ -399,6 +399,48 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("brew: flavorDemand sums mixes, tolerates null mix", JSON.stringify(BM.flavorDemand([{ mix: { RISE: 2 } }, { mix: { RISE: 1, FLOW: 3 } }, { mix: null }], ["RISE", "FLOW"])) === JSON.stringify({ RISE: 3, FLOW: 3 }));
 }
 
+// ── equipment lifecycle (0276) — the state machine, proved rather than trusted ──
+{
+  const E = require("../.smoke/equipment.js");
+  // A pre-lifecycle row carries no status at all; it must read as in-service, because that is what
+  // its mere presence in the register meant before equipment had a lifecycle.
+  ok("equipment: absent/unknown status reads as active",
+    E.toStatus(undefined) === "active" && E.toStatus("banana") === "active");
+  ok("equipment: a state is never a transition to itself", !E.canTransition("active", "active"));
+  ok("equipment: gear can be retired from any live state",
+    ["planned", "active", "maintenance", "reserve"].every((s) => E.canTransition(s, "retired")));
+  // Retired comes back as a SPARE only — putting it to work again is a second, deliberate decision.
+  ok("equipment: retired returns only as a spare",
+    E.canTransition("retired", "reserve") && !E.canTransition("retired", "active"));
+  ok("equipment: retired is otherwise terminal",
+    !E.canTransition("retired", "maintenance") && !E.canTransition("retired", "planned"));
+  ok("equipment: planned gear is owned but is not capacity", !E.isDeployed("planned") && E.isOwned("planned"));
+  ok("equipment: retired gear is neither owned nor capacity",
+    !E.isDeployed("retired") && !E.isOwned("retired"));
+  ok("equipment: gear out for service is still owned, not usable",
+    E.isOwned("maintenance") && !E.isDeployed("maintenance") && !E.isServiceable("maintenance"));
+  // Retirement demands its paperwork — the same rule the database enforces with a CHECK constraint.
+  ok("equipment: retiring needs a disposition", !E.validateRetire({ reason: "died" }).ok);
+  ok("equipment: retiring needs a real reason", !E.validateRetire({ disposition: "sold", reason: "x" }).ok);
+  ok("equipment: a complete retirement validates",
+    E.validateRetire({ disposition: "scrapped", reason: "Compressor failed, past repair" }).ok);
+  ok("equipment: an invented disposition is rejected",
+    !E.validateRetire({ disposition: "vanished", reason: "gone missing" }).ok);
+  // movementKind must classify exactly the way the database trigger does, or the ledger and the UI
+  // will describe the same event with two different words.
+  ok("equipment: a market change is a transfer",
+    E.movementKind("active", "active", "greenville", "atlanta") === "transfer");
+  ok("equipment: first commissioning is a commission",
+    E.movementKind("planned", "active", "greenville", "greenville") === "commission");
+  ok("equipment: retiring outranks every other classification",
+    E.movementKind("active", "retired", "greenville", "atlanta") === "retire");
+  ok("equipment: coming back is a reinstate",
+    E.movementKind("retired", "reserve", "greenville", "greenville") === "reinstate");
+  ok("equipment: fleet counts split capacity from ownership",
+    E.deployedCount(["active", "active", "reserve", "retired"]) === 2 &&
+    E.unavailableCount(["active", "active", "reserve", "retired"]) === 1);
+}
+
 console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
 console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);
 process.exit(fail ? 1 : 0);
