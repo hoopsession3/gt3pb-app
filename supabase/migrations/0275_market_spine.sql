@@ -111,6 +111,16 @@ begin
   end if;
 end $$;
 
+-- ── the record (no-drift gate) ───────────────────────────────────────────────────────────────────
+insert into public.changelog (title, category, area, summary, shipped_on, highlight)
+select v.title, v.category, v.area, v.summary, v.shipped_on::date, v.highlight
+from (values
+  ('A second city is now a first-class idea, not a workaround','ops','Ops',
+   'Every operating record — stops, routes, goals, gear, money, targets — now knows which market it belongs to, and Atlanta is registered alongside Greenville. Nothing changed for Greenville: every record that already existed reads as Greenville and every screen behaves exactly as before. What this buys is the ability to run a second market inside the same business, on the same books, without standing up a second copy of anything. The market-aware screens follow on top of this.',
+   '2026-09-06', false)
+) as v(title, category, area, summary, shipped_on, highlight)
+where not exists (select 1 from public.changelog c where c.title = v.title);
+
 -- ── verify (run after) ────────────────────────────────────────────────────────────────────────────
 --   -- both markets registered:
 --   select slug, name, region, active from public.markets order by slug;

@@ -209,6 +209,16 @@ drop trigger if exists guard_delete_operator_agreements on public.operator_agree
 create trigger guard_delete_operator_agreements before delete on public.operator_agreements
   for each row execute function public.guard_agreement_delete();
 
+-- ── the record (no-drift gate) ───────────────────────────────────────────────────────────────────
+insert into public.changelog (title, category, area, summary, shipped_on, highlight)
+select v.title, v.category, v.area, v.summary, v.shipped_on::date, v.highlight
+from (values
+  ('Operator deals are built on a slider, negotiated in the app, and kept on the record','feature','Money',
+   'An owner can now build an operator''s package the way the deal actually gets made: slide the split, choose who funds supplies, pick the tier, and watch what the operator keeps and what comes back as royalty and market reinvestment update as you move it. Send it, and the operator can accept or counter with a note from their own screen — they can move the deal forward, never quietly rewrite its terms. Every version, every send, every counter is kept, so what was agreed and when is never a memory question. The split always totals one hundred percent; the database refuses anything else.',
+   '2026-09-06', true)
+) as v(title, category, area, summary, shipped_on, highlight)
+where not exists (select 1 from public.changelog c where c.title = v.title);
+
 -- ── verify (run after) ────────────────────────────────────────────────────────────────────────────
 --   -- an agreement writes its own first event:
 --   insert into public.operator_agreements (market, operator_name, supply_funding, operator_pct, royalty_pct, market_pct)

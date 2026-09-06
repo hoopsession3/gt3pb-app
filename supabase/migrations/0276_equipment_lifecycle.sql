@@ -193,6 +193,16 @@ begin
   return new;
 end $$;
 
+-- ── the record (no-drift gate) ───────────────────────────────────────────────────────────────────
+insert into public.changelog (title, category, area, summary, shipped_on, highlight)
+select v.title, v.category, v.area, v.summary, v.shipped_on::date, v.highlight
+from (values
+  ('Gear can be introduced and retired by market — and it never just disappears','feature','Garage',
+   'The Gear Library became a real fleet register. Equipment now moves through a lifecycle — planned, in service, maintenance, reserve, retired — and belongs to a market, so Greenville and Atlanta each see their own kit and the fleet readout tells you what is in service versus unavailable at a glance. Retiring a piece now asks where it went (sold, scrapped, returned, lost, donated, replaced) and why, and a retired piece can be brought back to reserve rather than lost. The delete button is gone on purpose: every movement writes itself to a ledger, so the history of a machine survives the machine.',
+   '2026-09-06', false)
+) as v(title, category, area, summary, shipped_on, highlight)
+where not exists (select 1 from public.changelog c where c.title = v.title);
+
 -- ── verify (run after) ────────────────────────────────────────────────────────────────────────────
 --   -- every asset is 'active' in 'greenville' and nothing moved:
 --   select market, status, count(*) from public.assets group by 1,2 order by 1,2;
