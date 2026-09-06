@@ -546,7 +546,15 @@ await db.exec(`
     bucket_id text, name text, owner uuid);
   alter table storage.objects enable row level security;
 
-  create table public.vendors (id uuid primary key default gen_random_uuid(), name text);
+  -- 0034's real shape, not a two-column stub: 0298 writes notes and sort, and the venue-shaped
+  -- columns (service_dates, location_text, lat/lng) are the evidence its backfill reasons from.
+  -- Fifth time a fixture here has been thinner than production; the rule keeps earning its keep.
+  create table public.vendors (
+    id uuid primary key default gen_random_uuid(), name text not null default 'New vendor',
+    poc_name text, poc_phone text, poc_email text, address text, location_text text,
+    lat double precision, lng double precision, service_dates text, notes text,
+    archived_at timestamptz, sort int not null default 0,
+    created_at timestamptz not null default now());
 
   create table public.expenses (
     id uuid primary key default gen_random_uuid(),
@@ -1115,6 +1123,98 @@ ok("0297: 'unknown' is still reserved for what nobody has recorded",
 await db.exec(`update public.live_status set is_live = true where id = 1;
                update public.markets set is_live = null where slug = 'greenville';`);
 
+// ═══ 0298 — the supply side ═════════════════════════════════════════════════════════════════════
+// Reproduces production: venues already in the vendor table, the Sprouts receipt itemised into
+// expenses, the arrivals already in the ledger, and no lot anywhere carrying a cost.
+await db.exec(`
+  insert into public.vendors (name, service_dates, location_text) values
+    ('ACA Sports Club', 'Saturdays', 'Greenville'),
+    ('Euphoria Office', null, 'Greenville');
+
+  insert into public.inventory_items (name, market, qty, unit, category, kind) values
+    ('Org Ethiopia Coffee (bulk)', 'atlanta', 0, 'lb',   'Ingredients', 'ingredient'),
+    ('Spring Water Case',          'atlanta', 0, 'case', 'Ingredients', 'ingredient');
+
+  insert into public.expenses (category, description, amount_cents, spent_on, market) values
+    ('ingredients', 'Org Ethiopia coffee — 6 lb @ $15.99/lb retail (Sprouts #840214)', 9594, '2026-09-06', 'atlanta'),
+    ('ingredients', 'Spring water — 2 cases @ $34.99 (Sprouts #840214)',                6998, '2026-09-06', 'atlanta'),
+    ('other',       'Sales tax on Sprouts #840214 — Co Food 3.32 + District 1.66',       498, '2026-09-06', 'atlanta');
+
+  -- the arrivals, as the ledger already holds them
+  insert into public.inventory_ledger (item, market, qty, kind, note) values
+    ('Org Ethiopia Coffee (bulk)', 'atlanta', 6, 'restock', 'Sprouts #840214 — 6 lb purchased'),
+    ('Spring Water Case',          'atlanta', 2, 'restock', 'Sprouts #840214 — 2 cases purchased'),
+    ('Org Ethiopia Coffee (bulk)', 'atlanta', 4, 'adjust',  'Opening stock — 4 lb already on hand, no receipt on file');
+`);
+
+const shelfBefore = Number((await q1(`select coalesce(sum(qty),0) n from public.inventory_ledger
+                                       where market='atlanta' and item='Org Ethiopia Coffee (bulk)'`)).n);
+
+await db.exec(mig("0298_supply_side.sql"));
+
+ok("0298: the places we sell at are classified as venues, not suppliers",
+   Number((await q1(`select count(*)::int n from public.vendors where name in ('ACA Sports Club','Euphoria Office') and kind='venue'`)).n) === 2);
+const sprouts = await q1(`select name, kind, price_basis from public.vendors where lower(name) like 'sprouts%'`);
+ok("0298: the company we actually buy from exists, as a supplier on retail terms",
+   sprouts?.kind === "supplier" && sprouts?.price_basis === "retail", JSON.stringify(sprouts));
+
+ok("0298: every line of the receipt is attached to that supplier",
+   Number((await q1(`select count(*)::int n from public.expenses e join public.vendors v on v.id=e.vendor_id
+                      where lower(v.name) like 'sprouts%'`)).n) === 3);
+
+// The cost, out of the sentence and into a field the costing can read.
+const coffee = await q1(`select unit_cost_cents, price_basis, (expense_id is not null) as receipted
+                           from public.inventory_lots
+                          where item_name='Org Ethiopia Coffee (bulk)' and lot_code='SPROUTS-840214'`);
+ok("0298: the receipted lot carries $15.99 a pound, priced as retail",
+   Number(coffee?.unit_cost_cents) === 1599 && coffee?.price_basis === "retail" && coffee?.receipted === true,
+   JSON.stringify(coffee));
+const water = await q1(`select unit_cost_cents from public.inventory_lots where item_name='Spring Water Case'`);
+ok("0298: and the water carries $34.99 a case", Number(water?.unit_cost_cents) === 3499, water?.unit_cost_cents);
+
+// The opening stock is costed by decision, and says so rather than passing as documented.
+const opening = await q1(`select unit_cost_cents, (expense_id is not null) as receipted, notes
+                            from public.inventory_lots where lot_code='OPENING-2026-09-06'`);
+ok("0298: the un-receipted four pounds carry the same rate by decision",
+   Number(opening?.unit_cost_cents) === 1599 && opening?.receipted === false, JSON.stringify(opening));
+ok("0298: and the lot itself admits it is an assumption",
+   /assumption|no receipt/i.test(opening?.notes ?? ""), opening?.notes);
+
+// THE DEFECT THIS GUARDS: receive_lot() also writes a ledger row, and the ledger already held these
+// arrivals. Costing the shelf must not restock it a second time.
+ok("0298: costing the shelf did not move it",
+   Number((await q1(`select coalesce(sum(qty),0) n from public.inventory_ledger
+                      where market='atlanta' and item='Org Ethiopia Coffee (bulk)'`)).n) === shelfBefore,
+   `${shelfBefore} before`);
+
+ok("0298: the arrival rows now point at the lot they were",
+   Number((await q1(`select count(*)::int n from public.inventory_ledger
+                      where market='atlanta' and lot_id is not null and qty > 0`)).n) === 3);
+
+// What a pound costs today, which is the number a wholesale deal gets measured against.
+const cost = await db.query(`select item, unit_cost, price_basis, supplier, receipted, cost_note
+                               from public.v_ingredient_cost where market='atlanta' order by item`);
+const sourced = cost.rows.filter((r) => /Ethiopia|Spring Water/.test(r.item));
+ok("0298: the cost view prices both items the receipt covered", sourced.length === 2, JSON.stringify(cost.rows));
+ok("0298: and names the supplier and the terms",
+   sourced.every((r) => r.supplier && /sprouts/i.test(r.supplier) && r.price_basis === "retail"),
+   JSON.stringify(sourced));
+ok("0298: a retail price says it is a third party's shelf price",
+   cost.rows.some((r) => /retail shelf price/.test(r.cost_note ?? "")), JSON.stringify(cost.rows.map((r) => r.cost_note)));
+
+// An item nobody has costed must read as uncosted rather than as free.
+await db.exec(`insert into public.inventory_items (name, market, qty, unit, category, kind)
+               values ('Uncosted Syrup', 'atlanta', 3, 'each', 'Ingredients', 'ingredient');`);
+const un = await q1(`select unit_cost, cost_note from public.v_ingredient_cost
+                      where market='atlanta' and item='Uncosted Syrup'`);
+ok("0298: an item with no costed lot says so instead of reading as free",
+   un?.unit_cost === null && /cost nothing/.test(un?.cost_note ?? ""), JSON.stringify(un));
+
+// Equipment is not a thing you price per unit into a batch — the view leaves it out.
+ok("0298: equipment is not in the ingredient cost view",
+   Number((await q1(`select count(*)::int n from public.v_ingredient_cost
+                      where kind = 'equipment'`)).n) === 0);
+
 // ═══ every file is idempotent, in order ═════════════════════════════════════════════════════════
 const snap = async () => JSON.stringify({
   cl: (await q1(`select count(*)::int n from public.changelog`)).n,
@@ -1138,7 +1238,8 @@ for (const f of ["0284_compliance_freshness.sql", "0285_market_live_switch.sql",
                  "0294_ingredient_map.sql",
                  "0295_item_lifecycles.sql",
                  "0296_market_readiness.sql",
-                 "0297_readiness_live_resolution.sql"]) {
+                 "0297_readiness_live_resolution.sql",
+                 "0298_supply_side.sql"]) {
   await db.exec(mig(f));
 }
 ok("re-running 0284–0288 in order changes nothing", (await snap()) === before, await snap());
