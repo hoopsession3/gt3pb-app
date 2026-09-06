@@ -134,6 +134,7 @@ import { uploadToBucket } from "@/lib/uploads";
 import { resolveVendor, addVendorLocation, type VendorMatch, type ResolveDecision } from "@/lib/vendorLink";
 const VendorResolve = dynamic(() => import("@/components/VendorResolve"), { loading: () => <PourFill label="Loading…" /> });
 import Icon from "@/components/Icon";
+import AcademyCard from "@/components/AcademyCard";
 
 // money helpers for the economics panels
 // 2026-07-16: PHASE_LABEL used to rename the Service lane's own segmented tabs (Route → "Schedule",
@@ -6392,10 +6393,10 @@ export default function AdminPage() {
           <OrgChart />
           {isOwner && <Members />}
           <div className="crew-group">Growth &amp; training</div>
-          <Link href="/academy" className="opx-link">
-            <span className="opx-link-t">GT3 Academy</span>
-            <span className="opx-link-s">Training, certifications &amp; the cookbook <Icon name="arrowRight" /></span>
-          </Link>
+          {/* Was a flat link with no state, on a page where everything else shows live numbers — so it
+              was the one block the eye skipped, and the Academy had zero progress rows for anybody.
+              The card now carries the reader's own role path, which lib/academy could already derive. */}
+          <AcademyCard />
           {isOwner && <AiTraining />}
         </>
       )}

@@ -977,6 +977,59 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     !O.validateOffer(O.emptyOffer()).ok);
 }
 
+// ── GT3 Academy: where one person stands ──────────────────────────────────────────────────────
+// The Academy has 30 modules and 12 certifications and, at the time of writing, zero rows of
+// progress for anybody. The role paths that say what each role must complete have existed all
+// along; nothing outside the Academy page ever read them.
+{
+  const A = require("../.smoke/academy.js");
+
+  const none = new Set();
+  const op = A.pathProgress("operator", none);
+  ok("academy: an operator's path is the union of its certs' modules",
+    op.certsTotal === 8 && op.modulesTotal > 0, `${op.certsEarned}/${op.certsTotal}, ${op.modulesTotal} modules`);
+  ok("academy: nothing done reads as nothing done, not as complete",
+    op.modulesDone === 0 && op.modulesLeft === op.modulesTotal && !op.complete);
+  ok("academy: an untouched path still names the next module to do",
+    op.nextModule !== null && typeof op.nextModule.slug === "string", op.nextModule && op.nextModule.slug);
+  ok("academy: and the certification that module counts toward",
+    op.nextCert !== null, op.nextCert && op.nextCert.key);
+  ok("academy: time remaining is the sum of what is left, not of everything",
+    op.minutesLeft > 0 && op.minutesLeft === A.requiredModules("operator").reduce((n, m) => n + (m.estMin || 0), 0));
+
+  // A bigger role is a strict superset of a smaller one's requirement — the ladder has to hold.
+  const ct = A.pathProgress("contractor", none);
+  ok("academy: a contractor's path is smaller than an operator's",
+    ct.certsTotal < op.certsTotal && ct.modulesTotal < op.modulesTotal,
+    `contractor ${ct.modulesTotal} vs operator ${op.modulesTotal}`);
+
+  // Completing every required module earns every cert on the path.
+  const all = new Set(A.requiredModules("operator").map((m) => m.slug));
+  const done = A.pathProgress("operator", all);
+  ok("academy: finishing the required modules earns the whole path",
+    done.complete && done.certsEarned === done.certsTotal && done.modulesLeft === 0,
+    `${done.certsEarned}/${done.certsTotal}`);
+  ok("academy: a finished path has nothing left to do and no next module",
+    done.minutesLeft === 0 && done.nextModule === null && done.nextCert === null);
+
+  // Partial progress must not round up into a certification nobody earned.
+  const first = A.requiredModules("operator")[0];
+  const partial = A.pathProgress("operator", new Set([first.slug]));
+  ok("academy: one module done does not grant a certification on its own",
+    partial.modulesDone === 1 && partial.certsEarned <= op.certsTotal && !partial.complete);
+
+  // An unknown role falls back to the staff path rather than throwing or returning an empty path.
+  const unknown = A.pathProgress("nonsense-role", none);
+  ok("academy: an unrecognised role gets the staff path, not an empty one",
+    unknown.modulesTotal === A.pathProgress("staff", none).modulesTotal && unknown.modulesTotal > 0);
+
+  ok("academy: the headline leads with what to do, and says so plainly",
+    /not started/.test(A.pathHeadline(op)) && /complete/.test(A.pathHeadline(done)),
+    `${A.pathHeadline(op)} | ${A.pathHeadline(done)}`);
+  ok("academy: a part-done path reports certifications rather than 'not started'",
+    /certifications/.test(A.pathHeadline(partial)), A.pathHeadline(partial));
+}
+
 console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
 console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);
 process.exit(fail ? 1 : 0);

@@ -1126,3 +1126,57 @@ export function requiredModules(role: Role | string): Module[] {
   const want = new Set(pathForRole(role).flatMap((k) => certByKey(k)?.modules ?? []));
   return MODULES.filter((m) => want.has(m.slug));
 }
+
+// ─────────────────────────── where one person stands ───────────────────────────
+// The Academy has 30 modules and 12 certifications, and every role already declares which
+// certifications it requires (ROLE_PATHS). None of that was visible anywhere outside the Academy
+// itself: the crew console linked to it with a flat label and no state, so the one place that says
+// "you are 0 of 8 certifications into being an Operator" was behind a link nobody had a reason to
+// open. This is that sentence, derived from what the app already knows.
+//
+// Pure and deterministic on purpose — the caller passes the set of completed module slugs, so this
+// is unit-tested rather than mocked.
+export interface PathProgress {
+  role: Role | string;
+  roleLabel: string;
+  certsTotal: number;
+  certsEarned: number;
+  modulesTotal: number;
+  modulesDone: number;
+  modulesLeft: number;
+  minutesLeft: number;
+  nextModule: Module | null;   // the first required module not yet complete
+  nextCert: Cert | null;       // the cert that module counts toward
+  complete: boolean;
+}
+
+export function pathProgress(role: Role | string, completed: Set<string>): PathProgress {
+  const required = requiredModules(role);
+  const certKeys = pathForRole(role);
+  const certs = certKeys.map((k) => certByKey(k)).filter((c): c is Cert => !!c);
+  const done = required.filter((m) => completed.has(m.slug));
+  const next = required.find((m) => !completed.has(m.slug)) ?? null;
+  // The cert the next module counts toward — the nearest finish line, not just the next task.
+  const nextCert = next ? (certs.find((c) => c.modules.includes(next.slug) && !certEarned(c, completed)) ?? null) : null;
+  const left = required.filter((m) => !completed.has(m.slug));
+  return {
+    role,
+    roleLabel: ROLES.find((r) => r.key === role)?.label ?? String(role),
+    certsTotal: certs.length,
+    certsEarned: certs.filter((c) => certEarned(c, completed)).length,
+    modulesTotal: required.length,
+    modulesDone: done.length,
+    modulesLeft: left.length,
+    minutesLeft: left.reduce((n, m) => n + (Number(m.estMin) || 0), 0),
+    nextModule: next,
+    nextCert,
+    complete: left.length === 0,
+  };
+}
+
+// One line for a card: what this person should do next, or that they are done.
+export function pathHeadline(p: PathProgress): string {
+  if (p.complete) return `${p.roleLabel} path complete — all ${p.certsTotal} certifications earned.`;
+  if (p.modulesDone === 0) return `${p.roleLabel} path — not started. ${p.modulesTotal} modules, about ${Math.round(p.minutesLeft / 60)}h.`;
+  return `${p.roleLabel} path — ${p.certsEarned} of ${p.certsTotal} certifications, ${p.modulesLeft} module${p.modulesLeft === 1 ? "" : "s"} to go.`;
+}

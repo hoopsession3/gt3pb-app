@@ -1398,6 +1398,20 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .opx-link:active{background:rgba(168,124,63,.14)}
 .opx-link-t{display:block;font-family:'Inter','Helvetica Neue',Arial,sans-serif;font-style:normal;font-weight:800;font-size:19px;color:var(--cream)}
 .opx-link-s{display:block;font-family:'Inter';font-size:12.5px;color:color-mix(in srgb, var(--brand-cream) 50%, transparent);margin-top:3px}
+/* GT3 Academy card — the link now carries the reader's own path. Every colour here is one .opx-link
+   already resolves in both the dark crew console and the .crew-day paper theme; nothing reaches for
+   a paper-scope token, which is how the offer-letter stat block went grey-on-cream. */
+.acad-top{display:flex;align-items:center;gap:10px}
+.acad-top .opx-link-t{flex:1 1 auto;min-width:0}
+.acad-chip{flex:none;font-family:'Inter';font-size:11px;font-weight:800;letter-spacing:.3px;
+  padding:3px 9px;border-radius:999px;font-variant-numeric:tabular-nums;
+  color:var(--gold);border:1px solid var(--gold);background:color-mix(in srgb, var(--gold) 12%, transparent)}
+.acad-chip.done{color:var(--ok);border-color:color-mix(in srgb, var(--ok) 55%, transparent);background:color-mix(in srgb, var(--ok) 14%, transparent)}
+.acad-chip.none{color:var(--cream-m);border-color:var(--line2);background:transparent}
+.acad-bar{display:block;height:4px;border-radius:999px;background:var(--line2);margin-top:9px;overflow:hidden}
+.acad-bar>i{display:block;height:100%;background:var(--gold);border-radius:999px;min-width:0}
+.acad-next{display:block;font-family:'Inter';font-size:12px;color:var(--cream-m);margin-top:8px}
+.acad-next b{color:var(--cream);font-weight:700}
 
 /* Prep — events as cards, grouped by date/when, with a pull-up to re-sort */
 .adm-prep .sec{display:flex;align-items:center;gap:10px}
