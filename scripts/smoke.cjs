@@ -660,6 +660,95 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     M.rowInMarket({ market: "atlanta" }, "atlanta") && !M.rowInMarket({ market: "atlanta" }, "greenville"));
 }
 
+// ── OFFER LETTERS (0281) — write, approve, send ───────────────────────────────────────────────────
+{
+  const O = require("../.smoke/offerLetter.js");
+
+  // The gate that defines the feature: the candidate is unreachable except through approval.
+  ok("offer: a draft goes to review, never straight to the candidate",
+    O.canAdvance("draft", "in_review") && !O.canAdvance("draft", "sent") && !O.canAdvance("draft", "approved"));
+  ok("offer: review cannot jump the candidate either",
+    !O.canAdvance("in_review", "sent"));
+  ok("offer: sent is reachable ONLY from approved",
+    O.canAdvance("approved", "sent") &&
+    !["draft","in_review","changes_requested","countered"].some((s) => O.canAdvance(s, "sent")));
+  ok("offer: a co-owner asking for changes sends it back, not onward",
+    O.canAdvance("in_review", "changes_requested") && O.canAdvance("changes_requested", "draft"));
+  ok("offer: accepted and declined are terminal", O.isTerminal("accepted") && O.isTerminal("declined"));
+  ok("offer: terms are editable only before anyone commits",
+    O.isEditable("draft") && O.isEditable("changes_requested") && O.isEditable("countered") &&
+    !O.isEditable("in_review") && !O.isEditable("approved") && !O.isEditable("accepted"));
+  ok("offer: an unknown status reads as draft, the least privileged",
+    O.toOfferStatus("wizard") === "draft" && O.toOfferStatus(undefined) === "draft");
+
+  // Approvals: unanimous, and the author never approves their own offer.
+  ok("offer: every OTHER owner must approve",
+    O.requiredApprovers(["a","b","c"], "a").join(",") === "b,c");
+  ok("offer: the author is never their own approver",
+    !O.requiredApprovers(["a","b"], "a").includes("a"));
+  ok("offer: duplicate owner ids collapse", O.requiredApprovers(["a","b","b"], "a").length === 1);
+  ok("offer: a sole owner has nobody to review it — and that is NOT a unanimous vote of zero",
+    O.requiredApprovers(["a"], "a").length === 0 && !O.needsReview(0) && O.needsReview(1));
+  ok("offer: outcome is pending until everyone has decided",
+    O.approvalOutcome([{approver_id:"b",decision:"approved"},{approver_id:"c"}]) === "pending");
+  ok("offer: unanimous approval approves",
+    O.approvalOutcome([{approver_id:"b",decision:"approved"},{approver_id:"c",decision:"approved"}]) === "approved");
+  ok("offer: ONE objection stops it, however many approvals there are",
+    O.approvalOutcome([{approver_id:"b",decision:"approved"},{approver_id:"c",decision:"changes_requested"}]) === "changes_requested");
+  ok("offer: the tally adds up", (() => {
+    const t = O.approvalTally([{approver_id:"b",decision:"approved"},{approver_id:"c",decision:"changes_requested"},{approver_id:"d"}]);
+    return t.approved === 1 && t.changes === 1 && t.pending === 1 && t.total === 3;
+  })());
+  ok("offer: an empty approval set is pending, never approved", O.approvalOutcome([]) === "pending");
+
+  // Validation catches every problem at once, not one per submit.
+  const bad = O.validateOffer({});
+  ok("offer: an empty offer reports every problem at once", !bad.ok && bad.problems.length >= 4);
+  ok("offer: an offer with no pay is refused",
+    !O.validateOffer({ candidateName:"A", candidateEmail:"a@b.co", title:"T", market:"atlanta", role:"server" }).ok);
+  ok("offer: a base with no unit is refused",
+    !O.validateOffer({ candidateName:"A", candidateEmail:"a@b.co", title:"T", market:"atlanta", role:"server", baseCents: 5000000 }).ok);
+  ok("offer: commission alone is a valid offer",
+    O.validateOffer({ candidateName:"A", candidateEmail:"a@b.co", title:"T", market:"atlanta", role:"operator", commissionPct: 50 }).ok);
+  ok("offer: a bad email is caught",
+    !O.validateOffer({ candidateName:"A", candidateEmail:"nope", title:"T", market:"atlanta", role:"server", commissionPct: 10 }).ok);
+  ok("offer: commission outside 0-100 is refused",
+    !O.validateOffer({ candidateName:"A", candidateEmail:"a@b.co", title:"T", market:"atlanta", role:"server", commissionPct: 140 }).ok);
+
+  // Roles: owner can never be offered, and the reach text is real.
+  ok("offer: owner is not an offerable role", !O.OFFERABLE_ROLES.includes("owner"));
+  ok("offer: an unknown role falls back to member, the least privileged",
+    O.toRoleKey("wizard") === "member" && O.toRoleKey(undefined) === "member");
+  ok("offer: the four staff roles are declared as the same gate",
+    ["server","contractor","operator","event_manager"].every((r) => O.ROLE_ACCESS[r].gate === "staff"));
+  ok("offer: every role says what it reaches and what it cannot",
+    Object.values(O.ROLE_ACCESS).every((a) => a.reaches.length > 0 && Array.isArray(a.cannot)));
+
+  // Classification: the flags only exist when the letter claims contractor.
+  ok("offer: an employee offer raises no classification flags",
+    O.classificationFlags({ employmentType: "employee", setsSchedule: true, baseCents: 5e6 }).length === 0);
+  ok("offer: a contractor with a guaranteed base and our schedule is flagged", (() => {
+    const f = O.classificationFlags({ employmentType: "contractor", setsSchedule: true, baseCents: 5e6 });
+    return f.length === 2 && f.every((x) => x.says && x.why);
+  })());
+  ok("offer: a clean contractor offer is not flagged",
+    O.classificationFlags({ employmentType: "contractor", baseCents: null }).length === 0);
+  ok("offer: employment type never resolves to junk",
+    O.toEmploymentType("1099") === "employee" && O.toEmploymentType("contractor") === "contractor");
+
+  // The one-liner a co-owner approves against is the one the candidate reads.
+  ok("offer: the summary carries title, market, pay and type", (() => {
+    const s = O.summarize({ title:"Head of Atlanta Ops", market:"atlanta", baseCents: 7500000,
+                            ratePer:"year", commissionPct: 10, employmentType:"employee" });
+    return s.includes("Head of Atlanta Ops") && s.includes("Atlanta") && s.includes("$75,000")
+        && s.includes("10% commission") && s.includes("employee");
+  })());
+  ok("offer: money formats or says nothing, never NaN",
+    O.money(null) === "—" && O.money(7500000) === "$75,000");
+  ok("offer: a fresh offer validates as incomplete rather than throwing",
+    !O.validateOffer(O.emptyOffer()).ok);
+}
+
 console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
 console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);
 process.exit(fail ? 1 : 0);

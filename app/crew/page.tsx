@@ -98,6 +98,7 @@ const MenuManager = dynamic(() => import("@/components/MenuManager"), { loading:
 const LessonsManager = dynamic(() => import("@/components/LessonsManager"), { loading: () => <PourFill label="Loading…" /> });
 const MerchManager = dynamic(() => import("@/components/MerchManager"), { loading: () => <PourFill label="Loading…" /> });
 const OperatorDeal = dynamic(() => import("@/components/OperatorDeal"), { loading: () => <PourFill label="Loading…" /> });
+const OfferLetters = dynamic(() => import("@/components/OfferLetters"), { loading: () => <PourFill label="Loading…" /> });
 const PaymentSettings = dynamic(() => import("@/components/PaymentSettings"), { loading: () => <PourFill label="Loading…" /> });
 const MoneyKpis = dynamic(() => import("@/components/MoneyKpis"), { loading: () => <PourFill label="Loading…" /> });
 const PlanEditor = dynamic(() => import("@/components/PlanEditor"), { loading: () => <PourFill label="Loading…" /> });
@@ -6332,6 +6333,7 @@ export default function AdminPage() {
               back as royalty — built on a slider anchored to the agreed 50/30/20, then sent for their
               response. The money math lives in lib/operatorDeal.ts and is unit-tested. */}
           <Panel id="operators" title="Operator agreements · deals, levels &amp; royalties"><OperatorDeal /></Panel>
+          <Panel id="offers" title="Offer letters · hire someone"><OfferLetters /></Panel>
           <div className="crew-group">Members &amp; subscriptions</div>
           <Panel id="plans" title="Membership plans"><PlanEditor /></Panel>
           <Panel id="subs" title="Subscribers"><Subscribers /></Panel>
