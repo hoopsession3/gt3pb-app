@@ -167,7 +167,9 @@ if (findings.length) {
 // data, on a platform with exactly one tenant. Demanding it reach zero before anything else ships
 // would be theatre. Demanding it never gets WORSE is not, so this is a ratchet: the baseline is
 // recorded, the build fails if the number grows, and lowering it lowers the baseline.
-const BASELINE = 63;   // measured 2026-09-06 — all staff-gated agent reads, latent while single-tenant. Lower it, never raise it.
+const BASELINE = 62;   // measured 2026-09-06 — all staff-gated agent reads, latent while single-tenant. Lower it, never raise it.
+                       // 63 → 62: the brew route's raw inventory_ledger insert became one RPC call (0294),
+                       // which is tenant- and market-scoped inside the function instead of out here.
 
 const over = findings.length - BASELINE;
 if (over > 0) {

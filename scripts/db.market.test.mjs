@@ -767,6 +767,135 @@ ok("0293: and the list says why they are there", /predates the rule/.test(open[0
 ok("0293: the accounted batch is not in the list",
    !open.some((b) => b.recipe_name === "Rise"));
 
+// ═══ 0294 — the bridge between a recipe and a shelf ═════════════════════════════════════════════
+// The fixture's brew_recipes was (id, name); production's is 0079's, with a jsonb ingredient list, a
+// reference water volume and an archived_at. Fourth time a stub here has been thinner than
+// production, and the fourth time it would have made 0294 pass on a table it will never meet.
+await db.exec(`
+  -- production defines this in 0041; the fixture never needed it until the map table's touch trigger.
+  create or replace function public.touch_updated_at() returns trigger
+    language plpgsql as $fn$ begin new.updated_at := now(); return new; end $fn$;
+
+  alter table public.brew_recipes add column tenant_id uuid default '${T1}';
+  alter table public.brew_recipes add column base_water_gal numeric not null default 1;
+  alter table public.brew_recipes add column ingredients jsonb not null default '[]';
+  alter table public.brew_recipes add column archived_at timestamptz;
+  alter table public.brew_batches add column scaled jsonb;
+  alter table public.brew_batches add column event_id int references public.events(id);
+  alter table public.brew_batches add column stop_id int;
+
+  insert into public.brew_recipes (id, name, base_water_gal, ingredients) values
+    ('eeeeeeee-0000-0000-0000-000000000001', 'GT3 Rise (OG)', 2, '[
+       {"name":"Coarse-ground organic single-origin coffee","qty":560,"unit":"g","scales":true},
+       {"name":"Organic cacao nibs (mix with grounds)","qty":160,"unit":"g","scales":true}]'::jsonb);
+
+  -- the shelf the map will point at: a 2.2 lb bag counted in "each", exactly as production has it
+  insert into public.inventory_items (name, market, qty, unit)
+    values ('Yupik Organic Raw Cacao Nibs 2.2 lb', 'greenville', 3, 'each'),
+           ('Yupik Organic Raw Cacao Nibs 2.2 lb', 'atlanta',    1, 'each');
+
+  -- a batch of that recipe, not yet served, with the scaled list the planner stores
+  insert into public.brew_batches (id, recipe_id, recipe_name, batch_gal, brew_date, status, scaled)
+  values ('dddddddd-0000-0000-0000-000000000009','eeeeeeee-0000-0000-0000-000000000001',
+          'GT3 Rise (OG)', 4, current_date, 'ready', '[
+       {"name":"Coarse-ground organic single-origin coffee","qty":1120,"unit":"g"},
+       {"name":"Organic cacao nibs (mix with grounds)","qty":320,"unit":"g"}]'::jsonb);
+
+  -- an orphan draw-down from the pre-map era: an item name that matches no shelf anywhere
+  insert into public.inventory_ledger (item, market, qty, kind, note)
+    values ('Coarse-ground organic single-origin coffee', 'greenville', -420, 'use', 'Brew — GT3 Rise (OG)');
+`);
+
+await db.exec(mig("0294_ingredient_map.sql"));
+
+ok("0294: every existing batch now names a city",
+   Number((await q1(`select count(*)::int n from public.brew_batches where market is null`)).n) === 0);
+
+// The seeded conversion is the only one that could be derived from what the app already knew.
+const seeded = await q1(`select shelf_qty_per_recipe_unit f, basis from public.recipe_ingredient_map
+                         where lower(ingredient) like 'organic cacao nibs%'`);
+ok("0294: the one derivable conversion is seeded", seeded != null);
+ok("0294: and it is 1 gram over a 2.2 lb bag, not a guess",
+   Math.abs(Number(seeded.f) - 1 / (2.2 * 453.59237)) < 1e-12, seeded?.f);
+ok("0294: it says where the number came from", /2\.2 lb/.test(seeded?.basis ?? ""), seeded?.basis);
+
+// A conversion with no stated basis is refused: that is the whole point of the column.
+const noBasis = await raises(`select public.map_ingredient('Whatever',
+  (select id from public.inventory_items where name='Yupik Organic Raw Cacao Nibs 2.2 lb' and market='greenville'),
+  2, '   ', 'greenville')`);
+ok("0294: a conversion with no stated basis is refused", noBasis !== null && /where the number came from/.test(noBasis), noBasis);
+const zero = await raises(`select public.map_ingredient('Whatever',
+  (select id from public.inventory_items where name='Yupik Organic Raw Cacao Nibs 2.2 lb' and market='greenville'),
+  0, 'nonsense', 'greenville')`);
+ok("0294: a zero conversion is refused", zero !== null && /positive number/.test(zero), zero);
+
+// Resolution is market-aware: the Atlanta shelf is a different row of inventory_items.
+ok("0294: the ingredient resolves in Greenville",
+   (await q1(`select count(*)::int n from public.resolve_ingredient('Organic cacao nibs (mix with grounds)','greenville')`)).n === 1);
+ok("0294: a global map row still has to find a shelf in the city that is brewing",
+   (await q1(`select count(*)::int n from public.resolve_ingredient('Organic cacao nibs (mix with grounds)','atlanta')`)).n === 0,
+   "the seeded row is greenville-scoped, so Atlanta must not resolve");
+
+// ── the guard, and the way to satisfy it ──
+const beforeLog = await raises(`update public.brew_batches set status='served'
+                                 where id='dddddddd-0000-0000-0000-000000000009'`);
+ok("0294: a batch cannot be served before its consumption is logged",
+   beforeLog !== null && /Log what this batch used/.test(beforeLog), beforeLog);
+
+const logged = await q1(`select public.log_batch_consumption('dddddddd-0000-0000-0000-000000000009') r`);
+const res = typeof logged.r === "string" ? JSON.parse(logged.r) : logged.r;
+ok("0294: logging drew the ingredient it could resolve", Number(res.drawn_count) === 1, JSON.stringify(res.drawn));
+ok("0294: and recorded the one it could not, rather than passing over it",
+   Number(res.gap_count) === 1 && /coffee/i.test(res.gaps[0].ingredient), JSON.stringify(res.gaps));
+
+// 320 g of nibs against a 997.903 g bag is 0.3206 of a bag.
+const drew = await q1(`select qty from public.inventory_ledger
+                        where batch_id='dddddddd-0000-0000-0000-000000000009' and qty < 0`);
+ok("0294: the draw is in the shelf's units, not the recipe's",
+   Math.abs(Number(drew.qty) + 320 / (2.2 * 453.59237)) < 1e-9, drew?.qty);
+
+ok("0294: the shortfall is kept on the batch, permanently",
+   Number((await q1(`select jsonb_array_length(consumption_gaps) n from public.brew_batches
+                      where id='dddddddd-0000-0000-0000-000000000009'`)).n) === 1);
+
+await db.exec(`update public.brew_batches set status='served' where id='dddddddd-0000-0000-0000-000000000009';`);
+ok("0294: once logged, the batch can be served",
+   (await q1(`select status from public.brew_batches where id='dddddddd-0000-0000-0000-000000000009'`))?.status === "served");
+
+const twice = await raises(`select public.log_batch_consumption('dddddddd-0000-0000-0000-000000000009')`);
+ok("0294: logging the same batch twice is refused, so nothing is drawn down twice",
+   twice !== null && /already logged/.test(twice), twice);
+
+// ── a batch that was logged but not fully accounted still says so ──
+const still = await db.query(`select why, gap_count from public.v_unaccounted_batches
+                               where batch_id='dddddddd-0000-0000-0000-000000000009'`);
+ok("0294: a partly-accounted batch stays on the unaccounted list",
+   still.rows.length === 1 && /could not come off a shelf/.test(still.rows[0].why), JSON.stringify(still.rows));
+
+// ── the gap, as a query ──
+const ingGaps = await db.query(`select market, ingredient, why from public.v_recipe_ingredient_gaps order by market, ingredient`);
+ok("0294: the coffee nobody can draw is listed for both cities",
+   ingGaps.rows.filter((r) => /coffee/i.test(r.ingredient)).length === 2, JSON.stringify(ingGaps.rows));
+ok("0294: Greenville's mapped ingredient is NOT listed as a gap",
+   !ingGaps.rows.some((r) => r.market === "greenville" && /cacao/i.test(r.ingredient)), JSON.stringify(ingGaps.rows));
+ok("0294: but Atlanta's unstocked one is",
+   ingGaps.rows.some((r) => r.market === "atlanta" && /cacao/i.test(r.ingredient)), JSON.stringify(ingGaps.rows));
+
+// ── the orphan rows are annotated, not deleted ──
+const orphan = await q1(`select note from public.inventory_ledger
+                          where item='Coarse-ground organic single-origin coffee' and batch_id is null`);
+ok("0294: the pre-map orphan draw-down is annotated rather than removed",
+   /\[orphan:/.test(orphan?.note ?? ""), orphan?.note);
+
+// ── the escape hatch still exists for a deliberate correction ──
+await db.exec(`insert into public.brew_batches (id, recipe_name, batch_gal, status)
+               values ('dddddddd-0000-0000-0000-00000000000a','Odd one', 1, 'ready');`);
+await db.exec(`select set_config('gt3.allow_hard_delete','on',false);
+               update public.brew_batches set status='dumped' where id='dddddddd-0000-0000-0000-00000000000a';
+               select set_config('gt3.allow_hard_delete','off',false);`);
+ok("0294: a deliberate exception can still dump an unlogged batch",
+   (await q1(`select status from public.brew_batches where id='dddddddd-0000-0000-0000-00000000000a'`))?.status === "dumped");
+
 // ═══ every file is idempotent, in order ═════════════════════════════════════════════════════════
 const snap = async () => JSON.stringify({
   cl: (await q1(`select count(*)::int n from public.changelog`)).n,
@@ -775,9 +904,17 @@ const snap = async () => JSON.stringify({
   ii: (await q1(`select count(*)::int n from public.inventory_items`)).n,
 });
 const before = await snap();
+// 0294 widens the two batch views that 0293 creates. `create or replace view` can only append
+// columns, so replaying 0293 over 0294's wider version raises "cannot drop columns from view" —
+// that is Postgres being right, not a defect: an older migration is not meant to run after a newer
+// one has redefined the same view. Dropping them first lets the loop check what it is actually for,
+// which is that re-running the files does not duplicate a row or re-seed a table.
+await db.exec(`drop view if exists public.v_unaccounted_batches;
+               drop view if exists public.v_batch_traceability;`);
 for (const f of ["0284_compliance_freshness.sql", "0285_market_live_switch.sql",
                  "0286_offer_letter_statutory.sql", "0287_supply_sourcing.sql",
-                 "0288_inventory_per_market.sql", "0289_market_ownership.sql", "0291_market_read_scope.sql", "0292_receipts_and_spend.sql", "0293_count_and_batch_chain.sql"]) {
+                 "0288_inventory_per_market.sql", "0289_market_ownership.sql", "0291_market_read_scope.sql", "0292_receipts_and_spend.sql", "0293_count_and_batch_chain.sql",
+                 "0294_ingredient_map.sql"]) {
   await db.exec(mig(f));
 }
 ok("re-running 0284–0288 in order changes nothing", (await snap()) === before, await snap());

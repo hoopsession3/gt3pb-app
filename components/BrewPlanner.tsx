@@ -147,9 +147,41 @@ export default function BrewPlanner() {
 
   // Mutations reload() from the server rather than patching local state — the fetched board now lives
   // inside useAsyncData, which has no setter of its own (by design: it's the one place status/error live).
+  // Serving or dumping a batch is refused until it says what it drank (0294's guard). That refusal
+  // used to vanish: the error was discarded and reload() snapped the dropdown back to its old value
+  // with nothing said, which is the worst way for a rule to be enforced. Now the batch offers the
+  // one action that satisfies it, and any other failure is shown rather than swallowed.
+  const [needsLog, setNeedsLog] = useState<string | null>(null);
+  const [logging, setLogging] = useState(false);
+  const [logResult, setLogResult] = useState<{ id: string; drawn: number; gaps: any[] } | null>(null);
+  // useAsyncData owns the LOAD error; a mutation that fails needs somewhere of its own to be seen.
+  const [mutErr, setMutErr] = useState<string | null>(null);
+
   const setStatus = async (id: string, status: string) => {
     if (!supabase) return;
-    await supabase.from("brew_batches").update({ status }).eq("id", id);
+    const { error } = await supabase.from("brew_batches").update({ status }).eq("id", id);
+    if (error) {
+      if (/log what this batch used/i.test(error.message)) setNeedsLog(id);
+      else setMutErr(error.message);
+      reload();
+      return;
+    }
+    setNeedsLog(null);
+    reload();
+  };
+
+  // Draws the batch's ingredients off the shelf through the ingredient map, and reports what it
+  // could not draw. A gap is not a failure — it is the list of conversions nobody has worked out
+  // yet — so the batch is logged either way and the shortfall is shown.
+  const logUsed = async (id: string) => {
+    if (!supabase) return;
+    setLogging(true);
+    const { data, error } = await supabase.rpc("log_batch_consumption", { p_batch_id: id });
+    setLogging(false);
+    if (error) { setMutErr(error.message); return; }
+    const r: any = data ?? {};
+    setLogResult({ id, drawn: Number(r.drawn_count) || 0, gaps: Array.isArray(r.gaps) ? r.gaps : [] });
+    setNeedsLog(null);
     reload();
   };
   // Start the brew NOW — stamp the start, set ready_at = now + extraction_hours, capture the coffee
@@ -200,6 +232,13 @@ export default function BrewPlanner() {
       <SectionHeader label="Brew" />
       <button className="adm-btn primary" style={{ marginLeft: "auto" }} onClick={() => setPlan(recipes[0] ?? null)} disabled={!recipes.length}>+ Plan a batch</button>
       <div className="pnl-note" style={{ marginBottom: 8 }}>Recipes scale exactly to the gallons of water you brew and hold the spec. Batches are back-scheduled from the event they&apos;re for, then logged to standard.</div>
+
+      {mutErr && (
+        <div className="brew-oprow warn" role="alert">
+          {mutErr}
+          <button type="button" onClick={() => setMutErr(null)} aria-label="Dismiss">Dismiss</button>
+        </div>
+      )}
 
       <div className="brew-toggle">
         {(["schedule", "log"] as const).map((k) => (
@@ -259,6 +298,27 @@ export default function BrewPlanner() {
                   if (!shorts) return null;
                   return <div className={`brew-oprow${shorts.length ? " warn" : " ok"}`}>{shorts.length ? shorts.join(" · ") : "Stock covers it"}</div>;
                 })()}
+
+                {/* The guard refused a status change: say so plainly and offer the one action that
+                    satisfies it, instead of letting the dropdown snap back with no explanation. */}
+                {needsLog === b.id && (
+                  <div className="brew-oprow warn brew-needslog">
+                    <span>Nothing has come off the shelf for this batch yet.</span>
+                    <button type="button" onClick={() => logUsed(b.id)} disabled={logging}>
+                      {logging ? "Logging…" : "Log what it used"}
+                    </button>
+                  </div>
+                )}
+                {logResult?.id === b.id && (
+                  <div className={`brew-oprow${logResult.gaps.length ? " warn" : " ok"}`}>
+                    {logResult.drawn > 0
+                      ? `Drew ${logResult.drawn} ingredient${logResult.drawn === 1 ? "" : "s"} off the shelf.`
+                      : "Nothing could be drawn off the shelf."}
+                    {logResult.gaps.length > 0 && (
+                      <> {logResult.gaps.length} not accounted: {logResult.gaps.map((g: any) => g.ingredient).join(", ")}. Link {logResult.gaps.length === 1 ? "it" : "them"} to a shelf in Inventory so the next batch draws down properly.</>
+                    )}
+                  </div>
+                )}
 
                 {b.status === "planned" && (
                   <>

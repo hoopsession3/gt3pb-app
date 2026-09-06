@@ -4150,6 +4150,17 @@ body:has(.conc-sheet) .rail{display:flex}
 .brew-oprow.ok{border-color:rgba(43,179,163,.45);color:var(--cream)}
 .brew-oprow.warn{border-color:var(--warn);background:rgba(207,154,74,.14);color:var(--cream);font-weight:600}
 .brew-oprow.over{border-color:var(--red-h);background:color-mix(in srgb, var(--brand-red) 10%, transparent);color:var(--red-h);font-weight:700}
+/* A row that carries an action (the guard's "log what it used", a dismissable mutation error).
+   Every token here is one .brew-oprow already resolves in BOTH themes — a control must not reach for
+   a paper-scope token the crew console never defines, which is how the offer-letter stat block ended
+   up grey-on-cream. */
+.brew-oprow:has(button){display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.brew-oprow>button{margin-left:auto;flex:none;font:inherit;font-weight:700;cursor:pointer;
+  color:var(--cream);background:color-mix(in srgb, var(--warn) 22%, transparent);
+  border:1px solid var(--warn);border-radius:7px;padding:5px 11px}
+.brew-oprow>button:hover:not(:disabled){background:color-mix(in srgb, var(--warn) 34%, transparent)}
+.brew-oprow>button:disabled{opacity:.6;cursor:default}
+.app.crew-day .brew-oprow>button{color:#7a5518}
 
 /* Events row: real derived date under the day stamp (app/events RsvpRow) */
 .ev .when .ev-when-date{display:block;font-family:'Inter';font-size:8.5px;letter-spacing:.2px;text-transform:none;color:var(--cream-m);line-height:1.25;margin:2px 0 1px}

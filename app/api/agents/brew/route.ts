@@ -94,8 +94,23 @@ export async function POST(req: Request) {
 
   // ── COMMIT: log the batch to the schedule ──
   if (body.commit) {
+    // Which city is brewing decides which shelf the coffee comes off (0294). The event or stop the
+    // batch is for already knows; without one, the column's own default stands rather than a guess
+    // made here.
+    let batchMarket: string | null = null;
+    try {
+      if (body.event_id) {
+        const { data: e } = await supabaseAdmin.from("events").select("market").eq("id", body.event_id).maybeSingle();
+        batchMarket = (e as any)?.market ?? null;
+      } else if (body.stop_id) {
+        const { data: s } = await supabaseAdmin.from("stops").select("market").eq("id", body.stop_id).maybeSingle();
+        batchMarket = (s as any)?.market ?? null;
+      }
+    } catch { /* fall through to the column default */ }
+
     const { data: ins, error } = await supabaseAdmin.from("brew_batches").insert({
       recipe_id: recipeId, recipe_name: (recipe as any).name, batch_gal: batchGal,
+      ...(batchMarket ? { market: batchMarket } : {}),
       brew_date: brewDate, ready_at: readyAt, event_id: body.event_id ?? null, stop_id: body.stop_id ?? null,
       needed_by: needBy ? etEight(needBy).toISOString() : null,
       hold_hours: Number((recipe as any).hold_hours) || 72,
@@ -109,20 +124,25 @@ export async function POST(req: Request) {
     // per the owner's "decrement at brew time" call). Match each scaled ingredient to a catalog item by
     // name so the ledger row carries the real item id (0197 FK); qty is negative (a use). The ledger IS
     // the on-hand delta system (inventory_on_hand sums it) — safer than mutating qty across mismatched
-    // units. Best-effort per line so a missing/uncosted ingredient never blocks the brew.
+    // units.
+    //
+    // WHAT THIS USED TO DO, AND WHY IT NEVER ONCE WORKED. It wrote a ledger row per scaled ingredient
+    // keyed by the RECIPE's words ('Coarse-ground organic single-origin coffee') and set
+    // inventory_item_id to null whenever no shelf matched — which was every time, because a shelf is
+    // a purchase catalogue entry ('Yupik Organic Raw Cacao Nibs 2.2 lb'). It carried no batch_id and
+    // no market, and spent the recipe's units against a shelf counted in something else. The result
+    // was three rows debiting shelves that do not exist, and five batches served while the stock
+    // never moved. 0294 put the conversion in one place; log_batch_consumption applies it, stamps the
+    // batch, and returns what it could NOT draw, so a shortfall is visible instead of silent.
+    // Still best-effort: a hole in the map must never stop a brew from being committed.
+    let consumption: unknown = null;
     try {
-      const items: any[] = Array.isArray(scaled) ? scaled : [];
-      if (items.length) {
-        const { data: inv } = await supabaseAdmin.from("inventory_items").select("id, name");
-        const byName = new Map((inv ?? []).map((r: any) => [String(r.name).trim().toLowerCase(), r.id]));
-        const rows = items
-          .map((ing: any) => ({ nm: String(ing?.name ?? "").trim(), q: Number(ing?.qty) || 0 }))
-          .filter((x) => x.nm && x.q > 0)
-          .map((x) => ({ item: x.nm.slice(0, 160), inventory_item_id: byName.get(x.nm.toLowerCase()) ?? null, kind: "use", qty: -x.q, note: `Brew — ${(recipe as any).name ?? ""} · ${batchGal} gal`.slice(0, 200) }));
-        if (rows.length) await supabaseAdmin.from("inventory_ledger").insert(rows);
+      if (ins?.id) {
+        const { data: c } = await supabaseAdmin.rpc("log_batch_consumption", { p_batch_id: ins.id });
+        consumption = c ?? null;
       }
-    } catch { /* consumption logging is best-effort */ }
-    return NextResponse.json({ ok: true, batch_id: ins?.id ?? null });
+    } catch { /* the batch is committed either way; the crew can log it from the planner */ }
+    return NextResponse.json({ ok: true, batch_id: ins?.id ?? null, consumption });
   }
 
   // ── PLAN: deterministic numbers + (if AI configured) the judgment around them ──
