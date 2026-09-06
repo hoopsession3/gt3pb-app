@@ -1979,6 +1979,46 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .gl-item-retired{opacity:.62}
 .gl-retire{border-left:3px solid var(--oa-red,#B82420)}
 .gl-retire-note{font-family:'Inter';font-size:12px;line-height:1.5;color:var(--cream-m);margin:0 0 10px}
+
+/* ── Operator agreements (0277) — the deal builder ── */
+.od-status{font-family:'Inter';font-weight:650;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:3px;white-space:nowrap;flex:none;background:color-mix(in srgb, var(--brand-cream) 6%, transparent);color:var(--cream-d);border:1px solid var(--line)}
+.od-sent,.od-countered{background:color-mix(in srgb, var(--brand-gold2) 14%, transparent);color:var(--gold2);border-color:color-mix(in srgb, var(--brand-gold2) 32%, transparent)}
+.od-accepted,.od-active{background:color-mix(in srgb, #6aa05c 18%, transparent);color:#8fc47f;border-color:color-mix(in srgb, #6aa05c 34%, transparent)}
+.od-changes_requested{background:color-mix(in srgb, var(--brand-red) 14%, transparent);color:#d9776e;border-color:color-mix(in srgb, var(--brand-red) 32%, transparent)}
+.od-slider{width:100%;margin:10px 0 4px;accent-color:var(--gold2)}
+.od-ends{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-family:'Inter';font-size:10.5px;letter-spacing:.05em;color:var(--cream-d)}
+.od-ends b{font-size:12.5px;color:var(--gold2)}
+.od-split{display:flex;height:12px;border-radius:6px;overflow:hidden;margin:14px 0 8px;background:var(--card)}
+.od-seg{display:block;height:100%;transition:width .18s ease}
+.od-op{background:var(--gold2)}
+.od-roy{background:var(--brand-red)}
+.od-mkt{background:#6aa05c}
+.od-legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-family:'Inter';font-size:11.5px;color:var(--cream-m)}
+.od-legend b{color:var(--cream)}
+.od-k{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:baseline}
+.od-note{font-family:'Inter';font-size:11.5px;line-height:1.55;color:var(--cream-m);margin-top:10px}
+.od-figs{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-top:10px}
+.od-figs > div{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 11px}
+.od-figs b{display:block;font-family:'Inter';font-weight:700;font-size:17px;letter-spacing:-.01em;font-variant-numeric:tabular-nums;color:var(--cream)}
+.od-figs span{display:block;font-family:'Inter';font-size:10.5px;letter-spacing:.04em;color:var(--cream-d);margin-top:3px;line-height:1.35}
+.od-fig-key{border-color:color-mix(in srgb, var(--brand-gold2) 40%, transparent)}
+.od-fig-key b{color:var(--gold2)}
+.od-tiers{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.od-ev{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line)}
+.od-ev:last-child{border-bottom:0}
+.od-ev-k{font-family:'Inter';font-weight:650;font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--gold2)}
+.od-ev-t{font-family:'Inter';font-size:11px;color:var(--cream-d)}
+.od-ev-n{font-family:'Inter';font-size:11.5px;color:var(--cream-m);flex-basis:100%;line-height:1.5}
+
+/* ── Academy: operating expectations per level ── */
+.ac-exp{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--gold2);border-radius:10px;padding:13px 15px;margin-top:16px}
+.ac-exp-head{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;background:none;border:0;padding:0;cursor:pointer;text-align:left;color:inherit}
+.ac-exp-k{font-family:'Inter';font-weight:650;font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--gold2)}
+.ac-exp-owns{font-family:'Fraunces',Georgia,serif;font-size:15.5px;line-height:1.45;color:var(--cream);margin:8px 0 0;text-wrap:pretty}
+.ac-exp-body{margin-top:12px;display:grid;gap:12px}
+.ac-exp-grp .ac-exp-t{font-family:'Inter';font-weight:650;font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--cream-d);margin-bottom:5px}
+.ac-exp-grp ul{margin:0;padding-left:16px}
+.ac-exp-grp li{font-family:'Inter';font-size:12.5px;line-height:1.55;color:var(--cream-m);margin-bottom:5px}
 .gl-edit{background:none;border:none;font-family:'Inter';font-size:11px;color:var(--cream-m);cursor:pointer;padding:0}
 .gl-edit:active{opacity:.6}
 .gl-del{background:none;border:none;font-size:12px;color:var(--cream-d);cursor:pointer;padding:0;line-height:1}

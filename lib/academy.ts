@@ -976,6 +976,105 @@ const ROLE_PATHS: RolePath[] = [
   { role: "founder", certs: ["brand", "cx", "product", "science", "equipment", "event", "ops", "trailer", "inventory", "excellence", "leadership", "philosophy"] },
 ];
 
+// ─────────────────────────── operating expectations by level ───────────────────────────
+// The certs above answer "what have you been taught". These answer "what are you held to" — which
+// nothing in the Academy said until now. A learning path without a standard attached teaches people
+// the material and leaves them guessing about the job.
+//
+// Deliberately written as four different things, because they get confused with each other:
+//   owns      — the one sentence that defines the role. If it's true of two roles, one is wrong.
+//   standards — non-negotiables. Breaking one is a conversation, not a coaching note.
+//   cadence   — what the role does on a rhythm, whether or not anyone asks.
+//   judgedOn  — how the role is actually assessed. Stated out loud so nobody has to infer it.
+export interface RoleExpectations {
+  role: Role;
+  owns: string;
+  standards: string[];
+  cadence: string[];
+  judgedOn: string[];
+}
+
+export const EXPECTATIONS: Record<Role, RoleExpectations> = {
+  contractor: {
+    role: "contractor",
+    owns: "One shift, run to standard, without needing supervision.",
+    standards: [
+      "Arrive in brand standard and on time — the truck opens when it says it opens.",
+      "Never make a health claim. If you're unsure whether a sentence is allowed, don't say it.",
+      "Never improvise a recipe. Spec exists so the tenth cup matches the first.",
+      "Log what you use before you leave. Unlogged stock is stock nobody can reorder.",
+    ],
+    cadence: ["Pre-shift checklist before service", "Close-out count before you leave"],
+    judgedOn: ["Cups made to spec", "Whether the station closes clean", "Whether you had to be chased"],
+  },
+  staff: {
+    role: "staff",
+    owns: "Every cup that leaves the window, and the guest who takes it.",
+    standards: [
+      "Recipe to spec every time — not close, the same.",
+      "Claim-safe language. Describe what's in it and how it's made, never what it cures.",
+      "Never sell something you can't explain. Ask, then sell it properly next time.",
+      "Sold-out beats substituted. Marking an item 86'd is a service, not a failure.",
+    ],
+    cadence: ["Open checks", "Par check mid-service", "Close count"],
+    judgedOn: ["Consistency across a whole service", "Holding the line at peak", "Guests who come back and ask for you"],
+  },
+  operator: {
+    role: "operator",
+    owns: "The service day: the rig, the crew on it, and the numbers it produces.",
+    standards: [
+      "The rig is safe and legal before it moves. Tow limits and load-out are checked, not assumed.",
+      "Par is honoured. Going out short is a decision you make in advance, out loud, not one you discover.",
+      "Incidents get logged the same day, including the ones that ended fine.",
+      "Equipment gets retired, never deleted — its service history is how the next one gets fixed faster.",
+    ],
+    cadence: ["Readiness check before every service day", "Load-out signed off", "End-of-day numbers in the same night"],
+    judgedOn: ["Days that run without escalation", "Waste against par", "Equipment kept in service rather than replaced"],
+  },
+  event_manager: {
+    role: "event_manager",
+    owns: "The promise made to a venue, and the delivery of it.",
+    standards: [
+      "Nothing is confirmed that can't be served. Capacity is checked before the yes, not after.",
+      "Compliance is confirmed for that jurisdiction — the app will tell you when it doesn't know a county. Believe it.",
+      "Staffing is locked 72 hours out. A crew found on the morning is not a crew.",
+      "Every event gets a debrief, including the ones that went well.",
+    ],
+    cadence: ["Weekly pipeline review", "Debrief within 48 hours of every event"],
+    judgedOn: ["Events delivered as they were sold", "Margin per event, not revenue per event", "Venues that book again"],
+  },
+  admin: {
+    role: "admin",
+    owns: "A market's health: its crew, its equipment, its pipeline and its numbers.",
+    standards: [
+      "Goals are current and honestly rated. An at-risk goal marked on-track is worse than no goal.",
+      "Corporate quotes go out at approved pricing. Discounts are a decision above this level.",
+      "Nobody is made staff who hasn't been told what they're held to — this page, for their level.",
+      "What the market spends is visible before it's spent, not explained after.",
+    ],
+    cadence: ["Monday workstream audit", "Weekly operating review", "Month-end close"],
+    judgedOn: ["What the market contributes", "Pipeline that moves rather than ages", "Whether the market runs correctly when you're away"],
+  },
+  founder: {
+    role: "founder",
+    owns: "The standard, the money, and who else gets to carry the name.",
+    standards: [
+      "The claim rules are not negotiable, in any market, for any account, at any size.",
+      "No market opens before its jurisdiction is seeded and its operator's agreement is signed.",
+      "Agreements are written down. What was agreed is a record, not a recollection.",
+      "Anything that touches customer money is server-authoritative. No exceptions for speed.",
+    ],
+    cadence: ["Weekly operating review", "Quarterly strategy session", "Agreement review at every tier change"],
+    judgedOn: ["Markets that survive without you", "Operators who outgrow their first agreement", "Whether the standard held while you weren't looking"],
+  },
+};
+
+/** Expectations for a role, tolerant of the app's own role strings (see APP_TO_ACADEMY). */
+export function expectationsFor(role: Role | string): RoleExpectations {
+  const r = (role in EXPECTATIONS ? role : "staff") as Role;
+  return EXPECTATIONS[r];
+}
+
 // ─────────────────────────── operational readiness ───────────────────────────
 // Each question is answered by holding the listed certs.
 export interface Readiness { q: string; need: string[]; ack?: string }

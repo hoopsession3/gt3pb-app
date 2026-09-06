@@ -441,6 +441,88 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     E.unavailableCount(["active", "active", "reserve", "retired"]) === 1);
 }
 
+// ── operator deal (0277) — real money, so the same rigour as the pricing invariants ──
+{
+  const OD = require("../.smoke/operatorDeal.js");
+  const T = (supplyFunding, stage = "profitable", tier = "associate") => ({ supplyFunding, stage, tier });
+
+  // THE ANCHOR: the agreed deal is 50 / 30 / 20 at the midpoint of the slider. If this ever fails,
+  // the model has drifted away from what was actually agreed.
+  const anchor = OD.computeSplit(T(50));
+  ok("deal: the anchor is 50/30/20 at midpoint",
+    anchor.operatorPct === 50 && anchor.royaltyPct === 30 && anchor.marketPct === 20, JSON.stringify(anchor));
+  ok("deal: GT3 funds everything -> operator 35 / royalty 45",
+    OD.computeSplit(T(0)).operatorPct === 35 && OD.computeSplit(T(0)).royaltyPct === 45);
+  ok("deal: operator funds everything -> operator 65 / royalty 15",
+    OD.computeSplit(T(100)).operatorPct === 65 && OD.computeSplit(T(100)).royaltyPct === 15);
+
+  // The invariant that matters most: the three shares always reconstruct the whole, at every point
+  // on the slider, in both stages, at every tier. Money that doesn't total 100% goes somewhere.
+  let allTotal = true, royaltyNeverNegative = true, marketProtected = true;
+  for (const stage of ["ramp", "profitable"]) {
+    for (const tier of ["associate", "operator", "senior", "partner"]) {
+      for (let f = 0; f <= 100; f += 1) {
+        const s = OD.computeSplit(T(f, stage, tier));
+        if (Math.round((s.operatorPct + s.royaltyPct + s.marketPct) * 10) / 10 !== 100) allTotal = false;
+        if (s.royaltyPct < 0) royaltyNeverNegative = false;
+        if (stage === "profitable" && s.marketPct !== 20) marketProtected = false;
+      }
+    }
+  }
+  ok("deal: splits total exactly 100 across every slider position, stage and tier", allTotal);
+  ok("deal: royalty never goes negative", royaltyNeverNegative);
+  ok("deal: the market's 20% reinvestment is never traded away when profitable", marketProtected);
+
+  // Ramp: no profit, so no royalty — the market keeps what GT3 would have taken.
+  const ramp = OD.computeSplit(T(50, "ramp"));
+  ok("deal: during ramp the royalty is zero", ramp.royaltyPct === 0);
+  ok("deal: during ramp the royalty share goes to the market, not GT3", ramp.marketPct === 100 - ramp.operatorPct);
+
+  // A tier lift costs GT3, never the market.
+  const assoc = OD.computeSplit(T(50, "profitable", "associate"));
+  const senior = OD.computeSplit(T(50, "profitable", "senior"));
+  ok("deal: a tier lift raises the operator by exactly its uplift", senior.operatorPct - assoc.operatorPct === 10);
+  ok("deal: a tier lift comes out of royalty, not the market",
+    assoc.royaltyPct - senior.royaltyPct === 10 && senior.marketPct === assoc.marketPct);
+
+  // Projection: the three shares must reconstruct revenue to the cent — no rounding leak.
+  const p = OD.project(T(50), 1_000_000, 200_000); // $10,000 revenue, $2,000 supplies
+  ok("deal: projected shares reconstruct revenue exactly, to the cent",
+    p.operatorGrossCents + p.royaltyCents + p.marketCents === 1_000_000);
+  ok("deal: supply funding splits the supply bill exactly",
+    p.operatorSuppliesCents + p.gt3SuppliesCents === 200_000);
+  ok("deal: operator net is gross less the supplies they fund",
+    p.operatorNetCents === p.operatorGrossCents - p.operatorSuppliesCents);
+  // An odd revenue is where a naive percentage split leaks a cent.
+  const odd = OD.project(T(37, "profitable", "senior"), 999_999, 33_333);
+  ok("deal: no cent leaks on awkward numbers",
+    odd.operatorGrossCents + odd.royaltyCents + odd.marketCents === 999_999 &&
+    odd.operatorSuppliesCents + odd.gt3SuppliesCents === 33_333);
+
+  // Funding more supplies buys a bigger share — but not always a bigger take-home. The builder shows
+  // both numbers precisely because the honest answer depends on the supply bill.
+  const cheapSupplies = OD.bestFundingForOperator(T(50), 1_000_000, 10_000);
+  const brutalSupplies = OD.bestFundingForOperator(T(50), 1_000_000, 900_000);
+  ok("deal: with light supply costs the operator is better off funding them", cheapSupplies === 100);
+  ok("deal: with heavy supply costs funding them is NOT automatically better",
+    brutalSupplies < 100, `best funding = ${brutalSupplies}`);
+
+  // Negotiation flow — a proposal that can only be accepted is not a proposal.
+  ok("deal: a draft can only be sent", OD.canAdvance("draft", "sent") && !OD.canAdvance("draft", "accepted"));
+  ok("deal: a sent proposal can be accepted, questioned or countered",
+    OD.canAdvance("sent", "accepted") && OD.canAdvance("sent", "changes_requested") && OD.canAdvance("sent", "countered"));
+  ok("deal: an ended agreement is terminal", OD.nextStatuses("ended").length === 0);
+  ok("deal: terms are editable only before anyone has agreed",
+    OD.isEditable("draft") && OD.isEditable("changes_requested") && !OD.isEditable("accepted") && !OD.isEditable("active"));
+  ok("deal: only an active agreement is binding", OD.isBinding("active") && !OD.isBinding("accepted"));
+  ok("deal: an incomplete proposal can't be sent",
+    !OD.validateProposal({ market: "atlanta", terms: OD ? { supplyFunding: 50, stage: "ramp", tier: "associate" } : null, operatorName: "" }).ok);
+  ok("deal: a complete proposal validates",
+    OD.validateProposal({ market: "atlanta", operatorName: "Head of Atlanta Ops", terms: { supplyFunding: 50, stage: "ramp", tier: "associate" } }).ok);
+  ok("deal: unknown tier/stage/status fall back safely",
+    OD.toTier("wizard") === "associate" && OD.toStage("vibes") === "ramp" && OD.toStatus(undefined) === "draft");
+}
+
 console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
 console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);
 process.exit(fail ? 1 : 0);

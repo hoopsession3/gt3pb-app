@@ -11,9 +11,41 @@ import { supabase } from "@/lib/supabase";
 import Icon from "@/components/Icon";
 import {
   PRODUCTS, CERTS, ROLES, READINESS, PASS_DEFAULT, ACKS, ackByKey, certExpiryDays,
-  moduleBySlug, certByKey, pathForRole, certEarned, requiredModules, sectionMeta,
+  moduleBySlug, certByKey, pathForRole, certEarned, requiredModules, sectionMeta, expectationsFor,
   type Module, type Product, type QuizQ, type Role, type Ack,
 } from "@/lib/academy";
+
+// What a level is held to, as opposed to what it has been taught. Four separate things on purpose:
+// what the role owns, the non-negotiables, the rhythm it keeps, and how it is actually judged.
+function ExpectationsCard({ role, roleLabel }: { role: Role; roleLabel: string }) {
+  const e = expectationsFor(role);
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="ac-exp">
+      <button type="button" className="ac-exp-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <span className="ac-exp-k">What a {roleLabel} is held to</span>
+        <span className={`ev-chev${open ? " open" : ""}`} aria-hidden="true">›</span>
+      </button>
+      <p className="ac-exp-owns">{e.owns}</p>
+      {open && (
+        <div className="ac-exp-body">
+          <div className="ac-exp-grp">
+            <div className="ac-exp-t">Non-negotiables</div>
+            <ul>{e.standards.map((s) => <li key={s}>{s}</li>)}</ul>
+          </div>
+          <div className="ac-exp-grp">
+            <div className="ac-exp-t">Your rhythm</div>
+            <ul>{e.cadence.map((s) => <li key={s}>{s}</li>)}</ul>
+          </div>
+          <div className="ac-exp-grp">
+            <div className="ac-exp-t">How you&apos;re judged</div>
+            <ul>{e.judgedOn.map((s) => <li key={s}>{s}</li>)}</ul>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 type View = { k: "home" } | { k: "module"; slug: string } | { k: "product"; key: string } | { k: "team" } | { k: "ack"; key: string };
 interface Assignment { target_type: string; target_key: string; due_at: string | null }
@@ -180,6 +212,11 @@ export default function AcademyPage() {
           })}
         </div>
       </div>
+
+      {/* What this level is HELD TO. The certs above say what you've been taught; this says what the
+          job is. A learning path with no standard attached teaches the material and leaves people
+          guessing about the work. */}
+      <ExpectationsCard role={role} roleLabel={roleLabel} />
 
       {/* required acknowledgements (food safety e-sign) */}
       {pendingAcks.map((a) => (

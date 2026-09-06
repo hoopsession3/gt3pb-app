@@ -97,6 +97,7 @@ const ShootPlanner = dynamic(() => import("@/components/ShootPlanner"), { loadin
 const MenuManager = dynamic(() => import("@/components/MenuManager"), { loading: () => <PourFill label="Loading…" /> });
 const LessonsManager = dynamic(() => import("@/components/LessonsManager"), { loading: () => <PourFill label="Loading…" /> });
 const MerchManager = dynamic(() => import("@/components/MerchManager"), { loading: () => <PourFill label="Loading…" /> });
+const OperatorDeal = dynamic(() => import("@/components/OperatorDeal"), { loading: () => <PourFill label="Loading…" /> });
 const PaymentSettings = dynamic(() => import("@/components/PaymentSettings"), { loading: () => <PourFill label="Loading…" /> });
 const MoneyKpis = dynamic(() => import("@/components/MoneyKpis"), { loading: () => <PourFill label="Loading…" /> });
 const PlanEditor = dynamic(() => import("@/components/PlanEditor"), { loading: () => <PourFill label="Loading…" /> });
@@ -6326,6 +6327,11 @@ export default function AdminPage() {
           <Panel id="lessons" title="Return to Primal · lessons"><LessonsManager /></Panel>
           <Panel id="merch" title="The Shop · merch"><MerchManager /></Panel>
           <Panel id="cogs" title="COGS calculator"><CogsCalculator /></Panel>
+          <div className="crew-group">Operators</div>
+          {/* The deal itself: what an operator gets, what they fund, what they earn, and what comes
+              back as royalty — built on a slider anchored to the agreed 50/30/20, then sent for their
+              response. The money math lives in lib/operatorDeal.ts and is unit-tested. */}
+          <Panel id="operators" title="Operator agreements · deals, levels &amp; royalties"><OperatorDeal /></Panel>
           <div className="crew-group">Members &amp; subscriptions</div>
           <Panel id="plans" title="Membership plans"><PlanEditor /></Panel>
           <Panel id="subs" title="Subscribers"><Subscribers /></Panel>
