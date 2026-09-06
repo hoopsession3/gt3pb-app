@@ -189,7 +189,46 @@ export type OfferTerms = {
   startOn?: string | null;        // yyyy-mm-dd
   reportsTo?: string | null;
   package?: { label: string; included: boolean; note?: string }[];
+
+  // THE STATUTORY FOUR. S.C. Code 41-10-30 requires an employer — every employer, no size threshold
+  // — to notify an employee IN WRITING at the time of hiring of "the normal hours and wages agreed
+  // upon, the time and place of payment, and the deductions which will be made from the wages,
+  // including payments to insurance programs." Wages the offer already had. These are the rest.
+  // Greenville is South Carolina, so this was never a someday problem.
+  //
+  // Required for EVERY market, not only SC. Georgia has no equivalent statute, and one letter that
+  // satisfies the stricter state is cheaper than two templates — and there is no version of "we
+  // never told them when they get paid" that reads well in either city.
+  normalHours?: string | null;
+  paySchedule?: string | null;    // the TIME of payment
+  payMethod?: string | null;      // the PLACE of payment
+  deductions?: string | null;     // including payments to insurance programs
 };
+
+/** The four the statute names, with the wording the form uses to ask. One list, so the screen, the
+ *  validator and the printed letter cannot drift apart. */
+export const STATUTORY_FIELDS = [
+  { key: "normalHours", label: "Normal hours",
+    hint: "Tue–Sat, 6am–2pm, about 38 hours a week",
+    why: "The normal hours agreed upon." },
+  { key: "paySchedule", label: "When they're paid",
+    hint: "Every other Friday, in arrears",
+    why: "The time of payment." },
+  { key: "payMethod", label: "How they're paid",
+    hint: "Direct deposit to the account on file",
+    why: "The place of payment." },
+  { key: "deductions", label: "Deductions",
+    hint: "Federal and state withholding, FICA. No other deductions.",
+    why: "The deductions which will be made, including payments to insurance programs." },
+] as const;
+
+/** Which of the four are still blank. The database refuses a submit without them (0286); this asks
+ *  the same question early enough to be useful, and names all of them at once. */
+export function missingStatutory(t: Partial<OfferTerms>): string[] {
+  return STATUTORY_FIELDS
+    .filter((f) => !String((t as Record<string, unknown>)[f.key] ?? "").trim())
+    .map((f) => f.label);
+}
 
 export const money = (cents: number | null | undefined): string =>
   cents == null ? "—" : `$${(cents / 100).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
@@ -211,6 +250,9 @@ export function validateOffer(t: Partial<OfferTerms>): { ok: boolean; problems: 
   if (base > 0 && !t.ratePer) p.push("Is the base per year or per hour?");
   if (comm < 0 || comm > 100) p.push("Commission has to be between 0 and 100%.");
   if (t.startOn && !/^\d{4}-\d{2}-\d{2}$/.test(t.startOn)) p.push("Start date should be a real date.");
+  for (const label of missingStatutory(t)) {
+    p.push(`${label} — required in writing at the time of hiring (S.C. Code 41-10-30).`);
+  }
   return { ok: p.length === 0, problems: p };
 }
 
@@ -231,6 +273,7 @@ export const emptyOffer = (): OfferTerms => ({
   candidateName: "", candidateEmail: "", title: "", role: "server",
   market: FOUNDING_MARKET, employmentType: "employee",
   baseCents: null, ratePer: "year", commissionPct: null, startOn: null, reportsTo: null,
+  normalHours: null, paySchedule: null, payMethod: null, deductions: null,
   package: [
     { label: "Paid training through the GT3 Academy", included: true },
     { label: "Uniform and gear provided", included: true },

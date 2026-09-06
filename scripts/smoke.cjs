@@ -708,8 +708,37 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     !O.validateOffer({ candidateName:"A", candidateEmail:"a@b.co", title:"T", market:"atlanta", role:"server" }).ok);
   ok("offer: a base with no unit is refused",
     !O.validateOffer({ candidateName:"A", candidateEmail:"a@b.co", title:"T", market:"atlanta", role:"server", baseCents: 5000000 }).ok);
+  // The four S.C. Code 41-10-30 fields are part of a complete offer, so every "this is valid" case
+  // has to carry them. STAT is that minimum, spread into the cases below.
+  const STAT = { normalHours:"Tue-Sat 6-2", paySchedule:"Every other Friday", payMethod:"Direct deposit",
+                 deductions:"Withholding and FICA only" };
   ok("offer: commission alone is a valid offer",
-    O.validateOffer({ candidateName:"A", candidateEmail:"a@b.co", title:"T", market:"atlanta", role:"operator", commissionPct: 50 }).ok);
+    O.validateOffer({ candidateName:"A", candidateEmail:"a@b.co", title:"T", market:"atlanta", role:"operator", commissionPct: 50, ...STAT }).ok);
+
+  // ── the statutory four (0286) ──────────────────────────────────────────────────────────────────
+  const complete = { candidateName:"A", candidateEmail:"a@b.co", title:"T", market:"greenville",
+                     role:"server", baseCents: 5200000, ratePer:"year", ...STAT };
+  ok("offer: a complete letter validates", O.validateOffer(complete).ok);
+  ok("offer: nothing is missing from a complete letter", O.missingStatutory(complete).length === 0);
+  ok("offer: the statute names exactly four things", O.STATUTORY_FIELDS.length === 4);
+  ok("offer: an offer with no normal hours is refused",
+    !O.validateOffer({ ...complete, normalHours: "" }).ok);
+  ok("offer: an offer that never says when they are paid is refused",
+    !O.validateOffer({ ...complete, paySchedule: null }).ok);
+  ok("offer: an offer that never says how they are paid is refused",
+    !O.validateOffer({ ...complete, payMethod: "   " }).ok);
+  ok("offer: an offer silent on deductions is refused",
+    !O.validateOffer({ ...complete, deductions: undefined }).ok);
+  ok("offer: whitespace does not count as an answer",
+    O.missingStatutory({ ...complete, normalHours: "   " }).length === 1);
+  ok("offer: all four missing are reported together, not one per submit",
+    O.missingStatutory({ candidateName:"A" }).length === 4);
+  ok("offer: the refusal cites the statute so it can be looked up",
+    O.validateOffer({ ...complete, deductions: "" }).problems.some((p) => /41-10-30/.test(p)));
+  ok("offer: a fresh draft starts with the four blank, not pre-filled with a guess",
+    O.missingStatutory(O.emptyOffer()).length === 4);
+  ok("offer: every statutory field carries an example the writer can copy",
+    O.STATUTORY_FIELDS.every((f) => f.hint.trim().length > 0 && f.why.trim().length > 0));
   ok("offer: a bad email is caught",
     !O.validateOffer({ candidateName:"A", candidateEmail:"nope", title:"T", market:"atlanta", role:"server", commissionPct: 10 }).ok);
   ok("offer: commission outside 0-100 is refused",

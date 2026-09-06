@@ -27,8 +27,14 @@ export function useOrderingOpen(active: boolean, market: Market = FOUNDING_MARKE
     if (!active || !supabase) return;
     let liveFlag = true;
     (async () => {
+      // MARKET (0285): the live flag itself used to come from the live_status SINGLETON, so flipping
+      // the truck live in Greenville told an Atlanta customer the truck was live — with no stop and
+      // nobody to serve them. market_live resolves market → singleton → default and also holds a
+      // market closed before its opening date. A market that has set nothing reads the singleton, so
+      // this is the same answer it has always been for Greenville.
       const [{ data: ls }, { data: st }] = await Promise.all([
-        supabase!.from("live_status").select("is_live, preorder_lead_h").maybeSingle(),
+        supabase!.from("market_live").select("is_live, preorder_lead_h").eq("market", market).maybeSingle()
+          .then((r) => (r.data ? r : supabase!.from("live_status").select("is_live, preorder_lead_h").maybeSingle())),
         supabase!.from("stops").select("name, starts_at, order_ahead_enabled, order_ahead_lead_min, pickup_enabled").is("archived_at", null).neq("status", "done").not("starts_at", "is", null)
           .eq("market", market)
           .gte("starts_at", new Date(Date.now() - PREORDER_TAIL_MS).toISOString()) // an in-progress stop still counts

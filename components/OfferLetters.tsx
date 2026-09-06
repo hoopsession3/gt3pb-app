@@ -11,7 +11,7 @@ import Icon from "@/components/Icon";
 import { MARKETS, MARKET_LABEL, toMarket } from "@/lib/markets";
 import {
   ROLE_ACCESS, OFFERABLE_ROLES, toRoleKey, toOfferStatus, isEditable, money, summarize,
-  validateOffer, classificationFlags, emptyOffer, approvalTally,
+  validateOffer, classificationFlags, emptyOffer, approvalTally, STATUTORY_FIELDS, missingStatutory,
   type OfferStatus, type OfferTerms, type RoleKey,
 } from "@/lib/offerLetter";
 
@@ -33,6 +33,7 @@ type Row = {
   role: string; employment_type: string; base_cents: number | null; rate_per: string | null;
   commission_pct: number | null; starts_on: string | null; reports_to: string | null;
   package: any; notes: string | null; status: string; author_id: string | null;
+  normal_hours: string | null; pay_schedule: string | null; pay_method: string | null; deductions: string | null;
   created_at: string; updated_at: string;
 };
 type Approval = { offer_id: string; approver_id: string; decision: string | null; note: string | null; decided_at: string | null };
@@ -107,6 +108,9 @@ export default function OfferLetters() {
       base_cents: draft.baseCents, rate_per: draft.baseCents ? draft.ratePer : null,
       commission_pct: draft.commissionPct, starts_on: draft.startOn || null,
       reports_to: draft.reportsTo?.trim() || null, package: draft.package ?? [],
+      // 0286 — the four S.C. Code 41-10-30 facts. The submit RPC refuses without them.
+      normal_hours: draft.normalHours?.trim() || null, pay_schedule: draft.paySchedule?.trim() || null,
+      pay_method: draft.payMethod?.trim() || null, deductions: draft.deductions?.trim() || null,
       updated_at: new Date().toISOString(),
     };
     const res = openId
@@ -185,9 +189,28 @@ export default function OfferLetters() {
                 <div><dt>Base</dt><dd>{open.base_cents ? `${money(open.base_cents)}/${open.rate_per === "hour" ? "hr" : "yr"}` : "None"}</dd></div>
                 <div><dt>Commission</dt><dd>{open.commission_pct ? `${open.commission_pct}%` : "None"}</dd></div>
                 <div><dt>Access granted</dt><dd>{ROLE_ACCESS[toRoleKey(open.role)].label}</dd></div>
+                <div><dt>Normal hours</dt><dd>{open.normal_hours ?? "Not set"}</dd></div>
+                <div><dt>Paid</dt><dd>{open.pay_schedule ?? "Not set"}{open.pay_method ? ` · ${open.pay_method}` : ""}</dd></div>
+                <div><dt>Deductions</dt><dd>{open.deductions ?? "Not set"}</dd></div>
               </dl>
               <RoleReach role={toRoleKey(open.role)} />
             </div>
+
+            {/* The approving co-owner reads this. 0286 writes a disclaimer_missing event at submit
+                when the market has no at-will wording on file; surfacing it here means the gap is
+                seen at the moment of the decision rather than found later in the trail. */}
+            {openEvents.some((e) => e.kind === "disclaimer_missing") && (
+              <div className="ofr-warn">
+                <p className="ofr-warn-h"><Icon name="warning" /> No at-will disclaimer on file for {MARKET_LABEL[toMarket(open.market)]}</p>
+                <p>
+                  South Carolina wants it in underlined capitals on the first page; Georgia needs the
+                  sentence so an annual salary doesn&rsquo;t read as a one-year hiring. This
+                  doesn&rsquo;t block the offer — it&rsquo;s here so approving it is a decision
+                  rather than an oversight. Once your lawyer supplies the sentence, an owner sets it
+                  once per market and this goes away.
+                </p>
+              </div>
+            )}
 
             {/* approvals */}
             {openApprovals.length > 0 && (
@@ -224,6 +247,8 @@ export default function OfferLetters() {
                     employmentType: open.employment_type === "contractor" ? "contractor" : "employee",
                     baseCents: open.base_cents, ratePer: (open.rate_per as any) ?? "year",
                     commissionPct: open.commission_pct, startOn: open.starts_on, reportsTo: open.reports_to,
+                    normalHours: open.normal_hours, paySchedule: open.pay_schedule,
+                    payMethod: open.pay_method, deductions: open.deductions,
                     package: Array.isArray(open.package) ? open.package : [],
                   })}>Edit</button>
                   <button type="button" className="btn-pri" disabled={busy}
@@ -373,6 +398,32 @@ function OfferForm({ draft, setDraft, onSave, onCancel, busy }: {
             onChange={(e) => { const n = Number(e.target.value); set("commissionPct", Number.isFinite(n) && e.target.value !== "" ? n : null); }} /></label>
         <label className="prod-f"><span>Reports to</span>
           <input value={draft.reportsTo ?? ""} onChange={(e) => set("reportsTo", e.target.value)} placeholder="Ryan Thompkins" /></label>
+      </div>
+
+      {/* THE STATUTORY FOUR (0286). South Carolina requires these in writing at the time of hiring —
+          every employer, no size threshold — and Greenville is South Carolina. Asked here rather
+          than left to a template, because the database refuses the submit without them and the
+          co-owner review step is a worse place to discover that. */}
+      <div className="ofr-stat">
+        <p className="insp-lbl">Required in writing at hire</p>
+        <p className="ofr-stat-why">
+          South Carolina asks every employer to put the normal hours, the wages, when and where
+          someone is paid, and what gets deducted in writing when they&rsquo;re hired
+          (S.C.&nbsp;Code&nbsp;41-10-30). Wages are above; these are the rest, and they belong in an
+          Atlanta letter too.
+        </p>
+        <div className="prod-grid">
+          {STATUTORY_FIELDS.map((f) => (
+            <label className="prod-f" key={f.key} title={f.why}>
+              <span>{f.label}</span>
+              <input
+                value={String((draft as Record<string, unknown>)[f.key] ?? "")}
+                onChange={(e) => set(f.key as keyof OfferTerms, (e.target.value || null) as never)}
+                placeholder={f.hint}
+              />
+            </label>
+          ))}
+        </div>
       </div>
 
       <div className="ofr-pack">
