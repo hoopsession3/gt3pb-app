@@ -1292,6 +1292,92 @@ await db.exec(`set test.owner = 'on';`);
 const badMkt = await raises(`select public.set_member_market('cccccccc-0000-0000-0000-000000000002', 'nowhere')`);
 ok("0299: an unknown market is refused", badMkt !== null && /No such market/.test(badMkt), badMkt);
 
+// ═══ 0300 — a batch you can work from ═══════════════════════════════════════════════════════════
+await db.exec(`
+  -- 0079 gives brew_batches a ready_at; the stub never needed one until v_batch_progress read it.
+  -- Seventh catch-up in this file. The rule is unchanged: a fixture that answers differently from
+  -- production is a test that lies.
+  alter table public.brew_batches add column if not exists ready_at timestamptz;
+  alter table public.brew_recipes add column if not exists method text[] not null default '{}';
+  update public.brew_recipes set method = array[
+    'Add the coarse-ground coffee',
+    'Pour in the spring water; ensure complete saturation',
+    'Cold-extract 12-20 hrs (20 preferred)',
+    'Filter thoroughly until it runs clean']
+   where id = 'eeeeeeee-0000-0000-0000-000000000001';
+
+  insert into public.brew_batches (id, recipe_id, recipe_name, batch_gal, status)
+  values ('dddddddd-0000-0000-0000-00000000000c','eeeeeeee-0000-0000-0000-000000000001','GT3 Rise (OG)', 2, 'planned');
+`);
+
+await db.exec(mig("0300_batch_steps.sql"));
+
+const BATCH = "dddddddd-0000-0000-0000-00000000000c";
+const steps = await db.query(`select step_no, step_text, done_at from public.ensure_batch_steps('${BATCH}') order by step_no`);
+ok("0300: opening a batch lays out its method, in order",
+   steps.rows.length === 4 && steps.rows[0].step_no === 1 && /coarse-ground coffee/.test(steps.rows[0].step_text),
+   JSON.stringify(steps.rows.map((r) => r.step_no)));
+ok("0300: nothing starts ticked", steps.rows.every((r) => r.done_at === null));
+
+// Opening it twice must not duplicate the checklist or wipe progress.
+await db.exec(`select public.set_batch_step('${BATCH}', 1, true);`);
+const again2 = await db.query(`select step_no, done_at from public.ensure_batch_steps('${BATCH}') order by step_no`);
+ok("0300: re-opening does not duplicate the steps", again2.rows.length === 4, String(again2.rows.length));
+ok("0300: and does not wipe what was already ticked", again2.rows[0].done_at !== null);
+
+// THE REASON THE TEXT IS COPIED: an edit to the recipe must not rewrite history.
+await db.exec(`update public.brew_recipes
+                  set method = array['COMPLETELY DIFFERENT STEP']
+                where id = 'eeeeeeee-0000-0000-0000-000000000001';`);
+const afterEdit = await q1(`select step_text from public.brew_batch_steps
+                             where batch_id='${BATCH}' and step_no=1`);
+ok("0300: editing the recipe mid-brew does not rewrite a ticked step",
+   /coarse-ground coffee/.test(afterEdit?.step_text ?? ""), afterEdit?.step_text);
+ok("0300: and the batch still has all four of its own steps",
+   Number((await q1(`select count(*)::int n from public.brew_batch_steps where batch_id='${BATCH}'`)).n) === 4);
+
+// Ticking records who and when; unticking clears both rather than leaving a ghost.
+const tick = await q1(`select done_at, done_by from public.brew_batch_steps
+                        where batch_id='${BATCH}' and step_no=1`);
+ok("0300: a ticked step records when it was done", tick?.done_at !== null);
+await db.exec(`select public.set_batch_step('${BATCH}', 1, false);`);
+const untick = await q1(`select done_at, done_by from public.brew_batch_steps
+                          where batch_id='${BATCH}' and step_no=1`);
+ok("0300: unticking clears the stamp instead of leaving a stale one",
+   untick?.done_at === null && untick?.done_by === null, JSON.stringify(untick));
+
+// Progress, and what the next person walking up needs.
+await db.exec(`select public.set_batch_step('${BATCH}', 1, true);
+               select public.set_batch_step('${BATCH}', 2, true);`);
+const prog = await q1(`select steps_total, steps_done, next_step_no, next_step, all_done
+                         from public.v_batch_progress where batch_id='${BATCH}'`);
+ok("0300: progress counts what is done out of what there is",
+   Number(prog?.steps_total) === 4 && Number(prog?.steps_done) === 2, JSON.stringify(prog));
+ok("0300: and names the next step, which is what someone mid-brew needs",
+   Number(prog?.next_step_no) === 3 && /Cold-extract/.test(prog?.next_step ?? ""), prog?.next_step);
+ok("0300: a part-done batch is not all_done", prog?.all_done === false);
+
+await db.exec(`select public.set_batch_step('${BATCH}', 3, true);
+               select public.set_batch_step('${BATCH}', 4, true);`);
+const done = await q1(`select all_done, next_step from public.v_batch_progress where batch_id='${BATCH}'`);
+ok("0300: finishing every step reads as done, with nothing left to name",
+   done?.all_done === true && done?.next_step === null, JSON.stringify(done));
+
+// A step that is not on the batch is refused rather than silently doing nothing.
+const noStep = await raises(`select public.set_batch_step('${BATCH}', 99, true)`);
+ok("0300: ticking a step the batch does not have is refused",
+   noStep !== null && /not on this batch/.test(noStep), noStep);
+
+// A batch whose recipe is gone still opens — empty — rather than throwing.
+await db.exec(`insert into public.brew_batches (id, recipe_name, batch_gal, status)
+               values ('dddddddd-0000-0000-0000-00000000000d','Orphan', 1, 'planned');`);
+const orphanSteps = await db.query(`select * from public.ensure_batch_steps('dddddddd-0000-0000-0000-00000000000d')`);
+ok("0300: a batch with no recipe opens to an empty checklist rather than an error",
+   orphanSteps.rows.length === 0);
+
+const noBatch = await raises(`select public.ensure_batch_steps('dddddddd-0000-0000-0000-0000000000ff')`);
+ok("0300: an unknown batch is refused", noBatch !== null && /No such batch/.test(noBatch), noBatch);
+
 // ═══ every file is idempotent, in order ═════════════════════════════════════════════════════════
 const snap = async () => JSON.stringify({
   cl: (await q1(`select count(*)::int n from public.changelog`)).n,
@@ -1317,7 +1403,8 @@ for (const f of ["0284_compliance_freshness.sql", "0285_market_live_switch.sql",
                  "0296_market_readiness.sql",
                  "0297_readiness_live_resolution.sql",
                  "0298_supply_side.sql",
-                 "0299_promote_to_crew.sql"]) {
+                 "0299_promote_to_crew.sql",
+                 "0300_batch_steps.sql"]) {
   await db.exec(mig(f));
 }
 ok("re-running 0284–0288 in order changes nothing", (await snap()) === before, await snap());

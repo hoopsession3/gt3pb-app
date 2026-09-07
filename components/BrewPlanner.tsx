@@ -8,6 +8,7 @@ import { bottlesFor, brewStartOverdue } from "@/lib/brewMath";
 import { localToday } from "@/lib/dates";
 import AssignTaskSheet from "@/components/AssignTaskSheet";
 import Sheet from "@/components/Sheet";
+import BrewSteps from "@/components/BrewSteps";
 import ProgressRing from "@/components/ProgressRing";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
@@ -82,6 +83,8 @@ export default function BrewPlanner() {
   const [pendingTarget, setPendingTarget] = useState<string | null>(null);
   const [pack, setPack] = useState<Batch | null>(null);
   const [logBatch, setLogBatch] = useState<Batch | null>(null);
+  // The method sheet — the one place a batch says what to do. See BrewSteps for why it exists.
+  const [stepsFor, setStepsFor] = useState<Batch | null>(null);
   const [starting, setStarting] = useState<Batch | null>(null);
   const [adjust, setAdjust] = useState<Batch | null>(null);
   const [view, setView] = useState<"schedule" | "log">("schedule");
@@ -280,6 +283,12 @@ export default function BrewPlanner() {
                   {b.vessel ? `${b.vessel} · ` : ""}Brew {fmtDate(b.brew_date)} → ready {fmtTs(b.ready_at)}{tgt ? ` · for ${tgt}` : ""}{spec ? ` · ${spec}` : ""}
                 </div>
 
+                {/* The method used to live only in the planning result, so a batch you were actually
+                    brewing had nowhere to tell you what to do. This is that door. */}
+                <button type="button" className="brew-steps-open" onClick={() => setStepsFor(b)}>
+                  <Icon name="clock" /> Brew steps <span aria-hidden="true">›</span>
+                </button>
+
                 {(b.status === "planned" || b.status === "brewing") && (() => {
                   // Coverage — will this run cover what's reserved for its drop?
                   const rec = recipes.find((r) => r.id === b.recipe_id);
@@ -398,6 +407,7 @@ export default function BrewPlanner() {
       {plan && <BrewSheet recipe={plan} events={events} stops={stops} vessels={vessels} initialTarget={pendingTarget ?? undefined} onClose={() => { setPlan(null); setPendingTarget(null); }} onDone={() => { setPlan(null); setPendingTarget(null); reload(); }} />}
       {pack && <BottleLoadout batch={pack} onClose={() => setPack(null)} />}
       {logBatch && <BatchLog batch={logBatch} events={events} stops={stops} onClose={() => setLogBatch(null)} onSaved={() => { setLogBatch(null); reload(); }} />}
+      {stepsFor && <BrewSteps batch={stepsFor as any} onClose={() => setStepsFor(null)} onChanged={reload} />}
       {starting && <StartBrewSheet batch={starting} onClose={() => setStarting(null)} onStart={async (extras) => { await startBrew(starting, extras); setStarting(null); }} />}
       {adjust && <BrewAdjust batch={adjust} onClose={() => setAdjust(null)} onSaveTime={saveBrewTime} onStop={stopBrew} onUndo={undoStart} />}
     </div>

@@ -4174,6 +4174,44 @@ body:has(.conc-sheet) .rail{display:flex}
   border:1px solid var(--warn);border-radius:7px;padding:5px 11px}
 .brew-oprow>button:hover:not(:disabled){background:color-mix(in srgb, var(--warn) 34%, transparent)}
 .brew-oprow>button:disabled{opacity:.6;cursor:default}
+
+/* ── Brew steps: the sheet you work from ──────────────────────────────────────────────────────
+   Sized for a wet hand in a prep kitchen, not for reading — 44px+ targets, the number legible at
+   arm's length. Tokens are ones the crew console and .crew-day paper theme both resolve. */
+.brew-steps-open{display:flex;align-items:center;gap:8px;width:100%;margin-top:9px;
+  background:color-mix(in srgb, var(--gold2) 10%, transparent);border:1px solid var(--gold2);
+  border-radius:10px;padding:10px 13px;cursor:pointer;font-family:'Inter';font-size:13px;
+  font-weight:800;color:var(--gold2);-webkit-appearance:none;appearance:none}
+.brew-steps-open span{margin-left:auto}
+
+.bs{display:flex;flex-direction:column;gap:16px;padding-bottom:8px}
+.bs-prog{display:flex;align-items:center;gap:10px}
+.bs-prog-t{font-family:'Inter';font-size:12px;font-weight:700;color:var(--cream-m);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.bs-bar{flex:1;height:5px;border-radius:999px;background:var(--line2);overflow:hidden}
+.bs-bar>i{display:block;height:100%;background:var(--gold2);border-radius:999px}
+
+.bs-need{border:1px solid var(--line2);border-radius:12px;padding:12px 14px}
+.bs-need h3{margin:0 0 8px;font-family:'Inter';font-size:11px;font-weight:800;letter-spacing:.5px;
+  text-transform:uppercase;color:var(--cream-m)}
+.bs-need ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.bs-need li{display:flex;gap:10px;align-items:baseline;font-family:'Inter';font-size:13.5px;color:var(--cream)}
+.bs-need li b{min-width:76px;text-align:right;color:var(--gold2);font-variant-numeric:tabular-nums}
+
+.bs-steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;counter-reset:none}
+.bs-step>button{display:flex;gap:12px;align-items:flex-start;width:100%;text-align:left;
+  background:none;border:1px solid var(--line2);border-radius:12px;padding:13px 14px;cursor:pointer;
+  -webkit-appearance:none;appearance:none}
+.bs-n{flex:none;display:grid;place-items:center;width:32px;height:32px;border-radius:50%;
+  border:1.5px solid var(--gold2);color:var(--gold2);font-family:'Inter';font-size:15px;font-weight:800;
+  font-variant-numeric:tabular-nums}
+.bs-t{font-family:'Inter';font-size:14.5px;line-height:1.4;color:var(--cream);padding-top:4px}
+.bs-timer{display:block;margin-top:5px;font-style:normal;font-family:'Inter';font-size:12px;
+  font-weight:700;color:var(--gold2);font-variant-numeric:tabular-nums}
+.bs-timer.ready{color:var(--ok)}
+.bs-step.done>button{background:color-mix(in srgb, var(--ok) 9%, transparent);border-color:color-mix(in srgb, var(--ok) 45%, transparent)}
+.bs-step.done .bs-n{border-color:var(--ok);color:var(--ok)}
+.bs-step.done .bs-t{color:var(--cream-m);text-decoration:line-through;text-decoration-thickness:1px}
 .app.crew-day .brew-oprow>button{color:#7a5518}
 
 /* Events row: real derived date under the day stamp (app/events RsvpRow) */
