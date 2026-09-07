@@ -11,7 +11,7 @@
 
 export type Role = "founder" | "admin" | "event_manager" | "operator" | "staff" | "contractor";
 // The GT3 Academy is built as a university — phases that take someone from zero to "would make the
-// same call Ryan would." Existing keys are kept; new phases extend them. Order + labels live in SECTIONS.
+// same call an owner would." Existing keys are kept; new phases extend them. Order + labels live in SECTIONS.
 export type Section =
   | "welcome" | "brand" | "nutrition" | "product" | "equipment"
   | "cx" | "ops" | "excellence" | "leadership" | "philosophy"
@@ -57,7 +57,7 @@ export interface Module {
   whyItMatters?: string;          // the stakes, in one breath
   objectives?: string[];          // what you'll be able to do after this
   mistakes?: string[];            // the common ways this goes wrong
-  founderInsight?: string;        // Ryan's voice — the why behind the standard
+  founderInsight?: string;        // the founder's voice — the why behind the standard
   scenarios?: Scenario[];         // "a guest does X → you do Y"
   quiz?: QuizQ[];
   pass?: number; // % needed to pass (default 80)
@@ -472,7 +472,7 @@ export const MODULES: Module[] = [
   {
     slug: "think-like-owner", section: "leadership", title: "Think Like an Owner — decisions, accountability, brand stewardship", estMin: 10,
     summary: "How to make the call the founder would make when no SOP covers it, own the outcome, and protect the brand.",
-    whyItMatters: "The academy's whole test is: 'If Ryan wasn't here, would this person make the same decision?' Leadership is what closes that gap — making owner-grade calls under pressure and being accountable for them.",
+    whyItMatters: "The academy's whole test is: 'With no owner standing here, would this person make the same decision?' Leadership is what closes that gap — making owner-grade calls under pressure and being accountable for them.",
     objectives: ["Apply the GT3 decision filter to a judgment call", "Own a mistake the way an owner does", "Train someone else to the standard"],
     body: [
       { h: "The decision filter", p: "When no SOP covers it, run the call through three questions in order: (1) Is it SAFE and honest? (food safety, no false claim — non-negotiable). (2) Does it protect the GUEST experience and the brand standard? (3) Is it sustainable for the business (cost, time, repeatable)? If a choice fails #1 it's dead no matter how good for #3. That ordering IS the brand." },
@@ -549,7 +549,7 @@ export const MODULES: Module[] = [
       { h: "Why GT3 exists", p: "Most 'performance' or 'wellness' drinks are noise — sugar, hype, and claims nobody can back. GT3 exists to be the opposite: clean, honest beverages we can stand behind, made with real ingredients and a process we'll show you, served when people actually need them. We'd rather be the most trusted than the loudest." },
       { h: "Two brands, one standard", p: "GT3 Brew makes the coffee and cold brew; GT3 Performance Bar is how we serve it — the cart, the trailer, the events. Different jobs, identical standard. A guest never sees 'the brand we felt like being today.'" },
       { h: "Why a small detail is never small", p: "A wiped counter, a settled pour, a disclosed allergen, the same recipe at every cart — guests can rarely name why we feel premium, but they feel it, and they come back for it. The details aren't decoration; they ARE the product. Skip one and you've quietly handed the guest a different, worse brand." },
-      { h: "The bar we hold", p: "The whole Academy is built around one test: 'If Ryan wasn't here, would you make the same call?' Everything you learn is to close that gap — so the experience is identical whether the founder is standing next to you or a thousand miles away." },
+      { h: "The bar we hold", p: "The whole Academy is built around one test: 'With no owner standing here, would you make the same call?' Everything you learn is to close that gap — so the experience is identical whether an owner is standing next to you or a thousand miles away." },
     ],
     founderInsight: "I'm not precious about details to be difficult. I'm precise because consistency is the only thing that earns trust at scale — and trust is the entire business.",
     quiz: [

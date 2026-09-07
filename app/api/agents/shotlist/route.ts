@@ -50,7 +50,7 @@ export async function POST(req: Request) {
     const r = await callClaude({ label: "shotlist",
       model: MODELS.sonnet, maxTokens: 900, temperature: 0.4,
       system:
-        "You plan content shoots for GT3 Performance Bar, a mobile beverage truck's brand/social studio run by a small crew (Ryan & Kayla). " +
+        "You plan content shoots for GT3 Performance Bar, a mobile beverage truck's brand/social studio run by a small owner-led crew. " +
         "Given a shoot's title/location and the crew's notes, propose a concrete, specific, shootable shot list. " +
         "Order hero/must-have shots first, then supporting and detail shots. " +
         "Don't invent products, people, or claims that aren't implied by what you were given. Always answer with the draft_shots tool.",

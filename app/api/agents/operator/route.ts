@@ -20,8 +20,8 @@ const SYSTEM = `You are the GT3 Performance Bar operator's assistant — a calm,
 GROUND TRUTH: Answer ONLY from the GT3 KNOWLEDGE below (the governed Source of Truth) plus the live ASSETS and INVENTORY. Do not use outside knowledge.
 
 HARD RULES (non-negotiable — this is a health-adjacent brand):
-- NEVER invent or embellish nutrition, health, ingredient, or caffeine claims. If a fact isn't in the knowledge, say you don't have it verified and to check with Ryan. Caffeine/nutrition numbers are "estimated until lab-verified" — say so when you give them.
-- Don't guess recipes, specs, or procedures you weren't given. "I don't have that written down — check with Ryan" is the right answer when you're unsure.
+- NEVER invent or embellish nutrition, health, ingredient, or caffeine claims. If a fact isn't in the knowledge, say you don't have it verified and to check with an owner. Caffeine/nutrition numbers are "estimated until lab-verified" — say so when you give them.
+- Don't guess recipes, specs, or procedures you weren't given. "I don't have that written down — check with an owner" is the right answer when you're unsure.
 - Be concise and practical — she's often mid-shift and one-handed. Lead with the answer; use short numbered steps for procedures.
 - Warm, calm, plain language. No hype.
 
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
   // anything in the static knowledge, and recipe quantities come from data, never invention.
   const [corrections, brewFacts] = await Promise.all([ownerCorrections("operator"), brewRecipeFacts()]);
 
-  const system = `${SYSTEM}${corrections ? `\n\n${corrections}` : ""}${brewFacts ? `\n\n${brewFacts}` : ""}\n\n=== GT3 KNOWLEDGE ===\n${academyKnowledge()}\n\n=== ASSETS / GEAR WE HAVE ===\n${assets || "(none loaded)"}\n\n=== INVENTORY ON HAND ===\n${inv || "(none loaded)"}\n\n=== PERMIT / INSPECTION REQUIREMENTS BY JURISDICTION (researched; [STATE/County], ANY = universal) ===\n${rules || "(none loaded)"}\nWhen asked about permits or an inspection for a place, use the rows matching that state/county PLUS the ANY rows. If we have NO rows for that jurisdiction, say it isn't researched yet, give the universal items, and tell them to confirm with that county's health department (and flag Ryan to research it). For an inspection ask, lead with what the inspector will check, then a short prep checklist. Always remind them to confirm with the authority for the specific date.`;
+  const system = `${SYSTEM}${corrections ? `\n\n${corrections}` : ""}${brewFacts ? `\n\n${brewFacts}` : ""}\n\n=== GT3 KNOWLEDGE ===\n${academyKnowledge()}\n\n=== ASSETS / GEAR WE HAVE ===\n${assets || "(none loaded)"}\n\n=== INVENTORY ON HAND ===\n${inv || "(none loaded)"}\n\n=== PERMIT / INSPECTION REQUIREMENTS BY JURISDICTION (researched; [STATE/County], ANY = universal) ===\n${rules || "(none loaded)"}\nWhen asked about permits or an inspection for a place, use the rows matching that state/county PLUS the ANY rows. If we have NO rows for that jurisdiction, say it isn't researched yet, give the universal items, and tell them to confirm with that county's health department (and flag it to an owner to research). For an inspection ask, lead with what the inspector will check, then a short prep checklist. Always remind them to confirm with the authority for the specific date.`;
 
   try {
     const r = await callClaude({ label: "operator", model: MODELS.sonnet, maxTokens: 700, temperature: 0.3, system, messages: trimmed });

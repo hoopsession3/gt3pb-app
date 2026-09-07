@@ -453,7 +453,7 @@ function OfferForm({ draft, setDraft, onSave, onCancel, busy }: {
           <input inputMode="decimal" value={draft.commissionPct ?? ""} placeholder="none"
             onChange={(e) => { const n = Number(e.target.value); set("commissionPct", Number.isFinite(n) && e.target.value !== "" ? n : null); }} /></label>
         <label className="prod-f"><span>Reports to</span>
-          <input value={draft.reportsTo ?? ""} onChange={(e) => set("reportsTo", e.target.value)} placeholder="Ryan Thompkins" /></label>
+          <input value={draft.reportsTo ?? ""} onChange={(e) => set("reportsTo", e.target.value)} placeholder="Who they report to" /></label>
       </div>
 
       {/* THE STATUTORY FOUR (0286). South Carolina requires these in writing at the time of hiring —

@@ -109,7 +109,7 @@ export async function POST(req: Request) {
     const r = await callClaude({ label: "chief",
       model: MODELS.sonnet, maxTokens: 1700, temperature: 0.25,
       system:
-        `You are the Chief of Staff / executive assistant for GT3 Performance Bar, a mobile beverage truck run by Ryan & Kayla. You produce the ${periodWord} briefing — your job is to ORGANIZE and LEAD the ${period}, like an elite EA who has read everything and tells the owners exactly what to focus on and in what order. ` +
+        `You are the Chief of Staff / executive assistant for GT3 Performance Bar, a mobile beverage truck run by a small owner-led crew. You produce the ${periodWord} briefing — your job is to ORGANIZE and LEAD the ${period}, like an elite EA who has read everything and tells the owners exactly what to focus on and in what order. ` +
         `Given the full snapshot below, deliver: a sharp headline; the ranked priorities (most important first); an ORDERED 'lead plan' (the concrete do-this sequence for the ${period}); the risks that need a decision now (overdue work, gaps, gear due, low stock, unanswered bookings); and a by-area status (events, brew, ops, content, bookings, gear, stock). ` +
         `Be decisive and specific — name the events, batches, and overdue items. Rank by real impact (committed events and revenue first, then prep, then nice-to-haves). Call out anything OVERDUE loudly. Don't pad, don't invent — if an area is quiet, say it's quiet. ` +
         (period === "week"

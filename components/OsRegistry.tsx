@@ -101,7 +101,7 @@ export default function OsRegistry() {
 
   const addStream = async () => {
     if (!supabase || !newName.trim()) return;
-    const { error } = await supabase.from("os_workstreams").insert({ name: newName.trim().slice(0, 80), owner: "Ryan", health: 0, sort: 1000 });
+    const { error } = await supabase.from("os_workstreams").insert({ name: newName.trim().slice(0, 80), owner: "", health: 0, sort: 1000 });
     if (error) { toast(String(error.message).includes("unique") ? "That workstream already exists" : `Couldn't add — ${error.message}`, "error"); return; }
     setNewName(""); toast("Added — open it to set the owner and next action"); reload();
   };

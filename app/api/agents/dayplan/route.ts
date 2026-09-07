@@ -84,7 +84,7 @@ export async function POST(req: Request) {
     try {
       const r = await callClaude({ label: "dayplan",
         model: MODELS.sonnet, maxTokens: 500, temperature: 0.2,
-        system: "You are the logistics scheduler for GT3 Performance Bar (a small crew, Ryan & Kayla). Given a day's existing time blocks in order, produce a crisp 'when to leave' summary. Anchor on the earliest travel/'leave' block if it has a time; otherwise reason backward from the first hard commitment (load-in, doors, service) allowing a realistic buffer for the drive and setup. Be concrete and brief. If drive time isn't given, do NOT invent a number — tell them to confirm it. Always answer with the departure_summary tool.",
+        system: "You are the logistics scheduler for GT3 Performance Bar (a small owner-led crew). Given a day's existing time blocks in order, produce a crisp 'when to leave' summary. Anchor on the earliest travel/'leave' block if it has a time; otherwise reason backward from the first hard commitment (load-in, doors, service) allowing a realistic buffer for the drive and setup. Be concrete and brief. If drive time isn't given, do NOT invent a number — tell them to confirm it. Always answer with the departure_summary tool.",
         messages: [{ role: "user", content: `Day ${dayIndex}. Event: ${JSON.stringify(ev2 ?? {})}\n\nTime blocks (in order):\n${JSON.stringify(list)}` }],
         tools: [DEP_TOOL],
         tool_choice: { type: "tool", name: "departure_summary" },
@@ -130,7 +130,7 @@ export async function POST(req: Request) {
       maxTokens: 1400,
       temperature: 0.3,
       system:
-        "You plan logistics for GT3 Performance Bar, a mobile beverage truck run by a small crew (Ryan & Kayla). " +
+        "You plan logistics for GT3 Performance Bar, a mobile beverage truck run by a small owner-led crew. " +
         "Given an event and the crew's notes, draft a practical, time-ordered run of show for the requested day only. " +
         "Cover the real-world arc: leaving home, drive/fuel, lodging check-in, load-in & setup, service window, breaks/meals, teardown, load-out. " +
         "Keep titles short and actionable. Put confirmable specifics (parking, gate code, contact, what to load) in details. " +

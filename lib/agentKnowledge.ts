@@ -51,7 +51,7 @@ export async function brewRecipeFacts(): Promise<string> {
   return (
     "=== BREW RECIPES (EXACT — quantities are per the stated base gallons; scale LINEARLY with water volume). " +
     "If asked a recipe quantity, compute it from these numbers. If a recipe or ingredient is NOT listed here, say " +
-    "\"that's not on file — check with Ryan\" and do NOT invent a number. ===\n" + fmt
+    "\"that's not on file — check with an owner\" and do NOT invent a number. ===\n" + fmt
   );
 }
 

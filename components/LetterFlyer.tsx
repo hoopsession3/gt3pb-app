@@ -46,7 +46,7 @@ const DEFAULTS: Fields = {
   kicker: "Announcement",
   headline: "A Note From GT3",
   body: "We have something to share. Add your message here — what's changing, when it takes effect, and anything worth knowing.\nKeep it plain, and let it breathe.",
-  signoff: "— Ryan & Kayla, GT3 Performance Bar",
+  signoff: "— GT3 Performance Bar",
   date: "",
 };
 
@@ -355,7 +355,7 @@ export default function LetterFlyer() {
       {field("kicker", "Kicker (small label)", "Announcement")}
       {field("headline", "Headline", "A Note From GT3")}
       <label className="rf-f"><span>Message (one blank line = new paragraph)</span><textarea rows={5} value={f.body} onChange={(e) => setF((p) => ({ ...p, body: e.target.value }))} /></label>
-      {field("signoff", "Sign-off", "— Ryan & Kayla, GT3 Performance Bar")}
+      {field("signoff", "Sign-off", "— GT3 Performance Bar")}
       {field("date", "Date (optional)", "July 4, 2026")}
       <canvas ref={canvasRef} width={FORMATS[fmt].w} height={FORMATS[fmt].h} className="rf-canvas" />
       <div className="rf-actions">

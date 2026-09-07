@@ -55,7 +55,7 @@ export default function AskGT3() {
       const r = await authedFetch("/api/agents/operator", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: next }) });
       const j = await r.json();
       const reply = j.ok ? (j.reply || "…")
-        : String(j.error ?? "").includes("ANTHROPIC") ? "I'm not switched on yet — Ryan needs to add the API key, then I'll be ready."
+        : String(j.error ?? "").includes("ANTHROPIC") ? "I'm not switched on yet — an owner needs to add the API key, then I'll be ready."
         : `Sorry — ${j.error ?? "something went wrong"}.`;
       setMsgs((m) => [...m, { role: "assistant", content: reply }]);
     } catch { setMsgs((m) => [...m, { role: "assistant", content: "Couldn't reach me just now — try again in a sec." }]); }
@@ -80,7 +80,7 @@ export default function AskGT3() {
     <div className="oa">
       <div className="oa-log">
         {msgs.length === 0 && (
-          <div className="oa-empty">Ask me anything — recipes, why we serve what we serve, what gear we have, what&apos;s in stock, or how to run the cart. I answer from GT3&apos;s playbook, and I&apos;ll tell you to check with Ryan if it isn&apos;t written down.</div>
+          <div className="oa-empty">Ask me anything — recipes, why we serve what we serve, what gear we have, what&apos;s in stock, or how to run the cart. I answer from GT3&apos;s playbook, and if something isn&apos;t written down I&apos;ll say so rather than guess.</div>
         )}
         {msgs.map((m, i) => <div key={i} className={`oa-msg ${m.role}`}>{m.content}</div>)}
         {busy && <div className="oa-msg assistant oa-typing"><span></span><span></span><span></span></div>}
