@@ -37,7 +37,8 @@ type CrmOrder = {
 const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 const CH_LABEL: Record<CrmOrder["channel"], string> = { cup: "Cup", pickup: "Pickup", delivery: "Delivery" };
 
-type Loyalty = { points: number | null; credit_cents: number | null; founding_member: boolean | null } | null;
+type Loyalty = { points: number | null; credit_cents: number | null; founding_member: boolean | null;
+                 role: string | null } | null;
 type Perk = { label: string; requires_vip: boolean };
 type Detail = { orders: CrmOrder[]; loyalty: Loyalty; perks: Perk[]; hasProof: boolean };
 // The three states staff actually pick between (0252). VIP stays exactly what 0249/0250 built — a
@@ -69,7 +70,9 @@ function CrmDetail({ c }: { c: Customer }) {
         .select("id, channel, total_cents, payment_status, fulfillment_status, created_at")
         .eq("customer_id", c.id).order("created_at", { ascending: false }).limit(200),
       c.user_id
-        ? supabase.from("profiles").select("points, credit_cents, founding_member").eq("id", c.user_id).maybeSingle()
+        // role rides along so this card can tell a customer from someone already on the crew — see
+        // the hire link below for why that matters.
+        ? supabase.from("profiles").select("points, credit_cents, founding_member, role").eq("id", c.user_id).maybeSingle()
         : Promise.resolve({ data: null, error: null }),
       perkQuery,
       // Staff can now mark VIP by hand too (0252), so vip_verified alone no longer means "genuinely
@@ -203,6 +206,20 @@ function CrmDetail({ c }: { c: Customer }) {
                 <label>Credit $<input inputMode="decimal" value={credit} onChange={(e) => setCredit(e.target.value)} /></label>
                 <button type="button" className="note-save" style={{ marginLeft: "auto" }} onClick={saveLoyalty} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
               </div>
+              {/* WHERE AN OWNER ACTUALLY LOOKS. Bringing a customer onto the crew shipped in 0299 and
+                  lives on the Team roster. Ryan came to THIS card to promote Niño — the screen for
+                  acting on a person — and found tier, points, credit and no way to hire, so the
+                  feature read as missing. The action still belongs in one place, so this is a door
+                  and not a second copy of the form: it lands on the roster with this person already
+                  picked. Only shown for someone still filed as a customer, which is the same test
+                  v_promotable applies. */}
+              {board.data?.loyalty?.role === "member" && c.user_id && (
+                <button type="button" className="tm-hire-open" style={{ marginTop: 10 }}
+                        onClick={() => { window.location.href = `/crew?s=team&promote=${c.user_id}`; }}>
+                  Bring {c.name || "them"} onto the crew
+                  <span className="ev-chev" aria-hidden="true">›</span>
+                </button>
+              )}
             </>
           )}
           {!hasLoyalty && <div className="crm-note">Guest — no account yet, so no loyalty to manage.</div>}

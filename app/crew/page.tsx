@@ -4539,6 +4539,7 @@ function PromotePanel({ onDone }: { onDone: () => void }) {
   const [lead, setLead] = useState(false);
   const [markets, setMarkets] = useState<{ slug: string; name: string }[]>([]);
   const [busy, setBusy] = useState(false);
+  const wantedRef = useRef<string | null>(null);
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -4547,13 +4548,47 @@ function PromotePanel({ onDone }: { onDone: () => void }) {
       supabase.from("v_promotable").select("id, display_name, email, customer_name"),
       supabase.from("markets").select("slug, name").order("slug"),
     ]);
-    setRows((p as typeof rows) ?? []);
+    const people = (p as typeof rows) ?? [];
+    setRows(people);
     setMarkets((mk as typeof markets) ?? []);
     setMarket((prev) => prev || ((mk as typeof markets) ?? [])[0]?.slug || "");
     setLoading(false);
-  }, []);
+    // Arrived from a customer's card with someone already named: pick them now that the list is
+    // actually here. Done inside load rather than in an effect watching rows, because this is the
+    // one moment the answer is knowable and an effect for it would only add a render pass.
+    const w = wantedRef.current;
+    if (w) {
+      wantedRef.current = null;
+      if (people.some((r) => r.id === w)) setPick(w);
+      else toast("They are already on the crew — change their role from the roster below.");
+    }
+  }, [toast]);
 
   useEffect(() => { if (open) load(); }, [open, load]);
+
+  // ── arriving from a customer's card ───────────────────────────────────────────────────────────
+  // The Customers screen is where an owner goes to act on a person, so its card links here with
+  // ?promote=<their profile id> rather than growing a second copy of this form. Consume it once per
+  // page load with a ref — the same idiom the ?a= anchor link uses — then clear the parameter so a
+  // refresh or an in-app section change never re-triggers it.
+  // The id rides in a ref, not state: nothing renders differently for holding it, and load() reads
+  // it at the one moment the list is known. Someone who is NOT in that list is already on the crew,
+  // and load() says so — silently selecting nobody reads as a broken link.
+  const consumedPromoteRef = useRef(false);
+  useEffect(() => {
+    if (consumedPromoteRef.current) return;
+    let w: string | null = null;
+    try { w = new URL(window.location.href).searchParams.get("promote"); } catch { /* ignore */ }
+    if (!w) return;
+    consumedPromoteRef.current = true;
+    wantedRef.current = w;
+    setOpen(true);
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.delete("promote");
+      window.history.replaceState(window.history.state, "", u.pathname + u.search);
+    } catch { /* ignore */ }
+  }, []);
 
   const promote = async () => {
     if (!supabase || !pick) return;
