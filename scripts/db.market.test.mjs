@@ -1420,5 +1420,45 @@ ok("re-run: and left the other city's shelf alone",
    Number((await q1(`select effective_on_hand from public.inventory_status where name='Mountain Valley 1L' and market='atlanta'`))?.effective_on_hand) === 5,
    (await q1(`select effective_on_hand from public.inventory_status where name='Mountain Valley 1L' and market='atlanta'`))?.effective_on_hand);
 
+// ── 0301: one report_spend, not two ─────────────────────────────────────────────────────────────
+// This fixture never replayed 0216, so it only ever had 0292's two-argument report_spend and could
+// not see the defect: production still carried the ONE-argument version from 0216 beside it, both
+// take zero REQUIRED arguments, and the app calls `supabase.rpc("report_spend")` with none — which
+// matched both, so Postgres refused to run it and the Spend & budget panel printed the refusal
+// where the books belong. The fixture lying by omission is the whole reason this shipped broken.
+// So: put production's older function back, prove the fixture now reproduces the break, then run
+// 0301 and prove it is gone.
+await db.exec(`
+  create or replace function public.report_spend(p_month date default current_date)
+  returns jsonb language sql security definer set search_path = public as $$
+    select jsonb_build_object('month', to_char(date_trunc('month', p_month), 'YYYY-MM')) $$;`);
+
+const ambiguous = await raises(`select public.report_spend()`);
+ok("fixture reproduces it: the no-argument call the APP makes cannot choose a function",
+   !!ambiguous && /choose the best candidate|not unique|ambiguous/i.test(ambiguous), ambiguous);
+
+await db.exec(mig("0301_one_report_spend.sql"));
+
+ok("0301: only one report_spend is left",
+   Number((await q1(`select count(*) c from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+                      where n.nspname='public' and p.proname='report_spend'`))?.c) === 1,
+   (await rows(`select pg_get_function_identity_arguments(p.oid) sig from pg_proc p
+                 join pg_namespace n on n.oid=p.pronamespace
+                where n.nspname='public' and p.proname='report_spend'`)));
+ok("0301: and it is the one that takes a market",
+   (await q1(`select pg_get_function_identity_arguments(p.oid) sig from pg_proc p
+               join pg_namespace n on n.oid=p.pronamespace
+              where n.nspname='public' and p.proname='report_spend'`))?.sig === "p_month date, p_market text");
+ok("0301: the call the app makes resolves now", (await raises(`select public.report_spend()`)) === null,
+   await raises(`select public.report_spend()`));
+ok("0301: and the scoped call still resolves",
+   (await raises(`select public.report_spend(current_date, 'greenville')`)) === null);
+
+// The standing check. Empty is the only acceptable answer, forever — a row here is a call that
+// exists in the schema and cannot be made.
+ok("0301: no function in the schema carries two overloads that can both answer one call",
+   (await rows(`select * from public.v_ambiguous_overloads`)).length === 0,
+   await rows(`select proname, signature_a, signature_b from public.v_ambiguous_overloads`));
+
 console.log(`MARKET SPINE: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
