@@ -7,6 +7,8 @@ import { supabase } from "@/lib/supabase";
 import { SectionHeader, InfoRow } from "@/components/kit";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import { useOptions } from "./useOptions";
+import { withCurrent } from "@/lib/options";
 
 // MENU / PRODUCT manager — the catalog as a managed, relational record. Edit every attribute
 // (name, line, price, description, ingredients), set the recipe (which inventory items a serving
@@ -72,6 +74,7 @@ export default function MenuManager() {
 }
 
 function ProductRow({ p, inv, open, onToggle, onSaved, toast }: { p: Product; inv: Inv[]; open: boolean; onToggle: () => void; onSaved: () => void; toast: (m: string, t?: any) => void }) {
+  const timings = useOptions("menu_timing");
   const [d, setD] = useState(p);
   const [comps, setComps] = useState<Comp[]>([]);
   const [addInv, setAddInv] = useState(""); const [addQty, setAddQty] = useState("");
@@ -165,7 +168,15 @@ function ProductRow({ p, inv, open, onToggle, onSaved, toast }: { p: Product; in
             <label className="prod-f"><span>Name</span><input value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} /></label>
             <label className="prod-f"><span>Price ($)</span><input type="number" step="0.50" value={(d.price_cents / 100).toString()} onChange={(e) => setD({ ...d, price_cents: Math.round((Number(e.target.value) || 0) * 100) })} /></label>
             <label className="prod-f"><span>Line</span><input value={d.line ?? ""} onChange={(e) => setD({ ...d, line: e.target.value })} /></label>
-            <label className="prod-f"><span>Timing</span><input value={d.timing ?? ""} onChange={(e) => setD({ ...d, timing: e.target.value })} placeholder="BEFORE / DURING / AFTER" /></label>
+            {/* The placeholder used to read "BEFORE / DURING / AFTER" — when a placeholder has to
+                enumerate the valid answers, the control is wrong. lib/menu.ts already types this
+                as exactly those three. */}
+            <label className="prod-f"><span>Timing</span>
+              <select value={d.timing ?? ""} onChange={(e) => setD({ ...d, timing: e.target.value })}>
+                <option value="">—</option>
+                {withCurrent(timings, d.timing).map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </label>
           </div>
           <label className="prod-f"><span>Description</span><textarea rows={2} value={d.what ?? ""} onChange={(e) => setD({ ...d, what: e.target.value })} /></label>
           <label className="prod-f"><span>Why</span><input value={d.why ?? ""} onChange={(e) => setD({ ...d, why: e.target.value })} /></label>

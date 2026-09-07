@@ -1,0 +1,49 @@
+-- 0299 — Bringing a customer into the business.
+--
+-- WHY THERE WAS NOWHERE TO CLICK. The owner went looking for how to make Niño the Atlanta city
+-- operator and could not find it, because it does not exist. Niño is already in profiles — 14 of the
+-- 15 customers are — and he already has an auth account. He simply holds role 'member', and the crew
+-- roster does this:
+--
+--   const staff = members.filter((m) => rawRole(m) !== "member");
+--
+-- Every profile is fetched and everyone at 'member' is then filtered out and reduced to a count in a
+-- banner. The role picker only renders on rows that survive that filter, so the member → crew line is
+-- the one transition the app has no control for. Someone can be promoted from server to operator all
+-- day; nobody can be brought in from the customer list at all.
+--
+-- WHY THIS IS ONE FUNCTION AND NOT THREE CALLS. Making somebody a city operator is three writes:
+-- the role, the market they belong to, and the market they lead. They have a required ORDER —
+-- set_market_lead refuses anyone who is not already an operator or above — and two of the three have
+-- no client path at all: profiles has carried exactly one update policy since 0001,
+--
+--   create policy "own profile update" on public.profiles for update using (auth.uid() = id);
+--
+-- so an owner cannot write another person's market from the browser however the UI is built. Three
+-- round-trips could also strand someone half-promoted: role changed, market not, and now they read
+-- another city's money through 0291's scoping. One transaction, or nothing.
+--
+-- WHY 'owner' AND 'member' ARE NOT PROMOTION TARGETS. This is the hire door, not the whole role
+-- ladder. 'member' is where they already are, and making another owner is a deliberate act with its
+-- own confirmations on the roster — 0281 made the same call for offer letters, which likewise refuse
+-- to grant 'owner' as a line item. Demotion stays where it already lives.
+
+create or replace function public.set_member_market(p_member uuid, p_market text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_owner() and public.leads_market() is distinct from p_market then
+    raise exception 'Only an owner, or the lead of that market, can move someone into it.';
+  end if;
+  if p_market is null or not exists (select 1 from public.markets where slug = p_market) then
+    raise exception 'No such market: %', coalesce(p_market, '(null)');
+  end if;
+  if not exists (select 1 from public.profiles where id = p_member) then
+    raise exception 'no such profile';
+  end if;
+  update public.profiles set market = p_market where id = p_member;
+end $$;
+revoke all on function public.set_member_market(uuid, text) from public;
+grant execute on function public.set_member_market(uuid, text) to authenticated;
+
+comment on function public.set_member_market(uuid, text) is
+  '

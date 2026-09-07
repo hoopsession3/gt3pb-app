@@ -10,6 +10,7 @@ import AsyncSection from "./AsyncSection";
 import Sheet from "@/components/Sheet";
 import { SectionHeader } from "@/components/kit";
 import Icon from "@/components/Icon";
+import { useCrew, crewLabel } from "./useCrew";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // THE WORKSTREAM REGISTRY (0264, 2026-08-03) — "the one place to manage every component and
@@ -45,6 +46,7 @@ export default function OsRegistry() {
   const isAdmin = !!profile?.is_admin || ["owner", "admin"].includes(String((profile as any)?.role ?? ""));
   const [auditing, setAuditing] = useState<Ws | null>(null);
   const [scores, setScores] = useState<Record<string, number>>({});
+  const crew = useCrew();
   const [draft, setDraft] = useState({ name: "", owner: "", next_action: "", due: "", blocker: "", status: "active" as Ws["status"], note: "" });
   const [saving, setSaving] = useState(false);
   const [newName, setNewName] = useState("");
@@ -167,8 +169,28 @@ export default function OsRegistry() {
             <div className="osr-audit-row">
               <label className="prod-f"><span>Workstream</span>
                 <input className="note-in" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} maxLength={80} /></label>
-              <label className="prod-f"><span>Owner — exactly one name</span>
-                <input className="note-in" value={draft.owner} onChange={(e) => setDraft({ ...draft, owner: e.target.value })} maxLength={40} /></label>
+              {/* The label used to read "Owner — exactly one name", which is an invariant a text
+                  box cannot keep: spell it differently the second time and the workstream belongs
+                  to nobody while still looking owned. It picks from the crew now (0307 added
+                  owner_user_id beside the text column and backfilled the unambiguous matches).
+                  Someone with no account is still a valid owner — that is what "someone else"
+                  keeps the text box for — but it is now visibly a different thing. */}
+              <label className="prod-f"><span>Owner</span>
+                <select className="note-in" value={crew.some((c) => (c.display_name || "") === draft.owner) ? draft.owner : (draft.owner ? "__other" : "")}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          if (v === "__other") { setDraft({ ...draft, owner: draft.owner || " " }); return; }
+                          setDraft({ ...draft, owner: v });
+                        }} aria-label="Workstream owner">
+                  <option value="">Nobody yet</option>
+                  {crew.filter((c) => c.display_name).map((c) => <option key={c.id} value={c.display_name as string}>{crewLabel(c)}</option>)}
+                  <option value="__other">Someone else — type a name</option>
+                </select></label>
+              {draft.owner !== "" && !crew.some((c) => (c.display_name || "") === draft.owner) && (
+                <label className="prod-f"><span>Name</span>
+                  <input className="note-in" value={draft.owner.trim()} onChange={(e) => setDraft({ ...draft, owner: e.target.value })} maxLength={40}
+                         placeholder="Someone without an account" autoFocus /></label>
+              )}
             </div>
             {CRITERIA.map((c) => (
               <div key={c.key} className="osr-crit">

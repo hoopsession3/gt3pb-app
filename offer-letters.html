@@ -1,0 +1,490 @@
+<title>Writing a GT3 Offer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Public+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+:root{
+  --paper:#FBF8EF;
+  --paper-2:#F3EEE1;
+  --ink:#221F18;
+  --ink-m:rgba(34,31,24,.72);
+  --ink-f:rgba(34,31,24,.56);
+  --rule:rgba(34,31,24,.14);
+  --rule-2:rgba(34,31,24,.26);
+  --gold:#7a5a1e;
+  --red:#9d1d1a;
+  --red-wash:rgba(157,29,26,.07);
+  --char:#2A2820;
+  --char-ink:#EFE9DA;
+  --char-ink-m:rgba(239,233,218,.68);
+  --ok:#3f6b2f;
+  --maxw:1120px;
+  --prose:64ch;
+}
+:root:not([data-theme="light"]){}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#1A1814;
+    --paper-2:#221F1A;
+    --ink:#EFE9DA;
+    --ink-m:rgba(239,233,218,.74);
+    --ink-f:rgba(239,233,218,.56);
+    --rule:rgba(239,233,218,.14);
+    --rule-2:rgba(239,233,218,.26);
+    --gold:#C9A252;
+    --red:#E8807B;
+    --red-wash:rgba(232,128,123,.10);
+    --char:#100F0C;
+    --char-ink:#EFE9DA;
+    --char-ink-m:rgba(239,233,218,.66);
+    --ok:#8FBE79;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#1A1814;
+  --paper-2:#221F1A;
+  --ink:#EFE9DA;
+  --ink-m:rgba(239,233,218,.74);
+  --ink-f:rgba(239,233,218,.56);
+  --rule:rgba(239,233,218,.14);
+  --rule-2:rgba(239,233,218,.26);
+  --gold:#C9A252;
+  --red:#E8807B;
+  --red-wash:rgba(232,128,123,.10);
+  --char:#100F0C;
+  --char-ink:#EFE9DA;
+  --char-ink-m:rgba(239,233,218,.66);
+  --ok:#8FBE79;
+}
+
+*{box-sizing:border-box}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:"Public Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:16.5px;
+  line-height:1.62;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 28px}
+@media (max-width:640px){ .wrap{padding:0 20px} body{font-size:16px} }
+
+/* ── masthead ─────────────────────────────────────────── */
+.head{border-bottom:1px solid var(--rule-2);padding:56px 0 30px;margin-bottom:44px}
+.mark{
+  font-family:"Public Sans",sans-serif;font-weight:600;font-size:20px;letter-spacing:.02em;
+  display:flex;align-items:baseline;gap:0;margin:0 0 3px;
+}
+.mark i{font-style:normal;color:var(--red)}
+.mark-sub{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:10.5px;letter-spacing:.20em;
+  text-transform:uppercase;color:var(--ink-f);margin:0 0 30px;
+}
+h1{
+  font-family:"Newsreader",Georgia,serif;font-weight:500;
+  font-size:clamp(2.1rem,5.4vw,3.25rem);line-height:1.08;letter-spacing:-.015em;
+  margin:0 0 16px;text-wrap:balance;max-width:15ch;
+}
+.dek{font-size:1.06rem;color:var(--ink-m);max-width:60ch;margin:0 0 26px}
+.stamp{
+  display:flex;flex-wrap:wrap;gap:8px 22px;
+  font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink-f);
+}
+.stamp b{color:var(--ink-m);font-weight:500}
+
+/* ── section scaffolding ──────────────────────────────── */
+section{margin:0 0 58px;scroll-margin-top:24px}
+.eyebrow{
+  font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--gold);margin:0 0 10px;
+}
+h2{
+  font-family:"Newsreader",Georgia,serif;font-weight:500;font-size:clamp(1.5rem,3.2vw,2rem);
+  line-height:1.18;letter-spacing:-.01em;margin:0 0 18px;text-wrap:balance;max-width:24ch;
+}
+h3{
+  font-family:"Public Sans",sans-serif;font-weight:600;font-size:1.02rem;letter-spacing:-.005em;
+  margin:30px 0 8px;
+}
+p{margin:0 0 15px;max-width:var(--prose)}
+p.wide{max-width:78ch}
+strong{font-weight:600}
+em.q{font-style:italic;color:var(--ink-m)}
+a{color:var(--ink);text-decoration-color:var(--gold);text-underline-offset:3px}
+a:focus-visible{outline:2px solid var(--gold);outline-offset:3px;border-radius:2px}
+
+/* ── the statute rail ─────────────────────────────────── */
+.rail-row{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:0 40px;align-items:start}
+@media (max-width:900px){ .rail-row{grid-template-columns:minmax(0,1fr);gap:0} }
+.rail{
+  border-left:2px solid var(--rule-2);padding:2px 0 2px 16px;margin:6px 0 22px;
+  font-size:.86rem;line-height:1.55;color:var(--ink-m);
+}
+.rail .cite{
+  display:block;font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.05em;
+  color:var(--gold);margin-bottom:5px;
+}
+.rail q{quotes:"\201C" "\201D";font-style:italic}
+
+/* ── the ladder (a real sequence, so it gets numbers) ──── */
+.ladder{list-style:none;margin:24px 0 8px;padding:0;counter-reset:step}
+.ladder li{
+  counter-increment:step;position:relative;padding:0 0 22px 46px;
+  border-left:1px solid var(--rule);margin-left:13px;
+}
+.ladder li:last-child{border-left-color:transparent;padding-bottom:0}
+.ladder li::before{
+  content:counter(step,decimal-leading-zero);position:absolute;left:-13px;top:0;
+  width:26px;height:26px;border-radius:50%;background:var(--paper);
+  border:1px solid var(--rule-2);color:var(--gold);
+  font-family:"IBM Plex Mono",monospace;font-size:10px;
+  display:flex;align-items:center;justify-content:center;
+}
+.ladder b{display:block;font-weight:600;margin-bottom:2px}
+.ladder span{display:block;color:var(--ink-m);font-size:.94rem;max-width:60ch}
+.ladder code{
+  font-family:"IBM Plex Mono",monospace;font-size:11.5px;
+  background:var(--paper-2);border:1px solid var(--rule);border-radius:3px;
+  padding:1px 5px;color:var(--ink-m);
+}
+
+/* ── the two-state comparison ─────────────────────────── */
+.states{display:grid;grid-template-columns:1fr 1fr;gap:0;margin:26px 0 10px;border-top:1px solid var(--rule-2)}
+@media (max-width:760px){ .states{grid-template-columns:1fr} }
+.state{padding:22px 26px 24px}
+.state + .state{border-left:1px solid var(--rule)}
+@media (max-width:760px){ .state + .state{border-left:0;border-top:1px solid var(--rule)} }
+.state h3{margin:0 0 3px;font-size:1.16rem;font-family:"Newsreader",Georgia,serif;font-weight:500}
+.state .where{
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--ink-f);margin:0 0 18px;
+}
+.fact{padding:12px 0;border-top:1px solid var(--rule)}
+.fact:first-of-type{border-top:0;padding-top:0}
+.fact dt{
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--ink-f);margin-bottom:4px;
+}
+.fact dd{margin:0;font-size:.95rem;line-height:1.5}
+.fact dd .num{font-variant-numeric:tabular-nums;font-weight:600}
+
+/* ── flags ────────────────────────────────────────────── */
+.flag{
+  border-left:3px solid var(--red);background:var(--red-wash);
+  padding:16px 20px;margin:22px 0;border-radius:0 4px 4px 0;
+}
+.flag p{margin:0;max-width:68ch}
+.flag p + p{margin-top:10px}
+.flag .k{
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--red);display:block;margin-bottom:7px;
+}
+
+/* ── charcoal band ────────────────────────────────────── */
+.band{background:var(--char);color:var(--char-ink);margin:0 0 58px;padding:46px 0 48px}
+.band h2{color:var(--char-ink)}
+.band p{color:var(--char-ink-m)}
+.band .eyebrow{color:#C9A252}
+.band a{color:var(--char-ink);text-decoration-color:#C9A252}
+
+/* ── role access grid ─────────────────────────────────── */
+.roles{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:1px;background:rgba(239,233,218,.14);border:1px solid rgba(239,233,218,.14);margin:26px 0 6px}
+.role{background:var(--char);padding:18px 20px 20px}
+.role .rn{font-weight:600;font-size:.98rem;margin:0 0 2px;color:var(--char-ink)}
+.role .rg{
+  font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  margin:0 0 12px;color:#C9A252;
+}
+.role ul{margin:0;padding:0;list-style:none;font-size:.87rem;line-height:1.5}
+.role li{padding-left:15px;position:relative;margin-bottom:5px;color:var(--char-ink-m)}
+.role li::before{content:"";position:absolute;left:0;top:.58em;width:6px;height:1px;background:#C9A252}
+.role li.no::before{background:rgba(239,233,218,.34)}
+.role li.no{color:rgba(239,233,218,.5)}
+
+/* ── checklist ────────────────────────────────────────── */
+.check{list-style:none;margin:20px 0 8px;padding:0}
+.check li{
+  display:grid;grid-template-columns:auto minmax(0,1fr);gap:0 13px;align-items:start;
+  padding:13px 0;border-top:1px solid var(--rule);
+}
+.check li:last-child{border-bottom:1px solid var(--rule)}
+.check .mk{
+  font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.06em;
+  padding:2px 7px;border-radius:3px;white-space:nowrap;margin-top:2px;
+}
+.mk.in{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok);border:1px solid color-mix(in srgb,var(--ok) 34%,transparent)}
+.mk.out{background:var(--red-wash);color:var(--red);border:1px solid color-mix(in srgb,var(--red) 32%,transparent)}
+.check b{font-weight:600;display:block}
+.check span{color:var(--ink-m);font-size:.93rem;display:block;max-width:66ch}
+
+/* ── sources ──────────────────────────────────────────── */
+.src{border-top:1px solid var(--rule-2);padding:30px 0 70px;margin-top:16px}
+.src ol{margin:14px 0 0;padding-left:1.3em;font-size:.88rem;line-height:1.65;color:var(--ink-m);max-width:88ch}
+.src li{margin-bottom:7px}
+.src a{word-break:break-word}
+.note{font-size:.86rem;color:var(--ink-f);max-width:72ch;font-style:italic}
+</style>
+
+<div class="wrap">
+  <header class="head">
+    <p class="mark">GT<i>3</i></p>
+    <p class="mark-sub">Performance Bar · Owner brief</p>
+    <h1>Writing an offer that means what it says</h1>
+    <p class="dek">You are hiring into two states at once. Greenville is South Carolina; Atlanta is Georgia. Almost everything about the letter is the same — and the handful of things that differ are the ones that decide whether the letter holds.</p>
+    <div class="stamp">
+      <span><b>Prepared</b> 6 Sep 2026</span>
+      <span><b>For</b> Ryan &amp; Kayla</span>
+      <span><b>Companion to</b> Roles &amp; Operator Deals</span>
+    </div>
+  </header>
+
+  <section>
+    <p class="eyebrow">Before anything else</p>
+    <h2>This is a working brief, not legal advice</h2>
+    <p class="wide">Every legal statement below is sourced, dated, and cited to the statute or the agency — the list is at the bottom, and each one is linked. Where the sources I could reach disagree, I say so rather than pick a side. Two places in this brief say <em class="q">confirm this with a Georgia employment lawyer before you rely on it</em>, and they mean it literally. Neither I nor the app is a substitute for that review; what both can do is make sure the review is about real questions instead of missing information.</p>
+  </section>
+
+  <section>
+    <p class="eyebrow">The chain</p>
+    <h2>What the app already enforces</h2>
+    <p>Not a workflow drawn on a whiteboard — these are constraints in the database, so they hold whether the request comes from the screen, a script, or a future integration nobody has written yet.</p>
+    <ol class="ladder">
+      <li>
+        <b>You draft it</b>
+        <span>Offer letters are owner&#8209;only. They carry someone&rsquo;s pay and an unfinished hiring decision, so they are not general staff information. Editable while it is a draft, and only then.</span>
+      </li>
+      <li>
+        <b>It goes to every other owner</b>
+        <span>Not a quorum, not a majority — every owner except the one who wrote it. Right now that is exactly one person: if you write it, Kayla approves it; if she writes it, you do. <code>requiredApprovers()</code></span>
+      </li>
+      <li>
+        <b>One objection stops it</b>
+        <span>Approval is unanimous or it is not approval. A single <em class="q">changes requested</em> moves the offer back to draft with the note attached, rather than leaving it in a half&#8209;approved state that a later reader has to interpret.</span>
+      </li>
+      <li>
+        <b>Only then can it be sent</b>
+        <span>The database refuses to move an offer to <em class="q">sent</em> from anywhere except <em class="q">approved</em>. There is no path — not through the UI, not through a direct RPC call — that reaches the candidate without both owners on record. <code>guard_offer_status</code></span>
+      </li>
+      <li>
+        <b>The candidate answers</b>
+        <span>Accept or decline, recorded against their own account. Every step above and this one lands in an event trail nobody can edit after the fact.</span>
+      </li>
+      <li>
+        <b>Then the role is assigned</b>
+        <span>Deliberately a separate act. Accepting a letter does not grant access — an owner still has to assign the role, and the sign&#8209;up path can no longer mint an owner on its own.</span>
+      </li>
+    </ol>
+  </section>
+
+  <section>
+    <p class="eyebrow">Question one</p>
+    <h2>Which city — because that picks the state</h2>
+    <p class="wide">The offer already carries a market, and until this week that field only decided which city&rsquo;s name appeared on the letter. It decides more than that. Here is what actually differs between the two.</p>
+
+    <div class="states">
+      <div class="state">
+        <h3>Greenville</h3>
+        <p class="where">South Carolina · founding market</p>
+        <div class="fact"><dt>Written notice at hire</dt>
+          <dd><strong>Required.</strong> Every employer, no size threshold. The employee must be told <em class="q">in writing</em> the normal hours and wages agreed upon, the time and place of payment, and the deductions that will be made.</dd></div>
+        <div class="fact"><dt>Changing those terms later</dt>
+          <dd>In writing, at least <span class="num">7</span> calendar days before it takes effect. Raises are exempt.</dd></div>
+        <div class="fact"><dt>Keeping the letter from becoming a contract</dt>
+          <dd>A disclaimer in <strong>underlined capital letters on the first page</strong>. For a letter — as opposed to a handbook — no signature is needed. Whether it is conspicuous enough is decided by a judge, not by you.</dd></div>
+        <div class="fact"><dt>Workers&rsquo; comp</dt>
+          <dd>Required at <span class="num">4</span> or more employees, or once annual payroll passes <span class="num">$3,000</span>. Part&#8209;timers and family members count.</dd></div>
+      </div>
+      <div class="state">
+        <h3>Atlanta</h3>
+        <p class="where">Georgia · opening on standing orders</p>
+        <div class="fact"><dt>Written notice at hire</dt>
+          <dd><strong>No state equivalent.</strong> Nothing in Georgia law requires the notice South Carolina requires — which is an argument for writing every letter to the South Carolina standard rather than keeping two templates.</dd></div>
+        <div class="fact"><dt>Changing those terms later</dt>
+          <dd>No statutory notice period. Set one yourself; the letter is where you say so.</dd></div>
+        <div class="fact"><dt>The salary&#8209;period trap</dt>
+          <dd>Georgia presumes the hiring runs for whatever period the wages are stated in. State pay as an annual salary with no at&#8209;will language and you have handed a candidate an argument that they were hired for a year.</dd></div>
+        <div class="fact"><dt>Workers&rsquo; comp</dt>
+          <dd>Required at <span class="num">3</span> or more employees — full time, part time or seasonal. Officers and LLC members count toward the three even if they exempt themselves from coverage.</dd></div>
+      </div>
+    </div>
+
+    <div class="rail-row">
+      <div>
+        <h3>The practical read</h3>
+        <p>Write one letter that satisfies South Carolina and it satisfies Georgia too, with one Georgia&#8209;specific addition: an explicit at&#8209;will sentence, because of the salary&#8209;period presumption. That is the cheapest way to run two markets without running two templates.</p>
+        <p>The workers&rsquo; comp thresholds are the number to actually watch. Georgia&rsquo;s is three, it counts part&#8209;timers, and it counts you. An Atlanta lead plus two part&#8209;time servers reaches it.</p>
+      </div>
+      <div>
+        <aside class="rail">
+          <span class="cite">S.C. Code § 41-10-30</span>
+          <q>the normal hours and wages agreed upon, the time and place of payment, and the deductions which will be made from the wages</q> — required of every employer, in writing, at the time of hiring.
+        </aside>
+        <aside class="rail">
+          <span class="cite">S.C. Code § 41-1-110</span>
+          A document issued by an employer <q>shall not create an express or implied contract of employment if it is conspicuously disclaimed</q> — underlined capitals, first page.
+        </aside>
+        <aside class="rail">
+          <span class="cite">O.C.G.A. § 34-7-1</span>
+          <q>An indefinite hiring may be terminated at will by either party</q> — but if wages are payable at a stipulated period, <q>the presumption shall arise that the hiring is for such period.</q>
+        </aside>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="band">
+  <div class="wrap">
+    <p class="eyebrow">Question two</p>
+    <h2>The role you offer is the access you grant</h2>
+    <p class="wide" style="max-width:74ch">This is the part an offer letter usually leaves out and shouldn&rsquo;t. Four of your roles look different in the app and are the same role in the database. A letter that says <em class="q">event manager</em> is, at the data layer, a letter that says <em class="q">server</em> — and a server can already read every customer record and every margin number you have.</p>
+    <div class="roles">
+      <div class="role">
+        <p class="rn">Server</p>
+        <p class="rg">Staff gate</p>
+        <ul>
+          <li>The crew console</li>
+          <li>Every customer — name, phone, email, tier</li>
+          <li>Revenue, cost and margin</li>
+          <li>Expenses, budgets, prices</li>
+          <li class="no">Cannot assign roles</li>
+        </ul>
+      </div>
+      <div class="role">
+        <p class="rn">Contractor</p>
+        <p class="rg">Staff gate · identical</p>
+        <ul>
+          <li>Everything a server reaches</li>
+          <li class="no">The database draws no distinction at all</li>
+        </ul>
+      </div>
+      <div class="role">
+        <p class="rn">Event manager</p>
+        <p class="rg">Staff gate · identical</p>
+        <ul>
+          <li>Everything a server reaches</li>
+          <li class="no">Leadership in the app, a server in the data</li>
+        </ul>
+      </div>
+      <div class="role">
+        <p class="rn">Operator</p>
+        <p class="rg">Staff gate · both cities</p>
+        <ul>
+          <li>Everything a server reaches</li>
+          <li>Their own agreement — accept or counter</li>
+          <li class="no">No per-market limit: this is both cities</li>
+        </ul>
+      </div>
+      <div class="role">
+        <p class="rn">Admin</p>
+        <p class="rg">Admin gate</p>
+        <ul>
+          <li>Read every profile</li>
+          <li>Event and product economics</li>
+          <li>Site copy, KPIs, changelog</li>
+          <li>Draft and send operator agreements</li>
+          <li class="no">Cannot assign roles</li>
+        </ul>
+      </div>
+      <div class="role">
+        <p class="rn">Owner</p>
+        <p class="rg">Owner gate · not offerable</p>
+        <ul>
+          <li>Everything, including assigning roles</li>
+          <li>Approve offer letters</li>
+          <li class="no">Never a line item in a letter — making an owner is its own deliberate act</li>
+        </ul>
+      </div>
+    </div>
+    <p style="margin-top:22px;max-width:74ch">The offer screen shows this next to the role picker while you write, so the access decision happens at the same moment as the title decision instead of six weeks later. The full role&#8209;by&#8209;role audit is in <a href="https://claude.ai/code/artifact/cdb31601-1d21-4fc4-a416-00ccf9d5542f">Roles &amp; Operator Deals</a>.</p>
+  </div>
+</div>
+
+<div class="wrap">
+  <section>
+    <p class="eyebrow">Question three</p>
+    <h2>Employee or contractor — and why the letter doesn&rsquo;t decide it</h2>
+    <p class="wide">You asked about a <em class="q">contract employee</em>. That phrase is two different arrangements, and which one you have is decided by how the work actually happens, not by what the letter calls it. Calling someone a contractor in writing while setting their schedule, training them, supplying the gear and paying a guaranteed base produces an employee with a contractor&rsquo;s paperwork — which is the expensive version.</p>
+
+    <div class="rail-row">
+      <div>
+        <h3>Where the federal rule stands right now</h3>
+        <p>Unsettled, and worth knowing before you build around it. The 2024 Department of Labor rule is still the regulation on the books for private lawsuits, but the Department has stopped enforcing it and told its own field staff to use the older 2008 framework. A replacement rule was proposed on 27 February 2026, comments closed in late April, and as of mid&#8209;August 2026 it had not been finalised.</p>
+        <p>The proposal would return to weighting two factors above the rest: <strong>control over the work</strong>, and <strong>opportunity for profit or loss</strong> from the worker&rsquo;s own initiative and investment. Those two are what the app&rsquo;s classification check flags on, because they are the two that have mattered under every version of the test.</p>
+
+        <h3>Georgia asks a harder question than the federal government does</h3>
+        <p>For unemployment insurance, Georgia presumes services performed for wages <strong>are</strong> employment, and the burden is on you to show otherwise. The statute lists seven specific things that must be true about control: the person is not prohibited from working elsewhere, is free to accept or reject assignments without consequence, has no minimum hours or minimum order count, sets their own schedule, receives only minimal instruction and no direct supervision, has no territorial restriction, and is not required to behave in a manner the Commissioner reads as employment.</p>
+        <p>Read that list against a bar shift. Most hospitality work fails it on the first three.</p>
+      </div>
+      <div>
+        <aside class="rail">
+          <span class="cite">O.C.G.A. § 34-8-35 · HB 389, eff. 1 Jul 2022</span>
+          Employer bears the burden. Georgia broadened who counts as an employee and narrowed who can be a contractor.
+        </aside>
+        <aside class="rail">
+          <span class="cite">29 C.F.R. Part 795 · status Sep 2026</span>
+          2024 rule on the books, unenforced; 2026 replacement proposed 27 Feb 2026, not final.
+        </aside>
+        <aside class="rail">
+          <span class="cite">FLSA salary floor</span>
+          <q>$684 per week</q> — about $35,568 a year — is still the federal minimum salary for an exempt white&#8209;collar role. Neither Georgia nor South Carolina sets a higher one.
+        </aside>
+      </div>
+    </div>
+
+    <div class="flag">
+      <span class="k">Confirm before you rely on it</span>
+      <p>The published summaries of Georgia&rsquo;s test do not agree on one structural point: whether <em class="q">customarily engaged in an independently established trade</em> is an <strong>alternative</strong> to the seven control factors or an <strong>additional</strong> requirement on top of them, and whether an IRS Form SS&#8209;8 determination is a third path or a third condition. That difference decides whether contractor status in Atlanta is difficult or close to unavailable.</p>
+      <p>I could not resolve it from the sources I could reach, so I am not going to assert it. Put this exact question to a Georgia employment lawyer — it is a fifteen&#8209;minute answer for someone who practises there, and it is the single fact that most changes how you staff Atlanta.</p>
+    </div>
+
+    <div class="flag">
+      <span class="k">Also worth a lawyer&rsquo;s eye</span>
+      <p>The at&#8209;will disclaimer wording itself. South Carolina tells you the <em>format</em> — underlined capitals, first page — and leaves conspicuousness to a judge. That is a sentence worth having drafted once, properly, and then reused forever. I have deliberately not invented it for you.</p>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">The letter</p>
+    <h2>What&rsquo;s in the app today, and what still has to go in</h2>
+    <p class="wide">The approval machinery is finished and applied to production. The letter&rsquo;s <em>contents</em> are not, and the gap is specific rather than vague — these are the fields South Carolina requires that the offer does not yet carry.</p>
+    <ul class="check">
+      <li><span class="mk in">shipped</span><div><b>Candidate, title, role, market, start date, reports&#8209;to</b><span>Validated together, so the form objects once instead of five times.</span></div></li>
+      <li><span class="mk in">shipped</span><div><b>Base pay and commission, employee or contractor</b><span>With the classification flags firing only on a contractor offer.</span></div></li>
+      <li><span class="mk in">shipped</span><div><b>Role reach shown while you choose the role</b><span>Every line of it verified against the live database, not against the app&rsquo;s labels.</span></div></li>
+      <li><span class="mk in">shipped</span><div><b>Unanimous co&#8209;owner approval, enforced in the database</b><span>And an unalterable event trail underneath it.</span></div></li>
+      <li><span class="mk out">missing</span><div><b>Normal hours</b><span>Required in writing at hire in South Carolina. Not a field today.</span></div></li>
+      <li><span class="mk out">missing</span><div><b>Time and place of payment</b><span>Same requirement, same statute. Pay day and pay method.</span></div></li>
+      <li><span class="mk out">missing</span><div><b>Deductions that will be made</b><span>Including insurance contributions. Same requirement again.</span></div></li>
+      <li><span class="mk out">missing</span><div><b>The at&#8209;will disclaimer, underlined capitals, first page</b><span>Needs a lawyer&rsquo;s sentence, then it is a template constant rather than a field.</span></div></li>
+      <li><span class="mk out">missing</span><div><b>A printable letter</b><span>Right now the offer is a record. What the candidate should receive is a document — the same facts, laid out as a letter, with the disclaimer where the statute wants it.</span></div></li>
+    </ul>
+    <p class="note" style="margin-top:22px">Four fields, one constant, and a print view. Say the word and it goes in as one migration and one screen — but the disclaimer sentence has to come from your lawyer, not from me.</p>
+  </section>
+
+  <section>
+    <p class="eyebrow">The other conversation</p>
+    <h2>Equity, investment, time — keep it out of this letter</h2>
+    <p class="wide">You asked whether an Atlanta lead should be talked to in equity, in investment, or in hours. It is a real question and it belongs in a different document. An offer letter is an employment instrument; ownership and revenue&#8209;share are a securities and partnership question, and mixing them means the cheap document drags the expensive one along with it.</p>
+    <p class="wide">The app already reflects that separation: operator agreements are their own table with their own approval path, their terms become final once accepted, and <em class="q">owner</em> is deliberately excluded from the roles an offer letter can grant. The reasoning behind the split — and where a revenue&#8209;share arrangement starts to look like a franchise to the FTC — is in <a href="https://claude.ai/code/artifact/cdb31601-1d21-4fc4-a416-00ccf9d5542f">Roles &amp; Operator Deals</a>.</p>
+    <p class="wide">The practical version: hire the Atlanta lead as an employee with a title, a salary and a commission tied to what they can actually move. If it works, have the ownership conversation as its own negotiation, with its own paper, six months in — when you both have evidence instead of projections.</p>
+  </section>
+
+  <section class="src">
+    <p class="eyebrow">Sources</p>
+    <p class="note">Fetched 6 September 2026. Statute text quoted from the linked codes; the classification rule&rsquo;s status is as reported on the dates shown.</p>
+    <ol>
+      <li><a href="https://law.justia.com/codes/south-carolina/title-41/chapter-10/section-41-10-30/">S.C. Code § 41-10-30</a> — notification of wages and hours; seven-day notice of changes; three-year recordkeeping; itemized pay statements.</li>
+      <li><a href="https://law.justia.com/codes/south-carolina/title-41/chapter-1/section-41-1-110/">S.C. Code § 41-1-110</a> — conspicuous disclaimer; underlined capital letters on the first page.</li>
+      <li><a href="https://wcc.sc.gov/employer-faqs">S.C. Workers&rsquo; Compensation Commission — Employer FAQs</a> — four-employee threshold and the $3,000 payroll exemption.</li>
+      <li><a href="https://codes.findlaw.com/ga/title-34-labor-and-industrial-relations/ga-code-sect-34-7-1/">O.C.G.A. § 34-7-1</a> — indefinite hiring terminable at will; the stipulated-period presumption.</li>
+      <li><a href="https://law.justia.com/codes/georgia/title-34/chapter-8/article-2/section-34-8-35/">O.C.G.A. § 34-8-35</a> — employment presumed; contractor exclusion and its prongs.</li>
+      <li><a href="https://stantonlawllc.com/georgia-broadens-definition-of-employee-narrows-classification-of-independent-contractor/">Stanton Law — Georgia broadens the definition of employee</a> — HB 389, effective 1 July 2022, and the seven control factors.</li>
+      <li><a href="https://onpay.com/insights/workers-comp-requirements-by-state/georgia/">Georgia workers&rsquo; compensation requirements</a> — three-employee threshold, part-timers and officers counted, penalty ranges.</li>
+      <li><a href="https://www.jacksonlewis.com/insights/dols-proposed-2026-independent-contractor-rule-what-employers-need-know">Jackson Lewis — DOL&rsquo;s proposed 2026 independent contractor rule</a> — 2024 rule unenforced, 2008 guidance in use, two core factors.</li>
+      <li><a href="https://www.selfemployed.com/news/dol-independent-contractor-rule-2026-status/">Where the DOL&rsquo;s 2026 rule now stands</a> — updated 19 August 2026; proposed 26–27 February 2026, comments closed late April, not yet final.</li>
+      <li><a href="https://sbshrs.adpinfo.com/blog/minimum-salary-requirements-for-overtime-exemption-in-2026">Minimum salary requirements for overtime exemption in 2026</a> — federal floor at $684 per week; no higher threshold in Georgia or South Carolina.</li>
+    </ol>
+  </section>
+</div>

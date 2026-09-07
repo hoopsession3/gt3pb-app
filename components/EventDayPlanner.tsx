@@ -8,6 +8,7 @@ import Sheet from "@/components/Sheet";
 import Icon from "@/components/Icon";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import { useLocationSuggestions } from "./useLocationSuggestions";
 
 // EVENT DAY PLANNER — a multi-day, time-by-time run of show for one event. Pick how many days the
 // event runs, then build each day block by block: leave home 9:00, drive, arrive Airbnb (address +
@@ -249,6 +250,7 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
 // Add / edit a single block — every logistic field in one place.
 function ItemForm({ item, onClose, onSave }: { item: Item | null; onClose: () => void; onSave: (patch: Partial<Item>) => void | Promise<void> }) {
   const [f, setF] = useState<Partial<Item>>(item ?? { title: "", kind: "other", start_time: "", end_time: "", location: "", address: "", details: "", who: "" });
+  const locSugs = useLocationSuggestions();
   const set = (k: keyof Item, v: any) => setF((p) => ({ ...p, [k]: v }));
   return (
     <Sheet open onClose={onClose} label="Day-of block" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{item ? "Edit block" : "New block"}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} title="Close"><Icon name="close" /></button></div>}>
@@ -262,9 +264,18 @@ function ItemForm({ item, onClose, onSave }: { item: Item | null; onClose: () =>
             <label className="prod-f"><span>Start</span><input value={f.start_time ?? ""} onChange={(e) => set("start_time", e.target.value)} placeholder="9:00a" /></label>
             <label className="prod-f"><span>End</span><input value={f.end_time ?? ""} onChange={(e) => set("end_time", e.target.value)} placeholder="optional" /></label>
             <label className="prod-f"><span>Who</span><input value={f.who ?? ""} onChange={(e) => set("who", e.target.value)} placeholder="Crew on site" /></label>
-            <label className="prod-f"><span>Place</span><input value={f.location ?? ""} onChange={(e) => set("location", e.target.value)} placeholder="Airbnb, venue…" /></label>
+            {/* Place and Address are two boxes for one location, and the audit flagged the pair.
+                They are NOT merged here, deliberately: they are two real columns carrying two
+                different things people have typed, and collapsing them means choosing which one
+                survives — a data decision, not a layout one, and one worth making after the
+                geocoder is trusted rather than at the same time. What they get now is the thing
+                that removes most of the pain: the same suggest-list of every place already on
+                record that FieldOpSheet and the event card use, so neither field is blind free
+                text and "Duncan Town Square" stops acquiring a third spelling. */}
+            <label className="prod-f"><span>Place</span><input value={f.location ?? ""} onChange={(e) => set("location", e.target.value)} placeholder="Airbnb, venue…" list="gt3-locs-edp" /></label>
           </div>
-          <label className="prod-f" style={{ marginTop: 8 }}><span>Address (tap-to-map)</span><input value={f.address ?? ""} onChange={(e) => set("address", e.target.value)} placeholder="123 Peach St, Atlanta GA" /></label>
+          <label className="prod-f" style={{ marginTop: 8 }}><span>Address (tap-to-map)</span><input value={f.address ?? ""} onChange={(e) => set("address", e.target.value)} placeholder="123 Peach St, Atlanta GA" list="gt3-locs-edp" /></label>
+          {locSugs.length > 0 && <datalist id="gt3-locs-edp">{locSugs.map((sg) => <option key={sg} value={sg} />)}</datalist>}
           <label className="prod-f" style={{ marginTop: 8 }}><span>Details — gate code, parking, contact, what to load</span><textarea className="note-in" rows={3} value={f.details ?? ""} onChange={(e) => set("details", e.target.value)} placeholder="Everything you'll want at a glance" /></label>
           <div className="prod-actions" style={{ marginTop: 14 }}>
             <button type="button" className="note-arch" onClick={onClose}>Cancel</button>

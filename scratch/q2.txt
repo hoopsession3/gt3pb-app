@@ -1,0 +1,43 @@
+oalesce(done_by, auth.uid()) else null end
+   where batch_id = p_batch_id and step_no = p_step_no
+  returning * into s;
+  if not found then raise exception 'That step is not on this batch. Open the checklist first.'; end if;
+  return s;
+end $$;
+revoke all on function public.set_batch_step(uuid, int, boolean) from public;
+grant execute on function public.set_batch_step(uuid, int, boolean) to authenticated;
+
+-- ── how far along is it ────────────────────────────────────────────────────────────────────────
+create or replace view public.v_batch_progress as
+select b.id as batch_id, b.recipe_name, b.market, b.batch_gal, b.status, b.ready_at,
+       count(s.id)                                   as steps_total,
+       count(s.id) filter (where s.done_at is not null) as steps_done,
+       (select s2.step_no from public.brew_batch_steps s2
+         where s2.batch_id = b.id and s2.done_at is null
+         order by s2.step_no limit 1)                as next_step_no,
+       (select s2.step_text from public.brew_batch_steps s2
+         where s2.batch_id = b.id and s2.done_at is null
+         order by s2.step_no limit 1)                as next_step,
+       (count(s.id) > 0 and count(s.id) = count(s.id) filter (where s.done_at is not null)) as all_done
+  from public.brew_batches b
+  left join public.brew_batch_steps s on s.batch_id = b.id
+ group by b.id, b.recipe_name, b.market, b.batch_gal, b.status, b.ready_at;
+
+revoke all on public.v_batch_progress from public, anon;
+grant select on public.v_batch_progress to authenticated;
+
+comment on view public.v_batch_progress is
+  'Where each batch has got to in its own method, and what the next unticked step is — the thing whoever walks up mid-brew needs to know.';
+
+insert into public.changelog (title, category, area, summary, shipped_on, highlight)
+select v.title, v.category, v.area, v.summary, v.shipped_on::date, v.highlight
+from (values
+  ('Brew steps you can work from, and tick off','improvement','Prep',
+   'Every recipe has carried its method for a long time, but it only ever appeared while planning a batch — once the batch existed and it was time to actually brew, the steps were nowhere. They now live on the batch itself: numbered, with this run''s real quantities beside them, ticked off as you go and remembered. A cold extraction runs most of a day and the person who starts it often is not the person who finishes it, so the checklist keeps who did what and when. The steps are copied onto the batch when you open it, so editing a recipe mid-brew cannot rewrite what somebody already did.',
+   '2026-09-06', true)
+) as v(title, category, area, summary, shipped_on, highlight)
+where not exists (select 1 from public.changelog c where c.title = v.title);
+
+-- verify:
+--   select * from public.ensure_batch_steps('<batch id>');
+--   select * from public.v_batch_progress where steps_total > 0;

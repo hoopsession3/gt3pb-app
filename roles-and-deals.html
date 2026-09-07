@@ -1,0 +1,492 @@
+<title>Roles &amp; Operator Deals</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root{
+    --paper:#F6F4F0;
+    --surface:#FFFFFF;
+    --sunk:#EEEAE3;
+    --ink:#1A1917;
+    --ink-2:#45413A;
+    --muted:#6E6A62;
+    --rule:#E2DED7;
+    --rule-soft:#EDE9E2;
+    --gt3:#B82420;
+    --gt3-bg:#F8E7E5;
+    --amber:#7F6216;
+    --amber-bg:#F7EFDC;
+    --green:#38644B;
+    --green-bg:#E4EFE8;
+    --shadow:0 1px 2px rgba(26,25,23,.05), 0 10px 28px -14px rgba(26,25,23,.20);
+    --display:"Fraunces",Georgia,serif;
+    --body:"Public Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --paper:#17171A; --surface:#1F1F24; --sunk:#131316;
+      --ink:#EDEBE6; --ink-2:#C6C2BA; --muted:#938F87;
+      --rule:#2E2E35; --rule-soft:#26262C;
+      --gt3:#E4655F; --gt3-bg:#2B1917;
+      --amber:#D9AC49; --amber-bg:#2A2314;
+      --green:#79B694; --green-bg:#16261D;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -14px rgba(0,0,0,.7);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#17171A; --surface:#1F1F24; --sunk:#131316;
+    --ink:#EDEBE6; --ink-2:#C6C2BA; --muted:#938F87;
+    --rule:#2E2E35; --rule-soft:#26262C;
+    --gt3:#E4655F; --gt3-bg:#2B1917;
+    --amber:#D9AC49; --amber-bg:#2A2314;
+    --green:#79B694; --green-bg:#16261D;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -14px rgba(0,0,0,.7);
+  }
+
+  *{box-sizing:border-box}
+  body{background:var(--paper);color:var(--ink);font-family:var(--body);font-size:16.5px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1080px;margin:0 auto;padding:44px 22px 100px;display:flex;flex-direction:column;gap:0}
+  .col{max-width:68ch}
+  a{color:var(--gt3)}
+  :focus-visible{outline:2px solid var(--gt3);outline-offset:3px;border-radius:2px}
+  p{margin:0 0 15px}
+  strong{font-weight:600}
+
+  /* masthead */
+  .mast{border-bottom:2px solid var(--ink);padding-bottom:22px;margin-bottom:30px}
+  .kicker{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin:0 0 14px}
+  .kicker b{color:var(--gt3);font-weight:600}
+  h1{font-family:var(--display);font-weight:600;font-size:clamp(33px,5.4vw,52px);line-height:1.02;letter-spacing:-.02em;margin:0 0 14px;text-wrap:balance}
+  .stand{font-size:19px;line-height:1.5;color:var(--ink-2);margin:0;max-width:60ch;text-wrap:pretty}
+  .mast-meta{display:flex;flex-wrap:wrap;gap:7px 18px;margin-top:20px;font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.02em}
+
+  /* part headers */
+  .part{margin-top:60px;scroll-margin-top:20px}
+  .part-tag{display:inline-block;font-family:var(--mono);font-size:10.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--gt3);border:1px solid var(--gt3);border-radius:2px;padding:3px 8px;margin-bottom:14px}
+  h2{font-family:var(--display);font-weight:600;font-size:clamp(26px,3.6vw,34px);line-height:1.1;letter-spacing:-.014em;margin:0 0 8px;text-wrap:balance}
+  .sec-note{color:var(--muted);font-size:16px;margin:0 0 26px;max-width:64ch}
+  h3{font-family:var(--body);font-weight:700;font-size:17px;letter-spacing:-.004em;margin:34px 0 8px}
+  h4{font-family:var(--mono);font-weight:600;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 10px}
+
+  code{font-family:var(--mono);font-size:.85em;background:var(--sunk);padding:1.5px 5px;border-radius:3px;color:var(--ink)}
+  .cite{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap}
+
+  /* the three-gate diagram */
+  .gates{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin:26px 0 10px}
+  .gate{background:var(--surface);border:1px solid var(--rule);border-radius:5px;padding:18px 18px 16px;box-shadow:var(--shadow)}
+  .gate-n{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--gt3);letter-spacing:.06em}
+  .gate-name{font-family:var(--mono);font-size:15px;font-weight:600;margin:8px 0 10px;word-break:break-all}
+  .gate-who{font-size:14.5px;line-height:1.45;color:var(--ink-2);margin:0 0 10px}
+  .gate-body{font-family:var(--mono);font-size:11.5px;line-height:1.5;color:var(--muted);background:var(--sunk);border-radius:4px;padding:9px 10px;overflow-x:auto}
+
+  /* tables */
+  .tw{overflow-x:auto;border:1px solid var(--rule);border-radius:5px;background:var(--surface);margin:20px 0}
+  table{border-collapse:collapse;width:100%;min-width:640px;font-size:15px}
+  thead th{font-family:var(--mono);font-size:10.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-align:left;padding:12px 14px;border-bottom:1px solid var(--rule);background:var(--sunk);white-space:nowrap}
+  tbody td{padding:12px 14px;border-bottom:1px solid var(--rule-soft);vertical-align:top;line-height:1.45}
+  tbody tr:last-child td{border-bottom:0}
+  th[scope=row]{font-weight:600;text-align:left;padding:12px 14px;border-bottom:1px solid var(--rule-soft);vertical-align:top;font-size:15px}
+  .rolecell{font-family:var(--mono);font-size:13.5px;font-weight:500;white-space:nowrap}
+  .n{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+  td.mid{text-align:center;font-family:var(--mono);font-size:14px;font-weight:600}
+  .yes{color:var(--green)} .no{color:var(--muted);opacity:.5} .warn{color:var(--gt3)}
+  .sub{display:block;font-size:13px;color:var(--muted);line-height:1.4;margin-top:3px}
+
+  /* pills */
+  .pill{display:inline-block;font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:3px 7px;border-radius:3px;white-space:nowrap}
+  .p-red{background:var(--gt3-bg);color:var(--gt3)}
+  .p-amb{background:var(--amber-bg);color:var(--amber)}
+  .p-grn{background:var(--green-bg);color:var(--green)}
+
+  /* callouts */
+  .call{background:var(--surface);border:1px solid var(--rule);border-left:3px solid var(--muted);border-radius:5px;padding:18px 20px;margin:24px 0}
+  .call.red{border-left-color:var(--gt3)}
+  .call.amber{border-left-color:var(--amber)}
+  .call.green{border-left-color:var(--green)}
+  .call h3{margin:0 0 8px;font-size:16.5px}
+  .call p:last-child{margin-bottom:0}
+
+  /* findings list */
+  .finds{display:flex;flex-direction:column;margin:20px 0}
+  .find{display:grid;grid-template-columns:auto 1fr;gap:0 16px;padding:17px 2px;border-bottom:1px solid var(--rule-soft)}
+  .find:last-child{border-bottom:0}
+  .find-n{font-family:var(--mono);font-size:12px;color:var(--muted);padding-top:3px;font-variant-numeric:tabular-nums}
+  .find h3{margin:0 0 5px;font-size:16.5px}
+  .find p{margin:0 0 7px;font-size:15.5px;color:var(--ink-2)}
+  .find p:last-child{margin-bottom:0}
+
+  /* option cards for deal structures */
+  .opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(255px,1fr));gap:14px;margin:24px 0}
+  .opt{background:var(--surface);border:1px solid var(--rule);border-radius:5px;padding:18px;display:flex;flex-direction:column;gap:9px;box-shadow:var(--shadow)}
+  .opt-h{font-family:var(--display);font-weight:600;font-size:19px;line-height:1.15;margin:0;letter-spacing:-.01em}
+  .opt-what{font-size:14.5px;color:var(--ink-2);margin:0;line-height:1.45}
+  .opt dl{margin:0;display:flex;flex-direction:column;gap:7px;font-size:13.5px}
+  .opt dt{font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .opt dd{margin:2px 0 0;color:var(--ink-2);line-height:1.4}
+
+  ul.plain{margin:0 0 15px;padding-left:19px}
+  ul.plain li{margin-bottom:8px;color:var(--ink-2)}
+  ol.q{margin:0 0 15px;padding-left:19px}
+  ol.q li{margin-bottom:11px;color:var(--ink-2)}
+
+  footer{margin-top:70px;padding-top:20px;border-top:1px solid var(--rule);font-family:var(--mono);font-size:11.5px;color:var(--muted);line-height:1.75}
+
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  @media (max-width:640px){
+    body{font-size:16px}
+    .wrap{padding:30px 17px 76px}
+    .find{grid-template-columns:1fr;gap:6px}
+    .find-n{padding-top:0}
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="mast">
+    <p class="kicker">GT3 Performance Bar · Governance &amp; Deal Structure · <b>September 2026</b></p>
+    <h1>Roles &amp; Operator Deals</h1>
+    <p class="stand">Two questions, and they turn out to be one. What an operator can <em>see</em> is set by three database functions — not by the seven role names above them. What an operator is <em>owed</em> is set by a choice you haven't made yet, and one legal test you should run before you make it.</p>
+    <div class="mast-meta">
+      <span>Audited at commit 5277145</span>
+      <span>279 migrations · 358 RLS policies</span>
+      <span>Every claim cites file:line</span>
+    </div>
+  </header>
+
+  <!-- ══════════════════ PART ONE ══════════════════ -->
+  <section class="part">
+    <span class="part-tag">Part one</span>
+    <h2>What each role can see and do</h2>
+    <p class="sec-note">The app has seven role names. The database has three gates. Almost everything surprising below follows from that gap.</p>
+
+    <div class="col">
+      <p>Permissions are not enforced by the role name. They're enforced by three SQL functions that every row-level security policy calls. A role name only matters insofar as one of these three returns true for it.</p>
+    </div>
+
+    <div class="gates">
+      <div class="gate">
+        <p class="gate-n">GATE 1 · the wide one</p>
+        <p class="gate-name">is_staff()</p>
+        <p class="gate-who">Everyone who isn't a member. Server, contractor, <strong>operator</strong>, event manager, admin, owner — all identical here.</p>
+        <p class="gate-body">role &lt;&gt; 'member'<br>or is_admin = true</p>
+      </div>
+      <div class="gate">
+        <p class="gate-n">GATE 2 · the middle</p>
+        <p class="gate-name">is_admin()</p>
+        <p class="gate-who">Admin and owner only. Note what's <em>missing</em>: event manager is not here, despite being "leadership" in the app.</p>
+        <p class="gate-body">role in ('admin','owner')<br>or is_admin = true</p>
+      </div>
+      <div class="gate">
+        <p class="gate-n">GATE 3 · the narrow</p>
+        <p class="gate-name">is_owner()</p>
+        <p class="gate-who">Owner only, and it ignores the legacy <code>is_admin</code> flag the other two honour.</p>
+        <p class="gate-body">role = 'owner'</p>
+      </div>
+    </div>
+
+    <h3>The seven names, mapped to the three gates</h3>
+    <div class="tw">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Role</th>
+            <th scope="col">is_staff</th>
+            <th scope="col">is_admin</th>
+            <th scope="col">is_owner</th>
+            <th scope="col">What it actually means</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row" class="rolecell">member</th>
+            <td class="mid no">·</td><td class="mid no">·</td><td class="mid no">·</td>
+            <td>Customer. Own rows only, plus whatever is public.</td></tr>
+          <tr><th scope="row" class="rolecell">server</th>
+            <td class="mid yes">✓</td><td class="mid no">·</td><td class="mid no">·</td>
+            <td>Full staff access. See the table below for what that includes.</td></tr>
+          <tr><th scope="row" class="rolecell">contractor</th>
+            <td class="mid yes">✓</td><td class="mid no">·</td><td class="mid no">·</td>
+            <td>Identical to server at the database. No narrower.</td></tr>
+          <tr><th scope="row" class="rolecell">operator</th>
+            <td class="mid yes">✓</td><td class="mid no">·</td><td class="mid no">·</td>
+            <td>Also identical to server. <strong>An operator has no special powers and no special limits.</strong></td></tr>
+          <tr><th scope="row" class="rolecell">event_manager</th>
+            <td class="mid yes">✓</td><td class="mid no">·</td><td class="mid no">·</td>
+            <td><span class="pill p-amb">Mismatch</span> Treated as leadership in the app, as a server in the database.</td></tr>
+          <tr><th scope="row" class="rolecell">admin</th>
+            <td class="mid yes">✓</td><td class="mid yes">✓</td><td class="mid no">·</td>
+            <td>Everything except assigning roles and uploading shop media.</td></tr>
+          <tr><th scope="row" class="rolecell">owner</th>
+            <td class="mid yes">✓</td><td class="mid yes">✓</td><td class="mid yes">✓</td>
+            <td>Everything. Can assign roles, including making another owner.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>What "staff" actually reaches</h3>
+    <p class="col">This is the part worth reading twice. The crew console only <em>shows</em> Money, Customers, Team and Settings to admins and owners <span class="cite">OperatorNav.tsx:108</span>. The database does not agree.</p>
+
+    <div class="tw">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Capability</th>
+            <th scope="col">UI shows it to</th>
+            <th scope="col">Database allows</th>
+            <th scope="col">Verdict</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">Revenue, COGS, margin, spend<span class="sub">report_sales, report_events, report_spend, report_snapshot, report_product_mix</span></th>
+            <td>admin, owner</td>
+            <td class="warn">any staff</td>
+            <td><span class="pill p-red">Not enforced</span></td>
+          </tr>
+          <tr>
+            <th scope="row">The full customer book<span class="sub">names, phones, emails, tiers</span></th>
+            <td>admin, owner</td>
+            <td class="warn">any staff</td>
+            <td><span class="pill p-red">Not enforced</span></td>
+          </tr>
+          <tr>
+            <th scope="row">Promote a customer to VIP / Founding<span class="sub">admin_set_customer_tier, admin_set_customer_vip — named "admin", gated on staff</span></th>
+            <td>admin, owner</td>
+            <td class="warn">any staff</td>
+            <td><span class="pill p-red">Not enforced</span></td>
+          </tr>
+          <tr>
+            <th scope="row">Product and merch prices<span class="sub">shop_products.price_cents</span></th>
+            <td>admin, owner</td>
+            <td class="warn">any staff</td>
+            <td><span class="pill p-red">Not enforced</span></td>
+          </tr>
+          <tr>
+            <th scope="row">Strategy playbook<span class="sub">the page literally says "Owners only"</span></th>
+            <td>owner, admin</td>
+            <td class="warn">any staff</td>
+            <td><span class="pill p-red">Not enforced</span></td>
+          </tr>
+          <tr>
+            <th scope="row">Expenses and budgets<span class="sub">read <em>and</em> write</span></th>
+            <td>admin, owner</td>
+            <td class="warn">any staff</td>
+            <td><span class="pill p-red">Not enforced</span></td>
+          </tr>
+          <tr>
+            <th scope="row">Operator agreement terms<span class="sub">the split percentages themselves</span></th>
+            <td>admin, owner</td>
+            <td>admin, owner</td>
+            <td><span class="pill p-amb">Any admin</span></td>
+          </tr>
+          <tr>
+            <th scope="row">Assign roles<span class="sub">admin_set_role</span></th>
+            <td>admin, owner</td>
+            <td>owner only</td>
+            <td><span class="pill p-amb">UI overpromises</span></td>
+          </tr>
+          <tr>
+            <th scope="row">Shop photos and video<span class="sub">the storage bucket</span></th>
+            <td>owner</td>
+            <td>owner</td>
+            <td><span class="pill p-grn">Enforced</span></td>
+          </tr>
+          <tr>
+            <th scope="row">Read another person's profile</th>
+            <td>—</td>
+            <td>admin, owner</td>
+            <td><span class="pill p-grn">Enforced</span><span class="sub">Side effect: org chart and workload boards silently show one row to non-admins.</span></td>
+          </tr>
+          <tr>
+            <th scope="row">Forge a paid order / escalate own role</th>
+            <td>—</td>
+            <td class="no">nobody</td>
+            <td><span class="pill p-grn">Closed properly</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="call red">
+      <h3>The one that matters most for Atlanta</h3>
+      <p><strong>No permission check anywhere considers market or location.</strong> Zero of the 358 policies mention it. An Atlanta operator and a Greenville operator are the same principal to the database: anything one can read, the other can.</p>
+      <p>So the honest answer to "what will my Atlanta guy be able to see" is — <em>today, with the <code>operator</code> role: every customer you have, every dollar of revenue, every margin, in both cities.</em> The screens won't show him, but the API will. This is a governance decision you're currently making by accident.</p>
+    </div>
+
+    <h3>Four findings you should fix regardless of the deal</h3>
+    <div class="finds">
+      <div class="find">
+        <div class="find-n">01</div>
+        <div>
+          <h3>Demoting someone doesn't revoke their access</h3>
+          <p>There's a legacy <code>is_admin</code> boolean alongside the role. Two of the three gates still honour it, but the function that changes roles stopped clearing it <span class="cite">0031 vs 0023</span>. Demote an admin and they keep full database admin — and the app still reads them as <strong>owner</strong>. Silent and permanent.</p>
+          <p><strong>Do first.</strong> Cheapest, highest-consequence fix on this page.</p>
+        </div>
+      </div>
+      <div class="find">
+        <div class="find-n">02</div>
+        <div>
+          <h3>Owner rights are granted automatically by email address</h3>
+          <p>Two addresses are hardcoded into the sign-up trigger <span class="cite">0246:31</span>. Anyone who signs up with one gets <code>role='owner'</code> at row creation, with no approval step. Sign-up is open to the public. Compromise of either mailbox is a full takeover.</p>
+        </div>
+      </div>
+      <div class="find">
+        <div class="find-n">03</div>
+        <div>
+          <h3>No last-owner protection in the database</h3>
+          <p>The only guard is client-side. Demoting the final owner is an unrecoverable lockout from every owner-only capability, short of direct SQL.</p>
+        </div>
+      </div>
+      <div class="find">
+        <div class="find-n">04</div>
+        <div>
+          <h3>An admin can rewrite an accepted agreement</h3>
+          <p>The operator-agreements policy is <code>FOR ALL</code> to any admin, with no status guard — so terms can be edited after acceptance. The event trail records it and deletion is blocked, so it's auditable rather than silent. Still: if the deal is a contract, the terms shouldn't be editable by anyone but you once signed.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="call green">
+      <h3>What's genuinely well built, for balance</h3>
+      <p>All 134 tables have row-level security on. Self-escalation through the profiles table is properly closed at the column level. Orders can't be forged as paid. Customer writes go only through controlled functions. The operator-agreement trail is append-only with no client write path at all. Tenant isolation is genuinely restrictive.</p>
+      <p>The gap isn't discipline — it's that <code>is_staff()</code> is doing the work the other two gates are named for.</p>
+    </div>
+  </section>
+
+  <!-- ══════════════════ PART TWO ══════════════════ -->
+  <section class="part">
+    <span class="part-tag">Part two</span>
+    <h2>Structuring the operator deal</h2>
+    <p class="sec-note">Equity, investment, or time — what you're actually buying, what each structure costs you, and the one test to run before you sign anything.</p>
+
+    <div class="call red">
+      <h3>Run this test first: your deal may legally be a franchise</h3>
+      <p>The FTC Franchise Rule has a three-part test. If all three are true, you're selling a franchise — regardless of what the document is titled.</p>
+      <ul class="plain">
+        <li><strong>Brand association.</strong> He operates a business identified with your brand. <span class="pill p-red">You: yes</span></li>
+        <li><strong>Significant control or assistance.</strong> You control the method of operation, or provide significant assistance — training, standards, operating manuals. <span class="pill p-red">You: yes</span> — that's what the Academy <em>is</em>.</li>
+        <li><strong>Required payment of $500+ in the first six months</strong>, to you or an affiliate. The FTC reads this broadly: it includes required purchases at a markup and retained rebates, not just fees. <span class="pill p-red">You: likely</span> — a 30% royalty, or him buying supplies from you.</li>
+      </ul>
+      <p>Three for three. Getting this wrong means FTC investigation, civil penalties, private lawsuits under state franchise laws, and potentially having to <strong>offer rescission</strong> — unwinding the deal and returning what he paid. Compliance means a Franchise Disclosure Document delivered 14 days before signing, and registration in some states.</p>
+      <p><strong>This is the one thing on this page to take to an attorney before you sign anything.</strong> Not a general business lawyer — a franchise lawyer. It is also solvable: the structure can often be adjusted to sit outside the test, but only deliberately and only in advance.</p>
+    </div>
+
+    <h3>The second flag: "contract employee" is two different things</h3>
+    <div class="col">
+      <p>The phrase itself is the risk. Someone is either an independent contractor or an employee, and you don't get to choose by writing it in the agreement — <strong>actual practice outweighs contract language</strong>. If you set his hours, direct his methods, require your training and supply his equipment, a regulator may read employee no matter what the document says.</p>
+      <p>The current federal test is the 2024 rule's six-factor economic-reality analysis, weighing the whole relationship with no single factor decisive. A 2026 proposed rule would return to weighting two "core" factors most heavily — control over the work, and opportunity for profit or loss — but as of now it is still pending and the 2024 rule governs. States are often stricter than the federal floor; Georgia and South Carolina need checking separately.</p>
+      <p>The irony worth noticing: the second core factor, <em>opportunity for profit or loss</em>, is exactly what your commission split creates. A real revenue share with genuine downside pushes toward contractor. A guaranteed draw with you directing the work pushes toward employee.</p>
+    </div>
+
+    <h3>What are you actually buying?</h3>
+    <div class="col">
+      <p>Before the structure, the question underneath it. You're getting three different things from him and they have three different prices:</p>
+      <ol class="q">
+        <li><strong>Time and effort</strong> — he runs the market day to day. Paid for with commission, salary, or both.</li>
+        <li><strong>Capital</strong> — he funds supplies, equipment, or a vehicle. That's an investment, and investments expect a return <em>and</em> a return <em>of</em> principal.</li>
+        <li><strong>Risk transfer</strong> — he eats the loss in a bad month. This is the expensive one, and it's the one people forget to price.</li>
+      </ol>
+      <p>Equity is the wrong instrument for the first. It's a plausible instrument for the second and third. Most operator deals that go wrong do so because one payment was used to buy all three, and nobody wrote down which.</p>
+    </div>
+
+    <h3>The realistic menu</h3>
+
+    <div class="opts">
+      <div class="opt">
+        <p class="opt-h">Revenue or commission share</p>
+        <p class="opt-what">What you've already built: 50% of commissions to him, 30% royalty back, 20% into the market — with a slider for who funds supplies.</p>
+        <dl>
+          <dt>He gets</dt><dd>Cash, monthly, tied to what he produces.</dd>
+          <dt>You keep</dt><dd>100% ownership. No dilution, no cap table, no partner in a sale.</dd>
+          <dt>Watch</dt><dd>The royalty is the leg most likely to trip the franchise test.</dd>
+          <dt>Reversible</dt><dd class="yes">Yes — ends when the agreement ends.</dd>
+        </dl>
+      </div>
+
+      <div class="opt">
+        <p class="opt-h">Profits interest</p>
+        <p class="opt-what">Real LLC equity, but only in <em>future</em> growth above today's value. If you liquidated tomorrow he'd get nothing.</p>
+        <dl>
+          <dt>He gets</dt><dd>Upside in what he helps build, taxed as capital gains if structured right. No tax at grant, with a time-sensitive 83(b) filing.</dd>
+          <dt>You keep</dt><dd>All value built to date. He shares only what comes after.</dd>
+          <dt>Watch</dt><dd>Makes him a K-1 partner, not a W-2 employee — self-employment tax, quarterly estimates. Needs a valuation and a real operating agreement.</dd>
+          <dt>Reversible</dt><dd class="warn">Only through vesting and forfeiture terms you write up front.</dd>
+        </dl>
+      </div>
+
+      <div class="opt">
+        <p class="opt-h">Phantom equity</p>
+        <p class="opt-what">A contractual right to a cash payout tied to value, with no actual ownership, no votes, and no seat.</p>
+        <dl>
+          <dt>He gets</dt><dd>A payout on a trigger you define — a sale, or a fixed date. Taxed as ordinary income.</dd>
+          <dt>You keep</dt><dd>A clean cap table and full control.</dd>
+          <dt>Watch</dt><dd>It's a future cash obligation. If Atlanta works, you owe real money at exactly the moment you're negotiating a sale.</dd>
+          <dt>Reversible</dt><dd class="warn">Only per its own terms.</dd>
+        </dl>
+      </div>
+
+      <div class="opt">
+        <p class="opt-h">Capital interest — actual ownership</p>
+        <p class="opt-what">He buys in, or is granted, a real percentage of the business as it stands today.</p>
+        <dl>
+          <dt>He gets</dt><dd>A share of everything, including what existed before he arrived.</dd>
+          <dt>You keep</dt><dd>Less. And you acquire a co-owner with rights.</dd>
+          <dt>Watch</dt><dd>A grant for services is taxable to him immediately at fair value. Issuing equity for investment can implicate securities law.</dd>
+          <dt>Reversible</dt><dd class="warn">Effectively no. This is the one you can't quietly undo.</dd>
+        </dl>
+      </div>
+    </div>
+
+    <div class="call amber">
+      <h3>The pattern most of these deals settle into</h3>
+      <p>Cash for time, equity for risk — and never the same dollar for both. Concretely: a commission split that pays him for running the market now, plus a <em>separate</em>, vesting, market-scoped upside instrument that pays him if Atlanta is still worth something in three years. Two instruments, two documents, two triggers.</p>
+      <p>The reason to separate them is that they fail differently. If he leaves in month four, you want the commission to simply stop and the upside to simply not vest. One blended payment can't do that cleanly.</p>
+    </div>
+
+    <h3>What the app already models — and what it doesn't</h3>
+    <div class="tw">
+      <table>
+        <thead>
+          <tr><th scope="col">Deal element</th><th scope="col">In the app today</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Commission split, 50 / 30 / 20</th><td><span class="pill p-grn">Built</span> Slider, live projection, always totals 100 — the database refuses anything else.</td></tr>
+          <tr><th scope="row">Who funds supplies</th><td><span class="pill p-grn">Built</span> A slider from GT3-funded to operator-funded, with the split moving accordingly.</td></tr>
+          <tr><th scope="row">Ramp vs profitable stage</th><td><span class="pill p-grn">Built</span> Royalty is zero during ramp.</td></tr>
+          <tr><th scope="row">Tiers and the package he receives</th><td><span class="pill p-grn">Built</span> Four tiers with uplifts, plus a checklist of what's included.</td></tr>
+          <tr><th scope="row">Send, accept, counter — with the trail</th><td><span class="pill p-grn">Built</span> He can move it forward but never rewrite terms. Every version kept.</td></tr>
+          <tr><th scope="row">Any equity instrument</th><td><span class="pill p-red">Not built</span> No vesting, no cliff, no valuation, no cap table.</td></tr>
+          <tr><th scope="row">Capital he contributes, and its return</th><td><span class="pill p-red">Not built</span> Supply funding is modelled as a share, not as a tracked balance owed back.</td></tr>
+          <tr><th scope="row">Market-scoped access</th><td><span class="pill p-red">Not built</span> See Part One. This is the gap between the deal you'd write and the deal the software can enforce.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Questions to settle before a lawyer can help you</h3>
+    <div class="col">
+      <p>An attorney will be faster and cheaper if you arrive with these answered rather than discovering them at $400 an hour:</p>
+      <ol class="q">
+        <li>Is Atlanta <strong>your</strong> business with him operating it, or <strong>his</strong> business under your brand? Everything else follows from this, including whether the franchise test even applies.</li>
+        <li>Whose bank account does Atlanta revenue land in on day one? Right now the answer is yours — one Square merchant account, no split.</li>
+        <li>Is he putting in money, or only time? If money: is it an investment expecting a return, or is he buying equity?</li>
+        <li>What happens in month four if it isn't working — who has already spent what, and who eats it?</li>
+        <li>If he leaves in year two having built something real, what does he walk away with?</li>
+        <li>Do you intend to do this again in a third city? A structure built for one partner and a structure built to be repeated are different documents.</li>
+      </ol>
+    </div>
+
+    <div class="call">
+      <h3>Where this document stops</h3>
+      <p>Part One is verified fact — every claim was read out of the code and cites its file and line. Part Two is the landscape, not advice: I'm not your lawyer or your accountant, and the choice between these structures turns on your entity, your state, your tax position and your intent, none of which a document can settle for you.</p>
+      <p>Two things here genuinely need a professional before you sign: <strong>the franchise-rule question</strong>, and <strong>worker classification</strong>. Both are cheap to get right in advance and expensive to fix afterward.</p>
+    </div>
+  </section>
+
+  <footer>
+    Part One audited against gt3pb-app at commit 5277145 — 279 migrations, 358 RLS policies, every claim traced to file:line.<br>
+    Part Two reflects the FTC Franchise Rule and US worker-classification rules as of September 2026; the 2026 DOL proposed rule was still pending at the time of writing.<br>
+    Informational only — not legal, tax, or financial advice.
+  </footer>
+
+</div>

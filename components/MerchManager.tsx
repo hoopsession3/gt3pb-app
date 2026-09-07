@@ -176,8 +176,18 @@ function MerchRow({ p, open, onToggle, onSaved, toast }: { p: Product; open: boo
     }).eq("id", p.id);
     if (error) toast(`Error: ${error.message}`, "error"); else { toast("Saved"); onSaved(); }
   };
-  const togglePublish = () => setD({ ...d, published_at: d.published_at ? null : new Date().toISOString() });
-  const toggleArchive = () => setD({ ...d, archived_at: d.archived_at ? null : new Date().toISOString() });
+  // ONE LIFECYCLE, NOT TWO CHECKBOXES. This was a "Published" box and an "Archived" box, and the
+  // line above already proves they are one value: published = has a published_at AND no archived_at.
+  // Archiving silently unpublished, then disabled the Published box while its date was still set —
+  // so you could not see what un-archiving would restore. Three states, one control, and
+  // published_at is preserved through an archive so returning to Published means what it says.
+  type Life = "hidden" | "published" | "archived";
+  const life: Life = d.archived_at ? "archived" : (d.published_at ? "published" : "hidden");
+  const setLife = (next: Life) => {
+    if (next === "archived") { setD({ ...d, archived_at: new Date().toISOString() }); return; }
+    if (next === "published") { setD({ ...d, archived_at: null, published_at: d.published_at ?? new Date().toISOString() }); return; }
+    setD({ ...d, archived_at: null, published_at: null });
+  };
 
   const margin = (() => { const price = dollarsToCents(priceStr); if (!d.cost_cents || !price) return null; return price - d.cost_cents; })();
 
@@ -214,8 +224,15 @@ function MerchRow({ p, open, onToggle, onSaved, toast }: { p: Product; open: boo
             {d.apliiq_product_id ? <> · Apliiq #{d.apliiq_product_id}</> : <> · <span style={{ color: "var(--oa-red, #B82420)" }}>no Apliiq link</span></>}
           </div>
 
-          <label className="prod-toggle"><input type="checkbox" checked={published} onChange={togglePublish} disabled={!!d.archived_at} /> Published — visible in /shop{published && d.published_at ? ` (since ${new Date(d.published_at).toLocaleDateString()})` : ""}</label>
-          <label className="prod-toggle"><input type="checkbox" checked={!!d.archived_at} onChange={toggleArchive} /> Archived — pulled from the shop entirely</label>
+          <label className="prod-f"><span>Visibility</span>
+            <select value={life} onChange={(e) => setLife(e.target.value as Life)} aria-label="Product visibility">
+              <option value="hidden">Hidden — not in the shop, still editable</option>
+              <option value="published">Published — visible in /shop</option>
+              <option value="archived">Archived — pulled from the shop entirely</option>
+            </select>
+          </label>
+          {life === "published" && d.published_at && <div className="dp-hint">Live since {new Date(d.published_at).toLocaleDateString()}.</div>}
+          {life === "archived" && d.published_at && <div className="dp-hint">Was live since {new Date(d.published_at).toLocaleDateString()} — set back to Published to restore it.</div>}
           <div className="prod-actions" style={{ flexWrap: "wrap" }}>
             <button type="button" className="btn-pri" onClick={save} disabled={isBlank(d.title)}>Save</button>
           </div>

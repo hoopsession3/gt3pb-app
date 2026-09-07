@@ -1,0 +1,59 @@
+Moves a person into a market. profiles has only ever had an own-profile update policy, so this is the only way one person can set another''s market.';
+
+-- ── the hire door ──────────────────────────────────────────────────────────────────────────────
+create or replace function public.promote_to_crew(
+  p_member uuid, p_role text, p_market text default null, p_lead boolean default false
+) returns jsonb language plpgsql security definer set search_path = public as $$
+declare cur text; nm text; mk text;
+begin
+  select role, display_name, market into cur, nm, mk from public.profiles where id = p_member;
+  if cur is null then raise exception 'no such profile'; end if;
+
+  if p_role in ('owner', 'member') then
+    raise exception 'This brings someone into the crew. Making an owner, or moving someone back to a customer, is done from the team roster.';
+  end if;
+  if cur <> 'member' then
+    raise exception '% is already on the crew as a %. Change the role from the team roster instead.',
+      coalesce(nm, 'This person'), cur;
+  end if;
+
+  -- The role first: set_market_lead refuses anyone who is not already an operator or above, and
+  -- admin_set_role carries the authorisation rules for who may grant what. Not re-implemented here.
+  perform public.admin_set_role(p_member, p_role);
+
+  if p_market is not null then
+    perform public.set_member_market(p_member, p_market);
+    mk := p_market;
+  end if;
+
+  -- Leading a market is owner-only and lives in set_market_lead; letting it raise is the point.
+  if p_lead then
+    if p_market is null then
+      raise exception 'Say which market they lead.';
+    end if;
+    perform public.set_market_lead(p_member, p_market);
+  end if;
+
+  return jsonb_build_object(
+    'member', p_member, 'name', nm, 'from', cur, 'role', p_role,
+    'market', mk, 'leads', p_lead);
+end $$;
+revoke all on function public.promote_to_crew(uuid, text, text, boolean) from public;
+grant execute on function public.promote_to_crew(uuid, text, text, boolean) to authenticated;
+
+comment on function public.promote_to_crew(uuid, text, text, boolean) is
+  'Brings a customer into the crew: role, market and optionally the market they lead, in one transaction and in the order the underlying rules require. Half of this has no client path otherwise.';
+
+-- Who could be brought in: people who hold an account and a profile but are still customers. The
+-- roster hides them by design; this names them so a UI can offer the door.
+create or replace view public.v_promotable as
+select p.id, p.display_name, p.referral_code, p.market,
+       c.email, c.name as customer_name,
+       (c.id is not null) as in_crm
+  from public.profiles p
+  left join public.customers c on c.user_id = p.id
+ where coalesce(p.role, 'member') = 'member'
+ order by coalesce(p.display_name, c.name, c.email);
+
+revoke all on public.v_promotable from public, anon;
+grant select on public.v_promotable to 

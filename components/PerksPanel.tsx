@@ -123,11 +123,22 @@ export default function PerksPanel() {
       {open && (
         <div className="codes-form">
           <div className="codes-row">
+            {/* ONE CHOICE, NOT A SELECT PLUS A CONDITIONAL CHECKBOX. The old pair was a Tier
+                select and a "Founding VIP only" box that the select's own handler had to clear
+                whenever tier left founding — and the display code collapsed both back into one
+                label anyway. This is the same three-way control the customer card already uses
+                (0252), so the two screens finally say the same thing the same way. */}
             <label className="codes-f">
-              <span>Tier</span>
-              <select className="auth-input" value={tier} onChange={(e) => { const t = e.target.value as Tier; setTier(t); if (t !== "founding") setVip(false); }} aria-label="Tier">
+              <span>Who gets it</span>
+              <select className="auth-input" value={tier === "founding" ? (vip ? "founding_vip" : "founding") : "member"}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setTier(v === "member" ? "member" : "founding");
+                        setVip(v === "founding_vip");
+                      }} aria-label="Who this perk is for">
                 <option value="member">Member</option>
                 <option value="founding">Founding</option>
+                <option value="founding_vip">Founding VIP — verified bottle owners</option>
               </select>
             </label>
             <label className="codes-f">

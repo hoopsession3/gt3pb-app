@@ -5,6 +5,9 @@ import { SectionHeader } from "@/components/kit";
 import { fetchInventory, type InvItem, type InventoryResp } from "@/lib/inventory";
 import { supabase } from "@/lib/supabase";
 import InventoryAI from "./InventoryAI";
+import { useOptions } from "./useOptions";
+import { useSuggestions } from "./useSuggestions";
+import { withCurrent } from "@/lib/options";
 import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
 
@@ -13,8 +16,9 @@ import Icon from "@/components/Icon";
 // gear library in Production → Assets (moved out of Prep along with Brew/Garage — 0161; crew-console
 // audit caught this comment still naming the old lane). Reuses the .gl-* styles.
 
-const STATUS = ["On Hand", "In Transit", "Backorder", "Consumed", "Returned"];
-const UNITS = ["", "each", "case", "pack", "gallon", "lb", "oz", "set", "box"];
+// STATUS and UNITS used to be declared here and, differently, in InventoryAI — two vocabularies
+// for the same two columns. Both now come from public.option_sets (0306) through useOptions, with
+// lib/options.ts holding the constants as the seed and the offline fallback.
 
 type Draft = {
   name: string; qty: string; unit: string; status: string; category: string;
@@ -31,6 +35,9 @@ export default function InventoryLibrary() {
   const [resp, setResp] = useState<InventoryResp | null>(null);
   const [open, setOpen] = useState(true); // renders inside the Garage fold — default open so it's one fold, not two
   const [editing, setEditing] = useState<string | null>(null);
+  const units = useOptions("inventory_unit");
+  const statuses = useOptions("inventory_status");
+  const sugg = useSuggestions();
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -92,18 +99,23 @@ export default function InventoryLibrary() {
         <label className="gl-f"><span>Qty</span><input type="number" inputMode="decimal" value={draft.qty} onChange={(e) => setDraft({ ...draft, qty: e.target.value })} /></label>
         <label className="gl-f"><span>Unit</span>
           <select value={draft.unit} onChange={(e) => setDraft({ ...draft, unit: e.target.value })}>
-            {UNITS.map((u) => <option key={u} value={u}>{u || "—"}</option>)}
+            <option value="">—</option>
+            {withCurrent(units, draft.unit).map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
           </select>
         </label>
         <label className="gl-f"><span>Status</span>
           <select value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value })}>
-            {STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
+            {withCurrent(statuses, draft.status).map((st) => <option key={st.value} value={st.value}>{st.label}</option>)}
           </select>
         </label>
       </div>
       <div className="gl-frow">
-        <label className="gl-f"><span>Category</span><input value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })} placeholder="Brewing Equipment" /></label>
-        <label className="gl-f"><span>Vendor</span><input value={draft.vendor} onChange={(e) => setDraft({ ...draft, vendor: e.target.value })} /></label>
+        {/* Open sets, so a suggest-list rather than a picker: you can still add a category or buy
+            from a new vendor, you just stop creating a second spelling of an existing one. */}
+        <label className="gl-f"><span>Category</span><input value={draft.category} list="gt3-inv-cats-lib" onChange={(e) => setDraft({ ...draft, category: e.target.value })} placeholder="Brewing Equipment" /></label>
+        <datalist id="gt3-inv-cats-lib">{sugg.categories.map((c) => <option key={c} value={c} />)}</datalist>
+        <label className="gl-f"><span>Vendor</span><input value={draft.vendor} list="gt3-vendors" onChange={(e) => setDraft({ ...draft, vendor: e.target.value })} /></label>
+        <datalist id="gt3-vendors">{sugg.vendors.map((v) => <option key={v} value={v} />)}</datalist>
       </div>
       <div className="gl-frow">
         <label className="gl-f"><span>Reorder point</span><input type="number" inputMode="decimal" value={draft.reorderPoint} onChange={(e) => setDraft({ ...draft, reorderPoint: e.target.value })} /></label>

@@ -1,0 +1,45 @@
+-- 0300 — A batch you can actually work from.
+--
+-- WHAT WAS WRONG. The recipes have carried an ordered method since 0079 — six steps each, one action
+-- apiece, which is the right shape. The problem is that they were only ever rendered in one place:
+-- the PLANNING result, as a flat <ol> under a "Method" heading, before the batch even exists. Once
+-- you commit the batch and walk over to actually brew it, the steps are gone. There is a Start brew
+-- sheet, an Adjust sheet, a Batch log sheet and a Bottle loadout sheet, and not one of them shows you
+-- what to do.
+--
+-- So the instructions are not badly written so much as unreachable at the moment they are needed, and
+-- unusable when they are: nothing to tick, no quantities for THIS run, no timer, and no memory. A
+-- cold extraction runs twelve to twenty hours. Whoever starts it is frequently not whoever finishes
+-- it, and a list you cannot mark is a list the second person has to guess their way into.
+--
+-- WHY THE STEPS ARE COPIED ONTO THE BATCH. The obvious build is a jsonb column of ticked indexes
+-- pointing at brew_recipes.method. That breaks the moment anyone edits the recipe mid-brew: step 4
+-- was "cold-extract 12-20 hrs" when it was ticked and is something else by the time the batch is
+-- read back, and the record now says a person did a thing they never did. The method is snapshotted
+-- onto the batch on first open. What was ticked is what it said at the time — for twenty hours that
+-- is not a hypothetical.
+--
+-- WHAT IS NOT HERE. The Toddy Cafe Series card is a good piece of instructional design and it is
+-- also the manufacturer's procedure for their vessel, not GT3's recipe — different ratio, and it
+-- calls for a twenty-minute bloom that GT3's method does not have. Recording it against the vessel
+-- was offered and declined: the app carries GT3's method only. This migration changes how the steps
+-- are delivered and not one word of what they say.
+
+create table if not exists public.brew_batch_steps (
+  id          uuid primary key default gen_random_uuid(),
+  tenant_id   uuid references public.tenants(id) default '00000000-0000-0000-0000-000000000001',
+  batch_id    uuid not null references public.brew_batches(id) on delete cascade,
+  step_no     int  not null check (step_no > 0),
+  step_text   text not null,          -- snapshotted from the recipe, not a pointer into it
+  done_at     timestamptz,
+  done_by     uuid references auth.users(id) on delete set null,
+  note        text,
+  created_at  timestamptz not null default now(),
+  unique (batch_id, step_no)
+);
+create index if not exists brew_batch_steps_batch_idx on public.brew_batch_steps (batch_id, step_no);
+
+alter table public.brew_batch_steps enable row level security;
+drop policy if exists "steps staff" on public.brew_batch_steps;
+create policy "steps staff" on public.brew_batch_steps for all to authenticated
+  using ((select p

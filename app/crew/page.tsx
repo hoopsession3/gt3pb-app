@@ -75,6 +75,25 @@ import PrepBoard from "@/components/PrepBoard";
 import InlineCreate from "@/components/InlineCreate";
 const Changelog = dynamic(() => import("@/components/Changelog"), { loading: () => <PourFill label="Loading…" /> });
 import CommandBoard from "@/components/CommandBoard";
+// Free-text times from before the field became type="time" still have to render. Anything the
+// input can accept is handed through; anything it cannot (a bare "9", "9am", "2 pm") is normalised
+// where that is unambiguous and otherwise left for the person to re-enter, rather than silently
+// blanking a value somebody typed.
+function toTimeInput(v: string | null | undefined): string {
+  const raw = (v ?? "").trim();
+  if (!raw) return "";
+  if (/^\d{2}:\d{2}$/.test(raw)) return raw;
+  const m = raw.match(/^(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?$/i);
+  if (m) {
+    let h = Number(m[1]) % 12;
+    if (m[3].toLowerCase() === "p") h += 12;
+    return `${String(h).padStart(2, "0")}:${m[2] ?? "00"}`;
+  }
+  const hm = raw.match(/^(\d{1,2}):(\d{2})$/);
+  if (hm) return `${String(Number(hm[1])).padStart(2, "0")}:${hm[2]}`;
+  return "";
+}
+
 const FounderDigest = dynamic(() => import("@/components/FounderDigest"), { loading: () => <PourFill label="Loading…" /> });
 const SpendBudget = dynamic(() => import("@/components/SpendBudget"), { loading: () => <PourFill label="Loading…" /> });
 const DriverDash = dynamic(() => import("@/components/DriverDash"), { loading: () => <PourFill label="Loading…" /> });
@@ -134,6 +153,7 @@ import { uploadToBucket } from "@/lib/uploads";
 import { resolveVendor, addVendorLocation, type VendorMatch, type ResolveDecision } from "@/lib/vendorLink";
 const VendorResolve = dynamic(() => import("@/components/VendorResolve"), { loading: () => <PourFill label="Loading…" /> });
 import Icon from "@/components/Icon";
+import { useJurisdictions } from "@/components/useJurisdictions";
 import AcademyCard from "@/components/AcademyCard";
 
 // money helpers for the economics panels
@@ -5019,6 +5039,7 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
   onSaveEcon: (econ: EventEcon) => void;
   onOpenPrep: (id: string) => void;
 }) {
+  const juris = useJurisdictions();
   const [planOpen, setPlanOpen] = useState(false);
   const [prepAIOpen, setPrepAIOpen] = useState(false);
   const locSugs = useLocationSuggestions(); // venue datalist — one shared cache across all cards
@@ -5144,8 +5165,13 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
                   worked the answer out and then asked anyway, and a typed value could overwrite
                   the computed one and never resync. Shown, not editable. */}
               <label className="ev-f">Day<input readOnly value={e.day_label ?? (e.day ? ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"][new Date(`${e.day}T12:00:00`).getDay()] : "")} aria-label="Day of week, from the date" title="Taken from the date" /></label>
-              <label className="ev-f">Start<input defaultValue={e.start_time ?? ""} placeholder="e.g. 9:00" aria-label="Start time" onBlur={(ev) => (ev.target.value.trim() || null) !== e.start_time && onUpdate({ start_time: ev.target.value.trim() || null })} /></label>
-              <label className="ev-f">End<input defaultValue={e.end_time ?? ""} placeholder="e.g. 2:00" aria-label="End time" onBlur={(ev) => (ev.target.value.trim() || null) !== e.end_time && onUpdate({ end_time: ev.target.value.trim() || null })} /></label>
+              {/* Real time inputs, matching the truck-stop editor, which has used type="time" for
+                  the same concept all along. These were plain text with placeholders reading
+                  "e.g. 9:00" — so "9", "9am" and "9:00 AM" all stored fine and none of them sort
+                  or feed the calendar maths. Existing free-text values survive: toTimeInput keeps
+                  anything already parseable and hands the rest back unchanged. */}
+              <label className="ev-f">Start<input type="time" defaultValue={toTimeInput(e.start_time)} aria-label="Start time" onBlur={(ev) => (ev.target.value.trim() || null) !== e.start_time && onUpdate({ start_time: ev.target.value.trim() || null })} /></label>
+              <label className="ev-f">End<input type="time" defaultValue={toTimeInput(e.end_time)} aria-label="End time" onBlur={(ev) => (ev.target.value.trim() || null) !== e.end_time && onUpdate({ end_time: ev.target.value.trim() || null })} /></label>
               <label className="ev-f">Going<input type="text" readOnly value={`${e.going_count ?? 0} · from RSVPs`} title="Live headcount from member RSVPs — not editable" /></label>
             </div>
             <button className={`ev-toggle${e.member_only ? " on" : ""}`} onClick={() => onUpdate({ member_only: !e.member_only })} aria-pressed={e.member_only}>
@@ -5158,8 +5184,17 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
           <div className="ev-group">
             <div className="ev-group-h">Crew prep · pack signal</div>
             <div className="ev-grid">
-              <label className="ev-f">State<input maxLength={20} placeholder="GA" defaultValue={e.state ?? ""} onBlur={(ev) => onUpdate({ state: ev.target.value.trim() || null })} /></label>
-              <label className="ev-f">County<input maxLength={40} placeholder="Fulton" defaultValue={e.county ?? ""} onBlur={(ev) => onUpdate({ county: ev.target.value.trim() || null })} /></label>
+              {/* THE WORST FIELD IN THE APP TO GET QUIETLY WRONG. lib/compliance.ts matches these
+                  two strings against compliance_rules; "Ga." or "Fulton County" matches nothing and
+                  renders a permit checklist that looks complete. They now offer the jurisdictions
+                  the rules can actually answer for — still typable, because a county nobody has
+                  researched yet must not block a booking, but the common case stops being a
+                  spelling test. The line underneath says how many rules actually back the pair,
+                  which is the thing free text could never tell you. */}
+              <label className="ev-f">State<input maxLength={20} placeholder="GA" list="gt3-juris-states" defaultValue={e.state ?? ""} onBlur={(ev) => onUpdate({ state: ev.target.value.trim().toUpperCase() || null })} /></label>
+              <datalist id="gt3-juris-states">{juris.states.map((st) => <option key={st} value={st} />)}</datalist>
+              <label className="ev-f">County<input maxLength={40} placeholder="Fulton" list={`gt3-juris-counties-${e.id}`} defaultValue={e.county ?? ""} onBlur={(ev) => onUpdate({ county: ev.target.value.trim() || null })} /></label>
+              <datalist id={`gt3-juris-counties-${e.id}`}>{juris.countiesFor(e.state).map((c) => <option key={c} value={c} />)}</datalist>
             </div>
             <div className="ev-grid">
               <label className="ev-f">Attendance<input type="number" min={0} defaultValue={e.expected_attendance ?? 0} onBlur={(ev) => onUpdate({ expected_attendance: Math.max(0, parseInt(ev.target.value) || 0) })} /></label>

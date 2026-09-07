@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useOptions } from "./useOptions";
+import { useSuggestions } from "./useSuggestions";
+import { withCurrent } from "@/lib/options";
 import { authedFetch } from "@/lib/authedFetch";
 import Sheet from "@/components/Sheet";
 import Icon from "@/components/Icon";
@@ -17,10 +20,17 @@ type Item = {
   critical: boolean; reorder_link: string | null; notes: string | null;
 };
 
-const STATUS = ["On Hand", "In Transit", "Backorder", "Low", "Out"];
+// STATUS used to be hard-coded HERE as ["On Hand","In Transit","Backorder","Low","Out"] while
+// InventoryLibrary — writing the SAME column — had ["On Hand","In Transit","Backorder",
+// "Consumed","Returned"]. Two vocabularies for one field, decided by which screen you opened.
+// Both lists now come from public.option_sets (0306), seeded with their union so no existing row
+// was orphaned.
 const stack: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 9 };
 
 export default function InventoryAI({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
+  const units = useOptions("inventory_unit");
+  const statuses = useOptions("inventory_status");
+  const sugg = useSuggestions();
   const [desc, setDesc] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -72,9 +82,25 @@ export default function InventoryAI({ onClose, onAdded }: { onClose: () => void;
               <div style={stack}>
                 <label className="gl-f"><span>Name</span><input value={item.name} onChange={(e) => set("name", e.target.value)} /></label>
                 <label className="gl-f"><span>Qty</span><input type="number" inputMode="decimal" value={item.qty ?? ""} onChange={(e) => set("qty", e.target.value === "" ? null : Number(e.target.value))} /></label>
-                <label className="gl-f"><span>Unit</span><input value={item.unit ?? ""} onChange={(e) => set("unit", e.target.value)} /></label>
-                <label className="gl-f"><span>Category</span><input value={item.category ?? ""} onChange={(e) => set("category", e.target.value)} /></label>
-                <label className="gl-f"><span>Status</span><select value={item.status} onChange={(e) => set("status", e.target.value)}>{STATUS.map((s) => <option key={s}>{s}</option>)}</select></label>
+                {/* Unit is a closed list and gets a picker — it was free text here and a <select>
+                    in the library editor, for the same column. Category is an OPEN set, so it keeps
+                    a text field with a suggest-list of what is already on the shelf: you can still
+                    invent a category, you just stop inventing a third spelling of an old one. */}
+                <label className="gl-f"><span>Unit</span>
+                  <select value={item.unit ?? ""} onChange={(e) => set("unit", e.target.value)}>
+                    <option value="">—</option>
+                    {withCurrent(units, item.unit).map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
+                  </select>
+                </label>
+                <label className="gl-f"><span>Category</span>
+                  <input value={item.category ?? ""} list="gt3-inv-cats" onChange={(e) => set("category", e.target.value)} />
+                </label>
+                <datalist id="gt3-inv-cats">{sugg.categories.map((c) => <option key={c} value={c} />)}</datalist>
+                <label className="gl-f"><span>Status</span>
+                  <select value={item.status} onChange={(e) => set("status", e.target.value)}>
+                    {withCurrent(statuses, item.status).map((st) => <option key={st.value} value={st.value}>{st.label}</option>)}
+                  </select>
+                </label>
                 <label className="gl-f"><span>Reorder point</span><input type="number" inputMode="decimal" value={item.reorder_point ?? ""} onChange={(e) => set("reorder_point", e.target.value === "" ? null : Number(e.target.value))} /></label>
                 <label className="gl-f gl-check"><input type="checkbox" checked={item.critical} onChange={(e) => set("critical", e.target.checked)} /><span>Event-critical</span></label>
                 <label className="gl-f"><span>Use cases</span><input value={item.use_cases.join(", ")} onChange={(e) => set("use_cases", e.target.value.split(",").map((x) => x.trim()).filter(Boolean))} placeholder="comma-separated" /></label>

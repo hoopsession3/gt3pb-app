@@ -1,0 +1,17 @@
+authenticated;
+
+comment on view public.v_promotable is
+  'Customers who already hold a profile and could be brought onto the crew. Fourteen of fifteen customers qualify; the roster filters every one of them out of sight.';
+
+insert into public.changelog (title, category, area, summary, shipped_on, highlight)
+select v.title, v.category, v.area, v.summary, v.shipped_on::date, v.highlight
+from (values
+  ('A customer can be brought onto the crew','improvement','Team',
+   'Someone who buys from GT3 and someone who works for GT3 have always been the same record underneath, but the team roster filtered every customer out of view, so the one thing you could not do anywhere in the app was bring a person in. You can now, from the roster: pick the role, the city, and whether they lead it. All three land together or none of them do, because a half-promoted person reads the wrong city''s money.',
+   '2026-09-06', true)
+) as v(title, category, area, summary, shipped_on, highlight)
+where not exists (select 1 from public.changelog c where c.title = v.title);
+
+-- verify:
+--   select * from public.v_promotable;
+--   select public.promote_to_crew('<niño id>', 'operator', 'atlanta', true);

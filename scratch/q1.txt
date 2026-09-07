@@ -1,0 +1,50 @@
+ublic.is_staff())) with check ((select public.is_staff()));
+drop policy if exists "tenant isolation" on public.brew_batch_steps;
+create policy "tenant isolation" on public.brew_batch_steps as restrictive for all
+  using (tenant_id = public.effective_tenant()) with check (tenant_id = public.effective_tenant());
+grant select, insert, update on public.brew_batch_steps to authenticated;
+
+drop trigger if exists stamp_tenant_tg on public.brew_batch_steps;
+create trigger stamp_tenant_tg before insert on public.brew_batch_steps
+  for each row execute function public.stamp_tenant();
+drop trigger if exists audit_brew_batch_steps on public.brew_batch_steps;
+create trigger audit_brew_batch_steps after insert or update or delete
+  on public.brew_batch_steps for each row execute function public.audit_row();
+
+comment on table public.brew_batch_steps is
+  'The method as it stood when this batch was opened, one row per step, with who ticked it and when. Copied rather than referenced so an edit to the recipe cannot rewrite what somebody already did.';
+
+-- ── open the checklist ─────────────────────────────────────────────────────────────────────────
+create or replace function public.ensure_batch_steps(p_batch_id uuid)
+returns setof public.brew_batch_steps language plpgsql security definer set search_path = public as $$
+declare b public.brew_batches; m text[];
+begin
+  if not public.is_staff() then raise exception 'staff only'; end if;
+  select * into b from public.brew_batches where id = p_batch_id;
+  if not found then raise exception 'No such batch.'; end if;
+
+  if not exists (select 1 from public.brew_batch_steps where batch_id = p_batch_id) then
+    select r.method into m from public.brew_recipes r where r.id = b.recipe_id;
+    -- A batch whose recipe was deleted still deserves a checklist rather than a crash; it just has
+    -- nothing to put in it, and the caller can see that it is empty.
+    if m is not null then
+      insert into public.brew_batch_steps (batch_id, tenant_id, step_no, step_text)
+      select p_batch_id, b.tenant_id, ord, txt
+        from unnest(m) with ordinality as t(txt, ord)
+       where btrim(coalesce(txt, '')) <> '';
+    end if;
+  end if;
+
+  return query select * from public.brew_batch_steps where batch_id = p_batch_id order by step_no;
+end $$;
+revoke all on function public.ensure_batch_steps(uuid) from public;
+grant execute on function public.ensure_batch_steps(uuid) to authenticated;
+
+create or replace function public.set_batch_step(p_batch_id uuid, p_step_no int, p_done boolean)
+returns public.brew_batch_steps language plpgsql security definer set search_path = public as $$
+declare s public.brew_batch_steps;
+begin
+  if not public.is_staff() then raise exception 'staff only'; end if;
+  update public.brew_batch_steps
+     set done_at = case when p_done then coalesce(done_at, now()) else null end,
+         done_by = case when p_done then c

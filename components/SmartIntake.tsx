@@ -5,6 +5,9 @@ import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { uploadToBucket } from "@/lib/uploads";
 import Icon, { type IconName } from "@/components/Icon";
+import { useOptions } from "./useOptions";
+import { useSuggestions } from "./useSuggestions";
+import { withCurrent } from "@/lib/options";
 
 // SMART INTAKE — drop any file (photo of gear, a permit, a receipt, a manual). It's read by the
 // intake agent, which proposes where it belongs: an asset, an inventory consumable, or a stored
@@ -22,6 +25,9 @@ const KINDS: { key: string; label: string; icon: IconName }[] = [
 const rand = (n: string) => `${Date.now()}-${n.replace(/[^a-zA-Z0-9.\-_]/g, "_")}`.slice(0, 80);
 
 export default function SmartIntake() {
+  const units = useOptions("inventory_unit");
+  const docKinds = useOptions("doc_kind");
+  const sugg = useSuggestions();
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -110,10 +116,24 @@ export default function SmartIntake() {
           <textarea className="note-in" rows={2} style={{ marginTop: 8 }} value={p.summary} onChange={(e) => set("summary", e.target.value)} placeholder="Summary" />
 
           <div className="prod-grid" style={{ marginTop: 8 }}>
-            {(p.kind === "asset" || p.kind === "inventory") && <label className="prod-f"><span>Category</span><input value={p.category} onChange={(e) => set("category", e.target.value)} /></label>}
+            {/* These three placeholders used to read "each / case / lb" and "permit / coi /
+                receipt…" — a placeholder enumerating the valid answers is a picker that never got
+                built. Unit and Doc type are closed lists and now come from the same rows the
+                destination editor uses; Category is an open set, so it keeps free entry with a
+                suggest-list of what is already on the shelf. */}
+            {(p.kind === "asset" || p.kind === "inventory") && <><label className="prod-f"><span>Category</span><input value={p.category} list="gt3-intake-cats" onChange={(e) => set("category", e.target.value)} /></label>
+            <datalist id="gt3-intake-cats">{sugg.categories.map((c) => <option key={c} value={c} />)}</datalist></>}
             {p.kind === "inventory" && <label className="prod-f"><span>Qty</span><input type="number" value={p.qty ?? ""} onChange={(e) => set("qty", e.target.value === "" ? null : Number(e.target.value))} /></label>}
-            {p.kind === "inventory" && <label className="prod-f"><span>Unit</span><input value={p.unit} onChange={(e) => set("unit", e.target.value)} placeholder="each / case / lb" /></label>}
-            {["document", "recipe", "photo", "other"].includes(p.kind) && <label className="prod-f"><span>Doc type</span><input value={p.doc_kind} onChange={(e) => set("doc_kind", e.target.value)} placeholder="permit / coi / receipt…" /></label>}
+            {p.kind === "inventory" && <label className="prod-f"><span>Unit</span>
+              <select value={p.unit} onChange={(e) => set("unit", e.target.value)}>
+                <option value="">—</option>
+                {withCurrent(units, p.unit).map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
+              </select></label>}
+            {["document", "recipe", "photo", "other"].includes(p.kind) && <label className="prod-f"><span>Doc type</span>
+              <select value={p.doc_kind} onChange={(e) => set("doc_kind", e.target.value)}>
+                <option value="">—</option>
+                {withCurrent(docKinds, p.doc_kind).map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
+              </select></label>}
           </div>
 
           {err && <div className="dp-err" style={{ marginTop: 8 }}>{err}</div>}
