@@ -35,6 +35,7 @@ const FLOOR = 269;   // the rule starts where it was written — history isn't r
 //
 // The argument must be the file's own name without .sql, because two pairs of files share a number
 // (0007 and 0040) and a ledger keyed on the number silently drops one of each pair.
+const RLS_FLOOR = 310;   // the rule starts where it was written — history isn't retro-judged
 const LEDGER_FLOOR = 304;
 
 const offenders = [];
@@ -59,6 +60,43 @@ for (const f of readdirSync(DIR).filter((f) => f.endsWith(".sql")).sort()) {
     const expected = f.replace(/\.sql$/, "");
     if (call[1] !== expected) misstamped.push(`${f} stamps itself as '${call[1]}' — expected '${expected}'`);
   }
+}
+
+// ── THIRD RULE, added after 0309: no table ships without RLS ──────────────────────────────────
+// Verifying 0309 in production turned up the fact everything else in this database rests on:
+// Supabase's default privileges grant anon full SELECT/INSERT/UPDATE/DELETE on every table in
+// public. All 143 tables currently have RLS enabled, so nothing is actually exposed — RLS is the
+// ONLY thing standing between an anonymous request and the whole database.
+//
+// Which means a single `create table` that forgets `enable row level security` is not a small
+// oversight. It is a table anybody on the internet can read and write. That is too sharp an edge
+// to leave to remembering, so it is checked here: every table a migration creates must enable RLS
+// in the same file.
+const rlsMissing = [];
+for (const f of readdirSync(DIR).filter((x) => x.endsWith(".sql")).sort()) {
+  const seq = Number(f.slice(0, 4));
+  if (!Number.isFinite(seq) || seq < RLS_FLOOR) continue;
+  const sql = readFileSync(join(DIR, f), "utf8");
+  const live = sql.split("\n").filter((l) => !l.trim().startsWith("--")).join("\n");
+  const created = [...live.matchAll(/create\s+table\s+(?:if\s+not\s+exists\s+)?public\.([a-z0-9_]+)/gi)]
+    .map((m) => m[1].toLowerCase());
+  if (!created.length) continue;
+  const enabled = new Set(
+    [...live.matchAll(/alter\s+table\s+public\.([a-z0-9_]+)\s+enable\s+row\s+level\s+security/gi)]
+      .map((m) => m[1].toLowerCase()));
+  for (const t of new Set(created)) if (!enabled.has(t)) rlsMissing.push(`${f} creates public.${t} without enabling RLS`);
+}
+
+if (rlsMissing.length) {
+  console.error(`RLS GATE: ${rlsMissing.length} table(s) would ship readable and writable by anyone:`);
+  for (const m of rlsMissing) console.error(`  ✗ ${m}`);
+  console.error(
+    `\nSupabase grants anon full CRUD on every table in public by default, so RLS is the only thing ` +
+    `between a new table and the open internet. Add, in the same migration:\n` +
+    `    alter table public.<name> enable row level security;\n` +
+    `A table with RLS on and no policy is fine — that denies everyone. A table without RLS is not.`
+  );
+  process.exit(1);
 }
 
 if (offenders.length) {
@@ -87,3 +125,4 @@ if (unstamped.length || misstamped.length) {
 
 console.log("NO-DRIFT GATE: every migration declares its changelog position — clean.");
 console.log("LEDGER GATE: every migration from 0304 records itself by its own filename — clean.");
+console.log("RLS GATE: every table created from 0310 enables row level security in the same file — clean.");
