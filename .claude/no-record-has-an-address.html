@@ -96,7 +96,11 @@
   .de .where{grid-column:2;font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--faint)}
   .de.fixed b::after{content:" — wired";color:var(--green);font-weight:600}
 
+  b.done{color:var(--green)}
+
   .quiet{border-left:2px solid var(--rule);padding-left:18px;display:flex;flex-direction:column;gap:10px}
+  .quiet p.struck b{text-decoration:line-through;text-decoration-color:var(--faint)}
+  .quiet p.struck::after{content:" Shipped.";color:var(--green);font-weight:600}
   .quiet p{font-size:15px;line-height:1.6;color:var(--muted)}
   .quiet b{color:var(--text)}
 
@@ -136,10 +140,10 @@
       <b>nothing links to any of them</b>. <code>CrmDetail</code> is the best-designed record view in
       the codebase: order history off the <code>all_orders</code> spine, loyalty, perks, VIP proof.
       Its only defect is that the sole way to reach it is to already be looking at the customer list.</p>
-    <p>And one entity has no interface whatsoever. <b>A customer can place a shop order that nobody
-      on the crew can look at</b> — <code>shop_orders</code> is touched by two API routes and zero
-      components. The checkout even raises an alert with <code>subjectId: orderId</code>, pointing at
-      a screen that does not exist.</p>
+    <p>And one entity had no interface whatsoever. <b>A customer could place a shop order that nobody
+      on the crew could look at</b> — <code>shop_orders</code> was touched by two API routes and zero
+      components. The checkout even raised an alert with <code>subjectId: orderId</code>, pointing at
+      a screen that did not exist. <b class="done">Closed below.</b></p>
   </section>
 
   <section>
@@ -179,8 +183,9 @@
             <td>Rows are name + Edit + Delete. No history, no usage, no vendor.</td></tr>
           <tr><td><code>initiatives</code></td><td class="num">4</td><td><span class="pill red">None</span></td>
             <td>You can manage a milestone inside it. The initiative itself is inert text.</td></tr>
-          <tr class="worst"><td><code>shop_orders</code></td><td class="num">0</td><td><span class="pill red">No UI</span></td>
-            <td>Two API routes and nothing else. Customers order; nobody can look.</td></tr>
+          <tr class="good"><td><code>shop_orders</code></td><td class="num">2</td><td><span class="pill green">Queue + record</span></td>
+            <td>Was: two API routes and nothing else. Now a queue in Money that leads with what is
+              waiting on us, and the whole order at <code>?r=shop_order:&lt;id&gt;</code>.</td></tr>
         </tbody>
       </table>
     </div>
@@ -281,10 +286,107 @@
   </section>
 
   <section>
+    <div class="sec-h">
+      <h2>Item one, done: the order nobody could see</h2>
+      <div class="rule"></div>
+      <p class="note">The storefront is open — 506 products imported, 6 published, 0 orders so far.
+        The next one that lands is now visible.</p>
+    </div>
+    <p>The checkout route already said this out loud, in its own failure path:</p>
+    <pre>"Apliiq submit failed … It's paid and queued — submit it by hand."</pre>
+    <p>Queued <i>where</i>. The alert it raises carries <code>subject_id</code> = the order id and a
+      link to <code>/crew</code>, which is the top of a six-thousand-line page. There was no queue.
+      <b>The alert named a place that did not exist</b> — this audit's thesis, inside a single route.</p>
+
+    <p>Then, tracing every writer of the <code>status</code> column, four of its eight values turned
+      out to be unreachable. Nothing anywhere wrote them:</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Status</th><th>What wrote it, before today</th></tr></thead>
+        <tbody>
+          <tr><td><code>paid</code></td><td>Nothing — checkout inserts <code>needs_fulfillment</code> directly.</td></tr>
+          <tr><td><code>needs_fulfillment</code></td><td>Checkout, on insert.</td></tr>
+          <tr><td><code>submitted</code></td><td>Checkout, once Apliiq accepts.</td></tr>
+          <tr class="worst"><td><code>in_production</code></td><td>Nothing.</td></tr>
+          <tr><td><code>shipped</code></td><td>The Apliiq fulfilment webhook.</td></tr>
+          <tr class="worst"><td><code>delivered</code></td><td>Nothing.</td></tr>
+          <tr class="worst"><td><code>refunded</code></td><td>Nothing.</td></tr>
+          <tr class="worst"><td><code>canceled</code></td><td>Nothing.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>They were the shape of a life the app could not actually give an order. All eight are reachable
+      now, the legal moves between them are enforced in the database rather than in the screen, and
+      cancelling or refunding one requires a reason that is stored with who did it and when. A bare
+      status write recorded none of that, and <code>shop_orders</code> had no audit trail at all.</p>
+
+    <div class="thesis">
+      <b>Recording a refund does not issue one.</b>
+      <span>Card data never touches this app, by design — refunds happen in Square. That is the exact
+        trap <code>/api/orders/cancel</code> fell into and had to be corrected for: it told customers
+        "your refund is on the way" when all it had done was raise a staff alert. So the confirm says
+        what it does and what it does not, and the Square link sits beside the button.</span>
+    </div>
+
+    <p><b>A refunded order now stays refunded.</b> The failure this prevents is concrete: you refund
+      in Square and mark it here, nobody cancels it at Apliiq, Apliiq prints and ships it anyway, and
+      its webhook runs <code>update shop_orders set status = 'shipped'</code>. The refund is gone and
+      the record says an order you gave the money back for is on its way. The guard deliberately does
+      <i>not</i> throw — throwing would 500 the webhook, Apliiq would retry forever, and the tracking
+      would be lost with it. The terminal status holds, the late report is written onto the order
+      where a person will read it, and the tracking is kept.</p>
+
+    <p class="note">51 new database assertions, executed against the real migration with the real
+      check constraint — a state machine that emits a value the table refuses is a runtime error
+      nobody sees until a customer's order is stuck. Two of them found defects in my own same-day
+      work: a column testing for an orphaned product line, which <code>on delete set null</code>
+      makes permanently impossible; and an age label that read "just now" for an order with no age,
+      because <code>Number(null)</code> is 0. The queue is sorted on that number.</p>
+  </section>
+
+  <section>
+    <div class="sec-h">
+      <h2>And what turned up on the way</h2>
+      <div class="rule"></div>
+      <p class="note">Not part of this audit's finding. Found by asking, before building the screen,
+        what a <i>customer</i> sees if they read one of these saved queries directly.</p>
+    </div>
+    <p>Measured against the live database, signed in as a real account with the default
+      <code>member</code> role:</p>
+    <pre>select count(*) from public.profiles;          --  1   security working exactly as designed
+select count(*) from public.v_crew_person;     --  3   the entire crew
+select count(*) from public.v_market_crew;     --  3
+select count(*) from public.v_agreement_hours; --  1   hours logged on an operator agreement</pre>
+    <p>One row from the table. Three from the view over the same table. <b>That gap is the bug.</b>
+      A Postgres view runs as the database <i>owner</i> unless it is explicitly told otherwise, and
+      the owner ignores row-level security — so every one of these was a side door around the
+      protection the tables themselves were enforcing correctly.</p>
+    <div class="figs">
+      <div class="fig gold"><b>40</b><span>views in the database</span></div>
+      <div class="fig bad"><b>35</b><span>ran as the owner, readable by any logged-in account</span></div>
+      <div class="fig bad"><b>11</b><span>of those I wrote, in the four migrations before the fix</span></div>
+      <div class="fig ok"><b>0</b><span>after</span></div>
+    </div>
+    <p><b>Nothing leaked.</b> All fifteen accounts today belong to the crew, so there was no customer
+      to walk through the door. That is calendar, not design: the storefront is open, every signup
+      mints an account with the <code>member</code> role, and the first customer to make one would
+      have had it.</p>
+    <p>Twenty-one internal diagnostics are now closed to customers outright — seven of them read
+      Postgres's own catalogues, which have no row-level security at all, so the usual fix would have
+      protected them exactly nothing. The thirteen the app reads now honour the same rules as their
+      tables. The crew census after the change is identical, view for view, all forty.</p>
+    <p class="note">The migration asserts its own effect rather than claiming it — and that assertion
+      earned its place on the first run. It named five views I had not checked, because my survey had
+      asked "which <i>unsafe</i> views can a logged-out visitor read", and those five were the ones I
+      had already decided were safe. The only ones I had stopped looking at were the only ones I had
+      stopped looking at. The release gate now refuses any future view that repeats it, and it was
+      proven to fail on a bad view before it was trusted to pass on a good one.</p>
+  </section>
+
+  <section>
     <div class="sec-h"><h2>What's next, in order</h2><div class="rule"></div></div>
     <div class="quiet">
-      <p><b>1 · Give shop orders a screen.</b> This is the only entity with no interface at all, and
-        it's the one where the gap is visible to a paying customer.</p>
+      <p class="struck"><b>1 · Give shop orders a screen.</b></p>
       <p><b>2 · An event record.</b> Ten surfaces, twelve API routes, no home — the worst scattering
         in the app. <code>PrepDetail</code> is the closest thing and it's reached through a
         <code>localStorage</code> handoff from a different section.</p>
@@ -295,7 +397,8 @@
       <p><b>5 · The remaining dead ends.</b> Now one line each, once the kind above it exists.</p>
       <p>Each of these is a line in <code>lib/records.ts</code> plus one component. That's the point
         of doing the spine first — <b>the next entity shouldn't need another architecture
-        conversation.</b></p>
+        conversation.</b> Shop orders is the first test of that claim, and it held: two lines in
+        <code>lib/records.ts</code>, one detail component, one queue.</p>
     </div>
   </section>
 
@@ -303,7 +406,9 @@
     <p>Surveyed against the working tree on 7 September 2026: 170 components, ~36,000 lines,
       15 sections, 39 panels, 62 Sheet render sites. Entity surface counts are distinct UI files that
       read or write each table.</p>
-    <p>Commit <code>4a0f9d6</code> · 526 smoke, 67 UI smoke, all database suites green.</p>
+    <p>Updated 7 September after shipping item one. Commits <code>4a0f9d6</code> ·
+      <code>4f938f0</code> · <code>69e01a5</code> — 554 smoke, 67 UI smoke, 51 new database
+      assertions, every suite green, four release gates clean.</p>
   </footer>
 
 </div>
