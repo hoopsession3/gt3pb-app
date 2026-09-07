@@ -4548,6 +4548,38 @@ function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; is
 // path at all — profiles has carried only an own-profile update policy since 0001.
 const HIRE_ROLES: RoleKey[] = ["server", "contractor", "operator", "event_manager"];
 
+// OPEN IS NOT THE SAME AS VISIBLE, and one scroll is not enough.
+//
+// The hire panel sits below the stat tiles, the utilization list, the guest-visit line and the
+// invite form — about two screens down. Arriving from a customer card opened it and left the person
+// looking at the top of Team, where nothing had apparently happened.
+//
+// Two attempts have already failed in production, and the measurements say why. A 120ms timer
+// scrolled a document that had not finished loading. Two animation frames scrolled one that had not
+// finished GROWING: the panel measured y=1699 on one run and y=1719 on the next, because the async
+// sections above it were still arriving and pushing it further down each time. There is no single
+// moment to scroll at, because the page keeps moving.
+//
+// So stop guessing at the moment and check the result instead. Re-assert until the element is
+// actually in view, bounded — a scroll that has not landed after a second and a half is a scroll
+// that is being fought by something else, and continuing to yank the page would be worse than
+// leaving it. Instant, not smooth: a retry must not fight an in-flight animation.
+function scrollHereUntilItSticks(ref: { current: HTMLElement | null }, tries = 12) {
+  let n = 0;
+  const tick = () => {
+    const el = ref.current;
+    if (!el || n++ >= tries) return;
+    try {
+      const r = el.getBoundingClientRect();
+      const settled = r.top > 40 && r.bottom < window.innerHeight;
+      if (settled) return;
+      el.scrollIntoView({ behavior: "auto", block: "center" });
+    } catch { return; }
+    setTimeout(tick, 130);
+  };
+  requestAnimationFrame(tick);
+}
+
 function PromotePanel({ onDone }: { onDone: () => void }) {
   const { toast } = useApp();
   const [open, setOpen] = useState(false);
@@ -4587,12 +4619,7 @@ function PromotePanel({ onDone }: { onDone: () => void }) {
       wantedRef.current = null;
       if (people.some((r) => r.id === w)) {
         setPick(w);
-        // OPEN IS NOT THE SAME AS VISIBLE. This panel sits below the stat tiles, the utilization
-        // list and the invite form. Two frames: the first lets the picked row and its role/city
-        // form render, the second lands after the layout that pushed everything down has settled.
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-          try { boxRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }); } catch { /* ignore */ }
-        }));
+        scrollHereUntilItSticks(boxRef);
       } else {
         toast("They are already on the crew — change their role from the roster below.");
       }
