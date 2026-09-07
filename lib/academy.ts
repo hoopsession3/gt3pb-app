@@ -57,7 +57,9 @@ export interface Module {
   whyItMatters?: string;          // the stakes, in one breath
   objectives?: string[];          // what you'll be able to do after this
   mistakes?: string[];            // the common ways this goes wrong
-  founderInsight?: string;        // the founder's voice — the why behind the standard
+  founderInsight?: string;        // the owners' voice — the why behind the standard. Plural on
+                                  // purpose: GT3 is owner-operated by two people, and a note in one
+                                  // person's first person reads as a company with one operator.
   scenarios?: Scenario[];         // "a guest does X → you do Y"
   quiz?: QuizQ[];
   pass?: number; // % needed to pass (default 80)
@@ -190,7 +192,7 @@ export const MODULES: Module[] = [
     summary: "How we greet, educate, explain, and create a memorable bar.",
     whyItMatters: "The product earns the first sip; how you make someone feel earns the next visit — and the friend they bring. On a busy day you ARE the brand, and the standard is only ever as good as what the last guest walked away feeling.",
     objectives: ["Greet and read a guest in the first few seconds", "Explain any drink in one plain, true line", "Answer 'why so expensive' with value, never apology"],
-    founderInsight: "I'll take a guest who felt genuinely looked after over a technically perfect pour every time. Get the feeling right and they forgive a busy day; get it wrong and the best coffee in the city won't bring them back.",
+    founderInsight: "We'll take a guest who felt genuinely looked after over a technically perfect pour every time. Get the feeling right and they forgive a busy day; get it wrong and the best coffee in the city won't bring them back.",
     body: [
       { h: "Greet", p: "Eye contact, a real hello within a few seconds. \"First time with us?\" opens the door to educate. Warm and unhurried even when the line is long." },
       { h: "Educate, don't lecture", p: "Read the guest. A regular wants their order fast; a newcomer wants a quick why. Offer the one-line version first: \"Rise is our clean cold-brew to start the day\" — go deeper only if they're curious." },
@@ -210,7 +212,7 @@ export const MODULES: Module[] = [
     summary: "Why our ingredients, sourcing, prep and process matter — without medical claims.",
     whyItMatters: "Guests can taste care, but they can't see it — your words are how the work behind the bottle becomes real to them. Explain our choices with confidence and zero claims, and the price and the trust both take care of themselves.",
     objectives: ["Explain why an ingredient, source, or step is there — in plain language", "Describe care without ever making a health claim", "Say 'estimated until lab-verified' like you mean it"],
-    founderInsight: "'Primal' isn't a diet to me — it's a filter: would this ingredient make sense to someone a hundred years ago? If it's a powder with a chemistry-set name, it doesn't go in. We let the whole food do the work and we never oversell what it does.",
+    founderInsight: "'Primal' isn't a diet here — it's a filter: would this ingredient make sense to someone a hundred years ago? If it's a powder with a chemistry-set name, it doesn't go in. We let the whole food do the work and we never oversell what it does.",
     body: [
       { h: "The goal", p: "This is not medical advice and you should never give any. The goal is to explain our choices confidently in plain language so guests understand the care behind the bottle." },
       { h: "Why ingredients matter", p: "We start with named whole foods — single-origin coffee, organic coconut, pasture-raised bones — not powders, isolates, or concentrates. You can point to where every part of the drink came from." },
@@ -327,7 +329,7 @@ export const MODULES: Module[] = [
       { h: "Caffeine — know the honest number", p: "Rise, Flow, and Dusk share one base and the SAME caffeine — about 210 mg per 10 oz (estimated until lab-verified). Cold brew is often higher in caffeine than people expect because of the long extraction and ratio. If a guest is caffeine-sensitive, tell them the real number and steer them to Nature's Aide or the Coconut Shake." },
     ],
     mistakes: ["Saying cold brew is 'less acidic for your stomach' — that's a health claim; say 'lower in perceived acidity, smoother'", "Guessing the caffeine number — quote ~210 mg/10 oz (estimated) or say you'll confirm", "Calling it 'healthier' than gas-station coffee instead of describing the process"],
-    founderInsight: "I didn't pick cold extraction because it's trendy. I picked it because when you taste the difference, you stop needing me to sell it. The science is just the honest version of 'try it.'",
+    founderInsight: "We didn't pick cold extraction because it's trendy. We picked it because when you taste the difference, you stop needing anyone to sell it. The science is just the honest version of 'try it.'",
     scenarios: [
       { situation: "Guest: 'Why is cold brew stronger? Isn't cold weaker?'", doThis: "'Opposite — it steeps ~18 hours at our 1:13 ratio, so it actually pulls more caffeine than a quick hot cup. It just tastes smoother because cold water leaves the bitter stuff behind.'" },
       { situation: "Guest: 'Is this less acidic? My stomach…'", doThis: "Stay honest: 'It's lower in perceived acidity and smoother because of how it's brewed. I can't make a stomach claim, but a lot of people find it easy-drinking.'" },
@@ -375,7 +377,7 @@ export const MODULES: Module[] = [
       { h: "Two different jobs: dissolved nitrogen vs. the cascade", p: "Don't confuse these. (1) Nitrogen DISSOLVED into the coffee = the creamy body and texture — that comes from charging and resting the keg under pressure (a cascade lid helps dissolve more nitrogen before serving). (2) The NITRO FAUCET = the visual cascade — it forces the coffee through a restrictor plate on the way out. You can have one without the other: dissolved nitrogen is the mouthfeel, the faucet is the show. We want both." },
       { h: "Setup by the numbers", p: "Serving pressure is 35 PSI (workable range 30–45) — start at 35 and adjust. Steps: (1) COLD coffee first — ideally 34–40°F; nitrogen dissolves into cold liquid, not warm. (2) Fill the keg leaving headspace — don't top it off. (3) Hook up the pure N₂. (4) Set the regulator to 35 PSI — do NOT start at 10 PSI, that's too low to get the cascade and body. (5) With gas connected at 35 PSI, gently shake/roll the keg 2–5 minutes to force nitrogen in. (6) Let it REST cold 30–60 minutes minimum — overnight is better. (7) Then pour through the nitro (stout) faucet." },
       { h: "How to pour", p: "Open the faucet fully (don't crack it half-open), pour straight down the center, no ice. Let it cascade and settle into a tight, creamy head before you hand it over. A settled glass beats a rushed one — the settle is part of the product." },
-      { h: "How to explain it to a guest (three voices)", p: "SIMPLE: 'Nitrogen doesn't change the coffee — it changes how you experience it. Tiny nitrogen bubbles make it feel creamy and naturally sweeter without adding sugar, cream, or anything artificial.' GT3: 'We cold-extract the coffee for purity, then serve it on nitrogen — a dense microfoam that softens bitterness and enhances body, so you taste more of the coffee and less of the noise.' FOUNDER: 'Most people think nitro is the waterfall — that's just the visual. What you're tasting is texture: microscopic bubbles that make the same coffee feel richer, smoother, and naturally sweeter without adding anything to the cup.' Pick the version that matches the guest." },
+      { h: "How to explain it to a guest (three voices)", p: "SIMPLE: 'Nitrogen doesn't change the coffee — it changes how you experience it. Tiny nitrogen bubbles make it feel creamy and naturally sweeter without adding sugar, cream, or anything artificial.' GT3: 'We cold-extract the coffee for purity, then serve it on nitrogen — a dense microfoam that softens bitterness and enhances body, so you taste more of the coffee and less of the noise.' FOUNDERS: 'Most people think nitro is the waterfall — that's just the visual. What you're tasting is texture: microscopic bubbles that make the same coffee feel richer, smoother, and naturally sweeter without adding anything to the cup.' Pick the version that matches the guest." },
       { h: "Daily + weekly care", p: "The #1 cause of a flat, no-cascade pour is a clogged restrictor plate. DAILY, pull the spout and flush the disc with hot water. WEEKLY, take the faucet apart, soak the parts in food-safe beer-line cleaner, clear every tiny hole in the disc with the brush/pin, rinse well, reassemble, and pour a test glass." },
     ],
     mistakes: ["Mistaking a CO₂ or mixed-gas tank for N₂", "Starting the regulator at ~10 PSI — too low for cascade and body (set 35)", "Charging a warm keg — nitrogen won't dissolve; chill to 34–40°F first", "Not letting it rest after charging (30–60 min min, overnight better)", "Filling the keg with no headspace", "Letting the restrictor disc clog by skipping the daily flush"],
@@ -430,7 +432,7 @@ export const MODULES: Module[] = [
       { h: "The memorable moment", p: "The settle on a nitro pour, remembering a regular's order, a genuine 'enjoy the rest of your day' — small, real touches are what they tell a friend about. The goal: every guest leaves having had a better minute than they expected." },
     ],
     mistakes: ["Talking AT the guest with every nutrient instead of the one-liner", "Treating the rushed guest and the curious guest the same way", "Letting a line feel like a DMV — no eye contact, no warmth", "Upselling as pressure instead of as care"],
-    founderInsight: "I'd rather a guest remember how we made them feel than the exact caffeine number. Get the feeling right and they trust the rest. That's the whole game.",
+    founderInsight: "We'd rather a guest remember how we made them feel than the exact caffeine number. Get the feeling right and they trust the rest. That's the whole game.",
     scenarios: [
       { situation: "Long line, guest looks impatient", doThis: "Acknowledge them early with eye contact and 'I've got you in just a sec.' Then be fast and decisive — recommend, don't deliberate. Felt-seen beats fast." },
       { situation: "Guest is overwhelmed: 'I don't know, what's good?'", doThis: "Make the call: 'First time? Start with Rise — our smooth cold brew over ice. You'll know in one sip.' Confidence relaxes them." },
@@ -481,7 +483,7 @@ export const MODULES: Module[] = [
       { h: "Stewardship — you carry the brand", p: "At an event you're not 'working for' GT3, you ARE GT3 to every guest. Brand stewardship means the standard doesn't relax because the founder isn't watching. Train the next person to that bar: show, explain the why, watch them do it, give the real feedback." },
     ],
     mistakes: ["Optimizing for speed/cost (#3) over safety/honesty (#1)", "Hiding a mistake instead of surfacing and fixing it", "Letting the standard slip because no one's watching", "Training someone on the 'what' without the 'why' — so they can't adapt"],
-    founderInsight: "I don't need clones. I need people who hold the same standard I do, so that when something happens I didn't plan for, they protect the brand the way I would. That's the only way GT3 scales past me.",
+    founderInsight: "GT3 doesn't need clones. It needs people who hold the same standard the owners do, so that when something happens nobody planned for, they protect the brand the same way. That's the only way GT3 scales past the people who started it.",
     scenarios: [
       { situation: "Slammed, and a batch is slightly off-spec. Serve it or dump it?", doThis: "Dump it. Off-spec fails the brand-standard filter, and 'we were busy' isn't a reason a guest accepts. Eat the small loss; protect the asset." },
       { situation: "You made a real mistake at an event", doThis: "Surface it immediately, fix what you can now, log it, and say what you'll change. Owners make mistakes recoverable by being fast and honest about them." },
@@ -506,7 +508,7 @@ export const MODULES: Module[] = [
       { h: "Details are the message", p: "The settle on a pour, the clean counter, the disclosed allergen — guests can't always name why we feel premium, but they feel it. The details ARE the brand telling them we care." },
       { h: "Teach the why, and people self-correct", p: "Rules without reasons break the moment they don't fit. Reasons travel — give someone the why and they'll make the right call in a situation you never listed." },
     ],
-    founderInsight: "If I did my job, you don't memorize GT3 — you think in it. Then you don't need me in the room, because the principle is.",
+    founderInsight: "If this training did its job, you don't memorize GT3 — you think in it. Then you don't need an owner in the room, because the principle is.",
     scenarios: [
       { situation: "A request comes up that no rule covers", doThis: "Run it through the principles: does it add signal or noise? Is it honest? Is it repeatable? The right answer is usually obvious once you ask which principle applies." },
     ],
@@ -531,7 +533,7 @@ export const MODULES: Module[] = [
       { h: "Why the app exists", p: "The GT3 app is this philosophy turned into systems — prep, run-of-show, inventory, brew schedule, incident log, and this Academy — so the standard runs even when the founder doesn't. The app is the brand's memory and nervous system." },
       { h: "What's still open", p: "Some things are settled (the claim rule, the base, N₂). Some are still evolving — menu additions, pricing, new markets. Know the difference: don't re-open settled safety/brand questions, and bring genuine new ideas to leadership rather than quietly changing the standard on the floor." },
     ],
-    founderInsight: "Write down WHY, not just what. The 'what' is easy to copy and easy to drift from. The 'why' is what lets someone new make the call I'd make — and improve on it without breaking it.",
+    founderInsight: "Write down WHY, not just what. The 'what' is easy to copy and easy to drift from. The 'why' is what lets someone new make the call an owner would make — and improve on it without breaking it.",
     quiz: [
       { q: "Why do Rise/Flow/Dusk share one base + caffeine?", options: ["We ran out of beans", "Consistency over complexity — choose by flavor, not strength", "To confuse guests"], correct: 1 },
       { q: "'Estimated until lab-verified' exists because…", options: ["We're lazy", "Under-claiming and being trusted beats over-claiming and getting caught", "It's required by law to say 'estimated'"], correct: 1 },
@@ -551,7 +553,7 @@ export const MODULES: Module[] = [
       { h: "Why a small detail is never small", p: "A wiped counter, a settled pour, a disclosed allergen, the same recipe at every cart — guests can rarely name why we feel premium, but they feel it, and they come back for it. The details aren't decoration; they ARE the product. Skip one and you've quietly handed the guest a different, worse brand." },
       { h: "The bar we hold", p: "The whole Academy is built around one test: 'With no owner standing here, would you make the same call?' Everything you learn is to close that gap — so the experience is identical whether an owner is standing next to you or a thousand miles away." },
     ],
-    founderInsight: "I'm not precious about details to be difficult. I'm precise because consistency is the only thing that earns trust at scale — and trust is the entire business.",
+    founderInsight: "We're not precious about details to be difficult. We're precise because consistency is the only thing that earns trust at scale — and trust is the entire business.",
     quiz: [
       { q: "GT3 exists to be…", options: ["The cheapest option", "The most trusted — clean, honest beverages", "The loudest brand at the event"], correct: 1 },
       { q: "A 'small' detail like a wiped counter is…", options: ["Optional when busy", "Part of the product — guests feel it", "Only for inspections"], correct: 1 },
@@ -620,7 +622,7 @@ export const MODULES: Module[] = [
       { h: "Permits, COI & inspections", p: "Bigger activations need the right permits and a Certificate of Insurance naming the venue. Keep them with the rig. If a health inspector shows up, be calm, clean, and honest — a crew that follows these rules has nothing to fear from an inspection." },
     ],
     mistakes: ["Letting cold product drift above 40°F because the ice ran low", "Treating hand sanitizer as a substitute for handwashing", "Serving past the hold window because it 'looks fine'", "Skipping temp logs when it's busy — that's exactly when it matters"],
-    founderInsight: "Hospitality and craft are how we win. Food safety is how we don't lose everything. I will back you 100% for dumping product to stay safe — never the other way.",
+    founderInsight: "Hospitality and craft are how we win. Food safety is how we don't lose everything. GT3 will back you 100% for dumping product to stay safe — never the other way.",
     scenarios: [
       { situation: "Cooler ice melted, cold brew is creeping warm mid-event", doThis: "Get it back under 40°F immediately (fresh ice/packs). If it sat warm too long, pull and discard that product — don't serve it. Fix the cold chain before reopening that station." },
       { situation: "You're slammed and tempted to skip the temp check", doThis: "Do it anyway — 10 seconds. The one time you skip is the time something's wrong. Safety steps are load-bearing exactly when it's busy." },
@@ -712,7 +714,7 @@ export const MODULES: Module[] = [
       { h: "Accountability without fear", p: "People hold a standard when they understand it and feel safe surfacing mistakes. Punishing honesty teaches people to hide problems. Make it safe to say 'I messed up' — then the incident becomes a lesson the whole team gets, which is how the bar rises." },
     ],
     mistakes: ["Handing someone a manual instead of apprenticing them", "Vague feedback ('be better') instead of specific + the why + the fix", "Correcting the person instead of the action", "Punishing honesty, so mistakes get hidden"],
-    founderInsight: "My job was never to be the best on the cart. It was to make ten people who hold the standard like it's theirs. That's the only version of GT3 that outlives me.",
+    founderInsight: "The job was never for the owners to be the best on the cart. It was to make ten people who hold the standard like it's theirs. That's the only version of GT3 that outlives the people who started it.",
     scenarios: [
       { situation: "New hire keeps sending pours out before they settle", doThis: "Specific + why + fix, kindly: 'Hey — let that nitro settle a few more seconds before it goes out; the cascade is half the product. Watch this one with me.' Then watch their next." },
       { situation: "Someone admits they poured a bad batch", doThis: "Reward the honesty: 'Good catch telling me — what happened, and what'll you change?' Make it a lesson, not a punishment, so they keep surfacing problems." },
@@ -753,7 +755,7 @@ export interface Product {
   key: string; name: string; line: string; price?: string;
   what: string; why: string; ingredients: string[]; benefits: string[];
   customer: string; talking: string[]; faqs: { q: string; a: string }[];
-  // Three voices to explain it — match the guest: Simple (rushed), GT3 (curious), Founder (the deeper why).
+  // Three voices to explain it — match the guest: Simple (rushed), GT3 (curious), Founders (the deeper why).
   voices?: { simple: string; gt3: string; founder: string };
   cookbook?: { batch?: string; brew?: string[]; serve?: string[]; storage?: string; quality?: string; troubleshoot?: { issue: string; fix: string }[] };
 }
@@ -793,7 +795,7 @@ export const PRODUCTS: Product[] = [
     voices: {
       simple: "Cold-brew with real cacao nibs infused in. Rich, smooth, no added sugar.",
       gt3: "Flow takes the same cold-extracted base as Rise and infuses whole organic cacao nibs — so you get a richer, longer-feeling cup without a sweetened chocolate syrup. Same caffeine as the rest of the line.",
-      founder: "Flow is the deep-work bottle. The cacao note isn't dessert — it's whole nibs steeped into the brew, the bitterness reading as depth instead of sugar. It's the same coffee as Rise; the difference is the ride. When someone's locking in for hours, this is the one I point them to.",
+      founder: "Flow is the deep-work bottle. The cacao note isn't dessert — it's whole nibs steeped into the brew, the bitterness reading as depth instead of sugar. It's the same coffee as Rise; the difference is the ride. When someone's locking in for hours, this is the one to point them to.",
     },
     cookbook: { batch: "Standard Batch — GT3 with cacao-nib infusion.", brew: ["Brew base to spec", "Infuse organic cacao nibs", "Filter and log batch"], serve: ["Pour over ice in glass"], storage: "Keep cold; standard hold window.", quality: "Signal Score 8+; cacao aroma present, not muddy.", troubleshoot: [{ issue: "Muddy/silty", fix: "Improve filtration after nib infusion." }] },
   },
@@ -812,7 +814,7 @@ export const PRODUCTS: Product[] = [
     voices: {
       simple: "Cold-brew with Ceylon cinnamon and cardamom. Warm and spiced, no sugar. Same caffeine as the others.",
       gt3: "Dusk is the same clean cold-brew base spiced with Ceylon cinnamon and green cardamom. It reads warm and cozy for the back half of the day — but it's not a decaf or wind-down; the lift is identical to Rise and Flow.",
-      founder: "People assume 'evening spice' means less caffeine — it doesn't, and that's the one thing I'll always correct. Dusk is the same coffee, same lift, just dressed in baking spice instead of cacao. The cinnamon and cardamom are real, infused, never gritty. It's comfort without a single gram of added sugar.",
+      founder: "People assume 'evening spice' means less caffeine — it doesn't, and that's the one thing we'll always correct. Dusk is the same coffee, same lift, just dressed in baking spice instead of cacao. The cinnamon and cardamom are real, infused, never gritty. It's comfort without a single gram of added sugar.",
     },
     cookbook: { batch: "Standard Batch — GT3 with cinnamon + cardamom.", brew: ["Brew base to spec", "Add Ceylon cinnamon + green cardamom", "Filter and log batch"], serve: ["Pour over ice; garnish per spec"], storage: "Keep cold; standard hold window.", quality: "Spice aromatic, balanced — not gritty.", troubleshoot: [{ issue: "Gritty", fix: "Use infusion, not loose ground spice in the bottle." }] },
   },
@@ -831,7 +833,7 @@ export const PRODUCTS: Product[] = [
     voices: {
       simple: "Coconut and mineral water with a little organic maple and sea salt. Clean hydration, no powder.",
       gt3: "Nature's Aide is our light hydration — coconut water and mineral water with organic maple syrup and a pinch of sea salt. The maple and salt balance each other; it's real ingredients, not a powdered sports drink.",
-      founder: "Hydration doesn't need a lab. Coconut and mineral water carry what the body's after, organic maple gives it just enough, and sea salt rounds it out. The maple is the sweetener and I'll always name it — we disclose, we never hide behind 'no added sugar.' Simple, real, and it goes down easy in the middle of the work.",
+      founder: "Hydration doesn't need a lab. Coconut and mineral water carry what the body's after, organic maple gives it just enough, and sea salt rounds it out. The maple is the sweetener and we always name it — we disclose, we never hide behind 'no added sugar.' Simple, real, and it goes down easy in the middle of the work.",
     },
     cookbook: { batch: "Mix to order (no long batch).", brew: ["Combine coconut water + mineral water", "Add organic maple syrup + sea salt to spec", "Stir until fully dissolved"], serve: ["Serve cold, in glass"], storage: "Make to order; keep cold.", quality: "Balanced sweet-and-salt, never cloying.", troubleshoot: [{ issue: "Too sweet", fix: "Reduce maple to spec." }, { issue: "Tastes flat", fix: "A pinch more sea salt lifts it." }] },
   },
@@ -850,7 +852,7 @@ export const PRODUCTS: Product[] = [
     voices: {
       simple: "Fresh-blended coconut water and coconut meat with a touch of local honey. Real hydration, no powder.",
       gt3: "Tide is whole-coconut hydration — young coconut water blended with young organic Thai coconut meat and finished with organic local honey. Blended to order from real coconut, not mixed from a powder or concentrate.",
-      founder: "Tide is the whole coconut, not an electrolyte isolate — the water and the meat blended together, the way the body actually wants it. The honey is local and it's the one sweetener; I'll always name it, allergen and all. We disclose, we never hide behind 'no added sugar.'",
+      founder: "Tide is the whole coconut, not an electrolyte isolate — the water and the meat blended together, the way the body actually wants it. The honey is local and it's the one sweetener; we always name it, allergen and all. We disclose, we never hide behind 'no added sugar.'",
     },
     cookbook: { batch: "Blend to order (no long batch).", brew: ["Combine young coconut water + young organic Thai coconut meat", "Add measured organic local honey per spec", "Blend until smooth"], serve: ["Serve cold, in glass, immediately"], storage: "Make to order; do not hold blended.", quality: "Smooth, no separation at serve.", troubleshoot: [{ issue: "Too sweet", fix: "Reduce honey to spec; honey is the only added sweetener." }, { issue: "Separating", fix: "Serve immediately after blend." }] },
   },
@@ -887,7 +889,7 @@ export const PRODUCTS: Product[] = [
     voices: {
       simple: "The base for everything — single-origin coffee drawn cold over ~18 hours. Smoother and less bitter than hot.",
       gt3: "Cold extraction is the foundation of the whole Activation line: single-origin beans at 1:13 to mineral water, drawn cold over ~18 hours, then filtered. Heat rips bitterness out in minutes; cold draws the coffee gently, so what's left is round and smooth — extracted, not sweetened.",
-      founder: "We built the entire base on cold extraction for one reason: when you taste the difference, you stop needing me to sell it. One great base under Rise, Flow, Dusk and Nitro means the cup is the same in every city. That's not a shortcut — it's the whole point.",
+      founder: "We built the entire base on cold extraction for one reason: when you taste the difference, you stop needing anyone to sell it. One great base under Rise, Flow, Dusk and Nitro means the cup is the same in every city. That's not a shortcut — it's the whole point.",
     },
     cookbook: { batch: "Standard Batch — GT3: 1:13 beans to mineral water, ~18-hr extraction.", brew: ["Weigh to 1:13", "Cold-extract ~18 hrs", "Filter; log batch + signal score"], serve: ["Use as the base for Rise/Flow/Dusk/Nitro"], storage: "Keep cold; honor the hold window.", quality: "Signal Score 8+; smoothness is the watch metric.", troubleshoot: [{ issue: "Low smoothness signal", fix: "Adjust grind/time toward spec; re-profile." }] },
   },
@@ -923,7 +925,7 @@ export const PRODUCTS: Product[] = [
     voices: {
       simple: "Slow-simmered bone broth from pasture-raised bones. Warm, savory, real — sip it like a drink.",
       gt3: "Bone Broth is slow-simmered for hours from pasture-raised bones (beef, bison, or ostrich), strained and seasoned — no bouillon, no additives. Served hot as a savory, protein-forward option for the rebuild after the work.",
-      founder: "Broth is the oldest 'functional' food there is, and it needs no marketing — just hours on the stove and real bones. We call it warm, savory fuel and stop there; I won't promise your joints anything. The honesty is the product.",
+      founder: "Broth is the oldest 'functional' food there is, and it needs no marketing — just hours on the stove and real bones. We call it warm, savory fuel and stop there; we won't promise your joints anything. The honesty is the product.",
     },
     cookbook: { batch: "Slow-simmer batch per broth spec.", brew: ["Simmer pasture-raised bones for hours per spec", "Strain, season to spec", "Cool and hold safely"], serve: ["Serve hot in cup", "Hold hot at safe temp"], storage: "Hold hot; discard outside safe hold window.", quality: "Clear, rich, well-seasoned; no off-notes.", troubleshoot: [{ issue: "Greasy", fix: "Skim fat; strain again." }, { issue: "Flat", fix: "Season to spec; check simmer time." }] },
   },

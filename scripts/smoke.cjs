@@ -986,6 +986,30 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 
   const none = new Set();
   const op = A.pathProgress("operator", none);
+  // ── the house voice is plural ────────────────────────────────────────────────────────────────
+  // GT3 is owner-operated by two people, but every founder note used to be written in ONE person's
+  // first person — "I don't need clones", "you don't need me in the room", "that's the only version
+  // of GT3 that outlives me". Read together they describe a company with a single operator, which
+  // is the opposite of what the crew, the roster and the market leads are all for. The copy is the
+  // owners' voice now, and this keeps it there: whoever writes the next module trips here rather
+  // than in front of somebody being trained.
+  // Case-insensitive on purpose. The first version of this check was /\b(I|me|my|mine)\b/ and it
+  // missed "My job was never to be the best on the cart" — a sentence this very commit rewrote —
+  // because the pronoun was capitalised at the head of a sentence. A guard that cannot catch the
+  // thing it was written for is worse than none: it reports green and nobody looks again.
+  const singularVoice = /\b(i|me|my|mine)\b/i;
+  const singularNotes = A.MODULES
+    .filter((m) => m.founderInsight && singularVoice.test(m.founderInsight))
+    .map((m) => m.slug);
+  ok("academy: no founders' note speaks as a single operator", singularNotes.length === 0, singularNotes);
+  const singularProducts = A.PRODUCTS
+    .filter((p) => p.voices && singularVoice.test(p.voices.founder))
+    .map((p) => p.key);
+  ok("academy: and neither does a product's founders' voice", singularProducts.length === 0, singularProducts);
+  ok("academy: the notes are still there to be checked",
+    A.MODULES.filter((m) => m.founderInsight).length >= 25,
+    A.MODULES.filter((m) => m.founderInsight).length);
+
   ok("academy: an operator's path is the union of its certs' modules",
     op.certsTotal === 8 && op.modulesTotal > 0, `${op.certsEarned}/${op.certsTotal}, ${op.modulesTotal} modules`);
   ok("academy: nothing done reads as nothing done, not as complete",

@@ -344,7 +344,7 @@ function ModuleReader({ m, done, onBack, onComplete }: { m: Module; done: boolea
               <div key={i} className="ac-scn-row"><div className="ac-scn-s">{s.situation}</div><div className="ac-scn-d"><Icon name="arrowRight" /> {s.doThis}</div></div>
             ))}</div>
           )}
-          {m.founderInsight && <div className="ac-founder"><span className="ac-founder-k">Founder’s note</span><p>“{m.founderInsight}”</p></div>}
+          {m.founderInsight && <div className="ac-founder"><span className="ac-founder-k">Founders’ note</span><p>“{m.founderInsight}”</p></div>}
           {m.quiz && m.quiz.length > 0 ? (
             <button className="handle" onClick={() => setQuiz(true)}>{done ? "Retake knowledge check" : "Take the knowledge check"}</button>
           ) : (
@@ -448,7 +448,7 @@ function ProductDetail({ p, onBack }: { p: Product; onBack: () => void }) {
           <div className="ac-voices">
             <div className="ac-voice"><span className="ac-voice-tag">Simple</span><p>{p.voices.simple}</p></div>
             <div className="ac-voice"><span className="ac-voice-tag gt3">GT3</span><p>{p.voices.gt3}</p></div>
-            <div className="ac-voice"><span className="ac-voice-tag founder">Founder</span><p>{p.voices.founder}</p></div>
+            <div className="ac-voice"><span className="ac-voice-tag founder">Founders</span><p>{p.voices.founder}</p></div>
           </div>
         </>
       )}

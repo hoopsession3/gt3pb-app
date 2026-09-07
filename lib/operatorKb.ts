@@ -32,14 +32,14 @@ export function academyKnowledge(): string {
     const recipe = cb
       ? `\n  RECIPE — batch: ${cb.batch ?? "—"} | brew: ${(cb.brew ?? []).join(" → ") || "—"} | serve: ${(cb.serve ?? []).join(" → ") || "—"} | storage: ${cb.storage ?? "—"} | quality: ${cb.quality ?? "—"}${cb.troubleshoot?.length ? ` | troubleshoot: ${cb.troubleshoot.map((t) => `${t.issue} → ${t.fix}`).join("; ")}` : ""}`
       : "";
-    const voices = p.voices ? `\n  Voices — Simple: ${p.voices.simple} | GT3: ${p.voices.gt3} | Founder: ${p.voices.founder}` : "";
+    const voices = p.voices ? `\n  Voices — Simple: ${p.voices.simple} | GT3: ${p.voices.gt3} | Founders: ${p.voices.founder}` : "";
     return `## ${p.name} (${p.line}${p.price ? `, ${p.price}` : ""})\n  What: ${p.what}\n  Why: ${p.why}\n  Ingredients: ${p.ingredients.join(", ")}\n  Benefits: ${p.benefits.join(", ")}\n  Talking points: ${p.talking.join(" | ")}${voices}\n  FAQs: ${p.faqs.map((f) => `${f.q} — ${f.a}`).join(" | ")}${recipe}`;
   }).join("\n\n");
 
   const mods = MODULES.map((m) => {
     const why = m.whyItMatters ? `\n  WHY IT MATTERS: ${m.whyItMatters}` : "";
     const mist = m.mistakes?.length ? `\n  COMMON MISTAKES: ${m.mistakes.join("; ")}` : "";
-    const ins = m.founderInsight ? `\n  FOUNDER: ${m.founderInsight}` : "";
+    const ins = m.founderInsight ? `\n  FOUNDERS: ${m.founderInsight}` : "";
     const scn = m.scenarios?.length ? `\n  SCENARIOS: ${m.scenarios.map((s) => `${s.situation} → ${s.doThis}`).join(" | ")}` : "";
     return `## ${m.title}  [${m.section}]\n${m.summary}${why}\n${m.body.map((b) => `  • ${b.h}: ${b.p}`).join("\n")}${mist}${scn}${ins}`;
   }).join("\n\n");
