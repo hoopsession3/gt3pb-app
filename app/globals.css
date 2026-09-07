@@ -4376,7 +4376,8 @@ body:has(.conc-sheet) .rail{display:flex}
   -webkit-appearance:none;appearance:none}
 .tm-hire-row b{font-family:'Inter';font-size:13.5px;color:var(--cream)}
 .tm-hire-row i{font-style:normal;font-family:'Inter';font-size:11.5px;color:var(--cream-m)}
-.tm-hire-row.on{border-color:var(--gold2);background:color-mix(in srgb, var(--gold2) 12%, transparent)}
+/* .tm-hire-row.on is gone: a row can no longer BE the selected one, because selecting collapses the
+   list into .tm-hire-chosen below. Its gold border and tint moved there. */
 .tm-hire-form{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;
   border-top:1px solid var(--line2);padding-top:11px}
 .tm-hire-form label{display:flex;flex-direction:column;gap:4px;font-family:'Inter';font-size:11px;
@@ -4386,6 +4387,19 @@ body:has(.conc-sheet) .rail{display:flex}
 .tm-hire-form .adm-check{flex-direction:row;align-items:center;gap:6px;text-transform:none;
   letter-spacing:0;font-size:12.5px}
 .tm-hire-form .adm-btn{margin-left:auto}
+/* The picker collapsed to its answer. A 260px scrolling list of fourteen people is the right
+   control for choosing one and the wrong control for showing which one was chosen — arriving from
+   a customer card put the selected row below that list's own fold, so the panel read as empty.
+   Same visual language as .tm-hire-row.on, so it is recognisably the row that was picked. */
+.tm-hire-chosen{display:flex;align-items:center;gap:12px;
+  border:1px solid var(--gold2);border-radius:10px;padding:9px 12px;
+  background:color-mix(in srgb, var(--gold2) 12%, transparent)}
+.tm-hire-chosen span{display:flex;flex-direction:column;gap:2px;min-width:0}
+.tm-hire-chosen b{font-family:'Inter';font-size:13.5px;color:var(--cream)}
+.tm-hire-chosen i{font-style:normal;font-family:'Inter';font-size:11.5px;color:var(--cream-m);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tm-hire-chosen .note-arch{margin-left:auto;flex:none;min-height:44px;padding:0 4px}
+.tm-hire-next{margin:0;font-family:'Inter';font-size:11.5px;line-height:1.45;color:var(--cream-m)}
 
 /* order-history search box */
 .adm-search{width:100%;background:rgba(0,0,0,.28);border:1.5px solid var(--hair,color-mix(in srgb, var(--brand-cream) 14%, transparent));border-radius:12px;padding:11px 14px;color:var(--cream,#F5F1E8);font-size:14px;font-family:'Inter',sans-serif;margin:2px 0 12px}

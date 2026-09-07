@@ -4681,10 +4681,26 @@ function PromotePanel({ onDone }: { onDone: () => void }) {
     || (r.customer_name ?? "").toLowerCase().includes(ql)
     || (r.email ?? "").toLowerCase().includes(ql));
 
+  // A PICKER STOPS BEING A PICKER ONCE SOMETHING IS PICKED.
+  //
+  // Landing the scroll fixed the panel and exposed the same fault one level down: the list is
+  // 260px of its own scroll over fourteen people, so arriving from Niño's card put his row —
+  // selected, highlighted, correct — at y=606 inside a list that clips at 573. The panel was on
+  // screen saying "Bring someone onto the crew" over five names that were not him. Everything
+  // worked; nothing said so.
+  //
+  // Scrolling the inner list too would have been the third patch to the same idea. The list exists
+  // to answer one question, and once the question is answered it is fourteen wrong answers taking
+  // up 260px. So it collapses to the answer, and every label that said "someone" now says who.
+  const picked = pick ? rows.find((r) => r.id === pick) ?? null : null;
+  const pickedName = picked ? (picked.display_name || picked.customer_name || "this person") : null;
+  const pickedFirst = pickedName ? pickedName.split(" ")[0] : null;
+
   return (
     <div className="tm-hire" ref={boxRef}>
       <button type="button" className="tm-hire-open" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        Bring someone onto the crew <span className={`ev-chev${open ? " open" : ""}`} aria-hidden="true">›</span>
+        {pickedName ? `Bring ${pickedName} onto the crew` : "Bring someone onto the crew"}
+        <span className={`ev-chev${open ? " open" : ""}`} aria-hidden="true">›</span>
       </button>
       {open && (
         <div className="tm-hire-body">
@@ -4713,44 +4729,63 @@ function PromotePanel({ onDone }: { onDone: () => void }) {
           {!loading && rows.length === 0 && <div className="h-sub">Nobody to bring in — every account is already on the crew.</div>}
           {!loading && rows.length > 0 && (
             <>
-              {rows.length > 5 && (
-                <input className="auth-input" placeholder="Search name or email" aria-label="Search people"
-                       value={q} onChange={(e) => setQ(e.target.value)} />
-              )}
-              <div className="tm-hire-list">
-                {shown.map((r) => (
-                  <button key={r.id} type="button"
-                          className={`tm-hire-row${pick === r.id ? " on" : ""}`}
-                          onClick={() => setPick(pick === r.id ? null : r.id)}>
-                    <b>{r.display_name || r.customer_name || "Unnamed"}</b>
-                    <i>{r.email || "no email on file"}</i>
-                  </button>
-                ))}
-                {shown.length === 0 && <div className="h-sub">No match for &ldquo;{q}&rdquo;.</div>}
-              </div>
-              {pick && (
-                <div className="tm-hire-form">
-                  <label>Role
-                    <select value={role} onChange={(e) => setRole(e.target.value)}>
-                      {HIRE_ROLES.map((r) => <option key={r} value={r}>{ROLE_META[r].label}</option>)}
-                    </select>
-                  </label>
-                  <label>City
-                    <select value={market} onChange={(e) => setMarket(e.target.value)}>
-                      {markets.map((m) => <option key={m.slug} value={m.slug}>{m.name || m.slug}</option>)}
-                    </select>
-                  </label>
-                  {/* Leading a market requires operator or above — the same rule set_market_lead enforces. */}
-                  <label className="adm-check">
-                    <input type="checkbox" checked={lead}
-                           disabled={!["operator", "event_manager"].includes(role)}
-                           onChange={(e) => setLead(e.target.checked)} />
-                    Leads this city
-                  </label>
-                  <button className="adm-btn primary" onClick={promote} disabled={busy}>
-                    {busy ? "…" : "Bring on"}
-                  </button>
+              {picked ? (
+                <div className="tm-hire-chosen">
+                  <span>
+                    <b>{pickedName}</b>
+                    <i>{picked.email || "no email on file"}</i>
+                  </span>
+                  <button type="button" className="note-arch"
+                          onClick={() => { setPick(null); setQ(""); }}>Someone else</button>
                 </div>
+              ) : (
+                <>
+                  {rows.length > 5 && (
+                    <input className="auth-input" placeholder="Search name or email" aria-label="Search people"
+                           value={q} onChange={(e) => setQ(e.target.value)} />
+                  )}
+                  <div className="tm-hire-list">
+                    {shown.map((r) => (
+                      <button key={r.id} type="button" className="tm-hire-row"
+                              onClick={() => setPick(r.id)}>
+                        <b>{r.display_name || r.customer_name || "Unnamed"}</b>
+                        <i>{r.email || "no email on file"}</i>
+                      </button>
+                    ))}
+                    {shown.length === 0 && <div className="h-sub">No match for &ldquo;{q}&rdquo;.</div>}
+                  </div>
+                </>
+              )}
+              {picked && (
+                <>
+                  <div className="tm-hire-form">
+                    <label>Role
+                      <select value={role} onChange={(e) => setRole(e.target.value)}>
+                        {HIRE_ROLES.map((r) => <option key={r} value={r}>{ROLE_META[r].label}</option>)}
+                      </select>
+                    </label>
+                    <label>City
+                      <select value={market} onChange={(e) => setMarket(e.target.value)}>
+                        {markets.map((m) => <option key={m.slug} value={m.slug}>{m.name || m.slug}</option>)}
+                      </select>
+                    </label>
+                    {/* Leading a market requires operator or above — the same rule set_market_lead enforces. */}
+                    <label className="adm-check">
+                      <input type="checkbox" checked={lead}
+                             disabled={!["operator", "event_manager"].includes(role)}
+                             onChange={(e) => setLead(e.target.checked)} />
+                      Leads this city
+                    </label>
+                    <button className="adm-btn primary" onClick={promote} disabled={busy}>
+                      {busy ? "…" : `Bring ${pickedFirst} on`}
+                    </button>
+                  </div>
+                  {/* Ryan asked what pressing this actually starts. Say it before the press, not only
+                      after: the same two steps the tm-hired block then links to. */}
+                  <p className="tm-hire-next">
+                    Sets their role and city now. Their offer letter and Academy path come next.
+                  </p>
+                </>
               )}
             </>
           )}
