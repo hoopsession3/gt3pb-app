@@ -7403,3 +7403,12 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
   .lst-label{grid-column:1/-1}
   .lst-live{grid-column:1/-1;justify-content:center}
 }
+
+/* After a promotion: what actually happens next. A role change is the paperwork, not the event —
+   the offer letter and the Academy path are the real steps, and both already exist elsewhere in
+   the console. Bordered in gold rather than red: this is a completion, not a warning. */
+.tm-hired{border:1px solid var(--gold2);border-radius:10px;padding:12px 13px;margin-bottom:10px;
+  font-family:'Inter';font-size:13.5px;line-height:1.5;color:var(--cream)}
+.tm-hired b{color:var(--gold2)}
+.tm-hired-next{display:flex;flex-direction:column;gap:2px;margin-top:9px}
+.tm-hired-next a{text-decoration:none;min-height:44px}

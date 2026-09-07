@@ -4561,6 +4561,11 @@ function PromotePanel({ onDone }: { onDone: () => void }) {
   const [markets, setMarkets] = useState<{ slug: string; name: string }[]>([]);
   const [busy, setBusy] = useState(false);
   const wantedRef = useRef<string | null>(null);
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  // What the promotion actually STARTED, kept after the form clears. Setting a role is the
+  // paperwork, not the event: the next real steps are the offer letter and their Academy path, and
+  // ending on a toast left the person who just hired someone with nowhere to go.
+  const [justHired, setJustHired] = useState<{ name: string; role: string; market: string; lead: boolean } | null>(null);
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -4604,6 +4609,11 @@ function PromotePanel({ onDone }: { onDone: () => void }) {
     consumedPromoteRef.current = true;
     wantedRef.current = w;
     setOpen(true);
+    // OPEN IS NOT THE SAME AS VISIBLE. This panel sits below the stat tiles, the utilization list
+    // and the invite form — roughly two screens down on a phone. Arriving from a customer card set
+    // open=true and left the person looking at the top of the Team screen, where nothing had
+    // apparently happened. Scroll to it once it has rendered.
+    setTimeout(() => { try { boxRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }); } catch { /* ignore */ } }, 120);
     try {
       const u = new URL(window.location.href);
       u.searchParams.delete("promote");
@@ -4623,6 +4633,7 @@ function PromotePanel({ onDone }: { onDone: () => void }) {
     setBusy(false);
     if (error) { toast(`Error: ${error.message}`); return; }
     toast(`${name} → ${ROLE_META[role as RoleKey].label}${lead ? ` · leads ${market}` : ""}`);
+    setJustHired({ name, role: ROLE_META[role as RoleKey].label, market, lead });
     setPick(null); setLead(false);
     load();
     onDone();
@@ -4635,12 +4646,33 @@ function PromotePanel({ onDone }: { onDone: () => void }) {
     || (r.email ?? "").toLowerCase().includes(ql));
 
   return (
-    <div className="tm-hire">
+    <div className="tm-hire" ref={boxRef}>
       <button type="button" className="tm-hire-open" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
         Bring someone onto the crew <span className={`ev-chev${open ? " open" : ""}`} aria-hidden="true">›</span>
       </button>
       {open && (
         <div className="tm-hire-body">
+          {/* A ROLE CHANGE IS NOT A HIRE. promote_to_crew sets role, market and lead in one
+              transaction and that is genuinely all it should do — but it is the START of hiring
+              someone, not the end, and finishing on a toast left the owner who just did it with
+              nowhere to go. These are the two things that actually happen next, and both already
+              exist: the offer letter (0281/0286, with the statutory terms) and their Academy path
+              for the role they now hold. */}
+          {justHired && (
+            <div className="tm-hired">
+              <b>{justHired.name} is on the crew.</b> {justHired.role}
+              {justHired.market ? ` · ${justHired.market}` : ""}{justHired.lead ? " · leads the market" : ""}.
+              <div className="tm-hired-next">
+                <a className="tm-hire-open" href="/crew?s=money&a=offers">
+                  Draft their offer letter <span className="ev-chev" aria-hidden="true">›</span>
+                </a>
+                <a className="tm-hire-open" href="/academy">
+                  Their Academy path is live — see what {justHired.name.split(" ")[0]} has to complete <span className="ev-chev" aria-hidden="true">›</span>
+                </a>
+              </div>
+              <button type="button" className="note-arch" style={{ marginTop: 8 }} onClick={() => setJustHired(null)}>Bring in someone else</button>
+            </div>
+          )}
           {loading && <div className="h-sub">Loading…</div>}
           {!loading && rows.length === 0 && <div className="h-sub">Nobody to bring in — every account is already on the crew.</div>}
           {!loading && rows.length > 0 && (

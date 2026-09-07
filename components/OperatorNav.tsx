@@ -57,7 +57,17 @@ export function OperatorSectionProvider({ children }: { children: React.ReactNod
       // replaceState (not push): we're labelling the entry we're already on, not adding one.
       if (window.location.pathname.startsWith("/crew")) {
         const cur = resolved ?? sectionRef.current;
-        if (new URL(window.location.href).searchParams.get("s") !== cur) window.history.replaceState({ gt3s: cur }, "", `/crew?s=${cur}`);
+        const u = new URL(window.location.href);
+        if (u.searchParams.get("s") !== cur) {
+          // KEEP EVERY OTHER PARAM. This used to write the literal `/crew?s=${cur}`, which is not a
+          // normalisation — it is a new URL with one parameter in it, and everything else on the
+          // way in was dropped before any component could read it. That silently killed the
+          // customer card's "Bring X onto the crew" link (?s=team&promote=<id>): the section landed,
+          // the id did not, and the roster opened having been told nothing. The ?a= anchor links
+          // survived only by timing. Mutate the URL instead of rebuilding it.
+          u.searchParams.set("s", cur);
+          window.history.replaceState({ gt3s: cur }, "", u.pathname + u.search);
+        }
       }
     } catch { /* ignore */ }
     // Back/forward (button or swipe): read the section out of the URL and apply it.
@@ -78,7 +88,12 @@ export function OperatorSectionProvider({ children }: { children: React.ReactNod
     apply(s);
     try {
       if (window.location.pathname.startsWith("/crew")) {
-        window.history.pushState({ gt3s: s }, "", `/crew?s=${s}`);
+        // Same rule as the hydrate above: navigating a section must not discard whatever else the
+        // URL is carrying. A deep-link parameter that survives arrival and then dies on the first
+        // tab tap is arguably worse than one that never arrived.
+        const u = new URL(window.location.href);
+        u.searchParams.set("s", s);
+        window.history.pushState({ gt3s: s }, "", u.pathname + u.search);
         depthRef.current += 1; setDepth(depthRef.current);
       }
     } catch { /* ignore */ }
