@@ -22,6 +22,8 @@ import AsyncSection from "@/components/AsyncSection";
 import EmptyState from "@/components/EmptyState";
 import { useOperatorSection, sectionsForRole, streamGroups, SECTION_LABEL, TODAY_GROUP, VALID as VALID_SECTIONS, type OpSection } from "@/components/OperatorNav";
 import { useTaskSheet } from "@/components/TaskSheet";
+import { useRecord } from "@/components/RecordSheet";
+import { recordForAlert } from "@/lib/records";
 import GtmCard from "@/components/GtmCard";
 import { CrumbProvider, Breadcrumbs, useCrumb } from "@/components/Crumbs";
 import { recordRecent } from "@/components/recents";
@@ -119,6 +121,7 @@ const ShootPlanner = dynamic(() => import("@/components/ShootPlanner"), { loadin
 const MenuManager = dynamic(() => import("@/components/MenuManager"), { loading: () => <PourFill label="Loading…" /> });
 const LessonsManager = dynamic(() => import("@/components/LessonsManager"), { loading: () => <PourFill label="Loading…" /> });
 const MerchManager = dynamic(() => import("@/components/MerchManager"), { loading: () => <PourFill label="Loading…" /> });
+const ShopOrders = dynamic(() => import("@/components/ShopOrders"), { loading: () => <PourFill label="Loading…" /> });
 const OperatorDeal = dynamic(() => import("@/components/OperatorDeal"), { loading: () => <PourFill label="Loading…" /> });
 const OfferLetters = dynamic(() => import("@/components/OfferLetters"), { loading: () => <PourFill label="Loading…" /> });
 const PaymentSettings = dynamic(() => import("@/components/PaymentSettings"), { loading: () => <PourFill label="Loading…" /> });
@@ -686,7 +689,13 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
   // to the screen that owns it.
   const [dropSheet, setDropSheet] = useState(false);
   const [reviewPost, setReviewPost] = useState<{ id: string; alert: MyFlag } | null>(null);
+  const { openRecord } = useRecord();
   const gotoAlert = (a: MyFlag) => {
+    // An alert that names a ROW opens that row. The 0174 contract has carried subject_id since
+    // before anything could open one, so every shop-order ping has known exactly which order it
+    // meant and still landed people at the top of this page. (0313)
+    const rec = recordForAlert(a.kind, a.subject_id);
+    if (rec) { openRecord(rec.kind, rec.id); onNavigate?.(); return; }
     if (alertIsReservation(a.title)) { setDropSheet(true); return; }
     if (alertIsContentReview(a.title)) {
       const pid = postIdFromLink(a.link);
@@ -6652,6 +6661,9 @@ export default function AdminPage() {
           <div className="crew-group">Records</div>
           <Panel id="resv" title="Reserve drops"><ReservesAdmin /></Panel>
           <Panel id="orders" title="Order history"><OrdersHistory /></Panel>
+          {/* The storefront queue. Lives here rather than under Catalog & pricing with the
+              merch manager: a paid order is a record with a person attached, not a product. */}
+          <Panel id="shoporders" title="The Shop · orders" defaultOpen><ShopOrders /></Panel>
         </>
       )}
 

@@ -19,12 +19,16 @@
 // Adding a kind is two lines here plus one detail component. That is the point: the next entity
 // should not need another architecture conversation.
 
-export const RECORD_KINDS = ["person", "customer"] as const;
+export const RECORD_KINDS = ["person", "customer", "shop_order"] as const;
 export type RecordKind = (typeof RECORD_KINDS)[number];
 
 export const RECORD_LABEL: Record<RecordKind, string> = {
   person: "Crew member",
   customer: "Customer",
+  // Added second, and it took two lines here plus one component — which was the claim this file
+  // made when it was written. shop_orders was the entity with no interface AT ALL: a customer could
+  // pay and nobody on the crew could look at the order.
+  shop_order: "Shop order",
 };
 
 export const isRecordKind = (v: unknown): v is RecordKind =>
@@ -34,6 +38,33 @@ export type RecordRef = { kind: RecordKind; id: string };
 
 /** The URL form: ?r=customer:9f3a…  One param, readable, and safe to paste into a message. */
 export const recordParam = (r: RecordRef): string => `${r.kind}:${r.id}`;
+
+/**
+ * WHICH ALERTS NAME A RECORD.
+ *
+ * The 0174 alert contract has carried `subject_id` — the row an alert is about — since long before
+ * anything could open a row. So an alert already knew exactly which order it meant, and "Open →"
+ * dropped you at /crew: the top of a six-thousand-line page. /api/shop/checkout's failure alert
+ * literally reads "It's paid and queued — submit it by hand", naming a queue that did not exist and
+ * pointing nowhere near it.
+ *
+ * A kind in this map means: this alert is ABOUT one record, and Open should show you that record.
+ * Anything not listed keeps the section routing in alertDest, which is right for alerts that are
+ * about a screen rather than a row.
+ */
+export const ALERT_KIND_RECORD: Record<string, RecordKind> = {
+  shop_order_new: "shop_order",
+  fulfillment: "shop_order",
+};
+
+/** The ref an alert points at, or null if it points at a screen instead of a row. */
+export function recordForAlert(kind: string | null | undefined, subjectId: string | null | undefined): RecordRef | null {
+  const k = kind ? ALERT_KIND_RECORD[kind] : undefined;
+  if (!k || !subjectId) return null;
+  // Reuse the same strict parse rather than a second, looser one — an alert with a malformed
+  // subject must fall through to the section route, not open an empty sheet.
+  return parseRecordParam(`${k}:${subjectId}`);
+}
 
 /**
  * Parse the ?r= parameter. Deliberately strict: an unknown kind, a missing id, or anything that is

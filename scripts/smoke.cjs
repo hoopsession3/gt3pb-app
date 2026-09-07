@@ -1285,6 +1285,83 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     R.RECORD_KINDS.every((k) => typeof R.RECORD_LABEL[k] === "string" && R.RECORD_LABEL[k].length > 0));
 }
 
+// ── SHOP ORDER (0313) ────────────────────────────────────────────────────────────────────────────
+// The database enforces which moves are legal; this module decides which ones the screen OFFERS.
+// If the two drift, the screen grows a button that always fails — so the first block reads the
+// transition table OUT OF THE MIGRATION FILE and compares it, rather than trusting my memory of it.
+{
+  const S = require("../.smoke/shopOrder.js");
+  const { readFileSync } = require("node:fs");
+  const { join } = require("node:path");
+  const sql = readFileSync(join(__dirname, "..", "supabase/migrations/0313_a_paid_order_nobody_can_see.sql"), "utf8");
+
+  const block = (sql.match(/legal\s*:=\s*case o\.status([\s\S]*?)end;/) || [])[1] || "";
+  const fromSql = {};
+  for (const m of block.matchAll(/when\s+'([a-z_]+)'\s*then\s*array\[([^\]]*)\]/g)) {
+    fromSql[m[1]] = m[2].split(",").map((s) => s.trim().replace(/^'|'$/g, "")).filter(Boolean).sort();
+  }
+  fromSql.refunded = [];   // the `else array[]::text[]` arm — the only status that falls through it
+  const norm = (a) => JSON.stringify([...a].sort());
+  ok("shopOrder: the migration's transition table was actually found in the file",
+    Object.keys(fromSql).length === 8, Object.keys(fromSql));
+  ok("shopOrder: every move the screen offers is one the database will accept",
+    S.SHOP_STATUSES.every((s) => norm(S.SHOP_FLOW[s]) === norm(fromSql[s] || [])),
+    S.SHOP_STATUSES.filter((s) => norm(S.SHOP_FLOW[s]) !== norm(fromSql[s] || [])));
+
+  ok("shopOrder: a paid order can be sent to the printer or stopped",
+    S.canMove("paid", "submitted") && S.canMove("paid", "canceled"));
+  ok("shopOrder: but cannot skip to delivered", !S.canMove("paid", "delivered"));
+  ok("shopOrder: refunded is the end", S.isTerminal("refunded") && S.nextStatuses("refunded").length === 0);
+  ok("shopOrder: cancelled is NOT the end — the money still has to go back",
+    !S.isTerminal("canceled") && S.nextStatuses("canceled").includes("refunded"));
+  ok("shopOrder: an unknown status offers nothing rather than throwing",
+    S.nextStatuses("wat").length === 0 && S.nextStatuses(null).length === 0 && !S.canMove(null, "shipped"));
+
+  ok("shopOrder: only the 'us' stages are the crew's to act on",
+    S.waitingOn("needs_fulfillment") === "us" && S.waitingOn("submitted") === "printer"
+      && S.waitingOn("shipped") === "carrier" && S.waitingOn("delivered") === "nobody");
+  ok("shopOrder: every status has a label and a plain-words meaning",
+    S.SHOP_STATUSES.every((s) => S.SHOP_STATUS_META[s].label && S.SHOP_STATUS_META[s].means.length > 20));
+  ok("shopOrder: an unknown status still renders something rather than blank",
+    S.statusLabel("weird") === "weird" && S.statusLabel(null) === "Unknown");
+
+  // the money sentence — the one that stops the app writing a cheque Square has to honour
+  ok("shopOrder: refund and cancel both demand a reason", S.needsReason("refunded") && S.needsReason("canceled"));
+  ok("shopOrder: shipping does not", !S.needsReason("shipped"));
+  ok("shopOrder: recording a refund says, in the confirm, that it does not issue one",
+    /does not issue/i.test(S.moveWarning("refunded") || ""));
+  ok("shopOrder: cancelling says it does not return the money either",
+    /does not return the money/i.test(S.moveWarning("canceled") || ""));
+  ok("shopOrder: a routine move carries no warning, so the two that matter still read as warnings",
+    S.moveWarning("delivered") === null && S.moveWarning("in_production") === null);
+
+  ok("shopOrder: money drops the cents when there are none", S.money(4200) === "$42" && S.money(1999) === "$19.99");
+  ok("shopOrder: and says nothing rather than $0 when there is no number",
+    S.money(null) === "—" && S.money(undefined) === "—");
+  ok("shopOrder: margin percent from a known cost", S.marginPct(2300, 4200) === 55);
+  ok("shopOrder: unknown cost in, unknown margin out — never 100%",
+    S.marginPct(null, 4200) === null && S.marginPct(2300, null) === null && S.marginPct(2300, 0) === null);
+
+  ok("shopOrder: an address reads like an envelope",
+    S.shipLine({ street: "1 Peachtree", city: "Atlanta", state: "GA", zip: "30301" }) === "1 Peachtree · Atlanta, GA · 30301");
+  ok("shopOrder: a half-filled address drops the gaps instead of printing them",
+    S.shipLine({ street: "1 Peachtree", zip: "30301" }) === "1 Peachtree · 30301");
+  ok("shopOrder: a missing address is empty, not '[object Object]'",
+    S.shipLine(null) === "" && S.shipLine("nope") === "" && S.shipLine({}) === "");
+
+  ok("shopOrder: age reads the way a person says it",
+    S.ageLabel(0.4) === "just now" && S.ageLabel(6) === "6h" && S.ageLabel(24) === "1 day" && S.ageLabel(73) === "3 days");
+  ok("shopOrder: and says nothing when there is no age", S.ageLabel(null) === "" && S.ageLabel(-1) === "");
+
+  ok("shopOrder: an empty queue says so plainly", S.queueHeadline({ on_us: 0 }) === "Nothing waiting on us.");
+  ok("shopOrder: and so does a missing one — the screen never leads with a fake number",
+    S.queueHeadline(null) === "Nothing waiting on us.");
+  ok("shopOrder: one waiting order is singular",
+    S.queueHeadline({ on_us: 1, oldest_on_us_hours: 30 }) === "1 order is waiting on us — the oldest for 1 day.");
+  ok("shopOrder: several are not",
+    S.queueHeadline({ on_us: 3, oldest_on_us_hours: 5 }) === "3 orders are waiting on us — the oldest for 5h.");
+}
+
 console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
 console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);
 process.exit(fail ? 1 : 0);

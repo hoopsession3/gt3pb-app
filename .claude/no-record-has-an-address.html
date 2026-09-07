@@ -1,0 +1,309 @@
+<title>No Record Has An Address</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --ink:#F7F4EC; --panel:#FFFDF8; --sunk:#F0EBDF;
+    --text:#241F18; --muted:#6E6656; --faint:#8E8574;
+    --gold:#8A6A22; --gold-bg:rgba(198,160,82,.16);
+    --red:#A5322C;  --red-bg:rgba(184,36,32,.10);
+    --green:#4C6E40; --green-bg:rgba(110,154,95,.14);
+    --line:rgba(36,31,24,.13); --line2:rgba(36,31,24,.07);
+    --rule:#C6A052;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ink:#14110d; --panel:#1c1813; --sunk:#100e0a;
+      --text:#F5F1E8; --muted:#9d9484; --faint:#79715f;
+      --gold:#D6B370; --gold-bg:rgba(198,160,82,.14);
+      --red:#E0736C;  --red-bg:rgba(184,36,32,.16);
+      --green:#8FB47F; --green-bg:rgba(110,154,95,.14);
+      --line:rgba(245,241,232,.13); --line2:rgba(245,241,232,.07);
+      --rule:#C6A052;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink:#14110d; --panel:#1c1813; --sunk:#100e0a;
+    --text:#F5F1E8; --muted:#9d9484; --faint:#79715f;
+    --gold:#D6B370; --gold-bg:rgba(198,160,82,.14);
+    --red:#E0736C;  --red-bg:rgba(184,36,32,.16);
+    --green:#8FB47F; --green-bg:rgba(110,154,95,.14);
+    --line:rgba(245,241,232,.13); --line2:rgba(245,241,232,.07);
+    --rule:#C6A052;
+  }
+
+  *{box-sizing:border-box}
+  body{background:var(--ink);color:var(--text);
+    font:400 16px/1.62 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1000px;margin:0 auto;padding:56px 24px 96px;display:flex;flex-direction:column;gap:52px}
+  @media(max-width:600px){.wrap{padding:34px 16px 64px;gap:40px}}
+
+  h1,h2{margin:0;font-family:Fraunces,Georgia,serif;font-weight:600;text-wrap:balance;letter-spacing:-.01em}
+  h1{font-size:clamp(36px,6vw,58px);line-height:1.03}
+  h2{font-size:clamp(23px,3.3vw,30px);line-height:1.12}
+  p{margin:0}
+  .lede{font-size:19px;line-height:1.55;color:var(--muted);max-width:64ch}
+  .note{font-size:14.5px;line-height:1.55;color:var(--muted)}
+  code{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.87em;letter-spacing:-.01em}
+
+  header{display:flex;flex-direction:column;gap:18px}
+  .eyebrow{font-size:11.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--gold)}
+  .rule{height:2px;background:var(--rule);width:54px;border-radius:2px}
+
+  /* The finding is one sentence. It gets the treatment of one sentence. */
+  .thesis{border:1px solid var(--rule);border-radius:14px;padding:24px 26px;background:var(--panel);
+    display:flex;flex-direction:column;gap:10px}
+  .thesis b{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:clamp(20px,2.8vw,27px);
+    line-height:1.25;color:var(--gold)}
+  .thesis span{font-size:15px;line-height:1.55;color:var(--muted)}
+
+  .figs{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);
+    border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  @media(max-width:720px){.figs{grid-template-columns:repeat(2,1fr)}}
+  .fig{background:var(--panel);padding:16px;display:flex;flex-direction:column;gap:3px}
+  .fig b{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:32px;line-height:1;
+    font-variant-numeric:tabular-nums}
+  .fig span{font-size:12.5px;line-height:1.35;color:var(--muted)}
+  .fig.bad b{color:var(--red)} .fig.ok b{color:var(--green)} .fig.gold b{color:var(--gold)}
+
+  section{display:flex;flex-direction:column;gap:18px}
+  .sec-h{display:flex;flex-direction:column;gap:9px}
+
+  .scroll{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+  table{border-collapse:collapse;width:100%;min-width:600px;font-size:14.5px}
+  th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--line2);vertical-align:top}
+  thead th{font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--faint);background:var(--sunk);border-bottom:1px solid var(--line);white-space:nowrap}
+  tbody tr:last-child td{border-bottom:none}
+  td.num{font-variant-numeric:tabular-nums;text-align:right;font-weight:600;white-space:nowrap}
+  tr.worst td{background:var(--red-bg)}
+  tr.good td{background:var(--green-bg)}
+
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;
+    letter-spacing:.03em;text-transform:uppercase;white-space:nowrap}
+  .pill.red{background:var(--red-bg);color:var(--red)}
+  .pill.gold{background:var(--gold-bg);color:var(--gold)}
+  .pill.green{background:var(--green-bg);color:var(--green)}
+
+  .deadends{display:flex;flex-direction:column;gap:1px;background:var(--line);
+    border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .de{background:var(--panel);padding:14px 17px;display:grid;grid-template-columns:26px 1fr;
+    gap:4px 14px;align-items:start}
+  .de .n{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:17px;color:var(--gold);
+    font-variant-numeric:tabular-nums;line-height:1.3}
+  .de b{font-size:15px;font-weight:600;line-height:1.4}
+  .de p{grid-column:2;font-size:13.5px;line-height:1.55;color:var(--muted)}
+  .de .where{grid-column:2;font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--faint)}
+  .de.fixed b::after{content:" — wired";color:var(--green);font-weight:600}
+
+  .quiet{border-left:2px solid var(--rule);padding-left:18px;display:flex;flex-direction:column;gap:10px}
+  .quiet p{font-size:15px;line-height:1.6;color:var(--muted)}
+  .quiet b{color:var(--text)}
+
+  pre{margin:0;overflow-x:auto;background:var(--sunk);border:1px solid var(--line);border-radius:10px;
+    padding:14px 16px;font-family:"IBM Plex Mono",monospace;font-size:13px;line-height:1.6;color:var(--text)}
+
+  footer{border-top:1px solid var(--line);padding-top:22px;display:flex;flex-direction:column;gap:8px}
+  footer p{font-size:13.5px;color:var(--faint)}
+</style>
+
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">GT3 Performance Bar · console architecture audit · 7 September 2026</div>
+    <h1>No record has an address</h1>
+    <div class="rule"></div>
+    <p class="lede">You said you were talking about the app overall, and you were right that I'd been
+      fixing one screen at a time. So I surveyed the whole console — 170 components, 36,000 lines,
+      15 sections, 39 panels — looking for what the individual complaints have in common. They have
+      one thing in common, and it is upstream of all of them.</p>
+    <div class="thesis">
+      <b>There is no route or URL anywhere in this app that addresses a single record.</b>
+      <span><code>?s=&lt;section&gt;</code> is the deepest link that exists. You can link to a screen.
+        You have never been able to link to a person, an order, an event, or a batch.</span>
+    </div>
+  </header>
+
+  <section>
+    <div class="sec-h"><h2>What that costs</h2><div class="rule"></div></div>
+    <div class="figs">
+      <div class="fig gold"><b>13</b><span>core entities a person works with</span></div>
+      <div class="fig ok"><b>1</b><span>had a detail view openable from anywhere</span></div>
+      <div class="fig bad"><b>8</b><span>had no home at all</span></div>
+      <div class="fig bad"><b>15</b><span>places a name is printed and can't be tapped</span></div>
+    </div>
+    <p>Three of the remaining entities have a defensible home — customers, vendors, goals — and
+      <b>nothing links to any of them</b>. <code>CrmDetail</code> is the best-designed record view in
+      the codebase: order history off the <code>all_orders</code> spine, loyalty, perks, VIP proof.
+      Its only defect is that the sole way to reach it is to already be looking at the customer list.</p>
+    <p>And one entity has no interface whatsoever. <b>A customer can place a shop order that nobody
+      on the crew can look at</b> — <code>shop_orders</code> is touched by two API routes and zero
+      components. The checkout even raises an alert with <code>subjectId: orderId</code>, pointing at
+      a screen that does not exist.</p>
+  </section>
+
+  <section>
+    <div class="sec-h">
+      <h2>Every entity, and where it lives</h2>
+      <div class="rule"></div>
+      <p class="note">"Surfaces" counts distinct UI files that read or write the table. A home means
+        one place you'd send someone to see the thing.</p>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Entity</th><th class="num">Surfaces</th><th>Home</th><th>What that means in practice</th></tr></thead>
+        <tbody>
+          <tr class="good"><td><code>tasks</code></td><td class="num">any</td><td><span class="pill green">Real</span></td>
+            <td>A provider, <code>openTask(id, source)</code>, and every screen just renders a chip. The pattern everything else lacked.</td></tr>
+          <tr><td><code>customers</code></td><td class="num">4</td><td><span class="pill gold">Unlinked</span></td>
+            <td><code>CrmPanel</code> → <code>CrmDetail</code> is genuinely good and unreachable from anywhere else.</td></tr>
+          <tr><td><code>vendors</code></td><td class="num">4</td><td><span class="pill gold">Unlinked</span></td>
+            <td>Dedupe and locations in one place; their deals in Pipeline, their spend in Budget, neither linked back.</td></tr>
+          <tr><td><code>goals</code></td><td class="num">4</td><td><span class="pill gold">Unlinked</span></td>
+            <td>A card in a list, not an openable record.</td></tr>
+          <tr class="worst"><td><code>events</code></td><td class="num">10 + 12 routes</td><td><span class="pill red">None</span></td>
+            <td>Facts in one sheet, economics in another, prep in a third, day plan in a fourth, P&amp;L in a fifth, brew in a sixth, posts in a seventh, packout in an eighth.</td></tr>
+          <tr class="worst"><td><code>stops</code></td><td class="num">12</td><td><span class="pill red">None</span></td>
+            <td>Edited in <b>three</b> places by design. The code comments are an open negotiation about which one owns identity; there is no answer.</td></tr>
+          <tr><td><code>brew_batches</code></td><td class="num">7</td><td><span class="pill red">None</span></td>
+            <td>One batch is split across six sheets inside the planner. Everything about it exists; nothing gathers it.</td></tr>
+          <tr><td><code>drop_orders</code></td><td class="num">10</td><td><span class="pill red">None</span></td>
+            <td>The working surface is scoped to <i>this Saturday's drop</i>, not to an order.</td></tr>
+          <tr><td><code>content_items</code></td><td class="num">6</td><td><span class="pill red">None</span></td>
+            <td>Edited in Studio, scheduled in one calendar, shown in a second, approved in a fourth sheet.</td></tr>
+          <tr><td><code>assets</code></td><td class="num">3</td><td><span class="pill red">None</span></td>
+            <td>Same asset in three collapsed rows — register, service log, packing dimensions — with no shared identity.</td></tr>
+          <tr><td><code>business_accounts</code></td><td class="num">4</td><td><span class="pill red">None</span></td>
+            <td>Worse: Pipeline calls the <i>vendor</i> the account, while <code>business_accounts</code> is a different table. Two things named "account".</td></tr>
+          <tr><td><code>inventory_items</code></td><td class="num">4</td><td><span class="pill red">None</span></td>
+            <td>Rows are name + Edit + Delete. No history, no usage, no vendor.</td></tr>
+          <tr><td><code>initiatives</code></td><td class="num">4</td><td><span class="pill red">None</span></td>
+            <td>You can manage a milestone inside it. The initiative itself is inert text.</td></tr>
+          <tr class="worst"><td><code>shop_orders</code></td><td class="num">0</td><td><span class="pill red">No UI</span></td>
+            <td>Two API routes and nothing else. Customers order; nobody can look.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-h">
+      <h2>The dead ends</h2>
+      <div class="rule"></div>
+      <p class="note">Ranked by how sharply you'd expect a tap. Six are wired in this round; the rest
+        are now one line each.</p>
+    </div>
+    <div class="deadends">
+      <div class="de fixed"><span class="n">1</span><b>The customer on every completed order</b>
+        <p>Order history prints a name for all 300 rows. <code>InfoRow</code> already accepts an
+          <code>onClick</code>; it was never passed, so it rendered a plain div. That person's full
+          history sat one section away.</p>
+        <p class="where">app/crew/page.tsx · order history</p></div>
+      <div class="de"><span class="n">2</span><b>Every name on the drop pickup list</b>
+        <p>The highest-traffic list of customer names in the app, read under service pressure. Not
+          tappable.</p>
+        <p class="where">components/DropOps.tsx:281</p></div>
+      <div class="de fixed"><span class="n">3</span><b>The subscriber roll</b>
+        <p>Names, status, renewal date — a read-only mirror of people you couldn't open.</p>
+        <p class="where">app/crew/page.tsx · subscribers</p></div>
+      <div class="de fixed"><span class="n">4</span><b>The VIP verification queue</b>
+        <p>You approve a tier change on somebody you cannot look at. Twice on the same screen —
+          pending, and again in the handled list.</p>
+        <p class="where">components/VipQueue.tsx:99, :114</p></div>
+      <div class="de fixed"><span class="n">5</span><b>The org chart</b>
+        <p>The most literal picture-of-the-people screen in the app, and not one card was a button —
+          while the person view sat further down the same screen, reachable only from a different list.</p>
+        <p class="where">components/OrgChart.tsx:49</p></div>
+      <div class="de fixed"><span class="n">6</span><b>The workload board</b>
+        <p>"3 open · 2 overdue" beside a name. You could see someone drowning and not open them.</p>
+        <p class="where">components/WorkloadBoard.tsx:65</p></div>
+      <div class="de"><span class="n">7</span><b>The B2B account on every delivery</b>
+        <p>Log delivery, Invoice, Mark paid — three actions on an account record you can't open.</p>
+        <p class="where">components/OfficeOrders.tsx:163</p></div>
+      <div class="de"><span class="n">8</span><b>The vendor on every expense</b>
+        <p>Resolved from a real vendors row, rendered as a span.</p>
+        <p class="where">components/SpendBudget.tsx:273</p></div>
+      <div class="de"><span class="n">9</span><b>Inside the one good detail view</b>
+        <p>The task sheet knows which event or stop a task belongs to, and which note spawned it.
+          Both render as plain spans.</p>
+        <p class="where">components/TaskSheet.tsx:169, :171</p></div>
+      <div class="de"><span class="n">10</span><b>Twelve KPI numbers</b>
+        <p>Money and Customer tiles render as divs. The tappable variant exists on a third
+          component — and it jumps to a <i>section</i>, never to a record.</p>
+        <p class="where">MoneyKpis.tsx:87 · CustomerKpis.tsx:55</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-h"><h2>A link that half-worked, for months</h2><div class="rule"></div></div>
+    <p>Found inside <code>TaskSheet</code> — the app's best-architected component. Tapping the goal
+      name on a task ran:</p>
+    <pre>router.push("/crew?section=goals")</pre>
+    <p>The section parameter is <code>s</code>, not <code>section</code>. And <code>"goals"</code> is
+      not one of the fifteen sections — goals live under Command. <b>Two wrong things in one string</b>,
+      landing you on My Day with no error and no clue. It's fixed, and deliberately <i>not</i> pointed
+      at a <code>#goals</code> anchor, because no such anchor exists and a hash nothing handles is the
+      same half-working link.</p>
+    <p class="note">Related, and the reason the dead ends were even possible: <code>lib/db.ts</code>'s
+      <code>Order</code> interface omitted <code>customer_id</code>. The column has existed since
+      customers were introduced. Every screen could print the name; none could open the person.</p>
+  </section>
+
+  <section>
+    <div class="sec-h"><h2>What shipped</h2><div class="rule"></div></div>
+    <p>Not a rewrite. The pattern already existed on exactly one entity — <code>TaskSheet</code>'s
+      provider plus <code>openTask(id, source)</code> — and this generalises it.</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Piece</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td><code>lib/records.ts</code></td>
+            <td>A record is a <code>(kind, id)</code>. Parsing is strict — unknown kind, missing id, or
+              a non-uuid all return nothing rather than opening an empty sheet.</td></tr>
+          <tr><td><code>RecordProvider</code></td>
+            <td>One host above every screen. Opening writes <code>?r=kind:id</code>, so a record
+              survives a reload, the back button works, and you can send someone a link to a person
+              instead of "go to Team, scroll down, tap the third row".</td></tr>
+          <tr><td><code>RecordLink</code></td>
+            <td>One line per dead end. Degrades to plain text when there's no id, so a guest order
+              never renders a button that goes nowhere.</td></tr>
+          <tr><td><code>CustomerRecord</code></td>
+            <td>Loads a customer by id and hands it to <code>CrmDetail</code>. Rebuilds nothing —
+              that view was already right, it was just unreachable.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>It also <b>preserves the rest of the URL</b>, which isn't hypothetical: rebuilding a URL from
+      scratch and dropping every other parameter is exactly what broke the hire deep link, and that
+      took three attempts to find.</p>
+    <p class="note">12 new assertions, all of them about the ways a stale or hand-edited link can be
+      wrong — because the thing being replaced is a link that half-worked.</p>
+  </section>
+
+  <section>
+    <div class="sec-h"><h2>What's next, in order</h2><div class="rule"></div></div>
+    <div class="quiet">
+      <p><b>1 · Give shop orders a screen.</b> This is the only entity with no interface at all, and
+        it's the one where the gap is visible to a paying customer.</p>
+      <p><b>2 · An event record.</b> Ten surfaces, twelve API routes, no home — the worst scattering
+        in the app. <code>PrepDetail</code> is the closest thing and it's reached through a
+        <code>localStorage</code> handoff from a different section.</p>
+      <p><b>3 · A stop record.</b> Same problem, plus three editors that disagree about which one
+        owns the stop's identity. That disagreement is written down in the code comments; it needs
+        deciding, not patching.</p>
+      <p><b>4 · A batch record.</b> Six sheets, one batch, no card you can open.</p>
+      <p><b>5 · The remaining dead ends.</b> Now one line each, once the kind above it exists.</p>
+      <p>Each of these is a line in <code>lib/records.ts</code> plus one component. That's the point
+        of doing the spine first — <b>the next entity shouldn't need another architecture
+        conversation.</b></p>
+    </div>
+  </section>
+
+  <footer>
+    <p>Surveyed against the working tree on 7 September 2026: 170 components, ~36,000 lines,
+      15 sections, 39 panels, 62 Sheet render sites. Entity surface counts are distinct UI files that
+      read or write each table.</p>
+    <p>Commit <code>4a0f9d6</code> · 526 smoke, 67 UI smoke, all database suites green.</p>
+  </footer>
+
+</div>
