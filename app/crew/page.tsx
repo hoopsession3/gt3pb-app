@@ -63,6 +63,7 @@ const OsRegistry = dynamic(() => import("@/components/OsRegistry"), { loading: (
 const KpiBoard = dynamic(() => import("@/components/KpiBoard"), { loading: () => <PourFill label="Loading…" /> });
 const UtilizationPanel = dynamic(() => import("@/components/UtilizationPanel"), { loading: () => <PourFill label="Loading…" /> });
 const CrewPerson = dynamic(() => import("@/components/CrewPerson"), { ssr: false });
+import { RecordLink } from "@/components/RecordSheet";
 const DayHeadline = dynamic(() => import("@/components/DayHeadline"), { loading: () => null });
 const InviteTeammate = dynamic(() => import("@/components/InviteTeammate"), { loading: () => <PourFill label="Loading…" /> });
 const CrmPanel = dynamic(() => import("@/components/CrmPanel"), { loading: () => <PourFill label="Loading…" /> });
@@ -4422,7 +4423,7 @@ function Subscribers() {
                 return (
                   <InfoRow
                     key={s.id}
-                    name={names[s.user_id] ?? "Member"}
+                    name={<RecordLink kind="person" id={s.user_id}>{names[s.user_id] ?? "Member"}</RecordLink>}
                     nameExtra={<span className={`adm-substat ${s.status}`}>{s.status.replace("_", " ")}</span>}
                     meta={<span className={`sub-renew ${r.cls}`}>{r.text}</span>}
                   />
@@ -5582,7 +5583,7 @@ function OrdersHistory() {
               {shown.map((o) => (
                 <InfoRow
                   key={o.id}
-                  name={o.customer ?? "Guest"}
+                  name={<RecordLink kind="customer" id={o.customer_id}>{o.customer ?? "Guest"}</RecordLink>}
                   nameExtra={<span className={`adm-substat ${o.status === "void" ? "past_due" : "active"}`}>{o.status}</span>}
                   meta={<>{groupItems(o.items).map((g) => `${g.qty > 1 ? g.qty + "× " : ""}${DRINKS[g.id as DrinkId]?.n ?? g.id}`).join(" · ")} · ${(o.total_cents / 100).toFixed(2)} · {new Date(o.status_changed_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</>}
                 />

@@ -1247,6 +1247,44 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     D.stableErrorKey(null) === "" && D.stableErrorKey(undefined) === "");
 }
 
+// ── A RECORD HAS AN ADDRESS (lib/records) ────────────────────────────────────────────────────────
+// The survey's root finding: no route or URL anywhere in this app addressed a single record —
+// ?s=<section> was the deepest link that existed. Parsing has to be STRICT, because the failure it
+// replaces is TaskSheet's goal link, which pointed at a wrong parameter name AND a section that does
+// not exist and silently landed people on the wrong screen for months. A link that half-works is
+// worse than one that plainly does not.
+{
+  const R = require("../.smoke/records.js");
+
+  ok("records: a ref round-trips through the URL form",
+    R.recordParam({ kind: "person", id: "3fe59a00-2e58-43da-a075-aa0484bc4363" })
+      === "person:3fe59a00-2e58-43da-a075-aa0484bc4363");
+  const back = R.parseRecordParam("person:3fe59a00-2e58-43da-a075-aa0484bc4363");
+  ok("records: and parses back to the same ref",
+    back && back.kind === "person" && back.id === "3fe59a00-2e58-43da-a075-aa0484bc4363");
+  ok("records: a customer ref works the same way",
+    R.parseRecordParam("customer:7cea9576-b435-4f59-a9e0-9e70f54406ac").kind === "customer");
+
+  // every way a hand-edited or stale link can be wrong
+  ok("records: an unknown kind is refused rather than opening an empty sheet",
+    R.parseRecordParam("invoice:3fe59a00-2e58-43da-a075-aa0484bc4363") === null);
+  ok("records: a missing id is refused", R.parseRecordParam("person:") === null);
+  ok("records: a missing colon is refused", R.parseRecordParam("person") === null);
+  ok("records: a leading colon is refused", R.parseRecordParam(":abc") === null);
+  ok("records: an id that is not a uuid is refused — a link that half-works is worse than none",
+    R.parseRecordParam("person:not-a-uuid") === null);
+  ok("records: null and empty in, null out — never throws on a URL with no ?r=",
+    R.parseRecordParam(null) === null && R.parseRecordParam("") === null
+      && R.parseRecordParam(undefined) === null);
+  // a uuid containing a colon-ish shape must not be split at the wrong place
+  ok("records: only the FIRST colon separates kind from id",
+    R.parseRecordParam("person:3fe59a00-2e58-43da-a075-aa0484bc4363").id.length === 36);
+  ok("records: the kind guard agrees with the list",
+    R.isRecordKind("person") && R.isRecordKind("customer") && !R.isRecordKind("goal"));
+  ok("records: every kind has a label, so nothing renders an untitled sheet",
+    R.RECORD_KINDS.every((k) => typeof R.RECORD_LABEL[k] === "string" && R.RECORD_LABEL[k].length > 0));
+}
+
 console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
 console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);
 process.exit(fail ? 1 : 0);

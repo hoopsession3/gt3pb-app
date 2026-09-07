@@ -6,6 +6,7 @@ import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import { InfoRow } from "@/components/kit";
+import { RecordLink } from "./RecordSheet";
 
 // WORKLOAD BOARD — who's carrying what. As the team grows 2→5, work distribution can't stay invisible
 // (headcount counts were all we had). Reads the all_tasks spine (0210) — event_tasks + delegated todos
@@ -62,7 +63,7 @@ export default function WorkloadBoard() {
             {rows.map(({ p, open, over }) => (
               <InfoRow
                 key={p.id}
-                name={p.display_name || "Teammate"}
+                name={<RecordLink kind="person" id={p.id}>{p.display_name || "Teammate"}</RecordLink>}
                 sub={p.role}
                 trailing={
                   <div className="wl-tr">

@@ -9,6 +9,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
+import { RecordLink } from "./RecordSheet";
 import PromptSheet from "./PromptSheet";
 
 // VIP QUEUE — the staff moderation side of VIP verification. A bottle owner's proof photo lands here;
@@ -96,7 +97,7 @@ export default function VipQueue() {
               <div key={v.id} className="vipq-row">
                 <a href={photoUrl(v)} target="_blank" rel="noreferrer" className="vipq-photo" style={{ backgroundImage: `url(${photoUrl(v)})` }} aria-label="Open the proof photo full-size" />
                 <div className="vipq-main">
-                  <b>{v.customers?.name?.trim() || "A member"}</b>
+                  <b><RecordLink kind="customer" id={v.customer_id}>{v.customers?.name?.trim() || "A member"}</RecordLink></b>
                   <span className="vipq-sub">Submitted {new Date(v.created_at).toLocaleDateString()} · now {v.customers?.tier ?? "guest"}</span>
                   <div className="vipq-acts">
                     <button type="button" className="vipq-yes" onClick={() => setAsking({ kind: "verify", v, grant: "founding" })} disabled={busy === v.id}><Icon name="check" /> Verify <Icon name="arrowRight" /> Founding</button>
@@ -111,7 +112,7 @@ export default function VipQueue() {
                 <div className="crew-group" style={{ marginTop: 12 }}>Recently handled</div>
                 {recent.map((v) => (
                   <div key={v.id} className="vipq-done">
-                    <span className="vipq-done-t">{v.customers?.name?.trim() || "A member"}</span>
+                    <span className="vipq-done-t"><RecordLink kind="customer" id={v.customer_id}>{v.customers?.name?.trim() || "A member"}</RecordLink></span>
                     <span className={`vipq-tag st-${v.status}`}>{v.status === "verified" ? <><Icon name={v.granted_tier === "founding_vip" ? "star" : "check"} /> {v.granted_tier === "founding_vip" ? "Founding VIP" : "Founding"}{v.reward ? ` · ${v.reward}` : ""}</> : "Rejected"}</span>
                   </div>
                 ))}

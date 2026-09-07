@@ -86,6 +86,9 @@ export interface Order {
   id: string;
   user_id: string | null;
   customer: string | null;
+  // The CRM row this order belongs to. The column has existed since customers were introduced; the
+  // type omitted it, so every screen printed the name and none of them could open the person.
+  customer_id?: string | null;
   items: string[];
   total_cents: number;
   paid: boolean;

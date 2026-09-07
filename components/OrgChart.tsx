@@ -3,6 +3,7 @@
 import { useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
+import { useRecord } from "./RecordSheet";
 import { useWorkStreams } from "@/lib/streams";
 import { SectionHeader } from "@/components/kit";
 import { useAuth, roleOf } from "./AuthProvider";
@@ -38,17 +39,22 @@ export default function OrgChart() {
     if (error) throw new Error(error.message);
     return (data as P[]) ?? [];
   }, []);
+  const { openRecord } = useRecord();
   const board = useAsyncData(loader, []);
   const { reload } = board;
   useRealtimeTable("profiles", reload);
   const people = board.data ?? [];
 
+  // The org chart is the most literal "picture of the people" screen in the app and not one card
+  // was tappable — while the person view sat further down the same screen, reachable only from a
+  // different list. Now the picture IS the door.
   const card = (p: P) => (
-    <div key={p.id} className="org-card">
+    <button key={p.id} type="button" className="org-card" onClick={() => openRecord("person", p.id)}
+            aria-label={`Open ${p.display_name || "this person"}`}>
       <div className="org-av" style={p.avatar_url ? { backgroundImage: `url(${p.avatar_url})` } : undefined} aria-hidden>{!p.avatar_url && (p.display_name || "?").trim().charAt(0).toUpperCase()}</div>
       <div className="org-name">{p.display_name || "Unnamed"}</div>
       <div className="org-title">{p.title || ROLE_LABEL[p.role ?? ""] || "Crew"}</div>
-    </div>
+    </button>
   );
 
   return (

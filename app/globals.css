@@ -6669,6 +6669,22 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 /* ── ONE PERSON, ONE PLACE (0311) ─────────────────────────────────────────────────────────────
    The centre the fields were missing. Blocks read top to bottom in the order somebody needs them:
    where onboarding got to, what they agreed, what they have done, then the controls. */
+/* ── RECORDS OPEN FROM ANYWHERE (0311 / lib/records) ──────────────────────────────────────────
+   Fifteen places in this app printed a record's name with nothing to tap. RecordLink turns each
+   into a door. It has to sit INSIDE running text and table cells without looking like a button, so
+   it is an underlined inline control, not a chip — the name stays the name, it just works now. */
+.rec-link{display:inline;background:none;border:none;padding:0;margin:0;font:inherit;color:inherit;
+  cursor:pointer;text-align:inherit;-webkit-appearance:none;appearance:none;
+  text-decoration:underline;text-decoration-color:color-mix(in srgb, currentColor 40%, transparent);
+  text-underline-offset:2px}
+.rec-link:hover{text-decoration-color:currentColor}
+.rec-link:focus-visible{outline:2px solid var(--gold2);outline-offset:2px;border-radius:3px}
+
+/* The org chart cards became buttons — reset the defaults and keep the card look. */
+.org-card{cursor:pointer;-webkit-appearance:none;appearance:none;font:inherit;color:inherit;
+  text-align:center;width:100%}
+.org-card:hover{border-color:var(--gold2)}
+
 .cp-head{display:flex;align-items:center;width:100%}
 .cp-head b{font-family:'Inter';font-size:15px}
 .cp-head .qd-x{margin-left:auto}

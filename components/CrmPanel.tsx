@@ -15,7 +15,7 @@ import { downloadCsv } from "@/lib/csv";
 // not they made an account. Expanding a row reads all_orders (cross-channel by construction) and,
 // when the customer holds an account, their loyalty — edited through the same admin_set_member
 // RPC the Team roster used when customers were wrongly filed under "Team".
-type Customer = {
+export type Customer = {
   id: string;
   user_id: string | null;
   name: string | null;
@@ -47,7 +47,7 @@ type Detail = { orders: CrmOrder[]; loyalty: Loyalty; perks: Perk[]; hasProof: b
 // mutually-exclusive choice instead of a tier toggle plus a disconnected VIP note.
 type UiTier = "member" | "founding" | "founding_vip";
 
-function CrmDetail({ c }: { c: Customer }) {
+export function CrmDetail({ c }: { c: Customer }) {
   const { toast } = useApp();
   const [pts, setPts] = useState("");
   const [credit, setCredit] = useState("");

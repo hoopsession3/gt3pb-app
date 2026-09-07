@@ -167,7 +167,13 @@ function TaskSheet({ id, source, onClose }: { id: string; source: TaskSource; on
               <div className="tsheet-ctx">
                 {t.initiative_title && <span>{t.initiative_emoji || <Icon name="target" />} {t.initiative_title}</span>}
                 {t.op_name && <span>{OP_ICON[t.op_kind ?? ""] ?? "•"} {t.op_name}{t.op_is_live ? " · 🔴 live" : ""}</span>}
-                {t.goal_title && <button type="button" className="tsheet-ctx-link" onClick={() => { onClose(); router.push("/crew?section=goals"); }}>↳ {t.goal_title}</button>}
+                {/* WAS BROKEN, silently. This pushed "/crew?section=goals" — the section parameter is
+                    `s`, not `section` (OperatorNav), and "goals" is not one of the sections; goals
+                    live under Command. So tapping a goal name from a task landed you on My Day with
+                    no error. Two wrong things in one string, in the app's best detail view.
+                    Lands on Command, where Goals renders — not on an anchor, because there is no
+                    #goals target and a hash nothing handles is the same half-working link. */}
+                {t.goal_title && <button type="button" className="tsheet-ctx-link" onClick={() => { onClose(); router.push("/crew?s=command"); }}>↳ {t.goal_title}</button>}
                 {t.meeting_note_title && <span>{t.meeting_note_title}</span>}
               </div>
             )}
