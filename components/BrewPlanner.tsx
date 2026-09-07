@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { FLAVORS } from "@/lib/orderAhead";
-import { bottlesFor, brewStartOverdue } from "@/lib/brewMath";
+import { bottlesFor, brewStartOverdue, sizingOptions, primarySizing, gallonsFromIngredient, ingredientForGallons, quarterGalDown } from "@/lib/brewMath";
 import { localToday } from "@/lib/dates";
 import AssignTaskSheet from "@/components/AssignTaskSheet";
 import Sheet from "@/components/Sheet";
@@ -23,7 +23,7 @@ import Icon from "@/components/Icon";
 // useAsyncData — a failed load is a real error now, not a silent "No batches scheduled."
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-type Recipe = { id: string; name: string; style: string | null; ratio: string | null; target_spec: string | null; base_water_gal: number; extraction_hours: number; yield_factor: number | null; product_slug: string | null };
+type Recipe = { id: string; name: string; style: string | null; ratio: string | null; target_spec: string | null; base_water_gal: number; extraction_hours: number; yield_factor: number | null; product_slug: string | null; ingredients: ScaledIng[] | null };
 type Vessel = { id: string; name: string; capacity_gal: number; filter_type: string | null };
 type ScaledIng = { name: string; qty: number | string; unit?: string | null };
 type Batch = { id: string; recipe_id: string | null; recipe_name: string | null; batch_gal: number; brew_date: string | null; ready_at: string | null; event_id: string | null; stop_id: string | null; status: string; og: string | null; signal_score: number | null; target_spec: string | null; extraction_hours: number | null; brew_started_at: string | null; vessel: string | null; coffee_lot: string | null; brewer: string | null; taste_notes: string | null; created_at?: string | null; needed_by: string | null; latest_start_at: string | null; drop_date: string | null; hold_hours: number | null; scaled: ScaledIng[] | null };
@@ -93,7 +93,7 @@ export default function BrewPlanner() {
   const loader = useCallback(async (): Promise<BrewBoard> => {
     if (!supabase) return { recipes: [], vessels: [], batches: [], events: [], stops: [], inv: [], demand: {} };
     const [r, b, e, v, st, ii] = await Promise.all([
-      supabase.from("brew_recipes").select("id, name, style, ratio, target_spec, base_water_gal, extraction_hours, yield_factor, product_slug").is("archived_at", null).order("sort"),
+      supabase.from("brew_recipes").select("id, name, style, ratio, target_spec, base_water_gal, extraction_hours, yield_factor, product_slug, ingredients").is("archived_at", null).order("sort"),
       supabase.from("brew_batches").select("id, recipe_id, recipe_name, batch_gal, brew_date, ready_at, event_id, stop_id, status, og, signal_score, target_spec, extraction_hours, brew_started_at, vessel, coffee_lot, brewer, taste_notes, created_at, needed_by, latest_start_at, drop_date, hold_hours, scaled").order("created_at", { ascending: false }),
       supabase.from("events").select("id, title, day, day_label").is("archived_at", null).order("day"),
       supabase.from("brew_vessels").select("id, name, capacity_gal, filter_type").is("archived_at", null).order("sort"),
@@ -637,6 +637,16 @@ function BrewSheet({ recipe, events, stops, vessels, initialTarget, onClose, onD
   const vessel = vessels.find((v) => v.id === vesselId) || null;
   // batch size follows the chosen vessel(s); still editable as an override
   const [gal, setGal] = useState(() => vessels[0] ? String(vessels[0].capacity_gal) : "4");
+  // Sizing by an ingredient instead of by water. The recipe's own list decides what is offered and
+  // what the rate is — nothing about coffee is hardcoded here beyond which line opens first.
+  const sizeBy = primarySizing(sizingOptions(recipe.ingredients, recipe.base_water_gal));
+  const [byIng, setByIng] = useState("");
+  // Keep the ingredient box honest when the gallons are changed from the vessel picker or by hand.
+  useEffect(() => {
+    if (!sizeBy) return;
+    const g = Number(gal);
+    setByIng(g > 0 ? String(Math.round(ingredientForGallons(g, sizeBy.perGal))) : "");
+  }, [gal, sizeBy]);
   const [override, setOverride] = useState(false);
   const pickVessel = (id: string, count = vesselCount) => {
     setVesselId(id); setVesselCount(count); setOverride(false);
@@ -717,6 +727,33 @@ function BrewSheet({ recipe, events, stops, vessels, initialTarget, onClose, onD
               <div className="prod-grid" style={{ marginTop: 12 }}>
                 <label className="prod-f"><span>Batch size (gal of water){vessel && !override ? ` · ${vesselLabel}` : ""}</span><input type="number" min="0.25" step="0.25" value={gal} onChange={(e) => { setGal(e.target.value); setOverride(true); }} /></label>
               </div>
+
+              {/* You buy coffee by the bag and water by the tap, so the fixed quantity is nearly
+                  always the coffee. Both inputs drive the same batch — type in either. */}
+              {sizeBy && (
+                <div className="bsz">
+                  <label className="prod-f">
+                    <span>…or set it by {sizeBy.name.replace(/^Coarse-ground\s+/i, "")} ({sizeBy.unit})</span>
+                    <input type="number" min="0" step="10" value={byIng}
+                           onChange={(e) => {
+                             setByIng(e.target.value);
+                             const q = parseFloat(e.target.value);
+                             if (Number.isFinite(q) && q > 0) {
+                               setGal(String(quarterGalDown(gallonsFromIngredient(q, sizeBy.perGal))));
+                               setOverride(true);
+                             }
+                           }} />
+                  </label>
+                  <p className="bsz-note">
+                    {Number(gal) > 0
+                      ? <>A {gal} gal batch needs <b>{Math.round(ingredientForGallons(Number(gal), sizeBy.perGal))} {sizeBy.unit}</b>. Sizing from the {sizeBy.unit} rounds down to the quarter-gallon, so it never asks for more than you have.</>
+                      : <>Enter what you have and the batch sizes to it.</>}
+                    {vessel && Number(gal) > 0 && Number(gal) > vessel.capacity_gal * vesselCount && (
+                      <> <span className="bsz-over">That is more than {vesselCount} × {vessel.name} holds ({(vessel.capacity_gal * vesselCount).toFixed(2)} gal).</span></>
+                    )}
+                  </p>
+                </div>
+              )}
               <div className="prod-f" style={{ marginTop: 8 }}><span>Serving which events / stops? (optional · pick any — first one drives the back-schedule)</span>
                 <div className="ts-chips" style={{ marginTop: 4 }}>
                   {upcomingEvents.map((ev) => { const k = `e:${ev.id}`; const on = targets.includes(k); return <button key={ev.id} type="button" className={`ts-chip${on ? " on" : ""}`} onClick={() => setTargets((p) => on ? p.filter((x) => x !== k) : [...p, k])}>{on && <><Icon name="check" /> </>}<Icon name="event" /> {ev.title || ev.day_label}</button>; })}

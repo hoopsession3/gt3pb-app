@@ -4212,6 +4212,13 @@ body:has(.conc-sheet) .rail{display:flex}
 .bs-step.done>button{background:color-mix(in srgb, var(--ok) 9%, transparent);border-color:color-mix(in srgb, var(--ok) 45%, transparent)}
 .bs-step.done .bs-n{border-color:var(--ok);color:var(--ok)}
 .bs-step.done .bs-t{color:var(--cream-m);text-decoration:line-through;text-decoration-thickness:1px}
+
+/* Sizing a batch by an ingredient rather than by water. Same tokens .prod-f already resolves in
+   both themes; the over-capacity note borrows --warn, which .app.crew-day redefines for cream. */
+.bsz{margin-top:10px;border:1px dashed var(--line2);border-radius:12px;padding:11px 13px}
+.bsz-note{margin:8px 0 0;font-family:'Inter';font-size:12px;line-height:1.5;color:var(--cream-m)}
+.bsz-note b{color:var(--gold2);font-variant-numeric:tabular-nums}
+.bsz-over{color:var(--warn);font-weight:700}
 .app.crew-day .brew-oprow>button{color:#7a5518}
 
 /* Events row: real derived date under the day stamp (app/events RsvpRow) */

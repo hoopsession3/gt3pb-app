@@ -1030,6 +1030,74 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /certifications/.test(A.pathHeadline(partial)), A.pathHeadline(partial));
 }
 
+// ── Sizing a batch by coffee, not by water ────────────────────────────────────────────────────
+// The scale sheet only asked for gallons. You buy coffee by the bag and water by the tap, so the
+// fixed quantity is almost always the coffee — asking for gallons and discovering afterwards that
+// it wanted more coffee than is on the shelf is the failure this removes.
+{
+  const B = require("../.smoke/brewMath.js");
+
+  // GT3 Rise as seeded in 0079: 2 gal of water, 560 g coffee, 32 oz coconut water.
+  const RISE = [
+    { name: "Mountain Valley Spring Water", qty: 2, unit: "gal", scales: true },
+    { name: "Coarse-ground organic single-origin coffee", qty: 560, unit: "g", scales: true },
+    { name: "Organic coconut water (add after filtration)", qty: 32, unit: "oz", scales: true },
+  ];
+  const opts = B.sizingOptions(RISE, 2);
+  ok("brew: every scaling ingredient can size a batch", opts.length === 3, String(opts.length));
+  const coffee = opts.find((o) => /coffee/i.test(o.name));
+  ok("brew: 560 g over 2 gal is 280 g a gallon", coffee.perGal === 280, String(coffee.perGal));
+
+  // Rise carries 32 oz of coconut water per 2 gal — 454 g/gal against the coffee's 280 — so picking
+  // the heaviest line picks the coconut water. It is the coffee that binds a batch, and the first
+  // version of this assertion was loose enough to pass on the wrong answer.
+  const primary = B.primarySizing(opts);
+  ok("brew: the form opens on the coffee, not on whatever weighs most",
+    /coffee/i.test(primary.name), `${primary.name} @ ${primary.gramsPerGal} g/gal`);
+  ok("brew: and coconut water is heavier, which is why weight alone was the wrong rule",
+    opts.find((o) => /coconut/i.test(o.name)).gramsPerGal > coffee.gramsPerGal);
+  // With no coffee line at all it falls back to weight rather than returning nothing.
+  const noCoffee = B.primarySizing(B.sizingOptions(
+    [{ name: "Organic cacao nibs", qty: 160, unit: "g", scales: true },
+     { name: "Ceylon cinnamon", qty: 8, unit: "g", scales: true }], 2));
+  ok("brew: with no coffee line it falls back to the heaviest", /cacao/i.test(noCoffee.name), noCoffee.name);
+  ok("brew: water is not a sizing candidate — it has no weight unit",
+    opts.find((o) => /Spring Water/.test(o.name)).gramsPerGal === null);
+
+  // Two-way, and exactly reversible.
+  ok("brew: 1120 g of coffee makes a 4 gal batch",
+    B.gallonsFromIngredient(1120, 280) === 4, String(B.gallonsFromIngredient(1120, 280)));
+  ok("brew: a 4 gal batch calls for 1120 g of coffee",
+    B.ingredientForGallons(4, 280) === 1120, String(B.ingredientForGallons(4, 280)));
+  ok("brew: the conversion round-trips",
+    B.ingredientForGallons(B.gallonsFromIngredient(917, 280), 280) === 917);
+
+  // Ten pounds of coffee — the real Atlanta shelf — against a 2.5 gal Toddy.
+  const tenLb = 10 * 453.59237;
+  const gal = B.gallonsFromIngredient(tenLb, 280);
+  ok("brew: ten pounds of coffee is about 16.2 gal of Rise",
+    Math.abs(gal - 16.1997) < 0.001, gal.toFixed(4));
+  ok("brew: which is far more than one Toddy holds", gal > 2.5);
+
+  // Rounding DOWN, because the coffee is a hard limit.
+  ok("brew: a batch sized from a fixed bag rounds down, never up",
+    B.quarterGalDown(16.1997) === 16 && B.quarterGalDown(4.99) === 4.75,
+    `${B.quarterGalDown(16.1997)} / ${B.quarterGalDown(4.99)}`);
+  ok("brew: rounding down never asks for more than you have",
+    B.ingredientForGallons(B.quarterGalDown(gal), 280) <= tenLb);
+
+  // A line that does not scale cannot size a batch — doubling one filter does not double a brew.
+  const withFilter = B.sizingOptions([...RISE, { name: "Paper filter", qty: 1, unit: "each", scales: false }], 2);
+  ok("brew: a non-scaling line is not offered as a way to size a batch",
+    !withFilter.some((o) => /filter/i.test(o.name)), JSON.stringify(withFilter.map((o) => o.name)));
+
+  // Degenerate inputs return nothing rather than Infinity or NaN.
+  ok("brew: a recipe with no reference volume sizes nothing", B.sizingOptions(RISE, 0).length === 0);
+  ok("brew: no ingredients sizes nothing", B.sizingOptions(null, 2).length === 0);
+  ok("brew: dividing by a zero rate gives 0, not Infinity", B.gallonsFromIngredient(500, 0) === 0);
+  ok("brew: nothing weighed means no primary line", B.primarySizing([]) === null);
+}
+
 console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
 console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);
 process.exit(fail ? 1 : 0);
