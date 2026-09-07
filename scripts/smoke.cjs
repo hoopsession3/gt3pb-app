@@ -1098,6 +1098,59 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("brew: nothing weighed means no primary line", B.primarySizing([]) === null);
 }
 
+// ── Deploy skew: when a crashed screen should heal itself ─────────────────────────────────────
+// Every message below is one that actually reached production. This list is the point of the
+// module: the inline regex it replaced had already been patched once for Turbopack and STILL
+// missed the next Turbopack phrasing, because "load chunk" is not "loading chunk".
+{
+  const D = require("../.smoke/deploySkew.js");
+
+  // The one that got through and emailed a CRITICAL alert — /crew, 2026-09-06.
+  ok("skew: the message that slipped through is caught now",
+    D.isDeploySkew("Failed to load chunk /_next/static/chunks/0pfvpf_6yqhu-.js?dpl=dpl_AXuE7noGhgUrg8BQPrzp6uVDzLjQ from module 74850"));
+  // The phrasings the old pattern did cover — still covered.
+  ok("skew: webpack's ChunkLoadError", D.isDeploySkew("ChunkLoadError: Loading chunk 42 failed."));
+  ok("skew: Turbopack's module factory wording (seen on /menu)",
+    D.isDeploySkew("module factory is not available"));
+  ok("skew: a rebuilt shared module (seen as mixTotal on /reserve)",
+    D.isDeploySkew("t.mixTotal is not a function"));
+  ok("skew: Safari's wording for the same thing",
+    D.isDeploySkew("undefined is not an object (evaluating 'o.mixTotal')"));
+  ok("skew: an import that never arrived", D.isDeploySkew("Importing a module script failed."));
+
+  // Real defects must NOT trigger a reload — a reload loop on a genuine bug is worse than the bug.
+  ok("skew: a null dereference is a real bug, not skew",
+    !D.isDeploySkew("Cannot read properties of null (reading 'market')"));
+  ok("skew: a failed API call is not skew", !D.isDeploySkew("Request failed with status 500"));
+  ok("skew: a thrown business rule is not skew",
+    !D.isDeploySkew("Log what this batch used before marking it served."));
+  ok("skew: an empty or missing message is not skew",
+    !D.isDeploySkew("") && !D.isDeploySkew(null) && !D.isDeploySkew(undefined));
+
+  // ── the attempt guard ──
+  const t0 = 1_000_000;
+  const first = D.nextSkewAction(D.EMPTY_SKEW, t0);
+  ok("skew: the first crash reloads", first.reload && first.mem.attempts === 1);
+  ok("skew: an immediate repeat does not — that is the loop guard",
+    !D.nextSkewAction(first.mem, t0 + 1000).reload);
+  const second = D.nextSkewAction(first.mem, t0 + D.SKEW_MIN_GAP_MS + 1);
+  ok("skew: but a later deploy in the same session heals again", second.reload && second.mem.attempts === 2);
+  const third = D.nextSkewAction(second.mem, t0 + 999_999);
+  ok("skew: a third attempt is still allowed", third.reload && third.mem.attempts === 3);
+  ok("skew: a fourth is not — a screen that keeps crashing is a real bug, so stop and show it",
+    !D.nextSkewAction(third.mem, t0 + 9_999_999).reload);
+
+  // Storage is untrusted: this runs inside the last UI that still works.
+  ok("skew: junk in storage reads as a clean slate",
+    D.readSkewMemory("not json").attempts === 0 && D.readSkewMemory(null).attempts === 0);
+  ok("skew: a half-written value does not throw or go NaN",
+    D.readSkewMemory('{"attempts":"x"}').attempts === 0);
+  ok("skew: a good value round-trips",
+    D.readSkewMemory(JSON.stringify({ attempts: 2, lastAt: 5 })).attempts === 2);
+  ok("skew: a corrupt memory still permits a heal rather than wedging the app",
+    D.nextSkewAction(D.readSkewMemory("garbage"), t0).reload);
+}
+
 console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
 console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);
 process.exit(fail ? 1 : 0);

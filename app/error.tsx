@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { reportClientError } from "@/components/ErrorReporter";
+import { isDeploySkew, nextSkewAction, readSkewMemory } from "@/lib/deploySkew";
 
 // Route error boundary — the last line of defense so a runtime error degrades to a calm, on-brand
 // recovery screen instead of a white page. Shows the digest (Next's error id) so a failure is
@@ -13,17 +14,21 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
   useEffect(() => {
     console.error(error);
     reportClientError({ message: `${error.message}${error.digest ? ` [${error.digest}]` : ""}`, stack: error.stack, fatal: true });
-    // Deploy-skew self-heal: a tab left open across a deploy can hold a page chunk whose shared
-    // module was rebuilt — surfacing as "x is not a function" / chunk-load failures (seen live:
-    // mixTotal on /reserve; module factory is not available on /menu). One automatic hard reload
-    // fetches a coherent build; the session guard stops loops when the error is real.
-    // "module factory is not available" is Turbopack's own wording for the same stale-module-graph
-    // problem webpack calls ChunkLoadError — this build runs on Turbopack (next.config.ts), so this
-    // is the phrasing that actually shows up in production, not the webpack-era patterns above it.
-    const skew = /is not a function|ChunkLoadError|Loading chunk|Importing a module script failed|undefined is not an object \(evaluating|module factory is not available/i.test(error.message ?? "");
-    if (skew && typeof window !== "undefined" && !sessionStorage.getItem("gt3-skew-reload")) {
-      try { sessionStorage.setItem("gt3-skew-reload", "1"); } catch { /* ignore */ }
-      window.location.reload();
+    // Deploy-skew self-heal: a tab left open across a deploy holds chunk names from the previous
+    // build, so the next lazy import 404s. One hard reload fetches a coherent build.
+    //
+    // The matching used to be an inline regex here and it missed the real message TWICE — most
+    // recently "Failed to load chunk …js?dpl=… from module 74850" on /crew, which slipped past a
+    // pattern list that already had "Loading chunk" in it. It lives in lib/deploySkew now, where
+    // every phrasing ever seen live is a fixture in the smoke tests.
+    if (typeof window !== "undefined" && isDeploySkew(error.message)) {
+      let raw: string | null = null;
+      try { raw = sessionStorage.getItem("gt3-skew"); } catch { /* private mode */ }
+      const { reload, mem } = nextSkewAction(readSkewMemory(raw), Date.now());
+      if (reload) {
+        try { sessionStorage.setItem("gt3-skew", JSON.stringify(mem)); } catch { /* ignore */ }
+        window.location.reload();
+      }
     }
   }, [error]);
   const reload = () => { if (typeof window !== "undefined") window.location.reload(); };
