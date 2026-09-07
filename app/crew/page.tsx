@@ -5139,7 +5139,11 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
             <div className="ev-grid">
               <label className="ev-f full">Date<input type="date" defaultValue={e.day ?? ""} aria-label="Event date"
                 onBlur={(ev) => { const v = ev.target.value || null; if (v !== (e.day ?? null)) { const upd: { day: string | null; day_label?: string } = { day: v }; if (v) upd.day_label = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"][new Date(`${v}T12:00:00`).getDay()]; onUpdate(upd); } }} /></label>
-              <label className="ev-f">Day<input defaultValue={e.day_label ?? ""} placeholder="e.g. SAT" aria-label="Day label" onBlur={(ev) => ev.target.value !== e.day_label && onUpdate({ day_label: ev.target.value })} /></label>
+              {/* The weekday is DERIVED, not asked for. The Date field above already computes
+                  day_label on blur, and this used to be a free-text box beside it — so the app
+                  worked the answer out and then asked anyway, and a typed value could overwrite
+                  the computed one and never resync. Shown, not editable. */}
+              <label className="ev-f">Day<input readOnly value={e.day_label ?? (e.day ? ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"][new Date(`${e.day}T12:00:00`).getDay()] : "")} aria-label="Day of week, from the date" title="Taken from the date" /></label>
               <label className="ev-f">Start<input defaultValue={e.start_time ?? ""} placeholder="e.g. 9:00" aria-label="Start time" onBlur={(ev) => (ev.target.value.trim() || null) !== e.start_time && onUpdate({ start_time: ev.target.value.trim() || null })} /></label>
               <label className="ev-f">End<input defaultValue={e.end_time ?? ""} placeholder="e.g. 2:00" aria-label="End time" onBlur={(ev) => (ev.target.value.trim() || null) !== e.end_time && onUpdate({ end_time: ev.target.value.trim() || null })} /></label>
               <label className="ev-f">Going<input type="text" readOnly value={`${e.going_count ?? 0} · from RSVPs`} title="Live headcount from member RSVPs — not editable" /></label>

@@ -4216,6 +4216,14 @@ body:has(.conc-sheet) .rail{display:flex}
 /* Sizing a batch by an ingredient rather than by water. Same tokens .prod-f already resolves in
    both themes; the over-capacity note borrows --warn, which .app.crew-day redefines for cream. */
 .bsz{margin-top:10px;border:1px dashed var(--line2);border-radius:12px;padding:11px 13px}
+/* One number and the unit it is in, on one line — replaced two stacked boxes that were
+   asking the same question twice. The select sizes to its content so the number keeps the
+   room; on a narrow phone they wrap rather than squeezing the input to nothing. */
+.bsz-row{display:flex;align-items:stretch;gap:8px;flex-wrap:wrap}
+.bsz-row input{flex:1 1 7em;min-width:0}
+.bsz-row select{flex:0 1 auto;background:var(--char2);border:1px solid var(--line2);
+  border-radius:9px;padding:7px 9px;color:var(--cream);font-family:'Inter';font-size:13px;max-width:100%}
+.app.crew-day .bsz-row select{background:var(--card);color:var(--cream)}
 .bsz-note{margin:8px 0 0;font-family:'Inter';font-size:12px;line-height:1.5;color:var(--cream-m)}
 .bsz-note b{color:var(--gold2);font-variant-numeric:tabular-nums}
 .bsz-over{color:var(--warn);font-weight:700}

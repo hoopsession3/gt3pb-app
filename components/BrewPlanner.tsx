@@ -661,11 +661,14 @@ function BrewSheet({ recipe, events, stops, vessels, initialTarget, onClose, onD
   const today = localToday();
   const upcomingEvents = events.filter((e) => e.day && e.day >= today);
   const upcomingStops = stops.filter((s) => s.status !== "done");
-  const [targets, setTargets] = useState<string[]>(() => {
-    if (initialTarget) return [initialTarget];
-    return [upcomingEvents[0] ? `e:${upcomingEvents[0].id}` : null, upcomingStops[0] ? `s:${upcomingStops[0].id}` : null]
-      .filter((x): x is string => Boolean(x));
-  }); // ["e:<id>"|"s:<id>"] — a batch can serve several; first is primary (back-schedule)
+  // NOTHING IS PRESELECTED. This used to seed the first upcoming event AND the first upcoming stop,
+  // so every batch arrived already committed to two things nobody picked — under a label that says
+  // "optional". The first selection also drives the back-schedule, so a default here silently
+  // decided when to start brewing. A batch opened from a specific event or stop still arrives with
+  // that one chosen, because that IS a choice the person made on the way in.
+  const [targets, setTargets] = useState<string[]>(() => initialTarget ? [initialTarget] : []);
+  // ["e:<id>"|"s:<id>"] — a batch can serve several; first is primary (back-schedule)
+  const [sizeUnit, setSizeUnit] = useState<"gal" | "ing">("gal");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [res, setRes] = useState<any | null>(null);
@@ -724,26 +727,48 @@ function BrewSheet({ recipe, events, stops, vessels, initialTarget, onClose, onD
                   </div>
                 </>
               )}
+              {/* ONE FIELD, NOT TWO. This was a "Batch size (gal)" box and, below it, an "…or set it
+                  by coffee (g)" box — two inputs for one decision, and both filled in at once, so
+                  the sheet looked like it wanted two answers. It is one number and the unit it is
+                  in. You buy coffee by the bag and water by the tap, so the fixed quantity is
+                  usually the coffee; whichever unit is showing, the note underneath states the
+                  other, and gal stays the value the batch is actually built from. */}
               <div className="prod-grid" style={{ marginTop: 12 }}>
-                <label className="prod-f"><span>Batch size (gal of water){vessel && !override ? ` · ${vesselLabel}` : ""}</span><input type="number" min="0.25" step="0.25" value={gal} onChange={(e) => { setGal(e.target.value); setOverride(true); }} /></label>
-              </div>
-
-              {/* You buy coffee by the bag and water by the tap, so the fixed quantity is nearly
-                  always the coffee. Both inputs drive the same batch — type in either. */}
-              {sizeBy && (
-                <div className="bsz">
-                  <label className="prod-f">
-                    <span>…or set it by {sizeBy.name.replace(/^Coarse-ground\s+/i, "")} ({sizeBy.unit})</span>
-                    <input type="number" min="0" step="10" value={byIng}
+                <label className="prod-f">
+                  <span>Batch size{vessel && !override ? ` · ${vesselLabel}` : ""}</span>
+                  <div className="bsz-row">
+                    <input type="number"
+                           min={sizeUnit === "gal" ? "0.25" : "0"}
+                           step={sizeUnit === "gal" ? "0.25" : "10"}
+                           value={sizeUnit === "gal" ? gal : byIng}
                            onChange={(e) => {
-                             setByIng(e.target.value);
-                             const q = parseFloat(e.target.value);
-                             if (Number.isFinite(q) && q > 0) {
+                             const v = e.target.value;
+                             setOverride(true);
+                             if (sizeUnit === "gal") { setGal(v); return; }
+                             setByIng(v);
+                             const q = parseFloat(v);
+                             if (sizeBy && Number.isFinite(q) && q > 0) {
                                setGal(String(quarterGalDown(gallonsFromIngredient(q, sizeBy.perGal))));
-                               setOverride(true);
                              }
                            }} />
-                  </label>
+                    <select aria-label="Size this batch by" value={sizeUnit}
+                            onChange={(e) => {
+                              const u = e.target.value as "gal" | "ing";
+                              setSizeUnit(u);
+                              // Switching unit must not change the batch — carry the current size across.
+                              if (u === "ing" && sizeBy && Number(gal) > 0) {
+                                setByIng(String(Math.round(ingredientForGallons(Number(gal), sizeBy.perGal))));
+                              }
+                            }}>
+                      <option value="gal">gal of water</option>
+                      {sizeBy && <option value="ing">{sizeBy.name.replace(/^Coarse-ground\s+/i, "")} ({sizeBy.unit})</option>}
+                    </select>
+                  </div>
+                </label>
+              </div>
+
+              {sizeBy && (
+                <div className="bsz">
                   <p className="bsz-note">
                     {Number(gal) > 0
                       ? <>A {gal} gal batch needs <b>{Math.round(ingredientForGallons(Number(gal), sizeBy.perGal))} {sizeBy.unit}</b>. Sizing from the {sizeBy.unit} rounds down to the quarter-gallon, so it never asks for more than you have.</>
