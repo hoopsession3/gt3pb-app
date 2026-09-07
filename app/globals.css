@@ -6659,6 +6659,72 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .util-rows{display:flex;flex-direction:column;gap:8px;margin-top:10px}
 .util-row{display:flex;flex-direction:column;gap:3px;background:rgba(0,0,0,.18);border:1px solid var(--line2);border-radius:12px;padding:10px 13px}
 .util-row.idle{opacity:.6}
+/* The rows became buttons (0311) — they were the most person-shaped thing on the screen and the
+   only one you could not tap. Reset the button defaults and add the affordance. */
+.util-row{width:100%;text-align:left;cursor:pointer;-webkit-appearance:none;appearance:none;
+  position:relative;padding-right:30px;font:inherit;color:inherit}
+.util-row:hover{border-color:var(--gold2)}
+.util-go{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--cream-m);font-size:16px}
+
+/* ── ONE PERSON, ONE PLACE (0311) ─────────────────────────────────────────────────────────────
+   The centre the fields were missing. Blocks read top to bottom in the order somebody needs them:
+   where onboarding got to, what they agreed, what they have done, then the controls. */
+.cp-head{display:flex;align-items:center;width:100%}
+.cp-head b{font-family:'Inter';font-size:15px}
+.cp-head .qd-x{margin-left:auto}
+.cp-id{display:flex;align-items:center;gap:12px;padding-bottom:12px;border-bottom:1px solid var(--line2)}
+.cp-av{flex:none;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;
+  background:color-mix(in srgb, var(--gold2) 18%, transparent);color:var(--gold2);
+  font-family:'Inter';font-weight:800;font-size:15px}
+.cp-id-t{display:flex;flex-direction:column;gap:2px;min-width:0}
+/* A long name must not push the Driver tag off the edge — the first render did exactly that. */
+.cp-id-t b,.cp-id-t span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.cp-id-t b{font-family:'Inter';font-size:16px;color:var(--cream)}
+.cp-id-t span{font-family:'Inter';font-size:12.5px;color:var(--cream-m);text-transform:capitalize}
+.cp-tag{margin-left:auto;flex:none;display:flex;align-items:center;gap:5px;font-family:'Inter';
+  font-size:11px;font-weight:650;color:var(--cream-m)}
+
+.cp-block{margin-top:14px;border:1px solid var(--line2);border-radius:12px;padding:12px 13px}
+.cp-block-h{display:flex;align-items:baseline;gap:10px;font-family:'Inter';font-size:11px;
+  letter-spacing:.09em;text-transform:uppercase;color:var(--cream-m)}
+.cp-block-h b{margin-left:auto;font-size:13px;letter-spacing:0;text-transform:none;color:var(--cream)}
+.cp-block-h b.dim{color:var(--cream-m);font-style:italic}
+.cp-bar{height:5px;border-radius:3px;background:var(--line2);overflow:hidden;margin-top:9px}
+.cp-bar span{display:block;height:100%;background:var(--gold2);border-radius:3px}
+
+/* Which side owes the next step is the whole answer to "where do I resume", so it is the loudest
+   line in the block — gold when it is yours to do, quiet when the ball is with them. */
+.cp-next{margin:10px 0 0;font-family:'Inter';font-size:13.5px;line-height:1.5;color:var(--gold2)}
+.cp-next.them{color:var(--cream-m)}
+.cp-next.ok{color:var(--ok,#6E9A5F);display:flex;align-items:center;gap:6px}
+.cp-next b{color:inherit}
+.cp-next i{font-style:normal;font-weight:700}
+
+.cp-steps{display:flex;flex-direction:column;gap:1px;margin-top:11px;background:var(--line2);
+  border:1px solid var(--line2);border-radius:10px;overflow:hidden}
+.cp-step{display:flex;align-items:flex-start;gap:10px;background:var(--card,#0d0b08);padding:9px 11px}
+.app.crew-day .cp-step{background:var(--card)}
+.cp-step-k{flex:none;width:16px;display:grid;place-items:center;padding-top:2px;color:var(--ok,#6E9A5F)}
+.cp-dot{display:block;width:8px;height:8px;border-radius:50%;border:1.5px solid var(--cream-m)}
+.cp-step-b{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
+.cp-step-b b{font-family:'Inter';font-size:13px;font-weight:600;color:var(--cream)}
+.cp-step-b i{font-style:normal;font-family:'Inter';font-size:11.5px;color:var(--cream-m)}
+.cp-step.done .cp-step-b b{color:var(--cream-m)}
+.cp-step-go{flex:none;align-self:center;min-height:44px;display:flex;align-items:center;
+  font-family:'Inter';font-size:12px;font-weight:650;color:var(--gold2);text-decoration:none;
+  white-space:nowrap;padding-left:8px}
+
+.cp-line{margin:8px 0 0;font-family:'Inter';font-size:13px;line-height:1.55;color:var(--cream)}
+.cp-line.dim,.cp-line .dim{color:var(--cream-m)}
+.cp-go{display:inline-flex;align-items:center;gap:4px;min-height:44px;margin-top:4px;
+  font-family:'Inter';font-size:12.5px;font-weight:650;color:var(--gold2);text-decoration:none}
+
+/* the roster's door into all of the above */
+.tm-open{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:none;
+  border:1px solid var(--gold2);border-radius:11px;padding:10px 13px;min-height:44px;cursor:pointer;
+  font-family:'Inter';font-size:13px;font-weight:700;color:var(--gold2);
+  -webkit-appearance:none;appearance:none;margin-bottom:7px}
+.tm-open .ev-chev{margin-left:auto}
 .util-name{font-family:'Inter';font-weight:700;font-size:13px;color:var(--cream);display:flex;align-items:center;gap:8px}
 .util-name i{font-style:normal;font-family:'DM Mono',ui-monospace,monospace;font-size:9px;letter-spacing:.7px;text-transform:uppercase;color:var(--gold2)}
 .util-stats{font-family:'Inter';font-size:12px;color:var(--cream-m)}

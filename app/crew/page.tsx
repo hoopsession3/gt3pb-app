@@ -62,6 +62,7 @@ const Discussions = dynamic(() => import("@/components/Discussions"), { loading:
 const OsRegistry = dynamic(() => import("@/components/OsRegistry"), { loading: () => <PourFill label="Loading…" /> });
 const KpiBoard = dynamic(() => import("@/components/KpiBoard"), { loading: () => <PourFill label="Loading…" /> });
 const UtilizationPanel = dynamic(() => import("@/components/UtilizationPanel"), { loading: () => <PourFill label="Loading…" /> });
+const CrewPerson = dynamic(() => import("@/components/CrewPerson"), { ssr: false });
 const DayHeadline = dynamic(() => import("@/components/DayHeadline"), { loading: () => null });
 const InviteTeammate = dynamic(() => import("@/components/InviteTeammate"), { loading: () => <PourFill label="Loading…" /> });
 const CrmPanel = dynamic(() => import("@/components/CrmPanel"), { loading: () => <PourFill label="Loading…" /> });
@@ -4479,6 +4480,7 @@ function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; is
   };
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
+  const [profile, setProfile] = useState(false);
   // Keep the loyalty inputs honest if a realtime reload changes them underneath us.
   useEffect(() => { setPts(m.points); setCredit((m.credit_cents / 100).toFixed(2)); setFounding(m.founding_member); }, [m.points, m.credit_cents, m.founding_member]);
   const dirty = name !== (m.display_name ?? "") || pts !== m.points || credit !== (m.credit_cents / 100).toFixed(2) || founding !== m.founding_member;
@@ -4526,7 +4528,14 @@ function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; is
         </select>
         <i className="tm-scope">{meta.scope}</i>
       </label>
+      {/* THE DOOR THAT WAS MISSING. Tapping a person here used to open Points and Credit —
+          customer fields, on an employee — and everything that actually matters about them lived
+          on six other screens. This opens the one place they all meet. */}
+      <button className="tm-open" onClick={() => setProfile(true)}>
+        <Icon name="team" /> Open {(m.display_name ?? "profile").split(" ")[0]}&apos;s profile <span className="ev-chev" aria-hidden="true">›</span>
+      </button>
       <button className="tm-more" onClick={() => setOpen((o) => !o)} aria-expanded={open}>{open ? "Hide loyalty" : `Loyalty & credit · ${pts} pts`} <span className={`ev-chev${open ? " open" : ""}`} aria-hidden="true">›</span></button>
+      {profile && <CrewPerson userId={m.id} onClose={() => setProfile(false)} onChanged={onSaved} />}
       {open && (
         <div className="adm-fields tm-loyalty">
           <label>Name<input value={name} onChange={(e) => setName(e.target.value)} placeholder="Display name" /></label>

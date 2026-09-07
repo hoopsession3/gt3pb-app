@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import { SectionHeader } from "@/components/kit";
+import CrewPerson from "./CrewPerson";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // UTILIZATION (0267 — Ryan: "so you don't have to ask me this no more") — the owners' answer to
@@ -25,6 +26,9 @@ const ago = (iso: string) => {
 };
 
 export default function UtilizationPanel() {
+  // "I should be able to click on employee and manage everything." These rows were the most
+  // person-shaped thing on the screen and the only one you could not tap.
+  const [openId, setOpenId] = useState<string | null>(null);
   const loader = useCallback(async (): Promise<Data> => {
     if (!supabase) return { people: [], acts: [], guests: [] };
     const from = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
@@ -58,16 +62,20 @@ export default function UtilizationPanel() {
                   const logins = mine.reduce((s, a) => s + a.logins, 0);
                   const actions = mine.reduce((s, a) => s + a.actions, 0);
                   return (
-                    <div key={p.id} className={`util-row${!latest ? " idle" : ""}`}>
+                    <button key={p.id} type="button" className={`util-row${!latest ? " idle" : ""}`}
+                            onClick={() => setOpenId(p.id)}
+                            aria-label={`Open ${p.display_name?.trim() || "this person"}`}>
                       <span className="util-name">{p.display_name?.trim() || "Unnamed"}<i>{p.role}</i></span>
                       <span className="util-stats">
                         <b>{mine.length}</b> active day{mine.length === 1 ? "" : "s"} · <b>{logins}</b> sign-in{logins === 1 ? "" : "s"} · <b>{actions}</b> actions
                       </span>
                       <span className="util-last">{latest ? <>{ago(latest.last_seen_at)}{latest.last_action ? ` · ${latest.last_action}` : ""}</> : "no activity yet"}</span>
-                    </div>
+                      <span className="util-go" aria-hidden="true">›</span>
+                    </button>
                   );
                 })}
               </div>
+              {openId && <CrewPerson userId={openId} onClose={() => setOpenId(null)} onChanged={state.reload} />}
               <div className="util-guests">
                 <span className="util-guests-k">Guest visits</span>
                 <b>{guestWeek.toLocaleString()}</b> this week{guestPrev > 0 && <i> · {guestWeek >= guestPrev ? "up" : "down"} vs {guestPrev.toLocaleString()} prior</i>}
