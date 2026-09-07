@@ -5,7 +5,6 @@ import { supabase } from "@/lib/supabase";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Icon from "./Icon";
-import { SectionHeader } from "@/components/kit";
 import { useRecord } from "./RecordSheet";
 import { ageLabel, money, queueHeadline, statusLabel, waitingOn } from "@/lib/shopOrder";
 
@@ -60,7 +59,12 @@ export default function ShopOrders() {
 
   return (
     <>
-      <SectionHeader label="Storefront orders" annotation="merch bought on /shop — what is owed, and by whom" />
+      {/* NO SectionHeader here, deliberately. globals.css:4652 hides `.mpanel-body > * > .k-sec`
+          — inside a Panel, the Panel's own title IS the section header, and a second one is dead
+          markup. I shipped one anyway and only found out by looking at the rendered page: it was in
+          the DOM, computing to display:none, and the one sentence explaining the panel was invisible.
+          The sentence lives where it renders now — the headline below when there are orders, the
+          empty state when there are none. */}
       {/* One empty state, from the shared component — not a second one written inline. The default
           isEmpty would see a truthy {queue, rows} object and never fire, which is exactly how a
           screen ends up with an unreachable empty state and a live one that looks different. */}

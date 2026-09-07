@@ -7577,8 +7577,12 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
   border:1px solid var(--line2);border-radius:10px;overflow:hidden}
 /* A row is a button, because the whole row opens the order. Reset the UA button styling rather
    than nesting a link inside it — that was the org-chart bug. */
+/* color from the token, NOT inherit: measured live in the crew-day (light) theme, the inherited
+   value here is the DARK theme's cream — near-white text on a white card. Every string inside the
+   row happens to set its own colour today, so nothing is invisible; the next line added directly
+   inside it would have been. */
 .so-row{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--card);
-  border:none;padding:10px 12px;min-height:56px;font:inherit;color:inherit;cursor:pointer}
+  border:none;padding:10px 12px;min-height:56px;font:inherit;color:var(--cream);cursor:pointer}
 .so-row:hover{background:color-mix(in srgb, var(--gold2) 7%, var(--card))}
 .so-row:focus-visible{outline:2px solid var(--gold2);outline-offset:-2px}
 .so-row-b{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
@@ -7621,17 +7625,27 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .so-move{min-height:44px;padding:0 15px;border:1px solid var(--line2);border-radius:10px;
   background:none;font-family:'Inter';font-size:13px;font-weight:600;color:var(--cream);cursor:pointer}
 .so-move:hover{border-color:var(--gold2);color:var(--gold2)}
-/* The two that cost a customer something are not styled like the four that don't. */
-.so-move.grave{color:var(--red-h);border-color:color-mix(in srgb, var(--red-h) 45%, transparent)}
-.so-move.grave:hover{border-color:var(--red-h);color:var(--red-h)}
+/* The two that cost a customer something are not styled like the four that don't.
+   --red-onLight, not --red-h: it resolves to --red-h in the dark theme (so nothing changes there,
+   measured at 4.78:1) and to #8f1d1a under .app.crew-day. Measured on the live light theme, --red-h
+   sat at 3.8:1 on white — under AA for the two most consequential buttons on the sheet. 8.9:1 now. */
+.so-move.grave{color:var(--red-onLight);border-color:color-mix(in srgb, var(--red-onLight) 45%, transparent)}
+.so-move.grave:hover{border-color:var(--red-onLight);color:var(--red-onLight)}
 
 .so-confirm{margin-top:11px;border:1px solid var(--gold2);border-radius:10px;padding:12px 13px}
 .so-confirm > b{font-family:'Inter';font-size:14px;color:var(--gold2)}
-.so-warn{margin:8px 0 0;font-family:'Inter';font-size:12.5px;line-height:1.55;color:var(--cream-m)}
+/* Full contrast, not muted. This is the sentence that says recording a refund does not issue one —
+   the single most consequential line in the sheet. A footnote colour would undersell it. */
+.so-warn{margin:8px 0 0;font-family:'Inter';font-size:12.5px;line-height:1.55;color:var(--cream)}
 .so-confirm .prod-f{margin-top:10px}
 .so-confirm-b{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+/* The confirm button, which is the one that commits a refund. --gold2 is LIGHT gold in the dark
+   theme and DARK brown in crew-day, so a fixed dark ink on it only works in one of them: measured
+   live, black on crew-day's gold was 2.72:1. Mixing the text out of --card inverts with the theme
+   the fill does — 6.86:1 light, 6.91:1 dark. */
 .so-go{min-height:44px;padding:0 18px;border:none;border-radius:10px;background:var(--gold2);
-  color:var(--ink);font-family:'Inter';font-size:13px;font-weight:700;cursor:pointer}
+  color:color-mix(in srgb, var(--card) 92%, var(--gold2));
+  font-family:'Inter';font-size:13px;font-weight:700;cursor:pointer}
 .so-go:disabled{opacity:.6;cursor:default}
 
 .so-foot{margin:14px 0 0;font-family:'DM Mono',monospace;font-size:10.5px;letter-spacing:.03em;
