@@ -108,16 +108,36 @@ export default function SpendBudget() {
   };
   const saveBudget = async (category: string) => {
     if (!supabase) return;
-    const cents = Math.round(parseFloat(editVal) * 100);
+    const raw = editVal.trim();
+    const cents = Math.round(parseFloat(raw) * 100);
     setEditCat(null);
-    if (!Number.isFinite(cents) || cents < 0) return;
     // 0292 replaced the old (tenant, category) unique key with (tenant, market, category,
     // effective_from), so a budget belongs to a month instead of being rewritten in place. Upserting
     // against the retired constraint would have failed outright the moment 0292 landed. A change
     // saved today takes effect from the first of this month and leaves earlier months alone.
     const from = new Date(); from.setDate(1);
+    const month = from.toISOString().slice(0, 10);
+
+    // CLEARING THE FIELD MEANS THERE IS NO BUDGET, NOT A BUDGET OF ZERO.
+    //
+    // Before 0308 this had no way out. An empty box fell through the isFinite check and did
+    // nothing, so a budget set on the wrong category stayed forever; and typing 0 set a limit of
+    // zero, which is worse than nothing — every dollar spent then reads as over budget, in red, on
+    // a category nobody meant to cap. Both spellings of "I did not mean to set this" now remove
+    // this month's row, and whatever earlier month's budget applies takes over again.
+    if (raw === "" || cents === 0) {
+      let q = supabase.from("budgets").delete().eq("category", category).eq("effective_from", month);
+      q = market ? q.eq("market", market) : q.is("market", null);
+      const { error } = await q;
+      // The delete is admin-only after 0308 — say so rather than failing silently.
+      if (error) { toast(`Couldn't clear it — ${error.message}`, "error"); return; }
+      toast(`No budget on ${category} this month.`);
+      reload();
+      return;
+    }
+    if (!Number.isFinite(cents) || cents < 0) return;
     await supabase.from("budgets").upsert(
-      { category, market, monthly_limit_cents: cents, effective_from: from.toISOString().slice(0, 10),
+      { category, market, monthly_limit_cents: cents, effective_from: month,
         updated_at: new Date().toISOString() },
       { onConflict: "tenant_id,market,category,effective_from" },
     );

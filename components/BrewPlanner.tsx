@@ -13,6 +13,7 @@ import ProgressRing from "@/components/ProgressRing";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
+import { useApp } from "./AppProvider";
 import { SectionHeader } from "@/components/kit";
 import Icon from "@/components/Icon";
 
@@ -77,6 +78,7 @@ const remain = (target: string | null, now: number) => {
 };
 
 export default function BrewPlanner() {
+  const { toast } = useApp();
   const [plan, setPlan] = useState<Recipe | null>(null);
   // Set by PrepDetail's "Plan a brew for this event/stop" (localStorage bridge, same pattern as
   // gt3-plan-tab) — carries the target into the sheet BrewSheet opens next, then clears itself.
@@ -224,8 +226,37 @@ export default function BrewPlanner() {
     reload();
   };
 
-  // schedule view = what's upcoming / in progress; the log view = every batch ever, the permanent record
-  const active = batches.filter((b) => b.status !== "served" && b.status !== "dumped")
+  // TAKING BACK A BATCH THAT SHOULD NOT EXIST (0308).
+  //
+  // "Undo start" put a batch back to planned — which is right when you started it early, and wrong
+  // when you never meant to log it at all: the phantom sits on the schedule forever. The only real
+  // removal was a Delete button inside the batch log, two taps behind a view toggle, nowhere near
+  // where the mistake happens.
+  //
+  // The one thing this must NOT do is decide for itself whether a hard delete is safe. Three tables
+  // carry batch_id on delete set null — drop orders, delivery orders, the stock ledger — so
+  // deleting a batch something already points at leaves those rows alive and orphaned, which is the
+  // exact traceability 0261 exists to provide. discard_batch checks and picks: gone if nothing
+  // points at it, kept and marked if something does. The toast says which, because "removed" and
+  // "kept but marked" are different facts and the person deserves the real one.
+  const removeBatch = async (b: Batch): Promise<boolean> => {
+    if (!supabase) return false;
+    const name = b.recipe_name || "batch";
+    if (typeof window !== "undefined" && !window.confirm(
+      `Remove this ${name} (${b.batch_gal} gal)?\n\nUse this when the batch was logged by mistake. If anything already points at it — an order, a stock movement — it is kept and marked discarded instead of deleted, so the trail survives.`)) return false;
+    const { data, error } = await supabase.rpc("discard_batch", { p_batch: b.id, p_reason: null });
+    if (error) { setMutErr(error.message); return false; }
+    toast(data === "deleted"
+      ? `${name} removed.`
+      : `${name} marked discarded — orders or stock still point at it, so the record stays.`);
+    reload();
+    return true;
+  };
+
+  // schedule view = what's upcoming / in progress; the log view = every batch ever, the permanent
+  // record. 'discarded' joins served and dumped here: it is not upcoming, and unlike dumped it is
+  // not a real pour-out either — it is a batch that never happened.
+  const active = batches.filter((b) => b.status !== "served" && b.status !== "dumped" && b.status !== "discarded")
     .sort((a, b) => (a.ready_at || "9999").localeCompare(b.ready_at || "9999"));
 
   return (
@@ -336,6 +367,10 @@ export default function BrewPlanner() {
                       return <div className={`brew-startby${over ? " over" : ""}`}>{over ? <><Icon name="warning" /> Past the latest start to be ready in time — start now</> : <><Icon name="clock" /> Start by {fmtTs(b.latest_start_at)} to be ready in time</>}</div>;
                     })()}
                     <button type="button" className="brew-start" onClick={() => setStarting(b)}>▶ Start brew ({Number(b.extraction_hours) || 20}h)</button>
+                    {/* A planned batch is the cheapest kind of mistake and used to be the hardest to
+                        take back — nothing had happened yet, and the only Delete was two taps away
+                        in the production log. */}
+                    <button type="button" className="brew-remove" onClick={() => removeBatch(b)}>Remove — planned by mistake</button>
                   </>
                 )}
                 {b.status === "brewing" && b.ready_at && (() => {
@@ -406,10 +441,10 @@ export default function BrewPlanner() {
 
       {plan && <BrewSheet recipe={plan} events={events} stops={stops} vessels={vessels} initialTarget={pendingTarget ?? undefined} onClose={() => { setPlan(null); setPendingTarget(null); }} onDone={() => { setPlan(null); setPendingTarget(null); reload(); }} />}
       {pack && <BottleLoadout batch={pack} onClose={() => setPack(null)} />}
-      {logBatch && <BatchLog batch={logBatch} events={events} stops={stops} onClose={() => setLogBatch(null)} onSaved={() => { setLogBatch(null); reload(); }} />}
+      {logBatch && <BatchLog batch={logBatch} events={events} stops={stops} onClose={() => setLogBatch(null)} onSaved={() => { setLogBatch(null); reload(); }} onRemove={removeBatch} />}
       {stepsFor && <BrewSteps batch={stepsFor as any} onClose={() => setStepsFor(null)} onChanged={reload} />}
       {starting && <StartBrewSheet batch={starting} onClose={() => setStarting(null)} onStart={async (extras) => { await startBrew(starting, extras); setStarting(null); }} />}
-      {adjust && <BrewAdjust batch={adjust} onClose={() => setAdjust(null)} onSaveTime={saveBrewTime} onStop={stopBrew} onUndo={undoStart} />}
+      {adjust && <BrewAdjust batch={adjust} onClose={() => setAdjust(null)} onSaveTime={saveBrewTime} onStop={stopBrew} onUndo={undoStart} onRemove={removeBatch} />}
     </div>
       )}
     </AsyncSection>
@@ -446,7 +481,7 @@ function toLocalInput(iso: string | null): string {
 
 // Inline brew adjuster — reachable from a brewing card. Fix the real start time, stop & bottle now,
 // or undo the start. Uses the qd-sheet popout (bulletproof scroll on all devices).
-function BrewAdjust({ batch, onClose, onSaveTime, onStop, onUndo }: { batch: Batch; onClose: () => void; onSaveTime: (b: Batch, startLocal: string) => Promise<void>; onStop: (b: Batch) => Promise<void>; onUndo: (b: Batch) => Promise<void> }) {
+function BrewAdjust({ batch, onClose, onSaveTime, onStop, onUndo, onRemove }: { batch: Batch; onClose: () => void; onSaveTime: (b: Batch, startLocal: string) => Promise<void>; onStop: (b: Batch) => Promise<void>; onUndo: (b: Batch) => Promise<void>; onRemove: (b: Batch) => Promise<boolean> }) {
   const [start, setStart] = useState(() => toLocalInput(batch.brew_started_at || batch.brew_date));
   const [busy, setBusy] = useState(false);
   const hrs = Number(batch.extraction_hours) || 20;
@@ -463,11 +498,18 @@ function BrewAdjust({ batch, onClose, onSaveTime, onStop, onUndo }: { batch: Bat
           <div className="brew-adjust-sep" />
           <button type="button" className="brew-adjust-danger" disabled={busy} onClick={() => run(() => onStop(batch))}>⏹ Stop &amp; bottle now</button>
           <button type="button" className="brew-adjust-undo" disabled={busy} onClick={() => run(() => onUndo(batch))}>↩ Undo start — back to planned</button>
+          {/* The one this sheet was missing. Undo puts a batch back to planned, which is the answer
+              when you started it early — not when you never meant to log it, where it just moves the
+              phantom from one column to another. */}
+          <button type="button" className="brew-adjust-undo" disabled={busy}
+                  onClick={() => run(async () => { if (await onRemove(batch)) onClose(); })}>
+            ✕ This batch was a mistake — remove it
+          </button>
     </Sheet>
   );
 }
 
-function BatchLog({ batch, events, stops, onClose, onSaved }: { batch: Batch; events: Ev[]; stops: St[]; onClose: () => void; onSaved: () => void }) {
+function BatchLog({ batch, events, stops, onClose, onSaved, onRemove }: { batch: Batch; events: Ev[]; stops: St[]; onClose: () => void; onSaved: () => void; onRemove: (b: Batch) => Promise<boolean> }) {
   const [f, setF] = useState<Batch>(batch);
   const [busy, setBusy] = useState(false);
   const [targets, setTargets] = useState<string[]>([]); // ["e:<id>"|"s:<id>"] this batch serves
@@ -490,12 +532,16 @@ function BatchLog({ batch, events, stops, onClose, onSaved }: { batch: Batch; ev
     if (targets.length) await supabase.from("brew_batch_links").insert(targets.map((t) => { const [k, id] = t.split(":"); return k === "s" ? { batch_id: batch.id, stop_id: id } : { batch_id: batch.id, event_id: id }; }));
     setBusy(false); onSaved();
   };
+  // ONE REMOVAL PATH, NOT TWO. This used to be a raw delete that promised "can't be undone" and
+  // quietly meant "and anything pointing at this batch loses its reference". It now goes through the
+  // same discard_batch every other entry point uses, so the answer does not depend on which screen
+  // you happened to be on when you noticed the mistake.
   const del = async () => {
-    if (!supabase || busy) return;
-    if (typeof window !== "undefined" && !window.confirm(`Delete this ${batch.recipe_name || "batch"} (${batch.batch_gal} gal)?\n\nThis removes it from the brew schedule and unlinks it from any events/stops. Can't be undone.`)) return;
+    if (busy) return;
     setBusy(true);
-    await supabase.from("brew_batches").delete().eq("id", batch.id); // brew_batch_links cascade via FK
-    setBusy(false); onSaved();
+    const removed = await onRemove(batch);
+    setBusy(false);
+    if (removed) onSaved();
   };
   return (
     <Sheet open onClose={onClose} label="Batch log" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Batch log · {batch.recipe_name}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} title="Close"><Icon name="close" /></button></div>}>
@@ -520,7 +566,7 @@ function BatchLog({ batch, events, stops, onClose, onSaved }: { batch: Batch; ev
             </div>
           </div>
           <div className="prod-actions" style={{ marginTop: 14, justifyContent: "space-between" }}>
-            <button type="button" className="note-arch brew-del" onClick={del} disabled={busy}>Delete batch</button>
+            <button type="button" className="note-arch brew-del" onClick={del} disabled={busy}>Remove batch</button>
             <div style={{ display: "flex", gap: 8 }}>
             <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
             <button type="button" className="note-save" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save log"}</button>

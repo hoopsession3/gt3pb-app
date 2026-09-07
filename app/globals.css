@@ -3456,6 +3456,14 @@ body:has(.conc-sheet) .rail{display:flex}
 .app.crew-day .brew-status{background:var(--ink-onLight-05)}
 .brew-card-meta{font-family:'Inter';font-size:12px;color:var(--cream-m);margin-top:5px;line-height:1.4}
 .brew-start{margin-top:9px;width:100%;background:linear-gradient(135deg,#a97c3f,#caa35f);border:none;border-radius:9px;padding:10px;color:#1a1409;font-family:'Inter';font-weight:800;font-size:13.5px;cursor:pointer;-webkit-appearance:none;appearance:none}
+/* "this was a mistake" on a planned batch (0308). Deliberately the quietest control on the card —
+   it sits under the gold Start button and must never compete with it, because the cost of a
+   misfired Start is one wrong batch and the cost of a misfired Remove used to be a lost record.
+   Full width and 44px so it is still a real target one-handed on a truck. */
+.brew-remove{margin-top:7px;width:100%;background:none;border:1px solid var(--line2);border-radius:9px;
+  min-height:44px;padding:10px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:12.5px;
+  cursor:pointer;-webkit-appearance:none;appearance:none}
+.brew-remove:hover{color:#e07a76;border-color:color-mix(in srgb, var(--brand-red) 40%, transparent)}
 /* back-scheduled "start by" hint on a planned batch (0084 brew alert ladder) */
 .brew-startby{margin-top:9px;font-family:'Inter';font-weight:700;font-size:12px;color:var(--cream-m);background:color-mix(in srgb, var(--brand-cream) 5%, transparent);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
 /* 2026-07-29 a11y: was also swapping to --muted2-onLight, an ink tone meant for a light surface,
@@ -5323,6 +5331,12 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .st-review p{margin:5px 0 0;color:var(--cream-m)}
 .st-build b{color:var(--gold2,#C8A661)}
 .st-draft{border-style:dashed}
+/* Retiring a draft (0308). Quiet, full width, 44px — the same shape as .brew-remove, because it is
+   the same idea: taking something off a list is never the primary action on the card it sits in. */
+.pb-retire{margin-top:9px;width:100%;background:none;border:1px solid var(--line2);border-radius:9px;
+  min-height:44px;padding:10px;color:var(--cream-m);font-family:'Inter';font-weight:600;font-size:12.5px;
+  cursor:pointer;-webkit-appearance:none;appearance:none}
+.pb-retire:hover{color:var(--cream);border-color:var(--line)}
 
 /* service mode: one working surface — pass main, sticky rail (pickups + delivery + 86) */
 .svc-grid{display:grid;grid-template-columns:minmax(0,1fr)}

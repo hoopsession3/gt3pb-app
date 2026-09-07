@@ -21,7 +21,7 @@ export default function PlaybookPage() {
   const { profile, enabled } = useAuth();
   const [open, setOpen] = useState<string | null>(null); // which thread is open
   const [builder, setBuilder] = useState<null | { prefill: GtmPlay | null }>(null);
-  const { drafts, reload } = useDrafts();
+  const { drafts, reload, retire } = useDrafts();
   if (!enabled) return null;
   const role = roleOf(profile);
   if (role !== "owner" && role !== "admin") {
@@ -82,6 +82,11 @@ export default function PlaybookPage() {
           {d.in_app && <p className="pb-inapp">{d.in_app}</p>}
           <p className="st-when">drafted by {d.author_name?.split(" ")[0] || "an owner"}</p>
           <Discuss k={"draft:" + d.id} label={`Draft: ${d.name}`} />
+          {/* The retire the query has been filtering for since day one. */}
+          <button type="button" className="pb-retire"
+                  onClick={() => { if (window.confirm(`Retire "${d.name}"?\n\nIt comes off the playbook. The draft and anything said about it are kept.`)) retire(d.id); }}>
+            Retire this draft
+          </button>
         </div>
       ))}
       {GTM_PLAYS.map((p) => (

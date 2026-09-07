@@ -232,6 +232,17 @@ export function useDrafts() {
     setDrafts((data as Draft[]) ?? []);
   }, []);
   useEffect(() => { load(); }, [load]);
-  return { drafts, reload: load };
+  // A DEAD ESCAPE HATCH IS WORSE THAN NO ESCAPE HATCH. The query above has filtered out retired
+  // drafts since the day it was written, and nothing in the app has ever set status to 'retired' —
+  // so a play you sketched and thought better of stayed on the playbook forever, looking live. The
+  // filter was written as if the button existed. It did not.
+  // Retired rather than deleted: a draft that was discussed carries a thread, and that is worth
+  // being able to find again. The list needed cleaning, not the record.
+  const retire = useCallback(async (id: string) => {
+    if (!supabase) return;
+    await supabase.from("gtm_drafts").update({ status: "retired" }).eq("id", id);
+    load();
+  }, [load]);
+  return { drafts, reload: load, retire };
 }
 export { GTM_PLAYS };
