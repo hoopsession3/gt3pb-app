@@ -31,6 +31,7 @@ const SETS: { key: OptionSetKey; title: string; blurb: string }[] = [
   { key: "inventory_status", title: "Stock status",     blurb: "Where an item stands. This list was two different lists until 0306." },
   { key: "doc_kind",         title: "Document types",   blurb: "What a filed document is. Used by intake." },
   { key: "menu_timing",      title: "Menu timing",      blurb: "When a drink is for. Three values; the menu editor picks from them." },
+  { key: "agreement_activity", title: "Agreement duties",  blurb: "What an operator's agreement says they cover. Add one here and it shows up on every agreement's scope picker." },
 ];
 
 export default function ListsPanel() {

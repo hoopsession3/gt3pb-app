@@ -14,7 +14,7 @@
 // moment a value needs its own columns, relationships or lifecycle — markets, vendors, profiles —
 // it gets its own table and this module is not involved.
 
-export type OptionSetKey = "inventory_unit" | "inventory_status" | "doc_kind" | "menu_timing";
+export type OptionSetKey = "inventory_unit" | "inventory_status" | "doc_kind" | "menu_timing" | "agreement_activity";
 export type Option = { value: string; label: string };
 
 /** Seeds for 0306, and the offline fallback. Order matches the `sort` column. */
@@ -32,6 +32,19 @@ export const FALLBACK: Record<OptionSetKey, Option[]> = {
     { value: "Backorder", label: "Backorder" }, { value: "Low", label: "Low" },
     { value: "Out", label: "Out" }, { value: "Consumed", label: "Consumed" },
     { value: "Returned", label: "Returned" },
+  ],
+  // 0309. What an operator's agreement says they actually DO — the duties field this app did not
+  // have. Kept here as the offline fallback for the same reason as the others: an empty scope
+  // picker on a bad connection is worse than a stale one.
+  agreement_activity: [
+    { value: "serve", label: "Serving and events" },
+    { value: "brew", label: "Brewing" },
+    { value: "deliver", label: "Delivery driving" },
+    { value: "prep", label: "Prep and pack-out" },
+    { value: "sourcing", label: "Buying and supply runs" },
+    { value: "maintenance", label: "Rig and equipment upkeep" },
+    { value: "market_lead", label: "Leading the market" },
+    { value: "sales", label: "Selling accounts" },
   ],
   doc_kind: [
     { value: "permit", label: "Permit" }, { value: "coi", label: "Certificate of insurance" },

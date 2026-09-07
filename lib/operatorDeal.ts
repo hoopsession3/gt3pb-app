@@ -152,7 +152,7 @@ export function bestFundingForOperator(terms: DealTerms, revenueCents: number, s
 // ── the negotiation ───────────────────────────────────────────────────────────────────────────────
 // A proposal that can only be accepted is not a proposal. The operator can ask for changes or send a
 // counter, and either side can walk it back to draft — the trail of who moved what is the record.
-export const AGREEMENT_STATUS = ["draft", "sent", "changes_requested", "countered", "accepted", "active", "ended"] as const;
+export const AGREEMENT_STATUS = ["draft", "sent", "changes_requested", "countered", "accepted", "signed", "active", "ended"] as const;
 export type AgreementStatus = (typeof AGREEMENT_STATUS)[number];
 
 export const STATUS_LABEL: Record<AgreementStatus, string> = {
@@ -160,7 +160,8 @@ export const STATUS_LABEL: Record<AgreementStatus, string> = {
   sent: "Sent for review",
   changes_requested: "Changes requested",
   countered: "Counter-proposed",
-  accepted: "Accepted",
+  accepted: "Accepted — not signed",
+  signed: "Signed — waiting on GT3",
   active: "Active",
   ended: "Ended",
 };
@@ -170,7 +171,13 @@ const FLOW: Record<AgreementStatus, readonly AgreementStatus[]> = {
   sent: ["changes_requested", "countered", "accepted", "draft"],
   changes_requested: ["sent", "draft"],
   countered: ["accepted", "changes_requested", "sent", "draft"],
-  accepted: ["active", "draft"],
+  // 0309 split acceptance from execution. "Accepted" is the operator saying yes; "signed" is them
+  // putting their name on it; "active" is GT3 countersigning. Three separate facts that used to be
+  // one click, which is why nothing recorded who executed an agreement on the company side.
+  // The two signing moves go through sign_agreement / countersign_agreement, not through a status
+  // update — a signature written by a plain UPDATE binds to nothing.
+  accepted: ["signed", "draft"],
+  signed: ["active"],
   active: ["ended"],
   ended: [],
 };
@@ -214,3 +221,65 @@ export function summarize(terms: DealTerms, market: Market): string {
     : `supplies ${terms.supplyFunding}/${100 - terms.supplyFunding} operator/GT3`;
   return `${market} · ${TIER[terms.tier].label} · ${s.operatorPct}/${s.royaltyPct}/${s.marketPct} · ${who}`;
 }
+
+// ── scope: what this operator actually DOES ───────────────────────────────────────────────────────
+// Roles are permissions — who can open which screen. They were never duties, and the agreement had
+// no duties field at all, so an operator who is also brewing and also driving had agreed to
+// something the record could not express.
+//
+// The interesting half is that this scope is usually TEMPORARY on purpose: someone covers brewing
+// and driving because the market cannot yet fund a brewer and a driver. The condition that retires
+// the extra work is the part that never gets written down, and it is the reason a person agrees to
+// it in the first place. So the basis and its end condition travel together, and the database
+// refuses an interim scope that does not say what ends it.
+export const SCOPE_BASIS = ["standing", "interim"] as const;
+export type ScopeBasis = (typeof SCOPE_BASIS)[number];
+export const SCOPE_BASIS_LABEL: Record<ScopeBasis, string> = {
+  standing: "This is the job",
+  interim: "Covering until we can staff it",
+};
+
+export const HOURS_BASIS = ["not_tracked", "logged_for_record", "logged_toward_equity", "logged_billable"] as const;
+export type HoursBasis = (typeof HOURS_BASIS)[number];
+export const HOURS_BASIS_LABEL: Record<HoursBasis, string> = {
+  not_tracked: "Not tracked",
+  logged_for_record: "Logged for the record",
+  logged_toward_equity: "Logged toward equity",
+  logged_billable: "Logged as billable",
+};
+
+export const isScopeBasis = (v: unknown): v is ScopeBasis =>
+  typeof v === "string" && (SCOPE_BASIS as readonly string[]).includes(v);
+export const toScopeBasis = (v: unknown): ScopeBasis => (isScopeBasis(v) ? v : "standing");
+export const isHoursBasis = (v: unknown): v is HoursBasis =>
+  typeof v === "string" && (HOURS_BASIS as readonly string[]).includes(v);
+export const toHoursBasis = (v: unknown): HoursBasis => (isHoursBasis(v) ? v : "not_tracked");
+
+/**
+ * The scope as one sentence a person can check at a glance, because a list of chips is not a
+ * sentence and the thing being agreed to is a sentence. Pure and deterministic so it can be tested
+ * and so the same words appear on the screen and on the printed agreement.
+ */
+export function scopeSentence(
+  covers: readonly string[] | null | undefined,
+  basis: ScopeBasis,
+  until: string | null | undefined,
+  labelOf: (key: string) => string = (k) => k,
+): string {
+  const list = (covers ?? []).filter(Boolean).map(labelOf);
+  if (!list.length) return "No duties recorded yet \u2014 say what this operator actually covers.";
+  const joined = list.length === 1 ? list[0]
+    : `${list.slice(0, -1).join(", ")} and ${list[list.length - 1]}`;
+  if (basis !== "interim") return `Covers ${joined.toLowerCase()}.`;
+  const end = (until ?? "").trim();
+  // An interim scope with no end is the failure this feature exists to prevent. The database
+  // refuses it; if one somehow reaches here, say so rather than printing a promise with a hole.
+  return end
+    ? `Covers ${joined.toLowerCase()} \u2014 interim, ${end.replace(/^until\s+/i, "until ")}.`
+    : `Covers ${joined.toLowerCase()} \u2014 interim, with no end condition recorded.`;
+}
+
+/** Whether a signed agreement still says what it said when it was signed. */
+export type Integrity = "unsigned" | "intact" | "altered";
+export const integrityOf = (signedAt: unknown, digest: unknown, current: unknown): Integrity =>
+  !signedAt ? "unsigned" : (digest && current && digest === current) ? "intact" : "altered";

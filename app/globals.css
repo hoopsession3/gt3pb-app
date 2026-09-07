@@ -2026,6 +2026,45 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .od-legend b{color:var(--cream)}
 .od-k{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:baseline}
 .od-note{font-family:'Inter';font-size:11.5px;line-height:1.55;color:var(--cream-m);margin-top:10px}
+
+/* ── 0309: scope, hours and signatures on an agreement ─────────────────────────────────────────
+   Three blocks, one visual grammar, and deliberately quieter than the money above them: the
+   slider is what people came to argue about, and these are what they forget to write down. */
+.od-basis{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.od-basis-b{flex:1 1 auto;min-width:150px;min-height:44px;background:none;border:1px solid var(--line2);
+  border-radius:9px;padding:9px 12px;color:var(--cream-m);font-family:'Inter';font-weight:600;
+  font-size:12.5px;cursor:pointer;-webkit-appearance:none;appearance:none}
+.od-basis-b.on{border-color:var(--gold2);color:var(--gold2);
+  background:color-mix(in srgb, var(--gold2) 12%, transparent)}
+.od-basis-b:disabled{opacity:.55;cursor:default}
+
+.od-hours{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:8px;font-family:'Inter';font-size:12.5px;
+  color:var(--cream-m);font-variant-numeric:tabular-nums}
+.od-hours b{font-size:19px;color:var(--cream);margin-right:4px}
+/* The one number the conversation is actually about — interim work, told apart from the rest. */
+.od-hours-interim b{color:var(--gold2)}
+.od-hours-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:10px}
+.od-hours-form .prod-actions{grid-column:1/-1}
+
+.od-sig-rows{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.od-sig{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;
+  border-bottom:1px solid var(--line2);padding-bottom:7px}
+.od-sig-who{font-family:'Inter';font-size:12.5px;font-weight:600;color:var(--cream)}
+.od-sig-done{margin-left:auto;font-family:'Inter';font-size:12px;color:var(--gold2);display:flex;align-items:center;gap:5px}
+.od-sig-wait{margin-left:auto;font-family:'Inter';font-size:12px;color:var(--cream-m);font-style:italic}
+.od-sign-form{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;margin-top:11px}
+.od-sign-form .prod-f{flex:1 1 220px}
+.od-sign-form .od-note{flex:1 1 100%;margin-top:0}
+/* Integrity is the reason the digest exists. Green when it still matches, and unmissable when it
+   does not — a signature over altered terms is the single worst thing this table could report. */
+.od-integrity{display:flex;align-items:flex-start;gap:7px;margin-top:9px;padding:8px 10px;
+  border-radius:8px;font-family:'Inter';font-size:12px;line-height:1.5;
+  border:1px solid color-mix(in srgb, var(--ok, #6E9A5F) 40%, transparent);
+  background:color-mix(in srgb, var(--ok, #6E9A5F) 10%, transparent);color:var(--cream)}
+.od-integrity.bad{border-color:var(--red-h);color:#e07a76;
+  background:color-mix(in srgb, var(--brand-red) 12%, transparent)}
+.od-sign.altered{border-color:var(--red-h)}
+
 .od-figs{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-top:10px}
 .od-figs > div{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 11px}
 .od-figs b{display:block;font-family:'Inter';font-weight:700;font-size:17px;letter-spacing:-.01em;font-variant-numeric:tabular-nums;color:var(--cream)}
@@ -4373,8 +4412,10 @@ body:has(.conc-sheet) .rail{display:flex}
    all redeclared by .app.crew-day, so nothing here goes grey-on-cream. */
 .tm-hire{margin:-8px 0 16px}
 .tm-hire-open{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:none;
-  border:1px solid var(--line2);border-radius:12px;padding:11px 14px;cursor:pointer;
+  border:1px solid var(--line2);border-radius:12px;padding:11px 14px;cursor:pointer;min-height:44px;
   font-family:'Inter';font-size:13px;font-weight:700;color:var(--gold2);-webkit-appearance:none;appearance:none}
+/* min-height added 0309: this measured 42px, two short of the 44 every other control in the app now
+   holds. Purely additive — it can only grow, so nothing that used it can shrink. */
 .tm-hire-open .ev-chev{margin-left:auto}
 .tm-hire-body{border:1px solid var(--line2);border-top:none;border-radius:0 0 12px 12px;padding:12px 14px;
   display:flex;flex-direction:column;gap:10px}

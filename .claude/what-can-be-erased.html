@@ -1,0 +1,523 @@
+<title>What Can Be Erased</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --ink:#F7F4EC; --panel:#FFFDF8; --sunk:#F0EBDF;
+    --text:#241F18; --muted:#6E6656; --faint:#8E8574;
+    --gold:#8A6A22; --gold-bg:rgba(198,160,82,.16);
+    --red:#A5322C;  --red-bg:rgba(184,36,32,.10);
+    --green:#4C6E40; --green-bg:rgba(110,154,95,.14);
+    --line:rgba(36,31,24,.13); --line2:rgba(36,31,24,.07);
+    --rule:#C6A052;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ink:#14110d; --panel:#1c1813; --sunk:#100e0a;
+      --text:#F5F1E8; --muted:#9d9484; --faint:#79715f;
+      --gold:#D6B370; --gold-bg:rgba(198,160,82,.14);
+      --red:#E0736C;  --red-bg:rgba(184,36,32,.16);
+      --green:#8FB47F; --green-bg:rgba(110,154,95,.14);
+      --line:rgba(245,241,232,.13); --line2:rgba(245,241,232,.07);
+      --rule:#C6A052;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink:#14110d; --panel:#1c1813; --sunk:#100e0a;
+    --text:#F5F1E8; --muted:#9d9484; --faint:#79715f;
+    --gold:#D6B370; --gold-bg:rgba(198,160,82,.14);
+    --red:#E0736C;  --red-bg:rgba(184,36,32,.16);
+    --green:#8FB47F; --green-bg:rgba(110,154,95,.14);
+    --line:rgba(245,241,232,.13); --line2:rgba(245,241,232,.07);
+    --rule:#C6A052;
+  }
+
+  *{box-sizing:border-box}
+  body{background:var(--ink);color:var(--text);
+    font:400 16px/1.62 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:980px;margin:0 auto;padding:56px 24px 96px;display:flex;flex-direction:column;gap:52px}
+  @media(max-width:600px){.wrap{padding:34px 16px 64px;gap:40px}}
+
+  h1,h2,h3{margin:0;font-family:Fraunces,Georgia,serif;font-weight:600;text-wrap:balance;letter-spacing:-.01em}
+  h1{font-size:clamp(38px,6.2vw,60px);line-height:1.02}
+  h2{font-size:clamp(24px,3.4vw,31px);line-height:1.12}
+  h3{font-size:18px;line-height:1.3;font-family:Inter,sans-serif;font-weight:700;letter-spacing:0}
+  p{margin:0}
+  .lede{font-size:19px;line-height:1.55;color:var(--muted);max-width:62ch}
+  .note{font-size:14.5px;line-height:1.55;color:var(--muted)}
+  code,.t{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,monospace;font-size:.885em;
+    letter-spacing:-.01em}
+
+  header{display:flex;flex-direction:column;gap:18px}
+  .eyebrow{font-size:11.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--gold)}
+  .rule{height:2px;background:var(--rule);width:54px;border-radius:2px}
+
+  .figs{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);
+    border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-top:6px}
+  @media(max-width:720px){.figs{grid-template-columns:repeat(2,1fr)}}
+  .fig{background:var(--panel);padding:16px 16px 14px;display:flex;flex-direction:column;gap:3px}
+  .fig b{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:33px;line-height:1;
+    font-variant-numeric:tabular-nums}
+  .fig span{font-size:12.5px;line-height:1.35;color:var(--muted)}
+  .fig.was b{color:var(--red)} .fig.now b{color:var(--green)} .fig.gold b{color:var(--gold)}
+
+  section{display:flex;flex-direction:column;gap:18px}
+  .sec-h{display:flex;flex-direction:column;gap:9px}
+
+  .scroll{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+  table{border-collapse:collapse;width:100%;min-width:560px;font-size:14.5px}
+  th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--line2);vertical-align:top}
+  thead th{font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--faint);background:var(--sunk);border-bottom:1px solid var(--line);white-space:nowrap}
+  tbody tr:last-child td{border-bottom:none}
+  td.num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;font-weight:600}
+  td.t{white-space:nowrap}
+  tr.hi td{background:var(--gold-bg)}
+
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;
+    letter-spacing:.03em;text-transform:uppercase;white-space:nowrap}
+  .pill.red{background:var(--red-bg);color:var(--red)}
+  .pill.gold{background:var(--gold-bg);color:var(--gold)}
+  .pill.green{background:var(--green-bg);color:var(--green)}
+
+  .three{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  @media(max-width:760px){.three{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:17px 18px;
+    display:flex;flex-direction:column;gap:8px}
+  .card .k{font-family:Fraunces,Georgia,serif;font-size:21px;font-weight:600}
+  .card.del .k{color:var(--green)} .card.dis .k{color:var(--gold)} .card.nev .k{color:var(--red)}
+  .card p{font-size:14px;line-height:1.5;color:var(--muted)}
+
+  .findings{display:flex;flex-direction:column;gap:1px;background:var(--line);
+    border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .f{background:var(--panel);padding:16px 18px;display:grid;
+    grid-template-columns:180px 1fr;gap:6px 20px;align-items:start}
+  @media(max-width:700px){.f{grid-template-columns:1fr;gap:8px}}
+  .f .who{display:flex;flex-direction:column;gap:6px;min-width:0}
+  .f .who code{font-size:13.5px;font-weight:500;word-break:break-word}
+  .f .what{display:flex;flex-direction:column;gap:6px;min-width:0}
+  .f .what b{font-size:15px;font-weight:600}
+  .f .what p{font-size:14px;line-height:1.55;color:var(--muted)}
+  .f .where{font-size:12.5px;color:var(--faint);font-family:"IBM Plex Mono",monospace}
+
+  .quiet{border-left:2px solid var(--rule);padding-left:16px;display:flex;flex-direction:column;gap:8px}
+  .quiet p{font-size:15px;line-height:1.6;color:var(--muted)}
+  .quiet b{color:var(--text)}
+
+  footer{border-top:1px solid var(--line);padding-top:22px;display:flex;flex-direction:column;gap:8px}
+  footer p{font-size:13.5px;color:var(--faint)}
+</style>
+
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">GT3 Performance Bar · console audit · 7 September 2026</div>
+    <h1>What can be erased</h1>
+    <div class="rule"></div>
+    <p class="lede">You asked for two things: let you delete a brew started by accident, and find
+      everywhere else that should allow deletion and doesn't. Auditing it turned the question inside
+      out. The console is not short of permission to delete — it is short of the distinction between
+      a mistake and a record.</p>
+    <div class="figs">
+      <div class="fig"><b>142</b><span>tables in the database</span></div>
+      <div class="fig gold"><b>112</b><span>already permit a delete</span></div>
+      <div class="fig was"><b>41</b><span>reachable by anyone who isn't a customer — before today</span></div>
+      <div class="fig now"><b>30</b><span>after 0308 raised the gate on the money</span></div>
+    </div>
+  </header>
+
+  <section>
+    <div class="sec-h">
+      <h2>The inversion</h2>
+      <div class="rule"></div>
+    </div>
+    <p>Two failure modes were sitting side by side, and they are opposites:</p>
+    <div class="scroll">
+      <table>
+        <tbody>
+          <tr>
+            <td style="width:44%"><b>A batch logged by accident</b><br>
+              <span class="note">Could not be removed from where the mistake happened. The only Delete
+              was two taps behind a view toggle in the production log.</span></td>
+            <td><b>An invoice. The stock ledger. The jug ledger.</b><br>
+              <span class="note">Could be deleted outright by any account that wasn't a customer —
+              including a server or a contractor.</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>The reason is one line of SQL written in 2025. <code>is_staff()</code> is defined as
+      <code>role &lt;&gt; 'member'</code>, so it is a negation of "customer", not a list of who should
+      be trusted. A server, a contractor, an operator and an event manager all clear it identically —
+      there is <b>no policy anywhere in the database that tells a server apart from a contractor</b>.
+      Forty-one tables sat behind that one check.</p>
+    <p class="note">Ten tables carried a hard-delete guard before today (from migrations 0141, 0276,
+      0277, 0281 and 0292 — customer records, equipment, agreements, offers and expenses). Nineteen
+      money- and record-bearing tables carried none.</p>
+  </section>
+
+  <section>
+    <div class="sec-h">
+      <h2>Who can delete what, by role</h2>
+      <div class="rule"></div>
+      <p class="note">Counted from the live database, not from the source. Each row is cumulative —
+        an admin has everything below it plus its own.</p>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr>
+          <th>Role</th><th class="num">Tables</th><th>What that reaches</th><th>Gate</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td><b>member</b> <span class="note">(customer)</span></td>
+            <td class="num">24</td>
+            <td>Own rows only — their academy progress, their notification preferences, their
+              own comments and push subscriptions.</td>
+            <td><code>auth.uid() = user_id</code></td>
+          </tr>
+          <tr class="hi">
+            <td><b>server</b></td><td class="num">30</td>
+            <td>Everything operational: shoots, field ops, inventory items, brew batches, products,
+              broadcasts, reviews, the primal course content.</td>
+            <td><code>is_staff()</code></td>
+          </tr>
+          <tr class="hi">
+            <td><b>contractor</b></td><td class="num">30</td>
+            <td>Identical to a server. Not one policy distinguishes them.</td>
+            <td><code>is_staff()</code></td>
+          </tr>
+          <tr class="hi">
+            <td><b>operator</b></td><td class="num">30</td>
+            <td>Also identical. Seniority is visible in the navigation, not in the database.</td>
+            <td><code>is_staff()</code></td>
+          </tr>
+          <tr>
+            <td><b>event_manager</b></td><td class="num">38</td>
+            <td>Adds meeting notes, content items, the brand kit, goals, todos and event schedules.</td>
+            <td>inline <code>role in ('event_manager','admin','owner')</code></td>
+          </tr>
+          <tr>
+            <td><b>admin</b></td><td class="num">80</td>
+            <td>Events, stops, orders, vendors, recipes, initiatives, the changelog, the money surface.</td>
+            <td><code>is_admin()</code></td>
+          </tr>
+          <tr>
+            <td><b>owner</b></td><td class="num">83</td>
+            <td>Adds team invites, spend categories and offer letters.</td>
+            <td><code>is_owner()</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Two things the counts don't show. <b>Guard triggers override all of it</b> — a
+      policy can allow a delete that a <code>before delete</code> trigger then refuses, which is why
+      the <code>is_admin()</code> policy on <code>orders</code> has been a dead letter since 0141.
+      And <code>is_admin()</code> still honours a legacy <code>profiles.is_admin</code> boolean
+      regardless of role, so a member row carrying that flag clears an admin gate.</p>
+  </section>
+
+  <section>
+    <div class="sec-h">
+      <h2>The three answers</h2>
+      <div class="rule"></div>
+      <p class="note">Every row in the app is one of these. The mistake was that the code didn't know
+        which was which, so it treated them all the same.</p>
+    </div>
+    <div class="three">
+      <div class="card del">
+        <span class="k">Delete</span>
+        <p>It never happened and nothing depends on it. A mistyped batch, a stale budget, a draft you
+          thought better of.</p>
+      </div>
+      <div class="card dis">
+        <span class="k">Discard</span>
+        <p>It happened, or something points at it. Keep the row and mark it void, so whatever
+          references it still resolves.</p>
+      </div>
+      <div class="card nev">
+        <span class="k">Never</span>
+        <p>Money, stock, or a legal record. Block the hard delete and correct it with a reversing
+          entry instead.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-h">
+      <h2>Shipped today</h2>
+      <div class="rule"></div>
+      <p class="note">Migration 0308, applied and verified in production.</p>
+    </div>
+    <div class="findings">
+
+      <div class="f">
+        <div class="who">
+          <span class="pill green">Fixed</span>
+          <code>brew_batches</code>
+        </div>
+        <div class="what">
+          <b>A brew started by mistake can be taken back — from where you notice it</b>
+          <p>The removal is now on the planned card, in the adjust sheet a brewing batch opens, and in
+            the batch log. All three call one function, so the answer no longer depends on which
+            screen you were on.</p>
+          <p><code>discard_batch()</code> decides, not you. Three tables carry <code>batch_id</code>
+            with <code>on delete set null</code> — drop orders, delivery orders, the stock ledger — so
+            deleting a batch something points at would leave those rows alive and orphaned, which is
+            exactly the traceability 0261 exists to provide. Nothing pointing at it: deleted.
+            Something pointing at it: kept, marked discarded, and the toast says which.</p>
+          <p><b>Discarded is deliberately not dumped.</b> Dumped means it was really brewed and really
+            poured out — a loss that belongs in yield. Collapsing the two would make every misfired
+            Start look like wasted coffee.</p>
+        </div>
+      </div>
+
+      <div class="f">
+        <div class="who">
+          <span class="pill green">Fixed</span>
+          <code>invoices</code> <code>jug_ledger</code> <code>loop_txns</code>
+          <code>event_sales</code> <code>inventory_ledger</code> <code>inventory_lots</code>
+          <code>shop_orders</code> <code>business_orders</code> <code>business_accounts</code>
+        </div>
+        <div class="what">
+          <b>Nine money tables now refuse a hard delete</b>
+          <p>Chosen deliberately: every one has no incoming cascade. A guard on a cascade target
+            doesn't protect the row, it breaks the parent — <code>event_economics</code> cascades from
+            events, and events are deleted from the console, so guarding it would have made every
+            event undeletable. That case is what the new test asserts, because it's the one that
+            would have shipped broken.</p>
+          <p>The deliberate override still exists
+            (<code>set_config('gt3.allow_hard_delete','on',false)</code>), because a guard nobody can
+            get past when they genuinely need to is a guard someone eventually drops.</p>
+        </div>
+      </div>
+
+      <div class="f">
+        <div class="who">
+          <span class="pill green">Fixed</span>
+          <code>+ 11 more</code>
+        </div>
+        <div class="what">
+          <b>Deleting on the money surface now requires an admin</b>
+          <p>A restrictive policy ANDs with what's already there — it cannot widen anything and does
+            not touch reading, inserting or editing. Eleven tables moved out of a server's reach:
+            <code>budgets</code>, <code>business_accounts</code>, <code>business_orders</code>,
+            <code>documents</code>, <code>inventory_lots</code>, <code>invoices</code>,
+            <code>jug_ledger</code>, <code>merch_fulfillments</code>, <code>shop_order_items</code>,
+            <code>shop_orders</code>, <code>vip_verifications</code>.</p>
+          <p>Policies go where cascades exist and triggers go where they don't: a referential action
+            doesn't consult RLS, but it does fire a trigger.</p>
+        </div>
+      </div>
+
+      <div class="f">
+        <div class="who">
+          <span class="pill green">Fixed</span>
+          <code>gtm_drafts</code>
+        </div>
+        <div class="what">
+          <b>A dead escape hatch, now live</b>
+          <p>The playbook query has filtered out <code>status = 'retired'</code> since the day it was
+            written, and nothing in the app has ever set it. The filter was written as if the button
+            existed. A play you sketched and thought better of stayed on the playbook forever, looking
+            live. Retire, not delete — the draft carries a discussion thread worth keeping.</p>
+          <p class="where">app/playbook/page.tsx</p>
+        </div>
+      </div>
+
+      <div class="f">
+        <div class="who">
+          <span class="pill green">Fixed</span>
+          <code>budgets</code>
+        </div>
+        <div class="what">
+          <b>Clearing a budget field now clears the budget</b>
+          <p>Before, an empty box did nothing at all, and typing <code>0</code> set a limit of zero —
+            worse than none, because every dollar spent then reads as over budget, in red, on a
+            category nobody meant to cap. Both spellings of "I didn't mean this" now remove the
+            month's row, and whatever earlier month's budget applies takes over again.</p>
+          <p class="where">components/SpendBudget.tsx</p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-h">
+      <h2>Still open, worst first</h2>
+      <div class="rule"></div>
+      <p class="note">A mistake logged here today still has nowhere to go.</p>
+    </div>
+    <div class="findings">
+
+      <div class="f">
+        <div class="who"><span class="pill red">Live bug</span><code>invoices</code></div>
+        <div class="what">
+          <b>The B2B invoice insert looks like it can't be working</b>
+          <p>Migration 0187 grants <code>select</code> only on <code>invoices</code> to
+            <code>authenticated</code>, and I found no later grant — but the console inserts an
+            invoice from the browser when you mark a business order invoiced. That write should be
+            refused outright. Worth pressing the button on a real order and watching the console:
+            either it's failing silently today, or something re-granted it that I couldn't find.</p>
+          <p class="where">components/OfficeOrders.tsx · setPay(o, 'invoiced')</p>
+        </div>
+      </div>
+
+      <div class="f">
+        <div class="who"><span class="pill red">No reversal</span><code>loop_txns</code></div>
+        <div class="what">
+          <b>Mistype a bottle return and the $2 credit is baked in</b>
+          <p>Admin update and delete policies exist in 0268 and nothing in the app calls either. The
+            quick-log has no edit and no undo. This is the highest-value gap left, because it's the
+            one a person hits routinely and it moves money.</p>
+          <p class="where">components/DeliveryOps.tsx · LoopQuickLog</p>
+        </div>
+      </div>
+
+      <div class="f">
+        <div class="who"><span class="pill red">No reversal</span><code>jug_ledger</code></div>
+        <div class="what">
+          <b>A wrong empties count writes a wrong balance too</b>
+          <p>Append-only in practice: no void column, no negative-quantity path, no edit. The same
+            action also bumps <code>business_accounts.jug_balance</code>, so a mistake lands in two
+            places and can be corrected in neither.</p>
+          <p class="where">components/OfficeOrders.tsx · bumpJugs</p>
+        </div>
+      </div>
+
+      <div class="f">
+        <div class="who"><span class="pill gold">Reachable, unwired</span><code>shop_orders</code></div>
+        <div class="what">
+          <b>'refunded' and 'canceled' exist and nothing can set them</b>
+          <p>Both values are in the status constraint from 0271. No component reads or writes
+            <code>shop_orders</code> at all — the only writers are the checkout route and the Apliiq
+            fulfilment webhook. A storefront refund is invisible to the console.</p>
+        </div>
+      </div>
+
+      <div class="f">
+        <div class="who"><span class="pill gold">Correct-by-counter-entry</span><code>inventory_ledger</code></div>
+        <div class="what">
+          <b>The balance can be fixed; the wrong row is permanent, and carries no reason</b>
+          <p>The idiom is right — a signed adjustment row rather than editing history. But the adjust
+            row has no reason field, so a stock correction six weeks later is unexplainable. Worth one
+            text column and one input.</p>
+          <p class="where">app/crew/page.tsx · adjustOnHand</p>
+        </div>
+      </div>
+
+      <div class="f">
+        <div class="who"><span class="pill gold">Privacy</span><code>delivery_waitlist</code></div>
+        <div class="what">
+          <b>Somebody who joins the waitlist cannot remove themselves</b>
+          <p>Staff select-only RLS, rows written server-side, a guard trigger blocking hard deletes,
+            and no UI anywhere. There is also no "close my account" path in the member account
+            panel — only Sign out. Both are the kind of thing a privacy request lands on.</p>
+        </div>
+      </div>
+
+      <div class="f">
+        <div class="who"><span class="pill gold">No remove</span><code>primal_pillars</code> <code>primal_modules</code></div>
+        <div class="what">
+          <b>Lessons can be deleted; the pillars and modules holding them cannot</b>
+          <p>Publish and unpublish only. A mistyped pillar sits in the course structure permanently.
+            Deleting one cascades three levels down, so this needs a confirm that counts what goes
+            with it — which is why it isn't in today's ship.</p>
+          <p class="where">components/LessonsManager.tsx</p>
+        </div>
+      </div>
+
+      <div class="f">
+        <div class="who"><span class="pill gold">No remove</span><code>promos</code> <code>member_benefits</code> <code>readiness_checks</code> <code>alert_snoozes</code></div>
+        <div class="what">
+          <b>Four smaller ones, all the same shape</b>
+          <p><code>promos</code> has no list at all — only the single most recent row is reachable, so
+            older ones are invisible and unremovable. <code>member_benefits</code> can be paused but
+            the row stays forever. <code>readiness_checks</code> only cycles status. There is no
+            un-snooze for an alert.</p>
+        </div>
+      </div>
+
+      <div class="f">
+        <div class="who"><span class="pill gold">Write-only</span><code>documents</code></div>
+        <div class="what">
+          <b>Smart Intake files a document and it disappears</b>
+          <p>The word <code>documents</code> appears exactly once in the whole codebase — the insert.
+            Nothing lists them, opens them, or removes them. A remove control needs a surface first.</p>
+        </div>
+      </div>
+
+      <div class="f">
+        <div class="who"><span class="pill red">Hazard</span><code>business_accounts</code></div>
+        <div class="what">
+          <b>If you ever add a delete here, fix the foreign keys first</b>
+          <p><code>business_orders</code>, <code>jug_ledger</code> and <code>invoices</code> all
+            reference it with no <code>on delete</code> clause, so the delete raises a foreign-key
+            violation the moment the account has one order. The guard shipped today gives a clear
+            refusal instead of a cryptic one, but the underlying shape still needs deciding.</p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-h">
+      <h2>Right as it stands — don't change these</h2>
+      <div class="rule"></div>
+    </div>
+    <div class="quiet">
+      <p><b>expenses</b> is the template everything else should copy: a soft void with a
+        <b>mandatory reason</b>, a guard trigger refusing hard deletes, and an error message that
+        names the function to use instead. It is the only proper void in the app.</p>
+      <p><b>orders, drop orders and delivery orders</b> all have real cancel functions for both staff
+        and the customer, each with the right cutoff — a cup order only while it's new, a pack only
+        before pickup, a delivery only before 6pm two days out. Each raises a refund alert when the
+        order was paid.</p>
+      <p><b>strategy_decisions</b> and <b>content_versions</b> are append-only on purpose, and both
+        say so in their own UI. That is a decision, not a gap.</p>
+      <p><b>archived_at</b> is a real convention here, used consistently across events, stops,
+        vendors, notes, content, recipes, vessels, kegs and shop products — around forty call sites
+        filtering on it. The soft-delete habit is already in the codebase; it just hadn't reached the
+        money.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-h">
+      <h2>Checking it yourself</h2>
+      <div class="rule"></div>
+      <p class="note">This audit had to be assembled by hand from <code>pg_policy</code>,
+        <code>pg_trigger</code> and a reading of four gate functions. Nobody should have to do that
+        twice, so it's a query now.</p>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>View</th><th>Answers</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="t"><code>v_delete_rights</code></td>
+            <td>Every table, the gate on deleting from it, whether a trigger blocks hard deletes, and
+              whether it has a soft-delete column to use instead.</td>
+          </tr>
+          <tr>
+            <td class="t"><code>v_batch_removable</code></td>
+            <td>Per batch: safe to delete, discard-only, or already discarded — and the counts of what
+              is holding it, so the reason is visible rather than guessed.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Right now: <code>v_batch_removable</code> reports all five batches as safe to
+      delete, and 27 tables carry a delete guard — up from 18 this morning.</p>
+  </section>
+
+  <footer>
+    <p>Audited against the production database on 7 September 2026. Counts in the role table were
+      read from <code>pg_policy</code> live, not inferred from the migration files.</p>
+    <p>Migration 0308 · commit <code>f4d950f</code> · 37 new deletion assertions run against a real
+      Postgres, one of which caught a wrong expectation of mine rather than a bug in the migration.</p>
+  </footer>
+
+</div>
