@@ -297,6 +297,25 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
     const r = await fetch("/api/delivery/waitlist", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ zip, email: wlEmail }) });
     if (r.ok) { setWlSent(true); toast("You're on the list"); } else toast("Enter a ZIP and a real email", "error");
   };
+  // AND BACK OFF IT AGAIN (0310). Joining was one tap and leaving was impossible: staff-only RLS,
+  // rows written server-side, a delete guard, and no interface anywhere in the app. That is the
+  // shape a privacy request arrives in, and the fix is a button next to the one that opted them in.
+  //
+  // leave_waitlist() takes no argument and means "me", so it only ever removes the signed-in
+  // caller's own address — nobody can clear somebody else's by typing it. Someone with no account
+  // is told who to ask, because pretending otherwise would be worse than saying it.
+  const leaveWaitlist = async () => {
+    if (!supabase) return;
+    const { data, error } = await supabase.rpc("leave_waitlist");
+    if (error) {
+      toast(/sign in/i.test(error.message)
+        ? "Sign in with that email to take it off, or email us and we'll do it."
+        : error.message, "error");
+      return;
+    }
+    setWlSent(false); setWlEmail("");
+    toast(Number(data) > 0 ? "Taken off the list" : "That address wasn't on the list");
+  };
 
   // pickup: change / reload
   const startChange = (p: MyPack) => {
@@ -514,7 +533,11 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
           {zone === "out" && (
             <div className="dl-out">
               <p className="dl-sub"><b>{t("funnel.oz_title")}</b> {t("funnel.oz_body")}</p>
-              {wlSent ? <p className="dl-sub ok"><Icon name="check" /> {t("funnel.wl_done")}</p> : (
+              {wlSent ? (
+                <p className="dl-sub ok"><Icon name="check" /> {t("funnel.wl_done")}
+                  {" "}<button type="button" className="dl-wl-off" onClick={leaveWaitlist}>Take me off</button>
+                </p>
+              ) : (
                 <div className="dl-ziprow">
                   <input className="auth-input" type="email" placeholder="you@email.com" value={wlEmail} onChange={(e) => setWlEmail(e.target.value)} aria-label="Email" />
                   <button type="button" className="handle" onClick={joinWaitlist}><span>{t("funnel.notify")}</span></button>

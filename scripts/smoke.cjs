@@ -1120,6 +1120,41 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("brew: no ingredients sizes nothing", B.sizingOptions(null, 2).length === 0);
   ok("brew: dividing by a zero rate gives 0, not Infinity", B.gallonsFromIngredient(500, 0) === 0);
   ok("brew: nothing weighed means no primary line", B.primarySizing([]) === null);
+  // ── DOES THE BATCH FIT THE VESSEL (0310) ─────────────────────────────────────────────────────────
+  // The case that motivated it, kept as the first assertion so the reason survives: half a 340 g bag
+  // is 170 g, which at 280 g/gal is 0.607 gal, which rounds down to 0.5 — and the only vessel on file
+  // is a 5 gal tower. Correct arithmetic, unbrewable batch, and the planner said nothing.
+
+      const fit = (g, cap, n) => B.vesselFit(g, cap, n);
+
+    ok("vessel: 0.5 gal in the 5 gal tower reads as shallow, not as fine",
+      fit(0.5, 5).verdict === "shallow");
+    ok("vessel: and says how little of it is filled — 10%",
+      fit(0.5, 5).pct === 10);
+    ok("vessel: the full 340 g bag (1 gal) is still shallow in a 5 gal tower",
+      fit(1, 5).verdict === "shallow");
+    ok("vessel: two full bags (2 gal) clears the third and reads as fitting",
+      fit(2, 5).verdict === "fits");
+    ok("vessel: exactly at capacity fits — the boundary is not an error",
+      fit(5, 5).verdict === "fits" && fit(5, 5).pct === 100);
+    ok("vessel: a hair over capacity is over",
+      fit(5.25, 5).verdict === "over");
+    ok("vessel: and says by how much, so the fix is obvious",
+      fit(5.25, 5).overBy === 0.25);
+    ok("vessel: count multiplies capacity — 8 gal across two 5s fits",
+      fit(8, 5, 2).verdict === "fits");
+    ok("vessel: and 8 gal in ONE 5 is over by 3",
+      fit(8, 5, 1).verdict === "over" && fit(8, 5, 1).overBy === 3);
+    ok("vessel: a third of capacity is the line, and sitting on it fits",
+      fit(5 / 3, 5).verdict === "fits");
+    ok("vessel: just under the line is shallow",
+      fit(5 / 3 - 0.01, 5).verdict === "shallow");
+    ok("vessel: no size and no capacity return null rather than a verdict about nothing",
+      fit(0, 5) === null && fit(2, 0) === null && fit(NaN, 5) === null);
+    // floating point: 0.1+0.2 style capacity sums must not trip the over branch
+    ok("vessel: 0.75 across three 0.25s is exactly full, not over",
+      fit(0.75, 0.25, 3).verdict === "fits");
+
 }
 
 // ── Deploy skew: when a crashed screen should heal itself ─────────────────────────────────────

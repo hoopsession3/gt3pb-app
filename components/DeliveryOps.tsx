@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
+import { useAsyncData } from "@/lib/useAsyncData";
 import { type PerfMix } from "@/lib/delivery";
 import { etToday } from "@/lib/dates";
 import AssignTaskSheet from "./AssignTaskSheet";
@@ -193,20 +194,67 @@ export default function DeliveryOps() {
 function LoopQuickLog() {
   const [n, setN] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
+  // TODAY'S ENTRIES, so a miscount has somewhere to go (0309/0310).
+  //
+  // This was fire-and-forget: type a number, tap Log, and the $2-a-bottle credit was baked in with
+  // no edit and no undo anywhere in the app. The deletion audit ranked it the worst remaining gap,
+  // because it is the one a person hits routinely and it moves money.
+  //
+  // Deliberately only TODAY. A miscount is noticed within seconds of making it, so the useful scope
+  // is "the ones I just logged" — a full ledger browser would be a different screen answering a
+  // different question, and it would bury this one.
+  const loader = useCallback(async (): Promise<{ id: string; returns: number }[]> => {
+    if (!supabase) return [];
+    const { data } = await supabase.from("v_loop_open")
+      .select("id, returns").eq("on_date", etToday()).order("id");
+    return (data as { id: string; returns: number }[]) ?? [];
+  }, []);
+  // useAsyncData rather than an effect that calls setState — the hook every other loader in this
+  // app already uses, so this one stops being the exception.
+  const board = useAsyncData<{ id: string; returns: number }[]>(loader, []);
+  const today = board.data ?? [];
+  const load = board.reload;
+
   const log = async () => {
     if (!supabase) return;
     const v = Math.round(Number(n));
     if (!Number.isFinite(v) || v <= 0) { setMsg("count first"); return; }
     const { error } = await supabase.from("loop_txns").insert({ returns: v });
     setMsg(error ? `couldn't log — ${error.message}` : `logged ${v} return${v === 1 ? "" : "s"} · $${(v * 2).toFixed(0)} credit owed`);
-    if (!error) setN("");
+    if (!error) { setN(""); load(); }
   };
+
+  const undo = async (id: string, count: number) => {
+    if (!supabase) return;
+    // The reason is required by the function, not optional politeness — a reversal nobody explained
+    // is unreadable six weeks later, which is exactly when someone asks about the credit.
+    const why = typeof window !== "undefined"
+      ? window.prompt(`Void the entry for ${count} return${count === 1 ? "" : "s"}. Why?`, "miscounted") : "";
+    if (!why || !why.trim()) return;
+    const { error } = await supabase.rpc("void_loop_txn", { p_id: id, p_reason: why.trim() });
+    setMsg(error ? `couldn't void — ${error.message}` : `voided ${count} · $${(count * 2).toFixed(0)} credit taken back`);
+    if (!error) load();
+  };
+
   return (
     <div className="dops-loop">
       <span className="dops-loop-l">Loop returns</span>
       <input inputMode="numeric" value={n} onChange={(e) => { setN(e.target.value.replace(/\D/g, "")); setMsg(null); }} placeholder="bottles" aria-label="Loop bottles returned" />
       <button type="button" className="dops-mini" onClick={log} disabled={!n}>Log</button>
       {msg && <i className="dops-loop-m">{msg}</i>}
+      {today.length > 0 && (
+        <span className="dops-loop-today">
+          today:
+          {today.map((t) => (
+            <button key={t.id} type="button" className="dops-loop-chip"
+                    title={`Void this entry of ${t.returns}`}
+                    onClick={() => undo(t.id, t.returns)}>
+              {t.returns}<span aria-hidden="true">×</span>
+              <i className="sr-only">Void the entry for {t.returns} returns</i>
+            </button>
+          ))}
+        </span>
+      )}
     </div>
   );
 }

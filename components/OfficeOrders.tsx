@@ -65,6 +65,27 @@ export default function OfficeOrders() {
     await supabase!.from("business_accounts").update({ jug_balance: bal }).eq("id", o.business_id);
   };
 
+  // UNDOING A SWAP. bumpJugs writes a jug_ledger row and moves business_accounts.jug_balance, so a
+  // miscount is wrong in two places at once. void_jug_entry reverses both in one transaction and
+  // keeps the row as the record — and it clamps at zero exactly where bumpJugs does, which is the
+  // bug 0310 fixed after I shipped the reversal without it.
+  const voidSwap = async (o: BOrder) => {
+    if (!supabase || busyId) return;
+    const { data: rows } = await supabase.from("v_jug_open")
+      .select("id, jugs_out, jugs_in").eq("business_order_id", o.id).order("created_at", { ascending: false }).limit(1);
+    const row = ((rows as { id: string; jugs_out: number; jugs_in: number }[]) ?? [])[0];
+    if (!row) { toast("No open jug entry on this delivery to undo.", "error"); return; }
+    const why = typeof window !== "undefined"
+      ? window.prompt(`Undo the swap logged for ${o.company} — ${row.jugs_out} out, ${row.jugs_in} back. Why?`, "miscounted the empties") : "";
+    if (!why || !why.trim()) return;
+    setBusyId(o.id);
+    const { error } = await supabase.rpc("void_jug_entry", { p_id: row.id, p_reason: why.trim() });
+    setBusyId(null);
+    if (error) { toast(error.message, "error"); return; }
+    toast(`${o.company} — jug swap undone, balance corrected`);
+    reload();
+  };
+
   const deliver = async (o: BOrder, swapped: boolean) => {
     if (!supabase || busyId) return; setBusyId(o.id);
     const jugsIn = swapped ? Math.max(0, empties[o.id] ?? Math.round(o.gallons)) : 0;
@@ -164,6 +185,10 @@ export default function OfficeOrders() {
                                 : <button type="button" className="btn-sec" onClick={() => setPay(o, "invoiced")} disabled={busyId === o.id}>Invoice</button>
                             )}
                             <button type="button" className="btn-ter" onClick={() => cancel(o)} disabled={busyId === o.id}>Cancel</button>
+                            {/* A wrong empties count landed in two places — the ledger row AND the
+                                account's container balance — and could be corrected in neither.
+                                Voiding puts both back (0309/0310). */}
+                            <button type="button" className="btn-ter" onClick={() => voidSwap(o)} disabled={busyId === o.id}>Undo jug swap</button>
                           </div>
                         ) : (
                           <div className="oo-log">

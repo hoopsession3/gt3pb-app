@@ -102,3 +102,31 @@ export const ingredientForGallons = (gal: number, perGal: number) =>
 /** Round a batch DOWN to a pourable quarter-gallon. Sizing from a fixed amount of coffee must never
  *  round up: rounding 16.2 gal to 16.25 asks for coffee that is not on the shelf. */
 export const quarterGalDown = (g: number) => Math.max(0, Math.floor(g * 4) / 4);
+
+// ── DOES THIS BATCH FIT THE THING YOU ARE BREWING IT IN ───────────────────────────────────────────
+//
+// Ryan sized a batch from half a 340 g bag on 2026-09-07: 170 g at 1:13 is 0.607 gal, which rounds
+// down to 0.5. Correct arithmetic, and not brewable — the only vessel on file is a 5 gal tower with
+// a filter basket, and half a gallon does not reach the basket. The planner offered the vessel and
+// the size side by side and never mentioned that one did not fit the other.
+//
+// TOO BIG is a fact: past capacity the water has nowhere to go.
+//
+// TOO SMALL is NOT a fact and this does not pretend it is. The real minimum depends on where the
+// basket sits, which is not recorded anywhere and which I have not measured. A third of capacity is
+// a prompt to go and look at the vessel, not a specification of it — so the copy asks rather than
+// asserts, and it never blocks. If the true minimum is ever measured it belongs on brew_vessels as
+// a column, and this heuristic should be deleted the day it is.
+export type VesselFit =
+  | { verdict: "fits"; pct: number }
+  | { verdict: "over"; pct: number; overBy: number }
+  | { verdict: "shallow"; pct: number };
+
+export function vesselFit(gal: number, capacityGal: number, count = 1): VesselFit | null {
+  const g = Number(gal), cap = Number(capacityGal) * (Number(count) || 1);
+  if (!(g > 0) || !(cap > 0)) return null;
+  const pct = Math.round((g / cap) * 100);
+  if (g > cap + 0.001) return { verdict: "over", pct, overBy: +(g - cap).toFixed(2) };
+  if (g < cap / 3) return { verdict: "shallow", pct };
+  return { verdict: "fits", pct };
+}

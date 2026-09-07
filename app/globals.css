@@ -4274,6 +4274,16 @@ body:has(.conc-sheet) .rail{display:flex}
 .bsz-note{margin:8px 0 0;font-family:'Inter';font-size:12px;line-height:1.5;color:var(--cream-m)}
 .bsz-note b{color:var(--gold2);font-variant-numeric:tabular-nums}
 .bsz-over{color:var(--warn);font-weight:700}
+/* Too SMALL for the vessel (0310). Quieter than .bsz-over on purpose: over capacity is a fact —
+   the water has nowhere to go — while too shallow is a prompt to look at the basket, and the real
+   minimum is not recorded anywhere. It reads as a question, so it should not shout like an error. */
+.bsz-shallow{color:var(--gold2);font-weight:650}
+/* "Take me off" beside the waitlist confirmation (0310). Inline and underlined rather than a button
+   shape: it sits inside a sentence, and the opt-out should be findable without competing with the
+   thing the person actually came to do. */
+.dl-wl-off{background:none;border:none;padding:0 2px;min-height:44px;cursor:pointer;
+  font-family:'Inter';font-size:inherit;font-weight:650;color:inherit;text-decoration:underline;
+  text-underline-offset:2px;-webkit-appearance:none;appearance:none}
 .app.crew-day .brew-oprow>button{color:#7a5518}
 
 /* Events row: real derived date under the day stamp (app/events RsvpRow) */

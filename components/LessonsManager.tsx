@@ -14,8 +14,8 @@ import AsyncSection from "./AsyncSection";
 // is the gate (same as MenuManager). Publish = stamp published_at; unpublish = clear it.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-type Pillar = { id: string; slug: string; title: string; sort: number; published_at: string | null };
-type Module = { id: string; pillar_id: string; slug: string; title: string; sort: number; published_at: string | null };
+type Pillar = { id: string; slug: string; title: string; sort: number; published_at: string | null; archived_at: string | null };
+type Module = { id: string; pillar_id: string; slug: string; title: string; sort: number; published_at: string | null; archived_at: string | null };
 type Lesson = { id: string; module_id: string; slug: string; title: string; subtitle: string | null; tier: "rookie" | "pro"; est_minutes: number | null; summary: string | null; key_points: string[]; body: string | null; sort: number; published_at: string | null };
 type ProductOpt = { slug: string; name: string; active: boolean };
 type Board = { pillars: Pillar[]; modules: Module[]; lessons: Lesson[]; products: ProductOpt[] };
@@ -32,8 +32,8 @@ export default function LessonsManager() {
   const loader = useCallback(async (): Promise<Board> => {
     if (!supabase) return { pillars: [], modules: [], lessons: [], products: [] };
     const [pil, mod, les, prod] = await Promise.all([
-      supabase.from("primal_pillars").select("id, slug, title, sort, published_at").order("sort"),
-      supabase.from("primal_modules").select("id, pillar_id, slug, title, sort, published_at").order("sort"),
+      supabase.from("primal_pillars").select("id, slug, title, sort, published_at, archived_at").order("sort"),
+      supabase.from("primal_modules").select("id, pillar_id, slug, title, sort, published_at, archived_at").order("sort"),
       supabase.from("primal_lessons").select("id, module_id, slug, title, subtitle, tier, est_minutes, summary, key_points, body, sort, published_at").order("sort"),
       supabase.from("products").select("slug, name, active").order("sort"),
     ]);
@@ -236,20 +236,71 @@ function StructureEditor({ pillars, modules, onSaved, toast }: { pillars: Pillar
     await supabase.from(table).update({ published_at: cur ? null : new Date().toISOString() }).eq("id", id);
     onSaved();
   };
+
+  // REMOVING A BRANCH, WITH THE NUMBER THAT MAKES THE CONFIRM MEAN SOMETHING.
+  //
+  // The audit said pillars and modules "have no delete". Looking properly, both already carry
+  // archived_at — the convention forty other call sites use — and this screen simply never offered
+  // it. Archive is also the RIGHT answer rather than the merely available one: primal_progress
+  // points at lessons, so deleting a pillar would take people's course history with it.
+  //
+  // v_primal_tree (0310) supplies what is underneath, because "Archive Move?" is a question nobody
+  // can answer and "Archive Move — 4 modules, 19 lessons, 12 people have progress against them" is
+  // a question they can.
+  const archive = async (table: "primal_pillars" | "primal_modules", id: string, title: string) => {
+    if (!supabase) return;
+    let detail = "";
+    if (table === "primal_pillars") {
+      const { data } = await supabase.from("v_primal_tree")
+        .select("live_modules, live_lessons, progress_rows").eq("pillar_id", id).maybeSingle();
+      const t = data as { live_modules: number; live_lessons: number; progress_rows: number } | null;
+      if (t) {
+        detail = `\n\nUnder it: ${t.live_modules} module${Number(t.live_modules) === 1 ? "" : "s"}` +
+                 ` and ${t.live_lessons} lesson${Number(t.live_lessons) === 1 ? "" : "s"}.` +
+                 (Number(t.progress_rows) > 0
+                   ? ` ${t.progress_rows} recorded piece${Number(t.progress_rows) === 1 ? "" : "s"} of someone's progress point${Number(t.progress_rows) === 1 ? "s" : ""} at it — archiving hides the branch and keeps all of that.`
+                   : " Nobody has progress against it yet.");
+      }
+    }
+    if (typeof window !== "undefined" &&
+        !window.confirm(`Archive "${title}"?${detail}\n\nIt comes off the academy. Nothing is deleted, and you can bring it back.`)) return;
+    const { error } = await supabase.from(table).update({ archived_at: new Date().toISOString() }).eq("id", id);
+    if (error) { toast(`Error: ${error.message}`, "error"); return; }
+    toast(`${title} archived`);
+    onSaved();
+  };
+
+  const unarchive = async (table: "primal_pillars" | "primal_modules", id: string, title: string) => {
+    if (!supabase) return;
+    const { error } = await supabase.from(table).update({ archived_at: null }).eq("id", id);
+    if (error) { toast(`Error: ${error.message}`, "error"); return; }
+    toast(`${title} is back`);
+    onSaved();
+  };
   return (
     <div className="prod-recipe" style={{ marginTop: 10 }}>
       <div className="insp-lbl">Pillars &amp; modules — the shape of the academy</div>
       {pillars.map((p) => (
         <div key={p.id} style={{ marginBottom: 8 }}>
           <div className="prod-comp">
-            <span><b>{p.title}</b>{!p.published_at && <em style={{ opacity: 0.6 }}> · hidden</em>}</span>
-            <button type="button" className={p.published_at ? "insp-no" : "insp-yes"} onClick={() => togglePub("primal_pillars", p.id, p.published_at)}>{p.published_at ? "Unpublish" : "Publish"}</button>
+            <span><b>{p.title}</b>{p.archived_at ? <em style={{ opacity: 0.6 }}> · archived</em> : !p.published_at && <em style={{ opacity: 0.6 }}> · hidden</em>}</span>
+            {p.archived_at
+              ? <button type="button" className="insp-yes" onClick={() => unarchive("primal_pillars", p.id, p.title)}>Bring back</button>
+              : <>
+                  <button type="button" className={p.published_at ? "insp-no" : "insp-yes"} onClick={() => togglePub("primal_pillars", p.id, p.published_at)}>{p.published_at ? "Unpublish" : "Publish"}</button>
+                  <button type="button" className="insp-no" onClick={() => archive("primal_pillars", p.id, p.title)}>Archive</button>
+                </>}
           </div>
           <div style={{ paddingLeft: 12 }}>
             {modules.filter((m) => m.pillar_id === p.id).map((m) => (
               <div key={m.id} className="prod-comp">
-                <span>{m.title}{!m.published_at && <em style={{ opacity: 0.6 }}> · hidden</em>}</span>
-                <button type="button" className={m.published_at ? "insp-no" : "insp-yes"} onClick={() => togglePub("primal_modules", m.id, m.published_at)}>{m.published_at ? "Unpublish" : "Publish"}</button>
+                <span>{m.title}{m.archived_at ? <em style={{ opacity: 0.6 }}> · archived</em> : !m.published_at && <em style={{ opacity: 0.6 }}> · hidden</em>}</span>
+                {m.archived_at
+                  ? <button type="button" className="insp-yes" onClick={() => unarchive("primal_modules", m.id, m.title)}>Bring back</button>
+                  : <>
+                      <button type="button" className={m.published_at ? "insp-no" : "insp-yes"} onClick={() => togglePub("primal_modules", m.id, m.published_at)}>{m.published_at ? "Unpublish" : "Publish"}</button>
+                      <button type="button" className="insp-no" onClick={() => archive("primal_modules", m.id, m.title)}>Archive</button>
+                    </>}
               </div>
             ))}
             <ModuleAdder onAdd={(title) => addModule(p.id, title)} />

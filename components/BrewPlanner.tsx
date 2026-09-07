@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { FLAVORS } from "@/lib/orderAhead";
-import { bottlesFor, brewStartOverdue, sizingOptions, primarySizing, gallonsFromIngredient, ingredientForGallons, quarterGalDown } from "@/lib/brewMath";
+import { bottlesFor, brewStartOverdue, sizingOptions, primarySizing, gallonsFromIngredient, ingredientForGallons, quarterGalDown, vesselFit } from "@/lib/brewMath";
 import { localToday } from "@/lib/dates";
 import AssignTaskSheet from "@/components/AssignTaskSheet";
 import Sheet from "@/components/Sheet";
@@ -819,9 +819,21 @@ function BrewSheet({ recipe, events, stops, vessels, initialTarget, onClose, onD
                     {Number(gal) > 0
                       ? <>A {gal} gal batch needs <b>{Math.round(ingredientForGallons(Number(gal), sizeBy.perGal))} {sizeBy.unit}</b>. Sizing from the {sizeBy.unit} rounds down to the quarter-gallon, so it never asks for more than you have.</>
                       : <>Enter what you have and the batch sizes to it.</>}
-                    {vessel && Number(gal) > 0 && Number(gal) > vessel.capacity_gal * vesselCount && (
-                      <> <span className="bsz-over">That is more than {vesselCount} × {vessel.name} holds ({(vessel.capacity_gal * vesselCount).toFixed(2)} gal).</span></>
-                    )}
+                    {/* The over-capacity half of this already existed. The other half is what bit a
+                        real brew on 2026-09-07: 170 g of coffee sizes to 0.5 gal, which is correct
+                        and is 10% of the only vessel on file — half a gallon does not reach the
+                        filter basket in a 5 gal tower. The sheet showed the vessel and the size
+                        side by side and never mentioned that one did not fit the other. */}
+                    {(() => {
+                      const fit = vessel ? vesselFit(Number(gal), vessel.capacity_gal, vesselCount) : null;
+                      if (!fit || fit.verdict === "fits") return null;
+                      const cap = (vessel!.capacity_gal * vesselCount).toFixed(2);
+                      return fit.verdict === "over"
+                        ? <> <span className="bsz-over">That is {fit.overBy} gal more than {vesselCount > 1 ? `${vesselCount} × ` : ""}{vessel!.name} holds ({cap} gal).</span></>
+                        // Asks rather than asserts: the real minimum depends on where the basket
+                        // sits, which is not on file. It never blocks — Ryan knows his own gear.
+                        : <> <span className="bsz-shallow">That fills only {fit.pct}% of {vessel!.name} ({cap} gal). Check the grounds will actually be submerged before you start.</span></>;
+                    })()}
                   </p>
                 </div>
               )}

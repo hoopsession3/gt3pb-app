@@ -347,20 +347,26 @@
     <div class="sec-h">
       <h2>Still open, worst first</h2>
       <div class="rule"></div>
-      <p class="note">A mistake logged here today still has nowhere to go.</p>
+      <p class="note">A mistake logged here today still has nowhere to go. One entry below is a finding I withdrew after checking it against the live database rather than the migration files.</p>
     </div>
     <div class="findings">
 
       <div class="f">
-        <div class="who"><span class="pill red">Live bug</span><code>invoices</code></div>
+        <div class="who"><span class="pill green">Withdrawn</span><code>invoices</code></div>
         <div class="what">
-          <b>The B2B invoice insert looks like it can't be working</b>
-          <p>Migration 0187 grants <code>select</code> only on <code>invoices</code> to
-            <code>authenticated</code>, and I found no later grant — but the console inserts an
-            invoice from the browser when you mark a business order invoiced. That write should be
-            refused outright. Worth pressing the button on a real order and watching the console:
-            either it's failing silently today, or something re-granted it that I couldn't find.</p>
-          <p class="where">components/OfficeOrders.tsx · setPay(o, 'invoiced')</p>
+          <b>I said the B2B invoice insert couldn't be working. It works.</b>
+          <p>The original finding read migration 0187, saw it grant <code>select</code> only on
+            <code>invoices</code> to <code>authenticated</code>, found no later grant, and concluded
+            the console's insert must be failing silently. I checked it against the live database
+            afterwards and it was wrong: <code>authenticated</code> holds insert, and the
+            <code>invoice staff</code> policy admits it.</p>
+          <p>The reason is the same one this audit later stumbled into from the other direction —
+            Supabase grants privileges on every table in <code>public</code> by default, so a
+            migration's narrow <code>grant</code> is not the whole picture. <b>Reading the migrations
+            tells you what a migration did, not what the database is.</b> Nothing is broken here, and
+            nothing needs doing. Left visible rather than deleted, because a withdrawn finding is
+            part of the record.</p>
+          <p class="where">verified: has_table_privilege('authenticated','public.invoices','insert') = true</p>
         </div>
       </div>
 
@@ -460,6 +466,38 @@
       </div>
 
     </div>
+  </section>
+
+  <section>
+    <div class="sec-h">
+      <h2>The thing everything else rests on</h2>
+      <div class="rule"></div>
+      <p class="note">Found while verifying the migration this page describes, not while writing it.</p>
+    </div>
+    <p>Checking the new grants turned up <code>anon = true</code> for select, insert, update
+      <i>and</i> delete on a table I had just created. I widened the query expecting to find my own
+      mistake. It is every table:</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Role</th><th>Privilege on all 143 tables in <code>public</code></th><th>What stops it</th></tr></thead>
+        <tbody>
+          <tr><td><b>anon</b> <span class="note">(no account, no session)</span></td>
+              <td><code>SELECT · INSERT · UPDATE · DELETE</code></td>
+              <td>Row level security, and nothing else</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>That is Supabase's default privilege set, not something these migrations introduced — and it
+      is how the platform is designed to work. But it means <b>RLS is the only thing between an
+      anonymous request and the whole database.</b></p>
+    <p class="note">Counted rather than assumed: all 143 tables have RLS enabled. Zero exceptions.
+      Four have RLS on with no policy at all, which denies everyone and is correct for them —
+      <code>ops_heartbeat</code> and <code>outlook_connection</code> among them, both service-role
+      only.</p>
+    <p>So one <code>create table</code> that forgets one line is not a small oversight; it is a table
+      anyone on the internet can read and write, with no error and nothing to notice. That is now a
+      release gate: every migration from 0310 that creates a table in <code>public</code> must enable
+      RLS in the same file, and the gate was proved to fail before it was trusted.</p>
   </section>
 
   <section>
