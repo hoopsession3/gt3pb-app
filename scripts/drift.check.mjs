@@ -37,6 +37,7 @@ const FLOOR = 269;   // the rule starts where it was written — history isn't r
 // (0007 and 0040) and a ledger keyed on the number silently drops one of each pair.
 const RLS_FLOOR = 310;   // the rule starts where it was written — history isn't retro-judged
 const LEDGER_FLOOR = 304;
+const VIEW_FLOOR = 312;  // the fourth rule, below
 
 const offenders = [];
 const unstamped = [];
@@ -87,6 +88,60 @@ for (const f of readdirSync(DIR).filter((x) => x.endsWith(".sql")).sort()) {
   for (const t of new Set(created)) if (!enabled.has(t)) rlsMissing.push(`${f} creates public.${t} without enabling RLS`);
 }
 
+// ── FOURTH RULE, added at 0312: a view must not walk around the RLS on its own tables ─────────
+// The third rule above put RLS on every table. This one stops a view from making that pointless.
+//
+// A Postgres view runs as its OWNER unless it is declared `with (security_invoker = on)`. The owner
+// here is postgres, which bypasses RLS. So `grant select ... to authenticated` on a definer view
+// hands every logged-in customer the unfiltered table. Measured in production before 0312: a real
+// member account read ONE row from public.profiles and THREE from public.v_crew_person — the same
+// data, one door locked and the one beside it standing open. Thirty-five of forty views were built
+// that way, eleven of them by me in the four migrations before this rule existed. Copying the file
+// above you is how a defect becomes a house style, which is the entire argument for a gate.
+//
+// Satisfied any of three ways, in the same file as the create:
+//   1. with (security_invoker = on)          — the view honours its base tables' RLS
+//   2. alter view ... set (security_invoker = on)
+//   3. revoke ... from ... authenticated     — deliberately not readable by the app at all
+//   4. -- security_invoker: <view> — <why not>   (the escape hatch, e.g. market_live in 0285,
+//      definer on purpose because the storefront asks it while logged out)
+const viewOffenders = [];
+for (const f of readdirSync(DIR).filter((x) => x.endsWith(".sql")).sort()) {
+  const seq = Number(f.slice(0, 4));
+  if (!Number.isFinite(seq) || seq < VIEW_FLOOR) continue;
+  const sql = readFileSync(join(DIR, f), "utf8");
+  const live = sql.split("\n").filter((l) => !l.trim().startsWith("--")).join("\n");
+  const created = [...live.matchAll(/create\s+(?:or\s+replace\s+)?view\s+public\.([a-z0-9_]+)\s*(?:with\s*\(([^)]*)\))?/gi)];
+  for (const m of created) {
+    const name = m[1].toLowerCase();
+    const inlineInvoker = /security_invoker\s*=\s*on/i.test(m[2] ?? "");
+    const alterInvoker = new RegExp(`alter\\s+view\\s+public\\.${name}\\s+set\\s*\\([^)]*security_invoker\\s*=\\s*on`, "i").test(live);
+    // A revoke that names this view and takes authenticated's read away — the "nobody in the app
+    // reads this" answer. Matched on the same statement so a revoke of some OTHER view can't cover.
+    const revoked = new RegExp(`revoke[^;]*\\bon\\b[^;]*\\bpublic\\.${name}\\b[^;]*\\bauthenticated\\b`, "i").test(live);
+    const declared = new RegExp(`^\\s*--\\s*security_invoker:\\s*${name}\\b`, "im").test(sql);
+    if (!inlineInvoker && !alterInvoker && !revoked && !declared) {
+      viewOffenders.push(`${f} creates public.${name} without security_invoker`);
+    }
+  }
+}
+
+if (viewOffenders.length) {
+  console.error(`VIEW GATE: ${viewOffenders.length} view(s) would run as the database owner and bypass RLS:`);
+  for (const m of viewOffenders) console.error(`  ✗ ${m}`);
+  console.error(
+    `\nA view without security_invoker runs as postgres, which ignores row-level security — so ` +
+    `granting it to \`authenticated\` hands every logged-in customer the unfiltered table. ` +
+    `Before 0312 that was measurable: a member read 1 row from profiles and 3 from v_crew_person.\n` +
+    `Fix it one of these ways, in the same migration:\n` +
+    `    create or replace view public.<name> with (security_invoker = on) as ...\n` +
+    `    revoke all on public.<name> from anon, authenticated;   -- if the app never reads it\n` +
+    `    -- security_invoker: <name> — <why it is definer on purpose>\n` +
+    `Watch the chain: under invoker the CALLER needs select on every view a view stands on.`
+  );
+  process.exit(1);
+}
+
 if (rlsMissing.length) {
   console.error(`RLS GATE: ${rlsMissing.length} table(s) would ship readable and writable by anyone:`);
   for (const m of rlsMissing) console.error(`  ✗ ${m}`);
@@ -126,3 +181,4 @@ if (unstamped.length || misstamped.length) {
 console.log("NO-DRIFT GATE: every migration declares its changelog position — clean.");
 console.log("LEDGER GATE: every migration from 0304 records itself by its own filename — clean.");
 console.log("RLS GATE: every table created from 0310 enables row level security in the same file — clean.");
+console.log("VIEW GATE: every view created from 0312 honours RLS, is closed to the app, or says why — clean.");
