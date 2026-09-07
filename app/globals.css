@@ -7275,3 +7275,131 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .spb-rcpt.busy{opacity:.6;pointer-events:none}
 .spb-void{font-family:'Inter';font-size:11px;padding:3px 8px;border-radius:20px;
   border:1px solid var(--line);color:var(--cream-d);white-space:nowrap}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════════
+   FORM CONTROLS — one system, retrofitted onto the classes already in the markup.
+   ═══════════════════════════════════════════════════════════════════════════════════════════════
+   Written after an interface audit turned free-text boxes into pickers across nine screens and
+   exposed what had been hidden while there were almost no <select>s: .prod-f styled `input` and
+   `textarea` and never `select`. 164 elements carry .prod-f. Every dropdown added tonight was
+   rendering as a raw browser control on a charcoal ground — the one thing worse than the text box
+   it replaced.
+
+   Retrofit rather than rewrite. .prod-f, .gl-f, .ev-f and .codes-f are already on ~240 elements;
+   fixing them in place lifts every form at once and touches no component. Nothing below changes a
+   colour, a radius or a size that was already being applied to inputs — it extends those exact
+   values to the controls that were missing them, and adds what the audit standard asks for on top.
+   ─────────────────────────────────────────────────────────────────────────────────────────────── */
+
+/* 1. NATIVE PICKERS FOLLOW THE THEME. Without color-scheme the browser paints its own date and
+      time popovers, the clock and calendar glyphs, and every scrollbar in light mode — so the
+      type="time" inputs the audit just introduced showed a white-on-white icon in the dark console.
+      One declaration fixes all of them; the day theme overrides it back. */
+:root{color-scheme:dark}
+.app.crew-day{color-scheme:light}
+
+/* 2. SELECTS GET WHAT INPUTS ALWAYS HAD. Same ground, border, radius, ink and type scale as the
+      input beside them, so a row of mixed controls reads as one row. */
+.prod-f select,.codes-f select{
+  width:100%;min-width:0;background:var(--bg,#0d0b08);border:1px solid var(--line);
+  border-radius:9px;padding:10px 12px;color:var(--cream);
+  font-family:'Inter';font-size:15px;line-height:1.2;
+}
+.gl-f select{font-size:13px;border-radius:7px;padding:8px 9px}
+
+/* 3. THE ARROW HAS TO BE DRAWN BACK ON. -webkit-appearance:none removes the native chevron, and
+      without a replacement a select is indistinguishable from a text field — people type into it.
+      An inline SVG data URI: no network request, and it inherits nothing so it is set per theme.
+      Padding-right keeps the longest option clear of the arrow instead of running under it. */
+.prod-f select,.gl-f select,.ev-f select,.codes-f select,.bsz-row select{
+  -webkit-appearance:none;appearance:none;
+  background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' fill='none' stroke='%23F5F1E8' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' opacity='.65'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 12px center;padding-right:34px;
+}
+.app.crew-day .prod-f select,.app.crew-day .gl-f select,.app.crew-day .ev-f select,
+.app.crew-day .codes-f select,.app.crew-day .bsz-row select{
+  background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' fill='none' stroke='%23221F18' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' opacity='.6'/%3E%3C/svg%3E");
+}
+/* A select with its own ground (.ev-f, .bsz-row) keeps it — only the arrow is added there. */
+.ev-f select{background-color:rgba(0,0,0,.28)}
+.app.crew-day .ev-f select{background-color:var(--card)}
+
+/* 4. THE OPTION LIST IS PAINTED BY THE OS, NOT BY US. Firefox and Chrome on Linux render the
+      dropdown with the page's colours only if the option elements are told; otherwise dark text
+      lands on a dark popup. Cheap insurance, no effect where the OS already gets it right. */
+.prod-f select option,.gl-f select option,.ev-f select option,
+.codes-f select option,.bsz-row select option{background:var(--bg,#0d0b08);color:var(--cream)}
+.app.crew-day select option{background:#fff;color:#221F18}
+
+/* 5. A TARGET YOU CAN ACTUALLY HIT. WCAG 2.5.5 asks 44px; these sheets are used on a phone, on a
+      cart, one-handed, often in gloves. min-height rather than padding so nothing reflows. */
+.prod-f input,.prod-f select,.prod-f textarea,
+.gl-f input,.gl-f select,.gl-f textarea,
+.ev-f input,.ev-f select,
+.codes-f input,.codes-f select,
+.bsz-row input,.bsz-row select{min-height:44px}
+.prod-f textarea,.gl-f textarea{min-height:66px}
+
+/* 6. FOCUS YOU CAN SEE WITHOUT LOOKING FOR IT. The old rule moved border-colour by one shade,
+      which on a 1px border against charcoal is close to invisible and fails 2.4.11. A ring, only
+      for keyboard focus, so a tap does not light the field up. */
+.prod-f input:focus-visible,.prod-f select:focus-visible,.prod-f textarea:focus-visible,
+.gl-f input:focus-visible,.gl-f select:focus-visible,.gl-f textarea:focus-visible,
+.ev-f input:focus-visible,.ev-f select:focus-visible,
+.codes-f input:focus-visible,.codes-f select:focus-visible,
+.bsz-row input:focus-visible,.bsz-row select:focus-visible{
+  outline:2px solid var(--gold2);outline-offset:2px;border-color:var(--gold2);
+}
+
+/* 7. NUMBERS LINE UP. Quantities, prices and grams sit in columns and get compared down the page;
+      proportional digits make that comparison lie. */
+.prod-f input[type="number"],.gl-f input[type="number"],.ev-f input[type="number"],
+.codes-f input[type="number"],.bsz-row input[type="number"],
+.prod-f input[inputmode="decimal"],.gl-f input[inputmode="decimal"],
+.prod-f input[inputmode="numeric"],.gl-f input[inputmode="numeric"]{
+  font-variant-numeric:tabular-nums;
+}
+
+/* 8. A READ-ONLY FIELD SHOULD LOOK READ-ONLY. Two of the audit's fixes turned a typed value into a
+      derived one (the event weekday, the live RSVP count). Leaving them looking editable invites
+      the click that made the old free-text box a problem in the first place. */
+.prod-f input[readonly],.gl-f input[readonly],.ev-f input[readonly],.codes-f input[readonly]{
+  background:transparent;border-style:dashed;color:var(--cream-m);cursor:default;
+}
+
+/* 9. Checkboxes and radios in the brand colour rather than the browser's blue. */
+.prod-f input[type="checkbox"],.gl-f input[type="checkbox"],.ev-f input[type="checkbox"],
+.codes-f input[type="checkbox"],.prod-toggle input[type="checkbox"]{
+  accent-color:var(--gold2);min-height:0;
+}
+
+/* 10. Anything disabled reads as disabled, consistently, instead of per-component guesswork. */
+.prod-f :disabled,.gl-f :disabled,.ev-f :disabled,.codes-f :disabled{opacity:.55;cursor:not-allowed}
+
+/* Lists panel — one row per option: order, stored value, label, and whether it is still offered.
+   Grid rather than flex so the four columns line up down the list; the stored value is a fixed
+   track because it is the identity and should not jiggle as labels change length. */
+.lst-row{display:grid;grid-template-columns:3.6em minmax(0,7em) minmax(0,1fr) auto;gap:8px;
+  align-items:center;padding:7px 0;border-top:1px solid var(--line)}
+.lst-row:first-of-type{border-top:0}
+.lst-row input{background:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:7px;
+  padding:8px 9px;color:var(--cream);font-family:'Inter';font-size:13px;min-height:44px;
+  width:100%;min-width:0}
+.app.crew-day .lst-row input{background:var(--card)}
+.lst-row input:focus-visible{outline:2px solid var(--gold2);outline-offset:2px;border-color:var(--gold2)}
+.lst-order{text-align:center;font-variant-numeric:tabular-nums}
+.lst-val{font-family:'DM Mono',ui-monospace,monospace;font-size:12px;color:var(--gold2);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lst-live{min-height:44px;padding:6px 11px;border-radius:20px;border:1px solid var(--line);
+  background:none;color:var(--cream-d);font-family:'Inter';font-size:11.5px;white-space:nowrap;
+  display:inline-flex;align-items:center;gap:5px;cursor:pointer}
+.lst-live.on{border-color:var(--gold2);color:var(--gold2)}
+.lst-live:focus-visible{outline:2px solid var(--gold2);outline-offset:2px}
+.lst-add{margin-top:9px;padding-top:9px;border-top:1px dashed var(--line2)}
+@media(max-width:560px){
+  /* On a phone the four columns become two rows rather than four unreadable slivers. */
+  .lst-row{grid-template-columns:3.6em minmax(0,1fr);grid-auto-rows:min-content}
+  .lst-val{grid-column:2}
+  .lst-label{grid-column:1/-1}
+  .lst-live{grid-column:1/-1;justify-content:center}
+}

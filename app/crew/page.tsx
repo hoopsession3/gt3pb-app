@@ -95,6 +95,7 @@ function toTimeInput(v: string | null | undefined): string {
 }
 
 const FounderDigest = dynamic(() => import("@/components/FounderDigest"), { loading: () => <PourFill label="Loading…" /> });
+const ListsPanel = dynamic(() => import("@/components/ListsPanel"), { loading: () => <PourFill label="Loading…" /> });
 const SpendBudget = dynamic(() => import("@/components/SpendBudget"), { loading: () => <PourFill label="Loading…" /> });
 const DriverDash = dynamic(() => import("@/components/DriverDash"), { loading: () => <PourFill label="Loading…" /> });
 const PipelinePanel = dynamic(() => import("@/components/PipelinePanel"), { loading: () => <PourFill label="Loading…" /> });
@@ -6449,6 +6450,11 @@ export default function AdminPage() {
           <Panel id="set-ai" title="AI copilots · the full catalog"><CopilotDirectory /></Panel>
           {isAdmin && <Panel id="set-spend" title="AI spend · what your copilots cost"><AiSpend /></Panel>}
           {isAdmin && <Panel id="set-digest" title="Founder digest · the daily business roll-up"><FounderDigest /></Panel>}
+          {/* 0306 moved every dropdown's list into the database so the same column stopped being a
+              picker on one screen and a text box on another. This is the other half of that: the
+              lists have to be editable from in here, or adding a unit means opening the SQL editor,
+              which is not something to hand a market lead. */}
+          {isAdmin && <Panel id="set-lists" title="Dropdown lists · what every picker offers"><ListsPanel /></Panel>}
 
           {/* 2026-07-16 scope assessment: changelog + the audit log are tools ABOUT the software
               itself (what shipped, what got reviewed) rather than tools for running the business —
