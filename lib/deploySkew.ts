@@ -86,3 +86,50 @@ export function readSkewMemory(raw: string | null | undefined): SkewMemory {
     return EMPTY_SKEW;
   }
 }
+
+// ── what the crash should be reported AS ────────────────────────────────────────────────────────
+// The heal and the alert were decided independently, and that was the whole problem. app/error.tsx
+// reported every boundary hit as FATAL first and checked for skew afterwards, so a tab that healed
+// itself perfectly — reloaded, showed the crew nothing, lost no work — still raised
+// "Critical — App error — a screen crashed" in Ryan's inbox. Every deploy that caught an open tab
+// bought a critical email for a non-event, which is how a critical channel stops meaning anything.
+//
+// The honest split: a skew we are ABOUT TO HEAL is an FYI. A skew we have run out of attempts on is
+// a real incident — the reload did not fix it, so it was never skew, or the CDN is actually broken.
+// Anything else is a crash and stays fatal.
+export type CrashPlan = {
+  skew: boolean;      // is this the stale-build family at all
+  reload: boolean;    // should the boundary hard-reload right now
+  fatal: boolean;     // should this page someone
+  mem: SkewMemory;    // what to remember for the next crash in this tab
+};
+
+export function classifyCrash(message: string | null | undefined, mem: SkewMemory | null | undefined, now: number): CrashPlan {
+  if (!isDeploySkew(message)) {
+    return { skew: false, reload: false, fatal: true, mem: readSkewMemory(JSON.stringify(mem ?? EMPTY_SKEW)) };
+  }
+  const { reload, mem: next } = nextSkewAction(mem, now);
+  // Healing → FYI. Out of attempts → this is not skew behaving like skew, so say so loudly.
+  return { skew: true, reload, fatal: !reload, mem: next };
+}
+
+// ── one bug, one row ────────────────────────────────────────────────────────────────────────────
+// /api/errors/report fingerprints on the message, and a skew message carries the things that are
+// DIFFERENT on every single build: the content-hashed chunk filename, the Vercel deployment id, and
+// the internal module number. So the dedup that is supposed to collapse a recurring error into one
+// row never fired for the one error that recurs most — every deploy minted a fresh fingerprint and
+// therefore a fresh alert. Normalising those three away is what makes the dedup real.
+export function stableErrorKey(message: string | null | undefined): string {
+  return String(message ?? "")
+    // Vercel deployment id, as a query param or bare.
+    .replace(/[?&]dpl=[A-Za-z0-9_-]+/g, "")
+    .replace(/\bdpl_[A-Za-z0-9]+/g, "<dpl>")
+    // Content-hashed chunk filenames: /_next/static/chunks/0pfvpf_6yqhu-.js, app/page-a1b2c3.js …
+    .replace(/\/_next\/static\/[^\s"')]+/g, "/_next/static/<chunk>")
+    .replace(/\b[\w-]*[0-9a-f]{6,}[\w-]*\.(js|mjs|css)\b/gi, "<chunk>.$1")
+    // Webpack/Turbopack internal module ids and chunk numbers.
+    .replace(/\bmodule\s+\d+\b/gi, "module <id>")
+    .replace(/\bchunk\s+\d+\b/gi, "chunk <id>")
+    .replace(/\s+/g, " ")
+    .trim();
+}

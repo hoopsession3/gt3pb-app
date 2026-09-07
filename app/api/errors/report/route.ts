@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { raiseAlert } from "@/lib/serverAlerts";
+import { stableErrorKey } from "@/lib/deploySkew";
 
 export const runtime = "nodejs";
 
@@ -11,6 +12,14 @@ export const runtime = "nodejs";
 // fingerprint raises an alert in the crew inbox (critical if it was an error-boundary/white-screen
 // hit, important otherwise) — after that, repeats only bump the counter. Always 204: telemetry
 // must never give an attacker a signal or a caller an error to chase.
+//
+// TWO THINGS THAT MADE THE DEDUP A LIE, both fixed here. First, a deploy-skew message carries the
+// content-hashed chunk filename, the Vercel deployment id and an internal module number — all of
+// which change on EVERY build. So the one error that recurs most often minted a brand-new
+// fingerprint each deploy and alerted every single time; the fingerprint is computed from a
+// normalised key now. Second, a skew crash that the client is about to heal was arriving as FATAL
+// and paging the owners about a screen that fixed itself. It files as an FYI now. A skew that ran
+// out of reload attempts still arrives fatal, because at that point the reload did not fix it.
 
 // Best-effort per-instance rate limit (serverless instances each get their own bucket — fine:
 // the goal is flood damping, not accounting).
@@ -38,20 +47,21 @@ export async function POST(req: Request) {
     const url = s(b.url, 300);
     const ua = s(b.ua, 200);
     const fatal = b.fatal === true;
+    const skew = b.skew === true;
 
     // Fingerprint: message + top stack frame + path — stable across users/sessions, so one bug
     // is one row no matter how many phones hit it.
     const topFrame = stack.split("\n").slice(0, 2).join(" ");
     let path = url;
     try { path = new URL(url).pathname; } catch { /* keep as-is */ }
-    const fingerprint = createHash("sha256").update(`${message}|${topFrame}|${path}`).digest("hex");
+    const fingerprint = createHash("sha256").update(`${stableErrorKey(message)}|${topFrame}|${path}`).digest("hex");
 
     // Dedup: bump the counter if we've seen it; insert (and alert) if we haven't.
     const { data: bumped } = await supabaseAdmin.rpc("bump_client_error", { p_fingerprint: fingerprint });
     if (bumped === true) return done;
 
     const { error } = await supabaseAdmin.from("client_errors")
-      .insert({ fingerprint, message, stack: stack || null, url: url || null, ua: ua || null, fatal });
+      .insert({ fingerprint, message, stack: stack || null, url: url || null, ua: ua || null, fatal, skew });
     if (error) {
       // Unique-violation race (two instances, same new error): bump instead.
       await supabaseAdmin.rpc("bump_client_error", { p_fingerprint: fingerprint });
@@ -59,11 +69,18 @@ export async function POST(req: Request) {
     }
     // New, never-seen error → one alert into the existing inbox/push ladder. raiseAlert is
     // best-effort by contract, so a failure here can't break the report path.
+    // A screen that healed itself is news, not an emergency. Anything the client could not heal —
+    // including a skew that exhausted its reloads — is still the critical it always was.
+    const healed = skew && !fatal;
     await raiseAlert({
-      severity: fatal ? "critical" : "important",
+      severity: healed ? "fyi" : fatal ? "critical" : "important",
       category: "system",
-      title: fatal ? "App error — a screen crashed" : "App error (new)",
-      body: `${message.slice(0, 200)}${path ? ` · ${path}` : ""}`,
+      title: healed
+        ? "App recovered from a stale build"
+        : fatal ? "App error — a screen crashed" : "App error (new)",
+      body: healed
+        ? `A tab was one deploy behind and reloaded itself${path ? ` · ${path}` : ""}. Nothing was lost; no action needed.`
+        : `${message.slice(0, 200)}${path ? ` · ${path}` : ""}`,
       link: "/crew",
     });
   } catch { /* telemetry never throws */ }

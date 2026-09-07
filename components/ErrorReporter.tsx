@@ -11,7 +11,9 @@ const SESSION_MAX = 8;
 let sent = 0;
 const seen = new Set<string>();
 
-export function reportClientError(input: { message?: string; stack?: string; fatal?: boolean }): void {
+// `skew` says this crash is the stale-build family (a tab one deploy behind). The server uses it
+// to file the report as an FYI rather than paging someone about a screen that healed itself.
+export function reportClientError(input: { message?: string; stack?: string; fatal?: boolean; skew?: boolean }): void {
   try {
     if (typeof window === "undefined") return;
     const message = (input.message ?? "").slice(0, 400).trim();
@@ -26,6 +28,7 @@ export function reportClientError(input: { message?: string; stack?: string; fat
       url: window.location.href.slice(0, 300),
       ua: navigator.userAgent.slice(0, 200),
       fatal: input.fatal === true,
+      skew: input.skew === true,
     });
     // Beacon survives page unloads (the exact moment fatal errors happen); fetch is the fallback.
     if (navigator.sendBeacon?.("/api/errors/report", new Blob([body], { type: "application/json" }))) return;

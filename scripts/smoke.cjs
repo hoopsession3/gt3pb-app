@@ -1173,6 +1173,43 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     D.readSkewMemory(JSON.stringify({ attempts: 2, lastAt: 5 })).attempts === 2);
   ok("skew: a corrupt memory still permits a heal rather than wedging the app",
     D.nextSkewAction(D.readSkewMemory("garbage"), t0).reload);
+
+  // ── what the crash is REPORTED as ────────────────────────────────────────────────────────────
+  // The self-heal above worked and the owners still got "Critical — a screen crashed" at 8:30 PM
+  // on 2026-09-06, because app/error.tsx reported fatal on its first line and checked for skew on
+  // its fourth. Fatality is decided before the report is sent now.
+  const REAL = "Failed to load chunk /_next/static/chunks/0pfvpf_6yqhu-.js?dpl=dpl_AXuE7noGhgUrg8BQPrzp6uVDzLjQ from module 74850";
+  const healing = D.classifyCrash(REAL, { attempts: 0, lastAt: 0 }, t0);
+  ok("report: a skew we are about to heal reloads and does NOT page anyone",
+    healing.skew && healing.reload && healing.fatal === false, healing);
+  const spent = D.classifyCrash(REAL, { attempts: D.SKEW_MAX_ATTEMPTS, lastAt: 0 }, t0);
+  ok("report: a skew that ran out of reloads IS fatal — the reload did not fix it",
+    spent.skew && spent.reload === false && spent.fatal === true, spent);
+  const realBug = D.classifyCrash("Cannot read properties of null (reading 'market')", { attempts: 0, lastAt: 0 }, t0);
+  ok("report: a genuine crash is still fatal and does not reload",
+    realBug.skew === false && realBug.reload === false && realBug.fatal === true, realBug);
+  ok("report: classifying does not consume an attempt when it is not skew",
+    realBug.mem.attempts === 0, realBug.mem);
+
+  // ── one bug, one row ─────────────────────────────────────────────────────────────────────────
+  // /api/errors/report dedupes on a fingerprint of the message. A skew message carries the chunk
+  // hash, the deployment id and a module number — all different on every build — so the dedup that
+  // exists precisely to stop repeat alerts never once fired for the error that repeats most.
+  const deployA = REAL;
+  const deployB = "Failed to load chunk /_next/static/chunks/9zzqvv_1abcd-.js?dpl=dpl_ZqW4rTy8UuIiOoPpAaSsDd from module 51122";
+  ok("dedup: the same failure from two different deploys is ONE fingerprint",
+    D.stableErrorKey(deployA) === D.stableErrorKey(deployB), [D.stableErrorKey(deployA), D.stableErrorKey(deployB)]);
+  ok("dedup: and the build-specific noise is gone from the key",
+    !/dpl_|0pfvpf|74850/.test(D.stableErrorKey(deployA)), D.stableErrorKey(deployA));
+  ok("dedup: webpack's numbered form collapses too",
+    D.stableErrorKey("Loading chunk 42 failed.") === D.stableErrorKey("Loading chunk 7 failed."));
+  ok("dedup: two genuinely different bugs still fingerprint differently",
+    D.stableErrorKey("Cannot read properties of null (reading 'market')")
+      !== D.stableErrorKey("Cannot read properties of null (reading 'batch')"));
+  ok("dedup: a message with nothing build-specific in it survives intact",
+    D.stableErrorKey("x.map is not a function") === "x.map is not a function");
+  ok("dedup: empty in, empty out — never throws inside the report path",
+    D.stableErrorKey(null) === "" && D.stableErrorKey(undefined) === "");
 }
 
 console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
