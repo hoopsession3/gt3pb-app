@@ -4585,8 +4585,17 @@ function PromotePanel({ onDone }: { onDone: () => void }) {
     const w = wantedRef.current;
     if (w) {
       wantedRef.current = null;
-      if (people.some((r) => r.id === w)) setPick(w);
-      else toast("They are already on the crew — change their role from the roster below.");
+      if (people.some((r) => r.id === w)) {
+        setPick(w);
+        // OPEN IS NOT THE SAME AS VISIBLE. This panel sits below the stat tiles, the utilization
+        // list and the invite form. Two frames: the first lets the picked row and its role/city
+        // form render, the second lands after the layout that pushed everything down has settled.
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          try { boxRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }); } catch { /* ignore */ }
+        }));
+      } else {
+        toast("They are already on the crew — change their role from the roster below.");
+      }
     }
   }, [toast]);
 
@@ -4609,11 +4618,11 @@ function PromotePanel({ onDone }: { onDone: () => void }) {
     consumedPromoteRef.current = true;
     wantedRef.current = w;
     setOpen(true);
-    // OPEN IS NOT THE SAME AS VISIBLE. This panel sits below the stat tiles, the utilization list
-    // and the invite form — roughly two screens down on a phone. Arriving from a customer card set
-    // open=true and left the person looking at the top of the Team screen, where nothing had
-    // apparently happened. Scroll to it once it has rendered.
-    setTimeout(() => { try { boxRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }); } catch { /* ignore */ } }, 120);
+    // The scroll itself happens in load(), NOT here. A fixed timer was the first attempt and
+    // production proved it wrong: it fired before the promotable list had come back and before the
+    // rest of Team had finished laying out, so it scrolled a document that was still growing and
+    // the panel ended up at y=1699 in a 962px viewport — open, preselected, and still off screen.
+    // The only moment worth scrolling at is the one where the thing being scrolled to exists.
     try {
       const u = new URL(window.location.href);
       u.searchParams.delete("promote");
