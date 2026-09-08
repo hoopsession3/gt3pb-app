@@ -14,6 +14,7 @@ import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
 import { clickable } from "@/lib/a11y";
+import { goPlanTab } from "@/lib/planNav";
 
 // BRAND CALENDAR — the planning brain of Studio. Posts (scheduled content) + events roll onto one
 // month view so Ryan + Kayla see the whole picture and build FROM it.
@@ -161,7 +162,7 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
     <div className="cal">
       <div className="cal-titlebar">
         <span className="cal-eyebrow">Content schedule</span>
-        <button type="button" className="cal-tolink" onClick={() => { if (typeof window !== "undefined") localStorage.setItem("gt3-plan-tab", "calendar"); goToCompany(); }}>Company calendar <Icon name="externalLink" /></button>
+        <button type="button" className="cal-tolink" onClick={() => { goPlanTab("calendar"); goToCompany(); }}>Company calendar <Icon name="externalLink" /></button>
       </div>
       <div className="cal-sticky">
         <div className="cal-bar">

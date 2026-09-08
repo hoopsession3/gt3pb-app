@@ -25,6 +25,7 @@ import { useTaskSheet } from "@/components/TaskSheet";
 import { useRecord } from "@/components/RecordSheet";
 import { recordForAlert } from "@/lib/records";
 import { prepHandoffKey, prepHandoffValue } from "@/lib/eventRecord";
+import { goPlanTab, isPlanTab, planTabFromUrl, stampPlanTab, PLAN_TAB_KEY, PLAN_TAB_EVENT } from "@/lib/planNav";
 import GtmCard from "@/components/GtmCard";
 import { CrumbProvider, Breadcrumbs, useCrumb } from "@/components/Crumbs";
 import { recordRecent } from "@/components/recents";
@@ -711,9 +712,8 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
     }
     const d = alertDest(a.category, a.title, a.link);
     if (!d) return;              // homeless alert — the card is the content; Open isn't rendered for these
-    if (d.planTab) { try { localStorage.setItem("gt3-plan-tab", d.planTab); } catch { /* ignore */ } }
     onNavigate?.();              // close the inbox sheet FIRST — else the destination renders behind it
-    setSection(d.section);
+    if (d.planTab && isPlanTab(d.planTab)) { goPlanTab(d.planTab, { setSection }); } else { setSection(d.section); }
     scrollToAnchor(d.anchor);
   };
 
@@ -1556,7 +1556,7 @@ function NeedsYou() {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => load(), 500);
   });
-  const goBookings = () => { try { localStorage.setItem("gt3-plan-tab", "leads"); } catch { /* ignore */ } setSection("plan"); };   // leads live on Plan › Leads (2026-07-30 merge)
+  const goBookings = () => goPlanTab("leads", { setSection });   // leads live on Plan › Leads (2026-07-30 merge)
   const openTarget = (kind: "event" | "stop", id: string) => { try { localStorage.setItem(prepHandoffKey, prepHandoffValue(kind, id)); } catch { /* ignore */ } setSection("prep"); };
   if (news === 0 && overdue.length === 0 && low.length === 0) return null;
   return (
@@ -3294,7 +3294,7 @@ function LiveControl({ compact = false, manage = false }: { compact?: boolean; m
                 : <span style={{ display: "flex", gap: 8 }}><button className="adm-btn ghost" onClick={pinHere} disabled={posBusy}>{posBusy ? "Pinning…" : "Pin once"}</button><button className="adm-btn primary" onClick={startBroadcast}>Broadcast</button></span>}
             </div>
           ) : null}
-          <button type="button" className="adm-golink" onClick={() => { try { localStorage.setItem("gt3-plan-tab", "route"); } catch { /* ignore */ } setSection("plan"); }}>{active.length > 1 ? `${active.length - 1} more location${active.length > 2 ? "s" : ""} · ` : ""}Locations &amp; ordering dial · Plan › Route</button>
+          <button type="button" className="adm-golink" onClick={() => goPlanTab("route", { setSection })}>{active.length > 1 ? `${active.length - 1} more location${active.length > 2 ? "s" : ""} · ` : ""}Locations &amp; ordering dial · Plan › Route</button>
         </div>
       ) : (
       <>
@@ -6288,16 +6288,24 @@ export default function AdminPage() {
   // inside the section, where a sec change alone would never re-run this consume.
   useEffect(() => {
     if (sec !== "plan" || typeof window === "undefined") return;
+    // ?t= WINS, exactly the way ?s= wins for the section (OperatorNav's hydrate). That is what makes
+    // a Plan tab a place you can link to, bookmark, or send to somebody — it could not be, before,
+    // and a link into one broke twice in two different ways because the only mechanism was invisible
+    // to anyone writing an href. The localStorage handoff stays as the in-page channel: a jump that
+    // does not navigate has no URL to read yet.
     const consume = () => {
-      const t = localStorage.getItem("gt3-plan-tab");
-      if (t && (["calendar", "events", "vendors", "route", "leads"] as const).includes(t as typeof planTab)) {
-        localStorage.removeItem("gt3-plan-tab"); setPlanTab(t as typeof planTab);
-      }
+      const fromUrl = planTabFromUrl();
+      if (fromUrl) { setPlanTab(fromUrl); return; }
+      const t = localStorage.getItem(PLAN_TAB_KEY);
+      if (isPlanTab(t)) { localStorage.removeItem(PLAN_TAB_KEY); setPlanTab(t); }
     };
     consume();
-    window.addEventListener("gt3-plan-tab-set", consume);
-    return () => window.removeEventListener("gt3-plan-tab-set", consume);
+    window.addEventListener(PLAN_TAB_EVENT, consume);
+    return () => window.removeEventListener(PLAN_TAB_EVENT, consume);
   }, [sec]);
+  // Keep the address honest: whichever tab is showing is the one in the URL. replaceState, not push
+  // — a sub-tab is a label on the entry you are already on, not a new place in history.
+  useEffect(() => { if (sec === "plan") stampPlanTab(planTab); }, [sec, planTab]);
   // A BADGE COUNTS WHAT NEEDS YOU, NOT WHAT EXISTS (0316).
   //
   // The Events badge used to count `events where day >= today` — upcoming events. On production it

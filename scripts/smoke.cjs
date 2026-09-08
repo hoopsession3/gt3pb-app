@@ -1753,7 +1753,23 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("planNav: the tab vocabulary matches crew/page.tsx's five",
     N.PLAN_TABS.length === 5 && N.isPlanTab("route") && !N.isPlanTab("nope"), N.PLAN_TABS);
   ok("planNav: the href carries no ?a= — that parameter is an anchor, not a tab",
-    !/[&?]a=/.test(N.planTabHref()), N.planTabHref());
+    !/[&?]a=/.test(N.planTabHref("route")), N.planTabHref("route"));
+
+  // ── ?t= MAKES A PLAN TAB A PLACE ───────────────────────────────────────────────────────────────
+  // Before this, a Plan tab was a localStorage handoff and nothing else: it could not be linked,
+  // bookmarked or sent to anybody, and SEVEN places wrote that handoff by hand across six files.
+  // A link into one broke twice, in two different ways, because the mechanism was invisible to
+  // anyone writing an href. The tab is addressed the way the section always has been.
+  ok("planNav: a tab has a real, pasteable address",
+    N.planTabHref("route") === "/crew?s=plan&t=route", N.planTabHref("route"));
+  ok("planNav: and the URL is read back strictly",
+    N.planTabFromUrl("https://x/crew?s=plan&t=leads") === "leads"
+    && N.planTabFromUrl("https://x/crew?s=plan&t=nonsense") === null
+    && N.planTabFromUrl("https://x/crew?s=plan") === null);
+  ok("planNav: every tab round-trips through its own href",
+    N.PLAN_TABS.every((tab) => N.planTabFromUrl("https://x" + N.planTabHref(tab)) === tab));
+  ok("planNav: the address is the section's own parameter plus one, not a third mechanism",
+    N.planTabHref("events").startsWith("/crew?s=plan&"));
 }
 
 // ── DEEP LINKS RESOLVE (0316) ────────────────────────────────────────────────────────────────────

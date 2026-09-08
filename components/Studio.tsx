@@ -22,6 +22,7 @@ import EmptyState from "./EmptyState";
 import { lintCaption } from "@/lib/captionLint";
 import { isBlank } from "@/lib/formGuard";
 import { clickable } from "@/lib/a11y";
+import { goPlanTab } from "@/lib/planNav";
 
 // STUDIO — the collaborative marketing studio. Her money-maker, his taste → built around
 // collaboration: real-time co-editing (Supabase Realtime presence + broadcast), real version
@@ -72,7 +73,7 @@ function VideoThumb({ src }: { src: string }) {
 
 export default function Studio() {
   const { setSection } = useOperatorSection();
-  const goCompanyCal = () => { try { localStorage.setItem("gt3-plan-tab", "calendar"); } catch { /* ignore */ } setSection("plan"); };
+  const goCompanyCal = () => goPlanTab("calendar", { setSection });
   // Door to the one copy editor (Settings › set-copy) — force the panel open + scroll to it, the
   // same mpanel/anchor bridge the KPI tiles and alert jumps use.
   const goCopy = () => {

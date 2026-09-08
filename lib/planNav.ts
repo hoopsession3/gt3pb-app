@@ -1,9 +1,9 @@
 // PLAN NAV — the one way to land on a Plan sub-tab.
 //
-// Plan has five sub-tabs and they are NOT addressable by URL. `?s=plan` gets you to the section;
-// which tab you land on comes from a localStorage handoff (`gt3-plan-tab`) that the section consumes
-// on mount, plus an event for the case where you are already on Plan and no section change fires.
-// That is a real mechanism and it works. The problem was that three places knew it differently:
+// Plan has five sub-tabs. As of this file they ARE addressable: `/crew?s=plan&t=route` is a real,
+// pasteable link, mirroring the `?s=` the section itself has always used. Before that, the tab was a
+// localStorage handoff and nothing else, so a Plan tab could not be linked, bookmarked or sent to
+// anybody — and SEVEN places wrote that handoff by hand, in six files:
 //
 //   1. crew/page.tsx alertDest    writes the localStorage key directly
 //   2. CompanyCalendar goPlanTab  writes it, fires the event, calls setSection, scrolls
@@ -30,8 +30,35 @@ export const PLAN_TAB_KEY = "gt3-plan-tab";
 /** Fired so the jump also works when you are ALREADY on Plan and no section change happens. */
 export const PLAN_TAB_EVENT = "gt3-plan-tab-set";
 
-/** The href for a Plan tab from outside the crew route. Not `?a=` — that parameter is an anchor. */
-export const planTabHref = (): string => "/crew?s=plan";
+/** The query parameter that ADDRESSES a Plan tab, mirroring the section's own `?s=`. */
+export const PLAN_TAB_PARAM = "t";
+
+/** A real, pasteable link to one Plan tab. Not `?a=` — that parameter is an anchor. */
+export const planTabHref = (tab: PlanTab): string => `/crew?s=plan&${PLAN_TAB_PARAM}=${tab}`;
+
+/** The tab a URL asks for, or null. Strict: an unknown value falls through to the default. */
+export function planTabFromUrl(href?: string): PlanTab | null {
+  try {
+    const v = new URL(href ?? window.location.href).searchParams.get(PLAN_TAB_PARAM);
+    return isPlanTab(v) ? v : null;
+  } catch { return null; }
+}
+
+/**
+ * Put the tab in the URL without adding a history entry — the same replaceState the section does
+ * for `?s=`, for the same reason: it labels the entry you are already on so the link is copyable
+ * and native back still works.
+ */
+export function stampPlanTab(tab: PlanTab): void {
+  if (typeof window === "undefined") return;
+  try {
+    const u = new URL(window.location.href);
+    if (!u.pathname.startsWith("/crew")) return;
+    if (u.searchParams.get(PLAN_TAB_PARAM) === tab) return;
+    u.searchParams.set(PLAN_TAB_PARAM, tab);
+    window.history.replaceState(window.history.state, "", u.pathname + u.search);
+  } catch { /* a URL we cannot parse is not worth a crash */ }
+}
 
 /**
  * Land on a Plan sub-tab.
@@ -60,9 +87,11 @@ export function goPlanTab(
   opts: { setSection?: (s: "plan") => void; anchor?: string } = {},
 ): void {
   if (typeof window === "undefined") return;
-  try { localStorage.setItem(PLAN_TAB_KEY, tab); } catch { /* private mode — the nav still works */ }
+  try { localStorage.setItem(PLAN_TAB_KEY, tab); } catch { /* private mode — the URL still carries it */ }
   if (opts.setSection) {
-    // Staying put: the listener is the only thing that will notice, so it has to be told.
+    // Staying put: stamp the URL so the tab is addressable from here on, then tell the listener —
+    // it is the only thing that will notice, since no navigation happens.
+    stampPlanTab(tab);
     window.dispatchEvent(new Event(PLAN_TAB_EVENT));
     opts.setSection("plan");
     // The tab's contents mount after the section switch; scroll once they exist.
@@ -71,6 +100,7 @@ export function goPlanTab(
     }
     return;
   }
-  // Leaving: do NOT dispatch. The next mount reads the key.
-  window.location.href = planTabHref();
+  // Leaving: do NOT dispatch — the page about to be destroyed would eat the handoff. The URL is
+  // the message now, which is the whole point of ?t=: it survives the load, and it can be pasted.
+  window.location.href = planTabHref(tab);
 }

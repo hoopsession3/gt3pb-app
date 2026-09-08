@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useOperatorSection, type OpSection } from "@/components/OperatorNav";
+import { goPlanTab, isPlanTab } from "@/lib/planNav";
 
 // Shared KPI strip — the cohesion audit's "generalize MoneyKpis into one KpiRow" recommendation. One
 // engine renders the .mkpi glance grid that opens Money/Customers/Team/Prep/Garage; each tab just
@@ -25,7 +26,7 @@ function goToDest(d: KpiDest, setSection: (s: OpSection) => void) {
   // Order matters: stash the sub-tab and force-open the target panel BEFORE switching section, so
   // whatever mounts as a result of setSection already sees them (same order the alert-click handler
   // in app/crew/page.tsx uses for the identical bridge).
-  if (d.planTab) { try { localStorage.setItem("gt3-plan-tab", d.planTab); } catch { /* ignore */ } }
+  if (d.planTab && isPlanTab(d.planTab)) { goPlanTab(d.planTab); }
   if (d.openPanel) { try { localStorage.setItem(`gt3-mpanel-${d.openPanel}`, "1"); } catch { /* ignore */ } }
   if (d.section) setSection(d.section);
   if (d.anchor) setTimeout(() => document.getElementById(d.anchor!)?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
