@@ -16,7 +16,13 @@ export default function AddToCalendar({ ev, label = "Add to calendar", defaultBu
   const [open, setOpen] = useState(false);
   const [buffer, setBuffer] = useState(defaultBuffer);
   const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => { setBuffer(defaultBuffer); }, [defaultBuffer]);
+  // Reset the buffer when the caller changes its default. This used to be
+  // useEffect(() => setBuffer(defaultBuffer), [defaultBuffer]), which renders ONCE with the stale
+  // buffer, then commits, then renders again — so a sheet opened with a new default briefly showed
+  // the previous one. Adjusting during render is React's documented answer for exactly this: the
+  // stale render is thrown away before the browser sees it.
+  const [lastDefault, setLastDefault] = useState(defaultBuffer);
+  if (lastDefault !== defaultBuffer) { setLastDefault(defaultBuffer); setBuffer(defaultBuffer); }
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
