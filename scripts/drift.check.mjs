@@ -126,6 +126,84 @@ for (const f of readdirSync(DIR).filter((x) => x.endsWith(".sql")).sort()) {
   }
 }
 
+// ── FIFTH RULE, added at 0315: an UPDATE or DELETE says which rows ────────────────────────────
+// This one comes from a near-miss rather than a defect, and the near-miss is the interesting part.
+//
+// Applying 0315's correction, the Supabase SQL editor warned "This query runs an UPDATE without a
+// WHERE clause. It may update every row in the target table." The statement DID have a WHERE. What
+// it also had was a semicolon inside a string literal — the house voice uses them constantly, 54 of
+// this directory's migrations contain one — and the editor's warning heuristic splits on semicolons
+// without tracking quotes, so it saw a severed fragment and reported it honestly.
+//
+// The dangerous part was the next step: to check the warning I wrote a splitter, and I wrote the
+// SAME naive one. It agreed with the editor. Two broken parsers agreeing looks exactly like
+// confirmation, and what they pointed at was "your SQL is about to rewrite every row".
+//
+// The real answer came from production, not from parsing: 0284 already contains this shape, and
+// public.compliance_rules holds 9 rows with 9 DISTINCT labels. Had that UPDATE lost its WHERE they
+// would all read the same. The executor parses correctly; only the warning heuristic does not.
+//
+// So what this leaves behind is not "avoid semicolons in prose" — it is that the repo now owns a
+// quote-aware answer to "which rows does this touch", instead of re-deriving one under pressure.
+// Baseline when written: 113 top-level UPDATE/DELETE statements across 313 files, exactly ONE
+// without a WHERE (0023's is_admin backfill, which is deliberate).
+//
+// Statements inside function bodies are dollar-quoted and stay inside their create — they are
+// reviewed as part of the function, not as loose DML.
+const DML_FLOOR = 315;
+
+/** Split SQL into top-level statements, respecting '' literals and $tag$ bodies. */
+function topLevelStatements(sql) {
+  const t = sql.split("\n").map((l) => l.replace(/--.*$/, "")).join("\n");
+  const out = []; let cur = "", inStr = false, dq = null;
+  for (let i = 0; i < t.length; i++) {
+    if (dq) {
+      if (t.startsWith(dq, i)) { cur += dq; i += dq.length - 1; dq = null; continue; }
+      cur += t[i]; continue;
+    }
+    if (!inStr) {
+      const m = /^\$[a-zA-Z_]*\$/.exec(t.slice(i));
+      if (m) { dq = m[0]; cur += m[0]; i += m[0].length - 1; continue; }
+    }
+    const c = t[i];
+    if (c === "'") {
+      if (inStr && t[i + 1] === "'") { cur += "''"; i++; continue; }   // an escaped quote, not the end
+      inStr = !inStr; cur += c; continue;
+    }
+    if (c === ";" && !inStr) { out.push(cur.trim()); cur = ""; continue; }
+    cur += c;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out.filter(Boolean);
+}
+
+const wideDml = [];
+for (const f of readdirSync(DIR).filter((x) => x.endsWith(".sql")).sort()) {
+  const seq = Number(f.slice(0, 4));
+  if (!Number.isFinite(seq) || seq < DML_FLOOR) continue;
+  const sql = readFileSync(join(DIR, f), "utf8");
+  const declared = /^\s*--\s*whole-table:/im.test(sql);
+  for (const s of topLevelStatements(sql)) {
+    if (!/^\s*(update|delete\s+from)\s/i.test(s)) continue;
+    if (/\bwhere\b/i.test(s)) continue;
+    if (declared) continue;
+    wideDml.push(`${f} — ${s.replace(/\s+/g, " ").slice(0, 80)}…`);
+  }
+}
+
+if (wideDml.length) {
+  console.error(`WHOLE-TABLE GATE: ${wideDml.length} statement(s) touch every row with no WHERE:`);
+  for (const m of wideDml) console.error(`  ✗ ${m}`);
+  console.error(
+    `\nAn UPDATE or DELETE with no WHERE rewrites the whole table. That is sometimes exactly right ` +
+    `(a backfill), so it is allowed — but it has to be said out loud, in the same file:\n` +
+    `    -- whole-table: <which statement, and why every row is the intent>\n` +
+    `Checked with a quote-aware parser: a semicolon inside a string literal does NOT end a ` +
+    `statement, whatever the SQL editor's warning banner says.`
+  );
+  process.exit(1);
+}
+
 if (viewOffenders.length) {
   console.error(`VIEW GATE: ${viewOffenders.length} view(s) would run as the database owner and bypass RLS:`);
   for (const m of viewOffenders) console.error(`  ✗ ${m}`);
@@ -182,3 +260,4 @@ console.log("NO-DRIFT GATE: every migration declares its changelog position — 
 console.log("LEDGER GATE: every migration from 0304 records itself by its own filename — clean.");
 console.log("RLS GATE: every table created from 0310 enables row level security in the same file — clean.");
 console.log("VIEW GATE: every view created from 0312 honours RLS, is closed to the app, or says why — clean.");
+console.log("WHOLE-TABLE GATE: every UPDATE/DELETE from 0315 names its rows, or declares it means all of them — clean.");
