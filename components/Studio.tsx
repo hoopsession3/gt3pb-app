@@ -9,7 +9,7 @@ import { uploadToBucket } from "@/lib/uploads";
 import { raiseAlertClient } from "@/lib/clientAlerts";
 import { GTM_PLAYS } from "@/lib/strategy";
 import { useOperatorSection } from "@/components/OperatorNav";
-import Sheet from "@/components/Sheet";
+import Sheet, { CloseButton } from "@/components/Sheet";
 import Icon from "@/components/Icon";
 import { InfoRow } from "@/components/kit";
 
@@ -724,7 +724,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
       </div>
 
       {libOpen && (
-        <Sheet open onClose={() => setLibOpen(false)} label="Media library" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Media library</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setLibOpen(false)} title="Close"><Icon name="close" /></button></div>}>
+        <Sheet open onClose={() => setLibOpen(false)} label="Media library" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Media library</b><CloseButton onClick={() => setLibOpen(false)} /></div>}>
               {lib.length === 0 ? <EmptyState title="No media yet" sub="Uploads from any piece show here to reuse." /> : (
                 <div className="lib-grid">
                   {lib.map((m, i) => (
@@ -739,7 +739,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
       )}
 
       {kitOpen && (
-        <Sheet open onClose={() => setKitOpen(false)} label="Post kit" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}><Icon name="package" /> Post kit</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setKitOpen(false)} title="Close"><Icon name="close" /></button></div>}>
+        <Sheet open onClose={() => setKitOpen(false)} label="Post kit" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}><Icon name="package" /> Post kit</b><CloseButton onClick={() => setKitOpen(false)} /></div>}>
               <div className="kit-row"><span className="kit-h">Caption</span><button className="kit-copy" onClick={() => copyText(caption)}>Copy</button></div>
               <div className="kit-box" style={{ whiteSpace: "pre-wrap" }}>{caption || "—"}</div>
               {tags.trim() && <><div className="kit-row"><span className="kit-h">Hashtags</span><button className="kit-copy" onClick={() => copyText(tags.split(",").map((t) => `#${t.trim()}`).join(" "))}>Copy</button></div><div className="kit-box">{tags.split(",").map((t) => `#${t.trim()}`).join(" ")}</div></>}

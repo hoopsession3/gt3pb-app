@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
-import Sheet from "@/components/Sheet";
+import Sheet, { CloseButton } from "@/components/Sheet";
 import Icon, { type IconName } from "@/components/Icon";
 
 // TROUBLESHOOT AI — the field-ops first responder. Something's going wrong at the event/stop RIGHT
@@ -59,7 +59,7 @@ export default function TroubleshootAI({ ownerType, ownerId, title, onClose, onL
   const keep = diag?.prevention.filter((p) => !p._skip).length ?? 0;
 
   return (
-    <Sheet open onClose={onClose} label="Troubleshoot" header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow"><Icon name="wrench" /> Troubleshoot · field ops</div><div className="dp-title">{title || "On site"} — what&apos;s wrong?</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}><Icon name="close" /></button></div>}>
+    <Sheet open onClose={onClose} label="Troubleshoot" header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow"><Icon name="wrench" /> Troubleshoot · field ops</div><div className="dp-title">{title || "On site"} — what&apos;s wrong?</div></div><CloseButton onClick={onClose} /></div>}>
           {done ? (
             <div className="eg-done">
               <div className="eg-done-h"><Icon name="check" /> Logged to this {ownerType}&apos;s recap{done.added ? ` · ${done.added} prevention task${done.added === 1 ? "" : "s"} added to prep` : ""}</div>

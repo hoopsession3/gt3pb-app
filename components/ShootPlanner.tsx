@@ -9,7 +9,7 @@ import InlineCreate from "./InlineCreate";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
-import Sheet from "@/components/Sheet";
+import Sheet, { CloseButton } from "@/components/Sheet";
 
 // SHOOT PLANNER (0214) — plan any content shoot: date, location, call time, and a shot list you can
 // assign and check off (planned → shot → in edit). The reusable capability behind the Atlanta shoot
@@ -178,7 +178,7 @@ function ShotDraftPanel({ shootId, onClose, onAdd }: { shootId: string; onClose:
   };
 
   return (
-    <Sheet open onClose={onClose} label="Draft the shot list" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}><Icon name="sparkles" /> Draft shots</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} title="Close"><Icon name="close" /></button></div>}>
+    <Sheet open onClose={onClose} label="Draft the shot list" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}><Icon name="sparkles" /> Draft shots</b><CloseButton onClick={onClose} /></div>}>
       {!shotList && (
         <>
           <div className="dp-hint">A few notes — the setting, what you want to show off, anything specific — and AI proposes a shot list. You approve what to keep.</div>

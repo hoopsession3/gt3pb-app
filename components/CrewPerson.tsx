@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useApp } from "./AppProvider";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
-import Sheet from "./Sheet";
+import Sheet, { CloseButton } from "./Sheet";
 import Icon from "./Icon";
 
 // ONE PERSON, ONE PLACE (0311).
@@ -94,7 +94,7 @@ export default function CrewPerson({ userId, onClose, onChanged }: {
     <Sheet open onClose={onClose} label="Crew member"
       header={<div className="cp-head">
         <b>Crew member</b>
-        <button type="button" className="qd-x" onClick={onClose} title="Close"><Icon name="close" /></button>
+        <CloseButton onClick={onClose} />
       </div>}>
       <AsyncSection state={state} isEmpty={({ person }) => !person}
         emptyTitle="Nobody here" emptySub="That account is no longer on the crew."

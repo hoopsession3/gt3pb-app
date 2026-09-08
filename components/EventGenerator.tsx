@@ -4,7 +4,7 @@ import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import Markdown from "./Markdown";
-import Sheet from "@/components/Sheet";
+import Sheet, { CloseButton } from "@/components/Sheet";
 import Icon from "@/components/Icon";
 
 // EVENT GENERATOR — say hey, feed it notes: the agent drafts the events + a team collaboration note
@@ -46,7 +46,7 @@ export default function EventGenerator({ onClose, onCreated, initialNotes }: { o
   const ev = plan?.events ?? [];
 
   return (
-    <Sheet open onClose={onClose} label="Create an event from notes" header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow">AI · from your notes</div><div className="dp-title">Create an event from your notes</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}><Icon name="close" /></button></div>}>
+    <Sheet open onClose={onClose} label="Create an event from notes" header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow">AI · from your notes</div><div className="dp-title">Create an event from your notes</div></div><CloseButton onClick={onClose} /></div>}>
           {done ? (
             <div className="eg-done">
               <div className="eg-done-h"><Icon name="check" /> Done — here&apos;s what I made</div>

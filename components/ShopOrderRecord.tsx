@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useApp } from "./AppProvider";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
-import Sheet from "./Sheet";
+import Sheet, { CloseButton } from "./Sheet";
 import Icon from "./Icon";
 import { RecordLink } from "./RecordSheet";
 import {
@@ -115,7 +115,7 @@ export default function ShopOrderRecord({ orderId, onClose, onChanged }: {
     <Sheet open onClose={onClose} label="Shop order"
       header={<div className="cp-head">
         <b>Shop order</b>
-        <button type="button" className="qd-x" onClick={onClose} title="Close"><Icon name="close" /></button>
+        <CloseButton onClick={onClose} />
       </div>}>
       <AsyncSection state={state} isEmpty={({ order }) => !order}
         emptyTitle="No such order" emptySub="It may have been removed, or the link is stale."

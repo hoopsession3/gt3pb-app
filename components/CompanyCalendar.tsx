@@ -24,7 +24,7 @@ import VendorResolve from "./VendorResolve";
 import { localDayBoundsISO } from "@/lib/calendarMath";
 import { createTodo, updateTask, deleteTask } from "@/lib/tasks";
 import FieldOpSheet from "./FieldOpSheet";
-import Sheet from "@/components/Sheet";
+import Sheet, { CloseButton } from "@/components/Sheet";
 import Icon from "@/components/Icon";
 import { SectionHeader } from "@/components/kit";
 
@@ -649,7 +649,7 @@ function DayView({ dayKey, items, events, readOnly = false, onClose, onAdd, onSa
   const brewLate = items.some((i) => i.warn);
   return (
     <>
-    <Sheet open onClose={onClose} label="Calendar day" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{heading}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} title="Close"><Icon name="close" /></button></div>}>
+    <Sheet open onClose={onClose} label="Calendar day" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{heading}</b><CloseButton onClick={onClose} /></div>}>
           {items.length === 0 && archived.length === 0 && <EmptyState title="Nothing scheduled this day" sub="Tap Add to put something here." />}
           {clash && <div className="dv-heads">Heads up: event + truck stop share this day.</div>}
           {brewLate && <div className="dv-heads">Heads up: a brew here is past its latest start.</div>}
@@ -818,7 +818,7 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: s
   })();
   return (
     <>
-    <Sheet open onClose={onClose} className="dp-form" label="Edit calendar item" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{`Edit ${cfg.noun}`}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} title="Close"><Icon name="close" /></button></div>}>
+    <Sheet open onClose={onClose} className="dp-form" label="Edit calendar item" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{`Edit ${cfg.noun}`}</b><CloseButton onClick={onClose} /></div>}>
           {kind === "pipe" && f.vendors?.name && <div className="dv-sub" style={{ marginBottom: 6 }}>Account · {f.vendors.name}</div>}
           <input className="note-in" value={f[cfg.nameCol] ?? ""} onChange={(e) => set(cfg.nameCol, e.target.value)} placeholder={kind === "pipe" ? "Next step — e.g. send the proposal" : `${cfg.noun[0].toUpperCase() + cfg.noun.slice(1)} name`} autoFocus />
           <div className="prod-grid" style={{ marginTop: 10 }}>
@@ -996,7 +996,7 @@ function AddSheet({ day, events, onClose, onDone }: { day: string; events: Ev[];
     onDone();
   };
   return (
-    <Sheet open onClose={onClose} label="Add to the calendar" header={<div style={{ display: "flex", alignItems: "center" }}><button type="button" className={`qd-tab${kind === "todo" ? " on" : ""}`} onClick={() => setKind("todo")}>To-do</button><button type="button" className={`qd-tab${kind === "stop" ? " on" : ""}`} onClick={() => setKind("stop")}><Icon name="truck" /> Truck stop</button><button type="button" className={`qd-tab${kind === "event" ? " on" : ""}`} onClick={() => setKind("event")}>Event</button><span style={{ marginLeft: "auto", fontFamily: "Inter", fontSize: 13, color: "var(--cream-m)" }}>{day}</span><button type="button" className="qd-x" onClick={onClose} title="Close"><Icon name="close" /></button></div>}>
+    <Sheet open onClose={onClose} label="Add to the calendar" header={<div style={{ display: "flex", alignItems: "center" }}><button type="button" className={`qd-tab${kind === "todo" ? " on" : ""}`} onClick={() => setKind("todo")}>To-do</button><button type="button" className={`qd-tab${kind === "stop" ? " on" : ""}`} onClick={() => setKind("stop")}><Icon name="truck" /> Truck stop</button><button type="button" className={`qd-tab${kind === "event" ? " on" : ""}`} onClick={() => setKind("event")}>Event</button><span style={{ marginLeft: "auto", fontFamily: "Inter", fontSize: 13, color: "var(--cream-m)" }}>{day}</span><CloseButton onClick={onClose} /></div>}>
           <input className="note-in" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={kind === "todo" ? "What needs doing?" : kind === "stop" ? "Stop name — e.g. Saturday Market" : "Event name"} autoFocus />
           {kind === "stop" ? (
             <>

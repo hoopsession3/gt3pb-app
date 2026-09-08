@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Sheet from "@/components/Sheet";
+import Sheet, { CloseButton } from "@/components/Sheet";
 import Icon from "@/components/Icon";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
@@ -87,7 +87,7 @@ export default function EventCopilot() {
 
   if (!open) return null;
   return (
-    <Sheet open onClose={() => setOpen(false)} label="Create an event" header={<div style={{ display: "flex", alignItems: "center" }}><span className="ec-eye"><Icon name="star" /> Chief of staff · create an event</span><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setOpen(false)} aria-label="Close"><Icon name="close" /></button></div>}>
+    <Sheet open onClose={() => setOpen(false)} label="Create an event" header={<div style={{ display: "flex", alignItems: "center" }}><span className="ec-eye"><Icon name="star" /> Chief of staff · create an event</span><CloseButton onClick={() => setOpen(false)} /></div>}>
       {!draft ? (
         <div className="ec-start">
           <p className="ec-lead">Tell me about it in your own words — I&apos;ll draft it and you review.</p>

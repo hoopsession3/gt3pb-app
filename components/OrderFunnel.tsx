@@ -13,7 +13,7 @@ import PaymentCard, { type PaymentCardHandle } from "./PaymentCard";
 import MyPacks, { packMix, packDayLabel, type MyPack } from "./MyPacks";
 import OfficeOrder from "./OfficeOrder";
 import { trackFunnel } from "@/lib/funnel";
-import Sheet from "./Sheet";
+import Sheet, { CloseButton } from "./Sheet";
 import Icon from "@/components/Icon";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
@@ -716,7 +716,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
 
       {/* ── DETAILS ── */}
       {dupRows && (
-        <Sheet open onClose={() => setDupRows(null)} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Already on the books</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setDupRows(null)} aria-label="Close"><Icon name="close" /></button></div>}>
+        <Sheet open onClose={() => setDupRows(null)} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Already on the books</b><CloseButton onClick={() => setDupRows(null)} /></div>}>
           <p className="dl-sub" style={{ marginTop: 0 }}>You already have {dupRows.length === 1 ? "an order" : `${dupRows.length} orders`} for <b>{mode === "delivery" ? (slot?.deliveryLabel ?? "that day") : dayName(drop.sat)}</b>:</p>
           <div className="dup-list">
             {dupRows.map((r, i) => <div key={i} className="dup-row">{r.kind === "pickup" ? <Icon name="bell" /> : <Icon name="truck" />} {r.label}</div>)}

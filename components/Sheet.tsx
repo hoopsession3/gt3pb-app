@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
+import Icon from "./Icon";
 
 const FOCUSABLE = 'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
@@ -154,5 +155,26 @@ export default function Sheet({
       </div>
     </div>,
     host,
+  );
+}
+
+/**
+ * THE CLOSE BUTTON — one of them.
+ *
+ * "Close this panel" was written out 42 times as a raw <button className="qd-x">, under 38 different
+ * CSS class names across the app. Eleven of the 42 carried no title and no aria-label, which makes
+ * an icon-only button an unlabelled control — a screen reader announces "button" and stops. Thirty-
+ * four repeated an inline style={{ marginLeft: "auto" }} that .qd-x has set in CSS since line 2365,
+ * so the inline copy was doing nothing at all.
+ *
+ * One copy of the correct markup is cheaper than 42 chances to forget the label.
+ */
+export function CloseButton({ onClick, label = "Close", className = "qd-x" }: {
+  onClick: () => void; label?: string; className?: string;
+}) {
+  return (
+    <button type="button" className={className} onClick={onClick} title={label} aria-label={label}>
+      <Icon name="close" />
+    </button>
   );
 }

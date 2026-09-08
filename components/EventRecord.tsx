@@ -4,8 +4,7 @@ import { useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
-import Sheet from "./Sheet";
-import Icon from "./Icon";
+import Sheet, { CloseButton } from "./Sheet";
 import {
   gapFix, money, owedLine, placeLine, prepHandoffKey, prepHandoffValue,
   sortGaps, stageLabel, whenLabel,
@@ -76,7 +75,7 @@ export default function EventRecord({ eventId, onClose }: { eventId: string; onC
     <Sheet open onClose={onClose} label="Event"
       header={<div className="cp-head">
         <b>Event</b>
-        <button type="button" className="qd-x" onClick={onClose} title="Close"><Icon name="close" /></button>
+        <CloseButton onClick={onClose} />
       </div>}>
       <AsyncSection state={state} isEmpty={({ ev }) => !ev}
         emptyTitle="No such event" emptySub="It may have been removed, or the link is stale."

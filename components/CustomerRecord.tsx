@@ -4,8 +4,7 @@ import { useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
-import Sheet from "./Sheet";
-import Icon from "./Icon";
+import Sheet, { CloseButton } from "./Sheet";
 import { CrmDetail, type Customer } from "./CrmPanel";
 
 // CUSTOMERRECORD — a customer, opened by id from anywhere.
@@ -33,7 +32,7 @@ export default function CustomerRecord({ customerId, onClose }: { customerId: st
     <Sheet open onClose={onClose} label="Customer"
       header={<div className="cp-head">
         <b>Customer</b>
-        <button type="button" className="qd-x" onClick={onClose} title="Close"><Icon name="close" /></button>
+        <CloseButton onClick={onClose} />
       </div>}>
       <AsyncSection state={state} isEmpty={(c) => !c}
         emptyTitle="Not found"

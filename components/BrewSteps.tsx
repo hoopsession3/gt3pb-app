@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import Sheet from "@/components/Sheet";
+import Sheet, { CloseButton } from "@/components/Sheet";
 import Icon from "@/components/Icon";
 
 // BREW STEPS — the sheet you actually brew from.
@@ -85,7 +85,7 @@ export default function BrewSteps({ batch, onClose, onChanged }: { batch: Batch;
             <div className="dp-eyebrow"><Icon name="clock" /> Brew · step by step</div>
             <div className="dp-title">{batch.recipe_name || "Batch"} · {batch.batch_gal} gal</div>
           </div>
-          <button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} title="Close"><Icon name="close" /></button>
+          <CloseButton onClick={onClose} />
         </div>
       }
     >

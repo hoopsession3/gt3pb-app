@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { useRealtimeTable } from "@/lib/realtime";
-import Sheet from "@/components/Sheet";
+import Sheet, { CloseButton } from "@/components/Sheet";
 import Icon from "@/components/Icon";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
@@ -146,7 +146,7 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
           <div className="dp-eyebrow">Run of show</div>
           <div className="dp-title">{title || "Event"} — daily schedule</div>
         </div>
-        <button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} title="Close"><Icon name="close" /></button>
+        <CloseButton onClick={onClose} />
       </div>}>
 
         <div className="dp-daysctl">
@@ -253,7 +253,7 @@ function ItemForm({ item, onClose, onSave }: { item: Item | null; onClose: () =>
   const locSugs = useLocationSuggestions();
   const set = (k: keyof Item, v: any) => setF((p) => ({ ...p, [k]: v }));
   return (
-    <Sheet open onClose={onClose} label="Day-of block" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{item ? "Edit block" : "New block"}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} title="Close"><Icon name="close" /></button></div>}>
+    <Sheet open onClose={onClose} label="Day-of block" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{item ? "Edit block" : "New block"}</b><CloseButton onClick={onClose} /></div>}>
           <input className="note-in" value={f.title ?? ""} onChange={(e) => set("title", e.target.value)} placeholder="What's happening? e.g. Arrive Airbnb" autoFocus />
           <div className="dp-kinds">
             {KINDS.map((k) => (
@@ -306,7 +306,7 @@ function DraftPanel({ ownerType = "event", eventId, dayIndex, onClose, onAdd }: 
   };
 
   return (
-    <Sheet open onClose={onClose} label="Draft the day" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}><Icon name="sparkles" /> Draft day {dayIndex}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} title="Close"><Icon name="close" /></button></div>}>
+    <Sheet open onClose={onClose} label="Draft the day" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}><Icon name="sparkles" /> Draft day {dayIndex}</b><CloseButton onClick={onClose} /></div>}>
           {!rows && (
             <>
               <div className="dp-hint">A few notes — where you&apos;re leaving from, when the event opens, where you&apos;re staying — and AI proposes the day. You approve what to keep.</div>

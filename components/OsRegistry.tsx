@@ -7,7 +7,7 @@ import { useApp } from "./AppProvider";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
-import Sheet from "@/components/Sheet";
+import Sheet, { CloseButton } from "@/components/Sheet";
 import { SectionHeader } from "@/components/kit";
 import Icon from "@/components/Icon";
 import { useCrew, crewLabel } from "./useCrew";
@@ -163,7 +163,7 @@ export default function OsRegistry() {
 
       {auditing && (
         <Sheet open onClose={() => setAuditing(null)} label={`Audit ${auditing.name}`}
-          header={<div className="note-lux-head"><span className="note-lux-eyb">Monday audit · {auditing.name}</span><button type="button" className="qd-x" onClick={() => setAuditing(null)} aria-label="Close"><Icon name="close" /></button></div>}
+          header={<div className="note-lux-head"><span className="note-lux-eyb">Monday audit · {auditing.name}</span><CloseButton onClick={() => setAuditing(null)} /></div>}
           footer={<div className="note-actions"><span className="osr-total">{scored ? `${total} / 10` : anyScored ? "score all five" : "details only"}</span><button type="button" className="note-cancel" onClick={() => setAuditing(null)}>Cancel</button><button type="button" className="note-save" disabled={saving || (anyScored && !scored) || !draft.name.trim() || !draft.owner.trim()} onClick={save}>{saving ? "Saving…" : scored ? "Save audit" : "Save details"}</button></div>}>
           <div className="osr-audit">
             <div className="osr-audit-row">

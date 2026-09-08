@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import Sheet from "@/components/Sheet";
-import Icon from "@/components/Icon";
+import Sheet, { CloseButton } from "@/components/Sheet";
 import type { VendorMatch } from "@/lib/vendorLink";
 
 // THE look-alike confirm sheet (0226) — one component, every create path. When a typed vendor name
@@ -40,7 +39,7 @@ export default function VendorResolve({
   const pct = (s: number) => `${Math.round(s * 100)}%`;
   return createPortal(
     <Sheet open onClose={onClose} label="Possible duplicate vendor"
-      header={<div style={{ display: "flex", alignItems: "center" }}>Already in the book?<span style={{ marginLeft: "auto" }} /><button type="button" className="qd-x" onClick={onClose} aria-label="Cancel"><Icon name="close" /></button></div>}>
+      header={<div style={{ display: "flex", alignItems: "center" }}>Already in the book?<span style={{ marginLeft: "auto" }} /><CloseButton onClick={onClose} label="Cancel" /></div>}>
       <div className="pnl-note" style={{ marginBottom: 10 }}>
         “<b>{name}</b>” looks like {candidates.length === 1 ? "a vendor that already exists" : "vendors that already exist"}. One partner, one record — link it, or add a new location under it.
       </div>

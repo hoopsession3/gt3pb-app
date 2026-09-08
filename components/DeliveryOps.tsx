@@ -7,7 +7,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import { type PerfMix } from "@/lib/delivery";
 import { etToday } from "@/lib/dates";
 import AssignTaskSheet from "./AssignTaskSheet";
-import Sheet from "./Sheet";
+import Sheet, { CloseButton } from "./Sheet";
 import { SectionHeader, InfoRow } from "@/components/kit";
 import Icon from "@/components/Icon";
 import { money } from "@/lib/money";
@@ -264,7 +264,7 @@ function DeliveryPackout({ bottles, orders, refills, onClose }: { bottles: numbe
   const gelPacks = coolers * 5;                               // 4–6 per cooler; 5 is the safe middle
   const returnBins = refills > 0 ? Math.max(1, Math.ceil(refills / 30)) : 0;
   return (
-    <Sheet open onClose={onClose} label="Vehicle packout" header={<div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}><div><div className="dp-eyebrow"><Icon name="package" /> Vehicle packout · Sunday run</div><div className="dp-title">{bottles} bottles · {orders} porch{orders === 1 ? "" : "es"}</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}><Icon name="close" /></button></div>}>
+    <Sheet open onClose={onClose} label="Vehicle packout" header={<div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}><div><div className="dp-eyebrow"><Icon name="package" /> Vehicle packout · Sunday run</div><div className="dp-title">{bottles} bottles · {orders} porch{orders === 1 ? "" : "es"}</div></div><CloseButton onClick={onClose} /></div>}>
           <div className="brew-spec"><b>{coolers}</b> hard cooler{coolers === 1 ? "" : "s"} (24–48 qt) · <b>{gelPacks}</b> gel packs (pre-frozen){returnBins > 0 ? <> · <b>{returnBins}</b> empties bin{returnBins === 1 ? "" : "s"}</> : ""}</div>
           <div className="brew-block-h">Pack them in</div>
           <div className="brew-ing">

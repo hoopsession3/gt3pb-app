@@ -1587,6 +1587,53 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("badges: a bare number is not the accessible name", /aria-label=\{`\$\{n\} \$\{what\}`\}/.test(crew));
 }
 
+// ── ONE CLOSE BUTTON ─────────────────────────────────────────────────────────────────────────────
+// "Close this panel" was written out 42 times as a raw <button className="qd-x">, under 38 CSS class
+// names across the app. Eleven carried no title and no aria-label — an icon-only button with no
+// accessible name announces as "button" and stops. Thirty-four repeated an inline
+// style={{ marginLeft: "auto" }} that .qd-x has set in CSS since globals.css:2365, so the inline
+// copy was doing nothing at all. One copy of the right markup beats 42 chances to forget the label.
+{
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const root = path.join(__dirname, "..");
+  const files = [];
+  (function walk(d) {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const f = path.join(d, e.name);
+      if (e.isDirectory()) { if (!/node_modules|\.next|\.smoke|\.git/.test(f)) walk(f); }
+      else if (/\.tsx$/.test(e.name)) files.push(f);
+    }
+  })(root);
+
+  const sheet = fs.readFileSync(path.join(root, "components/Sheet.tsx"), "utf8");
+  ok("close: CloseButton lives beside Sheet, not in the customer kit",
+    /export function CloseButton/.test(sheet));
+  ok("close: and it always carries an accessible name",
+    /title=\{label\}/.test(sheet) && /aria-label=\{label\}/.test(sheet));
+
+  const raw = [];
+  for (const f of files) {
+    if (f.endsWith("Sheet.tsx")) continue;
+    const src = fs.readFileSync(f, "utf8").split("\n").map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1")).join("\n");
+    if (/<button[^>]*className="qd-x"/.test(src)) raw.push(f.replace(root + "/", ""));
+  }
+  ok("close: no file hand-writes the close button any more", raw.length === 0, raw);
+
+  // aria-hidden on something focusable is worse than an unlabelled control: a keyboard user can
+  // still reach it and their screen reader refuses to announce it (WCAG 4.1.2).
+  const hidden = [];
+  for (const f of files) {
+    const src = fs.readFileSync(f, "utf8");
+    for (const m of src.matchAll(/<(button|a)\b[^>]*>/g)) {
+      if (/\baria-hidden\b/.test(m[0]) && !/tabIndex=\{-1\}|disabled/.test(m[0])) {
+        hidden.push(`${f.replace(root + "/", "")}: ${m[0].replace(/\s+/g, " ").slice(0, 70)}`);
+      }
+    }
+  }
+  ok("close: nothing focusable is hidden from assistive tech", hidden.length === 0, hidden);
+}
+
 // ── MONEY (one canonical home) ───────────────────────────────────────────────────────────────────
 // Thirty definitions of "turn cents into a price" lived across app/, components/ and lib/, under
 // three names, resolving to seven behaviours that disagreed on screen: $19.99 vs $20, $0.50 vs

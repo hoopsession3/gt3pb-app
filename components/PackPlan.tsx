@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import Sheet from "@/components/Sheet";
+import Sheet, { CloseButton } from "@/components/Sheet";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
@@ -81,7 +81,7 @@ export default function PackPlan({ ownerType, ownerId, title, onClose }: { owner
   const allBottle = () => setKegGal(Object.fromEntries(batches.map((b) => [b.id, "0"])));
 
   return (
-    <Sheet open onClose={onClose} label="Pack-out plan" header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow"><Icon name="package" /> Pack-out plan · kegs vs bottles</div><div className="dp-title">{title || "Event"} — {totalGal} gal across {batches.length} batch{batches.length === 1 ? "" : "es"}</div></div><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}><Icon name="close" /></button></div>}>
+    <Sheet open onClose={onClose} label="Pack-out plan" header={<div style={{ display: "flex", alignItems: "center" }}><div className="dp-head-l"><div className="dp-eyebrow"><Icon name="package" /> Pack-out plan · kegs vs bottles</div><div className="dp-title">{title || "Event"} — {totalGal} gal across {batches.length} batch{batches.length === 1 ? "" : "es"}</div></div><CloseButton onClick={onClose} /></div>}>
       <AsyncSection state={board} isEmpty={(data) => data.batches.length === 0} emptyTitle={`No batches tied to this ${ownerType} yet`} emptySub="Plan a batch in Brew and tie it here, then come back to split it between kegs and bottles." errorTitle="Couldn't load the pack-out plan">
         {() => (
           <>

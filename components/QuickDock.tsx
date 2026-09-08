@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { haptic, HAPTIC } from "@/lib/haptics";
 import AskGT3 from "./AskGT3";
 import CopilotLauncher from "./CopilotLauncher";
-import Sheet from "@/components/Sheet";
+import Sheet, { CloseButton } from "@/components/Sheet";
 import Icon from "@/components/Icon";
 
 // QuickDock — a floating, always-accessible launcher for the crew's two most-used quick actions:
@@ -53,7 +53,7 @@ export default function QuickDock() {
       </button>
 
       {open && (
-        <Sheet open onClose={() => setOpen(false)} label="Quick actions" header={<div style={{ display: "flex", alignItems: "center" }}><button type="button" className={`qd-tab${mode === "do" ? " on" : ""}`} onClick={() => setMode("do")}><Icon name="sparkles" /> Do</button><button type="button" className={`qd-tab${mode === "ask" ? " on" : ""}`} onClick={() => setMode("ask")}>Ask GT3</button><button type="button" className={`qd-tab${mode === "note" ? " on" : ""}`} onClick={() => setMode("note")}>Note</button><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setOpen(false)} aria-label="Close"><Icon name="close" /></button></div>}>
+        <Sheet open onClose={() => setOpen(false)} label="Quick actions" header={<div style={{ display: "flex", alignItems: "center" }}><button type="button" className={`qd-tab${mode === "do" ? " on" : ""}`} onClick={() => setMode("do")}><Icon name="sparkles" /> Do</button><button type="button" className={`qd-tab${mode === "ask" ? " on" : ""}`} onClick={() => setMode("ask")}>Ask GT3</button><button type="button" className={`qd-tab${mode === "note" ? " on" : ""}`} onClick={() => setMode("note")}>Note</button><CloseButton onClick={() => setOpen(false)} /></div>}>
           {mode === "do" ? <CopilotLauncher role={role} onPick={(s) => { setSection(s); setOpen(false); }} />
             : mode === "ask" ? <AskGT3 />
             : <QuickNote userId={user?.id ?? null} onSaved={() => setOpen(false)} />}

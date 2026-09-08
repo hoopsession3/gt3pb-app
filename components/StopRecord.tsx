@@ -5,8 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useApp } from "./AppProvider";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
-import Sheet from "./Sheet";
-import Icon from "./Icon";
+import Sheet, { CloseButton } from "./Sheet";
 import { prepHandoffKey, prepHandoffValue } from "@/lib/eventRecord";
 import { goPlanTab } from "@/lib/planNav";
 import {
@@ -97,7 +96,7 @@ export default function StopRecord({ stopId, onClose }: { stopId: string; onClos
     <Sheet open onClose={onClose} label="Truck stop"
       header={<div className="cp-head">
         <b>Truck stop</b>
-        <button type="button" className="qd-x" onClick={onClose} title="Close"><Icon name="close" /></button>
+        <CloseButton onClick={onClose} />
       </div>}>
       <AsyncSection state={state} isEmpty={({ stop }) => !stop}
         emptyTitle="No such stop" emptySub="It may have been removed, or the link is stale."

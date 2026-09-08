@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Sheet from "./Sheet";
-import Icon from "@/components/Icon";
+import Sheet, { CloseButton } from "./Sheet";
 
 // PROMPT SHEET — a single-field input in the app's canonical Sheet, standing in for window.prompt().
 // Every other input surface in this app is a styled, dismissible-on-mobile Sheet; a native
@@ -34,7 +33,7 @@ export default function PromptSheet({
 
   return (
     <Sheet open={open} onClose={onCancel} label={title}
-      header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{title}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onCancel} title="Close"><Icon name="close" /></button></div>}>
+      header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{title}</b><CloseButton onClick={onCancel} /></div>}>
       {hint && <div className="dp-hint">{hint}</div>}
       {multiline ? (
         <textarea className="note-in" rows={3} autoFocus value={value} placeholder={placeholder} onChange={(e) => setValue(e.target.value)} />

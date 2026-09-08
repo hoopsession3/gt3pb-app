@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Sheet from "@/components/Sheet";
+import Sheet, { CloseButton } from "@/components/Sheet";
 import { useApp } from "@/components/AppProvider";
 import { supabase } from "@/lib/supabase";
 import { geocode } from "@/lib/geocode";
@@ -214,7 +214,7 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onOpenPrep }:
   return (
     <>
     <Sheet open onClose={onClose} className="dp-form" label={`Edit ${isEvent ? "event" : "truck stop"}`}
-      header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{isEvent ? "Event" : "Truck stop"}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}><Icon name="close" /></button></div>}
+      header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>{isEvent ? "Event" : "Truck stop"}</b><CloseButton onClick={onClose} /></div>}
       footer={
         <div className="prod-actions" style={{ marginTop: 0 }}>
           <button type="button" className="note-arch" onClick={onClose} disabled={saving}>Cancel</button>

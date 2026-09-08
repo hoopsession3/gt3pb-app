@@ -68,7 +68,12 @@ export default function BroadcastEditor() {
         <div className={`bcast bcast-${d.style}`} role="status">
           <div className="bcast-x"><b className="bcast-t">{d.title || "Your headline"}</b>{d.body && <span className="bcast-b">{d.body}</span>}</div>
           {d.cta_label && <span className="bcast-cta">{d.cta_label}</span>}
-          <button type="button" className="bcast-close" aria-hidden><Icon name="close" /></button>
+          {/* A PICTURE OF a close button, inside the preview of what guests will see — not a
+              control. It carried aria-hidden on a real <button>, which is worse than an
+              unlabelled one: a keyboard user could still Tab onto it, land on something their
+              screen reader refuses to announce, and press it to no effect (WCAG 4.1.2). A
+              <span> is what it always was. */}
+          <span className="bcast-close" aria-hidden="true"><Icon name="close" /></span>
         </div>
       </div>
 

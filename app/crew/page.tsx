@@ -111,7 +111,7 @@ const SnapshotReport = dynamic(() => import("@/components/SnapshotReport"), { lo
 const EventPnlReport = dynamic(() => import("@/components/EventPnlReport"), { loading: () => <PourFill label="Loading…" /> });
 import SignIn from "@/components/SignIn";
 import InputSheet from "@/components/InputSheet";
-import Sheet from "@/components/Sheet";
+import Sheet, { CloseButton } from "@/components/Sheet";
 import { NumberRoll } from "@/components/CountUp";
 import PourFill from "@/components/PourFill";
 import AlertAction, { alertHasInlineAction } from "@/components/AlertAction";
@@ -648,7 +648,7 @@ function NotifPrefsSheet({ userId, onClose }: { userId: string | null; onClose: 
   };
   const toggle = (k: string) => { const next = muted.includes(k) ? muted.filter((x) => x !== k) : [...muted, k]; setMuted(next); save(next, qs, qe); };
   return (
-    <Sheet open onClose={onClose} label="Notifications" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Notifications</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close"><Icon name="close" /></button></div>}>
+    <Sheet open onClose={onClose} label="Notifications" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Notifications</b><CloseButton onClick={onClose} /></div>}>
       <p className="h-sub" style={{ marginTop: 0 }}>Quiet the categories you don&rsquo;t need. Critical alerts always come through.</p>
       <div className="notif-cats">
         {NOTIF_CATS.map((c) => (
@@ -3611,7 +3611,7 @@ function MeetingNotes() {
       <button type="button" className="note-new" onClick={() => setComposing(true)}>✎ New note</button>
       {composing && (
         <Sheet open onClose={() => { setComposing(false); setCActions([]); setCFiles([]); }} label="New note" className="note-lux"
-          header={<div className="note-lux-head"><span className="note-lux-eyb">New note</span><button type="button" className="qd-x" onClick={() => { setComposing(false); setCActions([]); setCFiles([]); }} aria-label="Close"><Icon name="close" /></button></div>}
+          header={<div className="note-lux-head"><span className="note-lux-eyb">New note</span><CloseButton onClick={() => { setComposing(false); setCActions([]); setCFiles([]); }} /></div>}
           footer={<div className="note-actions"><button type="button" className="note-cancel" onClick={() => { setComposing(false); setCActions([]); setCFiles([]); }}>Cancel</button><button type="button" className="note-save" disabled={!cTitle.trim() || saving} onClick={save}>{saving ? "Saving…" : "Save note"}</button></div>}>
           <div className="note-composer">
             <input className="note-in note-lux-title" placeholder="What&rsquo;s this note about?" value={cTitle} onChange={(e) => setCTitle(e.target.value)} autoFocus />
@@ -6384,7 +6384,7 @@ export default function AdminPage() {
       </div>
       {guideOpen && <SectionGuide allowed={allowed} current={sec} onGo={setSection} onClose={() => setGuideOpen(false)} />}
       {inboxOpen && (
-        <Sheet open onClose={() => setInboxOpen(false)} label="Inbox" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}><Icon name="bell" /> Inbox</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={() => setInboxOpen(false)} aria-label="Close"><Icon name="close" /></button></div>}>
+        <Sheet open onClose={() => setInboxOpen(false)} label="Inbox" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}><Icon name="bell" /> Inbox</b><CloseButton onClick={() => setInboxOpen(false)} /></div>}>
           <AlertsInbox userId={user?.id ?? null} title="Flags & pings for you" onNavigate={() => setInboxOpen(false)} />
           {canManage && <NeedsYou />}
         </Sheet>

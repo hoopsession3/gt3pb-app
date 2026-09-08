@@ -2,7 +2,7 @@
 
 import { useCallback, useState, type ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
-import Sheet from "@/components/Sheet";
+import Sheet, { CloseButton } from "@/components/Sheet";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import { SectionHeader } from "@/components/kit";
@@ -142,7 +142,7 @@ function LogSheet({ asset, onClose, onSaved }: { asset: Asset; onClose: () => vo
     setBusy(false); onSaved();
   };
   return (
-    <Sheet open onClose={onClose} label="Maintenance log" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Log · {asset.name}</b><button type="button" className="qd-x" style={{ marginLeft: "auto" }} onClick={onClose}><Icon name="close" /></button></div>}>
+    <Sheet open onClose={onClose} label="Maintenance log" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Log · {asset.name}</b><CloseButton onClick={onClose} /></div>}>
           <div className="ts-chips">
             {KINDS.map((k) => <button key={k} type="button" className={`ts-chip${kind === k ? " on" : ""}`} onClick={() => setKind(k)}>{KIND_ICON[k]} {k}</button>)}
           </div>
