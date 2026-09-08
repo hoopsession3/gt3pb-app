@@ -1429,6 +1429,83 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     E.prepHandoffValue("event", "abc") === "abc" && E.prepHandoffValue("stop", "abc") === "stop:abc");
 }
 
+// ── STOP RECORD (0315) ───────────────────────────────────────────────────────────────────────────
+// Same cross-check as the other two: the gap keys the screen can explain are read out of the
+// MIGRATION FILE, so a rule added to v_stop_gaps without a fix sentence shows up here rather than as
+// a row of advice-free blame.
+{
+  const S = require("../.smoke/stopRecord.js");
+  const sqlS = require("node:fs").readFileSync(
+    require("node:path").join(__dirname, "..", "supabase/migrations/0315_a_stop_is_a_visit_not_a_name.sql"), "utf8");
+  const block = (sqlS.match(/cross join lateral \(values([\s\S]*?)\) as g\(gap/) || [])[1] || "";
+  const inSql = [...block.matchAll(/\(\s*'([a-z_]+)',\s*'/g)].map((m) => m[1]);
+  ok("stopRecord: the migration's gap list was found in the file", inSql.length === 8, inSql);
+  ok("stopRecord: every gap the database can emit has a fix sentence",
+    inSql.every((k) => S.stopGapFix(k).length > 0), inSql.filter((k) => !S.stopGapFix(k)));
+  ok("stopRecord: and the module invents none the database cannot emit",
+    S.STOP_GAP_KEYS.every((k) => inSql.includes(k)), S.STOP_GAP_KEYS.filter((k) => !inSql.includes(k)));
+  ok("stopRecord: an unknown gap gets no invented advice", S.stopGapFix("nope") === "" && S.stopGapFix(null) === "");
+
+  // the three a customer can actually see
+  ok("stopRecord: guest-facing is exactly the three that leave the building",
+    S.STOP_GAP_KEYS.filter((k) => S.isGuestFacing(k)).join(",") === "name_drift,no_pin,live_past");
+  ok("stopRecord: a crew-only problem is not marked as guest-facing",
+    !S.isGuestFacing("no_recap") && !S.isGuestFacing("unlinked") && !S.isGuestFacing(null));
+
+  ok("stopRecord: status words", S.stopStatusLabel("live") === "Live now" && S.stopStatusLabel("done") === "Done");
+  ok("stopRecord: an unknown status still renders", S.stopStatusLabel("zz") === "zz" && S.stopStatusLabel(null) === "—");
+
+  // The drift sentence quotes BOTH names and takes no side. It used to say the stop was stale and
+  // the venue was canonical; production disagreed on all three live rows — the stops had the better
+  // names — so the wording is symmetrical now and the test pins that.
+  ok("stopRecord: the drift line names both sides", S.nameDriftLine("Wine Express — Five Forks", "WineXpress")
+    === 'The stop says "Wine Express — Five Forks". The venue says "WineXpress".');
+  ok("stopRecord: and takes no side — no 'stale', no 'older', no 'canonical'",
+    !/stale|older|canonical|out of date/i.test(S.nameDriftLine("A", "B") || ""));
+  ok("stopRecord: the fix sentence points at the real cause rather than a rename",
+    /second location/i.test(S.stopGapFix("name_drift")));
+
+  // the signal that a stop name is doing vendor_locations' job
+  ok("stopRecord: a venue name plus a qualifier is recognised",
+    S.looksLocationQualified("Wine Express — Five Forks", "Wine Express")
+      && S.looksLocationQualified("WineXpress Saturday", "WineXpress"));
+  ok("stopRecord: punctuation and case do not hide it",
+    S.looksLocationQualified("wine-express, five forks", "Wine Express"));
+  ok("stopRecord: two genuinely different names are NOT a location qualifier",
+    !S.looksLocationQualified("Restore Hyper Wellness", "Restore Wellness"));
+  ok("stopRecord: and identical or missing names are not either",
+    !S.looksLocationQualified("Same", "Same") && !S.looksLocationQualified(null, "X")
+      && !S.looksLocationQualified("X", null));
+  ok("stopRecord: no drift, no sentence", S.nameDriftLine("Same", "Same") === null);
+  ok("stopRecord: whitespace is not drift", S.nameDriftLine(" Same ", "Same") === null);
+  ok("stopRecord: a missing side produces nothing rather than a half-sentence",
+    S.nameDriftLine(null, "X") === null && S.nameDriftLine("X", null) === null && S.nameDriftLine("", "") === null);
+
+  ok("stopRecord: live and past is the loudest thing it can say",
+    S.stopOwedLine({ is_live_now: true, phase: "past" }) === "Still flagged live, and the window has closed.");
+  ok("stopRecord: live and current just says live", S.stopOwedLine({ is_live_now: true, phase: "today" }) === "Live now.");
+  ok("stopRecord: a closed window still reading upcoming says so",
+    S.stopOwedLine({ status: "upcoming", phase: "past" }) === "The window has closed and this still reads upcoming.");
+  ok("stopRecord: done without a write-up, and with one",
+    S.stopOwedLine({ status: "done", phase: "past" }) === "Done. No after-action note yet."
+      && S.stopOwedLine({ status: "done", phase: "past", recap: "Sold out" }) === "Done and written up.");
+  ok("stopRecord: no pin outranks the task counts — nobody can find it at all",
+    S.stopOwedLine({ status: "upcoming", phase: "upcoming", lat: null, tasks_critical_open: 3 })
+      === "No map pin — nobody can get directions to this.");
+  ok("stopRecord: then critical work, then headcount, then ordinary jobs",
+    S.stopOwedLine({ status: "upcoming", phase: "upcoming", lat: 1, tasks_critical_open: 2 }) === "2 critical jobs still open."
+      && S.stopOwedLine({ status: "upcoming", phase: "upcoming", lat: 1, staff: 0 }) === "Nobody is on it yet."
+      && S.stopOwedLine({ status: "upcoming", phase: "upcoming", lat: 1, staff: 1, tasks_open: 1 }) === "1 job left.");
+  ok("stopRecord: and a stop with nothing outstanding says so",
+    S.stopOwedLine({ status: "upcoming", phase: "upcoming", lat: 1, staff: 2 }) === "Nothing outstanding.");
+  ok("stopRecord: no stop at all is empty, not a crash", S.stopOwedLine(null) === "");
+
+  // the re-exports: same function, not a second copy — that is the whole point of the module
+  const E = require("../.smoke/eventRecord.js");
+  ok("stopRecord: whenLabel is the SAME function as the event record's, not a copy",
+    S.whenLabel === E.whenLabel && S.sortGaps === E.sortGaps && S.money === E.money && S.placeLine === E.placeLine);
+}
+
 console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
 console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);
 process.exit(fail ? 1 : 0);

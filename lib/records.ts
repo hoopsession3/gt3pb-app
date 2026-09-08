@@ -19,7 +19,7 @@
 // Adding a kind is two lines here plus one detail component. That is the point: the next entity
 // should not need another architecture conversation.
 
-export const RECORD_KINDS = ["person", "customer", "shop_order", "event"] as const;
+export const RECORD_KINDS = ["person", "customer", "shop_order", "event", "stop"] as const;
 export type RecordKind = (typeof RECORD_KINDS)[number];
 
 export const RECORD_LABEL: Record<RecordKind, string> = {
@@ -32,6 +32,9 @@ export const RECORD_LABEL: Record<RecordKind, string> = {
   // Third, and the claim held again: two lines here plus one component. An event is touched by nine
   // tables and 24 screens and had no record at all — the worst scattering the audit found.
   event: "Event",
+  // Fourth. Sixteen tables reference a stop — more than the event — and the audit's note about
+  // "three editors that disagree about which owns its identity" turned out to be four.
+  stop: "Truck stop",
 };
 
 export const isRecordKind = (v: unknown): v is RecordKind =>

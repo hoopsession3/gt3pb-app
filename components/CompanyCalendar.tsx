@@ -199,11 +199,10 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
   // has an address, so the calendar keeps its place, the back button works, and the day you were
   // looking at is still there when you close it. The prep checklist is one tap from inside it.
   //
-  // A stop still goes to the hub. That breaks the old "event and stop look identical" symmetry on
-  // purpose and temporarily — the stop record is the next item on the audit, and holding events
-  // back to keep two things equally unreachable would be the wrong trade.
+  // Both now open their record (0314, 0315), so the symmetry is back and it is the good kind: the
+  // calendar keeps its place, the back button works, and the prep checklist is one tap inside.
   const openEventPrep = (eventId: string) => openRecord("event", eventId);
-  const openStopPrep = (stopId: string) => { if (typeof window !== "undefined") localStorage.setItem(prepHandoffKey, prepHandoffValue("stop", stopId)); setSection("prep"); };
+  const openStopPrep = (stopId: string) => openRecord("stop", stopId);
   const openPlanTab = (tab: string, anchor?: string) => goPlanTab(setSection, tab, anchor);
   const toggleTodo = async (t: Todo) => {
     if (!supabase || readOnly) return;

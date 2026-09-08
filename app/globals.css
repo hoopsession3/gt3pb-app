@@ -7689,3 +7689,24 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
   -webkit-box-orient:vertical;line-height:1.45}
 .evg .so-row-m,.evg .so-row-c,.evg .evg-sev{align-self:stretch}
 .evg .so-row-m{padding-top:1px}
+
+/* ── STOP RECORD (0315) ────────────────────────────────────────────────────────────────────────
+   The name-drift block sits ABOVE everything, including the owed line, because it is the only
+   problem in this app a GUEST can see: a stale stop name mirrors into field_ops, and field_ops is
+   the one query the public Find Us page reads. Bordered in gold rather than red — it is a stale
+   copy, not a failure, and the fix is one tap inside the block. */
+.str-drift{margin-top:12px;border:1px solid var(--gold2);border-radius:12px;padding:12px 13px;
+  display:flex;flex-direction:column;gap:6px}
+.str-drift > b{font-family:'Inter';font-size:13.5px;line-height:1.45;color:var(--cream)}
+.str-drift p{margin:0;font-family:'Inter';font-size:12.5px;line-height:1.45;color:var(--cream-m)}
+.str-drift .so-go{align-self:flex-start;margin-top:4px}
+
+/* Which gaps leave the building. Everything else on that list is a crew problem. */
+.str-guest{display:inline-block;margin-left:8px;padding:2px 7px;border-radius:20px;
+  font-family:'Inter';font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--red-onLight);border:1px solid color-mix(in srgb, var(--red-onLight) 45%, transparent);
+  vertical-align:middle;white-space:nowrap}
+/* Two directions, side by side. The first version of this block had one button and a recommendation;
+   production said the recommendation was backwards on all three live rows. */
+.str-drift-b{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:4px}
+.str-drift-b .cp-go{margin-top:0}

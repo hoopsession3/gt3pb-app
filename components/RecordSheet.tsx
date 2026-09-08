@@ -25,6 +25,7 @@ const CrewPerson = dynamic(() => import("./CrewPerson"), { ssr: false });
 const CustomerRecord = dynamic(() => import("./CustomerRecord"), { ssr: false });
 const ShopOrderRecord = dynamic(() => import("./ShopOrderRecord"), { ssr: false });
 const EventRecord = dynamic(() => import("./EventRecord"), { ssr: false });
+const StopRecord = dynamic(() => import("./StopRecord"), { ssr: false });
 
 type Ctx = { openRecord: (kind: RecordKind, id: string) => void; closeRecord: () => void };
 const RecordCtx = createContext<Ctx>({ openRecord: () => {}, closeRecord: () => {} });
@@ -75,6 +76,7 @@ export function RecordProvider({ children }: { children: React.ReactNode }) {
       {ref?.kind === "customer"   && <CustomerRecord  customerId={ref.id} onClose={closeRecord} />}
       {ref?.kind === "shop_order" && <ShopOrderRecord orderId={ref.id}    onClose={closeRecord} />}
       {ref?.kind === "event"      && <EventRecord     eventId={ref.id}    onClose={closeRecord} />}
+      {ref?.kind === "stop"       && <StopRecord      stopId={ref.id}     onClose={closeRecord} />}
     </RecordCtx.Provider>
   );
 }
