@@ -1548,6 +1548,45 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     S.whenLabel === E.whenLabel && S.sortGaps === E.sortGaps && S.money === E.money && S.placeLine === E.placeLine);
 }
 
+// ── A BADGE AND ITS PANEL COUNT THE SAME THING (0316) ────────────────────────────────────────────
+// On production the Events tab read "1" directly above a panel reading "4 things need sorting", and
+// the two could never have agreed: the badge counted `events where day >= today` while three of the
+// four problems were on events whose day had passed. An inventory count wearing an attention badge.
+//
+// Both now read the same gap view, which makes them equal BY CONSTRUCTION — and that phrase is only
+// true while it stays true, so it is checked. A filter added to one side and not the other puts the
+// number back out of step, silently, in the one place you look without opening the tab.
+{
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const root = path.join(__dirname, "..");
+  const crew = fs.readFileSync(path.join(root, "app/crew/page.tsx"), "utf8");
+
+  // the views each *Gaps.tsx config renders
+  const panelViews = new Set();
+  for (const f of ["components/EventGaps.tsx", "components/StopGaps.tsx"]) {
+    const m = /view:\s*"([a-z0-9_]+)"/.exec(fs.readFileSync(path.join(root, f), "utf8"));
+    if (m) panelViews.add(m[1]);
+  }
+  ok("badges: both gap panels name a view", panelViews.size === 2, [...panelViews]);
+
+  for (const v of panelViews) {
+    // read by the badge effect, with no extra filter — .select(...) and nothing chained after it
+    const re = new RegExp(`from\\("${v}"\\)\\s*\\.select\\([^)]*\\)([^,\\n]*)`, "");
+    const m = re.exec(crew);
+    ok(`badges: crew/page.tsx counts ${v} for its tab badge`, !!m, m && m[0]);
+    ok(`badges: and counts ALL of it — the panel applies no filter either`,
+      !!m && m[1].trim() === "", m && m[1]);
+  }
+
+  // and the old inventory count is gone, not merely unused
+  ok("badges: the Events badge no longer counts upcoming events instead of problems",
+    !/from\("events"\)[^;]*count: "exact"[^;]*gte\("day"/.test(crew));
+  // the `hot` class had CSS and a stated purpose and nothing applied it (globals.css:3286)
+  ok("badges: the loud variant defined in CSS is actually applied", /subnav-badge\$\{\s*hot\s*\?\s*" hot"/.test(crew));
+  ok("badges: a bare number is not the accessible name", /aria-label=\{`\$\{n\} \$\{what\}`\}/.test(crew));
+}
+
 // ── PLAN NAV (0316) — the jump that has to survive a page load ───────────────────────────────────
 // This is here because the deep-link gate below could not have caught it, and neither could any
 // other test in this file: the bug was in the ORDER of two side effects, and only pressing the

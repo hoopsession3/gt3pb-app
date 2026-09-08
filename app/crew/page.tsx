@@ -6298,16 +6298,40 @@ export default function AdminPage() {
     window.addEventListener("gt3-plan-tab-set", consume);
     return () => window.removeEventListener("gt3-plan-tab-set", consume);
   }, [sec]);
-  const [planCounts, setPlanCounts] = useState<{ bookings: number; events: number }>({ bookings: 0, events: 0 });
+  // A BADGE COUNTS WHAT NEEDS YOU, NOT WHAT EXISTS (0316).
+  //
+  // The Events badge used to count `events where day >= today` — upcoming events. On production it
+  // read "1" directly above a panel reading "4 things need sorting", and it was structurally
+  // incapable of ever agreeing with it: three of those four are on events whose day has PASSED, and
+  // `day >= today` excludes those by construction. That is the exact blind spot the gap panels were
+  // built for — "a list sorted by date files 'still confirmed five weeks later' in the past, where
+  // nobody scrolls" — reproduced in the one number you see WITHOUT opening the tab.
+  //
+  // Route had no badge at all while its panel listed five, three of them visible to guests.
+  //
+  // Both now count their gap view, so the badge and the panel are the same number by construction.
+  // Severity rides along: high means somebody is looking at it now (a stale name or a missing pin
+  // on the public page), and that gets the loud treatment.
+  const [planCounts, setPlanCounts] = useState<{ bookings: number; events: number; eventsHot: boolean; stops: number; stopsHot: boolean }>(
+    { bookings: 0, events: 0, eventsHot: false, stops: 0, stopsHot: false });
   useEffect(() => {
     if (sec !== "plan" || !canManage || !supabase) return;
-    const today = localToday();
     (async () => {
-      const [b, e] = await Promise.all([
+      // severity rows rather than four head counts: fewer round trips and less data than counting
+      // total and high separately for each view.
+      const [b, e, s] = await Promise.all([
         supabase!.from("booking_requests").select("id", { count: "exact", head: true }).eq("status", "new"),
-        supabase!.from("events").select("id", { count: "exact", head: true }).is("archived_at", null).gte("day", today),
+        supabase!.from("v_event_gaps").select("severity"),
+        supabase!.from("v_stop_gaps").select("severity"),
       ]);
-      setPlanCounts({ bookings: b.count ?? 0, events: e.count ?? 0 });
+      const sev = (r: { data: { severity: string }[] | null }) => (r.data ?? []).map((x) => x.severity);
+      const ev = sev(e as { data: { severity: string }[] | null });
+      const st = sev(s as { data: { severity: string }[] | null });
+      setPlanCounts({
+        bookings: b.count ?? 0,
+        events: ev.length, eventsHot: ev.includes("high"),
+        stops: st.length, stopsHot: st.includes("high"),
+      });
     })();
   }, [sec, canManage, planTab]); // refetch when you switch tabs so badges reflect what you just did
 
@@ -6508,9 +6532,18 @@ export default function AdminPage() {
             {/* Leads joined Plan 2026-07-30 (Ryan: "Pipeline plan yes") — the last section merge:
                 a lead becomes an event becomes a route stop without leaving the section. Operators
                 lose lead visibility by Ryan's explicit call (sales is leadership work). */}
-            {([["calendar", "Calendar", 0], ["events", "Events", planCounts.events], ["route", "Route", 0], ["leads", "Leads", planCounts.bookings]] as const).map(([k, label, n]) => (
+            {/* `hot` was defined in globals.css:3286 with a comment saying what it was for —
+                "pending bookings = money waiting — always loud" — and never applied to anything.
+                Wired here, plus the two gap badges when something on them is guest-visible. The
+                `what` word is the accessible name: a bare number tells a screen reader nothing. */}
+            {([
+              ["calendar", "Calendar", 0, false, ""],
+              ["events", "Events", planCounts.events, planCounts.eventsHot, "needing attention"],
+              ["route", "Route", planCounts.stops, planCounts.stopsHot, "needing attention"],
+              ["leads", "Leads", planCounts.bookings, planCounts.bookings > 0, "new booking requests"],
+            ] as const).map(([k, label, n, hot, what]) => (
               <button key={k} type="button" role="tab" aria-selected={planTab === k} className={`subnav-tab${planTab === k ? " on" : ""}`} onClick={() => setPlanTab(k)}>
-                {label}{n > 0 && <span className="subnav-badge">{n}</span>}
+                {label}{n > 0 && <span className={`subnav-badge${hot ? " hot" : ""}`} aria-label={`${n} ${what}`}>{n}</span>}
               </button>
             ))}
             <span className="subnav-div" aria-hidden />
