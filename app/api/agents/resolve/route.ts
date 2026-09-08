@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { staffFromRequest } from "@/lib/apiAuth";
+import { staffFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { academyKnowledge } from "@/lib/operatorKb";
@@ -28,6 +28,11 @@ const TOOL: ToolDef = {
 
 export async function POST(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  // R-002: the service role bypasses RLS, so every read below names its own tenant. Without it
+  // the route reads the whole table — harmless while one tenant exists, a cross-tenant read the
+  // day a second one does, which is what 0305's guard is holding the door shut against.
+  const tenant = await tenantFromRequest(req);
+  if (!tenant) return NextResponse.json({ ok: false, error: "no tenant on this session" }, { status: 401 });
   if (!anthropicEnabled()) return NextResponse.json({ ok: false, error: "AI not configured (set ANTHROPIC_API_KEY)" }, { status: 503 });
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
 
@@ -35,12 +40,12 @@ export async function POST(req: Request) {
   try { ({ task_id = "" } = await req.json()); } catch { /* */ }
   if (!task_id) return NextResponse.json({ ok: false, error: "task_id required" }, { status: 400 });
 
-  const { data: task } = await supabaseAdmin.from("event_tasks").select("id, label").eq("id", task_id).maybeSingle();
+  const { data: task } = await supabaseAdmin.from("event_tasks").select("id, label").eq("tenant_id", tenant).eq("id", task_id).maybeSingle();
   if (!task) return NextResponse.json({ ok: false, error: "not found" }, { status: 404 });
 
   const [a, i] = await Promise.all([
-    supabaseAdmin.from("assets").select("name, brand, use_case, qty").limit(250),
-    supabaseAdmin.from("inventory_items").select("name, qty, qty_event_ready, reorder_point, status, unit, category, critical").limit(250),
+    supabaseAdmin.from("assets").select("name, brand, use_case, qty").eq("tenant_id", tenant).limit(250),
+    supabaseAdmin.from("inventory_items").select("name, qty, qty_event_ready, reorder_point, status, unit, category, critical").eq("tenant_id", tenant).limit(250),
   ]);
   const assets = (a.data ?? []).map((x: any) => `- ${x.name}${x.brand ? ` (${x.brand})` : ""}${x.qty != null ? ` ×${x.qty}` : ""}${x.use_case ? ` — ${x.use_case}` : ""}`).join("\n");
   const inv = (i.data ?? []).map((x: any) => `- ${x.name}: ${x.qty ?? "?"}${x.unit ? ` ${x.unit}` : ""}${x.status ? ` (${x.status})` : ""}${x.critical ? " [critical]" : ""}`).join("\n");

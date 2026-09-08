@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { staffFromRequest } from "@/lib/apiAuth";
+import { staffFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
@@ -40,15 +40,20 @@ const TOOL: ToolDef = {
 
 export async function POST(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  // R-002: the service role bypasses RLS, so every read below names its own tenant. Without it
+  // the route reads the whole table — harmless while one tenant exists, a cross-tenant read the
+  // day a second one does, which is what 0305's guard is holding the door shut against.
+  const tenant = await tenantFromRequest(req);
+  if (!tenant) return NextResponse.json({ ok: false, error: "no tenant on this session" }, { status: 401 });
   if (!anthropicEnabled()) return NextResponse.json({ ok: false, error: "AI not configured (set ANTHROPIC_API_KEY)" }, { status: 503 });
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
 
   const today = new Date().toISOString().slice(0, 10);
   const horizon = new Date(Date.now() + 14 * 864e5).toISOString().slice(0, 10);
   const [{ data: events }, { data: inv }] = await Promise.all([
-    supabaseAdmin.from("events").select("title, day, day_label, menu_nitro, menu_bottles, menu_nature_aid, menu_salted_maple, menu_broth, expected_attendance, staff_count")
+    supabaseAdmin.from("events").select("title, day, day_label, menu_nitro, menu_bottles, menu_nature_aid, menu_salted_maple, menu_broth, expected_attendance, staff_count").eq("tenant_id", tenant)
       .is("archived_at", null).gte("day", today).lte("day", horizon).order("day"),
-    supabaseAdmin.from("inventory_items").select("name, qty, qty_event_ready, reorder_point, status, unit, use_cases, required_for, critical"),
+    supabaseAdmin.from("inventory_items").select("name, qty, qty_event_ready, reorder_point, status, unit, use_cases, required_for, critical").eq("tenant_id", tenant),
   ]);
   if (!events || events.length === 0) return NextResponse.json({ ok: true, skipped: "no upcoming events" });
 

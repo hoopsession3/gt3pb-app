@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { staffFromRequest } from "@/lib/apiAuth";
+import { staffFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { academyKnowledge } from "@/lib/operatorKb";
@@ -56,6 +56,11 @@ const TOOL: ToolDef = {
 
 export async function POST(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  // R-002: the service role bypasses RLS, so every read below names its own tenant. Without it
+  // the route reads the whole table — harmless while one tenant exists, a cross-tenant read the
+  // day a second one does, which is what 0305's guard is holding the door shut against.
+  const tenant = await tenantFromRequest(req);
+  if (!tenant) return NextResponse.json({ ok: false, error: "no tenant on this session" }, { status: 401 });
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
 
   let body: any = {};
@@ -66,7 +71,7 @@ export async function POST(req: Request) {
   let gallons = Number(body.gallons) || 0;
   let recipeName: string | null = null;
   if (body.batch_id) {
-    const { data: b } = await supabaseAdmin.from("brew_batches").select("batch_gal, recipe_name").eq("id", body.batch_id).maybeSingle();
+    const { data: b } = await supabaseAdmin.from("brew_batches").select("batch_gal, recipe_name").eq("tenant_id", tenant).eq("id", body.batch_id).maybeSingle();
     if (b) { gallons = Number((b as any).batch_gal) || gallons; recipeName = (b as any).recipe_name; }
   }
   if (gallons <= 0) return NextResponse.json({ ok: false, error: "gallons or batch_id required" }, { status: 400 });
@@ -79,7 +84,7 @@ export async function POST(req: Request) {
   const label_order = Math.ceil(bottles * 1.05);                   // suggest ~5% spares for misapplies
 
   // Allocate the keg gallons to the REAL keg fleet (mixed sizes), not an assumed 5-gal corny.
-  const { data: kegRows } = await supabaseAdmin.from("kegs").select("name, capacity_gal, qty").is("archived_at", null).order("capacity_gal", { ascending: false });
+  const { data: kegRows } = await supabaseAdmin.from("kegs").select("name, capacity_gal, qty").eq("tenant_id", tenant).is("archived_at", null).order("capacity_gal", { ascending: false });
   const inv = (kegRows ?? []).map((k: any) => ({ name: String(k.name), cap: Number(k.capacity_gal), qty: Number(k.qty) })).filter((k) => k.cap > 0 && k.qty > 0);
   const { plan: kegPlan, shortfall: kegShortfallGal } = allocateKegs(kegGal, inv, kegSizeGal);
   const kegs = kegPlan.reduce((s, k) => s + k.count, 0);

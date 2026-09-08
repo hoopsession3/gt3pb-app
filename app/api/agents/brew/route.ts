@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { staffFromRequest } from "@/lib/apiAuth";
+import { staffFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { academyKnowledge } from "@/lib/operatorKb";
@@ -47,6 +47,11 @@ const TOOL: ToolDef = {
 
 export async function POST(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  // R-002: the service role bypasses RLS, so every read below names its own tenant. Without it
+  // the route reads the whole table — harmless while one tenant exists, a cross-tenant read the
+  // day a second one does, which is what 0305's guard is holding the door shut against.
+  const tenant = await tenantFromRequest(req);
+  if (!tenant) return NextResponse.json({ ok: false, error: "no tenant on this session" }, { status: 401 });
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
 
   let body: any = {};
@@ -54,7 +59,7 @@ export async function POST(req: Request) {
   const recipeId: string | undefined = body.recipe_id;
   if (!recipeId) return NextResponse.json({ ok: false, error: "recipe_id required" }, { status: 400 });
 
-  const { data: recipe } = await supabaseAdmin.from("brew_recipes").select("*").eq("id", recipeId).maybeSingle();
+  const { data: recipe } = await supabaseAdmin.from("brew_recipes").select("*").eq("tenant_id", tenant).eq("id", recipeId).maybeSingle();
   if (!recipe) return NextResponse.json({ ok: false, error: "recipe not found" }, { status: 404 });
 
   const batchGal = Math.max(0.25, Number(body.batch_gal) || 1);
@@ -71,7 +76,7 @@ export async function POST(req: Request) {
   // If tied to an event OR a truck stop (or an explicit need-by date), back-schedule the brew start.
   let eventDay: string | null = null, eventTitle: string | null = null;
   if (body.event_id) {
-    const { data: e } = await supabaseAdmin.from("events").select("title, day, day_label").eq("id", body.event_id).maybeSingle();
+    const { data: e } = await supabaseAdmin.from("events").select("title, day, day_label").eq("tenant_id", tenant).eq("id", body.event_id).maybeSingle();
     if (e) { eventDay = (e as any).day; eventTitle = (e as any).title; }
   } else if (body.stop_id) {
     const { data: s } = await supabaseAdmin.from("stops").select("name, starts_at").eq("id", body.stop_id).maybeSingle();
@@ -100,7 +105,7 @@ export async function POST(req: Request) {
     let batchMarket: string | null = null;
     try {
       if (body.event_id) {
-        const { data: e } = await supabaseAdmin.from("events").select("market").eq("id", body.event_id).maybeSingle();
+        const { data: e } = await supabaseAdmin.from("events").select("market").eq("tenant_id", tenant).eq("id", body.event_id).maybeSingle();
         batchMarket = (e as any)?.market ?? null;
       } else if (body.stop_id) {
         const { data: s } = await supabaseAdmin.from("stops").select("market").eq("id", body.stop_id).maybeSingle();
@@ -160,7 +165,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ...base, spec: (recipe as any).target_spec ?? "", brew_note: brewDate ? `Start brewing ${brewDate} to be ready for ${needBy}.` : `Allow ${extractionHours}h extraction + hold.`, steps: (recipe as any).method ?? [], checks: [], inventory_flags: [] });
   }
 
-  const { data: inv } = await supabaseAdmin.from("inventory_items").select("name, qty, unit, reorder_point, status").or("use_cases.cs.{coffee},name.ilike.%coffee%,name.ilike.%bean%,name.ilike.%water%,name.ilike.%coconut%");
+  const { data: inv } = await supabaseAdmin.from("inventory_items").select("name, qty, unit, reorder_point, status").eq("tenant_id", tenant).or("use_cases.cs.{coffee},name.ilike.%coffee%,name.ilike.%bean%,name.ilike.%water%,name.ilike.%coconut%");
   const fmt = {
     ...base,
     method_template: (recipe as any).method ?? [],

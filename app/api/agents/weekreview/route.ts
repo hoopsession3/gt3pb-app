@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { staffFromRequest, userFromRequest } from "@/lib/apiAuth";
+import { staffFromRequest, tenantFromRequest, userFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { moneyRound } from "@/lib/money";
 
@@ -38,6 +38,11 @@ async function revenue(fromISO: string, toISO: string): Promise<number> {
 
 export async function POST(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  // R-002: the service role bypasses RLS, so every read below has to name its own tenant. Without
+  // this the route reads the whole table — harmless while one tenant exists, a cross-tenant read the
+  // day a second one does, which is precisely what 0305's guard is holding the door shut against.
+  const tenant = await tenantFromRequest(req);
+  if (!tenant) return NextResponse.json({ ok: false, error: "no tenant on this session" }, { status: 401 });
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
   const caller = await userFromRequest(req);
 
@@ -47,26 +52,26 @@ export async function POST(req: Request) {
   const ahead14 = day(new Date(now.getTime() + 14 * 864e5)), ahead7 = day(new Date(now.getTime() + 7 * 864e5));
 
   // One review per week — a second tap opens the standing one instead of forking the record.
-  const { data: existing } = await supabaseAdmin.from("meeting_notes").select("id, title")
+  const { data: existing } = await supabaseAdmin.from("meeting_notes").select("id, title").eq("tenant_id", tenant)
     .eq("source", "review").gte("met_on", day(new Date(now.getTime() - 6 * 864e5))).limit(1).maybeSingle();
   if (existing) return NextResponse.json({ ok: true, note_id: existing.id, title: existing.title, existing: true });
 
   const [revThis, revPrior, goalsQ, initsQ, milesQ, eventsQ, incOpenQ, incFixedQ, decQ, overdueQ, next7Q, doneQ, portQ, actsQ] = await Promise.all([
     revenue(d7.toISOString(), now.toISOString()),
     revenue(d14.toISOString(), d7.toISOString()),
-    supabaseAdmin.from("goals").select("title, unit, target_value, current_value, updated_at, checkin_status").eq("status", "active"),
-    supabaseAdmin.from("initiatives").select("id, title, emoji, target_date").neq("status", "done"),
-    supabaseAdmin.from("initiative_milestones").select("initiative_id, title, due_on, done, done_at"),
-    supabaseAdmin.from("events").select("title, day").is("archived_at", null).gte("day", day(d7)).lte("day", ahead14),
-    supabaseAdmin.from("incident_log").select("problem, severity").eq("resolved", false),
-    supabaseAdmin.from("incident_log").select("id", { count: "exact", head: true }).eq("resolved", true).gte("created_at", d7.toISOString()),
-    supabaseAdmin.from("strategy_decisions").select("key, decision").gte("created_at", d7.toISOString()),
+    supabaseAdmin.from("goals").select("title, unit, target_value, current_value, updated_at, checkin_status").eq("tenant_id", tenant).eq("status", "active"),
+    supabaseAdmin.from("initiatives").select("id, title, emoji, target_date").eq("tenant_id", tenant).neq("status", "done"),
+    supabaseAdmin.from("initiative_milestones").select("initiative_id, title, due_on, done, done_at").eq("tenant_id", tenant),
+    supabaseAdmin.from("events").select("title, day").eq("tenant_id", tenant).is("archived_at", null).gte("day", day(d7)).lte("day", ahead14),
+    supabaseAdmin.from("incident_log").select("problem, severity").eq("tenant_id", tenant).eq("resolved", false),
+    supabaseAdmin.from("incident_log").select("id", { count: "exact", head: true }).eq("tenant_id", tenant).eq("resolved", true).gte("created_at", d7.toISOString()),
+    supabaseAdmin.from("strategy_decisions").select("key, decision").eq("tenant_id", tenant).gte("created_at", d7.toISOString()),
     supabaseAdmin.from("all_tasks").select("id", { count: "exact", head: true }).eq("done", false).lt("due", today),
     supabaseAdmin.from("all_tasks").select("id", { count: "exact", head: true }).eq("done", false).gte("due", today).lte("due", ahead7),
     supabaseAdmin.from("all_tasks").select("id", { count: "exact", head: true }).eq("done", true).gte("done_at", d7.toISOString()),
     supabaseAdmin.from("os_workstreams").select("name, owner, status, health, next_action, blocker, last_audited").order("sort"),
     // Activation ledger (0268) — soft: absent table (pre-migration) degrades to no section.
-    supabaseAdmin.from("account_activities").select("opportunity_id, on_date, cost_cents, revenue_cents"),
+    supabaseAdmin.from("account_activities").select("opportunity_id, on_date, cost_cents, revenue_cents").eq("tenant_id", tenant),
   ]);
 
   const goals = (goalsQ.data ?? []) as any[];

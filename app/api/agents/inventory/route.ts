@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { staffFromRequest } from "@/lib/apiAuth";
+import { staffFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { claimSafeDeep } from "@/lib/claimGuard";
@@ -62,6 +62,11 @@ function norm(o: any) {
 
 export async function POST(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  // R-002: the service role bypasses RLS, so every read below names its own tenant. Without it
+  // the route reads the whole table — harmless while one tenant exists, a cross-tenant read the
+  // day a second one does, which is what 0305's guard is holding the door shut against.
+  const tenant = await tenantFromRequest(req);
+  if (!tenant) return NextResponse.json({ ok: false, error: "no tenant on this session" }, { status: 401 });
   if (!anthropicEnabled()) return NextResponse.json({ ok: false, error: "AI not configured (set ANTHROPIC_API_KEY)" }, { status: 503 });
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
 
@@ -83,7 +88,7 @@ export async function POST(req: Request) {
   if (!description) return NextResponse.json({ ok: false, error: "describe the item" }, { status: 400 });
 
   // Ground in what's already stocked so categories + units match the house taxonomy.
-  const { data: existing } = await supabaseAdmin.from("inventory_items").select("name, category, unit").limit(80);
+  const { data: existing } = await supabaseAdmin.from("inventory_items").select("name, category, unit").eq("tenant_id", tenant).limit(80);
   const known = (existing ?? []).map((r: any) => `- ${r.name}${r.category ? ` [${r.category}]` : ""}${r.unit ? ` (${r.unit})` : ""}`).join("\n");
 
   try {

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { staffFromRequest, userFromRequest } from "@/lib/apiAuth";
+import { staffFromRequest, userFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { claimSafeDeep } from "@/lib/claimGuard";
@@ -59,6 +59,11 @@ const TOOL: ToolDef = {
 
 export async function POST(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  // R-002: the service role bypasses RLS, so every read below names its own tenant. Without it
+  // the route reads the whole table — harmless while one tenant exists, a cross-tenant read the
+  // day a second one does, which is what 0305's guard is holding the door shut against.
+  const tenant = await tenantFromRequest(req);
+  if (!tenant) return NextResponse.json({ ok: false, error: "no tenant on this session" }, { status: 401 });
   if (!anthropicEnabled()) return NextResponse.json({ ok: false, error: "AI not configured (set ANTHROPIC_API_KEY)" }, { status: 503 });
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
   const caller = await userFromRequest(req);
@@ -98,7 +103,7 @@ export async function POST(req: Request) {
   // 2 · decisions → the ledger (append-only; identical text dedupes)
   let dec = 0;
   for (const d of (out.decisions ?? []).filter((d: any) => d?.decision?.trim())) {
-    const { data: dup } = await supabaseAdmin.from("strategy_decisions").select("id").eq("decision", d.decision.trim()).limit(1).maybeSingle();
+    const { data: dup } = await supabaseAdmin.from("strategy_decisions").select("id").eq("tenant_id", tenant).eq("decision", d.decision.trim()).limit(1).maybeSingle();
     if (dup) continue;
     const { error } = await supabaseAdmin.from("strategy_decisions").insert({
       key: String(d.key || "session").slice(0, 60), decision: d.decision.trim().slice(0, 500),
@@ -121,7 +126,7 @@ export async function POST(req: Request) {
   // 4 · calendar deltas → events (guarded on title+day)
   let evs = 0;
   for (const c of ((out.calendar ?? []) as any[]).filter((c) => c?.title?.trim() && okDate(c.day))) {
-    const { data: dup } = await supabaseAdmin.from("events").select("id").eq("title", c.title.trim()).eq("day", c.day).limit(1).maybeSingle();
+    const { data: dup } = await supabaseAdmin.from("events").select("id").eq("tenant_id", tenant).eq("title", c.title.trim()).eq("day", c.day).limit(1).maybeSingle();
     if (dup) continue;
     const { error } = await supabaseAdmin.from("events").insert({ title: c.title.trim().slice(0, 160), day: c.day, location_text: c.location?.trim()?.slice(0, 160) || null });
     if (!error) evs++;

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { staffFromRequest } from "@/lib/apiAuth";
+import { staffFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { computeSpace, rigToBox, type TrailerProfile } from "@/lib/loadout";
@@ -45,6 +45,11 @@ const TOOL: ToolDef = {
 
 export async function POST(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  // R-002: the service role bypasses RLS, so every read below names its own tenant. Without it
+  // the route reads the whole table — harmless while one tenant exists, a cross-tenant read the
+  // day a second one does, which is what 0305's guard is holding the door shut against.
+  const tenant = await tenantFromRequest(req);
+  if (!tenant) return NextResponse.json({ ok: false, error: "no tenant on this session" }, { status: 401 });
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
 
   let body: any = {};
@@ -56,11 +61,11 @@ export async function POST(req: Request) {
   const ownerId = eventId || stopId;
 
   const [{ data: tp }, { data: tasks }, { data: assetRows }, ownerRes] = await Promise.all([
-    supabaseAdmin.from("trailer_profile").select("*").eq("id", 1).maybeSingle(),
-    supabaseAdmin.from("event_tasks").select("label, kind").eq(ownerCol, ownerId),
-    supabaseAdmin.from("assets").select("name, len_in, width_in, height_in").not("len_in", "is", null),
+    supabaseAdmin.from("trailer_profile").select("*").eq("tenant_id", tenant).eq("id", 1).maybeSingle(),
+    supabaseAdmin.from("event_tasks").select("label, kind").eq("tenant_id", tenant).eq(ownerCol, ownerId),
+    supabaseAdmin.from("assets").select("name, len_in, width_in, height_in").eq("tenant_id", tenant).not("len_in", "is", null),
     eventId
-      ? supabaseAdmin.from("events").select("title, rig").eq("id", eventId).maybeSingle()
+      ? supabaseAdmin.from("events").select("title, rig").eq("tenant_id", tenant).eq("id", eventId).maybeSingle()
       : supabaseAdmin.from("stops").select("name, rig").eq("id", stopId).maybeSingle(),
   ]);
   if (!tp) return NextResponse.json({ ok: false, error: "trailer profile not set up" }, { status: 404 });

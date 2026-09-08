@@ -1587,6 +1587,48 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("badges: a bare number is not the accessible name", /aria-label=\{`\$\{n\} \$\{what\}`\}/.test(crew));
 }
 
+// ── TENANT SCOPING: THE INVARIANT THAT MAKES IT SAFE (R-002) ────────────────────────────────────
+// 18 agent routes now resolve tenantFromRequest and filter every read by it. The reason that is not
+// a new way to 401 a working screen, checked rather than assumed:
+//
+//   1. every caller reaches them through authedFetch, which attaches the session bearer
+//   2. these routes ALREADY required that same bearer for staffFromRequest
+//   3. in production all 15 profiles carry a tenant_id, and current_tenant() exists
+//
+// So any caller that could pass the staff guard passes the tenant guard. What this asserts is the
+// part a future edit could break: a route that resolves a tenant must actually USE it, and a route
+// that filters by tenant must actually resolve one. Half of either is worse than neither — it reads
+// as scoped and is not.
+{
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const dir = path.join(__dirname, "..", "app/api/agents");
+
+  const half = [];
+  for (const d of fs.readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory())) {
+    const f = path.join(dir, d.name, "route.ts");
+    if (!fs.existsSync(f)) continue;
+    const src = fs.readFileSync(f, "utf8");
+    const resolves = /const tenant = await tenantFromRequest\(req\)/.test(src);
+    const uses = /\.eq\("tenant_id", tenant\)/.test(src);
+    if (resolves !== uses) half.push(`${d.name}: resolves=${resolves} uses=${uses}`);
+    if (resolves) {
+      const guarded = /if \(!tenant\) return/.test(src);
+      if (!guarded) half.push(`${d.name}: resolves a tenant but never checks it is non-null`);
+    }
+  }
+  ok("tenant: no agent route is half-scoped", half.length === 0, half);
+  // Honest about the limit of this check: it is FILE-level, so it catches "resolves a tenant and
+  // never uses it" and "filters by tenant without resolving one", but NOT "filters three of four
+  // reads". Proved that gap by deleting one .eq() — this stayed green. The per-ACCESS check is
+  // scripts/service-role.audit.mjs, which runs in the same suite and counts every read
+  // individually; the two are complementary and neither is sufficient alone.
+
+  // and the guard's own message must not drift from the real number
+  const guardSql = fs.readFileSync(path.join(__dirname, "..", "supabase/migrations/0305_second_tenant_guard.sql"), "utf8");
+  ok("tenant: 0305's guard is still the thing holding the door", /A second tenant cannot be created yet/.test(guardSql));
+}
+
 // ── THE RADIUS SCALE, AND A RATCHET ─────────────────────────────────────────────────────────────
 // globals.css carried 928 border-radius declarations across 23 distinct px values — 9, 10, 11, 12,
 // 13 and 14px all appearing dozens of times. No scale; just whatever each surface was written with.

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { staffFromRequest } from "@/lib/apiAuth";
+import { staffFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { academyKnowledge } from "@/lib/operatorKb";
@@ -70,6 +70,11 @@ const TOOL: ToolDef = {
 
 export async function POST(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  // R-002: the service role bypasses RLS, so every read below names its own tenant. Without it
+  // the route reads the whole table — harmless while one tenant exists, a cross-tenant read the
+  // day a second one does, which is what 0305's guard is holding the door shut against.
+  const tenant = await tenantFromRequest(req);
+  if (!tenant) return NextResponse.json({ ok: false, error: "no tenant on this session" }, { status: 401 });
   if (!anthropicEnabled()) return NextResponse.json({ ok: false, error: "AI not configured (set ANTHROPIC_API_KEY)" }, { status: 503 });
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
 
@@ -97,7 +102,7 @@ export async function POST(req: Request) {
     let added = 0;
     const prevention = Array.isArray(c.prevention) ? c.prevention.filter((p: any) => !p._skip && p.label?.trim()) : [];
     if (ownerCol && ownerId && prevention.length) {
-      const { data: existing } = await supabaseAdmin.from("event_tasks").select("label").eq(ownerCol, ownerId);
+      const { data: existing } = await supabaseAdmin.from("event_tasks").select("label").eq("tenant_id", tenant).eq(ownerCol, ownerId);
       const have = new Set((existing ?? []).map((t: any) => t.label.trim().toLowerCase()));
       const rows = prevention
         .filter((p: any) => !have.has(p.label.trim().toLowerCase()))
@@ -117,10 +122,10 @@ export async function POST(req: Request) {
   if (!problem) return NextResponse.json({ ok: false, error: "Describe what's going wrong." }, { status: 400 });
 
   // Grounding: the event/stop config (power/water/rig matter most for field failures) + the gear list.
-  const { data: assets } = await supabaseAdmin.from("assets").select("name, brand, make_model, use_case, qty, notes");
+  const { data: assets } = await supabaseAdmin.from("assets").select("name, brand, make_model, use_case, qty, notes").eq("tenant_id", tenant);
   let target: any = null, kind = "general (no event/stop attached)";
   if (eventId) {
-    const { data: e } = await supabaseAdmin.from("events").select("title, day_label, location_text, state, county, rig, power_available, water_available, expected_attendance, staff_count, duration_hrs, menu_nitro, menu_nature_aid, menu_salted_maple, menu_bottles, menu_broth, blurb").eq("id", eventId).maybeSingle();
+    const { data: e } = await supabaseAdmin.from("events").select("title, day_label, location_text, state, county, rig, power_available, water_available, expected_attendance, staff_count, duration_hrs, menu_nitro, menu_nature_aid, menu_salted_maple, menu_bottles, menu_broth, blurb").eq("tenant_id", tenant).eq("id", eventId).maybeSingle();
     if (e) { target = e; kind = "event"; }
   } else if (stopId) {
     const { data: s } = await supabaseAdmin.from("stops").select("name, location_text, address, notes, menu_tier, starts_at").eq("id", stopId).maybeSingle();

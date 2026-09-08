@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { staffFromRequest } from "@/lib/apiAuth";
+import { staffFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { studioSystem } from "@/lib/brandVoice";
@@ -36,14 +36,19 @@ const TOOL: ToolDef = {
   },
 };
 
-async function approvedCaptions(limit = 4): Promise<string[]> {
+async function approvedCaptions(tenant: string, limit = 4): Promise<string[]> {
   if (!supabaseAdmin) return [];
-  const { data } = await supabaseAdmin.from("content_items").select("caption").in("status", ["approved", "scheduled", "published"]).not("caption", "is", null).order("updated_at", { ascending: false }).limit(limit);
+  const { data } = await supabaseAdmin.from("content_items").select("caption").eq("tenant_id", tenant).in("status", ["approved", "scheduled", "published"]).not("caption", "is", null).order("updated_at", { ascending: false }).limit(limit);
   return ((data as { caption: string | null }[]) ?? []).map((r) => (r.caption ?? "").trim()).filter((c) => c.length > 40);
 }
 
 export async function POST(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  // R-002: the service role bypasses RLS, so every read below names its own tenant. Without it
+  // the route reads the whole table — harmless while one tenant exists, a cross-tenant read the
+  // day a second one does, which is what 0305's guard is holding the door shut against.
+  const tenant = await tenantFromRequest(req);
+  if (!tenant) return NextResponse.json({ ok: false, error: "no tenant on this session" }, { status: 401 });
   if (!anthropicEnabled()) return NextResponse.json({ ok: false, error: "AI not configured (set ANTHROPIC_API_KEY)" }, { status: 503 });
 
   let body: any = {};
@@ -51,14 +56,14 @@ export async function POST(req: Request) {
   let title = String(body.title ?? "").slice(0, 200);
   let caption = String(body.caption ?? "").slice(0, 2000);
   if (body.content_id && supabaseAdmin) {
-    const { data } = await supabaseAdmin.from("content_items").select("title, caption").eq("id", body.content_id).maybeSingle();
+    const { data } = await supabaseAdmin.from("content_items").select("title, caption").eq("tenant_id", tenant).eq("id", body.content_id).maybeSingle();
     if (data) { title = (data as any).title || title; caption = (data as any).caption || caption; }
   }
   const source = (caption || title).trim();
   if (!source) return NextResponse.json({ ok: false, error: "nothing to repurpose — write a caption first" }, { status: 400 });
 
   const system = studioSystem({
-    examples: await approvedCaptions(),
+    examples: await approvedCaptions(tenant),
     task: "REPURPOSE — recast the SOURCE idea below into a Story, a Reel script (hook → beats → CTA), an email, and a site blurb. Keep the substance; change the shape and length to fit each format. Stay in the GT3 voice. Always answer with the repurpose tool.",
   });
   try {

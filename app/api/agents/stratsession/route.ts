@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { staffFromRequest, userFromRequest } from "@/lib/apiAuth";
+import { staffFromRequest, userFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -18,6 +18,11 @@ const nice = (iso: string) => new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleD
 
 export async function POST(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  // R-002: the service role bypasses RLS, so every read below names its own tenant. Without it
+  // the route reads the whole table — harmless while one tenant exists, a cross-tenant read the
+  // day a second one does, which is what 0305's guard is holding the door shut against.
+  const tenant = await tenantFromRequest(req);
+  if (!tenant) return NextResponse.json({ ok: false, error: "no tenant on this session" }, { status: 401 });
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
   const caller = await userFromRequest(req);
 
@@ -28,18 +33,18 @@ export async function POST(req: Request) {
   const d30 = new Date(now.getTime() - 30 * 864e5).toISOString();
 
   // One session note per day — a second tap the same day opens the standing agenda.
-  const { data: existing } = await supabaseAdmin.from("meeting_notes").select("id, title")
+  const { data: existing } = await supabaseAdmin.from("meeting_notes").select("id, title").eq("tenant_id", tenant)
     .eq("source", "strategy").eq("met_on", today).limit(1).maybeSingle();
   if (existing) return NextResponse.json({ ok: true, note_id: existing.id, title: existing.title, existing: true });
 
   const [thrQ, goalsQ, gtmQ, initsQ, milesQ, incQ, decQ] = await Promise.all([
     supabaseAdmin.from("comments").select("strategy_key, body, created_at").not("strategy_key", "is", null).gte("created_at", d30).order("created_at", { ascending: false }).limit(200),
-    supabaseAdmin.from("goals").select("title, unit, target_value, current_value, updated_at, checkin_status").eq("status", "active"),
+    supabaseAdmin.from("goals").select("title, unit, target_value, current_value, updated_at, checkin_status").eq("tenant_id", tenant).eq("status", "active"),
     supabaseAdmin.from("gtm_drafts").select("name, category, status").in("status", ["draft", "proposed"]).order("updated_at", { ascending: false }).limit(10),
-    supabaseAdmin.from("initiatives").select("id, title, emoji").neq("status", "done"),
-    supabaseAdmin.from("initiative_milestones").select("initiative_id, title, due_on, done").eq("done", false),
-    supabaseAdmin.from("incident_log").select("problem, severity, created_at").eq("resolved", false),
-    supabaseAdmin.from("strategy_decisions").select("key, decision, created_at").gte("created_at", d30).order("created_at", { ascending: false }).limit(12),
+    supabaseAdmin.from("initiatives").select("id, title, emoji").eq("tenant_id", tenant).neq("status", "done"),
+    supabaseAdmin.from("initiative_milestones").select("initiative_id, title, due_on, done").eq("tenant_id", tenant).eq("done", false),
+    supabaseAdmin.from("incident_log").select("problem, severity, created_at").eq("tenant_id", tenant).eq("resolved", false),
+    supabaseAdmin.from("strategy_decisions").select("key, decision, created_at").eq("tenant_id", tenant).gte("created_at", d30).order("created_at", { ascending: false }).limit(12),
   ]);
 
   // Threads: group the last 30 days of strategy comments by key — count + freshest line.

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { staffFromRequest, userFromRequest } from "@/lib/apiAuth";
+import { staffFromRequest, userFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ClaudeMsg } from "@/lib/anthropic";
 import { academyKnowledge } from "@/lib/operatorKb";
@@ -29,6 +29,11 @@ WHAT YOU CAN DO IN THE APP: GT3 runs entirely in THIS app — there is NO Monday
 
 export async function POST(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  // R-002: the service role bypasses RLS, so every read below names its own tenant. Without it
+  // the route reads the whole table — harmless while one tenant exists, a cross-tenant read the
+  // day a second one does, which is what 0305's guard is holding the door shut against.
+  const tenant = await tenantFromRequest(req);
+  if (!tenant) return NextResponse.json({ ok: false, error: "no tenant on this session" }, { status: 401 });
   if (!anthropicEnabled()) return NextResponse.json({ ok: false, error: "AI not configured (set ANTHROPIC_API_KEY)" }, { status: 503 });
 
   let messages: any[] = [];
@@ -41,8 +46,8 @@ export async function POST(req: Request) {
   let assets = "", inv = "", rules = "";
   if (supabaseAdmin) {
     const [a, i, c] = await Promise.all([
-      supabaseAdmin.from("assets").select("name, brand, use_case, qty").limit(200),
-      supabaseAdmin.from("inventory_items").select("name, qty, unit, status, critical").limit(200),
+      supabaseAdmin.from("assets").select("name, brand, use_case, qty").eq("tenant_id", tenant).limit(200),
+      supabaseAdmin.from("inventory_items").select("name, qty, unit, status, critical").eq("tenant_id", tenant).limit(200),
       supabaseAdmin.from("compliance_rules").select("state, county, label, kind, critical, link").eq("active", true).order("sort").limit(300),
     ]);
     assets = (a.data ?? []).map((x: any) => `- ${x.name}${x.brand ? ` (${x.brand})` : ""}${x.qty != null ? ` ×${x.qty}` : ""}${x.use_case ? ` — ${x.use_case}` : ""}`).join("\n");

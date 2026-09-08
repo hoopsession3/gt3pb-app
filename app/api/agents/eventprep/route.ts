@@ -1,5 +1,5 @@
 import { NextResponse, after } from "next/server";
-import { staffFromRequest, userFromRequest } from "@/lib/apiAuth";
+import { staffFromRequest, userFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { academyKnowledge } from "@/lib/operatorKb";
@@ -131,6 +131,11 @@ const TOOL: ToolDef = {
 
 export async function POST(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  // R-002: the service role bypasses RLS, so every read below names its own tenant. Without it
+  // the route reads the whole table — harmless while one tenant exists, a cross-tenant read the
+  // day a second one does, which is what 0305's guard is holding the door shut against.
+  const tenant = await tenantFromRequest(req);
+  if (!tenant) return NextResponse.json({ ok: false, error: "no tenant on this session" }, { status: 401 });
   if (!anthropicEnabled()) return NextResponse.json({ ok: false, error: "AI not configured (set ANTHROPIC_API_KEY)" }, { status: 503 });
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
 
@@ -146,11 +151,11 @@ export async function POST(req: Request) {
   if (body.commit) {
     const tasks = (body.commit.tasks ?? []).filter((t: any) => !t._skip && t.label?.trim());
     if (!tasks.length) return NextResponse.json({ ok: true, added: 0 });
-    const { data: existing } = await supabaseAdmin.from("event_tasks").select("label").eq(ownerCol, ownerId);
+    const { data: existing } = await supabaseAdmin.from("event_tasks").select("label").eq("tenant_id", tenant).eq(ownerCol, ownerId);
     const have = new Set((existing ?? []).map((t: any) => t.label.trim().toLowerCase()));
     // owner date anchors any "N days before" due dates the AI proposed
     let ownerDate: string | null = null;
-    if (eventId) { const { data: e } = await supabaseAdmin.from("events").select("day").eq("id", eventId).maybeSingle(); ownerDate = (e as any)?.day ?? null; }
+    if (eventId) { const { data: e } = await supabaseAdmin.from("events").select("day").eq("tenant_id", tenant).eq("id", eventId).maybeSingle(); ownerDate = (e as any)?.day ?? null; }
     else { const { data: st } = await supabaseAdmin.from("stops").select("starts_at").eq("id", stopId).maybeSingle(); ownerDate = (st as any)?.starts_at ? String((st as any).starts_at).slice(0, 10) : null; }
     const dueFrom = (offset: any): string | null => {
       if (!ownerDate || typeof offset !== "number" || offset < 1) return null; // only advance-prep items get a deadline
@@ -174,24 +179,24 @@ export async function POST(req: Request) {
   // ── PREVIEW: build the list, grounded in everything we know ──
   const notes = String(body.notes ?? "").slice(0, 3000);
   const [{ data: inv }, { data: assets }, { data: existing }] = await Promise.all([
-    supabaseAdmin.from("inventory_items").select("name, qty, qty_event_ready, reorder_point, status, unit, critical, use_cases, required_for"),
-    supabaseAdmin.from("assets").select("name, brand, use_case, qty"),
-    supabaseAdmin.from("event_tasks").select("label").eq(ownerCol, ownerId),
+    supabaseAdmin.from("inventory_items").select("name, qty, qty_event_ready, reorder_point, status, unit, critical, use_cases, required_for").eq("tenant_id", tenant),
+    supabaseAdmin.from("assets").select("name, brand, use_case, qty").eq("tenant_id", tenant),
+    supabaseAdmin.from("event_tasks").select("label").eq("tenant_id", tenant).eq(ownerCol, ownerId),
   ]);
 
   // The target — an event (full config + run of show) or a truck stop (location/notes).
   let target: any = null, runOfShow: string[] = [], state: string | null = null, county: string | null = null, kind = "event";
   if (eventId) {
-    const { data: e } = await supabaseAdmin.from("events").select("title, day, day_label, location_text, state, county, rig, menu_nitro, menu_nature_aid, menu_salted_maple, menu_bottles, menu_broth, power_available, water_available, expected_attendance, staff_count, duration_hrs, plan_days, blurb").eq("id", eventId).maybeSingle();
+    const { data: e } = await supabaseAdmin.from("events").select("title, day, day_label, location_text, state, county, rig, menu_nitro, menu_nature_aid, menu_salted_maple, menu_bottles, menu_broth, power_available, water_available, expected_attendance, staff_count, duration_hrs, plan_days, blurb").eq("tenant_id", tenant).eq("id", eventId).maybeSingle();
     if (!e) return NextResponse.json({ ok: false, error: "event not found" }, { status: 404 });
     target = e; state = (e as any).state; county = (e as any).county;
-    const { data: sched } = await supabaseAdmin.from("event_schedule_items").select("day_index, start_time, title, location").eq("event_id", eventId).order("day_index").order("sort");
+    const { data: sched } = await supabaseAdmin.from("event_schedule_items").select("day_index, start_time, title, location").eq("tenant_id", tenant).eq("event_id", eventId).order("day_index").order("sort");
     runOfShow = (sched ?? []).map((s: any) => `D${s.day_index} ${s.start_time ?? ""} ${s.title}${s.location ? ` @ ${s.location}` : ""}`);
   } else {
     const { data: s } = await supabaseAdmin.from("stops").select("name, location_text, address, note, notes, starts_at, menu_tier, status").eq("id", stopId).maybeSingle();
     if (!s) return NextResponse.json({ ok: false, error: "stop not found" }, { status: 404 });
     target = s; kind = "truck stop (on-the-ground ops)";
-    const { data: stopSched } = await supabaseAdmin.from("event_schedule_items").select("day_index, start_time, title, location").eq("stop_id", stopId).order("day_index").order("sort");
+    const { data: stopSched } = await supabaseAdmin.from("event_schedule_items").select("day_index, start_time, title, location").eq("tenant_id", tenant).eq("stop_id", stopId).order("day_index").order("sort");
     runOfShow = (stopSched ?? []).map((s: any) => `D${s.day_index} ${s.start_time ?? ""} ${s.title}${s.location ? ` @ ${s.location}` : ""}`);
   }
 

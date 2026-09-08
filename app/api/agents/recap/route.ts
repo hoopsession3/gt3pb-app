@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { staffFromRequest, userFromRequest } from "@/lib/apiAuth";
+import { staffFromRequest, userFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { claimSafeDeep } from "@/lib/claimGuard";
@@ -37,6 +37,11 @@ const TOOL: ToolDef = {
 
 export async function POST(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  // R-002: the service role bypasses RLS, so every read below names its own tenant. Without it
+  // the route reads the whole table — harmless while one tenant exists, a cross-tenant read the
+  // day a second one does, which is what 0305's guard is holding the door shut against.
+  const tenant = await tenantFromRequest(req);
+  if (!tenant) return NextResponse.json({ ok: false, error: "no tenant on this session" }, { status: 401 });
   if (!anthropicEnabled()) return NextResponse.json({ ok: false, error: "AI not configured (set ANTHROPIC_API_KEY)" }, { status: 503 });
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
 
@@ -44,7 +49,7 @@ export async function POST(req: Request) {
   try { ({ note_id } = await req.json()); } catch { /* */ }
   if (!note_id) return NextResponse.json({ ok: false, error: "note_id required" }, { status: 400 });
 
-  const { data: note } = await supabaseAdmin.from("meeting_notes").select("id, title, summary, body, created_by").eq("id", note_id).maybeSingle();
+  const { data: note } = await supabaseAdmin.from("meeting_notes").select("id, title, summary, body, created_by").eq("tenant_id", tenant).eq("id", note_id).maybeSingle();
   if (!note) return NextResponse.json({ ok: false, error: "note not found" }, { status: 404 });
   // Auto-assign the follow-ups to the note's owner, or whoever triggered the recap — never orphan them.
   const caller = await userFromRequest(req);
@@ -76,7 +81,7 @@ export async function POST(req: Request) {
   if (items.length === 0) return NextResponse.json({ ok: true, added: 0, items: [] });
 
   // Don't duplicate suggestions the note already has.
-  const { data: existing } = await supabaseAdmin.from("event_tasks").select("label").eq("meeting_note_id", note_id);
+  const { data: existing } = await supabaseAdmin.from("event_tasks").select("label").eq("tenant_id", tenant).eq("meeting_note_id", note_id);
   const have = new Set((existing ?? []).map((t: any) => t.label.trim().toLowerCase()));
   const rows = items
     .filter((i) => !have.has(i.label.trim().toLowerCase()))

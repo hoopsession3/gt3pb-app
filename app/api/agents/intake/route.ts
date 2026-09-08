@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { staffFromRequest, userFromRequest } from "@/lib/apiAuth";
+import { staffFromRequest, userFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { claimSafeDeep } from "@/lib/claimGuard";
@@ -58,6 +58,11 @@ function fileBlock(mime: string, b64: string, name: string): any {
 
 export async function POST(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  // R-002: the service role bypasses RLS, so every read below names its own tenant. Without it
+  // the route reads the whole table — harmless while one tenant exists, a cross-tenant read the
+  // day a second one does, which is what 0305's guard is holding the door shut against.
+  const tenant = await tenantFromRequest(req);
+  if (!tenant) return NextResponse.json({ ok: false, error: "no tenant on this session" }, { status: 401 });
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
 
   let body: any = {};
@@ -159,7 +164,7 @@ export async function POST(req: Request) {
     const tokens = proposal.name.split(/\s+/).filter((w) => w.length >= 3).slice(0, 3);
     const orClause = tokens.map((t) => `name.ilike.%${t.replace(/[%,()]/g, "")}%`).join(",");
     if (orClause) {
-      const { data: hits } = await supabaseAdmin.from("assets").select("id, name, make_model, manual_url, notes").or(orClause).limit(1);
+      const { data: hits } = await supabaseAdmin.from("assets").select("id, name, make_model, manual_url, notes").eq("tenant_id", tenant).or(orClause).limit(1);
       const a = hits?.[0];
       if (a) {
         const { data: maint } = await supabaseAdmin.from("asset_maintenance").select("kind, summary, how_to, next_due_on, performed_on").eq("asset_id", a.id).order("performed_on", { ascending: false }).limit(8);
