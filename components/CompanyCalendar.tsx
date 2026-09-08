@@ -13,6 +13,8 @@ import { brewStartOverdue } from "@/lib/brewMath";
 import { etToday } from "@/lib/dates";
 import { useWorkStreams } from "@/lib/streams";
 import { useAuth, roleOf } from "@/components/AuthProvider";
+import { useRecord } from "./RecordSheet";
+import { prepHandoffKey, prepHandoffValue } from "@/lib/eventRecord";
 import { useOperatorSection } from "./OperatorNav";
 import { clickable } from "@/lib/a11y";
 import { isBlank } from "@/lib/formGuard";
@@ -88,6 +90,7 @@ const qStart = (cursor: Date) => Math.floor(cursor.getMonth() / 3) * 3;
 // the team's anchor; My Day stays each person's actionable lens on it.
 export default function CompanyCalendar({ readOnly = false }: { readOnly?: boolean } = {}) {
   const { setSection } = useOperatorSection();
+  const { openRecord } = useRecord();
   const { profile } = useAuth();
   const role = roleOf(profile);
   const isOwner = role === "owner";
@@ -192,10 +195,15 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
     setTidying(false); await reload(); await loadStale();
     return data;
   };
-  // Tapping ANY dated thing on the calendar — event or stop — opens the same unified prep hub, so they
-  // operate and look identical. (The run-of-show / time blocks live inside the hub and on CalEdit.)
-  const openEventPrep = (eventId: string) => { if (typeof window !== "undefined") localStorage.setItem("gt3-prep-open", `event:${eventId}`); setSection("prep"); };
-  const openStopPrep = (stopId: string) => { if (typeof window !== "undefined") localStorage.setItem("gt3-prep-open", `stop:${stopId}`); setSection("prep"); };
+  // Tapping an EVENT now opens the event record (0314) rather than teleporting to the prep hub: it
+  // has an address, so the calendar keeps its place, the back button works, and the day you were
+  // looking at is still there when you close it. The prep checklist is one tap from inside it.
+  //
+  // A stop still goes to the hub. That breaks the old "event and stop look identical" symmetry on
+  // purpose and temporarily — the stop record is the next item on the audit, and holding events
+  // back to keep two things equally unreachable would be the wrong trade.
+  const openEventPrep = (eventId: string) => openRecord("event", eventId);
+  const openStopPrep = (stopId: string) => { if (typeof window !== "undefined") localStorage.setItem(prepHandoffKey, prepHandoffValue("stop", stopId)); setSection("prep"); };
   const openPlanTab = (tab: string, anchor?: string) => goPlanTab(setSection, tab, anchor);
   const toggleTodo = async (t: Todo) => {
     if (!supabase || readOnly) return;
@@ -556,7 +564,7 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
 
       {edit && (edit.kind === "event" || edit.kind === "stop"
         ? <FieldOpSheet kind={edit.kind} id={edit.id} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); reload(); }}
-            onOpenPrep={() => { try { localStorage.setItem("gt3-prep-open", edit.kind === "stop" ? `stop:${edit.id}` : edit.id); } catch { /* ignore */ } setSection("prep"); setEdit(null); }} />
+            onOpenPrep={() => { try { localStorage.setItem(prepHandoffKey, prepHandoffValue(edit.kind === "stop" ? "stop" : "event", edit.id)); } catch { /* ignore */ } setSection("prep"); setEdit(null); }} />
         : <CalEdit kind={edit.kind} id={edit.id} events={events} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); reload(); }} />)}
       {/* THE walkable editor (2026-08-01): one pop-out over the date-sorted spine — ‹ › / arrows /
           swipe move between items with the editor staying open. key= remounts per item so each
@@ -567,7 +575,7 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
         const saved = () => { setSelIdx(null); reload(); };
         return it.kind === "event" || it.kind === "stop"
           ? <FieldOpSheet key={`${it.kind}-${it.id}`} kind={it.kind} id={it.id} onClose={close} onSaved={saved}
-              onOpenPrep={() => { try { localStorage.setItem("gt3-prep-open", it.kind === "stop" ? `stop:${it.id}` : `event:${it.id}`); } catch { /* ignore */ } setSection("prep"); close(); }} />
+              onOpenPrep={() => { try { localStorage.setItem(prepHandoffKey, prepHandoffValue(it.kind === "stop" ? "stop" : "event", it.id)); } catch { /* ignore */ } setSection("prep"); close(); }} />
           : <CalEdit key={`${it.kind}-${it.id}`} kind={it.kind as EditKind} id={it.id} events={events} onClose={close} onSaved={saved} />;
       })()}
       {selIdx != null && spine[selIdx] && spine.length > 1 && (() => {
@@ -687,7 +695,7 @@ function DayView({ dayKey, items, events, readOnly = false, onClose, onAdd, onSa
     </Sheet>
     {edit && (edit.kind === "event" || edit.kind === "stop"
       ? <FieldOpSheet kind={edit.kind} id={edit.id} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); onSaved(); }}
-          onOpenPrep={() => { try { localStorage.setItem("gt3-prep-open", edit.kind === "stop" ? `stop:${edit.id}` : edit.id); } catch { /* ignore */ } setSection("prep"); setEdit(null); onClose(); }} />
+          onOpenPrep={() => { try { localStorage.setItem(prepHandoffKey, prepHandoffValue(edit.kind === "stop" ? "stop" : "event", edit.id)); } catch { /* ignore */ } setSection("prep"); setEdit(null); onClose(); }} />
       : <CalEdit kind={edit.kind} id={edit.id} events={events} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); onSaved(); }} />)}
     </>
   );
@@ -801,7 +809,9 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: s
   const jump = (() => {
     const close = onClose;
     const goGoals = () => { setSection("command"); setTimeout(() => document.getElementById("goals")?.scrollIntoView({ behavior: "smooth", block: "start" }), 120); close(); };
-    const prep = (key: string) => { try { localStorage.setItem("gt3-prep-open", key); } catch { /* ignore */ } setSection("prep"); close(); };
+    // Was `prep(key)` with the key spelled at each call site — which is how line 578 came to write
+    // "event:<id>" while 567 and 698 wrote a bare id, in this same file. Takes the pair now.
+    const prep = (k: "event" | "stop", id: string) => { try { localStorage.setItem(prepHandoffKey, prepHandoffValue(k, id)); } catch { /* ignore */ } setSection("prep"); close(); };
     if (kind === "content") return { label: "Open full editor in Studio", go: () => { setSection("studio"); close(); } };
     if (kind === "brew") return { label: "Open in Production", go: () => { setSection("brew"); close(); } };
     if (kind === "goal") return { label: "Open Goals", go: goGoals };
@@ -809,8 +819,8 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: s
     if (kind === "pipe") return { label: "Open the pipeline board", go: () => { goPlanTab(setSection, "leads", "pipeline-board"); close(); } };
     if (kind === "meeting") return { label: "Open in Notes", go: () => { setSection("notes"); close(); } };
     if (kind === "task") {
-      if (f.event_id) return { label: "Open its event prep", go: () => prep(`event:${f.event_id}`) };
-      if (f.stop_id) return { label: "Open its stop prep", go: () => prep(`stop:${f.stop_id}`) };
+      if (f.event_id) return { label: "Open its event prep", go: () => prep("event", String(f.event_id)) };
+      if (f.stop_id) return { label: "Open its stop prep", go: () => prep("stop", String(f.stop_id)) };
       if (f.meeting_note_id) return { label: "Open in Notes", go: () => { setSection("notes"); close(); } };
       if (f.goal_id) return { label: "Open Goals", go: goGoals };
     }

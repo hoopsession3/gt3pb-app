@@ -24,6 +24,7 @@ import { useOperatorSection, sectionsForRole, streamGroups, SECTION_LABEL, TODAY
 import { useTaskSheet } from "@/components/TaskSheet";
 import { useRecord } from "@/components/RecordSheet";
 import { recordForAlert } from "@/lib/records";
+import { prepHandoffKey, prepHandoffValue } from "@/lib/eventRecord";
 import GtmCard from "@/components/GtmCard";
 import { CrumbProvider, Breadcrumbs, useCrumb } from "@/components/Crumbs";
 import { recordRecent } from "@/components/recents";
@@ -122,6 +123,7 @@ const MenuManager = dynamic(() => import("@/components/MenuManager"), { loading:
 const LessonsManager = dynamic(() => import("@/components/LessonsManager"), { loading: () => <PourFill label="Loading…" /> });
 const MerchManager = dynamic(() => import("@/components/MerchManager"), { loading: () => <PourFill label="Loading…" /> });
 const ShopOrders = dynamic(() => import("@/components/ShopOrders"), { loading: () => <PourFill label="Loading…" /> });
+const EventGaps = dynamic(() => import("@/components/EventGaps"), { loading: () => <PourFill label="Loading…" /> });
 const OperatorDeal = dynamic(() => import("@/components/OperatorDeal"), { loading: () => <PourFill label="Loading…" /> });
 const OfferLetters = dynamic(() => import("@/components/OfferLetters"), { loading: () => <PourFill label="Loading…" /> });
 const PaymentSettings = dynamic(() => import("@/components/PaymentSettings"), { loading: () => <PourFill label="Loading…" /> });
@@ -1464,7 +1466,7 @@ function MyDay({ userId, meName, isLeader, canPrep, canBrew }: { userId: string 
       {(rhythm.stops.length > 0 || rhythm.dropPacks > 0 || rhythm.porches > 0 || rhythm.brews.length > 0) && (
         <div className="myday-rhythm">
           {rhythm.stops.map((s) => (
-            <button key={s.id} type="button" className="myday-chip" style={{ borderLeftColor: laneColor("stop") }} onClick={() => { if (!canPrep) { setSection("now"); return; } try { localStorage.setItem("gt3-prep-open", `stop:${s.id}`); } catch { /* ignore */ } setSection("prep"); }}>
+            <button key={s.id} type="button" className="myday-chip" style={{ borderLeftColor: laneColor("stop") }} onClick={() => { if (!canPrep) { setSection("now"); return; } try { localStorage.setItem(prepHandoffKey, prepHandoffValue("stop", s.id)); } catch { /* ignore */ } setSection("prep"); }}>
               <Icon name="truck" /> {s.name || "Truck stop"}{s.starts_at ? ` · ${new Date(s.starts_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""} ›
             </button>
           ))}
@@ -1554,7 +1556,7 @@ function NeedsYou() {
     timer.current = setTimeout(() => load(), 500);
   });
   const goBookings = () => { try { localStorage.setItem("gt3-plan-tab", "leads"); } catch { /* ignore */ } setSection("plan"); };   // leads live on Plan › Leads (2026-07-30 merge)
-  const openTarget = (kind: "event" | "stop", id: string) => { try { localStorage.setItem("gt3-prep-open", kind === "stop" ? `stop:${id}` : id); } catch { /* ignore */ } setSection("prep"); };
+  const openTarget = (kind: "event" | "stop", id: string) => { try { localStorage.setItem(prepHandoffKey, prepHandoffValue(kind, id)); } catch { /* ignore */ } setSection("prep"); };
   if (news === 0 && overdue.length === 0 && low.length === 0) return null;
   return (
     <div className="adm-sec">
@@ -1985,15 +1987,15 @@ function EventPrep({ sel, setSel }: { sel: PrepTarget | null; setSel: Dispatch<S
   useEffect(() => {
     // Deep-link from an event editor's "Open prep".
     try {
-      const tgt = localStorage.getItem("gt3-prep-open");
-      if (tgt) { localStorage.removeItem("gt3-prep-open"); const isStop = tgt.startsWith("stop:"); const id = tgt.includes(":") ? tgt.slice(tgt.indexOf(":") + 1) : tgt; setSelected({ kind: isStop ? "stop" : "event", id }); }
+      const tgt = localStorage.getItem(prepHandoffKey);
+      if (tgt) { localStorage.removeItem(prepHandoffKey); const isStop = tgt.startsWith("stop:"); const id = tgt.includes(":") ? tgt.slice(tgt.indexOf(":") + 1) : tgt; setSelected({ kind: isStop ? "stop" : "event", id }); }
     } catch { /* ignore */ }
     // ⌘K / recents jump: open the requested target even if we're already on the Prep list (the
     // mount-time read above only fires on first render).
     const onOpen = () => {
       try {
-        const tgt = localStorage.getItem("gt3-prep-open");
-        if (tgt) { localStorage.removeItem("gt3-prep-open"); const isStop = tgt.startsWith("stop:"); const id = tgt.includes(":") ? tgt.slice(tgt.indexOf(":") + 1) : tgt; setSelected({ kind: isStop ? "stop" : "event", id }); }
+        const tgt = localStorage.getItem(prepHandoffKey);
+        if (tgt) { localStorage.removeItem(prepHandoffKey); const isStop = tgt.startsWith("stop:"); const id = tgt.includes(":") ? tgt.slice(tgt.indexOf(":") + 1) : tgt; setSelected({ kind: isStop ? "stop" : "event", id }); }
       } catch { /* ignore */ }
     };
     window.addEventListener("gt3-open-prep", onOpen);
@@ -3050,7 +3052,7 @@ function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive
 function LiveControl({ compact = false, manage = false }: { compact?: boolean; manage?: boolean }) {
   const { toast } = useApp();
   const { setSection } = useOperatorSection();
-  const openPrep = (id: string) => { try { localStorage.setItem("gt3-prep-open", `stop:${id}`); } catch { /* ignore */ } setSection("prep"); };
+  const openPrep = (id: string) => { try { localStorage.setItem(prepHandoffKey, prepHandoffValue("stop", id)); } catch { /* ignore */ } setSection("prep"); };
   const [stops, setStops] = useState<Stop[]>([]);
   const [live, setLive] = useState<LiveStatus | null>(null);
   const [err, setErr] = useState("");
@@ -5347,7 +5349,7 @@ function EventCard({ e, index, open, onToggle, onUpdate, onRemove, onSetLive, on
 function EventsAdmin() {
   const { toast } = useApp();
   const { setSection } = useOperatorSection();
-  const openPrep = (id: string) => { try { localStorage.setItem("gt3-prep-open", id); } catch { /* ignore */ } setSection("prep"); };
+  const openPrep = (id: string) => { try { localStorage.setItem(prepHandoffKey, prepHandoffValue("event", id)); } catch { /* ignore */ } setSection("prep"); };
   const [openId, setOpenId] = useState<string | null>(null); // single-open accordion
   const [genOpen, setGenOpen] = useState(false); // "create from notes" agent
   const [showArch, setShowArch] = useState(false);
@@ -6525,7 +6527,15 @@ export default function AdminPage() {
               <Panel id="plan-discussions" title="Discussions · every open thread, one place"><Discussions onOpenNotes={() => setSection("notes")} /></Panel>
             </>
           )}
-          {planTab === "events" && <EventsAdmin />}
+          {planTab === "events" && (
+            <>
+              {/* Above the list on purpose: a list sorted by date will never surface "still marked
+                  confirmed five weeks after it happened" — it just files it in the past, where
+                  nobody scrolls. (0314) */}
+              <Panel id="event-gaps" title="Events that need sorting" defaultOpen><EventGaps /></Panel>
+              <EventsAdmin />
+            </>
+          )}
           {planTab === "route" && <LiveControl manage />}
           {planTab === "leads" && (
             <>

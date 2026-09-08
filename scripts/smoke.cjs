@@ -1362,6 +1362,73 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     S.queueHeadline({ on_us: 3, oldest_on_us_hours: 5 }) === "3 orders are waiting on us — the oldest for 5h.");
 }
 
+// ── EVENT RECORD (0314) ──────────────────────────────────────────────────────────────────────────
+// Same cross-check as the shop order: the gap keys the screen knows how to explain are read out of
+// the MIGRATION FILE and compared, so a rule added to v_event_gaps without a fix sentence shows up
+// here rather than as a row with no advice on it.
+{
+  const E = require("../.smoke/eventRecord.js");
+  const sqlE = require("node:fs").readFileSync(
+    require("node:path").join(__dirname, "..", "supabase/migrations/0314_an_event_is_ten_screens_and_no_record.sql"), "utf8");
+  const inSql = [...sqlE.matchAll(/\(\s*'([a-z_]+)',\s*'[^']*',\s*'(high|medium|low)'/g)].map((m) => m[1]);
+  ok("eventRecord: the migration's gap list was actually found in the file", inSql.length === 9, inSql);
+  ok("eventRecord: every gap the database can emit has a fix sentence — no row of advice-free blame",
+    inSql.every((k) => E.gapFix(k).length > 0), inSql.filter((k) => !E.gapFix(k)));
+  ok("eventRecord: and the module invents none the database cannot emit",
+    E.GAP_KEYS.every((k) => inSql.includes(k)), E.GAP_KEYS.filter((k) => !inSql.includes(k)));
+  ok("eventRecord: an unknown gap gets no invented advice", E.gapFix("made_up") === "" && E.gapFix(null) === "");
+
+  ok("eventRecord: worst first", E.sortGaps([{ gap: "no_recap", severity: "low" }, { gap: "twin", severity: "high" },
+    { gap: "no_sales", severity: "medium" }]).map((r) => r.gap).join(",") === "twin,no_sales,no_recap");
+  ok("eventRecord: ties break by key, so the list does not reshuffle between renders",
+    E.sortGaps([{ gap: "no_title", severity: "high" }, { gap: "done_early", severity: "high" }])
+      .map((r) => r.gap).join(",") === "done_early,no_title");
+  ok("eventRecord: an unknown severity sinks rather than jumping the queue",
+    E.sortGaps([{ gap: "x", severity: "weird" }, { gap: "y", severity: "low" }]).map((r) => r.gap).join(",") === "y,x");
+
+  ok("eventRecord: stage words", E.stageLabel("prep") === "In prep" && E.stageLabel("done") === "Done");
+  ok("eventRecord: an unknown stage still renders something", E.stageLabel("zzz") === "zzz" && E.stageLabel(null) === "—");
+  ok("eventRecord: planning stages are the three before it happens",
+    E.isPlanning("lead") && E.isPlanning("confirmed") && E.isPlanning("prep")
+      && !E.isPlanning("live") && !E.isPlanning("done"));
+
+  // the ambiguity that let two events sit at 'confirmed' for a month after they happened
+  ok("eventRecord: when says which SIDE of today the date falls on",
+    E.whenLabel("upcoming", 14) === "in 14 days" && E.whenLabel("past", -38) === "38 days ago");
+  ok("eventRecord: today, tomorrow and yesterday are said the way people say them",
+    E.whenLabel("today", 0) === "today" && E.whenLabel("upcoming", 1) === "tomorrow" && E.whenLabel("past", -1) === "yesterday");
+  ok("eventRecord: no date says so rather than reading as today",
+    E.whenLabel("undated", null) === "no date yet" && E.whenLabel("upcoming", null) === "no date yet");
+
+  ok("eventRecord: a finished event with no takings says exactly that",
+    E.owedLine({ stage: "done", sales_count: 0 }) === "Finished, with nothing recorded as taken.");
+  ok("eventRecord: a finished event with takings but no write-up says that instead",
+    E.owedLine({ stage: "done", sales_count: 2, recap: "  " }) === "Finished. No after-action note yet.");
+  ok("eventRecord: and a properly wrapped one is quiet",
+    E.owedLine({ stage: "done", sales_count: 2, recap: "Sold out by noon" }) === "Finished and written up.");
+  ok("eventRecord: a past date still being planned is the loudest thing it can say",
+    E.owedLine({ stage: "confirmed", phase: "past" }) === "The day has passed and this is still being planned.");
+  ok("eventRecord: critical work beats headcount beats ordinary jobs",
+    E.owedLine({ stage: "prep", phase: "upcoming", tasks_critical_open: 2, staff: 0, tasks_open: 9 }) === "2 critical jobs still open."
+      && E.owedLine({ stage: "prep", phase: "upcoming", staff: 0, tasks_open: 9 }) === "Nobody is on it yet."
+      && E.owedLine({ stage: "prep", phase: "upcoming", staff: 2, tasks_open: 1 }) === "1 job left.");
+  ok("eventRecord: and an event with nothing outstanding says so",
+    E.owedLine({ stage: "confirmed", phase: "upcoming", staff: 1 }) === "Nothing outstanding.");
+  ok("eventRecord: no event at all is empty, not a crash", E.owedLine(null) === "" && E.owedLine(undefined) === "");
+
+  ok("eventRecord: a place reads like a place",
+    E.placeLine({ location_text: "Unity Park", county: "Greenville", state: "SC" }) === "Unity Park · Greenville, SC");
+  ok("eventRecord: with the gaps dropped, not printed",
+    E.placeLine({ location_text: "Unity Park" }) === "Unity Park" && E.placeLine({ state: "SC" }) === "SC");
+  ok("eventRecord: and nothing at all is empty", E.placeLine(null) === "" && E.placeLine({}) === "");
+
+  ok("eventRecord: money matches the house short form", E.money(6000) === "$60" && E.money(1999) === "$19.99" && E.money(null) === "—");
+
+  // the handoff five call sites used to spell by hand, in two different encodings
+  ok("eventRecord: one function now builds the prep handoff",
+    E.prepHandoffValue("event", "abc") === "abc" && E.prepHandoffValue("stop", "abc") === "stop:abc");
+}
+
 console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
 console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);
 process.exit(fail ? 1 : 0);

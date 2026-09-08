@@ -3,6 +3,8 @@
 import { useCallback } from "react";
 import { SectionHeader, InfoRow } from "@/components/kit";
 import { fetchEventPnl, type EventPnlRow } from "@/lib/reports";
+import { useRecord } from "./RecordSheet";
+import { prepHandoffKey, prepHandoffValue } from "@/lib/eventRecord";
 import { useOperatorSection } from "./OperatorNav";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
@@ -18,8 +20,20 @@ const usd = (cents: number) => (cents < 0 ? "-$" : "$") + Math.round(Math.abs(ce
 
 export default function EventPnlReport() {
   const { setSection } = useOperatorSection();
-  // Jump from a P&L row to the event it came from (audit P2: reports were read-only dead-ends).
-  const openEvent = (id?: string, kind?: "event" | "stop") => { if (!id) return; try { localStorage.setItem("gt3-prep-open", kind === "stop" ? `stop:${id}` : id); } catch { /* ignore */ } setSection("prep"); };
+  const { openRecord } = useRecord();
+  // Jump from a P&L row to the thing it came from (audit P2: reports were read-only dead-ends).
+  // An event opens its record (0314) — which is the right destination for a money screen, since the
+  // record carries what it took and whether the cost assumptions are even set. A stop still goes to
+  // the prep hub until the stop record lands.
+  const openEvent = (id?: string, kind?: "event" | "stop") => {
+    if (!id) return;
+    if (kind === "stop") {
+      try { localStorage.setItem(prepHandoffKey, prepHandoffValue("stop", id)); } catch { /* ignore */ }
+      setSection("prep");
+      return;
+    }
+    openRecord("event", id);
+  };
 
   const loader = useCallback(async (): Promise<EventPnlRow[]> => {
     const r = await fetchEventPnl();

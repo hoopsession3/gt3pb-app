@@ -7650,3 +7650,29 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 
 .so-foot{margin:14px 0 0;font-family:'DM Mono',monospace;font-size:10.5px;letter-spacing:.03em;
   color:var(--cream-d)}
+
+/* ── EVENT RECORD (0314) ───────────────────────────────────────────────────────────────────────
+   Reuses the shop-order sheet's blocks and pills rather than inventing a third visual language for
+   the same job — a record is a record. What is new here is the gap block, and it is deliberately
+   the loudest thing under the header: a row that contradicts itself matters more than any count on
+   it. Two events sat at "confirmed" for over a month after they happened and nothing could say so. */
+.evr-owed{margin:10px 0 0;font-family:'Inter';font-size:13.5px;line-height:1.5;color:var(--cream-m)}
+.evr-owed.due{color:var(--gold2);font-weight:650}
+
+.evr-gaps{border-color:color-mix(in srgb, var(--gold2) 45%, transparent)}
+.evr-gap{display:flex;flex-direction:column;gap:2px;padding:9px 0;border-top:1px solid var(--line2)}
+.evr-gap:first-of-type{border-top:none;padding-top:10px}
+.evr-gap b{font-family:'Inter';font-size:13px;font-weight:600;line-height:1.45;color:var(--cream)}
+/* The fix, not the blame. Every row in this block carries one. */
+.evr-gap i{font-style:normal;font-family:'Inter';font-size:12px;line-height:1.45;color:var(--cream-m)}
+/* Severity as a left rule rather than a coloured heading — three coloured headings in a row stop
+   reading as severity and start reading as decoration. --red-onLight/--amber-onLight flip with the
+   theme; a fixed red here measured 3.8:1 on the light ground when the shop sheet did it. */
+.evr-gap.sev-high{border-left:3px solid var(--red-onLight);padding-left:10px;margin-left:-13px}
+.evr-gap.sev-medium{border-left:3px solid var(--amber-onLight);padding-left:10px;margin-left:-13px}
+.evr-gap.sev-low{border-left:3px solid var(--line2);padding-left:10px;margin-left:-13px}
+
+/* the gap list on the events screen — one severity rule per row, same tokens as the record sheet */
+.evg-sev{flex:none;width:3px;align-self:stretch;border-radius:2px;background:var(--line2)}
+.evg-sev.sev-high{background:var(--red-onLight)}
+.evg-sev.sev-medium{background:var(--amber-onLight)}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { prepHandoffKey, prepHandoffValue } from "@/lib/eventRecord";
 import { useRouter } from "next/navigation";
 import { useAuth, roleOf } from "./AuthProvider";
 import { useOperatorSection, sectionsForRole, SECTION_LABEL, type OpSection } from "./OperatorNav";
@@ -52,7 +53,7 @@ export default function CommandPalette() {
   // Jump to a recently-viewed event/stop: stage it for the Prep index, switch there, and nudge it
   // open (covers the already-on-Prep case where a mount read wouldn't re-fire).
   const openPrepTarget = (r: Recent) => {
-    try { localStorage.setItem("gt3-prep-open", r.kind === "stop" ? `stop:${r.id}` : r.id); } catch { /* ignore */ }
+    try { localStorage.setItem(prepHandoffKey, prepHandoffValue(r.kind === "stop" ? "stop" : "event", r.id)); } catch { /* ignore */ }
     setSection("prep");
     window.dispatchEvent(new Event("gt3-open-prep"));
   };
