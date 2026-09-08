@@ -15,7 +15,6 @@ import Icon from "@/components/Icon";
 // over an <ol>: this run's real quantities beside the steps, a tick that persists (0300), and a live
 // countdown on the extraction. A cold extraction runs twelve to twenty hours and whoever starts it
 // is often not whoever finishes it, so "where did we get to" has to survive a phone going to sleep.
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 type Step = { id: string; step_no: number; step_text: string; done_at: string | null };
 type Ing = { name: string; qty: number | string; unit?: string | null };

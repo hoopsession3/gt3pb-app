@@ -7,7 +7,6 @@ import AsyncSection from "./AsyncSection";
 import { SectionHeader } from "@/components/kit";
 import CrewPerson from "./CrewPerson";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // UTILIZATION (0267 — Ryan: "so you don't have to ask me this no more") — the owners' answer to
 // "is the team actually in the system," plus the anonymous visitor pulse. Per staff member over
 // the last 30 days: active days, real sign-ins, action count, last-seen with the last action.

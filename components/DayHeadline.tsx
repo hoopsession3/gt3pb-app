@@ -8,7 +8,6 @@ import { useRealtimeTable } from "@/lib/realtime";
 import { useTaskSheet } from "./TaskSheet";
 import Icon from "@/components/Icon";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // THE OWNER'S HEADLINE (crew P3, 2026-08-03) — My Day for a leader opens with the ONE thing the
 // day is about: today's field op (if there is one) and the top three due. Ten seconds of glance
 // before the plates. Renders nothing when the day has neither — silence is a valid headline.
