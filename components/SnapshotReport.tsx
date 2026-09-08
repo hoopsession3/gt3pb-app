@@ -6,11 +6,11 @@ import EmptyState from "./EmptyState";
 import { fetchSnapshot, type Snapshot } from "@/lib/reports";
 import { supabase } from "@/lib/supabase";
 import { nextDrop , dropDateKey} from "@/lib/orderAhead";
+import { moneyRound } from "@/lib/money";
 
 // Business snapshot — inventory value + low-stock, subscriber health, loyalty. One staff-gated
 // RPC (report_snapshot). On-brand, dependency-free. Lives in the MONEY tab under Sales.
 
-const usd = (cents: number) => "$" + Math.round((cents || 0) / 100).toLocaleString();
 const planLabel = (p: string) => (p || "—").replace(/_/g, " + ").toUpperCase();
 
 export default function SnapshotReport() {
@@ -62,8 +62,8 @@ export default function SnapshotReport() {
         <div className="rpt-block">
           <div className="rpt-bh">Reservations · order-ahead</div>
           <div className="rpt-kpis">
-            <div className="rpt-kpi"><span className="rpt-k">This drop</span><b>{usd(resv.drop)}</b><span className="rpt-sub">{resv.dropN} reserved</span></div>
-            <div className="rpt-kpi"><span className="rpt-k">Last 30 days</span><b>{usd(resv.m30)}</b><span className="rpt-sub">{resv.m30N} reservation{resv.m30N === 1 ? "" : "s"}</span></div>
+            <div className="rpt-kpi"><span className="rpt-k">This drop</span><b>{moneyRound(resv.drop)}</b><span className="rpt-sub">{resv.dropN} reserved</span></div>
+            <div className="rpt-kpi"><span className="rpt-k">Last 30 days</span><b>{moneyRound(resv.m30)}</b><span className="rpt-sub">{resv.m30N} reservation{resv.m30N === 1 ? "" : "s"}</span></div>
           </div>
           <div className="rpt-foot">One-off Saturday drops (drop_orders) — one-time, never recurring.</div>
         </div>
@@ -72,12 +72,12 @@ export default function SnapshotReport() {
       <div className="rpt-block">
         <div className="rpt-bh">Inventory value</div>
         <div className="rpt-kpis">
-          <div className="rpt-kpi"><span className="rpt-k">On-hand value</span><b>{usd(inv.value_cents)}</b></div>
+          <div className="rpt-kpi"><span className="rpt-k">On-hand value</span><b>{moneyRound(inv.value_cents)}</b></div>
           <div className="rpt-kpi"><span className="rpt-k">Items tracked</span><b>{inv.item_count.toLocaleString()}</b><span className="rpt-sub">{inv.low_stock} below reorder</span></div>
         </div>
         {(inv.by_category ?? []).slice(0, 6).map((c, i) => (
           <div key={i} className="rpt-bar">
-            <div className="rpt-bar-l"><span>{c.cat}</span><b>{usd(c.value_cents)}</b></div>
+            <div className="rpt-bar-l"><span>{c.cat}</span><b>{moneyRound(c.value_cents)}</b></div>
             <div className="rpt-track"><div className="rpt-fill" style={{ width: `${Math.max(3, (c.value_cents / catMax) * 100)}%` }} /></div>
           </div>
         ))}
@@ -86,7 +86,7 @@ export default function SnapshotReport() {
       <div className="rpt-block">
         <div className="rpt-bh">Subscribers</div>
         <div className="rpt-kpis">
-          <div className="rpt-kpi"><span className="rpt-k">MRR</span><b>{usd(subs.mrr_cents)}</b><span className="rpt-sub">{subs.active} active of {subs.total}</span></div>
+          <div className="rpt-kpi"><span className="rpt-k">MRR</span><b>{moneyRound(subs.mrr_cents)}</b><span className="rpt-sub">{subs.active} active of {subs.total}</span></div>
           {subs.past_due > 0 && <div className="rpt-kpi"><span className="rpt-k">Past due</span><b>{subs.past_due.toLocaleString()}</b><span className="rpt-sub">{subs.paused} paused</span></div>}
         </div>
         {(subs.by_plan ?? []).map((p, i) => (

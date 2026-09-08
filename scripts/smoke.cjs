@@ -1587,6 +1587,69 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("badges: a bare number is not the accessible name", /aria-label=\{`\$\{n\} \$\{what\}`\}/.test(crew));
 }
 
+// ── MONEY (one canonical home) ───────────────────────────────────────────────────────────────────
+// Thirty definitions of "turn cents into a price" lived across app/, components/ and lib/, under
+// three names, resolving to seven behaviours that disagreed on screen: $19.99 vs $20, $0.50 vs
+// $0.5 vs $1, and a -$19.99 refund rendering four ways — one of which dropped the minus sign and
+// showed a refund as a charge.
+//
+// Two functions survive because the thirty encoded two real intentions: money() for an amount
+// somebody PAYS (cents matter) and moneyRound() for an amount somebody READS (cents are noise).
+// Every call site was mapped to whichever matched what it already did, so this is invisible
+// everywhere except where the old behaviour was a defect.
+{
+  const M = require("../.smoke/money.js");
+
+  const cases = [
+    [1999,   "$19.99",  "$20"],
+    [6000,   "$60",     "$60"],
+    [12345,  "$123.45", "$123"],
+    [50,     "$0.50",   "$1"],       // "$0.5" was a half-printed cent column
+    [-1999,  "-$19.99", "-$20"],     // was "$-19.99" / "$-20" / "$20" (sign LOST) / "-$20"
+    [0,      "$0",      "$0"],
+  ];
+  for (const [cents, exact, round] of cases) {
+    ok(`money(${cents}) = ${exact}`, M.money(cents) === exact, M.money(cents));
+    ok(`moneyRound(${cents}) = ${round}`, M.moneyRound(cents) === round, M.moneyRound(cents));
+  }
+
+  ok("money: an unknown amount is not zero", M.money(null) === "—" && M.money(undefined) === "—" && M.moneyRound(null) === "—");
+  ok("money: NaN is unknown, not $NaN", M.money(NaN) === "—" && M.moneyRound(Infinity) === "—");
+  ok("money: the minus goes before the symbol, never between it and the digits",
+    !M.money(-500).includes("$-") && !M.moneyRound(-500).includes("$-"));
+  ok("money: a negative never loses its sign", M.money(-1) === "-$0.01" && M.moneyRound(-100) === "-$1");
+  ok("moneyRound: thousands are separated", M.moneyRound(1234567) === "$12,346");
+  ok("moneyFromDollars: the dollars-in door for lib/orderAhead", M.moneyFromDollars(22.5) === "$22.50" && M.moneyFromDollars(60) === "$60");
+  ok("moneyFromDollars: unknown is unknown", M.moneyFromDollars(null) === "—");
+
+  // THE GATE. A thirty-first would arrive the same way the first thirty did: someone needs a price
+  // on a new screen and writes the one-liner rather than finding the import.
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const root = path.join(__dirname, "..");
+  const files = [];
+  (function walk(d) {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const f = path.join(d, e.name);
+      if (e.isDirectory()) { if (!/node_modules|\.next|\.smoke|\.git/.test(f)) walk(f); }
+      else if (/\.tsx?$/.test(e.name)) files.push(f);
+    }
+  })(root);
+
+  const LOCAL_DEF = /(?:^|\n)\s*(?:export\s+)?const\s+(money|moneyRound|dollars|usd|price|amount)\s*=\s*\([^)]*\)\s*(?::[^=]*)?=>/;
+  const offenders = [];
+  for (const f of files) {
+    const rel = f.replace(root + "/", "");
+    if (rel === "lib/money.ts") continue;                       // the canonical home
+    const src = fs.readFileSync(f, "utf8").split("\n").map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1")).join("\n");
+    const m = LOCAL_DEF.exec(src);
+    if (m && /\$|toFixed|toLocaleString/.test(src.slice(m.index, m.index + 220))) {
+      offenders.push(`${rel}: const ${m[1]} = …`);
+    }
+  }
+  ok("money: no file defines its own formatter — lib/money is the only home", offenders.length === 0, offenders);
+}
+
 // ── PLAN NAV (0316) — the jump that has to survive a page load ───────────────────────────────────
 // This is here because the deep-link gate below could not have caught it, and neither could any
 // other test in this file: the bug was in the ORDER of two side effects, and only pressing the

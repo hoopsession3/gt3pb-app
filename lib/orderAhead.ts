@@ -58,7 +58,12 @@ export const packTotal = (size: number, glass: GlassPath): number =>
 export const saveAmount = (size: number): number => Math.round((newGlassTotal(size) - (PRICING.returnPacks[size] ?? newGlassTotal(size))) * 100) / 100;
 export const perBottle = (size: number, glass: GlassPath): number => packTotal(size, glass) / size;
 export const toCents = (dollars: number): number => Math.round(dollars * 100);
-export const dollars = (n: number): string => "$" + (n % 1 ? n.toFixed(2) : n.toLocaleString());
+// This module computes pack pricing in DOLLARS and converts at the boundary (toCents above),
+// which is deliberate and has its own rounding history — see saveAmount. So it keeps a dollars-in
+// formatter, but the implementation is lib/money's, named for its unit so nobody has to guess which
+// `dollars` a file has in scope. OrderFunnel used to shadow this one with a cents-in function of
+// the same name; only the shadowing kept the two units apart.
+export { moneyFromDollars as dollars } from "./money";
 
 // ── flavor mix ──
 export const mixTotal = (mix: Mix): number => FLAVORS.reduce((a, f) => a + (mix[f] || 0), 0);

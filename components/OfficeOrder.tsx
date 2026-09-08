@@ -11,12 +11,12 @@ import { OFFICE, officeQuote, mondayLabel } from "@/lib/office";
 import { useOfficeSettings } from "./useOfficeSettings";
 import { zipMarket } from "@/lib/delivery";
 import { marketServes } from "@/lib/markets";
+import { money } from "@/lib/money";
 
 // OFFICE DELIVERY — the B2B bulk order (amber gallon jugs, Monday 5–8 AM, 3-gal minimum). Purpose-built
 // so it never entangles the residential pack cart. Books a business_order (0187); a standing toggle also
 // creates/links a business_account for the weekly generator. Prepaid → we send a payment link; net terms
 // → we invoice. Either way the operator confirms — no card is captured here. Raises a crew alert on book.
-const dollars = (c: number) => `$${(c / 100).toFixed(c % 100 === 0 ? 0 : 2)}`;
 
 export default function OfficeOrder({ onClose }: { onClose: () => void }) {
   const { user } = useAuth();
@@ -102,13 +102,13 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
 
   return (
     <Sheet open onClose={onClose} label="Office delivery order" header={header} className="office-sheet"
-      footer={<button type="button" className="handle" onClick={submit} disabled={busy || !ready}><span>{busy ? "Booking…" : `Book ${q.gallons} gal · ${dollars(q.totalCents)}`}</span></button>}>
+      footer={<button type="button" className="handle" onClick={submit} disabled={busy || !ready}><span>{busy ? "Booking…" : `Book ${q.gallons} gal · ${money(q.totalCents)}`}</span></button>}>
 
       <p className="office-lede">Fresh cold-extract for the whole team — <b>amber gallon jugs</b>, delivered <b>{OFFICE.windowLabel}</b>, empties swapped for full each week. 3-gallon minimum.</p>
 
       {/* gallons */}
       <div className="office-gal">
-        <div className="office-gal-l"><span className="office-k">Gallons</span><span className="office-hint">~{q.gallons * 12}–{q.gallons * 16} cups · ~{dollars(Math.round(settings.priceCents / 14))}/cup</span></div>
+        <div className="office-gal-l"><span className="office-k">Gallons</span><span className="office-hint">~{q.gallons * 12}–{q.gallons * 16} cups · ~{money(Math.round(settings.priceCents / 14))}/cup</span></div>
         <div className="office-step">
           <button type="button" onClick={() => setGallons((g) => Math.max(settings.minGallons, g - 1))} aria-label="Fewer" disabled={gallons <= settings.minGallons}>−</button>
           <span className="office-gal-v">{q.gallons}</span>
@@ -119,7 +119,7 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
           from the LIVE settings.priceCents — arithmetic that visibly didn't add up the moment an
           owner changed the live price via Settings, on the primary booking screen a customer sees
           right before they commit. */}
-      <div className="office-quote"><span>{q.gallons} gal × {dollars(settings.priceCents)}</span><b>{dollars(q.totalCents)}</b></div>
+      <div className="office-quote"><span>{q.gallons} gal × {money(settings.priceCents)}</span><b>{money(q.totalCents)}</b></div>
 
       {/* who + where */}
       <div className="office-fields">

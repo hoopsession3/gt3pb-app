@@ -10,6 +10,7 @@ import AssignTaskSheet from "./AssignTaskSheet";
 import Sheet from "./Sheet";
 import { SectionHeader, InfoRow } from "@/components/kit";
 import Icon from "@/components/Icon";
+import { money } from "@/lib/money";
 
 // SUNDAY DELIVERY OPS — the crew side of the delivery debrief, in DropOps' shape: one summary
 // sentence (units, one hero thought), the Saturday brew totals (incl. Performance combos), and a
@@ -39,7 +40,6 @@ const STATUS_LABEL: Record<string, string> = {
   received: "Received", brewed: "Brewed", out_for_delivery: "Out for delivery",
   delivered: "Delivered", held_for_pickup: "HELD — pickup", issue: "Issue",
 };
-const dollars = (c: number) => `$${(c / 100).toFixed(2)}`;
 
 export default function DeliveryOps() {
   const [rows, setRows] = useState<DOrder[]>([]);
@@ -115,7 +115,7 @@ export default function DeliveryOps() {
     <section className="mpanel" style={{ marginTop: 14, padding: "0 15px 14px" }} aria-label="Sunday delivery">
       <SectionHeader label="Sunday delivery" annotation={`${dLabel} · ${rows.length} porch${rows.length === 1 ? "" : "es"}`} />
       <p className="dops-sum">
-        <b>{bottles}</b> bottles ({refills} refills · {fresh} fresh) · <b>{dollars(revenue)}</b> paid on order
+        <b>{bottles}</b> bottles ({refills} refills · {fresh} fresh) · <b>{money(revenue)}</b> paid on order
         {heldQueue.length > 0 && <> · <b className="dl-held">{heldQueue.length} held for pickup</b></>}
       </p>
       <div className="dops-brew">Brew: <b>{(["RISE", "FLOW", "DUSK"] as const).filter((f) => perF[f] > 0).map((f) => `${perF[f]}× ${f}`).join(" · ") || "—"}</b>
@@ -143,7 +143,7 @@ export default function DeliveryOps() {
                   {o.refill_count > 0 && <span className="dops-chip ret">SWAP ×{o.refill_count}</span>}
                   <span className={`dops-chip ${o.status === "held_for_pickup" ? "new" : "ret"}`}>{STATUS_LABEL[o.status]}</span>
                 </>}
-                trailing={<span className="dops-total">{dollars(o.total_cents)} <Icon name="check" /></span>}
+                trailing={<span className="dops-total">{money(o.total_cents)} <Icon name="check" /></span>}
                 meta={<>
                   <b>{o.pack_size} bottles</b> — {[o.rise_count && `${o.rise_count}× RISE`, o.flow_count && `${o.flow_count}× FLOW`, o.dusk_count && `${o.dusk_count}× DUSK`, o.performance_count && `${Object.entries(o.performance_mix || {}).map(([k, n]) => `${n}× ${prettySlug(k)}`).join(" · ") || `${o.performance_count}× premium`}`].filter(Boolean).join(" · ")}
                   <br />{o.address_street}, {o.address_city} {o.address_zip}{o.access_instructions ? <> · <em>{o.access_instructions}</em></> : null}

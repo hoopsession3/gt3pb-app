@@ -10,6 +10,7 @@ import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
 import { SectionHeader, InfoRow } from "@/components/kit";
 import Icon from "@/components/Icon";
+import { money } from "@/lib/money";
 
 // CREW · OFFICE ORDERS — the operator's control surface for the Monday B2B route (0187). See upcoming
 // office deliveries, log the jug swap (full out / empties in) on delivery, and settle billing
@@ -26,7 +27,6 @@ type BOrder = {
   payment_status: string; status: string; jugs_out: number; jugs_in: number | null; standing: boolean;
 };
 type Board = { rows: BOrder[]; standingN: number };
-const dollars = (c: number) => `$${(c / 100).toFixed(c % 100 === 0 ? 0 : 2)}`;
 
 export default function OfficeOrders() {
   const { toast } = useApp();
@@ -169,7 +169,7 @@ export default function OfficeOrders() {
                           <span className="oo-dot">·</span>
                           <span className={`oo-pay p-${o.payment_status}`}>{o.payment_status === "paid" ? "paid" : o.payment_status === "invoiced" ? "invoiced" : o.billing_terms === "prepaid" ? "awaiting prepay" : "to invoice"}</span>
                           <span className="oo-dot">·</span>
-                          <span>{dollars(o.total_cents)}</span>
+                          <span>{money(o.total_cents)}</span>
                         </div>
                         <div className="oo-addr">{o.address_street}, {o.address_city} {o.address_zip}{o.contact_phone ? ` · ${o.contact_phone}` : ""}{o.access_instructions ? ` · ${o.access_instructions}` : ""}</div>
 

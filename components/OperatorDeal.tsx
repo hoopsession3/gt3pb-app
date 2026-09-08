@@ -19,6 +19,7 @@ import {
   toScopeBasis, toHoursBasis, scopeSentence,
   type DealTerms, type AgreementStatus, type ScopeBasis, type HoursBasis,
 } from "@/lib/operatorDeal";
+import { moneyRound } from "@/lib/money";
 
 // OPERATOR DEAL — build, price and negotiate a market operator's agreement.
 //
@@ -32,7 +33,6 @@ import {
 // keep after funding their share of supplies. A term nobody can evaluate is a term nobody should sign.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-const money = (c: number) => `$${Math.round(c / 100).toLocaleString()}`;
 
 const DEFAULT_PACKAGE = [
   { label: "Trailer / rig for the market", included: true },
@@ -316,11 +316,11 @@ function AgreementRow({ row, open, onToggle, onSaved, toast, meId, extra }: {
               </label>
             </div>
             <div className="od-figs">
-              <div><b>{money(proj.operatorGrossCents)}</b><span>Operator share</span></div>
-              <div><b>−{money(proj.operatorSuppliesCents)}</b><span>Supplies they fund</span></div>
-              <div className="od-fig-key"><b>{money(proj.operatorNetCents)}</b><span>Operator keeps</span></div>
-              <div><b>{money(proj.royaltyCents)}</b><span>GT3 royalty</span></div>
-              <div><b>{money(proj.marketCents)}</b><span>Into the market</span></div>
+              <div><b>{moneyRound(proj.operatorGrossCents)}</b><span>Operator share</span></div>
+              <div><b>−{moneyRound(proj.operatorSuppliesCents)}</b><span>Supplies they fund</span></div>
+              <div className="od-fig-key"><b>{moneyRound(proj.operatorNetCents)}</b><span>Operator keeps</span></div>
+              <div><b>{moneyRound(proj.royaltyCents)}</b><span>GT3 royalty</span></div>
+              <div><b>{moneyRound(proj.marketCents)}</b><span>Into the market</span></div>
             </div>
             {best !== d.supplyFunding && editable && (
               <div className="od-note">

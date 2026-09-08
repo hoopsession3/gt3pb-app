@@ -164,6 +164,7 @@ const VendorResolve = dynamic(() => import("@/components/VendorResolve"), { load
 import Icon from "@/components/Icon";
 import { useJurisdictions } from "@/components/useJurisdictions";
 import AcademyCard from "@/components/AcademyCard";
+import { moneyRound } from "@/lib/money";
 
 // money helpers for the economics panels
 // 2026-07-16: PHASE_LABEL used to rename the Service lane's own segmented tabs (Route → "Schedule",
@@ -174,7 +175,6 @@ import AcademyCard from "@/components/AcademyCard";
 // match the renames it made). Retired rather than reconciled the other way: Route/Live Ops/Readiness
 // are the names already used by SEC_LABEL, the in-app Guide, and OperatorNav's own SECTION_LABEL —
 // this was the one outlier, not the other three.
-const usd = (cents: number) => `$${(cents / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 const toCents = (s: string) => Math.max(0, Math.round((parseFloat(s) || 0) * 100));
 const pctInt = (n: number) => Math.round(n * 100);
 // local YYYY-MM-DD (not UTC) — for date inputs / "is it past due in the operator's timezone"
@@ -4954,7 +4954,7 @@ function EventHUD({ onGoEvents }: { onGoEvents?: () => void }) {
       {/* One hero mid-service — sales — and one quiet line. The full plan-vs-actual story
           (ROI, break-even, plan totals) lives in Money → Per-event P&L, not on the Now screen. */}
       <div className="adm-hud-hero"><b>${(stats.cents / 100).toFixed(0)}</b><span>in sales</span></div>
-      <p className="adm-hud-line">{stats.orders} order{stats.orders === 1 ? "" : "s"} · ${(perHr / 100).toFixed(0)}/hr{hasPlan && <> · {pctOfPlan}% of plan · net <b className={netUp ? "ok" : "red"}>{usd(recon.actualNetCents)}</b></>}</p>
+      <p className="adm-hud-line">{stats.orders} order{stats.orders === 1 ? "" : "s"} · ${(perHr / 100).toFixed(0)}/hr{hasPlan && <> · {pctOfPlan}% of plan · net <b className={netUp ? "ok" : "red"}>{moneyRound(recon.actualNetCents)}</b></>}</p>
     </div>
   );
 }
@@ -4985,16 +4985,16 @@ function EventEconomics({ e, econRow, catalog, onSave }: {
         <>
           <div className="ev-pnl-gauges">
             <div className="gauge"><div className={`gv ${profitable ? "gold" : "red"}`}>{pctInt(proj.roiPct)}%</div><div className="gl">ROI</div></div>
-            <div className="gauge"><div className={`gv ${profitable ? "ok" : "red"}`}>{usd(proj.netCents)}</div><div className="gl">Net profit</div></div>
+            <div className="gauge"><div className={`gv ${profitable ? "ok" : "red"}`}>{moneyRound(proj.netCents)}</div><div className="gl">Net profit</div></div>
             <div className="gauge"><div className="gv">{pctInt(proj.netMarginPct)}%</div><div className="gl">Margin</div></div>
           </div>
 
           <div className="pnl-rows">
-            <div className="pnl-row"><span className="k">Revenue · {Math.round(proj.projectedUnits)} units</span><span className="v">{usd(proj.revenueCents)}</span></div>
-            <div className="pnl-row neg"><span className="k">− Product COGS</span><span className="v">−{usd(proj.cogsCents)}</span></div>
-            <div className="pnl-row neg"><span className="k">− Labor</span><span className="v">−{usd(proj.laborCents)}</span></div>
-            <div className="pnl-row neg"><span className="k">− Booth · transport · permit · bottles</span><span className="v">−{usd(fixed)}</span></div>
-            <div className={`pnl-row net ${profitable ? "" : "neg"}`}><span className="k">Net profit</span><span className="v">{usd(proj.netCents)}</span></div>
+            <div className="pnl-row"><span className="k">Revenue · {Math.round(proj.projectedUnits)} units</span><span className="v">{moneyRound(proj.revenueCents)}</span></div>
+            <div className="pnl-row neg"><span className="k">− Product COGS</span><span className="v">−{moneyRound(proj.cogsCents)}</span></div>
+            <div className="pnl-row neg"><span className="k">− Labor</span><span className="v">−{moneyRound(proj.laborCents)}</span></div>
+            <div className="pnl-row neg"><span className="k">− Booth · transport · permit · bottles</span><span className="v">−{moneyRound(fixed)}</span></div>
+            <div className={`pnl-row net ${profitable ? "" : "neg"}`}><span className="k">Net profit</span><span className="v">{moneyRound(proj.netCents)}</span></div>
           </div>
 
           <div className="pnl-be">
@@ -5020,7 +5020,7 @@ function EventEconomics({ e, econRow, catalog, onSave }: {
         <label className="ev-f">Transport $<input type="number" min={0} value={(econ.transport_cents / 100) || 0} onChange={(ev) => live({ transport_cents: toCents(ev.target.value) })} onBlur={commit} /></label>
         <label className="ev-f">Permit $<input type="number" min={0} value={(econ.permit_cents / 100) || 0} onChange={(ev) => live({ permit_cents: toCents(ev.target.value) })} onBlur={commit} /></label>
         <label className="ev-f">Bottles/ice $<input type="number" min={0} value={(econ.consumables_cents / 100) || 0} onChange={(ev) => live({ consumables_cents: toCents(ev.target.value) })} onBlur={commit} /></label>
-        <label className="ev-f">Labor total<input type="text" readOnly value={usd(proj.laborCents)} tabIndex={-1} /></label>
+        <label className="ev-f">Labor total<input type="text" readOnly value={moneyRound(proj.laborCents)} tabIndex={-1} /></label>
       </div>
     </div>
   );

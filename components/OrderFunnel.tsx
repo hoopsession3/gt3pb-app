@@ -27,6 +27,7 @@ import {
   quoteDelivery, deliverySlotChoices, zipInZone, maxRefills,
   DELIVERY_PACKS, DELIVERY_PRICING, SALTED_LATTE,
 } from "@/lib/delivery";
+import { money } from "@/lib/money";
 
 // ORDER FUNNEL — one screen, two fulfillment modes. Pickup (Saturday truck-stop reserve →
 // /api/reserve) and Delivery (Sunday prepaid → /api/delivery/checkout) were separate screens with
@@ -42,7 +43,6 @@ type Flav = "rise" | "flow" | "dusk";
 const FLAVS: Flav[] = ["rise", "flow", "dusk"];
 const FLAV_LABEL: Record<Flav, string> = { rise: "RISE", flow: "FLOW", dusk: "DUSK" };
 const FLAV_DESC: Record<Flav, string> = { rise: FLAVOR_DESC.RISE, flow: FLAVOR_DESC.FLOW, dusk: FLAVOR_DESC.DUSK };
-const dollars = (c: number) => `$${(c / 100).toFixed(c % 100 === 0 ? 0 : 2)}`;
 const dayName = (d: Date) => d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 // Sunday label from the slot's REAL date, not its list position — after Friday's 6 PM cutoff the first
 // choice rolls a week out, so "this Sunday" by index was calling an 8-days-away slot "this Sunday".
@@ -601,12 +601,12 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
                 {mode === "delivery" && s >= DELIVERY_PRICING.feeWaivedAt && <span className="oa-tag on">{t("funnel.free_delivery")}</span>}
                 {mode === "pickup" && PACK_TAG[s] && <span className="oa-tag">{PACK_TAG[s]}</span>}
                 <div className="oa-c">{s}</div><div className="oa-u">{t("funnel.bottles_unit")}</div>
-                <div className="oa-p">{mode === "delivery" ? dollars(quoteDelivery(s, 0, bringBack ? s : 0, "direct").totalCents) : dollars(packTotal(s, bringBack ? "return" : "new") * 100)}</div>
+                <div className="oa-p">{mode === "delivery" ? money(quoteDelivery(s, 0, bringBack ? s : 0, "direct").totalCents) : money(packTotal(s, bringBack ? "return" : "new") * 100)}</div>
               </button>
             ))}
           </div>
           {mode === "delivery"
-            ? <EditableCopy k="funnel.delivery_fee_note" value={t("funnel.delivery_fee_note")} displayValue={fillCopy(t("funnel.delivery_fee_note"), { fee: dollars(DELIVERY_PRICING.feeCents), min: String(DELIVERY_PRICING.feeWaivedAt) })} as="p" className="dl-note" />
+            ? <EditableCopy k="funnel.delivery_fee_note" value={t("funnel.delivery_fee_note")} displayValue={fillCopy(t("funnel.delivery_fee_note"), { fee: money(DELIVERY_PRICING.feeCents), min: String(DELIVERY_PRICING.feeWaivedAt) })} as="p" className="dl-note" />
             : <div className="dl-note">{count ? <>That&rsquo;s <b>{PACK_HINT[count]}</b></> : null}</div>}
           {count != null && (
             <button type="button" className="oa-cta" disabled={!count} onClick={() => setStep("build")}>{t("funnel.build_cta")} <Icon name="arrowRight" /></button>
@@ -632,7 +632,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
           ))}
           {mode === "delivery" && bulkItems.length > 0 && (
             <div className="dl-perf">
-              <div className="dl-ctr-n">PREMIUM <em>{dollars(SALTED_LATTE.price)} / bottle · always fresh</em></div>
+              <div className="dl-ctr-n">PREMIUM <em>{money(SALTED_LATTE.price)} / bottle · always fresh</em></div>
               {bulkItems.map((it) => (
                 <div className="dl-ctr sm" key={it.slug}>
                   <span className="dl-ctr-n">{it.name}</span>
@@ -659,7 +659,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
             <>
               <button type="button" className={`dl-card${bringBack ? " on" : ""}`} onClick={() => { glassTouched.current = true; setBringBack(true); setRefills((r) => Math.min(refillCap, r || refillCap)); }}>
                 <b>{t("funnel.glass_back_title")}</b>
-                <span>{fillCopy(t("funnel.glass_back_del_sub"), { refill: dollars(DELIVERY_PRICING.refill), fresh: dollars(DELIVERY_PRICING.fresh) })}</span>
+                <span>{fillCopy(t("funnel.glass_back_del_sub"), { refill: money(DELIVERY_PRICING.refill), fresh: money(DELIVERY_PRICING.fresh) })}</span>
               </button>
               {bringBack && (
                 <div className="dl-loop">
@@ -679,15 +679,15 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
               )}
               <button type="button" className={`dl-card${!bringBack ? " on" : ""}`} onClick={() => { glassTouched.current = true; setBringBack(false); setRefills(0); setAck(false); }}>
                 <b>{t("funnel.glass_new_del_title")}</b>
-                <span>{fillCopy(t("funnel.glass_new_del_sub"), { fresh: dollars(DELIVERY_PRICING.fresh) })}</span>
+                <span>{fillCopy(t("funnel.glass_new_del_sub"), { fresh: money(DELIVERY_PRICING.fresh) })}</span>
               </button>
               {deliveryQuote && (
                 <div className="dl-quote">
-                  {deliveryQuote.refillCount > 0 && <span><b>{deliveryQuote.refillCount}</b> refills · {dollars(deliveryQuote.refillCount * DELIVERY_PRICING.refill)}</span>}
-                  {deliveryQuote.newCount > 0 && <span><b>{deliveryQuote.newCount}</b> new · {dollars(deliveryQuote.newCount * DELIVERY_PRICING.fresh)}</span>}
-                  {deliveryQuote.performanceCount > 0 && <span><b>{deliveryQuote.performanceCount}</b> {SALTED_LATTE.label} · {dollars(deliveryQuote.performanceCount * SALTED_LATTE.price)}</span>}
-                  <span>delivery · {deliveryQuote.deliveryFeeCents === 0 ? "on us" : dollars(deliveryQuote.deliveryFeeCents)}</span>
-                  <span className="dl-quote-t">total <b>{dollars(deliveryQuote.totalCents)}</b></span>
+                  {deliveryQuote.refillCount > 0 && <span><b>{deliveryQuote.refillCount}</b> refills · {money(deliveryQuote.refillCount * DELIVERY_PRICING.refill)}</span>}
+                  {deliveryQuote.newCount > 0 && <span><b>{deliveryQuote.newCount}</b> new · {money(deliveryQuote.newCount * DELIVERY_PRICING.fresh)}</span>}
+                  {deliveryQuote.performanceCount > 0 && <span><b>{deliveryQuote.performanceCount}</b> {SALTED_LATTE.label} · {money(deliveryQuote.performanceCount * SALTED_LATTE.price)}</span>}
+                  <span>delivery · {deliveryQuote.deliveryFeeCents === 0 ? "on us" : money(deliveryQuote.deliveryFeeCents)}</span>
+                  <span className="dl-quote-t">total <b>{money(deliveryQuote.totalCents)}</b></span>
                 </div>
               )}
             </>
@@ -699,12 +699,12 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
               </button>
               <button type="button" className={`dl-card${!bringBack ? " on" : ""}`} onClick={() => setBringBack(false)}>
                 <b>{t("funnel.glass_new_pickup_title")}</b>
-                <span>{fillCopy(t("funnel.glass_new_pickup_sub"), { price: dollars(1000) })}</span>
+                <span>{fillCopy(t("funnel.glass_new_pickup_sub"), { price: money(1000) })}</span>
               </button>
               <div className="dl-quote">
-                <span><b>{count}</b> bottles · {mode === "pickup" && bringBack ? `save ${dollars(Math.round(saveAmount(count) * 100))}` : "new glass"}</span>
+                <span><b>{count}</b> bottles · {mode === "pickup" && bringBack ? `save ${money(Math.round(saveAmount(count) * 100))}` : "new glass"}</span>
                 <span>${perBottle(count, bringBack ? "return" : "new").toFixed(2)} / bottle</span>
-                <span className="dl-quote-t">total <b>{dollars(pickupTotalCents)}</b></span>
+                <span className="dl-quote-t">total <b>{money(pickupTotalCents)}</b></span>
               </div>
             </>
           )}
@@ -756,7 +756,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
               <div className="dl-quote">
                 <span>{count} bottles · {bringBack ? "bring-back" : "new glass"}</span>
                 <span>pickup {dayName(drop.sat)}{stop?.name ? ` · ${stop.name}` : ""}</span>
-                <span className="dl-quote-t">total <b>{dollars(pickupTotalCents)}</b></span>
+                <span className="dl-quote-t">total <b>{money(pickupTotalCents)}</b></span>
               </div>
               <button type="button" className="oa-cta" disabled={!name.trim() || !phone.trim()} onClick={toPayment}>{t("funnel.details_pay")} <Icon name="arrowRight" /></button>
             </>
@@ -770,7 +770,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
           <EditableCopy k="funnel.pay_h" value={t("funnel.pay_h")} as="h2" className="dl-h" />
           <div className="dl-quote">
             <span>{count} bottles{mode === "delivery" ? "" : ` · pickup ${dayName(drop.sat)}`}</span>
-            <span className="dl-quote-t">{codeDiscountCents > 0 ? <><s className="dl-was">{dollars(baseTotalCents)}</s> <b>{dollars(totalCents)}</b></> : <>total <b>{dollars(totalCents)}</b></>}</span>
+            <span className="dl-quote-t">{codeDiscountCents > 0 ? <><s className="dl-was">{money(baseTotalCents)}</s> <b>{money(totalCents)}</b></> : <>total <b>{money(totalCents)}</b></>}</span>
           </div>
 
           {mode === "pickup" && (
@@ -780,7 +780,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
               ) : codeState === "ok" && codeBenefit ? (
                 <div className="oa-code-ok">
                   <span className="oa-code-tag">{codeClean}</span>
-                  <span className="oa-code-lbl">{codeDiscountCents > 0 ? `${dollars(codeDiscountCents)} off applied` : codeBenefit.label}</span>
+                  <span className="oa-code-lbl">{codeDiscountCents > 0 ? `${money(codeDiscountCents)} off applied` : codeBenefit.label}</span>
                   <button type="button" className="oa-code-x" onClick={clearCode} aria-label="Remove code"><Icon name="close" /></button>
                 </div>
               ) : (
@@ -802,7 +802,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
               <PaymentCard ref={paymentRef} className="sq-card" onReady={setCardReady} onError={(m) => setErr(m ?? "")} />
               {err && <p className="dl-err" role="alert">{err}</p>}
               <button type="button" className="oa-cta" disabled={!cardReady || busy} onClick={mode === "delivery" ? payDelivery : payPickupCard}>
-                {busy ? "Charging…" : fillCopy(t("funnel.pay_cta"), { total: dollars(totalCents) })}
+                {busy ? "Charging…" : fillCopy(t("funnel.pay_cta"), { total: money(totalCents) })}
               </button>
               {mode === "pickup" && payLater.on && (
                 <button type="button" className="oa-paylater" onClick={() => submitPickup(null)} disabled={busy}>
@@ -815,7 +815,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
             <>
               {err && <p className="dl-err" role="alert">{err}</p>}
               <button type="button" className="oa-cta" onClick={() => submitPickup(null)} disabled={busy}>
-                {busy ? "Reserving…" : fillCopy(t("funnel.reserve_pay_later"), { total: dollars(totalCents) })}
+                {busy ? "Reserving…" : fillCopy(t("funnel.reserve_pay_later"), { total: money(totalCents) })}
               </button>
               <EditableCopy k="funnel.reserve_window_note" value={t("funnel.reserve_window_note")} as="p" className="dl-sub" />
             </>
@@ -853,7 +853,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
               : [
                   ...(done.ref ? [{ label: "Order", value: `#${done.ref.slice(0, 6).toUpperCase()}` }] : []),
                   { label: "Pickup", value: `${done.label}${stop?.name ? ` · ${stop.name}` : ""}` },
-                  { label: done.paid ? "Paid" : "Pay at pickup", value: dollars(done.total) },
+                  { label: done.paid ? "Paid" : "Pay at pickup", value: money(done.total) },
                 ]),
           ]}
           ctaLabel={mode === "delivery" ? t("funnel.done_cta_del") : t("funnel.done_cta_pickup")}

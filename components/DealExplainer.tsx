@@ -7,6 +7,7 @@ import {
   plainSplit, breakevenRevenueCents, fundingLadder, fundingVerdict,
   investmentPicture, tierLadder, whatIsNext, whatYouAreSigning,
 } from "@/lib/dealExplainer";
+import { moneyRound } from "@/lib/money";
 
 // WHAT YOU'RE SIGNING — the same agreement, from the other side of the table.
 //
@@ -34,7 +35,6 @@ type Row = {
   equity_eligible?: boolean | null; equity_scope?: string | null;
 };
 
-const money = (c: number) => `$${Math.round(c / 100).toLocaleString("en-US")}`;
 const months = (m: number | null) =>
   m === null ? "—" : m === Infinity ? "never at this revenue" : `${m} month${m === 1 ? "" : "s"}`;
 
@@ -103,19 +103,19 @@ export default function DealExplainer({ row, onCounter }: { row: Row; onCounter?
             onChange={(e) => setFunding(Number(e.target.value))} />
         </label>
         <label className="dx-dial">
-          <span>Revenue a month<em>{money(revC)}</em></span>
+          <span>Revenue a month<em>{moneyRound(revC)}</em></span>
           <input type="range" min={2} max={80} step={1} value={revK} onChange={(e) => setRevK(Number(e.target.value))} />
         </label>
         <label className="dx-dial">
-          <span>Supplies a month<em>{money(supC)}</em></span>
+          <span>Supplies a month<em>{moneyRound(supC)}</em></span>
           <input type="range" min={0} max={40} step={1} value={supK} onChange={(e) => setSupK(Number(e.target.value))} />
         </label>
         <label className="dx-dial">
-          <span>What <b>you</b> put in up front<em>{money(myPutIn * 100_000)}</em></span>
+          <span>What <b>you</b> put in up front<em>{moneyRound(myPutIn * 100_000)}</em></span>
           <input type="range" min={0} max={100} step={5} value={myPutIn} onChange={(e) => setMyPutIn(Number(e.target.value))} />
         </label>
         <label className="dx-dial">
-          <span>What <b>GT3</b> puts in up front<em>{money(gt3PutIn * 100_000)}</em></span>
+          <span>What <b>GT3</b> puts in up front<em>{moneyRound(gt3PutIn * 100_000)}</em></span>
           <input type="range" min={0} max={200} step={5} value={gt3PutIn} onChange={(e) => setGt3PutIn(Number(e.target.value))} />
         </label>
       </div>
@@ -123,18 +123,18 @@ export default function DealExplainer({ row, onCounter }: { row: Row; onCounter?
       {/* ── what it pays you ── */}
       <div className="dx-out">
         <div className="dx-big">
-          <p className="dx-big-n">{money(proj.operatorNetCents)}</p>
+          <p className="dx-big-n">{moneyRound(proj.operatorNetCents)}</p>
           <p className="dx-big-l">yours, a month — after the supplies you fund</p>
         </div>
         <dl className="dx-facts">
-          <div><dt>Your share of revenue</dt><dd>{money(proj.operatorGrossCents)}</dd></div>
-          <div><dt>Supplies you pay for</dt><dd>−{money(proj.operatorSuppliesCents)}</dd></div>
-          <div><dt>Back to GT3 as royalty</dt><dd>{money(proj.royaltyCents)}</dd></div>
-          <div><dt>Reinvested in your city</dt><dd>{money(proj.marketCents)}</dd></div>
+          <div><dt>Your share of revenue</dt><dd>{moneyRound(proj.operatorGrossCents)}</dd></div>
+          <div><dt>Supplies you pay for</dt><dd>−{moneyRound(proj.operatorSuppliesCents)}</dd></div>
+          <div><dt>Back to GT3 as royalty</dt><dd>{moneyRound(proj.royaltyCents)}</dd></div>
+          <div><dt>Reinvested in your city</dt><dd>{moneyRound(proj.marketCents)}</dd></div>
           <div><dt>You have to clear</dt>
             <dd>{breakeven === null ? "nothing — you fund no supplies"
                 : breakeven === Infinity ? "—"
-                : `${money(breakeven)} a month before you earn a dollar`}</dd></div>
+                : `${moneyRound(breakeven)} a month before you earn a dollar`}</dd></div>
         </dl>
       </div>
 
@@ -161,12 +161,12 @@ export default function DealExplainer({ row, onCounter }: { row: Row; onCounter?
         <div>
           <p className="dx-pay-w">You</p>
           <p className="dx-pay-n">{months(pic.operator.months)}</p>
-          <p className="dx-pay-s">{money(pic.operator.contributionCents)} in, {money(pic.operator.monthlyCents)} a month back</p>
+          <p className="dx-pay-s">{moneyRound(pic.operator.contributionCents)} in, {moneyRound(pic.operator.monthlyCents)} a month back</p>
         </div>
         <div>
           <p className="dx-pay-w">GT3</p>
           <p className="dx-pay-n">{months(pic.gt3.months)}</p>
-          <p className="dx-pay-s">{money(pic.gt3.contributionCents)} in, {money(pic.gt3.monthlyCents)} a month in royalty</p>
+          <p className="dx-pay-s">{moneyRound(pic.gt3.contributionCents)} in, {moneyRound(pic.gt3.monthlyCents)} a month in royalty</p>
         </div>
       </div>
       <p className="dx-trade">{pic.tradeoff}</p>

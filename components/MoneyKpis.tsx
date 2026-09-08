@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { moneyRound } from "@/lib/money";
 
 // MONEY KPIs — the "how are we doing?" answer that opens the Money section, so it reads as a
 // dashboard instead of a list of doors. The headline revenue tile prefers the reconciled report_sales
@@ -14,7 +15,6 @@ import { supabase } from "@/lib/supabase";
 // schema gap or missing table can never break the section — the number just goes quiet.
 type Kpi = { k: string; v: string; sub: string };
 
-const money = (cents: number) => `$${(cents / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 const startOfToday = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.toISOString(); };
 const startOfWeek = () => { const d = new Date(); d.setDate(d.getDate() - 6); d.setHours(0, 0, 0, 0); return d.toISOString(); };
 
@@ -64,12 +64,12 @@ export default function MoneyKpis() {
       const revSub = anyRev && !allRevOk ? "Revenue · partial, a channel failed · 7d" : "Revenue · all channels · 7d";
       setKpis([
         recCents != null
-          ? { k: "week_rev", v: money(recCents), sub: "Revenue · reconciled · 7d" }
-          : { k: "week_rev", v: anyRev ? money(totalC) : "—", sub: revSub },
+          ? { k: "week_rev", v: moneyRound(recCents), sub: "Revenue · reconciled · 7d" }
+          : { k: "week_rev", v: anyRev ? moneyRound(totalC) : "—", sub: revSub },
         { k: "today_orders", v: orders.count != null ? String(orders.count) : "—", sub: "Orders today" },
         { k: "subs", v: subs.count != null ? String(subs.count) : "—", sub: "Active subscribers" },
         { k: "reserves", v: reserves.count != null ? String(reserves.count) : "—", sub: "Pack pickups" },
-        { k: "office_rev", v: officeC != null ? money(officeC) : "—", sub: "Office · 7 days" },
+        { k: "office_rev", v: officeC != null ? moneyRound(officeC) : "—", sub: "Office · 7 days" },
       ]);
     })();
     return () => { live = false; };

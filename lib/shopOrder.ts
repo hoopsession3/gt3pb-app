@@ -147,11 +147,9 @@ export const moveWarning = (to: string | null | undefined): string | null => {
 
 // ── money and shape ──────────────────────────────────────────────────────────────────────────────
 
-export const money = (cents: number | null | undefined): string => {
-  if (cents == null || !Number.isFinite(Number(cents))) return "—";
-  const n = Number(cents) / 100;
-  return `$${n.toFixed(Math.abs(n * 100) % 100 === 0 ? 0 : 2)}`;
-};
+// The canonical formatter lives in lib/money. Re-exported, not copied — these two files
+// carried byte-identical copies of it, which is how the app ended up with thirty.
+export { money } from "./money";
 
 /**
  * Margin as a percentage of what was charged. Null in, null out — an order whose lines carry no

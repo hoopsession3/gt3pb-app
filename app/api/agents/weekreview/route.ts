@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { staffFromRequest, userFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { moneyRound } from "@/lib/money";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -17,7 +18,6 @@ export const maxDuration = 60;
 // note's own thread, and follow-ups ride ✦ Suggest onto the ONE task spine. One review per week
 // (dedupe on source+met_on window): a second tap opens the existing one.
 
-const money = (c: number) => `$${Math.round(c / 100).toLocaleString()}`;
 const day = (d: Date) => d.toISOString().slice(0, 10);
 const nice = (iso: string) => new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
@@ -107,7 +107,7 @@ export async function POST(req: Request) {
   const spendWk = acts.filter((a) => a.on_date >= day(d7)).reduce((s, a) => s + (a.cost_cents ?? 0), 0);
   const actRevAll = acts.reduce((s, a) => s + (a.revenue_cents ?? 0), 0);
   const actLine = spendAll > 0
-    ? `- **Activation capital:** ${money(spendAll)} deployed of the ~$6.0K Phase-1 plan${spendWk > 0 ? ` (${money(spendWk)} this week)` : ""} · activation revenue ${money(actRevAll)} — per-account payback lives on the pipeline cards`
+    ? `- **Activation capital:** ${moneyRound(spendAll)} deployed of the ~$6.0K Phase-1 plan${spendWk > 0 ? ` (${moneyRound(spendWk)} this week)` : ""} · activation revenue ${moneyRound(actRevAll)} — per-account payback lives on the pipeline cards`
     : acts.length > 0 ? `- **Activation capital:** activities logged, no spend recorded yet — add cost to touches so uplift math can run` : ``;
 
   const focus: string[] = [];
@@ -120,7 +120,7 @@ export async function POST(req: Request) {
 
   const md = [
     `## The week that was`,
-    `- **Revenue (7d):** ${money(revThis)}${delta !== null ? ` — ${delta >= 0 ? "up" : "down"} ${Math.abs(delta)}% vs the week before (${money(revPrior)})` : revPrior === 0 && revThis === 0 ? " — pre-revenue week" : ""}`,
+    `- **Revenue (7d):** ${moneyRound(revThis)}${delta !== null ? ` — ${delta >= 0 ? "up" : "down"} ${Math.abs(delta)}% vs the week before (${moneyRound(revPrior)})` : revPrior === 0 && revThis === 0 ? " — pre-revenue week" : ""}`,
     `- **Tasks:** ${doneCt} finished · ${overdue} overdue right now`,
     ran.length ? `- **Events run:** ${ran.map((e) => `${e.title} (${nice(e.day)})`).join(" · ")}` : `- **Events run:** none this week`,
     `- **Incidents:** ${blockers.length ? blockers.map((b) => b.problem).join(" · ") : "no open blockers"}${(incFixedQ.count ?? 0) > 0 ? ` · ${incFixedQ.count} resolved this week` : ""}`,

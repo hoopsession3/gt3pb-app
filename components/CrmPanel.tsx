@@ -9,6 +9,7 @@ import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
 import { downloadCsv } from "@/lib/csv";
+import { money } from "@/lib/money";
 
 // The customer book — first reader of the identity spine. Rows are `customers` (canonical,
 // resolve_customer-backed): every human who's ever ordered, cup, pickup or delivery, whether or
@@ -34,7 +35,6 @@ type CrmOrder = {
   created_at: string;
 };
 
-const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 const CH_LABEL: Record<CrmOrder["channel"], string> = { cup: "Cup", pickup: "Pickup", delivery: "Delivery" };
 
 type Loyalty = { points: number | null; credit_cents: number | null; founding_member: boolean | null;

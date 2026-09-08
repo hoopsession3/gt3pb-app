@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { useRealtimeTable } from "@/lib/realtime";
 import Icon from "@/components/Icon";
+import { money } from "@/lib/money";
 
 // YOUR DELIVERIES — the customer's own Sunday-delivery orders, on /3mpire. The delivery success
 // screen promises "track it in your account"; this is what makes that true. Mirrors MyPacks exactly
@@ -31,7 +32,6 @@ const STAGE_VIEW: Record<DeliveryStatus, { label: string; note: string }> = {
 };
 const STEPS: DeliveryStatus[] = ["brewed", "out_for_delivery", "delivered"];
 
-const money = (c: number) => `$${(c / 100).toFixed(c % 100 === 0 ? 0 : 2)}`;
 const dayLabel = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 const mixLine = (p: MyDelivery) => {
   const parts: string[] = [];

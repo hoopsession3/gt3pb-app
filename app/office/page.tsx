@@ -13,6 +13,7 @@ import { officeQuote, mondayLabel } from "@/lib/office";
 import { useOfficeSettings } from "@/components/useOfficeSettings";
 import Icon from "@/components/Icon";
 import SignIn from "@/components/SignIn";
+import { money } from "@/lib/money";
 
 // OFFICE PORTAL — the B2B self-serve surface (Phase 3). A business account holder manages their
 // standing weekly order (pause / resume / adjust gallons), sees upcoming Monday deliveries, their
@@ -20,7 +21,6 @@ import SignIn from "@/components/SignIn";
 type Acct = { id: string; company: string; standing_active: boolean; standing_gallons: number | null; jug_balance: number; billing_terms: string };
 type Ord = { id: string; delivery_date: string; gallons: number; total_cents: number; status: string; payment_status: string };
 type Inv = { id: string; amount_cents: number; status: string; issued_at: string; terms: string };
-const dollars = (c: number) => `$${(c / 100).toFixed(c % 100 === 0 ? 0 : 2)}`;
 
 export default function OfficeScreen() {
   const { ready, user, enabled } = useAuth();
@@ -106,7 +106,7 @@ export default function OfficeScreen() {
                   <button type="button" onClick={() => adjustGallons(1)} disabled={busy} aria-label="More">+</button>
                 </div>
               </div>
-              <div className="op-quote"><span>{acct.standing_gallons ?? 3} gal × {dollars(settings.priceCents)} · {acct.billing_terms === "prepaid" ? "prepaid" : "net terms"}</span><b>{dollars(officeQuote(acct.standing_gallons ?? 3, { priceCents: settings.priceCents, minGallons: settings.minGallons }).totalCents)}/wk</b></div>
+              <div className="op-quote"><span>{acct.standing_gallons ?? 3} gal × {money(settings.priceCents)} · {acct.billing_terms === "prepaid" ? "prepaid" : "net terms"}</span><b>{money(officeQuote(acct.standing_gallons ?? 3, { priceCents: settings.priceCents, minGallons: settings.minGallons }).totalCents)}/wk</b></div>
             </>
           ) : <p className="op-sub">Paused — no weekly deliveries. Flip it back on anytime.</p>}
         </div>
@@ -124,7 +124,7 @@ export default function OfficeScreen() {
             {orders.map((o) => (
               <div key={o.id} className="op-row">
                 <div className="op-row-x"><b>{mondayLabel(o.delivery_date)}</b><span>{Math.round(o.gallons)} gal · {o.status === "delivered" ? "delivered" : "scheduled"}</span></div>
-                <div className={`op-row-pay p-${o.payment_status}`}>{o.payment_status === "paid" ? "paid" : o.payment_status === "invoiced" ? "invoiced" : dollars(o.total_cents)}</div>
+                <div className={`op-row-pay p-${o.payment_status}`}>{o.payment_status === "paid" ? "paid" : o.payment_status === "invoiced" ? "invoiced" : money(o.total_cents)}</div>
               </div>
             ))}
           </div>
@@ -136,7 +136,7 @@ export default function OfficeScreen() {
             <SectionHeader label="Invoices" />
             {invoices.map((v) => (
               <div key={v.id} className="op-row">
-                <div className="op-row-x"><b>{dollars(v.amount_cents)}</b><span>{new Date(v.issued_at).toLocaleDateString()} · {v.terms}</span></div>
+                <div className="op-row-x"><b>{money(v.amount_cents)}</b><span>{new Date(v.issued_at).toLocaleDateString()} · {v.terms}</span></div>
                 <div className={`op-row-pay p-${v.status === "paid" ? "paid" : "open"}`}>{v.status}</div>
               </div>
             ))}

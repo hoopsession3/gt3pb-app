@@ -19,6 +19,7 @@ import Reserves from "@/components/Reserves";
 import StorefrontStory from "@/components/StorefrontStory";
 import StoryViewer from "@/components/StoryViewer";
 import { readMedia, coverOf, hasVideo, type MediaItem } from "@/lib/shopMedia";
+import { money } from "@/lib/money";
 
 // THE SHOP (0273) — GT3 merch on the 0271 storefront spine. Reads published merch through RLS, a simple
 // cart in memory, and the shared Square card mount + /api/shop/checkout for a real one-time charge that
@@ -30,7 +31,6 @@ type Variant = { size?: string; color?: string; sku?: string; apliiq_variant_id?
 type Product = { id: string; title: string; blurb: string | null; price_cents: number; image_url: string | null; images: string[]; variants: Variant[]; public_title: string | null; media?: unknown };
 type CartLine = { product: Product; variant: Variant | null; qty: number };
 
-const money = (c: number) => `$${(c / 100).toFixed(c % 100 === 0 ? 0 : 2)}`;
 const variantLabel = (v: Variant | null) => (v ? [v.size, v.color].filter(Boolean).join(" · ") : "");
 const newKey = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `k-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 

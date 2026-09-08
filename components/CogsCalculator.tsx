@@ -11,6 +11,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
+import { money } from "@/lib/money";
 
 // COGS CALCULATOR (Money) — one cohesive place for the cost side: cost per drink (from each
 // product's recipe × ingredient costs), cost per batch (brews, broth — cost/gallon and per 10oz
@@ -18,7 +19,6 @@ import Icon from "@/components/Icon";
 // already in the system, so adding goat milk (or any input) with a cost flows straight through.
 // Fetch state via useAsyncData — a failed load is a real error now, not a silent "No products yet".
 
-const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 const marginCls = (pct: number) => (pct >= 60 ? "ok" : pct >= 30 ? "gold" : "red");
 type Board = { inv: InvCost[]; products: ProductRow[]; components: Component[]; recipes: BrewRecipeRow[] };
 

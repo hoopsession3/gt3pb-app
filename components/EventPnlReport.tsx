@@ -8,6 +8,7 @@ import { prepHandoffKey, prepHandoffValue } from "@/lib/eventRecord";
 import { useOperatorSection } from "./OperatorNav";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import { moneyRound } from "@/lib/money";
 
 // Per-event P&L — actual revenue (Square mirror) minus COGS minus fixed event costs from the
 // event_economics model. Scaffold: fills in as sales flow against live events. MONEY tab.
@@ -16,7 +17,6 @@ import AsyncSection from "./AsyncSection";
 // null`, so a failed report silently vanished with no heading, no hint, nothing. Now it's a real
 // error state.
 
-const usd = (cents: number) => (cents < 0 ? "-$" : "$") + Math.round(Math.abs(cents || 0) / 100).toLocaleString();
 
 export default function EventPnlReport() {
   const { setSection } = useOperatorSection();
@@ -68,11 +68,11 @@ export default function EventPnlReport() {
                       key={i}
                       name={r.event}
                       nameExtra={id ? <span className="rpt-pnl-go" aria-hidden>›</span> : null}
-                      meta={`${r.orders} orders · ${Math.round((1 - r.cogs_pct) * 100)}% gross${r.fixed_cents > 0 ? ` · ${usd(r.fixed_cents)} fixed` : ""}`}
+                      meta={`${r.orders} orders · ${Math.round((1 - r.cogs_pct) * 100)}% gross${r.fixed_cents > 0 ? ` · ${moneyRound(r.fixed_cents)} fixed` : ""}`}
                       trailing={
                         <div className="rpt-pnl-r">
-                          <div className="rpt-pnl-rev">{usd(r.actual_cents)}</div>
-                          <div className={`rpt-pnl-m${r.margin_cents >= 0 ? "" : " neg"}`}>{usd(r.margin_cents)} net</div>
+                          <div className="rpt-pnl-rev">{moneyRound(r.actual_cents)}</div>
+                          <div className={`rpt-pnl-m${r.margin_cents >= 0 ? "" : " neg"}`}>{moneyRound(r.margin_cents)} net</div>
                         </div>
                       }
                       onClick={id ? () => openEvent(id, r.kind) : undefined}

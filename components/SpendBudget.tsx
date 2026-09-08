@@ -11,6 +11,7 @@ import Icon from "@/components/Icon";
 import { downloadCsv } from "@/lib/csv";
 import { MARKETS, MARKET_LABEL, FOUNDING_MARKET, toMarket, type Market } from "@/lib/markets";
 import { receiptGaps, totals, headline, type SpendCategory, type ExpenseRow as SpendRow, type BudgetRow } from "@/lib/spend";
+import { moneyRound } from "@/lib/money";
 
 // SPEND & BUDGET (0209) — the procurement side of Money. Log what the business spends (optionally to a
 // real vendor / event) and track it against a per-category monthly budget. Reads report_spend(); every
@@ -25,7 +26,6 @@ type Cat = { category: string; budget_cents: number; spent_cents: number };
 type Report = { month: string; total_spent_cents: number; total_budget_cents: number; by_category: Cat[] };
 type ExpenseRow = { id: string; amount_cents: number; category: string; description: string | null; vendor_id: string | null; created_at: string; spent_on?: string; market?: string | null; receipt_path?: string | null; voided_at?: string | null };
 type Board = { rep: Report | null; vendors: { id: string; name: string }[]; items: ExpenseRow[]; cats: SpendCategory[] };
-const money = (c: number) => `$${Math.round(c / 100).toLocaleString()}`;
 
 export default function SpendBudget() {
   const { toast } = useApp();
@@ -187,7 +187,7 @@ export default function SpendBudget() {
         if (!rep) return null;
         return (
           <div className="spb">
-            <div className="spb-head"><b>{money(rep.total_spent_cents)}</b> spent<span className="spb-sub"> of {money(rep.total_budget_cents)} budget · {rep.month}</span>
+            <div className="spb-head"><b>{moneyRound(rep.total_spent_cents)}</b> spent<span className="spb-sub"> of {moneyRound(rep.total_budget_cents)} budget · {rep.month}</span>
               {data.items.length > 0 && <button type="button" className="dops-mini spb-export" onClick={() => downloadCsv("gt3-expenses.csv", data.items.map((x) => ({
                 when: x.created_at, amount: (x.amount_cents / 100).toFixed(2), category: x.category, description: x.description ?? "",
               })))}>Export CSV</button>}
@@ -226,7 +226,7 @@ export default function SpendBudget() {
                         onBlur={() => saveBudget(c.category)} onKeyDown={(e) => { if (e.key === "Enter") saveBudget(c.category); }} />
                     ) : (
                       <button type="button" className="spb-bud" onClick={() => { setEditCat(c.category); setEditVal(c.budget_cents ? String(c.budget_cents / 100) : ""); }}>
-                        {money(c.spent_cents)} / {c.budget_cents ? money(c.budget_cents) : "set budget"}
+                        {moneyRound(c.spent_cents)} / {c.budget_cents ? moneyRound(c.budget_cents) : "set budget"}
                       </button>
                     )}
                     meta={<span className="spb-bar"><span className={over ? "over" : ""} style={{ width: `${c.budget_cents > 0 ? pct : 0}%` }} /></span>}
@@ -265,9 +265,9 @@ export default function SpendBudget() {
                 const vName = vendors.find((v) => v.id === row.vendor_id)?.name;
                 return (
                   <div className="spb-item" key={row.id}>
-                    <button type="button" className="spb-item-x" onClick={() => startEditExpense(row)} aria-label={`Edit ${money(row.amount_cents)} expense`}>
+                    <button type="button" className="spb-item-x" onClick={() => startEditExpense(row)} aria-label={`Edit ${moneyRound(row.amount_cents)} expense`}>
                       <span className="spb-item-main">
-                        <b>{money(row.amount_cents)}</b>
+                        <b>{moneyRound(row.amount_cents)}</b>
                         <span style={{ textTransform: "capitalize" }}>{row.category}</span>
                         {row.description && <span className="spb-item-desc">{row.description}</span>}
                         {vName && <span className="spb-item-vendor">{vName}</span>}
@@ -291,7 +291,7 @@ export default function SpendBudget() {
                         <button type="button" className="st-discuss" onClick={() => setConfirmDelId(null)}>Cancel</button>
                       </span>
                     ) : (
-                      <button type="button" className="spb-item-del" onClick={() => setConfirmDelId(row.id)} aria-label={`Void ${money(row.amount_cents)} expense`}><Icon name="close" size={12} /></button>
+                      <button type="button" className="spb-item-del" onClick={() => setConfirmDelId(row.id)} aria-label={`Void ${moneyRound(row.amount_cents)} expense`}><Icon name="close" size={12} /></button>
                     )}
                   </div>
                 );
@@ -308,7 +308,7 @@ export default function SpendBudget() {
                 <ul>
                   {gaps.slice(0, 5).map((g) => (
                     <li key={g.id}>
-                      <b>{money(g.amount_cents)}</b>
+                      <b>{moneyRound(g.amount_cents)}</b>
                       <span>{g.description || g.category}</span>
                       <em>{g.spent_on ?? ""}</em>
                     </li>

@@ -10,6 +10,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import MediaStudio from "@/components/MediaStudio";
 import { readMedia, toColumns, type MediaItem } from "@/lib/shopMedia";
+import { money } from "@/lib/money";
 
 // THE SHOP · merch manager (0273/0274) — the crew's publish + curation surface for the storefront.
 // Products arrive three ways: the in-house studio capsule (seeded), a bulk Apliiq catalog sync, and a
@@ -26,7 +27,6 @@ type Product = {
   media?: unknown;   // 0278 — [{id,url,kind,poster?,alt?}]; read through lib/shopMedia
 };
 
-const money = (c: number) => `$${(c / 100).toFixed(c % 100 === 0 ? 0 : 2)}`;
 const variantsFrom = (sizes: string, colors: string): any[] => {
   const s = sizes.split(",").map((x) => x.trim()).filter(Boolean);
   const c = colors.split(",").map((x) => x.trim()).filter(Boolean);

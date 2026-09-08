@@ -5,6 +5,8 @@
 // screen reads, and the two are kept honest by the same rule the deal explainer holds: a function
 // here has to be as willing to report a problem as a clean bill.
 
+import { moneyRound } from "./money";
+
 export type CategorySlug = string;
 
 export interface SpendCategory {
@@ -172,14 +174,13 @@ export function totals(
  * summary that opens with "on track" while three categories are over is a summary that lies.
  */
 export function headline(t: SpendTotals): string {
-  const money = (c: number) => `$${Math.round(Math.abs(c) / 100).toLocaleString("en-US")}`;
   if (t.overCategories > 0) {
-    return `${t.overCategories} ${t.overCategories === 1 ? "category is" : "categories are"} over budget — ${money(t.spentCents)} spent against ${money(t.budgetCents)}.`;
+    return `${t.overCategories} ${t.overCategories === 1 ? "category is" : "categories are"} over budget — ${moneyRound(t.spentCents)} spent against ${moneyRound(t.budgetCents)}.`;
   }
   if (t.unreceiptedCount > 0) {
-    return `${money(t.spentCents)} spent, on budget — but ${money(t.unreceiptedCents)} of it has no receipt (${t.unreceiptedCount} ${t.unreceiptedCount === 1 ? "item" : "items"}).`;
+    return `${moneyRound(t.spentCents)} spent, on budget — but ${moneyRound(t.unreceiptedCents)} of it has no receipt (${t.unreceiptedCount} ${t.unreceiptedCount === 1 ? "item" : "items"}).`;
   }
   if (t.budgetCents === 0 && t.spentCents === 0) return "Nothing spent and no budgets set yet.";
-  if (t.budgetCents === 0) return `${money(t.spentCents)} spent, against no budget — set one to make this mean something.`;
-  return `${money(t.spentCents)} of ${money(t.budgetCents)} spent, everything receipted.`;
+  if (t.budgetCents === 0) return `${moneyRound(t.spentCents)} spent, against no budget — set one to make this mean something.`;
+  return `${moneyRound(t.spentCents)} of ${moneyRound(t.budgetCents)} spent, everything receipted.`;
 }

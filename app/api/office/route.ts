@@ -4,6 +4,7 @@ import { raiseAlert } from "@/lib/serverAlerts";
 import { OFFICE, officeQuote, nextMondayKey, mondayLabel } from "@/lib/office";
 import { zipMarket } from "@/lib/delivery";
 import { marketServes } from "@/lib/markets";
+import { money } from "@/lib/money";
 
 export const runtime = "nodejs";
 
@@ -16,7 +17,6 @@ export const runtime = "nodejs";
 // total_cents off the row) or the net-terms invoice. Mirrors the "server recomputes, service role
 // writes" hardening the cup/pack/delivery order types already have (/api/checkout, /api/reserve,
 // /api/delivery). Member-gated — an office order always belongs to an account.
-const dollars = (c: number) => `$${(c / 100).toFixed(c % 100 === 0 ? 0 : 2)}`;
 
 export async function POST(req: Request) {
   if (!supabaseAdmin) return NextResponse.json({ error: "Office delivery isn't switched on yet." }, { status: 503 });
@@ -117,7 +117,7 @@ export async function POST(req: Request) {
   await raiseAlert({
     severity: "important", category: "order", kind: "office_order_new", subjectId: orderId,
     title: `New office order — ${company}`,
-    body: `${q.gallons} gal · ${mondayLabel(dateKey)} 5–8 AM · ${billing === "prepaid" ? "prepaid" : "invoice"}${standing ? " · standing weekly" : ""}. ${dollars(q.totalCents)}. ${phone}`.trim(),
+    body: `${q.gallons} gal · ${mondayLabel(dateKey)} 5–8 AM · ${billing === "prepaid" ? "prepaid" : "invoice"}${standing ? " · standing weekly" : ""}. ${money(q.totalCents)}. ${phone}`.trim(),
     link: "/crew?s=now",
   });
 

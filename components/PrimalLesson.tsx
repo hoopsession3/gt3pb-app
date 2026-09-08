@@ -11,6 +11,7 @@ import Watermark from "@/components/Watermark";
 import Icon from "@/components/Icon";
 import { Masthead, ClosingBeat } from "@/components/kit";
 import { useSiteCopy } from "@/lib/copy";
+import { money } from "@/lib/money";
 
 // A single Return to Primal lesson (round 0273). Systematic + referenceable: the key points sit up top
 // as scannable chips, the body reads clean, and the MEAL-STACK rail turns the teaching into an order —
@@ -33,7 +34,6 @@ type LessonView = {
 };
 
 const TIMING_LABEL: Record<string, string> = { BEFORE: "Before you move", DURING: "During", AFTER: "After · the rebuild" };
-const money = (c: number | null) => (c == null ? "" : `$${(c / 100).toFixed(c % 100 === 0 ? 0 : 2)}`);
 
 export default function PrimalLesson({ slug }: { slug: string }) {
   const { user } = useAuth();

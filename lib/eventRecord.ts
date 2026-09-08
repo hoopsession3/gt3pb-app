@@ -106,11 +106,9 @@ export function owedLine(e: EventCounts | null | undefined): string {
 }
 
 /** money, in the house's short form: $42 rather than $42.00, $19.99 when the cents matter. */
-export const money = (cents: number | null | undefined): string => {
-  if (cents == null || !Number.isFinite(Number(cents))) return "—";
-  const n = Number(cents) / 100;
-  return `$${n.toFixed(Math.abs(n * 100) % 100 === 0 ? 0 : 2)}`;
-};
+// The canonical formatter lives in lib/money. Re-exported, not copied — these two files
+// carried byte-identical copies of it, which is how the app ended up with thirty.
+export { money } from "./money";
 
 /** "Unity Park · Greenville, SC" — drops the gaps rather than printing "null". */
 export function placeLine(p: { location_text?: string | null; county?: string | null; state?: string | null } | null | undefined): string {

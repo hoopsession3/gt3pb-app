@@ -230,8 +230,10 @@ export function missingStatutory(t: Partial<OfferTerms>): string[] {
     .map((f) => f.label);
 }
 
-export const money = (cents: number | null | undefined): string =>
-  cents == null ? "—" : `$${(cents / 100).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+// Whole dollars: an offer letter states a salary, not a price. lib/money owns the format.
+// Imported as well as re-exported because summarize() below uses it.
+import { moneyRound } from "./money";
+export { moneyRound as money };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -263,7 +265,7 @@ export function summarize(t: Partial<OfferTerms>): string {
   if (t.title?.trim()) parts.push(t.title.trim());
   if (isMarket(t.market)) parts.push(t.market === FOUNDING_MARKET ? "Greenville" : "Atlanta");
   const base = t.baseCents ?? 0;
-  if (base > 0) parts.push(`${money(base)}${t.ratePer === "hour" ? "/hr" : "/yr"}`);
+  if (base > 0) parts.push(`${moneyRound(base)}${t.ratePer === "hour" ? "/hr" : "/yr"}`);
   if ((t.commissionPct ?? 0) > 0) parts.push(`${t.commissionPct}% commission`);
   parts.push(toEmploymentType(t.employmentType) === "contractor" ? "contractor" : "employee");
   return parts.join(" · ");

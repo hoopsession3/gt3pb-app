@@ -8,6 +8,7 @@ import Icon from "@/components/Icon";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { ARCHITECTURE, ARCH_OVERVIEW, DATABASES, BUSINESS, BUSINESS_OVERVIEW, BUILD_STATS, MANAGE_LABEL, STATUS_LABEL, sotUrl, type ArchLayer, type ArchComponent, type ArchStatus } from "@/lib/architecture";
+import { moneyRound } from "@/lib/money";
 
 // Owner-only system architecture map. High level → layer → component. Manifest-backed, with LIVE
 // status pulled from /api/architecture/status (env presence + table existence), and search across
@@ -45,7 +46,6 @@ export default function ArchitecturePage() {
   }, [isOwner]);
 
   const statusOf = (c: ArchComponent): ArchStatus => (live && LIVE_KEY[c.name] && live[LIVE_KEY[c.name]]) || c.status;
-  const money = (c: number) => "$" + Math.round((c || 0) / 100).toLocaleString();
 
   const results = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -127,12 +127,12 @@ export default function ArchitecturePage() {
                 <div className="prog-build">
                   <SectionHeader label="By the numbers" annotation="live from the running platform" />
                   <div className="prog-build-grid">
-                    <div className="prog-build-card"><span className="prog-build-n">{money(kpis.revenue_cents)}</span><span className="prog-build-l">Revenue</span></div>
+                    <div className="prog-build-card"><span className="prog-build-n">{moneyRound(kpis.revenue_cents)}</span><span className="prog-build-l">Revenue</span></div>
                     <div className="prog-build-card"><span className="prog-build-n">{kpis.orders}</span><span className="prog-build-l">Orders</span></div>
                     <div className="prog-build-card"><span className="prog-build-n">{kpis.members}</span><span className="prog-build-l">Members</span></div>
                     <div className="prog-build-card"><span className="prog-build-n">{kpis.subscribers}</span><span className="prog-build-l">Subscribers</span></div>
                     <div className="prog-build-card"><span className="prog-build-n">{kpis.events}</span><span className="prog-build-l">Events · {kpis.events_upcoming} upcoming</span></div>
-                    <div className="prog-build-card"><span className="prog-build-n">{money(kpis.inventory_value_cents)}</span><span className="prog-build-l">Inventory · {kpis.inventory_items} items</span></div>
+                    <div className="prog-build-card"><span className="prog-build-n">{moneyRound(kpis.inventory_value_cents)}</span><span className="prog-build-l">Inventory · {kpis.inventory_items} items</span></div>
                     <div className="prog-build-card"><span className="prog-build-n">{kpis.products_live}</span><span className="prog-build-l">Menu products</span></div>
                     <div className="prog-build-card"><span className="prog-build-n">{kpis.open_tasks}</span><span className="prog-build-l">Open tasks</span></div>
                   </div>

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { staffFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { accountEmail, sendEmail, sendSMS, emailEnabled } from "@/lib/notify";
+import { moneyRound } from "@/lib/money";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -14,7 +15,6 @@ export const maxDuration = 60;
 
 const since7d = () => new Date(Date.now() - 7 * 864e5).toISOString();
 const since60d = () => new Date(Date.now() - 60 * 864e5).toISOString();   // payment-id lookback for the walk-up dedupe
-const money = (cents: number) => `$${Math.round(cents / 100).toLocaleString()}`;
 
 async function sum(table: string, filter: (q: any) => any, col = "total_cents"): Promise<number> {
   try {
@@ -71,12 +71,12 @@ export async function POST(req: Request) {
     verdict = critical.length === 0 ? "no criteria yet" : blocked > 0 ? "NO-GO" : "on track";
   } catch { /* leave defaults */ }
 
-  const headline = `Revenue 7d ${money(rev)} · Launch ${verdict}${blocked ? ` (${blocked} blocked)` : ""} · Blockers ${blockers} · Reorders ${reorders} · Needs you ${crit}`;
+  const headline = `Revenue 7d ${moneyRound(rev)} · Launch ${verdict}${blocked ? ` (${blocked} blocked)` : ""} · Blockers ${blockers} · Reorders ${reorders} · Needs you ${crit}`;
   const emailBody = [
     "GT3 Performance Bar — founder digest",
     "",
-    `Revenue (last 7 days, reconciled): ${money(rev)}`,
-    `   walk-up ${money(sq)} · cup ${money(cup)} · pack ${money(packs)} · delivery ${money(deliv)} · office ${money(office)}`,
+    `Revenue (last 7 days, reconciled): ${moneyRound(rev)}`,
+    `   walk-up ${moneyRound(sq)} · cup ${moneyRound(cup)} · pack ${moneyRound(packs)} · delivery ${moneyRound(deliv)} · office ${moneyRound(office)}`,
     `Launch readiness: ${verdict}${blocked ? ` — ${blocked} critical blocked` : ""}`,
     `Open blockers: ${blockers}`,
     `Reorders needed: ${reorders}`,

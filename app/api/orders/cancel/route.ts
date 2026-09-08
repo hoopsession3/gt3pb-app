@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { notifyCustomer, accountEmail } from "@/lib/notify";
+import { money } from "@/lib/money";
 
 // CANCEL A CUSTOMER ORDER — one route for all three channels (cup / pickup pack / Sunday delivery).
 // The database RPC already does the hard, trusted part (owner check + status-window check + the
@@ -20,7 +21,6 @@ const CHANNELS = ["cup", "pickup", "delivery"] as const;
 type Channel = (typeof CHANNELS)[number];
 const channelWord: Record<Channel, string> = { cup: "cup order", pickup: "pickup pack", delivery: "delivery" };
 
-const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 // Render a YYYY-MM-DD drop/delivery date as "Sat, Jul 18" without pulling the row's time zone in.
 const dayLabel = (isoDate: string): string => {
   const d = new Date(`${isoDate}T12:00:00`);

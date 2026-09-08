@@ -16,6 +16,7 @@ import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
 import PromptSheet from "./PromptSheet";
 import { bandFor, fmtBand, paybackPct, paybackWeeks, FALLBACK_MARGIN_PCT } from "@/lib/uplift";
+import { money } from "@/lib/money";
 
 // PIPELINE — the sales funnel (0165). Vendor (the account) × deal (from the owner's catalog,
 // gated per vendor type) × rep × stage. The owner articulates what's on the table in the Deal
@@ -119,7 +120,6 @@ type Activity = {
 type BizAcct = { id: string; company: string };
 type Board = { opps: Opp[]; deals: Deal[]; vendors: Vendor[]; staff: Staff[]; acts: Activity[]; bizAccts: BizAcct[] };
 
-const money = (c: number | null) => (c == null ? "" : `$${(c / 100).toLocaleString()}`);
 
 // Live ROI what-if — sits inside the New Deal form so you can feel a % before you commit it. Drag the
 // cut and an editable monthly volume and it shows the real dollar split + what it leaves you in margin
