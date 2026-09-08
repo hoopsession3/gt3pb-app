@@ -37,8 +37,23 @@ export const planTabHref = (): string => "/crew?s=plan";
  * Land on a Plan sub-tab.
  *
  * `setSection` is optional on purpose. Inside the crew route, pass it and the jump is instant with
- * no reload. From a sheet or another route, leave it out: the localStorage write happens first, then
- * a hard navigation to ?s=plan, and the section consumes the handoff as it mounts.
+ * no reload. From a sheet or another route, leave it out and it is a hard navigation to ?s=plan,
+ * with the section consuming the handoff as it mounts.
+ *
+ * ── THE EVENT IS ONLY FOR THE IN-PAGE JUMP ────────────────────────────────────────────────────
+ * The first version fired the event in BOTH cases, and the hard-navigation path silently did not
+ * work: pressing "Edit the venue instead" landed on the Plan CALENDAR.
+ *
+ * Because crew/page.tsx's listener CONSUMES the handoff — it reads the key, deletes it, and calls
+ * setPlanTab. Firing the event before a full page load means the page being destroyed eats the
+ * handoff; the fresh load then finds nothing and falls back to the default tab. The key was gone
+ * and the tab was wrong, which is exactly what production showed.
+ *
+ * So: dispatch only when we are STAYING on this page. When we are leaving, the write is the whole
+ * message and the next mount reads it.
+ *
+ * Worth saying plainly — the deep-link gate added alongside this passed the whole time. A static
+ * check proves a link points at something real. It cannot prove that pressing it works.
  */
 export function goPlanTab(
   tab: PlanTab,
@@ -46,8 +61,9 @@ export function goPlanTab(
 ): void {
   if (typeof window === "undefined") return;
   try { localStorage.setItem(PLAN_TAB_KEY, tab); } catch { /* private mode — the nav still works */ }
-  window.dispatchEvent(new Event(PLAN_TAB_EVENT));
   if (opts.setSection) {
+    // Staying put: the listener is the only thing that will notice, so it has to be told.
+    window.dispatchEvent(new Event(PLAN_TAB_EVENT));
     opts.setSection("plan");
     // The tab's contents mount after the section switch; scroll once they exist.
     if (opts.anchor) {
@@ -55,5 +71,6 @@ export function goPlanTab(
     }
     return;
   }
+  // Leaving: do NOT dispatch. The next mount reads the key.
   window.location.href = planTabHref();
 }

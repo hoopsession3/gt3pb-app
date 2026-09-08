@@ -1548,6 +1548,65 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     S.whenLabel === E.whenLabel && S.sortGaps === E.sortGaps && S.money === E.money && S.placeLine === E.placeLine);
 }
 
+// ── PLAN NAV (0316) — the jump that has to survive a page load ───────────────────────────────────
+// This is here because the deep-link gate below could not have caught it, and neither could any
+// other test in this file: the bug was in the ORDER of two side effects, and only pressing the
+// button on production showed it.
+//
+// "Edit the venue instead" landed on the Plan CALENDAR. The helper wrote the handoff key, fired
+// the gt3-plan-tab-set event, and THEN hard-navigated — but crew/page.tsx's listener CONSUMES the
+// handoff (reads the key, deletes it, sets the tab). So the page about to be destroyed ate the
+// message, the fresh load found nothing, and the default tab won. The key was gone and the tab
+// was wrong: exactly what production showed.
+//
+// So the rule is testable without a browser, by recording what the function does to a fake window
+// in order: when we are LEAVING, the write must be the last word.
+{
+  const N = require("../.smoke/planNav.js");
+
+  const runGoPlanTab = (tab, opts) => {
+    const log = [];
+    const store = new Map();
+    const realWindow = global.window;
+    const realLocalStorage = global.localStorage;
+    global.localStorage = {
+      setItem: (k, v) => { log.push(`write:${k}=${v}`); store.set(k, v); },
+      getItem: (k) => (store.has(k) ? store.get(k) : null),
+      removeItem: (k) => { log.push(`consume:${k}`); store.delete(k); },
+    };
+    global.window = {
+      dispatchEvent: (e) => { log.push(`event:${e.type}`); return true; },
+      // the real listener consumes the handoff — model that, because it is the whole bug
+      location: { set href(v) { log.push(`navigate:${v}`); } },
+      document: { getElementById: () => null },
+    };
+    global.Event = class { constructor(type) { this.type = type; } };
+    try { N.goPlanTab(tab, opts); } finally {
+      global.window = realWindow; global.localStorage = realLocalStorage;
+    }
+    return { log, left: store.get(N.PLAN_TAB_KEY) ?? null };
+  };
+
+  const leaving = runGoPlanTab("vendors", {});
+  ok("planNav: leaving the page writes the handoff and navigates", 
+    leaving.log[0] === `write:${N.PLAN_TAB_KEY}=vendors` && leaving.log.some((l) => l.startsWith("navigate:")), leaving.log);
+  ok("planNav: and does NOT fire the event, which the page being destroyed would consume",
+    !leaving.log.some((l) => l.startsWith("event:")), leaving.log);
+  ok("planNav: so the handoff is still there for the next mount to read",
+    leaving.left === "vendors", leaving.left);
+
+  const staying = runGoPlanTab("leads", { setSection: () => {} });
+  ok("planNav: staying on the page DOES fire the event — nothing else would notice",
+    staying.log.some((l) => l === `event:${N.PLAN_TAB_EVENT}`), staying.log);
+  ok("planNav: and does not navigate",
+    !staying.log.some((l) => l.startsWith("navigate:")), staying.log);
+
+  ok("planNav: the tab vocabulary matches crew/page.tsx's five",
+    N.PLAN_TABS.length === 5 && N.isPlanTab("route") && !N.isPlanTab("nope"), N.PLAN_TABS);
+  ok("planNav: the href carries no ?a= — that parameter is an anchor, not a tab",
+    !/[&?]a=/.test(N.planTabHref()), N.planTabHref());
+}
+
 // ── DEEP LINKS RESOLVE (0316) ────────────────────────────────────────────────────────────────────
 // A different kind of check from everything above: not "is this function right" but "does this link
 // go anywhere". It exists because of a defect that shipped three commits after the audit started
