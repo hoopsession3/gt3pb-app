@@ -165,8 +165,8 @@
             <td>Dedupe and locations in one place; their deals in Pipeline, their spend in Budget, neither linked back.</td></tr>
           <tr><td><code>goals</code></td><td class="num">4</td><td><span class="pill gold">Unlinked</span></td>
             <td>A card in a list, not an openable record.</td></tr>
-          <tr class="worst"><td><code>events</code></td><td class="num">10 + 12 routes</td><td><span class="pill red">None</span></td>
-            <td>Facts in one sheet, economics in another, prep in a third, day plan in a fourth, P&amp;L in a fifth, brew in a sixth, posts in a seventh, packout in an eighth.</td></tr>
+          <tr class="good"><td><code>events</code></td><td class="num">9 tables · 24 UI · 21 routes</td><td><span class="pill green">Record + gaps</span></td>
+            <td>Was: facts in one sheet, economics in another, prep in a third, day plan in a fourth, P&amp;L in a fifth. Now one record at <code>?r=event:&lt;id&gt;</code>, with the prep checklist a tap away and a list of every row that contradicts itself.</td></tr>
           <tr class="worst"><td><code>stops</code></td><td class="num">12</td><td><span class="pill red">None</span></td>
             <td>Edited in <b>three</b> places by design. The code comments are an open negotiation about which one owns identity; there is no answer.</td></tr>
           <tr><td><code>brew_batches</code></td><td class="num">7</td><td><span class="pill red">None</span></td>
@@ -384,12 +384,60 @@ select count(*) from public.v_agreement_hours; --  1   hours logged on an operat
   </section>
 
   <section>
+    <div class="sec-h">
+      <h2>Item two, done: the event</h2>
+      <div class="rule"></div>
+      <p class="note">The worst scattering in the app, and the one where the survey's first answer
+        turned out to be wrong.</p>
+    </div>
+    <div class="figs">
+      <div class="fig gold"><b>9</b><span>tables describe one event</span></div>
+      <div class="fig bad"><b>24</b><span>components touch one of them</span></div>
+      <div class="fig bad"><b>9</b><span>call sites wrote the handoff by hand</span></div>
+      <div class="fig ok"><b>1</b><span>record, at ?r=event:&lt;id&gt;</span></div>
+    </div>
+    <p>The one detail view — <code>PrepDetail</code>, 581 lines inside <code>app/crew/page.tsx</code> —
+      is reached by writing a browser storage key and switching sections. Nine places did that by
+      hand in <b>two different encodings</b>, and two of them are in the same file, eleven lines
+      apart. The reader carries a conditional that copes with both, which I checked before calling it
+      a bug. It parses. It just means an event has no address.</p>
+    <p><b>This did not rebuild PrepDetail.</b> Same call the customer record made: that view is good
+      and was only unreachable. The record is the centre those nine tables sit around — what it is,
+      when and where, what it is waiting on, what it took — with the checklist one tap away. And no
+      second lifecycle: the app has owned <code>lead → confirmed → prep → live → done</code> since
+      migration 0075, and adding another would have been the exact duplication this audit is about.</p>
+
+    <div class="thesis">
+      <b>The first version of this section was wrong, and production said so.</b>
+      <span>The raw survey found a duplicate pair, a blank title, three undated rows and one event
+        marked done a month before its date — and I had written all of that up. Then I ran the query.
+        Every one of those rows is <i>archived</i>. Filed, not outstanding. The honest headline is
+        four things to chase, not a wall of red, and the check excludes archived rows for exactly
+        that reason.</span>
+    </div>
+
+    <p>The same correction landed twice more. All 41 "orphan" tasks turned out to have come from a
+      meeting — action items, a legitimate standalone shape, so the view says which is which rather
+      than calling them strays. And <code>event_ops</code>, which holds recaps, is completely empty;
+      the obvious conclusion is that the wrap flow's write is broken. It isn't. I ran the exact
+      upsert the app sends, as a real owner account, inside a transaction I rolled back — it
+      succeeds and the tenant stamp lands. Nobody has wrapped an event. Worth knowing before somebody
+      fixes a working path.</p>
+
+    <p>And one rule exists only because I looked:</p>
+    <pre>two live events sit at 'confirmed' with dates 38 and 23 days in the PAST</pre>
+    <p>Either they happened and nobody wrapped them, or they didn't and nobody said so. Every other
+      check compares a row against itself, and each of those rows is perfectly consistent. It's the
+      calendar they disagree with — so nothing could see it until something compared the two.</p>
+    <p class="note">58 database assertions, every rule checked in both directions, and the suite
+      proven to catch a deliberately broken rule before it was trusted to pass a good one.</p>
+  </section>
+
+  <section>
     <div class="sec-h"><h2>What's next, in order</h2><div class="rule"></div></div>
     <div class="quiet">
       <p class="struck"><b>1 · Give shop orders a screen.</b></p>
-      <p><b>2 · An event record.</b> Ten surfaces, twelve API routes, no home — the worst scattering
-        in the app. <code>PrepDetail</code> is the closest thing and it's reached through a
-        <code>localStorage</code> handoff from a different section.</p>
+      <p class="struck"><b>2 · An event record.</b></p>
       <p><b>3 · A stop record.</b> Same problem, plus three editors that disagree about which one
         owns the stop's identity. That disagreement is written down in the code comments; it needs
         deciding, not patching.</p>
@@ -406,9 +454,10 @@ select count(*) from public.v_agreement_hours; --  1   hours logged on an operat
     <p>Surveyed against the working tree on 7 September 2026: 170 components, ~36,000 lines,
       15 sections, 39 panels, 62 Sheet render sites. Entity surface counts are distinct UI files that
       read or write each table.</p>
-    <p>Updated 7 September after shipping item one. Commits <code>4a0f9d6</code> ·
-      <code>4f938f0</code> · <code>69e01a5</code> — 554 smoke, 67 UI smoke, 51 new database
-      assertions, every suite green, four release gates clean.</p>
+    <p>Updated after shipping items one and two. Commits <code>4a0f9d6</code> ·
+      <code>4f938f0</code> · <code>69e01a5</code> · <code>00c7592</code> · <code>3789d77</code> —
+      579 smoke, 67 UI smoke, 109 new database assertions across the two rounds, every suite green,
+      four release gates clean.</p>
   </footer>
 
 </div>
