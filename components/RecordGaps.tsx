@@ -29,6 +29,13 @@ export type GapConfig = {
   kind: RecordKind;
   /** the diagnosis is in the view; the fix sentence comes from the entity's own vocabulary */
   fix: (gap: string | null | undefined) => string;
+  /**
+   * Optional, added at 0316: replace the view's static detail+fix for ONE row with a sentence
+   * computed from that row. The view can only say "these two disagree"; a row that carries both
+   * names can say WHICH — and that is the difference between a list you act on and three
+   * identically-worded lines you scroll past. Return null to keep the static pair.
+   */
+  perRow?: (row: Row) => { detail: string; fix: string } | null;
   /** optional: mark the gaps a customer can see */
   guestFacing?: (gap: string | null | undefined) => boolean;
   /** the second column: what to show on the right of each row */
@@ -65,6 +72,7 @@ export default function RecordGaps({ cfg }: { cfg: GapConfig }) {
             {rows.map((r) => {
               const id = String(r[cfg.idColumn] ?? "");
               const right = cfg.right(r);
+              const said = cfg.perRow?.(r) ?? null;
               return (
                 <button type="button" key={`${id}:${r.gap}`} className="so-row"
                         onClick={() => id && openRecord(cfg.kind, id)}>
@@ -72,9 +80,11 @@ export default function RecordGaps({ cfg }: { cfg: GapConfig }) {
                   <span className="so-row-b">
                     <b>
                       {String(r.name ?? r.title ?? "—")}
-                      {cfg.guestFacing?.(r.gap) && <span className="str-guest">guests see this</span>}
+                      {/* The space matters: without it the button's accessible name reads
+                          "Five ForksGUESTS SEE THIS" as one token. Visually it is a margin. */}
+                      {cfg.guestFacing?.(r.gap) && <>{" "}<span className="str-guest">guests see this</span></>}
                     </b>
-                    <i>{r.detail} {cfg.fix(r.gap)}</i>
+                    <i>{said?.detail ?? r.detail} {said?.fix ?? cfg.fix(r.gap)}</i>
                   </span>
                   <span className="so-row-m">
                     <b>{right.top}</b>

@@ -1436,7 +1436,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 {
   const S = require("../.smoke/stopRecord.js");
   const sqlS = require("node:fs").readFileSync(
-    require("node:path").join(__dirname, "..", "supabase/migrations/0315_a_stop_is_a_visit_not_a_name.sql"), "utf8");
+    require("node:path").join(__dirname, "..", "supabase/migrations/0316_a_list_that_says_what_it_found.sql"), "utf8");
   const block = (sqlS.match(/cross join lateral \(values([\s\S]*?)\) as g\(gap/) || [])[1] || "";
   const inSql = [...block.matchAll(/\(\s*'([a-z_]+)',\s*'/g)].map((m) => m[1]);
   ok("stopRecord: the migration's gap list was found in the file", inSql.length === 8, inSql);
@@ -1499,6 +1499,48 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("stopRecord: and a stop with nothing outstanding says so",
     S.stopOwedLine({ status: "upcoming", phase: "upcoming", lat: 1, staff: 2 }) === "Nothing outstanding.");
   ok("stopRecord: no stop at all is empty, not a crash", S.stopOwedLine(null) === "");
+
+  // ── 0316: ONE name-drift sentence, used by the list AND the sheet ─────────────────────────────
+  // 0315 put this reasoning inline in the record sheet and left the LIST on a static string. The
+  // deployed list then told three stops the same thing, and it was only true of two of them.
+  ok("stopRecord: nothing to say when the two names agree",
+    S.nameDriftAdvice("WineXpress", "WineXpress") === null && S.nameDriftAdvice("x", null) === null);
+  {
+    const q = S.nameDriftAdvice("Wine Express — Five Forks", "WineXpress");
+    ok("stopRecord: it states BOTH names and takes no side",
+      q.detail.includes("Wine Express — Five Forks") && q.detail.includes("WineXpress")
+      && !/should|stale|out of date/i.test(q.detail), q.detail);
+  }
+
+  // THE THREE PAIRS THAT ARE ACTUALLY IN PRODUCTION, by name.
+  //
+  // 0315 shipped looksLocationQualified with a comment naming "Wine Express — Five Forks" as the
+  // case it existed for, and it returned FALSE on that exact pair: the venue row spells it
+  // "WineXpress" (one word), the stop spells it "Wine Express" (two), and normalised that is
+  // "winexpress" vs "wineexpress" — one letter apart, so the substring test missed. All three live
+  // rows came back unqualified and the branch never fired on real data. Reasoned about a
+  // measurement instead of taking it, again. So the measurement lives here now.
+  const LIVE = [
+    ["Wine Express — Five Forks", "WineXpress",       true,  "a dash, then a place"],
+    ["Wine Express Saturday",     "WineXpress",       true,  "ends in a day"],
+    ["Restore Hyper Wellness",    "Restore Wellness", false, "an inserted word, not a qualifier"],
+  ];
+  for (const [stop, venue, want, why] of LIVE) {
+    const q = S.nameDriftAdvice(stop, venue);
+    ok(`stopRecord: "${stop}" vs "${venue}" — ${why}`, q.qualified === want, { got: q.qualified, fix: q.fix });
+  }
+  ok("stopRecord: a qualified name is told it needs a second location",
+    /second location/.test(S.nameDriftAdvice("Wine Express Saturday", "WineXpress").fix));
+  ok("stopRecord: and one that differs some other way is NOT told something that does not apply",
+    !/second location/.test(S.nameDriftAdvice("Restore Hyper Wellness", "Restore Wellness").fix));
+
+  // the edges the new rule could plausibly get wrong
+  ok("stopRecord: a hyphenated word is not a separator",
+    !S.looksLocationQualified("Sit-Down Cafe", "Sit Down Coffee"));
+  ok("stopRecord: two unrelated names are not 'qualified', they are just different",
+    !S.looksLocationQualified("Totally Different", "Acme Coffee"));
+  ok("stopRecord: plain containment still counts when the spellings do agree",
+    S.looksLocationQualified("Acme Coffee Downtown", "Acme Coffee"));
 
   // the re-exports: same function, not a second copy — that is the whole point of the module
   const E = require("../.smoke/eventRecord.js");

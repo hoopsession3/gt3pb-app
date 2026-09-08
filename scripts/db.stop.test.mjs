@@ -115,7 +115,11 @@ await db.exec(`
 `);
 
 await db.exec(readFileSync(join(ROOT, "supabase/migrations/0315_a_stop_is_a_visit_not_a_name.sql"), "utf8"));
-console.log("0315 executed against a real Postgres.\n");
+// 0316 replaces v_stop_gaps to carry canonical_name out to the row. Executed here, in order,
+// because the assertions below are about what the app actually reads — and what the app reads is
+// the migrations applied end to end, not the one that introduced the view.
+await db.exec(readFileSync(join(ROOT, "supabase/migrations/0316_a_list_that_says_what_it_found.sql"), "utf8"));
+console.log("0315 + 0316 executed against a real Postgres.\n");
 await db.exec(`select set_config('test.uid','${U1}',false)`);
 
 const mkStop = async (cols) => (await db.query(
@@ -292,7 +296,22 @@ ok("and every one honours the RLS on the tables underneath",
 // ── 8) ledger + changelog ─────────────────────────────────────────────────────────────────────
 ok("0315 recorded itself by filename",
   (await q1(`select version as v from public.schema_migrations where seq=315`)).v === "0315_a_stop_is_a_visit_not_a_name");
-ok("and said what changed, twice", Number((await q1(`select count(*) as c from public.changelog`)).c) === 2);
+ok("0316 too", (await q1(`select version as v from public.schema_migrations where seq=316`)).v === "0316_a_list_that_says_what_it_found");
+ok("and said what changed, three times", Number((await q1(`select count(*) as c from public.changelog`)).c) === 3);
+
+// ── 9) 0316: the list can state the disagreement, not just report one ──────────────────────────
+// The defect this closes was invisible to every test above, because every test above asked the
+// database a question and the database's answer was fine. It was only wrong on the SCREEN: three
+// rows worded identically, none of them saying what either side called the place. So the check is
+// that the row carries the other name — the sentence itself is lib/stopRecord's job and is smoked
+// there, deliberately in one place rather than two.
+const drift = await all(`select name, canonical_name from public.v_stop_gaps where gap='name_drift'`);
+ok("a name_drift row carries BOTH names", drift.length > 0 && drift.every((r) => r.name && r.canonical_name), drift);
+ok("and they actually differ — a row claiming drift with two equal names is the bug it reports",
+  drift.every((r) => String(r.name).trim() !== String(r.canonical_name).trim()), drift);
+const unl = await all(`select name, canonical_name from public.v_stop_gaps where gap='unlinked'`);
+ok("an unlinked stop reports the two as equal, so no comparison is rendered against nothing",
+  unl.every((r) => String(r.name).trim() === String(r.canonical_name).trim()), unl);
 
 console.log(`\nA STOP IS A VISIT, NOT A NAME: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

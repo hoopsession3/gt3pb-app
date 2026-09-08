@@ -1,7 +1,7 @@
 "use client";
 
 import RecordGaps, { type GapConfig, type Row } from "./RecordGaps";
-import { isGuestFacing, stopGapFix, stopStatusLabel } from "@/lib/stopRecord";
+import { isGuestFacing, nameDriftAdvice, stopGapFix, stopStatusLabel } from "@/lib/stopRecord";
 
 // The stops half. Three lines of vocabulary on top of the shared renderer.
 //
@@ -15,6 +15,13 @@ const CFG: GapConfig = {
   kind: "stop",
   fix: stopGapFix,
   guestFacing: isGuestFacing,
+  // 0316: the name question is the one gap whose sentence depends on the ROW, not the rule. The
+  // view now carries canonical_name, and the words come from the same function the record sheet
+  // uses — so the list and the sheet cannot say different things about the same stop.
+  perRow: (r: Row) =>
+    r.gap === "name_drift"
+      ? nameDriftAdvice(r.name as string | null, r.canonical_name as string | null)
+      : null,
   right: (r: Row) => ({
     top: stopStatusLabel(r.status as string | null),
     bottom: r.starts_at ? new Date(String(r.starts_at)).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "no date",

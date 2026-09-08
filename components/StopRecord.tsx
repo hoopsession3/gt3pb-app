@@ -10,7 +10,7 @@ import Icon from "./Icon";
 import { prepHandoffKey, prepHandoffValue } from "@/lib/eventRecord";
 import { goPlanTab } from "@/lib/planNav";
 import {
-  isGuestFacing, looksLocationQualified, money, nameDriftLine, placeLine, sortGaps, stopGapFix,
+  isGuestFacing, money, nameDriftAdvice, placeLine, sortGaps, stopGapFix,
   stopOwedLine, stopStatusLabel, whenLabel,
 } from "@/lib/stopRecord";
 
@@ -105,8 +105,10 @@ export default function StopRecord({ stopId, onClose }: { stopId: string; onClos
         {({ stop, gaps }) => {
           const s = stop!;
           const sorted = sortGaps(gaps);
-          const drift = s.name_is_stale ? nameDriftLine(s.name, s.canonical_name) : null;
-          const qualified = s.name_is_stale ? looksLocationQualified(s.name, s.canonical_name) : false;
+          // Same function the list above this sheet calls (0316). It used to be two inline calls
+          // here and a static sentence there, which is how the list ended up telling one stop
+          // something that was true of the other two.
+          const drift = s.name_is_stale ? nameDriftAdvice(s.name, s.canonical_name) : null;
           const place = placeLine({ location_text: s.location_text ?? s.address });
           const owed = stopOwedLine(s);
 
@@ -130,12 +132,8 @@ export default function StopRecord({ stopId, onClose }: { stopId: string; onClos
                   and lets a person choose. */}
               {drift && (
                 <div className="str-drift">
-                  <b>{drift}</b>
-                  <p>
-                    Guests looking up where the truck is see the stop&rsquo;s.
-                    {qualified && <> This one reads like the venue plus a location or a slot — which usually
-                      means the venue needs a second location on file, not that the stop needs renaming.</>}
-                  </p>
+                  <b>{drift.detail}</b>
+                  <p>{drift.fix}</p>
                   <div className="str-drift-b">
                     <button type="button" className="so-move" disabled={busy} onClick={resync}>
                       {busy ? "…" : `Use "${s.canonical_name}" on this stop`}

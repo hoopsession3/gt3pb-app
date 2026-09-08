@@ -66,18 +66,77 @@ export function nameDriftLine(stored: string | null | undefined, canonical: stri
   return `The stop says "${a}". The venue says "${b}".`;
 }
 
+const QUALIFIER_TAIL =
+  /(?:^|[\s—–\-·|,])(?:mon|tue|tues|wed|weds|thu|thur|thurs|fri|sat|sun|monday|tuesday|wednesday|thursday|friday|saturday|sunday|weekend|weekly|mornings?|evenings?|nights?|lunch|brunch|am|pm)\.?$/i;
+
 /**
- * A stop name that is the venue name PLUS something — "Wine Express — Five Forks", "X Saturday" —
- * is the schema asking for a vendor_location or a recurring slot, not a typo. Worth saying out
- * loud on the one screen where somebody is deciding what to do about it.
+ * A stop name that is the venue's name PLUS a place or a slot — "Wine Express — Five Forks",
+ * "X Saturday" — is the schema asking for a vendor_location or a recurring slot, not a typo.
+ *
+ * ── THIS WAS WRONG IN 0315 AND THE COMMENT ABOVE IT PROVED IT ─────────────────────────────────
+ * The first version tested substring containment: is the venue's name inside the stop's, with more
+ * on top? It shipped with a comment naming "Wine Express — Five Forks" as the case it existed for.
+ * Run against that exact pair it returns FALSE — because the venue row spells it "WineXpress", one
+ * word, and the stop spells it "Wine Express", two. Normalised, that is "winexpress" against
+ * "wineexpress": one letter apart, so not a substring. All three of the live name_drift rows came
+ * back unqualified, and the branch never fired on any real data.
+ *
+ * Same mistake as the contrast measurement earlier in this audit: I reasoned about a measurement
+ * instead of taking it. The pairs are now in scripts/smoke.cjs by name, so this cannot claim to
+ * handle a name it does not handle.
+ *
+ * What actually distinguishes the three, and does not depend on the venue's spelling — which is the
+ * unreliable half:
+ *     "Wine Express — Five Forks"   a dash, then a place        → a location
+ *     "Wine Express Saturday"       ends in a day               → a recurring slot
+ *     "Restore Hyper Wellness"      neither; the extra word is  → a different name, not a qualifier
+ *                                   inside the name
+ * Containment is kept as a second route, for the easy case where the two spellings do agree.
  */
 export function looksLocationQualified(stored: string | null | undefined, canonical: string | null | undefined): boolean {
   const a = (stored ?? "").trim();
   const b = (canonical ?? "").trim();
   if (!a || !b || a === b) return false;
+
+  // 1. a trailing slot word — "… Saturday", "… nights"
+  if (QUALIFIER_TAIL.test(a)) return true;
+  // 2. a separator with something after it — "… — Five Forks". Requires the separator to be
+  //    surrounded by space, so a hyphenated single name ("Sit-Down") is not read as qualified.
+  if (/\S\s+[—–|·]\s+\S/.test(a) || /\S\s+-\s+\S/.test(a)) return true;
+  // 3. the clean case: the venue's name really is inside the stop's, with more on top
   const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]/g, "");
-  // the stop's name contains the venue's, with more on top of it
   return norm(a).length > norm(b).length && norm(a).includes(norm(b));
+}
+
+/**
+ * THE NAME QUESTION, IN ONE PLACE (0316).
+ *
+ * 0315 put this reasoning inline in StopRecord and left the LIST above it on a static sentence. So
+ * the deployed list reported that three stops disagreed with their venue without saying what either
+ * one said, and handed all three the location-qualified advice when only two had a
+ * location-qualified name — "Restore Hyper Wellness" against "Restore Wellness" differs by a word,
+ * not by a suffix, and telling its owner to add a second location is telling them the wrong thing.
+ *
+ * Two surfaces, one rule, one of them wrong. So the rule lives here and both call it.
+ *
+ * `detail` states the disagreement and takes no side. `fix` branches, because those two names are
+ * not the same problem. Returns null when there is nothing to say — an explanation nobody needs is
+ * noise, and that decision belongs here too rather than in each caller.
+ */
+export function nameDriftAdvice(
+  stored: string | null | undefined,
+  canonical: string | null | undefined,
+): { detail: string; fix: string; qualified: boolean } | null {
+  const line = nameDriftLine(stored, canonical);
+  if (!line) return null;
+  const qualified = looksLocationQualified(stored, canonical);
+  return {
+    detail: `${line} Guests see the stop's.`,
+    fix: qualified
+      ? "That is the venue's name plus a location or a day, which usually means the venue needs a second location on file — not that the stop needs renaming."
+      : "Decide which is right, then fix it on the stop or on the venue.",
+    qualified,
+  };
 }
 
 // ── what the stop is waiting on ──────────────────────────────────────────────────────────────────
