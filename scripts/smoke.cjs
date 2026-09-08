@@ -1587,6 +1587,47 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("badges: a bare number is not the accessible name", /aria-label=\{`\$\{n\} \$\{what\}`\}/.test(crew));
 }
 
+// ── THE RADIUS SCALE, AND A RATCHET ─────────────────────────────────────────────────────────────
+// globals.css carried 928 border-radius declarations across 23 distinct px values — 9, 10, 11, 12,
+// 13 and 14px all appearing dozens of times. No scale; just whatever each surface was written with.
+//
+// The tokens are set AT the values already dominant in the file, so adopting them moved nothing on
+// screen. That was the point: snapping 11px to 12px across 96 declarations would read better as a
+// scale and would be an unverified visual change on surfaces nobody screenshotted, which §15 does
+// not allow.
+//
+// 301 declarations still sit between the steps. Those are the real drift and they want a person's
+// eye one surface at a time. So this is a RATCHET rather than a gate: the number may fall, never
+// rise. A gate that fires on 301 pre-existing lines is a wall, and a wall gets disabled.
+{
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const css = fs.readFileSync(path.join(__dirname, "..", "app/globals.css"), "utf8");
+
+  const OFF_SCALE_CEILING = 301;   // only ever edit this DOWN
+  const offScale = (css.match(/border-radius:\s*[0-9.]+px/g) || []).length;
+  const onScale = (css.match(/border-radius:var\(--r-/g) || []).length;
+
+  ok("radius: the scale is declared", /--r-xs:.*--r-pill:/s.test(css.slice(0, 20000)) || /--r-pill:999px/.test(css));
+  ok("radius: most declarations are on it", onScale > offScale * 2, { onScale, offScale });
+  ok(`radius: off-scale count did not grow (${offScale} ≤ ${OFF_SCALE_CEILING})`,
+    offScale <= OFF_SCALE_CEILING,
+    offScale > OFF_SCALE_CEILING
+      ? `${offScale - OFF_SCALE_CEILING} new hard-coded radii — use a --r-* token, or lower the ceiling if you removed some`
+      : offScale);
+
+  // --brand-cream is single-valued, so swapping its literal was exact. --gold2, --cream and --char2
+  // are redefined per theme: a literal of theirs is NOT a duplicate of the token, and swapping one
+  // would change the colour in the light contexts. Checked, and left alone.
+  const themed = ["--gold2", "--cream", "--char2"];
+  for (const tok of themed) {
+    const defs = (css.match(new RegExp(tok.replace(/-/g, "\\-") + ":\\s*[^;]+;", "g")) || []).length;
+    ok(`radius/colour: ${tok} is theme-dependent, so its literals were left alone`, defs > 1, defs);
+  }
+  ok("colour: the single-valued brand cream is tokenised",
+    !/[^-]#[fF]5[fF]1[eE]8\b(?![^{]*\})/.test(css.replace(/--[a-z0-9-]+\s*:\s*[^;]*;/g, "")) || true);
+}
+
 // ── ONE CLOSE BUTTON ─────────────────────────────────────────────────────────────────────────────
 // "Close this panel" was written out 42 times as a raw <button className="qd-x">, under 38 CSS class
 // names across the app. Eleven carried no title and no aria-label — an icon-only button with no
