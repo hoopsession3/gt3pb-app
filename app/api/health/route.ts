@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { buildInfo } from "@/lib/buildInfo";
 
 export const runtime = "nodejs";
 
@@ -15,18 +16,25 @@ export const runtime = "nodejs";
 // watchdog raises one critical alert → push + admin email. Monitor and watchdog deliberately
 // cover each other's blind spot — the monitor sees "app down", the watchdog sees "app can't
 // reach the database it thinks it's using".
+//
+// It also answers WHICH BUILD is serving, in `build` (lib/buildInfo.ts). That question used to be
+// answered by looking at GitHub and Vercel and inferring — which is how a deploy got called landed
+// three times when it had not been checked at all. Both the healthy and the unhealthy response
+// carry it, because "which commit is broken" is exactly what you want at 503. `build.known` is
+// false rather than guessed when the platform did not say.
 export async function GET() {
   const noStore = { "cache-control": "no-store" };
+  const build = buildInfo();
   try {
-    if (!supabaseAdmin) return NextResponse.json({ ok: false, why: "db unconfigured" }, { status: 503, headers: noStore });
+    if (!supabaseAdmin) return NextResponse.json({ ok: false, why: "db unconfigured", build }, { status: 503, headers: noStore });
     const t0 = Date.now();
     // A real round-trip, not a static pong — head-count on a tiny always-present table.
     const { error } = await supabaseAdmin.from("admin_emails").select("email", { count: "exact", head: true });
     if (error) throw error;
     // Feed the watchdog. Best-effort but awaited — serverless won't flush a dangling write.
     await supabaseAdmin.from("ops_heartbeat").upsert({ id: 1, seen_at: new Date().toISOString(), source: "health" });
-    return NextResponse.json({ ok: true, db_ms: Date.now() - t0 }, { headers: noStore });
+    return NextResponse.json({ ok: true, db_ms: Date.now() - t0, build }, { headers: noStore });
   } catch {
-    return NextResponse.json({ ok: false }, { status: 503, headers: noStore });
+    return NextResponse.json({ ok: false, build }, { status: 503, headers: noStore });
   }
 }

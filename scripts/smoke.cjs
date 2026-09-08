@@ -1925,6 +1925,63 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     [...stripComments(`// <a href="/crew?s=plan&a=no-such-anchor">`).matchAll(/\/crew\?s=/g)].length === 0);
 }
 
+// ── which build is answering (lib/buildInfo.ts) ────────────────────────────────────────────────
+// The point of this module is that it refuses to guess, so most of what is worth asserting is the
+// NEGATIVE space: that "I do not know" never quietly becomes "yes".
+{
+  const BI = require("../.smoke/buildInfo.js");
+  const SHA = "e840972aa1b3c4d5e6f708192a3b4c5d6e7f8091";
+  const keep = { ...process.env };
+  const env = (o) => {
+    for (const k of ["VERCEL", "VERCEL_ENV", "VERCEL_GIT_COMMIT_SHA", "VERCEL_GIT_COMMIT_REF", "VERCEL_DEPLOYMENT_ID"]) delete process.env[k];
+    Object.assign(process.env, o);
+  };
+
+  env({ VERCEL: "1", VERCEL_ENV: "production", VERCEL_GIT_COMMIT_SHA: SHA, VERCEL_GIT_COMMIT_REF: "main", VERCEL_DEPLOYMENT_ID: "dpl_abc" });
+  const known = BI.buildInfo();
+  ok("build: a deployed build reports itself known", known.known === true, known);
+  ok("build: commitShort is the 7 chars a person compares against git log",
+    known.commitShort === "e840972", known.commitShort);
+  ok("build: branch and env come straight through", known.branch === "main" && known.env === "production", known);
+  ok("build: a known build carries no why — there is nothing to explain", known.why === undefined, known.why);
+
+  // The two ways it can be unknown are different problems with different fixes, so they must not
+  // collapse into one message.
+  env({ VERCEL: "1", VERCEL_ENV: "production" });
+  const onVercel = BI.buildInfo();
+  ok("build: on Vercel without the sha, known is false", onVercel.known === false, onVercel);
+  ok("build: and it names the project setting that fixes it",
+    /Automatically expose System Environment Variables/.test(onVercel.why || ""), onVercel.why);
+  ok("build: an unknown build reports null, never a placeholder",
+    onVercel.commit === null && onVercel.commitShort === null, onVercel);
+  ok("build: but still reports what it DOES know", onVercel.env === "production", onVercel);
+
+  env({});
+  const local = BI.buildInfo();
+  ok("build: off-platform is unknown for a different, stated reason",
+    local.known === false && /Not running on Vercel/.test(local.why || ""), local.why);
+
+  env({ VERCEL: "1", VERCEL_GIT_COMMIT_SHA: "   ", VERCEL_GIT_COMMIT_REF: "" });
+  const blank = BI.buildInfo();
+  ok("build: a whitespace-only env var is absent, not a commit named '   '",
+    blank.known === false && blank.branch === null, blank);
+
+  // isBuild — the guard that stops "I cannot tell" reading as "yes".
+  env({ VERCEL: "1", VERCEL_GIT_COMMIT_SHA: SHA });
+  ok("isBuild: the full sha matches", BI.isBuild(SHA) === true);
+  ok("isBuild: the short sha a person actually types matches too", BI.isBuild("e840972") === true);
+  ok("isBuild: case does not matter", BI.isBuild("E840972") === true);
+  ok("isBuild: a different commit does not match", BI.isBuild("2f0d44e") === false);
+  ok("isBuild: a prefix too short to identify anything is refused",
+    BI.isBuild("e84") === false && BI.isBuild("") === false && BI.isBuild(null) === false);
+  env({});
+  ok("isBuild: an UNKNOWN build matches nothing — not even the correct sha",
+    BI.isBuild(SHA) === false);
+
+  for (const k of Object.keys(process.env)) if (!(k in keep)) delete process.env[k];
+  Object.assign(process.env, keep);
+}
+
 console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
 console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);
 process.exit(fail ? 1 : 0);
