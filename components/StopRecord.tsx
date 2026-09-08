@@ -8,6 +8,7 @@ import AsyncSection from "./AsyncSection";
 import Sheet from "./Sheet";
 import Icon from "./Icon";
 import { prepHandoffKey, prepHandoffValue } from "@/lib/eventRecord";
+import { goPlanTab } from "@/lib/planNav";
 import {
   isGuestFacing, looksLocationQualified, money, nameDriftLine, placeLine, sortGaps, stopGapFix,
   stopOwedLine, stopStatusLabel, whenLabel,
@@ -139,7 +140,13 @@ export default function StopRecord({ stopId, onClose }: { stopId: string; onClos
                     <button type="button" className="so-move" disabled={busy} onClick={resync}>
                       {busy ? "…" : `Use "${s.canonical_name}" on this stop`}
                     </button>
-                    <a className="cp-go" href="/crew?s=plan&a=vendors">Edit the venue instead <span aria-hidden="true">›</span></a>
+                    {/* NOT an <a href="/crew?s=plan&a=vendors">. That was the first version and it
+                        silently did nothing: ?a= is an anchor, and #vendors does not exist because
+                        VendorsAdmin only mounts once the tab is selected. lib/planNav owns the one
+                        mechanism that actually lands you there. */}
+                    <button type="button" className="cp-go" onClick={() => goPlanTab("vendors")}>
+                      Edit the venue instead <span aria-hidden="true">›</span>
+                    </button>
                   </div>
                 </div>
               )}

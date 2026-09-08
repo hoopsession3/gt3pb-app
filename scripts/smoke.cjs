@@ -1506,6 +1506,76 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     S.whenLabel === E.whenLabel && S.sortGaps === E.sortGaps && S.money === E.money && S.placeLine === E.placeLine);
 }
 
+// ── DEEP LINKS RESOLVE (0316) ────────────────────────────────────────────────────────────────────
+// A different kind of check from everything above: not "is this function right" but "does this link
+// go anywhere". It exists because of a defect that shipped three commits after the audit started
+// naming exactly this failure.
+//
+// StopRecord offered "Edit the venue instead" as <a href="/crew?s=plan&a=vendors">. It looks like
+// every other deep link in this app. It is not one. `?a=` is an ANCHOR — crew/page.tsx reads it and
+// calls scrollToAnchor — and there is no element with id "vendors" anywhere, because VendorsAdmin
+// only mounts once that tab is already selected. So the link landed you on the Plan CALENDAR and did
+// nothing else. No error, no empty state, nothing at all to notice. lib/records.ts had written the
+// rule down before I broke it: "A link that half-works is worse than one that plainly does not."
+//
+// Nothing could have caught it except reading the URL against the app. So: read the URL against the
+// app. Every /crew?s=<section> in the source must name a real section, and every &a=<anchor> must
+// name an id that exists somewhere in the JSX.
+{
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const root = path.join(__dirname, "..");
+
+  // The section vocabulary, read from OperatorNav rather than retyped — a section renamed there and
+  // not here would make this check pass on links that are broken.
+  const navSrc = fs.readFileSync(path.join(root, "components/OperatorNav.tsx"), "utf8");
+  const validLine = /export const VALID = new Set<OpSection>\(\[([^\]]*)\]\)/.exec(navSrc);
+  const SECTIONS = new Set((validLine ? validLine[1] : "").match(/"([a-z]+)"/g)?.map((s) => s.slice(1, -1)) ?? []);
+  ok("deep links: the section vocabulary was found in OperatorNav", SECTIONS.size >= 10, SECTIONS.size);
+
+  const files = [];
+  (function walk(d) {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const f = path.join(d, e.name);
+      if (e.isDirectory()) { if (!/node_modules|\.next|\.smoke|\.git/.test(f)) walk(f); }
+      else if (/\.tsx?$/.test(e.name)) files.push(f);
+    }
+  })(root);
+
+  const ids = new Set();
+  for (const f of files) for (const m of fs.readFileSync(f, "utf8").matchAll(/\bid="([a-zA-Z0-9_-]+)"/g)) ids.add(m[1]);
+  ok("deep links: anchor ids were found in the JSX", ids.size > 50, ids.size);
+
+  // Comments are not links. This block's own explanation quotes the broken URL, and so does
+  // lib/planNav — the LEDGER gate learned the same thing about record_migration. `//` preceded by a
+  // colon is a URL scheme, not a comment; getting that wrong would only ever hide a real link, so
+  // it is checked below by feeding the gate a known-bad file.
+  const stripComments = (s) => s
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .split("\n").map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1")).join("\n");
+
+  const broken = [];
+  for (const f of files) {
+    const src = stripComments(fs.readFileSync(f, "utf8"));
+    for (const m of src.matchAll(/\/crew\?s=([a-z]+)((?:&[a-z]+=[a-zA-Z0-9:_-]+)*)/g)) {
+      const rel = f.replace(root + "/", "");
+      if (!SECTIONS.has(m[1])) broken.push(`${rel}: ?s=${m[1]} is not a section`);
+      const a = /[&?]a=([a-zA-Z0-9_-]+)/.exec(m[2] || "");
+      if (a && !ids.has(a[1])) broken.push(`${rel}: &a=${a[1]} — no element has that id`);
+    }
+  }
+  ok("deep links: every /crew link in the app points at something that exists", broken.length === 0, broken);
+
+  // A gate that cannot fail is a gate that lies. Feed it a link that IS broken, in live code rather
+  // than a comment, and confirm it says so.
+  const probe = `<a href="/crew?s=plan&a=no-such-anchor">x</a>\n<a href="/crew?s=nosuchsection">y</a>`;
+  const probeHits = [...stripComments(probe).matchAll(/\/crew\?s=([a-z]+)((?:&[a-z]+=[a-zA-Z0-9:_-]+)*)/g)]
+    .filter((m) => !SECTIONS.has(m[1]) || (/[&?]a=([a-zA-Z0-9_-]+)/.exec(m[2] || "") || [])[1] && !ids.has(/[&?]a=([a-zA-Z0-9_-]+)/.exec(m[2])[1]));
+  ok("deep links: the check itself catches a bad section and a bad anchor", probeHits.length === 2, probeHits.length);
+  ok("deep links: and a commented-out link is not counted",
+    [...stripComments(`// <a href="/crew?s=plan&a=no-such-anchor">`).matchAll(/\/crew\?s=/g)].length === 0);
+}
+
 console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
 console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);
 process.exit(fail ? 1 : 0);

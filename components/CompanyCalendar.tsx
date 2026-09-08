@@ -11,6 +11,7 @@ import EmptyState from "./EmptyState";
 import { CAL_CAT as CAT } from "@/lib/calendarTokens";
 import { brewStartOverdue } from "@/lib/brewMath";
 import { etToday } from "@/lib/dates";
+import { goPlanTab, type PlanTab } from "@/lib/planNav";
 import { useWorkStreams } from "@/lib/streams";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import { useRecord } from "./RecordSheet";
@@ -203,7 +204,7 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
   // calendar keeps its place, the back button works, and the prep checklist is one tap inside.
   const openEventPrep = (eventId: string) => openRecord("event", eventId);
   const openStopPrep = (stopId: string) => openRecord("stop", stopId);
-  const openPlanTab = (tab: string, anchor?: string) => goPlanTab(setSection, tab, anchor);
+  const openPlanTab = (tab: PlanTab, anchor?: string) => goPlanTab(tab, { setSection, anchor });
   const toggleTodo = async (t: Todo) => {
     if (!supabase || readOnly) return;
     await updateTask("todo", t.id, { done: !t.done });   // ONE write path (lib/tasks)
@@ -719,16 +720,6 @@ const SRC: Record<EditKind, { table: string; nameCol: string; dateCol: string; d
   pipe:    { table: "opportunities",    nameCol: "next_step",   dateCol: "next_step_at",  dateIsTimestamp: true,  defTime: "09:00", noun: "pipeline step" },
   meeting: { table: "meeting_notes",    nameCol: "title",       dateCol: "met_on",        dateIsTimestamp: false, defTime: "09:00", noun: "meeting" },
 };
-// Jump to a sibling Plan tab (shared by the calendar chips and the editors' cross-links). Fires the
-// gt3-plan-tab-set event so the jump works even when already ON the plan section — the localStorage
-// deep-link alone is only consumed on a section change.
-function goPlanTab(setSection: (s: "plan") => void, tab: string, anchor?: string) {
-  if (typeof window === "undefined") return;
-  try { localStorage.setItem("gt3-plan-tab", tab); } catch { /* ignore */ }
-  window.dispatchEvent(new Event("gt3-plan-tab-set"));
-  setSection("plan");
-  if (anchor) setTimeout(() => document.getElementById(anchor)?.scrollIntoView({ behavior: "smooth", block: "start" }), 260);
-}
 // Stage/status vocabularies mirrored from each kind's own surface (PipelinePanel STAGES, Bookings
 // STATUSES) so the calendar's quick editor and the full surface can never offer different words.
 const PIPE_STAGES: { key: string; label: string }[] = [
@@ -814,8 +805,8 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: s
     if (kind === "content") return { label: "Open full editor in Studio", go: () => { setSection("studio"); close(); } };
     if (kind === "brew") return { label: "Open in Production", go: () => { setSection("brew"); close(); } };
     if (kind === "goal") return { label: "Open Goals", go: goGoals };
-    if (kind === "lead") return { label: "Open Leads", go: () => { goPlanTab(setSection, "leads"); close(); } };
-    if (kind === "pipe") return { label: "Open the pipeline board", go: () => { goPlanTab(setSection, "leads", "pipeline-board"); close(); } };
+    if (kind === "lead") return { label: "Open Leads", go: () => { goPlanTab("leads", { setSection }); close(); } };
+    if (kind === "pipe") return { label: "Open the pipeline board", go: () => { goPlanTab("leads", { setSection, anchor: "pipeline-board" }); close(); } };
     if (kind === "meeting") return { label: "Open in Notes", go: () => { setSection("notes"); close(); } };
     if (kind === "task") {
       if (f.event_id) return { label: "Open its event prep", go: () => prep("event", String(f.event_id)) };
