@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { verifyApliiq } from "@/lib/apliiq";
+import { integrationTenant } from "@/lib/tenantScope";
 
 export const runtime = "nodejs";
 
@@ -10,12 +11,17 @@ export async function POST(req: Request) {
   const raw = await req.text();
   if (!verifyApliiq(raw, req.headers)) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
+  // R-002: no session here (see lib/tenantScope for why this one can never have a bearer), so the
+  // scope is the tenant that owns this deployment's integrations and storefront — the same uuid
+  // 0134's stamp_tenant() writes for every guest row. Stated, not assumed.
+  const tenant = integrationTenant();
+
 
   const url = new URL(req.url);
   let term = url.searchParams.get("search") || "";
   if (!term) { try { term = String(JSON.parse(raw || "{}")?.search ?? ""); } catch { /* */ } }
 
-  let q = supabaseAdmin.from("shop_products").select("apliiq_product_id, title, price_cents, image_url")
+  let q = supabaseAdmin.from("shop_products").select("apliiq_product_id, title, price_cents, image_url").eq("tenant_id", tenant)
     .eq("kind", "merch").is("archived_at", null);
   if (term.trim()) q = q.ilike("title", `%${term.trim().replace(/[%_\\]/g, (c) => `\\${c}`)}%`);
   const { data, error } = await q.limit(50);

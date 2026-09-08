@@ -5,6 +5,7 @@ import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { notifyCustomer, accountEmail } from "@/lib/notify";
 import { submitOrderToApliiq } from "@/lib/apliiq";
+import { integrationTenant } from "@/lib/tenantScope";
 
 export const runtime = "nodejs";
 
@@ -45,8 +46,12 @@ export async function POST(req: Request) {
   const ids = [...new Set(rawItems.map((i) => String(i.product_id ?? "")).filter(Boolean))];
   if (ids.length === 0) return NextResponse.json({ error: "Your cart is empty." }, { status: 400 });
 
+  // R-002: a guest has no bearer, so there is no session to read a tenant from and never will be.
+  // The scope is the storefront this checkout was opened from — the same uuid 0134 stamps on the
+  // order that is about to be written, so the read and the write agree by construction.
+  const tenant = integrationTenant();
   const { data: prods, error: prodErr } = await supabaseAdmin.from("shop_products")
-    .select("id, title, price_cents, cost_cents, apliiq_product_id, kind, published_at, archived_at")
+    .select("id, title, price_cents, cost_cents, apliiq_product_id, kind, published_at, archived_at").eq("tenant_id", tenant)
     .in("id", ids).eq("kind", "merch");
   if (prodErr) return NextResponse.json({ error: "Couldn't price your cart." }, { status: 500 });
   const byId = new Map((prods ?? []).map((p) => [(p as { id: string }).id, p as Record<string, any>]));
@@ -114,6 +119,8 @@ export async function POST(req: Request) {
         items: lineItems.filter((l) => l.apliiq_product_id).map((l) => ({ apliiq_product_id: l.apliiq_product_id, variant: l.variant, qty: l.qty })),
       });
       if (submit.ok) {
+        // scoped-by: orderId is the id returned by this request's own INSERT thirty lines above — not a
+        // value any caller supplied. Nothing else can be named here.
         await supabaseAdmin.from("shop_orders").update({ apliiq_order_id: submit.apliiqOrderId, status: "submitted", updated_at: new Date().toISOString() }).eq("id", orderId);
       } else {
         await raiseAlert({ severity: "important", category: "order", kind: "fulfillment", subjectId: orderId, title: "Shop order needs manual fulfillment", body: `Apliiq submit failed (${submit.error}) for ${shipName}'s order. It's paid and queued — submit it by hand.` });

@@ -50,6 +50,9 @@ export async function POST(req: Request) {
       const sub = evt?.data?.object?.subscription;
       if (sub?.id) {
         const next = mapSubStatus(sub.status);
+        // scoped-by: square_subscription_id carries a UNIQUE index (verified in production) and the
+        // value is minted by Square, never by a caller — at most one row in the table. There is no
+        // session on a webhook to read a tenant from, so this key IS the scope.
         let q = supabaseAdmin.from("subscriptions").update({
           status: next,
           current_period_end: sub.charged_through_date || null,
@@ -67,6 +70,7 @@ export async function POST(req: Request) {
     } else if (type === "invoice.payment_made") {
       const subId = evt?.data?.object?.invoice?.subscription_id;
       // A payment clears past_due back to active, but must never resurrect a canceled subscription.
+      // scoped-by: same unique Square-issued key as above.
       if (subId) ({ error: err } = await supabaseAdmin.from("subscriptions").update({ status: "active", updated_at: new Date().toISOString() }).eq("square_subscription_id", subId).neq("status", "canceled"));
     } else if (type === "invoice.payment_failed") {
       const subId = evt?.data?.object?.invoice?.subscription_id;
@@ -93,6 +97,8 @@ export async function POST(req: Request) {
         if (p.order_id) {
           try {
             // Only forward transitions: never let a delayed Square retry flip a refunded order back to paid.
+            // scoped-by: square_order_id is minted by Square and matched against the row we created
+            // when the invoice was raised. A caller cannot supply it — Square signs this request.
             await supabaseAdmin.from("business_orders")
               .update({ payment_status: "paid", payment_id: p.id })
               .eq("square_order_id", p.order_id).in("payment_status", ["pending", "invoiced", "failed"]);

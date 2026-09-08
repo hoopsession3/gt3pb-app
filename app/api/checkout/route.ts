@@ -212,6 +212,7 @@ export async function POST(req: Request) {
     // paymentId, so if we already recorded an order for it (a retry after a lost response), don't
     // insert a SECOND paid order → double fulfillment. (A unique index on payment_id backs this in DB.)
     if (paymentId) {
+      // scoped-by: payment_id carries a UNIQUE index (verified in production) and the value is issued by Square, never chosen by the caller — at most one row in the whole table, a stricter key than tenant_id
       const { data: already } = await supabaseAdmin.from("orders").select("id").eq("payment_id", paymentId).maybeSingle();
       if (already) return NextResponse.json({ ok: true, paymentId, amount, recorded: true });
     }
@@ -233,6 +234,7 @@ export async function POST(req: Request) {
       // working. Confirm that row is really there before raising a false "didn't record" alert, which
       // would otherwise have staff double-add an order that's already correctly on the pass.
       if ((insErr as { code?: string }).code === "23505" && paymentId) {
+        // scoped-by: payment_id carries a UNIQUE index (verified in production) and the value is issued by Square, never chosen by the caller — at most one row in the whole table, a stricter key than tenant_id
         const { data: already2 } = await supabaseAdmin.from("orders").select("id").eq("payment_id", paymentId).maybeSingle();
         if (already2) return NextResponse.json({ ok: true, paymentId, amount, recorded: true });
       }

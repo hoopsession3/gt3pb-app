@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { verifyApliiq, firstSeen } from "@/lib/apliiq";
 import { notifyCustomer, accountEmail } from "@/lib/notify";
+import { integrationTenant } from "@/lib/tenantScope";
 
 export const runtime = "nodejs";
 
@@ -12,6 +13,11 @@ export async function POST(req: Request) {
   const raw = await req.text();
   if (!verifyApliiq(raw, req.headers)) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
+  // R-002: no session here (see lib/tenantScope for why this one can never have a bearer), so the
+  // scope is the tenant that owns this deployment's integrations and storefront — the same uuid
+  // 0134's stamp_tenant() writes for every guest row. Stated, not assumed.
+  const tenant = integrationTenant();
+
 
   let p: any;
   try { p = JSON.parse(raw); } catch { return NextResponse.json({ ok: false, error: "bad json" }, { status: 400 }); }
@@ -23,8 +29,10 @@ export async function POST(req: Request) {
   const eventId = req.headers.get("x-apliiq-delivery") || `fulfil:${externalId || apliiqOrderId}:${tracking}`;
   if (!(await firstSeen("apliiq", eventId))) return NextResponse.json({ ok: true, deduped: true });
 
+  // The apliiq key on shop_orders is NOT unique (checked in production), unlike payment_id —
+  // so unlike the dedupe lookups this one cannot stand on its key alone and needs the scope.
   const { data: order } = await supabaseAdmin.from("shop_orders")
-    .select("id, user_id, email")
+    .select("id, user_id, email").eq("tenant_id", tenant)
     .or(`id.eq.${externalId || "00000000-0000-0000-0000-000000000000"},apliiq_order_id.eq.${apliiqOrderId || "___none___"}`)
     .maybeSingle();
   if (!order) return NextResponse.json({ ok: false, error: "order not found" }, { status: 404 });

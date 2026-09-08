@@ -1,6 +1,8 @@
 // SECOND-TENANT GUARD — 0305, executed from its file.
 //
-// R-002's remaining 62 unscoped service-role reads are latent only because this database holds one
+// R-002's unscoped service-role reads are now ZERO (0317). What is latent instead is that four
+// sessionless paths resolve their tenant from one constant — see the assertions at the bottom.
+// Historically: 62 unscoped reads were latent only because this database holds one
 // tenant. The guard exists so that stops being an accident of the data: the insert that would make
 // them reachable is refused until the sweep is done. What matters is that it refuses by default,
 // that the refusal SAYS why, and that the deliberate override actually works — a guard nobody can
@@ -17,6 +19,11 @@ const ok = (n, c, got) => { if (c) pass++; else { fail++; console.log(`  ✗ ${n
 const db = new PGlite();
 const q1 = async (s) => (await db.query(s)).rows[0];
 const raises = async (s) => { try { await db.exec(s); return null; } catch (e) { return String(e.message || e); } };
+// The substance of 0305/0317's refusal is in DETAIL and HINT, not the one-line message — so a
+// check written against e.message alone can only ever see "A second tenant cannot be created yet."
+// and would pass whatever the reason said. Found that the hard way.
+const raisesFull = async (s) => { try { await db.exec(s); return null; }
+  catch (e) { return [e.message, e.detail, e.hint].filter(Boolean).join(" | "); } };
 
 await db.exec(`
   create schema if not exists auth;
@@ -48,6 +55,10 @@ await db.exec(`
 // The guard has to survive the FIRST tenant existing — that is the whole point.
 await db.exec(`insert into public.tenants (id) values ('${T1}');`);
 await db.exec(readFileSync(join(ROOT, "supabase/migrations/0305_second_tenant_guard.sql"), "utf8"));
+// 0317 rewrites the guard's REASON after the route sweep reached 0. Executed here, in order,
+// because what the suite must protect is the message a person actually sees — the old one told
+// them to go and finish work that is now done.
+await db.exec(readFileSync(join(ROOT, "supabase/migrations/0317_the_route_sweep_is_done_the_door_is_not_open.sql"), "utf8"));
 
 const refusal = await raises(`insert into public.tenants (id) values (gen_random_uuid());`);
 ok("guard: a second tenant is refused", refusal !== null, refusal);
@@ -79,6 +90,20 @@ ok("kinds: an already-classified item is untouched",
 
 ok("0305 recorded itself in the ledger",
   (await q1(`select evidence from public.schema_migrations where version = '0305_second_tenant_guard'`))?.evidence === "stamped");
+
+// ── 0317: the guard still refuses, but for the RIGHT reason ───────────────────────────────────
+// A guard whose stated reason is finished work is worse than no guard: the next person reads it,
+// goes and does the thing that is already done, finds nothing to do, and learns to click past it.
+{
+  const msg = await raisesFull(`insert into public.tenants (id) values (gen_random_uuid());`);
+  ok("0317: a second tenant is still refused", !!msg, msg);
+  ok("0317: and the reason no longer points at the finished route sweep",
+    !!msg && !/62 service-role/.test(msg), msg);
+  ok("0317: it names what actually blocks a second market instead",
+    !!msg && /integrationTenant|one storefront|provider credentials|GT3_INTEGRATION_TENANT_ID/.test(msg), msg);
+  ok("0317 recorded itself by filename",
+    (await q1(`select version as v from public.schema_migrations where seq = 317`))?.v === "0317_the_route_sweep_is_done_the_door_is_not_open");
+}
 
 console.log(`SECOND-TENANT GUARD: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

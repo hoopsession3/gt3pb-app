@@ -8,6 +8,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ code: s
   const { code } = await params;
   if (!supabaseAdmin || !code || code.length > 40) return NextResponse.json({ ok: false }, { status: 404 });
   try {
+    // scoped-by: member_benefits.code carries a UNIQUE index (verified in production), so this
+    // lookup returns at most one row in the whole table — a stricter key than tenant_id. The
+    // code is also printed on a card in somebody's hand; nothing here is not already public.
     const { data } = await supabaseAdmin.from("member_benefits")
       .select("code, kind, label, active")
       .eq("scope", "code")

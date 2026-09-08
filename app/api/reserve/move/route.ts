@@ -41,10 +41,12 @@ export async function POST(req: Request) {
   if (!cutoff) return NextResponse.json({ error: "That day isn't on the pickup schedule." }, { status: 400 });
   if (Date.now() > cutoff.getTime()) return NextResponse.json({ error: "Ordering for that day has closed — pick a later one." }, { status: 400 });
 
-  // scoped-by: the ownership check is the LINE BELOW — order.user_id !== user.id returns 404. That
-  // is the correct pattern for a customer's own row (a tenant filter would be weaker: it would let
-  // one member move another member's pack). The audit's regex cannot see a post-read check, which
-  // is why this needs saying rather than filtering.
+  // A tenant filter would be WEAKER here, not stronger: it would let one member move another
+  // member's pack. The right scope for a customer's own row is the customer, and the check is the
+  // line below — order.user_id !== user.id returns 404. A post-read check is invisible to a regex,
+  // which is why this is said rather than filtered. The marker goes last so it sits directly above
+  // the access it describes; four lines up, the audit could not see it.
+  // scoped-by: order.user_id !== user.id, two lines below, 404s anything that is not the caller's
   const { data: order } = await supabaseAdmin.from("drop_orders")
     .select("id, user_id, drop_date, size, glass, name, paid, picked_up, stage, canceled_at").eq("id", id).maybeSingle();
   if (!order || order.user_id !== user.id) return NextResponse.json({ error: "Order not found." }, { status: 404 });

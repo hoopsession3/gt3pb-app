@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { staffFromRequest } from "@/lib/apiAuth";
+import { staffFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { apliiqGet } from "@/lib/apliiq";
 
 export const runtime = "nodejs";
@@ -74,6 +74,10 @@ function buildVariants(p: any): any[] {
 export async function POST(req: Request) {
   if (!supabaseAdmin) return NextResponse.json({ error: "Storage isn't switched on." }, { status: 503 });
   if (!(await staffFromRequest(req))) return NextResponse.json({ error: "Staff only." }, { status: 401 });
+  // R-002: staff-gated, so unlike the two Apliiq WEBHOOKS this one has a caller and the caller is
+  // the right scope. tenantFromRequest, not the integration constant.
+  const tenant = await tenantFromRequest(req);
+  if (!tenant) return NextResponse.json({ error: "No tenant on this session." }, { status: 401 });
   if (!process.env.APLIIQ_APP_KEY || !process.env.APLIIQ_SHARED_SECRET) {
     return NextResponse.json({ error: "Apliiq isn't configured yet (missing env keys)." }, { status: 503 });
   }
@@ -115,7 +119,7 @@ export async function POST(req: Request) {
   const ids = [...new Set(mapped.map((m) => m.apliiqId))];
   const { data: existingRows, error: exErr } = await supabaseAdmin
     .from("shop_products")
-    .select("id, apliiq_product_id, image_url, variants")
+    .select("id, apliiq_product_id, image_url, variants").eq("tenant_id", tenant)
     .in("apliiq_product_id", ids);
   if (exErr) return NextResponse.json({ error: "Couldn't read the existing catalog." }, { status: 500 });
   const known = new Map((existingRows ?? []).map((r: any) => [r.apliiq_product_id, r]));
@@ -144,7 +148,7 @@ export async function POST(req: Request) {
     const patch: any = { images: m.images, cost_cents: m.cost_cents, updated_at: new Date().toISOString() };
     if (!row.image_url && m.image_url) patch.image_url = m.image_url;
     if ((!Array.isArray(row.variants) || row.variants.length === 0) && m.variants.length) patch.variants = m.variants;
-    const { error: upErr } = await supabaseAdmin.from("shop_products").update(patch).eq("id", row.id);
+    const { error: upErr } = await supabaseAdmin.from("shop_products").update(patch).eq("id", row.id).eq("tenant_id", tenant);
     if (upErr) skipped++; else updated++;
   }
 
