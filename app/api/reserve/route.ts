@@ -103,6 +103,9 @@ export async function POST(req: Request) {
       // producing two funded pack reservations for one charge. (A unique index on
       // drop_orders.payment_id backs this in the DB — see the accompanying migration.)
       if (paymentId) {
+        // scoped-by: payment_id carries a UNIQUE index (verified in production) and the value is issued by
+        // Square, not chosen by the caller — at most one row in the whole table, so a tenant
+        // filter would narrow nothing. A stricter key than tenant_id, not a looser one.
         const { data: already } = await supabaseAdmin.from("drop_orders").select("id").eq("payment_id", paymentId).maybeSingle();
         if (already) return NextResponse.json({ ok: true, id: already.id, paid: true, recorded: true });
       }
@@ -111,6 +114,9 @@ export async function POST(req: Request) {
       // check above never runs. idemKey is the same per-attempt key the client already sends for the
       // charge path; check it here too, backed by the unique index in the accompanying migration,
       // mirroring the payment_id check above for the paid path.
+      // scoped-by: idempotency_key carries a UNIQUE index (verified in production) and the value is issued by
+      // Square, not chosen by the caller — at most one row in the whole table, so a tenant
+      // filter would narrow nothing. A stricter key than tenant_id, not a looser one.
       const { data: already } = await supabaseAdmin.from("drop_orders").select("id").eq("idempotency_key", idemKey).maybeSingle();
       if (already) return NextResponse.json({ ok: true, id: already.id, paid: false, recorded: true });
     }
@@ -129,7 +135,13 @@ export async function POST(req: Request) {
       // record" alert, which would otherwise have staff double-add a reservation already on the drop.
       if ((insErr as { code?: string }).code === "23505") {
         const dupe = paymentId
+          // scoped-by: payment_id carries a UNIQUE index (verified in production) and the value is issued by
+          // Square, not chosen by the caller — at most one row in the whole table, so a tenant
+          // filter would narrow nothing. A stricter key than tenant_id, not a looser one.
           ? await supabaseAdmin.from("drop_orders").select("id").eq("payment_id", paymentId).maybeSingle()
+          // scoped-by: idempotency_key carries a UNIQUE index (verified in production) and the value is issued by
+          // Square, not chosen by the caller — at most one row in the whole table, so a tenant
+          // filter would narrow nothing. A stricter key than tenant_id, not a looser one.
           : await supabaseAdmin.from("drop_orders").select("id").eq("idempotency_key", idemKey).maybeSingle();
         if (dupe.data) return NextResponse.json({ ok: true, id: dupe.data.id, paid, recorded: true });
       }

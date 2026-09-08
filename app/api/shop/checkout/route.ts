@@ -74,6 +74,9 @@ export async function POST(req: Request) {
     // Dedupe at the order row — a retried request carries the same idempotency key, so Square returns
     // the same paymentId; the unique index on shop_orders.payment_id is the real backstop.
     if (paymentId) {
+      // scoped-by: payment_id carries a UNIQUE index (verified in production) and the value is issued by
+      // Square, not chosen by the caller — at most one row in the whole table, so a tenant
+      // filter would narrow nothing. A stricter key than tenant_id, not a looser one.
       const { data: already } = await supabaseAdmin.from("shop_orders").select("id").eq("payment_id", paymentId).maybeSingle();
       if (already) return NextResponse.json({ ok: true, id: (already as { id: string }).id, paid: true, recorded: true });
     }
@@ -87,6 +90,9 @@ export async function POST(req: Request) {
     if (insErr) ({ data: order, error: insErr } = await supabaseAdmin.from("shop_orders").insert(orderRow).select("id").single()); // retry once
     if (insErr) {
       if ((insErr as { code?: string }).code === "23505" && paymentId) {
+        // scoped-by: payment_id carries a UNIQUE index (verified in production) and the value is issued by
+        // Square, not chosen by the caller — at most one row in the whole table, so a tenant
+        // filter would narrow nothing. A stricter key than tenant_id, not a looser one.
         const dupe = await supabaseAdmin.from("shop_orders").select("id").eq("payment_id", paymentId).maybeSingle();
         if (dupe.data) return NextResponse.json({ ok: true, id: (dupe.data as { id: string }).id, paid: true, recorded: true });
       }

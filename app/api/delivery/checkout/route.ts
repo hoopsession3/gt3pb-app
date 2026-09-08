@@ -139,6 +139,9 @@ export async function POST(req: Request) {
     // Idempotency for PAID delivery: a retry returns the SAME Square paymentId, so don't insert a
     // second paid delivery order → double fulfillment + double invoice.
     if (paid && paymentId) {
+      // scoped-by: payment_id carries a UNIQUE index (verified in production) and the value is issued by
+      // Square, not chosen by the caller — at most one row in the whole table, so a tenant
+      // filter would narrow nothing. A stricter key than tenant_id, not a looser one.
       const { data: already } = await supabaseAdmin.from("delivery_orders").select("id").eq("payment_id", paymentId).maybeSingle();
       if (already) return NextResponse.json({ ok: true, paymentId, recorded: true, deliveryLabel: slot.deliveryLabel });
     }
@@ -148,6 +151,9 @@ export async function POST(req: Request) {
       // A concurrent request can win this race even after the pre-insert check above — confirm the
       // other request's row is really there before raising a false "didn't record" alert.
       if ((insErr as { code?: string }).code === "23505" && paymentId) {
+        // scoped-by: payment_id carries a UNIQUE index (verified in production) and the value is issued by
+        // Square, not chosen by the caller — at most one row in the whole table, so a tenant
+        // filter would narrow nothing. A stricter key than tenant_id, not a looser one.
         const { data: already2 } = await supabaseAdmin.from("delivery_orders").select("id").eq("payment_id", paymentId).maybeSingle();
         if (already2) return NextResponse.json({ ok: true, paymentId, recorded: true, deliveryLabel: slot.deliveryLabel });
       }

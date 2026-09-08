@@ -22,6 +22,11 @@ export async function POST(req: Request) {
   if (!id || !toDate) return NextResponse.json({ error: "Bad request" }, { status: 400 });
 
   // The offered-days map — identical construction to /api/reserve so the two can't disagree.
+  // NOT marked scoped-by, deliberately. This reads the PUBLIC schedule — the same upcoming stops
+  // any guest already sees on Find Us — so it leaks nothing today. But it IS unscoped, and with a
+  // second market it would offer a Greenville customer Atlanta's drop dates. A scoped-by here would
+  // have removed it from the count while the comment claimed it was still in it, which is how a
+  // gate stops meaning anything. It stays counted until it is actually fixed.
   const { data: nextStops } = await supabaseAdmin.from("stops").select("starts_at")
     .is("archived_at", null).neq("status", "done").not("starts_at", "is", null)
     .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(6);

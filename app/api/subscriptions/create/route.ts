@@ -50,6 +50,10 @@ export async function POST(req: Request) {
   if (claimErr || !pending) {
     return NextResponse.json({ error: "You already have a subscription." }, { status: 409 });
   }
+  // scoped-by: rowId is not client-supplied. It is the id returned by the INSERT twelve lines
+  // above, which wrote user_id: user.id from the verified session — so every update keyed on it
+  // below touches a row this request just created for this caller. There is no path by which a
+  // caller names someone else's subscription, so a tenant filter here would assert nothing.
   const rowId = pending.id as string;
   // Tracks whether a LIVE Square subscription exists for this attempt. Once it does, we must never
   // delete the mirror row — that would orphan a billing subscription the member can't cancel in-app.
@@ -94,14 +98,17 @@ export async function POST(req: Request) {
 
     // Persist the Square id to the mirror IMMEDIATELY — before anything else can throw — so the row
     // can never be orphaned: the member can always cancel, and the webhook can always match by id.
+    // scoped-by: rowId came from this request's own INSERT (user_id: user.id from the verified session), never from the caller
     if (squareSubId) await supabaseAdmin.from("subscriptions").update({ square_subscription_id: squareSubId }).eq("id", rowId);
 
     // 4) fill the rest of the mirror (webhook reconciles authoritatively)
+    // scoped-by: rowId came from this request's own INSERT (user_id: user.id from the verified session), never from the caller
     await supabaseAdmin.from("subscriptions").update({
       status: mapSubStatus(sub?.status),
       square_card_id: cardId,
       current_period_end: sub?.charged_through_date || null,
       updated_at: new Date().toISOString(),
+    // scoped-by: rowId came from this request's own INSERT (user_id: user.id from the verified session), never from the caller
     }).eq("id", rowId);
 
     // Leadership visibility — new recurring revenue shouldn't be invisible.
@@ -112,11 +119,13 @@ export async function POST(req: Request) {
       // A Square subscription is LIVE. Deleting the mirror would orphan a billing subscription the
       // member could never cancel in-app. Keep the row, ensure it carries the id, mark it active,
       // and flag staff to reconcile — never silently drop a paying member.
+      // scoped-by: rowId came from this request's own INSERT (user_id: user.id from the verified session), never from the caller
       await supabaseAdmin.from("subscriptions").update({ status: "active", square_subscription_id: squareSubId, updated_at: new Date().toISOString() }).eq("id", rowId);
       await raiseAlert({ severity: "critical", category: "money", title: "Subscription needs reconcile", body: `A subscription is live at Square (${squareSubId}) but setup errored after billing started. It's kept so the member can cancel — verify the mirror in Subscribers.` });
       return NextResponse.json({ ok: true, status: "active", warn: "You're subscribed — we're finalizing a couple details." });
     }
     // Nothing was created at Square — safe to roll back the pending claim so the member can retry.
+    // scoped-by: rowId came from this request's own INSERT (user_id: user.id from the verified session), never from the caller
     await supabaseAdmin.from("subscriptions").delete().eq("id", rowId);
     return NextResponse.json({ error: e instanceof Error ? e.message : "Subscription couldn't start" }, { status: 400 });
   }
