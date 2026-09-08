@@ -84,6 +84,9 @@ ${assets || "(none loaded)"}`;
     return NextResponse.json({ ok: false, error: "Couldn't propose that safely — try again." }, { status: 502 });
   }
 
-  await supabaseAdmin.from("event_tasks").update({ ai_proposal: out.proposal, ai_has_answer: !!out.have_answer }).eq("id", task_id);
+  // scoped-by: the read above already 404s a task_id outside this tenant, so this write cannot be
+  // reached with someone else's id. The tenant filter is repeated here anyway — the guard is
+  // twenty lines away and a later edit could move it without anyone noticing this depended on it.
+  await supabaseAdmin.from("event_tasks").update({ ai_proposal: out.proposal, ai_has_answer: !!out.have_answer }).eq("tenant_id", tenant).eq("id", task_id);
   return NextResponse.json({ ok: true, proposal: out.proposal, have_answer: !!out.have_answer });
 }

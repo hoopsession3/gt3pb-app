@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { staffFromRequest } from "@/lib/apiAuth";
+import { staffFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { notifyCustomer, emailEnabled, smsEnabled, accountEmail } from "@/lib/notify";
 
 // LIFECYCLE PINGS the crew fires from the boards — the customer can't be expected to sit in the
@@ -10,6 +10,10 @@ import { notifyCustomer, emailEnabled, smsEnabled, accountEmail } from "@/lib/no
 export async function POST(req: Request) {
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  // R-002: staff-gated, so any crew member may act on any order — within THEIR tenant. Without
+  // this filter the service role would reach every tenant's orders once a second one exists.
+  const tenant = await tenantFromRequest(req);
+  if (!tenant) return NextResponse.json({ ok: false, error: "no tenant on this session" }, { status: 401 });
   if (!emailEnabled() && !smsEnabled()) return NextResponse.json({ ok: true, skipped: "no provider keys yet" });
 
   let kind = "", id = "";
@@ -20,7 +24,7 @@ export async function POST(req: Request) {
 
   try {
     if (kind === "order_ready") {
-      const { data: o } = await supabaseAdmin.from("orders").select("id, customer, user_id").eq("id", id).maybeSingle();
+      const { data: o } = await supabaseAdmin.from("orders").select("id, customer, user_id").eq("tenant_id", tenant).eq("id", id).maybeSingle();
       if (!o) return NextResponse.json({ ok: false, error: "not found" }, { status: 404 });
       const first = (o.customer || "").split(" ")[0];
       const sent = await notifyCustomer({
@@ -32,7 +36,7 @@ export async function POST(req: Request) {
     }
     // delivered
     const { data: d } = await supabaseAdmin.from("delivery_orders")
-      .select("id, name, phone, user_id, refill_count").eq("id", id).maybeSingle();
+      .select("id, name, phone, user_id, refill_count").eq("tenant_id", tenant).eq("id", id).maybeSingle();
     if (!d) return NextResponse.json({ ok: false, error: "not found" }, { status: 404 });
     const first = (d.name || "").split(" ")[0];
     const sent = await notifyCustomer({

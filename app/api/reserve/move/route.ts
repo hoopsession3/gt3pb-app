@@ -36,6 +36,10 @@ export async function POST(req: Request) {
   if (!cutoff) return NextResponse.json({ error: "That day isn't on the pickup schedule." }, { status: 400 });
   if (Date.now() > cutoff.getTime()) return NextResponse.json({ error: "Ordering for that day has closed — pick a later one." }, { status: 400 });
 
+  // scoped-by: the ownership check is the LINE BELOW — order.user_id !== user.id returns 404. That
+  // is the correct pattern for a customer's own row (a tenant filter would be weaker: it would let
+  // one member move another member's pack). The audit's regex cannot see a post-read check, which
+  // is why this needs saying rather than filtering.
   const { data: order } = await supabaseAdmin.from("drop_orders")
     .select("id, user_id, drop_date, size, glass, name, paid, picked_up, stage, canceled_at").eq("id", id).maybeSingle();
   if (!order || order.user_id !== user.id) return NextResponse.json({ error: "Order not found." }, { status: 404 });
@@ -61,7 +65,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "This pack's drop has closed — we may already be brewing it. Ask at the truck." }, { status: 400 });
   }
 
-  const { error } = await supabaseAdmin.from("drop_orders").update({ drop_date: toDate }).eq("id", id);
+  // scoped-by: unreachable with someone else's id — the 404 above. The user_id is repeated on the
+  // write anyway, because that guard is twenty-five lines up and a later edit could move it.
+  const { error } = await supabaseAdmin.from("drop_orders").update({ drop_date: toDate }).eq("id", id).eq("user_id", user.id);
   if (error) return NextResponse.json({ error: "Couldn't move it — try again." }, { status: 500 });
 
   // FYI the crew: the drop rollups recalc live, but brew planning likes to know a pack walked.

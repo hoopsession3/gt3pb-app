@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ownerFromRequest } from "@/lib/apiAuth";
+import { ownerFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { webflowEnabled, webflowPublish, webflowUnpublish } from "@/lib/webflow";
 
@@ -14,6 +14,11 @@ const toHtml = (s: string) => (s || "").split(/\n{2,}/).map((p) => `<p>${esc(p).
 
 export async function POST(req: Request) {
   if (!(await ownerFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  // R-002: the service role bypasses RLS, so a content_id from the request body has to be
+  // proven to belong to the caller's tenant rather than assumed. With the filter, an id from
+  // another tenant reads nothing and updates nothing instead of reading and updating theirs.
+  const tenant = await tenantFromRequest(req);
+  if (!tenant) return NextResponse.json({ ok: false, error: "no tenant on this session" }, { status: 401 });
   if (!webflowEnabled()) return NextResponse.json({ ok: false, error: "Webflow not configured (set WEBFLOW_API_TOKEN + WEBFLOW_SITE_ID + WEBFLOW_COLLECTION_ID)" }, { status: 503 });
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
 
@@ -21,7 +26,7 @@ export async function POST(req: Request) {
   try { ({ content_id = "", action = "publish" } = await req.json()); } catch { /* */ }
   if (!content_id) return NextResponse.json({ ok: false, error: "content_id required" }, { status: 400 });
 
-  const { data: item } = await supabaseAdmin.from("content_items").select("id, title, caption, webflow_item_id").eq("id", content_id).maybeSingle();
+  const { data: item } = await supabaseAdmin.from("content_items").select("id, title, caption, webflow_item_id").eq("id", content_id).eq("tenant_id", tenant).maybeSingle();
   if (!item) return NextResponse.json({ ok: false, error: "not found" }, { status: 404 });
 
   // The reverse gear: pull the piece off the live site (the Webflow item survives as a draft —
@@ -30,7 +35,7 @@ export async function POST(req: Request) {
     if (!item.webflow_item_id) return NextResponse.json({ ok: false, error: "not on the site" }, { status: 400 });
     try {
       await webflowUnpublish(item.webflow_item_id);
-      await supabaseAdmin.from("content_items").update({ published_url: null, status: "approved" }).eq("id", content_id);
+      await supabaseAdmin.from("content_items").update({ published_url: null, status: "approved" }).eq("id", content_id).eq("tenant_id", tenant);
       return NextResponse.json({ ok: true });
     } catch (e: any) {
       return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });
@@ -41,7 +46,7 @@ export async function POST(req: Request) {
     const { itemId, slug } = await webflowPublish(item.title || "Untitled", toHtml(item.caption || ""));
     const base = process.env.WEBFLOW_PUBLIC_BASE || ""; // e.g. https://gt3pb.com/blog/
     const published_url = base ? `${base.replace(/\/$/, "")}/${slug}` : slug;
-    await supabaseAdmin.from("content_items").update({ webflow_item_id: itemId, published_url, status: "published" }).eq("id", content_id);
+    await supabaseAdmin.from("content_items").update({ webflow_item_id: itemId, published_url, status: "published" }).eq("id", content_id).eq("tenant_id", tenant);
     return NextResponse.json({ ok: true, webflow_item_id: itemId, published_url });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });

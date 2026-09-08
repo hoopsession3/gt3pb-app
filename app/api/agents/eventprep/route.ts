@@ -44,6 +44,9 @@ const BASELINE_TASKS: { key: string; label: string; section: string; critical: b
 // the client polls instead of holding a long request open. Never throws — failures land as error.
 async function runPrep(jobId: string, fmt: any) {
   if (!supabaseAdmin) return;
+  // scoped-by: jobId is not client-supplied. This route INSERTS the agent_jobs row itself and hands
+  // the returned id straight to runPrep — see the insert at the bottom of POST. There is no path
+  // by which a caller names someone else's job, so a tenant filter here would assert nothing.
   const touch = (patch: any) => supabaseAdmin!.from("agent_jobs").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", jobId);
   const ask = async (nudge?: string) => {
     const r = await callClaude({ label: "eventprep",

@@ -1,15 +1,17 @@
 import { NextResponse } from "next/server";
-import { staffFromRequest } from "@/lib/apiAuth";
+import { staffFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { studioSystem } from "@/lib/brandVoice";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { claimSafeDeep } from "@/lib/claimGuard";
 
 // Recent captions the team approved/published — the live voice the agents learn from.
-async function approvedCaptions(limit = 4): Promise<string[]> {
+// Takes the tenant rather than reading whatever is there: a helper that reads tenant data has
+// to be told whose, the same correction agents/repurpose needed.
+async function approvedCaptions(tenant: string, limit = 4): Promise<string[]> {
   if (!supabaseAdmin) return [];
   const { data } = await supabaseAdmin.from("content_items")
-    .select("caption").in("status", ["approved", "scheduled", "published"]).not("caption", "is", null)
+    .select("caption").eq("tenant_id", tenant).in("status", ["approved", "scheduled", "published"]).not("caption", "is", null)
     .order("updated_at", { ascending: false }).limit(limit);
   return ((data as { caption: string | null }[]) ?? []).map((r) => (r.caption ?? "").trim()).filter((c) => c.length > 40);
 }
@@ -49,6 +51,8 @@ const TOOL: ToolDef = {
 
 export async function POST(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  const tenant = await tenantFromRequest(req);
+  if (!tenant) return NextResponse.json({ ok: false, error: "no tenant on this session" }, { status: 401 });
   if (!anthropicEnabled()) return NextResponse.json({ ok: false, error: "AI not configured (set ANTHROPIC_API_KEY)" }, { status: 503 });
 
   let brief = "", kind = "post", channel = "instagram";
@@ -58,7 +62,7 @@ export async function POST(req: Request) {
 
   const system = studioSystem({
     channel, kind,
-    examples: await approvedCaptions(),
+    examples: await approvedCaptions(tenant),
     task: `THE BRIEF — draft 2-3 distinct content options for this piece. Vary the ANGLE, not just the words: a different way in each time (a truth, a detail, a moment). Each option is title + hook + caption + hashtags. Educate first; let the product sell itself. Always answer with the draft_captions tool.`,
   });
 

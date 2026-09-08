@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { staffFromRequest } from "@/lib/apiAuth";
+import { staffFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { SQUARE_BASE, squareHeaders, safeIdemKey } from "@/lib/squareServer";
 
@@ -13,6 +13,10 @@ export const runtime = "nodejs";
 // 0220). Idempotent: same order → same link. Staff-gated.
 export async function POST(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  // R-002: staff-gated, so any crew member may act on any order — within THEIR tenant. Without
+  // this filter the service role would reach every tenant's orders once a second one exists.
+  const tenant = await tenantFromRequest(req);
+  if (!tenant) return NextResponse.json({ ok: false, error: "no tenant on this session" }, { status: 401 });
   if (!supabaseAdmin) return NextResponse.json({ ok: false, error: "not configured" }, { status: 503 });
   const token = process.env.SQUARE_ACCESS_TOKEN;
   const locationId = process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID;
@@ -23,7 +27,7 @@ export async function POST(req: Request) {
   if (!orderId) return NextResponse.json({ ok: false, error: "orderId required" }, { status: 400 });
 
   const { data: o } = await supabaseAdmin.from("business_orders")
-    .select("id, company, gallons, total_cents, payment_status, paylink_url, canceled_at").eq("id", orderId).maybeSingle();
+    .select("id, company, gallons, total_cents, payment_status, paylink_url, canceled_at").eq("tenant_id", tenant).eq("id", orderId).maybeSingle();
   if (!o) return NextResponse.json({ ok: false, error: "order not found" }, { status: 404 });
   if (o.canceled_at) return NextResponse.json({ ok: false, error: "order is canceled" }, { status: 400 });
   if (o.payment_status === "paid") return NextResponse.json({ ok: false, error: "already paid" }, { status: 400 });
@@ -50,7 +54,7 @@ export async function POST(req: Request) {
   // The linkage IS the feature — if it doesn't save, the webhook can never auto-mark this order paid.
   // Fail loudly; the Square idempotency key means a retry returns the very same link.
   const { error: linkErr } = await supabaseAdmin.from("business_orders")
-    .update({ square_order_id: link.order_id ?? null, paylink_url: link.url }).eq("id", o.id);
+    .update({ square_order_id: link.order_id ?? null, paylink_url: link.url }).eq("tenant_id", tenant).eq("id", o.id);
   if (linkErr) return NextResponse.json({ ok: false, error: "Link created but didn't save — tap again" }, { status: 502 });
   return NextResponse.json({ ok: true, url: link.url });
 }
