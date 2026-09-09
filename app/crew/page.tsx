@@ -6,13 +6,12 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { useApp } from "@/components/AppProvider";
 import { SectionHeader, InfoRow } from "@/components/kit";
-import FieldOpSheet from "@/components/FieldOpSheet";
-import { useAuth, roleOf, LEADERSHIP_ROLES, type Profile } from "@/components/AuthProvider";
+import { useAuth, roleOf, type Profile } from "@/components/AuthProvider";
 import { raiseAlertClient } from "@/lib/clientAlerts";
 import { authedFetch } from "@/lib/authedFetch";
 import { normalizeCategory, type AlertCategory } from "@/lib/alertKinds";
 import { useMyAlerts, type MyFlag } from "@/lib/useMyAlerts";
-import { localToday, etToday, dayKey, relativeDay, nextWeekdayAt, ageLabel } from "@/lib/dates";
+import { localToday, etToday, dayKey, relativeDay, ageLabel } from "@/lib/dates";
 import { downloadCsv } from "@/lib/csv";
 import { brewStartOverdue } from "@/lib/brewMath";
 import { useWorkStreams, streamOfCategory } from "@/lib/streams";
@@ -111,7 +110,6 @@ const Reports = dynamic(() => import("@/components/Reports"), { loading: () => <
 const SnapshotReport = dynamic(() => import("@/components/SnapshotReport"), { loading: () => <PourFill label="Loading…" /> });
 const EventPnlReport = dynamic(() => import("@/components/EventPnlReport"), { loading: () => <PourFill label="Loading…" /> });
 import SignIn from "@/components/SignIn";
-import InputSheet from "@/components/InputSheet";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import { NumberRoll } from "@/components/CountUp";
 import PourFill from "@/components/PourFill";
@@ -138,8 +136,6 @@ const EventPrepAI = dynamic(() => import("@/components/EventPrepAI"), { loading:
 const TroubleshootAI = dynamic(() => import("@/components/TroubleshootAI"), { loading: () => <PourFill label="Loading…" /> });
 const BrewPlanner = dynamic(() => import("@/components/BrewPlanner"), { loading: () => <PourFill label="Loading…" /> });
 const CogsCalculator = dynamic(() => import("@/components/CogsCalculator"), { loading: () => <PourFill label="Loading…" /> });
-import AddToCalendar from "@/components/AddToCalendar";
-import { calFromEvent, calFromStop } from "@/lib/ics";
 const AssetMaintenance = dynamic(() => import("@/components/AssetMaintenance"), { loading: () => <PourFill label="Loading…" /> });
 const ChiefOfStaff = dynamic(() => import("@/components/ChiefOfStaff"), { loading: () => <PourFill label="Loading…" /> });
 const ChiefOfSales = dynamic(() => import("@/components/ChiefOfSales"), { loading: () => <PourFill label="Loading…" /> });
@@ -151,14 +147,13 @@ import { subscribePush } from "@/lib/push";
 import { chime, unlockAudio } from "@/lib/chime";
 import { haptic, HAPTIC } from "@/lib/haptics";
 import { DRINKS, type DrinkId } from "@/lib/menu";
-import { geocode } from "@/lib/geocode";
 import { packListFor } from "@/lib/packlist";
 import { complianceFor } from "@/lib/compliance";
 import { projectEvent, reconcile, DEFAULT_ECON, type EventEcon, type ProductEcon, type Projection } from "@/lib/economics";
 import { buildBrief } from "@/lib/eventbrief";
 import { fetchInventory, inventoryForEvent, rollupLowStock, type InventoryResp, type InvItem } from "@/lib/inventory";
 import { fetchAssets, type AssetsResp } from "@/lib/assets";
-import type { Stop, LiveStatus, EventRow, EventTask, BookingRequest, Order, Reserve, Subscription, Vendor, VendorLocation, MeetingNote, NoteAddendum, NoteFile, Comment } from "@/lib/db";
+import type { Stop, EventRow, EventTask, BookingRequest, Order, Reserve, Subscription, Vendor, VendorLocation, MeetingNote, NoteAddendum, NoteFile, Comment } from "@/lib/db";
 import { uploadToBucket } from "@/lib/uploads";
 import { resolveVendor, addVendorLocation, type VendorMatch, type ResolveDecision } from "@/lib/vendorLink";
 const VendorResolve = dynamic(() => import("@/components/VendorResolve"), { loading: () => <PourFill label="Loading…" /> });
@@ -167,7 +162,72 @@ import { useJurisdictions } from "@/components/useJurisdictions";
 import AcademyCard from "@/components/AcademyCard";
 import { moneyRound } from "@/lib/money";
 import { FOUNDING_MARKET, toMarket } from "@/lib/markets";
-import { derivedStopStatus } from "@/lib/stopRecord";
+import { OwnerDetails } from "@/components/crew/OwnerDetails";
+import { VendorPicker } from "@/components/crew/VendorPicker";
+import { LocationEditor } from "@/components/crew/LocationEditor";
+import { LiveControl } from "@/components/crew/LiveControl";
+
+const SEC_LABEL: Record<OpSection, string> = { day: "My Day", now: "Live Ops", ask: "Ask GT3", command: "Command", prep: "Readiness", plan: "Plan", studio: "Studio", brew: "Brew", garage: "Assets", driver: "Delivery", notes: "Notes", money: "Money", customers: "Customers", team: "Team", settings: "Settings" };
+const SEC_WHEN: Record<OpSection, string> = {
+  day: "Start of shift", now: "During service", ask: "When you're stuck", command: "Are we on track?", prep: "Before the event",
+  plan: "Booking ahead", studio: "Promoting a drop", brew: "Production days", garage: "Assets & stock", driver: "Delivery days", notes: "Any time", money: "The books", customers: "Your regulars", team: "People & roles", settings: "Managing the app",
+};
+const SEC_SUB: Record<OpSection, string> = {
+  day: "Your tasks, flags, needs-you & what's on today.",
+  command: "The shared board — initiatives, this week, blockers, done, money & goals.",
+  now: "The pass, pack pickups & the 86 board — live service.",
+  ask: "Recipes, gear, stock & how-to — from the GT3 playbook.",
+  prep: "Stock, readiness & the pack list for what's next.",
+  plan: "Calendar, events, the route, leads & vendors.",
+  notes: "Notes — private or shared; follow-ups become tasks.",
+  studio: "Draft, schedule & post — brand & marketing.",
+  brew: "Schedule, start & log brews — sized to what's reserved.",
+  garage: "Load-out & tow, gear, maintenance & inventory.",
+  driver: "The delivery run — map, list & one big go button.",
+  money: "Pricing, reserves & order history.",
+  customers: "Every customer — orders, loyalty & contact info.",
+  team: "People, roles, access & training.",
+  settings: "Copy, pricing, promos & codes — the owner control room.",
+};
+const SEC_MORE: Record<OpSection, string> = {
+  day: "Your personal launchpad — the console's one glance screen. Everything assigned to you, everything flagged for your attention, and (for leadership) the needs-you list: booking replies, past-due team tasks and restock lows.",
+  command: "The shared war room both founders see — the digital version of the magnetic board. Your initiatives (a dated program like the Aug-1 launch) with a countdown and milestone progress, then This Week, Blockers, Done and Money in one glance. This is where you answer “are we on track?” together, instead of over text. Company goals live here too — owners, progress and check-ins — so the scoreboard and the steering wheel share one screen.",
+  now: "The glance before the work. Alerts land here, the service pulse shows what's waiting (orders on the pass, items 86'd), and one tap opens The Pass — the working screen with the pass board, pickup checklist and 86 board. Prep lives here too: the drop's brew sheet and Sunday delivery.",
+  prep: "Get ready before you roll. Build the pack list, check stock and readiness, and sign off that the truck's loaded for the next event or stop.",
+  plan: "The forward calendar. Book events, plan the truck's route (locations, dates, the ordering dial), work the leads — incoming booking requests and the sales board — and manage vendors and venues, weeks and months out. The whole arc lives here: a lead becomes an event becomes a stop on the route, without changing sections.",
+  notes: "Every note, yours and the team's. Jot one for yourself (🔒 just me), share one with the crew, or file a meeting recap — tag follow-ups and they land in people's tasks with a ping. The ✦ button jots one from any screen.",
+  studio: "Your marketing studio. Draft posts and flyers, keep them on-brand, plan the feed, schedule around your drops, and moderate the guest reviews that feed the truck display.",
+  brew: "Production's home. Schedule brews sized to demand, hit start-by deadlines, log every batch — with coverage, serve-by and stock checks right on the card.",
+  garage: "The physical operation: trailer load-out & tow plan, the gear library, asset maintenance, and inventory with pars.",
+  driver: "Run day, from the wheel: how many porches, where, and one tap into driver mode with the map and run list.",
+  money: "The books. Set pricing, watch reserve revenue, and review order history — the numbers behind the operation.",
+  customers: "Your customer book. Every person who's ordered — cup, pickup or delivery, with or without an account — with their history, loyalty and contact info in one place.",
+  team: "Your people. Add crew, set roles and access, and manage training — who can see and do what.",
+  ask: "Your pocket brain. Ask anything about recipes, the why, gear, stock or how-to and get an answer from the GT3 playbook — from any screen.",
+  settings: "The owner control room — everything you can change without a developer. The wording guests read (copy) lives here, plus office-delivery pricing, and a map straight to brand, payments, menu, discount codes and roles. It also holds “What we've built” — the running changelog of every improvement shipped, categorized so anyone can see the whole story of how GT3 got built — and the app's audit trail: every review run on it (security, privacy, performance, accessibility, UI cohesion, data), scored, dated and tracked for its next re-run. Edits go live instantly, no deploy.",
+};
+const SEC_INSIDE: Record<OpSection, string[]> = {
+  day: ["Your open tasks & due dates", "Alerts flagged for you — with discussion threads", "Needs you (leadership): booking replies, past-due tasks, restock", "What's on the calendar today", "Day-of brief — dress code & call time"],
+  command: ["The portfolio — ten workstreams, one owner each, audited every Monday /10", "Initiatives — a dated program with countdown & milestone progress + the goals it serves", "This week — everything due across both task lists", "Blockers — incidents, overdue work & at-risk goals", "Done this week — momentum at a glance", "Goals — owners, live numbers, one-tap check-ins", "The twelve — the Playbook's KPI board, Monday entry"],
+  now: ["Service pulse — live counts, one tap into the working screen", "The Pass — the pass board (guests ping it: on my way · outside · late), pickup checklist & 86 board on ONE screen", "The drop — brew sheet & window money (the checklist lives in Service)", "Delivery run — run sheet, brew totals & packout (outcomes are logged in driver mode)", "Live truck: go live, GPS broadcast (locations & the ordering dial live in Plan › Route)", "Alerts & your tasks — pointers into My Day"],
+  prep: ["Per-event & per-stop pack lists", "Readiness & inspection checks", "Crew assignments & sign-off", "Load-out & gear moved to Production › Assets"],
+  plan: ["Company calendar", "Events", "Route — locations, go live & the cup-ordering dial", "Leads — booking requests & the sales board (lead → live → expand)", "Vendors & venues"],
+  notes: ["Private notes — 🔒 just for you", "Team notes & meeting recaps", "Follow-ups → assigned tasks", "✨ Transcript → summary"],
+  studio: ["Post & flyer drafting", "Brand copy & front-end copy", "Feed planning grid", "Repurpose engine", "Publishing & scheduling", "Review Desk → the truck display (/display): add or approve reviews; ✨ Simplify de-claims + trims one to display-safe"],
+  brew: ["Brew schedule with start-by deadlines", "Coverage — makes vs reserved", "Serve-by freshness windows", "Batch log & recipes"],
+  garage: ["Load-out & tow plan", "Gear library — manuals & specs", "Asset maintenance & what's due", "Inventory — stock, costs & pars"],
+  driver: ["Next run — porches & zips", "Driver mode — map & run list", "The ONE place outcomes are logged (swap · fresh · hold · not home)"],
+  customers: ["Customer list — guests & members", "Cross-channel order history (cup · pickup · delivery)", "Loyalty — points & credit", "Contact info for outreach"],
+  money: ["Checkout & payments — card status + the pay-at-pickup toggle (governs cup, reserve & delivery)", "Sales · snapshot · per-event P&L", "Product economics & COGS", "Membership plans & subscribers", "Order history", "The Playbook (/playbook, owners) — every growth play + where its numbers land here", "Reserve drops — configure the limited drops"],
+  team: ["Staff roster", "Roles & permissions", "Training & academy", "Manager approvals"],
+  ask: ["Recipes & the why", "Gear & stock how-to", "The GT3 playbook"],
+  settings: ["Copy & wording — every line guests read", "Office delivery pricing & minimum", "What we've built — the categorized changelog of every improvement shipped", "Audit & maintenance — every review run, scored, dated & tracked for re-run", "A map to brand, payments, menu, codes & roles"],
+};
+
+// The interactive "when to use what" guide — every section the role can reach, each expandable to a
+// plain-language explainer + what's inside, with a one-tap "Go there" jump. Opened from the crew
+// eyebrow or the header WHEN pill.
+
 
 // money helpers for the economics panels
 // 2026-07-16: PHASE_LABEL used to rename the Service lane's own segmented tabs (Route → "Schedule",
@@ -922,325 +982,6 @@ type MyTaskRow = EventTask & {
 // date math. This is seeded only when edit mode opens (not on every load) so the read-only pill —
 // which still must prompt for a recap even on a stale, never-completed stop — keeps reading the
 // true stored value untouched.
-function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { ownerType: "event" | "stop"; ownerId: string; isAdmin: boolean; onSaved: (name: string) => void; onRemoved: () => void }) {
-  const { toast } = useApp();
-  const isEvent = ownerType === "event";
-  const table = isEvent ? "events" : "stops";
-  // recap now lives on the staff-only sibling (event_ops / stop_ops, 0181), off the public row.
-  const opsTable = isEvent ? "event_ops" : "stop_ops";
-  const opsKey = isEvent ? "event_id" : "stop_id";
-  const nameCol = isEvent ? "title" : "name";
-  const what = isEvent ? "event" : "truck stop";
-  const [f, setF] = useState<Record<string, string | null> | null>(null);
-  const [edit, setEdit] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [wrapping, setWrapping] = useState(false); // capturing the after-action to complete an event
-  const [recap, setRecap] = useState("");
-  const [dupWarn, setDupWarn] = useState<string | null>(null);
-  // Per-stop order-ahead / pickup (0191) — kept out of `f` so the boolean/number types stay clean.
-  const [oa, setOa] = useState(false);
-  const [pk, setPk] = useState(false);
-  const [lead, setLead] = useState("");
-  // What starts_at was when loaded — if a save CHANGES the schedule, the stale hand-set
-  // when/time labels are cleared so guests see the new time (same rule as FieldOpSheet).
-  const origStartsAt = useRef<string | null>(null);
-  // stage/status as of when edit mode opened — only written back if the USER changed it from
-  // there, so lifecycle automation (or the date-derived default seeded on open, for stops) can't
-  // be clobbered by an unrelated quick-edit (same rule as FieldOpSheet; was previously unguarded
-  // here, so every save silently rewrote status/stage even when neither was touched).
-  const origStage = useRef<string | null>(null);
-
-  // Remove from the active lists (keeps the record, reversible). The standard "delete" for a real
-  // event/stop — same as the calendar's Remove and Live truck's Archive.
-  const archive = async () => {
-    if (!supabase) return;
-    if (typeof window !== "undefined" && !window.confirm(`Archive this ${what}?\n\nIt comes off the active lists (calendar, prep, route) but the record is kept — you can restore it.`)) return;
-    setSaving(true);
-    await supabase.from(table).update({ archived_at: new Date().toISOString() }).eq("id", ownerId);
-    setSaving(false); toast(`${isEvent ? "Event" : "Stop"} archived`); onRemoved();
-  };
-  // Hard delete — gone for good, plus its prep, schedule, crew, links (FK cascade).
-  const del = async () => {
-    if (!supabase) return;
-    if (typeof window !== "undefined" && !window.confirm(`DELETE this ${what} for good?\n\nThis permanently removes it AND its prep list, schedule, crew, and brew links. This can't be undone. (Use Archive instead if you just want it off the lists.)`)) return;
-    setSaving(true);
-    const { error } = await supabase.from(table).delete().eq("id", ownerId);
-    setSaving(false);
-    if (error) { toast(`Couldn't delete — ${error.message}`, "error"); return; }
-    toast(`${isEvent ? "Event" : "Stop"} deleted`); onRemoved();
-  };
-
-  // Change the item's TYPE (event ↔ truck stop). They're separate tables, so this re-creates the row
-  // in the target table with the shared fields (name, date, location, vendor, buffer) and archives the
-  // original — the fix for "I picked the wrong type." Prep lists / brew links stay with the archived
-  // copy (they'd need re-pointing across tables), so this is cleanest right after creation.
-  const convertType = async () => {
-    if (!supabase) return;
-    const toEvent = !isEvent;
-    const toLabel = toEvent ? "event" : "truck stop";
-    if (typeof window !== "undefined" && !window.confirm(`Change this ${what} into a ${toLabel}?\n\nIt's re-created as a ${toLabel} with the same name, date, location & vendor. The original is archived — any prep list or brew links stay with the archived copy.`)) return;
-    setSaving(true);
-    const { data: src } = await supabase.from(table).select("*").eq("id", ownerId).maybeSingle();
-    const s = (src as Record<string, unknown>) ?? {};
-    let error = null;
-    if (toEvent) {
-      const day = s.starts_at ? new Date(String(s.starts_at)).toLocaleDateString("en-CA") : null;
-      const r = await supabase.from("events").insert({ title: String(s.name || "Event"), day, location_text: (s.location_text as string) ?? null, category: "event", vendor_id: (s.vendor_id as string) ?? null, default_buffer_min: (s.default_buffer_min as number) ?? null }).select("id").single();
-      error = r.error;
-    } else {
-      const startsAt = s.day ? new Date(`${String(s.day)}T11:00:00`).toISOString() : null;
-      const r = await supabase.from("stops").insert({ name: String(s.title || "Stop"), starts_at: startsAt, location_text: (s.location_text as string) ?? null, status: "upcoming", vendor_id: (s.vendor_id as string) ?? null, default_buffer_min: (s.default_buffer_min as number) ?? null, sort: 0 }).select("id").single();
-      error = r.error;
-    }
-    if (error) { setSaving(false); toast(`Couldn't convert — ${error.message}`, "error"); return; }
-    await supabase.from(table).update({ archived_at: new Date().toISOString() }).eq("id", ownerId);
-    setSaving(false); toast(`Changed to ${toLabel} — the original is archived`); onRemoved();
-  };
-
-  // Complete (wrap) an event OR a stop: mark it done, stamp when, and file the after-action.
-  // Optionally archive it off the active lists in the same move. DB triggers keep the world
-  // consistent: a completed event can't stay is_live, and completing the live STOP takes the
-  // truck offline (0125).
-  const complete = async (alsoArchive: boolean) => {
-    if (!supabase) return;
-    setSaving(true);
-    const now = new Date().toISOString();
-    const patch: Record<string, string | boolean | null> = isEvent
-      ? { stage: "done", completed_at: now, is_live: false }
-      : { status: "done", completed_at: now };
-    if (alsoArchive) patch.archived_at = now;
-    const { error } = await supabase.from(table).update(patch).eq("id", ownerId);
-    // recap lives on the staff-only ops sibling now — write it there (best-effort; the completion
-    // status is the important part, and it already committed above).
-    await supabase.from(opsTable).upsert({ [opsKey]: ownerId, recap: recap.trim() || null }, { onConflict: opsKey });
-    setSaving(false);
-    if (error) { toast(`Couldn't complete — ${error.message}`, "error"); return; }
-    setWrapping(false);
-    toast(alsoArchive ? `${isEvent ? "Event" : "Stop"} completed + archived` : `${isEvent ? "Event" : "Stop"} completed — nice work`);
-    if (alsoArchive) { onRemoved(); return; }
-    origStage.current = "done"; // this write already committed above — keep the edit-guard baseline in sync
-    setF((p) => ({ ...(p ?? {}), ...(isEvent ? { stage: "done" } : { status: "done" }), completed_at: now, recap: recap.trim() || null }));
-  };
-
-  const ownerState = useAsyncData<{ d: Record<string, unknown>; recap: string | null }>(async () => {
-    if (!supabase) throw new Error("Supabase client not configured");
-    // recap moved to the staff-only ops sibling (event_ops / stop_ops, 0181); the per-stop order-ahead
-    // columns stay on the public stop row. Fetch both in parallel and merge so the UI is unchanged.
-    const sel = isEvent ? "title, day, location_text, stage, default_buffer_min, completed_at" : "name, starts_at, ends_at, location_text, address, status, default_buffer_min, completed_at, order_ahead_enabled, pickup_enabled, order_ahead_lead_min";
-    const [{ data }, { data: ops }] = await Promise.all([
-      supabase.from(table).select(sel).eq("id", ownerId).maybeSingle(),
-      supabase.from(opsTable).select("recap").eq(opsKey, ownerId).maybeSingle(),
-    ]);
-    const d = (data as unknown as Record<string, unknown>) ?? {};
-    return { d, recap: (ops as { recap?: string | null } | null)?.recap ?? null };
-  }, [table, opsTable, opsKey, ownerId, isEvent]);
-  // Seed the local edit-draft from the fetch, and re-seed on every reload (Cancel, or the row
-  // changing underneath an open card) — f/oa/pk/lead stay the editable copy throughout.
-  useEffect(() => {
-    if (!ownerState.data) return;
-    const { d, recap } = ownerState.data;
-    setF({ ...(d as Record<string, string | null>), recap });
-    if (!isEvent) { origStartsAt.current = (d.starts_at as string | null) ?? null; setOa(!!d.order_ahead_enabled); setPk(!!d.pickup_enabled); setLead(d.order_ahead_lead_min != null ? String(d.order_ahead_lead_min) : ""); }
-  }, [ownerState.data, isEvent]);
-
-  const set = (k: string, v: string | null) => setF((p) => ({ ...(p ?? {}), [k]: v }));
-  // date <-> column: events.day is a plain date; stops.starts_at is a timestamp (preserve time of day)
-  const dateVal = !f ? "" : isEvent ? (f.day || "") : (f.starts_at ? new Date(f.starts_at).toLocaleDateString("en-CA") : "");
-  const onDate = (v: string) => {
-    if (isEvent) { set("day", v || null); return; }
-    if (!v) { set("starts_at", null); return; }
-    const old = f?.starts_at ? new Date(f.starts_at) : null;
-    const hh = old ? `${String(old.getHours()).padStart(2, "0")}:${String(old.getMinutes()).padStart(2, "0")}` : "11:00";
-    set("starts_at", new Date(`${v}T${hh}:00`).toISOString());
-  };
-  // Start time — stops carry a real timestamp; this finally lets you SET the time of day, not just the date.
-  const timeVal = !f || isEvent || !f.starts_at ? "" : (() => { const d = new Date(f.starts_at); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; })();
-  // Same-day-same-place guard — warn (never block) if another ACTIVE event OR stop already sits at
-  // this location on this date. Events and stops live in two tables, so it checks both; this is the
-  // common "did I already make this?" duplicate the two-table split makes easy to miss.
-  const locKey = (f?.location_text ?? "").trim();
-  useEffect(() => {
-    if (!supabase || !edit || !locKey || !dateVal) { setDupWarn(null); return; }
-    let cancelled = false;
-    (async () => {
-      try {
-        const [{ data: evs }, { data: sts }] = await Promise.all([
-          supabase.from("events").select("id, title").is("archived_at", null).eq("day", dateVal).ilike("location_text", locKey),
-          supabase.from("stops").select("id, name").is("archived_at", null).ilike("location_text", locKey).gte("starts_at", `${dateVal}T00:00:00`).lte("starts_at", `${dateVal}T23:59:59`),
-        ]);
-        if (cancelled) return;
-        const other = [
-          ...((evs as { id: string; title: string }[]) ?? []).filter((e) => e.id !== ownerId).map((e) => e.title || "an event"),
-          ...((sts as { id: string; name: string }[]) ?? []).filter((s) => s.id !== ownerId).map((s) => s.name || "a stop"),
-        ][0];
-        setDupWarn(other ? `“${other}” is already at ${locKey} that day — same place, same date. Duplicate?` : null);
-      } catch { setDupWarn(null); }
-    })();
-    return () => { cancelled = true; };
-  }, [edit, locKey, dateVal, ownerId]);
-  const onTime = (v: string) => {
-    if (isEvent || !v) return;
-    const dayKey = f?.starts_at ? new Date(f.starts_at).toLocaleDateString("en-CA") : new Date().toLocaleDateString("en-CA");
-    set("starts_at", new Date(`${dayKey}T${v}:00`).toISOString());
-  };
-  // Close time (stops.ends_at) — the customer truck page auto-closes online ordering 60 min before
-  // this and drops "Live" 45 min before it. Empty = no auto wind-down. Shares the start's date.
-  const endTimeVal = !f || isEvent || !f.ends_at ? "" : (() => { const d = new Date(f.ends_at); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; })();
-  const onEndTime = (v: string) => {
-    if (isEvent) return;
-    if (!v) { set("ends_at", null); return; }
-    const dayKey = f?.starts_at ? new Date(f.starts_at).toLocaleDateString("en-CA") : new Date().toLocaleDateString("en-CA");
-    set("ends_at", new Date(`${dayKey}T${v}:00`).toISOString());
-  };
-
-  const save = async () => {
-    if (!supabase || !f) return;
-    setSaving(true);
-    const nm = (f[nameCol] || "").trim() || (isEvent ? "Event" : "Stop");
-    const buf = f.default_buffer_min != null && String(f.default_buffer_min).trim() !== "" ? Math.max(0, Number(f.default_buffer_min)) : null;
-    const patch: Record<string, string | number | boolean | null> = isEvent
-      ? { title: nm, day: f.day || null, location_text: f.location_text?.trim() || null, default_buffer_min: buf }
-      : { name: nm, starts_at: f.starts_at || null, ends_at: f.ends_at || null, location_text: f.location_text?.trim() || null, address: f.address?.trim() || null, default_buffer_min: buf,
-          order_ahead_enabled: oa, pickup_enabled: pk, order_ahead_lead_min: oa && lead.trim() !== "" ? Math.max(0, Number(lead)) : null };
-    // stage/status: write ONLY a deliberate change from what the form opened with (same rule as
-    // FieldOpSheet) — every save used to rewrite this unconditionally, which could clobber
-    // lifecycle automation (or the seeded date-derived default) with a value nobody actually chose.
-    const stageNow = (isEvent ? f.stage : f.status) ?? null;
-    if (stageNow !== origStage.current) patch[isEvent ? "stage" : "status"] = stageNow;
-    // For stops, geocode the address (or location) so it pins on the map + customer directions work.
-    if (!isEvent) {
-      // schedule changed → derived values must beat stale hand-set labels on the guest page
-      if ((f.starts_at || null) !== origStartsAt.current) { patch.when_label = null; patch.time_label = null; }
-      const q = (f.address?.trim() || f.location_text?.trim() || "");
-      if (q) { const g = await geocode(q).catch(() => null); if (g) { patch.lat = g.lat; patch.lng = g.lng; } }
-    }
-    const { error } = await supabase.from(table).update(patch).eq("id", ownerId);
-    setSaving(false);
-    if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
-    // Re-sync the local draft with the server row BEFORE leaving edit mode — a skipped
-    // stage/status write (guard just above) must not leave the read-only view showing a
-    // derived-only default that was never actually persisted (it would otherwise hide the
-    // Complete/recap prompt on a stop nobody has actually completed yet).
-    await ownerState.reload();
-    setEdit(false); onSaved(nm); toast(isEvent ? "Details saved" : "Saved — address pinned on the map");
-  };
-
-  return (
-    <AsyncSection
-      state={ownerState}
-      isEmpty={() => false}
-      emptyTitle={`Couldn't find this ${what}`}
-      emptySub="It may have been deleted or archived."
-      loadingLabel={`Loading ${what} details…`}
-      errorTitle={`Couldn't load ${what} details`}
-    >
-      {() => {
-        if (!f) return null;
-        if (!edit) {
-    const date = dateVal ? new Date(`${dateVal}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : "No date set";
-    const place = f.location_text || f.address || "";
-    const status = isEvent ? f.stage : f.status;
-    const cal = isEvent
-      ? calFromEvent({ id: ownerId, title: f.title ?? "", day: f.day ?? null, location_text: f.location_text })
-      : calFromStop({ id: ownerId, name: f.name ?? "", starts_at: f.starts_at ?? null, location_text: f.location_text, address: f.address });
-    const STAGE_LABEL: Record<string, string> = { lead: "Lead", confirmed: "Confirmed", prep: "Prep", live: "Live", done: "Done", upcoming: "Upcoming" };
-    const done = f.completed_at != null || (isEvent ? f.stage === "done" : f.status === "done");
-    return (
-      <div className="ownerdet">
-        <span className="ownerdet-meta"><Icon name="calendar" /> {date}{place ? <> · <Icon name="pin" /> {place}</> : ""}</span>
-        <div className="ownerdet-life">
-          <span className={`ownerdet-stage st-${status ?? (isEvent ? "confirmed" : "upcoming")}`}>{STAGE_LABEL[status ?? ""] ?? status}</span>
-          {done ? (
-            <span className="ownerdet-completed"><Icon name="check" /> Completed{f.completed_at ? ` ${new Date(f.completed_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : ""}</span>
-          ) : isAdmin ? (
-            <button type="button" className="ownerdet-complete" onClick={() => { setRecap(f.recap ?? ""); setWrapping((w) => !w); }}><Icon name="check" /> Complete {isEvent ? "event" : "stop"}</button>
-          ) : null}
-        </div>
-        {wrapping && (
-          <div className="ownerdet-wrap">
-            <div className="ownerdet-wrap-lbl">After-action <span>optional — what sold, what ran short, one change for next time</span></div>
-            <textarea className="note-in" rows={3} value={recap} onChange={(e) => setRecap(e.target.value)} placeholder="e.g. Rise + Tide sold out by noon; ran short on ice; bring a second cooler next time." />
-            <div className="ownerdet-wrap-actions">
-              <button type="button" className="ownerdet-complete" onClick={() => complete(false)} disabled={saving}>Mark complete</button>
-              <button type="button" className="ownerdet-arch" onClick={() => complete(true)} disabled={saving}>Complete &amp; archive</button>
-              <button type="button" className="ownerdet-cancel" onClick={() => setWrapping(false)} disabled={saving}>Cancel</button>
-            </div>
-          </div>
-        )}
-        {done && f.recap && !wrapping && <div className="ownerdet-recap"><b>Recap</b> {f.recap}{isAdmin && <button type="button" className="ownerdet-recap-edit" onClick={() => { setRecap(f.recap ?? ""); setWrapping(true); }}>edit</button>}</div>}
-        <AddToCalendar ev={cal} defaultBuffer={Number(f.default_buffer_min) || 0} />
-        {isAdmin && <button type="button" className="ownerdet-edit" onClick={() => {
-          // Seed the edit-guard baseline NOW, from what's about to show in the form — for stops,
-          // that's the date-derived default (not the raw column); see derivedStopStatus above.
-          const derived = isEvent ? (f.stage ?? null) : derivedStopStatus(f.status ?? null, f.starts_at ?? null, f.completed_at ?? null);
-          origStage.current = derived;
-          if (!isEvent && derived !== f.status) setF((p) => (p ? { ...p, status: derived } : p));
-          setEdit(true);
-        }}>Edit details</button>}
-      </div>
-    );
-  }
-  return (
-    <div className="ownerdet editing">
-      <input className="note-in" value={f[nameCol] ?? ""} onChange={(e) => set(nameCol, e.target.value)} placeholder={isEvent ? "Event name" : "Stop name"} aria-label={isEvent ? "Event name" : "Stop name"} />
-      <div className="ownerdet-typehint">{isEvent
-        ? <><Icon name="calendar" /> Event — a booked gig with prep, a crew & a run-of-show. (A quick roll-up-and-serve visit is a Truck stop.)</>
-        : <><Icon name="pin" /> Truck stop — you roll up, serve, and leave. (A booked gig with prep & crew should be an Event.)</>}</div>
-      {dupWarn && <div className="ownerdet-warn" role="status"><Icon name="warning" /> {dupWarn}</div>}
-      <div className="prod-grid" style={{ marginTop: 8 }}>
-        <label className="prod-f"><span>Date</span><input type="date" value={dateVal} onChange={(e) => onDate(e.target.value)} /></label>
-        {isEvent
-          ? <label className="prod-f"><span>Location</span><input value={f.location_text ?? ""} onChange={(e) => set("location_text", e.target.value)} placeholder="Where" /></label>
-          : <label className="prod-f"><span>Start time</span><input type="time" value={timeVal} onChange={(e) => onTime(e.target.value)} /></label>}
-        {!isEvent && <label className="prod-f"><span>End time</span><input type="time" value={endTimeVal} onChange={(e) => onEndTime(e.target.value)} /></label>}
-      </div>
-      {!isEvent && <label className="prod-f" style={{ marginTop: 8 }}><span>Where</span><input value={f.location_text ?? ""} onChange={(e) => set("location_text", e.target.value)} placeholder="Where" /></label>}
-      {!isEvent && <label className="prod-f" style={{ marginTop: 8 }}><span>Address (tap-to-map)</span><input value={f.address ?? ""} onChange={(e) => set("address", e.target.value)} placeholder="123 Peach St, Atlanta GA" /></label>}
-      <label className="prod-f" style={{ marginTop: 8 }}><span>Status</span>
-        {isEvent ? (
-          <select value={f.stage ?? "confirmed"} onChange={(e) => set("stage", e.target.value)}>
-            <option value="lead">Lead</option><option value="confirmed">Confirmed</option><option value="prep">Prep</option><option value="live">Live</option><option value="done">Done</option>
-          </select>
-        ) : (
-          <select value={f.status ?? "upcoming"} onChange={(e) => set("status", e.target.value)}>
-            <option value="upcoming">Upcoming</option><option value="done">Done</option>
-          </select>
-        )}
-      </label>
-      <label className="prod-f" style={{ marginTop: 8 }}><span>Calendar buffer (min) — travel + setup blocked before service</span><input type="number" min={0} step={15} value={f.default_buffer_min ?? ""} onChange={(e) => set("default_buffer_min", e.target.value)} placeholder="e.g. 90" /></label>
-      {!isEvent && (
-        <div className="oa-set">
-          <div className="oa-set-h">Ordering at this stop</div>
-          <div className="oa-toggles">
-            <button type="button" role="switch" aria-checked={oa} className={`oa-toggle${oa ? " on" : ""}`} onClick={() => setOa((v) => !v)}><Icon name="clock" /> Order ahead<span>{oa ? "On" : "Off"}</span></button>
-            <button type="button" role="switch" aria-checked={pk} className={`oa-toggle${pk ? " on" : ""}`} onClick={() => setPk((v) => !v)}><Icon name="package" /> Pickup<span>{pk ? "On" : "Off"}</span></button>
-          </div>
-          {oa && <label className="prod-f" style={{ marginTop: 8 }}><span>Order-ahead lead time (min) — blank uses the global window</span><input type="number" min={0} step={15} value={lead} onChange={(e) => setLead(e.target.value)} placeholder="e.g. 240" /></label>}
-          <div className="ownerdet-hint">When on, guests can order ahead{pk ? " and choose pickup" : ""} for this stop. Off = the truck’s global setting applies.</div>
-        </div>
-      )}
-      {!isEvent && <div className="ownerdet-hint">Go live &amp; broadcast GPS in Now ▸ Live truck.</div>}
-      <div className="ownerdet-convert">
-        <span className="ownerdet-convert-l">Wrong type?</span>
-        <button type="button" className="ownerdet-convert-b" onClick={convertType} disabled={saving}>Change to {isEvent ? "truck stop" : "event"} ⇄</button>
-      </div>
-      <div className="ownerdet-danger">
-        <button type="button" className="ownerdet-arch" onClick={archive} disabled={saving}>Archive {what}</button>
-        <button type="button" className="ownerdet-del" onClick={del} disabled={saving}>Delete for good</button>
-      </div>
-      <div className="prod-actions" style={{ marginTop: 12 }}>
-        <button type="button" className="note-arch" onClick={() => { setEdit(false); ownerState.reload(); }} disabled={saving}>Cancel</button>
-        <button type="button" className="note-save" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save details"}</button>
-      </div>
-    </div>
-        );
-      }}
-    </AsyncSection>
-  );
-}
-
-// INCIDENT LOG — every field problem the Troubleshoot agent logged for this event/stop. Read it back,
-// flip resolved, or delete one. Self-contained; owner-generic.
 function IncidentLog({ ownerCol, ownerId }: { ownerCol: "event_id" | "stop_id"; ownerId: string }) {
   type Inc = { id: string; problem: string; severity: string; resolved: boolean; created_at: string; symptom: string | null };
   const [rows, setRows] = useState<Inc[]>([]);
@@ -2928,603 +2669,6 @@ function SupplyPicker({ ev, title, have, onAdd, onClose }: {
 // address pin, POC trio, service dates, notes, archive/delete); the stop adds go-live, a calendar date,
 // and the vendor picker. Unifies what used to be StopControl + VendorCard (near-identical), and upgrades
 // the vendor to the stop's nicer modal address-pin flow. Stop-only props are optional.
-function LocationEditor({ kind, row, index, open, onToggle, onChanged, onArchive, isCur, onGoLive, onGoOffline, vendors, onLinkVendor, onOpenPrep, nameOverride }: {
-  kind: "stop" | "vendor"; row: Stop | Vendor; index: number; isCur?: boolean; open: boolean; onToggle: () => void;
-  onArchive: () => void; onChanged: () => void;
-  // onGoOffline is optional on top of onGoLive: without it the live banner below just stays a status
-  // readout (today's Go-offline-only-from-elsewhere behavior); with it, the banner itself becomes the
-  // one-tap way to end service on the live stop — see the ev-golive button.
-  onGoLive?: (id: string) => void; onGoOffline?: () => void; vendors?: Vendor[]; onLinkVendor?: (v: Vendor | null) => void; onOpenPrep?: () => void;
-  // When a stop is vendor-linked, the VENDOR is the place's identity — show its canonical name on
-  // every visit row so two visits to one place can't read as two different names (panel finding).
-  nameOverride?: string | null;
-}) {
-  const { toast } = useApp();
-  const table = kind === "stop" ? "stops" : "vendors";
-  const stop = kind === "stop" ? (row as Stop) : null;
-  // POC/service-dates live only on vendors now (0240 dropped the dead stops.poc_* columns) —
-  // this cast is how the subtitle + editor below read them without widening Stop's type.
-  const vendor = kind === "vendor" ? (row as Vendor) : null;
-  const displayName = (nameOverride && nameOverride.trim()) || row.name;
-  const [name, setName] = useState(row.name);
-  const [address, setAddress] = useState(row.address ?? "");
-  const [busy, setBusy] = useState(false);
-  const [editAddr, setEditAddr] = useState(false);
-  const [editFacts, setEditFacts] = useState(false); // FieldOpSheet — quick core-facts editor
-  const hasCoords = row.lat != null && row.lng != null;
-
-  // every update carries a WHERE (id) — safe with the safeupdate guard
-  const patch = async (p: Record<string, unknown>, msg = "Saved") => {
-    const { error } = await supabase!.from(table).update(p).eq("id", row.id);
-    toast(error ? `Error: ${error.message}` : msg);
-    if (!error) onChanged();
-  };
-  const saveName = () => { const nm = name.trim(); if (nm && nm !== row.name) patch({ name: nm }, "Name saved"); };
-  const saveLocation = async (): Promise<boolean> => {
-    const q = address.trim(); if (!q) return false;
-    setBusy(true);
-    const geo = await geocode(q);
-    if (!geo) { setBusy(false); toast("Couldn't find that address — add city & state, then retry."); return false; }
-    const { error } = await supabase!.from(table).update({ address: q, location_text: q, lat: geo.lat, lng: geo.lng }).eq("id", row.id);
-    // A vendor's location is the source of truth — push it to every linked stop/event so directions
-    // stay accurate everywhere the venue is used (audit P1·7: the "edit once, updates everywhere"
-    // promise was only half-true — POC read live, but address/coords were snapshotted and went stale).
-    if (!error && kind === "vendor") {
-      await supabase!.from("stops").update({ address: q, location_text: q, lat: geo.lat, lng: geo.lng }).eq("vendor_id", row.id);
-      await supabase!.from("events").update({ location_text: q }).eq("vendor_id", row.id);
-    }
-    setBusy(false);
-    toast(error ? `Error: ${error.message}` : kind === "vendor" ? "Location saved — linked stops & events updated" : "Location pinned — directions are now accurate");
-    if (!error) onChanged();
-    return !error;
-  };
-  const remove = async () => {
-    const ask = kind === "stop" ? `Delete ${row.name}? This removes the record.` : `Delete ${row.name}? Linked stops/events will unlink.`;
-    if (typeof window !== "undefined" && !window.confirm(ask)) return;
-    const { error } = await supabase!.from(table).delete().eq("id", row.id);
-    toast(error ? `Error: ${error.message}` : kind === "stop" ? "Location deleted" : "Vendor deleted");
-    if (!error) onChanged();
-  };
-  const showPoc = kind === "vendor";
-  const stopWhen = kind === "stop" && (row as { starts_at?: string | null }).starts_at
-    ? new Date((row as { starts_at?: string | null }).starts_at as string).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
-    : null;
-  const sub = [stopWhen, vendor?.poc_name, vendor?.service_dates, hasCoords ? "pinned" : "no pin"].filter(Boolean).join("  ·  ");
-  const tag = kind === "stop" ? `Location ${String(index + 1).padStart(2, "0")}${isCur ? " · Live" : ""}` : `Vendor ${String(index + 1).padStart(2, "0")}`;
-  return (
-    <div className={`ev-card${isCur ? " live" : ""}${open ? " open" : ""}`}>
-      <button className="ev-head" onClick={onToggle} aria-expanded={open}>
-        <span className="ev-led" />
-        <span className="ev-head-main">
-          <span className="ev-tag">{tag}</span>
-          <span className="ev-title">{displayName || (kind === "stop" ? "Untitled location" : "Untitled vendor")}</span>
-          <span className="ev-sub">{sub || "Tap to set up"}</span>
-        </span>
-        <span className="ev-head-badges">
-          {isCur && <span className="ev-badge live"><Icon name="dot" /> Live</span>}
-          <span className="ev-chev">›</span>
-        </span>
-      </button>
-
-      {open && (
-        <div className="ev-body">
-          {kind === "stop" && onGoLive && (
-            // Was a dead end while live: disabled unconditionally, so the one banner telling you
-            // the truck IS live had no way to take it back offline from here — you had to already
-            // know a separate "Go offline" button existed elsewhere. Now: live + onGoOffline wired
-            // up = this IS that button (same confirm-and-archive flow as everywhere else Go offline
-            // lives, since onGoOffline is just `pause`). No onGoOffline passed → falls back to the
-            // old disabled status-only banner, so nothing breaks for any caller that doesn't wire it.
-            <button
-              className={`ev-golive${isCur ? " on" : ""}`}
-              onClick={() => (isCur ? onGoOffline?.() : onGoLive(row.id))}
-              disabled={isCur && !onGoOffline}
-            >
-              <span className="ev-golive-dot" />
-              <span>{isCur ? (onGoOffline ? "Live here now — tap to take the truck offline" : "Live here now — guests see this location") : "Go live at this location"}</span>
-              <span className="ev-golive-state">{isCur ? (onGoOffline ? "END" : "LIVE") : "GO"}</span>
-            </button>
-          )}
-
-          {kind === "stop" ? (
-            /* Identity is the PREP HUB's job (one editor per stop — same rule the calendar
-               follows). Route shows the facts and one door to change them. */
-            <div className="ev-group">
-              <div className="ev-group-h">Location</div>
-              <div className="stop-coords ok" style={{ marginTop: 0 }}>{displayName || "Untitled location"}{stopWhen ? ` · ${stopWhen}` : " · no date"}</div>
-              <div className={`stop-coords${hasCoords ? " ok" : ""}`}>{hasCoords ? `Pinned · ${(row.lat as number).toFixed(4)}, ${(row.lng as number).toFixed(4)}` : "No pin yet — add the address for accurate directions"}</div>
-              {/* the facts change HERE, in two taps (FieldOpSheet) — the prep hub stays the deep surface.
-                  The one door to the hub lives in the footer below (ev-card-foot) — this group used to
-                  ALSO carry its own "Full prep" button, on top of two more in the footer. Three buttons,
-                  one destination — exactly the "why is prep on the screen twice" complaint that opened
-                  this audit. FieldOpSheet still offers its own single door to the hub on demand; that one
-                  stays (different surface, on-demand only, already correctly singular). */}
-              <button type="button" className="adm-btn" onClick={() => setEditFacts(true)}>Edit name, date, time &amp; address ›</button>
-              {editFacts && (
-                <FieldOpSheet kind="stop" id={row.id} onClose={() => setEditFacts(false)}
-                  onSaved={() => { setEditFacts(false); onChanged(); }} onOpenPrep={onOpenPrep} />
-              )}
-            </div>
-          ) : (
-          <div className="ev-group">
-            <div className="ev-group-h">Venue</div>
-            <input className="ev-input" value={name} onChange={(e) => setName(e.target.value)} onBlur={saveName} maxLength={120} placeholder="Vendor / venue name" />
-            <button type="button" className="ev-fieldbtn" onClick={() => setEditAddr(true)}>
-              <span className="ev-fieldbtn-l">Address</span>
-              <span className={`ev-fieldbtn-v${address.trim() ? "" : " ph"}`}>{address.trim() || "Tap to add — we'll pin it on the map"}</span>
-              <span className="ev-fieldbtn-chev">›</span>
-            </button>
-            <div className={`stop-coords${hasCoords ? " ok" : ""}`}>{hasCoords ? `Pinned · ${(row.lat as number).toFixed(4)}, ${(row.lng as number).toFixed(4)}` : "No pin yet — add an address for accurate directions"}</div>
-            {editAddr && (
-              <InputSheet
-                title="Street address" value={address} onChange={setAddress}
-                placeholder="123 Main St, City, ST" inputMode="text" maxLength={300}
-                busy={busy} doneLabel="Save & pin"
-                hint="Add city & state for an accurate pin — or paste a Google Maps link."
-                help={{ label: "Where do I find this?", detail: (<>On Google Maps, find the spot → <b>Share</b> → <b>Copy link</b> and paste it here — or type the full street address with city &amp; state. We geocode it and drop the live-map pin guests follow.</>) }}
-                onClose={() => setEditAddr(false)}
-                onDone={async () => { if (await saveLocation()) setEditAddr(false); }}
-              />
-            )}
-          </div>
-          )}
-
-          {kind === "stop" && vendors && onLinkVendor && (
-            <VendorPicker vendors={vendors} vendorId={stop?.vendor_id} onLink={onLinkVendor} onCreated={onChanged}
-              onPickLocation={(loc) => patch({ address: loc.address ?? null, location_text: loc.location_text ?? loc.label, lat: loc.lat ?? null, lng: loc.lng ?? null }, `Stop set to ${loc.label}`)} />
-          )}
-
-          {showPoc && (
-            <div className="ev-group">
-              <div className="ev-group-h">Point of contact</div>
-              <input className="ev-input" defaultValue={vendor?.poc_name ?? ""} placeholder="POC name" maxLength={120} onBlur={(e) => { if ((e.target.value.trim() || null) !== (vendor?.poc_name ?? null)) patch({ poc_name: e.target.value.trim() || null }, "Contact saved"); }} />
-              <input className="ev-input" type="tel" defaultValue={vendor?.poc_phone ?? ""} placeholder="Phone" maxLength={40} onBlur={(e) => { if ((e.target.value.trim() || null) !== (vendor?.poc_phone ?? null)) patch({ poc_phone: e.target.value.trim() || null }, "Contact saved"); }} />
-              <input className="ev-input" type="email" defaultValue={vendor?.poc_email ?? ""} placeholder="Email" maxLength={160} onBlur={(e) => { if ((e.target.value.trim() || null) !== (vendor?.poc_email ?? null)) patch({ poc_email: e.target.value.trim() || null }, "Contact saved"); }} />
-            </div>
-          )}
-
-          {kind === "vendor" && (
-            <div className="ev-group"><div className="ev-group-h">Dates of service</div><input className="ev-input" defaultValue={vendor?.service_dates ?? ""} placeholder="e.g. Saturdays · May – Aug" maxLength={200} onBlur={(e) => { if ((e.target.value.trim() || null) !== (vendor?.service_dates ?? null)) patch({ service_dates: e.target.value.trim() || null }, "Saved"); }} /></div>
-          )}
-
-          {kind === "vendor" && (
-            <div className="ev-group">
-              <div className="ev-group-h">Notes</div>
-              <textarea className="ev-input ev-area" rows={2} maxLength={1000} defaultValue={row.notes ?? ""} placeholder="Anything to remember about this vendor" onBlur={(e) => { if (e.target.value !== (row.notes ?? "")) patch({ notes: e.target.value.trim() || null }, "Details saved"); }} />
-            </div>
-          )}
-
-          <div className="ev-card-foot">
-            {/* One door to the hub, not three. Used to also duplicate the Location group's button above,
-                plus a second footer button styled and labeled as if "Wrap up in the hub" were a distinct
-                complete-this-stop action — it wasn't: both buttons called this exact same onOpenPrep with
-                no differentiating state, so the green "complete" styling and check icon promised something
-                that never happened. */}
-            {kind === "stop" && onOpenPrep && <button className="adm-btn" style={{ marginRight: "auto" }} onClick={onOpenPrep}>Full prep — menu, staffing, run-of-show ›</button>}
-            {kind === "vendor" && <button className="ev-archive" onClick={onArchive}>Archive</button>}
-            {kind === "vendor" && <button className="ev-delete" onClick={remove}>Delete</button>}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ───────────────────────── live truck control ─────────────────────────
-function LiveControl({ compact = false, manage = false }: { compact?: boolean; manage?: boolean }) {
-  const { toast } = useApp();
-  const { setSection } = useOperatorSection();
-  const openPrep = (id: string) => { try { localStorage.setItem(prepHandoffKey, prepHandoffValue("stop", id)); } catch { /* ignore */ } setSection("prep"); };
-  const [stops, setStops] = useState<Stop[]>([]);
-  const [live, setLive] = useState<LiveStatus | null>(null);
-  const [err, setErr] = useState("");
-  const [posBusy, setPosBusy] = useState(false);
-  const [openStopId, setOpenStopId] = useState<string | null>(null); // single-open accordion
-  const [showArchStops, setShowArchStops] = useState(false);
-  const [showPastStops, setShowPastStops] = useState(false);
-  const [vendors, setVendors] = useState<Vendor[]>([]);
-
-  const load = useCallback(async () => {
-    if (!supabase) return;
-    const [{ data: s, error: se }, { data: l }, { data: vs }] = await Promise.all([
-      supabase.from("stops").select("*").order("sort"),
-      supabase.from("live_status").select("*").maybeSingle(),
-      supabase.from("vendors").select("*").order("sort"), // may not exist pre-0034
-    ]);
-    if (se) setErr(se.message); else setErr("");
-    if (s) setStops(s as Stop[]);
-    if (l) setLive(l as LiveStatus);
-    if (vs) setVendors((vs as Vendor[]).filter((v) => !v.archived_at));
-  }, []);
-  // link a stop to a vendor → denormalize the public location onto the (public) stop row
-  const linkVendor = async (stopId: string, v: Vendor | null) => {
-    const p: Partial<Stop> = { vendor_id: v?.id ?? null };
-    if (v) { p.name = v.name; p.address = v.address; p.location_text = v.location_text; p.lat = v.lat; p.lng = v.lng; }
-    await supabase!.from("stops").update(p).eq("id", stopId);
-    toast(v ? `Linked to ${v.name}` : "Unlinked");
-    load();
-  };
-
-  useEffect(() => { load(); }, [load]);
-  useRealtimeTable(["live_status", "stops"], load);
-
-  // Optimistic flip first (instant), then direct, RLS-protected writes — every UPDATE
-  // carries an explicit filter so Supabase's "no UPDATE without WHERE" guard is happy,
-  // and it doesn't depend on the admin_set_live RPC (which ran a bare UPDATE).
-  const goLive = async (stopId: string) => {
-    haptic(HAPTIC.arm);
-    setLive((l) => ({ id: 1, current_stop_id: stopId, is_live: true, next_eta: l?.next_eta ?? null }));
-    // Authoritative + atomic via the SECURITY-DEFINER RPC (demotes other stops, promotes this
-    // one, upserts live_status) — same robustness path as go-offline, not piecemeal client writes.
-    const { error } = await supabase!.rpc("admin_set_live", { stop: stopId, live: true });
-    if (error) {
-      setErr(error.message);
-      toast(error.message.includes("not authorized") ? "Go live failed — your account isn't an owner/admin." : `Couldn't go live — ${error.message}`, "error");
-      load();
-      return;
-    }
-    // Verify against the source of truth before claiming success.
-    const { data: chk } = await supabase!.from("live_status").select("is_live").eq("id", 1).maybeSingle();
-    if (!chk || (chk as { is_live: boolean }).is_live !== true) {
-      setErr("Go live didn't persist — confirm your owner role (RLS).");
-      toast("Go live didn't save — see banner.", "error");
-    } else {
-      toast("Truck is LIVE — members updated");
-    }
-    load();
-  };
-  const pause = async () => {
-    // Going offline closes out the current stop: it's archived off the live screen and the
-    // next stop on the route becomes the visible "next". Confirm — it drops the truck for all.
-    const finished = stops.find((s) => s.id === live?.current_stop_id) ?? null;
-    const next = stops.find((s) => !s.archived_at && s.status !== "done" && s.id !== finished?.id) ?? null;
-    const msg = finished
-      ? `Close out ${finished.name} and go offline?\n\nIt gets archived off the live screen${next ? `, and ${next.name} is up next` : ""}. Customers stop seeing the truck as live.`
-      : "Take the truck OFFLINE?\n\nCustomers will immediately stop seeing it as live on the Truck page.";
-    if (typeof window !== "undefined" && !window.confirm(msg)) return;
-    stopBroadcast();
-    setLive((l) => (l ? { ...l, is_live: false, current_stop_id: null, truck_lat: null, truck_lng: null, pos_updated_at: null } : { id: 1, current_stop_id: null, is_live: false, next_eta: null }));
-    // Authoritative, atomic go-offline via the SECURITY-DEFINER RPC — clears is_live,
-    // current_stop_id and the live position, and demotes the live stop, all server-side.
-    // (Replaces the piecemeal client writes that could report success without sticking.)
-    const { error } = await supabase!.rpc("admin_set_offline");
-    if (error) {
-      setErr(error.message);
-      toast(error.message.includes("not authorized") ? "Go offline failed — your account isn't an owner/admin." : `Couldn't go offline — ${error.message}`, "error");
-      load();
-      return;
-    }
-    // Archive the just-finished stop off the live screen (record kept).
-    if (finished) await supabase!.from("stops").update({ status: "done", archived_at: new Date().toISOString() }).eq("id", finished.id);
-    // Verify against the source of truth — never claim offline if it didn't take.
-    const { data: chk } = await supabase!.from("live_status").select("is_live").eq("id", 1).maybeSingle();
-    if (chk && (chk as { is_live: boolean }).is_live === true) {
-      setErr("Go offline didn't persist — confirm your owner role (RLS).");
-      toast("Go offline didn't save — see banner.", "error");
-    } else {
-      toast(next ? `Offline — ${next.name} is next` : "Truck is offline");
-    }
-    load();
-  };
-  // One-shot pin of this phone's GPS as the truck's live position.
-  const pinHere = () => {
-    if (typeof navigator === "undefined" || !navigator.geolocation) { toast("Location isn't available on this device", "error"); return; }
-    setPosBusy(true);
-    navigator.geolocation.getCurrentPosition(
-      async (p) => {
-        const { error } = await supabase!.rpc("admin_set_truck_pos", { lat: p.coords.latitude, lng: p.coords.longitude });
-        setPosBusy(false);
-        if (error) { setErr(error.message); toast(`Couldn't pin location — ${error.message}`, "error"); }
-        else toast("Location pinned — members see the dot move");
-      },
-      (e) => { setPosBusy(false); toast(`Location error: ${e.message}`, "error"); },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
-  };
-
-  // Continuous broadcast — stream the phone's GPS so the customer dot actually MOVES,
-  // not just a stale one-shot pin. A screen wake lock keeps it alive while open.
-  const watchRef = useRef<number | null>(null);
-  const wakeRef = useRef<{ release: () => Promise<void> } | null>(null);
-  const lastWriteRef = useRef(0);
-  const [broadcasting, setBroadcasting] = useState(false);
-
-  const stopBroadcast = () => {
-    if (watchRef.current != null && typeof navigator !== "undefined") navigator.geolocation.clearWatch(watchRef.current);
-    watchRef.current = null;
-    wakeRef.current?.release().catch(() => {});
-    wakeRef.current = null;
-    setBroadcasting(false);
-  };
-
-  const startBroadcast = async () => {
-    if (typeof navigator === "undefined" || !navigator.geolocation) { toast("Location isn't available on this device", "error"); return; }
-    try {
-      const wl = (navigator as Navigator & { wakeLock?: { request: (t: "screen") => Promise<{ release: () => Promise<void> }> } }).wakeLock;
-      wakeRef.current = wl ? await wl.request("screen") : null;
-    } catch { /* wake lock is optional */ }
-    watchRef.current = navigator.geolocation.watchPosition(
-      async (p) => {
-        const now = Date.now();
-        if (now - lastWriteRef.current < 8000) return; // throttle to ~1 write / 8s
-        lastWriteRef.current = now;
-        await supabase!.rpc("admin_set_truck_pos", { lat: p.coords.latitude, lng: p.coords.longitude });
-      },
-      (e) => { toast(`Location error: ${e.message}`, "error"); stopBroadcast(); },
-      { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
-    );
-    setBroadcasting(true);
-    toast("Broadcasting live location — the dot moves with you");
-  };
-
-  // Stop streaming on unmount (ref-based so it doesn't depend on a memoized callback).
-  useEffect(() => () => {
-    if (watchRef.current != null && typeof navigator !== "undefined") navigator.geolocation.clearWatch(watchRef.current);
-    wakeRef.current?.release().catch(() => {});
-  }, []);
-  const posLabel = live?.is_live
-    ? live?.pos_updated_at
-      ? `Pinned ${new Date(live.pos_updated_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
-      : "Location not pinned yet"
-    : "";
-  const addStop = async (name: string) => {
-    const { data, error } = await supabase!.from("stops").insert({ name, status: "upcoming", sort: stops.length }).select("id").single();
-    if (error) { setErr(error.message); toast(`Couldn't add — ${error.message}`, "error"); }
-    else { if (data) setOpenStopId((data as { id: string }).id); toast("Location added — fill in its details"); }
-    load();
-  };
-  // "Stop here again" (0226 route redesign): a repeat visit clones the place's identity — name,
-  // location, vendor link, menu/rig — into a fresh stop. The place stays ONE place on the route;
-  // only the visit is new. (A real recurrence engine is deliberately not built — a clone + date is
-  // the flexible version of it.)
-  // 2026-07-29: used to leave the new visit fully undated ("Set its date & time.") — every repeat
-  // stop meant re-typing a time the crew had just typed for the template. Prefilled to the next
-  // occurrence of the template's own weekday/time instead; still just a starting point; the date
-  // picker is right there to change it if this particular repeat lands differently.
-  const stopAgain = async (tpl: Stop) => {
-    const starts_at = tpl.starts_at ? nextWeekdayAt(new Date(tpl.starts_at)).toISOString() : null;
-    const { data, error } = await supabase!.from("stops").insert({
-      name: tpl.name, location_text: tpl.location_text, address: tpl.address, lat: tpl.lat, lng: tpl.lng,
-      vendor_id: tpl.vendor_id ?? null, rig: tpl.rig ?? null, menu_tier: tpl.menu_tier ?? null,
-      order_ahead_enabled: tpl.order_ahead_enabled ?? false, pickup_enabled: tpl.pickup_enabled ?? false,
-      status: "upcoming", sort: stops.length, starts_at,
-    }).select("id").single();
-    if (error) { toast(`Couldn't add the visit — ${error.message}`, "error"); return; }
-    if (data) setOpenStopId((data as { id: string }).id);
-    toast(starts_at
-      ? `${tpl.name} — new visit added for ${new Date(starts_at).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}. Check the date & time.`
-      : `${tpl.name} — new visit added. Set its date & time.`);
-    load();
-  };
-  // Archive a location out of the active list (keeps the record). If it was live, close it.
-  const archiveStop = async (id: string) => {
-    const wasLive = id === live?.current_stop_id;
-    // If it's the live stop, take the truck offline authoritatively first (atomic RPC).
-    if (wasLive) await supabase!.rpc("admin_set_offline");
-    await supabase!.from("stops").update({ archived_at: new Date().toISOString(), status: "upcoming" }).eq("id", id);
-    toast("Location archived");
-    setOpenStopId(null);
-    load();
-  };
-  const restoreStop = async (id: string) => {
-    await supabase!.from("stops").update({ archived_at: null }).eq("id", id);
-    toast("Location restored");
-    load();
-  };
-  const deleteStop = async (id: string, nm: string) => {
-    if (typeof window !== "undefined" && !window.confirm(`Delete ${nm}? This removes the record.`)) return;
-    await supabase!.from("stops").delete().eq("id", id);
-    load();
-  };
-  const curStop = stops.find((s) => s.id === live?.current_stop_id);
-  const active = stops.filter((s) => !s.archived_at);
-  const archived = stops.filter((s) => s.archived_at);
-  // Road-ahead partition (mirrors /truck's 8h grace): a visit whose start is >8h past — and isn't the
-  // stop we're live at — is stale. It must not sit in the active route as a current LOCATION row; it
-  // folds into "Past visits" below instead of vanishing (the auto-archive cron files it eventually,
-  // but the UI can't wait on that). One definition, shared by the route grouping and Past visits.
-  const graceMs = Date.now() - 8 * 3600 * 1000;
-  const isAhead = (s: Stop) => !s.starts_at || new Date(s.starts_at).getTime() > graceMs || (s.id === live?.current_stop_id && !!live?.is_live);
-  const stale = active.filter((s) => !isAhead(s));
-
-  return (
-    <div className="adm-sec">
-      <SectionHeader label="Live truck" right={!compact ? <InlineCreate label="+ Add location" placeholder="Location name" onCreate={addStop} /> : undefined} />
-      {err && <div className="adm-attn" role="alert">Backend error: {err}</div>}
-      {compact ? (
-        /* THE TRUCK INSTRUMENT — one panel, not a stack of floating cards (owner call). Row 1 is
-           the state (LED · live-at/offline · the one primary action); the stop list and broadcast
-           controls are rows of the same instrument, not separate cards. */
-        <div className={`liveinst${live?.is_live ? " on" : ""}`}>
-          <div className="liveinst-row main">
-            <span className={`adm-dot${live?.is_live ? " on" : ""}`} />
-            <div className="liveinst-state">
-              <b>{live?.is_live ? "LIVE" : "OFFLINE"}</b>
-              <span>{live?.is_live ? (curStop?.name ?? "on location") : (active[0] ? `next · ${active[0].name}` : "no stops scheduled")}</span>
-            </div>
-            {live?.is_live
-              ? <button className="adm-btn ghost" onClick={pause}>Go offline</button>
-              : (active[0] && <button className="adm-btn primary liveinst-go" onClick={() => goLive(active[0].id)}>Go live</button>)}
-          </div>
-          {live?.is_live ? (
-            <div className="liveinst-row">
-              {!broadcasting && !live?.pos_updated_at && <span className="liveinst-warn">Map dot off —</span>}
-              <span className="liveinst-sub">{broadcasting ? <><Icon name="dot" /> Broadcasting — dot moves with you</> : posLabel}</span>
-              {broadcasting
-                ? <button className="adm-btn ghost" onClick={stopBroadcast}>Stop</button>
-                : <span style={{ display: "flex", gap: 8 }}><button className="adm-btn ghost" onClick={pinHere} disabled={posBusy}>{posBusy ? "Pinning…" : "Pin once"}</button><button className="adm-btn primary" onClick={startBroadcast}>Broadcast</button></span>}
-            </div>
-          ) : null}
-          <button type="button" className="adm-golink" onClick={() => goPlanTab("route", { setSection })}>{active.length > 1 ? `${active.length - 1} more location${active.length > 2 ? "s" : ""} · ` : ""}Locations &amp; ordering dial · Plan › Route</button>
-        </div>
-      ) : (
-      <>
-      <div className="adm-live">
-        {!manage && <div className="adm-live-status">
-          <span className={`adm-dot${live?.is_live ? " on" : ""}`} />
-          <span><b>{live?.is_live ? "Live now" : "Offline"}</b>{live?.is_live && curStop ? <span className="adm-live-at"> · {curStop.name}</span> : null}</span>
-        </div>}
-        {/* The ordering dial (0137): when cup pre-orders open. Same rule everywhere — menu sheet,
-            checkout, and the charge API. Pack reserves are always open regardless. Prep-day work,
-            so it lives in Plan › Truck stops; the Now panel stays go-live/offline/broadcast only. */}
-        {!compact && <div className="adm-lead">
-          <span className="adm-lead-k">Cup orders open</span>
-          <div className="adm-lead-opts" role="radiogroup" aria-label="When cup pre-orders open">
-            {([[0, "Live only"], [2, "2h before"], [4, "4h before"], [8, "8h before"]] as const).map(([h, label]) => (
-              <button key={h} type="button" role="radio" aria-checked={(live?.preorder_lead_h ?? 4) === h}
-                className={`adm-lead-opt${(live?.preorder_lead_h ?? 4) === h ? " on" : ""}`}
-                onClick={async () => {
-                  setLive((l) => (l ? { ...l, preorder_lead_h: h } : l));
-                  const { error } = await supabase!.from("live_status").update({ preorder_lead_h: h }).eq("id", 1);
-                  if (error) { toast(`Couldn't save — ${error.message}`, "error"); load(); }
-                  else toast(h === 0 ? "Cups sell only while you're live" : `Cup orders open ${h}h before a stop`);
-                }}>{label}</button>
-            ))}
-          </div>
-        </div>}
-        {/* Status readout above stays manage-only (redundant with the LIVE pill already on the stop
-            card below), but the action can't be — this was the only "Go offline" button reachable
-            anywhere outside the Now tab's compact instrument, and that one disappears once you're
-            past the pulse screen. Hiding it here left no way to end service from Stops at all. */}
-        {live?.is_live && <button className="adm-btn ghost" onClick={pause}>Go offline</button>}
-      </div>
-      {!manage && live?.is_live && (
-        <>
-          {!broadcasting && !live?.pos_updated_at && (
-            <div className="adm-attn" role="alert">Customers can&apos;t see the truck on the map yet — tap <b>Broadcast live</b> so the dot tracks you.</div>
-          )}
-          <div className="adm-live adm-live-pos">
-            <div className="adm-live-status"><span className="h-sub">{broadcasting ? <><Icon name="dot" /> Broadcasting — dot moves with you</> : posLabel}</span></div>
-            {broadcasting ? (
-              <button className="adm-btn ghost" onClick={stopBroadcast}>Stop</button>
-            ) : (
-              <div style={{ display: "flex", gap: 8 }}>
-                <button className="adm-btn ghost" onClick={pinHere} disabled={posBusy}>{posBusy ? "Pinning…" : "Pin once"}</button>
-                <button className="adm-btn primary" onClick={startBroadcast}>Broadcast live</button>
-              </div>
-            )}
-          </div>
-        </>
-      )}
-
-      {/* THE ROUTE, BY PLACE (0226 redesign): the same location never reads as two locations.
-          Stops group under their PLACE — the vendor when linked, else the normalized name — with
-          the visits nested inside and "+ Stop here again" for repeats. Single-visit unlinked
-          one-offs stay flat rows (a card of one is chrome, not clarity). */}
-      <div className="ev-list" style={{ marginTop: 12 }}>
-        {(() => {
-          // Road AHEAD only — stale (past) visits are partitioned out at component scope (`isAhead`)
-          // and rendered under "Past visits" below, so the same location never reads as two places.
-          const placeKey = (s: Stop) => s.vendor_id ? `v:${s.vendor_id}` : `t:${(s.name || s.location_text || s.address || "").trim().toLowerCase()}`;
-          const groups: { key: string; vendor: Vendor | null; rows: Stop[] }[] = [];
-          for (const s of active.filter(isAhead)) {
-            const k = placeKey(s);
-            let g = groups.find((x) => x.key === k);
-            if (!g) { g = { key: k, vendor: s.vendor_id ? vendors.find((v) => v.id === s.vendor_id) ?? null : null, rows: [] }; groups.push(g); }
-            g.rows.push(s);
-          }
-          const fmtNext = (rows: Stop[]) => {
-            // Mirrors /truck: 8h grace, done/completed visits excluded. Past-only reads "last ·",
-            // never a stale "next ·" (panel finding).
-            const live = rows.filter((r) => r.starts_at && r.status !== "done" && !r.completed_at);
-            const dated = live.map((r) => new Date(r.starts_at as string)).sort((a, b) => a.getTime() - b.getTime());
-            const next = dated.find((d) => d.getTime() > Date.now() - 8 * 3600 * 1000);
-            // Relative + absolute, so the weekday can't misread as "next Saturday" (relativeDay: This Sat · Jul 18).
-            if (next) return `${relativeDay(next)} · ${next.toLocaleDateString([], { month: "short", day: "numeric" })}`;
-            const last = dated[dated.length - 1];
-            return last ? `${relativeDay(last)} · ${last.toLocaleDateString([], { month: "short", day: "numeric" })}` : "undated";
-          };
-          let idx = -1;
-          return groups.map((g) => {
-            const editors = g.rows.map((s) => {
-              idx += 1;
-              return (
-                <LocationEditor
-                  key={s.id}
-                  kind="stop"
-                  row={s}
-                  index={idx}
-                  isCur={Boolean(s.id === live?.current_stop_id && live?.is_live)}
-                  open={openStopId === s.id}
-                  onToggle={() => setOpenStopId(openStopId === s.id ? null : s.id)}
-                  onGoLive={goLive}
-                  onGoOffline={pause}
-                  onArchive={() => archiveStop(s.id)}
-                  onChanged={load}
-                  vendors={vendors}
-                  onLinkVendor={(v) => linkVendor(s.id, v)}
-                  onOpenPrep={() => openPrep(s.id)}
-                  nameOverride={g.vendor?.name ?? null}
-                />
-              );
-            });
-            if (g.rows.length === 1 && !g.vendor) return <div key={g.key}>{editors}</div>;
-            return (
-              <div className="place-card" key={g.key}>
-                <div className="place-head">
-                  <b>{g.vendor?.name ?? g.rows[0].name}</b>
-                  <span className="place-sub">{g.rows.length > 1 ? `${g.rows.length} visits` : "1 visit"}{g.vendor ? " · vendor-linked" : ""}{g.vendor?.status === "pending" ? " · pending" : ""}</span>
-                  <span className="place-next">{fmtNext(g.rows)}</span>
-                </div>
-                {editors}
-                <button type="button" className="place-again" onClick={() => {
-                  // Template = the NEWEST visit by date (sort order isn't recency — quick-add paths
-                  // insert with sort 0; panel finding), so the clone carries the latest flags.
-                  const byDate = [...g.rows].sort((a, b) => new Date(a.starts_at ?? 0).getTime() - new Date(b.starts_at ?? 0).getTime());
-                  stopAgain(byDate[byDate.length - 1] ?? g.rows[g.rows.length - 1]);
-                }}><Icon name="plus" /> Stop here again — new visit, same place</button>
-              </div>
-            );
-          });
-        })()}
-      </div>
-      {active.length === 0 && <EmptyState title="No locations yet" sub={`Tap + Add location to create one${archived.length ? ", or reopen one below" : ""}.`} />}
-      {active.length > 0 && stale.length === active.length && <EmptyState title="Nothing on the road ahead" sub="Every location's last visit has passed. See Past visits below, or tap + Add location." />}
-
-      {/* PAST VISITS — stale (past-dated) unarchived stops fold here instead of vanishing from the
-          route or lingering as a false "next" location. They stay one tap from restore/again. */}
-      {stale.length > 0 && (
-        <div className="ev-archived">
-          <button className="ev-arch-head" onClick={() => setShowPastStops((v) => !v)} aria-expanded={showPastStops}>
-            Past visits · {stale.length}<span className={`ev-chev${showPastStops ? " open" : ""}`}>›</span>
-          </button>
-          {showPastStops && stale
-            .slice()
-            .sort((a, b) => new Date(b.starts_at ?? 0).getTime() - new Date(a.starts_at ?? 0).getTime())
-            .map((s) => {
-              const when = s.starts_at ? new Date(s.starts_at).toLocaleDateString([], { month: "short", day: "numeric" }) : null;
-              return (
-                <div className="ev-arch-row" key={s.id}>
-                  <span className="ev-arch-name">{s.name || "Untitled location"}{when ? ` · ${when}` : ""}</span>
-                  <button className="ev-arch-btn" onClick={() => stopAgain(s)}>Stop again</button>
-                  <button className="ev-arch-btn" onClick={() => archiveStop(s.id)}>Archive</button>
-                </div>
-              );
-            })}
-        </div>
-      )}
-
-      {archived.length > 0 && (
-        <div className="ev-archived">
-          <button className="ev-arch-head" onClick={() => setShowArchStops((v) => !v)} aria-expanded={showArchStops}>
-            Archived locations · {archived.length}<span className={`ev-chev${showArchStops ? " open" : ""}`}>›</span>
-          </button>
-          {showArchStops && archived.map((s) => (
-            <div className="ev-arch-row" key={s.id}>
-              <span className="ev-arch-name">{s.name || "Untitled location"}</span>
-              <button className="ev-arch-btn" onClick={() => restoreStop(s.id)}>Restore</button>
-              <button className="ev-arch-btn del" onClick={() => deleteStop(s.id, s.name)}>Delete</button>
-            </div>
-          ))}
-        </div>
-      )}
-      </>
-      )}
-    </div>
-  );
-}
-
-// ───────────────────────── meeting notes (in-app system of record) ─────────────────────────
 const fmtNoteDate = (iso: string) => {
   const d = new Date(`${iso}T00:00:00`);
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
@@ -5994,211 +5138,6 @@ function VendorsAdmin() {
 // vendor book. A truck stop should always name a known venue; if it's a new place, you add it here and
 // it's created PENDING with an owner-approval alert (0191) — never a silent orphan. Shows the linked
 // vendor's POC live (relational), edit-once-updates-everywhere.
-function VendorPicker({ vendors, vendorId, onLink, onCreated, onPickLocation }: { vendors: Vendor[]; vendorId: string | null | undefined; onLink: (v: Vendor | null) => void; onCreated?: () => void; onPickLocation?: (loc: VendorLocation) => void }) {
-  const { toast } = useApp();
-  const linked = vendors.find((v) => v.id === vendorId) || null;
-  const [adding, setAdding] = useState(false);
-  const [nm, setNm] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [similar, setSimilar] = useState<VendorMatch[] | null>(null);
-  const [locs, setLocs] = useState<VendorLocation[]>([]);
-  const [addingLoc, setAddingLoc] = useState(false);
-  const [locNm, setLocNm] = useState("");
-  const [locAddr, setLocAddr] = useState("");
-
-  // The linked vendor's places (0226) — one shows as the place; several ask which.
-  useEffect(() => {
-    let on = true;
-    (async () => {
-      if (!supabase || !vendorId) { if (on) setLocs([]); return; }
-      const { data, error } = await supabase.from("vendor_locations").select("*").eq("vendor_id", vendorId).is("archived_at", null).order("is_primary", { ascending: false }).order("sort");
-      // "One place" vs "which of these?" is decided by this list; an empty one on a failed read
-      // silently picks the wrong branch. Keep what is there rather than assert the vendor has none.
-      if (error) return;
-      if (on) setLocs((data as VendorLocation[]) ?? []);
-    })();
-    return () => { on = false; };
-  }, [vendorId]);
-
-  const linkById = async (id: string): Promise<Vendor | null> => {
-    let v = vendors.find((x) => x.id === id) ?? null;
-    if (!v && supabase) v = ((await supabase.from("vendors").select("*").eq("id", id).single()).data as Vendor | null);
-    if (v) onLink(v);
-    return v;
-  };
-
-  // ONE resolver (0226): exact → link · look-alike → the confirm sheet · clean miss → pending create.
-  const create = async (decision?: ResolveDecision) => {
-    const name = nm.trim();
-    if (!name || busy || !supabase) return;
-    setBusy(true);
-    const r = await resolveVendor(name, { source: "a truck stop", sort: vendors.length, decision });
-    setBusy(false);
-    if (r.kind === "similar") { setSimilar(r.candidates); return; }
-    if (r.kind === "error") { toast(`Couldn't add venue: ${r.message}`, "error"); return; }
-    setSimilar(null);
-    const v = await linkById(r.id);
-    toast(r.kind === "created" ? `${name} linked — pending owner approval` : `Linked to ${v?.name ?? name}`);
-    setNm(""); setAdding(false); onCreated?.();
-  };
-
-  const addLoc = async () => {
-    if (!vendorId || !locNm.trim() || !supabase) return;
-    const made = await addVendorLocation(vendorId, { label: locNm.trim(), address: locAddr.trim() || null });
-    if (!made) { toast("Couldn't add the location", "error"); return; }
-    const { data } = await supabase.from("vendor_locations").select("*").eq("id", made.id).single();
-    setLocNm(""); setLocAddr(""); setAddingLoc(false);
-    if (data) {
-      setLocs((p) => [...p, data as VendorLocation]);
-      onPickLocation?.(data as VendorLocation);
-      toast("Location added & set on this stop");
-    }
-  };
-  return (
-    <div className="ev-group">
-      <div className="ev-group-h">Venue · vendor</div>
-      <select className="ev-input" value={vendorId ?? ""} onChange={(e) => onLink(vendors.find((v) => v.id === e.target.value) || null)}>
-        <option value="">— not linked —</option>
-        {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}{v.status === "pending" ? " · pending" : ""}</option>)}
-      </select>
-      {linked?.status === "pending" && <div className="vpend">Pending owner approval — review it in Plan › Vendors.</div>}
-      {linked && (linked.address || linked.location_text || linked.poc_name || linked.poc_phone || linked.poc_email || linked.service_dates) && (
-        <div className="vlink">
-          {(linked.address || linked.location_text) && <div className="vlink-row"><span>Address</span><b>{linked.address || linked.location_text}</b></div>}
-          {linked.poc_name && <div className="vlink-row"><span>Liaison</span><b>{linked.poc_name}</b></div>}
-          {linked.poc_phone && <div className="vlink-row"><span>Phone</span><a href={`tel:${linked.poc_phone}`}>{linked.poc_phone}</a></div>}
-          {linked.poc_email && <div className="vlink-row"><span>Email</span><a href={`mailto:${linked.poc_email}`}>{linked.poc_email}</a></div>}
-          {linked.service_dates && <div className="vlink-row"><span>Service</span><b>{linked.service_dates}</b></div>}
-          <div className="vlink-note">Pulled from the vendor book — edits there update everywhere it&apos;s linked.</div>
-        </div>
-      )}
-      {/* Multi-location vendor (0226): several places → ask which; one → it's simply the place. */}
-      {linked && locs.length > 1 && (
-        <div className="ev-group" style={{ marginTop: 8 }}>
-          <div className="ev-group-h">Which location?</div>
-          <select className="ev-input" value="" onChange={(e) => {
-            const loc = locs.find((l) => l.id === e.target.value);
-            if (loc) { onPickLocation?.(loc); toast(`Stop set to ${linked.name} — ${loc.label}`); }
-          }}>
-            <option value="">Pick the location for this stop…</option>
-            {locs.map((l) => <option key={l.id} value={l.id}>{l.label}{l.is_primary ? " · primary" : ""}{l.address ? ` — ${l.address}` : ""}</option>)}
-          </select>
-        </div>
-      )}
-      {linked && locs.length === 1 && (locs[0].address || locs[0].label !== "Main") && (
-        <div className="vlink" style={{ marginTop: 8 }}>
-          <div className="vlink-row"><span>Place</span><b>{locs[0].label}{locs[0].address ? ` — ${locs[0].address}` : ""}</b></div>
-        </div>
-      )}
-      {linked && (addingLoc ? (
-        <div className="vnew-row">
-          <input className="ev-input" value={locNm} onChange={(e) => setLocNm(e.target.value)} placeholder="Location name — e.g. Downtown" maxLength={80} autoFocus />
-          <input className="ev-input" value={locAddr} onChange={(e) => setLocAddr(e.target.value)} placeholder="Address (optional)" maxLength={300} onKeyDown={(e) => { if (e.key === "Enter") addLoc(); }} />
-          <button type="button" className="adm-btn" onClick={addLoc} disabled={!locNm.trim()}>Add</button>
-          <button type="button" className="ev-arch-btn" onClick={() => { setAddingLoc(false); setLocNm(""); setLocAddr(""); }}>Cancel</button>
-        </div>
-      ) : (
-        <button type="button" className="vnew-btn" onClick={() => setAddingLoc(true)}><Icon name="plus" /> Add a location for {linked.name}</button>
-      ))}
-      {adding ? (
-        <div className="vnew-row">
-          <input className="ev-input" value={nm} onChange={(e) => setNm(e.target.value)} placeholder="New venue name" maxLength={120} autoFocus onKeyDown={(e) => { if (e.key === "Enter") create(); }} />
-          <button type="button" className="adm-btn" onClick={() => create()} disabled={busy || !nm.trim()}>{busy ? "Adding…" : "Add"}</button>
-          <button type="button" className="ev-arch-btn" onClick={() => { setAdding(false); setNm(""); }}>Cancel</button>
-        </div>
-      ) : (
-        <button type="button" className="vnew-btn" onClick={() => setAdding(true)}><Icon name="plus" /> New venue — send for approval</button>
-      )}
-      {similar && (
-        <VendorResolve name={nm.trim()} candidates={similar} busy={busy}
-          onUse={async (c) => {
-            setSimilar(null);
-            const v = await linkById(c.id);
-            toast(`Linked to ${v?.name ?? c.name}`);
-            setNm(""); setAdding(false);
-          }}
-          onAddLocation={async (c) => {
-            setSimilar(null);
-            await linkById(c.id);
-            const made = await addVendorLocation(c.id, { label: nm.trim() });
-            if (made && supabase) {
-              const { data } = await supabase.from("vendor_locations").select("*").eq("id", made.id).single();
-              if (data) onPickLocation?.(data as VendorLocation);
-            }
-            toast(`Added “${nm.trim()}” as a location of ${c.name}`);
-            setNm(""); setAdding(false); onCreated?.();
-          }}
-          onCreateDistinct={() => { setSimilar(null); create({ createDistinct: true }); }}
-          onClose={() => setSimilar(null)}
-        />
-      )}
-    </div>
-  );
-}
-
-// ───────────────────────── section metadata (shared by header + the guide) ─────────────────────────
-// Each section = one job at one moment. LABEL names it, WHEN says when to reach for it (header pill),
-// SUB is the one-liner, MORE explains it, INSIDE lists what lives there. Order = the shift timeline.
-const SEC_LABEL: Record<OpSection, string> = { day: "My Day", now: "Live Ops", ask: "Ask GT3", command: "Command", prep: "Readiness", plan: "Plan", studio: "Studio", brew: "Brew", garage: "Assets", driver: "Delivery", notes: "Notes", money: "Money", customers: "Customers", team: "Team", settings: "Settings" };
-const SEC_WHEN: Record<OpSection, string> = {
-  day: "Start of shift", now: "During service", ask: "When you're stuck", command: "Are we on track?", prep: "Before the event",
-  plan: "Booking ahead", studio: "Promoting a drop", brew: "Production days", garage: "Assets & stock", driver: "Delivery days", notes: "Any time", money: "The books", customers: "Your regulars", team: "People & roles", settings: "Managing the app",
-};
-const SEC_SUB: Record<OpSection, string> = {
-  day: "Your tasks, flags, needs-you & what's on today.",
-  command: "The shared board — initiatives, this week, blockers, done, money & goals.",
-  now: "The pass, pack pickups & the 86 board — live service.",
-  ask: "Recipes, gear, stock & how-to — from the GT3 playbook.",
-  prep: "Stock, readiness & the pack list for what's next.",
-  plan: "Calendar, events, the route, leads & vendors.",
-  notes: "Notes — private or shared; follow-ups become tasks.",
-  studio: "Draft, schedule & post — brand & marketing.",
-  brew: "Schedule, start & log brews — sized to what's reserved.",
-  garage: "Load-out & tow, gear, maintenance & inventory.",
-  driver: "The delivery run — map, list & one big go button.",
-  money: "Pricing, reserves & order history.",
-  customers: "Every customer — orders, loyalty & contact info.",
-  team: "People, roles, access & training.",
-  settings: "Copy, pricing, promos & codes — the owner control room.",
-};
-const SEC_MORE: Record<OpSection, string> = {
-  day: "Your personal launchpad — the console's one glance screen. Everything assigned to you, everything flagged for your attention, and (for leadership) the needs-you list: booking replies, past-due team tasks and restock lows.",
-  command: "The shared war room both founders see — the digital version of the magnetic board. Your initiatives (a dated program like the Aug-1 launch) with a countdown and milestone progress, then This Week, Blockers, Done and Money in one glance. This is where you answer “are we on track?” together, instead of over text. Company goals live here too — owners, progress and check-ins — so the scoreboard and the steering wheel share one screen.",
-  now: "The glance before the work. Alerts land here, the service pulse shows what's waiting (orders on the pass, items 86'd), and one tap opens The Pass — the working screen with the pass board, pickup checklist and 86 board. Prep lives here too: the drop's brew sheet and Sunday delivery.",
-  prep: "Get ready before you roll. Build the pack list, check stock and readiness, and sign off that the truck's loaded for the next event or stop.",
-  plan: "The forward calendar. Book events, plan the truck's route (locations, dates, the ordering dial), work the leads — incoming booking requests and the sales board — and manage vendors and venues, weeks and months out. The whole arc lives here: a lead becomes an event becomes a stop on the route, without changing sections.",
-  notes: "Every note, yours and the team's. Jot one for yourself (🔒 just me), share one with the crew, or file a meeting recap — tag follow-ups and they land in people's tasks with a ping. The ✦ button jots one from any screen.",
-  studio: "Your marketing studio. Draft posts and flyers, keep them on-brand, plan the feed, schedule around your drops, and moderate the guest reviews that feed the truck display.",
-  brew: "Production's home. Schedule brews sized to demand, hit start-by deadlines, log every batch — with coverage, serve-by and stock checks right on the card.",
-  garage: "The physical operation: trailer load-out & tow plan, the gear library, asset maintenance, and inventory with pars.",
-  driver: "Run day, from the wheel: how many porches, where, and one tap into driver mode with the map and run list.",
-  money: "The books. Set pricing, watch reserve revenue, and review order history — the numbers behind the operation.",
-  customers: "Your customer book. Every person who's ordered — cup, pickup or delivery, with or without an account — with their history, loyalty and contact info in one place.",
-  team: "Your people. Add crew, set roles and access, and manage training — who can see and do what.",
-  ask: "Your pocket brain. Ask anything about recipes, the why, gear, stock or how-to and get an answer from the GT3 playbook — from any screen.",
-  settings: "The owner control room — everything you can change without a developer. The wording guests read (copy) lives here, plus office-delivery pricing, and a map straight to brand, payments, menu, discount codes and roles. It also holds “What we've built” — the running changelog of every improvement shipped, categorized so anyone can see the whole story of how GT3 got built — and the app's audit trail: every review run on it (security, privacy, performance, accessibility, UI cohesion, data), scored, dated and tracked for its next re-run. Edits go live instantly, no deploy.",
-};
-const SEC_INSIDE: Record<OpSection, string[]> = {
-  day: ["Your open tasks & due dates", "Alerts flagged for you — with discussion threads", "Needs you (leadership): booking replies, past-due tasks, restock", "What's on the calendar today", "Day-of brief — dress code & call time"],
-  command: ["The portfolio — ten workstreams, one owner each, audited every Monday /10", "Initiatives — a dated program with countdown & milestone progress + the goals it serves", "This week — everything due across both task lists", "Blockers — incidents, overdue work & at-risk goals", "Done this week — momentum at a glance", "Goals — owners, live numbers, one-tap check-ins", "The twelve — the Playbook's KPI board, Monday entry"],
-  now: ["Service pulse — live counts, one tap into the working screen", "The Pass — the pass board (guests ping it: on my way · outside · late), pickup checklist & 86 board on ONE screen", "The drop — brew sheet & window money (the checklist lives in Service)", "Delivery run — run sheet, brew totals & packout (outcomes are logged in driver mode)", "Live truck: go live, GPS broadcast (locations & the ordering dial live in Plan › Route)", "Alerts & your tasks — pointers into My Day"],
-  prep: ["Per-event & per-stop pack lists", "Readiness & inspection checks", "Crew assignments & sign-off", "Load-out & gear moved to Production › Assets"],
-  plan: ["Company calendar", "Events", "Route — locations, go live & the cup-ordering dial", "Leads — booking requests & the sales board (lead → live → expand)", "Vendors & venues"],
-  notes: ["Private notes — 🔒 just for you", "Team notes & meeting recaps", "Follow-ups → assigned tasks", "✨ Transcript → summary"],
-  studio: ["Post & flyer drafting", "Brand copy & front-end copy", "Feed planning grid", "Repurpose engine", "Publishing & scheduling", "Review Desk → the truck display (/display): add or approve reviews; ✨ Simplify de-claims + trims one to display-safe"],
-  brew: ["Brew schedule with start-by deadlines", "Coverage — makes vs reserved", "Serve-by freshness windows", "Batch log & recipes"],
-  garage: ["Load-out & tow plan", "Gear library — manuals & specs", "Asset maintenance & what's due", "Inventory — stock, costs & pars"],
-  driver: ["Next run — porches & zips", "Driver mode — map & run list", "The ONE place outcomes are logged (swap · fresh · hold · not home)"],
-  customers: ["Customer list — guests & members", "Cross-channel order history (cup · pickup · delivery)", "Loyalty — points & credit", "Contact info for outreach"],
-  money: ["Checkout & payments — card status + the pay-at-pickup toggle (governs cup, reserve & delivery)", "Sales · snapshot · per-event P&L", "Product economics & COGS", "Membership plans & subscribers", "Order history", "The Playbook (/playbook, owners) — every growth play + where its numbers land here", "Reserve drops — configure the limited drops"],
-  team: ["Staff roster", "Roles & permissions", "Training & academy", "Manager approvals"],
-  ask: ["Recipes & the why", "Gear & stock how-to", "The GT3 playbook"],
-  settings: ["Copy & wording — every line guests read", "Office delivery pricing & minimum", "What we've built — the categorized changelog of every improvement shipped", "Audit & maintenance — every review run, scored, dated & tracked for re-run", "A map to brand, payments, menu, codes & roles"],
-};
-
-// The interactive "when to use what" guide — every section the role can reach, each expandable to a
-// plain-language explainer + what's inside, with a one-tap "Go there" jump. Opened from the crew
-// eyebrow or the header WHEN pill.
 function SectionGuide({ allowed, current, onGo, onClose }: { allowed: OpSection[]; current: OpSection; onGo: (s: OpSection) => void; onClose: () => void }) {
   // The sheet owns the scroll — the page behind must not move under a finger on the overlay.
   useEffect(() => {
