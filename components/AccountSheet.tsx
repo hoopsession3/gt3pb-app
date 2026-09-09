@@ -159,6 +159,15 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
             <span className="acs-row-c" aria-hidden>›</span>
           </button>
         )}
+        {/* An agreement is a personal document about this person's own terms, so it belongs beside
+            their profile rather than inside the crew console — which is also the only place an
+            operator could not reach it from. */}
+        {staff && (
+          <button type="button" className="acs-row" onClick={() => go("/agreement")}>
+            <span className="acs-row-x"><b>Your agreement</b><span>What you agreed to, what it pays, and signing</span></span>
+            <span className="acs-row-c" aria-hidden>›</span>
+          </button>
+        )}
         <button type="button" className="acs-row" onClick={() => go("/3mpire")}>
           <span className="acs-row-x"><b>Full member profile</b><span>Card, rewards, orders &amp; history</span></span>
           <span className="acs-row-c" aria-hidden>›</span>

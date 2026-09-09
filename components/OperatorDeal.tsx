@@ -59,21 +59,49 @@ type Row = {
 };
 type Extra = { integrity: string; hours_total: number; hours_on_interim_work: number; days_worked: number };
 
-export default function OperatorDeal() {
+/**
+ * `mine` — THE OPERATOR'S OWN COPY.
+ *
+ * sign_agreement and respond_to_agreement both deliberately permit
+ * `operator_user_id = auth.uid()`: the operator signs for themselves, and answers for themselves.
+ * Neither could be called by an operator, because this component — their only caller anywhere in
+ * the app — is mounted inside /crew's `money` section, and ROLE_SECTIONS.operator is
+ * day, now, prep, plan, brew, garage, notes, driver. There is no money.
+ *
+ * So the person the whole screen was built for could not open it. Production has one account in
+ * the operator role today, and one operator agreement.
+ *
+ * The fix is a prop, not a second screen. Widening `money` to operators would hand them expenses,
+ * budgets, invoices, offer letters and the P&L to solve a scoping problem. A parallel
+ * "my agreement" component would be a second implementation of a signing flow, which is the one
+ * thing this codebase is most careful about. `mine` filters to their own row and drops the
+ * authoring affordances; everything they can do to it is the same code an owner uses.
+ *
+ * RLS already allows the read — 0277 gives operator_agreements a select policy on
+ * `operator_user_id = auth.uid()`. This adds no reach; it opens a door to reach the app already had.
+ */
+export default function OperatorDeal({ mine = false }: { mine?: boolean } = {}) {
   const { user } = useAuth();
   const { toast } = useApp();
   const [openId, setOpenId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState(false);
+  const meId = user?.id ?? null;
 
   const loader = useCallback(async (): Promise<{ rows: Row[]; extra: Record<string, Extra> }> => {
     if (!supabase) return { rows: [], extra: {} };
+    if (mine && !meId) return { rows: [], extra: {} };
     // Integrity and hours come from the two views rather than being recomputed here, so the screen
     // and the database can never disagree about whether a signature still matches its terms.
     const [a, integ, hrs] = await Promise.all([
-      supabase.from("operator_agreements")
-        .select("id, market, operator_name, operator_email, operator_user_id, status, tier, stage, supply_funding, operator_pct, royalty_pct, market_pct, package, notes, created_at, supply_sourcing, supply_price_basis, equity_eligible, equity_scope, covers, scope_basis, scope_until, hours_basis, hours_note, signed_name, signed_at, countersigned_name, countersigned_at, version, supersedes_id")
-        .order("created_at", { ascending: false }),
+      (mine
+        ? supabase.from("operator_agreements")
+            .select("id, market, operator_name, operator_email, operator_user_id, status, tier, stage, supply_funding, operator_pct, royalty_pct, market_pct, package, notes, created_at, supply_sourcing, supply_price_basis, equity_eligible, equity_scope, covers, scope_basis, scope_until, hours_basis, hours_note, signed_name, signed_at, countersigned_name, countersigned_at, version, supersedes_id")
+            .eq("operator_user_id", meId)
+            .order("created_at", { ascending: false })
+        : supabase.from("operator_agreements")
+            .select("id, market, operator_name, operator_email, operator_user_id, status, tier, stage, supply_funding, operator_pct, royalty_pct, market_pct, package, notes, created_at, supply_sourcing, supply_price_basis, equity_eligible, equity_scope, covers, scope_basis, scope_until, hours_basis, hours_note, signed_name, signed_at, countersigned_name, countersigned_at, version, supersedes_id")
+            .order("created_at", { ascending: false })),
       supabase.from("v_agreement_integrity").select("id, integrity"),
       supabase.from("v_agreement_hours").select("agreement_id, hours_total, hours_on_interim_work, days_worked"),
     ]);
@@ -91,8 +119,8 @@ export default function OperatorDeal() {
       ...r, package: Array.isArray(r.package) ? r.package : [], covers: Array.isArray(r.covers) ? r.covers : [],
     })) as Row[];
     return { rows, extra };
-  }, []);
-  const board = useAsyncData<{ rows: Row[]; extra: Record<string, Extra> }>(loader, []);
+  }, [mine, meId]);
+  const board = useAsyncData<{ rows: Row[]; extra: Record<string, Extra> }>(loader, [mine, meId]);
   const { reload } = board;
   const rows = board.data?.rows ?? [];
   const extra = board.data?.extra ?? {};
@@ -121,30 +149,37 @@ export default function OperatorDeal() {
       {() => (
         <div className="adm-sec">
           <div className="studio-top">
-            <SectionHeader label="Operator agreements" annotation={`${rows.length} on file`} />
-            <button type="button" className="btn-sec" onClick={createDraft} disabled={busy || creating}>
-              {busy ? "Creating…" : "+ New agreement"}
-            </button>
+            <SectionHeader
+              label={mine ? "Your agreement" : "Operator agreements"}
+              annotation={mine ? (rows.length === 1 ? "1 version" : `${rows.length} versions`) : `${rows.length} on file`} />
+            {!mine && (
+              <button type="button" className="btn-sec" onClick={createDraft} disabled={busy || creating}>
+                {busy ? "Creating…" : "+ New agreement"}
+              </button>
+            )}
           </div>
           <div className="h-sub">
-            Build the deal on the slider, see what the operator actually takes home, then send it for their
-            response. They can accept, ask for changes, or counter — every move is kept.
+            {mine
+              ? "What you have agreed to with GT3, and what it pays. Accept it, ask for changes, counter it, or sign it — whichever it is waiting on. Every move is kept."
+              : "Build the deal on the slider, see what the operator actually takes home, then send it for their response. They can accept, ask for changes, or counter — every move is kept."}
           </div>
 
           {rows.length === 0 && (
             <div className="prod-recipe" style={{ marginTop: 12 }}>
-              <div className="insp-lbl">Nothing on file</div>
+              <div className="insp-lbl">{mine ? "Nothing on file yet" : "Nothing on file"}</div>
               <p className="h-sub" style={{ margin: "4px 0 0" }}>
-                Start one for your head of Atlanta ops — the default lands on the agreed 50/30/20.
+                {mine
+                  ? "There is no operator agreement in your name. When GT3 drafts one and sends it, it appears here for you to read and respond to."
+                  : "Start one for your head of Atlanta ops — the default lands on the agreed 50/30/20."}
               </p>
             </div>
           )}
 
           {rows.map((r) => (
             <AgreementRow
-              key={r.id} row={r} open={openId === r.id}
+              key={r.id} row={r} open={mine ? true : openId === r.id}
               onToggle={() => setOpenId(openId === r.id ? null : r.id)}
-              onSaved={reload} toast={toast} meId={user?.id ?? null}
+              onSaved={reload} toast={toast} meId={meId}
               extra={extra[r.id]}
             />
           ))}

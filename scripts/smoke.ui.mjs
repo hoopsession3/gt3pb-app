@@ -41,6 +41,8 @@ const ROUTES = [
   { path: "/architecture", must: [], soft: true },  // owner-only (guest → wall)
   { path: "/playbook", must: [], soft: true },      // owner-only (guest → wall)
   { path: "/driver", must: [], soft: true },        // crew-only (guest → bounce)
+  { path: "/agreement", must: [], soft: true },     // the operator's own copy of their deal (0319 round)
+  { path: "/offer", must: [], soft: true },         // the candidate's side of the hiring flow
   // public partner share (real share key). Renders correctly (curl: 200 + k-mast + Carolinas +
   // "Partner share"), but the SSR-fetch marker check is flaky under the sandbox's dynamic-route
   // first-compile in `next start` — reachability-only here; curl + prod deploy verify the kit.
@@ -71,16 +73,69 @@ const IGNORE = [
 let pass = 0, fail = 0;
 const ok = (name, cond, detail) => { if (cond) pass++; else { fail++; console.log(`  ✗ ${name}${detail ? ` → ${detail}` : ""}`); } };
 
-const server = spawn("npx", ["next", "start", "-p", String(PORT)], { cwd: process.cwd(), stdio: ["ignore", "pipe", "pipe"] });
+// ── THIS SUITE MUST TEST ITS OWN SERVER ────────────────────────────────────────────────────────
+// It once did not. A `next start` left running by an earlier verify held port 3210 with a build
+// from before two new routes existed; this script's own spawn failed to bind, said nothing, and
+// Playwright happily drove the stranger's server — reporting 404 for two routes that were in the
+// build and served 200 on any other port. The failure was real-looking, reproducible, and about
+// nothing.
+//
+// A suite that will silently test somebody else's server is a suite whose green is worth nothing,
+// which is the same defect as a gate that cannot fail. So: refuse to start if the port is taken,
+// and name the fix rather than making the next person work it out.
+try {
+  const stale = await fetch(BASE + "/truck", { signal: AbortSignal.timeout(2000) });
+  console.log(`UI SMOKE: something is already serving ${BASE} (status ${stale.status}).`);
+  console.log("  This suite would have tested THAT server, not the build you just made.");
+  console.log("  Stop it first:  pkill -f 'next start' ; pkill -f next-server");
+  process.exit(1);
+} catch { /* nothing listening — which is what we want */ }
+
+// Spawn next DIRECTLY, not through npx. `npx next start` is three processes — npx, then sh -c,
+// then next-server — and the real server survives a SIGTERM sent to the wrapper. That is why the
+// finally below leaked the port on every single run, and why a leaked run poisoned the next one.
+// Resolving the bin ourselves makes server.pid the actual server, so killing it kills it. npx
+// stays as a fallback for an environment where next cannot be resolved from here.
+let NEXT_BIN = null;
+try { NEXT_BIN = require.resolve("next/dist/bin/next"); } catch { /* fall back to npx */ }
+const server = NEXT_BIN
+  ? spawn(process.execPath, [NEXT_BIN, "start", "-p", String(PORT)],
+      { cwd: process.cwd(), stdio: ["ignore", "pipe", "pipe"], detached: true })
+  : spawn("npx", ["next", "start", "-p", String(PORT)],
+      { cwd: process.cwd(), stdio: ["ignore", "pipe", "pipe"], detached: true });
+
+// Kill the whole process GROUP, and escalate. A polite signal the server outlives leaks the port
+// exactly as before, only with better intentions.
+const signalGroup = (sig) => {
+  try { process.kill(-server.pid, sig); } catch { /* already gone */ }
+  try { server.kill(sig); } catch { /* already gone */ }
+};
+const stopServer = async () => {
+  signalGroup("SIGTERM");
+  for (let i = 0; i < 12; i++) {                             // ~3s of grace
+    await sleep(250);
+    try { process.kill(-server.pid, 0); } catch { return; }  // the group is gone
+  }
+  signalGroup("SIGKILL");
+};
+// A crash or a Ctrl-C must not leak it either. `exit` handlers cannot await, so they go straight
+// to the blunt instrument.
+process.on("exit", () => signalGroup("SIGKILL"));
+process.on("SIGINT", () => { signalGroup("SIGKILL"); process.exit(130); });
+
 let up = false;
+let bindFailed = false;
 server.stdout.on("data", (d) => { if (/Ready|started server|Local:/i.test(String(d))) up = true; });
-server.stderr.on("data", () => {});
+// EADDRINUSE arrives on stderr and used to be swallowed whole.
+server.stderr.on("data", (d) => { if (/EADDRINUSE|address already in use/i.test(String(d))) bindFailed = true; });
+server.on("exit", (code) => { if (!up && code !== 0) bindFailed = true; });
 
 try {
-  for (let i = 0; i < 60 && !up; i++) {
+  for (let i = 0; i < 60 && !up && !bindFailed; i++) {
     await sleep(500);
     try { const r = await fetch(BASE + "/truck"); if (r.status < 500) { up = true; } } catch { /* not up yet */ }
   }
+  if (bindFailed) { console.log(`UI SMOKE: could not bind ${BASE} — another server has it.`); process.exit(1); }
   if (!up) { console.log("UI SMOKE: server never came up"); process.exit(1); }
 
   const launchOpts = fs.existsSync(CHROME) ? { executablePath: CHROME } : {};
@@ -121,7 +176,7 @@ try {
 
   await browser.close();
 } finally {
-  server.kill("SIGTERM");
+  await stopServer();
 }
 
 console.log(`UI SMOKE: ${pass} passed, ${fail} failed`);
