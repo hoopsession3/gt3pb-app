@@ -166,6 +166,7 @@ import Icon from "@/components/Icon";
 import { useJurisdictions } from "@/components/useJurisdictions";
 import AcademyCard from "@/components/AcademyCard";
 import { moneyRound } from "@/lib/money";
+import { FOUNDING_MARKET, toMarket } from "@/lib/markets";
 
 // money helpers for the economics panels
 // 2026-07-16: PHASE_LABEL used to rename the Service lane's own segmented tabs (Route → "Schedule",
@@ -2192,23 +2193,31 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   const [packPlanOpen, setPackPlanOpen] = useState(false); // kegs-vs-bottles pack-out plan
   const [brewBatches, setBrewBatches] = useState<{ id: string; recipe_name: string | null; batch_gal: number; status: string; ready_at: string | null }[]>([]);
   const [stopMeta, setStopMeta] = useState<{ day: string | null; plan_days: number }>({ day: null, plan_days: 1 });
+  // Which city's shelf this load-out is against. 0288 made stock per market; this screen was the
+  // one place still adding every city together. lib/markets' contract: unknown resolves to founding.
+  const [market, setMarket] = useState<string>(FOUNDING_MARKET);
   const [onHand, setOnHand] = useState<{ item: string; bal: number }[]>([]); // carried-in stock (ledger balance)
   const [onHandFailed, setOnHandFailed] = useState(false); // read failed ≠ nothing carried in
 
   const loadOnHand = useCallback(async () => {
     if (!supabase) return;
-    // This read has to be able to fail out loud. `const { data } = …` followed by `data ?? []` turns
-    // a failed request into a balance of nothing, and the section below renders only when onHand is
-    // non-empty — so a blip did not show an error, it showed a truck with nothing carried in, to the
+    // The balance has a canonical home — public.inventory_on_hand, which 0288 fixed to group by
+    // (item, MARKET). This screen used to fetch every ledger row and re-add them up here, grouped by
+    // item alone, which is the exact defect 0288 exists to prevent, still running in the browser.
+    // Reading the view means one definition of "on hand" and one place to fix it.
+    //
+    // It also has to be able to fail out loud: the section below renders only when onHand is
+    // non-empty, so a blip did not show an error, it showed a truck with nothing carried in, to the
     // person deciding what to load. Empty and broken must not look the same when somebody is about
     // to pack against the answer.
-    const { data, error } = await supabase.from("inventory_ledger").select("item, qty");
+    const { data, error } = await supabase.from("inventory_on_hand").select("item, on_hand").eq("market", market);
     if (error) { setOnHandFailed(true); return; } // keep whatever is on screen and say so instead
     setOnHandFailed(false);
-    const m: Record<string, number> = {};
-    (data ?? []).forEach((r: any) => { m[r.item] = (m[r.item] ?? 0) + Number(r.qty); });
-    setOnHand(Object.entries(m).map(([item, bal]) => ({ item, bal })).filter((x) => Math.abs(x.bal) > 0.0001).sort((a, b) => a.item.localeCompare(b.item)));
-  }, []);
+    setOnHand(((data as { item: string; on_hand: number | string }[]) ?? [])
+      .map((r) => ({ item: r.item, bal: Number(r.on_hand) }))
+      .filter((x) => Number.isFinite(x.bal) && Math.abs(x.bal) > 0.0001)
+      .sort((a, b) => a.item.localeCompare(b.item)));
+  }, [market]);
   useEffect(() => { loadOnHand(); }, [loadOnHand]);
 
   const prepState = useAsyncData<true>(async () => {
@@ -2218,11 +2227,13 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       const { data: e } = await supabase.from("events").select("*").eq("id", target.id).maybeSingle();
       setEv((e as EventRow) ?? null);
       setName((e as EventRow)?.title ?? null);
+      setMarket(toMarket((e as unknown as { market?: string | null } | null)?.market));
     } else {
-      const { data: s } = await supabase.from("stops").select("name, starts_at, plan_days").eq("id", target.id).maybeSingle();
+      const { data: s } = await supabase.from("stops").select("name, starts_at, plan_days, market").eq("id", target.id).maybeSingle();
       setEv(null);
-      const sm = s as { name: string; starts_at: string | null; plan_days: number | null } | null;
+      const sm = s as { name: string; starts_at: string | null; plan_days: number | null; market?: string | null } | null;
       setName(sm?.name ?? null);
+      setMarket(toMarket(sm?.market));
       setStopMeta({ day: sm?.starts_at ? sm.starts_at.slice(0, 10) : null, plan_days: Math.max(1, sm?.plan_days ?? 1) });
     }
     const { data: t, error: tErr } = await supabase.from("event_tasks").select("*").eq(ownerCol, target.id).order("sort");
@@ -2377,16 +2388,26 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       loadOnHand();
     }
   };
-  // Correct the real count of a carried-in item (e.g. set the leftover after an event) — logs the
-  // delta so the ledger balance stays honest and carries to the next event.
+  // Correct the real count of a carried-in item (e.g. the leftover after an event). The ledger is
+  // append-only signed movements, so a correction is still written as a DELTA — but 0318 computes
+  // that delta on the server, against the shelf as it stands, under a lock on (item, market).
+  //
+  // It used to be computed here from `onHand`, which was loaded when the screen opened. Anything
+  // that moved the item in between — someone logging use, an event deducting stock — made `cur`
+  // stale, and the shelf landed on `actual + want - cur` instead of the number the person typed.
+  // It failed silently: the write succeeded and the input showed what they entered.
   const adjustOnHand = async (item: string, v: string) => {
     if (!supabase) return;
-    const cur = onHand.find((o) => o.item === item)?.bal ?? 0;
     const want = v.trim() === "" ? 0 : Number(v);
-    const delta = want - cur;
-    if (!delta) return;
-    setOnHand((p) => p.map((o) => (o.item === item ? { ...o, bal: want } : o)));
-    await supabase.from("inventory_ledger").insert({ item, kind: "adjust", qty: delta, event_id: isEvent ? target.id : null, stop_id: isEvent ? null : target.id, created_by: user?.id ?? null });
+    if (!Number.isFinite(want)) { toast("That isn't a number", "error"); return; }
+    const { data, error } = await supabase.rpc("set_on_hand", {
+      p_item: item, p_want: want, p_market: market,
+      p_event: isEvent ? target.id : null, p_stop: isEvent ? null : target.id,
+    });
+    if (error) { toast(`Couldn't correct ${item} — ${error.message}`, "error"); loadOnHand(); return; }
+    // Show what the SERVER says the shelf holds, not what we assumed it would.
+    const landed = Number(data);
+    setOnHand((p) => p.map((o) => (o.item === item ? { ...o, bal: Number.isFinite(landed) ? landed : o.bal } : o)));
   };
   const addTask = async () => {
     if (!supabase || !newTask.trim()) return;
