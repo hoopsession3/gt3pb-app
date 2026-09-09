@@ -17,7 +17,7 @@
 // it.
 //
 // ── WHY THIS RULE AND NOT THE LINT RULE ────────────────────────────────────────────────────────
-// react-hooks/set-state-in-effect flags 121 sites here, and most are correct code — it fires on the
+// react-hooks/set-state-in-effect flags 115 sites here, and most are correct code — it fires on the
 // ordinary `useEffect(() => load(), [load])` no matter how careful the loader is. It measures a
 // shape. This measures whether a failure can be seen, which is what a person actually experiences.
 //
@@ -33,7 +33,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 // Raise nothing. Lower freely.
-export const BASELINE = 28;
+export const BASELINE = 0;
 
 // ── THE SECOND MEASURE, AND WHY IT EXISTS ──────────────────────────────────────────────────────
 // Halfway through fixing the first list I converted three components to useAsyncData, watched the
@@ -45,7 +45,7 @@ export const BASELINE = 28;
 // own work: a rule about how code LOOKS cannot tell you what a person SEES. So the audit now also
 // counts loaders that catch a failure and never show it, which is the only way the first number
 // can be trusted to mean anything.
-export const SILENT_BASELINE = 4;
+export const SILENT_BASELINE = 1;
 
 const UNCHECKED =
   /const\s*\{\s*data(\s*:\s*\w+)?\s*\}\s*=\s*await|\.then\(\s*\(\s*\{\s*data(\s*:\s*\w+)?\s*\}\s*\)/;

@@ -121,7 +121,8 @@ function LessonRow({ l, products, open, onToggle, onSaved, toast }: { l: Lesson;
   useEffect(() => { setD(l); setKeysText((l.key_points || []).join("\n")); }, [l]);
   useEffect(() => {
     if (!open || !supabase) return;
-    supabase.from("primal_lesson_products").select("id, product_slug, rationale, sort").eq("lesson_id", l.id).order("sort").then(({ data }) => setLinks((data as any[]) ?? []));
+    // A failed read showing "no linked products" invites re-adding links that already exist.
+    supabase.from("primal_lesson_products").select("id, product_slug, rationale, sort").eq("lesson_id", l.id).order("sort").then(({ data, error }) => { if (!error) setLinks((data as any[]) ?? []); });
   }, [open, l.id]);
 
   const published = !!d.published_at;
@@ -145,7 +146,7 @@ function LessonRow({ l, products, open, onToggle, onSaved, toast }: { l: Lesson;
     const { error } = await supabase.from("primal_lesson_products").insert({ lesson_id: l.id, product_slug: addSlug, rationale: addWhy || null, sort: (links.at(-1)?.sort ?? 0) + 1 });
     if (error) { toast(`Error: ${error.message}`, "error"); return; }
     setAddSlug(""); setAddWhy("");
-    supabase.from("primal_lesson_products").select("id, product_slug, rationale, sort").eq("lesson_id", l.id).order("sort").then(({ data }) => setLinks((data as any[]) ?? []));
+    supabase.from("primal_lesson_products").select("id, product_slug, rationale, sort").eq("lesson_id", l.id).order("sort").then(({ data, error }) => { if (!error) setLinks((data as any[]) ?? []); });
   };
   const rmLink = async (id: string) => {
     if (!supabase) return;

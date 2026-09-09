@@ -95,6 +95,19 @@ export default function PrimalLesson({ slug }: { slug: string }) {
 
   if (board.status === "loading") return <section className="screen primal"><Masthead eyebrow={t("primal.eyebrow")} right={<AccountPill />} /><div className="pr-note">Loading…</div></section>;
 
+  // A FAILED READ IS NOT A LOCKED LESSON. board.data is null on error too, so this fell straight
+  // through to the unlock/not-found screen below — telling a reader the lesson does not exist, or
+  // inviting them to pay for access they may already have, because one request failed.
+  if (board.status === "error") return (
+    <section className="screen primal">
+      <Masthead eyebrow={t("primal.eyebrow")} right={<AccountPill />} />
+      <p className="pr-note load-failed" role="status">
+        Couldn&apos;t load this lesson — it hasn&apos;t gone anywhere, and this isn&apos;t a paywall.{" "}
+        <button type="button" className="btn-ter" onClick={() => board.reload()}>Try again</button>
+      </p>
+    </section>
+  );
+
   if (!v || !v.found) {
     // Either a Pro lesson the reader hasn't unlocked, or a bad link — offer the path forward, never a dead end.
     return (

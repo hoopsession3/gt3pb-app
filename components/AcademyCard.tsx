@@ -44,6 +44,10 @@ export default function AcademyCard() {
 
   // The link always renders, even while loading or if the query fails — a training path that cannot
   // be counted is still a path someone should be able to open.
+  // NOT a false-empty: the whole progress block below is behind `p ?`, and p is null on a failed
+  // read, so a failure renders the bare link and no numbers — never a confident 0%. The comment
+  // above is the considered decision, and it holds. scripts/falseempty.audit.mjs flags this file
+  // because it never names the error; that is the rule being conservative, not a defect here.
   const pct = p && p.modulesTotal > 0 ? Math.round((p.modulesDone / p.modulesTotal) * 100) : 0;
 
   return (

@@ -28,7 +28,9 @@ export function useLiveBroadcasts(): Broadcast[] {
   const [rows, setRows] = useState<Broadcast[]>([]);
   const load = async () => {
     if (!supabase) return;
-    const { data } = await supabase.from("broadcasts").select("*").eq("active", true).order("created_at", { ascending: false });
+    // A failed read pulled every banner off the site — including one announcing a closure.
+    const { data, error } = await supabase.from("broadcasts").select("*").eq("active", true).order("created_at", { ascending: false });
+    if (error) return;
     const now = Date.now();
     setRows(((data as Broadcast[]) ?? []).filter((b) =>
       (!b.starts_at || new Date(b.starts_at).getTime() <= now) &&

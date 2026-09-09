@@ -86,7 +86,10 @@ export default function MenuRigChips({ value, onPatch, variant, ownerType, owner
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const loadPicked = useCallback(async () => {
     if (!supabase || !ownerCol || !ownerId) return;
-    const { data } = await supabase.from("event_menu_items").select("product_slug").eq(ownerCol, ownerId);
+    // An empty set here means "nothing is on this event's menu". On a failed read that is a lie
+    // the crew would pack against, so the previous selection stands rather than being cleared.
+    const { data, error } = await supabase.from("event_menu_items").select("product_slug").eq(ownerCol, ownerId);
+    if (error) return;
     setPicked(new Set((((data as { product_slug: string }[] | null) ?? [])).map((r) => r.product_slug)));
   }, [ownerCol, ownerId]);
   useEffect(() => { loadPicked(); }, [loadPicked]);

@@ -44,6 +44,7 @@ const STATUS_LABEL: Record<string, string> = {
 export default function DeliveryOps() {
   const [rows, setRows] = useState<DOrder[]>([]);
   const [date, setDate] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false); // read failed ≠ no run today
   const [listOpen, setListOpen] = useState<boolean | null>(null);
   const [assign, setAssign] = useState(false);
   const [packout, setPackout] = useState(false);
@@ -53,9 +54,11 @@ export default function DeliveryOps() {
     // the next delivery day with anything on it (today counts — Sunday IS the run);
     // delivery_date is an ET business-day key (lib/delivery.ts), so "today" must be ET too
     const today = etToday();
-    const { data } = await supabase.from("delivery_orders").select("*")
+    const { data, error } = await supabase.from("delivery_orders").select("*")
       .gte("delivery_date", today).is("canceled_at", null)
       .order("delivery_date").order("address_zip").limit(200);
+    if (error) { setLoadFailed(true); return; }
+    setLoadFailed(false);
     const all = (data ?? []) as DOrder[];
     const d = all[0]?.delivery_date ?? null;
     setDate(d);
@@ -88,6 +91,16 @@ export default function DeliveryOps() {
   // one writer, so the recorded flow can't drift between two button sets again. This card is the
   // HQ monitor/debrief face: statuses, brew totals, packout, assign.
 
+  // Quiet is right for "no deliveries today" and wrong for "we could not find out". This is the
+  // board the crew runs the day from; silently showing nothing is how a delivery gets missed.
+  if (loadFailed) return (
+    <div className="dops" role="status">
+      <p className="load-failed">
+        Couldn&apos;t load today&apos;s deliveries — this is not &ldquo;none scheduled&rdquo;.{" "}
+        <button type="button" className="btn-ter" onClick={() => load()}>Try again</button>
+      </p>
+    </div>
+  );
   if (!date || rows.length === 0) return null; // quiet until a delivery exists
 
   const bottles = rows.reduce((a, o) => a + o.pack_size, 0);
@@ -205,8 +218,11 @@ function LoopQuickLog() {
   // different question, and it would bury this one.
   const loader = useCallback(async (): Promise<{ id: string; returns: number }[]> => {
     if (!supabase) return [];
-    const { data } = await supabase.from("v_loop_open")
+    const { data, error } = await supabase.from("v_loop_open")
       .select("id, returns").eq("on_date", etToday()).order("id");
+    // Zero open loops and a failed read are different facts about the deposit ledger. Throwing
+    // hands it to useAsyncData, which already keeps the previous list on screen instead of blanking.
+    if (error) throw new Error(error.message);
     return (data as { id: string; returns: number }[]) ?? [];
   }, []);
   // useAsyncData rather than an effect that calls setState — the hook every other loader in this
@@ -238,7 +254,7 @@ function LoopQuickLog() {
 
   return (
     <div className="dops-loop">
-      <span className="dops-loop-l">Loop returns</span>
+      <span className="dops-loop-l">Loop returns{board.status === "error" ? " · couldn't load" : ""}</span>
       <input inputMode="numeric" value={n} onChange={(e) => { setN(e.target.value.replace(/\D/g, "")); setMsg(null); }} placeholder="bottles" aria-label="Loop bottles returned" />
       <button type="button" className="dops-mini" onClick={log} disabled={!n}>Log</button>
       {msg && <i className="dops-loop-m">{msg}</i>}

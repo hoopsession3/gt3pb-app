@@ -81,7 +81,9 @@ function ProductRow({ p, inv, open, onToggle, onSaved, toast }: { p: Product; in
   useEffect(() => { setD(p); }, [p]);
   useEffect(() => {
     if (!open || !supabase) return;
-    supabase.from("product_components").select("id, inventory_item_id, qty_per_serving, unit").eq("product_id", p.id).then(({ data }) => setComps((data as Comp[]) ?? []));
+    // Keep whatever is on screen if the read fails: an empty component list reads as "this drink
+    // has no ingredients", which is what COGS and the inventory deduction are built on.
+    supabase.from("product_components").select("id, inventory_item_id, qty_per_serving, unit").eq("product_id", p.id).then(({ data, error }) => { if (!error) setComps((data as Comp[]) ?? []); });
   }, [open, p.id]);
 
   const save = async () => {
@@ -105,7 +107,7 @@ function ProductRow({ p, inv, open, onToggle, onSaved, toast }: { p: Product; in
     const { error } = await supabase.from("product_components").insert({ product_id: p.id, inventory_item_id: addInv, qty_per_serving: addQty ? Number(addQty) : null, unit });
     if (error) { toast(`Error: ${error.message}`, "error"); return; }
     setAddInv(""); setAddQty("");
-    supabase.from("product_components").select("id, inventory_item_id, qty_per_serving, unit").eq("product_id", p.id).then(({ data }) => setComps((data as Comp[]) ?? []));
+    supabase.from("product_components").select("id, inventory_item_id, qty_per_serving, unit").eq("product_id", p.id).then(({ data, error }) => { if (!error) setComps((data as Comp[]) ?? []); });
   };
   const rmComponent = async (id: string) => {
     if (!supabase) return;

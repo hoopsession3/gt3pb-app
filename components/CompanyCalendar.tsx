@@ -639,7 +639,8 @@ function DayView({ dayKey, items, events, readOnly = false, onClose, onAdd, onSa
   const [edit, setEdit] = useState<{ kind: EditKind; id: string } | null>(null);
   useEffect(() => {
     if (!supabase) return;
-    supabase.from("events").select("id, title, day_label").not("archived_at", "is", null).eq("day", dayKey).then(({ data }) => setArchived((data as any[]) ?? []));
+    // Keep the previous list rather than assert this day has nothing archived on it.
+    supabase.from("events").select("id, title, day_label").not("archived_at", "is", null).eq("day", dayKey).then(({ data, error }) => { if (!error) setArchived((data as any[]) ?? []); });
   }, [dayKey]);
   const d = new Date(`${dayKey}T00:00:00`);
   const heading = d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
@@ -742,9 +743,16 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: s
     : kind === "lead" ? "name, event_date, status"
     : kind === "pipe" ? "next_step, next_step_at, stage, vendors(name)"
     : "title, met_on";   // meeting
+  // `data ?? {}` made f TRUTHY on a failed read, so the `if (!f)` guard below passed and the form
+  // rendered with every field blank. save() then wrote those blanks — name, date, status, event
+  // link — over a row that was fine. A read failure must never become a write. f stays null.
+  const [loadFailed, setLoadFailed] = useState(false);
   useEffect(() => {
     if (!supabase) return;
-    supabase.from(cfg.table).select(sel).eq("id", id).maybeSingle().then(({ data }) => setF(data ?? {}));
+    supabase.from(cfg.table).select(sel).eq("id", id).maybeSingle().then(({ data, error }) => {
+      if (error) { setLoadFailed(true); setF(null); return; }
+      setLoadFailed(false); setF(data ?? {});
+    });
   }, [cfg.table, sel, id]);
   const set = (k: string, v: any) => setF((p: any) => ({ ...p, [k]: v }));
   const localDate = (iso: string) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
@@ -762,7 +770,7 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: s
   // edit on an unnamed row is never blocked. The task/todo/content/goal engines require real names.
   const nameRequired = kind === "todo" || kind === "content" || kind === "task" || kind === "goal";
   const save = async () => {
-    if (!supabase || !f) return;
+    if (!supabase || !f || loadFailed) return;   // never save a form built from a read that failed
     if (nameRequired && isBlank(f[cfg.nameCol])) return;   // require a real name — no generic-placeholder fallback
     setSaving(true);
     const name = (f[cfg.nameCol] || "").trim();

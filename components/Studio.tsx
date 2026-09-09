@@ -5,6 +5,7 @@ import { useAuth } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { useRealtimeTable } from "@/lib/realtime";
+import { useAsyncData } from "@/lib/useAsyncData";
 import { uploadToBucket } from "@/lib/uploads";
 import { raiseAlertClient } from "@/lib/clientAlerts";
 import { GTM_PLAYS } from "@/lib/strategy";
@@ -83,7 +84,6 @@ export default function Studio() {
   };
   const { user, profile } = useAuth();
   const me = useMemo(() => ({ id: user?.id ?? "anon", name: profile?.display_name || user?.email?.split("@")[0] || "Crew" }), [user?.id, profile?.display_name, user?.email]);
-  const [items, setItems] = useState<Item[]>([]);
   const [filter, setFilter] = useState<string>("all");
   const [openId, setOpenId] = useState<string | null>(null);
   const dragId = useRef<string | null>(null);
@@ -97,13 +97,26 @@ export default function Studio() {
     return v === "board" || v === "brand" || v === "grid" || v === "flyer" || v === "letter" ? v : "calendar";
   });
 
-  const load = useCallback(async () => {
-    if (!supabase) return;
-    const { data } = await supabase.from("content_items").select("*").order("updated_at", { ascending: false }).limit(100);
-    setItems((data as Item[]) ?? []);
+  // Swallowed error → [] → a studio that says you have written nothing. Everything below filters
+  // this one list, so the calendar, the board, the grid and every count derive from it: one failed
+  // read emptied the whole surface at once and called it "no content".
+  const loader = useCallback(async (): Promise<Item[]> => {
+    if (!supabase) return [];
+    const { data, error } = await supabase.from("content_items").select("*").order("updated_at", { ascending: false }).limit(100);
+    if (error) throw new Error(error.message);
+    return (data as Item[]) ?? [];
   }, []);
-
-  useEffect(() => { load(); }, [load]);
+  const board = useAsyncData(loader, []);
+  const load = board.reload;
+  // Dragging a tile reorders the feed before the writes land. useAsyncData owns the list now, so
+  // the optimistic order lives here as an explicit overlay rather than as a setState on the data —
+  // same instant feel, and the server's answer still wins the moment it arrives.
+  const [dragOrder, setDragOrder] = useState<string[] | null>(null);
+  const items = useMemo(() => {
+    const base = board.data ?? [];
+    if (!dragOrder) return base;
+    return base.map((it) => { const i = dragOrder.indexOf(it.id); return i >= 0 ? { ...it, grid_sort: i } : it; });
+  }, [board.data, dragOrder]);
   // Live board across users.
   useRealtimeTable("content_items", load);
 
@@ -121,8 +134,10 @@ export default function Studio() {
   const feed = [...shown].sort((a, b) => (a.grid_sort ?? 1e9) - (b.grid_sort ?? 1e9) || (b.scheduled_for || b.updated_at).localeCompare(a.scheduled_for || a.updated_at));
   const reorderFeed = async (orderedIds: string[]) => {
     if (!supabase) return;
-    setItems((prev) => prev.map((it) => { const i = orderedIds.indexOf(it.id); return i >= 0 ? { ...it, grid_sort: i } : it; }));
+    setDragOrder(orderedIds);
     await Promise.all(orderedIds.map((idv, i) => supabase!.from("content_items").update({ grid_sort: i }).eq("id", idv)));
+    await load();
+    setDragOrder(null);
   };
   const onDropTile = (targetId: string) => {
     const from = dragId.current; dragId.current = null;
@@ -135,6 +150,12 @@ export default function Studio() {
   };
   return (
     <div className="adm-sec">
+      {board.status === "error" && (
+        <p className="load-failed" role="status">
+          Couldn&apos;t load the studio — this is not &ldquo;no content&rdquo;. Nothing here has been lost.{" "}
+          <button type="button" className="btn-ter" onClick={() => load()}>Try again</button>
+        </p>
+      )}
       <div className="studio-top">
         <div className="studio-views" role="tablist" aria-label="View">
           <button type="button" className={`studio-view${view === "calendar" ? " on" : ""}`} onClick={() => pickView("calendar")}>Calendar</button>
@@ -260,6 +281,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   const [savedAt, setSavedAt] = useState<string>("");
   const [versions, setVersions] = useState<Version[]>([]);
   const [showVers, setShowVers] = useState(false);
+  const [itemFailed, setItemFailed] = useState(false); // read failed ≠ still loading
   // caption engine
   const [brief, setBrief] = useState(""); const [drafting, setDrafting] = useState(false);
   const [options, setOptions] = useState<any[]>([]);
@@ -281,9 +303,14 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   // (auth/profile refresh, co-editor join, dev HMR) never re-keys the studio-${id} socket.
   const meRef = useRef(me); useEffect(() => { meRef.current = me; }, [me]);
 
+  // "No versions yet" on a failed read reads as "this piece has never been edited", on the one
+  // panel whose entire job is to prove otherwise.
+  const [versFailed, setVersFailed] = useState(false);
   const loadVersions = useCallback(async () => {
     if (!supabase) return;
-    const { data } = await supabase.from("content_versions").select("*").eq("content_id", id).order("created_at", { ascending: false }).limit(40);
+    const { data, error } = await supabase.from("content_versions").select("*").eq("content_id", id).order("created_at", { ascending: false }).limit(40);
+    if (error) { setVersFailed(true); return; }
+    setVersFailed(false);
     setVersions((data as Version[]) ?? []);
   }, [id]);
 
@@ -291,9 +318,14 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   useEffect(() => {
     if (!supabase) return;
     let cancelled = false;
-    supabase.from("content_items").select("campaign").not("campaign", "is", null).then(({ data }) => { setCampaigns([...new Set(((data as { campaign: string }[]) ?? []).map((r) => r.campaign).filter(Boolean))]); });
-    supabase.from("content_items").select("*").eq("id", id).single().then(({ data }) => {
-      if (cancelled || !data) return;
+    supabase.from("content_items").select("campaign").not("campaign", "is", null).then(({ data, error }) => { if (!error) setCampaigns([...new Set(((data as { campaign: string }[]) ?? []).map((r) => r.campaign).filter(Boolean))]); });
+    supabase.from("content_items").select("*").eq("id", id).single().then(({ data, error }) => {
+      // A failed read used to fall through this guard and leave `item` null — and the render below
+      // treats null as "still loading", so the editor sat on "Loading…" forever with no way out.
+      // A hang is a worse lie than an empty state: it never even claims to have finished.
+      if (cancelled) return;
+      if (error || !data) { setItemFailed(true); return; }
+      setItemFailed(false);
       const it = data as Item;
       setItem(it); setTitle(it.title || ""); setHook(it.hook || ""); setCaption(it.caption || "");
       setTags((it.hashtags || []).join(", ")); setStatus(it.status); setNote(it.review_note || ""); setCampaign(it.campaign || "");
@@ -338,8 +370,10 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   useEffect(() => {
     if (!supabase) return;
     const since = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
-    supabase.from("events").select("id, title, day, day_label").is("archived_at", null).gte("day", since).order("day").limit(60).then(({ data }) => setEvs(data ?? []));
-    supabase.from("stops").select("id, name, starts_at, when_label").is("archived_at", null).order("starts_at", { ascending: false }).limit(60).then(({ data }) => setStops((data as any) ?? []));
+    // Link pickers: a failed read leaves them EMPTY rather than pretending the business has no
+    // events or stops. Keeping the previous list is the honest fallback for a picker.
+    supabase.from("events").select("id, title, day, day_label").is("archived_at", null).gte("day", since).order("day").limit(60).then(({ data, error }) => { if (!error) setEvs(data ?? []); });
+    supabase.from("stops").select("id, name, starts_at, when_label").is("archived_at", null).order("starts_at", { ascending: false }).limit(60).then(({ data, error }) => { if (!error) setStops((data as any) ?? []); });
   }, []);
 
   const persist = useCallback(async (patch: Record<string, any>) => {
@@ -595,6 +629,14 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   };
   const addFromLibrary = async (m: Media) => { await saveMedia([...mediaList, { url: m.url, type: m.type }]); setLibOpen(false); };
 
+  if (!item && itemFailed) return (
+    <div className="adm-sec">
+      <p className="load-failed" role="status">
+        Couldn&apos;t open this piece. It hasn&apos;t been changed — the read failed.{" "}
+        <button type="button" className="btn-ter" onClick={onClose}>Back to the studio</button>
+      </p>
+    </div>
+  );
   if (!item) return <div className="adm-sec"><div className="oa-empty">Loading…</div></div>;
   const cur = mediaList[active] || mediaList[0] || null;
   const lint = lintCaption(caption);

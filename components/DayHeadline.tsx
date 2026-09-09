@@ -31,6 +31,14 @@ export default function DayHeadline() {
   useRealtimeTable(["field_ops", "event_tasks", "todos"], state.reload);
 
   const d = state.data;
+  // A quiet day and a failed read looked identical: both rendered nothing. The headline is how
+  // the day is framed, so its absence reads as "nothing needs you today".
+  if (state.status === "error") return (
+    <p className="load-failed" role="status">
+      Couldn&apos;t load today&apos;s headline — this is not &ldquo;nothing on&rdquo;.{" "}
+      <button type="button" className="btn-ter" onClick={() => state.reload()}>Try again</button>
+    </p>
+  );
   if (!d || (!d.op && d.top.length === 0)) return null;
   return (
     <div className="dayhead">

@@ -292,7 +292,15 @@ function DayView({ dayKey, posts, evs, evTitle, onClose, onEdit, onOpenFull, onA
 function ContentEdit({ id, events, onClose, onSaved, onOpenFull }: { id: string; events: EvItem[]; onClose: () => void; onSaved: () => void; onOpenFull: (id: string) => void }) {
   const [f, setF] = useState<any | null>(null);
   const [saving, setSaving] = useState(false);
-  useEffect(() => { if (supabase) supabase.from("content_items").select("title, scheduled_for, status, event_id, channel").eq("id", id).maybeSingle().then(({ data }) => setF(data ?? {})); }, [id]);
+  // `data ?? {}` made f truthy on failure, so the `if (!f) return null` guard passed and the sheet
+  // opened blank — and save() would then write scheduled_for/status/event_id as null over a real
+  // piece. Left null on failure, so the sheet says so instead of quietly offering to erase it.
+  const [loadFailed, setLoadFailed] = useState(false);
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.from("content_items").select("title, scheduled_for, status, event_id, channel").eq("id", id).maybeSingle()
+      .then(({ data, error }) => { if (error) { setLoadFailed(true); setF(null); return; } setLoadFailed(false); setF(data ?? {}); });
+  }, [id]);
   const set = (k: string, v: any) => setF((p: any) => ({ ...p, [k]: v }));
   const localDate = (iso: string) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
   const localTime = (iso: string) => { const d = new Date(iso); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
@@ -303,6 +311,11 @@ function ContentEdit({ id, events, onClose, onSaved, onOpenFull }: { id: string;
     setSaving(false); onSaved();
   };
   const unschedule = async () => { if (!supabase) return; setSaving(true); await supabase.from("content_items").update({ scheduled_for: null }).eq("id", id); setSaving(false); onSaved(); };
+  if (!f && loadFailed) return (
+    <Sheet open onClose={onClose} label="Edit content piece" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}>Edit piece</b><CloseButton onClick={onClose} /></div>}>
+      <p className="load-failed" role="status">Couldn&apos;t load this piece — nothing has been changed. Close and try again.</p>
+    </Sheet>
+  );
   if (!f) return null;
   const dateVal = f.scheduled_for ? localDate(f.scheduled_for) : "";
   const timeVal = f.scheduled_for ? localTime(f.scheduled_for) : "09:00";

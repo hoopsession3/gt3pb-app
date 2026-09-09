@@ -93,7 +93,10 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
     setPlan(null);
     const [t, id] = sel.split(":");
     const col = t === "s" ? "stop_id" : "event_id";
-    supabase.from("event_tasks").select("label,kind").eq(col, id).then(({ data }) => {
+    // Same rule as the on-hand ledger: an empty pack list on a failed read is read as "nothing to
+    // pack" by the person loading the trailer.
+    supabase.from("event_tasks").select("label,kind").eq(col, id).then(({ data, error }) => {
+      if (error) return;
       setLabels(((data as { label: string; kind: string }[]) ?? []).filter((x) => x.kind === "pack").map((x) => x.label));
     });
     supabase.from(t === "s" ? "stops" : "events").select("rig").eq("id", id).maybeSingle().then(({ data }) => {

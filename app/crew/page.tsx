@@ -819,19 +819,23 @@ function CommentThread({ subject, notifyIds, label, meId, meName }: {
 }) {
   const { toast } = useApp();
   const [comments, setComments] = useState<Comment[]>([]);
+  const [cmtFailed, setCmtFailed] = useState(false);
   const [staff, setStaff] = useState<{ id: string; display_name: string | null }[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    const { data } = await supabase.from("comments").select("*").eq(subject.col, subject.id).order("created_at");
+    // "No notes on this stop" is a claim about the record, not about the network. Say which.
+    const { data, error } = await supabase.from("comments").select("*").eq(subject.col, subject.id).order("created_at");
+    if (error) { setCmtFailed(true); return; }
+    setCmtFailed(false);
     setComments((data as Comment[]) ?? []);
   }, [subject.col, subject.id]);
   useEffect(() => {
     load();
     if (!supabase) return;
-    supabase.from("profiles").select("id, display_name").neq("role", "member").then(({ data }) => setStaff((data as { id: string; display_name: string | null }[]) ?? []));
+    supabase.from("profiles").select("id, display_name").neq("role", "member").then(({ data, error }) => { if (!error) setStaff((data as { id: string; display_name: string | null }[]) ?? []); });
   }, [load]);
   useRealtimeTable({ table: "comments", filter: `${subject.col}=eq.${subject.id}` }, load);
 
@@ -867,6 +871,12 @@ function CommentThread({ subject, notifyIds, label, meId, meName }: {
 
   return (
     <div className="cmt">
+      {cmtFailed && (
+        <p className="load-failed" role="status">
+          Couldn&apos;t load the notes — this is not &ldquo;no notes&rdquo;.{" "}
+          <button type="button" className="btn-ter" onClick={() => load()}>Try again</button>
+        </p>
+      )}
       {comments.map((c) => (
         <div key={c.id} className={`cmt-row${c.author_id === meId ? " me" : ""}`}>
           <span className="cmt-av">{(nameOf(c.author_id).charAt(0) || "?").toUpperCase()}</span>
@@ -1238,9 +1248,12 @@ function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { own
 function IncidentLog({ ownerCol, ownerId }: { ownerCol: "event_id" | "stop_id"; ownerId: string }) {
   type Inc = { id: string; problem: string; severity: string; resolved: boolean; created_at: string; symptom: string | null };
   const [rows, setRows] = useState<Inc[]>([]);
+  const [incFailed, setIncFailed] = useState(false);
   const load = useCallback(async () => {
     if (!supabase) return;
-    const { data } = await supabase.from("incident_log").select("id, problem, severity, resolved, created_at, symptom").eq(ownerCol, ownerId).order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("incident_log").select("id, problem, severity, resolved, created_at, symptom").eq(ownerCol, ownerId).order("created_at", { ascending: false });
+    if (error) { setIncFailed(true); return; }
+    setIncFailed(false);
     setRows((data as Inc[]) ?? []);
   }, [ownerCol, ownerId]);
   useEffect(() => { load(); }, [load]);
@@ -1256,6 +1269,17 @@ function IncidentLog({ ownerCol, ownerId }: { ownerCol: "event_id" | "stop_id"; 
     setRows((p) => p.filter((x) => x.id !== id));
     await supabase.from("incident_log").delete().eq("id", id);
   };
+  // The log hides itself when clean. A failed read hid it in exactly the same way, so an event
+  // with three open blockers looked like an event with none.
+  if (incFailed) return (
+    <div className="inclog" role="status">
+      <div className="brewlink-h"><Icon name="wrench" /> Incident log</div>
+      <p className="load-failed">
+        Couldn&apos;t load the incident log — this is not &ldquo;nothing went wrong&rdquo;.{" "}
+        <button type="button" className="btn-ter" onClick={() => load()}>Try again</button>
+      </p>
+    </div>
+  );
   if (rows.length === 0) return null;
   return (
     <div className="inclog">
@@ -1281,7 +1305,10 @@ function MenuEditor({ ownerType, ownerId, isAdmin, onChanged }: { ownerType: "ev
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    const { data } = await supabase.from(table).select(MENU_RIG_COLUMNS).eq("id", ownerId).maybeSingle();
+    // `?? {}` made f truthy on a failed read, so the guard below passed and every rig field
+    // rendered blank — a menu that looks unset rather than unread. Null keeps the panel closed.
+    const { data, error } = await supabase.from(table).select(MENU_RIG_COLUMNS).eq("id", ownerId).maybeSingle();
+    if (error) { setF(null); return; }
     setF((data as MenuRigValue | null) ?? {});
   }, [table, ownerId]);
   useEffect(() => { load(); }, [load]);
@@ -1406,7 +1433,8 @@ function MyDay({ userId, meName, isLeader, canPrep, canBrew }: { userId: string 
     supabase.from("events").select("id, title, day_label, is_live").eq("day", d).is("archived_at", null).then(async ({ data }) => {
       const evs = (data ?? []) as { id: string; title: string | null; day_label: string | null; is_live: boolean | null }[];
       if (!evs.length || !supabase) { setToday(evs); return; }
-      const { data: ops } = await supabase.from("event_ops").select("event_id, dress_code, crew_brief").in("event_id", evs.map((e) => e.id));
+      const { data: ops, error: opsErr } = await supabase.from("event_ops").select("event_id, dress_code, crew_brief").in("event_id", evs.map((e) => e.id));
+      if (opsErr) throw new Error(opsErr.message);   // else every event silently loses its dress code and brief
       const m = new Map((ops ?? []).map((o: { event_id: string; dress_code: string | null; crew_brief: string | null }) => [o.event_id, o]));
       setToday(evs.map((e) => ({ ...e, dress_code: m.get(e.id)?.dress_code ?? null, crew_brief: m.get(e.id)?.crew_brief ?? null })));
     });
@@ -2197,7 +2225,8 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       setName(sm?.name ?? null);
       setStopMeta({ day: sm?.starts_at ? sm.starts_at.slice(0, 10) : null, plan_days: Math.max(1, sm?.plan_days ?? 1) });
     }
-    const { data: t } = await supabase.from("event_tasks").select("*").eq(ownerCol, target.id).order("sort");
+    const { data: t, error: tErr } = await supabase.from("event_tasks").select("*").eq(ownerCol, target.id).order("sort");
+    if (tErr) throw new Error(tErr.message);   // an empty run-of-show is the crew's whole job, missing
     const seen = new Set<string>();
     const deduped = ((t as EventTask[]) ?? []).filter((x) => { const k = `${x.section ?? ""}|${x.label}`; if (seen.has(k)) return false; seen.add(k); return true; });
     setTasks(deduped);
@@ -2212,7 +2241,8 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       setApprovals((ap as { approver_id: string }[]) ?? []);
     }
     if (isAdmin) {
-      const { data: p } = await supabase.from("profiles").select("id, display_name, role").neq("role", "member");
+      const { data: p, error: pErr } = await supabase.from("profiles").select("id, display_name, role").neq("role", "member");
+      if (pErr) throw new Error(pErr.message);
       setStaff((p as { id: string; display_name: string | null; role?: string | null }[]) ?? []);
     }
     // Brew batches serving THIS event/stop (many-to-many via the link table).
@@ -3552,12 +3582,16 @@ function MeetingNotes() {
   useEffect(() => { if (notesState.data) setNotes(notesState.data); }, [notesState.data]);
   useEffect(() => {
     if (!supabase) return;
-    supabase.from("events").select("id, title").is("archived_at", null).order("day", { ascending: false }).then(({ data }) => setEvents((data as { id: string; title: string }[]) ?? []));
-    supabase.from("stops").select("id, name").is("archived_at", null).neq("status", "done").then(({ data }) => setNoteStops((data as { id: string; name: string | null }[]) ?? []));
-    supabase.from("opportunities").select("id, stage, vendors(name)").neq("stage", "lost").then(({ data }) =>
-      setNoteOpps((((data ?? []) as unknown) as { id: string; vendors: { name: string } | null }[]).map((o) => ({ id: o.id, label: o.vendors?.name ?? "Opportunity" }))));
-    supabase.from("vendors").select("id, name").is("archived_at", null).order("name").then(({ data }) => setNoteVendors((data as { id: string; name: string | null }[]) ?? []));
-    supabase.from("profiles").select("id, display_name, role").neq("role", "member").then(({ data }) => setStaff((data as { id: string; display_name: string | null; role?: string | null }[]) ?? []));
+    // These five feed the "what is this note about?" pickers. Swallowed, a failure offered nothing
+    // to link a note TO — so the note got filed against nothing and the connection was lost quietly.
+    supabase.from("events").select("id, title").is("archived_at", null).order("day", { ascending: false }).then(({ data, error }) => { if (!error) setEvents((data as { id: string; title: string }[]) ?? []); });
+    supabase.from("stops").select("id, name").is("archived_at", null).neq("status", "done").then(({ data, error }) => { if (!error) setNoteStops((data as { id: string; name: string | null }[]) ?? []); });
+    supabase.from("opportunities").select("id, stage, vendors(name)").neq("stage", "lost").then(({ data, error }) => {
+      if (error) return;
+      setNoteOpps((((data ?? []) as unknown) as { id: string; vendors: { name: string } | null }[]).map((o) => ({ id: o.id, label: o.vendors?.name ?? "Opportunity" })));
+    });
+    supabase.from("vendors").select("id, name").is("archived_at", null).order("name").then(({ data, error }) => { if (!error) setNoteVendors((data as { id: string; name: string | null }[]) ?? []); });
+    supabase.from("profiles").select("id, display_name, role").neq("role", "member").then(({ data, error }) => { if (!error) setStaff((data as { id: string; display_name: string | null; role?: string | null }[]) ?? []); });
   }, []);
   useRealtimeTable("meeting_notes", load);
 
@@ -5961,7 +5995,10 @@ function VendorPicker({ vendors, vendorId, onLink, onCreated, onPickLocation }: 
     let on = true;
     (async () => {
       if (!supabase || !vendorId) { if (on) setLocs([]); return; }
-      const { data } = await supabase.from("vendor_locations").select("*").eq("vendor_id", vendorId).is("archived_at", null).order("is_primary", { ascending: false }).order("sort");
+      const { data, error } = await supabase.from("vendor_locations").select("*").eq("vendor_id", vendorId).is("archived_at", null).order("is_primary", { ascending: false }).order("sort");
+      // "One place" vs "which of these?" is decided by this list; an empty one on a failed read
+      // silently picks the wrong branch. Keep what is there rather than assert the vendor has none.
+      if (error) return;
       if (on) setLocs((data as VendorLocation[]) ?? []);
     })();
     return () => { on = false; };

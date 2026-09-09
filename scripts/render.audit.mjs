@@ -42,7 +42,7 @@ import { execSync } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
 
 // Raise nothing. Lower freely. The point of a ratchet is that it only moves one way.
-export const BASELINE = 116;
+export const BASELINE = 115;
 
 const RULE = "react-hooks/set-state-in-effect";
 
