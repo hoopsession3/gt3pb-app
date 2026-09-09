@@ -3018,9 +3018,9 @@ body:has(.conc-sheet) .rail{display:flex}
 .prod-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}
 .prod-f{display:flex;flex-direction:column;gap:4px;margin-top:9px}
 .prod-f span{font-family:'Inter';font-weight:600;font-size:11.5px;color:var(--cream-m)}
-.prod-f input,.prod-f textarea,.prod-addc select,.prod-addc input{background:var(--bg,#0d0b08);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--cream);font-family:'Inter';font-size:15px;-webkit-appearance:none;appearance:none}
-.app.crew-day .prod-f input,.app.crew-day .prod-f textarea,.app.crew-day .prod-addc select,.app.crew-day .prod-addc input{background:var(--card)}
-.prod-f input:focus,.prod-f textarea:focus{border-color:var(--gold2)}
+.prod-f input,.prod-f textarea,.prod-f select,.prod-addc select,.prod-addc input{background:var(--bg,#0d0b08);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--cream);font-family:'Inter';font-size:15px;-webkit-appearance:none;appearance:none}
+.app.crew-day .prod-f input,.app.crew-day .prod-f textarea,.app.crew-day .prod-f select,.app.crew-day .prod-addc select,.app.crew-day .prod-addc input{background:var(--card)}
+.prod-f input:focus,.prod-f textarea:focus,.prod-f select:focus{border-color:var(--gold2)}
 .prod-f input,.prod-f textarea,.prod-f select{width:100%;min-width:0}
 .prod-toggle{display:flex;align-items:center;gap:8px;margin-top:12px;font-family:'Inter';font-size:14px;color:var(--cream)}
 .prod-recipe{margin-top:14px;border-top:1px solid var(--line);padding-top:11px}
@@ -6755,6 +6755,15 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .cp-line.dim,.cp-line .dim{color:var(--cream-m)}
 .cp-go{display:inline-flex;align-items:center;gap:4px;min-height:44px;margin-top:4px;
   font-family:'Inter';font-size:12.5px;font-weight:650;color:var(--gold2);text-decoration:none}
+
+/* An action that belongs INSIDE a sentence — "Step them down", "Put X in charge of Atlanta".
+   A button, not a link, because it performs the change; styled as text because it reads as part
+   of the line it sits in. Keeps the 44px touch floor via padding rather than height, so it does
+   not push the sentence apart. */
+.cp-inline-act{background:none;border:0;padding:6px 0;margin:0;cursor:pointer;
+  font-family:'Inter';font-size:13px;font-weight:650;color:var(--gold2);
+  text-decoration:underline;text-underline-offset:2px;-webkit-appearance:none;appearance:none}
+.cp-inline-act:disabled{opacity:.5;cursor:default}
 
 /* the roster's door into all of the above */
 .tm-open{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:none;

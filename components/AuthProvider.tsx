@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { User } from "@supabase/supabase-js";
 import { supabase, supabaseEnabled } from "@/lib/supabase";
 import { useFocusTrap } from "@/lib/useFocusTrap";
+import type { Role } from "@/lib/roles";
 
 export interface Profile {
   id: string;
@@ -14,7 +15,14 @@ export interface Profile {
   founding_member: boolean;
   is_admin: boolean;
   is_driver?: boolean;
-  role?: "member" | "server" | "admin" | "owner";
+  // WAS a four-value union hand-written here — "member" | "server" | "admin" | "owner" — while the
+  // database has allowed seven since 0031. operator, event_manager and contractor were missing, and
+  // `operator` is one of only THREE roles present in production, so every consumer narrowing on
+  // this type was reasoning about a role set that does not match the data. Now it IS the vocabulary
+  // in lib/roles, so it cannot drift from the CHECK constraint again.
+  role?: Role;
+  market?: string;              // profiles.market — NOT NULL in the DB, default 'greenville' (0289)
+  leads_market?: string | null; // at most one lead per market, partial unique index (0289)
   referred_by: string | null;
   avatar_url?: string | null;
   gender?: "male" | "female" | "other" | null;  // optional; drives the founding-member crest only (0182)

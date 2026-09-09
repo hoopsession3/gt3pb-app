@@ -1292,6 +1292,49 @@ await db.exec(`set test.owner = 'on';`);
 const badMkt = await raises(`select public.set_member_market('cccccccc-0000-0000-0000-000000000002', 'nowhere')`);
 ok("0299: an unknown market is refused", badMkt !== null && /No such market/.test(badMkt), badMkt);
 
+// ── the three rules components/CrewPerson.tsx now mirrors in what it renders ────────────────
+// Until this round both RPCs had ZERO callers anywhere in the app: the person sheet wrote
+// profiles.market directly, which no grant has ever permitted, behind a condition (`!p.market`)
+// that is false for every row because the column is NOT NULL. A broken write behind an impossible
+// condition — which is why nobody ever reported it.
+//
+// The sheet now calls them, and decides which controls to show by re-stating their rules in TSX.
+// Two copies of one rule is the thing this codebase keeps finding, so these assertions pin the
+// copy: if an RPC's rule moves, the UI's mirror is wrong and this fails.
+
+// RULE 1 — authorization is against the market being moved INTO, not the one they are in now.
+// This is why the sheet offers a market lead exactly one destination (their own) and an owner all.
+// NINO holds Atlanta at this point — set_market_lead cleared SAM when it handed it over. Being
+// the lead is the whole point of the assertion, so the caller has to actually BE him.
+await db.exec(`update public.profiles set market='greenville' where id='cccccccc-0000-0000-0000-000000000002';
+               set test.owner = 'off'; set test.uid = '${NINO}';`);
+const intoMine = await raises(`select public.set_member_market('cccccccc-0000-0000-0000-000000000002', 'atlanta')`);
+ok("0299: the Atlanta lead CAN pull a Greenville person into Atlanta — the TARGET market is what is checked",
+   intoMine === null, intoMine);
+ok("0299: and they landed in Atlanta",
+   (await q1(`select market from public.profiles where id='cccccccc-0000-0000-0000-000000000002'`))?.market === "atlanta");
+const outOfMine = await raises(`select public.set_member_market('cccccccc-0000-0000-0000-000000000002', 'greenville')`);
+ok("0299: but the same lead cannot push them OUT into a market they do not lead",
+   outOfMine !== null && /owner, or the lead/.test(outOfMine), outOfMine);
+await db.exec(`set test.owner = 'on'; set test.uid = '${RYAN}';`);
+
+// RULE 2 — a null market stands somebody down. The sheet's "Step them down" passes p_market: null.
+await db.exec(`select public.set_market_lead('${NINO}', null);`);
+ok("0289: set_market_lead(member, null) stands them down, rather than needing a delete",
+   (await q1(`select leads_market from public.profiles where id='${NINO}'`))?.leads_market === null);
+ok("0289: and standing down leaves their city alone — coalesce(null, market) keeps it",
+   (await q1(`select market from public.profiles where id='${NINO}'`))?.market === "atlanta");
+await db.exec(`select public.set_market_lead('${NINO}', 'atlanta');`);
+
+// RULE 3 — moving a lead to another city clears the lead, via zz_sync_leads_market. The sheet warns
+// about this BEFORE you do it, because a side effect nobody mentioned is a surprise.
+await db.exec(`select public.set_member_market('${NINO}', 'greenville');`);
+ok("0289: moving a lead to another city stands them down automatically",
+   (await q1(`select leads_market from public.profiles where id='${NINO}'`))?.leads_market === null,
+   await q1(`select market, leads_market from public.profiles where id='${NINO}'`));
+await db.exec(`select public.set_member_market('${NINO}', 'atlanta');
+               select public.set_market_lead('${NINO}', 'atlanta');`);
+
 // ═══ 0300 — a batch you can work from ═══════════════════════════════════════════════════════════
 await db.exec(`
   -- 0079 gives brew_batches a ready_at; the stub never needed one until v_batch_progress read it.

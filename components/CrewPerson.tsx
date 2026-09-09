@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useApp } from "./AppProvider";
+import { useAuth, roleOf } from "./AuthProvider";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Sheet, { CloseButton } from "./Sheet";
@@ -40,7 +41,8 @@ type Person = {
   last_seen_at: string | null; active_days_30: number;
 };
 type Step = { step: string; step_order: number; label: string; owed_by: string; done: boolean; detail: string };
-type Data = { person: Person | null; steps: Step[] };
+type Market = { slug: string; name: string };
+type Data = { person: Person | null; steps: Step[]; markets: Market[] };
 
 // Where each unfinished step is actually finished. Steps owed by THEM get no link on purpose —
 // offering a button that does not do the thing is worse than saying plainly that it is their move.
@@ -64,29 +66,47 @@ export default function CrewPerson({ userId, onClose, onChanged }: {
   userId: string; onClose: () => void; onChanged?: () => void;
 }) {
   const { toast } = useApp();
+  const { profile: me } = useAuth();
   const [busy, setBusy] = useState(false);
   const [showLoyalty, setShowLoyalty] = useState(false);
 
   const loader = useCallback(async (): Promise<Data> => {
-    if (!supabase) return { person: null, steps: [] };
-    const [p, s] = await Promise.all([
+    if (!supabase) return { person: null, steps: [], markets: [] };
+    const [p, s, m] = await Promise.all([
       supabase.from("v_crew_person").select("*").eq("user_id", userId).maybeSingle(),
       supabase.from("v_crew_onboarding_steps").select("step, step_order, label, owed_by, done, detail")
         .eq("user_id", userId).order("step_order"),
+      supabase.from("markets").select("slug, name").eq("active", true).order("name"),
     ]);
     if (p.error) throw new Error(p.error.message);
-    return { person: (p.data as Person) ?? null, steps: (s.data as Step[]) ?? [] };
+    return { person: (p.data as Person) ?? null, steps: (s.data as Step[]) ?? [], markets: (m.data as Market[]) ?? [] };
   }, [userId]);
   const state = useAsyncData<Data>(loader, [userId]);
   const reload = state.reload;
 
-  const setMarket = async (market: string) => {
+  // ── MOVING SOMEBODY BETWEEN CITIES (0299's RPCs, which had no caller until now) ────────────────
+  //
+  // This used to be `supabase.from("profiles").update({ market })`, and it could never have worked.
+  // profiles has exactly ONE update policy — own row — and the column-level UPDATE grants to
+  // `authenticated` are display_name, avatar_url, title, bio, card_vision, nav_pins, card_motto.
+  // `market` is not among them and never has been (verified against production, not the migrations).
+  //
+  // It also never rendered: the control was behind `!p.market`, and profiles.market is NOT NULL with
+  // a default, so the condition is false for every row that exists. A broken write behind a
+  // condition that is never true is why nobody ever reported it — and why "it compiles" and "a
+  // person can do it" are different claims.
+  //
+  // set_member_market and set_market_lead are the real doors. Both are SECURITY DEFINER with their
+  // own checks (owner, or the lead of that market, for the first; owner only for the second), so
+  // this is not a privilege we are inventing — it is one that shipped in 0299 and 0289 with nothing
+  // wired to it.
+  const call = async (fn: "set_member_market" | "set_market_lead", args: Record<string, string | null>, ok: string) => {
     if (!supabase || busy) return;
     setBusy(true);
-    const { error } = await supabase.from("profiles").update({ market: market || null }).eq("id", userId);
+    const { error } = await supabase.rpc(fn, args);
     setBusy(false);
-    if (error) { toast(error.message, "error"); return; }
-    toast(market ? `Market set to ${market}` : "Market cleared");
+    if (error) { toast(error.message, "error"); return; } // the RPC's own refusal, said out loud
+    toast(ok);
     reload(); onChanged?.();
   };
 
@@ -99,10 +119,20 @@ export default function CrewPerson({ userId, onClose, onChanged }: {
       <AsyncSection state={state} isEmpty={({ person }) => !person}
         emptyTitle="Nobody here" emptySub="That account is no longer on the crew."
         loadingLabel="Loading…" errorTitle="Couldn't load this person">
-        {({ person, steps }) => {
+        {({ person, steps, markets }) => {
           const p = person!;
           const pct = p.steps_total > 0 ? Math.round((Number(p.steps_done) / Number(p.steps_total)) * 100) : 0;
           const first = (p.display_name ?? "They").trim().split(/\s+/)[0];
+          // Mirrors what the two RPCs will actually allow, so we do not offer a control that is
+          // going to refuse. The RPCs remain the authorization; this only decides what to render.
+          //
+          // set_member_market authorizes against the market being moved INTO, not the one the
+          // person is in now — "the lead of that market can move someone into it". So a market
+          // lead sees exactly one destination: their own. An owner sees all of them.
+          const iAmOwner = roleOf(me) === "owner";
+          const canMoveInto = iAmOwner ? markets : markets.filter((m) => m.slug === me?.leads_market);
+          // set_market_lead refuses anyone below operator, so do not offer it for a server.
+          const couldLead = ["operator", "event_manager", "admin", "owner"].includes(p.role);
           return (
             <>
               {/* who ─────────────────────────────────────────────────────────────────────── */}
@@ -151,14 +181,79 @@ export default function CrewPerson({ userId, onClose, onChanged }: {
                   })}
                 </div>
 
-                {/* The market step is the one thing fixable without leaving, so it is. */}
-                {!p.market && (
-                  <label className="prod-f" style={{ marginTop: 10 }}>
-                    <span>Set their market</span>
-                    <input defaultValue="" placeholder="atlanta" disabled={busy}
-                           onBlur={(e) => { const v = e.target.value.trim(); if (v) setMarket(v); }} />
+              </div>
+
+              {/* where they work ─────────────────────────────────────────────────────────────
+                  A person's city and whether they lead it are the two facts that could not be
+                  changed from any screen once promote_to_crew had run. Now they can, from the one
+                  place that already claims to be the centre for this person. A select, not a free
+                  text box: 'atlanta' typed by hand is a foreign-key violation waiting to happen,
+                  and markets is a closed list. */}
+              <div className="cp-block">
+                <div className="cp-block-h">
+                  <span>Where they work</span>
+                  <b>{markets.find((m) => m.slug === p.market)?.name ?? p.market ?? "—"}</b>
+                </div>
+
+                {canMoveInto.length > 0 ? (
+                  <label className="prod-f">
+                    <span>Home market</span>
+                    <select value={p.market ?? ""} disabled={busy}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              if (!v || v === p.market) return;
+                              call("set_member_market", { p_member: userId, p_market: v },
+                                   `${first} now works out of ${markets.find((m) => m.slug === v)?.name ?? v}.`);
+                            }}>
+                      {/* their current market is always listed so the select shows the truth, even
+                          when the viewer cannot move them back into it */}
+                      {p.market && !canMoveInto.some((m) => m.slug === p.market) && (
+                        <option value={p.market}>{markets.find((m) => m.slug === p.market)?.name ?? p.market}</option>
+                      )}
+                      {!p.market && <option value="">Choose a market…</option>}
+                      {canMoveInto.map((m) => <option key={m.slug} value={m.slug}>{m.name}</option>)}
+                    </select>
                   </label>
+                ) : (
+                  <p className="cp-line dim">
+                    Moving somebody into a city is done by an owner, or by the person who leads that city.
+                  </p>
                 )}
+
+                {/* Moving markets clears a lead — the zz_sync_leads_market trigger does it, so say
+                    so rather than letting it happen silently. */}
+                {p.leads_market && canMoveInto.length > 0 && (
+                  <p className="cp-line dim">
+                    Moving {first} to another city also stands them down as lead of{" "}
+                    {markets.find((m) => m.slug === p.leads_market)?.name ?? p.leads_market}.
+                  </p>
+                )}
+
+                {p.leads_market ? (
+                  <p className="cp-line">
+                    <b>{first} leads {markets.find((m) => m.slug === p.leads_market)?.name ?? p.leads_market}.</b>{" "}
+                    {iAmOwner && (
+                      <button type="button" className="cp-inline-act" disabled={busy}
+                              onClick={() => call("set_market_lead", { p_member: userId, p_market: null },
+                                                  `${first} no longer leads a market.`)}>
+                        Step them down
+                      </button>
+                    )}
+                  </p>
+                ) : iAmOwner && p.market && couldLead ? (
+                  <p className="cp-line dim">
+                    {first} does not lead a market.{" "}
+                    <button type="button" className="cp-inline-act" disabled={busy}
+                            onClick={() => call("set_market_lead", { p_member: userId, p_market: p.market ?? null },
+                                                `${first} now leads that market.`)}>
+                      Put {first} in charge of {markets.find((m) => m.slug === p.market)?.name ?? p.market}
+                    </button>
+                  </p>
+                ) : iAmOwner && !couldLead ? (
+                  <p className="cp-line dim">
+                    A market lead has to be an operator or above. {first} is a {p.role}.
+                  </p>
+                ) : null}
               </div>
 
               {/* what they agreed to ─────────────────────────────────────────────────────── */}
