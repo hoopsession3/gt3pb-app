@@ -1948,6 +1948,74 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("deep links: the check itself catches a bad section and a bad anchor", probeHits.length === 2, probeHits.length);
   ok("deep links: and a commented-out link is not counted",
     [...stripComments(`// <a href="/crew?s=plan&a=no-such-anchor">`).matchAll(/\/crew\?s=/g)].length === 0);
+
+  // ── AN ANCHOR THAT EXISTS IS NOT THE SAME AS A PLACE YOU ARRIVE ──────────────────────────────
+  // Ryan tapped a link to draft a contract and got Money's Spend & budget card. Every check above
+  // passed: ?s=money is a real section and the link named no anchor, so there was nothing to
+  // resolve. That is the hole. Money is an ACCORDION — twenty collapsed panels — and landing at the
+  // top of it is landing nowhere, six screens above the thing you asked for.
+  //
+  // So: a link into a section built as an accordion must say WHICH panel. The list is hard-coded
+  // and short on purpose; a section earns its way onto it by having panels, and both of these have
+  // more than fifteen. Sections that are a single screen (day, now, notes) are unaffected — an
+  // anchor there would be noise.
+  const ACCORDION = new Set(["money", "settings"]);
+
+  // Read the URL up to whatever ENDS it — a quote, a backtick, whitespace, a closing bracket —
+  // rather than a list of param shapes. The first version of this used the same
+  // (?:&[a-z]+=[a-zA-Z0-9:_-]+)* pattern as the check above, and reported EditCopyPill as
+  // anchorless: its link is a template literal, `/crew?s=settings&a=${copyGroupAnchor(group)}`, and
+  // `${` is not in that character class, so the match stopped at the section and the anchor was
+  // invisible. A real anchor, computed at runtime, flagged as missing. Seventh time a confident
+  // regex in this codebase has been wrong in the alarming direction, so this one asks the simpler
+  // question: is there an &a= anywhere in the rest of this URL, literal or interpolated?
+  const anchorOf = (src, at) => {
+    const tail = (src.slice(at, at + 160).match(/^[^"'`\s>)]*/) || [""])[0];
+    return /[&?]a=/.test(tail);
+  };
+  const anchorless = [];
+  for (const f of files) {
+    const src = stripComments(fs.readFileSync(f, "utf8"));
+    for (const m of src.matchAll(/\/crew\?s=([a-z]+)/g)) {
+      if (!ACCORDION.has(m[1])) continue;
+      if (anchorOf(src, m.index + m[0].length)) continue;
+      anchorless.push(`${f.replace(root + "/", "")}: ?s=${m[1]} with no &a= — lands at the top of an accordion`);
+    }
+  }
+  ok("deep links: no link drops you at the top of an accordion section", anchorless.length === 0, anchorless);
+
+  // The gate, fed the exact link that took Ryan to the wrong card — and the three things that must
+  // NOT trip it, including the interpolated anchor its first version got wrong.
+  const accCount = (code) => {
+    const src = stripComments(code);
+    let n = 0;
+    for (const m of src.matchAll(/\/crew\?s=([a-z]+)/g)) {
+      if (ACCORDION.has(m[1]) && !anchorOf(src, m.index + m[0].length)) n++;
+    }
+    return n;
+  };
+  ok("deep links: the accordion check catches the link that caused this",
+    accCount(`<a href="/crew?s=money">Draft one</a>`) === 1);
+  ok("deep links: and does not flag the fixed version of it",
+    accCount(`<a href="/crew?s=money&a=operators">Draft one</a>`) === 0);
+  ok("deep links: an anchor built at runtime is an anchor (components/EditCopyPill.tsx)",
+    accCount('window.location.href = `/crew?s=settings&a=${copyGroupAnchor(group)}`;') === 0);
+  ok("deep links: a one-screen section needs no anchor",
+    accCount(`<a href="/crew?s=day">Today</a>`) === 0);
+
+  // ── AND THE PANEL HAS TO OPEN ────────────────────────────────────────────────────────────────
+  // The other half of what broke, and the half no URL check can see: ?a= scrolled to a CLOSED
+  // accordion header, and scrollToAnchor was a single setTimeout that fired before twenty panels
+  // restored their open state and pushed the target 3,760px down the page. Both are runtime
+  // behaviours, so what is asserted here is that the MECHANISM is still wired: the jump asks the
+  // panel to open, and Panel listens. If either side is deleted, this fails.
+  const crewSrc = fs.readFileSync(path.join(root, "app/crew/page.tsx"), "utf8");
+  ok("deep links: the jump asks the target panel to open, rather than assuming it already is",
+    /dispatchEvent\(new CustomEvent\(OPEN_PANEL_EVENT/.test(crewSrc));
+  ok("deep links: Panel listens for that request",
+    /addEventListener\(OPEN_PANEL_EVENT/.test(crewSrc));
+  ok("deep links: and the scroll waits for the page to settle instead of guessing a delay",
+    /stable\s*\+=\s*1/.test(crewSrc) && /stable\s*<\s*3/.test(crewSrc));
 }
 
 // ── which build is answering (lib/buildInfo.ts) ────────────────────────────────────────────────

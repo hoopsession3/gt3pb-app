@@ -46,9 +46,16 @@ type Data = { person: Person | null; steps: Step[]; markets: Market[] };
 
 // Where each unfinished step is actually finished. Steps owed by THEM get no link on purpose —
 // offering a button that does not do the thing is worse than saying plainly that it is their move.
+//
+// Every one of these carries an &a= anchor, and it is not decoration. Money is a twenty-panel
+// accordion: a link to /crew?s=money lands you on Spend & budget with the thing you asked for six
+// screens below the fold, which is exactly what "Draft one" did until now. The agreement links
+// point at `operators` — the "Operator agreements · deals, levels & royalties" panel — because that
+// is where an agreement is actually read and written. scripts/smoke.cjs fails the build on a link
+// into an accordion section that names no anchor.
 const GO_TO: Record<string, { href: string; cta: string }> = {
   offer:     { href: "/crew?s=money&a=offers", cta: "Draft their offer letter" },
-  agreement: { href: "/crew?s=money",          cta: "Open their agreement" },
+  agreement: { href: "/crew?s=money&a=operators", cta: "Open their agreement" },
   academy:   { href: "/crew?s=team",           cta: "Assign their Academy path" },
 };
 
@@ -270,7 +277,7 @@ export default function CrewPerson({ userId, onClose, onChanged }: {
                     {Number(p.hours_on_interim_work ?? 0) > 0 &&
                       <> · <b>{Number(p.hours_on_interim_work).toLocaleString()}</b> on interim brewing &amp; driving</>}
                   </p>
-                  <a className="cp-go" href="/crew?s=money">Open it in Money <span aria-hidden="true">›</span></a>
+                  <a className="cp-go" href="/crew?s=money&a=operators">Open it in Money <span aria-hidden="true">›</span></a>
                 </div>
               ) : (p.role === "operator" || p.role === "event_manager") && (
                 <div className="cp-block">
@@ -279,7 +286,7 @@ export default function CrewPerson({ userId, onClose, onChanged }: {
                     {first} holds {p.leads_market ? `market lead over ${p.leads_market}` : `the ${p.role} role`} with
                     nothing on paper.
                   </p>
-                  <a className="cp-go" href="/crew?s=money">Draft one <span aria-hidden="true">›</span></a>
+                  <a className="cp-go" href="/crew?s=money&a=operators">Draft one <span aria-hidden="true">›</span></a>
                 </div>
               )}
 

@@ -605,9 +605,67 @@ function alertDest(category: string | null | undefined, title?: string | null, l
   return null; // system & anything homeless: the card is the content
 }
 // After a section switch React needs a beat to mount the destination before we can scroll to it.
+// JUMP TO A PANEL — the third round of the same bug, so this time it is written down.
+//
+// ── WHAT RYAN SAW ──────────────────────────────────────────────────────────────────────────────
+// He tapped a link to draft a contract and landed on Money's Spend & budget card. Not an error —
+// the RIGHT section, at the top, with the thing he asked for six screens below the fold.
+//
+// Measured in production before touching this: /crew?s=money&a=offers ends at scrollY 0 with
+// #offers sitting 3,760px down a 635px viewport. The ?a= is stripped from the URL either way, so
+// the deep link reports success by disappearing.
+//
+// ── WHY THE OLD ONE COULD NOT WORK ─────────────────────────────────────────────────────────────
+// It was one setTimeout(…, 120). Three things happen after 120ms on this page:
+//   · every Panel restores its open state from localStorage in its OWN effect, and each one that
+//     expands pushes the target further down — Money has twenty of them;
+//   · panel bodies are dynamic() imports that land later still;
+//   · a smooth scroll started before that reflow gets absorbed by it.
+// So it scrolled to where the anchor was before ~3,000px appeared above it. The earlier fix in
+// Panel's header (giving the section a real DOM id, 7/16) was necessary and not sufficient: an id
+// that exists is not the same as a place you arrive.
+//
+// And a COLLAPSED panel was never opened at all. The link worked for Ryan only to the extent that
+// localStorage remembered he had opened it once by hand; for anyone else it scrolls to a shut
+// accordion header. A link that half-works is worse than one that plainly does not — lib/records.ts
+// wrote that rule down before this file broke it twice.
+//
+// ── WHAT THIS DOES ─────────────────────────────────────────────────────────────────────────────
+// Ask the panel to open, then wait for the page to STOP MOVING before scrolling — three identical
+// measurements 80ms apart — with a 5s deadline so a screen that never settles still gets its jump.
+// One correction pass after the animation, because a dynamic() body landing mid-scroll moves the
+// target under us; checked once and corrected without animation so it cannot oscillate.
+export const OPEN_PANEL_EVENT = "gt3-open-panel";
+
 function scrollToAnchor(anchor?: string) {
-  if (!anchor) return;
-  setTimeout(() => document.getElementById(anchor)?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
+  if (!anchor || typeof window === "undefined") return;
+  const deadline = Date.now() + 5000;
+  let lastTop = -1, stable = 0, asked = false;
+
+  const tick = () => {
+    const el = document.getElementById(anchor);
+    if (!el) {
+      // The section may not have mounted yet — ?s= hydration and this effect race. Keep looking.
+      if (Date.now() < deadline) setTimeout(tick, 80);
+      return;
+    }
+    if (!asked) {
+      asked = true;
+      window.dispatchEvent(new CustomEvent(OPEN_PANEL_EVENT, { detail: anchor }));
+    }
+    const top = Math.round(el.getBoundingClientRect().top + window.scrollY);
+    if (top === lastTop) stable += 1; else { stable = 0; lastTop = top; }
+    if (stable < 3 && Date.now() < deadline) { setTimeout(tick, 80); return; }
+
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+    setTimeout(() => {
+      const r = document.getElementById(anchor)?.getBoundingClientRect();
+      if (r && (r.top < -8 || r.top > window.innerHeight * 0.5)) {
+        document.getElementById(anchor)?.scrollIntoView({ block: "start" });
+      }
+    }, 600);
+  };
+  setTimeout(tick, 80);
 }
 
 // Content-review alerts are handled IN PLACE (like reservations) — no jump to the noisy calendar.
@@ -5218,6 +5276,18 @@ function Panel({ title, id, defaultOpen = false, children }: { title: string; id
   const storeKey = `gt3-mpanel-${id}`;
   const [open, setOpen] = useState(defaultOpen);
   useEffect(() => { try { const v = localStorage.getItem(storeKey); if (v !== null) setOpen(v === "1"); } catch { /* ignore */ } }, [storeKey]);
+  // A deep link asks for this panel by id. Without this, ?a=<id> scrolled to a CLOSED accordion
+  // header — it only ever appeared to work for someone whose localStorage remembered opening it by
+  // hand. Persisted too: having been sent here, you should still find it open next time.
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      if ((e as CustomEvent<string>).detail !== id) return;
+      setOpen(true);
+      try { localStorage.setItem(storeKey, "1"); } catch { /* ignore */ }
+    };
+    window.addEventListener(OPEN_PANEL_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_PANEL_EVENT, onOpen);
+  }, [id, storeKey]);
   const toggle = () => setOpen((o) => { const n = !o; try { localStorage.setItem(storeKey, n ? "1" : "0"); } catch { /* ignore */ } return n; });
   return (
     <section id={id} className={`mpanel${open ? " open" : ""}`} style={{ scrollMarginTop: 16 }}>
