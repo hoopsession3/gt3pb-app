@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type 
 import { useApp } from "@/components/AppProvider";
 import { SectionHeader, InfoRow } from "@/components/kit";
 import { useAuth, roleOf, type Profile } from "@/components/AuthProvider";
+import { SENIORITY, roleLabel, tierOf, toRole, type Role, type Tier } from "@/lib/roles";
 import { raiseAlertClient } from "@/lib/clientAlerts";
 import { authedFetch } from "@/lib/authedFetch";
 import { normalizeCategory, type AlertCategory } from "@/lib/alertKinds";
@@ -144,6 +145,7 @@ const ChiefOfSales = dynamic(() => import("@/components/ChiefOfSales"), { loadin
 const AuditTrail = dynamic(() => import("@/components/AuditTrail"), { loading: () => <PourFill label="Loading…" /> });
 const IntegrationsPanel = dynamic(() => import("@/components/IntegrationsPanel"), { loading: () => <PourFill label="Loading…" /> });
 const SmartIntake = dynamic(() => import("@/components/SmartIntake"), { loading: () => <PourFill label="Loading…" /> });
+const DocsFiled = dynamic(() => import("@/components/DocsFiled"), { loading: () => <PourFill label="Loading…" /> });
 import Markdown from "@/components/Markdown";
 import { subscribePush } from "@/lib/push";
 import { chime, unlockAudio } from "@/lib/chime";
@@ -1278,6 +1280,11 @@ function MyDay({ userId, meName, isLeader, canPrep, canBrew }: { userId: string 
               <GtmCard onOpenSchedule={() => setSection("now")} onOpenInitiative={() => setSection("command")} />
               <ChiefOfStaff />
               <SmartIntake />
+              {/* The read half of intake. Filing has worked since 0088; nothing in the app has ever
+                  read public.documents, so a permit went in and could only be got back out of the
+                  SQL editor. Mounted directly under the thing that writes it, because "where did
+                  that go?" is asked in the place you put it. */}
+              <DocsFiled />
             </div>
           )}
         </div>
@@ -3671,27 +3678,30 @@ function Subscribers() {
 // ───────────────────────── member management ─────────────────────────
 // The full role set lives in profiles.role (migration 0031). roleOf() COLLAPSES it
 // (operator/event_manager/contractor → member), so the team console never uses it — it reads
-// the raw role and maps each to a tier, a human label, and the exact sections it unlocks
-// (kept in lockstep with OperatorNav's scope so "what can they see" is never a guess).
-type RoleKey = "owner" | "admin" | "event_manager" | "operator" | "contractor" | "server" | "member";
-const ROLE_META: Record<RoleKey, { label: string; tier: "lead" | "crew" | "member"; scope: string; tone: string }> = {
-  owner:         { label: "Owner",         tier: "lead",   scope: "Full access — every section",    tone: "red" },
-  admin:         { label: "Admin",         tier: "lead",   scope: "Full access — every section",    tone: "red" },
-  event_manager: { label: "Event Manager", tier: "lead",   scope: "Everything but Money & Team",    tone: "gold" },
-  operator:      { label: "Operator",      tier: "crew",   scope: "Service · Prep · Brew · Assets · Pipeline · Notes · Drive", tone: "cream" },
-  contractor:    { label: "Contractor",    tier: "crew",   scope: "Service · Prep · Assets · Notes · Drive", tone: "cream" },
-  server:        { label: "Server",        tier: "crew",   scope: "My Day · Live Ops · Notes · Drive", tone: "cream" },
-  member:        { label: "Member",        tier: "member", scope: "Customer — loyalty only",        tone: "muted" },
+// the RAW role via toRole() and adds the one thing lib/roles cannot know: which sections of THIS
+// console each role unlocks (kept in lockstep with OperatorNav's scope so "what can they see" is
+// never a guess), plus the tone its chip is drawn in.
+//
+// The label and the tier used to be columns of this same map. They are not local facts — the org
+// chart, the invite form and the offer letter each named the same seven roles independently, and
+// two of them had already drifted on "Event Manager"/"Event manager". Both now come from
+// lib/roles: roleLabel() names a role, tierOf() derives lead/crew/member from LEADERSHIP_ROLES and
+// STAFF_ROLES rather than restating a partition those lists already decide.
+type RoleKey = Role;
+const ROLE_META: Record<RoleKey, { scope: string; tone: string }> = {
+  owner:         { scope: "Full access — every section",    tone: "red" },
+  admin:         { scope: "Full access — every section",    tone: "red" },
+  event_manager: { scope: "Everything but Money & Team",    tone: "gold" },
+  operator:      { scope: "Service · Prep · Brew · Assets · Pipeline · Notes · Drive", tone: "cream" },
+  contractor:    { scope: "Service · Prep · Assets · Notes · Drive", tone: "cream" },
+  server:        { scope: "My Day · Live Ops · Notes · Drive", tone: "cream" },
+  member:        { scope: "Customer — loyalty only",        tone: "muted" },
 };
-const ROLE_ORDER: RoleKey[] = ["owner", "admin", "event_manager", "operator", "contractor", "server", "member"];
-const TIERS: { key: "lead" | "crew"; title: string; hint: string }[] = [
+const TIERS: { key: Tier; title: string; hint: string }[] = [
   { key: "lead", title: "Leadership", hint: "Run the business" },
   { key: "crew", title: "Crew", hint: "Work the shifts" },
 ];
-const rawRole = (m: { role?: string | null }): RoleKey => {
-  const r = m.role as RoleKey;
-  return ROLE_ORDER.includes(r) ? r : "member";
-};
+const rawRole = (m: { role?: string | null }): RoleKey => toRole(m.role);
 const initials = (name: string | null) =>
   (name ?? "").trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "·";
 
@@ -3736,11 +3746,11 @@ function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; is
     // Safety rails: never strand the business without an owner; double-check elevations + demotions.
     if (role === "owner" && next !== "owner" && ownerCount <= 1) { toast("Can't remove the last owner — promote someone else first."); return; }
     if (isSelf && role === "owner" && next !== "owner") { if (!window.confirm("Demote yourself from Owner? You'll lose full access immediately.")) return; }
-    else if (next === "owner" || next === "admin" || role === "owner") { if (!window.confirm(`Set ${name} to ${ROLE_META[next as RoleKey].label}?`)) return; }
+    else if (next === "owner" || next === "admin" || role === "owner") { if (!window.confirm(`Set ${name} to ${roleLabel(next)}?`)) return; }
     onPatch(m.id, next); // optimistic — reflect the pick instantly
     const { error } = await supabase!.rpc("admin_set_role", { member: m.id, new_role: next });
     if (error) { onPatch(m.id, role); toast(`Error: ${error.message}`); }
-    else { toast(`${m.display_name ?? "Member"} → ${ROLE_META[next as RoleKey].label}`); onSaved(); }
+    else { toast(`${m.display_name ?? "Member"} → ${roleLabel(next)}`); onSaved(); }
   };
 
   return (
@@ -3751,12 +3761,12 @@ function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; is
           <b>{m.display_name ?? "Unnamed"}{isSelf && <span className="tm-you">you</span>}</b>
           <span className="adm-ref">{m.referral_code || "—"}</span>
         </div>
-        <span className={`tm-badge tone-${meta.tone}`}>{meta.label}</span>
+        <span className={`tm-badge tone-${meta.tone}`}>{roleLabel(role)}</span>
         {isDriver && <span className="tm-driver" title="Delivery driver"><Icon name="compass" /></span>}
       </div>
       <label className="tm-rolepick">
         <select className="adm-role" value={role} onChange={(e) => setRole(e.target.value)} aria-label={`Role for ${m.display_name ?? "member"}`}>
-          {ROLE_ORDER.map((r) => <option key={r} value={r}>{ROLE_META[r].label}</option>)}
+          {SENIORITY.map((r) => <option key={r} value={r}>{roleLabel(r)}</option>)}
         </select>
         <i className="tm-scope">{meta.scope}</i>
       </label>
@@ -3902,15 +3912,15 @@ function PromotePanel({ onDone }: { onDone: () => void }) {
     if (!supabase || !pick) return;
     const who = rows.find((r) => r.id === pick);
     const name = who?.display_name || who?.customer_name || "this person";
-    if (!window.confirm(`Bring ${name} onto the crew as ${ROLE_META[role as RoleKey].label}${market ? ` in ${market}` : ""}${lead ? `, leading ${market}` : ""}?`)) return;
+    if (!window.confirm(`Bring ${name} onto the crew as ${roleLabel(role)}${market ? ` in ${market}` : ""}${lead ? `, leading ${market}` : ""}?`)) return;
     setBusy(true);
     const { error } = await supabase.rpc("promote_to_crew", {
       p_member: pick, p_role: role, p_market: market || null, p_lead: lead,
     });
     setBusy(false);
     if (error) { toast(`Error: ${error.message}`); return; }
-    toast(`${name} → ${ROLE_META[role as RoleKey].label}${lead ? ` · leads ${market}` : ""}`);
-    setJustHired({ name, role: ROLE_META[role as RoleKey].label, market, lead });
+    toast(`${name} → ${roleLabel(role)}${lead ? ` · leads ${market}` : ""}`);
+    setJustHired({ name, role: roleLabel(role), market, lead });
     setPick(null); setLead(false);
     load();
     onDone();
@@ -4002,7 +4012,7 @@ function PromotePanel({ onDone }: { onDone: () => void }) {
                   <div className="tm-hire-form">
                     <label>Role
                       <select value={role} onChange={(e) => setRole(e.target.value)}>
-                        {HIRE_ROLES.map((r) => <option key={r} value={r}>{ROLE_META[r].label}</option>)}
+                        {HIRE_ROLES.map((r) => <option key={r} value={r}>{roleLabel(r)}</option>)}
                       </select>
                     </label>
                     <label>City
@@ -4057,7 +4067,7 @@ function Members() {
   const ql = q.trim().toLowerCase();
   const staff = members.filter((m) => rawRole(m) !== "member");
   const shown = staff.filter((m) =>
-    !ql || (m.display_name ?? "").toLowerCase().includes(ql) || (m.referral_code ?? "").toLowerCase().includes(ql) || ROLE_META[rawRole(m)].label.toLowerCase().includes(ql)
+    !ql || (m.display_name ?? "").toLowerCase().includes(ql) || (m.referral_code ?? "").toLowerCase().includes(ql) || roleLabel(m.role).toLowerCase().includes(ql)
   );
   const customerCount = members.length - staff.length;
   const ownerCount = staff.filter((m) => rawRole(m) === "owner").length;
@@ -4085,8 +4095,8 @@ function Members() {
       )}
       {TIERS.map((tier) => {
         const rows = shown
-          .filter((m) => ROLE_META[rawRole(m)].tier === tier.key)
-          .sort((a, b) => ROLE_ORDER.indexOf(rawRole(a)) - ROLE_ORDER.indexOf(rawRole(b)) || (a.display_name ?? "").localeCompare(b.display_name ?? ""));
+          .filter((m) => tierOf(m.role) === tier.key)
+          .sort((a, b) => SENIORITY.indexOf(rawRole(a)) - SENIORITY.indexOf(rawRole(b)) || (a.display_name ?? "").localeCompare(b.display_name ?? ""));
         if (rows.length === 0) return null;
         return (
           <div key={tier.key} className="tm-group">

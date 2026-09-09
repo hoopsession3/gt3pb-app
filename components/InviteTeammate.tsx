@@ -8,18 +8,31 @@ import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import Icon from "@/components/Icon";
 import { InfoRow } from "@/components/kit";
+import { roleLabel, type Role } from "@/lib/roles";
 
 // INVITE A TEAMMATE (0221) — the onboarding path for a team going 2 → 5. The owner invites an email
 // WITH a role; the moment that person signs up (magic link or password, any device), the signup
 // trigger claims the invite and lands them in the right role — no more "sign up, then wait for me to
 // find you in the roster." Owner-only (an invite is a role assignment).
 type Invite = { id: string; email: string; role: string; created_at: string; claimed_at: string | null };
-const ROLES: { v: string; l: string }[] = [
-  { v: "server", l: "Server — service & delivery" },
-  { v: "contractor", l: "Contractor — service, prep & gear" },
-  { v: "operator", l: "Operator — + brew & pipeline" },
-  { v: "event_manager", l: "Event manager — leadership" },
-  { v: "admin", l: "Admin — everything but ownership" },
+// Which roles you can INVITE somebody into. Member is absent because nobody is invited to be a
+// customer — they sign up — and owner because making another owner is a deliberate act in the
+// roster, not a line in an invite. The hints are this form's own copy; the names are not, so they
+// come from lib/roles. This list used to spell it "Event manager" while the team console and the
+// org chart spelled it "Event Manager".
+//
+// NOTE for whoever touches this next: three surfaces answer "which roles can I put someone in?"
+// with three different lists — this one, HIRE_ROLES in the team console (no admin) and
+// OFFERABLE_ROLES in lib/offerLetter (includes member). Inviting, hiring and offering are
+// arguably different questions, so they are NOT consolidated here; but the team console excluding
+// admin while this form includes it is an inconsistency somebody decided by accident, and it is
+// Ryan's call which is right, not a sweep's.
+const INVITABLE: { v: Role; hint: string }[] = [
+  { v: "server", hint: "service & delivery" },
+  { v: "contractor", hint: "service, prep & gear" },
+  { v: "operator", hint: "+ brew & pipeline" },
+  { v: "event_manager", hint: "leadership" },
+  { v: "admin", hint: "everything but ownership" },
 ];
 
 export default function InviteTeammate() {
@@ -67,7 +80,7 @@ export default function InviteTeammate() {
       <div className="tinv-form">
         <input className="note-in tinv-email" type="email" inputMode="email" placeholder="teammate@email.com" value={email} onChange={(e) => setEmail(e.target.value)} aria-label="Teammate email" />
         <select className="note-in" value={role} onChange={(e) => setRole(e.target.value)} aria-label="Role">
-          {ROLES.map((r) => <option key={r.v} value={r.v}>{r.l}</option>)}
+          {INVITABLE.map((r) => <option key={r.v} value={r.v}>{roleLabel(r.v)} — {r.hint}</option>)}
         </select>
         {/* The one true .btn-pri on the Team screen: inviting is the actual commit action (the write
             that lets a future sign-up auto-claim its role) — WorkloadBoard/OrgChart/Members/AiTraining

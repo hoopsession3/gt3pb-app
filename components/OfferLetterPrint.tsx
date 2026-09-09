@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { MARKET_LABEL, toMarket } from "@/lib/markets";
 import { ROLE_ACCESS, toRoleKey, money, STATUTORY_FIELDS } from "@/lib/offerLetter";
+import { roleLabel } from "@/lib/roles";
 import { payAtVolumes, DEFAULT_VOLUMES } from "@/lib/dealExplainer";
 
 // THE LETTER, AS A LETTER (0286).
@@ -152,7 +153,7 @@ export default function OfferLetterPrint({ row, onClose }: { row: LetterRow; onC
 
         <h2 className="ofl-h">Access this role carries</h2>
         <p className="ofl-access">
-          As {access.label.toLowerCase()}, you&rsquo;ll be able to reach {access.reaches[0].toLowerCase()}
+          As {roleLabel(row.role).toLowerCase()}, you&rsquo;ll be able to reach {access.reaches[0].toLowerCase()}
           {access.reaches.length > 1 ? `, and ${access.reaches.length - 1} other ${access.reaches.length === 2 ? "area" : "areas"} of the business` : ""}.
           We&rsquo;ll walk you through it on your first day.
         </p>

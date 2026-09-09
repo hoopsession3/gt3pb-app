@@ -10,6 +10,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
 import Sheet, { CloseButton } from "@/components/Sheet";
+import { useCrew } from "./useCrew";
 
 // SHOOT PLANNER (0214) — plan any content shoot: date, location, call time, and a shot list you can
 // assign and check off (planned → shot → in edit). The reusable capability behind the Atlanta shoot
@@ -20,8 +21,7 @@ import Sheet, { CloseButton } from "@/components/Sheet";
 // resyncs from the board whenever it (re)loads.
 type Shoot = { id: string; title: string; shoot_date: string | null; location: string | null; call_time: string | null; status: string; notes: string | null };
 type Shot = { id: string; shoot_id: string; description: string; status: string; assignee: string | null; sort: number };
-type Crew = { id: string; display_name: string | null };
-type Board = { shoots: Shoot[]; shots: Shot[]; crew: Crew[] };
+type Board = { shoots: Shoot[]; shots: Shot[] };
 
 const SHOT_NEXT: Record<string, string> = { planned: "shot", shot: "cut", cut: "planned" };
 const SHOT_LABEL: Record<string, ReactNode> = { planned: <><Icon name="dotOutline" /> Planned</>, shot: <><Icon name="dot" /> Shot</>, cut: <><Icon name="check" /> In edit</> };
@@ -35,21 +35,22 @@ export default function ShootPlanner() {
   const [drafting, setDrafting] = useState<string | null>(null); // shoot id currently getting an AI shot-list draft
 
   const loader = useCallback(async (): Promise<Board> => {
-    if (!supabase) return { shoots: [], shots: [], crew: [] };
-    const [sh, st, cr] = await Promise.all([
+    if (!supabase) return { shoots: [], shots: [] };
+    // Assignees come from useCrew, not from a third parallel read here — see PrepBoard for the
+    // reasoning. A shoot plan whose shot list will not render because a name lookup failed is a
+    // worse screen than one with an empty assign dropdown.
+    const [sh, st] = await Promise.all([
       supabase.from("shoots").select("*").order("shoot_date", { ascending: true, nullsFirst: false }),
       supabase.from("shots").select("*").order("sort"),
-      supabase.from("profiles").select("id, display_name").neq("role", "member").order("display_name"),
     ]);
     if (sh.error) throw new Error(sh.error.message);
     if (st.error) throw new Error(st.error.message);
-    if (cr.error) throw new Error(cr.error.message);
-    return { shoots: (sh.data as Shoot[]) ?? [], shots: (st.data as Shot[]) ?? [], crew: (cr.data as Crew[]) ?? [] };
+    return { shoots: (sh.data as Shoot[]) ?? [], shots: (st.data as Shot[]) ?? [] };
   }, []);
   const board = useAsyncData(loader, []);
   const { reload } = board;
   useRealtimeTable(["shoots", "shots"], reload);
-  const crew = board.data?.crew ?? [];
+  const crew = useCrew();
 
   // Mirror the fetched board into local state so the per-row edit handlers below (none of which
   // ever reloaded) keep working exactly as they did — the mirror resyncs on every successful load.

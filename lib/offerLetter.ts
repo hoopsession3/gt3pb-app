@@ -11,6 +11,7 @@
 // scripts/smoke.cjs.
 
 import { MARKETS, FOUNDING_MARKET, isMarket, type Market } from "./markets";
+import { ALL_ROLES, toRole, type Role } from "./roles";
 
 // ── the state machine ────────────────────────────────────────────────────────────────────────────
 export const OFFER_STATUS = [
@@ -96,50 +97,57 @@ export const needsReview = (requiredCount: number): boolean => requiredCount > 0
 // role names and three gates — is_staff() is `role <> 'member'`, so server, contractor, operator and
 // event_manager are the SAME principal to the database. An offer letter that names a role should say
 // what that role can reach, because that is the part nobody discovers until afterwards.
-export type RoleKey = "member" | "server" | "contractor" | "operator" | "event_manager" | "admin" | "owner";
+// RoleKey WAS a seventh hand-written copy of the vocabulary in lib/roles.ts, and `label` an
+// independent naming of the same seven roles. Both now come from there: this module keeps only what
+// is genuinely its own — the gate each role clears and the audited reach/cannot sentences a letter
+// prints, which no other module knows.
+export type RoleKey = Role;
 
 export type RoleAccess = {
-  label: string;
   gate: "none" | "staff" | "admin" | "owner";
   reaches: string[];        // plain-language, true today
   cannot: string[];
 };
 
 export const ROLE_ACCESS: Record<RoleKey, RoleAccess> = {
-  member: { label: "Member", gate: "none",
+  member: { gate: "none",
     reaches: ["Their own orders, packs and loyalty"],
     cannot: ["Anything belonging to anyone else", "The crew console"] },
-  server: { label: "Server", gate: "staff",
+  server: { gate: "staff",
     reaches: ["The crew console", "Every customer record — name, phone, email, tier",
               "Company revenue, cost and margin reporting", "Expenses and budgets", "Product and merch prices"],
     cannot: ["Assign roles", "Read another person's profile", "Upload shop photos"] },
-  contractor: { label: "Contractor", gate: "staff",
+  contractor: { gate: "staff",
     reaches: ["Identical to Server — the database draws no distinction"],
     cannot: ["Assign roles", "Read another person's profile", "Upload shop photos"] },
-  operator: { label: "Operator", gate: "staff",
+  operator: { gate: "staff",
     reaches: ["Identical to Server at the database — including BOTH markets",
               "Their own operator agreement, and the ability to accept or counter it"],
     cannot: ["Assign roles", "Edit their own agreement's terms", "Upload shop photos"] },
-  event_manager: { label: "Event manager", gate: "staff",
+  event_manager: { gate: "staff",
     reaches: ["Identical to Server — treated as leadership in the app, as a server in the database"],
     cannot: ["Assign roles", "Read another person's profile", "The admin-gated tables the app implies they have"] },
-  admin: { label: "Admin", gate: "admin",
+  admin: { gate: "admin",
     reaches: ["Everything a server reaches", "Read every profile", "Event and product economics",
               "Site copy, KPIs, the changelog", "Draft and send operator agreements"],
     cannot: ["Assign roles — that is owner-only", "Upload shop photos", "Rewrite an accepted agreement"] },
-  owner: { label: "Owner", gate: "owner",
+  owner: { gate: "owner",
     reaches: ["Everything", "Assign roles, including making another owner", "Upload shop photos and video",
               "Approve offer letters"],
     cannot: ["Be the last owner and step down — the database refuses it"] },
 };
 
-export const toRoleKey = (v: unknown): RoleKey =>
-  Object.prototype.hasOwnProperty.call(ROLE_ACCESS, v as string) ? (v as RoleKey) : "member";
+/** Kept as a named re-export rather than deleted: three components already import it, and a
+ *  consolidation that breaks callers is not a consolidation. It IS toRole now. */
+export const toRoleKey = toRole;
 
 /** Roles you can actually offer someone. Owner is excluded on purpose: making another owner is a
  *  deliberate act through role assignment, never a line item in a letter a candidate signs. */
-export const OFFERABLE_ROLES: RoleKey[] =
-  ["member", "server", "contractor", "operator", "event_manager", "admin"];
+// ALL_ROLES minus owner, rather than a hand-written list that has to be edited when the CHECK
+// constraint grows. Deliberately ALL_ROLES and not SENIORITY: this dropdown has always read
+// member → admin while the team console's reads owner → member. Flipping it here would be a UX
+// change smuggled in under a consolidation. That the two disagree is worth fixing on purpose.
+export const OFFERABLE_ROLES: RoleKey[] = ALL_ROLES.filter((r) => r !== "owner");
 
 // ── employment type ──────────────────────────────────────────────────────────────────────────────
 // The phrase "contract employee" is two different things, and which one it is is decided by how the

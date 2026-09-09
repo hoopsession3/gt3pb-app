@@ -17,6 +17,7 @@ import Icon from "@/components/Icon";
 import PromptSheet from "./PromptSheet";
 import { bandFor, fmtBand, paybackPct, paybackWeeks, FALLBACK_MARGIN_PCT } from "@/lib/uplift";
 import { money } from "@/lib/money";
+import { useCrew } from "./useCrew";
 
 // PIPELINE — the sales funnel (0165). Vendor (the account) × deal (from the owner's catalog,
 // gated per vendor type) × rep × stage. The owner articulates what's on the table in the Deal
@@ -109,7 +110,6 @@ type Opp = {
   vendors: { name: string; vendor_type: string | null } | null;
   deals: { title: string; line?: string | null } | null;
 };
-type Staff = { id: string; display_name: string | null };
 // ACTIVITY (0268 · Playbook p.14) — one activation touch with a COST. Deliveries are deliberately
 // not a type here: they're already orders; re-logging them would double-count revenue.
 type Activity = {
@@ -118,7 +118,7 @@ type Activity = {
   sampled: number | null; buyers: number | null; revenue_cents: number | null; cost_cents: number | null; note: string | null;
 };
 type BizAcct = { id: string; company: string };
-type Board = { opps: Opp[]; deals: Deal[]; vendors: Vendor[]; staff: Staff[]; acts: Activity[]; bizAccts: BizAcct[] };
+type Board = { opps: Opp[]; deals: Deal[]; vendors: Vendor[]; acts: Activity[]; bizAccts: BizAcct[] };
 
 
 // Live ROI what-if — sits inside the New Deal form so you can feel a % before you commit it. Drag the
@@ -303,8 +303,8 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   const [ed, setEd] = useState({ title: "", vendor_type: "gym", price_label: "", blurb: "", model: "rev_share", rate: "", amount: "", line: "wholesale" });
 
   const loader = useCallback(async (): Promise<Board> => {
-    if (!supabase) return { opps: [], deals: [], vendors: [], staff: [], acts: [], bizAccts: [] };
-    const [o, d, v, st, a, ba] = await Promise.all([
+    if (!supabase) return { opps: [], deals: [], vendors: [], acts: [], bizAccts: [] };
+    const [o, d, v, a, ba] = await Promise.all([
       // account_activities below was already capped at 600 and these were not — the finding is not
       // the row count today (15 opportunities, 18 vendors), it is that the discipline existed in
       // this very Promise.all and was applied unevenly. There is no virtualisation anywhere in the
@@ -312,7 +312,11 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
       supabase.from("opportunities").select("id, vendor_id, deal_id, rep_id, stage, source, value_cents, next_step, next_step_at, mrr_cents, priority, category, business_account_id, lost_reason, created_at, vendors(name, vendor_type), deals(title, line)").order("created_at", { ascending: false }).limit(1000),
       supabase.from("deals").select("id, title, blurb, vendor_type, price_label, active, sort, model, rate_pct, monthly_cents, line").order("sort").order("created_at").limit(500),
       supabase.from("vendors").select("id, name, vendor_type, archived_at").is("archived_at", null).order("name").limit(1000),
-      supabase.from("profiles").select("id, display_name").neq("role", "member").order("display_name").limit(500),
+      // The rep list is NOT here any more — it is useCrew, the one crew fetch. It was a HARD read
+      // in this Promise.all (st.error threw), so a failed profiles read took down the whole pipeline
+      // board — opportunities, deals, vendors and the uplift rail — to protect two rep dropdowns.
+      // The soft reads immediately below already show what this file believes: a secondary list is
+      // not worth the board.
       // SOFT reads (0268): during a deploy→migration gap these don't exist yet — the BOARD must not
       // die for the uplift rail's sake. They render empty until the migration lands.
       supabase.from("account_activities").select("id, opportunity_id, type, on_date, bottles, pulled, stock_after, sampled, buyers, revenue_cents, cost_cents, note").order("on_date", { ascending: false }).limit(600),
@@ -321,12 +325,10 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
     if (o.error) throw new Error(o.error.message);
     if (d.error) throw new Error(d.error.message);
     if (v.error) throw new Error(v.error.message);
-    if (st.error) throw new Error(st.error.message);
     return {
       opps: (o.data as unknown as Opp[]) ?? [],
       deals: (d.data as Deal[]) ?? [],
       vendors: (v.data as Vendor[]) ?? [],
-      staff: (st.data as Staff[]) ?? [],
       acts: a.error ? [] : ((a.data as Activity[]) ?? []),
       bizAccts: ba.error ? [] : ((ba.data as BizAcct[]) ?? []),
     };
@@ -336,7 +338,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   const opps = board.data?.opps ?? [];
   const deals = board.data?.deals ?? [];
   const vendors = board.data?.vendors ?? [];
-  const staff = board.data?.staff ?? [];
+  const staff = useCrew();
   useEffect(() => {
     if (!supabase) return;
     supabase.from("product_economics_live").select("price_cents, unit_cost_cents, active").then(({ data }) => {

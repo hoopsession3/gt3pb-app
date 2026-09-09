@@ -9,7 +9,7 @@
 import { classifyEffect, effectAt } from "./render.audit.mjs";
 import { isFalseEmpty, catchesButHides } from "./falseempty.audit.mjs";
 import { refusalHeadings, refusesWithoutPolicy, collapsesVerdicts } from "./gate.audit.mjs";
-import { handRollsCrew, bypassesTaskSpine, CREW_EXEMPT } from "./dupe.audit.mjs";
+import { handRollsCrew, bypassesTaskSpine, CREW_EXEMPT, namesRoleVocabulary, rolesNamedIn } from "./dupe.audit.mjs";
 
 let pass = 0, fail = 0;
 const ok = (n, c, got) => { if (c) pass++; else { fail++; console.log(`  ✗ ${n}` + (got !== undefined ? ` → got ${JSON.stringify(got)}` : "")); } };
@@ -156,7 +156,21 @@ ok("passes: a board that renders people AS data, exempt by name",
   handRollsCrew(`supabase.from("profiles").select("id").neq("role", "member")`, "components/WorkloadBoard.tsx") === false);
 ok("not flagged: reading profiles for something that is not the picker",
   handRollsCrew(`supabase.from("profiles").select("points, credit_cents").eq("id", me)`, "components/X.tsx") === false);
-ok("the exemptions are a named list, not a pattern that could widen by accident", CREW_EXEMPT.size === 4);
+ok("the exemptions are a named list, not a pattern that could widen by accident", CREW_EXEMPT.size === 9);
+// The exemption list carries TWO different reasons and the difference is load-bearing: a picker may
+// degrade to an empty list, an attribution or notification list may not. These assert that the
+// files decided on the second reason are actually exempt, so a later tidy-up cannot quietly convert
+// them and turn "we could not read the crew" into "every comment was written by Crew".
+ok("exempt: comment attribution — an empty crew list renames every author, it does not shorten a list",
+  handRollsCrew(`supabase.from("profiles").select("id, display_name").neq("role", "member")`, "components/Discussions.tsx") === false);
+ok("exempt: a strategy thread's authors, same reason",
+  handRollsCrew(`supabase.from("profiles").select("id, display_name, role").neq("role", "member")`, "components/StrategyCollab.tsx") === false);
+ok("exempt: ProposalDesk also picks WHO IS ALERTED — an empty list notifies nobody, silently",
+  handRollsCrew(`supabase.from("profiles").select("id, display_name, role").neq("role", "member")`, "components/ProposalDesk.tsx") === false);
+ok("exempt: the roster screen itself — the crew IS the data there",
+  handRollsCrew(`supabase.from("profiles").select("*").neq("role", "member")`, "app/crew/page.tsx") === false);
+ok("still caught: an ordinary picker in a file nobody exempted",
+  handRollsCrew(`supabase.from("profiles").select("id, display_name").neq("role", "member")`, "components/Goals.tsx") === true);
 
 ok("caught: a direct event_tasks insert in a component",
   bypassesTaskSpine(`await supabase.from("event_tasks").insert({ label })`, "components/Y.tsx") === true);
@@ -165,6 +179,33 @@ ok("passes: a server agent route — supabaseAdmin has no client session, so lib
   bypassesTaskSpine(`supabaseAdmin.from("event_tasks").insert(rows)`, "app/api/agents/recap/route.ts") === false);
 ok("not flagged: reading event_tasks is not writing them",
   bypassesTaskSpine(`supabase.from("event_tasks").select("id, label")`, "components/Z.tsx") === false);
+
+// ── the role vocabulary ────────────────────────────────────────────────────────────────────────
+// The four maps this replaced, in the shape they were actually written, plus the four things that
+// look similar and must stay silent. Every "passes:" case below is real code still in the repo — a
+// classifier tested only against what it should catch is half tested.
+ok("caught: a bare label map, which is what OrgChart had",
+  namesRoleVocabulary(`const ROLE_LABEL = { owner: "Owner", admin: "Admin", event_manager: "Event Manager", member: "Member" };`, "components/X.tsx") === true);
+ok("caught: label nested one level, which is the shape the team console and the offer letter actually had",
+  namesRoleVocabulary(`const M = { owner: { label: "Owner", tone: "red" }, admin: { label: "Admin" }, server: { label: "Server" } };`, "components/X.tsx") === true);
+ok("the nested pattern does not leak across entries — two labelled entries and one bare object is still two",
+  namesRoleVocabulary(`const M = { owner: { label: "Owner" }, admin: { label: "Admin" }, server: { tone: "cream" } };`, "components/X.tsx") === false);
+ok("caught: single quotes and odd spacing",
+  namesRoleVocabulary(`const m={owner :'Owner',admin:  'Admin',\n server:'Server'}`, "components/X.tsx") === true);
+ok("passes: lib/roles.ts itself — the one canonical home",
+  namesRoleVocabulary(`export const ROLE_LABEL = { owner: "Owner", admin: "Admin", member: "Member" };`, "lib/roles.ts") === false);
+ok("passes: OperatorNav — a role keyed to the SECTIONS it unlocks is not a name",
+  namesRoleVocabulary(`const S = { owner: ["day","now"], admin: ["day"], event_manager: ["day","plan"] };`, "components/OperatorNav.tsx") === false);
+ok("passes: APP_TO_ACADEMY — a mapping into another vocabulary, not a naming of this one",
+  namesRoleVocabulary(`const A = { owner: "founder", admin: "admin", member: "staff", server: "operator" };`, "app/academy/page.tsx") === false);
+ok("passes: the team console's ROLE_META as it now stands — scope and tone, no label",
+  namesRoleVocabulary(`const M = { owner: { scope: "Full access", tone: "red" }, admin: { scope: "Full access", tone: "red" }, member: { scope: "Customer", tone: "muted" } };`, "app/crew/page.tsx") === false);
+ok("two keys is under the threshold, on purpose — a pair of properties is not yet a map",
+  namesRoleVocabulary(`const x = { owner: "Owner", admin: "Admin" };`, "components/X.tsx") === false);
+ok("it reports WHICH roles a file names, deduped and sorted, so the failure message says what to convert",
+  rolesNamedIn(`{ owner: "Owner", server: "Server", owner: "Owner" }`).join(",") === "owner,server");
+ok("a file mixing both shapes reports the union",
+  rolesNamedIn(`{ owner: "Owner", admin: { label: "Admin" } }`).join(",") === "admin,owner");
 
 console.log(`AUDIT CLASSIFIERS: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

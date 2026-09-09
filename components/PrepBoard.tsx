@@ -11,6 +11,7 @@ import { completeTask, updateTask } from "@/lib/tasks";
 import { useTaskSheet } from "./TaskSheet";
 import Icon from "@/components/Icon";
 import { isStopPast } from "@/lib/stopRecord";
+import { useCrew } from "./useCrew";
 
 // PREP BOARD — the aggregate readiness triage surface. Every open prep task, ROLLED UP into
 // collapsible groups by the INITIATIVE it's assigned to (0201/0237) — falling back to its event/stop
@@ -31,10 +32,9 @@ type Task = {
   events: { title: string | null } | null; stops: { name: string | null; starts_at: string | null } | null;
   initiatives: { title: string | null; emoji: string | null } | null;
 };
-type Crew = { id: string; display_name: string | null };
 type Filter = "all" | "critical" | "mine" | "overdue";
 type Group = { key: string; label: string; kind: "initiative" | "event" | "stop" | "general"; initiativeId: string | null; icon: React.ReactNode; tasks: Task[]; past?: boolean };
-type BoardData = { rows: Task[]; crew: Crew[] };
+type BoardData = { rows: Task[] };
 
 const nowISO = () => new Date().toISOString();
 const dueLabel = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "");
@@ -51,21 +51,23 @@ export default function PrepBoard() {
   const [armed, setArmed] = useState<string | null>(null); // group armed for a "complete all" confirm
 
   const loader = useCallback(async (): Promise<BoardData> => {
-    if (!supabase) return { rows: [], crew: [] };
-    const [t, c] = await Promise.all([
-      supabase.from("event_tasks").select("id, label, critical, due_at, assignee, event_id, stop_id, section, initiative_id, events(title), stops(name, starts_at), initiatives(title, emoji)").eq("done", false).limit(300),
-      supabase.from("profiles").select("id, display_name").neq("role", "member").order("display_name"),
-    ]);
-    if (t.error) throw new Error(t.error.message);
-    if (c.error) throw new Error(c.error.message);
-    return { rows: (t.data as unknown as Task[]) ?? [], crew: (c.data as Crew[]) ?? [] };
+    if (!supabase) return { rows: [] };
+    // The assignee list is NOT fetched here. It used to be, which meant a failed profiles read
+    // killed the whole prep board over an empty dropdown. useCrew is the one crew fetch (cached,
+    // 60s TTL, shared with every other picker) and degrades to an empty list rather than an error,
+    // which is the right failure for a picker: the tasks still render, one <select> is short.
+    const { data, error } = await supabase.from("event_tasks")
+      .select("id, label, critical, due_at, assignee, event_id, stop_id, section, initiative_id, events(title), stops(name, starts_at), initiatives(title, emoji)")
+      .eq("done", false).limit(300);
+    if (error) throw new Error(error.message);
+    return { rows: (data as unknown as Task[]) ?? [] };
   }, []);
   const board = useAsyncData(loader, []);
   const { reload } = board;
   useRealtimeTable("event_tasks", reload);
 
   const rows = board.data?.rows ?? [];
-  const crew = board.data?.crew ?? [];
+  const crew = useCrew();
 
   const done = async (t: Task) => {
     if (!supabase) return;

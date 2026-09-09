@@ -2051,6 +2051,38 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // The legacy fallback still has to work — an old profile with is_admin and no role is an owner.
   ok("access: a pre-migration admin profile still resolves to owner",
     A.staffAccess(true, "ready", { is_admin: true }) === "allow" && R.roleOf({ is_admin: true }) === "owner");
+
+  // ── the vocabulary itself ────────────────────────────────────────────────────────────────────
+  // Four modules used to name these seven roles and two had drifted on "Event Manager". The name
+  // and the tier now come from here, so here is where they get asserted.
+  ok("roles: every role in the vocabulary has a name — no blank cells",
+    R.ALL_ROLES.every((r) => typeof R.ROLE_LABEL[r] === "string" && R.ROLE_LABEL[r].length > 0));
+  ok("roles: the drift that existed is settled — one spelling of Event Manager",
+    R.roleLabel("event_manager") === "Event Manager");
+  ok("roles: an unrecognised role reads as Member rather than blank, the same default roleOf takes",
+    R.roleLabel("wizard") === "Member" && R.roleLabel(null) === "Member" && R.roleLabel(undefined) === "Member");
+  ok("roles: SENIORITY and ALL_ROLES are ONE list — reversing either gives the other",
+    JSON.stringify([...R.SENIORITY].reverse()) === JSON.stringify(R.ALL_ROLES));
+  ok("roles: seniority actually runs owner → member, so a roster sorted by it reads top-down",
+    R.SENIORITY[0] === "owner" && R.SENIORITY[R.SENIORITY.length - 1] === "member");
+  ok("roles: every role appears exactly once in the ordering",
+    new Set(R.SENIORITY).size === R.SENIORITY.length && R.SENIORITY.length === 7);
+
+  // tierOf is DERIVED from LEADERSHIP_ROLES/STAFF_ROLES rather than a fourth hand-written column.
+  // These assert the partition the team console used to hand-write, so a change to either list
+  // that would silently regroup the roster fails here instead.
+  ok("roles: leadership tier is exactly owner, admin, event manager",
+    R.SENIORITY.filter((r) => R.tierOf(r) === "lead").join(",") === "owner,admin,event_manager");
+  ok("roles: crew tier is exactly operator, contractor, server",
+    R.SENIORITY.filter((r) => R.tierOf(r) === "crew").join(",") === "operator,contractor,server");
+  ok("roles: member is its own tier — a customer is not crew",
+    R.tierOf("member") === "member" && R.tierOf("wizard") === "member");
+  ok("roles: every role lands in exactly one tier, so nobody vanishes off the roster",
+    R.ALL_ROLES.filter((r) => ["lead","crew","member"].includes(R.tierOf(r))).length === 7);
+
+  // toRole is the RAW role — no is_admin fallback. That difference is the whole reason both exist.
+  ok("roles: toRole does NOT apply the is_admin fallback that roleOf does",
+    R.toRole("owner") === "owner" && R.toRole("nonsense") === "member" && R.roleOf({ is_admin: true }) === "owner");
 }
 
 console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);

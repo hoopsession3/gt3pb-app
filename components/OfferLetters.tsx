@@ -17,6 +17,7 @@ import {
   type OfferStatus, type OfferTerms, type RoleKey,
 } from "@/lib/offerLetter";
 import { payAtVolumes, DEFAULT_VOLUMES } from "@/lib/dealExplainer";
+import { roleLabel } from "@/lib/roles";
 
 // OFFER LETTERS (0281) — the owner's side of hiring someone.
 //
@@ -198,7 +199,7 @@ export default function OfferLetters() {
                 <div><dt>Reports to</dt><dd>{open.reports_to ?? "Not set"}</dd></div>
                 <div><dt>Base</dt><dd>{open.base_cents ? `${money(open.base_cents)}/${open.rate_per === "hour" ? "hr" : "yr"}` : "None"}</dd></div>
                 <div><dt>Commission</dt><dd>{open.commission_pct ? `${open.commission_pct}%` : "None"}</dd></div>
-                <div><dt>Access granted</dt><dd>{ROLE_ACCESS[toRoleKey(open.role)].label}</dd></div>
+                <div><dt>Access granted</dt><dd>{roleLabel(open.role)}</dd></div>
                 <div><dt>Normal hours</dt><dd>{open.normal_hours ?? "Not set"}</dd></div>
                 <div><dt>Paid</dt><dd>{open.pay_schedule ?? "Not set"}{open.pay_method ? ` · ${open.pay_method}` : ""}</dd></div>
                 <div><dt>Deductions</dt><dd>{open.deductions ?? "Not set"}</dd></div>
@@ -330,7 +331,7 @@ function RoleReach({ role }: { role: RoleKey }) {
   const a = ROLE_ACCESS[role];
   return (
     <div className={`ofr-reach gate-${a.gate}`}>
-      <p className="ofr-reach-h">Signing this gives {a.label} access. In practice that means:</p>
+      <p className="ofr-reach-h">Signing this gives {roleLabel(role)} access. In practice that means:</p>
       <ul className="ofr-reach-yes">{a.reaches.map((r) => <li key={r}>{r}</li>)}</ul>
       {a.cannot.length > 0 && (
         <ul className="ofr-reach-no">{a.cannot.map((r) => <li key={r}>{r}</li>)}</ul>
@@ -430,7 +431,7 @@ function OfferForm({ draft, setDraft, onSave, onCancel, busy }: {
 
       <label className="prod-f" style={{ marginTop: 8 }}><span>Access level this grants</span>
         <select value={draft.role} onChange={(e) => set("role", toRoleKey(e.target.value))}>
-          {OFFERABLE_ROLES.map((r) => <option key={r} value={r}>{ROLE_ACCESS[r].label}</option>)}
+          {OFFERABLE_ROLES.map((r) => <option key={r} value={r}>{roleLabel(r)}</option>)}
         </select></label>
       <RoleReach role={draft.role} />
 

@@ -7,6 +7,7 @@ import { useRecord } from "./RecordSheet";
 import { useWorkStreams } from "@/lib/streams";
 import { SectionHeader } from "@/components/kit";
 import { useAuth, roleOf } from "./AuthProvider";
+import { ALL_ROLES, roleLabel, type Role } from "@/lib/roles";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
@@ -23,7 +24,13 @@ const TIERS: { roles: string[]; label: string }[] = [
   { roles: ["operator", "server"], label: "Operators" },
   { roles: ["contractor"], label: "Contractors" },
 ];
-const ROLE_LABEL: Record<string, string> = { owner: "Owner", admin: "Admin", event_manager: "Event Manager", operator: "Operator", server: "Server", contractor: "Contractor", member: "Member" };
+// TIERS above is this chart's OWN grouping — reporting structure, which is a different question
+// from the lead/crew/member permission tier in lib/roles, so it is deliberately not derived from it.
+// The role NAME is not this chart's to decide, though: it was a fourth hand-written copy of the same
+// seven strings. roleLabel() names them now. The "Crew" fallback stays local and deliberate —
+// roleLabel() answers "Member" for anything it does not recognise, which is the right default
+// everywhere except here, where the query has already excluded members.
+const orgTitle = (p: P) => p.title || (ALL_ROLES.includes(p.role as Role) ? roleLabel(p.role) : "Crew");
 
 export default function OrgChart() {
   const streams = useWorkStreams();
@@ -53,7 +60,7 @@ export default function OrgChart() {
             aria-label={`Open ${p.display_name || "this person"}`}>
       <div className="org-av" style={p.avatar_url ? { backgroundImage: `url(${p.avatar_url})` } : undefined} aria-hidden>{!p.avatar_url && (p.display_name || "?").trim().charAt(0).toUpperCase()}</div>
       <div className="org-name">{p.display_name || "Unnamed"}</div>
-      <div className="org-title">{p.title || ROLE_LABEL[p.role ?? ""] || "Crew"}</div>
+      <div className="org-title">{orgTitle(p)}</div>
     </button>
   );
 

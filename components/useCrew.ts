@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { roleLabel } from "@/lib/roles";
 
 // THE CREW, once. The same "who can I assign this to?" fetch was hand-rolled on TWELVE screens —
 // this file's original comment said four, which was the count at the time it was written and was
@@ -11,10 +12,22 @@ import { supabase } from "@/lib/supabase";
 // A PICKER. An assign-to dropdown, a rep selector, a mention list. For those, one shared cached
 // fetch is strictly better than twelve.
 //
-// It is NOT for a screen whose job is to show the crew's current state — OrgChart (which needs
-// title and avatar_url), UtilizationPanel and WorkloadBoard render people AS the data, and a
-// cached list is the wrong shape for that. Those three keep their own reads on purpose, and the
-// audit rule that enforces this exempts them by name.
+// It is NOT for two other things, and the difference between them matters:
+//
+//   PEOPLE AS THE DATA — OrgChart (which needs title and avatar_url), UtilizationPanel, the crew
+//   roster and the Academy team view render people as the subject, not as a field. A cached list
+//   is the wrong shape: it goes stale and it does not carry the columns they select.
+//
+//   AN EMPTY LIST WOULD BE WRONG — Discussions and StrategyCollab turn author ids into names, and
+//   ProposalDesk decides who gets the review alert. This hook's graceful failure (below) means a
+//   failed read returns [], which for those three is not "a short dropdown", it is every comment
+//   attributed to "Crew" and nobody notified. They read inside useAsyncData, which throws, on
+//   purpose.
+//
+// scripts/dupe.audit.mjs exempts all of them BY NAME with those reasons, and its baseline is now
+// zero: this hook is the crew fetch, and anything else has to argue for itself.
+//
+// Seven files call it (it had exactly one importer when the audit found this).
 //
 // ── THE CACHE HAD NO WAY OUT ───────────────────────────────────────────────────────────────────
 // It was `if (cache) return cache` with nothing that could ever clear it, so promoting somebody
@@ -59,6 +72,11 @@ export function useCrew(): CrewMember[] {
   return crew;
 }
 
-/** How a crew member reads in a dropdown — name, or the role when they have not set one. */
+/** How a crew member reads in a dropdown — name, or the role when they have not set one.
+ *
+ *  The role's WORD comes from lib/roles, not from replacing underscores with spaces. That produced
+ *  "event manager" here while the team console, the org chart and the offer letter all said "Event
+ *  Manager" — a ninth spelling of the same seven words, and the reason the role vocabulary now has
+ *  exactly one home. */
 export const crewLabel = (c: CrewMember) =>
-  `${c.display_name || c.role} · ${c.role.replace(/_/g, " ")}`;
+  `${c.display_name || roleLabel(c.role)} · ${roleLabel(c.role)}`;

@@ -14,6 +14,7 @@ import { SectionHeader } from "@/components/kit";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
+import { useCrew } from "./useCrew";
 
 // GOALS — the true tracker (0163/0164). Three layers, top down:
 //   lane → goal → moves.
@@ -35,8 +36,7 @@ type Goal = {
   checkin_status?: "on_track" | "at_risk" | null; checkin_at?: string | null;
 };
 type Move = { id: string; goal_id: string; label: string; done: boolean; assignee: string | null; due_at: string | null; sort: number };
-type Staff = { id: string; display_name: string | null };
-type Board = { rows: Goal[]; inits: Move[]; staff: Staff[] };
+type Board = { rows: Goal[]; inits: Move[] };
 
 export default function Goals() {
   const { toast } = useApp();
@@ -62,23 +62,26 @@ export default function Goals() {
   const canLead = LEADERSHIP_ROLES.includes(roleOf(profile)) || !!profile?.is_admin;
 
   const loader = useCallback(async (): Promise<Board> => {
-    if (!supabase) return { rows: [], inits: [], staff: [] };
-    const [g, i, st] = await Promise.all([
+    if (!supabase) return { rows: [], inits: [] };
+    // The assignee list comes from useCrew, not from a third read here. It mattered: this loader
+    // throws on the FIRST error of the three, so a failed profiles read used to replace the entire
+    // goals board with "couldn't load" — losing the goals, the metrics and the moves to keep one
+    // dropdown honest. A picker that degrades to empty is the correct failure; the board is not.
+    const [g, i] = await Promise.all([
       supabase.from("goals").select("*").neq("status", "archived")
         .order("status").order("due_date", { ascending: true, nullsFirst: false }).order("created_at"),
       supabase.from("event_tasks").select("id, goal_id, label, done, assignee, due_at, sort").not("goal_id", "is", null).order("sort").order("created_at"),
-      supabase.from("profiles").select("id, display_name").neq("role", "member").order("display_name"),
     ]);
-    const firstErr = [g, i, st].find((x) => x.error)?.error;
+    const firstErr = [g, i].find((x) => x.error)?.error;
     if (firstErr) throw new Error(firstErr.message);
-    return { rows: (g.data as Goal[]) ?? [], inits: (i.data as Move[]) ?? [], staff: (st.data as Staff[]) ?? [] };
+    return { rows: (g.data as Goal[]) ?? [], inits: (i.data as Move[]) ?? [] };
   }, []);
   const board = useAsyncData(loader, []);
   const { reload } = board;
   useRealtimeTable(["goals", "event_tasks"], reload);
   const rows = board.data?.rows ?? [];
   const inits = board.data?.inits ?? [];
-  const staff = board.data?.staff ?? [];
+  const staff = useCrew();
 
   // Live metrics: compute each bound source once, show it, and (leadership only) write it back so
   // reports and escalation read the same number the board shows.
