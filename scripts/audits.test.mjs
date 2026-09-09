@@ -9,6 +9,7 @@
 import { classifyEffect, effectAt } from "./render.audit.mjs";
 import { isFalseEmpty, catchesButHides } from "./falseempty.audit.mjs";
 import { refusalHeadings, refusesWithoutPolicy, collapsesVerdicts } from "./gate.audit.mjs";
+import { handRollsCrew, bypassesTaskSpine, CREW_EXEMPT } from "./dupe.audit.mjs";
 
 let pass = 0, fail = 0;
 const ok = (n, c, got) => { if (c) pass++; else { fail++; console.log(`  ✗ ${n}` + (got !== undefined ? ` → got ${JSON.stringify(got)}` : "")); } };
@@ -142,6 +143,28 @@ ok("out of scope: importing only the type, never computing a verdict",
   collapsesVerdicts(`import type { Access } from "@/lib/access";\nexport function f(a: Access) { return a; }`) === false);
 ok("out of scope: a file that never touches lib/access",
   collapsesVerdicts(`export function Static() { return <p>hi</p>; }`) === false);
+
+// ── the duplication ratchets ───────────────────────────────────────────────────────────────────
+// Both consolidations these guard already exist, already have a header explaining why, and were
+// already half-abandoned: useCrew's own comment says "four screens" when it was twelve and the
+// hook had one importer. A consolidation without a rule is a coincidence.
+ok("caught: a new hand-rolled crew fetch",
+  handRollsCrew(`supabase.from("profiles").select("id, display_name").neq("role", "member")`, "components/New.tsx") === true);
+ok("caught: the same query split across lines, as every real call site writes it",
+  handRollsCrew(`supabase.from("profiles")\n  .select("id, display_name, role")\n  .neq("role", "member")\n  .order("display_name")`, "components/New.tsx") === true);
+ok("passes: a board that renders people AS data, exempt by name",
+  handRollsCrew(`supabase.from("profiles").select("id").neq("role", "member")`, "components/WorkloadBoard.tsx") === false);
+ok("not flagged: reading profiles for something that is not the picker",
+  handRollsCrew(`supabase.from("profiles").select("points, credit_cents").eq("id", me)`, "components/X.tsx") === false);
+ok("the exemptions are a named list, not a pattern that could widen by accident", CREW_EXEMPT.size === 4);
+
+ok("caught: a direct event_tasks insert in a component",
+  bypassesTaskSpine(`await supabase.from("event_tasks").insert({ label })`, "components/Y.tsx") === true);
+ok("passes: the write spine itself", bypassesTaskSpine(`supabase.from("event_tasks").insert(x)`, "lib/tasks.ts") === false);
+ok("passes: a server agent route — supabaseAdmin has no client session, so lib/tasks is unavailable",
+  bypassesTaskSpine(`supabaseAdmin.from("event_tasks").insert(rows)`, "app/api/agents/recap/route.ts") === false);
+ok("not flagged: reading event_tasks is not writing them",
+  bypassesTaskSpine(`supabase.from("event_tasks").select("id, label")`, "components/Z.tsx") === false);
 
 console.log(`AUDIT CLASSIFIERS: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

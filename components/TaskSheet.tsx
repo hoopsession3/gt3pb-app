@@ -10,6 +10,7 @@ import { updateTask, deleteTask, type TaskSource } from "@/lib/tasks";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
+import { useCrew } from "@/components/useCrew";
 
 // TASKSHEET — the ONE task-detail sheet, opened from any task chip anywhere via useTaskSheet().
 // It reads the row from the all_tasks spine (0225) — so it doesn't care whether the task is an
@@ -31,7 +32,6 @@ type AllTask = {
   initiative_id: string | null; initiative_title: string | null; initiative_emoji: string | null;
 };
 type Init = { id: string; title: string; emoji: string | null };
-type Crew = { id: string; display_name: string | null; role: string };
 type Prep = { section: string | null; kind: string | null; target_qty: number | null };
 type Board = { t: AllTask | null; prep: Prep | null };
 
@@ -58,7 +58,7 @@ function TaskSheet({ id, source, onClose }: { id: string; source: TaskSource; on
   const { toast } = useApp();
   const router = useRouter();
   const [t, setT] = useState<AllTask | null>(null);
-  const [crew, setCrew] = useState<Crew[]>([]);
+  const crew = useCrew();  // was a hand-rolled profiles fetch; identical result, one shared read
   const [inits, setInits] = useState<Init[]>([]);
   const [editing, setEditing] = useState(false);
   const [prep, setPrep] = useState<Prep | null>(null);
@@ -88,11 +88,6 @@ function TaskSheet({ id, source, onClose }: { id: string; source: TaskSource; on
     if (board.data) { setT(board.data.t); setPrep(board.data.prep); }
   }, [board.data]);
 
-  useEffect(() => {
-    if (!supabase) return;
-    supabase.from("profiles").select("id, display_name, role").neq("role", "member").order("display_name")
-      .then(({ data }) => setCrew((data as Crew[]) ?? []));
-  }, []);
   // the open initiatives a task can roll up to (0201/0237) — the picker's options
   useEffect(() => {
     if (!supabase) return;

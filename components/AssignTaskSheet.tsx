@@ -1,19 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/AuthProvider";
 import { useApp } from "@/components/AppProvider";
 import { createTodo, updateTask } from "@/lib/tasks";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import Icon from "@/components/Icon";
+import { useCrew } from "@/components/useCrew";
 
 // REUSABLE buildout → task. Drop this after any buildout (bottle loadout, delivery loadout, event
 // prep) to offer "Create a task? Assign to…" without leaving the flow. It writes to the existing
 // `todos` table (so it lands in the assignee's day + Plan › Calendar) and lets you manage it —
 // reassign, mark done — inline in the same popout. No page navigation.
 
-type Crew = { id: string; display_name: string | null; role: string };
 
 export default function AssignTaskSheet({
   defaultTitle, eventId = null, dueOn = null, category = "ops", onClose, onCreated,
@@ -27,7 +27,7 @@ export default function AssignTaskSheet({
 }) {
   const { user } = useAuth();
   const { toast } = useApp();
-  const [crew, setCrew] = useState<Crew[]>([]);
+  const crew = useCrew();  // was a hand-rolled profiles fetch; identical result, one shared read
   const [title, setTitle] = useState(defaultTitle);
   const [assignee, setAssignee] = useState("");
   const [due, setDue] = useState(dueOn || "");
@@ -35,12 +35,6 @@ export default function AssignTaskSheet({
   const [createdId, setCreatedId] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [visibility, setVisibility] = useState<"team" | "leadership" | "private">("team");
-
-  useEffect(() => {
-    if (!supabase) return;
-    supabase.from("profiles").select("id, display_name, role").neq("role", "member").order("display_name")
-      .then(({ data }) => setCrew((data as Crew[]) ?? []));
-  }, []);
 
   const nameOf = (id: string) => crew.find((c) => c.id === id)?.display_name || (id ? "Assigned" : "the team");
 
