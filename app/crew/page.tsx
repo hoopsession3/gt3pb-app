@@ -166,6 +166,7 @@ import { OwnerDetails } from "@/components/crew/OwnerDetails";
 import { VendorPicker } from "@/components/crew/VendorPicker";
 import { LocationEditor } from "@/components/crew/LocationEditor";
 import { LiveControl } from "@/components/crew/LiveControl";
+import { staffAccess } from "@/lib/access";
 
 const SEC_LABEL: Record<OpSection, string> = { day: "My Day", now: "Live Ops", ask: "Ask GT3", command: "Command", prep: "Readiness", plan: "Plan", studio: "Studio", brew: "Brew", garage: "Assets", driver: "Delivery", notes: "Notes", money: "Money", customers: "Customers", team: "Team", settings: "Settings" };
 const SEC_WHEN: Record<OpSection, string> = {
@@ -5211,7 +5212,7 @@ function Panel({ title, id, defaultOpen = false, children }: { title: string; id
 }
 
 export default function AdminPage() {
-  const { ready, enabled, user, profile } = useAuth();
+  const { ready, enabled, user, profile, profileStatus, refreshProfile } = useAuth();
   const { section, setSection, back, canGoBack, groupId: navGroupId } = useOperatorSection();
   const router = useRouter();
   const streams = useWorkStreams();
@@ -5354,6 +5355,19 @@ export default function AdminPage() {
   if (!enabled) return <section className="screen"><div className="h-title">Admin</div><div className="h-sub">The live backend isn&apos;t configured here.</div></section>;
   if (!ready) return <section className="screen" />;
   if (!user) return <SignIn />;
+  // KNOWING NOTHING IS NOT THE SAME AS KNOWING YOU ARE A CUSTOMER. roleOf(null) is "member", and
+  // `ready` only covers the auth session — so between session-ready and profile-loaded, and after
+  // any failed profile read, an owner used to be shown "Staff only" and shut out of this console.
+  const access = staffAccess(!!user, profileStatus, profile);
+  if (access === "wait") return <section className="screen" />;
+  if (access === "failed") return (
+    <section className="screen">
+      <div className="toprow"><div className="eyb">Crew</div><Link className="pf" href="/">‹</Link></div>
+      <div className="h-title">Couldn&apos;t load your account.</div>
+      <div className="h-sub">This is not a permissions problem — we couldn&apos;t read your profile just now, so we don&apos;t know what you can see. Nothing has changed.</div>
+      <button type="button" className="note-save" style={{ marginTop: 14 }} onClick={() => refreshProfile()}>Try again</button>
+    </section>
+  );
   if (role === "member") {
     return (
       <section className="screen">

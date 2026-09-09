@@ -25,31 +25,26 @@ export interface Profile {
   nav_pins?: string[] | null;  // pinned work-stream keys for the crew bar (0160); null = role default
 }
 
-// THE role vocabulary — matches profiles.role (migration 0031). This helper went stale at 4 of the
-// 7 real roles, which is why five surfaces forked their own copies (AccountPill, OperatorNav,
-// CommandPalette, QuickDock, admin) — those forks re-import this now.
-export type Role = "member" | "server" | "contractor" | "operator" | "event_manager" | "admin" | "owner";
-export const ALL_ROLES: Role[] = ["member", "server", "contractor", "operator", "event_manager", "admin", "owner"];
-// Tier lists, defined ONCE (the audit found "leadership" typed seven ways with drift — one list
-// dropped event_manager, one included a role that doesn't exist).
-export const LEADERSHIP_ROLES: Role[] = ["event_manager", "admin", "owner"];
-export const STAFF_ROLES: Role[] = ["server", "contractor", "operator", "event_manager", "admin", "owner"];
-export const isLeadership = (p: { role?: string | null; is_admin?: boolean } | null) => LEADERSHIP_ROLES.includes(roleOf(p) as Role);
-export const isStaff = (p: { role?: string | null; is_admin?: boolean } | null) => STAFF_ROLES.includes(roleOf(p) as Role);
+// The role vocabulary now lives in lib/roles.ts so that non-React code can use it — lib/access.ts
+// needs it and must stay pure. Re-exported here because five surfaces already import these names
+// from this module, and a move that breaks callers is not a move.
+export {
+  ALL_ROLES, LEADERSHIP_ROLES, STAFF_ROLES, roleOf, isLeadership, isStaff, type Role,
+} from "@/lib/roles";
 
-// Effective role with a graceful fallback for profiles loaded before the roles
-// migration ran (legacy admins read as owner).
-export function roleOf(p: { role?: string | null; is_admin?: boolean } | null): Role {
-  const r = p?.role as Role | null | undefined;
-  if (r && ALL_ROLES.includes(r)) return r;
-  return p?.is_admin ? "owner" : "member";
-}
+/**
+ * Whether we KNOW who this person is yet — separately from `ready`, which only covers the auth
+ * session. See the note on profileStatus in the provider: null used to mean three different things
+ * and roleOf(null) is "member", so a profile that had not loaded looked exactly like a customer.
+ */
+export type ProfileStatus = "loading" | "ready" | "error";
 
 interface AuthCtx {
   ready: boolean;
   enabled: boolean;
   user: User | null;
   profile: Profile | null;
+  profileStatus: ProfileStatus;
   sendCode: (email: string, displayName?: string) => Promise<{ error?: string }>;
   verifyCode: (email: string, token: string) => Promise<{ error?: string }>;
   signInWithUrl: (url: string) => Promise<{ error?: string }>;
@@ -73,10 +68,21 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const [ready, setReady] = useState(!supabaseEnabled); // if no Supabase, we're "ready" immediately
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  // WHY THIS EXISTS. `profile === null` meant three different things — not fetched yet, the fetch
+  // failed, and this person genuinely has no profile row — and roleOf(null) returns "member". So
+  // every staff gate in the app read all three as "you are a customer". app/crew renders
+  // "Staff only. This area is for GT3PB staff. If that's you, ask the owner to add you" on exactly
+  // that condition, which means a slow or failed profile read told the OWNER he does not work here
+  // and shut him out of the whole console. Seen live on 2026-09-09, mid-navigation.
+  //
+  // Same bug class as every false-empty state this audit has been closing — a failed read rendered
+  // as a confident negative — but in the auth layer, where the negative is "you are not staff".
+  const [profileStatus, setProfileStatus] = useState<ProfileStatus>(supabaseEnabled ? "loading" : "ready");
   const [recovery, setRecovery] = useState(false); // landed via a password-reset link → must set a new password
 
   const loadProfile = useCallback(async (uid: string) => {
     if (!supabase) return;
+    setProfileStatus("loading");
     const first = await supabase.from("profiles").select("*").eq("id", uid).maybeSingle();
     let data = first.data;
     const error = first.error;
@@ -90,8 +96,13 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         if (!r2.error && r2.data) data = r2.data;
       }
     }
-    // error (e.g. SQL migration not run yet) → leave profile null; UI falls back to defaults.
-    setProfile(error ? null : (data as Profile | null));
+    // A FAILED READ DOES NOT DEMOTE ANYONE. On error the previously loaded profile stays exactly
+    // where it is — dropping a known-good owner to null on a transient refresh is how a working
+    // session turns into "Staff only" without anything actually changing. The status carries the
+    // failure instead, and callers decide what to say about it.
+    if (error) { setProfileStatus("error"); return; }
+    setProfile(data as Profile | null);
+    setProfileStatus("ready");   // includes a genuine null: asked, answered, no row
   }, []);
 
   // Capture a referral code from the invite link (/?ref=CODE) before sign-in so it
@@ -113,6 +124,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       // profile load, so we don't fetch (or attach_referral) twice on cold start.
       setUser(data.session?.user ?? null);
       setReady(true);
+      if (!data.session?.user) setProfileStatus("ready");      // no session ⇒ no profile, and we know it
       // Utilization (0267): no session = an anonymous visitor — count the visit (daily counter,
       // no IDs, throttled to one ping per device per hour in lib/track).
       if (!data.session?.user) import("@/lib/track").then((m) => m.trackGuest(), () => {});
@@ -121,7 +133,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       const u = session?.user ?? null;
       setUser(u);
       if (u) loadProfile(u.id);
-      else setProfile(null);
+      else { setProfile(null); setProfileStatus("ready"); }   // signed out: known, not unknown
       // Utilization (0267): a real sign-in bumps the login counter; INITIAL_SESSION (cold-start
       // session restore) counts as presence, not a login — so "logins" answers "how many times
       // did they actually sign in," not "how many times did the PWA wake up."
@@ -233,7 +245,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
   // Memoize the context value so incidental provider re-renders don't re-render the whole admin
   // subtree (which churns the Studio realtime channel). supabaseEnabled is a module constant.
-  const value = useMemo(() => ({ ready, enabled: supabaseEnabled, user, profile, sendCode, verifyCode, signInWithUrl, signInWithPassword, signUp, resetPassword, updatePassword, signOut, refreshProfile }), [ready, user, profile, sendCode, verifyCode, signInWithUrl, signInWithPassword, signUp, resetPassword, updatePassword, signOut, refreshProfile]);
+  const value = useMemo(() => ({ ready, enabled: supabaseEnabled, user, profile, profileStatus, sendCode, verifyCode, signInWithUrl, signInWithPassword, signUp, resetPassword, updatePassword, signOut, refreshProfile }), [ready, user, profile, profileStatus, sendCode, verifyCode, signInWithUrl, signInWithPassword, signUp, resetPassword, updatePassword, signOut, refreshProfile]);
 
   return (
     <Ctx.Provider value={value}>

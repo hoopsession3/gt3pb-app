@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useApp } from "@/components/AppProvider";
-import { useAuth, roleOf, isStaff } from "@/components/AuthProvider";
+import { useAuth, roleOf } from "@/components/AuthProvider";
 import SignIn from "@/components/SignIn";
 import Skeleton from "@/components/Skeleton";
 import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
@@ -14,6 +14,7 @@ import {
   moduleBySlug, certByKey, pathForRole, certEarned, requiredModules, sectionMeta, expectationsFor,
   type Module, type Product, type QuizQ, type Role, type Ack,
 } from "@/lib/academy";
+import { staffAccess } from "@/lib/access";
 
 // What a level is held to, as opposed to what it has been taught. Four separate things on purpose:
 // what the role owns, the non-negotiables, the rhythm it keeps, and how it is actually judged.
@@ -61,7 +62,7 @@ const APP_TO_ACADEMY: Record<string, Role> = {
 const toAcademyRole = (appRole: string): Role => APP_TO_ACADEMY[appRole] ?? "staff";
 
 export default function AcademyPage() {
-  const { ready, enabled, user, profile } = useAuth();
+  const { ready, enabled, user, profile, profileStatus } = useAuth();
   const { toast } = useApp();
   const role = toAcademyRole(roleOf(profile));
   const [progress, setProgress] = useState<Record<string, { status: string; best_score: number | null }>>({});
@@ -149,7 +150,10 @@ export default function AcademyPage() {
   // and the founder's "why" (founderInsight). A plain customer is signed in but not staff; the old
   // `member → "staff"` role fallback handed them the full staff curriculum. Gate on isStaff() so
   // only employees reach it; everyone else gets a friendly wall, not internal content.
-  if (!isStaff(profile)) return (
+  // An unloaded or failed profile is not a customer — see lib/access.
+  const access = staffAccess(!!user, profileStatus, profile);
+  if (access === "wait" || access === "failed") return <section className="screen"><h1 className="h-title">GT3 Academy</h1><div className="h-sub">{access === "failed" ? "We couldn't check your access just now — this isn't a refusal." : "Checking your access…"}</div></section>;
+  if (access === "deny") return (
     <section className="screen">
       <h1 className="h-title">GT3 Academy</h1>
       <div className="h-sub">This is our crew training space — for GT3 team members. If you&apos;re on the crew and seeing this, ask an admin to set your role.</div>

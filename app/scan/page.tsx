@@ -2,11 +2,12 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useAuth, roleOf, STAFF_ROLES } from "@/components/AuthProvider";
+import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
 import Gt3Mark from "@/components/Gt3Mark";
 import { Masthead, ClosingBeat } from "@/components/kit";
 import Icon from "@/components/Icon";
+import { staffAccess } from "@/lib/access";
 
 // OPERATOR SCAN — the receiving end of a member's card QR. Staff-only: look up the member by their
 // card code and add a stamp for a walk-up (cash) purchase. RPCs (0132) are SECURITY DEFINER + staff-
@@ -19,11 +20,15 @@ export default function ScanPage() {
 }
 
 function ScanInner() {
-  const { profile, ready, user } = useAuth();
+  const { profile, ready, user, profileStatus } = useAuth();
   const params = useSearchParams();
   const router = useRouter();
   const code = params.get("m") ?? "";
-  const isStaff = ready && !!user && STAFF_ROLES.includes(roleOf(profile));
+  // One policy, in lib/access: an unloaded or failed profile reads as "member" via roleOf and would
+  // turn a staff member away from their own scanner.
+  const access = ready ? staffAccess(!!user, profileStatus, profile) : "wait";
+  const isStaff = access === "allow";
+  const profileUnknown = access === "wait" || access === "failed";
   const [member, setMember] = useState<Member | null>(null);
   const [state, setState] = useState<"idle" | "loading" | "notfound" | "added" | "error">("idle");
   const [busy, setBusy] = useState(false);
@@ -47,6 +52,16 @@ function ScanInner() {
     setBusy(false);
   };
 
+  // "Staff only" is only honest once we know. While the profile is unknown, say that instead —
+  // otherwise a crew member on a slow connection is told they are not crew.
+  if (profileUnknown) return (
+    <section className="screen">
+      <Masthead eyebrow="Scan card" />
+      <div className="h-title">{access === "failed" ? "Couldn't check your access" : "One moment"}</div>
+      <div className="h-sub">{access === "failed" ? "We couldn't read your profile just now — this isn't a refusal." : "Checking your crew access…"}</div>
+      <ClosingBeat />
+    </section>
+  );
   if (ready && (!user || !isStaff)) return (
     <section className="screen">
       <Masthead eyebrow="Scan card" />

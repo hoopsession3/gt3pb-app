@@ -2007,6 +2007,52 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   Object.assign(process.env, keep);
 }
 
+// ── who may see a staff surface (lib/access.ts) ────────────────────────────────────────────────
+// Found in PRODUCTION on 2026-09-09: mid-navigation the crew console showed the OWNER
+// "Staff only. This area is for GT3PB staff. If that's you, ask the owner to add you."
+// AuthProvider's profile is null while loading, null when the read fails, and null when there is
+// genuinely no row — and roleOf(null) is "member". Four gates read all three as "you are a
+// customer". The assertions that matter are the ones that must NOT say deny.
+{
+  const A = require("../.smoke/access.js");
+  const R = require("../.smoke/roles.js");
+  const owner = { role: "owner" }, server = { role: "server" }, member = { role: "member" };
+
+  ok("access: the bug — roleOf(null) really is 'member', which is why a gate cannot use it alone",
+    R.roleOf(null) === "member");
+
+  ok("access: signed in, profile still loading → WAIT, never deny",
+    A.staffAccess(true, "loading", null) === "wait");
+  ok("access: signed in, profile read FAILED → failed, never deny",
+    A.staffAccess(true, "error", null) === "failed");
+  ok("access: and a failed read does not deny even when we had nothing to go on",
+    A.staffAccess(true, "error", null) !== "deny");
+  ok("access: nobody signed in → anon, which is an invitation, not a refusal",
+    A.staffAccess(false, "ready", null) === "anon");
+  ok("access: not signed in outranks everything else we might know",
+    A.staffAccess(false, "loading", owner) === "anon");
+
+  ok("access: known owner → allow", A.staffAccess(true, "ready", owner) === "allow");
+  ok("access: known server → allow", A.staffAccess(true, "ready", server) === "allow");
+  ok("access: known member → deny, the ONE case we can stand behind",
+    A.staffAccess(true, "ready", member) === "deny");
+  ok("access: known-and-no-profile-row → deny, because we asked and got an answer",
+    A.staffAccess(true, "ready", null) === "deny");
+
+  ok("access: leadership is narrower — a server is staff but not leadership",
+    A.staffAccess(true, "ready", server) === "allow" && A.leadershipAccess(true, "ready", server) === "deny");
+  ok("access: an owner is both", A.leadershipAccess(true, "ready", owner) === "allow");
+  ok("access: leadership waits on an unknown profile too, rather than denying",
+    A.leadershipAccess(true, "loading", null) === "wait");
+
+  ok("access: isAllowed is true for exactly one verdict",
+    ["anon","wait","failed","deny"].every((v) => !A.isAllowed(v)) && A.isAllowed("allow"));
+
+  // The legacy fallback still has to work — an old profile with is_admin and no role is an owner.
+  ok("access: a pre-migration admin profile still resolves to owner",
+    A.staffAccess(true, "ready", { is_admin: true }) === "allow" && R.roleOf({ is_admin: true }) === "owner");
+}
+
 console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
 console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);
 process.exit(fail ? 1 : 0);
