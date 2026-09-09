@@ -14,7 +14,7 @@ import { SectionHeader } from "@/components/kit";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
-import { useCrew } from "./useCrew";
+import { useCrew, crewLabel } from "./useCrew";
 
 // GOALS — the true tracker (0163/0164). Three layers, top down:
 //   lane → goal → moves.
@@ -308,7 +308,7 @@ export default function Goals() {
           {canLead ? (
             <select className="goal-owner-sel" value={g.owner_user_id ?? ""} onChange={(e) => setOwner(g, e.target.value)} aria-label={`Owner of ${g.title}`}>
               <option value="">Unassigned</option>
-              {staff.map((s) => <option key={s.id} value={s.id}>{s.display_name || "Unnamed"}</option>)}
+              {staff.map((s) => <option key={s.id} value={s.id}>{crewLabel(s)}</option>)}
             </select>
           ) : (
             <span className="goal-owner-n">{firstName(g.owner_user_id) ?? "Unassigned"}</span>
@@ -339,7 +339,7 @@ export default function Goals() {
                   <div className="goal-init-meta">
                     <select value={i.assignee ?? ""} onChange={(e) => assignMove(i, g.title, e.target.value)} aria-label={`Owner of ${i.label}`}>
                       <option value="">No owner</option>
-                      {staff.map((s) => <option key={s.id} value={s.id}>{s.display_name || "Unnamed"}</option>)}
+                      {staff.map((s) => <option key={s.id} value={s.id}>{crewLabel(s)}</option>)}
                     </select>
                     <input type="date" value={i.due_at ? i.due_at.slice(0, 10) : ""} onChange={(e) => dueMove(i, e.target.value)} aria-label={`Due date for ${i.label}`} />
                   </div>

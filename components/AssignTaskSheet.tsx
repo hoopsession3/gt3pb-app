@@ -7,7 +7,7 @@ import { useApp } from "@/components/AppProvider";
 import { createTodo, updateTask } from "@/lib/tasks";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import Icon from "@/components/Icon";
-import { useCrew } from "@/components/useCrew";
+import { useCrew, crewLabel } from "@/components/useCrew";
 
 // REUSABLE buildout → task. Drop this after any buildout (bottle loadout, delivery loadout, event
 // prep) to offer "Create a task? Assign to…" without leaving the flow. It writes to the existing
@@ -61,7 +61,7 @@ export default function AssignTaskSheet({
   const crewOptions = (
     <>
       <option value="">Unassigned</option>
-      {crew.map((c) => <option key={c.id} value={c.id}>{c.display_name || c.role} · {c.role.replace("_", " ")}</option>)}
+      {crew.map((c) => <option key={c.id} value={c.id}>{crewLabel(c)}</option>)}
     </>
   );
 

@@ -78,5 +78,5 @@ export function useCrew(): CrewMember[] {
  *  "event manager" here while the team console, the org chart and the offer letter all said "Event
  *  Manager" — a ninth spelling of the same seven words, and the reason the role vocabulary now has
  *  exactly one home. */
-export const crewLabel = (c: CrewMember) =>
+export const crewLabel = (c: { display_name: string | null; role: string | null }) =>
   `${c.display_name || roleLabel(c.role)} · ${roleLabel(c.role)}`;

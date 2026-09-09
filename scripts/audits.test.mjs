@@ -9,7 +9,7 @@
 import { classifyEffect, effectAt } from "./render.audit.mjs";
 import { isFalseEmpty, catchesButHides } from "./falseempty.audit.mjs";
 import { refusalHeadings, refusesWithoutPolicy, collapsesVerdicts } from "./gate.audit.mjs";
-import { handRollsCrew, bypassesTaskSpine, CREW_EXEMPT, namesRoleVocabulary, rolesNamedIn } from "./dupe.audit.mjs";
+import { handRollsCrew, bypassesTaskSpine, CREW_EXEMPT, namesRoleVocabulary, rolesNamedIn, rendersRawCrewOption } from "./dupe.audit.mjs";
 
 let pass = 0, fail = 0;
 const ok = (n, c, got) => { if (c) pass++; else { fail++; console.log(`  ✗ ${n}` + (got !== undefined ? ` → got ${JSON.stringify(got)}` : "")); } };
@@ -206,6 +206,24 @@ ok("it reports WHICH roles a file names, deduped and sorted, so the failure mess
   rolesNamedIn(`{ owner: "Owner", server: "Server", owner: "Owner" }`).join(",") === "owner,server");
 ok("a file mixing both shapes reports the union",
   rolesNamedIn(`{ owner: "Owner", admin: { label: "Admin" } }`).join(",") === "admin,owner");
+
+// ── how a crew member reads in a dropdown ──────────────────────────────────────────────────────
+// There are two Ryan profiles in production — an owner who uses the app daily and an operator
+// account that has never signed in — and every assign dropdown listed "Ryan" twice with nothing to
+// tell them apart. crewLabel() renders "Ryan · Owner" and had one caller out of nine.
+const CREWY = 'import { useCrew, crewLabel } from "./useCrew";\n';
+ok("caught: a bare display_name in an option, in a file that uses the crew hook",
+  rendersRawCrewOption(CREWY + `{crew.map((c) => <option key={c.id} value={c.id}>{c.display_name || "Crew"}</option>)}`, "components/X.tsx") === true);
+ok("caught: the other spelling of the same mistake",
+  rendersRawCrewOption(CREWY + `{staff.map((s) => <option key={s.id} value={s.id}>{s.display_name || "Unnamed"}</option>)}`, "components/X.tsx") === true);
+ok("passes: the option renders crewLabel",
+  rendersRawCrewOption(CREWY + `{crew.map((c) => <option key={c.id} value={c.id}>{crewLabel(c)}</option>)}`, "components/X.tsx") === false);
+ok("passes: useCrew.ts itself, which is where crewLabel lives",
+  rendersRawCrewOption(`<option>{c.display_name}</option>`, "components/useCrew.ts") === false);
+ok("out of scope: a display_name in an option in a file that never touches the crew hook",
+  rendersRawCrewOption(`{vendors.map((v) => <option key={v.id}>{v.display_name}</option>)}`, "components/Vendors.tsx") === false);
+ok("not flagged: display_name rendered somewhere that is not an option",
+  rendersRawCrewOption(CREWY + `<div className="who">{c.display_name}</div>`, "components/X.tsx") === false);
 
 console.log(`AUDIT CLASSIFIERS: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

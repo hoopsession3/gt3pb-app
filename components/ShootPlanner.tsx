@@ -10,7 +10,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
 import Sheet, { CloseButton } from "@/components/Sheet";
-import { useCrew } from "./useCrew";
+import { useCrew, crewLabel } from "./useCrew";
 
 // SHOOT PLANNER (0214) — plan any content shoot: date, location, call time, and a shot list you can
 // assign and check off (planned → shot → in edit). The reusable capability behind the Atlanta shoot
@@ -124,7 +124,7 @@ export default function ShootPlanner() {
                           <div className="shoot-shot" key={s.id}>
                             <button type="button" className={`shoot-st st-${s.status}`} onClick={() => cycleShot(s)}>{SHOT_LABEL[s.status]}</button>
                             <span className="shoot-desc">{s.description}</span>
-                            <select className="shoot-assign" value={s.assignee ?? ""} onChange={(e) => assignShot(s, e.target.value)} aria-label="Assign shot"><option value="">—</option>{crew.map((c) => <option key={c.id} value={c.id}>{c.display_name || "Crew"}</option>)}</select>
+                            <select className="shoot-assign" value={s.assignee ?? ""} onChange={(e) => assignShot(s, e.target.value)} aria-label="Assign shot"><option value="">—</option>{crew.map((c) => <option key={c.id} value={c.id}>{crewLabel(c)}</option>)}</select>
                             <button type="button" className="shoot-del" onClick={() => delShot(s.id)} aria-label="Delete shot"><Icon name="close" /></button>
                           </div>
                         ))}

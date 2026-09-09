@@ -10,7 +10,7 @@ import { updateTask, deleteTask, type TaskSource } from "@/lib/tasks";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
-import { useCrew } from "@/components/useCrew";
+import { useCrew, crewLabel } from "@/components/useCrew";
 
 // TASKSHEET — the ONE task-detail sheet, opened from any task chip anywhere via useTaskSheet().
 // It reads the row from the all_tasks spine (0225) — so it doesn't care whether the task is an
@@ -202,7 +202,7 @@ function TaskSheet({ id, source, onClose }: { id: string; source: TaskSource; on
               <span className="tsheet-k">Owner</span>
               <select className="auth-input" value={t.assignee ?? ""} onChange={(e) => reassign(e.target.value)}>
                 <option value="">Unassigned</option>
-                {crew.map((c) => <option key={c.id} value={c.id}>{c.display_name || c.role} · {c.role.replace("_", " ")}</option>)}
+                {crew.map((c) => <option key={c.id} value={c.id}>{crewLabel(c)}</option>)}
               </select>
             </label>
 

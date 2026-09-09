@@ -11,7 +11,7 @@ import { completeTask, updateTask } from "@/lib/tasks";
 import { useTaskSheet } from "./TaskSheet";
 import Icon from "@/components/Icon";
 import { isStopPast } from "@/lib/stopRecord";
-import { useCrew } from "./useCrew";
+import { useCrew, crewLabel } from "./useCrew";
 
 // PREP BOARD — the aggregate readiness triage surface. Every open prep task, ROLLED UP into
 // collapsible groups by the INITIATIVE it's assigned to (0201/0237) — falling back to its event/stop
@@ -187,7 +187,7 @@ export default function PrepBoard() {
                             </div>
                             <select className={`pbd-assign${t.assignee ? " on" : ""}`} value={t.assignee ?? ""} onChange={(e) => assign(t, e.target.value)} aria-label={`Assign: ${t.label}`}>
                               <option value="">Assign</option>
-                              {crew.map((c) => <option key={c.id} value={c.id}>{c.display_name || "Crew"}</option>)}
+                              {crew.map((c) => <option key={c.id} value={c.id}>{crewLabel(c)}</option>)}
                             </select>
                           </div>
                         );

@@ -1,20 +1,28 @@
-// DUPLICATION RATCHETS — the two consolidations this codebase has attempted twice and not finished.
+// DUPLICATION RATCHETS — four things this codebase decided to do once and then did several times.
 //
-//   node scripts/dupe.audit.mjs           # counts, and fail if either rose
+//   node scripts/dupe.audit.mjs           # counts, and fails if any rose
 //   node scripts/dupe.audit.mjs --list    # every site, to read
 //
 // ── WHY A RULE AND NOT JUST A CLEANUP ──────────────────────────────────────────────────────────
-// Both of these already have a shared implementation, written on purpose, with a header explaining
-// why. Both are still hand-rolled in most of the places they were meant to replace:
+// Every one of these already had a shared implementation, written on purpose, with a header
+// explaining why — and was still hand-rolled in most of the places it was meant to replace:
 //
 //   components/useCrew.ts   "Four screens already loaded profiles by hand" — it was TWELVE, and
 //                           the hook was imported by exactly ONE file.
 //   lib/tasks.ts            "the write spine" — six in-app call sites still insert event_tasks
 //                           directly, and its own header already names this as unfinished.
+//   lib/roles.ts            owned the authorization half; FOUR other modules named the seven roles
+//                           themselves, and two had already drifted on "Event Manager".
+//   crewLabel()             one line, one job, one caller out of nine — while two files had copied
+//                           its body inline and six rendered a bare name.
 //
 // A consolidation without a rule is a coincidence. scripts/gate.audit.mjs is the precedent: it
 // found a fifth broken gate on its first run precisely because a sweep only finds what you thought
 // to look for. So these get counted, and the count can only go down.
+//
+// Each of the four has been proved to FAIL by planting the code it forbids. A gate that cannot fail
+// is a gate that lies, and this file has already shipped one: the role-naming pattern below missed
+// the exact map it was written for until the test that caught it was made to assert true.
 import { readFileSync } from "node:fs";
 import { walk } from "./falseempty.audit.mjs"; // one file-walker, not three
 
@@ -32,6 +40,9 @@ export const TASKWRITE_BASELINE = 2;
 // the two ratchets above this one started at zero rather than being ratcheted down to it, because
 // the four maps it exists to prevent were all converted in the same commit that added the check.
 export const ROLENAME_BASELINE = 0;
+// Zero. crewLabel() is one line whose entire job is rendering a crew member in a dropdown; it had
+// ONE caller out of nine, two files copied its body inline, and six rendered a bare display_name.
+export const CREWOPT_BASELINE = 0;
 
 // ── 1. the crew picker ─────────────────────────────────────────────────────────────────────────
 // The signature is specific: reading profiles AND excluding members is the "who can I assign this
@@ -145,10 +156,35 @@ export function namesRoleVocabulary(src, file) {
   return rolesNamedIn(src).length >= 3;
 }
 
+// ── 4. how a crew member reads in a dropdown ───────────────────────────────────────────────────
+// Found by opening the app, not by a test: every assign dropdown in the product listed "Ryan"
+// twice, because there are two Ryan profiles — an owner who uses the app daily and an operator
+// account that has never signed in. Nothing on screen told them apart, so assigning a task was a
+// coin flip between a person and a dormant row.
+//
+// crewLabel() renders "Ryan · Owner" and has existed for exactly this since useCrew was written.
+// It had one caller. AssignTaskSheet and TaskSheet had copied its BODY inline —
+// `{c.display_name || c.role} · {c.role.replace("_", " ")}` — which is also where the tenth and
+// eleventh spellings of a role name lived. Six more rendered a bare display_name.
+//
+// So: inside a file that uses the crew hook, an <option> may not render display_name itself.
+//
+// KNOWN LIMIT: scoped to files that import useCrew. A screen that fetches its own people and
+// renders a bare name is not caught here — but the crew-fetch ratchet above is at zero, so
+// getting people any other way already has to argue for itself first.
+const IMPORTS_CREW = /from\s+["'](?:\.\/|@\/components\/)useCrew["']/;
+const RAW_NAME_OPTION = /<option[^>]*>\s*\{[^}]*\bdisplay_name\b/;
+
+export function rendersRawCrewOption(src, file) {
+  if (file === "components/useCrew.ts") return false;
+  return IMPORTS_CREW.test(src) && RAW_NAME_OPTION.test(src);
+}
+
 export function collect(root = ".") {
   const crew = [];
   const taskWrites = [];
   const roleNames = [];
+  const crewOpts = [];
   for (const f of walk(root)) {
     const file = f.replace(/^\.\//, "");
     if (file.startsWith("scripts/")) continue;
@@ -156,18 +192,20 @@ export function collect(root = ".") {
     if (handRollsCrew(src, file)) crew.push(file);
     if (bypassesTaskSpine(src, file)) taskWrites.push(file);
     if (namesRoleVocabulary(src, file)) roleNames.push(file);
+    if (rendersRawCrewOption(src, file)) crewOpts.push(file);
   }
-  return { crew, taskWrites, roleNames };
+  return { crew, taskWrites, roleNames, crewOpts };
 }
 
 if (import.meta.url === (await import("node:url")).pathToFileURL(process.argv[1] || "").href) {
-  const { crew, taskWrites, roleNames } = collect(".");
+  const { crew, taskWrites, roleNames, crewOpts } = collect(".");
   if (process.argv.includes("--list")) {
     for (const f of crew) console.log(`  crew-fetch   ${f}`);
     for (const f of taskWrites) console.log(`  task-insert  ${f}`);
     for (const f of roleNames) console.log(`  role-naming  ${f}`);
+    for (const f of crewOpts) console.log(`  crew-option  ${f}`);
   }
-  console.log(`DUPLICATION: ${crew.length} hand-rolled crew fetches (baseline ${CREW_BASELINE}), ${taskWrites.length} direct event_tasks inserts (baseline ${TASKWRITE_BASELINE}), ${roleNames.length} role-naming maps outside lib/roles (baseline ${ROLENAME_BASELINE})`);
+  console.log(`DUPLICATION: ${crew.length} hand-rolled crew fetches (baseline ${CREW_BASELINE}), ${taskWrites.length} direct event_tasks inserts (baseline ${TASKWRITE_BASELINE}), ${roleNames.length} role-naming maps outside lib/roles (baseline ${ROLENAME_BASELINE}), ${crewOpts.length} crew dropdowns bypassing crewLabel (baseline ${CREWOPT_BASELINE})`);
 
   let bad = false;
   if (crew.length > CREW_BASELINE) {
@@ -187,6 +225,11 @@ if (import.meta.url === (await import("node:url")).pathToFileURL(process.argv[1]
   if (roleNames.length > ROLENAME_BASELINE) {
     for (const f of roleNames) console.log(`    ${f}  names ${rolesNamedIn(readFileSync(f, "utf8")).join(", ")}`);
     console.log(`\n  ✗ RATCHET: ${roleNames.length} > ${ROLENAME_BASELINE}. A role's human name is decided in lib/roles.ts — roleLabel(r). Keep your module's own FACTS about a role (what it reaches, what a hint says); just do not restate its name.`);
+    bad = true;
+  }
+  if (crewOpts.length > CREWOPT_BASELINE) {
+    for (const f of crewOpts) console.log(`    ${f}`);
+    console.log(`\n  ✗ RATCHET: ${crewOpts.length} > ${CREWOPT_BASELINE}. crewLabel(c) is how a crew member reads in a dropdown — "Ryan · Owner", not "Ryan". There are two Ryans in production and only one of them has ever signed in.`);
     bad = true;
   }
   process.exit(bad ? 1 : 0);

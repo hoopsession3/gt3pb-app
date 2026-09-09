@@ -8,6 +8,7 @@ import { useWorkStreams } from "@/lib/streams";
 import { SectionHeader } from "@/components/kit";
 import { useAuth, roleOf } from "./AuthProvider";
 import { ALL_ROLES, roleLabel, type Role } from "@/lib/roles";
+import { crewLabel } from "./useCrew";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
@@ -98,7 +99,7 @@ export default function OrgChart() {
                   {canAssign ? (
                     <select className="ws-owner" value={s.owner_user_id ?? ""} onChange={(e) => assign(s.id, e.target.value)} aria-label={`Owner of ${s.label}`}>
                       <option value="">Unassigned</option>
-                      {people.map((p) => <option key={p.id} value={p.id}>{p.display_name || "Unnamed"}</option>)}
+                      {people.map((p) => <option key={p.id} value={p.id}>{crewLabel(p)}</option>)}
                     </select>
                   ) : (
                     <div className="ws-ownerro">{owner?.display_name ?? "Unassigned"}</div>

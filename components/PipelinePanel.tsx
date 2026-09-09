@@ -17,7 +17,7 @@ import Icon from "@/components/Icon";
 import PromptSheet from "./PromptSheet";
 import { bandFor, fmtBand, paybackPct, paybackWeeks, FALLBACK_MARGIN_PCT } from "@/lib/uplift";
 import { money } from "@/lib/money";
-import { useCrew } from "./useCrew";
+import { useCrew, crewLabel } from "./useCrew";
 
 // PIPELINE — the sales funnel (0165). Vendor (the account) × deal (from the owner's catalog,
 // gated per vendor type) × rep × stage. The owner articulates what's on the table in the Deal
@@ -578,7 +578,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
             <label>Rep
               <select value={o.rep_id ?? ""} onChange={(e) => assignRep(o, e.target.value)}>
                 <option value="">Unassigned</option>
-                {staff.map((s) => <option key={s.id} value={s.id}>{s.display_name || "Unnamed"}</option>)}
+                {staff.map((s) => <option key={s.id} value={s.id}>{crewLabel(s)}</option>)}
               </select>
             </label>
             <label>Deal <i>(for {o.vendors?.vendor_type ?? "this type"})</i>
@@ -821,7 +821,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
             <label>Rep
               <select value={no.repId} onChange={(e) => setNo({ ...no, repId: e.target.value })}>
                 <option value="">Unassigned</option>
-                {staff.map((s) => <option key={s.id} value={s.id}>{s.display_name || "Unnamed"}</option>)}
+                {staff.map((s) => <option key={s.id} value={s.id}>{crewLabel(s)}</option>)}
               </select>
             </label>
             <label>Value $<input inputMode="decimal" value={no.value} onChange={(e) => setNo({ ...no, value: e.target.value })} placeholder="500" /></label>
