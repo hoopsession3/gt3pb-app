@@ -6,6 +6,7 @@ import { useApp } from "./AppProvider";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { useRealtimeTable } from "@/lib/realtime";
+import { useAsyncData } from "@/lib/useAsyncData";
 import Icon from "@/components/Icon";
 import { money } from "@/lib/money";
 
@@ -45,21 +46,26 @@ const mixLine = (p: MyDelivery) => {
 export default function MyDeliveries() {
   const { user } = useAuth();
   const { toast } = useApp();
-  const [rows, setRows] = useState<MyDelivery[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    if (!supabase || !user) { setRows([]); return; }
+  // This section renders nothing at all when the list is empty, and the read used to swallow its
+  // error into []. So a failed request did not show a customer an error — it showed them a page
+  // with no mention of the delivery they had already paid for. Empty is a fine reason to render
+  // nothing; failed is not, and the two have to be told apart before anything is hidden.
+  const loader = useCallback(async (): Promise<MyDelivery[]> => {
+    if (!supabase || !user) return [];
     // Yesterday's floor keeps today's delivery visible all day regardless of timezone drift.
     const floor = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    const { data } = await supabase.from("delivery_orders").select("*")
+    const { data, error } = await supabase.from("delivery_orders").select("*")
       .eq("user_id", user.id).is("canceled_at", null).gte("delivery_date", floor)
       .order("delivery_date").order("created_at");
-    setRows((data as MyDelivery[]) ?? []);
+    if (error) throw new Error(error.message);
+    return (data as MyDelivery[]) ?? [];
   }, [user]);
-
-  useEffect(() => { load(); }, [load]);
+  const state = useAsyncData(loader, [user?.id]);
+  const rows = state.data ?? [];
+  const load = state.reload;
   // Live: crew flipping the order to brewed / out-for-delivery / delivered updates the card in front of the customer.
   useRealtimeTable({ table: "delivery_orders", filter: `user_id=eq.${user?.id}` }, load, { enabled: !!user });
 
@@ -83,7 +89,17 @@ export default function MyDeliveries() {
     load();
   };
 
-  if (!user || rows.length === 0) return null;
+  if (!user) return null;
+  // Failed ≠ none. Rendering nothing here is right for a customer with no delivery and wrong for a
+  // customer whose delivery we simply could not read, so only the first case gets silence.
+  if (state.status === "error") return (
+    <div className="mypacks" role="status">
+      <div className="mypacks-h">Your deliveries</div>
+      <p className="mypacks-err">We couldn&apos;t load your deliveries just now — this doesn&apos;t mean you don&apos;t have one.</p>
+      <button type="button" className="handle" onClick={() => load()}><span>Try again</span></button>
+    </div>
+  );
+  if (rows.length === 0) return null;
   return (
     <div className="mypacks">
       <div className="mypacks-h">Your deliver{rows.length > 1 ? "ies" : "y"}</div>

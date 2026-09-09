@@ -1,4 +1,4 @@
-// SET-STATE-IN-EFFECT — what the 121 actually are, measured instead of remembered.
+// SET-STATE-IN-EFFECT — what these actually are, measured instead of remembered.
 //
 //   node scripts/render.audit.mjs            # counts, and fail if the total rose
 //   node scripts/render.audit.mjs --list     # every hit with its category
@@ -35,14 +35,14 @@
 //                  CAN is scripts/falseempty.audit.mjs, which looks at whether the read can report
 //                  failure at all — the thing a person actually experiences.
 //   sync-to-prop   setState(prop) keyed on that prop. Sometimes the textbook anti-pattern and
-//                  sometimes a deliberate post-save re-sync — two in this repo are the latter, so
+//                  sometimes a deliberate post-save re-sync — all five in this repo are the latter, so
 //                  this category is a READING LIST, never an auto-fix.
 //   needs-a-person everything else.
 import { execSync } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
 
 // Raise nothing. Lower freely. The point of a ratchet is that it only moves one way.
-export const BASELINE = 121;
+export const BASELINE = 116;
 
 const RULE = "react-hooks/set-state-in-effect";
 

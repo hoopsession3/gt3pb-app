@@ -20,22 +20,28 @@ import AsyncSection from "./AsyncSection";
 
 // ── live thread ──
 type C = { id: string; body: string; author_id: string | null; created_at: string };
+type Staff = { id: string; display_name: string | null; role: string | null };
 export function StrategyThread({ k, label, link = "/playbook" }: { k: string; label: string; link?: string }) {
   const { toast } = useApp();
   const { user, profile } = useAuth();
-  const [rows, setRows] = useState<C[]>([]);
-  const [staff, setStaff] = useState<{ id: string; display_name: string | null; role: string | null }[]>([]);
   const [text, setText] = useState("");
-  const load = useCallback(async () => {
-    if (!supabase) return;
-    const { data } = await supabase.from("comments").select("id, body, author_id, created_at").eq("strategy_key", k).order("created_at");
-    setRows((data as C[]) ?? []);
+  // Both reads swallowed their error and coalesced to [], so a failed load rendered as a thread with
+  // nothing in it — indistinguishable from a discussion nobody had started. On a surface whose whole
+  // point is "the other owners are talking here", that is the worst version of this bug. DecisionLog
+  // below was fixed for exactly this reason and says so; the thread was left behind. Same shape now.
+  const loader = useCallback(async (): Promise<{ rows: C[]; staff: Staff[] }> => {
+    if (!supabase) return { rows: [], staff: [] };
+    const [cs, ps] = await Promise.all([
+      supabase.from("comments").select("id, body, author_id, created_at").eq("strategy_key", k).order("created_at"),
+      supabase.from("profiles").select("id, display_name, role").neq("role", "member"),
+    ]);
+    if (cs.error) throw new Error(cs.error.message);
+    if (ps.error) throw new Error(ps.error.message);
+    return { rows: (cs.data as C[]) ?? [], staff: (ps.data as Staff[]) ?? [] };
   }, [k]);
-  useEffect(() => {
-    load();
-    if (!supabase) return;
-    supabase.from("profiles").select("id, display_name, role").neq("role", "member").then(({ data }) => setStaff((data as typeof staff) ?? []));
-  }, [load]);
+  const thread = useAsyncData(loader, [k]);
+  const load = thread.reload;
+  const staff = thread.data?.staff ?? [];
   useRealtimeTable({ table: "comments", filter: `strategy_key=eq.${k}` }, load);
   const nameOf = (uid: string | null) => (uid === user?.id ? "You" : (staff.find((s) => s.id === uid)?.display_name?.trim().split(" ")[0] || "Crew"));
   const send = async () => {
@@ -51,12 +57,22 @@ export function StrategyThread({ k, label, link = "/playbook" }: { k: string; la
   };
   return (
     <div className="st-thread">
-      {rows.map((c) => (
-        <div key={c.id} className={`st-msg${c.author_id === user?.id ? " me" : ""}`}>
-          <b>{nameOf(c.author_id)}</b> <span className="st-when">{new Date(c.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
-          <p>{c.body}</p>
-        </div>
-      ))}
+      <AsyncSection state={thread} isEmpty={({ rows }) => rows.length === 0}
+        errorTitle="Couldn't load this thread" emptyTitle="No messages yet"
+        emptySub="Start it — the other owners get pinged." loadingLabel="Loading the thread…">
+        {({ rows }) => (
+          <>
+            {rows.map((c) => (
+              <div key={c.id} className={`st-msg${c.author_id === user?.id ? " me" : ""}`}>
+                <b>{nameOf(c.author_id)}</b> <span className="st-when">{new Date(c.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
+                <p>{c.body}</p>
+              </div>
+            ))}
+          </>
+        )}
+      </AsyncSection>
+      {/* Deliberately OUTSIDE AsyncSection: on a failed read the messages are unavailable, but
+          posting is not, and hiding the box would turn a read failure into a write outage too. */}
       <div className="st-inbar">
         <input className="auth-input" value={text} onChange={(e) => setText(e.target.value)} placeholder="Talk it through — the other owners get pinged" onKeyDown={(e) => e.key === "Enter" && send()} aria-label="Comment" />
         <button type="button" className="handle" onClick={send} disabled={!text.trim()}><span>Send</span></button>
@@ -225,13 +241,19 @@ export function PlayBuilder({ prefill, onDone }: { prefill?: GtmPlay | null; onD
 }
 
 export function useDrafts() {
-  const [drafts, setDrafts] = useState<Draft[]>([]);
-  const load = useCallback(async () => {
-    if (!supabase) return;
-    const { data } = await supabase.from("gtm_drafts").select("*").neq("status", "retired").order("created_at", { ascending: false });
-    setDrafts((data as Draft[]) ?? []);
+  // Swallowed error → `?? []` → the playbook showed no drafts in progress. A play you sketched
+  // last week reads as never having existed, which is the one thing a drafts list must never say.
+  // `state` is returned alongside so a caller can render the failure with AsyncSection; `drafts`
+  // keeps the old shape so nothing that consumes this hook had to change to get the fix.
+  const loader = useCallback(async (): Promise<Draft[]> => {
+    if (!supabase) return [];
+    const { data, error } = await supabase.from("gtm_drafts").select("*").neq("status", "retired").order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    return (data as Draft[]) ?? [];
   }, []);
-  useEffect(() => { load(); }, [load]);
+  const state = useAsyncData(loader, []);
+  const drafts = state.data ?? [];
+  const load = state.reload;
   // A DEAD ESCAPE HATCH IS WORSE THAN NO ESCAPE HATCH. The query above has filtered out retired
   // drafts since the day it was written, and nothing in the app has ever set status to 'retired' —
   // so a play you sketched and thought better of stayed on the playbook forever, looking live. The
@@ -243,6 +265,6 @@ export function useDrafts() {
     await supabase.from("gtm_drafts").update({ status: "retired" }).eq("id", id);
     load();
   }, [load]);
-  return { drafts, reload: load, retire };
+  return { drafts, reload: load, retire, state };
 }
 export { GTM_PLAYS };

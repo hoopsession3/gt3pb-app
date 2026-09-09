@@ -33,7 +33,19 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 // Raise nothing. Lower freely.
-export const BASELINE = 36;
+export const BASELINE = 28;
+
+// ── THE SECOND MEASURE, AND WHY IT EXISTS ──────────────────────────────────────────────────────
+// Halfway through fixing the first list I converted three components to useAsyncData, watched the
+// count drop, and nearly shipped it. The loaders now captured `error` — but every render still did
+// `state.data ?? []`, so the screen said "no broadcasts" exactly as before. The code shape was
+// fixed and the lie was untouched.
+//
+// That is the same criticism this file makes of react-hooks/set-state-in-effect, reproduced in my
+// own work: a rule about how code LOOKS cannot tell you what a person SEES. So the audit now also
+// counts loaders that catch a failure and never show it, which is the only way the first number
+// can be trusted to mean anything.
+export const SILENT_BASELINE = 4;
 
 const UNCHECKED =
   /const\s*\{\s*data(\s*:\s*\w+)?\s*\}\s*=\s*await|\.then\(\s*\(\s*\{\s*data(\s*:\s*\w+)?\s*\}\s*\)/;
@@ -56,6 +68,22 @@ export function walk(dir, out = []) {
     else if (/\.(ts|tsx)$/.test(e.name)) out.push(p);
   }
   return out;
+}
+
+/**
+ * True when a file loads with useAsyncData but never renders the failure — AsyncSection handles it,
+ * `status === "error"` handles it, reading `.error` handles it. None of those means the person is
+ * told, and `state.data ?? []` then renders the same empty list a working read would.
+ */
+export function catchesButHides(src) {
+  if (!/useAsyncData\s*[<(]/.test(src)) return false;
+  return !(/AsyncSection/.test(src) || /status\s*===\s*["']error["']/.test(src) || /\.error\b/.test(src));
+}
+
+export function collectSilent(root = ".") {
+  return walk(root)
+    .filter((f) => catchesButHides(readFileSync(f, "utf8")))
+    .map((f) => f.replace(/^\.\//, ""));
 }
 
 export function collect(root = ".") {
@@ -81,10 +109,22 @@ if (import.meta.url === (await import("node:url")).pathToFileURL(process.argv[1]
   const worst = Object.entries(byFile).sort((a, b) => b[1] - a[1]).slice(0, 5);
   console.log(`FALSE-EMPTY AUDIT: ${hits.length} client read(s) that cannot report failure, across ${Object.keys(byFile).length} file(s)`);
   for (const [f, n] of worst) console.log(`  ${String(n).padStart(3)}  ${f}`);
+  const silent = collectSilent(".");
+  console.log(`  and ${silent.length} file(s) catch a failure but never show it:`);
+  for (const f of silent) console.log(`       ${f}`);
+
+  let bad = false;
   if (hits.length > BASELINE) {
     console.log(`\n  ✗ RATCHET: ${hits.length} > BASELINE ${BASELINE}. A new read that cannot fail out loud is a new false empty state.`);
-    process.exit(1);
+    bad = true;
+  } else if (hits.length < BASELINE) {
+    console.log(`  · below baseline (${hits.length} < ${BASELINE}) — lower BASELINE to ${hits.length} to lock it in.`);
   }
-  if (hits.length < BASELINE) console.log(`  · below baseline (${hits.length} < ${BASELINE}) — lower BASELINE to ${hits.length} to lock it in.`);
-  process.exit(0);
+  if (silent.length > SILENT_BASELINE) {
+    console.log(`  ✗ RATCHET: ${silent.length} > SILENT_BASELINE ${SILENT_BASELINE}. Catching the error and rendering data ?? [] is the same lie with better paperwork.`);
+    bad = true;
+  } else if (silent.length < SILENT_BASELINE) {
+    console.log(`  · below silent baseline (${silent.length} < ${SILENT_BASELINE}) — lower SILENT_BASELINE to ${silent.length}.`);
+  }
+  process.exit(bad ? 1 : 0);
 }

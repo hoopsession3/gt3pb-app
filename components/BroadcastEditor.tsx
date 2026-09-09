@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useAsyncData } from "@/lib/useAsyncData";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import type { Broadcast } from "@/lib/broadcasts";
@@ -22,16 +23,19 @@ const AUDIENCES = [["all", "Everyone"], ["members", "Signed-in members"], ["staf
 export default function BroadcastEditor() {
   const { toast } = useApp();
   const { user } = useAuth();
-  const [rows, setRows] = useState<Broadcast[]>([]);
+  // Swallowed error → [] → "no broadcasts", i.e. the announcement you published looks unpublished.
   const [d, setD] = useState<Draft>(BLANK);
   const [saving, setSaving] = useState(false);
 
-  const load = useCallback(async () => {
-    if (!supabase) return;
-    const { data } = await supabase.from("broadcasts").select("*").order("created_at", { ascending: false });
-    setRows((data as Broadcast[]) ?? []);
+  const loader = useCallback(async (): Promise<Broadcast[]> => {
+    if (!supabase) return [];
+    const { data, error } = await supabase.from("broadcasts").select("*").order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    return (data as Broadcast[]) ?? [];
   }, []);
-  useEffect(() => { load(); }, [load]);
+  const state = useAsyncData(loader, []);
+  const rows = state.data ?? [];
+  const load = state.reload;
 
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((p) => ({ ...p, [k]: v }));
   const edit = (b: Broadcast) => setD({ id: b.id, title: b.title, body: b.body ?? "", kind: b.kind, style: b.style, audience: b.audience, cta_label: b.cta_label ?? "", cta_href: b.cta_href ?? "", active: b.active, starts_at: b.starts_at, ends_at: b.ends_at });
@@ -134,6 +138,13 @@ export default function BroadcastEditor() {
               on the body zone, not onClick on the row, since trailing holds its own real buttons —
               same rule RsvpRow/OfficeOrders follow). No data fetching, state, or handlers changed. */}
           <div className="insp-lbl" style={{ marginTop: 16 }}>All broadcasts</div>
+      {state.status === "error" && (
+        <p className="load-failed" role="status">
+          Couldn&apos;t load your broadcasts — this is not &ldquo;none&rdquo;.{" "}
+          <button type="button" className="btn-ter" onClick={() => load()}>Try again</button>
+        </p>
+      )}
+
           <div className="k-rows">
             {rows.map((b) => (
               <InfoRow

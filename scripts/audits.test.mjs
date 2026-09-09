@@ -7,7 +7,7 @@
 // only matched a single setState. So the rules get fixtures, and the fixtures are real code copied
 // out of this repo rather than something shaped to pass.
 import { classifyEffect, effectAt } from "./render.audit.mjs";
-import { isFalseEmpty } from "./falseempty.audit.mjs";
+import { isFalseEmpty, catchesButHides } from "./falseempty.audit.mjs";
 
 let pass = 0, fail = 0;
 const ok = (n, c, got) => { if (c) pass++; else { fail++; console.log(`  ✗ ${n}` + (got !== undefined ? ` → got ${JSON.stringify(got)}` : "")); } };
@@ -81,6 +81,23 @@ ok("NOT flagged: a line that never touches supabase",
 ok("NOT flagged: the read is coalesced but nothing is set within reach",
   isFalseEmpty(`    const { data } = await supabase.from("x").select("*");`,
     n3(`    const list = data ?? [];`, `    // ... 20 lines later`, `    return list;`)) === false);
+
+// ── catchesButHides ────────────────────────────────────────────────────────────────────────────
+// This rule exists because I walked into the hole it guards: three components were converted to
+// useAsyncData, the first count dropped, and every render still did `state.data ?? []` — the read
+// was honest and the screen still lied. Catching an error is not showing it.
+ok("hides: useAsyncData with data ?? [] and nothing else",
+  catchesButHides(`const s = useAsyncData(loader, []); const rows = s.data ?? []; return <ul>{rows.map(r => <li/>)}</ul>;`) === true);
+ok("shows: AsyncSection renders the failure",
+  catchesButHides(`const s = useAsyncData(loader, []); return <AsyncSection state={s} emptyTitle="None">{(d) => null}</AsyncSection>;`) === false);
+ok("shows: an explicit status === \"error\" branch",
+  catchesButHides(`const s = useAsyncData(loader, []); if (s.status === "error") return <Err/>; return null;`) === false);
+ok("shows: reading .error directly",
+  catchesButHides(`const s = useAsyncData(loader, []); return s.error ? <Err/> : null;`) === false);
+ok("handling only 'loading' is NOT handling failure (components/PrimalLesson.tsx)",
+  catchesButHides(`const b = useAsyncData(loader, []); if (b.status === "loading") return <Spin/>; return <X d={b.data}/>;`) === true);
+ok("a file that never loads anything is not in scope",
+  catchesButHides(`export function Static() { return <p>hi</p>; }`) === false);
 
 console.log(`AUDIT CLASSIFIERS: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -4154,6 +4154,8 @@ body:has(.conc-sheet) .rail{display:flex}
 /* YOUR PACK — customer's own reservations on /reserve: track, change, cancel */
 .mypacks{margin:0 0 14px;margin-bottom:22px}
 .mypacks.collapsed{margin-bottom:14px}
+.load-failed{font-size:13px;line-height:1.5;color:var(--muted);margin:8px 0}
+.mypacks-err{font-size:13px;line-height:1.5;color:var(--muted);margin:0 0 10px}
 .mypacks-h{font-family:'Inter';font-weight:600;letter-spacing:2px;text-transform:uppercase;font-size:11px;color:var(--gold);margin-bottom:8px}
 /* Collapsed summary row — same eyebrow typography, now a full-width tappable header that keeps the
    pack stack out of the way of the size picker. em carries the count in the muted body tone. */

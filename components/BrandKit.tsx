@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useAsyncData } from "@/lib/useAsyncData";
 import { uploadToBucket } from "@/lib/uploads";
 import Icon from "@/components/Icon";
 
@@ -25,19 +26,23 @@ export default function BrandKit({ canEdit }: { canEdit: boolean }) {
   const [uploading, setUploading] = useState(false);
   const [upErr, setUpErr] = useState("");
 
-  const loadAssets = useCallback(async () => {
-    if (!supabase) return;
-    const { data } = await supabase.from("brand_assets").select("id, label, kind, url, notes").order("sort");
-    setAssets((data as Asset[]) ?? []);
+  // Both reads swallowed their error. The kit one is the worse of the two: on failure it fell back
+  // to EMPTY, so the brand page rendered as though no colours or fonts had ever been set — and the
+  // editor was then pointed at that blank draft, one Save away from writing the emptiness back.
+  const loader = useCallback(async (): Promise<{ kit: Kit; assets: Asset[] }> => {
+    if (!supabase) return { kit: EMPTY, assets: [] };
+    const [kr, ar] = await Promise.all([
+      supabase.from("brand_kit").select("*").limit(1).maybeSingle(),
+      supabase.from("brand_assets").select("id, label, kind, url, notes").order("sort"),
+    ]);
+    if (kr.error) throw new Error(kr.error.message);
+    if (ar.error) throw new Error(ar.error.message);
+    const k = kr.data ? { ...EMPTY, ...kr.data, colors: kr.data.colors ?? [], fonts: kr.data.fonts ?? [] } : EMPTY;
+    return { kit: k as Kit, assets: (ar.data as Asset[]) ?? [] };
   }, []);
-  useEffect(() => {
-    if (!supabase) return;
-    supabase.from("brand_kit").select("*").limit(1).maybeSingle().then(({ data }) => {
-      const k = data ? { ...EMPTY, ...data, colors: data.colors ?? [], fonts: data.fonts ?? [] } : EMPTY;
-      setKit(k); setDraft(k);
-    });
-    loadAssets();
-  }, [loadAssets]);
+  const state = useAsyncData(loader, []);
+  useEffect(() => { if (state.data) { setKit(state.data.kit); setDraft(state.data.kit); setAssets(state.data.assets); } }, [state.data]);
+  const loadAssets = state.reload;
 
   const uploadLogo = async (file: File) => {
     if (!supabase) return;
@@ -70,11 +75,20 @@ export default function BrandKit({ canEdit }: { canEdit: boolean }) {
   if (!kit) return <div className="oa-empty" style={{ padding: "28px 8px" }}>Loading brand…</div>;
   const k = edit ? draft : kit;
 
+  // On a failed read the kit falls back to EMPTY, so this has to be said BEFORE the palette and
+  // fonts render blank — and the Edit button is withheld, because saving a draft built from a
+  // failed read would write the blankness back over the real brand kit.
   return (
     <div className="brand">
+      {state.status === "error" && (
+        <p className="load-failed" role="status">
+          Couldn&apos;t load the brand kit — what you see below is a blank fallback, not your brand.{" "}
+          <button type="button" className="btn-ter" onClick={() => loadAssets()}>Try again</button>
+        </p>
+      )}
       <div className="brand-head">
         {k.wordmark_url ? <img src={k.wordmark_url} alt="GT3 wordmark" className="brand-word" /> : <span className="brand-name">GT3</span>}
-        {canEdit && <button type="button" className="studio-act" onClick={() => { if (edit) save(); else { setDraft(kit); setEdit(true); } }} disabled={saving}>{edit ? (saving ? "Saving…" : "Save") : "Edit"}</button>}
+        {canEdit && state.status !== "error" && <button type="button" className="studio-act" onClick={() => { if (edit) save(); else { setDraft(kit); setEdit(true); } }} disabled={saving}>{edit ? (saving ? "Saving…" : "Save") : "Edit"}</button>}
       </div>
 
       <div className="brand-voice">

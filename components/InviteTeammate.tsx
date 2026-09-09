@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { useRealtimeTable } from "@/lib/realtime";
+import { useAsyncData } from "@/lib/useAsyncData";
 import Icon from "@/components/Icon";
 import { InfoRow } from "@/components/kit";
 
@@ -27,14 +28,17 @@ export default function InviteTeammate() {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("server");
   const [busy, setBusy] = useState(false);
-  const [invites, setInvites] = useState<Invite[]>([]);
-
-  const load = useCallback(async () => {
-    if (!supabase) return;
-    const { data } = await supabase.from("team_invites").select("id, email, role, created_at, claimed_at").order("created_at", { ascending: false }).limit(20);
-    setInvites((data as Invite[]) ?? []);
+  // Swallowed error → [] → "no invites yet", which reads as "nobody has been invited" to an owner
+  // who invited three people this morning and is wondering why none of them can sign in.
+  const loader = useCallback(async (): Promise<Invite[]> => {
+    if (!supabase) return [];
+    const { data, error } = await supabase.from("team_invites").select("id, email, role, created_at, claimed_at").order("created_at", { ascending: false }).limit(20);
+    if (error) throw new Error(error.message);
+    return (data as Invite[]) ?? [];
   }, []);
-  useEffect(() => { load(); }, [load]);
+  const state = useAsyncData(loader, []);
+  const invites = state.data ?? [];
+  const load = state.reload;
   useRealtimeTable("team_invites", load);
 
   const invite = async () => {
@@ -82,6 +86,12 @@ export default function InviteTeammate() {
           .btn-ter — a lower-emphasis, undo-flavored tier (the same one OfficeOrders uses for
           "Cancel") — with a visible label added since every other .btn-ter in the app carries text,
           not just an icon. No data fetching, state, or conditions below changed — presentation only. */}
+      {state.status === "error" && (
+        <p className="load-failed" role="status">
+          Couldn&apos;t load the invites you've sent — this is not &ldquo;none&rdquo;.{" "}
+          <button type="button" className="btn-ter" onClick={() => load()}>Try again</button>
+        </p>
+      )}
       {open.length > 0 && (
         <div className="tinv-list k-rows">
           {open.map((i) => (
