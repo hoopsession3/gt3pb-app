@@ -6765,6 +6765,36 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
   text-decoration:underline;text-underline-offset:2px;-webkit-appearance:none;appearance:none}
 .cp-inline-act:disabled{opacity:.5;cursor:default}
 
+/* ── WHAT IS OWED (0320) ───────────────────────────────────────────────────────────────────────
+   The overdue list on the owner home. Composed from tokens already in the system: the same 44px
+   touch floor as every other tappable row, the same gold accent, the same Inter/DM Mono pairing.
+   No new colour, no new radius — a new feature should make the system stronger, not wider. */
+.owed{display:flex;flex-direction:column;gap:2px;margin-top:12px}
+.owed-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:0 2px 6px}
+.owed-k{font-family:'DM Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.7px;
+  text-transform:uppercase;color:var(--gold2)}
+.owed-head b{font-family:'Inter';font-size:13px;font-weight:700;color:var(--cream)}
+.owed-head .dim{font-weight:500;color:var(--cream-m)}
+
+.owed-row{display:flex;align-items:center;gap:10px;min-height:44px;padding:9px 12px;
+  border:1px solid var(--line);border-radius:var(--r-lg);background:var(--card);
+  text-decoration:none;color:inherit}
+/* Late rows carry a left rail AND the words "N days late" in the row — colour is never the only
+   signal, per WCAG 1.4.1. */
+.owed-row.late{border-left:3px solid var(--red)}
+.owed-row-b{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
+.owed-row-b b{font-family:'Inter';font-size:13px;font-weight:600;color:var(--cream);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.owed-row-b i{font-style:normal;font-family:'Inter';font-size:11.5px;color:var(--cream-m);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.owed-age{flex:none;font-family:'DM Mono',ui-monospace,monospace;font-size:10.5px;
+  color:var(--cream-m);white-space:nowrap;font-variant-numeric:tabular-nums}
+.owed-row.late .owed-age{color:var(--red)}
+.owed-c{flex:none;color:var(--cream-m);font-size:15px;line-height:1}
+.owed-more{align-self:flex-start;background:none;border:0;padding:10px 2px;min-height:44px;
+  cursor:pointer;font-family:'Inter';font-size:12.5px;font-weight:650;color:var(--gold2);
+  -webkit-appearance:none;appearance:none}
+
 /* the roster's door into all of the above */
 .tm-open{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:none;
   border:1px solid var(--gold2);border-radius:11px;padding:10px 13px;min-height:44px;cursor:pointer;

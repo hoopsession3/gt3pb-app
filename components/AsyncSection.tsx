@@ -12,7 +12,7 @@ import type { AsyncData } from "@/lib/useAsyncData";
 // error, defeating the "never look the same" rule this comment already promised). Error gets a
 // real Retry, wired to the hook's reload.
 export function AsyncSection<T>({
-  state, isEmpty, emptyTitle, emptySub, emptyAction, loadingLabel, errorTitle, children,
+  state, isEmpty, emptyTitle, emptySub, emptyAction, loadingLabel, errorTitle, errorSub, children,
 }: {
   state: AsyncData<T>;
   /** default: array → length===0, otherwise falsy. Pass your own check for a scalar/object load. */
@@ -22,6 +22,16 @@ export function AsyncSection<T>({
   emptyAction?: ReactNode;
   loadingLabel?: string;
   errorTitle?: string;
+  /**
+   * The sentence under an error, when the raw Postgres message is not the useful thing to say.
+   *
+   * Added 0320. The error state could carry a TITLE but not a line explaining what the failure does
+   * and does not mean, so callers whose empty state is genuinely reassuring — "nothing overdue" —
+   * had no way to say "this is not the same as nothing being overdue; we could not read it." That
+   * distinction is the entire subject of scripts/falseempty.audit.mjs, and the shared component
+   * could not express it. Defaults to the driver's message, so nothing that omits it changes.
+   */
+  errorSub?: string;
   children: (data: T) => ReactNode;
 }) {
   if (state.status === "loading") {
@@ -32,7 +42,7 @@ export function AsyncSection<T>({
       <EmptyState
         role="alert"
         title={errorTitle ?? "Couldn't load this"}
-        sub={state.error?.message || "Something went wrong on that request."}
+        sub={errorSub ?? state.error?.message ?? "Something went wrong on that request."}
         action={<button type="button" className="btn-ter" onClick={state.reload}>Try again</button>}
       />
     );

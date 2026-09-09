@@ -18,6 +18,7 @@ import { useWorkStreams, streamOfCategory } from "@/lib/streams";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "@/components/AsyncSection";
+import Owed from "@/components/Owed";  // daily path: the overdue list is on the default screen
 import EmptyState from "@/components/EmptyState";
 import { useOperatorSection, sectionsForRole, streamGroups, SECTION_LABEL, TODAY_GROUP, VALID as VALID_SECTIONS, type OpSection } from "@/components/OperatorNav";
 import { useTaskSheet } from "@/components/TaskSheet";
@@ -42,6 +43,7 @@ import DropOps from "@/components/DropOps";
 import OfficeOrders from "@/components/OfficeOrders";
 const SiteCopyEditor = dynamic(() => import("@/components/SiteCopyEditor"), { loading: () => <PourFill label="Loading…" /> });
 const OfficeSettings = dynamic(() => import("@/components/OfficeSettings"), { loading: () => <PourFill label="Loading…" /> });
+const MarketsPanel = dynamic(() => import("@/components/MarketsPanel"), { loading: () => <PourFill label="Loading…" /> });
 const CopilotDirectory = dynamic(() => import("@/components/CopilotDirectory"), { loading: () => <PourFill label="Loading…" /> });
 const AiSpend = dynamic(() => import("@/components/AiSpend"), { loading: () => <PourFill label="Loading…" /> });
 const BroadcastEditor = dynamic(() => import("@/components/BroadcastEditor"), { loading: () => <PourFill label="Loading…" /> });
@@ -1255,6 +1257,13 @@ function MyDay({ userId, meName, isLeader, canPrep, canBrew }: { userId: string 
       )}
       {/* MY TASKS above the fold — the day's work leads; everything else follows. */}
       <MyTasks userId={userId} />
+      {/* WHAT IS OWED (0320). Under the day's work, because a task due today outranks a permit due
+          in a fortnight — but on the default screen, because until now the app stored eleven kinds
+          of deadline and showed none of them. On the day this shipped: four pieces of equipment
+          past their service date (the nitro tap by 69 days), two initiative targets and three
+          workstream next-actions overdue, and six permit rules needing a re-check. Nothing in the
+          product said so. Silence is only a signal when somebody is listening. */}
+      <Owed />
       <button type="button" className="btn-ter" style={{ marginTop: 10 }} onClick={() => window.dispatchEvent(new Event("gt3-quick-note"))}>✎ Note to self</button>
       {/* Lead-the-week tools: collapsed to one chip until called for (decrowd — the briefing is
           on-demand by nature; it shouldn't occupy the glance screen). */}
@@ -5650,6 +5659,10 @@ export default function AdminPage() {
           <Panel id="set-broadcast" title="Broadcast · a live message or ad to everyone"><BroadcastEditor /></Panel>
           <Panel id="splash" title="App splash · the pop-up guests see"><PromoEditor /></Panel>
           {isAdmin && <Panel id="set-office" title="Office delivery · price & minimum"><OfficeSettings /></Panel>}
+          {/* 0296/0297 built the readiness engine — eight named checks per city, rolled up into
+              can_open — and nothing in the app read it. Five market RPCs were in the same state.
+              Opening Atlanta was a SQL-editor operation until this panel. */}
+          {isAdmin && <Panel id="set-markets" title="Markets · can this city open, and why not"><MarketsPanel /></Panel>}
           <Panel id="set-ai" title="AI copilots · the full catalog"><CopilotDirectory /></Panel>
           {isAdmin && <Panel id="set-spend" title="AI spend · what your copilots cost"><AiSpend /></Panel>}
           {isAdmin && <Panel id="set-digest" title="Founder digest · the daily business roll-up"><FounderDigest /></Panel>}
