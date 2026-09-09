@@ -2165,10 +2165,18 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   const [brewBatches, setBrewBatches] = useState<{ id: string; recipe_name: string | null; batch_gal: number; status: string; ready_at: string | null }[]>([]);
   const [stopMeta, setStopMeta] = useState<{ day: string | null; plan_days: number }>({ day: null, plan_days: 1 });
   const [onHand, setOnHand] = useState<{ item: string; bal: number }[]>([]); // carried-in stock (ledger balance)
+  const [onHandFailed, setOnHandFailed] = useState(false); // read failed ≠ nothing carried in
 
   const loadOnHand = useCallback(async () => {
     if (!supabase) return;
-    const { data } = await supabase.from("inventory_ledger").select("item, qty");
+    // This read has to be able to fail out loud. `const { data } = …` followed by `data ?? []` turns
+    // a failed request into a balance of nothing, and the section below renders only when onHand is
+    // non-empty — so a blip did not show an error, it showed a truck with nothing carried in, to the
+    // person deciding what to load. Empty and broken must not look the same when somebody is about
+    // to pack against the answer.
+    const { data, error } = await supabase.from("inventory_ledger").select("item, qty");
+    if (error) { setOnHandFailed(true); return; } // keep whatever is on screen and say so instead
+    setOnHandFailed(false);
     const m: Record<string, number> = {};
     (data ?? []).forEach((r: any) => { m[r.item] = (m[r.item] ?? 0) + Number(r.qty); });
     setOnHand(Object.entries(m).map(([item, bal]) => ({ item, bal })).filter((x) => Math.abs(x.bal) > 0.0001).sort((a, b) => a.item.localeCompare(b.item)));
@@ -2607,6 +2615,13 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
             {isAdmin && !fullyApproved && pendingApprovers.length > 0 && <button className="adm-btn ghost" onClick={() => requestSignoff(pendingApprovers)}>Request sign-off</button>}
           </div>
           {managers.length === 0 && <div className="h-sub" style={{ marginTop: 6 }}>Tag a crew member <Icon name="star" /> as manager to require their approval too.</div>}
+        </div>
+      )}
+
+      {onHandFailed && (
+        <div className="onhand carryin" role="status">
+          <div className="onhand-h"><Icon name="package" /> On hand now <span>couldn&apos;t load carried-in stock — this is not &ldquo;nothing on hand&rdquo;</span></div>
+          <button type="button" className="btn ghost sm" onClick={() => loadOnHand()}>Try again</button>
         </div>
       )}
 
