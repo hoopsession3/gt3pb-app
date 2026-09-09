@@ -1,4 +1,4 @@
-// THE TWO AUDIT CLASSIFIERS, tested away from the filesystem.
+// THE AUDIT CLASSIFIERS, tested away from the filesystem.
 //
 // Both of these produce a number that gets quoted in a commit message and then believed. Three
 // times in this audit a regex produced a confident number that was wrong in the alarming direction
@@ -8,6 +8,7 @@
 // out of this repo rather than something shaped to pass.
 import { classifyEffect, effectAt } from "./render.audit.mjs";
 import { isFalseEmpty, catchesButHides } from "./falseempty.audit.mjs";
+import { refusalHeadings, refusesWithoutPolicy, collapsesVerdicts } from "./gate.audit.mjs";
 
 let pass = 0, fail = 0;
 const ok = (n, c, got) => { if (c) pass++; else { fail++; console.log(`  ✗ ${n}` + (got !== undefined ? ` → got ${JSON.stringify(got)}` : "")); } };
@@ -98,6 +99,49 @@ ok("handling only 'loading' is NOT handling failure (components/PrimalLesson.tsx
   catchesButHides(`const b = useAsyncData(loader, []); if (b.status === "loading") return <Spin/>; return <X d={b.data}/>;`) === true);
 ok("a file that never loads anything is not in scope",
   catchesButHides(`export function Static() { return <p>hi</p>; }`) === false);
+
+// ── the gate audit ─────────────────────────────────────────────────────────────────────────────
+// This rule caught a real bug on its first run: app/architecture said "Owners only" on
+// roleOf(profile) === "owner", so the owner was refused the owner-only page while his profile
+// loaded. The sweep that fixed crew, scan, academy and driver had missed it, because a sweep finds
+// what you thought to look for. That is the whole argument for the rule.
+ok("refusal heading is recognised (app/scan/page.tsx:68)",
+  refusalHeadings(`<div className="h-title">Staff only</div>`).length === 1);
+ok("refusal heading with a trailing period (app/crew/page.tsx:5375)",
+  refusalHeadings(`<div className="h-title">Staff only.</div>`).length === 1);
+ok("the exact heading that was live in app/architecture",
+  refusalHeadings(`<div className="h-title">Owners only</div>`).length === 1);
+ok("an ordinary page heading is not a refusal (app/academy/page.tsx:158)",
+  refusalHeadings(`<h1 className="h-title">GT3 Academy</h1>`).length === 0);
+ok("a styled heading with an interpolated title is not a refusal",
+  refusalHeadings(`<h1 className="h-title" style={{ fontSize: 28 }}>{m.title}</h1>`).length === 0);
+
+ok("caught: refusing with no policy import",
+  refusesWithoutPolicy(`<div className="h-title">Staff only</div>`) === true);
+ok("passes: the same refusal routed through lib/access",
+  refusesWithoutPolicy(`import { staffAccess } from "@/lib/access";\n<div className="h-title">Staff only</div>`) === false);
+ok("passes: a relative import of the same module",
+  refusesWithoutPolicy(`import { staffAccess } from "../lib/access";\n<div className="h-title">Staff only</div>`) === false);
+// The three strings that made "ban every occurrence of 'Staff only'" the wrong rule. None of them
+// is aimed at the reader, and a rule that failed on all three would have been suppressed by now.
+ok("not a refusal: an audience <option> (components/AssignTaskSheet.tsx:84)",
+  refusesWithoutPolicy(`<option value="leadership">Leadership only</option>`) === false);
+ok("not a refusal: a broadcast audience label (components/BroadcastEditor.tsx:21)",
+  refusesWithoutPolicy(`const AUDIENCES = [["all","Everyone"],["staff","Staff only"]] as const;`) === false);
+ok("not a refusal: a toast quoting the server's own refusal (components/crew/LiveControl.tsx:73)",
+  refusesWithoutPolicy(`toast(error.message.includes("not authorized") ? "Go live failed — your account isn't an owner/admin." : "x");`) === false);
+
+// The second measure — importing the fix is not the same as respecting it.
+ok("caught: isAllowed() as the only check collapses wait and failed back into deny",
+  collapsesVerdicts(`import { staffAccess, isAllowed } from "@/lib/access";\nconst a = staffAccess(u, s, p); if (!isAllowed(a)) return <StaffOnly/>;`) === true);
+ok("caught: handling 'wait' but not 'failed' — a failed read still reads as a refusal",
+  collapsesVerdicts(`import { staffAccess } from "@/lib/access";\nconst a = staffAccess(u, s, p); if (a === "wait") return null;`) === true);
+ok("passes: both non-denial verdicts named (app/driver/page.tsx:23)",
+  collapsesVerdicts(`import { staffAccess } from "@/lib/access";\nconst a = staffAccess(u, s, p);\nreturn a === "wait" || a === "failed" ? <Checking/> : null;`) === false);
+ok("out of scope: importing only the type, never computing a verdict",
+  collapsesVerdicts(`import type { Access } from "@/lib/access";\nexport function f(a: Access) { return a; }`) === false);
+ok("out of scope: a file that never touches lib/access",
+  collapsesVerdicts(`export function Static() { return <p>hi</p>; }`) === false);
 
 console.log(`AUDIT CLASSIFIERS: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

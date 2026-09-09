@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useAuth, roleOf } from "@/components/AuthProvider";
+import { useAuth } from "@/components/AuthProvider";
+import { staffAccess } from "@/lib/access";
 import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
 import Icon from "@/components/Icon";
 import { supabase } from "@/lib/supabase";
@@ -24,7 +25,7 @@ const LIVE_KEY: Record<string, string> = {
 };
 
 export default function ArchitecturePage() {
-  const { profile } = useAuth();
+  const { user, profile, profileStatus, refreshProfile } = useAuth();
   const [open, setOpen] = useState<ArchLayer | null>(null);
   const [comp, setComp] = useState<string | null>(null);
   const [q, setQ] = useState("");
@@ -32,7 +33,12 @@ export default function ArchitecturePage() {
   const [live, setLive] = useState<Record<string, ArchStatus> | null>(null);
   const [kpis, setKpis] = useState<Record<string, number> | null>(null);
 
-  const isOwner = roleOf(profile) === "owner";
+  // THE FIFTH GATE. Found by scripts/gate.audit.mjs on its first run — not by reading, and not by
+  // the sweep that fixed the other four, which missed this one because nobody thought to look for a
+  // fifth. It refused on `roleOf(profile) === "owner"`, and roleOf(null) is "member", so a slow or
+  // failed profile read told the owner the owner-only page was not for him.
+  const access = staffAccess(!!user, profileStatus, profile, ["owner"]);
+  const isOwner = access === "allow";
   useEffect(() => {
     if (!isOwner || !supabase) return;
     (async () => {
@@ -53,6 +59,25 @@ export default function ArchitecturePage() {
     return ARCHITECTURE.flatMap((l) => l.components.map((c) => ({ c, l })))
       .filter(({ c }) => c.name.toLowerCase().includes(s) || c.desc.toLowerCase().includes(s) || (c.detail || "").toLowerCase().includes(s) || (c.config || "").toLowerCase().includes(s));
   }, [q]);
+
+  // "wait" and "failed" are not refusals, and must not be spelled like one.
+  if (access === "wait" || access === "failed") {
+    return (
+      <section className="screen">
+        <Masthead eyebrow="System map" right={<Link className="pf" href="/3mpire" aria-label="Back">‹</Link>} />
+        <div className="h-title">{access === "failed" ? "Couldn't check your access" : "One moment"}</div>
+        <div className="h-sub">
+          {access === "failed"
+            ? "We couldn't read your profile just now, so we don't know what you can see. This isn't a refusal."
+            : "Checking your access…"}
+        </div>
+        {access === "failed" && (
+          <button type="button" className="note-save" style={{ marginTop: 14 }} onClick={() => refreshProfile()}>Try again</button>
+        )}
+        <ClosingBeat />
+      </section>
+    );
+  }
 
   if (!isOwner) {
     return (
