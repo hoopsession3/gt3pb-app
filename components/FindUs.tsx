@@ -16,7 +16,7 @@ import { useSiteCopy } from "@/lib/copy";
 import { marketsPresent, rowInMarket, shouldOfferMarketChoice, MARKET_LABEL } from "@/lib/markets";
 import { useViewerMarket } from "@/components/useViewerMarket";
 import { useAvailability } from "@/lib/availability";
-import { localToday, relativeDay, fmt12 } from "@/lib/dates";
+import { localToday, relativeDay, fmt12, clockTime } from "@/lib/dates";
 import { clickable } from "@/lib/a11y";
 import type { LiveStatus, EventRow } from "@/lib/db";
 import { useAsyncData } from "@/lib/useAsyncData";
@@ -65,8 +65,11 @@ function whenTime(s: FieldOp): string {
   // Keep the minutes ("7:00am", never "7am") — the event rows on the same list always carry
   // minutes (fmt12's "6:00pm"), and the two conventions sat side by side until 2026-07-30
   // (Ryan's screenshot: stop lead said "7AM", event meta said "6:00pm").
-  if (s.starts_at) return new Date(s.starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }).replace(" ", "").toLowerCase();
-  return "";
+  //
+  // The formatter itself moved to lib/dates (2026-09-09) when the company calendar needed the same
+  // thing and would have made it a fourth copy. Same drift, same fix as fmt12 before it: the
+  // implementation moves, the caller keeps its own rule about time_label winning.
+  return clockTime(s.starts_at);
 }
 // fmt12 moved to lib/dates.ts (2026-07-29) — RsvpRow's event time needed the exact same
 // normalization and a private copy here couldn't cross the file boundary. See it there for the

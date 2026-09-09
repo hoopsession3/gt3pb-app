@@ -343,6 +343,61 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 // "(live bug)" shipped broken at least once — these assertions are what make those fixes STAY fixed. ---
 {
   const DT = require("../.smoke/dates.js");
+
+  // ── clock times and the agenda sort key ──────────────────────────────────────────────────────
+  // The company calendar showed a stop's title and nothing else while the row it fetched already
+  // held the start, the end and the venue. Adding them meant a fourth copy of "timestamp → 11:00am"
+  // (FindUs' whenTime was the third), so it moved here instead. These pin the convention the whole
+  // point of the move was to keep: minutes always, lowercase, no space before am/pm.
+  {
+    const iso = (h, m) => { const d = new Date(2026, 8, 12, h, m, 0); return d.toISOString(); };
+    ok("clock: a timestamp reads like the event rows beside it — minutes kept, lowercase, no space",
+      DT.clockTime(iso(11, 0)) === "11:00am", DT.clockTime(iso(11, 0)));
+    ok("clock: afternoon", DT.clockTime(iso(15, 30)) === "3:30pm", DT.clockTime(iso(15, 30)));
+    ok("clock: midnight and noon do not collapse to 0",
+      DT.clockTime(iso(0, 5)) === "12:05am" && DT.clockTime(iso(12, 5)) === "12:05pm");
+    ok("clock: nothing in, empty out — never the string 'Invalid Date' on a screen",
+      DT.clockTime(null) === "" && DT.clockTime("") === "" && DT.clockTime("not a date") === "");
+
+    ok("range: a stop with both ends reads as a range",
+      DT.timeRange(iso(11, 0), iso(14, 0)) === "11:00am\u20132:00pm", DT.timeRange(iso(11, 0), iso(14, 0)));
+    ok("range: no end is just the start, not a dangling dash",
+      DT.timeRange(iso(11, 0), null) === "11:00am");
+    ok("range: an end equal to the start is not printed twice",
+      DT.timeRange(iso(11, 0), iso(11, 0)) === "11:00am");
+    ok("range: no start is nothing at all", DT.timeRange(null, iso(14, 0)) === "");
+
+    // sortTime takes BOTH shapes because the calendar mixes them: an event carries a typed
+    // "6:00pm", a stop carries a timestamptz. One key, or the day cannot be ordered.
+    ok("sort: a typed 12-hour time becomes a 24-hour key", DT.sortTime("6:00pm") === "18:00", DT.sortTime("6:00pm"));
+    ok("sort: and a typed 24-hour one passes through", DT.sortTime("18:00") === "18:00");
+    ok("sort: 12am and 12pm are the two that catch naive code out",
+      DT.sortTime("12:00am") === "00:00" && DT.sortTime("12:00pm") === "12:00");
+    ok("sort: a timestamp resolves to its local wall clock", DT.sortTime(iso(15, 30)) === "15:30", DT.sortTime(iso(15, 30)));
+    ok("sort: undated is null, so it sorts AFTER everything timed rather than to midnight",
+      DT.sortTime(null) === null && DT.sortTime("") === null && DT.sortTime("whenever") === null);
+    ok("sort: the keys order the way the day actually runs",
+      ["15:30", "11:00", "09:15"].sort().join(",") === "09:15,11:00,15:30");
+
+    // byClock is what the calendar hands to .sort(). Before it, a day came out in the order the
+    // fifteen queries ran — every event, then every stop — so an 11:00am stop could sit under a
+    // 3:30pm one. The two Sep 12 stops in production are exactly that pair.
+    const day = [
+      { n: "Restore Hyper Wellness", at: DT.sortTime("15:30") },
+      { n: "a to-do, no time",       at: DT.sortTime(null) },
+      { n: "Wine Express Saturday",  at: DT.sortTime("11:00") },
+      { n: "another to-do",          at: DT.sortTime("") },
+    ];
+    ok("order: timed items lead, in clock order, and undated ones follow",
+      day.slice().sort(DT.byClock).map((x) => x.n).join(" | ")
+        === "Wine Express Saturday | Restore Hyper Wellness | a to-do, no time | another to-do",
+      day.slice().sort(DT.byClock).map((x) => x.n));
+    ok("order: undated items keep the order they were pushed in — the sort is stable, not shuffled",
+      [{ n: "a", at: null }, { n: "b", at: null }, { n: "c", at: null }]
+        .sort(DT.byClock).map((x) => x.n).join("") === "abc");
+    ok("order: a day with nothing timed is left exactly as it was",
+      [{ n: "x", at: null }, { n: "y", at: null }].sort(DT.byClock).map((x) => x.n).join("") === "xy");
+  }
   ok("fmt12: bare 24h → 12h lowercase", DT.fmt12("18:30") === "6:30pm", DT.fmt12("18:30"));
   ok("fmt12: '6:00PM' → '6:00pm' (2026-07-19 live bug, refixed 07-29)", DT.fmt12("6:00PM") === "6:00pm", DT.fmt12("6:00PM"));
   ok("fmt12: spaced period collapses", DT.fmt12("6:00 pm") === "6:00pm", DT.fmt12("6:00 pm"));

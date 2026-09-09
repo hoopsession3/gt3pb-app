@@ -62,6 +62,63 @@ export function fmt12(v?: string | null): string | null {
   return `${h % 12 || 12}:${m[2]}${h >= 12 ? "pm" : "am"}`;
 }
 
+// ── Clock times from a timestamp (moved from components/FindUs.tsx) ──
+// fmt12 above normalizes a TIME STRING an operator typed ("6:00PM" → "6:00pm"). These do the other
+// half: a timestamptz — which is what a stop carries — rendered in the SAME convention, so a stop's
+// time and an event's time sitting on one row cannot read differently. That drift has been fixed
+// three times on this codebase (the hero, 2026-07-19; the event/stop list rows, 2026-07-29; the
+// stop lead reading "7AM" beside an event's "6:00pm", 2026-07-30), each time by copying the
+// formatter rather than moving it. This is the move: FindUs' whenTime was the third copy and the
+// company calendar was about to be the fourth.
+//
+// Minutes are always kept — "7:00am", never "7am" — because the event rows beside these always
+// carry them.
+export function clockTime(iso?: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }).replace(" ", "").toLowerCase();
+}
+
+/** "11:00am–2:00pm", or just the start when there is no end (or the end matches it). */
+export function timeRange(startIso?: string | null, endIso?: string | null): string {
+  const start = clockTime(startIso);
+  if (!start) return "";
+  const end = clockTime(endIso);
+  return end && end !== start ? `${start}\u2013${end}` : start;
+}
+
+/** Local 24-hour "HH:MM", from EITHER a timestamp or a typed time string — the sort key that puts a
+ *  day's items in the order they actually happen. An agenda listing 3:30pm above 11:00am is not an
+ *  agenda; before this the calendar ordered each day by the order the queries happened to run in.
+ *  Returns null for anything undated, so those sort last rather than to midnight. */
+export function sortTime(v?: string | null): string | null {
+  if (!v) return null;
+  const t = v.trim();
+  const typed = /^(\d{1,2}):(\d{2})\s*(am|pm)?$/i.exec(t);
+  if (typed) {
+    let h = Number(typed[1]);
+    const period = typed[3]?.toLowerCase();
+    if (period === "pm" && h < 12) h += 12;
+    if (period === "am" && h === 12) h = 0;
+    if (h > 23) return null;
+    return `${String(h).padStart(2, "0")}:${typed[2]}`;
+  }
+  const d = new Date(t);
+  if (isNaN(d.getTime())) return null;
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+/** Comparator for a day's worth of anything carrying a sortTime key. Timed items first, in clock
+ *  order; undated ones after, because "sometime Saturday" belongs below "Saturday at 2" and not at
+ *  midnight. Array.prototype.sort is stable (ES2019), so equal keys keep their existing order. */
+export const byClock = <T extends { at?: string | null }>(a: T, b: T): number => {
+  if (a.at && b.at) return a.at.localeCompare(b.at);
+  if (a.at) return -1;
+  if (b.at) return 1;
+  return 0;
+};
+
 // ── Event-row formatters (moved from components/RsvpRow.tsx, 2026-07-29) ──
 // Pure string/date logic with a bug history (the "Jul 31" vs "8/1" drift; the "6:00PM" casing bug,
 // twice), so they live HERE — a zero-dependency module the smoke harness compiles and asserts on

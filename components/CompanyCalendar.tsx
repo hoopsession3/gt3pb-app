@@ -10,7 +10,7 @@ import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
 import { CAL_CAT as CAT } from "@/lib/calendarTokens";
 import { brewStartOverdue } from "@/lib/brewMath";
-import { etToday } from "@/lib/dates";
+import { etToday, fmt12, timeRange, sortTime, byClock } from "@/lib/dates";
 import { goPlanTab, type PlanTab } from "@/lib/planNav";
 import { useWorkStreams } from "@/lib/streams";
 import { useAuth, roleOf } from "@/components/AuthProvider";
@@ -34,7 +34,7 @@ import { SectionHeader } from "@/components/kit";
 // Fetch state via useAsyncData — a failed load is a real error now, not a silently stale calendar.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-type Ev = { id: string; title: string | null; day: string; day_label: string | null; is_live: boolean | null; category: string | null; plan_days: number | null; stage: string | null; published_at: string | null };
+type Ev = { id: string; title: string | null; day: string; day_label: string | null; is_live: boolean | null; category: string | null; plan_days: number | null; stage: string | null; published_at: string | null; start_time: string | null; end_time: string | null; location_text: string | null };
 type Content = { id: string; title: string; scheduled_for: string | null; status: string };
 type Todo = { id: string; title: string; category: string; due_on: string | null; done: boolean; event_id: string | null; meeting_note_id: string | null };
 type PrepTask = { id: string; label: string; due_at: string | null; event_id: string | null; stop_id: string | null; meeting_note_id: string | null; goal_id: string | null };
@@ -52,7 +52,7 @@ type View = "list" | "board" | "cards" | "week" | "month" | "quarter" | "year";
 const FLOW_VIEWS: View[] = ["list", "board", "cards"];
 const VLABEL: Record<View, string> = { list: "Agenda", board: "Board", cards: "Cards", week: "Week", month: "Month", quarter: "Quarter", year: "Year" };
 
-type Stop = { id: string; name: string; location_text: string | null; starts_at: string | null; status: string | null };
+type Stop = { id: string; name: string; location_text: string | null; starts_at: string | null; ends_at: string | null; status: string | null };
 type Brew = { id: string; recipe_name: string | null; batch_gal: number | null; status: string; brew_date: string | null; ready_at: string | null; latest_start_at: string | null };
 type Goal = { id: string; title: string; due_date: string | null; status: string; horizon: string };
 // The sales/relationship rhythm (2026-08-01, Ryan: "opportunities and meetings for prospects and
@@ -61,7 +61,12 @@ type Goal = { id: string; title: string; due_date: string | null; status: string
 type Lead = { id: string; name: string | null; event_date: string; status: string };
 type Opp = { id: string; stage: string; next_step: string | null; next_step_at: string; vendors: { name: string } | null };
 type Meeting = { id: string; title: string | null; met_on: string };
-type Item = { id: string; title: string; cat: string; kind: "event" | "content" | "todo" | "stop" | "task" | "brew" | "drop" | "delivery" | "goal" | "lead" | "pipe" | "meeting"; done?: boolean; warn?: boolean; meta?: string; go: () => void; toggle?: () => void };
+// `meta` is the second line of a chip — when, where, and what state it is in. It was already being
+// computed for events, goals, leads and pipeline moves and rendered by NOTHING: a field with four
+// writers and no reader, which is why an agenda row said "Wine Express Saturday" and not that it
+// runs 11:00am-2:00pm at Wine Express, with both facts already in the row the query returned.
+// `at` is the 24h sort key, so a day reads in the order it happens.
+type Item = { id: string; title: string; cat: string; kind: "event" | "content" | "todo" | "stop" | "task" | "brew" | "drop" | "delivery" | "goal" | "lead" | "pipe" | "meeting"; done?: boolean; warn?: boolean; meta?: string; at?: string | null; go: () => void; toggle?: () => void };
 // EVERY single-row kind opens + edits in place now (2026-08-01, Ryan: "every item on the calendar
 // can be opened and edited right on screen, pop out screen, same standard as all others"). The one
 // exception: drop/delivery chips are AGGREGATES of many customer orders — there's no single row to
@@ -140,10 +145,10 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
     const { fromISO, toISO } = localDayBoundsISO(range.start, range.end);
     const none = Promise.resolve({ data: [], error: null });   // role-gated source → empty, never an error
     const [e, c, t, s, pt, bb, dr, dv, bt, bc, bo, gl, bk, op, mn] = await Promise.all([
-      supabase.from("events").select("id, title, day, day_label, is_live, category, plan_days, stage, published_at").is("archived_at", null).gte("day", eFrom).lte("day", to),
+      supabase.from("events").select("id, title, day, day_label, is_live, category, plan_days, stage, published_at, start_time, end_time, location_text").is("archived_at", null).gte("day", eFrom).lte("day", to),
       supabase.from("content_items").select("id, title, scheduled_for, status").is("archived_at", null).not("scheduled_for", "is", null).gte("scheduled_for", fromISO).lt("scheduled_for", toISO),
       supabase.from("todos").select("id, title, category, due_on, done, event_id, meeting_note_id").not("due_on", "is", null).gte("due_on", from).lte("due_on", to),
-      supabase.from("stops").select("id, name, location_text, starts_at, status").is("archived_at", null).not("starts_at", "is", null).neq("status", "done").gte("starts_at", fromISO).lt("starts_at", toISO),
+      supabase.from("stops").select("id, name, location_text, starts_at, ends_at, status").is("archived_at", null).not("starts_at", "is", null).neq("status", "done").gte("starts_at", fromISO).lt("starts_at", toISO),
       supabase.from("event_tasks").select("id, label, due_at, event_id, stop_id, meeting_note_id, goal_id").eq("done", false).eq("kind", "task").not("due_at", "is", null).gte("due_at", fromISO).lt("due_at", toISO),
       supabase.from("brew_batches").select("id, recipe_name, batch_gal, status, brew_date, ready_at, latest_start_at").not("status", "in", "(served,dumped)").not("brew_date", "is", null).gte("brew_date", from).lte("brew_date", to),
       supabase.from("drop_orders").select("drop_date, size").is("canceled_at", null).gte("drop_date", from).lte("drop_date", to),
@@ -242,7 +247,7 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
   const streams = useWorkStreams();
   const laneFilter = filter.startsWith("lane:") ? streams.find((s) => s.key === filter.slice(5)) : null;
   const pass = (cat: string) => filter === "all" || filter === cat || Boolean(laneFilter?.categories.includes(cat));
-  const byDay = useMemo(() => {
+  const byDayRaw = useMemo(() => {
     const m: Record<string, Item[]> = {};
     // Read-only mode: EVERY tap opens the day sheet instead of the item's own surface. Crew roles
     // don't hold prep/studio/command, so per-item go() targets would bounce them to My Day (the
@@ -261,11 +266,26 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
         // at the month shows exactly what guests can't see. Ops/admin categories aren't guest-facing
         // at all, so they carry no marker.
         const guestFacing = (e.category ?? "event") === "event";
-        const meta = [stageMeta, guestFacing && !e.published_at ? "hidden" : ""].filter(Boolean).join(" · ");
-        push(addDaysKey(e.day, di), { id: e.id, title: span > 1 ? `${base} · D${di + 1}` : base, cat, kind: "event", meta, go: () => openEventPrep(e.id) });
+        // When it runs and where, ahead of what state it is in — the two things somebody scanning
+        // an agenda is actually after. Times go through fmt12 so an event's "6:00PM" and a stop's
+        // "6:00pm" on the row beneath it cannot read differently; that has drifted three times.
+        const evWhen = [fmt12(e.start_time), fmt12(e.end_time)].filter(Boolean).join("\u2013");
+        const meta = [evWhen, e.location_text?.trim(), stageMeta, guestFacing && !e.published_at ? "hidden" : ""]
+          .filter(Boolean).join(" · ");
+        push(addDaysKey(e.day, di), { id: e.id, title: span > 1 ? `${base} · D${di + 1}` : base, cat, kind: "event", meta, at: sortTime(e.start_time), go: () => openEventPrep(e.id) });
       }
     }
-    for (const s of stops) if (s.starts_at && pass("stop")) push(key(new Date(s.starts_at)), { id: s.id, title: s.name, cat: "stop", kind: "stop", go: () => openStopPrep(s.id) });
+    // A stop carries starts_at, ends_at and location_text, and the agenda showed none of them —
+    // "Wine Express Saturday" with no hint that it is 11:00am-2:00pm. location_text was already in
+    // the select and thrown away; ends_at was the one field that had to be added. Status only shows
+    // when it is NOT the ordinary "upcoming", so the common case stays quiet.
+    for (const s of stops) if (s.starts_at && pass("stop")) push(key(new Date(s.starts_at)), {
+      id: s.id, title: s.name, cat: "stop", kind: "stop",
+      meta: [timeRange(s.starts_at, s.ends_at), s.location_text?.trim(),
+             s.status && s.status !== "upcoming" ? s.status : ""].filter(Boolean).join(" · "),
+      at: sortTime(s.starts_at),
+      go: () => openStopPrep(s.id),
+    });
     for (const c of content) if (c.scheduled_for && pass("content")) push(key(new Date(c.scheduled_for)), { id: c.id, title: c.title || "Content", cat: "content", kind: "content", go: () => setSection("studio") });
     for (const t of todos) if (t.due_on && pass(t.category)) push(t.due_on, { id: t.id, title: t.title, cat: CAT[t.category] ? t.category : "ops", kind: "todo", done: t.done, go: () => { if (t.event_id) openEventPrep(t.event_id); else if (t.meeting_note_id) setSection("plan"); }, toggle: () => toggleTodo(t) });
     // Goals render ON Command since the 2026-07-29 merge — jump there and land on the #goals block.
@@ -293,8 +313,26 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
       for (const b of biz) agg[b.delivery_date] = (agg[b.delivery_date] || 0) + Math.round(b.gallons || 0);
       for (const [dk, g] of Object.entries(agg)) push(dk, { id: `office-${dk}`, title: `Office route · ${g} gal`, cat: "delivery", kind: "delivery", go: openNow });
     }
+    // A day reads in the order it happens. Until now each day came out in the order the fifteen
+    // queries above happened to run — every event, then every stop, then content, then to-dos — so
+    // an 11:00am stop could sit under a 3:30pm one and the agenda was a list, not a schedule.
+    // Undated items keep their existing relative order and follow the timed ones, because "sometime
+    // Saturday" belongs after "Saturday at 2" rather than at midnight.
     return m;
   }, [events, content, todos, stops, prepTasks, brews, drops, dels, biz, goals, leads, opps, meets, filter, streams, readOnly]);
+
+  // Ordering is its OWN memo, deliberately, and the reason is measurable rather than stylistic.
+  // Doing it inside the builder above — in place, or by reassigning, or by returning a fresh map —
+  // all three make the React compiler give up on memoizing the flat/spine chain that hangs off this
+  // value ("Compilation Skipped: Existing memoization could not be preserved"): 266 lint problems
+  // before, 267 after, every time. Re-memoizing the entire schedule spine on every render is a real
+  // cost for putting a day in order. Kept separate, the builder compiles exactly as it did and this
+  // stays a small pure pass over its output.
+  const byDay = useMemo(() => {
+    const ordered: Record<string, Item[]> = {};
+    for (const [k, list] of Object.entries(byDayRaw)) ordered[k] = list.slice().sort(byClock);
+    return ordered;
+  }, [byDayRaw]);
 
   // Flat date-sorted spine for Board / Cards / Rails.
   const flat = useMemo(() => {
@@ -358,12 +396,20 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
   // Chip tap = open the pop-out editor in place (the "same standard as all others" rule) —
   // teleporting to another section on a bare tap is reserved for the aggregates (drop/delivery)
   // that have no single row to edit. Each editor still carries a jump link to its full surface.
+  // Two lines when there is a second thing worth saying, one when there is not — the sub line is
+  // never an empty row holding space. All three callers (Agenda, Week, Board) are full-width rows;
+  // the month grid renders coloured marks, not chips, so nothing here can crowd a calendar cell.
   const Chip = ({ it, onOpen }: { it: Item; onOpen?: () => void }) => (
-    <button type="button" draggable={!readOnly && DRAG.has(it.kind)} className={`cc-chip${it.done ? " done" : ""}`} style={{ borderLeftColor: CAT[it.cat]?.color }}
+    <button type="button" draggable={!readOnly && DRAG.has(it.kind)} className={`cc-chip${it.done ? " done" : ""}${it.meta ? " two" : ""}`} style={{ borderLeftColor: CAT[it.cat]?.color }}
       onDragStart={() => { if (!readOnly && DRAG.has(it.kind) && isEditable(it.kind)) dragId.current = { kind: it.kind, id: it.id }; }}
-      onClick={(e) => { e.stopPropagation(); if (onOpen && !readOnly && isEditable(it.kind)) onOpen(); else it.go(); }} title={`${CAT[it.cat]?.label}: ${it.title}`}>
+      onClick={(e) => { e.stopPropagation(); if (onOpen && !readOnly && isEditable(it.kind)) onOpen(); else it.go(); }}
+      title={`${CAT[it.cat]?.label}: ${it.title}${it.meta ? ` — ${it.meta}` : ""}`}>
       {it.kind === "todo" && it.toggle && <span className="cc-check" onClick={(e) => { e.stopPropagation(); it.toggle?.(); }}>{it.done ? <Icon name="check" /> : <Icon name="dotOutline" />}</span>}
-      <span className="cc-dot" style={{ background: CAT[it.cat]?.color }} /><span className="cc-title">{it.title}</span>
+      <span className="cc-dot" style={{ background: CAT[it.cat]?.color }} />
+      <span className="cc-bd">
+        <span className="cc-title">{it.title}</span>
+        {it.meta && <span className="cc-sub">{it.meta}</span>}
+      </span>
     </button>
   );
 
