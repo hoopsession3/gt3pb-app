@@ -305,10 +305,14 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   const loader = useCallback(async (): Promise<Board> => {
     if (!supabase) return { opps: [], deals: [], vendors: [], staff: [], acts: [], bizAccts: [] };
     const [o, d, v, st, a, ba] = await Promise.all([
-      supabase.from("opportunities").select("id, vendor_id, deal_id, rep_id, stage, source, value_cents, next_step, next_step_at, mrr_cents, priority, category, business_account_id, lost_reason, created_at, vendors(name, vendor_type), deals(title, line)").order("created_at", { ascending: false }),
-      supabase.from("deals").select("id, title, blurb, vendor_type, price_label, active, sort, model, rate_pct, monthly_cents, line").order("sort").order("created_at"),
-      supabase.from("vendors").select("id, name, vendor_type, archived_at").is("archived_at", null).order("name"),
-      supabase.from("profiles").select("id, display_name").neq("role", "member").order("display_name"),
+      // account_activities below was already capped at 600 and these were not — the finding is not
+      // the row count today (15 opportunities, 18 vendors), it is that the discipline existed in
+      // this very Promise.all and was applied unevenly. There is no virtualisation anywhere in the
+      // app, so every row fetched is a row rendered.
+      supabase.from("opportunities").select("id, vendor_id, deal_id, rep_id, stage, source, value_cents, next_step, next_step_at, mrr_cents, priority, category, business_account_id, lost_reason, created_at, vendors(name, vendor_type), deals(title, line)").order("created_at", { ascending: false }).limit(1000),
+      supabase.from("deals").select("id, title, blurb, vendor_type, price_label, active, sort, model, rate_pct, monthly_cents, line").order("sort").order("created_at").limit(500),
+      supabase.from("vendors").select("id, name, vendor_type, archived_at").is("archived_at", null).order("name").limit(1000),
+      supabase.from("profiles").select("id, display_name").neq("role", "member").order("display_name").limit(500),
       // SOFT reads (0268): during a deploy→migration gap these don't exist yet — the BOARD must not
       // die for the uplift rail's sake. They render empty until the migration lands.
       supabase.from("account_activities").select("id, opportunity_id, type, on_date, bottles, pulled, stock_after, sampled, buyers, revenue_cents, cost_cents, note").order("on_date", { ascending: false }).limit(600),

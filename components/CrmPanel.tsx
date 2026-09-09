@@ -233,18 +233,27 @@ export default function CrmPanel() {
   const [q, setQ] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
 
-  const loader = useCallback(async (): Promise<Customer[]> => {
-    if (!supabase) return [];
-    const { data, error } = await supabase.from("customers")
-      .select("id, user_id, name, phone, email, tier, vip_verified, created_at")
-      .order("created_at", { ascending: false }).limit(500);
-    if (error) throw new Error(error.message);
-    return (data as Customer[]) ?? [];
+  // The cap has always been 500, newest first, with no pagination control anywhere in this file —
+  // so past 500 customers the older ones simply stopped existing in this view and nothing said so.
+  // A silent truncation is the same class of lie as a silent empty state: the screen looks
+  // complete and is not. It now asks for the exact count too, and says what it is not showing.
+  const CAP = 500;
+  const loader = useCallback(async (): Promise<{ rows: Customer[]; total: number }> => {
+    if (!supabase) return { rows: [], total: 0 };
+    const [page, count] = await Promise.all([
+      supabase.from("customers")
+        .select("id, user_id, name, phone, email, tier, vip_verified, created_at")
+        .order("created_at", { ascending: false }).limit(CAP),
+      supabase.from("customers").select("id", { count: "exact", head: true }),
+    ]);
+    if (page.error) throw new Error(page.error.message);
+    return { rows: (page.data as Customer[]) ?? [], total: count.count ?? (page.data?.length ?? 0) };
   }, []);
   const board = useAsyncData(loader, []);
   const { reload } = board;
   useRealtimeTable("customers", reload);
-  const rows = board.data ?? [];
+  const rows = board.data?.rows ?? [];
+  const total = board.data?.total ?? rows.length;
 
   // "Founding VIP" is searchable as its own term, distinct from plain "Founding" (0249) — a staff
   // member typing "vip" should land on genuinely bottle-verified customers, not every tier-bumped one.
@@ -255,7 +264,7 @@ export default function CrmPanel() {
   );
 
   return (
-    <AsyncSection state={board} isEmpty={(data) => data.length === 0} emptyTitle="No customers yet" emptySub="They appear with their first order." errorTitle="Couldn't load customers">
+    <AsyncSection state={board} isEmpty={(d) => d.rows.length === 0} emptyTitle="No customers yet" emptySub="They appear with their first order." errorTitle="Couldn't load customers">
       {() => (
         <div className="adm-sec">
           {/* No bespoke header here — the enclosing <Panel> owns the title (Customers cohesion pass). */}
@@ -268,6 +277,14 @@ export default function CrmPanel() {
             tier: c.tier === "founding" ? (c.vip_verified ? "founding vip" : "founding") : c.user_id ? "member" : "guest",
             since: c.created_at,
           })))}>Export CSV</button>
+          {/* Say what is missing rather than looking complete. The export above exports the rows on
+              screen, so the same sentence is the honest caveat for that too. */}
+          {total > rows.length && (
+            <p className="cp-line dim" style={{ marginTop: 0 }}>
+              Showing the {rows.length} most recent of {total} customers. Search covers these {rows.length};
+              older records are in the database and not on this screen.
+            </p>
+          )}
           {shown.map((c) => (
             <div className="crm-row" key={c.id}>
               <button type="button" className="crm-head" onClick={() => setOpenId(openId === c.id ? null : c.id)} aria-expanded={openId === c.id}>

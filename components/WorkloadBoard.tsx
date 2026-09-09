@@ -18,12 +18,19 @@ type Task = { assignee: string | null; due: string | null };
 type BoardData = { people: Person[]; tasks: Task[] };
 const todayKey = () => new Date().toISOString().slice(0, 10);
 
+const TASK_CAP = 2000;
+
 export default function WorkloadBoard() {
   const loader = useCallback(async (): Promise<BoardData> => {
     if (!supabase) return { people: [], tasks: [] };
     const [pp, tt] = await Promise.all([
       supabase.from("profiles").select("id, display_name, role").neq("role", "member").order("display_name"),
-      supabase.from("all_tasks").select("assignee, due").eq("done", false).not("assignee", "is", null),
+      // Capped, because this had no limit at all and no virtualisation: every open task in the
+      // company, rendered into the DOM, to compute two integers per person. 2000 is far above
+      // any real backlog and the `truncated` flag below refuses to quietly under-count if it
+      // is ever hit — a workload board that silently misses somebody's tasks is worse than a
+      // slow one.
+      supabase.from("all_tasks").select("assignee, due").eq("done", false).not("assignee", "is", null).limit(TASK_CAP),
     ]);
     if (pp.error) throw new Error(pp.error.message);
     if (tt.error) throw new Error(tt.error.message);

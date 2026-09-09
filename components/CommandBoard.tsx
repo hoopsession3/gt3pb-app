@@ -63,8 +63,11 @@ export default function CommandBoard() {
       supabase.from("todos").select("id, title, due_on").eq("done", false).not("due_on", "is", null).gte("due_on", today).lte("due_on", wk),
       supabase.from("event_tasks").select("id, label, due_at").eq("done", false).not("due_at", "is", null).gte("due_at", today).lte("due_at", `${wk}T23:59:59`),
       supabase.from("incident_log").select("id, problem, severity, created_at").eq("resolved", false).eq("severity", "blocker").order("created_at", { ascending: false }),
-      supabase.from("todos").select("id, title, due_on").eq("done", false).not("due_on", "is", null).lt("due_on", today),
-      supabase.from("event_tasks").select("id, label, due_at").eq("done", false).not("due_at", "is", null).lt("due_at", today),
+      // The two overdue buckets had no lower date bound and no limit, so they could only grow
+      // for the life of the install. Oldest-first with a cap: the point of an overdue list is
+      // the oldest thing on it, and 200 of them is already a different conversation.
+      supabase.from("todos").select("id, title, due_on").eq("done", false).not("due_on", "is", null).lt("due_on", today).order("due_on").limit(200),
+      supabase.from("event_tasks").select("id, label, due_at").eq("done", false).not("due_at", "is", null).lt("due_at", today).order("due_at").limit(200),
       supabase.from("todos").select("id, title, due_on, done_at").eq("done", true).gte("done_at", wago),
       supabase.from("event_tasks").select("id, label, due_at, done_at").eq("done", true).gte("done_at", wago),
     ]);

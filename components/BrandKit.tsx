@@ -102,13 +102,13 @@ export default function BrandKit({ canEdit }: { canEdit: boolean }) {
           <div key={i} className="brand-sw">
             <span className="brand-chip" style={{ background: c.hex }} />
             <span className="brand-sw-n">{c.name}</span><span className="brand-sw-h">{c.hex}</span>
-            {edit && <button type="button" className="brand-x" onClick={() => setDraft({ ...draft, colors: draft.colors.filter((_, j) => j !== i) })}><Icon name="close" /></button>}
+            {edit && <button type="button" className="brand-x" aria-label={`Remove the colour ${c.name}`} onClick={() => setDraft({ ...draft, colors: draft.colors.filter((_, j) => j !== i) })}><Icon name="close" /></button>}
           </div>
         ))}
       </div>
       {edit && (
         <div className="brand-addc">
-          <input className="insp-in insp-st" type="color" value={newC.hex.length === 7 ? newC.hex : "#a97c3f"} onChange={(e) => setNewC({ ...newC, hex: e.target.value })} />
+          <input className="insp-in insp-st" type="color" aria-label="New colour" value={newC.hex.length === 7 ? newC.hex : "#a97c3f"} onChange={(e) => setNewC({ ...newC, hex: e.target.value })} />
           <input className="insp-in" value={newC.name} onChange={(e) => setNewC({ ...newC, name: e.target.value })} placeholder="Color name" />
           <button type="button" className="studio-act" onClick={() => { if (newC.name) { setDraft({ ...draft, colors: [...draft.colors, { name: newC.name, hex: newC.hex }] }); setNewC({ name: "", hex: "#" }); } }}>Add</button>
         </div>
@@ -122,7 +122,7 @@ export default function BrandKit({ canEdit }: { canEdit: boolean }) {
               <>
                 <input className="brand-font-edit" value={f.role} onChange={(e) => setDraft({ ...draft, fonts: draft.fonts.map((g, j) => j === i ? { ...g, role: e.target.value } : g) })} placeholder="Role" />
                 <input className="brand-font-edit n" value={f.name} onChange={(e) => setDraft({ ...draft, fonts: draft.fonts.map((g, j) => j === i ? { ...g, name: e.target.value } : g) })} placeholder="Font name" />
-                <button type="button" className="brand-x" onClick={() => setDraft({ ...draft, fonts: draft.fonts.filter((_, j) => j !== i) })}><Icon name="close" /></button>
+                <button type="button" className="brand-x" aria-label={`Remove the font ${f.name}`} onClick={() => setDraft({ ...draft, fonts: draft.fonts.filter((_, j) => j !== i) })}><Icon name="close" /></button>
               </>
             ) : (
               <>

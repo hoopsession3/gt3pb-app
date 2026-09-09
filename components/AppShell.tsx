@@ -33,7 +33,11 @@ import BroadcastBanner from "./BroadcastBanner";
 // "/crew" joined this list 2026-07-29: the console's op-head-t now renders as a real per-section
 // <h1> (was a plain div — 17 sections, 1 static sr-only h1 that never reflected which one you were
 // in). Without this skip, that would stack a second, stale "Crew console" h1 behind it on every screen.
-const H1_SKIP = new Set(["/truck", "/craft", "/office", "/display", "/events", "/academy", "/crew", "/primal", "/shop"]);
+// Routes that render their own real <h1>. Anything NOT in here gets a screen-reader-only one
+// injected below — and four routes were getting BOTH: "/", /playbook, /privacy and /terms each
+// have a visible heading of their own plus the injected one, so assistive tech announced two
+// page titles. Found by counting headings across every route, not by reading one of them.
+const H1_SKIP = new Set(["/", "/truck", "/craft", "/office", "/display", "/events", "/academy", "/crew", "/primal", "/shop", "/playbook", "/privacy", "/terms"]);
 const H1_TITLES: Record<string, string> = {
   menu: "Menu", events: "Events", reserve: "Reserve a pack", book: "Book the bar",
   delivery: "Delivery", scan: "Scan your card", playbook: "Playbook", academy: "Academy",

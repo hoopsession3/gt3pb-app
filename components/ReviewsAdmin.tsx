@@ -95,8 +95,15 @@ export default function ReviewsAdmin() {
                   {SOURCES.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
-              <div className="rva-stars">
-                {[1, 2, 3, 4, 5].map((n) => <button key={n} type="button" className={`rva-star${n <= f.rating ? " on" : ""}`} onClick={() => setF({ ...f, rating: n })}><Icon name="star" /></button>)}
+              {/* Every star is its own button and none of them had a name — a screen reader read
+                  five identical unlabelled controls. The selected state was a CSS class and nothing
+                  else, so it also could not be heard. */}
+              <div className="rva-stars" role="group" aria-label="Rating">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button key={n} type="button" className={`rva-star${n <= f.rating ? " on" : ""}`}
+                          aria-label={`${n} star${n === 1 ? "" : "s"}`} aria-pressed={n === f.rating}
+                          onClick={() => setF({ ...f, rating: n })}><Icon name="star" /></button>
+                ))}
               </div>
               <textarea className="rva-in" rows={2} maxLength={280} placeholder="The review, word for word…" value={f.body} onChange={(e) => setF({ ...f, body: e.target.value })} />
               {f.body.trim() && (() => { const c = cleanReview(f); const okd = isDisplayable(f); return (
