@@ -247,5 +247,117 @@ ok("re-running is safe — no duplicate changelog rows",
 ok("and no duplicate activity options",
   Number((await q1(`select count(*) as n from public.option_sets where set_key='agreement_activity'`)).n) === 8);
 
+
+// ═══ 0319 — A SIGNATURE IS NOT AN EDIT ═════════════════════════════════════════════════════════
+// The trail table and its logger belong to 0277, not 0309, so the fixture never had them. They are
+// SLICED OUT OF 0277 rather than retyped here: a fixture that answers differently from production
+// is a test that lies, and this one exists specifically to reproduce a production bug before
+// fixing it.
+{
+  const m0277 = readFileSync(join(ROOT, "supabase/migrations/0277_operator_agreements.sql"), "utf8");
+  const cut = (from, to) => {
+    const a = m0277.indexOf(from);
+    const b = m0277.indexOf(to, a);
+    if (a < 0 || b < 0) throw new Error(`could not slice 0277 at ${from}`);
+    return m0277.slice(a, b);
+  };
+  await db.exec(cut("create table if not exists public.operator_agreement_events",
+                    "create index if not exists operator_agreement_events_idx"));
+  await db.exec(cut("create or replace function public.log_agreement_event()",
+                    "drop trigger if exists trg_log_agreement_event"));
+  await db.exec(`create trigger trg_log_agreement_event after insert or update on public.operator_agreements
+    for each row execute function public.log_agreement_event();`);
+}
+
+// `at` defaults to now(), which is the STATEMENT timestamp — every event written in the same
+// transaction ties, and ordering by a random uuid after that returns them in no order at all. The
+// first run of this test read "drafted, edited, accepted" for a sequence that was actually
+// "drafted, accepted, edited". ctid is physical insert order, which for an append-only table in a
+// test is exactly the order they happened.
+const evs = async (id) => (await db.query(
+  `select kind, from_status, to_status, terms from public.operator_agreement_events
+    where agreement_id='${id}' order by at, ctid`)).rows;
+const newAgreement = async (name) => (await db.query(
+  `insert into public.operator_agreements (operator_name, operator_user_id, market)
+   values ('${name}', '${U1}', 'greenville') returning id`)).rows[0].id;
+
+// ── the bug, reproduced against 0277's own logger ──────────────────────────────────────────────
+const A = await newAgreement("Before");
+ok("0319 (before): a new agreement logs 'drafted'",
+  (await evs(A)).map((e) => e.kind).join() === "drafted", (await evs(A)).map((e) => e.kind));
+
+await db.exec(`update public.operator_agreements set covers = array['brew'] where id='${A}'`);
+ok("0319 (before): changing what the agreement COVERS writes NOTHING — the trail watched four columns while fourteen more were added around it",
+  (await evs(A)).length === 1, await evs(A));
+
+await db.exec(`update public.operator_agreements set equity_scope='company' where id='${A}'`);
+ok("0319 (before): changing where equity would sit writes nothing either",
+  (await evs(A)).length === 1, await evs(A));
+
+await db.exec(`update public.operator_agreements set status='accepted' where id='${A}';
+               select public.sign_agreement('${A}', 'A Name');`);
+ok("0319 (before): SIGNING is recorded as 'edited' — the single most consequential transition in the lifecycle",
+  (await evs(A)).map((e) => e.kind).join() === "drafted,accepted,edited", (await evs(A)).map((e) => e.kind));
+
+// ── the fix ────────────────────────────────────────────────────────────────────────────────────
+await db.exec(readFileSync(join(ROOT, "supabase/migrations/0319_a_signature_is_not_an_edit.sql"), "utf8"));
+
+const B = await newAgreement("After");
+ok("0319: a new agreement still logs 'drafted'", (await evs(B)).map((e) => e.kind).join() === "drafted");
+
+await db.exec(`update public.operator_agreements set covers = array['brew','deliver'] where id='${B}'`);
+{
+  const e = (await evs(B)).at(-1);
+  ok("0319: changing COVERS now writes an event", (await evs(B)).length === 2, await evs(B));
+  ok("0319: and it names which term moved", JSON.stringify(e.terms.changed) === '["covers"]', e.terms.changed);
+}
+
+// interim scope requires the condition that ends it (operator_agreements_interim_needs_end), so
+// this moves three columns at once — which is a better assertion anyway.
+await db.exec(`update public.operator_agreements
+                  set equity_scope='company', scope_basis='interim', scope_until='until Atlanta hires a brewer'
+                where id='${B}'`);
+{
+  const e = (await evs(B)).at(-1);
+  ok("0319: several 0289/0309 columns moving in one save produce ONE event naming all of them",
+    (await evs(B)).length === 3 &&
+    JSON.stringify(e.terms.changed) === '["equity_scope","scope_basis","scope_until"]', e.terms.changed);
+}
+
+await db.exec(`update public.operator_agreements set notes='a note is not a term' where id='${B}'`);
+ok("0319: a note still writes nothing — the watch list is contractual columns, not every column",
+  (await evs(B)).length === 3, (await evs(B)).map((e) => e.kind));
+
+await db.exec(`update public.operator_agreements set status='accepted' where id='${B}';
+               select public.sign_agreement('${B}', 'B Name');`);
+{
+  const e = (await evs(B)).at(-1);
+  ok("0319: signing is now recorded as 'signed'", e.kind === "signed", (await evs(B)).map((x) => x.kind));
+  ok("0319: and the trail row carries the digest of what was signed",
+    typeof e.terms.digest === "string" && e.terms.digest.length === 64, e.terms.digest);
+  ok("0319: from_status and to_status still bracket the move",
+    e.from_status === "accepted" && e.to_status === "signed", [e.from_status, e.to_status]);
+}
+
+// The list the logger watches must BE the list the guard freezes. Two lists is how they drifted for
+// three migrations, so this asserts the pairing rather than the contents.
+{
+  const src = readFileSync(join(ROOT, "supabase/migrations/0319_a_signature_is_not_an_edit.sql"), "utf8");
+  const g309 = readFileSync(join(ROOT, "supabase/migrations/0309_what_you_actually_agreed_to.sql"), "utf8");
+  // `package` is compared as new.package::text — the cast has to be allowed for or the count is 17.
+  const guarded = [...g309.slice(g309.indexOf("create or replace function public.guard_agreement_terms"))
+    .slice(0, 2000).matchAll(/new\.([a-z_]+)(?:::text)? is distinct from old\.\1/g)].map((m) => m[1]);
+  const watched = [...src.matchAll(/then '([a-z_]+)' end/g)].map((m) => m[1]);
+  ok(`0319: the logger watches all ${guarded.length} columns the guard freezes`,
+    guarded.length === 18 && guarded.every((c) => watched.includes(c)),
+    guarded.filter((c) => !watched.includes(c)));
+}
+
+ok("0319 recorded itself by filename",
+  Number((await q1(`select count(*) as n from public.schema_migrations where version='0319_a_signature_is_not_an_edit'`)).n) === 1);
+await db.exec(readFileSync(join(ROOT, "supabase/migrations/0319_a_signature_is_not_an_edit.sql"), "utf8"));
+ok("0319 re-running is safe — no duplicate changelog row",
+  Number((await q1(`select count(*) as n from public.changelog`)).n) === 4);
+
 console.log(`\nAGREEMENT SCOPE, HOURS & SIGNATURE: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
