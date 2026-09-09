@@ -98,6 +98,11 @@ export default function EditableCopy({
     const shared = {
       value: draft,
       disabled: saving,
+      // The app-wide inline editor had no accessible name at all — a screen reader announced it as
+      // "edit text" and nothing else, on every surface that uses it, which is most of them. A
+      // visible <label> would be wrong here (the copy being edited IS its own label), so the name
+      // says which line this is: k is the copy key, e.g. "home.hero.title".
+      "aria-label": `Edit the copy for ${k}`,
       style,
       onChange: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setDraft(e.target.value),
       onBlur: commit,

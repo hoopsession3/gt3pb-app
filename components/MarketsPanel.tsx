@@ -8,6 +8,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import { SectionHeader } from "@/components/kit";
 import Icon from "./Icon";
+import Field from "./Field";
 
 // MARKETS — the readiness engine, finally on a screen.
 //
@@ -238,15 +239,16 @@ function Disclaimer({ mk, busy, onSave, onCancel }: {
   const [text, setText] = useState(mk.offer_disclaimer ?? "");
   return (
     <div style={{ marginTop: 8 }}>
-      <label className="prod-f">
-        <span>At-will disclaimer for {mk.name}</span>
-        <textarea rows={4} value={text} disabled={busy} onChange={(e) => setText(e.target.value)}
-                  placeholder="Paste the text your lawyer drafted for this state." />
-      </label>
-      <p className="cp-line dim">
-        S.C. Code 41-1-110 wants this in underlined capitals on the first page. The letter renders it
-        that way; the words are counsel&apos;s.
-      </p>
+      <Field
+        label={`At-will disclaimer for ${mk.name}`}
+        kind="multiline"
+        rows={4}
+        value={text}
+        disabled={busy}
+        onChange={setText}
+        placeholder="Paste the text your lawyer drafted for this state."
+        hint="S.C. Code 41-1-110 wants this in underlined capitals on the first page. The letter renders it that way; the words are counsel's."
+      />
       <div className="prod-actions">
         <button type="button" className="btn-pri" disabled={busy} onClick={() => onSave(text)}>
           {busy ? "Saving…" : "Save disclaimer"}

@@ -86,10 +86,12 @@ export default function SiteCopyEditor() {
                 const overridden = over[m.key] !== undefined;
                 return (
                   <div key={m.key} className="sc-row">
-                    <div className="sc-row-h"><span className="sc-label">{m.label}</span>{overridden && <span className="sc-pill">edited</span>}</div>
+                    {/* The label was already on screen and simply never associated with the control,
+                        so a screen reader read the two as unrelated. htmlFor/id, not a new label. */}
+                    <div className="sc-row-h"><label className="sc-label" htmlFor={`sc-${m.key}`}>{m.label}</label>{overridden && <span className="sc-pill">edited</span>}</div>
                     {m.multiline
-                      ? <textarea className="sc-in" rows={3} value={valueOf(m.key, m.default)} onChange={(e) => setDraft((p) => ({ ...p, [m.key]: e.target.value }))} />
-                      : <input className="sc-in" value={valueOf(m.key, m.default)} onChange={(e) => setDraft((p) => ({ ...p, [m.key]: e.target.value }))} />}
+                      ? <textarea id={`sc-${m.key}`} className="sc-in" rows={3} value={valueOf(m.key, m.default)} onChange={(e) => setDraft((p) => ({ ...p, [m.key]: e.target.value }))} />
+                      : <input id={`sc-${m.key}`} className="sc-in" value={valueOf(m.key, m.default)} onChange={(e) => setDraft((p) => ({ ...p, [m.key]: e.target.value }))} />}
                     <div className="sc-actions">
                       <button type="button" className="sc-save" disabled={busy === m.key || !dirty(m.key, m.default)} onClick={() => save(m.key, m.default)}>{busy === m.key ? "Saving…" : "Save"}</button>
                       <button type="button" className="sc-reset" disabled={busy === m.key || !overridden} onClick={() => reset(m.key)}>Reset to default</button>

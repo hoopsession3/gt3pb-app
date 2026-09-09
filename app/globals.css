@@ -6795,6 +6795,29 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
   cursor:pointer;font-family:'Inter';font-size:12.5px;font-weight:650;color:var(--gold2);
   -webkit-appearance:none;appearance:none}
 
+/* ── FIELD (components/Field.tsx) ──────────────────────────────────────────────────────────────
+   Deliberately the SAME surface treatment as .prod-f — same background, border, radius, padding
+   and focus ring — so a converted field is visually identical to the hand-written one beside it.
+   This is a correctness primitive wearing the existing design system, not a second one. What it
+   adds is a real <label>, a hint, and an error that says a word rather than turning a border red. */
+.fld{display:flex;flex-direction:column;gap:4px;margin-top:9px}
+.fld-l{font-family:'Inter';font-weight:600;font-size:11.5px;color:var(--cream-m)}
+.fld-req{color:var(--red)}
+.fld-in{width:100%;min-width:0;background:var(--bg,#0d0b08);border:1px solid var(--line);
+  border-radius:var(--r-md);padding:10px 12px;color:var(--cream);font-family:'Inter';font-size:15px;
+  min-height:44px;-webkit-appearance:none;appearance:none}
+.app.crew-day .fld-in{background:var(--card)}
+.fld-in:focus{border-color:var(--gold2)}
+.fld-wrap{display:flex;align-items:stretch;gap:0}
+.fld-pre{display:flex;align-items:center;padding:0 4px 0 12px;background:var(--bg,#0d0b08);
+  border:1px solid var(--line);border-right:0;border-radius:var(--r-md) 0 0 var(--r-md);
+  font-family:'Inter';font-size:15px;color:var(--cream-m)}
+.fld-wrap .fld-in{border-radius:0 var(--r-md) var(--r-md) 0}
+.fld-hint{margin:0;font-family:'Inter';font-size:11.5px;line-height:1.5;color:var(--cream-m)}
+/* colour is never the only signal — the message itself is the signal, and role="alert" announces it */
+.fld-err{margin:0;font-family:'Inter';font-size:11.5px;line-height:1.5;color:var(--red)}
+.fld.bad .fld-in{border-color:var(--red)}
+
 /* the roster's door into all of the above */
 .tm-open{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:none;
   border:1px solid var(--gold2);border-radius:11px;padding:10px 13px;min-height:44px;cursor:pointer;

@@ -12,6 +12,7 @@ import SignIn from "@/components/SignIn";
 import OfferLetterPrint, { type LetterRow } from "@/components/OfferLetterPrint";
 import { money } from "@/lib/offerLetter";
 import { MARKET_LABEL, toMarket } from "@/lib/markets";
+import Field from "@/components/Field";
 
 // YOUR OFFER — the candidate's side of the hiring flow, which did not exist.
 //
@@ -145,11 +146,14 @@ export default function OfferPage() {
                   {live && !expired && (
                     countering === r.id ? (
                       <div className="prod-recipe" style={{ marginTop: 12 }}>
-                        <label className="prod-f">
-                          <span>What would you like changed?</span>
-                          <textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)}
-                                    placeholder="The start date, the rate, the hours — say what you need." />
-                        </label>
+                        <Field
+                          label="What would you like changed?"
+                          kind="multiline"
+                          value={note}
+                          onChange={setNote}
+                          placeholder="The start date, the rate, the hours — say what you need."
+                          hint="GT3 sees this with your response. The offer stays open while they read it."
+                        />
                         <div className="prod-actions" style={{ marginTop: 10 }}>
                           <button type="button" className="btn-pri" disabled={busy || !note.trim()}
                                   onClick={() => respond(r.id, "counter", note)}>
