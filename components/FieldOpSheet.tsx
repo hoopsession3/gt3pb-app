@@ -10,6 +10,7 @@ import VendorResolve from "@/components/VendorResolve";
 import { useLocationSuggestions } from "@/components/useLocationSuggestions";
 import Icon from "@/components/Icon";
 import { MARKETS, MARKET_LABEL, toMarket, FOUNDING_MARKET } from "@/lib/markets";
+import { derivedStopStatus } from "@/lib/stopRecord";
 
 // FIELD-OP SHEET — the ONE quick editor for a field op's core facts (name · date · time ·
 // place · status), reachable in two taps from anywhere a stop or event shows (calendar,
@@ -38,12 +39,6 @@ type Kind = "event" | "stop";
 // past (starts_at + 8h grace). This mirrors that same rule so the editor agrees with what guests
 // and crew already see elsewhere. An explicit "done" or a completed_at stamp (the Complete-stop
 // wrap flow, in OwnerDetails) always wins over the date math.
-const STOP_GRACE_MS = 8 * 3600 * 1000;
-function derivedStopStatus(status: string | null, startsAt: string | null, completedAt: string | null): string {
-  if (status === "done" || completedAt) return "done";
-  if (!startsAt) return "upcoming";
-  return Date.now() - new Date(startsAt).getTime() > STOP_GRACE_MS ? "done" : "upcoming";
-}
 
 // Pull a vendor's canonical name + saved address/coords onto a stop patch about to be written —
 // the SAME fields Route's own linkVendor denormalizes onto a stop, so a name-triggered auto-link

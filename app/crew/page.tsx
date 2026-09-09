@@ -167,6 +167,7 @@ import { useJurisdictions } from "@/components/useJurisdictions";
 import AcademyCard from "@/components/AcademyCard";
 import { moneyRound } from "@/lib/money";
 import { FOUNDING_MARKET, toMarket } from "@/lib/markets";
+import { derivedStopStatus } from "@/lib/stopRecord";
 
 // money helpers for the economics panels
 // 2026-07-16: PHASE_LABEL used to rename the Service lane's own segmented tabs (Route → "Schedule",
@@ -921,12 +922,6 @@ type MyTaskRow = EventTask & {
 // date math. This is seeded only when edit mode opens (not on every load) so the read-only pill —
 // which still must prompt for a recap even on a stale, never-completed stop — keeps reading the
 // true stored value untouched.
-const OWNERDET_STOP_GRACE_MS = 8 * 3600 * 1000;
-function derivedStopStatus(status: string | null, startsAt: string | null, completedAt: string | null): string {
-  if (status === "done" || completedAt) return "done";
-  if (!startsAt) return "upcoming";
-  return Date.now() - new Date(startsAt).getTime() > OWNERDET_STOP_GRACE_MS ? "done" : "upcoming";
-}
 function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { ownerType: "event" | "stop"; ownerId: string; isAdmin: boolean; onSaved: (name: string) => void; onRemoved: () => void }) {
   const { toast } = useApp();
   const isEvent = ownerType === "event";

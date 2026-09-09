@@ -10,6 +10,7 @@ import EmptyState from "./EmptyState";
 import { completeTask, updateTask } from "@/lib/tasks";
 import { useTaskSheet } from "./TaskSheet";
 import Icon from "@/components/Icon";
+import { isStopPast } from "@/lib/stopRecord";
 
 // PREP BOARD — the aggregate readiness triage surface. Every open prep task, ROLLED UP into
 // collapsible groups by the INITIATIVE it's assigned to (0201/0237) — falling back to its event/stop
@@ -40,8 +41,7 @@ const dueLabel = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString
 // Mirrors Route's own >8h-past grace exactly (app/crew/page.tsx's isAhead/graceMs) — same cutoff, so
 // a stop reads the same age in both places even though the two components can't share the literal
 // function across this file/route boundary.
-const STOP_GRACE_MS = 8 * 3600 * 1000;
-const isStopPast = (startsAt: string | null | undefined) => !!startsAt && new Date(startsAt).getTime() <= Date.now() - STOP_GRACE_MS;
+// isStopPast now comes from lib/stopRecord, the same rule the status a person sees is derived from.
 
 export default function PrepBoard() {
   const { user } = useAuth();

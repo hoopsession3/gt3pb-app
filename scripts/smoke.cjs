@@ -1446,6 +1446,31 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     S.STOP_GAP_KEYS.every((k) => inSql.includes(k)), S.STOP_GAP_KEYS.filter((k) => !inSql.includes(k)));
   ok("stopRecord: an unknown gap gets no invented advice", S.stopGapFix("nope") === "" && S.stopGapFix(null) === "");
 
+  // ── when a stop is over: one rule, previously three ─────────────────────────────────────────
+  // derivedStopStatus lived in app/crew/page.tsx AND components/FieldOpSheet.tsx (line-identical
+  // apart from the constant's name), and components/PrepBoard spelled the same rule a third way as
+  // isStopPast. All three used 8 hours. The assertions that matter most here are the ones about
+  // AGREEMENT, because agreement is the thing three copies cannot promise.
+  const G = S.STOP_DONE_GRACE_MS;
+  const iso = (msAgo) => new Date(Date.now() - msAgo).toISOString();
+  ok("stop-over: the grace is eight hours, in one place", G === 8 * 3600 * 1000, G);
+  ok("stop-over: an explicit 'done' wins over the clock",
+    S.derivedStopStatus("done", iso(0), null) === "done");
+  ok("stop-over: a completed_at wins too — a stop closed early is closed",
+    S.derivedStopStatus("upcoming", iso(0), iso(60_000)) === "done");
+  ok("stop-over: no start time means upcoming, never done",
+    S.derivedStopStatus(null, null, null) === "upcoming" && S.derivedStopStatus(null, undefined, undefined) === "upcoming");
+  ok("stop-over: an hour ago is still upcoming", S.derivedStopStatus(null, iso(3600_000), null) === "upcoming");
+  ok("stop-over: nine hours ago is done", S.derivedStopStatus(null, iso(9 * 3600_000), null) === "done");
+  ok("stop-over: just inside the grace is upcoming", S.derivedStopStatus(null, iso(G - 60_000), null) === "upcoming");
+  ok("stop-over: just outside it is done", S.derivedStopStatus(null, iso(G + 60_000), null) === "done");
+  // The drift that existed: derivedStopStatus used > and isStopPast used <=, which disagree at
+  // exactly the boundary. They share one implementation now, so they cannot.
+  ok("stop-over: isStopPast and derivedStopStatus agree across the boundary — the drift that was real",
+    [G - 1000, G, G + 1000, 0, 20 * 3600_000].every((d) =>
+      S.isStopPast(iso(d)) === (S.derivedStopStatus(null, iso(d), null) === "done")));
+  ok("stop-over: isStopPast is false for a stop with no start", S.isStopPast(null) === false && S.isStopPast(undefined) === false);
+
   // the three a customer can actually see
   ok("stopRecord: guest-facing is exactly the three that leave the building",
     S.STOP_GAP_KEYS.filter((k) => S.isGuestFacing(k)).join(",") === "name_drift,no_pin,live_past");
