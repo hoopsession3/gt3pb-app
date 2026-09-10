@@ -7,6 +7,7 @@ import { useOperatorSection } from "./OperatorNav";
 import { prepHandoffKey, prepHandoffValue } from "@/lib/eventRecord";
 import { fetchInventory, rollupLowStock, type InvItem } from "@/lib/inventory";
 import { goPlanTab } from "@/lib/planNav";
+import { useTaskSheet } from "./TaskSheet";
 import AsyncSection from "./AsyncSection";
 
 // WHAT NEEDS YOU — one panel, because My Day was carrying two.
@@ -41,18 +42,27 @@ import AsyncSection from "./AsyncSection";
 //
 // But degrading is not the same as going quiet, and the first version of this got that wrong in
 // production: a guessed column list asked events for "kind", which it does not have, PostgREST
-// rejected the whole query, and a bare catch turned seven past-due tasks into an absence. The
-// headline read "11 overdue · 6 due soon" and looked completely correct. That is the false-empty
-// defect this repo keeps a whole audit for, written in by hand while the header above claimed the
-// opposite. So the extras now report their own failure on screen, and the reason the column list
-// is select("*") is that guessing one is what broke it.
+// rejected the whole query, and a bare catch turned the failure into an absence. That is the
+// false-empty defect this repo keeps a whole audit for, written in by hand while the header above
+// claimed the opposite. So the extras now report their own failure on screen, and the reason the
+// column list is select("*") is that guessing one is what broke it.
+//
+// A CORRECTION, because the commit that fixed the above blamed the wrong symptom: the seven
+// missing past-due tasks were NOT caused by that query error. They were missing because of the
+// bug directly below — no event, no stop, no row — and they would have been missing with a
+// perfect query. The swallow was real and the column was wrong; the thing I pointed at as proof
+// of them was not. Both fixed here, separately, because they are separate faults.
 
 type Row = {
   source: string; subject_id: string; area: string; kind: string;
   title: string; detail: string; due_on: string; days_out: number;
   severity: "overdue" | "soon" | "upcoming"; route: string; market: string | null;
 };
-type Task = { id: string; label: string; kind: "event" | "stop"; ownerId: string; ownerName: string; late: number | null };
+// `owner` is nullable, and that turned out to be the whole point. Both this panel and the NeedsYou
+// it replaced pushed a task ONLY when it had an event or a stop to name — so a past-due task
+// attached to neither was skipped by both, silently, forever. Measured in production: all SEVEN
+// past-due tasks are exactly that shape. They were visible on Command and nowhere on My Day.
+type Task = { id: string; label: string; owner: { kind: "event" | "stop"; id: string; name: string } | null; late: number | null };
 type Data = { rows: Row[]; tasks: Task[]; low: InvItem[]; bookings: number; extrasFailed: boolean };
 
 const SHOW = 5;
@@ -118,8 +128,10 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
         const isPast = t.due_at ? t.due_at < nowIso : ((t.event_id && dueEv.has(t.event_id)) || (t.stop_id && dueSt.has(t.stop_id)));
         if (!isPast) continue;
         const own = t.due_at ? localYMD(new Date(t.due_at)) : (t.event_id ? evDay.get(t.event_id) : t.stop_id ? stDay.get(t.stop_id) : null);
-        if (t.event_id) tasks.push({ id: t.id, label: t.label, kind: "event", ownerId: t.event_id, ownerName: evName.get(t.event_id) ?? "Event", late: daysLate(own) });
-        else if (t.stop_id) tasks.push({ id: t.id, label: t.label, kind: "stop", ownerId: t.stop_id, ownerName: stName.get(t.stop_id) ?? "Stop", late: daysLate(own) });
+        const owner = t.event_id ? { kind: "event" as const, id: t.event_id, name: evName.get(t.event_id) ?? "Event" }
+                    : t.stop_id ? { kind: "stop" as const, id: t.stop_id, name: stName.get(t.stop_id) ?? "Stop" }
+                    : null;
+        tasks.push({ id: t.id, label: t.label, owner, late: daysLate(own) });
       }
       tasks.sort((a, b) => (b.late ?? 0) - (a.late ?? 0));
 
@@ -131,6 +143,7 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
   }, []);
   const state = useAsyncData<Data>(loader, []);
 
+  const { openTask } = useTaskSheet();
   const openTarget = (kind: "event" | "stop", id: string) => {
     try { localStorage.setItem(prepHandoffKey, prepHandoffValue(kind, id)); } catch { /* ignore */ }
     setSection("prep");
@@ -199,10 +212,14 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
                   {tasks.length} team task{tasks.length === 1 ? "" : "s"} past due <span aria-hidden="true">{openTasks ? "⌄" : "›"}</span>
                 </button>
                 {openTasks && tasks.slice(0, 8).map((t) => (
-                  <button key={t.id} type="button" className="owed-row late" onClick={() => openTarget(t.kind, t.ownerId)}>
+                  <button key={t.id} type="button" className="owed-row late"
+                          onClick={() => (t.owner ? openTarget(t.owner.kind, t.owner.id) : openTask(t.id, "event"))}>
                     <span className="owed-row-b">
                       <b>{t.label}</b>
-                      <i>{t.kind} · {t.ownerName}</i>
+                      {/* A task with no event or stop is not a broken row — it is a task somebody
+                          wrote down on its own. Say that, and open the task itself rather than a
+                          prep screen it does not belong to. */}
+                      <i>{t.owner ? `${t.owner.kind} · ${t.owner.name}` : "not attached to an event or stop"}</i>
                     </span>
                     <span className="owed-age">{t.late != null && t.late > 0 ? ageWord(-t.late) : "past due"}</span>
                     <span className="owed-c" aria-hidden="true">›</span>
