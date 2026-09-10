@@ -7779,6 +7779,12 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .evg .so-row{align-items:flex-start;padding-top:11px;padding-bottom:11px}
 .evg .so-row-b i{white-space:normal;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;
   -webkit-box-orient:vertical;line-height:1.45}
+/* A GROUPED gap row (0324): one subject, every problem with it listed underneath. Before this the
+   same venue appeared as two rows because it had two problems — 9 rows for 6 real things. Each
+   problem keeps the two-line clamp above; the margin is what stops two of them reading as one
+   run-on sentence, and the leading dot marks that this is a list rather than a longer detail. */
+.evg .so-row-b i + i{margin-top:3px}
+.sg-b{color:var(--cream-d)}
 .evg .so-row-m,.evg .so-row-c,.evg .evg-sev{align-self:stretch}
 .evg .so-row-m{padding-top:1px}
 

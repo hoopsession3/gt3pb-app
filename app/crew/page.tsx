@@ -125,10 +125,9 @@ const MenuManager = dynamic(() => import("@/components/MenuManager"), { loading:
 const LessonsManager = dynamic(() => import("@/components/LessonsManager"), { loading: () => <PourFill label="Loading…" /> });
 const MerchManager = dynamic(() => import("@/components/MerchManager"), { loading: () => <PourFill label="Loading…" /> });
 const ShopOrders = dynamic(() => import("@/components/ShopOrders"), { loading: () => <PourFill label="Loading…" /> });
-const EventGaps = dynamic(() => import("@/components/EventGaps"), { loading: () => <PourFill label="Loading…" /> });
-const StopGaps = dynamic(() => import("@/components/StopGaps"), { loading: () => <PourFill label="Loading…" /> });
 const OperatorDeal = dynamic(() => import("@/components/OperatorDeal"), { loading: () => <PourFill label="Loading…" /> });
 const OfferLetters = dynamic(() => import("@/components/OfferLetters"), { loading: () => <PourFill label="Loading…" /> });
+const ScheduleGaps = dynamic(() => import("@/components/ScheduleGaps"), { loading: () => <PourFill label="Loading…" /> });
 const PaymentSettings = dynamic(() => import("@/components/PaymentSettings"), { loading: () => <PourFill label="Loading…" /> });
 const MoneyKpis = dynamic(() => import("@/components/MoneyKpis"), { loading: () => <PourFill label="Loading…" /> });
 const PlanEditor = dynamic(() => import("@/components/PlanEditor"), { loading: () => <PourFill label="Loading…" /> });
@@ -5417,26 +5416,16 @@ export default function AdminPage() {
   // Both now count their gap view, so the badge and the panel are the same number by construction.
   // Severity rides along: high means somebody is looking at it now (a stale name or a missing pin
   // on the public page), and that gets the loud treatment.
-  const [planCounts, setPlanCounts] = useState<{ bookings: number; events: number; eventsHot: boolean; stops: number; stopsHot: boolean }>(
-    { bookings: 0, events: 0, eventsHot: false, stops: 0, stopsHot: false });
+  // Bookings only. The Events and Route badges are gone with the two gap panels they counted —
+  // ONE schedule check now lives above the tabs, so a 4 on one tab and a 5 on the other would be
+  // two numbers for one list. Their queries went with them rather than being left to run for a
+  // badge nobody renders, which is the writer-with-no-reader defect this round exists to remove.
+  const [planCounts, setPlanCounts] = useState<{ bookings: number }>({ bookings: 0 });
   useEffect(() => {
     if (sec !== "plan" || !canManage || !supabase) return;
     (async () => {
-      // severity rows rather than four head counts: fewer round trips and less data than counting
-      // total and high separately for each view.
-      const [b, e, s] = await Promise.all([
-        supabase!.from("booking_requests").select("id", { count: "exact", head: true }).eq("status", "new"),
-        supabase!.from("v_event_gaps").select("severity"),
-        supabase!.from("v_stop_gaps").select("severity"),
-      ]);
-      const sev = (r: { data: { severity: string }[] | null }) => (r.data ?? []).map((x) => x.severity);
-      const ev = sev(e as { data: { severity: string }[] | null });
-      const st = sev(s as { data: { severity: string }[] | null });
-      setPlanCounts({
-        bookings: b.count ?? 0,
-        events: ev.length, eventsHot: ev.includes("high"),
-        stops: st.length, stopsHot: st.includes("high"),
-      });
+      const b = await supabase!.from("booking_requests").select("id", { count: "exact", head: true }).eq("status", "new");
+      setPlanCounts({ bookings: b.count ?? 0 });
     })();
   }, [sec, canManage, planTab]); // refetch when you switch tabs so badges reflect what you just did
 
@@ -5656,8 +5645,8 @@ export default function AdminPage() {
                 `what` word is the accessible name: a bare number tells a screen reader nothing. */}
             {([
               ["calendar", "Calendar", 0, false, ""],
-              ["events", "Events", planCounts.events, planCounts.eventsHot, "needing attention"],
-              ["route", "Route", planCounts.stops, planCounts.stopsHot, "needing attention"],
+              ["events", "Events", 0, false, "needing attention"],
+              ["route", "Route", 0, false, "needing attention"],
               ["leads", "Leads", planCounts.bookings, planCounts.bookings > 0, "new booking requests"],
             ] as const).map(([k, label, n, hot, what]) => (
               <button key={k} type="button" role="tab" aria-selected={planTab === k} className={`subnav-tab${planTab === k ? " on" : ""}`} onClick={() => setPlanTab(k)}>
@@ -5670,6 +5659,16 @@ export default function AdminPage() {
               <button key={k} type="button" role="tab" aria-selected={planTab === k} className={`subnav-tab back${planTab === k ? " on" : ""}`} onClick={() => setPlanTab(k)}>{label}</button>
             ))}
           </div>
+          {/* ONE "needs sorting" list for the whole schedule (0324). It sits ABOVE the tabs, not
+              inside one, because it covers both: the Events tab and the Route tab each used to open
+              with their own copy of this panel, so flipping between them showed the same construct
+              twice with two headlines and two badges — 9 rows describing 6 real problems. The
+              placement rule from 0314/0315 still holds and is now stated once: above the list,
+              because a list sorted by date will never surface "still marked confirmed five weeks
+              after it happened" — it files that in the past, where nobody scrolls. */}
+          {(planTab === "events" || planTab === "route" || planTab === "calendar") && (
+            <Panel id="schedule-gaps" title="Needs sorting · events &amp; stops" defaultOpen><ScheduleGaps /></Panel>
+          )}
           {planTab === "calendar" && (
             <>
               {/* 0263 exec rhythm — the review step lives at the TOP of Plan: rituals first, then
@@ -5681,19 +5680,15 @@ export default function AdminPage() {
           )}
           {planTab === "events" && (
             <>
-              {/* Above the list on purpose: a list sorted by date will never surface "still marked
-                  confirmed five weeks after it happened" — it just files it in the past, where
-                  nobody scrolls. (0314) */}
-              <Panel id="event-gaps" title="Events that need sorting" defaultOpen><EventGaps /></Panel>
               <EventsAdmin />
             </>
           )}
           {planTab === "route" && (
             <>
-              {/* Same placement rule as the events check: above the list, because three of a
-                  stop's eight problems are visible to somebody looking up where the truck is
-                  and none of them sort to the top of a route list. (0315) */}
-              <Panel id="stop-gaps" title="Stops that need sorting" defaultOpen><StopGaps /></Panel>
+              {/* Route is where the truck PARKS. The delivery run — residential porches and
+                  corporate office orders — lives in Live Ops (DeliveryOps + OfficeOrders) and is
+                  driven from /driver; the word "route" doing both jobs is why that needs saying
+                  out loud. See 0324's header. */}
               <LiveControl manage />
             </>
           )}

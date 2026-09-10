@@ -1628,36 +1628,48 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     S.whenLabel === E.whenLabel && S.sortGaps === E.sortGaps && S.money === E.money && S.placeLine === E.placeLine);
 }
 
-// ── A BADGE AND ITS PANEL COUNT THE SAME THING (0316) ────────────────────────────────────────────
-// On production the Events tab read "1" directly above a panel reading "4 things need sorting", and
-// the two could never have agreed: the badge counted `events where day >= today` while three of the
-// four problems were on events whose day had passed. An inventory count wearing an attention badge.
+// ── ONE SCHEDULE CHECK, ONE COUNT (0316, rewritten at 0324) ─────────────────────────────────────
+// 0316's version of this block guarded a badge against its panel: the Events tab read "1" above a
+// panel reading "4 things need sorting", because the badge counted `events where day >= today`
+// while three of the four problems were on events whose day had passed. An inventory count wearing
+// an attention badge. The fix then was to make both read the same gap view.
 //
-// Both now read the same gap view, which makes them equal BY CONSTRUCTION — and that phrase is only
-// true while it stays true, so it is checked. A filter added to one side and not the other puts the
-// number back out of step, silently, in the one place you look without opening the tab.
+// 0324 removed the disagreement instead of policing it. There is now ONE list for events and stops
+// together (v_schedule_gaps) mounted above the tabs, and the per-tab badges are gone — two numbers
+// for one list is the thing that made them able to disagree in the first place. So what is asserted
+// here changed shape: not "the two agree", but "there is only one".
 {
   const fs = require("node:fs");
   const path = require("node:path");
   const root = path.join(__dirname, "..");
   const crew = fs.readFileSync(path.join(root, "app/crew/page.tsx"), "utf8");
+  const panel = fs.readFileSync(path.join(root, "components/ScheduleGaps.tsx"), "utf8");
 
-  // the views each *Gaps.tsx config renders
-  const panelViews = new Set();
-  for (const f of ["components/EventGaps.tsx", "components/StopGaps.tsx"]) {
-    const m = /view:\s*"([a-z0-9_]+)"/.exec(fs.readFileSync(path.join(root, f), "utf8"));
-    if (m) panelViews.add(m[1]);
-  }
-  ok("badges: both gap panels name a view", panelViews.size === 2, [...panelViews]);
+  ok("schedule: the one panel reads the union view", /from\("v_schedule_gaps"\)/.test(panel));
+  // No filter chained after the select. A filter here and not in the headline count is exactly how
+  // the badge and the panel drifted apart the first time.
+  const sel = /from\("v_schedule_gaps"\)\s*\n?\s*\.select\([^)]*\)([^;]*);/.exec(panel);
+  ok("schedule: and counts ALL of it — no filter narrows the list under its own headline",
+    !!sel && sel[1].trim() === "", sel && sel[1]);
 
-  for (const v of panelViews) {
-    // read by the badge effect, with no extra filter — .select(...) and nothing chained after it
-    const re = new RegExp(`from\\("${v}"\\)\\s*\\.select\\([^)]*\\)([^,\\n]*)`, "");
-    const m = re.exec(crew);
-    ok(`badges: crew/page.tsx counts ${v} for its tab badge`, !!m, m && m[0]);
-    ok(`badges: and counts ALL of it — the panel applies no filter either`,
-      !!m && m[1].trim() === "", m && m[1]);
+  // The two panels it replaced are GONE, not merely unmounted — a dead copy is how drift restarts.
+  for (const f of ["components/EventGaps.tsx", "components/StopGaps.tsx", "components/RecordGaps.tsx"]) {
+    ok(`schedule: ${f} was deleted, not left behind`, !fs.existsSync(path.join(root, f)));
   }
+
+  // And nothing counts the per-entity views for a badge any more. This is the assertion that keeps
+  // "one list" true: re-add a tab badge off v_event_gaps and the old class of bug is back.
+  ok("schedule: crew/page.tsx no longer counts a per-entity gap view for a tab badge",
+    !/from\("v_(event|stop)_gaps"\)/.test(crew));
+
+  // THE fix for what Ryan actually saw: one venue with two problems was two rows. The headline
+  // counts subjects; the row count is reported separately so nothing is hidden, just not doubled.
+  ok("schedule: the headline counts SUBJECTS, not gap rows",
+    /const n = groups\.length;/.test(panel) && /needs? sorting across your schedule/.test(panel));
+  ok("schedule: and the raw problem count is still stated rather than dropped",
+    /const problems = rows\.length;/.test(panel) && /problems in all/.test(panel));
+  ok("schedule: rows are grouped by subject, so a subject appears once",
+    /new Map<string, Group>\(\)/.test(panel) && /\$\{r\.kind\}:\$\{r\.subject_id\}/.test(panel));
 
   // and the old inventory count is gone, not merely unused
   ok("badges: the Events badge no longer counts upcoming events instead of problems",
