@@ -3,9 +3,15 @@
 // mark. "MPIRE" runs in the surrounding display face and color; the 3 carries the red, mirroring
 // the GT3 lockup (cream GT · red 3). Sized in em so it rides any type scale it's dropped into —
 // the .76em/.05em metrics are the same ones already tuned for Archivo Black in the .g3 masthead.
+//
+// role="img" is LOAD-BEARING, not decoration. ARIA prohibits aria-label on an element with no role,
+// so assistive tech was entitled to ignore it — and everything inside here is hidden (an alt=""
+// image plus an aria-hidden span), which means the brand word was announced as NOTHING while
+// looking perfectly labelled in the source. Caught by the first accessibility pass ever run on this
+// app (axe-core, WCAG 2.1 AA). role="img" is the canonical fix: one graphic, one text equivalent.
 export default function Mpire({ className }: { className?: string }) {
   return (
-    <span className={`mp3${className ? ` ${className}` : ""}`} aria-label="3MPIRE">
+    <span className={`mp3${className ? ` ${className}` : ""}`} role="img" aria-label="3MPIRE">
       <img className="mp3-3" src="/brand/gt3-3.png" alt="" aria-hidden="true" />
       <span aria-hidden="true">MPIRE</span>
     </span>

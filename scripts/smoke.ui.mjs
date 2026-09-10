@@ -15,6 +15,18 @@ try { ({ chromium } = require("playwright")); }
 catch { ({ chromium } = await import("playwright")); }
 // Chromium binary: preinstalled in this sandbox; fall back to Playwright's own resolution in CI.
 const CHROME = process.env.PW_CHROME || "/opt/pw-browsers/chromium/chrome-linux/chrome";
+// axe-core, injected per page. The a11y pass is the first check in this harness that looks at what
+// a screen IS rather than what it contains — every other assertion here is a string match.
+const AXE_PATH = require.resolve("axe-core/axe.min.js");
+const a11y = [];
+const a11yErrors = [];
+const a11yScanned = new Set();
+// Zero, and it started at zero the same day the check was written — the two violations the first
+// run found were fixed in the same commit rather than ratcheted around. Both were the same defect:
+// an aria-label on an element with NO role, which ARIA prohibits and assistive tech may therefore
+// ignore. The 3MPIRE wordmark (an alt="" image plus an aria-hidden span) and a review's star rating
+// were both announced as nothing at all, while looking labelled in the source.
+export const A11Y_BASELINE = 0;
 const fs = require("node:fs");
 
 const PORT = 3210;
@@ -171,12 +183,67 @@ try {
     }
     // real route/API 5xx is always a failure, even for soft routes
     ok(`${route.path} · no server 5xx (non-asset)`, realServerErrors.length === 0, realServerErrors.slice(0, 2).join(" | "));
+
+    // 3) ACCESSIBILITY — axe-core, WCAG 2.1 A/AA.
+    //    Retried once, because /truck client-navigates on mount and destroyed the execution
+    //    context mid-run on the first pass. An UNSCANNED route counts as a failure below, not as
+    //    a clean one — "we could not look" and "we looked and it was fine" are different answers,
+    //    and letting them share a result is how a gate starts lying.
+    const scan = async () => {
+      try { await page.waitForLoadState("networkidle", { timeout: 4000 }); } catch { /* settled enough */ }
+      await page.addScriptTag({ path: AXE_PATH });
+      return page.evaluate(async () =>
+        await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] }, resultTypes: ["violations"] }));
+    };
+    try {
+      let res;
+      try { res = await scan(); } catch { await sleep(800); res = await scan(); }
+      a11yScanned.add(route.path);
+      for (const v of res.violations) {
+        a11y.push({ path: route.path, id: v.id, impact: v.impact, n: v.nodes.length, help: v.help, nodes: v.nodes.map((x) => ({ t: x.target.join(" "), html: x.html.slice(0, 160) })) });
+      }
+    } catch (e) { a11yErrors.push(`${route.path}: ${String(e.message).slice(0, 120)}`); }
+
     await page.close();
   }
 
   await browser.close();
 } finally {
   await stopServer();
+}
+
+// ── ACCESSIBILITY ──────────────────────────────────────────────────────────────────────────────
+// The first a11y check this app has ever had. Everything else in this repo guards the database and
+// the logic; the UI layer was verified by a person opening it and looking, which is why three
+// screenshots in a row found things a thousand-odd assertions did not.
+//
+// KNOWN LIMIT, stated rather than implied: this harness runs UNAUTHENTICATED, so it covers the
+// customer-facing routes and not the crew console — the surface the owner actually uses all day.
+// Extending it needs a test account, which is a credential decision, not a code one. Until then
+// this says "the pages a guest can reach are clean", and nothing more.
+{
+  const byRule = new Map();
+  for (const v of a11y) {
+    const k = `${v.impact}:${v.id}`;
+    const e = byRule.get(k) ?? { impact: v.impact, id: v.id, help: v.help, nodes: 0, paths: new Set() };
+    e.nodes += v.n; e.paths.add(v.path); byRule.set(k, e);
+  }
+  const order = { critical: 0, serious: 1, moderate: 2, minor: 3 };
+  const rules = [...byRule.values()].sort((a, b) => (order[a.impact] ?? 9) - (order[b.impact] ?? 9) || b.nodes - a.nodes);
+  const total = a11y.reduce((n, v) => n + v.n, 0);
+  console.log(`\nA11Y (WCAG 2.1 A/AA, axe-core): ${rules.length} rule(s) violated, ${total} element(s), across ${new Set(a11y.map((v) => v.path)).size} route(s)`);
+  for (const r of rules) {
+    console.log(`  ${String(r.impact).padEnd(8)} ${r.id.padEnd(28)} ${String(r.nodes).padStart(4)} el  ${[...r.paths].slice(0, 4).join(" ")}${r.paths.size > 4 ? ` +${r.paths.size - 4}` : ""}`);
+    console.log(`           ${r.help}`);
+  }
+  if (process.env.A11Y_NODES) for (const v of a11y) for (const nd of v.nodes ?? []) console.log(`    ${v.path}  ${nd.t}\n      ${nd.html}`);
+  if (a11yErrors.length) console.log(`  (axe could not run on ${a11yErrors.length} route(s): ${a11yErrors.slice(0, 2).join("; ")})`);
+
+  // Two ways to fail, and the second one matters as much as the first.
+  ok(`a11y: no WCAG 2.1 A/AA violations (baseline ${A11Y_BASELINE})`, total <= A11Y_BASELINE,
+    rules.slice(0, 3).map((r) => `${r.impact} ${r.id} ×${r.nodes}`).join(" | "));
+  ok("a11y: every route was actually scanned — an unscanned route is not a clean one",
+    a11yErrors.length === 0, a11yErrors.slice(0, 2).join("; "));
 }
 
 console.log(`UI SMOKE: ${pass} passed, ${fail} failed`);

@@ -61,7 +61,7 @@ export default async function BuiltShare({ params }: { params: Promise<{ key: st
       <div className="rev-grid">
         {REVIEWS.map((r, i) => (
           <figure key={i} className="rev-card">
-            {r.stars ? <div className="rev-stars" aria-label={`${r.stars} out of 5`}>{Array.from({ length: r.stars }).map((_, i) => <Icon key={i} name="star" />)}</div> : null}
+            {r.stars ? <div className="rev-stars" role="img" aria-label={`${r.stars} out of 5`}>{Array.from({ length: r.stars }).map((_, i) => <Icon key={i} name="star" />)}</div> : null}
             <blockquote className="rev-q">{r.quote}</blockquote>
             <figcaption className="rev-who">— {r.who}</figcaption>
           </figure>
