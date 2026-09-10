@@ -34,10 +34,18 @@ import AsyncSection from "./AsyncSection";
 // stop it belongs to is already behind it. That second half is why this is not a one-line query,
 // and dropping it would silently shrink the list to tasks somebody remembered to date.
 //
-// ── FAILURE, BY TIER ───────────────────────────────────────────────────────────────────────────
-// The obligations read is the panel: if it fails, the panel says so. The other three degrade
-// quietly — a failed inventory fetch must not take down the overdue list to protect a restock
-// line. That asymmetry is deliberate and is why they are not in the same throw.
+// ── FAILURE, BY TIER — AND VISIBLY ─────────────────────────────────────────────────────────────
+// The obligations read IS the panel: if it fails, the panel says so. The other three degrade
+// without taking it down, because a failed inventory fetch must not hide the overdue list to
+// protect a restock line.
+//
+// But degrading is not the same as going quiet, and the first version of this got that wrong in
+// production: a guessed column list asked events for "kind", which it does not have, PostgREST
+// rejected the whole query, and a bare catch turned seven past-due tasks into an absence. The
+// headline read "11 overdue · 6 due soon" and looked completely correct. That is the false-empty
+// defect this repo keeps a whole audit for, written in by hand while the header above claimed the
+// opposite. So the extras now report their own failure on screen, and the reason the column list
+// is select("*") is that guessing one is what broke it.
 
 type Row = {
   source: string; subject_id: string; area: string; kind: string;
@@ -45,7 +53,7 @@ type Row = {
   severity: "overdue" | "soon" | "upcoming"; route: string; market: string | null;
 };
 type Task = { id: string; label: string; kind: "event" | "stop"; ownerId: string; ownerName: string; late: number | null };
-type Data = { rows: Row[]; tasks: Task[]; low: InvItem[]; bookings: number };
+type Data = { rows: Row[]; tasks: Task[]; low: InvItem[]; bookings: number; extrasFailed: boolean };
 
 const SHOW = 5;
 const localYMD = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -61,7 +69,7 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
   const { setSection } = useOperatorSection();
 
   const loader = useCallback(async (): Promise<Data> => {
-    if (!supabase) return { rows: [], tasks: [], low: [], bookings: 0 };
+    if (!supabase) return { rows: [], tasks: [], low: [], bookings: 0, extrasFailed: false };
     const today = localYMD(new Date());
     const nowIso = new Date().toISOString();
 
@@ -75,15 +83,21 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
 
     // The three softer feeds. Anything that fails here returns empty rather than taking the panel
     // with it — see the header.
-    let tasks: Task[] = [], low: InvItem[] = [], bookings = 0;
+    let tasks: Task[] = [], low: InvItem[] = [], bookings = 0, extrasFailed = false;
     try {
       const [b, evs, st, tk, inv] = await Promise.all([
         supabase.from("booking_requests").select("id", { count: "exact", head: true }).eq("status", "new"),
-        supabase.from("events").select("id, title, day, archived_at, kind, category, type").order("day"),
+        supabase.from("events").select("*").order("day"),
         supabase.from("stops").select("id, name, starts_at, status, archived_at").order("starts_at"),
         supabase.from("event_tasks").select("id, label, event_id, stop_id, due_at").eq("done", false).eq("kind", "task"),
         fetchInventory(),
       ]);
+      // CHECKED FIRST, BEFORE ANYTHING READS .data. PostgREST returns an error OBJECT rather than
+      // throwing, so a bad column name looks exactly like success with no rows. That is how this
+      // shipped broken: "kind" was selected from events, which has no such column, PostgREST
+      // rejected the whole query, and seven past-due tasks rendered as silence.
+      const softErr = [b.error, evs.error, st.error, tk.error].find(Boolean);
+      if (softErr) throw new Error(softErr.message);
       bookings = b.count ?? 0;
 
       const allEv = ((evs.data as { id: string; title: string | null; day: string | null; archived_at: string | null }[]) ?? []).filter((e) => !e.archived_at);
@@ -111,9 +125,9 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       low = inv.enabled ? rollupLowStock(inv.items, allEv.filter((e) => e.day && e.day >= today) as any) : [];
-    } catch { /* the softer feeds are optional; the list above is not */ }
+    } catch { extrasFailed = true; tasks = []; low = []; bookings = 0; }
 
-    return { rows: (ob.data as Row[]) ?? [], tasks, low, bookings };
+    return { rows: (ob.data as Row[]) ?? [], tasks, low, bookings, extrasFailed };
   }, []);
   const state = useAsyncData<Data>(loader, []);
 
@@ -125,7 +139,7 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
   return (
     <AsyncSection
       state={state}
-      isEmpty={(d) => d.rows.length === 0 && d.tasks.length === 0 && d.low.length === 0 && d.bookings === 0}
+      isEmpty={(d) => !d.extrasFailed && d.rows.length === 0 && d.tasks.length === 0 && d.low.length === 0 && d.bookings === 0}
       // An empty attention list is the system working, and should read that way rather than as an
       // absence of data.
       emptyTitle="Nothing waiting on you"
@@ -134,7 +148,7 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
       errorTitle="Couldn't check what's overdue"
       errorSub="This is not the same as nothing being overdue — we could not read it just now."
     >
-      {({ rows, tasks, low, bookings }) => {
+      {({ rows, tasks, low, bookings, extrasFailed }) => {
         const late = rows.filter((r) => r.severity === "overdue");
         const soon = rows.filter((r) => r.severity === "soon");
         const shown = open ? rows : rows.slice(0, compact ? 3 : SHOW);
@@ -207,6 +221,18 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
                 {bookings} new booking {bookings === 1 ? "request" : "requests"} to reply to <span aria-hidden="true">›</span>
               </button>
             )}
+            {/* A read that failed and a read that found nothing are DIFFERENT ANSWERS, and this
+                panel said the second when it meant the first: a guessed column name ("kind", which
+                events does not have) made PostgREST reject the whole query, the catch below
+                swallowed it, and seven past-due tasks rendered as silence. Never again silently —
+                the overdue list above still stands on its own, and this says what is missing. */}
+            {extrasFailed && (
+              <p className="pnl-note" role="status">
+                Team tasks, restock and booking replies couldn&rsquo;t be read just now — the overdue
+                list above is still current.
+              </p>
+            )}
+
             {low.length > 0 && (
               <>
                 <div className="wrule"><span>Restock · {low.length} low for upcoming events</span></div>
