@@ -154,7 +154,7 @@ import { packListFor } from "@/lib/packlist";
 import { complianceFor } from "@/lib/compliance";
 import { projectEvent, reconcile, DEFAULT_ECON, type EventEcon, type ProductEcon, type Projection } from "@/lib/economics";
 import { buildBrief } from "@/lib/eventbrief";
-import { fetchInventory, inventoryForEvent, rollupLowStock, type InventoryResp, type InvItem } from "@/lib/inventory";
+import { fetchInventory, inventoryForEvent, type InventoryResp } from "@/lib/inventory";
 import { fetchAssets, type AssetsResp } from "@/lib/assets";
 import type { Stop, EventRow, EventTask, BookingRequest, Order, Reserve, Subscription, Vendor, VendorLocation, MeetingNote, NoteAddendum, NoteFile, Comment } from "@/lib/db";
 import { uploadToBucket } from "@/lib/uploads";
@@ -1347,91 +1347,6 @@ function MyDay({ userId, meName, isLeader, canPrep, canBrew }: { userId: string 
         </div>
       )}
     </>
-  );
-}
-
-// ───────────────────────── needs you: the start-of-shift action list ─────────────────────────
-// Lives on MY DAY (leadership) — the console's one glance screen. Booking replies, past-due team
-// tasks and restock lows used to hide inside Readiness' Overview; the counts are the same queries,
-// now surfaced where the day starts. Quiet when there's nothing to act on.
-function NeedsYou() {
-  const { setSection } = useOperatorSection();
-  const [news, setNews] = useState(0);
-  const [overdue, setOverdue] = useState<OverdueTask[]>([]);
-  const [showOverdue, setShowOverdue] = useState(false);
-  const [low, setLow] = useState<InvItem[]>([]);
-  const load = useCallback(async () => {
-    if (!supabase) return;
-    const today = localYMD(new Date());
-    const nowIso = new Date().toISOString();
-    const [b, evs, st, tasks, invResp] = await Promise.all([
-      supabase.from("booking_requests").select("id", { count: "exact", head: true }).eq("status", "new"),
-      supabase.from("events").select("*").order("day"),
-      supabase.from("stops").select("id, name, starts_at, status, archived_at").order("starts_at"),
-      supabase.from("event_tasks").select("id, label, event_id, stop_id, done, kind, due_at").eq("done", false).eq("kind", "task"),
-      fetchInventory(),
-    ]);
-    const allEv = ((evs.data as EventRow[]) ?? []).filter((e) => !e.archived_at);
-    const allSt = ((st.data as Stop[]) ?? []).filter((x) => !x.archived_at);
-    const evName = new Map(allEv.map((e) => [e.id, e.title ?? "Event"]));
-    const stName = new Map(allSt.map((x) => [x.id, x.name ?? "Stop"]));
-    const dueEv = new Set(allEv.filter((e) => e.day && e.day < today).map((e) => e.id));
-    const dueSt = new Set(allSt.filter((x) => x.status === "done" || (x.starts_at && localYMD(new Date(x.starts_at)) < today)).map((x) => x.id));
-    const taskRows = (tasks.data as { id: string; label: string; event_id: string | null; stop_id: string | null; due_at: string | null }[]) ?? [];
-    const od: OverdueTask[] = [];
-    for (const t of taskRows) {
-      const isPast = t.due_at ? t.due_at < nowIso : ((t.event_id && dueEv.has(t.event_id)) || (t.stop_id && dueSt.has(t.stop_id)));
-      if (!isPast) continue;
-      if (t.event_id) od.push({ taskId: t.id, label: t.label, kind: "event", ownerId: t.event_id, ownerName: evName.get(t.event_id) ?? "Event" });
-      else if (t.stop_id) od.push({ taskId: t.id, label: t.label, kind: "stop", ownerId: t.stop_id, ownerName: stName.get(t.stop_id) ?? "Stop" });
-    }
-    setNews(b.count ?? 0);
-    setOverdue(od);
-    setLow(invResp.enabled ? rollupLowStock(invResp.items, allEv.filter((e) => e.day && e.day >= today)) : []);
-  }, []);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => { load(); return () => { if (timer.current) clearTimeout(timer.current); }; }, [load]);
-  useRealtimeTable(["booking_requests", "event_tasks"], () => {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => load(), 500);
-  });
-  const goBookings = () => goPlanTab("leads", { setSection });   // leads live on Plan › Leads (2026-07-30 merge)
-  const openTarget = (kind: "event" | "stop", id: string) => { try { localStorage.setItem(prepHandoffKey, prepHandoffValue(kind, id)); } catch { /* ignore */ } setSection("prep"); };
-  if (news === 0 && overdue.length === 0 && low.length === 0) return null;
-  return (
-    <div className="adm-sec">
-      <div className="bo-needs" style={{ marginTop: 0 }}>
-        <div className="adm-prep-label">Needs you</div>
-        {news > 0 && <button className="bo-need" onClick={goBookings}>{news} new booking {news === 1 ? "request" : "requests"} to reply to ›</button>}
-        {overdue.length > 0 && <button className="bo-need alert" onClick={() => setShowOverdue((v) => !v)}>{overdue.length} team {overdue.length === 1 ? "task" : "tasks"} past due — knock them out ›</button>}
-      </div>
-      {showOverdue && overdue.length > 0 && (
-        <div className="bo-overdue">
-          {overdue.slice(0, 8).map((t) => (
-            <button key={t.taskId} className="bo-overdue-row" onClick={() => openTarget(t.kind, t.ownerId)}>
-              <span className="bo-overdue-l">{t.label}</span>
-              <span className="bo-overdue-o">{t.ownerName} ›</span>
-            </button>
-          ))}
-          {overdue.length > 8 && <div className="pnl-note">+ {overdue.length - 8} more past due.</div>}
-        </div>
-      )}
-      {low.length > 0 && (
-        <>
-          <div className="wrule"><span>Restock · {low.length} low for upcoming events</span></div>
-          <div className="ev-invlist">
-            {low.slice(0, 8).map((it, i) => (
-              <div key={i} className={`ev-inv-row${(it.qty ?? 0) <= 0 ? " out" : ""}`}>
-                <span className="ev-inv-n">{it.qty ?? "—"}</span>
-                <span className="ev-inv-x"><b>{it.name}</b><span>reorder at {it.reorderPoint ?? "—"}{it.unit ? ` ${it.unit}` : ""}</span></span>
-                {it.reorderLink && <a className="ev-inv-link" href={it.reorderLink} target="_blank" rel="noreferrer">Reorder ›</a>}
-              </div>
-            ))}
-            {low.length > 8 && <div className="pnl-note">+ {low.length - 8} more below reorder point.</div>}
-          </div>
-        </>
-      )}
-    </div>
   );
 }
 
@@ -4930,9 +4845,6 @@ function EnableAlerts({ userId }: { userId: string | null }) {
 // the exact This week / Truck locations cards rendered directly below it on the prep list, and
 // its live-status line was Live Ops' job (which always had its own LiveControl). Two fetches, a
 // realtime subscription and a debounce timer, all to summarize the screen they sat on.
-// OverdueTask outlives it — My Day's needs-you list still uses the shape.
-type OverdueTask = { taskId: string; label: string; kind: "event" | "stop"; ownerId: string; ownerName: string };
-
 // ───────────────────────── vendors (relational venue records) ─────────────────────────
 type VendorSug = { kind: "stop" | "event"; id: string; name: string; sub: string; stop?: Stop; event?: EventRow };
 
@@ -5493,7 +5405,6 @@ export default function AdminPage() {
       {inboxOpen && (
         <Sheet open onClose={() => setInboxOpen(false)} label="Inbox" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "Inter", fontSize: 15 }}><Icon name="bell" /> Inbox</b><CloseButton onClick={() => setInboxOpen(false)} /></div>}>
           <AlertsInbox userId={user?.id ?? null} title="Flags & pings for you" onNavigate={() => setInboxOpen(false)} />
-          {canManage && <NeedsYou />}
         </Sheet>
       )}
       <div className="op-head">
