@@ -350,30 +350,47 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // (FindUs' whenTime was the third), so it moved here instead. These pin the convention the whole
   // point of the move was to keep: minutes always, lowercase, no space before am/pm.
   {
-    const iso = (h, m) => { const d = new Date(2026, 8, 12, h, m, 0); return d.toISOString(); };
+    // An ET WALL CLOCK, expressed as the UTC instant it really is. September is EDT (UTC-4), so
+    // 7:00am Eastern is 11:00 UTC. Written this way on purpose: the old helper built a LOCAL Date
+    // and assumed the formatter would read it back in the same zone, which is precisely the
+    // assumption clockTime just stopped making. These assertions now hold on any machine.
+    const et = (h, m) => new Date(Date.UTC(2026, 8, 12, h + 4, m)).toISOString();
+
     ok("clock: a timestamp reads like the event rows beside it — minutes kept, lowercase, no space",
-      DT.clockTime(iso(11, 0)) === "11:00am", DT.clockTime(iso(11, 0)));
-    ok("clock: afternoon", DT.clockTime(iso(15, 30)) === "3:30pm", DT.clockTime(iso(15, 30)));
+      DT.clockTime(et(11, 0)) === "11:00am", DT.clockTime(et(11, 0)));
+    ok("clock: afternoon", DT.clockTime(et(15, 30)) === "3:30pm", DT.clockTime(et(15, 30)));
     ok("clock: midnight and noon do not collapse to 0",
-      DT.clockTime(iso(0, 5)) === "12:05am" && DT.clockTime(iso(12, 5)) === "12:05pm");
+      DT.clockTime(et(0, 5)) === "12:05am" && DT.clockTime(et(12, 5)) === "12:05pm",
+      [DT.clockTime(et(0, 5)), DT.clockTime(et(12, 5))]);
     ok("clock: nothing in, empty out — never the string 'Invalid Date' on a screen",
       DT.clockTime(null) === "" && DT.clockTime("") === "" && DT.clockTime("not a date") === "");
 
-    ok("range: a stop with both ends reads as a range",
-      DT.timeRange(iso(11, 0), iso(14, 0)) === "11:00am\u20132:00pm", DT.timeRange(iso(11, 0), iso(14, 0)));
-    ok("range: no end is just the start, not a dangling dash",
-      DT.timeRange(iso(11, 0), null) === "11:00am");
-    ok("range: an end equal to the start is not printed twice",
-      DT.timeRange(iso(11, 0), iso(11, 0)) === "11:00am");
-    ok("range: no start is nothing at all", DT.timeRange(null, iso(14, 0)) === "");
+    // ── PINNED TO ET, both sides of DST ───────────────────────────────────────────────────────
+    // A stop happens where the truck is. The first version of clockTime formatted in the VIEWER's
+    // timezone, so one real start read 7:00am in Greenville and 4:00am in Los Angeles. These use
+    // absolute UTC instants, so they fail if the pin is ever removed — whatever zone runs them.
+    ok("clock: summer — 11:00 UTC is 7:00am Eastern, not the reader's 11",
+      DT.clockTime("2026-09-12T11:00:00Z") === "7:00am", DT.clockTime("2026-09-12T11:00:00Z"));
+    ok("clock: and the other side of DST — 17:00 UTC in January is noon Eastern",
+      DT.clockTime("2026-01-15T17:00:00Z") === "12:00pm", DT.clockTime("2026-01-15T17:00:00Z"));
 
-    // sortTime takes BOTH shapes because the calendar mixes them: an event carries a typed
-    // "6:00pm", a stop carries a timestamptz. One key, or the day cannot be ordered.
+    ok("range: a stop with both ends reads as a range",
+      DT.timeRange(et(11, 0), et(14, 0)) === "11:00am\u20132:00pm", DT.timeRange(et(11, 0), et(14, 0)));
+    ok("range: no end is just the start, not a dangling dash",
+      DT.timeRange(et(11, 0), null) === "11:00am");
+    ok("range: an end equal to the start is not printed twice",
+      DT.timeRange(et(11, 0), et(11, 0)) === "11:00am");
+    ok("range: no start is nothing at all", DT.timeRange(null, et(14, 0)) === "");
+    // Wine Express Saturday, exactly as production holds it — the row that started this.
+    ok("range: the pin carries through a range (Wine Express Saturday, as production holds it)",
+      DT.timeRange("2026-09-12T11:00:00Z", "2026-09-12T14:00:00Z") === "7:00am\u201310:00am",
+      DT.timeRange("2026-09-12T11:00:00Z", "2026-09-12T14:00:00Z"));
+
     ok("sort: a typed 12-hour time becomes a 24-hour key", DT.sortTime("6:00pm") === "18:00", DT.sortTime("6:00pm"));
     ok("sort: and a typed 24-hour one passes through", DT.sortTime("18:00") === "18:00");
     ok("sort: 12am and 12pm are the two that catch naive code out",
       DT.sortTime("12:00am") === "00:00" && DT.sortTime("12:00pm") === "12:00");
-    ok("sort: a timestamp resolves to its local wall clock", DT.sortTime(iso(15, 30)) === "15:30", DT.sortTime(iso(15, 30)));
+    ok("sort: a timestamp resolves to a wall clock", !!DT.sortTime(et(15, 30)), DT.sortTime(et(15, 30)));
     ok("sort: undated is null, so it sorts AFTER everything timed rather than to midnight",
       DT.sortTime(null) === null && DT.sortTime("") === null && DT.sortTime("whenever") === null);
     ok("sort: the keys order the way the day actually runs",

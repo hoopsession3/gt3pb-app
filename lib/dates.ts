@@ -77,7 +77,18 @@ export function clockTime(iso?: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "";
-  return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }).replace(" ", "").toLowerCase();
+  // PINNED TO ET, and that is a correction rather than a preference. The version this replaced —
+  // moved verbatim out of FindUs — used toLocaleTimeString(undefined, …), the VIEWER's timezone.
+  // A stop happens where the truck is, which is Eastern; a crew member opening this in Denver, or
+  // a customer checking Find Us from California, would have been shown a time shifted by hours for
+  // an event that has one real start. This file's own header records the same bug reaching
+  // production once already, from the server side, which is why ET_TIME_FMT exists. Same fact,
+  // same formatter now.
+  //
+  // Caught while checking the agenda against the database: a stop reading 7:00am on screen and
+  // 11:00 in a SQL editor is the same instant seen from two timezones, and the only way to know
+  // which one a person is looking at is to pin it.
+  return ET_TIME_FMT.format(d).replace(" ", "").toLowerCase();
 }
 
 /** "11:00am–2:00pm", or just the start when there is no end (or the end matches it). */
