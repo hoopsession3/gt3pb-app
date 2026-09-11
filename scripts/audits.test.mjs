@@ -10,6 +10,7 @@ import { classifyEffect, effectAt } from "./render.audit.mjs";
 import { isFalseEmpty, catchesButHides } from "./falseempty.audit.mjs";
 import { refusalHeadings, refusesWithoutPolicy, collapsesVerdicts } from "./gate.audit.mjs";
 import { handRollsCrew, bypassesTaskSpine, CREW_EXEMPT, namesRoleVocabulary, rolesNamedIn, rendersRawCrewOption } from "./dupe.audit.mjs";
+import { selectsIn, topLevelParts, columnsOf } from "./columns.audit.mjs";
 
 let pass = 0, fail = 0;
 const ok = (n, c, got) => { if (c) pass++; else { fail++; console.log(`  ✗ ${n}` + (got !== undefined ? ` → got ${JSON.stringify(got)}` : "")); } };
@@ -194,6 +195,43 @@ ok("passes: the spine's own deletes", bypassesTaskSpine(
 // event_tasks one and must not start reporting todos as if it covered them.
 ok("not flagged: a todos delete is not an event_tasks write",
   bypassesTaskSpine(`supabase.from("todos").delete().eq("id", id)`, "components/Z.tsx") === false);
+
+// ── the column contract ────────────────────────────────────────────────────────────────────────
+// The parser IS the checker, and it was wrong twice before it was right. Both wrong versions are
+// fixtures below, because the failure mode of a schema checker is a confident complaint about code
+// that is fine — which is the thing this repo has watched a regex do eight times.
+ok("columns: the 62af8ef shape — a guessed column list, read as four columns",
+  JSON.stringify(columnsOf("id, title, day, kind").cols) === '["id","title","day","kind"]');
+ok("columns: select(*) names nothing to check", columnsOf("*").cols.length === 0);
+ok("columns: an alias is not a column — the column is the right-hand side",
+  JSON.stringify(columnsOf("who:display_name, id").cols) === '["display_name","id"]');
+ok("columns: an embedded resource is SKIPPED, not parsed as a column name",
+  columnsOf("id, vendors(name, id)").cols.length === 1 && columnsOf("id, vendors(name, id)").skipped.length === 1);
+ok("columns: a comma inside an embedded resource does not split the list",
+  topLevelParts("id, vendors(name, id), day").length === 3);
+ok("columns: a cast reduces to its column", JSON.stringify(columnsOf("total_cents::int").cols) === '["total_cents"]');
+
+// THE PAIRING BUG. The first version used a fixed 600-character window after .from(, which walks
+// straight past the end of the statement: event_tasks appeared to select reorder_point and
+// use_cases, columns that belong to an inventory_items chain further down the same file.
+{
+  const src = [
+    `const a = await supabase.from("event_tasks").select("id, label").eq("done", false);`,
+    `const b = await supabase.from("inventory_items").select("id, reorder_point, use_cases");`,
+  ].join("\n");
+  const f = selectsIn(src);
+  ok("columns: each select pairs with its OWN from — the two-chain case that broke the first version",
+    f.length === 2 && f[0].relation === "event_tasks" && f[0].select === "id, label" && f[1].relation === "inventory_items", f);
+}
+{
+  const f = selectsIn(`supabase.from("events").eq("day", d).order("sort").select("id, title")`);
+  ok("columns: chained filters between from() and select() do not break the pairing",
+    f.length === 1 && f[0].relation === "events" && f[0].select === "id, title", f);
+}
+{
+  const f = selectsIn(`await supabase.from("alert_reads").delete().eq("id", x);\nawait supabase.from("alerts").select("id, title");`);
+  ok("columns: a from() with no select of its own borrows nobody else's", f.length === 1 && f[0].relation === "alerts", f);
+}
 
 // ── the role vocabulary ────────────────────────────────────────────────────────────────────────
 // The four maps this replaced, in the shape they were actually written, plus the four things that

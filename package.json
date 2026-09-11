@@ -12,7 +12,7 @@
     "test": "npm run smoke && node scripts/deploy.check.test.mjs && node scripts/audits.test.mjs && npm run db:test",
     "smoke:ui": "node scripts/smoke.ui.mjs",
     "verify": "npm run test && npm run audit && npm run build && npm run smoke:ui",
-    "audit": "node scripts/render.audit.mjs && node scripts/falseempty.audit.mjs && node scripts/gate.audit.mjs && node scripts/dupe.audit.mjs"
+    "audit": "node scripts/render.audit.mjs && node scripts/falseempty.audit.mjs && node scripts/gate.audit.mjs && node scripts/dupe.audit.mjs && node scripts/columns.audit.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",
