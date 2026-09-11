@@ -285,6 +285,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   // caption engine
   const [brief, setBrief] = useState(""); const [drafting, setDrafting] = useState(false);
   const [options, setOptions] = useState<any[]>([]);
+  const [draftErr, setDraftErr] = useState<string | null>(null);  // why no options came back (0325 sweep)
   // Canva + Webflow muscle
   const [pub, setPub] = useState<{ edit: string | null; png: string | null; live: string | null }>({ edit: null, png: null, live: null });
   const [pubBusy, setPubBusy] = useState(""); const [pubErr, setPubErr] = useState("");
@@ -509,12 +510,16 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
 
   const draft = async () => {
     if (!supabase || drafting || !brief.trim()) return;
-    setDrafting(true); setOptions([]);
+    setDrafting(true); setOptions([]); setDraftErr(null);
+    // Both failure paths said the same thing as success-with-nothing: the spinner stopped, the
+    // options list stayed empty, and you were left to guess whether the model had no ideas or the
+    // request never landed. The route ALREADY returns { ok:false, error } — nothing read it.
     try {
       const r = await authedFetch("/api/agents/caption", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ brief, kind: item?.kind, channel: item?.channel }) });
       const j = await r.json();
       if (j.ok) setOptions(j.options ?? []);
-    } catch { /* */ }
+      else setDraftErr(String(j.error ?? "the writer didn't answer").slice(0, 160));
+    } catch (e) { setDraftErr(e instanceof Error ? e.message : "the request didn't land"); }
     setDrafting(false);
   };
 
@@ -811,6 +816,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
         <div className="oa-input">
           <input value={brief} onChange={(e) => setBrief(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") draft(); }} placeholder="Brief — e.g. 'promote Saturday market; lead with why no oxalates'" />
           <button type="button" className="oa-send" onClick={draft} disabled={drafting || !brief.trim()}>{drafting ? "Drafting…" : "Draft"}</button>
+          {draftErr && <div className="oa-err" role="status">Couldn&apos;t draft that — {draftErr}</div>}
         </div>
         {options.map((o, i) => (
           <div key={i} className="studio-opt">

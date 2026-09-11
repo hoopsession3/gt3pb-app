@@ -31,7 +31,17 @@ export async function fetchAssets(): Promise<AssetsResp> {
   try {
     const r = await authedFetch("/api/assets", { cache: "no-store" });
     return (await r.json()) as AssetsResp;
-  } catch {
-    return { enabled: false, items: [] };
+  } catch (e) {
+    // enabled:TRUE is the honest answer here, and this catch used to return false.
+    //
+    // The three fields mean three different things. `enabled` is whether the register is reachable
+    // AS THIS VIEWER; `error` is "we could not ask"; `items` is the answer. /api/assets already
+    // keeps them apart — a failed query comes back { enabled: true, error, items: [] } and the
+    // panel prints "Couldn't reach the asset register: …". This catch was the one path that
+    // collapsed all three, and GearLibrary renders !enabled as
+    //     "Sign in as crew to see the gear library."
+    // So a signed-in owner whose request dropped was told he was not signed in — a claim about who
+    // somebody IS, made on the evidence of a network blip.
+    return { enabled: true, items: [], error: e instanceof Error ? e.message : "couldn't reach the asset register" };
   }
 }

@@ -27,8 +27,11 @@ export async function fetchInventory(): Promise<InventoryResp> {
   try {
     const r = await authedFetch("/api/inventory", { cache: "no-store" });
     return (await r.json()) as InventoryResp;
-  } catch {
-    return { enabled: false, items: [] };
+  } catch (e) {
+    // Same correction as lib/assets.ts, same reason: !enabled renders as "Sign in as crew to see
+    // inventory", so returning false here tells a signed-in operator they are signed out. The
+    // route already distinguishes unreachable from off; only this catch did not.
+    return { enabled: true, items: [], error: e instanceof Error ? e.message : "couldn't reach inventory" };
   }
 }
 
