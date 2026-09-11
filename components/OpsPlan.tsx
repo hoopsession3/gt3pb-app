@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { haptic, HAPTIC } from "@/lib/haptics";
 import { resolveVendor, type ResolveDecision, type VendorMatch } from "@/lib/vendorLink";
+import { createEventTask } from "@/lib/tasks";
 import VendorResolve from "./VendorResolve";
 import Icon from "@/components/Icon";
 
@@ -75,7 +76,15 @@ export default function OpsPlan({ noteId }: { noteId: string }) {
         toast("Skipped — nothing created"); return;
       }
       if (op.type === "task" || op.type === "brew") {
-        await supabase.from("event_tasks").insert({ meeting_note_id: noteId, origin_note_id: noteId, label: (op.type === "brew" ? `Brew — ${op.title}` : op.title).slice(0, 300), kind: "task", section: "Follow-up", critical: !!op.critical, sort: 1000 + i });
+        // Through the spine (lib/tasks), which also means the write can now FAIL OUT LOUD. The
+        // direct insert this replaced ignored its error object entirely: an RLS denial wrote
+        // nothing and the row still ticked over to "✓ Prep task created".
+        const { error } = await createEventTask({
+          parent: { note: noteId }, originNoteId: noteId,
+          label: op.type === "brew" ? `Brew — ${op.title}` : op.title,
+          kind: "task", section: "Follow-up", critical: !!op.critical, sort: 1000 + i,
+        });
+        if (error) { toast(`Couldn't create that one — ${error}`, "error"); return; }
       } else if (op.type === "stop") {
         const dk = whenToDate(op.when);
         const vid = await vendorFor(op.who || op.title);
@@ -108,7 +117,12 @@ export default function OpsPlan({ noteId }: { noteId: string }) {
 
   const trackGap = async (g: Gap, i: number) => {
     if (!supabase || gapDone[i]) return;
-    await supabase.from("event_tasks").insert({ meeting_note_id: noteId, origin_note_id: noteId, label: `BUILD: ${g.need}`.slice(0, 300), kind: "task", section: "Product gaps", critical: false, sort: 2000 + i });
+    const { error } = await createEventTask({
+      parent: { note: noteId }, originNoteId: noteId,
+      label: `BUILD: ${g.need}`, kind: "task", section: "Product gaps", critical: false, sort: 2000 + i,
+    });
+    // Same correction as createOp above: this said "Gap tracked" whether or not a row existed.
+    if (error) { toast(`Couldn't track that gap — ${error}`, "error"); return; }
     setGapDone((s) => ({ ...s, [i]: true })); toast("Gap tracked as a build task");
   };
 

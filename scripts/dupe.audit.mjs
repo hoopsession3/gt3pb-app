@@ -32,10 +32,16 @@ import { walk } from "./falseempty.audit.mjs"; // one file-walker, not three
 // a reason, which is the point of an exemption list — a decision somebody made, not a gap in a
 // regex. Zero means the next hand-rolled crew fetch has to argue for itself.
 export const CREW_BASELINE = 0;
-// FILES, not call sites. The audit counted six call sites; this counts the two files they
-// live in (app/crew/page.tsx and components/OpsPlan.tsx), because a file is the unit you
+// FILES, not call sites. The audit counted six call sites; this counted the two files they
+// lived in (app/crew/page.tsx and components/OpsPlan.tsx), because a file is the unit you
 // convert. Quoting the call-site number here would make the baseline unfalsifiable.
-export const TASKWRITE_BASELINE = 2;
+//
+// 2026-09-11: zero. Both files are converted — nine inserts and three deletes now route through
+// lib/tasks. Worth recording WHY they held out for four rounds, because "finish the consolidation"
+// was the wrong diagnosis: createEventTask could not express a meeting-note parent, prep columns,
+// or more than one row, so every call site that needed any of those had no legal way to comply.
+// The fix was to the spine, not to the call sites. A rule nothing can satisfy is not a rule.
+export const TASKWRITE_BASELINE = 0;
 // Zero, and it means zero: lib/roles.ts is the only file allowed to name the seven roles. Unlike
 // the two ratchets above this one started at zero rather than being ratcheted down to it, because
 // the four maps it exists to prevent were all converted in the same commit that added the check.
@@ -89,7 +95,12 @@ export function handRollsCrew(src, file) {
 // ── 2. the task write spine ────────────────────────────────────────────────────────────────────
 // lib/tasks.ts exists so every surface's write goes through one adapter — it is what makes
 // event_tasks and todos behave like one thing at write time, the way all_tasks does at read time.
-const DIRECT_TASK_INSERT = /\.from\(\s*["']event_tasks["']\s*\)\s*\.insert\(/;
+//
+// INSERT **and DELETE**. The check covered only inserts until 2026-09-11, which made it half a
+// rule: the two deletes it did not look at were the two writes in this file whose errors were
+// being thrown away, and one of them (event_tasks DELETE is admin-only) put a row back on screen
+// for every non-admin who tapped remove. The gate was silent about both because of the verb.
+const DIRECT_TASK_WRITE = /\.from\(\s*["']event_tasks["']\s*\)\s*\.(insert|delete)\(/;
 
 // Server-side agent routes use supabaseAdmin and run without a session, so lib/tasks.ts (a client
 // module) is not available to them. That is a real constraint, not laziness — they are exempt, and
@@ -97,7 +108,7 @@ const DIRECT_TASK_INSERT = /\.from\(\s*["']event_tasks["']\s*\)\s*\.insert\(/;
 export function bypassesTaskSpine(src, file) {
   if (file === "lib/tasks.ts") return false;
   if (file.startsWith("app/api/")) return false;  // server-side, no client session
-  return DIRECT_TASK_INSERT.test(src);
+  return DIRECT_TASK_WRITE.test(src);
 }
 
 // ── 3. the role vocabulary ─────────────────────────────────────────────────────────────────────
@@ -205,7 +216,7 @@ if (import.meta.url === (await import("node:url")).pathToFileURL(process.argv[1]
     for (const f of roleNames) console.log(`  role-naming  ${f}`);
     for (const f of crewOpts) console.log(`  crew-option  ${f}`);
   }
-  console.log(`DUPLICATION: ${crew.length} hand-rolled crew fetches (baseline ${CREW_BASELINE}), ${taskWrites.length} direct event_tasks inserts (baseline ${TASKWRITE_BASELINE}), ${roleNames.length} role-naming maps outside lib/roles (baseline ${ROLENAME_BASELINE}), ${crewOpts.length} crew dropdowns bypassing crewLabel (baseline ${CREWOPT_BASELINE})`);
+  console.log(`DUPLICATION: ${crew.length} hand-rolled crew fetches (baseline ${CREW_BASELINE}), ${taskWrites.length} direct event_tasks writes (baseline ${TASKWRITE_BASELINE}), ${roleNames.length} role-naming maps outside lib/roles (baseline ${ROLENAME_BASELINE}), ${crewOpts.length} crew dropdowns bypassing crewLabel (baseline ${CREWOPT_BASELINE})`);
 
   let bad = false;
   if (crew.length > CREW_BASELINE) {
@@ -217,7 +228,7 @@ if (import.meta.url === (await import("node:url")).pathToFileURL(process.argv[1]
   }
   if (taskWrites.length > TASKWRITE_BASELINE) {
     for (const f of taskWrites) console.log(`    ${f}`);
-    console.log(`\n  ✗ RATCHET: ${taskWrites.length} > ${TASKWRITE_BASELINE}. lib/tasks.ts is the write spine — createEventTask() rather than a direct insert.`);
+    console.log(`\n  ✗ RATCHET: ${taskWrites.length} > ${TASKWRITE_BASELINE}. lib/tasks.ts is the write spine — createEventTask(s) / deleteTask(s) rather than a direct insert or delete.`);
     bad = true;
   } else if (taskWrites.length < TASKWRITE_BASELINE) {
     console.log(`  · below baseline (${taskWrites.length} < ${TASKWRITE_BASELINE}) — lower TASKWRITE_BASELINE to ${taskWrites.length}.`);

@@ -187,7 +187,7 @@ export default function Goals() {
     const label = initTitle.trim();
     // ONE write path (lib/tasks) — createEventTask closes the last gap: every other write here
     // already had a lib/tasks helper; creating a move was the one insert with no home yet.
-    const { error } = await createEventTask({ goalId, label, kind: "task", sort: inits.filter((i) => i.goal_id === goalId).length });
+    const { error } = await createEventTask({ parent: { goal: goalId }, label, kind: "task", sort: inits.filter((i) => i.goal_id === goalId).length });
     if (error) { toast(`Couldn't add — ${error}`, "error"); return; }
     setInitTitle("");
     reload();

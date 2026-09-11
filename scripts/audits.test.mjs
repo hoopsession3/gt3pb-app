@@ -180,6 +180,21 @@ ok("passes: a server agent route — supabaseAdmin has no client session, so lib
 ok("not flagged: reading event_tasks is not writing them",
   bypassesTaskSpine(`supabase.from("event_tasks").select("id, label")`, "components/Z.tsx") === false);
 
+// The DELETE half, added 2026-09-11. Both cases below are the code that was in app/crew/page.tsx
+// VERBATIM until this round, and both passed the insert-only check — which is the point: the rule
+// said "write spine" and enforced "insert", so the two writes whose errors were being discarded
+// were the two the gate could not see.
+ok("caught: a direct event_tasks delete by id — the insert-only check let this through",
+  bypassesTaskSpine(`await supabase.from("event_tasks").delete().eq("id", t.id);`, "app/crew/page.tsx") === true);
+ok("caught: a direct event_tasks delete by parent column",
+  bypassesTaskSpine(`supabase.from("event_tasks").delete().eq(ownerCol, target.id),`, "app/crew/page.tsx") === true);
+ok("passes: the spine's own deletes", bypassesTaskSpine(
+  `supabase.from("event_tasks").delete().in("id", ids)`, "lib/tasks.ts") === false);
+// A todos delete is the other table's business — deleteTask routes both, but this check is the
+// event_tasks one and must not start reporting todos as if it covered them.
+ok("not flagged: a todos delete is not an event_tasks write",
+  bypassesTaskSpine(`supabase.from("todos").delete().eq("id", id)`, "components/Z.tsx") === false);
+
 // ── the role vocabulary ────────────────────────────────────────────────────────────────────────
 // The four maps this replaced, in the shape they were actually written, plus the four things that
 // look similar and must stay silent. Every "passes:" case below is real code still in the repo — a

@@ -54,7 +54,7 @@ import NoteAttach from "@/components/NoteAttach";
 import Goals from "@/components/Goals";
 import { useSiteCopy } from "@/lib/copy";
 import { useLocationSuggestions } from "@/components/useLocationSuggestions";
-import { completeTask } from "@/lib/tasks";
+import { completeTask, createEventTask, createEventTasks, deleteTask, deleteTasks, deleteTasksForParent, type NewEventTask, type TaskParent } from "@/lib/tasks";
 const AiTraining = dynamic(() => import("@/components/AiTraining"), { loading: () => <PourFill label="Loading…" /> });
 const PromoEditor = dynamic(() => import("@/components/PromoEditor"), { loading: () => <PourFill label="Loading…" /> });
 import EightySix from "@/components/EightySix";
@@ -1894,6 +1894,9 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   const isAdmin = roleOf(profile) === "admin" || roleOf(profile) === "owner";
   const isEvent = target.kind === "event";
   const ownerCol = isEvent ? "event_id" : "stop_id";
+  // The same fact in the write spine's vocabulary. lib/tasks takes a parent, not a column name —
+  // which is the point: a column name is a string anyone can mistype, and did.
+  const ownerParent: TaskParent = isEvent ? { event: target.id } : { stop: target.id };
   const [ev, setEv] = useState<EventRow | null>(null); // full event row (events only; drives generate)
   const [name, setName] = useState<string | null>(null); // display name for either kind
   const [tasks, setTasks] = useState<EventTask[]>([]);
@@ -2019,8 +2022,10 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
     // booleans on the row remain the fallback for owners whose relation was never written.
     const { data: mi } = await supabase.from("event_menu_items").select("product_slug").eq(ownerCol, target.id);
     const menuSlugs = new Set(((mi as { product_slug: string }[] | null) ?? []).map((r) => r.product_slug));
-    const pack = packListFor(menuRow, menuSlugs.size ? menuSlugs : null).map((p, i) => ({ [ownerCol]: target.id, label: p.label, section: p.section, critical: !!p.critical, warn: !!p.warn, kind: "pack", link: null, sort: i }));
-    const comp = isEvent && ev ? (await complianceFor(ev, supabase)).map((p, i) => ({ event_id: ev.id, label: p.label, section: p.section, critical: !!p.critical, warn: !!p.warn, kind: "task", link: p.link ?? null, sort: 100 + i })) : [];
+    const pack: NewEventTask[] = packListFor(menuRow, menuSlugs.size ? menuSlugs : null).map((p, i) => ({ parent: ownerParent, label: p.label, section: p.section, critical: !!p.critical, warn: !!p.warn, kind: "pack", link: null, sort: i }));
+    // Compliance is events-only and binds to the EVENT, not to whichever target this is — the one
+    // place in this function where the parent is not ownerParent, which is why it says so.
+    const comp: NewEventTask[] = isEvent && ev ? (await complianceFor(ev, supabase)).map((p, i) => ({ parent: { event: ev.id }, label: p.label, section: p.section, critical: !!p.critical, warn: !!p.warn, kind: "task", link: p.link ?? null, sort: 100 + i })) : [];
     const rows = [...pack, ...comp];
     if (!rows.length) { setGenerating(false); toast(`Set the ${isEvent ? "event" : "stop"}'s menu + rig first — tap Menu & setup`, "error"); return; }
     const keyOf = (r: { section?: string | null; label: string }) => `${r.section ?? ""}|${r.label}`;
@@ -2028,9 +2033,9 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
     const ex = (existing as { id: string; label: string; section: string | null; kind: string | null }[]) ?? [];
     if (!ex.length) {
       // First generation — straight insert.
-      const { error } = await supabase.from("event_tasks").insert(rows);
+      const { error } = await createEventTasks(rows);
       setGenerating(false);
-      toast(error ? `Error: ${error.message}` : `Generated ${pack.length} pack${comp.length ? ` + ${comp.length} compliance` : ""} items`);
+      toast(error ? `Error: ${error}` : `Generated ${pack.length} pack${comp.length ? ` + ${comp.length} compliance` : ""} items`);
       if (!error) load();
       return;
     }
@@ -2042,9 +2047,14 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
     const desiredKeys = new Set(rows.map(keyOf));
     const toAdd = rows.filter((r) => !existingKeys.has(keyOf(r)));
     const staleIds = ex.filter((r) => r.kind === "pack" && !desiredKeys.has(keyOf(r))).map((r) => r.id);
-    if (toAdd.length) await supabase.from("event_tasks").insert(toAdd);
-    if (staleIds.length) await supabase.from("event_tasks").delete().in("id", staleIds);
+    // Both writes are now checked. They were not: the two bare awaits this replaced discarded their
+    // error objects, and the toast below then announced "N added, M removed" whether or not a single
+    // row had moved. A refresh that silently does nothing is worse than one that fails.
+    const addErr = toAdd.length ? (await createEventTasks(toAdd)).error : undefined;
+    if (addErr) { setGenerating(false); toast(`Couldn't refresh — ${addErr}`, "error"); return; }
+    const delErr = staleIds.length ? (await deleteTasks("event", staleIds)).error : undefined;
     setGenerating(false);
+    if (delErr) { toast(`Added ${toAdd.length}, but couldn't remove the dropped items — ${delErr}`, "error"); load(); return; }
     toast(toAdd.length || staleIds.length ? `Refreshed — ${toAdd.length} added, ${staleIds.length} removed, checkmarks kept` : "Already up to date");
     load();
   };
@@ -2056,12 +2066,12 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
     if (typeof window !== "undefined" && !window.confirm(`Reset this ${what}?\n\nThis deletes its ENTIRE prep checklist and run-of-show schedule — everything you and the AI have built. The ${what} itself and its date stay. This can't be undone.`)) return;
     setGenerating(true);
     const [t1, t2] = await Promise.all([
-      supabase.from("event_tasks").delete().eq(ownerCol, target.id),
+      deleteTasksForParent(ownerParent),
       supabase.from("event_schedule_items").delete().eq(ownerCol, target.id),
     ]);
     setGenerating(false);
-    const e = t1.error || t2.error;
-    toast(e ? `Reset failed — ${e.message}` : `Reset — this ${what}'s prep & schedule are cleared`, e ? "error" : undefined);
+    const e = t1.error || t2.error?.message;
+    toast(e ? `Reset failed — ${e}` : `Reset — this ${what}'s prep & schedule are cleared`, e ? "error" : undefined);
     if (!e) load();
   };
   const toggle = async (t: EventTask) => {
@@ -2137,9 +2147,9 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   const addTask = async () => {
     if (!supabase || !newTask.trim()) return;
     const due_at = newTaskDue.trim() === "" ? null : new Date(`${newTaskDue}T23:59:59`).toISOString();
-    const { error } = await supabase.from("event_tasks").insert({ [ownerCol]: target.id, label: newTask.trim(), kind: "task", section: "Task", sort: tasks.length, due_at });
+    const { error } = await createEventTask({ parent: ownerParent, label: newTask.trim(), kind: "task", section: "Task", sort: tasks.length, dueISO: due_at });
     setNewTask(""); setNewTaskDue("");
-    if (error) toast(`Error: ${error.message}`, "error"); else load();
+    if (error) toast(`Error: ${error}`, "error"); else load();
   };
   const addCrew = async (uid: string) => {
     if (!supabase || !uid) return;
@@ -2153,12 +2163,12 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
     setShowSupplies(false);
     if (!supabase || items.length === 0) return;
     const have = new Set(tasks.map((t) => t.label.trim().toLowerCase()));
-    const rows = items
+    const rows: NewEventTask[] = items
       .filter((i) => !have.has(i.label.trim().toLowerCase()))
-      .map((i, idx) => ({ [ownerCol]: target.id, label: i.label.trim(), section: "Supplies", kind: "pack", critical: i.critical, sort: 40 + idx }));
+      .map((i, idx) => ({ parent: ownerParent, label: i.label.trim(), section: "Supplies", kind: "pack", critical: i.critical, sort: 40 + idx }));
     if (rows.length === 0) { toast("Those are already on the list"); return; }
-    const { error } = await supabase.from("event_tasks").insert(rows);
-    toast(error ? `Error: ${error.message}` : `Added ${rows.length} suppl${rows.length === 1 ? "y" : "ies"}`);
+    const { error } = await createEventTasks(rows);
+    toast(error ? `Error: ${error}` : `Added ${rows.length} suppl${rows.length === 1 ? "y" : "ies"}`);
     if (!error) load();
   };
   // Tag/untag a crew member as a manager — managers must approve the prep too.
@@ -2761,15 +2771,15 @@ function MeetingNotes() {
     // attribution — the note always knows the tasks it spawned, wherever they live.
     const noteId = (data as { id: string } | null)?.id;
     if (!error && noteId && cActions.length) {
-      const owner = linkEvent ? { event_id: linkEvent } : linkStop ? { stop_id: linkStop } : { meeting_note_id: noteId };
-      const { data: made } = await supabase.from("event_tasks").insert(cActions.map((a, i) => ({
-        ...owner, origin_note_id: noteId, label: a.title, kind: "task", section: "Follow-up",
+      const owner: TaskParent = linkEvent ? { event: linkEvent } : linkStop ? { stop: linkStop } : { note: noteId };
+      const { rows: made } = await createEventTasks(cActions.map((a, i) => ({
+        parent: owner, originNoteId: noteId, label: a.title, kind: "task" as const, section: "Follow-up",
         critical: a.critical, assignee: a.assignee ?? null, sort: 1000 + i,
-      }))).select("id, label, assignee");
+      })));
       // Assigned follow-ups ping their partner — the alert carries kind task_assigned, so it lands
       // in their My Day and is completable right on the card (0174). No leaving the note to delegate.
       const meFirst = (profile?.display_name || "A teammate").split(" ")[0];
-      for (const t of ((made ?? []) as { id: string; label: string; assignee: string | null }[])) {
+      for (const t of made) {
         if (t.assignee) raiseAlert({ severity: "critical", category: "task", kind: "task_assigned", subject_id: t.id,
           title: `${meFirst} assigned you: ${t.label}`.slice(0, 180), body: `From the note "${cTitle.trim()}"`.slice(0, 300),
           target_user_id: t.assignee, created_by: meId });
@@ -2998,9 +3008,9 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
 
   const add = async () => {
     if (!supabase || !newItem.trim()) return;
-    const { error } = await supabase.from("event_tasks").insert({ meeting_note_id: note.id, label: newItem.trim(), kind: "task", section: "Follow-up", sort: items.length });
+    const { error } = await createEventTask({ parent: { note: note.id }, label: newItem.trim(), kind: "task", section: "Follow-up", sort: items.length });
     setNewItem("");
-    if (error) toast(`Error: ${error.message}`, "error"); else load();
+    if (error) toast(`Error: ${error}`, "error"); else load();
   };
   // ── 0262 continuation handlers ──
   // "Add to this note" — a new attributed, timestamped addendum row. The original body/summary are
@@ -3053,8 +3063,8 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
     if (!supabase || !dec.decision.trim()) return;
     let follow_up_task_id: string | null = null;
     if (dec.fu.trim()) {
-      const { data: t } = await supabase.from("event_tasks").insert({ meeting_note_id: note.id, label: dec.fu.trim().slice(0, 300), kind: "task", section: "Follow-up", sort: 999 }).select("id").single();
-      follow_up_task_id = (t as { id: string } | null)?.id ?? null;
+      const { id } = await createEventTask({ parent: { note: note.id }, label: dec.fu.trim(), kind: "task", section: "Follow-up", sort: 999 });
+      follow_up_task_id = id ?? null;
     }
     const { error } = await supabase.from("strategy_decisions").insert({
       key: dec.key.trim().slice(0, 60) || note.title.slice(0, 60), decision: dec.decision.trim(), why: dec.why.trim() || null,
@@ -3155,8 +3165,13 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
   };
   const removeItem = async (t: EventTask) => {
     if (!supabase) return;
+    const before = items;
     setItems((p) => p.filter((x) => x.id !== t.id));
-    await supabase.from("event_tasks").delete().eq("id", t.id);
+    // event_tasks DELETE is admin-only (0025). This used to drop the row from the screen and throw
+    // the error away, so a non-admin watched the item vanish and then reappear on the next load —
+    // the optimistic update was the only thing that had happened. Put it back and say so instead.
+    const { error } = await deleteTask("event", t.id);
+    if (error) { setItems(before); toast(`Couldn't remove that — ${error}`, "error"); }
   };
 
   const openCount = items.filter((i) => !i.done).length;
