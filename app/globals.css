@@ -2033,6 +2033,10 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .od-sent,.od-countered{background:color-mix(in srgb, var(--brand-gold2) 14%, transparent);color:var(--gold2);border-color:color-mix(in srgb, var(--brand-gold2) 32%, transparent)}
 .od-accepted,.od-active{background:color-mix(in srgb, #6aa05c 18%, transparent);color:#8fc47f;border-color:color-mix(in srgb, #6aa05c 34%, transparent)}
 .od-changes_requested{background:color-mix(in srgb, var(--brand-red) 14%, transparent);color:#d9776e;border-color:color-mix(in srgb, var(--brand-red) 32%, transparent)}
+/* Over, either way (0325). Ended and Withdrawn both fell through to the base pill — the same pill a
+   live Draft wears — so on a list the rows you can still act on and the rows you cannot looked
+   identical. Dimmed rather than recoloured: this is the absence of a state, not another one. */
+.od-ended,.od-voided{opacity:.55;font-style:italic}
 .od-slider{width:100%;margin:10px 0 4px;accent-color:var(--gold2)}
 .od-ends{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-family:'Inter';font-size:10.5px;letter-spacing:.05em;color:var(--cream-d)}
 .od-ends b{font-size:12.5px;color:var(--gold2)}

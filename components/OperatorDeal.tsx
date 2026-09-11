@@ -14,7 +14,7 @@ import { useOptions } from "./useOptions";
 import {
   computeSplit, project, bestFundingForOperator, summarize,
   TIERS, TIER, nextTier, STAGES, STAGE_LABEL, STATUS_LABEL,
-  nextStatuses, isEditable, toStatus, toTier, toStage, validateProposal,
+  nextStatuses, isEditable, isDiscardable, toStatus, toTier, toStage, validateProposal,
   SCOPE_BASIS, SCOPE_BASIS_LABEL, HOURS_BASIS, HOURS_BASIS_LABEL,
   toScopeBasis, toHoursBasis, scopeSentence,
   type DealTerms, type AgreementStatus, type ScopeBasis, type HoursBasis,
@@ -431,6 +431,30 @@ function AgreementRow({ row, open, onToggle, onSaved, toast, meId, extra }: {
                  s === "draft" ? "Back to draft" : "End it"}
               </button>
             ))}
+            {/* 0325 — the way out that did not exist. FLOW.draft was ["sent"] and the database
+                guards agreement deletes, so a draft created by a mis-tap was permanent by two
+                independent rules, each right about the thing it was written for. Like discard_batch
+                (0308), THE FUNCTION picks: a draft nobody has ever seen is deleted outright, one
+                the operator has already seen is kept and marked withdrawn. This screen cannot know
+                which — status alone cannot tell a never-sent draft from one walked back to draft —
+                so it asks, and reports what came back. */}
+            {!isMine && isDiscardable(status) && (
+              <button type="button" className="btn-sec od-discard" disabled={busy} onClick={async () => {
+                if (!supabase) return;
+                if (typeof window !== "undefined" && !window.confirm(
+                  `Discard this agreement for ${row.operator_name}?\n\nIf it has never been sent it is removed entirely. If ${row.operator_name} has already seen it, the record stays and is marked withdrawn.`)) return;
+                const why = status === "draft" ? null : (typeof window !== "undefined"
+                  ? window.prompt("Why is it being withdrawn? (goes on the record)") : null);
+                setBusy(true);
+                const { data, error } = await supabase.rpc("discard_agreement", { p_agreement: row.id, p_reason: why || null });
+                setBusy(false);
+                if (error) { toast(error.message, "error"); return; }
+                toast(data === "deleted"
+                  ? "Discarded — that draft is gone."
+                  : "Withdrawn — it had already been seen, so the record stays on the trail.");
+                onSaved();
+              }}>Discard</button>
+            )}
             {(status === "active" || status === "signed" || status === "accepted") && (
               <button type="button" className="btn-sec" disabled={busy} onClick={async () => {
                 if (!supabase) return;

@@ -152,7 +152,7 @@ export function bestFundingForOperator(terms: DealTerms, revenueCents: number, s
 // ── the negotiation ───────────────────────────────────────────────────────────────────────────────
 // A proposal that can only be accepted is not a proposal. The operator can ask for changes or send a
 // counter, and either side can walk it back to draft — the trail of who moved what is the record.
-export const AGREEMENT_STATUS = ["draft", "sent", "changes_requested", "countered", "accepted", "signed", "active", "ended"] as const;
+export const AGREEMENT_STATUS = ["draft", "sent", "changes_requested", "countered", "accepted", "signed", "active", "ended", "voided"] as const;
 export type AgreementStatus = (typeof AGREEMENT_STATUS)[number];
 
 export const STATUS_LABEL: Record<AgreementStatus, string> = {
@@ -164,31 +164,51 @@ export const STATUS_LABEL: Record<AgreementStatus, string> = {
   signed: "Signed — waiting on GT3",
   active: "Active",
   ended: "Ended",
+  // NOT a synonym for "ended". Ended means an agreement ran and finished; withdrawn means it never
+  // took effect. Filing a killed proposal under "ended" would make an operator's history read as a
+  // deal that had run its course — a different thing to tell somebody, and the wrong one.
+  voided: "Withdrawn",
 };
 
 const FLOW: Record<AgreementStatus, readonly AgreementStatus[]> = {
-  draft: ["sent"],
-  sent: ["changes_requested", "countered", "accepted", "draft"],
-  changes_requested: ["sent", "draft"],
-  countered: ["accepted", "changes_requested", "sent", "draft"],
+  draft: ["sent", "voided"],
+  sent: ["changes_requested", "countered", "accepted", "draft", "voided"],
+  changes_requested: ["sent", "draft", "voided"],
+  countered: ["accepted", "changes_requested", "sent", "draft", "voided"],
   // 0309 split acceptance from execution. "Accepted" is the operator saying yes; "signed" is them
   // putting their name on it; "active" is GT3 countersigning. Three separate facts that used to be
   // one click, which is why nothing recorded who executed an agreement on the company side.
   // The two signing moves go through sign_agreement / countersign_agreement, not through a status
   // update — a signature written by a plain UPDATE binds to nothing.
+  //
+  // 0325 adds "voided" to the four pre-acceptance rows above, and DELIBERATELY not to these:
+  // withdrawing a proposal and unwinding an executed agreement are different acts with different
+  // consequences, and they must not share a button. Past acceptance the move is "ended".
+  // Like signing, it goes through a function (discard_agreement) rather than a status update —
+  // because for a draft nobody has ever seen the right answer is no row at all, and a status
+  // update cannot express that.
   accepted: ["signed", "draft"],
   signed: ["active"],
   active: ["ended"],
   ended: [],
+  voided: [],
 };
 
 export const canAdvance = (from: AgreementStatus, to: AgreementStatus): boolean =>
   from !== to && FLOW[from].includes(to);
 export const nextStatuses = (from: AgreementStatus): readonly AgreementStatus[] => FLOW[from];
-/** Terms are only editable before anyone has agreed to them. */
+/** Terms are only editable before anyone has agreed to them — or after it has been withdrawn. */
 export const isEditable = (s: AgreementStatus): boolean => s === "draft" || s === "changes_requested" || s === "countered";
 /** Live and binding. */
 export const isBinding = (s: AgreementStatus): boolean => s === "active";
+/** Over, either way — nothing further happens to it. Used to keep dead proposals out of live lists. */
+export const isClosed = (s: AgreementStatus): boolean => s === "ended" || s === "voided";
+/**
+ * Can this be thrown away? Mirrors discard_agreement's own refusal, so the button is absent for the
+ * same reason the function would say no rather than appearing and then failing.
+ */
+export const isDiscardable = (s: AgreementStatus): boolean =>
+  s === "draft" || s === "sent" || s === "changes_requested" || s === "countered";
 
 export const isStatus = (v: unknown): v is AgreementStatus =>
   typeof v === "string" && (AGREEMENT_STATUS as readonly string[]).includes(v);

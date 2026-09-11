@@ -580,10 +580,35 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     brutalSupplies < 100, `best funding = ${brutalSupplies}`);
 
   // Negotiation flow — a proposal that can only be accepted is not a proposal.
-  ok("deal: a draft can only be sent", OD.canAdvance("draft", "sent") && !OD.canAdvance("draft", "accepted"));
+  ok("deal: a draft can be sent or discarded, and nothing else",
+    OD.canAdvance("draft", "sent") && OD.canAdvance("draft", "voided") && !OD.canAdvance("draft", "accepted"));
   ok("deal: a sent proposal can be accepted, questioned or countered",
     OD.canAdvance("sent", "accepted") && OD.canAdvance("sent", "changes_requested") && OD.canAdvance("sent", "countered"));
   ok("deal: an ended agreement is terminal", OD.nextStatuses("ended").length === 0);
+  // 0325 — the draft that could not be thrown away. Both halves matter: the move has to exist
+  // before acceptance, and it must NOT exist after, because withdrawing a proposal and unwinding
+  // an executed agreement are different acts that must not share a button.
+  ok("deal: a withdrawn proposal is terminal", OD.nextStatuses("voided").length === 0);
+  ok("deal: every pre-acceptance status can be discarded",
+    ["draft", "sent", "changes_requested", "countered"].every((s) => OD.isDiscardable(s) && OD.canAdvance(s, "voided")));
+  ok("deal: an executed agreement cannot be discarded — it ENDS",
+    ["accepted", "signed", "active", "ended", "voided"].every((s) => !OD.isDiscardable(s) && !OD.canAdvance(s, "voided")));
+  ok("deal: withdrawn is not a synonym for ended — they are different words on screen",
+    OD.STATUS_LABEL.voided === "Withdrawn" && OD.STATUS_LABEL.ended === "Ended");
+  ok("deal: both are closed, neither is editable or binding",
+    OD.isClosed("voided") && OD.isClosed("ended") && !OD.isClosed("draft")
+    && !OD.isEditable("voided") && !OD.isBinding("voided"));
+  // The TS predicate and the SQL function have to refuse the same set, or the button appears and
+  // then the call fails. Read out of 0325's own text rather than restated here.
+  {
+    const sql = require("node:fs").readFileSync(require("node:path").join(__dirname, "..",
+      "supabase/migrations/0325_a_draft_nobody_has_seen.sql"), "utf8");
+    const m = sql.match(/if v_status in \(([^)]*)\)/);
+    const refused = (m ? m[1] : "").split(",").map((s) => s.trim().replace(/'/g, ""));
+    ok("deal: discard_agreement refuses exactly the statuses isDiscardable() hides the button for",
+      refused.length === 5 && refused.every((s) => !OD.isDiscardable(s))
+      && OD.AGREEMENT_STATUS.filter((s) => !OD.isDiscardable(s)).length === refused.length, refused);
+  }
   ok("deal: terms are editable only before anyone has agreed",
     OD.isEditable("draft") && OD.isEditable("changes_requested") && !OD.isEditable("accepted") && !OD.isEditable("active"));
   ok("deal: only an active agreement is binding", OD.isBinding("active") && !OD.isBinding("accepted"));

@@ -359,5 +359,98 @@ await db.exec(readFileSync(join(ROOT, "supabase/migrations/0319_a_signature_is_n
 ok("0319 re-running is safe — no duplicate changelog row",
   Number((await q1(`select count(*) as n from public.changelog`)).n) === 4);
 
+// ── 0325: A DRAFT NOBODY HAS SEEN ──────────────────────────────────────────────────────────────
+// discard_agreement picks the outcome; the caller does not (discard_batch's shape, 0308). So the
+// cases below ARE the test, and the second one carries it: a proposal that was sent and then walked
+// back to draft is indistinguishable from a never-sent one if you read the status column — which is
+// precisely what a simpler implementation would have read.
+//
+// The delete guard comes out of 0277's own text rather than being retyped. Without it in the
+// fixture, "the delete works" would prove nothing at all: there would be nothing to stand down.
+{
+  const m0277 = readFileSync(join(ROOT, "supabase/migrations/0277_operator_agreements.sql"), "utf8");
+  const a = m0277.indexOf("create or replace function public.guard_agreement_delete");
+  const b = m0277.indexOf("-- ── the record (no-drift gate)", a);
+  if (a < 0 || b < 0) throw new Error("could not slice 0277's delete guard");
+  await db.exec(m0277.slice(a, b));
+}
+await db.exec(readFileSync(join(ROOT, "supabase/migrations/0325_a_draft_nobody_has_seen.sql"), "utf8"));
+console.log("\n0325 executed on top of 0277's real trail and real delete guard.");
+
+const mk = async (name, status = "draft") => (await db.query(
+  `insert into public.operator_agreements (operator_name, status) values ('${name}', '${status}') returning id`)).rows[0].id;
+const alive = async (id) => Number((await q1(`select count(*) as n from public.operator_agreements where id='${id}'`)).n);
+
+// 1. the row sitting in production: made by a mis-tap, never sent, nothing points at it.
+{
+  const id = await mk("Mis-tap Stub");
+  const verdict = (await q1(`select public.discard_agreement('${id}') as v`)).v;
+  ok("0325: a draft that was never sent is deleted outright", verdict === "deleted", verdict);
+  ok("0325: and it is actually gone — 0277's guard was stood down for the statement, not removed",
+    (await alive(id)) === 0);
+}
+
+// 2. THE CASE THE STATUS COLUMN CANNOT ANSWER. sent → draft is a legal FLOW move, so 'draft' does
+//    not mean "unseen". Reading status alone would delete the other side's copy out from under them.
+{
+  const id = await mk("Seen Then Withdrawn");
+  await db.exec(`update public.operator_agreements set status='sent' where id='${id}'`);
+  await db.exec(`update public.operator_agreements set status='draft' where id='${id}'`);
+  const verdict = (await q1(`select public.discard_agreement('${id}', 'changed our minds') as v`)).v;
+  ok("0325: a draft the other side has ALREADY SEEN is voided, not deleted — status says draft, the trail says otherwise",
+    verdict === "voided", verdict);
+  const row = await q1(`select status, void_reason, voided_at from public.operator_agreements where id='${id}'`);
+  ok("0325: the row survives, so the negotiation trail stays readable", (await alive(id)) === 1);
+  ok("0325: marked voided, with the reason and the moment",
+    row.status === "voided" && row.void_reason === "changed our minds" && !!row.voided_at, row);
+}
+
+// 3. superseded — a pointer exists, so it must keep pointing at something.
+{
+  const older = await mk("Superseded v1");
+  const newer = await mk("Superseding v2");
+  await db.exec(`update public.operator_agreements set supersedes_id='${older}' where id='${newer}'`);
+  const verdict = (await q1(`select public.discard_agreement('${older}') as v`)).v;
+  ok("0325: a never-sent draft that another agreement supersedes is voided, not deleted", verdict === "voided", verdict);
+  ok("0325: and the superseding agreement still points at it",
+    (await q1(`select supersedes_id from public.operator_agreements where id='${newer}'`)).supersedes_id === older);
+}
+
+// 4. past the point of withdrawal. Refused out loud rather than quietly doing the other thing —
+//    an executed agreement ENDS; it does not get withdrawn, and the two must not share a verb.
+for (const s of ["accepted", "signed", "active", "ended"]) {
+  const id = await mk(`Executed ${s}`, s);
+  const err = await raises(`select public.discard_agreement('${id}')`);
+  ok(`0325: discarding an agreement that is '${s}' is refused`, /past the point/.test(err || ""), err);
+  ok(`0325: and the '${s}' agreement is untouched`, (await alive(id)) === 1);
+}
+
+// 5. the gate. is_admin() is the table's own policy — a security-definer function runs as its owner,
+//    so without this check RLS would not be consulted at all and any signed-in user could call it.
+{
+  const id = await mk("Not Yours");
+  await db.exec(`select set_config('test.admin', 'off', false)`);
+  const err = await raises(`select public.discard_agreement('${id}')`);
+  await db.exec(`select set_config('test.admin', 'on', false)`);
+  ok("0325: a non-admin cannot discard anything", /Only an admin/.test(err || ""), err);
+  ok("0325: and the draft is still there", (await alive(id)) === 1);
+}
+
+// 6. the escape hatch must not leak. set_config's third argument is is_local — passing false there
+//    would leave hard deletes enabled for the rest of the session, turning one correction into an
+//    open door on every guarded table in the database.
+{
+  const id = await mk("After The Delete");
+  const err = await raises(`delete from public.operator_agreements where id='${id}'`);
+  ok("0325: the delete guard is still armed after a discard ran in this session",
+    /Hard deletes are blocked/.test(err || ""), err);
+}
+
+ok("0325: 'voided' is in the status constraint",
+  /voided/.test((await q1(`select pg_get_constraintdef(oid) as d from pg_constraint
+    where conrelid='public.operator_agreements'::regclass and conname='operator_agreements_status_check'`)).d));
+ok("0325 recorded itself by filename",
+  Number((await q1(`select count(*) as n from public.schema_migrations where version='0325_a_draft_nobody_has_seen'`)).n) === 1);
+
 console.log(`\nAGREEMENT SCOPE, HOURS & SIGNATURE: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
