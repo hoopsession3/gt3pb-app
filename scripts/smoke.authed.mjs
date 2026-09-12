@@ -98,13 +98,46 @@ const PASSWORD = process.env.GT3_SMOKE_PASSWORD;
 const SUPA_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPA_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-// The owner's sections, in ROLE_SECTIONS order (components/OperatorNav.tsx). Kept as a literal
-// rather than imported because this file has to run against a BUILT app — and because a list that
-// silently shrinks with a refactor would quietly stop testing the screens it dropped.
+// The owner's sections, in ROLE_SECTIONS order (components/OperatorNav.tsx). A literal, because
+// this file runs against a BUILT app and cannot import a TSX module — and because a list that
+// silently shrank with a refactor would quietly stop testing the screens it dropped.
+//
+// BUT A SECOND LIST IS HOW LISTS DRIFT. db.agreement.test.mjs already carries that lesson in its
+// own words — "the list the logger watches must BE the list the guard freezes; two lists is how
+// they drifted for three migrations" — and then this file was written with a second list and no
+// check, which is the same mistake wearing a different hat. So the literal is verified against
+// OperatorNav's own text at startup: add a section to the app and this fails until it is added
+// here, which is the only way the count above stays true.
 const SECTIONS = [
   "day", "now", "command", "prep", "plan", "studio", "brew",
   "garage", "notes", "driver", "money", "customers", "team", "settings",
 ];
+
+export function ownerSectionsIn(src) {
+  const m = src.match(/\n\s*owner:\s*\[([^\]]*)\]/);
+  return m ? [...m[1].matchAll(/["']([a-z_]+)["']/g)].map((x) => x[1]) : null;
+}
+
+// The drift check runs BEFORE the credential gate, so it is enforced on every machine — including
+// the ones with no test account, where this file otherwise does nothing at all.
+{
+  const nav = fs.readFileSync("components/OperatorNav.tsx", "utf8");
+  const owner = ownerSectionsIn(nav);
+  if (!owner) {
+    console.log("AUTHED CREW CONSOLE: could not read ROLE_SECTIONS.owner from components/OperatorNav.tsx.");
+    console.log("  The shape changed. Fix this reader rather than deleting the check — it is the only thing");
+    console.log("  keeping the section list below honest.");
+    process.exit(1);
+  }
+  const missing = owner.filter((s) => !SECTIONS.includes(s));
+  const extra = SECTIONS.filter((s) => !owner.includes(s));
+  if (missing.length || extra.length) {
+    console.log(`AUTHED CREW CONSOLE: the section list has drifted from ROLE_SECTIONS.owner.`);
+    if (missing.length) console.log(`  in the app but NOT tested: ${missing.join(", ")}`);
+    if (extra.length) console.log(`  tested but no longer in the app: ${extra.join(", ")}`);
+    process.exit(1);
+  }
+}
 
 if (!EMAIL || !PASSWORD) {
   console.log("AUTHED CREW CONSOLE: NOT CHECKED — no GT3_SMOKE_EMAIL / GT3_SMOKE_PASSWORD in the environment.");

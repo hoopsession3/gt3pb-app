@@ -2366,7 +2366,11 @@ select.note-in{-webkit-appearance:none;appearance:none}
   font-variant-numeric:tabular-nums;line-height:1.72}
 .pr-h{margin:3px 0 0;font-family:'Archivo',system-ui,sans-serif;font-weight:600;
   font-size:13px;letter-spacing:.02em;color:var(--gold2);text-wrap:balance}
-h4.pr-h,h5.pr-h{font-size:12.5px;color:var(--cream-d)}
+/* h3 and h4 read the SAME on purpose. The agent prompts tell the model to use "## " for a heading,
+   and "## " maps to h4 — so demoting h4 made the one heading style the instructions actually
+   produce the quietest thing in the bubble. Only h5 steps down, and a chat answer almost never
+   reaches a third level. */
+h5.pr-h{font-size:12.5px;color:var(--cream-d)}
 .oa-typing{display:flex;gap:4px;align-items:center;padding:13px}
 .oa-typing span{width:6px;height:6px;border-radius:50%;background:var(--cream-m);opacity:.5;animation:oablink 1.2s infinite}
 .oa-typing span:nth-child(2){animation-delay:.2s}.oa-typing span:nth-child(3){animation-delay:.4s}
