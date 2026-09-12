@@ -233,9 +233,10 @@ try {
     let navOk = true;
     try {
       await page.goto(`${BASE}/crew?s=${section}`, { waitUntil: "networkidle", timeout: 45000 });
-    } catch (e) {
+    } catch {
       // networkidle can never arrive on a screen with a live subscription — fall back rather than
-      // failing the section for it.
+      // failing the section for it. The first error is deliberately unread: it says only "idle
+      // never came", which is expected here; the SECOND attempt's failure is the real one.
       try { await page.goto(`${BASE}/crew?s=${section}`, { waitUntil: "domcontentloaded", timeout: 30000 }); }
       catch (e2) { navOk = false; ok(`${section} · loads`, false, e2.message); }
     }

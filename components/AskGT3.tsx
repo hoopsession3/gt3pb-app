@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import EventGenerator from "./EventGenerator";
+import Prose from "./Prose";
 
 // Ask GT3 — the crew's grounded pocket-brain chat (recipes, the why, gear, stock, how-to).
 // Shared by the Ask tab and the floating QuickDock so there's ONE assistant, not two. Voice in
@@ -82,7 +83,13 @@ export default function AskGT3() {
         {msgs.length === 0 && (
           <div className="oa-empty">Ask me anything — recipes, why we serve what we serve, what gear we have, what&apos;s in stock, or how to run the cart. I answer from GT3&apos;s playbook, and if something isn&apos;t written down I&apos;ll say so rather than guess.</div>
         )}
-        {msgs.map((m, i) => <div key={i} className={`oa-msg ${m.role}`}>{m.content}</div>)}
+        {/* The assistant's half goes through Prose: it answers in markdown because nothing ever
+            told it not to, and this panel used to print the asterisks. The crew's own half stays
+            literal — what someone typed is what they typed, and a message containing "2 * 3"
+            should not come back italicised. */}
+        {msgs.map((m, i) => m.role === "assistant"
+          ? <Prose key={i} text={m.content} className="oa-msg assistant" />
+          : <div key={i} className={`oa-msg ${m.role}`}>{m.content}</div>)}
         {busy && <div className="oa-msg assistant oa-typing"><span></span><span></span><span></span></div>}
         <div ref={endRef} />
       </div>

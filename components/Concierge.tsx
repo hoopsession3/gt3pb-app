@@ -1,26 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import Sheet from "./Sheet";
+import Prose from "./Prose";
 import Gt3Mark from "./Gt3Mark";
 import Icon from "./Icon";
 
-// Render the assistant's light markdown — **bold** becomes real bold (guests were seeing raw
-// asterisks), and [text](/path) becomes a real tap-through link (2026-07-27, for the concierge's
-// new [See the full science →](/craft) pointer — see the SYSTEM prompt). The link pattern only
-// matches a URL starting with "/" on purpose: an internal route is always safe to render as a real
-// <a>, and it means a forged/off-script "link" the model might emit to some other domain just
-// renders as inert text instead of becoming clickable. Newlines are already handled by the
-// bubble's white-space:pre-wrap.
-function rich(text: string): ReactNode[] {
-  return text.split(/(\*\*[^*]+\*\*|\[[^\]]+\]\(\/[^)]+\))/g).map((seg, i) => {
-    const b = /^\*\*([^*]+)\*\*$/.exec(seg);
-    if (b) return <strong key={i}>{b[1]}</strong>;
-    const l = /^\[([^\]]+)\]\((\/[^)]+)\)$/.exec(seg);
-    if (l) return <a key={i} href={l[2]} className="conc-link">{l[1]}</a>;
-    return <span key={i}>{seg}</span>;
-  });
-}
 
 // GUEST CONCIERGE — a friendly floating host on the customer app. Answers menu/visit/booking/
 // membership questions by calling the public /api/concierge route (grounded + claim-safe). No login.
@@ -79,7 +64,13 @@ export default function Concierge() {
             <div className="conc-foot">Answers come from our menu &amp; schedule. For allergies or medical questions, ask the crew at the window.</div>
           </>
         }>
-        {msgs.map((m, i) => <div key={i} className={`conc-msg ${m.role}`}>{m.role === "assistant" ? rich(m.content) : m.content}</div>)}
+        {/* The assistant's markdown goes through the ONE renderer (lib/prose + components/Prose).
+            This file used to carry its own rich(): bold and internal links, no lists, no steps —
+            the same job as the crew side's, implemented once here and not at all there. Its link
+            rule was the good part and moved into lib/prose as isInternalHref, tested. */}
+        {msgs.map((m, i) => m.role === "assistant"
+          ? <Prose key={i} text={m.content} className={`conc-msg ${m.role}`} />
+          : <div key={i} className={`conc-msg ${m.role}`}>{m.content}</div>)}
         {busy && <div className="conc-msg assistant conc-typing"><span /><span /><span /></div>}
         {msgs.length === 1 && (
           <div className="conc-chips">

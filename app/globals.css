@@ -2327,6 +2327,46 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .oa-msg{max-width:86%;padding:10px 13px;border-radius:15px;font-family:'Inter';font-size:14.5px;line-height:1.5;white-space:pre-wrap;word-wrap:break-word}
 .oa-msg.user{align-self:flex-end;background:var(--gold);color:#1a1610;border-bottom-right-radius:5px;font-weight:500}
 .oa-msg.assistant{align-self:flex-start;background:var(--card);border:1px solid var(--line);color:var(--cream);border-bottom-left-radius:5px}
+/* A formatted answer gets a little more room than a one-liner — it is a short document now, not a
+   remark, and 86% of a phone is a cramped measure for a recipe read one-handed. */
+.oa-msg.assistant:has(.pr:not(.pr-plain)){max-width:93%;padding:12px 14px}
+
+/* ── model prose (lib/prose.ts → components/Prose.tsx) ──────────────────────────────────────────
+   The assistant used to render its reply as raw text inside a pre-wrap bubble, so every ** and
+   every "- " was visible. These rules are what the markers become. The container turns pre-wrap
+   OFF: the parser has already decided where the breaks go, and leaving it on would add the
+   source's newlines back on top of the block spacing. */
+.pr{display:flex;flex-direction:column;gap:9px}
+/* SPECIFICITY IS LOAD-BEARING HERE. Prose renders INTO the bubble, so this element also carries
+   .oa-msg / .conc-msg — and both of those set white-space:pre-wrap further down this file. At
+   equal specificity the later rule wins, which would lay the source's newlines back on top of the
+   block spacing and double every gap. Two classes beats one, whatever the source order. */
+.pr:not(.pr-plain){white-space:normal}
+.pr-plain{white-space:pre-wrap}                 /* unformatted answers render exactly as before */
+.pr>*:first-child{margin-top:0}
+.pr>*:last-child{margin-bottom:0}
+.pr-p{margin:0;line-height:1.55}
+/* Quantities are the reason this feature matters — "**~1.21 gal**" is the answer, and it should
+   read as the answer. Tabular figures so a column of measurements lines up. */
+.pr strong{font-weight:650;color:var(--cream);font-variant-numeric:tabular-nums}
+.pr em{font-style:italic;color:var(--cream-d)}
+.pr code{font-family:'DM Mono',ui-monospace,monospace;font-size:.9em;
+  background:color-mix(in srgb, var(--brand-cream) 9%, transparent);
+  border:1px solid var(--line2);border-radius:var(--r-xs);padding:1px 5px;white-space:nowrap}
+/* Hanging indent, so a wrapped bullet lines up under its own text rather than under the marker —
+   the difference between a list you can scan and three lines that look like a paragraph. */
+.pr-ul,.pr-ol{margin:0;padding-left:0;list-style:none;display:flex;flex-direction:column;gap:6px}
+.pr-ul>li,.pr-ol>li{position:relative;padding-left:19px;line-height:1.5}
+.pr-ul>li::before{content:"";position:absolute;left:5px;top:.62em;width:5px;height:5px;
+  border-radius:50%;background:var(--gold2)}
+.pr-ol{counter-reset:pr-step}
+.pr-ol>li{counter-increment:pr-step;padding-left:26px}
+.pr-ol>li::before{content:counter(pr-step) ".";position:absolute;left:0;top:0;
+  font-family:'DM Mono',ui-monospace,monospace;font-size:12px;font-weight:500;color:var(--gold2);
+  font-variant-numeric:tabular-nums;line-height:1.72}
+.pr-h{margin:3px 0 0;font-family:'Archivo',system-ui,sans-serif;font-weight:600;
+  font-size:13px;letter-spacing:.02em;color:var(--gold2);text-wrap:balance}
+h4.pr-h,h5.pr-h{font-size:12.5px;color:var(--cream-d)}
 .oa-typing{display:flex;gap:4px;align-items:center;padding:13px}
 .oa-typing span{width:6px;height:6px;border-radius:50%;background:var(--cream-m);opacity:.5;animation:oablink 1.2s infinite}
 .oa-typing span:nth-child(2){animation-delay:.2s}.oa-typing span:nth-child(3){animation-delay:.4s}
@@ -3207,7 +3247,9 @@ body:has(.conc-sheet) .rail{display:flex}
 .conc-msg{max-width:84%;padding:10px 13px;border-radius:var(--r-2xl);font-family:'Inter';font-size:14px;line-height:1.5;white-space:pre-wrap}
 .conc-msg.assistant{align-self:flex-start;background:#262318;color:#f0e7d5;border-bottom-left-radius:5px}
 .conc-msg.user{align-self:flex-end;background:var(--gold2);color:#15140f;border-bottom-right-radius:5px;font-weight:500}
-.conc-link{color:var(--gold2);font-weight:600;text-decoration:underline;text-underline-offset:2px}
+/* Was .conc-link, used only by the concierge's own renderer. One renderer now, so one rule — the
+   selector keeps the old name alive so any stored/legacy markup still styles correctly. */
+.pr-a,.conc-link{color:var(--gold2);font-weight:600;text-decoration:underline;text-underline-offset:2px}
 .conc-typing{display:flex;gap:4px;align-items:center}
 .conc-typing span{width:6px;height:6px;border-radius:50%;background:#a59c86;animation:concb 1s infinite}
 .conc-typing span:nth-child(2){animation-delay:.15s}.conc-typing span:nth-child(3){animation-delay:.3s}

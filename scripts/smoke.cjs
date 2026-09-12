@@ -2262,6 +2262,123 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     R.toRole("owner") === "owner" && R.toRole("nonsense") === "member" && R.roleOf({ is_admin: true }) === "owner");
 }
 
+// ── PROSE (lib/prose.ts) ───────────────────────────────────────────────────────────────────────
+// The assistant's answers were rendered as raw text, so a real reply on Ryan's phone showed every
+// asterisk. The fixture below is THAT MESSAGE, copied out of the screenshot rather than invented —
+// a parser tested on prose I made up is a parser tested on my own assumptions.
+{
+  const P = require("../.smoke/prose.js");
+  const sp = (line) => P.parseSpans(line).map((s) => `${s.kind}:${s.text}`).join("|");
+
+  // the real reply, verbatim
+  const REAL = [
+    "For a **Rise batch using 340 g of coffee**, scale linearly from the 2 gal / 560 g spec:",
+    "",
+    "**Water:** 340 ÷ 560 × 2 gal = **~1.21 gal** (about 1 gal + 1.5 cups)",
+    "",
+    "**Coconut water** (added after filtration): 340 ÷ 560 × 32 oz = **~19.4 oz** (just under 2.5 cups)",
+    "",
+    "**Everything else stays the same:**",
+    "- Ratio: 1:13",
+    "- Extraction: 20 h cold",
+    "- Mountain Valley Spring Water as the base",
+    "",
+    "Want me to convert the water to liters or ounces?",
+  ].join("\n");
+  const B = P.parseProse(REAL);
+
+  ok("prose: the real reply parses to 5 paragraphs, one bullet list, in order",
+    B.map((b) => b.kind).join(",") === "p,p,p,p,ul,p", B.map((b) => b.kind).join(","));
+  ok("prose: the bullet list has the three spec lines",
+    B[4].kind === "ul" && B[4].items.length === 3 && B[4].items[2][0].text.startsWith("Mountain Valley"));
+  ok("prose: a quantity inside a sentence comes out bold, not asterisked",
+    sp("**Water:** 340 ÷ 560 × 2 gal = **~1.21 gal** (about 1 gal + 1.5 cups)")
+      === "bold:Water:|text: 340 ÷ 560 × 2 gal = |bold:~1.21 gal|text: (about 1 gal + 1.5 cups)");
+  ok("prose: NOTHING is lost — the text round-trips with the markers removed",
+    P.proseText(B).includes("Mountain Valley Spring Water as the base")
+    && !P.proseText(B).includes("**") && P.proseText(B).includes("~1.21 gal"));
+
+  // ── the rule for every marker: unmatched is TEXT ──
+  ok("prose: an unmatched ** stays literal and does not eat the rest of the message",
+    sp("a **bold start that never closes") === "text:a **bold start that never closes");
+  ok("prose: an unmatched backtick stays literal",
+    sp("run `npm test to check") === "text:run `npm test to check");
+  ok("prose: empty markers are text, not empty emphasis",
+    sp("a ** b") === "text:a ** b" && sp("`` x") === "text:`` x");
+
+  // ── the asterisk is arithmetic here, not emphasis ──
+  ok("prose: '2 * 3 * 4' is multiplication, not italics",
+    sp("2 * 3 * 4") === "text:2 * 3 * 4");
+  ok("prose: a footnote asterisk survives", sp("estimated*") === "text:estimated*");
+
+  // ── binding order ──
+  ok("prose: ** wins over * — '**a**' is bold, not an empty italic",
+    sp("**a**") === "bold:a");
+  ok("prose: code is literal inside — backticked asterisks stay asterisks",
+    sp("`**not bold**`") === "code:**not bold**");
+  ok("prose: adjacent bold spans both render",
+    sp("**a** and **b**") === "bold:a|text: and |bold:b");
+  ok("prose: underscore italics work and _snake_case_ does not break the line",
+    P.parseSpans("_soft_").map((s) => s.kind).join() === "em");
+
+  // ── blocks ──
+  ok("prose: numbered steps become an ordered list that starts where the model started",
+    (() => { const b = P.parseProse("2. second\n3. third"); return b[0].kind === "ol" && b[0].start === 2 && b[0].items.length === 2; })());
+  ok("prose: a heading is a heading, capped at level 3",
+    (() => { const b = P.parseProse("##### deep"); return b[0].kind === "h" && b[0].level === 3; })());
+  ok("prose: consecutive plain lines stay ONE paragraph but keep their own line breaks",
+    (() => { const b = P.parseProse("line one\nline two"); return b.length === 1 && b[0].kind === "p" && b[0].lines.length === 2; })());
+  ok("prose: a blank line separates paragraphs",
+    P.parseProse("one\n\ntwo").length === 2);
+  ok("prose: a bullet immediately after a paragraph closes it",
+    P.parseProse("intro\n- a\n- b").map((b) => b.kind).join() === "p,ul");
+  ok("prose: switching from bullets to numbers starts a new list",
+    P.parseProse("- a\n1. b").map((b) => b.kind).join() === "ul,ol");
+  ok("prose: • is a bullet too — models use it", P.parseProse("• a").at(0).kind === "ul");
+  ok("prose: empty input is no blocks, not a crash",
+    P.parseProse("").length === 0 && P.parseProse(null).length === 0);
+  ok("prose: CRLF is normalised", P.parseProse("a\r\n\r\nb").length === 2);
+
+  // hasProseMarkup decides whether the structured path is worth taking at all.
+  ok("prose: plain sentences are detected as plain",
+    P.hasProseMarkup("No formatting here at all.") === false);
+  ok("prose: the real reply is detected as formatted", P.hasProseMarkup(REAL) === true);
+  ok("prose: arithmetic alone does not trigger the structured path",
+    P.hasProseMarkup("2 * 3 = 6") === false);
+
+  // ── LINKS: the rule inherited from the concierge's own renderer, which this replaced ──────────
+  // The model is ASKED to emit "[See the full science →](/craft)". It can also emit a link to
+  // anywhere it likes, including somewhere a customer talked it into. Internal routes become real
+  // anchors; everything else stays inert text. This is the only rule in lib/prose about safety
+  // rather than looks, so it gets the most cases.
+  ok("prose: the concierge's real pointer becomes a link",
+    sp("[See the full science →](/craft)") === "link:See the full science →");
+  ok("prose: ...and it carries the route",
+    P.parseSpans("[See the full science →](/craft)")[0].href === "/craft");
+  ok("prose: an off-site link is INERT — the brackets stay, nothing becomes clickable",
+    sp("[free coffee](https://evil.example)") === "text:[free coffee](https://evil.example)");
+  ok("prose: javascript: is not a route", sp("[tap](javascript:alert(1))").startsWith("text:"));
+  ok("prose: PROTOCOL-RELATIVE is the trap — '//evil.example' starts with / and is not internal",
+    P.isInternalHref("//evil.example") === false && sp("[x](//evil.example)") === "text:[x](//evil.example)");
+  ok("prose: a real internal route with a query still passes",
+    P.isInternalHref("/crew?s=money") === true);
+  ok("prose: mailto and tel are not routes",
+    P.isInternalHref("mailto:a@b.c") === false && P.isInternalHref("tel:+15551234") === false);
+  ok("prose: an empty label is not a link", sp("[ ](/craft)") === "text:[ ](/craft)");
+  ok("prose: a link mid-sentence keeps the text either side",
+    sp("Read [the craft page](/craft) first.")
+      === "text:Read |link:the craft page|text: first.");
+  ok("prose: bold and a link coexist on one line",
+    P.parseSpans("**Nature Aide** — [see the science](/craft)").map((x) => x.kind).join()
+      === "bold,text,link");
+  ok("prose: an unclosed bracket is text, not a link",
+    sp("[unfinished](/craft") === "text:[unfinished](/craft");
+  ok("prose: a link makes hasProseMarkup true so the structured path runs",
+    P.hasProseMarkup("[See the full science →](/craft)") === true);
+  ok("prose: plain square brackets are not a link",
+    P.hasProseMarkup("a [note] in brackets") === false);
+}
+
 console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
 console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);
 process.exit(fail ? 1 : 0);
