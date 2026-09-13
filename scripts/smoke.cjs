@@ -2379,6 +2379,76 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     P.hasProseMarkup("a [note] in brackets") === false);
 }
 
+// ── recipeFactLine (lib/brewMath) ──────────────────────────────────────────────────────────────
+// Ask GT3 gave two different water volumes for "Rise 340 grams" on two days, and on the second the
+// bold summary disagreed with its own arithmetic by 19%. THREE rates for one spec were reachable:
+// 280.0 g/gal (the stored row), 283.3 g/gal (the measured anchor Ryan states: 340 g to 1.2 gal at
+// 2.5 TDS), and 291.2 g/gal ("1:13" taken literally). The grounding line now states the anchor and
+// finished per-gallon rates, so there is no arithmetic left to do differently.
+{
+  const B = require("../.smoke/brewMath.js");
+
+  // Ryan's spec, as the row would hold it: the MEASURED pair, not the rounded name.
+  const rise = {
+    name: "Rise", style: "cold brew", ratio: "1:13",
+    base_water_gal: 1.2, extraction_hours: 20, target_spec: "2.5 TDS",
+    ingredients: [
+      { name: "Coffee", qty: 340, unit: "g" },
+      { name: "Coconut water", qty: 19.2, unit: "oz" },
+      { name: "Filter", qty: 1, unit: "", scales: false },
+    ],
+  };
+  const line = B.recipeFactLine(rise);
+
+  ok("brewfacts: the ANCHOR is the measured pair, stated as a pair",
+    /ANCHOR \(measured, use this\): 340 g Coffee : 1\.2 gal water/.test(line), line);
+  ok("brewfacts: the target spec is STATED — it used to be selected from the database and dropped",
+    /Target: 2\.5 TDS/.test(line), line);
+  ok("brewfacts: the ratio is passed through as a NAME and fenced off from calculation",
+    /"1:13" is this recipe's NAME, not a number to calculate from/.test(line), line);
+  ok("brewfacts: the non-scaling line is called out as non-scaling",
+    /DOES NOT SCALE \(one per brew regardless of size\): Filter 1/.test(line), line);
+  ok("brewfacts: extraction survives", /Extraction: 20 h cold/.test(line), line);
+
+  // THE NUMBER THAT MATTERS. 340 / 1.2 = 283.333…, and the line must carry the MEASURED rate —
+  // not 280 (the old stored row) and not 291.2 (1:13 taken literally).
+  ok("brewfacts: coffee rate is the measured 283.333 g/gal, not 280 and not 291.2",
+    /Coffee 283\.333 g\/gal/.test(line) && !/Coffee 280/.test(line) && !/Coffee 291/.test(line), line);
+  ok("brewfacts: every scaling ingredient gets a per-gallon rate",
+    /Coconut water 16 oz\/gal/.test(line), line);
+  ok("brewfacts: the fixed line is NOT given a per-gallon rate",
+    !/Filter [0-9.]+ \/gal/.test(line) && !/Filter [0-9.]+ oz\/gal/.test(line), line);
+
+  // Scaling from the anchor must reproduce the anchor. This is the whole claim.
+  {
+    const opts = B.sizingOptions(rise.ingredients, rise.base_water_gal);
+    const coffee = B.primarySizing(opts);
+    ok("brewfacts: coffee is the line a batch is sized by", coffee.name === "Coffee", coffee);
+    ok("brewfacts: 1.2 gal asks for exactly 340 g — scaling returns the anchor unchanged",
+      Math.abs(B.ingredientForGallons(1.2, coffee.perGal) - 340) < 1e-9);
+    ok("brewfacts: 340 g of coffee makes exactly 1.2 gal — and the inverse agrees",
+      Math.abs(B.gallonsFromIngredient(340, coffee.perGal) - 1.2) < 1e-9);
+    // Double it and nothing drifts.
+    ok("brewfacts: a double batch is 680 g to 2.4 gal, exactly",
+      Math.abs(B.ingredientForGallons(2.4, coffee.perGal) - 680) < 1e-9);
+    // And the wrong answers the app used to be able to give are genuinely different numbers.
+    const literal1to13 = 3785.41 / 13;
+    // 1.2 gal vs 1.1676 gal = 0.0324 gal = 4.1 fl oz on a single 340 g batch. (The 6 fl oz figure
+    // is the STORED row vs 1:13 — a different pair. Getting those two mixed up is how the first
+    // version of this assertion was written against the wrong threshold.)
+    const gap = 340 / coffee.perGal - 340 / literal1to13;
+    ok("brewfacts: the measured rate is NOT what '1:13' would give — 4.1 fl oz apart on one batch",
+      gap > 0.032 && gap < 0.033, `${gap.toFixed(4)} gal = ${(gap * 128).toFixed(1)} fl oz`);
+  }
+
+  // A recipe with nothing measured must REFUSE, not emit a half-fact the model completes itself.
+  {
+    const bare = B.recipeFactLine({ name: "Mystery", base_water_gal: 0, ingredients: null, ratio: "1:13" });
+    ok("brewfacts: no measured base → says so and forbids computing one",
+      /not on file/.test(bare) && /Do NOT compute one/.test(bare) && !/ANCHOR/.test(bare), bare);
+  }
+}
+
 console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
 console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);
 process.exit(fail ? 1 : 0);

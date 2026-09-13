@@ -103,6 +103,81 @@ export const ingredientForGallons = (gal: number, perGal: number) =>
  *  round up: rounding 16.2 gal to 16.25 asks for coffee that is not on the shelf. */
 export const quarterGalDown = (g: number) => Math.max(0, Math.floor(g * 4) / 4);
 
+// ═══ THE RECIPE AS A SENTENCE THE ASSISTANT CAN ONLY READ, NOT RE-DERIVE ═════════════════════════
+//
+// Ask GT3 was asked "Rise 340 grams" on two days and gave two different water volumes — 1.21 gal
+// once, 1.17 gal the next — and on the second day the bold lead line (7.9 lb / 3.6 L) disagreed
+// with the arithmetic printed three lines beneath it (4.4 L) by 19%.
+//
+// The cause was not the model. THREE DIFFERENT RATES for one spec were reachable in this app:
+//
+//     280.0 g/gal   the stored recipe row, 560 g per 2 gal — what the scale sheet uses
+//     283.3 g/gal   the determined anchor, 340 g per 1.2 gal at 2.5% TDS — what is TRUE
+//     291.2 g/gal   "1:13" taken literally, 3785.41 g of water ÷ 13
+//
+// Six fluid ounces apart on a single 340 g batch, and the assistant was handed `ratio` and an
+// ingredient list and left to pick. "1:13" is the NAME of this spec; "340 g to 1.2 gallons" is the
+// MEASUREMENT that actually lands on 2.5 TDS. They differ because the name is rounded — 1.2 gal of
+// water to 340 g of coffee is 1:13.36 — and a name is not a number to compute from.
+//
+// So the grounding sentence is BUILT HERE, by the same functions the scale sheet renders from. The
+// agent is given finished per-gallon rates and an explicit anchor pair; there is no arithmetic left
+// for it to do differently, and no second place for the rate to live.
+
+export type RecipeFacts = {
+  name: string; style?: string | null; ratio?: string | null;
+  base_water_gal: number | string | null;
+  ingredients: SizingIngredient[] | null | undefined;
+  extraction_hours?: number | null; target_spec?: string | null;
+};
+
+const round = (n: number, dp = 1) => {
+  const f = 10 ** dp;
+  return String(Math.round(n * f) / f);
+};
+
+/**
+ * One recipe → the exact sentence an agent is grounded on.
+ *
+ * Every quantity comes from the ingredient list via sizingOptions, which is what BrewPlanner and
+ * DropOps already size batches with. `ratio` is passed through as a LABEL and explicitly fenced off
+ * from calculation, because computing from it is precisely how the answers drifted.
+ */
+export function recipeFactLine(r: RecipeFacts): string {
+  const base = Number(r.base_water_gal) || 0;
+  const opts = sizingOptions(r.ingredients, base);
+  const primary = primarySizing(opts);
+
+  const head = `- ${r.name}${r.style ? ` [${r.style}]` : ""}`;
+  if (base <= 0 || opts.length === 0) {
+    // Say so rather than emit a half-fact the model will fill in for itself.
+    return `${head}: no measured base on file — say it is not on file and to check with an owner. Do NOT compute one.`;
+  }
+
+  // THE ANCHOR: the measured pair, stated as a pair, in the recipe's own units.
+  const anchor = primary
+    ? `ANCHOR (measured, use this): ${round(primary.perGal * base)} ${primary.unit} ${primary.name} : ${round(base, 2)} gal water`
+    : `ANCHOR (measured, use this): ${round(base, 2)} gal water`;
+
+  const rates = opts
+    .map((o) => `${o.name} ${round(o.perGal, 3)} ${o.unit}/gal`)
+    .join(", ");
+
+  const fixed = (Array.isArray(r.ingredients) ? r.ingredients : [])
+    .filter((i) => i && i.scales === false && String(i.name ?? "").trim())
+    .map((i) => `${String(i.name).trim()} ${i.qty}${i.unit || ""}`)
+    .join(", ");
+
+  return [
+    `${head}: ${anchor}.`,
+    `Scale LINEARLY from the anchor — per gallon: ${rates}.`,
+    fixed ? `DOES NOT SCALE (one per brew regardless of size): ${fixed}.` : "",
+    r.target_spec ? `Target: ${r.target_spec}.` : "",
+    r.extraction_hours ? `Extraction: ${r.extraction_hours} h cold.` : "",
+    r.ratio ? `"${r.ratio}" is this recipe's NAME, not a number to calculate from — the anchor above is the measurement.` : "",
+  ].filter(Boolean).join(" ");
+}
+
 // ── DOES THIS BATCH FIT THE THING YOU ARE BREWING IT IN ───────────────────────────────────────────
 //
 // Ryan sized a batch from half a 340 g bag on 2026-09-07: 170 g at 1:13 is 0.607 gal, which rounds

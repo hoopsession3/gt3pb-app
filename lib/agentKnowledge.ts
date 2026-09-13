@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { recipeFactLine, type RecipeFacts } from "@/lib/brewMath";
 
 // AGENT GROUNDING — assembles the owner's corrections (0143) into an AUTHORITATIVE block that goes
 // at the TOP of an agent's system prompt, so a correction wins over anything in the static
@@ -40,18 +41,20 @@ export async function brewRecipeFacts(): Promise<string> {
     .is("archived_at", null)
     .limit(50);
   if (!data || data.length === 0) return "";
-  const fmt = data
-    .map((r: any) => {
-      const ing = Array.isArray(r.ingredients)
-        ? r.ingredients.map((i: any) => `${i.name} ${i.qty}${i.unit || ""}${i.scales === false ? " (fixed)" : ""}`).join(", ")
-        : "";
-      return `- ${r.name}${r.style ? ` [${r.style}]` : ""}: per ${r.base_water_gal} gal water → ${ing || "(no ingredient list on file)"}${r.ratio ? ` · ratio ${r.ratio}` : ""}${r.extraction_hours ? ` · ${r.extraction_hours}h extraction` : ""}`;
-    })
-    .join("\n");
+  // Built by lib/brewMath — the SAME functions BrewPlanner and DropOps size batches with, so the
+  // assistant and the scale sheet cannot hold different rates for one recipe. This used to format
+  // the row by hand right here, which did two harmful things: it printed `ratio` alongside the
+  // ingredient list and let the model choose which to compute from, and it SELECTED target_spec
+  // without ever printing it — so the 2.5 TDS target was fetched from the database and dropped on
+  // the floor on every single call.
+  const fmt = data.map((r: unknown) => recipeFactLine(r as RecipeFacts)).join("\n");
   return (
-    "=== BREW RECIPES (EXACT — quantities are per the stated base gallons; scale LINEARLY with water volume). " +
-    "If asked a recipe quantity, compute it from these numbers. If a recipe or ingredient is NOT listed here, say " +
-    "\"that's not on file — check with an owner\" and do NOT invent a number. ===\n" + fmt
+    "=== BREW RECIPES (EXACT). Every line gives a MEASURED ANCHOR and finished per-gallon rates. " +
+    "Scale linearly from the anchor and those rates — never from a ratio NAME, and never from a number " +
+    "you recall. State a quantity only after deriving it in this same answer, and make your summary " +
+    "line and your working agree: if they disagree, the working is right and the summary is the " +
+    "mistake. If a recipe or ingredient is NOT listed here, say \"that's not on file — check with an " +
+    "owner\" and do NOT invent a number. ===\n" + fmt
   );
 }
 
