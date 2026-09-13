@@ -129,7 +129,34 @@ export type RecipeFacts = {
   base_water_gal: number | string | null;
   ingredients: SizingIngredient[] | null | undefined;
   extraction_hours?: number | null; target_spec?: string | null;
+  /** The written method, joined in from the cookbook. Quantities are data; HOW is procedure. */
+  method?: RecipeMethod | null;
+  /** The gear this brew needs, by name. A recipe without its kit is a recipe you cannot run. */
+  gear?: string[] | null;
 };
+
+export type RecipeMethod = {
+  batch?: string; brew?: string[]; serve?: string[];
+  storage?: string; quality?: string;
+  troubleshoot?: { issue: string; fix: string }[];
+};
+
+/**
+ * Hours named inside written prose — "cold-extract ~18 hrs".
+ *
+ * Exists to CATCH A CONTRADICTION, not to extract a value. brew_recipes.extraction_hours says 20
+ * for the OG recipes; the cookbook's own steps say ~18, three times. Both are handed to the agent
+ * in the same system prompt, so it can answer either and has. The fact that two sources disagree is
+ * itself a fact the crew needs, and picking one silently is how a wrong brew time gets authoritative.
+ */
+export function hoursNamedIn(text: string | null | undefined): number[] {
+  const out = new Set<number>();
+  for (const m of String(text ?? "").matchAll(/(\d{1,2}(?:\.\d)?)\s*-?\s*(?:hr|hrs|hour|hours|h)\b/gi)) {
+    const n = Number(m[1]);
+    if (Number.isFinite(n) && n > 0) out.add(n);
+  }
+  return [...out];
+}
 
 const round = (n: number, dp = 1) => {
   const f = 10 ** dp;
@@ -168,13 +195,34 @@ export function recipeFactLine(r: RecipeFacts): string {
     .map((i) => `${String(i.name).trim()} ${i.qty}${i.unit || ""}`)
     .join(", ");
 
+  const m = r.method ?? null;
+  const steps = (m?.brew ?? []).filter(Boolean);
+  const serve = (m?.serve ?? []).filter(Boolean);
+  const trouble = (m?.troubleshoot ?? []).filter((t) => t && t.issue && t.fix);
+
+  // Two sources name an extraction time and they do not agree. Say so rather than choose.
+  const proseHours = hoursNamedIn([m?.batch, ...steps, ...(trouble.map((t) => t.fix))].join(" "));
+  const rowHours = Number(r.extraction_hours) || 0;
+  const clash = rowHours > 0 && proseHours.length > 0 && !proseHours.includes(rowHours);
+
   return [
     `${head}: ${anchor}.`,
     `Scale LINEARLY from the anchor — per gallon: ${rates}.`,
     fixed ? `DOES NOT SCALE (one per brew regardless of size): ${fixed}.` : "",
     r.target_spec ? `Target: ${r.target_spec}.` : "",
-    r.extraction_hours ? `Extraction: ${r.extraction_hours} h cold.` : "",
+    rowHours ? `Extraction: ${rowHours} h cold.` : "",
     r.ratio ? `"${r.ratio}" is this recipe's NAME, not a number to calculate from — the anchor above is the measurement.` : "",
+    // THE METHOD. Quantities alone answer "how much"; a crew mid-shift is asking "how". Every step
+    // ships with the recipe so a brew question is answered end to end and nothing is left out.
+    steps.length ? `METHOD (give EVERY step, in order — none of them are optional): ${steps.map((s, i) => `${i + 1}) ${s}`).join(" ")}` : "",
+    serve.length ? `SERVE: ${serve.join(" → ")}.` : "",
+    m?.storage ? `STORAGE: ${m.storage}` : "",
+    m?.quality ? `QUALITY GATE: ${m.quality}` : "",
+    trouble.length ? `IF IT COMES OUT WRONG: ${trouble.map((t) => `${t.issue} → ${t.fix}`).join(" ")}` : "",
+    r.gear?.length ? `GEAR THIS BREW NEEDS: ${r.gear.join("; ")}.` : "",
+    clash
+      ? `CONFLICT — the recipe record says ${rowHours} h but the written method says ${proseHours.join("/")} h. State BOTH, say they disagree, and tell them to confirm with an owner. Do NOT pick one.`
+      : "",
   ].filter(Boolean).join(" ");
 }
 

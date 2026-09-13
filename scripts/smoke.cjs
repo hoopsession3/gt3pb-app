@@ -2441,6 +2441,50 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       gap > 0.032 && gap < 0.033, `${gap.toFixed(4)} gal = ${(gap * 128).toFixed(1)} fl oz`);
   }
 
+  // ── METHOD + GEAR + THE 18-vs-20 CONTRADICTION ───────────────────────────────────────────────
+  // Ryan: "give also equipment and brewing step by steps, not just recipes, to ensure nothing is
+  // forgotten." Quantities answer "how much"; a crew mid-shift is asking "how".
+  {
+    const withMethod = B.recipeFactLine({
+      ...rise,
+      extraction_hours: 20,
+      gear: ["Timemore grinder (coarse grind for cold brew)", "Refractometer + Scale (QC every batch - TDS)"],
+      method: {
+        batch: "Standard Batch - GT3 (1:13, ~18-hr cold extraction).",
+        brew: ["Weigh beans 1:13 to mineral water", "Cold-extract ~18 hrs", "Filter, log batch + signal score (target 8+)"],
+        serve: ["Pour over ice", "Top with organic coconut water"],
+        storage: "Keep cold; use within the standard hold window.",
+        quality: "Signal Score 8+.",
+        troubleshoot: [{ issue: "Too bitter", fix: "Check grind/time - over-extraction." }],
+      },
+    });
+    ok("brewfacts: every brew step ships with the recipe, numbered and in order",
+      /METHOD \(give EVERY step, in order - none of them are optional\): 1\) Weigh beans .* 2\) Cold-extract .* 3\) Filter/.test(
+        withMethod.replace(/—/g, "-")), withMethod);
+    ok("brewfacts: serve, storage and the quality gate all travel with it",
+      /SERVE: Pour over ice/.test(withMethod) && /STORAGE: Keep cold/.test(withMethod) && /QUALITY GATE: Signal Score 8\+/.test(withMethod));
+    ok("brewfacts: troubleshooting travels with it", /IF IT COMES OUT WRONG: Too bitter/.test(withMethod));
+    ok("brewfacts: the gear the brew needs is named", /GEAR THIS BREW NEEDS: Timemore grinder/.test(withMethod));
+
+    // THE CONTRADICTION. brew_recipes says 20 h; the cookbook says ~18, three times. Both reach the
+    // model in one prompt, so it can answer either — and has. Saying they disagree is the only
+    // honest move; picking one silently is how a wrong brew time becomes authoritative.
+    ok("brewfacts: 20 h in the record vs 18 h in the method is REPORTED, not silently resolved",
+      /CONFLICT - the recipe record says 20 h but the written method says 18 h/.test(withMethod.replace(/—/g, "-"))
+      && /Do NOT pick one/.test(withMethod), withMethod);
+    ok("brewfacts: agreeing sources raise NO conflict",
+      !/CONFLICT/.test(B.recipeFactLine({ ...rise, extraction_hours: 18,
+        method: { brew: ["Cold-extract ~18 hrs"] } })));
+    ok("brewfacts: a method with no hours at all raises no conflict",
+      !/CONFLICT/.test(B.recipeFactLine({ ...rise, extraction_hours: 20,
+        method: { brew: ["Filter and log the batch"] } })));
+    ok("brewfacts: hoursNamedIn reads every written form",
+      JSON.stringify(B.hoursNamedIn("18 hrs, 20 hour, 12h, 1.5 hrs").sort((a,b)=>a-b)) === "[1.5,12,18,20]",
+      B.hoursNamedIn("18 hrs, 20 hour, 12h, 1.5 hrs"));
+    ok("brewfacts: a recipe with no method still renders its quantities",
+      /ANCHOR/.test(B.recipeFactLine(rise)) && !/METHOD/.test(B.recipeFactLine(rise)));
+  }
+
   // A recipe with nothing measured must REFUSE, not emit a half-fact the model completes itself.
   {
     const bare = B.recipeFactLine({ name: "Mystery", base_water_gal: 0, ingredients: null, ratio: "1:13" });
