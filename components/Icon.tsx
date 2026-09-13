@@ -21,7 +21,7 @@ import type { CSSProperties } from "react";
 export type IconName =
   // top-20 emoji replacements (by frequency, per the Wave 2 icon audit)
   | "sparkles" | "truck" | "warning" | "pin" | "package" | "chat" | "calendar" | "wrench"
-  | "compass" | "lock" | "target" | "bell" | "clock" | "team" | "partners" | "event" | "link"
+  | "compass" | "lock" | "target" | "bell" | "mic" | "clock" | "team" | "partners" | "event" | "link"
   | "coffee" | "jar"
   // dingbat replacements (✓ → ✕ ↗ ★ ▸ ○●) — highest-frequency typographic icon-substitutes
   | "check" | "arrowRight" | "close" | "chevronRight" | "externalLink" | "star" | "dot" | "dotOutline"
@@ -50,6 +50,9 @@ const PATHS: Record<IconName, React.ReactNode> = {
   // = OperatorNav ICONS.goals
   target: <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1.4" /></>,
   bell: <><path d="M6 10a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6" /><path d="M10 20a2 2 0 0 0 4 0" /></>,
+  // Ask GT3's voice button was the emoji 🎙, rendering in Arial as the phone's own clip-art — the
+  // exact tell this file's header was written about, still sitting on the assistant's input row.
+  mic: <><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0" /><path d="M12 18v3" /></>,
   clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 2" /></>,
   // = OperatorNav ICONS.team
   team: <><circle cx="9" cy="8" r="3" /><path d="M3 20c0-3 3-5 6-5s6 2 6 5" /><path d="M16 5.2a3 3 0 0 1 0 5.6M21 20c0-2.4-1.8-4-4-4.6" /></>,

@@ -5,13 +5,24 @@ import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import EventGenerator from "./EventGenerator";
 import Prose from "./Prose";
+import Icon from "./Icon";
 
 // Ask GT3 — the crew's grounded pocket-brain chat (recipes, the why, gear, stock, how-to).
 // Shared by the Ask tab and the floating QuickDock so there's ONE assistant, not two. Voice in
 // via Web Speech API where available; errors render inline as assistant messages (no toast dep).
 // It also ACTS on a couple of asks: say "create an event" and it opens the event builder.
 type ChatMsg = { role: "user" | "assistant"; content: string };
-const QUICK = ["Create an event from my notes", "We have an inspection in GA — what to expect?", "How do I make a Rise?", "What's in Nature Aide?", "What gear do we have?"];
+// A shortcut you cannot read is not a shortcut. These were five full sentences in a nowrap row:
+// 1,052 px of chips in a 426 px panel, so 626 px — three of the five — sat off-screen behind a
+// scroll with no fade, no arrow, nothing saying there was more. The LABEL is now short enough to
+// scan and wrap; the QUESTION sent is still the whole sentence, so the assistant gets the same ask.
+const QUICK: { label: string; ask: string }[] = [
+  { label: "Make a Rise", ask: "How do I make a Rise?" },
+  { label: "Our gear", ask: "What gear do we have?" },
+  { label: "GA inspection", ask: "We have an inspection in GA — what to expect?" },
+  { label: "Nature Aide", ask: "What's in Nature Aide?" },
+  { label: "Event from a note", ask: "Create an event from my notes" },
+];
 
 // Open the event builder when the crew asks to create one — robust to how people actually say it
 // ("plan a pop-up Saturday", "set up a market run", "book us for a wedding"), but NOT on questions
@@ -94,10 +105,13 @@ export default function AskGT3() {
         <div ref={endRef} />
       </div>
       <div className="oa-quick">
-        {QUICK.map((q) => <button key={q} type="button" className="oa-chip" onClick={() => send(q)} disabled={busy}>{q}</button>)}
+        {QUICK.map((q) => <button key={q.label} type="button" className="oa-chip" onClick={() => send(q.ask)} disabled={busy} title={q.ask}>{q.label}</button>)}
       </div>
       <div className="oa-input">
-        {SR && <button type="button" className={`oa-mic${listening ? " on" : ""}`} onClick={mic} aria-label="Speak your question">🎙</button>}
+        {SR && <button type="button" className={`oa-mic${listening ? " on" : ""}`} onClick={mic}
+                aria-label={listening ? "Stop listening" : "Speak your question"} aria-pressed={listening}>
+          <Icon name="mic" size={19} />
+        </button>}
         <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(input); }} placeholder="Ask GT3…" enterKeyHint="send" />
         <button type="button" className="oa-send" onClick={() => send(input)} disabled={busy || !input.trim()}>Ask</button>
       </div>
