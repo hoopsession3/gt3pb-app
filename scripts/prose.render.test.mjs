@@ -96,6 +96,30 @@ const REAL = [
   ok("render: a paragraph's own line breaks survive as <br> on the structured path",
     (render("**spec** line one\nline two").match(/<br\/?>/g) || []).length === 1,
     render("**spec** line one\nline two"));
+
+  // ── THE HOUSE SUMMARY FORMAT, AS ELEMENTS ────────────────────────────────────────────────────
+  // This component now renders every meeting recap in the app, because components/Markdown.tsx —
+  // which did, and did it differently — is gone. The shape below is what SUMMARY_SYSTEM tells the
+  // model to write, and both old renderers broke it identically: a one-item <ul> per action item,
+  // each followed by a detached <p>. Ryan has been reading his recaps that way the whole time.
+  {
+    const ai = render("- **Pull the permit**\n  Filed 10 days before the market.\n- **Log the batches**\n  Aug 18-29 never hit the ledger.");
+    ok("render: the house Action Items block is ONE <ul>",
+      (ai.match(/<ul class="pr-ul">/g) || []).length === 1, ai);
+    ok("render: ...holding both items", (ai.match(/<li>/g) || []).length === 2);
+    ok("render: ...and NO orphan paragraph outside it", !ai.includes('<p class="pr-p">'), ai);
+    ok("render: the indented description renders inside its own <li>, marked as detail",
+      ai.includes('<span class="pr-li-det">Filed 10 days before the market.</span>'), ai);
+    ok("render: the bold title is still bold", ai.includes("<strong>Pull the permit</strong>"));
+  }
+  ok("render: --- becomes an <hr>", render("a\n\n---\n\n**b**").includes('<hr class="pr-hr"/>'));
+  // The document variant is a CLASS, not a second component. If this ever stops being true, the
+  // renderer has forked again — which is the whole failure this round exists to close.
+  ok("render: the document variant is the same element tree, only the container class differs",
+    render("## Topic\n- a", "pr-doc").replace(' pr-doc"', '"') === render("## Topic\n- a"));
+  // A nullable prop, because every column it renders is nullable in the schema.
+  ok("render: null text renders an empty node rather than the string 'null'",
+    !render(null).includes("null") && !render(undefined).includes("undefined"));
 }
 
 // ── the plain path must be untouched ───────────────────────────────────────────────────────────
@@ -125,6 +149,12 @@ const HOSTILE = [
   `**bold** and <img src=x onerror=alert(1)>`,
   `- [tap](//evil.example)`,
   `1. <script>alert(1)</script>`,
+  // The CONTINUATION path — a list item's indented description. New on 2026-09-13, and the one
+  // route into the tree that none of the fourteen above walk: they all end at an item's first
+  // line. A new code path that renders arbitrary model text gets its own hostile case, or the
+  // safety argument only covers the parts of the renderer that existed when it was written.
+  `- item\n  <script>alert(1)</script>`,
+  `- item\n  [tap](javascript:alert(1))`,
 ];
 for (const bad of HOSTILE) {
   const h = render(bad, "oa-msg assistant");

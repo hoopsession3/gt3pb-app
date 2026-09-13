@@ -74,7 +74,10 @@ export async function POST(req: Request) {
 }
 
 // House format for GT3 meeting summaries — Action Items first, then a titled, sectioned recap.
-// Markdown (rendered by components/Markdown.tsx). Grounded: never invent items not in the notes.
+// Markdown (rendered by components/Prose.tsx — the one reader). Grounded: never invent items not
+// in the notes. The Action Items shape below (bold title, indented description) is the one both
+// renderers used to break into a one-item list plus an orphan paragraph; lib/prose now keeps the
+// description ON the item, which is why the format is safe to keep asking for.
 const SUMMARY_SYSTEM = `You are the meeting scribe for GT3 Performance Bar, a mobile beverage-truck business. From the raw meeting notes or transcript, produce a title, a structured recap, and an action-item list, and return them with the note_recap tool.
 
 The "summary" field must be GitHub-flavored Markdown in this EXACT structure and nothing else:

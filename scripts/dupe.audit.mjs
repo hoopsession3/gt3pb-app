@@ -49,6 +49,16 @@ export const ROLENAME_BASELINE = 0;
 // Zero. crewLabel() is one line whose entire job is rendering a crew member in a dropdown; it had
 // ONE caller out of nine, two files copied its body inline, and six rendered a bare display_name.
 export const CREWOPT_BASELINE = 0;
+// Zero. lib/prose.ts is the only markdown parser. There were two, and their outputs were measured
+// against each other on 2026-09-13: SEVEN of seven test inputs rendered differently, including
+// the one format the agent prompts actually instruct the model to produce.
+export const MDPARSE_BASELINE = 0;
+// Zero. Two surfaces rendered model prose as a bare JSX child — the exact defect Ryan screenshotted
+// in Ask GT3, still live on the two screens nobody had converted.
+export const RAWPROSE_BASELINE = 0;
+// Zero. components/useDictation.ts is the only SpeechRecognition. There were two, in the two tabs
+// of the SAME floating sheet.
+export const DICTATION_BASELINE = 0;
 
 // ── 1. the crew picker ─────────────────────────────────────────────────────────────────────────
 // The signature is specific: reading profiles AND excluding members is the "who can I assign this
@@ -191,11 +201,81 @@ export function rendersRawCrewOption(src, file) {
   return IMPORTS_CREW.test(src) && RAW_NAME_OPTION.test(src);
 }
 
+// ── 5. the markdown parser ─────────────────────────────────────────────────────────────────────
+// Ryan's screenshot showed Ask GT3 printing its own asterisks. lib/prose.ts + components/Prose.tsx
+// were written to fix it, and they replaced components/Concierge.tsx's rich() — which the header of
+// lib/prose.ts records as "a SECOND renderer". It was the THIRD. components/Markdown.tsx had been
+// rendering every meeting recap the whole time, and nobody compared the two until 2026-09-13.
+//
+// When they were compared — same inputs, both real components, rendered with react-dom/server —
+// SEVEN of seven cases came out different:
+//
+//   "1. a\n2. b"          Prose: an <ol>            Markdown: "1. a 2. b" on one line
+//   "_em_" / "`code`"     Prose: <em> / <code>      Markdown: the underscores and backticks, literal
+//   "[x](/craft)"         Prose: an <a>             Markdown: the brackets, literal
+//   "line one\nline two"  Prose: a <br> between     Markdown: joined with a space
+//
+// A model asked for brewing steps and answered with numbered ones got a run-on paragraph on one
+// screen and a numbered list on another, from the same string. Neither was an XSS hole — both
+// escaped correctly — so this is correctness and legibility, not security.
+//
+// The signature is a markdown INLINE-EMPHASIS or HEADING pattern: a regex that looks for `**…**` or
+// a run of #s at the start of a line. That is what a parser has and what nothing else has.
+const MD_EMPHASIS = /\/\\\*\\\*|\\\*\\\*\(/;                        //  /\*\*(.+?)\*\*/
+const MD_HEADING = /\/\^?[^/\n]*#\{1,\d\}[^/\n]*\//;                //  /^(#{1,6})\s+(.*)$/
+export function parsesMarkdown(src, file) {
+  if (file === "lib/prose.ts") return false;                        // the one canonical home
+  return MD_EMPHASIS.test(src) || MD_HEADING.test(src);
+}
+
+// ── 6. rendering model prose raw ───────────────────────────────────────────────────────────────
+// The columns below hold FREE PROSE WRITTEN BY A MODEL, and every one of them is markdown because
+// the system prompts ask for markdown. Rendered as a bare JSX child they print their own markers —
+// which is the bug Ryan reported, and it was still live on two screens after it was "fixed":
+//
+//   components/AiTraining.tsx   {c.answer}        agent_convos.answer — the SAME string Ask GT3
+//                                                 renders through Prose, one screen away, so one
+//                                                 answer read formatted in the chat and raw in the
+//                                                 panel where you judge whether it was right.
+//   app/crew/page.tsx           {t.ai_proposal}   written by app/api/agents/resolve, read by
+//                                                 whoever picks the follow-up up later.
+//
+// Named columns, not a shape rule. "summary" and "caption" are also human-written in places, and a
+// check that guesses would flag the crew's own words — which must stay literal, because what
+// someone typed is what they typed.
+const MODEL_PROSE_COLS = ["ai_proposal", "answer", "proposal", "reply"];
+// A CHILD, not an attribute. `<p>{c.answer}</p>` is the bug; `<Prose text={c.answer} />` is the
+// fix, and they differ by one character before the brace. The first version of this pattern did
+// not look at that character and flagged both — it would have reported the repair as the defect,
+// which is the failure mode that gets a check deleted by the next person who trusts it.
+const RAW_RENDER = new RegExp(
+  String.raw`(?:^[ \t]*|>)\{\s*[A-Za-z_$][\w$]*\.(${MODEL_PROSE_COLS.join("|")})\s*(?:\?\?[^}]*)?\}`, "m");
+export function rendersModelProseRaw(src, file) {
+  if (!file.endsWith(".tsx")) return false;
+  return RAW_RENDER.test(src);
+}
+
+// ── 7. the voice recogniser ────────────────────────────────────────────────────────────────────
+// Two mics, in the two tabs of the SAME floating sheet: QuickDock renders <AskGT3 /> under "Ask"
+// and QuickNote under "Note", and each carried its own copy of the twelve-line SpeechRecognition
+// setup. On 2026-09-12 the Ask mic's emoji 🎙 — rendered in Arial beside a row of vector icons —
+// became <Icon name="mic" />. The Note mic one tab over kept the emoji, because it was a copy
+// rather than the same button. That is the cost of a duplicate stated precisely: not untidiness,
+// but a fix that reaches half of what it was for.
+const SPEECH_API = /\bwebkitSpeechRecognition\b|\bSpeechRecognition\b/;
+export function ownsSpeechRecognition(src, file) {
+  if (file === "components/useDictation.ts") return false;          // the one canonical home
+  return SPEECH_API.test(src);
+}
+
 export function collect(root = ".") {
   const crew = [];
   const taskWrites = [];
   const roleNames = [];
   const crewOpts = [];
+  const mdParsers = [];
+  const rawProse = [];
+  const speech = [];
   for (const f of walk(root)) {
     const file = f.replace(/^\.\//, "");
     if (file.startsWith("scripts/")) continue;
@@ -204,19 +284,25 @@ export function collect(root = ".") {
     if (bypassesTaskSpine(src, file)) taskWrites.push(file);
     if (namesRoleVocabulary(src, file)) roleNames.push(file);
     if (rendersRawCrewOption(src, file)) crewOpts.push(file);
+    if (parsesMarkdown(src, file)) mdParsers.push(file);
+    if (rendersModelProseRaw(src, file)) rawProse.push(file);
+    if (ownsSpeechRecognition(src, file)) speech.push(file);
   }
-  return { crew, taskWrites, roleNames, crewOpts };
+  return { crew, taskWrites, roleNames, crewOpts, mdParsers, rawProse, speech };
 }
 
 if (import.meta.url === (await import("node:url")).pathToFileURL(process.argv[1] || "").href) {
-  const { crew, taskWrites, roleNames, crewOpts } = collect(".");
+  const { crew, taskWrites, roleNames, crewOpts, mdParsers, rawProse, speech } = collect(".");
   if (process.argv.includes("--list")) {
     for (const f of crew) console.log(`  crew-fetch   ${f}`);
     for (const f of taskWrites) console.log(`  task-insert  ${f}`);
     for (const f of roleNames) console.log(`  role-naming  ${f}`);
     for (const f of crewOpts) console.log(`  crew-option  ${f}`);
+    for (const f of mdParsers) console.log(`  md-parser    ${f}`);
+    for (const f of rawProse) console.log(`  raw-prose    ${f}`);
+    for (const f of speech) console.log(`  speech-api   ${f}`);
   }
-  console.log(`DUPLICATION: ${crew.length} hand-rolled crew fetches (baseline ${CREW_BASELINE}), ${taskWrites.length} direct event_tasks writes (baseline ${TASKWRITE_BASELINE}), ${roleNames.length} role-naming maps outside lib/roles (baseline ${ROLENAME_BASELINE}), ${crewOpts.length} crew dropdowns bypassing crewLabel (baseline ${CREWOPT_BASELINE})`);
+  console.log(`DUPLICATION: ${crew.length} hand-rolled crew fetches (baseline ${CREW_BASELINE}), ${taskWrites.length} direct event_tasks writes (baseline ${TASKWRITE_BASELINE}), ${roleNames.length} role-naming maps outside lib/roles (baseline ${ROLENAME_BASELINE}), ${crewOpts.length} crew dropdowns bypassing crewLabel (baseline ${CREWOPT_BASELINE}), ${mdParsers.length} markdown parsers outside lib/prose (baseline ${MDPARSE_BASELINE}), ${rawProse.length} raw renders of model prose (baseline ${RAWPROSE_BASELINE}), ${speech.length} recognisers outside useDictation (baseline ${DICTATION_BASELINE})`);
 
   let bad = false;
   if (crew.length > CREW_BASELINE) {
@@ -241,6 +327,21 @@ if (import.meta.url === (await import("node:url")).pathToFileURL(process.argv[1]
   if (crewOpts.length > CREWOPT_BASELINE) {
     for (const f of crewOpts) console.log(`    ${f}`);
     console.log(`\n  ✗ RATCHET: ${crewOpts.length} > ${CREWOPT_BASELINE}. crewLabel(c) is how a crew member reads in a dropdown — "Ryan · Owner", not "Ryan". There are two Ryans in production and only one of them has ever signed in.`);
+    bad = true;
+  }
+  if (mdParsers.length > MDPARSE_BASELINE) {
+    for (const f of mdParsers) console.log(`    ${f}`);
+    console.log(`\n  ✗ RATCHET: ${mdParsers.length} > ${MDPARSE_BASELINE}. lib/prose.ts is the one markdown parser and components/Prose.tsx is the one reader. Two of them rendered the SAME model output seven different ways; a style difference is a class (.pr-doc), not a second parser.`);
+    bad = true;
+  }
+  if (rawProse.length > RAWPROSE_BASELINE) {
+    for (const f of rawProse) console.log(`    ${f}`);
+    console.log(`\n  ✗ RATCHET: ${rawProse.length} > ${RAWPROSE_BASELINE}. A model wrote that string in markdown because the system prompt asked it to — render it with <Prose text={…} /> or it prints its own asterisks on someone's phone.`);
+    bad = true;
+  }
+  if (speech.length > DICTATION_BASELINE) {
+    for (const f of speech) console.log(`    ${f}`);
+    console.log(`\n  ✗ RATCHET: ${speech.length} > ${DICTATION_BASELINE}. useDictation() is the one recogniser. The last duplicate is why a mic fix landed on one of the two mics in the same sheet.`);
     bad = true;
   }
   process.exit(bad ? 1 : 0);

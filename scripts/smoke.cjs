@@ -2290,7 +2290,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("prose: the real reply parses to 5 paragraphs, one bullet list, in order",
     B.map((b) => b.kind).join(",") === "p,p,p,p,ul,p", B.map((b) => b.kind).join(","));
   ok("prose: the bullet list has the three spec lines",
-    B[4].kind === "ul" && B[4].items.length === 3 && B[4].items[2][0].text.startsWith("Mountain Valley"));
+    B[4].kind === "ul" && B[4].items.length === 3 && B[4].items[2].lines[0][0].text.startsWith("Mountain Valley"));
   ok("prose: a quantity inside a sentence comes out bold, not asterisked",
     sp("**Water:** 340 ÷ 560 × 2 gal = **~1.21 gal** (about 1 gal + 1.5 cups)")
       === "bold:Water:|text: 340 ÷ 560 × 2 gal = |bold:~1.21 gal|text: (about 1 gal + 1.5 cups)");
@@ -2338,6 +2338,48 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("prose: empty input is no blocks, not a crash",
     P.parseProse("").length === 0 && P.parseProse(null).length === 0);
   ok("prose: CRLF is normalised", P.parseProse("a\r\n\r\nb").length === 2);
+
+  // ── THE HOUSE SUMMARY FORMAT ─────────────────────────────────────────────────────────────────
+  // Copied out of SUMMARY_SYSTEM in app/api/agents/summarize/route.ts, which is the exact shape
+  // every meeting recap in this app is INSTRUCTED to produce: a bold title, its description
+  // indented on the next line. Until 2026-09-13 both renderers closed the list at the indented
+  // line and opened a paragraph, so a seven-item Action Items block rendered as seven one-item
+  // bullet lists each trailing an orphan paragraph. Nobody had ever parsed the format the prompt
+  // asks for — the prompt and the reader were written months apart and never compared.
+  {
+    const AI = [
+      "## Action Items",
+      "- **Pull the Greenville permit**",
+      "  Temporary Food Service Permit, filed 10 days before the Oct 4 market.",
+      "- **Log the five missing batches**",
+      "  Batches from Aug 18-29 never hit the ledger.",
+    ].join("\n");
+    const b = P.parseProse(AI);
+    ok("prose: the house Action Items block is ONE list, not a list per item",
+      b.map((x) => x.kind).join() === "h,ul", b.map((x) => x.kind).join());
+    ok("prose: ...with both items in it",
+      b[1].items.length === 2, b[1].items.length);
+    ok("prose: ...and each item KEEPS its indented description instead of orphaning it",
+      b[1].items[0].lines.length === 2
+      && b[1].items[0].lines[1].map((s) => s.text).join("").startsWith("Temporary Food Service"));
+    ok("prose: the bold title survives as the item's first line",
+      b[1].items[1].lines[0][0].kind === "bold");
+    // The indent is the whole guard. Unindented prose after a list still ends the list — that is
+    // what every test above this one asserts, and it must not have quietly changed.
+    ok("prose: an UNindented line after a list still closes the list",
+      P.parseProse("- a\nplain follow-on").map((x) => x.kind).join() === "ul,p");
+    ok("prose: an indented line with no list above it is still a paragraph",
+      P.parseProse("  indented opener").map((x) => x.kind).join() === "p");
+    ok("prose: a numbered step keeps its continuation too",
+      (() => { const x = P.parseProse("1. Grind 340 g\n   Burr 14, medium-coarse."); return x[0].kind === "ol" && x[0].items[0].lines.length === 2; })());
+  }
+  // Rules. components/Markdown.tsx rendered "---" as an <hr> and this did not, which was the last
+  // capability gap keeping two renderers alive.
+  ok("prose: --- is a rule", P.parseProse("a\n\n---\n\nb").map((b) => b.kind).join() === "p,hr,p");
+  ok("prose: *** and ___ are rules too", P.parseProse("***").at(0).kind === "hr" && P.parseProse("___").at(0).kind === "hr");
+  ok("prose: a bullet is still a bullet — '- a' is not a rule", P.parseProse("- a").at(0).kind === "ul");
+  ok("prose: proseText survives the new shapes",
+    P.proseText(P.parseProse("- **T**\n  detail\n\n---")).includes("detail"));
 
   // hasProseMarkup decides whether the structured path is worth taking at all.
   ok("prose: plain sentences are detected as plain",

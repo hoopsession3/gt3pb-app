@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment } from "react";
-import { parseProse, hasProseMarkup, type Block, type Span } from "@/lib/prose";
+import { parseProse, hasProseMarkup, type Block, type Item, type Line, type Span } from "@/lib/prose";
 
 // THE READER for model prose. lib/prose.ts decides what the text MEANS; this decides what it
 // looks like, and the split is the point — the meaning is testable without a DOM, and the looks
@@ -29,6 +29,25 @@ function Spans({ spans }: { spans: Span[] }) {
   );
 }
 
+// A stack of lines, separated by real breaks. A paragraph and a list item are the same shape —
+// the model writes a recipe as four short lines under a heading, and an action item as a bold
+// title with its description underneath. Both are line stacks; joining them into one wrapped run
+// loses the shape that makes them readable one-handed.
+function Lines({ lines }: { lines: Line[] }) {
+  return <>{lines.map((ln, i) => <Fragment key={i}>{i > 0 && <br />}<Spans spans={ln} /></Fragment>)}</>;
+}
+
+function Items({ items }: { items: Item[] }) {
+  return <>{items.map((it, i) => (
+    <li key={i}>
+      {/* The first line is the item; anything after it is the description the house summary
+          format indents underneath, so it reads as secondary rather than as a second bullet. */}
+      <Spans spans={it.lines[0] ?? []} />
+      {it.lines.length > 1 && <span className="pr-li-det"><Lines lines={it.lines.slice(1)} /></span>}
+    </li>
+  ))}</>;
+}
+
 function Piece({ b }: { b: Block }) {
   if (b.kind === "h") {
     // Everything below h3 collapses into h3 in the parser, so this is exhaustive. A chat bubble
@@ -36,22 +55,10 @@ function Piece({ b }: { b: Block }) {
     const Tag = (b.level === 1 ? "h3" : b.level === 2 ? "h4" : "h5") as "h3" | "h4" | "h5";
     return <Tag className="pr-h"><Spans spans={b.spans} /></Tag>;
   }
-  if (b.kind === "ul") {
-    return <ul className="pr-ul">{b.items.map((it, i) => <li key={i}><Spans spans={it} /></li>)}</ul>;
-  }
-  if (b.kind === "ol") {
-    return <ol className="pr-ol" start={b.start}>{b.items.map((it, i) => <li key={i}><Spans spans={it} /></li>)}</ol>;
-  }
-  // A paragraph keeps the model's own line breaks — a recipe written as four short lines under a
-  // heading is shaped that way on purpose, and joining them into one wrapped block loses the shape
-  // that makes it readable one-handed.
-  return (
-    <p className="pr-p">
-      {b.lines.map((ln, i) => (
-        <Fragment key={i}>{i > 0 && <br />}<Spans spans={ln} /></Fragment>
-      ))}
-    </p>
-  );
+  if (b.kind === "hr") return <hr className="pr-hr" />;
+  if (b.kind === "ul") return <ul className="pr-ul"><Items items={b.items} /></ul>;
+  if (b.kind === "ol") return <ol className="pr-ol" start={b.start}><Items items={b.items} /></ol>;
+  return <p className="pr-p"><Lines lines={b.lines} /></p>;
 }
 
 /**
@@ -61,10 +68,15 @@ function Piece({ b }: { b: Block }) {
  * node, same pre-wrap. Only prose that actually carries structure pays for the structured render,
  * so a one-line answer cannot be reshaped by a parser it never needed.
  */
-export default function Prose({ text, className }: { text: string; className?: string }) {
+export default function Prose({ text, className }: { text: string | null | undefined; className?: string }) {
+  // Nullable on purpose. Every column this renders — agent_convos.answer, event_tasks.ai_proposal,
+  // meeting_notes.summary — is nullable in the schema, and both parser entry points already coerce
+  // (`String(input ?? "")`). A narrower prop than the implementation only pushes a `?? ""` to every
+  // call site, where it is one more thing to forget.
+  const src = text ?? "";
   const cls = className ? `pr ${className}` : "pr";
-  if (!hasProseMarkup(text)) return <div className={`${cls} pr-plain`}>{text}</div>;
-  const blocks = parseProse(text);
-  if (blocks.length === 0) return <div className={`${cls} pr-plain`}>{text}</div>;
+  if (!hasProseMarkup(src)) return <div className={`${cls} pr-plain`}>{src}</div>;
+  const blocks = parseProse(src);
+  if (blocks.length === 0) return <div className={`${cls} pr-plain`}>{src}</div>;
   return <div className={cls}>{blocks.map((b, i) => <Piece key={i} b={b} />)}</div>;
 }

@@ -6,6 +6,7 @@ import { authedFetch } from "@/lib/authedFetch";
 import EventGenerator from "./EventGenerator";
 import Prose from "./Prose";
 import Icon from "./Icon";
+import { useDictation } from "./useDictation";
 
 // Ask GT3 — the crew's grounded pocket-brain chat (recipes, the why, gear, stock, how-to).
 // Shared by the Ask tab and the floating QuickDock so there's ONE assistant, not two. Voice in
@@ -46,9 +47,7 @@ export default function AskGT3() {
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
-  const [listening, setListening] = useState(false);
   const [genNotes, setGenNotes] = useState<string | null>(null); // non-null → event builder open
-  const recRef = useRef<{ stop: () => void } | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, busy]);
 
@@ -74,19 +73,9 @@ export default function AskGT3() {
     setBusy(false);
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const SR = typeof window !== "undefined" ? ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition) : null;
-  const mic = () => {
-    if (!SR) return;
-    if (listening) { recRef.current?.stop(); return; }
-    const rec = new SR(); recRef.current = rec;
-    rec.lang = "en-US"; rec.interimResults = false; rec.maxAlternatives = 1;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    rec.onresult = (e: any) => { const t = e.results[0][0].transcript; setInput(t); send(t); };
-    rec.onend = () => setListening(false);
-    rec.onerror = () => setListening(false);
-    setListening(true); rec.start();
-  };
+  // Voice in. The recogniser lives in components/useDictation — this panel and the QuickDock note
+  // pad are the two callers, and they were two copies until 2026-09-13.
+  const dictate = useDictation((t) => { setInput(t); send(t); });
 
   return (
     <div className="oa">
@@ -108,8 +97,8 @@ export default function AskGT3() {
         {QUICK.map((q) => <button key={q.label} type="button" className="oa-chip" onClick={() => send(q.ask)} disabled={busy} title={q.ask}>{q.label}</button>)}
       </div>
       <div className="oa-input">
-        {SR && <button type="button" className={`oa-mic${listening ? " on" : ""}`} onClick={mic}
-                aria-label={listening ? "Stop listening" : "Speak your question"} aria-pressed={listening}>
+        {dictate.supported && <button type="button" className={`oa-mic${dictate.listening ? " on" : ""}`} onClick={dictate.toggle}
+                aria-label={dictate.listening ? "Stop listening" : "Speak your question"} aria-pressed={dictate.listening}>
           <Icon name="mic" size={19} />
         </button>}
         <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(input); }} placeholder="Ask GT3…" enterKeyHint="send" />

@@ -54,11 +54,31 @@ export type Span =
  */
 export const isInternalHref = (href: string): boolean => /^\/(?!\/)[^\s)]*$/.test(href);
 
+/** One rendered line. A paragraph and a list item are both stacks of these — see Item. */
+export type Line = Span[];
+
+/**
+ * A list item is LINES, not one line.
+ *
+ * The house format for every meeting summary this app generates is a bold title with its
+ * description indented underneath:
+ *
+ *     - **Pull the Greenville permit**
+ *       Temporary Food Service Permit, filed 10 days before the Oct 4 market.
+ *
+ * Until 2026-09-13 both renderers in this codebase closed the list at the indented line and
+ * opened a paragraph, so a seven-item Action Items block rendered as seven one-item bullet
+ * lists each trailed by an orphan paragraph. The model was doing exactly what the system
+ * prompt told it to; the readers could not express it.
+ */
+export type Item = { lines: Line[] };
+
 export type Block =
-  | { kind: "p"; lines: Span[][] }
-  | { kind: "ul"; items: Span[][] }
-  | { kind: "ol"; items: Span[][]; start: number }
-  | { kind: "h"; level: 1 | 2 | 3; spans: Span[] };
+  | { kind: "p"; lines: Line[] }
+  | { kind: "ul"; items: Item[] }
+  | { kind: "ol"; items: Item[]; start: number }
+  | { kind: "h"; level: 1 | 2 | 3; spans: Span[] }
+  | { kind: "hr" };
 
 // ── inline ─────────────────────────────────────────────────────────────────────────────────────
 // Ordered by binding strength: code first (its content is literal — `**not bold**` inside backticks
@@ -132,6 +152,14 @@ export function parseSpans(line: string): Span[] {
 const BULLET = /^\s*[-*•]\s+(.*)$/;
 const NUMBER = /^\s*(\d{1,2})[.)]\s+(.*)$/;
 const HEADING = /^\s*(#{1,6})\s+(.*)$/;
+// A rule. Checked BEFORE the bullet pattern, which would otherwise never see it anyway — the
+// bullet regex demands a space after the marker and "---" has none — but the order is written
+// down rather than relied upon, because the two patterns share a character.
+const RULE = /^\s*(-{3,}|_{3,}|\*{3,})\s*$/;
+// An INDENTED continuation line belongs to the list item above it. The indent is required and is
+// the whole guard: unindented prose after a list still closes the list, which is the behaviour
+// every existing test asserts. Markdown's own convention and the house summary format agree.
+const CONTINUATION = /^[ \t]+(\S.*)$/;
 
 /**
  * Model prose → blocks.
@@ -143,8 +171,8 @@ const HEADING = /^\s*(#{1,6})\s+(.*)$/;
 export function parseProse(input: string): Block[] {
   const src = String(input ?? "").replace(/\r\n?/g, "\n");
   const blocks: Block[] = [];
-  let para: Span[][] = [];
-  let list: Span[][] | null = null;
+  let para: Line[] = [];
+  let list: Item[] | null = null;
   let listKind: "ul" | "ol" | null = null;
   let listStart = 1;
 
@@ -160,6 +188,8 @@ export function parseProse(input: string): Block[] {
   for (const raw of src.split("\n")) {
     if (!raw.trim()) { endAll(); continue; }
 
+    if (RULE.test(raw)) { endAll(); blocks.push({ kind: "hr" }); continue; }
+
     const h = raw.match(HEADING);
     if (h) {
       endAll();
@@ -172,7 +202,7 @@ export function parseProse(input: string): Block[] {
     if (n) {
       endPara();
       if (listKind !== "ol") { endList(); list = []; listKind = "ol"; listStart = Number(n[1]) || 1; }
-      list!.push(parseSpans(n[2]));
+      list!.push({ lines: [parseSpans(n[2])] });
       continue;
     }
 
@@ -183,9 +213,16 @@ export function parseProse(input: string): Block[] {
     if (b) {
       endPara();
       if (listKind !== "ul") { endList(); list = []; listKind = "ul"; }
-      list!.push(parseSpans(b[1]));
+      list!.push({ lines: [parseSpans(b[1])] });
       continue;
     }
+
+    // An indented line under an open list continues the item above it rather than ending the
+    // list — the house summary format's description line. Only inside a list, and only when
+    // there is an item to attach to; an indented line anywhere else is still a paragraph, so
+    // nothing about ordinary prose changes.
+    const c = raw.match(CONTINUATION);
+    if (c && list && list.length && !para.length) { list[list.length - 1].lines.push(parseSpans(c[1])); continue; }
 
     endList();
     para.push(parseSpans(raw.trim()));
@@ -196,11 +233,13 @@ export function parseProse(input: string): Block[] {
 
 /** Plain text of a parsed block tree — for aria-labels, previews and tests. */
 export function proseText(blocks: Block[]): string {
-  const spans = (s: Span[]) => s.map((x) => x.text).join("");
+  const spans = (s: Line) => s.map((x) => x.text).join("");
+  const lines = (ls: Line[]) => ls.map(spans).join("\n");
   return blocks.map((b) =>
-    b.kind === "p" ? b.lines.map(spans).join("\n")
+    b.kind === "p" ? lines(b.lines)
     : b.kind === "h" ? spans(b.spans)
-    : b.items.map(spans).join("\n")).join("\n\n");
+    : b.kind === "hr" ? "—"
+    : b.items.map((it) => lines(it.lines)).join("\n")).join("\n\n");
 }
 
 /**

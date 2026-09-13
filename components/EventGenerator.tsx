@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
-import Markdown from "./Markdown";
+import Prose from "./Prose";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import Icon from "@/components/Icon";
 
@@ -84,7 +84,7 @@ export default function EventGenerator({ onClose, onCreated, initialNotes }: { o
               {plan.collaboration_note && (
                 <>
                   <div className="eg-sec">Team collaboration note</div>
-                  <div className="eg-note"><b className="eg-note-t">{plan.collaboration_note.title}</b><Markdown source={plan.collaboration_note.summary || ""} /></div>
+                  <div className="eg-note"><b className="eg-note-t">{plan.collaboration_note.title}</b><Prose text={plan.collaboration_note.summary || ""} className="pr-doc" /></div>
                 </>
               )}
 

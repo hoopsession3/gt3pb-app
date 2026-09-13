@@ -42,7 +42,12 @@ import { execSync } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
 
 // Raise nothing. Lower freely. The point of a ratchet is that it only moves one way.
-export const BASELINE = 115;
+//
+// 2026-09-13: 115 → 114. components/Markdown.tsx is gone — the second markdown renderer, merged
+// into components/Prose.tsx. The hit it carried was never the reason to delete it; it just went
+// with it. A deletion that lowers a ratchet gets the ratchet lowered, or the next person reads a
+// number with a gap under it and cannot tell whether the gap is progress or a broken check.
+export const BASELINE = 114;
 
 const RULE = "react-hooks/set-state-in-effect";
 

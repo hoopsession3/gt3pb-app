@@ -2375,6 +2375,25 @@ select.note-in{-webkit-appearance:none;appearance:none}
    produce the quietest thing in the bubble. Only h5 steps down, and a chat answer almost never
    reaches a third level. */
 h5.pr-h{font-size:12.5px;color:var(--cream-d)}
+/* The description line the house summary format indents under an action item. Secondary by
+   weight and colour, because it explains the item rather than being a second one. */
+.pr-li-det{display:block;margin-top:2px;font-size:.93em;line-height:1.5;color:var(--cream-m)}
+.pr-hr{border:none;border-top:1px solid var(--line);margin:2px 0}
+
+/* ── the document variant ───────────────────────────────────────────────────────────────────────
+   A meeting recap IS a document; a chat reply is not. Same parser, same elements, same component
+   — only the type treatment differs, and these rules are lifted from the .md-h1 / .md-h2 / .md-h3
+   they replace, so note summaries keep the look they already had. That is the whole reason a
+   second renderer stayed affordable for so long: it was carrying a STYLE, not a capability, and a
+   style is a class. */
+.pr-doc{gap:8px;font-family:'Inter';color:var(--cream)}
+.pr-doc h3.pr-h{font-family:'Fraunces',serif;font-size:18px;font-weight:600;color:var(--cream);
+  padding-bottom:5px;border-bottom:1px solid var(--line);margin:14px 0 2px;letter-spacing:normal}
+.pr-doc h4.pr-h{font-family:'Inter';font-size:15px;font-weight:800;color:var(--gold2);margin:14px 0 2px}
+.pr-doc h5.pr-h{font-family:'Inter';font-size:13px;font-weight:700;letter-spacing:.2px;color:var(--cream-m);margin:14px 0 2px}
+.pr-doc>.pr-h:first-child{margin-top:2px}
+.pr-doc .pr-p{font-size:14px}
+.pr-doc .pr-ul>li,.pr-doc .pr-ol>li{font-size:13.5px}
 .oa-typing{display:flex;gap:4px;align-items:center;padding:13px}
 .oa-typing span{width:6px;height:6px;border-radius:50%;background:var(--cream-m);opacity:.5;animation:oablink 1.2s infinite}
 .oa-typing span:nth-child(2){animation-delay:.2s}.oa-typing span:nth-child(3){animation-delay:.4s}
@@ -3203,17 +3222,8 @@ body:has(.conc-sheet) .rail{display:flex}
 .app.crew-day .dp-draft{color:#1a1409}
 
 /* ── Markdown (AI meeting summaries / structured recaps) ── */
-.md{font-family:'Inter';color:var(--cream)}
-.md-p{font-size:14px;line-height:1.55;margin:8px 0 0;color:var(--cream)}
-.md .md-h{margin:14px 0 2px;line-height:1.25;color:var(--cream)}
-.md .md-h1{font-family:'Fraunces',serif;font-size:18px;font-weight:600;padding-bottom:5px;border-bottom:1px solid var(--line)}
-.md .md-h2{font-family:'Inter';font-size:15px;font-weight:800;color:var(--gold2)}
-.md .md-h3{font-family:'Inter';font-size:13px;font-weight:700;letter-spacing:.2px;color:var(--cream-m);text-transform:none}
-.md-ul{margin:5px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:3px}
-.md-ul li{font-size:13.5px;line-height:1.5;color:var(--cream)}
-.md-ul li b,.md-p b{color:var(--cream);font-weight:700}
-.md-hr{border:none;border-top:1px solid var(--line);margin:14px 0}
-.md .md-h1:first-child,.md .md-h2:first-child{margin-top:2px}
+/* the .md-* renderer's stylesheet lived here — components/Markdown.tsx is gone and its
+   type treatment is now .pr-doc, so model prose has ONE reader and ONE stylesheet. */
 
 /* ── Architecture: Business view (owner-facing capabilities) ── */
 .arch-biz{margin-top:4px}

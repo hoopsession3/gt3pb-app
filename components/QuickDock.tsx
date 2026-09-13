@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth, roleOf } from "./AuthProvider";
 import { useOperatorSection } from "./OperatorNav";
 import { supabase } from "@/lib/supabase";
@@ -9,6 +9,7 @@ import AskGT3 from "./AskGT3";
 import CopilotLauncher from "./CopilotLauncher";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import Icon from "@/components/Icon";
+import { useDictation } from "./useDictation";
 
 // QuickDock — a floating, always-accessible launcher for the crew's two most-used quick actions:
 // Ask GT3 (the pocket-brain chat) and a fast Note capture (jot/speak → a real note, private by
@@ -76,22 +77,11 @@ function QuickNote({ userId, onSaved }: { userId: string | null; onSaved: () => 
   const [vis, setVis] = useState<"private" | "team" | "collab">("private");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
-  const [listening, setListening] = useState(false);
-  const recRef = useRef<{ stop: () => void } | null>(null);
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const SR = typeof window !== "undefined" ? ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition) : null;
-  const mic = () => {
-    if (!SR) return;
-    if (listening) { recRef.current?.stop(); return; }
-    const rec = new SR(); recRef.current = rec;
-    rec.lang = "en-US"; rec.interimResults = false; rec.maxAlternatives = 1;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    rec.onresult = (e: any) => { const t = e.results[0][0].transcript; setText((p) => (p ? `${p} ${t}` : t)); };
-    rec.onend = () => setListening(false);
-    rec.onerror = () => setListening(false);
-    setListening(true); rec.start();
-  };
+  // The SAME recogniser Ask GT3 uses, one tab over in this same sheet. It was a second copy of the
+  // twelve lines — which is why the mic one tab over got an <Icon> on 2026-09-12 and this one kept
+  // its emoji until the duplication was closed. This appends rather than sends: a note is written
+  // in pieces, a question is asked once.
+  const dictate = useDictation((t) => setText((p) => (p ? `${p} ${t}` : t)));
 
   const save = async () => {
     const t = text.trim();
@@ -112,7 +102,8 @@ function QuickNote({ userId, onSaved }: { userId: string | null; onSaved: () => 
     <div className="qd-note">
       <div className="qd-note-row">
         <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Jot it down — a thought, a to-do, a reminder…" rows={4} autoFocus />
-        {SR && <button type="button" className={`oa-mic${listening ? " on" : ""}`} onClick={mic} aria-label="Speak your note">🎙</button>}
+        {dictate.supported && <button type="button" className={`oa-mic${dictate.listening ? " on" : ""}`} onClick={dictate.toggle}
+          aria-label={dictate.listening ? "Stop listening" : "Speak your note"} aria-pressed={dictate.listening}><Icon name="mic" size={19} /></button>}
       </div>
       <div className="qd-note-vis" role="radiogroup" aria-label="Who can see this note">
         {QN_VIS.map((o) => (

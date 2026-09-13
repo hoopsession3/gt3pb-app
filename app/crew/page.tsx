@@ -145,7 +145,7 @@ const AuditTrail = dynamic(() => import("@/components/AuditTrail"), { loading: (
 const IntegrationsPanel = dynamic(() => import("@/components/IntegrationsPanel"), { loading: () => <PourFill label="Loading…" /> });
 const SmartIntake = dynamic(() => import("@/components/SmartIntake"), { loading: () => <PourFill label="Loading…" /> });
 const DocsFiled = dynamic(() => import("@/components/DocsFiled"), { loading: () => <PourFill label="Loading…" /> });
-import Markdown from "@/components/Markdown";
+import Prose from "@/components/Prose";
 import { subscribePush } from "@/lib/push";
 import { chime, unlockAudio } from "@/lib/chime";
 import { haptic, HAPTIC } from "@/lib/haptics";
@@ -3215,7 +3215,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
               </select>
             </div>
           )}
-          {note.summary && <Markdown source={note.summary} className="note-summary" />}
+          {note.summary && <Prose text={note.summary} className="pr-doc note-summary" />}
           {note.body && <details className="note-full"><summary>Full notes</summary><p>{note.body}</p></details>}
           {/* 0262 — the continuation record: additions render as attributed, timestamped blocks
               UNDER the original (which is never edited); kept files open via signed URLs. */}
@@ -3320,7 +3320,9 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
               {t.ai_proposal && (
                 <div className={`fu-prop${t.ai_has_answer ? " has" : ""}`}>
                   <div className="fu-prop-h">{t.ai_has_answer ? <><Icon name="check" /> We already have this</> : "💡 Proposed"}</div>
-                  <div className="fu-prop-b">{t.ai_proposal}</div>
+                  {/* Model prose, so it goes through the one reader — it was printing its own
+                      asterisks here exactly the way Ask GT3 used to. */}
+                  <Prose text={t.ai_proposal} className="fu-prop-b" />
                 </div>
               )}
               {openThread === t.id && (

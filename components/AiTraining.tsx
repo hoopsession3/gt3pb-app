@@ -7,6 +7,7 @@ import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { SectionHeader } from "@/components/kit";
 import Icon from "@/components/Icon";
+import Prose from "@/components/Prose";
 
 // TRAIN THE AI (Team → Train the AI, owner/crew) — the correction loop for the freeform agents.
 // The owner writes the truth once (with an optional photo of the recipe card / receipt as proof),
@@ -161,7 +162,11 @@ export default function AiTraining() {
               </button>
               {openConvo === c.id && (
                 <div className="ai-convo-a">
-                  <p>{c.answer}</p>
+                  {/* The SAME string Ask GT3 renders through Prose — agent_convos.answer. It was
+                      printed raw here, so the identical answer read formatted in the chat and full
+                      of asterisks in the panel where you judge whether it was right. The owner
+                      corrections above stay literal: those are HIS words, not the model's. */}
+                  <Prose text={c.answer} />
                   <button type="button" className="st-discuss danger" onClick={() => correctFrom(c)}><Icon name="close" /> This was wrong — correct it</button>
                 </div>
               )}
