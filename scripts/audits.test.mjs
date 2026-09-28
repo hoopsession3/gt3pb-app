@@ -10,7 +10,8 @@ import { classifyEffect, effectAt } from "./render.audit.mjs";
 import { isFalseEmpty, catchesButHides } from "./falseempty.audit.mjs";
 import { refusalHeadings, refusesWithoutPolicy, collapsesVerdicts } from "./gate.audit.mjs";
 import { handRollsCrew, bypassesTaskSpine, CREW_EXEMPT, namesRoleVocabulary, rolesNamedIn, rendersRawCrewOption } from "./dupe.audit.mjs";
-import { selectsIn, topLevelParts, columnsOf } from "./columns.audit.mjs";
+import { selectsIn, topLevelParts, columnsOf, ageLine } from "./columns.audit.mjs";
+import { definitionsToSchema, refuseReason, projectRef } from "./schema.snapshot.mjs";
 
 let pass = 0, fail = 0;
 const ok = (n, c, got) => { if (c) pass++; else { fail++; console.log(`  ✗ ${n}` + (got !== undefined ? ` → got ${JSON.stringify(got)}` : "")); } };
@@ -232,6 +233,68 @@ ok("columns: a cast reduces to its column", JSON.stringify(columnsOf("total_cent
   const f = selectsIn(`await supabase.from("alert_reads").delete().eq("id", x);\nawait supabase.from("alerts").select("id, title");`);
   ok("columns: a from() with no select of its own borrows nobody else's", f.length === 1 && f[0].relation === "alerts", f);
 }
+
+// ── the snapshot puller ────────────────────────────────────────────────────────────────────────
+// The check above has printed NOT CHECKED since 2026-09-11 because refreshing its snapshot meant a
+// browser session and a copy-paste. npm run schema:snapshot is now the one home for that refresh —
+// and the thing that can go wrong with an automated refresh is worse than the thing it fixes: a
+// half-working fetch writes a SMALL snapshot, and a small snapshot makes the checker report dozens
+// of live tables as deleted. Every refusal below is that case.
+ok("snapshot: PostgREST's Swagger-2 shape (definitions) reads as relations and columns",
+  JSON.stringify(definitionsToSchema({ definitions: { events: { properties: { id: {}, day: {} } } } })) === '{"events":["day","id"]}');
+ok("snapshot: the OpenAPI-3 shape (components.schemas) reads the same — which spelling a version emits is not a format change",
+  JSON.stringify(definitionsToSchema({ components: { schemas: { events: { properties: { id: {}, day: {} } } } } })) === '{"events":["day","id"]}');
+ok("snapshot: a definition with no properties is a response envelope, not an empty table",
+  JSON.stringify(definitionsToSchema({ definitions: { events: { properties: { id: {} } }, "rpc.args": {} } })) === '{"events":["id"]}');
+ok("snapshot: an unrecognised document yields nothing rather than throwing",
+  JSON.stringify(definitionsToSchema({ paths: {} })) === "{}");
+
+{
+  // A plausible healthy pull: 60 relations, with the ones the app reads among them.
+  const healthy = {};
+  for (let i = 0; i < 60; i++) healthy[`t${i}`] = ["id"];
+  const needed = ["t1", "t2", "t3"];
+  ok("snapshot: a healthy pull is written", refuseReason(healthy, needed) === null);
+
+  ok("snapshot: REFUSED — nothing came back at all",
+    /no relations at all/.test(refuseReason({}, needed) || ""));
+  ok("snapshot: REFUSED — a handful of relations is a fetch that landed somewhere else, not a database",
+    /only 3 relations/.test(refuseReason({ a: ["id"], b: ["id"], c: ["id"] }, needed) || ""));
+
+  // THE ONE THAT MATTERS. One absent relation is a real deletion and MUST be written so the checker
+  // fails on it; ten absent is a broken fetch and must not be written at all. A refusal rule that
+  // swallowed the first would hide the exact defect this whole check exists to catch.
+  const oneGone = { ...healthy }; delete oneGone.t1;
+  ok("snapshot: ONE missing relation is still written — that is a real finding, and the checker reports it",
+    refuseReason(oneGone, needed) === null);
+  const manyNeeded = Array.from({ length: 40 }, (_, i) => `t${i}`);
+  const tenGone = { ...healthy };
+  for (let i = 0; i < 10; i++) delete tenGone[`t${i}`];
+  ok("snapshot: TEN missing is refused — no migration drops ten tables the app still reads",
+    /10 of the 40 relations/.test(refuseReason(tenGone, manyNeeded) || ""));
+}
+
+// The age line prints on a PASS too. A snapshot pulled in March passes exactly as loudly as one
+// pulled this morning, and that silence is how a check stops being about the database.
+{
+  const now = Date.parse("2026-09-28T12:00:00Z");
+  const at = (iso) => ageLine({ pulled_at: iso, project: "abcdef" }, now);
+  ok("age: no snapshot record at all says so rather than guessing", /no provenance/.test(ageLine(null, now)));
+  ok("age: a record with no date says so", /no provenance/.test(ageLine({ project: "x" }, now)));
+  ok("age: an unparseable date is named, not silently treated as now", /unreadable/.test(at("not-a-date")));
+  ok("age: pulled today", at("2026-09-28T09:00:00Z") === "snapshot pulled today from abcdef", at("2026-09-28T09:00:00Z"));
+  ok("age: one day is singular", at("2026-09-27T09:00:00Z") === "snapshot pulled 1 day ago from abcdef", at("2026-09-27T09:00:00Z"));
+  ok("age: five days", at("2026-09-23T09:00:00Z") === "snapshot pulled 5 days ago from abcdef", at("2026-09-23T09:00:00Z"));
+  ok("age: a month old says it is worth refreshing — the 2026-09-11 state, named instead of implied",
+    /stale enough/.test(at("2026-08-20T09:00:00Z")), at("2026-08-20T09:00:00Z"));
+  ok("age: a clock-skewed future date does not render as negative days",
+    at("2026-10-05T09:00:00Z") === "snapshot pulled today from abcdef", at("2026-10-05T09:00:00Z"));
+}
+
+ok("snapshot: provenance records the project ref — never the key, never the whole URL",
+  projectRef("https://abcdefghij.supabase.co") === "abcdefghij");
+ok("snapshot: an unrecognised URL records no project rather than a fragment of one",
+  projectRef("") === null && projectRef("not a url") === null);
 
 // ── the role vocabulary ────────────────────────────────────────────────────────────────────────
 // The four maps this replaced, in the shape they were actually written, plus the four things that

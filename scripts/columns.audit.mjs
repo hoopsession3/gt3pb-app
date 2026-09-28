@@ -22,8 +22,18 @@
 // snapshot pulled from the live database, and when there is no snapshot it says NOT CHECKED rather
 // than passing. A gate that reports success on missing evidence is worse than no gate.
 //
-// REFRESH THE SNAPSHOT by running this in the SQL editor and saving the single value it returns to
-// supabase/schema.columns.json:
+// REFRESH THE SNAPSHOT with:
+//
+//   npm run schema:snapshot
+//
+// That is the one home for the refresh (scripts/schema.snapshot.mjs). It reads PostgREST's own
+// published schema with the two env vars the server already uses, sanity-checks the result against
+// what this file says the app reads, and refuses to write a snapshot that would make this check
+// invent missing relations.
+//
+// FALLBACK, for when that command cannot run at all: paste this into the SQL editor and save the
+// single value it returns to supabase/schema.columns.json. It answers the same question — every
+// relation in public and its columns — and it is a fallback, not a second procedure.
 //
 //   select json_object_agg(t.rel, t.cols) from (
 //     select c.relname as rel, json_agg(a.attname order by a.attnum) as cols
@@ -46,6 +56,42 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SNAPSHOT = join(ROOT, "supabase/schema.columns.json");
 
 const FROM = /\.from\(\s*["'`]([a-zA-Z0-9_]+)["'`]\s*\)/g;
+
+// ── THE SNAPSHOT FORMAT ────────────────────────────────────────────────────────────────────────
+// `{ relation: [column, ...] }` plus one provenance record. This file is the reader, so the format
+// is defined here and scripts/schema.snapshot.mjs conforms to it — the alternative is the writer
+// and the reader each holding their own idea of the shape, which is the same drift this repo keeps
+// finding in pairs of panels.
+
+/** The provenance key. Relation names are `[a-zA-Z0-9_]+`, so a `$` can never collide with one. */
+export const META = "$snapshot";
+
+/** Read the provenance out of a snapshot file, or null. Never throws — a bad file is not a crash. */
+export function readMeta(file = SNAPSHOT) {
+  try {
+    if (!existsSync(file)) return null;
+    const j = JSON.parse(readFileSync(file, "utf8"));
+    return j && j[META] ? j[META] : null;
+  } catch { return null; }
+}
+
+/**
+ * What to say about a snapshot's age.
+ *
+ * Printed on a pass as well as a failure. A snapshot pulled in March passes exactly as loudly as
+ * one pulled this morning, and silence about that is how this check would quietly stop being about
+ * the database at all while still printing a clean line every run.
+ */
+export function ageLine(meta, now = Date.now()) {
+  if (!meta || !meta.pulled_at) return `snapshot has no provenance — refresh it: npm run schema:snapshot`;
+  const t = Date.parse(meta.pulled_at);
+  if (!Number.isFinite(t)) return `snapshot has an unreadable date — refresh it: npm run schema:snapshot`;
+  const days = Math.floor((now - t) / 86400000);
+  const from = meta.project ? ` from ${meta.project}` : "";
+  if (days <= 0) return `snapshot pulled today${from}`;
+  if (days >= 30) return `snapshot pulled ${days} days ago${from} — stale enough to be worth refreshing`;
+  return `snapshot pulled ${days} day${days === 1 ? "" : "s"} ago${from}`;
+}
 
 /**
  * Every (relation, select-string) pair in the app.
@@ -149,13 +195,16 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
     // silently equivalent to a clean result — the exact failure mode this whole check exists for.
     console.log(`COLUMN CONTRACT: NOT CHECKED — no supabase/schema.columns.json.`);
     console.log(`  ${need.size} relations and ${nCols} columns are waiting to be checked (${selects} selects read, ${skipped} parts skipped as computed).`);
-    console.log(`  Refresh it with the query in this file's header; last verified against production 2026-09-11, clean.`);
+    console.log(`  Refresh it: npm run schema:snapshot`);
     process.exit(0);
   }
 
   const schema = JSON.parse(readFileSync(SNAPSHOT, "utf8"));
   const missingRel = [], missingCol = [];
   for (const [rel, m] of need) {
+    // META is the provenance record, not a relation. It cannot collide with one — relation names are
+    // [a-zA-Z0-9_]+ — and nothing here would ever look it up, but naming it keeps that deliberate.
+    if (rel === META) continue;
     const have = schema[rel];
     if (!have) { missingRel.push(rel); continue; }
     const set = new Set(have);
@@ -163,12 +212,15 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
   }
 
   console.log(`COLUMN CONTRACT: ${need.size} relations, ${nCols} columns, ${missingRel.length} unknown relation(s), ${missingCol.length} unknown column(s)`);
+  // The age is printed on a PASS as well as a failure. A snapshot pulled months ago passes exactly
+  // as loudly as one pulled today, and that is how a check quietly stops being about the database.
+  console.log(`  ${ageLine(readMeta(SNAPSHOT))}`);
   if (missingRel.length || missingCol.length) {
     for (const r of missingRel) console.log(`    relation not in the database: ${r}`);
     for (const c of missingCol) console.log(`    ${c}`);
     console.log(`\n  ✗ A select naming a column that does not exist returns an ERROR OBJECT, not rows.`);
     console.log(`    If the caller does not check .error, that lands on screen as "nothing here" (62af8ef).`);
-    console.log(`    If the snapshot is simply stale, refresh it — the query is in this file's header.`);
+    console.log(`    If the snapshot is simply stale, refresh it: npm run schema:snapshot`);
     process.exit(1);
   }
 }
