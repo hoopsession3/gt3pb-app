@@ -8,6 +8,7 @@ import AsyncSection from "./AsyncSection";
 import Sheet, { CloseButton } from "./Sheet";
 import Icon from "./Icon";
 import { RecordLink } from "./RecordSheet";
+import { moneyPlain } from "@/lib/money";
 import {
   SHOP_STATUS_META, SQUARE_TRANSACTIONS, ageLabel, isShopStatus, marginPct, money,
   moveVerb, moveWarning, needsReason, nextStatuses, shipLine, statusLabel, waitingOn,
@@ -242,7 +243,7 @@ export default function ShopOrderRecord({ orderId, onClose, onChanged }: {
                       <label className="prod-f">
                         <span>Amount — leave blank for the whole {money(o.total_cents)}</span>
                         <input value={amt} onChange={(e) => setAmt(e.target.value)} disabled={busy}
-                               inputMode="decimal" placeholder={((o.total_cents ?? 0) / 100).toFixed(2)} />
+                               inputMode="decimal" placeholder={moneyPlain(o.total_cents)} />
                       </label>
                     )}
                     <div className="so-confirm-b">

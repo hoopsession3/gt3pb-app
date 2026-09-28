@@ -10,6 +10,7 @@ import Sheet from "./Sheet";
 import SignIn from "./SignIn";
 import type { Reserve, ReserveClaim } from "@/lib/db";
 import Icon from "@/components/Icon";
+import { moneyRound } from "@/lib/money";
 
 // Live limited drops. Stock + claims are server-authoritative (claim_reserve RPC);
 // this view just reflects them and reserves a unit on tap. Pay-at-pickup hold.
@@ -94,7 +95,7 @@ export default function Reserves() {
       {reserves.map((r) => {
         const mine = claims[r.id];
         const sold = r.status === "sold_out" || r.stock_remaining <= 0;
-        const price = `$${(r.price_cents / 100).toFixed(0)}`;
+        const price = moneyRound(r.price_cents);
         return (
           <div className="drop" key={r.id}>
             {r.member_only && <span className="badge"><Icon name="star" /> Member access</span>}

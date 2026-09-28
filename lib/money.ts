@@ -71,6 +71,30 @@ export function moneyRound(cents: number | null | undefined): string {
 }
 
 /**
+ * The same amount with no symbol and no trimming: 1999 → "19.99", 6000 → "60.00", null → "0.00".
+ *
+ * ── WHY A THIRD FUNCTION ───────────────────────────────────────────────────────────────────────
+ * The consolidation above collapsed thirty DISPLAY formatters. It never named the other thing
+ * `(cents / 100).toFixed(2)` was being used for, so that spelling survived it in twenty files — and
+ * about half of those genuinely are not display:
+ *
+ *   an <input> value     a price field the operator edits. money() would put "—" or "$60" into a
+ *                        text box whose next keystroke has to parse back into cents.
+ *   a CSV cell           an export a spreadsheet has to read as a number.
+ *   a search haystack    `total.includes(term)` when somebody types "12.50".
+ *
+ * Those three are one intention — the amount as a plain decimal — and it now has a name, so the
+ * next person reaching for `/100).toFixed(2)` finds a function instead of writing the thirty-first
+ * formatter. UNKNOWN READS "0.00", not "—", precisely because an input cannot hold an em dash. A
+ * caller that wants to say "we do not know" wants money(); that difference is the entire reason
+ * these are two functions and not one with a flag.
+ */
+export function moneyPlain(cents: number | null | undefined): string {
+  if (unknown(cents)) return "0.00";
+  return (Number(cents) / 100).toFixed(2);
+}
+
+/**
  * The same as money(), for the one module that computes in dollars (lib/orderAhead's pack pricing).
  * Named for its unit so nobody has to guess which of the two a `dollars()` in scope meant.
  */

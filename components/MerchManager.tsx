@@ -11,7 +11,7 @@ import AsyncSection from "./AsyncSection";
 import MediaStudio from "@/components/MediaStudio";
 import { readMedia, toColumns, heroWasRemoved, type MediaItem } from "@/lib/shopMedia";
 import { parseSkuBlock, formatSkuBlock } from "@/lib/apliiqOrder";
-import { money } from "@/lib/money";
+import { money, moneyPlain } from "@/lib/money";
 
 // THE SHOP · merch manager (0273/0274) — the crew's publish + curation surface for the storefront.
 // Products arrive three ways: the in-house studio capsule (seeded), a bulk Apliiq catalog sync, and a
@@ -163,11 +163,11 @@ export default function MerchManager() {
 
 function MerchRow({ p, open, onToggle, onSaved, toast }: { p: Product; open: boolean; onToggle: () => void; onSaved: () => void; toast: (m: string, t?: any) => void }) {
   const [d, setD] = useState(p);
-  const [priceStr, setPriceStr] = useState((p.price_cents / 100).toFixed(2));
+  const [priceStr, setPriceStr] = useState(moneyPlain(p.price_cents));
   const [media, setMedia] = useState<MediaItem[]>(() => readMedia(p));
   // The SKU block as text, so it round-trips exactly what was pasted.
   const [skuText, setSkuText] = useState<string>(() => formatSkuBlock(p.variants));
-  useEffect(() => { setD(p); setPriceStr((p.price_cents / 100).toFixed(2)); setMedia(readMedia(p)); }, [p]);
+  useEffect(() => { setD(p); setPriceStr(moneyPlain(p.price_cents)); setMedia(readMedia(p)); }, [p]);
 
   const published = !!d.published_at && !d.archived_at;
   const dollarsToCents = (s: string) => Math.max(0, Math.round((Number(s) || 0) * 100));

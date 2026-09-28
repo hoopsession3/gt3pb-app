@@ -163,7 +163,7 @@ const VendorResolve = dynamic(() => import("@/components/VendorResolve"), { load
 import Icon from "@/components/Icon";
 import { useJurisdictions } from "@/components/useJurisdictions";
 import AcademyCard from "@/components/AcademyCard";
-import { money, moneyRound } from "@/lib/money";
+import { money, moneyPlain, moneyRound } from "@/lib/money";
 import { FOUNDING_MARKET, toMarket } from "@/lib/markets";
 import { OwnerDetails } from "@/components/crew/OwnerDetails";
 import { VendorPicker } from "@/components/crew/VendorPicker";
@@ -470,7 +470,7 @@ function Kitchen() {
                         {o.eta_status === "outside" ? <><Icon name="pin" /> OUTSIDE — call the name</> : o.eta_status === "on_way" ? "🏃 On the way" : <><Icon name="clock" /> Running late</>}
                       </span>
                     )}
-                    <div className="meta">#{o.id.slice(0, 4).toUpperCase()} · ${(o.total_cents / 100).toFixed(2)} · <span className={o.paid ? "pd" : "unp"}>{o.paid ? "PAID" : "pre-order"}</span> · <span className="kds-stagetime">{ago(o.status_changed_at)} in stage</span></div>
+                    <div className="meta">#{o.id.slice(0, 4).toUpperCase()} · {money(o.total_cents)} · <span className={o.paid ? "pd" : "unp"}>{o.paid ? "PAID" : "pre-order"}</span> · <span className="kds-stagetime">{ago(o.status_changed_at)} in stage</span></div>
                     <div className="adm-actions-row">
                       {PREV[o.status] && <button className="adm-recall" onClick={() => recall(o)} aria-label="Move back a stage">↩</button>}
                       <button className={`adm-act ${ACT_CLASS[o.status]}`} onClick={() => advance(o)}>{st.action}</button>
@@ -496,7 +496,7 @@ function Kitchen() {
                   <span className="adm-age calm">picked up {ago(o.status_changed_at)} ago</span>
                 </div>
                 <div className="adm-items">{groupItems(o.items).map((g) => `${g.qty > 1 ? g.qty + "× " : ""}${DRINKS[g.id as DrinkId]?.n ?? g.id}`).join(" · ")}</div>
-                <div className="meta">#{o.id.slice(0, 4).toUpperCase()} · ${(o.total_cents / 100).toFixed(2)} · <span className={o.paid ? "pd" : "unp"}>{o.paid ? "PAID" : "pre-order"}</span></div>
+                <div className="meta">#{o.id.slice(0, 4).toUpperCase()} · {money(o.total_cents)} · <span className={o.paid ? "pd" : "unp"}>{o.paid ? "PAID" : "pre-order"}</span></div>
                 <div className="adm-actions-row">
                   <button className="adm-recall" onClick={() => recall(o)} aria-label={`Bring ${o.customer ?? "order"} back to ready`}>↩ Recall</button>
                 </div>
@@ -3566,7 +3566,7 @@ function ReservesAdmin() {
                   </div>
                   <input className="auth-input" style={{ fontSize: 16, padding: "9px 11px", marginTop: 6 }} maxLength={300} defaultValue={r.blurb ?? ""} placeholder="One line guests see" onBlur={(e) => (e.target.value.trim() || null) !== r.blurb && update(r.id, { blurb: e.target.value.trim() || null })} />
                   <div className="adm-fields">
-                    <label>Price $<input type="text" inputMode="decimal" defaultValue={(r.price_cents / 100).toFixed(2)} onBlur={(e) => update(r.id, { price_cents: Math.max(0, Math.round(parseFloat(e.target.value || "0") * 100)) })} /></label>
+                    <label>Price $<input type="text" inputMode="decimal" defaultValue={moneyPlain(r.price_cents)} onBlur={(e) => update(r.id, { price_cents: Math.max(0, Math.round(parseFloat(e.target.value || "0") * 100)) })} /></label>
                     <label>Stock<input type="number" min={0} defaultValue={r.stock_total} onBlur={(e) => update(r.id, { stock_total: Math.max(0, parseInt(e.target.value) || 0) })} /></label>
                     <label>Left<input type="number" min={0} defaultValue={r.stock_remaining} onBlur={(e) => update(r.id, { stock_remaining: Math.max(0, parseInt(e.target.value) || 0) })} /></label>
                     <label>Limit<input type="number" min={1} defaultValue={r.per_member_limit} onBlur={(e) => update(r.id, { per_member_limit: Math.max(1, parseInt(e.target.value) || 1) })} /></label>
@@ -3700,7 +3700,7 @@ function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; is
   const role = rawRole(m);
   const meta = ROLE_META[role];
   const [pts, setPts] = useState(m.points);
-  const [credit, setCredit] = useState((m.credit_cents / 100).toFixed(2));
+  const [credit, setCredit] = useState(moneyPlain(m.credit_cents));
   const [founding, setFounding] = useState(m.founding_member);
   const [isDriver, setIsDriver] = useState(!!m.is_driver);
   const toggleDriver = async () => {
@@ -3713,8 +3713,8 @@ function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; is
   const [open, setOpen] = useState(false);
   const [profile, setProfile] = useState(false);
   // Keep the loyalty inputs honest if a realtime reload changes them underneath us.
-  useEffect(() => { setPts(m.points); setCredit((m.credit_cents / 100).toFixed(2)); setFounding(m.founding_member); }, [m.points, m.credit_cents, m.founding_member]);
-  const dirty = name !== (m.display_name ?? "") || pts !== m.points || credit !== (m.credit_cents / 100).toFixed(2) || founding !== m.founding_member;
+  useEffect(() => { setPts(m.points); setCredit(moneyPlain(m.credit_cents)); setFounding(m.founding_member); }, [m.points, m.credit_cents, m.founding_member]);
+  const dirty = name !== (m.display_name ?? "") || pts !== m.points || credit !== moneyPlain(m.credit_cents) || founding !== m.founding_member;
 
   const save = async () => {
     setBusy(true);
@@ -4171,8 +4171,8 @@ function EventHUD({ onGoEvents }: { onGoEvents?: () => void }) {
       <SectionHeader label={ev.title} right={<span className="adm-pill due">LIVE</span>} />
       {/* One hero mid-service — sales — and one quiet line. The full plan-vs-actual story
           (ROI, break-even, plan totals) lives in Money → Per-event P&L, not on the Now screen. */}
-      <div className="adm-hud-hero"><b>${(stats.cents / 100).toFixed(0)}</b><span>in sales</span></div>
-      <p className="adm-hud-line">{stats.orders} order{stats.orders === 1 ? "" : "s"} · ${(perHr / 100).toFixed(0)}/hr{hasPlan && <> · {pctOfPlan}% of plan · net <b className={netUp ? "ok" : "red"}>{moneyRound(recon.actualNetCents)}</b></>}</p>
+      <div className="adm-hud-hero"><b>{moneyRound(stats.cents)}</b><span>in sales</span></div>
+      <p className="adm-hud-line">{stats.orders} order{stats.orders === 1 ? "" : "s"} · {moneyRound(perHr)}/hr{hasPlan && <> · {pctOfPlan}% of plan · net <b className={netUp ? "ok" : "red"}>{moneyRound(recon.actualNetCents)}</b></>}</p>
     </div>
   );
 }
@@ -4284,7 +4284,7 @@ function ProductCatalog() {
             <div className="cat-row" key={r.product_key}>
               <div className="cat-name">{r.label}</div>
               {r.price_live
-                ? <div className="ev-f cat-live">Price ${(r.price_cents / 100).toFixed(2)} <span className="cat-live-tag">live</span></div>
+                ? <div className="ev-f cat-live">Price {money(r.price_cents)} <span className="cat-live-tag">live</span></div>
                 : <label className="ev-f">Price $<input type="number" min={0} defaultValue={(r.price_cents / 100) || 0} onBlur={(ev) => toCents(ev.target.value) !== r.price_cents && save(r.product_key, { price_cents: toCents(ev.target.value) })} /></label>}
               {r.cost_live
                 ? <div className="ev-f cat-live" title="Recipe-derived: ingredients × inventory unit costs, same math as the COGS calculator.">Cost {money(r.unit_cost_cents ?? null)} <span className="cat-live-tag">recipes</span></div>
@@ -4811,7 +4811,7 @@ function OrdersHistory() {
               const name = (o.customer ?? "guest").toLowerCase();
               const id = o.id.slice(0, 4).toLowerCase();
               const items = o.items.map((i) => (DRINKS[i as DrinkId]?.n ?? i)).join(" ").toLowerCase();
-              return name.includes(term) || id.includes(term) || items.includes(term) || (o.total_cents / 100).toFixed(2).includes(term);
+              return name.includes(term) || id.includes(term) || items.includes(term) || moneyPlain(o.total_cents).includes(term);
             })
           : rows;
         return (
@@ -4820,7 +4820,7 @@ function OrdersHistory() {
             <button type="button" className="dops-mini" style={{ marginBottom: 8 }} onClick={() => downloadCsv("gt3-orders.csv", shown.map((o) => ({
               when: o.status_changed_at ?? "", order: o.id.slice(0, 4), customer: o.customer ?? "guest",
               items: o.items.map((i) => DRINKS[i as DrinkId]?.n ?? i).join(" · "),
-              total: (o.total_cents / 100).toFixed(2), status: o.status, paid: o.paid ? "paid online" : "at pickup",
+              total: moneyPlain(o.total_cents), status: o.status, paid: o.paid ? "paid online" : "at pickup",
             })))}>Export CSV</button>
             <SectionHeader label="Order history" right={done > 0 ? <span className="adm-pill">{done} completed</span> : undefined} />
             <input className="adm-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name · order # · item · amount" aria-label="Search order history" />
@@ -4831,7 +4831,7 @@ function OrdersHistory() {
                   key={o.id}
                   name={<RecordLink kind="customer" id={o.customer_id}>{o.customer ?? "Guest"}</RecordLink>}
                   nameExtra={<span className={`adm-substat ${o.status === "void" ? "past_due" : "active"}`}>{o.status}</span>}
-                  meta={<>{groupItems(o.items).map((g) => `${g.qty > 1 ? g.qty + "× " : ""}${DRINKS[g.id as DrinkId]?.n ?? g.id}`).join(" · ")} · ${(o.total_cents / 100).toFixed(2)} · {new Date(o.status_changed_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</>}
+                  meta={<>{groupItems(o.items).map((g) => `${g.qty > 1 ? g.qty + "× " : ""}${DRINKS[g.id as DrinkId]?.n ?? g.id}`).join(" · ")} · {money(o.total_cents)} · {new Date(o.status_changed_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</>}
                 />
               ))}
             </div>

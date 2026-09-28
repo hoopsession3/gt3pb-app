@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { notifyCustomer, accountEmail } from "@/lib/notify";
+import { money } from "@/lib/money";
 import {
   quoteDelivery, deliverySlotChoices, zipInZone, perfTotal, maxRefills,
   DELIVERY_PACKS, type PerfMix,
@@ -111,7 +112,7 @@ export async function POST(req: Request) {
     // "may have been charged" state, so alert with what we know (the idempotency key) instead of the
     // total silence this used to be, and tell the customer retrying is safe instead of implying
     // nothing happened.
-    await raiseAlert({ severity: "critical", category: "money", title: "Delivery charge status unknown — check Square", body: `A card charge may or may not have gone through (idempotency key ${idemKey}, $${(quote.totalCents / 100).toFixed(2)}, ${name}, ${slot.deliveryLabel}). The request errored before a response came back: ${String(e instanceof Error ? e.message : e).slice(0, 200)}. Check Square by that idempotency key before assuming nothing happened.` });
+    await raiseAlert({ severity: "critical", category: "money", title: "Delivery charge status unknown — check Square", body: `A card charge may or may not have gone through (idempotency key ${idemKey}, ${money(quote.totalCents)}, ${name}, ${slot.deliveryLabel}). The request errored before a response came back: ${String(e instanceof Error ? e.message : e).slice(0, 200)}. Check Square by that idempotency key before assuming nothing happened.` });
     return NextResponse.json({ error: "Couldn't confirm the payment — safe to try again, you won't be charged twice." }, { status: 502 });
   }
   if (!charge.ok) return NextResponse.json({ error: charge.error }, { status: 400 });
@@ -168,12 +169,12 @@ export async function POST(req: Request) {
       phone: row.phone,
       email: await accountEmail(user.id),
       subject: `GT3 — Sunday delivery confirmed (${slot.deliveryLabel})`,
-      message: `GT3: your ${packSize}-bottle delivery is set for ${slot.deliveryLabel} — $${(quote.totalCents / 100).toFixed(2)}${paid ? " paid" : " due on delivery"}.${quote.refillCount > 0 ? ` Set your ${quote.refillCount} rinsed empties out by 5 AM — no empties, no swap.` : ""} Fresh 7 days from delivery.`,
+      message: `GT3: your ${packSize}-bottle delivery is set for ${slot.deliveryLabel} — ${money(quote.totalCents)}${paid ? " paid" : " due on delivery"}.${quote.refillCount > 0 ? ` Set your ${quote.refillCount} rinsed empties out by 5 AM — no empties, no swap.` : ""} Fresh 7 days from delivery.`,
     });
 
     await raiseAlert({
       severity: "fyi", category: "order", title: "New Sunday delivery 🚚",
-      body: `${name} — ${packSize} bottles (${quote.refillCount} refill · ${quote.newCount} new${perf ? ` · ${perf} performance` : ""}) · $${(quote.totalCents / 100).toFixed(2)} ${paid ? "paid" : "due on delivery"} · ${slot.deliveryLabel} · ${city} ${zip}.`,
+      body: `${name} — ${packSize} bottles (${quote.refillCount} refill · ${quote.newCount} new${perf ? ` · ${perf} performance` : ""}) · ${money(quote.totalCents)} ${paid ? "paid" : "due on delivery"} · ${slot.deliveryLabel} · ${city} ${zip}.`,
       link: "/crew?s=now",
     });
     return NextResponse.json({ ok: true, paymentId, recorded: true, deliveryLabel: slot.deliveryLabel, deliveryDateKey: slot.deliveryDateKey, totalCents: quote.totalCents });

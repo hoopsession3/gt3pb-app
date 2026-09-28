@@ -13,6 +13,7 @@ import { useViewerMarket } from "@/components/useViewerMarket";
 import { useOrderingOpen } from "./useOrderingOpen";
 import { usePayAtPickup } from "./usePayAtPickup";
 import { squareClientReady } from "@/lib/square";
+import { money } from "@/lib/money";
 import { trackFunnel } from "@/lib/funnel";
 import Sheet from "./Sheet";
 import OrderConfirm from "./OrderConfirm";
@@ -78,7 +79,9 @@ export default function Checkout() {
   const [tipPct, setTipPct] = useState(0);
   const tipCents = Math.round(totalCents * tipPct);
   const grandCents = totalCents + tipCents;
-  const total = (grandCents / 100).toFixed(2);
+  // The string three places below print. It was "19.99" with a "$" glued on at each site, which is
+  // how the same total could read one way here and another on the receipt.
+  const total = money(grandCents);
 
   // The upsell line's numbers come straight from the pricing grid (lib/orderAhead) — the 6-pack
   // bring-back per-bottle price against the $10 cup at the truck, % rounded down. Nothing is
@@ -171,7 +174,7 @@ export default function Checkout() {
       if (!res.ok) { setErr(data.error || "Payment failed"); return; }
       trackFunnel("order", "paid");
       const capturedLines = [...lines], capturedName = customer;
-      toast(data.warn || `Paid $${total} — order in. Ready in ~8 min.`);
+      toast(data.warn || `Paid ${total} — order in. Ready in ~8 min.`);
       checkout({ silentToast: true }); // clears cart — this toast already fired above
       // data.warn/data.ref carry the "charged but not yet recorded" fallback (server alerted the
       // crew and generated a reference code) — capture them into `done` so the PERSISTENT confirm
@@ -201,7 +204,7 @@ export default function Checkout() {
             ...done.lines.map(([id, q]) => ({ label: DRINKS[id].n, value: `${q}×` })),
             { label: "For", value: done.name },
             ...(done.ref ? [{ label: "Ref", value: `#${done.ref}` }] : []),
-            { label: done.paid ? "Paid" : "Pay at pickup", value: `$${(done.total / 100).toFixed(2)}` },
+            { label: done.paid ? "Paid" : "Pay at pickup", value: money(done.total) },
           ]}
           ctaLabel="Reserve a Saturday pack →"
           onCta={() => { onClose(); router.push("/reserve"); }}
@@ -230,7 +233,7 @@ export default function Checkout() {
                     <button type="button" className="co-step" aria-label={`Add one ${DRINKS[id].n}`} onClick={() => inc(id)} disabled={busy}>+</button>
                     {DRINKS[id].n}
                   </span>
-                  <span>${((priceOf(id) * q) / 100).toFixed(2)}</span>
+                  <span>{money(priceOf(id) * q)}</span>
                 </div>
               ))}
 
@@ -263,7 +266,7 @@ export default function Checkout() {
                 </div>
               ) : squareClientReady ? (
                 <>
-                  <div className="co-line"><span>Subtotal</span><span>${(totalCents / 100).toFixed(2)}</span></div>
+                  <div className="co-line"><span>Subtotal</span><span>{money(totalCents)}</span></div>
                   <div className="spec-label" style={{ marginTop: 16 }}>Add a tip</div>
                   <div className="tip-row">
                     {[0, 0.15, 0.2, 0.25].map((p) => (
@@ -280,9 +283,9 @@ export default function Checkout() {
                   {err && <div className="auth-err">{err}</div>}
                   <div className="co-foot">
                     {blocked86.length > 0 && <div className="co-86">{blocked86.join(" · ")} just sold out — remove {blocked86.length === 1 ? "it" : "them"} with the − button to continue.</div>}
-                    <div className="co-line co-total"><span>Total</span><span>${total}</span></div>
+                    <div className="co-line co-total"><span>Total</span><span>{total}</span></div>
                     <button className="handle" onClick={pay} disabled={!ready || busy || items.length === 0 || !customer || blocked86.length > 0}>
-                      <span>{busy ? "Charging…" : blocked86.length > 0 ? "Remove sold-out items" : !customer ? "Add a name above" : ready ? `Pay $${total}` : "Loading card…"}</span>
+                      <span>{busy ? "Charging…" : blocked86.length > 0 ? "Remove sold-out items" : !customer ? "Add a name above" : ready ? `Pay ${total}` : "Loading card…"}</span>
                     </button>
                     {/* Card is primary; pay-at-pickup is the secondary path when the operator allows it. */}
                     {payLater.on && (
@@ -296,7 +299,7 @@ export default function Checkout() {
               ) : payLater.on ? (
                 <>
                   {blocked86.length > 0 && <div className="co-86">{blocked86.join(" · ")} just sold out — remove {blocked86.length === 1 ? "it" : "them"} with the − button to continue.</div>}
-                  <div className="co-line co-total"><span>Total</span><span>${(totalCents / 100).toFixed(2)}</span></div>
+                  <div className="co-line co-total"><span>Total</span><span>{money(totalCents)}</span></div>
                   <div className="honest" style={{ marginTop: 16 }}>
                     This is a <b>pre-order</b> — we&apos;ll have it ready and you pay at the truck.
                   </div>

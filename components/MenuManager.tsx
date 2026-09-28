@@ -10,6 +10,7 @@ import AsyncSection from "./AsyncSection";
 import { useOptions } from "./useOptions";
 import { withCurrent } from "@/lib/options";
 import { drinkCogs, margin, type InvCost } from "@/lib/cogs";
+import { money } from "@/lib/money";
 
 // MENU / PRODUCT manager — the catalog as a managed, relational record. Edit every attribute
 // (name, line, price, description, ingredients), set the recipe (which inventory items a serving
@@ -169,7 +170,7 @@ function ProductRow({ p, inv, open, onToggle, onSaved, toast }: { p: Product; in
           </>}
           trailing={<>
             <span className="prod-line">{p.line}</span>
-            <span className="prod-px">${(p.price_cents / 100).toFixed(2)}</span>
+            <span className="prod-px">{money(p.price_cents)}</span>
             {p.active && (
               <button type="button" className={`prod-86btn${p.sold_out ? " on" : ""}`} onClick={toggle86}>
                 {p.sold_out ? "Back on" : "86"}
@@ -218,9 +219,9 @@ function ProductRow({ p, inv, open, onToggle, onSaved, toast }: { p: Product; in
                 reads as better than it is, which is the expensive direction to be wrong in. */}
             {cogs.hasRecipe && (
               <div className={`prod-cogs${cogs.uncosted > 0 ? " partial" : ""}`}>
-                <span>Cost <b>${(cogs.cents / 100).toFixed(2)}</b></span>
+                <span>Cost <b>{money(cogs.cents)}</b></span>
                 {cogs.uncosted === 0 && d.price_cents > 0
-                  ? <span>Margin <b>${(m.profitCents / 100).toFixed(2)}</b> · {m.pct}%</span>
+                  ? <span>Margin <b>{money(m.profitCents)}</b> · {m.pct}%</span>
                   : cogs.uncosted > 0
                     ? <span className="prod-cogs-warn">{cogs.uncosted} ingredient{cogs.uncosted === 1 ? "" : "s"} have no unit cost — set it in Inventory</span>
                     : null}
@@ -232,7 +233,7 @@ function ProductRow({ p, inv, open, onToggle, onSaved, toast }: { p: Product; in
                   {(() => { const ln = cogs.lines.find((l) => l.name === invName(c.inventory_item_id));
                     if (!ln) return null;
                     return ln.costed
-                      ? <i className="prod-comp-c">${(ln.costCents / 100).toFixed(2)}</i>
+                      ? <i className="prod-comp-c">{money(ln.costCents)}</i>
                       : <i className="prod-comp-c none">no cost set</i>; })()}
                 </span>
                 <button type="button" className="insp-no" onClick={() => rmComponent(c.id)}>Remove</button>

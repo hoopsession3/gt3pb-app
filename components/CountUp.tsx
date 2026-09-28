@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { money } from "@/lib/money";
 
 // A dollar figure that counts up on mount — the Stripe/Apple "the number lands" feel. Reduced-motion
 // safe (snaps to the value). tabular-nums so it never jitters mid-count.
@@ -21,7 +22,7 @@ export default function CountUp({ cents, ms = 900, className }: { cents: number;
     raf.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf.current);
   }, [cents, ms]);
-  return <span className={className} style={{ fontVariantNumeric: "tabular-nums" }}>${(v / 100).toFixed(2)}</span>;
+  return <span className={className} style={{ fontVariantNumeric: "tabular-nums" }}>{money(v)}</span>;
 }
 
 // Integer roll for gauges/counters — same easing + reduced-motion contract as CountUp.

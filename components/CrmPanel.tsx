@@ -9,7 +9,7 @@ import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
 import { downloadCsv } from "@/lib/csv";
-import { money } from "@/lib/money";
+import { money, moneyPlain } from "@/lib/money";
 
 // The customer book — first reader of the identity spine. Rows are `customers` (canonical,
 // resolve_customer-backed): every human who's ever ordered, cup, pickup or delivery, whether or
@@ -102,7 +102,7 @@ export function CrmDetail({ c }: { c: Customer }) {
     const p = board.data?.loyalty;
     if (p) {
       setPts(String(p.points ?? 0));
-      setCredit(((p.credit_cents ?? 0) / 100).toFixed(2));
+      setCredit(moneyPlain(p.credit_cents));
       setFounding(Boolean(p.founding_member));
       setHasLoyalty(true);
     }

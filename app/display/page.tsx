@@ -8,6 +8,7 @@ import { CONNECT_APP } from "@/lib/connect";
 import { supabase } from "@/lib/supabase";
 import Gt3Mark from "@/components/Gt3Mark";
 import Icon from "@/components/Icon";
+import { money } from "@/lib/money";
 
 // TRUCK DISPLAY — a full-screen, auto-rotating loop for a tablet or TV at the bar. Five scenes: the
 // live menu, the craft/chemistry teaser, a cleaned + anonymized guest review, the brand line, and a
@@ -31,7 +32,9 @@ export default function DisplayPage() {
   // Cents-aware: a flat .toFixed(0) rounded every live price to a whole dollar for display while
   // checkout charges the exact cents — this board is the public in-truck price, so it must match
   // what customers are actually charged. Matches the dollars()/money() convention used elsewhere.
-  const priceLabel = (id: keyof typeof DRINKS) => (prices[id] != null ? `$${(prices[id] / 100).toFixed(prices[id] % 100 === 0 ? 0 : 2)}` : DRINKS[id].px);
+  // The third hand-written copy of money()'s trim rule — app/menu and components/DrinkSheet held
+  // the other two. Identical ternary, identical modulo, three files, one function.
+  const priceLabel = (id: keyof typeof DRINKS) => (prices[id] != null ? money(prices[id]) : DRINKS[id].px);
 
   useEffect(() => {
     QRCode.toDataURL(CONNECT_APP, { margin: 1, width: 640, color: { dark: "#15120D", light: "#ffffff" } }).then(setQr).catch(() => setQr(""));

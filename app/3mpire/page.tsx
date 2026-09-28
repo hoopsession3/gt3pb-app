@@ -20,6 +20,7 @@ import { DRINKS, type DrinkId } from "@/lib/menu";
 import type { Order } from "@/lib/db";
 import { clickable } from "@/lib/a11y";
 import { useSiteCopy } from "@/lib/copy";
+import { money, moneyPlain, moneyRound } from "@/lib/money";
 
 const RING = 232; // 2πr for r=37, matches prototype stroke-dasharray
 
@@ -56,7 +57,7 @@ function OrderHistory() {
             <b>{o.items.map((i) => DRINKS[i as DrinkId]?.n ?? i).join(" · ")}</b>
             <span>{histDate(o.created_at)} · {o.paid ? "Paid" : "Pre-order"}</span>
           </div>
-          <span className="hist-px">${(o.total_cents / 100).toFixed(2)}</span>
+          <span className="hist-px">{money(o.total_cents)}</span>
           <button className="hist-redo" onClick={() => reorder(o.items as DrinkId[])} aria-label="Order this again">↻</button>
         </div>
       ))}
@@ -123,7 +124,7 @@ function ReferralCard({ code }: { code: string }) {
       <div className="code"><b>{code}</b><span className="cp" aria-label={`Copy referral code ${code}`} {...clickable(copyCode)}>{copyLbl}</span></div>
       <button type="button" className="ref-share" onClick={share}>{t("account.share")}</button>
       {stats && stats.n > 0 && (
-        <div className="ref-stat">{stats.n} {stats.n === 1 ? "friend" : "friends"} joined · ${(stats.earned / 100).toFixed(0)} earned</div>
+        <div className="ref-stat">{stats.n} {stats.n === 1 ? "friend" : "friends"} joined · {moneyRound(stats.earned)} earned</div>
       )}
     </div>
   );
@@ -138,7 +139,7 @@ function MpireReal() {
 
   const points = profile?.points ?? 0;
   const freeEarned = Math.floor(points / 10); // lifetime free drinks — derived from the real points column
-  const credit = ((profile?.credit_cents ?? 0) / 100).toFixed(2);
+  const credit = moneyPlain(profile?.credit_cents);
   const code = profile?.referral_code || "GT3PB-3MP";
   const creditCents = profile?.credit_cents ?? 0;
 

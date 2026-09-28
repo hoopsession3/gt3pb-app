@@ -5,6 +5,7 @@ import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
 import { DRINKS, type DrinkId } from "@/lib/menu";
+import { money } from "@/lib/money";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -62,7 +63,7 @@ export default function Notifications() {
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, (p) => {
         const o = p.new as any;
         const names = (o.items || []).map((i: string) => DRINKS[i as DrinkId]?.n ?? i).join(" · ");
-        const amt = `$${(o.total_cents / 100).toFixed(2)}`;
+        const amt = money(o.total_cents);
         toast(`New order · ${names} · ${amt}`);
         chime();
       })

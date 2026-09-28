@@ -8,6 +8,7 @@ import { raiseAlert } from "@/lib/serverAlerts";
 import { notifyCustomer, accountEmail } from "@/lib/notify";
 import { preorderWindow, preorderLeadMs } from "@/lib/orderAhead";
 import { toMarket } from "@/lib/markets";
+import { money } from "@/lib/money";
 
 // Square Catalog as a secondary sync — used ONLY for items missing from `products` (a catalog gap),
 // never as the primary source. products.price_cents is the one price authority (0062, and the same
@@ -183,7 +184,7 @@ export async function POST(req: Request) {
     // Confirmation email — cup orders carry no phone (a quick on-the-spot order, not a form), so this
     // is account-email-only and only for signed-in members; guests just have the on-screen confirm.
     if (user?.id) {
-      await notifyCustomer({ email: await accountEmail(user.id), subject: "GT3 — order in", message: `GT3: your order is in — ready in ~8 min. $${(subtotal / 100).toFixed(2)} at pickup.` });
+      await notifyCustomer({ email: await accountEmail(user.id), subject: "GT3 — order in", message: `GT3: your order is in — ready in ~8 min. ${money(subtotal)} at pickup.` });
     }
     return NextResponse.json({ ok: true, amount: subtotal, recorded: true });
   }
@@ -201,7 +202,7 @@ export async function POST(req: Request) {
     // total silence this used to be. Retrying is still safe: the idempotency key is unchanged, so
     // Square will dedupe a genuine double-send — the message below says so instead of implying
     // nothing happened (which risked a customer paying a SECOND time by another channel).
-    await raiseAlert({ severity: "critical", category: "money", title: "Checkout charge status unknown — check Square", body: `A card charge may or may not have gone through (idempotency key ${idemKey}, $${(amount / 100).toFixed(2)}${customer ? `, name: ${customer}` : ""}). The request errored before a response came back: ${String(e instanceof Error ? e.message : e).slice(0, 200)}. Check Square by that idempotency key before assuming nothing happened.` });
+    await raiseAlert({ severity: "critical", category: "money", title: "Checkout charge status unknown — check Square", body: `A card charge may or may not have gone through (idempotency key ${idemKey}, ${money(amount)}${customer ? `, name: ${customer}` : ""}). The request errored before a response came back: ${String(e instanceof Error ? e.message : e).slice(0, 200)}. Check Square by that idempotency key before assuming nothing happened.` });
     return NextResponse.json({ error: "Couldn't confirm the payment — safe to tap Pay and try again, you won't be charged twice." }, { status: 502 });
   }
   if (!charge.ok) return NextResponse.json({ error: charge.error }, { status: 400 });
@@ -245,7 +246,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, paymentId, amount, recorded: false, ref, warn: `Payment received${ref ? ` — ref ${ref}` : ""}. We've alerted the crew to add your order; show this ref at the window.` }, { status: 200 });
     }
     if (user?.id) {
-      await notifyCustomer({ email: await accountEmail(user.id), subject: "GT3 — order in", message: `GT3: your order is in — ready in ~8 min. $${(amount / 100).toFixed(2)} paid.` });
+      await notifyCustomer({ email: await accountEmail(user.id), subject: "GT3 — order in", message: `GT3: your order is in — ready in ~8 min. ${money(amount)} paid.` });
     }
     return NextResponse.json({ ok: true, paymentId, amount, recorded: true });
   } catch {

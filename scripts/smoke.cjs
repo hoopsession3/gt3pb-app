@@ -1886,6 +1886,20 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("moneyFromDollars: the dollars-in door for lib/orderAhead", M.moneyFromDollars(22.5) === "$22.50" && M.moneyFromDollars(60) === "$60");
   ok("moneyFromDollars: unknown is unknown", M.moneyFromDollars(null) === "—");
 
+  // moneyPlain — the OTHER intention `(cents / 100).toFixed(2)` was carrying. Not a display string:
+  // an input's value, a CSV cell, a search haystack. Every difference from money() below is the
+  // reason it is a separate function and not a flag.
+  ok("moneyPlain: no symbol", M.moneyPlain(1999) === "19.99" && M.moneyPlain(6000) === "60.00");
+  ok("moneyPlain: KEEPS the .00 — money() trims it, and an input that loses its cents on focus is a bug",
+    M.moneyPlain(6000) === "60.00" && M.money(6000) === "$60");
+  ok("moneyPlain: unknown reads 0.00, NOT '—' — a text box cannot hold an em dash and the next keystroke has to parse it",
+    M.moneyPlain(null) === "0.00" && M.moneyPlain(undefined) === "0.00" && M.moneyPlain(NaN) === "0.00");
+  ok("moneyPlain: zero is zero", M.moneyPlain(0) === "0.00");
+  ok("moneyPlain: a negative keeps its sign for the field that shows it", M.moneyPlain(-1999) === "-19.99");
+  ok("moneyPlain: half a cent rounds like toFixed, so a pasted value round-trips", M.moneyPlain(1999.5) === "20.00");
+  ok("moneyPlain: what it produces parses back to the cents it came from",
+    Math.round(parseFloat(M.moneyPlain(1999)) * 100) === 1999 && Math.round(parseFloat(M.moneyPlain(0)) * 100) === 0);
+
   // THE GATE. A thirty-first would arrive the same way the first thirty did: someone needs a price
   // on a new screen and writes the one-liner rather than finding the import.
   const fs = require("node:fs");
@@ -1912,6 +1926,39 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     }
   }
   ok("money: no file defines its own formatter — lib/money is the only home", offenders.length === 0, offenders);
+
+  // ── THE SHAPE THAT GOT PAST THAT GATE ──────────────────────────────────────────────────────────
+  // The rule above looks for a NAMED definition — `const money = (c) => …`. All thirty had a name,
+  // so it was the right rule for what had already happened. It was the wrong rule for what happened
+  // next: the thirty-first was never declared, it was written inline, and FORTY-THREE of them
+  // survived the consolidation across twenty files.
+  //
+  // Including every one on the revenue path. app/menu rendered "$10" — it re-derived money()'s own
+  // trim-the-.00 rule by hand, in a ternary with a modulo, under a comment saying it "matches the
+  // money() convention used elsewhere" — and then CartBar, Checkout and the receipt rendered the
+  // same number "$10.00". One price, four spellings, between tapping it and paying for it.
+  //
+  // This rule is only enforceable because moneyPlain() now exists. About half the inline uses were
+  // never display — an <input> value, a CSV cell, a search haystack — and a rule that sent those to
+  // money() would have put "—" in a text box and been exempted inside a week. A rule nothing can
+  // satisfy is not a rule.
+  const INLINE = /\/\s*100\s*\)\s*\.toFixed\(/;
+  // Deno edge function: it runs outside the Next build and cannot import from lib/. Named with its
+  // reason rather than left looking like an oversight — an unexplained exemption is how the next
+  // person decides the rule is optional.
+  const INLINE_EXEMPT = new Set(["lib/money.ts", "supabase/functions/push/index.ts"]);
+  const inline = [];
+  for (const f of files) {
+    const rel = f.replace(root + "/", "");
+    if (INLINE_EXEMPT.has(rel)) continue;
+    const src = fs.readFileSync(f, "utf8").split("\n")
+      .map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1"))   // a comment quoting the shape is not the shape
+      .filter((l) => !/^\s*\*/.test(l))                 // nor is a jsdoc line
+      .join("\n");
+    if (INLINE.test(src)) inline.push(rel);
+  }
+  ok("money: nobody divides by 100 and formats it themselves — money(), moneyRound() or moneyPlain()",
+    inline.length === 0, inline);
 }
 
 // ── PLAN NAV (0316) — the jump that has to survive a page load ───────────────────────────────────

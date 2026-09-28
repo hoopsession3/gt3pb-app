@@ -7,6 +7,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import { SectionHeader } from "@/components/kit";
 import Icon from "@/components/Icon";
+import { money } from "@/lib/money";
 
 // ASSET MAINTENANCE — upkeep log for the gear. Each asset shows its last service and what's due next
 // (or overdue); tap to see the full history and log a new service/repair/clean/inspection. Staff-gated
@@ -94,7 +95,7 @@ export default function AssetMaintenance() {
                                 <span className="am-row-k">{KIND_ICON[m.kind] || "•"}</span>
                                 <span className="am-row-main">
                                   <b>{m.summary}</b>
-                                  <span>{fmt(m.performed_on)}{m.performed_by ? ` · ${m.performed_by}` : ""}{m.cost_cents != null ? ` · $${(m.cost_cents / 100).toFixed(2)}` : ""}{m.next_due_on ? ` · next ${fmt(m.next_due_on)}` : ""}</span>
+                                  <span>{fmt(m.performed_on)}{m.performed_by ? ` · ${m.performed_by}` : ""}{m.cost_cents != null ? ` · ${money(m.cost_cents)}` : ""}{m.next_due_on ? ` · next ${fmt(m.next_due_on)}` : ""}</span>
                                   {m.how_to && (
                                     <details className="am-how"><summary>How to do this</summary>
                                       <div className="am-how-steps">{m.how_to.split("\n").map((s) => s.trim()).filter(Boolean).map((s, i) => <div key={i}>{s}</div>)}</div>

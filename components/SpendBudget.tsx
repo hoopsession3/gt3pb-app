@@ -11,7 +11,7 @@ import Icon from "@/components/Icon";
 import { downloadCsv } from "@/lib/csv";
 import { MARKETS, MARKET_LABEL, FOUNDING_MARKET, toMarket, type Market } from "@/lib/markets";
 import { receiptGaps, totals, headline, type SpendCategory, type ExpenseRow as SpendRow, type BudgetRow } from "@/lib/spend";
-import { moneyRound } from "@/lib/money";
+import { moneyPlain, moneyRound } from "@/lib/money";
 
 // SPEND & BUDGET (0209) — the procurement side of Money. Log what the business spends (optionally to a
 // real vendor / event) and track it against a per-category monthly budget. Reads report_spend(); every
@@ -189,7 +189,7 @@ export default function SpendBudget() {
           <div className="spb">
             <div className="spb-head"><b>{moneyRound(rep.total_spent_cents)}</b> spent<span className="spb-sub"> of {moneyRound(rep.total_budget_cents)} budget · {rep.month}</span>
               {data.items.length > 0 && <button type="button" className="dops-mini spb-export" onClick={() => downloadCsv("gt3-expenses.csv", data.items.map((x) => ({
-                when: x.created_at, amount: (x.amount_cents / 100).toFixed(2), category: x.category, description: x.description ?? "",
+                when: x.created_at, amount: moneyPlain(x.amount_cents), category: x.category, description: x.description ?? "",
               })))}>Export CSV</button>}
             </div>
             {/* Zero-state (2026-08-01 audit): eight identical "$0 / set budget" flatlines rendered

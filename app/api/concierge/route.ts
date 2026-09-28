@@ -5,6 +5,7 @@ import { menuKnowledge } from "@/lib/conciergeKb";
 import { ownerCorrections, logConvo } from "@/lib/agentKnowledge";
 import { claimSafe, CLAIM_FALLBACK } from "@/lib/claimGuard";
 import { etTimeLabel } from "@/lib/dates";
+import { money } from "@/lib/money";
 
 export const runtime = "nodejs";
 
@@ -98,7 +99,7 @@ export async function POST(req: Request) {
         .gte("day", today).order("day").limit(8),
       supabaseAdmin.from("subscription_plans").select("label, price_cents, period_days, active").eq("active", true).order("price_cents"),
     ]);
-    prices = (pr.data ?? []).map((p: any) => `- ${p.name ?? p.slug}: $${((p.price_cents ?? 0) / 100).toFixed(2)}`).join("\n");
+    prices = (pr.data ?? []).map((p: any) => `- ${p.name ?? p.slug}: ${money(p.price_cents)}`).join("\n");
     if (ls.data) {
       let where = "";
       if ((ls.data as any).current_stop_id) {
@@ -125,7 +126,7 @@ export async function POST(req: Request) {
         : `The truck is not currently open${next ? `. Next: ${next}` : ""}.`;
     }
     events = (ev.data ?? []).filter((e: any) => !e.member_only).map((e: any) => `- ${e.public_title || e.title || "Event"}${e.day_label ? ` (${e.day_label})` : e.day ? ` (${e.day})` : ""}${e.start_time ? ` ${e.start_time}` : ""}${e.location_text ? ` — ${e.location_text}` : ""}`).join("\n");
-    plans = (pl.data ?? []).map((p: any) => `- ${p.label}: $${((p.price_cents ?? 0) / 100).toFixed(2)} every ${p.period_days} days`).join("\n");
+    plans = (pl.data ?? []).map((p: any) => `- ${p.label}: ${money(p.price_cents)} every ${p.period_days} days`).join("\n");
   }
 
   // Public surface: only corrections EXPLICITLY tagged "concierge" — never the shared "all" bucket

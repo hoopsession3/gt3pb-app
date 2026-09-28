@@ -1,3 +1,4 @@
+import { money } from "./money";
 // AI COST MODEL — one place to price every Claude call, so the spend meter and any budget logic read
 // from a single source. Rates are USD per 1,000,000 tokens, per Anthropic's published pricing for the
 // tiers this app uses. If Anthropic changes prices, edit HERE and the whole meter re-prices going
@@ -37,5 +38,8 @@ export function costCents(model: string, u: Usage): number {
   return dollars * 100;
 }
 
+// Sub-dollar AI spend reads in cents ("0.42¢"), which is this module’s own convention and not
+// something money() should learn — a customer price is never a fraction of a cent. Above a dollar
+// it is an ordinary amount, so it is money()’s.
 export const fmtUSD = (cents: number): string =>
-  cents >= 100 ? `$${(cents / 100).toFixed(2)}` : `${cents.toFixed(2)}¢`;
+  cents >= 100 ? money(cents) : `${cents.toFixed(2)}¢`;

@@ -7,6 +7,7 @@ import { notifyCustomer, accountEmail } from "@/lib/notify";
 import { submitOrderToApliiq } from "@/lib/apliiq";
 import { skuFor } from "@/lib/apliiqOrder";
 import { integrationTenant } from "@/lib/tenantScope";
+import { money } from "@/lib/money";
 
 export const runtime = "nodejs";
 
@@ -138,7 +139,7 @@ export async function POST(req: Request) {
     try {
       await notifyCustomer({ email, subject: "Your GT3 order is in", message: `Thanks ${shipName.split(" ")[0] || ""}! We got your order — ${lineItems.map((l) => `${l.qty}× ${l.title}`).join(", ")}. We'll email tracking the moment it ships.` });
     } catch { /* notify is best-effort */ }
-    await raiseAlert({ severity: "fyi", category: "order", kind: "shop_order_new", subjectId: orderId, title: "New shop order 🧢", body: `${shipName} — ${lineItems.map((l) => `${l.qty}× ${l.title}`).join(", ")} · $${(total / 100).toFixed(2)}.` });
+    await raiseAlert({ severity: "fyi", category: "order", kind: "shop_order_new", subjectId: orderId, title: "New shop order 🧢", body: `${shipName} — ${lineItems.map((l) => `${l.qty}× ${l.title}`).join(", ")} · ${money(total)}.` });
     return NextResponse.json({ ok: true, id: orderId, paid: true, recorded: true });
   } catch {
     return NextResponse.json({ error: "Checkout service unavailable" }, { status: 502 });

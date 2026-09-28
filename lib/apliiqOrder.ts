@@ -1,3 +1,4 @@
+import { moneyPlain } from "./money";
 // THE ORDER WE SEND APLIIQ — pure, so it can be tested without a network or a database.
 //
 // ── WHY THIS FILE EXISTS ───────────────────────────────────────────────────────────────────────
@@ -92,8 +93,14 @@ export function splitName(full: string): { first_name: string; last_name: string
 export type OrderLine = { id: string; title: string; qty: number; priceCents: number; sku: string | null };
 export type OrderShip = { name: string; street: string; city: string; state: string; zip: string; country?: string };
 
-/** Dollars-and-cents as Apliiq's `price` string — "45.50", never 4550 and never 45.5. */
-export const priceString = (cents: number): string => (Math.max(0, Math.round(cents)) / 100).toFixed(2);
+/**
+ * Dollars-and-cents as Apliiq's `price` string — "45.50", never 4550 and never 45.5.
+ *
+ * The formatting is moneyPlain's. What is local to Apliiq is the clamp: their API rejects a
+ * negative price outright, and rounding here rather than at the boundary is how a payload ends up
+ * a penny out from the order it was built from.
+ */
+export const priceString = (cents: number): string => moneyPlain(Math.max(0, Math.round(cents)));
 
 /**
  * Apliiq's own "product skus" panel, pasted in as-is.

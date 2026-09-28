@@ -10,6 +10,7 @@ import Watermark from "@/components/Watermark";
 import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
 import { useSiteCopy } from "@/lib/copy";
 import { useAvailability } from "@/lib/availability";
+import { money } from "@/lib/money";
 import { DRINKS, MENU, type DrinkId } from "@/lib/menu";
 import { PACK_SIZES, PACK_TAG, packTotal, dollars } from "@/lib/orderAhead";
 import { clickable } from "@/lib/a11y";
@@ -25,10 +26,13 @@ export default function MenuScreen() {
   useEffect(() => {
     fetch("/api/menu").then((r) => r.json()).then((d) => setPrices(d.prices || {})).catch(() => {});
   }, []);
-  // Cents-aware: a flat .toFixed(0) rounded every live price to a whole dollar for display while
-  // checkout charges the exact cents (e.g. a $7.50 reprice via Money > Menu would show "$8" here
-  // but charge $7.50) — matches the dollars()/money() convention used elsewhere (OrderFunnel, Office).
-  const priceLabel = (id: DrinkId) => (prices[id] != null ? `$${(prices[id] / 100).toFixed(prices[id] % 100 === 0 ? 0 : 2)}` : DRINKS[id].px);
+  // This line used to re-derive money()'s exact rule by hand — trim the cents when they are .00,
+  // show them when they are not — in a ternary with a modulo, and its own comment said it "matches
+  // the money() convention used elsewhere". It did. That is the problem: the convention has a
+  // function, and a copy of a rule is a copy that can drift. The customer tapped "$10" here and
+  // then read "$10.00" in the cart, the checkout and on the receipt, because those four screens
+  // held four spellings of one number.
+  const priceLabel = (id: DrinkId) => (prices[id] != null ? money(prices[id]) : DRINKS[id].px);
 
   // Sticky category chips that scroll-spy the menu (jump + highlight current section).
   const [active, setActive] = useState<string>(MENU[0]?.name ?? "");

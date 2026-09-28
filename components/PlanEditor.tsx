@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { SectionHeader, InfoRow } from "@/components/kit";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import { money } from "@/lib/money";
 
 // MEMBERSHIP PLAN editor — manage subscription tiers in-app (was SQL-only). CRUD on subscription_plans.
 // Fetch state via useAsyncData — a failed load is a real error now, not a silent "No plans yet".
@@ -94,7 +95,7 @@ function PlanRow({ p, onSaved, toast }: { p: Plan; onSaved: () => void; toast: (
             name={p.label}
             trailing={<>
               <span className="prod-line">{p.key}{!p.active ? " · off" : ""}</span>
-              <span className="prod-px">${(p.price_cents / 100).toFixed(2)}/{p.period_days}d</span>
+              <span className="prod-px">{money(p.price_cents)}/{p.period_days}d</span>
             </>}
           />
         </div>

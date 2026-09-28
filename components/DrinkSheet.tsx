@@ -11,6 +11,7 @@ import { dropForStop, nextDrop } from "@/lib/orderAhead";
 import { useSiteCopy, fillCopy } from "@/lib/copy";
 import Sheet from "@/components/Sheet";
 import EditableCopy from "@/components/EditableCopy";
+import { money } from "@/lib/money";
 
 // Pillar tag per drink timing — copy keys now (sheet.pillar_*), resolved via t() at render since the
 // key→text map lives in site_copy. The d.when → key mapping itself is menu data, not copy.
@@ -65,7 +66,7 @@ export default function DrinkSheet() {
             <span className="sheet-name" id="drink-sheet-title">{t(`menu.${openId}.name`)}</span>
             {/* Live price (products.price_cents via AppProvider), not the frozen lib/menu.ts value —
                 so the very first price a customer sees always matches what checkout charges. */}
-            <span className="sheet-px">${(priceCents(openId) / 100).toFixed(priceCents(openId) % 100 === 0 ? 0 : 2)}</span>
+            <span className="sheet-px">{money(priceCents(openId))}</span>
           </div>
 
           <div className="sheet-lines">
