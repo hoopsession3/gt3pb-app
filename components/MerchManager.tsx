@@ -10,6 +10,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import MediaStudio from "@/components/MediaStudio";
 import { readMedia, toColumns, type MediaItem } from "@/lib/shopMedia";
+import { parseSkuBlock, formatSkuBlock } from "@/lib/apliiqOrder";
 import { money } from "@/lib/money";
 
 // THE SHOP · merch manager (0273/0274) — the crew's publish + curation surface for the storefront.
@@ -164,6 +165,8 @@ function MerchRow({ p, open, onToggle, onSaved, toast }: { p: Product; open: boo
   const [d, setD] = useState(p);
   const [priceStr, setPriceStr] = useState((p.price_cents / 100).toFixed(2));
   const [media, setMedia] = useState<MediaItem[]>(() => readMedia(p));
+  // The SKU block as text, so it round-trips exactly what was pasted.
+  const [skuText, setSkuText] = useState<string>(() => formatSkuBlock(p.variants));
   useEffect(() => { setD(p); setPriceStr((p.price_cents / 100).toFixed(2)); setMedia(readMedia(p)); }, [p]);
 
   const published = !!d.published_at && !d.archived_at;
@@ -187,6 +190,9 @@ function MerchRow({ p, open, onToggle, onSaved, toast }: { p: Product; open: boo
       // The POD link. Absent from this payload until 2026-09-28, which is what made the field above
       // impossible to add: the form could have shown an input and the save would have dropped it.
       apliiq_product_id: d.apliiq_product_id?.trim() || null,
+      // Parsed SKUs replace variants when the block has any; an empty box leaves the existing
+      // variants alone rather than wiping a product's sizes because nobody filled this in.
+      ...(parseSkuBlock(skuText).length ? { variants: parseSkuBlock(skuText) } : {}),
       sort: d.sort, published_at: d.published_at, archived_at: d.archived_at,
       updated_at: new Date().toISOString(),
     }).eq("id", p.id);
@@ -252,6 +258,29 @@ function MerchRow({ p, open, onToggle, onSaved, toast }: { p: Product; open: boo
               inputMode="numeric"
             />
           </label>
+
+          {/* THE SKUs — what actually orders. Apliiq's Create Order takes a per-size sku
+              ("APQ-########S#A#"), not a product id, so this is the field that decides whether a
+              paid order can be made at all. Paste the block straight off Apliiq's "product skus"
+              panel: select, copy, paste. Six boxes would be six chances to transpose a digit into
+              an order that ships the wrong size. */}
+          <label className="prod-f">
+            <span>Apliiq SKUs — paste the &ldquo;product skus&rdquo; block from Apliiq, one size per line</span>
+            <textarea
+              rows={5}
+              value={skuText}
+              onChange={(e) => setSkuText(e.target.value)}
+              placeholder={"s\tAPQ-5902678S6A1\nm\tAPQ-5902678S7A1\nl\tAPQ-5902678S8A1"}
+              spellCheck={false}
+            />
+          </label>
+          {skuText.trim() && (
+            <div className="insp-lbl">
+              {parseSkuBlock(skuText).length > 0
+                ? <>{parseSkuBlock(skuText).length} size{parseSkuBlock(skuText).length === 1 ? "" : "s"} read: {parseSkuBlock(skuText).map((v) => v.size).join(" · ")}</>
+                : <span style={{ color: "var(--oa-red, #B82420)" }}>No SKUs read — each line needs a size then an APQ-… code.</span>}
+            </div>
+          )}
 
           <div className="insp-lbl" style={{ marginTop: 4 }}>
             {d.cost_cents != null ? <>Apliiq cost {money(d.cost_cents)}{margin != null && <> · margin <b style={{ color: margin >= 0 ? "inherit" : "var(--oa-red, #B82420)" }}>{money(margin)}</b></>}</> : "No POD cost set"}

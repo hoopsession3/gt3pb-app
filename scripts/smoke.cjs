@@ -2535,6 +2535,114 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   }
 }
 
+
+// ── APLIIQ ORDER (lib/apliiqOrder.ts) ──────────────────────────────────────────────────────────
+// The fulfilment payload had NEVER been checked against Apliiq's published Create Order schema,
+// and every field in it was wrong. The fixtures below are the real thing: the SKUs are the ones
+// off Ryan's own design page (APQ-5902678S6A1 … S21A1, one per size), and the required-field list
+// is Apliiq's, not mine. A payload nobody can run by hand is how this drifted for a month.
+{
+  const A = require("../.smoke/apliiqOrder.js");
+  const SIZES = [
+    { size: "S", sku: "APQ-5902678S6A1" }, { size: "M", sku: "APQ-5902678S7A1" },
+    { size: "L", sku: "APQ-5902678S8A1" }, { size: "XL", sku: "APQ-5902678S1A1" },
+    { size: "XXL", sku: "APQ-5902678S2A1" }, { size: "XXXL", sku: "APQ-5902678S21A1" },
+  ];
+  const SHIP = { name: "Ryan Thompkins", street: "1 Main St", city: "Greenville", state: "SC", zip: "29601" };
+  const line = (over) => ({ id: "p1", title: "Classic Organic Tee", qty: 1, priceCents: 3400, sku: null, ...over });
+
+  // ── which SKU is this customer's size? ──
+  ok("apliiq: the shopper's size picks its own SKU", A.skuFor(SIZES, { size: "L" }) === "APQ-5902678S8A1");
+  ok("apliiq: case and spacing in the size don't matter", A.skuFor(SIZES, { size: " xxl " }) === "APQ-5902678S2A1");
+  ok("apliiq: XL and XXL are not confused with each other",
+    A.skuFor(SIZES, { size: "XL" }) === "APQ-5902678S1A1" && A.skuFor(SIZES, { size: "XXL" }) === "APQ-5902678S2A1");
+  ok("apliiq: a size that isn't stocked returns NOTHING, never a near miss",
+    A.skuFor(SIZES, { size: "4XL" }) === null);
+  ok("apliiq: several SKUs and no choice given is a refusal, not a guess",
+    A.skuFor(SIZES, null) === null);
+  // A one-size cap has nothing to disambiguate — the choice cannot disagree with a set of one.
+  ok("apliiq: a one-size product needs no choice", A.skuFor([{ size: "One size", sku: "APQ-8869S1A1" }], null) === "APQ-8869S1A1");
+  ok("apliiq: variants with no SKU yield nothing", A.skuFor([{ size: "L" }, { size: "M" }], { size: "L" }) === null);
+  ok("apliiq: a malformed SKU is not a SKU", A.skuFor([{ size: "L", sku: "5902678" }], { size: "L" }) === null);
+  ok("apliiq: colour narrows it when both are given",
+    A.skuFor([{ size: "L", color: "Black", sku: "APQ-1S1A1" }, { size: "L", color: "Cream", sku: "APQ-1S2A1" }],
+      { size: "L", color: "cream" }) === "APQ-1S2A1");
+
+  // ── the SKU block, pasted straight off Apliiq's panel ──
+  // The fixture is the real block from Ryan's design page, tab-separated as it copies.
+  const BLOCK = "s\tAPQ-5902678S6A1\nm\tAPQ-5902678S7A1\nl\tAPQ-5902678S8A1\nxl\tAPQ-5902678S1A1\nxxl\tAPQ-5902678S2A1\nxxxl\tAPQ-5902678S21A1";
+  const parsed = A.parseSkuBlock(BLOCK);
+  ok("apliiq: the pasted block reads all six sizes", parsed.length === 6, parsed.length);
+  ok("apliiq: sizes and SKUs stay paired through the paste",
+    parsed[0].size === "s" && parsed[0].sku === "APQ-5902678S6A1" && parsed[5].size === "xxxl" && parsed[5].sku === "APQ-5902678S21A1");
+  ok("apliiq: a parsed block feeds skuFor directly — paste, then sell",
+    A.skuFor(parsed, { size: "XXL" }) === "APQ-5902678S2A1");
+  ok("apliiq: multiple spaces, commas and colons all copy fine",
+    A.parseSkuBlock("s     APQ-1S6A1\nm, APQ-1S7A1\nl: APQ-1S8A1").length === 3);
+  ok("apliiq: junk lines are ignored, not guessed at",
+    A.parseSkuBlock("product skus\ns\tAPQ-1S6A1\n\nnot a sku line").length === 1);
+  ok("apliiq: a bare SKU with no size is ignored", A.parseSkuBlock("APQ-1S6A1").length === 0);
+  ok("apliiq: a malformed code is not accepted as a SKU", A.parseSkuBlock("s\t5902678").length === 0);
+  ok("apliiq: the same size twice keeps the first", A.parseSkuBlock("l\tAPQ-1S8A1\nL\tAPQ-9S9A9").length === 1);
+  ok("apliiq: lowercase apq is normalised up", A.parseSkuBlock("s\tapq-1s6a1")[0].sku === "APQ-1S6A1");
+  ok("apliiq: the block round-trips back out for the editor",
+    A.parseSkuBlock(A.formatSkuBlock(parsed)).length === 6);
+  ok("apliiq: an empty paste reads as no SKUs, not a crash",
+    A.parseSkuBlock("").length === 0 && A.parseSkuBlock(null).length === 0);
+
+  // ── the name split Apliiq requires and checkout does not collect ──
+  ok("apliiq: one name box becomes first_name + last_name",
+    JSON.stringify(A.splitName("Ryan Thompkins")) === JSON.stringify({ first_name: "Ryan", last_name: "Thompkins" }));
+  ok("apliiq: a middle name stays with the first, not the surname",
+    A.splitName("Mary Anne Del Rio").last_name === "Rio");
+  ok("apliiq: a single name goes on the parcel as the last name",
+    JSON.stringify(A.splitName("Prince")) === JSON.stringify({ first_name: "", last_name: "Prince" }));
+
+  // ── price is a STRING, two decimals — "45.50", never 4550 and never 45.5 ──
+  ok("apliiq: price renders as Apliiq's decimal string",
+    A.priceString(4550) === "45.50" && A.priceString(3400) === "34.00" && A.priceString(0) === "0.00");
+
+  // ── the payload itself, field by field, against the published schema ──
+  const built = A.buildOrderPayload({ id: "abcd1234-ef56-7890-abcd-ef1234567890", ship: SHIP, items: [line({ sku: "APQ-5902678S8A1", qty: 2 })] });
+  ok("apliiq: a complete order builds", built.ok === true, built.ok ? "" : built.reason);
+  const P = built.ok ? built.payload : {};
+  ok("apliiq: the four required root ids are all present",
+    !!P.id && !!P.number && !!P.name && !!P.order_number);
+  ok("apliiq: it is line_items, not lineItems", Array.isArray(P.line_items) && P.lineItems === undefined);
+  ok("apliiq: it is shipping_address, not shipping", !!P.shipping_address && P.shipping === undefined);
+  const L = (P.line_items || [])[0] || {};
+  ok("apliiq: the line carries sku, not productId", L.sku === "APQ-5902678S8A1" && L.productId === undefined);
+  ok("apliiq: the line carries its own id, a title and a price string",
+    !!L.id && !!L.title && L.price === "34.00" && L.quantity === 2);
+  const S = P.shipping_address || {};
+  ok("apliiq: the address is split into the fields Apliiq names",
+    S.first_name === "Ryan" && S.last_name === "Thompkins" && S.address1 === "1 Main St" && S.city === "Greenville" && S.zip === "29601");
+  ok("apliiq: province AND province_code are both set", S.province === "SC" && S.province_code === "SC");
+  ok("apliiq: country is stated rather than left for Apliiq to assume",
+    S.country === "United States" && S.country_code === "US");
+
+  // ── REFUSE rather than ship a wrong or partial order ──
+  // Wrapped, because the first version of these assertions was proved by the runner CRASHING when
+  // the guard was removed — buildOrderPayload threw on the null sku a few lines later. A throw is
+  // a loud failure but it takes the other 865 assertions down with it, so the property is asserted
+  // rather than inferred from a stack trace.
+  const attempt = (fn) => { try { return fn(); } catch (e) { return { ok: true, threw: String(e && e.message) }; } };
+  const noSku = attempt(() => A.buildOrderPayload({ id: "x", ship: SHIP, items: [line({ sku: null, title: "6-Panel Cap" })] }));
+  ok("apliiq: a line with no SKU refuses the whole order", noSku.ok === false);
+  ok("apliiq: ...and names the item, so the crew queue is actionable",
+    !noSku.ok && String(noSku.reason).includes("6-Panel Cap"), noSku.ok ? (noSku.threw || "built anyway") : noSku.reason);
+  const mixed = attempt(() => A.buildOrderPayload({ id: "x", ship: SHIP, items: [line({ sku: "APQ-5902678S8A1" }), line({ id: "p2", sku: null, title: "Tumbler" })] }));
+  ok("apliiq: ONE unlinked item refuses the order — never ship half of what was paid for",
+    mixed.ok === false && String(mixed.reason).includes("Tumbler"), mixed.ok ? (mixed.threw || "built anyway") : mixed.reason);
+  ok("apliiq: an empty cart refuses", A.buildOrderPayload({ id: "x", ship: SHIP, items: [] }).ok === false);
+  for (const [field, bad] of [["name", { ...SHIP, name: "" }], ["street", { ...SHIP, street: "" }],
+                              ["city", { ...SHIP, city: "" }], ["zip", { ...SHIP, zip: "" }], ["state", { ...SHIP, state: "" }]]) {
+    const r = A.buildOrderPayload({ id: "x", ship: bad, items: [line({ sku: "APQ-5902678S8A1" })] });
+    ok(`apliiq: a missing shipping ${field} refuses the order`, r.ok === false, r.ok ? "built anyway" : r.reason);
+  }
+}
+
+
 console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
 console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);
 process.exit(fail ? 1 : 0);

@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { supabaseAdmin } from "./supabaseAdmin";
+import { buildOrderPayload, type OrderLine, type OrderShip } from "./apliiqOrder";
 
 // APLIIQ integration (0271) — print-on-demand fulfillment for the merch line. Two directions:
 // Apliiq calls OUR webhooks (product/search/fulfillment), and we submit orders to THEIR API. Every
@@ -91,26 +92,37 @@ export async function firstSeen(provider: "apliiq" | "square", eventId: string):
 // Submit a paid merch order to Apliiq for fulfillment. Returns ok + their order id, or the reason it
 // failed — the caller drops a failure into the "needs fulfillment" crew queue (money's already
 // collected; fulfillment never silently fails). Never throws.
+//
+// REWRITTEN 2026-09-28 against Apliiq's published Create Order schema, which this had never once
+// been checked against. EVERY field was wrong: external_id for id (and no number/name/order_number
+// at all), shipping for shipping_address, a single `name` where first_name AND last_name are
+// required, no country or country_code, lineItems for line_items, and productId where a per-size
+// `sku` ("APQ-########S#A#") is required — plus no per-line id, title or price. A paid order would
+// have been rejected outright. lib/apliiqOrder builds and validates the body; this signs and posts.
 export type ApliiqSubmit = { ok: true; apliiqOrderId: string | null } | { ok: false; error: string };
 export async function submitOrderToApliiq(order: {
   id: string;
-  ship: { name: string; street: string; city: string; state: string; zip: string };
-  items: { apliiq_product_id: string | null; variant: unknown; qty: number }[];
+  ship: OrderShip;
+  items: OrderLine[];
 }): Promise<ApliiqSubmit> {
   if (!SECRET || !APP_KEY) return { ok: false, error: "Apliiq not configured (env)" };
-  const payload = {
-    external_id: order.id,
-    shipping: order.ship,
-    lineItems: order.items.map((i) => ({ productId: i.apliiq_product_id, variant: i.variant, quantity: i.qty })),
-  };
-  const raw = JSON.stringify(payload);
+  // Refuse rather than post something Apliiq will reject. The crew queue then carries a reason a
+  // human can act on — "no Apliiq SKU for: 6-Panel Cap" — instead of a bare 400.
+  const built = buildOrderPayload(order);
+  if (!built.ok) return { ok: false, error: built.reason };
+  const raw = JSON.stringify(built.payload);
   try {
     const r = await fetch(`${API_BASE}/Order`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: outboundAuthHeader(raw) },
       body: raw,
     });
-    if (!r.ok) return { ok: false, error: `Apliiq ${r.status}` };
+    if (!r.ok) {
+      // Their message, not just the number — the first real order is how this contract gets
+      // confirmed, and "Apliiq 400" tells whoever reads the alert nothing about which field.
+      const detail = await r.text().catch(() => "");
+      return { ok: false, error: `Apliiq ${r.status}${detail ? ` — ${detail.slice(0, 90)}` : ""}` };
+    }
     const data = (await r.json().catch(() => ({}))) as { Id?: string | number; id?: string | number };
     const id = data.Id ?? data.id ?? null;
     return { ok: true, apliiqOrderId: id != null ? String(id) : null };

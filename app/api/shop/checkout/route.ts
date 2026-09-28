@@ -5,6 +5,7 @@ import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { notifyCustomer, accountEmail } from "@/lib/notify";
 import { submitOrderToApliiq } from "@/lib/apliiq";
+import { skuFor } from "@/lib/apliiqOrder";
 import { integrationTenant } from "@/lib/tenantScope";
 
 export const runtime = "nodejs";
@@ -51,13 +52,15 @@ export async function POST(req: Request) {
   // order that is about to be written, so the read and the write agree by construction.
   const tenant = integrationTenant();
   const { data: prods, error: prodErr } = await supabaseAdmin.from("shop_products")
-    .select("id, title, price_cents, cost_cents, apliiq_product_id, kind, published_at, archived_at").eq("tenant_id", tenant)
+    .select("id, title, price_cents, cost_cents, apliiq_product_id, variants, kind, published_at, archived_at").eq("tenant_id", tenant)
     .in("id", ids).eq("kind", "merch");
   if (prodErr) return NextResponse.json({ error: "Couldn't price your cart." }, { status: 500 });
   const byId = new Map((prods ?? []).map((p) => [(p as { id: string }).id, p as Record<string, any>]));
 
   let subtotal = 0;
-  const lineItems: { product_id: string; title: string; variant: unknown; qty: number; unit_cents: number; cost_cents: number | null; apliiq_product_id: string | null }[] = [];
+  // `apliiq_sku` is resolved HERE, while the product's variant list and the shopper's choice are
+  // both in hand — the fulfilment call downstream sees only the line and cannot work it out later.
+  const lineItems: { product_id: string; title: string; variant: unknown; qty: number; unit_cents: number; cost_cents: number | null; apliiq_product_id: string | null; apliiq_sku: string | null }[] = [];
   for (const it of rawItems) {
     const p = byId.get(String(it.product_id ?? ""));
     if (!p) continue;
@@ -65,7 +68,7 @@ export async function POST(req: Request) {
     const qty = Math.max(1, Math.min(20, Math.floor(Number(it.qty) || 1)));
     const unit = Math.max(0, Number(p.price_cents) || 0);
     subtotal += unit * qty;
-    lineItems.push({ product_id: p.id, title: p.title, variant: it.variant ?? null, qty, unit_cents: unit, cost_cents: p.cost_cents ?? null, apliiq_product_id: p.apliiq_product_id ?? null });
+    lineItems.push({ product_id: p.id, title: p.title, variant: it.variant ?? null, qty, unit_cents: unit, cost_cents: p.cost_cents ?? null, apliiq_product_id: p.apliiq_product_id ?? null, apliiq_sku: skuFor(p.variants, it.variant ?? null) });
   }
   if (lineItems.length === 0) return NextResponse.json({ error: "Nothing in your cart is available." }, { status: 409 });
   const total = subtotal; // shipping/tax can layer here later; POD ships flat via Apliiq for now
@@ -116,7 +119,12 @@ export async function POST(req: Request) {
       const submit = await submitOrderToApliiq({
         id: orderId,
         ship: { name: shipName, street: addr.street, city: addr.city, state: addr.state, zip: addr.zip },
-        items: lineItems.filter((l) => l.apliiq_product_id).map((l) => ({ apliiq_product_id: l.apliiq_product_id, variant: l.variant, qty: l.qty })),
+        // EVERY line, not only the ones with a POD link. Filtering here is what let a half-order
+        // reach Apliiq: a two-item cart where one item had no link submitted the other and called
+        // the whole order "submitted", so the customer paid for two and one was never made.
+        // buildOrderPayload refuses the whole order instead, and it lands in the crew queue naming
+        // the item that is missing its SKU.
+        items: lineItems.map((l) => ({ id: l.product_id, title: l.title, qty: l.qty, priceCents: l.unit_cents, sku: l.apliiq_sku })),
       });
       if (submit.ok) {
         // scoped-by: orderId is the id returned by this request's own INSERT thirty lines above — not a
