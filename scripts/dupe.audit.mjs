@@ -268,6 +268,33 @@ export function ownsSpeechRecognition(src, file) {
   return SPEECH_API.test(src);
 }
 
+// ── 8. how a benefit reads — ATTEMPTED AND ABANDONED, on purpose ──────────────────────────────
+// CodesPanel and PerksPanel each spelled out what a benefit gives, in TWO places each (a row's
+// value column and the auto-label), and all four had drifted: neither of PerksPanel's handled
+// amount_off, so the $5-off QR card told an owner it was "Free". lib/benefitText.ts is now the one
+// home and all four call it.
+//
+// A ratchet to keep it that way was written three times and cried wolf three times:
+//
+//   v1  any file naming 2+ benefit kinds        -> flagged OrderFunnel, which branches on the same
+//                                                  kinds to compute discount CENTS. Correct code.
+//   v2  ...on a line that also holds "$" or "%" -> flagged a trailing comment ("// the $5-off QR
+//                                                  card") and a <select>'s own <option> label.
+//   v3  ...comments stripped, options skipped   -> flagged a VALIDATION message ("Enter the $ off")
+//                                                  and the consolidated CALL to benefitValueText,
+//                                                  which passes kind through to pick an input.
+//
+// The distinguishing feature — "assembles a sentence about a row's benefit" versus "branches on
+// benefit kind for any of four other good reasons" — is not expressible as a line pattern, and a
+// fourth epicycle would only move the false positive. This file's own header says a check that
+// cries wolf gets exempted into uselessness, and this repo has already recorded that sometimes the
+// honest outcome of an investigation is that there is no rule.
+//
+// So there is no ratchet here. What protects it instead is real: eight assertions in scripts/smoke
+// cover benefitValueText, and both drift modes were proved by planting them — dropping the
+// amount_off branch returns "Free" for a $5 discount, and coercing null to zero returns "$0.00".
+// A test that fails on the actual defect beats a pattern that fails on innocent neighbours.
+
 export function collect(root = ".") {
   const crew = [];
   const taskWrites = [];

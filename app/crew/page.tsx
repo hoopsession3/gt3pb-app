@@ -163,7 +163,7 @@ const VendorResolve = dynamic(() => import("@/components/VendorResolve"), { load
 import Icon from "@/components/Icon";
 import { useJurisdictions } from "@/components/useJurisdictions";
 import AcademyCard from "@/components/AcademyCard";
-import { moneyRound } from "@/lib/money";
+import { money, moneyRound } from "@/lib/money";
 import { FOUNDING_MARKET, toMarket } from "@/lib/markets";
 import { OwnerDetails } from "@/components/crew/OwnerDetails";
 import { VendorPicker } from "@/components/crew/VendorPicker";
@@ -4287,7 +4287,7 @@ function ProductCatalog() {
                 ? <div className="ev-f cat-live">Price ${(r.price_cents / 100).toFixed(2)} <span className="cat-live-tag">live</span></div>
                 : <label className="ev-f">Price $<input type="number" min={0} defaultValue={(r.price_cents / 100) || 0} onBlur={(ev) => toCents(ev.target.value) !== r.price_cents && save(r.product_key, { price_cents: toCents(ev.target.value) })} /></label>}
               {r.cost_live
-                ? <div className="ev-f cat-live" title="Recipe-derived: ingredients × inventory unit costs, same math as the COGS calculator.">Cost ${((r.unit_cost_cents ?? 0) / 100).toFixed(2)} <span className="cat-live-tag">recipes</span></div>
+                ? <div className="ev-f cat-live" title="Recipe-derived: ingredients × inventory unit costs, same math as the COGS calculator.">Cost {money(r.unit_cost_cents ?? null)} <span className="cat-live-tag">recipes</span></div>
                 : <label className="ev-f">Cost $<input type="number" min={0} defaultValue={r.unit_cost_cents != null ? (r.unit_cost_cents / 100) : ""} placeholder="—" onBlur={(ev) => save(r.product_key, { unit_cost_cents: ev.target.value.trim() ? toCents(ev.target.value) : null })} /></label>}
               <div className="cat-margin">{r.unit_cost_cents != null && r.price_cents > 0 ? `${pctInt((r.price_cents - r.unit_cost_cents) / r.price_cents)}%` : "—"}</div>
               {/* WHAT THE LIVE NUMBER IS MADE OF, on the row. It is an average, and until now the

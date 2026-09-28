@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useApp } from "./AppProvider";
+import { benefitValueText } from "@/lib/benefitText";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
@@ -66,12 +67,15 @@ export default function CodesPanel() {
   const codeClean = code.trim().toUpperCase().replace(/\s+/g, "");
   const dupe = useMemo(() => rows.some((r) => (r.code ?? "").toUpperCase() === codeClean), [rows, codeClean]);
 
+  const dollarsToCents = (v: string | number | null | undefined) => {
+    const n = Number(v);
+    return Number.isFinite(n) && String(v ?? "").trim() !== "" ? Math.round(n * 100) : null;
+  };
   const autoLabel = () => {
     const tgt = TARGETS.find((t) => t.v === target)?.label ?? "Whole order";
-    if (kind === "percent_off") return `${percent}% off · ${tgt}`;
-    if (kind === "price_override") return `$${price} · ${tgt}`;
-    if (kind === "amount_off") return `$${amount} off · ${tgt}`;
-    return `Free · ${tgt}`;
+    // The benefit half comes from the one describer; only the "· where" half is local to this
+    // panel. Written out twice, this branch and PerksPanel's drifted the same way valueText did.
+    return `${benefitValueText({ kind, percent: Number(percent), value_cents: dollarsToCents(kind === "amount_off" ? amount : price) })} · ${tgt}`;
   };
 
   const mint = async () => {
@@ -105,11 +109,7 @@ export default function CodesPanel() {
     reload();
   };
 
-  const valueText = (r: CodeRow) =>
-    r.kind === "percent_off" ? `${r.percent}% off`
-    : r.kind === "price_override" ? `$${((r.value_cents ?? 0) / 100).toFixed(2)}`
-    : r.kind === "amount_off" ? `$${((r.value_cents ?? 0) / 100).toFixed(0)} off`
-    : "Free";
+  const valueText = (r: CodeRow) => benefitValueText(r);
   // Every code has a printable QR target (/c/CODE, 0268) — scans count themselves in the coupon
   // funnel, and the landing routes by what the code is TODAY, so printed cards never go stale.
   const copyQr = async (r: CodeRow) => {

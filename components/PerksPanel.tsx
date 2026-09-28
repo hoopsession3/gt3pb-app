@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useApp } from "./AppProvider";
+import { benefitValueText } from "@/lib/benefitText";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
@@ -70,12 +71,16 @@ export default function PerksPanel() {
   const { reload } = board;
   useRealtimeTable("member_benefits", reload);
 
+  const dollarsToCents = (v: string | number | null | undefined) => {
+    const n = Number(v);
+    return Number.isFinite(n) && String(v ?? "").trim() !== "" ? Math.round(n * 100) : null;
+  };
   const autoLabel = () => {
     const tgt = TARGETS.find((t) => t.v === target)?.label ?? "Whole order";
     const who = tier === "founding" ? (vip ? "Founding VIP" : "Founding") : "Member";
-    if (kind === "percent_off") return `${who} · ${percent}% off · ${tgt}`;
-    if (kind === "price_override") return `${who} · $${price} · ${tgt}`;
-    return `${who} · Free · ${tgt}`;
+    // Same describer as CodesPanel. This branch had no amount_off case, so a $5-off perk
+    // auto-labelled itself "Free" — the second place the same drift produced the same wrong word.
+    return `${who} · ${benefitValueText({ kind, percent: Number(percent), value_cents: dollarsToCents(price) })} · ${tgt}`;
   };
 
   const mint = async () => {
@@ -106,10 +111,7 @@ export default function PerksPanel() {
     reload();
   };
 
-  const valueText = (r: PerkRow) =>
-    r.kind === "percent_off" ? `${r.percent}% off`
-    : r.kind === "price_override" ? `$${((r.value_cents ?? 0) / 100).toFixed(2)}`
-    : "Free";
+  const valueText = (r: PerkRow) => benefitValueText(r);
   const targetText = (r: PerkRow) => TARGETS.find((t) => t.v === (r.target ?? ""))?.label ?? r.target ?? "Whole order";
   const whoText = (r: PerkRow) => r.tier === "founding" ? (r.requires_vip ? "Founding VIP" : "Founding") : "Member";
 

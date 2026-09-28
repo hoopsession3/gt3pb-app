@@ -2536,6 +2536,33 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 }
 
 
+// ── HOW A BENEFIT READS (lib/benefitText.ts) ───────────────────────────────────────────────────
+// CodesPanel and PerksPanel each carried their own `valueText`, and they had DRIFTED: CodesPanel
+// handled amount_off, PerksPanel did not, so the $5-off QR card — which lib/benefits prices
+// correctly — rendered in the perks panel as "Free". One screen described a $5 discount as giving
+// the whole order away. Duplication did not cause a cosmetic difference here; it changed the
+// meaning of the sentence.
+{
+  const B = require("../.smoke/benefitText.js");
+  ok("benefit: percent_off reads as a percentage", B.benefitValueText({ kind: "percent_off", percent: 15 }) === "15% off");
+  ok("benefit: price_override reads as the price", B.benefitValueText({ kind: "price_override", value_cents: 800 }) === "$8");
+  // THE DRIFT. This is the case PerksPanel silently answered "Free".
+  ok("benefit: amount_off reads as money OFF, not as Free",
+    B.benefitValueText({ kind: "amount_off", value_cents: 500 }) === "$5 off",
+    B.benefitValueText({ kind: "amount_off", value_cents: 500 }));
+  ok("benefit: free_refill still reads Free — the fallback is load-bearing, not laziness",
+    B.benefitValueText({ kind: "free_refill" }) === "Free");
+  // AND NULL IS NOT ZERO. "$0.00" for an unset amount reads as free, which is the same wrong
+  // answer the drift produced, arrived at a second way.
+  ok("benefit: a price_override with no amount set reads — , never $0.00",
+    B.benefitValueText({ kind: "price_override", value_cents: null }) === "—");
+  ok("benefit: an amount_off with no amount set reads — , never $0.00 off",
+    B.benefitValueText({ kind: "amount_off", value_cents: null }) === "—");
+  ok("benefit: a percent_off with no percent set reads —",
+    B.benefitValueText({ kind: "percent_off", percent: null }) === "—");
+  ok("benefit: a malformed row does not crash", B.benefitValueText({}) === "Free" && B.benefitValueText({ kind: null }) === "Free");
+}
+
 // ── PRODUCT ECONOMICS: what the LIVE number is made of (lib/economics.ts) ──────────────────────
 // Ryan put two panels side by side and read a contradiction: Menu & products says NATURE'S AIDE
 // $10.00, Product economics says Nature Aide $11.00 LIVE. Both are right — the economics line is
