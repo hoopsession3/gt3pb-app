@@ -199,3 +199,24 @@ export function step(index: number, count: number, dir: 1 | -1): number | null {
   if (next >= count) return null;
   return next;
 }
+
+/**
+ * Did the crew just REMOVE the hero from the grid?
+ *
+ * The product editor has two views of the same thing: the photo grid, and a "paste an address"
+ * field holding image_url. Save folded the field back in when the grid did not contain it —
+ * prepended, so it also became the cover. Delete the stock mockup, hit save, and it returned as
+ * the cover image. Ryan hit this the first time he tried to replace the placeholder on the cap.
+ *
+ * The rule is which view is NEWER, and only a removal tells you that. Present before and absent
+ * after is a removal — the field must clear. Absent in both is a freshly typed address the grid
+ * has not caught up with — the field is newer and must survive, which is the case the obvious
+ * "clear it whenever it isn't in the grid" fix would have destroyed as you typed. A reorder keeps
+ * it in both and changes nothing.
+ */
+export function heroWasRemoved(hero: string, prev: readonly MediaItem[], next: readonly MediaItem[]): boolean {
+  const h = String(hero ?? "").trim();
+  if (!h) return false;
+  const has = (list: readonly MediaItem[]) => list.some((m) => m && m.url === h);
+  return has(prev) && !has(next);
+}

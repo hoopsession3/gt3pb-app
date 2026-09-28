@@ -2536,6 +2536,36 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 }
 
 
+// ── SHOP MEDIA: the hero that came back (lib/shopMedia.ts) ─────────────────────────────────────
+// Ryan, replacing the placeholder on the cap: "when I try to delete the stock image it comes back
+// after hitting save." It did, and as the COVER — the editor holds the same picture in two places
+// (the photo grid, and the "paste an address" field bound to image_url) and save folded the field
+// back in whenever the grid lacked it, PREPENDED. The field always won, so a delete was undoable.
+{
+  const M = require("../.smoke/shopMedia.js");
+  const img = (u) => ({ id: u, url: u, kind: "image" });
+  const STOCK = "/shop/cap-charcoal.svg";
+  const REAL = "https://apliiq.example/cap-red.jpg";
+
+  ok("media: deleting the hero from the grid IS a removal — the address field must clear",
+    M.heroWasRemoved(STOCK, [img(STOCK), img(REAL)], [img(REAL)]) === true);
+  // The case the obvious fix would have broken: an address typed but not yet in the grid is the
+  // NEWER intent, and clearing it "because it isn't in the grid" would delete it as you typed.
+  ok("media: an address typed but not yet in the grid is NOT a removal",
+    M.heroWasRemoved(REAL, [img(STOCK)], [img(STOCK)]) === false);
+  ok("media: reordering is not a removal",
+    M.heroWasRemoved(STOCK, [img(STOCK), img(REAL)], [img(REAL), img(STOCK)]) === false);
+  ok("media: clearing the whole grid removes the hero",
+    M.heroWasRemoved(STOCK, [img(STOCK)], []) === true);
+  ok("media: an empty hero is never a removal",
+    M.heroWasRemoved("", [img(STOCK)], []) === false && M.heroWasRemoved(null, [img(STOCK)], []) === false);
+
+  // And the end state the crew actually wants: grid holds only the real mockup, so that is the cover.
+  const cols = M.toColumns([img(REAL)]);
+  ok("media: with the stock image gone, the real mockup becomes the cover",
+    cols.image_url === REAL && cols.images.length === 1);
+}
+
 // ── APLIIQ ORDER (lib/apliiqOrder.ts) ──────────────────────────────────────────────────────────
 // The fulfilment payload had NEVER been checked against Apliiq's published Create Order schema,
 // and every field in it was wrong. The fixtures below are the real thing: the SKUs are the ones

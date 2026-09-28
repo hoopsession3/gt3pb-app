@@ -9,7 +9,7 @@ import { SectionHeader, InfoRow } from "@/components/kit";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import MediaStudio from "@/components/MediaStudio";
-import { readMedia, toColumns, type MediaItem } from "@/lib/shopMedia";
+import { readMedia, toColumns, heroWasRemoved, type MediaItem } from "@/lib/shopMedia";
 import { parseSkuBlock, formatSkuBlock } from "@/lib/apliiqOrder";
 import { money } from "@/lib/money";
 
@@ -230,7 +230,12 @@ function MerchRow({ p, open, onToggle, onSaved, toast }: { p: Product; open: boo
       </div>
       {open && (
         <div className="prod-body">
-          <MediaStudio productId={p.id} value={media} onChange={setMedia} />
+          <MediaStudio productId={p.id} value={media} onChange={(next) => {
+            // A photo removed from the grid must not be resurrected by the address field on save.
+            // It was, and prepended — so deleting the stock mockup brought it back AS THE COVER.
+            if (heroWasRemoved(d.image_url ?? "", media, next)) setD((prev) => ({ ...prev, image_url: null }));
+            setMedia(next);
+          }} />
           <div className="prod-grid">
             <label className="prod-f"><span>Title (internal)</span><input value={d.title} onChange={(e) => setD({ ...d, title: e.target.value })} /></label>
             <label className="prod-f"><span>Retail price ($)</span><input type="number" step="0.01" min="0" value={priceStr} onChange={(e) => setPriceStr(e.target.value)} /></label>
