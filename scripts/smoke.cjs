@@ -2536,6 +2536,49 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 }
 
 
+// ── PRODUCT ECONOMICS: what the LIVE number is made of (lib/economics.ts) ──────────────────────
+// Ryan put two panels side by side and read a contradiction: Menu & products says NATURE'S AIDE
+// $10.00, Product economics says Nature Aide $11.00 LIVE. Both are right — the economics line is
+// the AVERAGE of every active drink mapped to it, and nothing on the row said so. The fixtures
+// below are his real menu, and the expected averages are the ones actually on his screen.
+{
+  const E = require("../.smoke/economics.js");
+  const d = (name, cents, key, active = true) => ({ name, price_cents: cents, econ_key: key, active });
+  const MENU = [
+    d("RISE", 1000, "nitro"), d("FLOW", 1000, "nitro"), d("DUSK", 1000, "nitro"), d("KING ME", 1400, "nitro"),
+    d("NATURE'S AIDE", 1000, "nature"), d("TIDE", 1200, "nature"),
+    d("SALTED MAPLE LATTE", 1400, "maple"),
+    d("RETIRED DRINK", 9900, "nitro", false),      // inactive — the view excludes it, so must we
+    d("UNMAPPED", 500, null),
+  ];
+
+  // The numbers off his actual screen: nitro $11.00, nature $11.00, maple $14.00.
+  const nitro = E.econBreakdown(MENU, "nitro", 1100);
+  ok("econ: the nitro line averages its four active drinks to $11.00",
+    nitro.n === 4 && nitro.computedCents === 1100 && nitro.agrees === true, JSON.stringify(nitro));
+  ok("econ: ...and an INACTIVE drink is excluded, exactly as the view excludes it",
+    !nitro.names.includes("RETIRED DRINK"), JSON.stringify(nitro.names));
+  const nature = E.econBreakdown(MENU, "nature", 1100);
+  ok("econ: Nature Aide is NATURE'S AIDE $10 and TIDE $12 — the $11 Ryan queried",
+    nature.n === 2 && nature.computedCents === 1100 && nature.agrees === true, JSON.stringify(nature));
+  ok("econ: ...and it names them, so the number can be audited on the row",
+    E.econBreakdownLabel(nature) === "avg of 2 · NATURE'S AIDE, TIDE", E.econBreakdownLabel(nature));
+
+  // A single drink needs no explanation — one is not an average.
+  ok("econ: a one-drink line produces no breakdown line",
+    E.econBreakdownLabel(E.econBreakdown(MENU, "maple", 1400)) === "");
+  ok("econ: an unmapped line has nothing behind it", E.econBreakdown(MENU, "ghost", 1200).n === 0);
+
+  // THE MIRROR CHECK. This reproduces the view's filter client-side, which is the "two lists"
+  // trap this repo has been bitten by before. So disagreement is DETECTED rather than assumed
+  // away: a confident explanation of a number we cannot account for is the real damage.
+  const wrong = E.econBreakdown(MENU, "nitro", 1234);
+  ok("econ: when our arithmetic disagrees with the stored price, agrees is FALSE",
+    wrong.agrees === false && wrong.n === 4, JSON.stringify(wrong));
+  ok("econ: an empty menu explains nothing rather than dividing by zero",
+    E.econBreakdown([], "nitro", 1100).n === 0 && E.econBreakdown(null, "nitro", 1100).n === 0);
+}
+
 // ── SHOP MEDIA: the hero that came back (lib/shopMedia.ts) ─────────────────────────────────────
 // Ryan, replacing the placeholder on the cap: "when I try to delete the stock image it comes back
 // after hitting save." It did, and as the COVER — the editor holds the same picture in two places

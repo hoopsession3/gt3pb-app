@@ -152,7 +152,7 @@ import { haptic, HAPTIC } from "@/lib/haptics";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import { packListFor } from "@/lib/packlist";
 import { complianceFor } from "@/lib/compliance";
-import { projectEvent, reconcile, DEFAULT_ECON, type EventEcon, type ProductEcon, type Projection } from "@/lib/economics";
+import { projectEvent, reconcile, DEFAULT_ECON, type EventEcon, type ProductEcon, type Projection, econBreakdown, econBreakdownLabel, type EconDrink } from "@/lib/economics";
 import { buildBrief } from "@/lib/eventbrief";
 import { fetchInventory, inventoryForEvent, type InventoryResp } from "@/lib/inventory";
 import { fetchAssets, type AssetsResp } from "@/lib/assets";
@@ -4253,10 +4253,15 @@ function EventEconomics({ e, econRow, catalog, onSave }: {
 type LiveEcon = ProductEcon & { price_live?: boolean; cost_live?: boolean };
 function ProductCatalog() {
   const { toast } = useApp();
-  const catalogState = useAsyncData<LiveEcon[]>(async () => {
+  // Both halves in ONE read: the line's live number, and the drinks it is the average OF. Fetched
+  // together so the explanation can never be from a different moment than the thing it explains.
+  const catalogState = useAsyncData<{ rows: LiveEcon[]; drinks: EconDrink[] }>(async () => {
     if (!supabase) throw new Error("Supabase client not configured");
-    const { data } = await supabase.from("product_economics_live").select("*").order("sort");
-    return (data as LiveEcon[]) ?? [];
+    const [live, prods] = await Promise.all([
+      supabase.from("product_economics_live").select("*").order("sort"),
+      supabase.from("products").select("name, price_cents, econ_key, active").order("sort"),
+    ]);
+    return { rows: (live.data as LiveEcon[]) ?? [], drinks: (prods.data as EconDrink[]) ?? [] };
   }, []);
   const save = async (key: string, patch: Partial<ProductEcon>) => {
     const { error } = await supabase!.from("product_economics").update(patch).eq("product_key", key);
@@ -4265,13 +4270,13 @@ function ProductCatalog() {
   return (
     <AsyncSection
       state={catalogState}
-      isEmpty={(rows) => rows.length === 0}
+      isEmpty={(d) => d.rows.length === 0}
       emptyTitle="No catalog yet"
       emptySub="Apply migration 0028 to seed it."
       loadingLabel="Loading product economics…"
       errorTitle="Couldn't load product economics"
     >
-      {(rows) => (
+      {({ rows, drinks }) => (
         <div className="adm-sec">
           <SectionHeader label="Product economics" />
           <div className="pnl-note" style={{ marginBottom: 10 }}>What every event ROI projects on. <b>Live</b> numbers flow in from Menu &amp; products (price) and the drink recipes (cost) — change them there. The inputs are the manual fallback for lines with no mapped drinks.</div>
@@ -4279,12 +4284,23 @@ function ProductCatalog() {
             <div className="cat-row" key={r.product_key}>
               <div className="cat-name">{r.label}</div>
               {r.price_live
-                ? <div className="ev-f cat-live" title="Average of this line's active drinks in Menu & products — edit prices there.">Price ${(r.price_cents / 100).toFixed(2)} <span className="cat-live-tag">live</span></div>
+                ? <div className="ev-f cat-live">Price ${(r.price_cents / 100).toFixed(2)} <span className="cat-live-tag">live</span></div>
                 : <label className="ev-f">Price $<input type="number" min={0} defaultValue={(r.price_cents / 100) || 0} onBlur={(ev) => toCents(ev.target.value) !== r.price_cents && save(r.product_key, { price_cents: toCents(ev.target.value) })} /></label>}
               {r.cost_live
                 ? <div className="ev-f cat-live" title="Recipe-derived: ingredients × inventory unit costs, same math as the COGS calculator.">Cost ${((r.unit_cost_cents ?? 0) / 100).toFixed(2)} <span className="cat-live-tag">recipes</span></div>
                 : <label className="ev-f">Cost $<input type="number" min={0} defaultValue={r.unit_cost_cents != null ? (r.unit_cost_cents / 100) : ""} placeholder="—" onBlur={(ev) => save(r.product_key, { unit_cost_cents: ev.target.value.trim() ? toCents(ev.target.value) : null })} /></label>}
               <div className="cat-margin">{r.unit_cost_cents != null && r.price_cents > 0 ? `${pctInt((r.price_cents - r.unit_cost_cents) / r.price_cents)}%` : "—"}</div>
+              {/* WHAT THE LIVE NUMBER IS MADE OF, on the row. It is an average, and until now the
+                  only place that said so was a title tooltip — which does not exist on a phone.
+                  When our arithmetic disagrees with the server's we say THAT instead of inventing
+                  a tidy explanation for a number we cannot account for. */}
+              {r.price_live && (() => {
+                const b = econBreakdown(drinks, r.product_key, r.price_cents);
+                if (b.n <= 1) return null;
+                return <div className={`cat-from${b.agrees ? "" : " off"}`}>
+                  {b.agrees ? econBreakdownLabel(b) : `${b.n} drinks mapped — this line does not add up to the stored price; check Menu & products`}
+                </div>;
+              })()}
             </div>
           ))}
         </div>

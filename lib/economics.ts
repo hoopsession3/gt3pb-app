@@ -123,3 +123,49 @@ export function reconcile(p: Projection, actualRevenueCents: number, econ: Event
     revenueVsPlanPct: p.revenueCents > 0 ? actualRevenueCents / p.revenueCents - 1 : 0,
   };
 }
+
+// ── WHAT IS THIS "LIVE" NUMBER MADE OF? ────────────────────────────────────────────────────────
+// Product economics shows a price with a LIVE tag, and that price is the AVERAGE of every active
+// drink mapped to the line (product_economics_live: round(avg(p.price_cents)) group by econ_key).
+// Nothing on the row said so. Ryan put the two panels side by side and read it as a contradiction:
+//
+//     Menu & products      NATURE'S AIDE  $10.00        Product economics   Nature Aide  $11.00 LIVE
+//
+// Both are right — Nature Aide averages NATURE'S AIDE $10 and TIDE $12. The explanation existed
+// only in a `title` tooltip, and a tooltip does not exist on a phone. A number you cannot audit at
+// a glance is worse than a blank one, because a blank does not look like an answer.
+//
+// This does NOT recompute the price — the server's value is still the value shown. It works out
+// what went INTO it, and says so when its own arithmetic disagrees with the server's, because a
+// confident explanation of the wrong number is the failure worth avoiding here.
+
+export type EconDrink = { name: string; price_cents: number; econ_key: string | null; active: boolean };
+
+export type EconBreakdown = {
+  n: number;                 // how many drinks the average covers
+  names: string[];           // which ones, in menu order
+  computedCents: number;     // what THIS data averages to
+  agrees: boolean;           // …and whether that matches the number on screen
+};
+
+/**
+ * The drinks behind one economics line.
+ *
+ * The filter mirrors the view exactly — `p.active and p.econ_key is not null`, grouped by
+ * econ_key, mean rounded to the nearest cent. Mirroring is a risk (two lists again), so the
+ * mismatch is surfaced rather than assumed away: `agrees` is the check, and the UI shows a plain
+ * count instead of a claim when it is false.
+ */
+export function econBreakdown(drinks: readonly EconDrink[], econKey: string, shownCents: number): EconBreakdown {
+  const mine = (drinks ?? []).filter((d) => d && d.active && d.econ_key === econKey);
+  const n = mine.length;
+  if (n === 0) return { n: 0, names: [], computedCents: 0, agrees: false };
+  const computedCents = Math.round(mine.reduce((s, d) => s + (Number(d.price_cents) || 0), 0) / n);
+  return { n, names: mine.map((d) => d.name), computedCents, agrees: computedCents === shownCents };
+}
+
+/** One line of plain English for the row: "avg of 4 · RISE, FLOW, DUSK, KING ME". */
+export function econBreakdownLabel(b: EconBreakdown): string {
+  if (b.n <= 1) return "";
+  return `avg of ${b.n} · ${b.names.join(", ")}`;
+}
