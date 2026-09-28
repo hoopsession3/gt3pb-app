@@ -265,12 +265,12 @@ function MerchRow({ p, open, onToggle, onSaved, toast }: { p: Product; open: boo
               panel: select, copy, paste. Six boxes would be six chances to transpose a digit into
               an order that ships the wrong size. */}
           <label className="prod-f">
-            <span>Apliiq SKUs — paste the &ldquo;product skus&rdquo; block from Apliiq, one size per line</span>
+            <span>Apliiq SKUs — one line per orderable option. Apliiq shows a different SKU per COLORWAY, so label each line (e.g. &ldquo;natural/red adjustable&rdquo;) or only one will ever be sellable.</span>
             <textarea
               rows={5}
               value={skuText}
               onChange={(e) => setSkuText(e.target.value)}
-              placeholder={"s\tAPQ-5902678S6A1\nm\tAPQ-5902678S7A1\nl\tAPQ-5902678S8A1"}
+              placeholder={"natural/red adjustable\tAPQ-5888205S87A1\nnatural/camo adjustable\tAPQ-5888216S87A1"}
               spellCheck={false}
             />
           </label>

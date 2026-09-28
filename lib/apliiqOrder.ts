@@ -61,11 +61,16 @@ export function skuFor(variants: ApliiqVariant[] | null | undefined, chosen: unk
   const wantColor = norm(want?.color);
   if (!wantSize && !wantColor) return null;          // several SKUs and nothing to pick with
 
-  // Size AND colour when both were given; otherwise whichever was. An exact match or nothing.
-  const hit = withSku.find((v) =>
+  // EXACTLY ONE, or nothing. This used .find(), which returns the FIRST match — and on the cap
+  // that is a wrong-garment bug rather than a near miss: every colorway of the five-panel cap is
+  // labelled "adjustable" and each has its own SKU (APQ-5888205S87A1 for natural/red,
+  // APQ-5888216S87A1 for another), so "adjustable" matches several and .find() would have picked
+  // whichever was pasted first. The customer orders red and a different hat arrives. Ambiguity is
+  // a refusal — the crew queue is recoverable, a shipped wrong colour is not.
+  const hits = withSku.filter((v) =>
     (!wantSize || norm(v.size) === wantSize) &&
     (!wantColor || norm(v.color) === wantColor));
-  return hit ? hit.sku!.trim() : null;
+  return hits.length === 1 ? hits[0].sku!.trim() : null;
 }
 
 /**
@@ -119,9 +124,12 @@ export function parseSkuBlock(text: string): ApliiqVariant[] {
     const sku = m[0].toUpperCase();
     const size = line.slice(0, m.index).replace(/[\t,:;|]+/g, " ").trim();
     if (!size) continue;                       // a bare SKU with no size tells us nothing
-    const key = norm(size);
-    if (seen.has(key)) continue;               // first spelling of a size wins
-    seen.add(key);
+    // DEDUPE BY SKU, not by label. Keyed on the label, a cap sold in five colorways lost four of
+    // them without a word: Apliiq labels every colorway of the five-panel cap "adjustable", and
+    // each carries its own SKU. The second line pasted was silently discarded and the crew had no
+    // way to see it. Two lines may share a label; they may not share a code.
+    if (seen.has(sku)) continue;
+    seen.add(sku);
     out.push({ size, sku });
   }
   return out;

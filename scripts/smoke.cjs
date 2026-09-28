@@ -2590,10 +2590,37 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("apliiq: ...and still parses when the columns copy glued together",
     (A.parseSkuBlock("adjustableAPQ-5888216S87A1")[0] || {}).sku === "APQ-5888216S87A1",
     JSON.stringify(A.parseSkuBlock("adjustableAPQ-5888216S87A1")));
+  // ── THE CAP SOLD IN MORE THAN ONE COLOURWAY ──────────────────────────────────────────────────
+  // Every colorway of the five-panel cap is labelled "adjustable" and each has its OWN SKU —
+  // APQ-5888205S87A1 for natural/red, APQ-5888216S87A1 for another. Two defects lived here and
+  // both would have shipped the wrong hat:
+  //   · parseSkuBlock deduped by LABEL, so the second colorway vanished on paste
+  //   · skuFor used .find(), so "adjustable" matched several and it returned the first
+  const TWO = "natural/red adjustable\tAPQ-5888205S87A1\nnatural/camo adjustable\tAPQ-5888216S87A1";
+  const both = A.parseSkuBlock(TWO);
+  ok("apliiq: two colorways sharing a size BOTH survive the paste", both.length === 2, JSON.stringify(both));
+  ok("apliiq: ...and keep their own SKUs",
+    both[0].sku === "APQ-5888205S87A1" && both[1].sku === "APQ-5888216S87A1", JSON.stringify(both));
+  ok("apliiq: the shopper's colourway picks its own SKU",
+    A.skuFor(both, { size: "natural/red adjustable" }) === "APQ-5888205S87A1");
+  // Same SKU pasted twice is still one variant — that IS a duplicate.
+  ok("apliiq: the same SKU twice collapses to one",
+    A.parseSkuBlock("adjustable\tAPQ-1S1A1\nadjustable\tAPQ-1S1A1").length === 1);
+  // AMBIGUITY IS A REFUSAL. Two variants labelled identically with different SKUs and a choice
+  // that matches both must never pick one — that is a wrong-colour hat in a box.
+  const ambiguous = [{ size: "adjustable", sku: "APQ-5888205S87A1" }, { size: "adjustable", sku: "APQ-5888216S87A1" }];
+  ok("apliiq: an ambiguous match refuses rather than shipping the wrong colour",
+    A.skuFor(ambiguous, { size: "adjustable" }) === null, A.skuFor(ambiguous, { size: "adjustable" }));
+
   ok("apliiq: a one-size cap resolves whatever the shopper picked",
     A.skuFor(A.parseSkuBlock("adjustableAPQ-5888216S87A1"), { size: "One size" }) === "APQ-5888216S87A1");
   ok("apliiq: a malformed code is not accepted as a SKU", A.parseSkuBlock("s\t5902678").length === 0);
-  ok("apliiq: the same size twice keeps the first", A.parseSkuBlock("l\tAPQ-1S8A1\nL\tAPQ-9S9A9").length === 1);
+  // This asserted "the same size twice keeps the first" until 2026-09-28, and that expectation was
+  // the bug written down: two lines sharing a label but carrying DIFFERENT codes are two orderable
+  // variants (one cap, two colorways), and dropping one made a colourway unsellable in silence.
+  // Same label + different SKU = two. Same SKU twice = one. The SKU is the identity.
+  ok("apliiq: the same label with different SKUs keeps BOTH",
+    A.parseSkuBlock("l\tAPQ-1S8A1\nL\tAPQ-9S9A9").length === 2);
   ok("apliiq: lowercase apq is normalised up", A.parseSkuBlock("s\tapq-1s6a1")[0].sku === "APQ-1S6A1");
   ok("apliiq: the block round-trips back out for the editor",
     A.parseSkuBlock(A.formatSkuBlock(parsed)).length === 6);
