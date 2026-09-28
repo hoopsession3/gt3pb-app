@@ -63,8 +63,21 @@ export default function MerchManager() {
       const r = await authedFetch("/api/apliiq/import", { method: "POST" });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) { toast(d.error || "Apliiq sync failed", "error"); return; }
+      // SAY WHAT CAME BACK. This reported only "N new · N refreshed", so the route could return
+      // truncated:true — two-thirds of the catalog never examined — and the crew would read a
+      // cheerful success. It could equally import 500 blanks with artwork on none of them and say
+      // exactly the same thing. Both are the facts you actually need, so both go on screen:
+      //   · a truncated sync is an ERROR toast, because the answer it just gave you is incomplete
+      //   · withArt is how many carry a mockup at all — i.e. how many are designs, not blanks
       const bits = [d.created ? `${d.created} new` : "", d.updated ? `${d.updated} refreshed` : ""].filter(Boolean).join(" · ");
-      toast(d.fetched === 0 ? "Apliiq returned no products yet" : `Synced from Apliiq${bits ? ` — ${bits}` : " — no changes"}`);
+      if (d.truncated) {
+        toast(`Sync INCOMPLETE — ${d.dropped} product(s) past the ceiling were never looked at. ${bits}`, "error");
+      } else if (d.fetched === 0) {
+        toast("Apliiq returned no products yet");
+      } else {
+        const art = typeof d.withArt === "number" ? ` · ${d.withArt} of ${d.examined} carry artwork` : "";
+        toast(`Synced from Apliiq${bits ? ` — ${bits}` : " — no changes"}${art}`);
+      }
       await reload();
     } catch {
       toast("Couldn't reach the sync service", "error");
@@ -171,6 +184,9 @@ function MerchRow({ p, open, onToggle, onSaved, toast }: { p: Product; open: boo
     const { error } = await supabase.from("shop_products").update({
       title: d.title.trim(), public_title: d.public_title?.trim() || null, blurb: d.blurb,
       price_cents, media: cols.media, image_url: cols.image_url, images: cols.images,
+      // The POD link. Absent from this payload until 2026-09-28, which is what made the field above
+      // impossible to add: the form could have shown an input and the save would have dropped it.
+      apliiq_product_id: d.apliiq_product_id?.trim() || null,
       sort: d.sort, published_at: d.published_at, archived_at: d.archived_at,
       updated_at: new Date().toISOString(),
     }).eq("id", p.id);
@@ -217,6 +233,25 @@ function MerchRow({ p, open, onToggle, onSaved, toast }: { p: Product; open: boo
           </div>
           <label className="prod-f"><span>Or paste an address (an Apliiq mockup, say) — it joins the media above</span><input value={d.image_url ?? ""} onChange={(e) => setD({ ...d, image_url: e.target.value })} placeholder="https://… or /shop/…" /></label>
           <label className="prod-f"><span>Blurb</span><textarea rows={3} value={d.blurb ?? ""} onChange={(e) => setD({ ...d, blurb: e.target.value })} placeholder="The pitch shoppers read on the product page." /></label>
+
+          {/* THE LINK, EDITABLE. This was display-only — the id could be set when a product was
+              CREATED and never afterwards, so the six hand-curated GT3 items could not be attached
+              to a real Apliiq product at all. That looked like a small gap while an automatic sync
+              was expected to do the job. It isn't: Apliiq's product sync requires their SHOPIFY app
+              ("in order to sync print-on-demand products to your store you must first install the
+              Apliiq Shopify app"), and GT3PB is a custom store. Their own dialog: "if you are using
+              a custom store, unfortunately you will have to manually add products to your store."
+              So typing this id in by hand is not a workaround — it is the ONLY way a GT3 product
+              ever becomes fulfillable, forever. It belongs on the product you already curated. */}
+          <label className="prod-f">
+            <span>Apliiq product ID — the POD link. Without it a sale is charged but never ships.</span>
+            <input
+              value={d.apliiq_product_id ?? ""}
+              onChange={(e) => setD({ ...d, apliiq_product_id: e.target.value.trim() || null })}
+              placeholder="8869"
+              inputMode="numeric"
+            />
+          </label>
 
           <div className="insp-lbl" style={{ marginTop: 4 }}>
             {d.cost_cents != null ? <>Apliiq cost {money(d.cost_cents)}{margin != null && <> · margin <b style={{ color: margin >= 0 ? "inherit" : "var(--oa-red, #B82420)" }}>{money(margin)}</b></>}</> : "No POD cost set"}
