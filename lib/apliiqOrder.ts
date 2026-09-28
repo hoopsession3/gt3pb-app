@@ -110,8 +110,11 @@ export function parseSkuBlock(text: string): ApliiqVariant[] {
   for (const raw of String(text ?? "").split(/\r?\n/)) {
     const line = raw.trim();
     if (!line) continue;
-    // The SKU is the anchor — find it anywhere on the line, and the label is whatever precedes it.
-    const m = line.match(/\bAPQ-\d+S\d+A\d+\b/i);
+    // No leading \b: Apliiq renders the label and the SKU as two table columns, and copying a table
+    // sometimes glues them into "adjustableAPQ-5888216S87A1" with no separator at all. A word
+    // boundary between "e" and "A" does not exist, so the anchored version silently found nothing
+    // and the crew would read "No SKUs read" on a perfectly good paste.
+    const m = line.match(/APQ-\d+S\d+A\d+\b/i);
     if (!m) continue;
     const sku = m[0].toUpperCase();
     const size = line.slice(0, m.index).replace(/[\t,:;|]+/g, " ").trim();

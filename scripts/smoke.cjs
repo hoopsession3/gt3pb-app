@@ -2582,6 +2582,16 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("apliiq: junk lines are ignored, not guessed at",
     A.parseSkuBlock("product skus\ns\tAPQ-1S6A1\n\nnot a sku line").length === 1);
   ok("apliiq: a bare SKU with no size is ignored", A.parseSkuBlock("APQ-1S6A1").length === 0);
+  // The CAP, off Ryan's own page: one size, one SKU, and the two columns copy GLUED together with
+  // no separator. The first version anchored the match with \b, and there is no word boundary
+  // between "e" and "A" — so a perfectly good paste read as "No SKUs read".
+  ok("apliiq: the cap's single adjustable SKU parses",
+    JSON.stringify(A.parseSkuBlock("adjustable\tAPQ-5888216S87A1")) === JSON.stringify([{ size: "adjustable", sku: "APQ-5888216S87A1" }]));
+  ok("apliiq: ...and still parses when the columns copy glued together",
+    (A.parseSkuBlock("adjustableAPQ-5888216S87A1")[0] || {}).sku === "APQ-5888216S87A1",
+    JSON.stringify(A.parseSkuBlock("adjustableAPQ-5888216S87A1")));
+  ok("apliiq: a one-size cap resolves whatever the shopper picked",
+    A.skuFor(A.parseSkuBlock("adjustableAPQ-5888216S87A1"), { size: "One size" }) === "APQ-5888216S87A1");
   ok("apliiq: a malformed code is not accepted as a SKU", A.parseSkuBlock("s\t5902678").length === 0);
   ok("apliiq: the same size twice keeps the first", A.parseSkuBlock("l\tAPQ-1S8A1\nL\tAPQ-9S9A9").length === 1);
   ok("apliiq: lowercase apq is normalised up", A.parseSkuBlock("s\tapq-1s6a1")[0].sku === "APQ-1S6A1");
