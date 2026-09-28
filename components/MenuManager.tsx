@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useApp } from "./AppProvider";
 import { isBlank } from "@/lib/formGuard";
 import { supabase } from "@/lib/supabase";
@@ -9,6 +9,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import { useOptions } from "./useOptions";
 import { withCurrent } from "@/lib/options";
+import { drinkCogs, margin, type InvCost } from "@/lib/cogs";
 
 // MENU / PRODUCT manager — the catalog as a managed, relational record. Edit every attribute
 // (name, line, price, description, ingredients), set the recipe (which inventory items a serving
@@ -29,7 +30,10 @@ export default function MenuManager() {
     if (!supabase) return { products: [], inv: [] };
     const [p, i] = await Promise.all([
       supabase.from("products").select("*").order("sort"),
-      supabase.from("inventory_items").select("id, name, unit").order("name"),
+      // unit_cost joins the existing select so the drink row can price its OWN recipe. It was the
+      // only thing missing: lib/cogs already owns the math, the row already has the components,
+      // and the cost still lived two panels away in the COGS calculator.
+      supabase.from("inventory_items").select("id, name, unit, unit_cost").order("name"),
     ]);
     if (p.error) throw new Error(p.error.message);
     if (i.error) throw new Error(i.error.message);
@@ -116,6 +120,16 @@ function ProductRow({ p, inv, open, onToggle, onSaved, toast }: { p: Product; in
   };
   const invName = (id: string) => inv.find((x) => x.id === id)?.name ?? "item";
 
+  // WHAT THIS DRINK COSTS, computed where its recipe is edited. Same lib/cogs functions the COGS
+  // calculator and Product economics use — not a second implementation, the same one. The point is
+  // not to replace those panels (a calculator and a roll-up are real, separate jobs) but to stop
+  // the price of a drink being a fact you have to leave the drink to learn.
+  const invById = useMemo(() => new Map(inv.map((i) => [i.id, i as InvCost])), [inv]);
+  const cogs = useMemo(
+    () => drinkCogs(p.id, comps.map((c) => ({ ...c, product_id: p.id })), invById),
+    [p.id, comps, invById]);
+  const m = margin(d.price_cents, cogs.cents);
+
   // 86 / un-86 in one tap, right from the list — the live menu and every open cart update in
   // realtime, and both checkout paths refuse the item at the database until it's flipped back.
   const toggle86 = async () => {
@@ -199,9 +213,28 @@ function ProductRow({ p, inv, open, onToggle, onSaved, toast }: { p: Product; in
 
           <div className="prod-recipe">
             <div className="insp-lbl">Recipe — inventory a serving uses</div>
+            {/* The cost of what is listed below, and what it leaves. An uncosted ingredient is
+                named rather than quietly treated as free — a margin that silently omits an input
+                reads as better than it is, which is the expensive direction to be wrong in. */}
+            {cogs.hasRecipe && (
+              <div className={`prod-cogs${cogs.uncosted > 0 ? " partial" : ""}`}>
+                <span>Cost <b>${(cogs.cents / 100).toFixed(2)}</b></span>
+                {cogs.uncosted === 0 && d.price_cents > 0
+                  ? <span>Margin <b>${(m.profitCents / 100).toFixed(2)}</b> · {m.pct}%</span>
+                  : cogs.uncosted > 0
+                    ? <span className="prod-cogs-warn">{cogs.uncosted} ingredient{cogs.uncosted === 1 ? "" : "s"} have no unit cost — set it in Inventory</span>
+                    : null}
+              </div>
+            )}
             {comps.map((c) => (
               <div key={c.id} className="prod-comp">
-                <span>{c.qty_per_serving ?? ""}{c.unit ? ` ${c.unit}` : ""} · {invName(c.inventory_item_id)}</span>
+                <span>{c.qty_per_serving ?? ""}{c.unit ? ` ${c.unit}` : ""} · {invName(c.inventory_item_id)}
+                  {(() => { const ln = cogs.lines.find((l) => l.name === invName(c.inventory_item_id));
+                    if (!ln) return null;
+                    return ln.costed
+                      ? <i className="prod-comp-c">${(ln.costCents / 100).toFixed(2)}</i>
+                      : <i className="prod-comp-c none">no cost set</i>; })()}
+                </span>
                 <button type="button" className="insp-no" onClick={() => rmComponent(c.id)}>Remove</button>
               </div>
             ))}

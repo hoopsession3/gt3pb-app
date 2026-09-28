@@ -3101,6 +3101,16 @@ body:has(.conc-sheet) .rail{display:flex}
 
 /* ── Menu / product manager ── */
 .prod{background:var(--card);border:1px solid var(--line);border-radius:var(--r-2xl);margin-bottom:9px;overflow:hidden}
+/* The drink's own cost line, under its recipe. Quiet weight — it reports on the rows above it
+   rather than competing with the price field. Turns amber when the number is incomplete, because
+   a margin that silently omits an uncosted input reads better than it is. */
+.prod-cogs{display:flex;flex-wrap:wrap;gap:4px 14px;margin:6px 0 2px;font-family:'Inter';font-size:12.5px;color:var(--cream-m)}
+.prod-cogs b{color:var(--cream);font-weight:650;font-variant-numeric:tabular-nums}
+.prod-cogs.partial b{color:var(--gold2)}
+.prod-cogs-warn{color:var(--gold2)}
+/* Per-ingredient cost, so the expensive input is visible rather than inferred from the total. */
+.prod-comp-c{font-style:normal;margin-left:7px;font-size:11.5px;color:var(--cream-d);font-variant-numeric:tabular-nums}
+.prod-comp-c.none{color:var(--gold2)}
 .prod-off{font-family:'Inter';font-weight:600;font-size:10px;text-transform:uppercase;color:var(--cream-d);border:1px solid var(--line2);border-radius:var(--r-sm);padding:1px 6px;margin-left:7px}
 .prod-line{font-family:'Inter';font-size:12px;color:var(--cream-m);margin-left:auto}
 .prod-px{font-family:'DM Mono';font-size:14px;color:var(--gold2)}
