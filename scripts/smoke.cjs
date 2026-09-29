@@ -1466,8 +1466,18 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("shopOrder: an unknown status offers nothing rather than throwing",
     S.nextStatuses("wat").length === 0 && S.nextStatuses(null).length === 0 && !S.canMove(null, "shipped"));
 
+  // THIS ASSERTION WAS THE BUG (2026-09-29). It required waitingOn("submitted") === "printer",
+  // which encoded a belief that turned out to be false: a 200 from Apliiq's /Order does NOT mean
+  // the printer has it in hand. It goes into their PENDING list with a fulfill button and waits
+  // there. The first flagship cap sat in that list overnight under "Wait For Inventory · Incomplete
+  // Shipping Address" while this app told the operator there was nothing to do.
+  //
+  // Accepted is ours until the printer says otherwise. The test now says so, and would fail if
+  // anybody quietly handed that responsibility back.
+  ok("shopOrder: an order the printer has ACCEPTED is still ours — accepted is not in production",
+    S.waitingOn("submitted") === "us", S.waitingOn("submitted"));
   ok("shopOrder: only the 'us' stages are the crew's to act on",
-    S.waitingOn("needs_fulfillment") === "us" && S.waitingOn("submitted") === "printer"
+    S.waitingOn("needs_fulfillment") === "us"
       && S.waitingOn("shipped") === "carrier" && S.waitingOn("delivered") === "nobody");
   ok("shopOrder: every status has a label and a plain-words meaning",
     S.SHOP_STATUSES.every((s) => S.SHOP_STATUS_META[s].label && S.SHOP_STATUS_META[s].means.length > 20));

@@ -40,10 +40,21 @@ export const SHOP_STATUS_META: Record<ShopStatus, StatusMeta> = {
     means: "Paid, and the printer either wasn't reachable or hasn't been asked. Submit it by hand.",
     waiting: "us",
   },
+  // ── THE STATE THAT LIED (2026-09-29) ───────────────────────────────────────────────────────────
+  // This read "Sent to printer · Apliiq has it. Nothing for us to do unless it stalls." and it was
+  // wrong in the way that costs you an order: it told the operator to stop looking.
+  //
+  // POST /Order returning 200 with an id does NOT mean the order is in production. Apliiq puts it
+  // in a PENDING list with a "fulfill" button, and it sits there until somebody presses it — or
+  // until whatever is blocking it clears. The first flagship cap sat in that list overnight under
+  // "Wait For Inventory · Incomplete Shipping Address" while this app said there was nothing to do.
+  //
+  // Accepted is not the same as in production. The label now says which one it is, and the order is
+  // waiting on US until Apliiq reports it moved — because pressing fulfill is our job, not theirs.
   submitted: {
-    label: "Sent to printer",
-    means: "Apliiq has it. Nothing for us to do unless it stalls.",
-    waiting: "printer",
+    label: "Accepted by printer",
+    means: "Apliiq has taken it, but it is NOT in production yet — it sits in their pending list until it is fulfilled. Open Apliiq and check it: a blocked order stays here silently.",
+    waiting: "us",
   },
   in_production: {
     label: "In production",
@@ -205,4 +216,13 @@ export function queueHeadline(q: { on_us?: number | null; oldest_on_us_hours?: n
 }
 
 /** Square is where a refund actually happens; the door belongs next to the button that logs it. */
+/**
+ * Apliiq's PENDING list — where an accepted order actually waits.
+ *
+ * Not the orders page: an order this app has submitted does not appear there until it is fulfilled.
+ * The first cap was invisible on /verified/orders (All Orders, nine months, empty) while sitting in
+ * the pending tab the whole time. Anybody chasing a stalled order needs to land on the right one.
+ */
+export const APLIIQ_PENDING = "https://www.apliiq.com/verified/orders";
+
 export const SQUARE_TRANSACTIONS = "https://squareup.com/dashboard/sales/transactions";

@@ -11,7 +11,7 @@ import { RecordLink } from "./RecordSheet";
 import { moneyPlain } from "@/lib/money";
 import { authedFetch } from "@/lib/authedFetch";
 import {
-  SHOP_STATUS_META, SQUARE_TRANSACTIONS, ageLabel, isShopStatus, marginPct, money,
+  APLIIQ_PENDING, SHOP_STATUS_META, SQUARE_TRANSACTIONS, ageLabel, isShopStatus, marginPct, money,
   moveVerb, moveWarning, needsReason, nextStatuses, shipLine, statusLabel, waitingOn,
 } from "@/lib/shopOrder";
 
@@ -217,6 +217,14 @@ export default function ShopOrderRecord({ orderId, onClose, onChanged }: {
                 <a className="cp-go" href={SQUARE_TRANSACTIONS} target="_blank" rel="noreferrer">
                   Find it in Square{o.payment_id ? ` · ${o.payment_id.slice(-8)}` : ""} <Icon name="externalLink" />
                 </a>
+                {/* An accepted order waits in Apliiq's PENDING tab, not their orders list — the first
+                    cap was invisible on /verified/orders for nine months of filter while sitting in
+                    pending the whole time, blocked, with this app saying there was nothing to do. */}
+                {(o.status === "submitted" || o.status === "in_production") && (
+                  <a className="cp-go" href={APLIIQ_PENDING} target="_blank" rel="noreferrer">
+                    Check it in Apliiq · pending orders <Icon name="externalLink" />
+                  </a>
+                )}
               </div>
 
               {/* what has been said about it ───────────────────────────────────────────── */}
