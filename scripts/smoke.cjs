@@ -2428,6 +2428,23 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   for (const f of files) for (const m of fs.readFileSync(f, "utf8").matchAll(/\bid="([a-zA-Z0-9_-]+)"/g)) ids.add(m[1]);
   ok("deep links: anchor ids were found in the JSX", ids.size > 50, ids.size);
 
+  // ── MIGRATIONS PRODUCE LINKS TOO, AND NOBODY WAS READING THEM (0331) ────────────────────────
+  // This rule was right; its REACH was wrong. It walked .ts/.tsx, so it caught exactly this mistake
+  // in app/api/square/webhook within an hour of it being written — and never looked at the pg_cron
+  // producers in supabase/migrations/, which is where most of this app's alerts are actually raised.
+  // 0329 shipped an alert pointing at a section that does not exist and nothing said a word; the
+  // link went to production, into a real alert about a real paid order, and landed whoever tapped it
+  // at the top of an unrelated page.
+  //
+  // FLOOR, like every other rule here: history is not retro-judged. 0331 changed the reach, so 0331
+  // is where it starts — and 0331 is also the migration that fixes the one below it.
+  const MIG_FLOOR = 331;
+  const migDir = path.join(root, "supabase", "migrations");
+  const migFiles = !fs.existsSync(migDir) ? [] : fs.readdirSync(migDir)
+    .filter((n) => n.endsWith(".sql") && Number(n.slice(0, 4)) >= MIG_FLOOR)
+    .sort()
+    .map((n) => path.join(migDir, n));
+
   // Comments are not links. This block's own explanation quotes the broken URL, and so does
   // lib/planNav — the LEDGER gate learned the same thing about record_migration. `//` preceded by a
   // colon is a URL scheme, not a comment; getting that wrong would only ever hide a real link, so
@@ -2436,9 +2453,15 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     .replace(/\/\*[\s\S]*?\*\//g, " ")
     .split("\n").map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1")).join("\n");
 
+  // SQL comments are `--`, not `//`. A migration's header explains the bug it fixes and will quote
+  // URLs while doing it; stripping the wrong comment syntax would read the explanation as a link.
+  const stripSqlComments = (s) => s.split("\n").map((l) => l.replace(/--.*$/, "")).join("\n");
+
   const broken = [];
-  for (const f of files) {
-    const src = stripComments(fs.readFileSync(f, "utf8"));
+  for (const f of [...files, ...migFiles]) {
+    const src = f.endsWith(".sql")
+      ? stripSqlComments(fs.readFileSync(f, "utf8"))
+      : stripComments(fs.readFileSync(f, "utf8"));
     for (const m of src.matchAll(/\/crew\?s=([a-z]+)((?:&[a-z]+=[a-zA-Z0-9:_-]+)*)/g)) {
       const rel = f.replace(root + "/", "");
       if (!SECTIONS.has(m[1])) broken.push(`${rel}: ?s=${m[1]} is not a section`);
@@ -2482,8 +2505,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     return /[&?]a=/.test(tail);
   };
   const anchorless = [];
-  for (const f of files) {
-    const src = stripComments(fs.readFileSync(f, "utf8"));
+  for (const f of [...files, ...migFiles]) {
+    const src = f.endsWith(".sql")
+      ? stripSqlComments(fs.readFileSync(f, "utf8"))
+      : stripComments(fs.readFileSync(f, "utf8"));
     for (const m of src.matchAll(/\/crew\?s=([a-z]+)/g)) {
       if (!ACCORDION.has(m[1])) continue;
       if (anchorOf(src, m.index + m[0].length)) continue;

@@ -28,6 +28,8 @@ await db.exec(`
   create table auth.users (id uuid primary key);
   create role anon; create role authenticated;
   create table public.tenants (id uuid primary key default gen_random_uuid());
+  -- 0330's tables default tenant_id to this row and carry a foreign key to it, so it has to exist.
+  insert into public.tenants (id) values ('00000000-0000-0000-0000-000000000001');
   create table public.changelog (id uuid primary key default gen_random_uuid(), title text,
     category text, area text, summary text, shipped_on date, highlight boolean default false);
   create table public.schema_migrations (version text primary key, seq int not null,
@@ -95,6 +97,17 @@ await db.exec(`
     due_at timestamptz, done boolean default false);
   create table public.brew_batches (id uuid primary key default gen_random_uuid(), needed_by timestamptz);
   create table public.reserve_claims (id uuid primary key default gen_random_uuid(), hold_expires_at timestamptz);
+
+  -- 0330 adds a TWELFTH source — chargeback evidence deadlines — so the world this file builds
+  -- grows by exactly what that branch touches and nothing else.
+  create or replace function public.is_admin() returns boolean language sql stable as $$ select true $$;
+  create table public.shop_orders (
+    id uuid primary key default gen_random_uuid(),
+    tenant_id uuid not null default '00000000-0000-0000-0000-000000000001',
+    payment_id text, ship_name text, email text,
+    total_cents int not null default 0, refund_amount_cents int,
+    status text not null default 'paid',
+    created_at timestamptz not null default now());
 `);
 
 await db.exec(readFileSync(join(ROOT, "supabase/migrations/0320_thirteen_deadlines_one_answer.sql"), "utf8"));
@@ -247,6 +260,125 @@ ok("0320 recorded itself by filename",
 await db.exec(readFileSync(join(ROOT, "supabase/migrations/0320_thirteen_deadlines_one_answer.sql"), "utf8"));
 ok("0320 re-running is safe — no duplicate changelog row",
   Number((await q1(`select count(*) n from public.changelog`))?.n) === 1);
+
+// ── 0330: A TWELFTH SOURCE, AND THE ELEVEN THAT MUST SURVIVE IT ───────────────────────────────
+// Loaded AFTER 0320's re-run above, deliberately. `create or replace view` replaces the whole
+// definition, so re-applying an OLDER migration silently deletes a newer one's branch — true here
+// and true in production, which is worth knowing before somebody re-pastes 0320 one day.
+//
+// The claim worth proving is not that chargebacks appear. It is that adding them did not quietly
+// change any of the other eleven answers, which is exactly the failure a 200-line replaced view
+// invites and the reason the branch was spliced from 0320's own text rather than retyped.
+const beforeRows = (await db.query(`select source, count(*)::int n from public.v_obligations group by source order by source`)).rows;
+
+await db.exec(readFileSync(join(ROOT, "supabase/migrations/0330_the_money_leaves_in_square_and_nobody_hears.sql"), "utf8"));
+console.log("0330 executed against a real Postgres.\n");
+
+const afterRows = (await db.query(`select source, count(*)::int n from public.v_obligations
+                                    where source <> 'square_disputes' group by source order by source`)).rows;
+ok("every pre-existing obligation source returns exactly what it did before 0330",
+  JSON.stringify(afterRows) === JSON.stringify(beforeRows), { beforeRows, afterRows });
+
+const ORD = "11111111-2222-3333-4444-555555555555";
+await db.exec(`
+  insert into public.shop_orders (id, payment_id, ship_name, total_cents, refund_amount_cents)
+  values ('${ORD}', 'sqpay_1', 'Ryan', 3200, null);
+  insert into public.square_disputes (id, payment_id, order_id, amount_cents, state, due_at)
+  values ('disp_open', 'sqpay_1', '${ORD}', 3200, 'EVIDENCE_REQUIRED', now() + interval '6 days');
+  insert into public.square_disputes (id, payment_id, order_id, amount_cents, state, due_at)
+  values ('disp_won', 'sqpay_1', '${ORD}', 3200, 'WON', now() + interval '6 days');
+  insert into public.square_disputes (id, payment_id, order_id, amount_cents, state, due_at)
+  values ('disp_nodate', 'sqpay_1', '${ORD}', 3200, 'EVIDENCE_REQUIRED', null);
+`);
+
+{
+  const d = (await db.query(`select subject_id, area, kind, title, detail, due_on, severity, route
+                               from public.v_obligations where source = 'square_disputes'`)).rows;
+  ok("an open chargeback with a deadline is an obligation", d.length === 1, d.map((r) => r.subject_id));
+  ok("it is the open one", d[0]?.subject_id === "disp_open", d[0]?.subject_id);
+  ok("a decided dispute is not a deadline", !d.some((r) => r.subject_id === "disp_won"));
+  ok("a dispute with no due date is not a deadline", !d.some((r) => r.subject_id === "disp_nodate"));
+  ok("it files under Money", d[0]?.area === "Money", d[0]?.area);
+  ok("six days out reads as 'soon'", d[0]?.severity === "soon", d[0]?.severity);
+  ok("it names the customer", d[0]?.title === "Ryan", d[0]?.title);
+  ok("the detail says what happens if it is missed", /lost by default/.test(d[0]?.detail ?? ""));
+  ok("it routes to the shop orders panel, not the top of the page", d[0]?.route === "/crew?s=money&a=shoporders", d[0]?.route);
+}
+
+// ── the reconciliation: two accounts of the same money ────────────────────────────────────────
+{
+  // TWO DIFFERENT QUESTIONS, and the test needs both to be asked cleanly. A chargeback overrides the
+  // refund verdict on purpose — it is the more urgent fact about that money — so the refund
+  // arithmetic is proved on an order with no dispute on it, and the dispute behaviour on the one
+  // that has three.
+  const driftOf = async (id) => (await db.query(`select * from public.v_shop_money_drift where order_id = '${id}'`)).rows[0];
+
+  // `disp_open` and `disp_nodate` are both open; only `disp_open` is a DEADLINE. An open dispute
+  // with no due date recorded is still an open dispute — it is just not something v_obligations can
+  // put a date on. Asserting the two counts differ is what keeps that a decision.
+  ok("both undecided disputes count as open here", (await driftOf(ORD))?.open_disputes === 2,
+    (await driftOf(ORD))?.open_disputes);
+  ok("...while only the one with a date is a deadline",
+    (await db.query(`select count(*)::int n from public.v_obligations where source = 'square_disputes'`)).rows[0].n === 1);
+
+  const ORD2 = "22222222-3333-4444-5555-666666666666";
+  await db.exec(`insert into public.shop_orders (id, payment_id, ship_name, total_cents, refund_amount_cents)
+                 values ('${ORD2}', 'sqpay_2', 'Dana', 5000, null)`);
+  const drift = async () => driftOf(ORD2);
+
+  ok("an order with nothing outstanding agrees", (await drift())?.verdict === "Agrees.", (await drift())?.verdict);
+
+  await db.exec(`insert into public.square_refunds (id, payment_id, order_id, amount_cents, status)
+                 values ('ref_1', 'sqpay_2', '${ORD2}', 5000, 'COMPLETED')`);
+  let d = await drift();
+  ok("Square refunding what the app never recorded is a gap", Number(d?.gap_cents) === 5000, d?.gap_cents);
+  ok("and the gap says which way round it is", /Square refunded more than this app/.test(d?.verdict ?? ""), d?.verdict);
+
+  // THE IDEMPOTENCY CLAIM. Square replays events; the webhook re-runs its body when a prior attempt
+  // died mid-processing. Keyed on Square's own refund id, a replay updates one row — it does not
+  // add a second refund. This is the assertion that would have caught `x = x + amount`.
+  await db.exec(`insert into public.square_refunds (id, payment_id, order_id, amount_cents, status)
+                 values ('ref_1', 'sqpay_2', '${ORD2}', 5000, 'COMPLETED')
+                 on conflict (id) do update set status = excluded.status, updated_at = now()`);
+  d = await drift();
+  ok("a replayed refund does not double the money", Number(d?.refunded_in_square) === 5000, d?.refunded_in_square);
+  ok("and there is still exactly one row for that refund id",
+    Number((await q1(`select count(*) n from public.square_refunds where id = 'ref_1'`))?.n) === 1);
+
+  // Only COMPLETED is money that left.
+  await db.exec(`insert into public.square_refunds (id, payment_id, order_id, amount_cents, status)
+                 values ('ref_pending', 'sqpay_2', '${ORD2}', 1000, 'PENDING')`);
+  ok("a pending refund is not money that left", Number((await drift())?.refunded_in_square) === 5000,
+    (await drift())?.refunded_in_square);
+
+  // The operator catches up: now the two accounts agree.
+  await db.exec(`update public.shop_orders set refund_amount_cents = 5000 where id = '${ORD2}'`);
+  d = await drift();
+  ok("once the app records it too, the gap closes", Number(d?.gap_cents) === 0, d?.gap_cents);
+  ok("and it agrees again", d?.verdict === "Agrees.", d?.verdict);
+
+  // The other direction: this app claims a refund Square has no completed record of.
+  await db.exec(`update public.shop_orders set refund_amount_cents = 5000 where id = '${ORD}'`);
+  ok("a refund recorded here that Square never completed is the opposite finding",
+    /no completed record/.test((await driftOf(ORD))?.verdict ?? "") || (await driftOf(ORD))?.open_disputes > 0);
+
+  // A chargeback outranks the refund verdict on the order that has one.
+  ok("an open chargeback outranks the refund verdict",
+    /chargeback is open/.test((await driftOf(ORD))?.verdict ?? ""), (await driftOf(ORD))?.verdict);
+}
+
+// ── the tables are Square's testimony, not a client's ─────────────────────────────────────────
+for (const t of ["square_refunds", "square_disputes"]) {
+  ok(`${t} has RLS on`,
+    (await q1(`select relrowsecurity from pg_class where oid = 'public.${t}'::regclass`))?.relrowsecurity === true);
+  const pol = (await db.query(`select polname, polcmd from pg_policy where polrelid = 'public.${t}'::regclass`)).rows;
+  ok(`${t} has exactly one policy, for select`, pol.length === 1 && pol[0].polcmd === "r",
+    pol.map((p) => `${p.polname}:${p.polcmd}`));
+}
+
+ok("0330 recorded itself in the ledger",
+  Number((await q1(`select count(*) n from public.schema_migrations
+                     where version = '0330_the_money_leaves_in_square_and_nobody_hears'`))?.n) === 1);
 
 console.log(`\nOBLIGATIONS: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

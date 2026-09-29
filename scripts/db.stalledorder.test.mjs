@@ -203,8 +203,36 @@ const capId = await mkOrder("submitted", 25, "Ryan", 3200);
   ok("with the seq its filename implies", Number(r?.seq) === 329, r?.seq);
 }
 
+// ── 0331: THE LINK THAT WENT NOWHERE ───────────────────────────────────────────────────────────
+// 0329's alert pointed at a `shop` section. There isn't one — the shop is a panel inside `money`.
+// Every alert above was raised carrying that link, which is what makes the second assertion here
+// the one that matters: re-emitting the function does nothing for a row already in the inbox.
+{
+  const before = await rows(`select id, link from public.alerts where kind = 'shop_order_stalled'`);
+  ok("0329's alerts were raised with the broken link", before.length > 0 && before.every((a) => a.link === "/crew?s=shop"),
+    before.map((a) => a.link));
+
+  await db.exec(readFileSync(join(ROOT, "supabase/migrations/0331_a_deep_link_nothing_was_checking.sql"), "utf8"));
+
+  const after = await rows(`select id, link from public.alerts where kind = 'shop_order_stalled'`);
+  ok("the rows already in the inbox are corrected",
+    after.length === before.length && after.every((a) => a.link === "/crew?s=money&a=shoporders"),
+    after.map((a) => a.link));
+
+  // And the function itself, so the NEXT one is right too.
+  await db.exec(`update public.alerts set ack_at = now() where kind = 'shop_order_stalled'`);
+  await run(24);
+  const fresh = await rows(`select link from public.alerts where kind = 'shop_order_stalled' and ack_at is null`);
+  ok("and a freshly raised alert uses the link that exists", fresh.length > 0 && fresh.every((a) => a.link === "/crew?s=money&a=shoporders"),
+    fresh.map((a) => a.link));
+
+  ok("0331 recorded itself",
+    Number((await q1(`select count(*) n from public.schema_migrations
+                       where version = '0331_a_deep_link_nothing_was_checking'`))?.n) === 1);
+}
+
 console.log(fail
   ? `A PAID ORDER THAT STOPS MOVING: ${pass} passed, ${fail} FAILED`
   : `A PAID ORDER THAT STOPS MOVING: ${pass} passed, 0 failed`);
-console.log("0313 + 0327 + 0328 + 0329 executed against a real Postgres.\n");
+console.log("0313 + 0327 + 0328 + 0329 + 0331 executed against a real Postgres.\n");
 process.exit(fail ? 1 : 0);

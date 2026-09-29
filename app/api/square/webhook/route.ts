@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { SQUARE_WEBHOOK_SIGNATURE_KEY, SQUARE_WEBHOOK_URL, mapSubStatus } from "@/lib/squareServer";
-import { raiseAlert } from "@/lib/serverAlerts";
+import { raiseAlert, raiseAlertOnce } from "@/lib/serverAlerts";
+import { moneyPlain } from "@/lib/money";
 
 export const runtime = "nodejs"; // needs node crypto + raw body
 
@@ -78,6 +79,80 @@ export async function POST(req: Request) {
       // Producer: a failed payment is a money problem leadership should see fast — but only once:
       // gated on success so the 500-retry path can't stack duplicate criticals.
       if (!err) await raiseAlert({ severity: "critical", category: "money", title: "Subscription payment failed", body: "A subscriber's card was declined — they'll lose access. Check Subscribers." });
+    } else if (type.startsWith("refund.")) {
+      // MONEY LEAVING (0330). Before this branch a refund issued in the Square dashboard — which is
+      // where this app's own money panel sends the owner to issue one — never reached the database.
+      //
+      // Written to square_refunds, NOT to shop_orders.refund_amount_cents. That column has one
+      // writer (0313's set_shop_order_status) and this is SQUARE's account, not the operator's; the
+      // two are compared in v_shop_money_drift precisely because they can disagree. An upsert on
+      // Square's own refund id is also idempotent, which `x = x + amount` would not be on the retry
+      // this route deliberately performs.
+      const rf = evt?.data?.object?.refund;
+      if (rf?.id && rf?.payment_id) {
+        const cents = Number(rf?.amount_money?.amount ?? 0) || 0;
+        // scoped-by: payment_id is minted by Square and matched against the order recorded at
+        // checkout. A caller cannot supply it — this request is HMAC-verified above.
+        const { data: ord } = await supabaseAdmin.from("shop_orders")
+          .select("id, refund_amount_cents, ship_name, email")
+          .eq("payment_id", String(rf.payment_id)).maybeSingle();
+        const o = ord as { id?: string; refund_amount_cents?: number | null; ship_name?: string | null; email?: string | null } | null;
+        ({ error: err } = await supabaseAdmin.from("square_refunds").upsert({
+          id: String(rf.id),
+          payment_id: String(rf.payment_id),
+          order_id: o?.id ?? null,
+          amount_cents: cents,
+          status: String(rf?.status ?? "UNKNOWN"),
+          reason: rf?.reason ?? null,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "id" }));
+        // Only a COMPLETED refund is money that left, and only say something when this app's own
+        // record does not already cover it — a refund entered here and then confirmed by Square is
+        // the workflow working, not a problem.
+        if (!err && String(rf?.status) === "COMPLETED" && o?.id && (o.refund_amount_cents ?? 0) < cents) {
+          await raiseAlertOnce({
+            severity: "critical", category: "money", kind: "refund_unrecorded", subjectId: o.id,
+            title: "A refund was issued in Square and this app does not know",
+            body: `${o.ship_name || o.email || "A customer"} was refunded $${moneyPlain(cents)} in Square, but this order records $${moneyPlain(o.refund_amount_cents)}. Mark the order refunded with a reason, or the books disagree.`,
+            link: "/crew?s=money&a=shoporders",
+          });
+        }
+      }
+    } else if (type.startsWith("dispute.")) {
+      // A CHARGEBACK (0330). Nothing in this app knew disputes existed. The field that matters is
+      // due_at: miss it and the dispute is lost by default, for the full amount plus the bank's fee.
+      // It goes to v_obligations with every other deadline — an alert scrolls away, a deadline does
+      // not — and raises one critical on top, once, while it is unacknowledged.
+      const dp = evt?.data?.object?.dispute;
+      const dId = dp?.dispute_id ?? dp?.id;
+      const payId = dp?.disputed_payment?.payment_id ?? dp?.payment_id;
+      if (dId && payId) {
+        const cents = Number(dp?.amount_money?.amount ?? 0) || 0;
+        // scoped-by: payment_id is Square's, matched against the order recorded at checkout.
+        const { data: ord } = await supabaseAdmin.from("shop_orders")
+          .select("id, ship_name, email").eq("payment_id", String(payId)).maybeSingle();
+        const o = ord as { id?: string; ship_name?: string | null; email?: string | null } | null;
+        ({ error: err } = await supabaseAdmin.from("square_disputes").upsert({
+          id: String(dId),
+          payment_id: String(payId),
+          order_id: o?.id ?? null,
+          amount_cents: cents,
+          state: dp?.state ?? null,
+          due_at: dp?.due_at ?? null,
+          reason: dp?.reason ?? null,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "id" }));
+        const decided = ["WON", "LOST", "ACCEPTED"].includes(String(dp?.state ?? ""));
+        if (!err && !decided) {
+          const by = dp?.due_at ? ` Evidence is due by ${String(dp.due_at).slice(0, 10)}.` : "";
+          await raiseAlertOnce({
+            severity: "critical", category: "money", kind: "chargeback_open", subjectId: String(dId),
+            title: `A card dispute was opened for $${moneyPlain(cents)}`,
+            body: `${o?.ship_name || o?.email || "A customer"} disputed a payment.${by} A dispute with no evidence filed is lost by default — the amount and the bank's fee both go. Respond in Square.`,
+            link: "/crew?s=money&a=shoporders",
+          });
+        }
+      }
     } else if (type.startsWith("payment.")) {
       // Mirror completed Square sales (incl. walk-up POS that never touch the app) into
       // event_sales, scoped to the live event, so the command center HUD is real. Dedupe
