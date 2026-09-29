@@ -36,7 +36,7 @@
 // gets exempted into uselessness. So it sanity-checks against what the app actually reads and
 // refuses rather than writing something that lies. NOT CHECKED is a worse state than checked; it is
 // a much better state than confidently wrong.
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 // The reader owns the snapshot format (META, readMeta, ageLine); this file conforms to it. The
@@ -92,8 +92,54 @@ export function projectRef(url) {
   return m ? m[1] : null;
 }
 
+// ── THE SQL FALLBACK, AS AN INPUT RATHER THAN A SECOND PROCEDURE ───────────────────────────────
+// columns.audit.mjs's header carries a query that answers the same question from pg_class, "for when
+// that command cannot run at all". It was written as a paste-the-result-into-the-file instruction,
+// and that is the part worth changing: a human assembling the file by hand is a SECOND writer, with
+// its own idea of the meta block and its own chance to get the shape wrong.
+//
+// This is that fallback wired in as an INPUT. The query's output goes in; everything after — the
+// sanity check that refuses a snapshot which would invent missing relations, the meta stamp, the key
+// sort, the reporting — is the same code the PostgREST path uses. One writer, two ways to feed it.
+//
+//   npm run schema:snapshot -- --from-sql=/tmp/snap.json
+//
+// It exists because the normal path needs SUPABASE_SERVICE_ROLE_KEY, and the column check had
+// therefore said NOT CHECKED since 2026-09-11 for anyone without that key in their shell — 603
+// selects and 874 columns unverified for eighteen days because the refresh needed a credential.
+// `source` records which way the data arrived, so a snapshot pulled this way never looks like one
+// pulled from PostgREST.
 async function main() {
   const dry = process.argv.includes("--dry");
+  const fromSql = (process.argv.find((a) => a.startsWith("--from-sql=")) || "").split("=").slice(1).join("=");
+
+  if (fromSql) {
+    let schema;
+    try {
+      schema = JSON.parse(readFileSync(fromSql, "utf8"));
+    } catch (e) {
+      console.log(`SCHEMA SNAPSHOT: could not read ${fromSql} — ${e && e.message ? e.message : e}. Nothing written.`);
+      process.exit(1);
+    }
+    // The query returns `{ relation: [column, ...] }` and nothing else. Anything with a $snapshot
+    // block is a snapshot file somebody is trying to re-feed, not the query's output.
+    if (!schema || typeof schema !== "object" || Array.isArray(schema) || schema[META]) {
+      console.log(`SCHEMA SNAPSHOT: ${fromSql} is not the query's output — expected { relation: [column, …] }.`);
+      console.log(`  The query is in scripts/columns.audit.mjs's header. Save the single value it returns.`);
+      process.exit(1);
+    }
+    // WHICH database this came from is not recoverable from the query's output, and this account has
+    // two Supabase organisations. A snapshot that cannot name its project is one you cannot check
+    // against the right database later, so the ref is asked for rather than guessed — and when it is
+    // not given, the file says so instead of implying a project it does not know.
+    const ref = (process.argv.find((a) => a.startsWith("--project=")) || "").split("=")[1];
+    finish(schema, {
+      project: ref || "unrecorded — rerun with --project=<ref> to name it",
+      source: "sql fallback (pg_class/pg_attribute), run in the Supabase SQL editor",
+    }, dry);
+    return;
+  }
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -122,7 +168,18 @@ async function main() {
     process.exit(1);
   }
 
-  const schema = definitionsToSchema(spec);
+  finish(definitionsToSchema(spec), {
+    project: projectRef(url),
+    source: "postgrest openapi",
+  }, dry);
+}
+
+/**
+ * Everything that happens AFTER the data arrives: the refusal, the meta stamp, the sort, the write
+ * and the report. Both input paths land here, so neither can develop its own idea of what a snapshot
+ * looks like — which is the failure this whole file exists to prevent, one level up.
+ */
+function finish(schema, provenance, dry) {
   const { need } = collect(ROOT);
   for (const [rel, m] of [...need]) if (m.size === 0) need.delete(rel);
   const needed = [...need.keys()];
@@ -147,8 +204,8 @@ async function main() {
 
   schema[META] = {
     pulled_at: new Date().toISOString(),
-    project: projectRef(url),
-    source: "postgrest openapi",
+    project: provenance.project,
+    source: provenance.source,
     relations: rels,
     columns: cols,
   };

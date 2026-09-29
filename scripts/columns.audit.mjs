@@ -47,6 +47,14 @@
 // 2026-09-11 — 196 relations in public; the app selects from 125 of them and names 856 distinct
 // columns. ZERO missing relations, ZERO missing columns. That is the first time this question has
 // ever been asked of this codebase, and it came back clean.
+//
+// 2026-09-29 — 197 relations; 129 read, 874 columns named. ZERO missing relations, ZERO missing
+// columns. Worth saying plainly what happened in between: NOTHING. Eighteen days, 24 migrations and
+// one real customer order later, this had printed NOT CHECKED every single time, because the only
+// way to refresh the snapshot needed a service key that is not in most shells. A check that needs a
+// credential to stay alive is a check that dies quietly — so the SQL fallback below is now an INPUT
+// to scripts/schema.snapshot.mjs (--from-sql=…) instead of an instruction to assemble the file by
+// hand, and refreshing it is a query plus a command.
 import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
