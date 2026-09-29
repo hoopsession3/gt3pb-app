@@ -1476,6 +1476,54 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // anybody quietly handed that responsibility back.
   ok("shopOrder: an order the printer has ACCEPTED is still ours — accepted is not in production",
     S.waitingOn("submitted") === "us", S.waitingOn("submitted"));
+
+  // ── TWO DEFINITIONS OF ONE FACT ────────────────────────────────────────────────────────────────
+  // "Who is waiting on this order" is answered twice: here in SHOP_STATUS_META, which drives the
+  // record sheet's chip, and in v_shop_orders' waiting_on_* columns, which drive the queue counters,
+  // the headline and the Needs-us filter. Nothing connected them.
+  //
+  // So d31f078 moved `submitted` to "us" in the TypeScript, shipped, and production showed the
+  // record sheet saying "waiting on us" directly under a panel reading "Nothing waiting on us · 1
+  // AT THE PRINTER" — about the same order. I put that drift there on the night I spent removing
+  // exactly this shape from the money formatters, the date helpers and the idempotency keys.
+  //
+  // A migration resynchronised them. This is what keeps them that way. It cannot be one home — a
+  // Postgres view cannot import a TypeScript object — so the next best thing is that they can never
+  // silently disagree.
+  {
+    const fs2 = require("node:fs");
+    const path2 = require("node:path");
+    const sql = fs2.readFileSync(path2.join(__dirname, "..", "supabase/migrations/0328_who_is_waiting_had_two_answers.sql"), "utf8");
+
+    // Read the view's answer straight out of the migration: `(o.status in ('a','b')) as waiting_on_x`
+    const viewSays = {};
+    for (const [, list, col] of sql.matchAll(/\(o\.status in \(([^)]*)\)\)\s*as\s+(waiting_on_\w+|closed)/g)) {
+      for (const raw of list.split(",")) {
+        const st = raw.trim().replace(/^'|'$/g, "");
+        if (st) viewSays[st] = col === "closed" ? "nobody" : col.replace("waiting_on_", "");
+      }
+    }
+    for (const [, st, col] of sql.matchAll(/\(o\.status = '(\w+)'\)\s*as\s+(waiting_on_\w+|closed)/g)) {
+      viewSays[st] = col === "closed" ? "nobody" : col.replace("waiting_on_", "");
+    }
+
+    ok("waiting: the view's mapping was actually parsed — an empty read would pass every case below",
+      Object.keys(viewSays).length >= 7, Object.keys(viewSays).length);
+
+    const disagree = [];
+    for (const st of Object.keys(S.SHOP_STATUS_META)) {
+      const ts = S.waitingOn(st);
+      const view = viewSays[st];
+      if (!view) { disagree.push(`${st}: the view says nothing`); continue; }
+      if (ts !== view) disagree.push(`${st}: code says ${ts}, view says ${view}`);
+    }
+    ok("waiting: lib/shopOrder and v_shop_orders agree about every status, or this fails by name",
+      disagree.length === 0, disagree);
+
+    // And the specific one that shipped wrong, pinned on both sides.
+    ok("waiting: an ACCEPTED order counts as ours in the queue counters too, not just on the record",
+      viewSays.submitted === "us", viewSays.submitted);
+  }
   ok("shopOrder: only the 'us' stages are the crew's to act on",
     S.waitingOn("needs_fulfillment") === "us"
       && S.waitingOn("shipped") === "carrier" && S.waitingOn("delivered") === "nobody");
