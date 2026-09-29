@@ -8,6 +8,7 @@ const RC = require("../.smoke/recents.js");
 const OF = require("../.smoke/offline.js");
 const PL = require("../.smoke/plan.js");
 let pass = 0, fail = 0;
+const PENDING = [];   // async assertions; awaited before the summary prints (see the tail)
 const ok = (name, cond, got) => { if (cond) { pass++; } else { fail++; console.log(`  ✗ ${name}` + (got !== undefined ? ` → got ${JSON.stringify(got)}` : "")); } };
 
 // trailer profile (matches 0105 seed)
@@ -2110,6 +2111,25 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     st.email === false && st.sms === false, st);
   ok("notify: emailEnabled needs BOTH the key and the from-address, not either",
     N.emailEnabled() === false);
+
+  // ── THE PROVIDER'S REASON (2026-09-29, second pass) ────────────────────────────────────────────
+  // Resend's log showed the truth: a 403 on /emails at the exact minute of the cap order, with a
+  // 200 on either side of it. The domain is verified, the key is full-access — so Resend REFUSED
+  // that specific request and said why in the response body, and sendEmail did `return r.ok` one
+  // line later. The single piece of information that explains the whole evening was read and
+  // thrown away by this app.
+  PENDING.push((async () => {
+    const outcome = await N.sendEmail("nobody@example.com", "s", "t");
+    ok("sendEmail: with no key it says so, rather than returning a bare false",
+      outcome.ok === false && /RESEND_API_KEY/.test(outcome.detail || ""), outcome);
+    const noAddr = await N.sendEmail("not-an-address", "s", "t");
+    ok("sendEmail: and a missing address is its own reason, not the same one",
+      noAddr.ok === false && /email address/.test(noAddr.detail || ""), noAddr);
+    const noSms = await N.sendSMS("8645551234", "hi");
+    ok("sendSMS: same contract", noSms.ok === false && /Twilio/.test(noSms.detail || ""), noSms);
+    ok("sendEmail: a reason is always a string when it fails — never undefined for an alert to print",
+      typeof outcome.detail === "string" && typeof noAddr.detail === "string");
+  })());
 }
 
 // ── THE IDEMPOTENCY KEY (2026-09-29) ─────────────────────────────────────────────────────────────
@@ -3048,6 +3068,11 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 }
 
 
-console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
-console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);
-process.exit(fail ? 1 : 0);
+// Everything above is synchronous except what PENDING holds. Printing the summary before those
+// land would report a pass count that is wrong in the flattering direction — exactly the kind of
+// quiet lie the rest of this file exists to refuse.
+Promise.all(PENDING).then(() => {
+  console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
+  console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);
+  process.exit(fail ? 1 : 0);
+});

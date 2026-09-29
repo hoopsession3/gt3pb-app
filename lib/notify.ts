@@ -29,22 +29,46 @@ const e164 = (raw: string): string | null => {
   return null;
 };
 
-export async function sendEmail(to: string, subject: string, text: string): Promise<boolean> {
-  if (!emailEnabled() || !to.includes("@")) return false;
+/**
+ * ── WHY THIS RETURNS A REASON ──────────────────────────────────────────────────────────────────
+ * It used to `return r.ok`. Resend answers a refusal with a body saying exactly what is wrong —
+ * domain not verified, key revoked, recipient not allowed while the account is unverified — and
+ * that body went straight in the bin. So when Ryan's first cap order sent no receipt on
+ * 2026-09-29, the one piece of information that would have explained it had been discarded one
+ * line after it arrived, by this function.
+ *
+ * The reason is for the OPERATOR — an alert, the integrations panel. It never reaches a customer,
+ * who cannot act on "domain is not verified" and should not be reading it.
+ */
+export type Sent = { ok: boolean; detail?: string };
+
+export async function sendEmail(to: string, subject: string, text: string): Promise<Sent> {
+  // ADDRESS FIRST, then config — the same order notifyCustomer uses. It checked config first when
+  // this was written, so the two disagreed about which of two simultaneous problems to report, in
+  // code added ten minutes apart. "No address" is about THIS message and is true whatever the env
+  // says; "no key" is the standing condition underneath it.
+  if (!to.includes("@")) return { ok: false, detail: "no email address on the order" };
+  if (!emailEnabled()) return { ok: false, detail: "no RESEND_API_KEY / NOTIFY_FROM_EMAIL" };
   try {
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({ from: process.env.NOTIFY_FROM_EMAIL, to: [to], subject: subject.slice(0, 200), text }),
     });
-    return r.ok;
-  } catch { return false; }
+    if (r.ok) return { ok: true };
+    // Their words, trimmed — not a guess at what went wrong. A wrong explanation sends an operator
+    // to fix the wrong thing, which is worse than no explanation at all.
+    const body = await r.text().catch(() => "");
+    return { ok: false, detail: `Resend ${r.status}: ${body.slice(0, 300) || "(no body)"}` };
+  } catch (e) {
+    return { ok: false, detail: `could not reach Resend: ${String((e as Error)?.message ?? e).slice(0, 200)}` };
+  }
 }
 
-export async function sendSMS(to: string, body: string): Promise<boolean> {
-  if (!smsEnabled()) return false;
+export async function sendSMS(to: string, body: string): Promise<Sent> {
+  if (!smsEnabled()) return { ok: false, detail: "no Twilio keys" };
   const num = e164(to);
-  if (!num) return false;
+  if (!num) return { ok: false, detail: `unparseable phone number` };
   try {
     const sid = process.env.TWILIO_ACCOUNT_SID!;
     const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
@@ -55,8 +79,12 @@ export async function sendSMS(to: string, body: string): Promise<boolean> {
       },
       body: new URLSearchParams({ To: num, From: process.env.TWILIO_FROM_NUMBER!, Body: body.slice(0, 640) }),
     });
-    return r.ok;
-  } catch { return false; }
+    if (r.ok) return { ok: true };
+    const t = await r.text().catch(() => "");
+    return { ok: false, detail: `Twilio ${r.status}: ${t.slice(0, 300) || "(no body)"}` };
+  } catch (e) {
+    return { ok: false, detail: `could not reach Twilio: ${String((e as Error)?.message ?? e).slice(0, 200)}` };
+  }
 }
 
 /**
@@ -87,20 +115,22 @@ export const didSend = (r: SendResult): boolean => r === "sent";
 // nothing it could ask. A no-op nobody can observe is indistinguishable from a feature that works.
 export async function notifyCustomer(opts: {
   phone?: string | null; email?: string | null; subject: string; message: string;
-}): Promise<{ sms: SendResult; email: SendResult }> {
+}): Promise<{ sms: SendResult; email: SendResult; smsDetail?: string; emailDetail?: string }> {
   const [sms, mail] = await Promise.all([
-    (async (): Promise<SendResult> => {
-      if (!opts.phone) return "no-address";
-      if (!smsEnabled()) return "off";
-      return (await sendSMS(opts.phone, opts.message)) ? "sent" : "failed";
+    (async (): Promise<[SendResult, string | undefined]> => {
+      if (!opts.phone) return ["no-address", undefined];
+      if (!smsEnabled()) return ["off", undefined];
+      const r = await sendSMS(opts.phone, opts.message);
+      return [r.ok ? "sent" : "failed", r.detail];
     })(),
-    (async (): Promise<SendResult> => {
-      if (!opts.email || !opts.email.includes("@")) return "no-address";
-      if (!emailEnabled()) return "off";
-      return (await sendEmail(opts.email, opts.subject, opts.message)) ? "sent" : "failed";
+    (async (): Promise<[SendResult, string | undefined]> => {
+      if (!opts.email || !opts.email.includes("@")) return ["no-address", undefined];
+      if (!emailEnabled()) return ["off", undefined];
+      const r = await sendEmail(opts.email, opts.subject, opts.message);
+      return [r.ok ? "sent" : "failed", r.detail];
     })(),
   ]);
-  return { sms, email: mail };
+  return { sms: sms[0], email: mail[0], smsDetail: sms[1], emailDetail: mail[1] };
 }
 
 /**

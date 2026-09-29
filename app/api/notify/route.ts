@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { staffFromRequest, tenantFromRequest } from "@/lib/apiAuth";
-import { notifyCustomer, emailEnabled, smsEnabled, notifyStatus, accountEmail } from "@/lib/notify";
+import { staffFromRequest, tenantFromRequest, userFromRequest } from "@/lib/apiAuth";
+import { notifyCustomer, emailEnabled, smsEnabled, notifyStatus, sendEmail, accountEmail } from "@/lib/notify";
 
 // LIFECYCLE PINGS the crew fires from the boards — the customer can't be expected to sit in the
 // app. order_ready: the pass advanced an order to Ready (walk-up/pre-orders carry no phone, so
@@ -18,6 +18,22 @@ export async function POST(req: Request) {
 
   let kind = "", id = "";
   try { ({ kind = "", id = "" } = await req.json()); } catch { /* */ }
+
+  // ── ASK THE PROVIDER DIRECTLY ──────────────────────────────────────────────────────────────────
+  // When Ryan's first cap order sent no receipt on 2026-09-29, both Resend env vars were set and
+  // scoped to production — so the send was attempted and REFUSED, and nothing in the app could say
+  // by whom or why. This sends one real email to the caller's OWN account address and hands back
+  // the provider's verdict verbatim. The operator presses it; it is never fired on their behalf,
+  // and it can only ever mail the person pressing it.
+  if (kind === "test") {
+    // staffFromRequest is a boolean gate (already passed above); userFromRequest is who they are.
+    const me = await userFromRequest(req);
+    const to = await accountEmail(me?.id ?? null);
+    if (!to) return NextResponse.json({ ok: false, error: "no email on your account to test with" }, { status: 400 });
+    const r = await sendEmail(to, "GT3 — email test", "This is a test from GT3's integrations panel. If you are reading it, receipts and tracking emails can send.");
+    return NextResponse.json({ ok: true, test: true, to, sent: r.ok, detail: r.detail ?? null });
+  }
+
   if (!id || !["order_ready", "delivered"].includes(kind)) {
     return NextResponse.json({ ok: false, error: "kind + id required" }, { status: 400 });
   }

@@ -91,7 +91,7 @@ export async function POST(req: Request) {
   let sent = 0;
   for (const p of (leaders ?? []) as { id: string }[]) {
     const email = await accountEmail(p.id);
-    if (email) { if (await sendEmail(email, "📊 GT3 founder digest", emailBody)) sent++; }
+    if (email) { if ((await sendEmail(email, "📊 GT3 founder digest", emailBody)).ok) sent++; }
     try {
       const { data: cust } = await supabaseAdmin.from("customers").select("phone").eq("user_id", p.id).not("phone", "is", null).limit(1).maybeSingle();
       if (cust?.phone) await sendSMS(cust.phone, `GT3 digest — ${headline}`);

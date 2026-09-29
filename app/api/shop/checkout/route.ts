@@ -152,7 +152,7 @@ export async function POST(req: Request) {
         await raiseAlert({
           severity: "important", category: "order", kind: "fulfillment", subjectId: orderId,
           title: "Shop receipt didn't send",
-          body: `${shipName} paid ${money(total)} and the confirmation promised an email. ${sent.email === "no-address" ? "No address was on the order." : `Sending to ${email} failed.`} Reach them by hand.`,
+          body: `${shipName} paid ${money(total)} and the confirmation promised an email. ${sent.email === "no-address" ? "No address was on the order." : `Sending to ${email} failed — ${sent.emailDetail ?? "no reason given"}.`} Reach them by hand.`,
         });
       }
     } catch { /* notify is best-effort — a provider hiccup must never fail a paid order */ }
