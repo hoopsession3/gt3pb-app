@@ -191,6 +191,78 @@ for (const f of readdirSync(DIR).filter((x) => x.endsWith(".sql")).sort()) {
   }
 }
 
+// ── SIXTH RULE, added at 0329: a paste-and-run file says what it is current AS OF ──────────────
+// supabase/APPLY_ALL_PENDING.sql opens with "apply all pending migrations, in order" and "paste
+// this whole file into the Supabase SQL editor and Run". On 2026-09-29 it contained 14 migration
+// sections and stopped at 0035. This directory held 326 files. Nothing referenced it, nothing
+// checked it, and it had been silently wrong by 291 migrations.
+//
+// That is worse than having no such file. An empty directory tells you to go look; a file that says
+// "all pending" and means "the first 35" sends someone away believing they are current. It is the
+// same failure the LEDGER GATE above was written for, one layer out: the ledger keeps the DATABASE
+// from losing track of what ran, and this keeps the PASTE-FILE from losing track of what it holds.
+//
+// The contract is one line, and it cannot go stale quietly because this reads it:
+//
+//   -- pending-from: 0328    ← the highest migration in supabase/migrations/ when it was generated
+//
+// If a migration lands above that number the file no longer contains what it claims to, and this
+// fails. Regenerating is one command (scripts/migrations.pending.mjs), which is the point: a step
+// that costs a browser session does not happen, and a check that never runs is not a check.
+//
+// Scope is every loose .sql directly under supabase/ — not just today's one file, so the next
+// paste-file somebody adds inherits the rule instead of repeating the defect. supabase/migrations/
+// is the canonical home and needs no mark. supabase/pending/ is EXCLUDED and must stay excluded:
+// those are soak-gated and applying them early is irreversible, which APPLY_ALL_PENDING.sql's own
+// first two lines warn about.
+//
+// There is no escape-hatch comment here, deliberately. The way out is to delete the file — a
+// paste-file is optional, and an unmaintained one is exactly the thing being prevented.
+//
+// And there is no FLOOR here, unlike every rule above it. The others start at the migration where
+// they were written because judging 300 old files against a new rule produces a wall of noise
+// nobody can act on. This one has exactly ONE file in scope and it is brought into compliance in
+// the same commit — so a floor would buy nothing and cost everything, because a gate that cannot
+// fire until some future migration exists is a gate that lies about being on.
+const SUPA = join(ROOT, "supabase");
+
+const highestMigration = readdirSync(DIR)
+  .filter((f) => f.endsWith(".sql"))
+  .map((f) => Number(f.slice(0, 4)))
+  .filter((n) => Number.isFinite(n))
+  .reduce((a, b) => Math.max(a, b), 0);
+
+const staleFiles = [];
+for (const e of readdirSync(SUPA, { withFileTypes: true })) {
+  if (!e.isFile() || !e.name.endsWith(".sql")) continue;
+  const sql = readFileSync(join(SUPA, e.name), "utf8");
+  const mark = sql.match(/^\s*--\s*pending-from:\s*(\d{4})\b/im);
+  if (!mark) { staleFiles.push(`supabase/${e.name} — no "-- pending-from:" line`); continue; }
+  const markedAt = Number(mark[1]);
+  if (markedAt < highestMigration) {
+    staleFiles.push(
+      `supabase/${e.name} — marked current as of ${mark[1]}, but supabase/migrations/ now holds ` +
+      `${String(highestMigration).padStart(4, "0")} (${highestMigration - markedAt} newer)`);
+  }
+}
+
+if (staleFiles.length) {
+  console.error(`PASTE-FILE GATE: ${staleFiles.length} loose SQL file(s) claim to be current and are not:`);
+  for (const m of staleFiles) console.error(`  ✗ ${m}`);
+  console.error(
+    `\nA file that says "apply all pending migrations" while sitting 291 migrations behind does not ` +
+    `fail loudly — it sends the next person away believing they are up to date. Every loose .sql ` +
+    `under supabase/ must say what it is current as of:\n` +
+    `    -- pending-from: ${String(highestMigration).padStart(4, "0")}\n` +
+    `Regenerate it from the live ledger rather than editing the mark by hand:\n` +
+    `    npm run migrations:pending -- --write\n` +
+    `Or delete the file. A paste-file is optional; a stale one is the defect this gate exists for. ` +
+    `(supabase/migrations/ is the canonical home and needs no mark. supabase/pending/ is soak-gated ` +
+    `and deliberately out of scope.)`
+  );
+  process.exit(1);
+}
+
 if (wideDml.length) {
   console.error(`WHOLE-TABLE GATE: ${wideDml.length} statement(s) touch every row with no WHERE:`);
   for (const m of wideDml) console.error(`  ✗ ${m}`);
@@ -261,3 +333,4 @@ console.log("LEDGER GATE: every migration from 0304 records itself by its own fi
 console.log("RLS GATE: every table created from 0310 enables row level security in the same file — clean.");
 console.log("VIEW GATE: every view created from 0312 honours RLS, is closed to the app, or says why — clean.");
 console.log("WHOLE-TABLE GATE: every UPDATE/DELETE from 0315 names its rows, or declares it means all of them — clean.");
+console.log(`PASTE-FILE GATE: every loose .sql under supabase/ says what it is current as of, and none is behind ${String(highestMigration).padStart(4, "0")} — clean.`);
