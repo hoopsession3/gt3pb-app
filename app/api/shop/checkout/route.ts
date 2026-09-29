@@ -3,7 +3,9 @@ import { chargeCard, safeIdemKey } from "@/lib/squareServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
-import { notifyCustomer, didSend, accountEmail } from "@/lib/notify";
+import { accountEmail } from "@/lib/notify";
+import { tellCustomer } from "@/lib/customerMessage";
+import { orderReceipt } from "@/lib/receipt";
 import { submitOrderToApliiq } from "@/lib/apliiq";
 import { skuFor } from "@/lib/apliiqOrder";
 import { integrationTenant } from "@/lib/tenantScope";
@@ -146,13 +148,17 @@ export async function POST(req: Request) {
     // "failed" and "no-address" are this order's problem and the crew has to hear about them.
     let emailed = false;
     try {
-      const sent = await notifyCustomer({ email, subject: "Your GT3 order is in", message: `Thanks ${shipName.split(" ")[0] || ""}! We got your order — ${lineItems.map((l) => `${l.qty}× ${l.title}`).join(", ")}. We'll email tracking the moment it ships.` });
-      emailed = didSend(sent.email);
+      // The wording lives in lib/receipt so the resend button two days later sends the SAME text —
+      // a second receipt that does not match the first gives the customer two accounts of one
+      // order. tellCustomer sends it AND records it; there is no way to do one without the other.
+      const body = orderReceipt({ id: orderId, ship_name: shipName, total_cents: total, items: lineItems });
+      const sent = await tellCustomer({ orderId, email, kind: "receipt", ...body });
+      emailed = sent.ok;
       if (sent.email === "failed" || sent.email === "no-address") {
         await raiseAlert({
           severity: "important", category: "order", kind: "fulfillment", subjectId: orderId,
           title: "Shop receipt didn't send",
-          body: `${shipName} paid ${money(total)} and the confirmation promised an email. ${sent.email === "no-address" ? "No address was on the order." : `Sending to ${email} failed — ${sent.emailDetail ?? "no reason given"}.`} Reach them by hand.`,
+          body: `${shipName} paid ${money(total)} and the confirmation promised an email. ${sent.email === "no-address" ? "No address was on the order." : `Sending to ${email} failed — ${sent.detail ?? "no reason given"}.`} Resend it from the order record once that is fixed.`,
         });
       }
     } catch { /* notify is best-effort — a provider hiccup must never fail a paid order */ }

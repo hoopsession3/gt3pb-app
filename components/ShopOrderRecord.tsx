@@ -9,6 +9,7 @@ import Sheet, { CloseButton } from "./Sheet";
 import Icon from "./Icon";
 import { RecordLink } from "./RecordSheet";
 import { moneyPlain } from "@/lib/money";
+import { authedFetch } from "@/lib/authedFetch";
 import {
   SHOP_STATUS_META, SQUARE_TRANSACTIONS, ageLabel, isShopStatus, marginPct, money,
   moveVerb, moveWarning, needsReason, nextStatuses, shipLine, statusLabel, waitingOn,
@@ -49,7 +50,11 @@ type Line = {
   line_cents: number; line_cost_cents: number | null; variant: unknown;
   image_url: string | null; product_archived: boolean; product_unlinked: boolean;
 };
-type Data = { order: Order | null; lines: Line[] };
+type Msg = {
+  id: string; kind: string; status: "sent" | "failed"; detail: string | null;
+  to_address: string; created_at: string; sent_by: string | null;
+};
+type Data = { order: Order | null; lines: Line[]; msgs: Msg[] };
 
 const when = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
@@ -68,18 +73,24 @@ export default function ShopOrderRecord({ orderId, onClose, onChanged }: {
 }) {
   const { toast } = useApp();
   const [busy, setBusy] = useState(false);
+  const [resendTo, setResendTo] = useState("");
+  const [resending, setResending] = useState(false);
   const [move, setMove] = useState<string | null>(null);   // the status being confirmed
   const [why, setWhy] = useState("");
   const [amt, setAmt] = useState("");
 
   const loader = useCallback(async (): Promise<Data> => {
-    if (!supabase) return { order: null, lines: [] };
-    const [o, l] = await Promise.all([
+    if (!supabase) return { order: null, lines: [], msgs: [] };
+    const [o, l, m] = await Promise.all([
       supabase.from("v_shop_orders").select("*").eq("id", orderId).maybeSingle(),
       supabase.from("v_shop_order_items").select("*").eq("order_id", orderId).order("title"),
+      // What this customer has actually been told. Before 0326 there was no answer to that at all,
+      // which is how a paid order went a whole evening with nobody knowing its receipt never sent.
+      supabase.from("customer_messages").select("id, kind, status, detail, to_address, created_at, sent_by")
+        .eq("order_id", orderId).order("created_at", { ascending: false }).limit(12),
     ]);
     if (o.error) throw new Error(o.error.message);
-    return { order: (o.data as Order) ?? null, lines: (l.data as Line[]) ?? [] };
+    return { order: (o.data as Order) ?? null, lines: (l.data as Line[]) ?? [], msgs: (m.data as Msg[]) ?? [] };
   }, [orderId]);
   const state = useAsyncData<Data>(loader, [orderId]);
   const reload = state.reload;
@@ -121,7 +132,7 @@ export default function ShopOrderRecord({ orderId, onClose, onChanged }: {
       <AsyncSection state={state} isEmpty={({ order }) => !order}
         emptyTitle="No such order" emptySub="It may have been removed, or the link is stale."
         loadingLabel="Loading…" errorTitle="Couldn't load this order">
-        {({ order, lines }) => {
+        {({ order, lines, msgs }) => {
           const o = order!;
           const meta = isShopStatus(o.status) ? SHOP_STATUS_META[o.status] : null;
           const owed = waitingOn(o.status);
@@ -216,6 +227,51 @@ export default function ShopOrderRecord({ orderId, onClose, onChanged }: {
                   {o.note && <p className="cp-line dim" style={{ whiteSpace: "pre-line" }}>{o.note}</p>}
                 </div>
               )}
+
+              {/* ── WHAT THE CUSTOMER WAS TOLD ──────────────────────────────────────────
+                  On 2026-09-29 a paid order sat all evening with nobody able to say whether its
+                  receipt had gone out. This block is that answer, and the button beside it sends
+                  the SAME receipt again — rebuilt from this order through lib/receipt, never
+                  retyped, so the second copy cannot disagree with the first. */}
+              <div className="cp-block">
+                <div className="cp-block-h">
+                  <span>What we&apos;ve told them</span>
+                  <b className={msgs.some((m) => m.status === "sent") ? "dim" : ""}>
+                    {msgs.length === 0 ? "nothing yet" : msgs.some((m) => m.status === "sent") ? "in touch" : "nothing reached them"}
+                  </b>
+                </div>
+                {msgs.length === 0
+                  ? <p className="cp-line dim">No message has been sent about this order.</p>
+                  : msgs.map((m) => (
+                    <div className="cp-line" key={m.id}>
+                      <b className={m.status === "failed" ? "bad" : ""}>{m.status === "sent" ? "Sent" : "Failed"}</b>
+                      {" · "}{m.kind.replace(/_/g, " ")}{" · "}{m.to_address}
+                      {m.sent_by ? " · by hand" : ""}
+                      {" · "}{new Date(m.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                      {m.status === "failed" && m.detail ? <><br /><span className="dim">{m.detail}</span></> : null}
+                    </div>
+                  ))}
+                <div className="so-resend">
+                  <input className="auth-input" type="email" inputMode="email" placeholder={o.email || "email address"}
+                    value={resendTo} onChange={(e) => setResendTo(e.target.value)}
+                    aria-label="Send the receipt to a different address" />
+                  <button type="button" className="btn-sec" disabled={resending} onClick={async () => {
+                    setResending(true);
+                    try {
+                      const r = await authedFetch("/api/shop/receipt", {
+                        method: "POST", headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ id: o.id, to: resendTo.trim() || undefined }),
+                      });
+                      const j = await r.json();
+                      if (!r.ok || !j.ok) toast(j.error || "Couldn't send it.", "error");
+                      else if (j.sent) { toast(`Receipt sent to ${j.to}.`); setResendTo(""); }
+                      // The provider's own words, not a shrug. This is the line that was missing.
+                      else toast(`Not sent — ${j.detail || j.result}`, "error");
+                    } catch { toast("Couldn't reach the server.", "error"); }
+                    setResending(false); reload();
+                  }}>{resending ? "Sending…" : "Send the receipt"}</button>
+                </div>
+              </div>
 
               {/* and only now, the controls ────────────────────────────────────────────── */}
               <div className="cp-block">

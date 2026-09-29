@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { verifyApliiq, firstSeen } from "@/lib/apliiq";
-import { notifyCustomer, accountEmail } from "@/lib/notify";
+import { accountEmail } from "@/lib/notify";
+import { tellCustomer } from "@/lib/customerMessage";
+import { shippedNotice } from "@/lib/receipt";
 import { integrationTenant } from "@/lib/tenantScope";
 
 export const runtime = "nodejs";
@@ -45,12 +47,23 @@ export async function POST(req: Request) {
   await supabaseAdmin.from("shop_orders").update({ status: "shipped", updated_at: new Date().toISOString() }).eq("id", (order as any).id);
 
   try {
-    const email = (order as any).email || (await accountEmail((order as any).user_id ?? null));
+    // Named once rather than cast at each use. The casts above this line predate me and are left
+    // alone; the three I would otherwise have ADDED are the three I am responsible for.
+    const o = order as { id: string; email?: string | null; user_id?: string | null };
+    const email = o.email || (await accountEmail(o.user_id ?? null));
     if (email) {
-      await notifyCustomer({
+      const { data: items } = await supabaseAdmin
+        .from("shop_order_items").select("title, qty").eq("order_id", o.id);
+      await tellCustomer({
+        orderId: o.id,
         email,
-        subject: "Your GT3 order shipped",
-        message: `Good news — your order is on the way.${tracking ? ` Tracking: ${tracking}` : ""}${trackingUrl ? `\n${trackingUrl}` : ""}`,
+        kind: "shipped",
+        ...shippedNotice({
+          id: o.id,
+          items: (items ?? []) as { title: string; qty: number }[],
+          tracking_number: tracking || null,
+          tracking_url: trackingUrl,
+        }),
       });
     }
   } catch { /* notify is best-effort; the ship status is already recorded */ }

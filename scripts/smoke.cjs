@@ -2132,6 +2132,59 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   })());
 }
 
+// ── ONE RECEIPT, SENT TWICE (2026-09-29) ─────────────────────────────────────────────────────────
+// The fix for a receipt that never sent is a way to send it again — and the obvious way to build
+// that is to write the message a second time, in the resend route. That is how this repo got thirty
+// money formatters, two markdown renderers, four benefit describers and three idempotency keys. A
+// resent receipt that does not match the original is worse than no resend: the customer now holds
+// two different accounts of one order.
+{
+  const R = require("../.smoke/receipt.js");
+  const order = {
+    id: "dcbb7295-d47f-40f3-9a1f-3d44366c5e35",
+    ship_name: "Ryan Thompkins",
+    total_cents: 3200,
+    items: [{ title: "GT3 6-Panel Cap", qty: 1 }],
+  };
+
+  ok("receipt: the reference is short enough to read down a phone, and stable",
+    R.orderRef(order.id) === "DCBB72" && R.orderRef(order.id) === R.orderRef(order.id), R.orderRef(order.id));
+  ok("receipt: a missing id does not produce 'UNDEFIN'", R.orderRef("") === "" && R.orderRef(null) === "");
+  ok("receipt: first name only", R.firstName("Ryan Thompkins") === "Ryan" && R.firstName("Ryan") === "Ryan");
+  ok("receipt: no name is empty, never the word undefined — it is going in front of a customer",
+    R.firstName(null) === "" && R.firstName("   ") === "");
+  ok("receipt: the item line is what they check against the box",
+    R.itemLine([{ title: "Cap", qty: 1 }, { title: "Tee", qty: 2 }]) === "1× Cap, 2× Tee");
+  ok("receipt: a line with no title is dropped rather than rendering '1× undefined'",
+    R.itemLine([{ title: "Cap", qty: 1 }, { qty: 2 }]) === "1× Cap");
+
+  const first = R.orderReceipt(order);
+  const again = R.orderReceipt(order, true);
+  // THE POINT OF THE WHOLE FILE. Same order in, same facts out — the resend differs only in saying
+  // that it IS a resend, never in what was bought or what it cost.
+  for (const fact of ["1× GT3 6-Panel Cap", "$32", "DCBB72"]) {
+    ok(`receipt: the resend carries the same fact — ${fact}`,
+      first.message.includes(fact) && again.message.includes(fact), [first.message, again.message]);
+  }
+  ok("receipt: and it says it is a second copy, because one arriving days later reads like a second charge",
+    /not a new charge/i.test(again.message) && !/not a new charge/i.test(first.message));
+  ok("receipt: the money goes through money(), so $32.00 reads $32 like every other screen",
+    first.message.includes("Total $32") && !first.message.includes("32.00"), first.message);
+  ok("receipt: an unknown total reads '—', not '$0' — a receipt claiming zero is a refund claim",
+    R.orderReceipt({ ...order, total_cents: null }).message.includes("Total —"));
+  ok("receipt: before it ships, it promises tracking",
+    /email tracking the moment it ships/.test(first.message));
+  ok("receipt: after it ships, it carries the tracking instead of promising it — a resend sent to\n" +
+    "         somebody waiting on a box must not still say 'we will email tracking'",
+    /Tracking: 1Z999/.test(R.orderReceipt({ ...order, tracking_number: "1Z999AA1" }, true).message) &&
+    !/email tracking the moment/.test(R.orderReceipt({ ...order, tracking_number: "1Z999AA1" }, true).message));
+  ok("receipt: an order with no items still produces a sendable message, not a blank one",
+    R.orderReceipt({ ...order, items: [] }).message.includes("no items on this order"));
+  ok("shipped notice: same home, same reference", R.shippedNotice(order).message.includes("DCBB72"));
+  ok("shipped notice: empty parts are dropped, never rendered as blank lines",
+    !/\n\n/.test(R.shippedNotice({ ...order, tracking_number: null, tracking_url: null }).message));
+}
+
 // ── THE IDEMPOTENCY KEY (2026-09-29) ─────────────────────────────────────────────────────────────
 // Ryan tried to buy the first flagship cap and got Square's wall printed onto the checkout page:
 // "Different request parameters used for the same idempotency_key: dcbb7295-…". Every assertion

@@ -7913,3 +7913,9 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
    production said the recommendation was backwards on all three live rows. */
 .str-drift-b{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:4px}
 .str-drift-b .cp-go{margin-top:0}
+
+/* The receipt resend on a shop order record: an address box and the send, on one line, wrapping to
+   two on a phone. Deliberately not a card — it is a control inside the panel it belongs to. */
+.so-resend{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.so-resend input{flex:1 1 180px;min-width:0}
+.so-resend button{flex:0 0 auto}
