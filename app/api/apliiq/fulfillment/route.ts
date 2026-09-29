@@ -52,6 +52,10 @@ export async function POST(req: Request) {
     const o = order as { id: string; email?: string | null; user_id?: string | null };
     const email = o.email || (await accountEmail(o.user_id ?? null));
     if (email) {
+      // The payload's external_id was an INPUT to that scoped query, never the key used here — so a
+      // forged id cannot reach another tenant's rows even before the HMAC is considered.
+      //
+      // scoped-by: o.id came from the shop_orders lookup above, which filters on tenant_id
       const { data: items } = await supabaseAdmin
         .from("shop_order_items").select("title, qty").eq("order_id", o.id);
       await tellCustomer({

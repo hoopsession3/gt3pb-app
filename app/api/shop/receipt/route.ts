@@ -39,14 +39,20 @@ export async function POST(req: Request) {
     .eq("tenant_id", tenant).eq("id", id).maybeSingle();
   if (!order) return NextResponse.json({ ok: false, error: "not found" }, { status: 404 });
 
+  // Both reads below key off order.id — the row the tenant-filtered lookup returned — rather than
+  // the caller's `id` string. That makes the tenant match structural instead of assumed: there is
+  // no path here that reads an order the caller has not already been shown.
+  //
+  // scoped-by: order.id came from a lookup filtered on tenant_id AND id
   const { data: items } = await supabaseAdmin
-    .from("shop_order_items").select("title, qty, unit_cents").eq("order_id", id);
+    .from("shop_order_items").select("title, qty, unit_cents").eq("order_id", order.id);
 
   // Tracking, when the printer has already shipped it — a receipt sent after the fact that still
   // says "we'll email tracking when it ships" is worse than useless to somebody waiting on a box.
+  // scoped-by: order.id, same tenant-filtered lookup as the items read above
   const { data: ship } = await supabaseAdmin
     .from("merch_fulfillments").select("tracking_number, tracking_url")
-    .eq("order_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    .eq("order_id", order.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
 
   // An operator may correct a bad address here — a typo in the email is one of the two ways a
   // receipt fails to arrive, and the other one is the provider. The corrected address is recorded
