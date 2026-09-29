@@ -54,7 +54,7 @@ type Msg = {
   id: string; kind: string; status: "sent" | "failed"; detail: string | null;
   to_address: string; created_at: string; sent_by: string | null;
 };
-type Data = { order: Order | null; lines: Line[]; msgs: Msg[] };
+type Data = { order: Order | null; lines: Line[]; msgs: Msg[]; msgsError: string | null };
 
 const when = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
@@ -80,7 +80,7 @@ export default function ShopOrderRecord({ orderId, onClose, onChanged }: {
   const [amt, setAmt] = useState("");
 
   const loader = useCallback(async (): Promise<Data> => {
-    if (!supabase) return { order: null, lines: [], msgs: [] };
+    if (!supabase) return { order: null, lines: [], msgs: [], msgsError: null };
     const [o, l, m] = await Promise.all([
       supabase.from("v_shop_orders").select("*").eq("id", orderId).maybeSingle(),
       supabase.from("v_shop_order_items").select("*").eq("order_id", orderId).order("title"),
@@ -90,7 +90,17 @@ export default function ShopOrderRecord({ orderId, onClose, onChanged }: {
         .eq("order_id", orderId).order("created_at", { ascending: false }).limit(12),
     ]);
     if (o.error) throw new Error(o.error.message);
-    return { order: (o.data as Order) ?? null, lines: (l.data as Line[]) ?? [], msgs: (m.data as Msg[]) ?? [] };
+    // A FAILED READ IS NOT AN EMPTY LIST. I wrote `msgs: m.data ?? []` first, which renders "No
+    // message has been sent about this order" when the read FAILED — and the deploy window where
+    // 0326 has not been pasted into the SQL editor yet is exactly when that happens. Telling an
+    // operator nothing was sent, when the truth is nobody could look, is the defect this panel was
+    // built to end. It is reported instead.
+    return {
+      order: (o.data as Order) ?? null,
+      lines: (l.data as Line[]) ?? [],
+      msgs: (m.data as Msg[]) ?? [],
+      msgsError: m.error ? m.error.message : null,
+    };
   }, [orderId]);
   const state = useAsyncData<Data>(loader, [orderId]);
   const reload = state.reload;
@@ -132,7 +142,7 @@ export default function ShopOrderRecord({ orderId, onClose, onChanged }: {
       <AsyncSection state={state} isEmpty={({ order }) => !order}
         emptyTitle="No such order" emptySub="It may have been removed, or the link is stale."
         loadingLabel="Loading…" errorTitle="Couldn't load this order">
-        {({ order, lines, msgs }) => {
+        {({ order, lines, msgs, msgsError }) => {
           const o = order!;
           const meta = isShopStatus(o.status) ? SHOP_STATUS_META[o.status] : null;
           const owed = waitingOn(o.status);
@@ -245,10 +255,12 @@ export default function ShopOrderRecord({ orderId, onClose, onChanged }: {
                 <div className="cp-block-h">
                   <span>What we&apos;ve told them</span>
                   <b className={msgs.some((m) => m.status === "sent") ? "dim" : ""}>
-                    {msgs.length === 0 ? "nothing yet" : msgs.some((m) => m.status === "sent") ? "in touch" : "nothing reached them"}
+                    {msgsError ? "can't tell" : msgs.length === 0 ? "nothing yet" : msgs.some((m) => m.status === "sent") ? "in touch" : "nothing reached them"}
                   </b>
                 </div>
-                {msgs.length === 0
+                {msgsError
+                  ? <p className="cp-line"><b className="bad">Couldn&apos;t read the message log</b> — so this order may well have been emailed and we cannot see it. {msgsError}</p>
+                  : msgs.length === 0
                   ? <p className="cp-line dim">No message has been sent about this order.</p>
                   : msgs.map((m) => (
                     <div className="cp-line" key={m.id}>
