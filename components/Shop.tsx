@@ -43,6 +43,14 @@ export default function Shop() {
   const [active, setActive] = useState<Product | null>(null);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [doneRef, setDoneRef] = useState<{ warn?: string } | null>(null);
+  // Claim the screen for the whole PURCHASE, not just the form: the drinks CartBar was floating over
+  // the Pay button on checkout, and then again under "Order in" on the confirmation, both times
+  // quoting a different cart's total. Scoping this to the checkout view alone released it one screen
+  // too early — the moment a customer is reading what they just bought is not the moment to offer
+  // them a second, unrelated cart.
+  const { setPayOpen } = useApp();
+  const buying = view === "checkout" || view === "done";
+  useEffect(() => { setPayOpen(buying); return () => setPayOpen(false); }, [buying, setPayOpen]);
   // Two aisles under one roof (2026-08): Bottles = the Saturday-drop pack reserve (the old /reserve
   // flow, embedded) · Merch = the capsule below. Default Bottles — the everyday take-home, and it
   // keeps continuity with the Reserve tab this replaced. ?tab=merch|bottles deep-links either aisle.
@@ -218,11 +226,6 @@ function CheckoutView({ cart, total, isMember, setQty, onBack, onDone }: {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [ship, setShip] = useState({ name: "", street: "", city: "", state: "", zip: "", email: "" });
-  // Claim the screen while this view is mounted, so the drinks CartBar does not float across the
-  // Pay button quoting a different cart's total. Released on unmount, including the unmount that
-  // follows a completed order.
-  const { setPayOpen } = useApp();
-  useEffect(() => { setPayOpen(true); return () => setPayOpen(false); }, [setPayOpen]);
   // Was useMemo(newKey, [cart]): stable across retries but blind to the card nonce, which is
   // single-use and fresh on every tap of Pay. The second attempt at Ryan's cap order was refused
   // by Square and every attempt after it would have been too. See lib/idempotency.ts.
