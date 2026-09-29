@@ -19,6 +19,8 @@ import Sheet from "./Sheet";
 import OrderConfirm from "./OrderConfirm";
 import PaymentCard, { type PaymentCardHandle } from "./PaymentCard";
 import Icon from "@/components/Icon";
+import { useIdemKey } from "./useIdemKey";
+import { payErrorText } from "@/lib/idempotency";
 
 export default function Checkout() {
   const { cart, inc, dec, toast, checkout, coOpen: open, closeCheckout: onClose } = useApp();
@@ -42,11 +44,7 @@ export default function Checkout() {
   // card mints a fresh nonce; reusing the old key with new params is Square's "Different request
   // parameters used for the same idempotency_key" wall). The ambiguous-network case still dedupes:
   // a true resubmit replays the SAME nonce, so the signature — and the key — hold still.
-  const idem = useRef<{ sig: string; key: string }>({ sig: "", key: "" });
-  const idemKeyFor = (sig: string) => {
-    if (idem.current.sig !== sig) idem.current = { sig, key: crypto.randomUUID() };
-    return idem.current.key;
-  };
+  const idemKeyFor = useIdemKey();
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -167,11 +165,11 @@ export default function Checkout() {
       const res = await authedFetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceId: result.token, items, tipCents, customer, market: viewerMarket, idempotencyKey: idemKeyFor(JSON.stringify({ items, tipCents, customer, sourceId: result.token })) }),
+        body: JSON.stringify({ sourceId: result.token, items, tipCents, customer, market: viewerMarket, idempotencyKey: idemKeyFor(result.token, { items, tipCents, customer }) }),
       });
       const data = await res.json();
       setBusy(false);
-      if (!res.ok) { setErr(data.error || "Payment failed"); return; }
+      if (!res.ok) { setErr(payErrorText(data.error)); return; }
       trackFunnel("order", "paid");
       const capturedLines = [...lines], capturedName = customer;
       toast(data.warn || `Paid ${total} — order in. Ready in ~8 min.`);

@@ -28,6 +28,7 @@ import {
   DELIVERY_PACKS, DELIVERY_PRICING, SALTED_LATTE,
 } from "@/lib/delivery";
 import { money } from "@/lib/money";
+import { useIdemKey } from "./useIdemKey";
 
 // ORDER FUNNEL — one screen, two fulfillment modes. Pickup (Saturday truck-stop reserve →
 // /api/reserve) and Delivery (Sunday prepaid → /api/delivery/checkout) were separate screens with
@@ -220,31 +221,14 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
   // Square card — mounted by the shared <PaymentCard> only while step==="pay" is in the tree; React's
   // own mount/unmount lifecycle handles attach/teardown across step changes, so no effect needed here.
   const paymentRef = useRef<PaymentCardHandle>(null);
-  // Stable Square idempotency key per charge attempt (reused across "Try again" for the same order,
-  // regenerated when the order changes) so an ambiguous failure can't double-charge. Keyed by channel
-  // so a pickup and a delivery attempt don't collide. See lib/squareServer.safeIdemKey.
-  // Persisted (not just in-memory) so a customer who navigates away mid-charge — plausible on a slow
-  // venue/porch WiFi, which is exactly the environment this app targets — and comes back to retry the
-  // SAME order still gets the SAME idempotency key. A plain useRef reset to empty on every remount
-  // (this page's normal navigate-away-and-back lifecycle, unlike Checkout.tsx's sheet which stays
-  // mounted) meant that retry got a genuinely NEW key, so Square could not dedupe it — a real double
-  // charge, not just a display glitch. sessionStorage survives the remount; wrapped in try/catch since
-  // Safari private mode can throw on access.
+  // Persisted, not just in-memory: a customer on slow venue/porch WiFi — exactly this app's
+  // environment — navigates away mid-charge and comes back, and this page REMOUNTS (unlike
+  // Checkout.tsx's sheet, which stays mounted). A plain ref would be empty by then, so the retry
+  // would carry a genuinely new key and Square could not dedupe it — a real double charge.
+  // The key is namespaced per channel by the `path` field in the signature, so a pickup attempt and
+  // a delivery attempt never collide. Everything else about the rule lives in lib/idempotency.ts.
   const IDEM_STORAGE_KEY = "gt3-of-idem";
-  const idem = useRef<{ sig: string; key: string }>((() => {
-    try {
-      const raw = typeof window !== "undefined" ? sessionStorage.getItem(IDEM_STORAGE_KEY) : null;
-      if (raw) return JSON.parse(raw) as { sig: string; key: string };
-    } catch { /* ignore */ }
-    return { sig: "", key: "" };
-  })());
-  const idemKeyFor = (sig: string) => {
-    if (idem.current.sig !== sig) {
-      idem.current = { sig, key: crypto.randomUUID() };
-      try { sessionStorage.setItem(IDEM_STORAGE_KEY, JSON.stringify(idem.current)); } catch { /* ignore */ }
-    }
-    return idem.current.key;
-  };
+  const idemKeyFor = useIdemKey(IDEM_STORAGE_KEY);
   const [cardReady, setCardReady] = useState(false);
 
   // ── the toggle: preserve the cart, snap count, route sanely ──
@@ -344,7 +328,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
       const res = await authedFetch("/api/reserve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceId: sourceId ?? undefined, idempotencyKey: idemKeyFor("pickup:" + JSON.stringify({ name: name.trim(), phone: phone.trim(), count, bringBack, mix, drop: dropDateKey(drop.sat), code: codeState === "ok" ? codeClean : undefined })), name: name.trim(), phone: phone.trim(), size: count, glass: (bringBack ? "return" : "new") as GlassPath, mix: { RISE: mix.rise, FLOW: mix.flow, DUSK: mix.dusk }, dropDate: dropDateKey(drop.sat), code: codeState === "ok" ? codeClean : undefined }),
+        body: JSON.stringify({ sourceId: sourceId ?? undefined, idempotencyKey: idemKeyFor(sourceId, { path: "pickup", name: name.trim(), phone: phone.trim(), count, bringBack, mix, drop: dropDateKey(drop.sat), code: codeState === "ok" ? codeClean : undefined }), name: name.trim(), phone: phone.trim(), size: count, glass: (bringBack ? "return" : "new") as GlassPath, mix: { RISE: mix.rise, FLOW: mix.flow, DUSK: mix.dusk }, dropDate: dropDateKey(drop.sat), code: codeState === "ok" ? codeClean : undefined }),
       });
       const data = await res.json(); setBusy(false);
       if (!res.ok) { setErr(data.error || "Something went wrong — try again."); return; }
@@ -366,7 +350,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
       // retry safe either way, so say that instead of asserting something we can't know.
       setErr("Couldn't confirm — safe to try again, you won't be charged twice.");
     }
-  }, [busy, name, phone, count, bringBack, mix, drop, totalCents, codeState, codeClean, replacing, toast]);
+  }, [busy, name, phone, count, bringBack, mix, drop, totalCents, codeState, codeClean, replacing, toast, idemKeyFor]);
 
   const payDelivery = async () => {
     if (busy) return; // guard a fast double-tap before the button's disabled attribute takes effect
@@ -380,7 +364,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true }: { initialMo
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          sourceId: result.token, idempotencyKey: idemKeyFor("delivery:" + JSON.stringify({ name, phone, street, city, zip, count, mix, premiums, refills: bringBack ? refills : 0, ack, slot: slot.deliveryDateKey })),
+          sourceId: result.token, idempotencyKey: idemKeyFor(result.token, { path: "delivery", name, phone, street, city, zip, count, mix, premiums, refills: bringBack ? refills : 0, ack, slot: slot.deliveryDateKey }),
           name, phone, addressStreet: street, addressCity: city, addressZip: zip,
           accessInstructions: access, packSize: count, riseCount: mix.rise, flowCount: mix.flow, duskCount: mix.dusk,
           perfMix: premiums, refillCount: bringBack ? refills : 0, emptiesAck: ack, deliveryDate: slot.deliveryDateKey,

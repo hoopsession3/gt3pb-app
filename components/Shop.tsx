@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/AuthProvider";
 import { useAsyncData } from "@/lib/useAsyncData";
@@ -20,6 +20,9 @@ import StorefrontStory from "@/components/StorefrontStory";
 import StoryViewer from "@/components/StoryViewer";
 import { readMedia, coverOf, hasVideo, type MediaItem } from "@/lib/shopMedia";
 import { money } from "@/lib/money";
+import { useIdemKey } from "./useIdemKey";
+import { payErrorText } from "@/lib/idempotency";
+import { useApp } from "@/components/AppProvider";
 
 // THE SHOP (0273) — GT3 merch on the 0271 storefront spine. Reads published merch through RLS, a simple
 // cart in memory, and the shared Square card mount + /api/shop/checkout for a real one-time charge that
@@ -32,7 +35,6 @@ type Product = { id: string; title: string; blurb: string | null; price_cents: n
 type CartLine = { product: Product; variant: Variant | null; qty: number };
 
 const variantLabel = (v: Variant | null) => (v ? [v.size, v.color].filter(Boolean).join(" · ") : "");
-const newKey = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `k-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
 export default function Shop() {
   const { user } = useAuth();
@@ -216,7 +218,15 @@ function CheckoutView({ cart, total, isMember, setQty, onBack, onDone }: {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [ship, setShip] = useState({ name: "", street: "", city: "", state: "", zip: "", email: "" });
-  const idem = useMemo(newKey, [cart]);
+  // Claim the screen while this view is mounted, so the drinks CartBar does not float across the
+  // Pay button quoting a different cart's total. Released on unmount, including the unmount that
+  // follows a completed order.
+  const { setPayOpen } = useApp();
+  useEffect(() => { setPayOpen(true); return () => setPayOpen(false); }, [setPayOpen]);
+  // Was useMemo(newKey, [cart]): stable across retries but blind to the card nonce, which is
+  // single-use and fresh on every tap of Pay. The second attempt at Ryan's cap order was refused
+  // by Square and every attempt after it would have been too. See lib/idempotency.ts.
+  const idemKeyFor = useIdemKey();
   const canPay = ready && !busy && cart.length > 0 && ship.name && ship.street && ship.city && ship.state && ship.zip && (isMember || ship.email);
 
   const pay = async () => {
@@ -228,13 +238,13 @@ function CheckoutView({ cart, total, isMember, setQty, onBack, onDone }: {
       const r = await authedFetch("/api/shop/checkout", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          sourceId: res.token, idempotencyKey: idem,
+          sourceId: res.token, idempotencyKey: idemKeyFor(res.token, { cart, ship }),
           items: cart.map((l) => ({ product_id: l.product.id, variant: l.variant, qty: l.qty })),
           ship,
         }),
       });
       const data = await r.json();
-      if (!r.ok) { setErr(data.error || "Payment failed."); setBusy(false); return; }
+      if (!r.ok) { setErr(payErrorText(data.error)); setBusy(false); return; }
       onDone(data.warn);
     } catch { setErr("Something went wrong — you were not charged twice; check your email or try again."); setBusy(false); }
   };

@@ -29,6 +29,13 @@ interface AppCtx {
   coOpen: boolean;
   openCheckout: () => void;
   closeCheckout: () => void;
+  // ANY payment surface is on screen — the drinks sheet, or the shop's own checkout view.
+  // The floating CartBar hid for `coOpen` and only `coOpen`, so while Ryan was paying $32 for a cap
+  // the drinks bar sat across the bottom of the shop checkout reading "Review 1 drink · $10", on
+  // top of the Pay button, quoting a different cart and a different total (2026-09-29). Two carts,
+  // one floating bar, and a flag that only knew about one of them.
+  payOpen: boolean;
+  setPayOpen: (v: boolean) => void;
   // one-tap reorder: replace the cart with a past order and open checkout
   reorder: (items: DrinkId[]) => void;
   // authoritative price (cents) for a drink — Square Catalog if configured, else catalog fallback
@@ -135,6 +142,10 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   const [coOpen, setCoOpen] = useState(false);
   const openCheckout = useCallback(() => setCoOpen(true), []);
   const closeCheckout = useCallback(() => setCoOpen(false), []);
+  // A surface that is not the drinks sheet claims this while it is taking a payment. Kept separate
+  // from coOpen because coOpen also OPENS the drinks sheet — one flag cannot both mean "a payment
+  // is happening" and "show this particular sheet".
+  const [payOpen, setPayOpen] = useState(false);
   // Merge the past order into the current cart (don't clobber a build-in-progress).
   // Only auto-open checkout when the cart was empty; otherwise toast so it's not jarring.
   // 86'd items are filtered here so one-tap reorder can never build a cart that dead-ends at
@@ -156,8 +167,8 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   }, [toast, soldOut]);
 
   const value = useMemo<AppCtx>(
-    () => ({ toast, toastMsg, toastShown, toastVariant, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, reorder, priceCents }),
-    [toast, toastMsg, toastShown, toastVariant, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, reorder, priceCents]
+    () => ({ toast, toastMsg, toastShown, toastVariant, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, payOpen, setPayOpen, reorder, priceCents }),
+    [toast, toastMsg, toastShown, toastVariant, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, payOpen, setPayOpen, reorder, priceCents]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

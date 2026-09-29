@@ -2037,6 +2037,105 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   }
   ok("dates: nobody asks UTC what day it is — localToday() for the operator, etToday() for the business",
     utcToday.length === 0, utcToday);
+
+  // ── AND NOBODY BUILDS THEIR OWN IDEMPOTENCY KEY ────────────────────────────────────────────────
+  // The rule is one line long and three of four payment paths got it wrong: the card nonce is part
+  // of the request Square compares, so a key derived from the ORDER alone survives a first failure
+  // and is then refused forever. It was found live on 2026-07-30, fixed in ONE component, and
+  // written down as a comment there — after which Shop.tsx was written with the same defect and
+  // walled Ryan's first cap order on 2026-09-29.
+  //
+  // A comment cannot be imported. lib/idempotency.ts takes the nonce as a required argument, so a
+  // caller cannot leave it out, and this makes sure nobody writes a fifth one.
+  // Scope is the SENDER, not the receiver. A route under app/api reads body.idempotencyKey and
+  // hands it to safeIdemKey — that is the other end of this contract and has nothing to answer for.
+  // The first draft of this rule flagged all four routes plus every correct call site, which is how
+  // a check earns an exemption and then stops meaning anything.
+  const ownIdem = [];
+  for (const f of files) {
+    const rel = f.replace(root + "/", "");
+    if (!rel.startsWith("components/") && !rel.startsWith("app/")) continue;
+    if (rel.startsWith("app/api/")) continue;                    // receives a key, never mints one
+    const src = fs.readFileSync(f, "utf8").split("\n")
+      .map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1"))
+      .filter((l) => !/^\s*\*/.test(l))
+      .join("\n");
+    for (const m of src.matchAll(/idempotencyKey:\s*([A-Za-z_$][\w$]*)/g)) {
+      if (m[1] !== "idemKeyFor") { ownIdem.push(`${rel}: idempotencyKey: ${m[1]}`); break; }
+    }
+  }
+  ok("payments: every checkout gets its key from useIdemKey — the nonce is not optional",
+    ownIdem.length === 0, ownIdem);
+}
+
+// ── THE IDEMPOTENCY KEY (2026-09-29) ─────────────────────────────────────────────────────────────
+// Ryan tried to buy the first flagship cap and got Square's wall printed onto the checkout page:
+// "Different request parameters used for the same idempotency_key: dcbb7295-…". Every assertion
+// here is that failure, or the double-charge protection it must not cost us to fix.
+{
+  const I = require("../.smoke/idempotency.js");
+  let n = 0;
+  const mint = () => `key-${++n}`;
+
+  // THE BUG. Same order, second tap of Pay — which means a fresh nonce, because a nonce is single
+  // use. A key built from the order alone does not change, and Square refuses it. Forever.
+  {
+    const order = { cart: [{ id: "cap", qty: 1 }], ship: { zip: "29651" } };
+    const first = I.nextIdem(I.EMPTY_IDEM, "nonce-A", order, mint);
+    const second = I.nextIdem(first, "nonce-B", order, mint);
+    ok("idem: a new card nonce mints a NEW key — the exact wall the cap order hit",
+      first.key !== second.key, [first.key, second.key]);
+  }
+
+  // AND THE PROTECTION THAT MUST SURVIVE IT. The ambiguous case — request sent, answer lost, customer
+  // taps again — replays the SAME nonce, because no new tokenize() happened. Key holds, Square
+  // replays instead of charging twice. If this ever fails, the fix above became a double charge.
+  {
+    const order = { cart: [{ id: "cap", qty: 1 }], ship: { zip: "29651" } };
+    const first = I.nextIdem(I.EMPTY_IDEM, "nonce-A", order, mint);
+    const retry = I.nextIdem(first, "nonce-A", order, mint);
+    ok("idem: the SAME nonce and the same order keep the SAME key — a lost response still dedupes",
+      first.key === retry.key && retry === first, [first.key, retry.key]);
+  }
+
+  ok("idem: changing the order mints a new key",
+    I.nextIdem(I.nextIdem(I.EMPTY_IDEM, "n", { qty: 1 }, mint), "n", { qty: 2 }, mint).sig !==
+    I.nextIdem(I.EMPTY_IDEM, "n", { qty: 1 }, mint).sig);
+  ok("idem: changing the SHIPPING address mints a new key — Shop.tsx signed the cart and not the address",
+    I.idemSignature("n", { cart: 1, ship: { zip: "29651" } }) !== I.idemSignature("n", { cart: 1, ship: { zip: "29615" } }));
+  ok("idem: a pickup attempt and a delivery attempt never collide",
+    I.idemSignature("n", { path: "pickup", count: 6 }) !== I.idemSignature("n", { path: "delivery", count: 6 }));
+  ok("idem: no nonce at all (a pay-later path) still signs, and still tracks the order",
+    I.idemSignature(null, { a: 1 }) !== I.idemSignature(null, { a: 2 }) && I.idemSignature(null, { a: 1 }) === I.idemSignature(undefined, { a: 1 }));
+  ok("idem: an empty previous state always mints", I.nextIdem(null, "n", { a: 1 }, mint).key.startsWith("key-"));
+  ok("idem: a stored state with a key but a different signature is not reused",
+    I.nextIdem({ sig: "old", key: "k9" }, "n", { a: 1 }, mint).key !== "k9");
+  {
+    // A details object with a cycle must not take down a checkout. Failing toward a FRESH key is
+    // the safe direction: a new key can only miss a dedupe, it can never be refused.
+    const cyclic = {}; cyclic.self = cyclic;
+    let threw = false, key = null;
+    try { key = I.nextIdem(I.EMPTY_IDEM, "n", cyclic, mint).key; } catch { threw = true; }
+    ok("idem: an unserialisable signature mints rather than throwing on the Pay button", !threw && !!key);
+  }
+
+  // WHAT THE CUSTOMER READS. The cap checkout printed a UUID and the words "idempotency_key" onto
+  // the page, above the Pay button, in a shop.
+  ok("payError: Square's idempotency wall becomes something a buyer can act on",
+    I.payErrorText("Different request parameters used for the same idempotency_key: dcbb7295-d47f-40f3-9a1f-3d44366c5e35.")
+      === "That attempt expired. Tap Pay again — you have not been charged.",
+    I.payErrorText("Different request parameters used for the same idempotency_key: dcbb7295."));
+  ok("payError: and it never leaves the customer wondering whether they paid",
+    /not been charged|nothing was charged/.test(I.payErrorText("CARD_DECLINED")) &&
+    /not been charged|nothing was charged/.test(I.payErrorText("")));
+  ok("payError: a decline says which card problem it is", /declined/i.test(I.payErrorText("CARD_DECLINED")));
+  ok("payError: cvv, postal and funds each get their own sentence",
+    /security code/.test(I.payErrorText("cvv_failure")) && /ZIP/.test(I.payErrorText("ADDRESS_VERIFICATION_FAILURE")) &&
+    /insufficient funds/i.test(I.payErrorText("INSUFFICIENT_FUNDS")));
+  // An operator reading a support email needs the real message. Inventing a friendlier wrong one is
+  // worse than a blunt right one.
+  ok("payError: an unrecognised message is passed through, not replaced by a vague apology",
+    I.payErrorText("Location is not active") === "Location is not active");
 }
 
 // ── PLAN NAV (0316) — the jump that has to survive a page load ───────────────────────────────────
