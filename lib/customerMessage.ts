@@ -59,6 +59,10 @@ export async function tellCustomer(opts: {
           body: opts.message,
           status: ok ? "sent" : "failed",
           detail: ok ? null : (sent.emailDetail ?? null),
+          // Resend's own id for this message. It is what /api/resend/webhook matches a later
+          // bounce or complaint against — without it, "sent" would go on meaning "Resend accepted
+          // it" forever, which is the same overstatement 0329 removed from the Apliiq status.
+          provider_id: sent.emailId ?? null,
           sent_by: opts.sentBy ?? null,
         });
       }

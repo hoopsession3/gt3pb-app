@@ -40,7 +40,14 @@ const e164 = (raw: string): string | null => {
  * The reason is for the OPERATOR — an alert, the integrations panel. It never reaches a customer,
  * who cannot act on "domain is not verified" and should not be reading it.
  */
-export type Sent = { ok: boolean; detail?: string };
+// `id` is the provider's own id for the message — Resend's, when Resend accepted it.
+//
+// It was thrown away until 0332, and that discard is the same defect as the one this file was
+// edited for this morning: the provider tells you something and the code drops it. That time it was
+// the failure words, and the fix was to keep them. This time it is the id, and without it a delivery
+// webhook has nothing to match on — a receipt that hard-bounces stays indistinguishable from one
+// that was read, because nothing connects Resend's later news to the row we wrote.
+export type Sent = { ok: boolean; detail?: string; id?: string };
 
 export async function sendEmail(to: string, subject: string, text: string): Promise<Sent> {
   // ADDRESS FIRST, then config — the same order notifyCustomer uses. It checked config first when
@@ -55,7 +62,12 @@ export async function sendEmail(to: string, subject: string, text: string): Prom
       headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({ from: process.env.NOTIFY_FROM_EMAIL, to: [to], subject: subject.slice(0, 200), text }),
     });
-    if (r.ok) return { ok: true };
+    if (r.ok) {
+      // Their id, kept. A body that will not parse is not a failed send — the mail is already gone —
+      // so this degrades to "sent, unmatchable" rather than claiming the send failed.
+      const id = await r.json().then((j) => (typeof j?.id === "string" ? j.id : undefined)).catch(() => undefined);
+      return { ok: true, id };
+    }
     // Their words, trimmed — not a guess at what went wrong. A wrong explanation sends an operator
     // to fix the wrong thing, which is worse than no explanation at all.
     const body = await r.text().catch(() => "");
@@ -79,7 +91,12 @@ export async function sendSMS(to: string, body: string): Promise<Sent> {
       },
       body: new URLSearchParams({ To: num, From: process.env.TWILIO_FROM_NUMBER!, Body: body.slice(0, 640) }),
     });
-    if (r.ok) return { ok: true };
+    if (r.ok) {
+      // Their id, kept. A body that will not parse is not a failed send — the mail is already gone —
+      // so this degrades to "sent, unmatchable" rather than claiming the send failed.
+      const id = await r.json().then((j) => (typeof j?.id === "string" ? j.id : undefined)).catch(() => undefined);
+      return { ok: true, id };
+    }
     const t = await r.text().catch(() => "");
     return { ok: false, detail: `Twilio ${r.status}: ${t.slice(0, 300) || "(no body)"}` };
   } catch (e) {
@@ -115,22 +132,22 @@ export const didSend = (r: SendResult): boolean => r === "sent";
 // nothing it could ask. A no-op nobody can observe is indistinguishable from a feature that works.
 export async function notifyCustomer(opts: {
   phone?: string | null; email?: string | null; subject: string; message: string;
-}): Promise<{ sms: SendResult; email: SendResult; smsDetail?: string; emailDetail?: string }> {
+}): Promise<{ sms: SendResult; email: SendResult; smsDetail?: string; emailDetail?: string; emailId?: string }> {
   const [sms, mail] = await Promise.all([
-    (async (): Promise<[SendResult, string | undefined]> => {
-      if (!opts.phone) return ["no-address", undefined];
-      if (!smsEnabled()) return ["off", undefined];
+    (async (): Promise<[SendResult, string | undefined, undefined]> => {
+      if (!opts.phone) return ["no-address", undefined, undefined];
+      if (!smsEnabled()) return ["off", undefined, undefined];
       const r = await sendSMS(opts.phone, opts.message);
-      return [r.ok ? "sent" : "failed", r.detail];
+      return [r.ok ? "sent" : "failed", r.detail, undefined];
     })(),
-    (async (): Promise<[SendResult, string | undefined]> => {
-      if (!opts.email || !opts.email.includes("@")) return ["no-address", undefined];
-      if (!emailEnabled()) return ["off", undefined];
+    (async (): Promise<[SendResult, string | undefined, string | undefined]> => {
+      if (!opts.email || !opts.email.includes("@")) return ["no-address", undefined, undefined];
+      if (!emailEnabled()) return ["off", undefined, undefined];
       const r = await sendEmail(opts.email, opts.subject, opts.message);
-      return [r.ok ? "sent" : "failed", r.detail];
+      return [r.ok ? "sent" : "failed", r.detail, r.id];
     })(),
   ]);
-  return { sms: sms[0], email: mail[0], smsDetail: sms[1], emailDetail: mail[1] };
+  return { sms: sms[0], email: mail[0], smsDetail: sms[1], emailDetail: mail[1], emailId: mail[2] };
 }
 
 /**

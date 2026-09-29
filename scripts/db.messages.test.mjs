@@ -113,6 +113,75 @@ await db.exec(`delete from public.shop_orders where id = '${order}'`);
 ok("deleting the order takes its messages with it — no orphaned account of a vanished order",
   (await q1(`select count(*)::int n from public.customer_messages`)).n === 0);
 
+// ── 0332: "SENT" MEANT THE PROVIDER TOOK IT ────────────────────────────────────────────────────
+// 0326 answered "what were they told". It could not answer "did it arrive", while using a word that
+// sounds like it does. The claims worth proving are the precedence — a complaint outranks a
+// delivery, a refused send outranks everything — and the two silences that are NOT the same:
+// nothing heard back yet, versus nothing heard back for an hour.
+await db.exec(readFileSync(join(ROOT, "supabase/migrations/0332_sent_meant_the_provider_took_it.sql"), "utf8"));
+
+const mk = async (o) => (await q1(`
+  insert into public.customer_messages
+    (order_id, channel, kind, to_address, subject, body, status, provider_id,
+     delivered_at, bounced_at, complained_at, created_at)
+  values (null, '${o.channel ?? "email"}', '${o.kind ?? "receipt"}', 'a@b.com', 's', 'b',
+          '${o.status ?? "sent"}', ${o.pid ? `'${o.pid}'` : "null"},
+          ${o.delivered ? "now()" : "null"}, ${o.bounced ? "now()" : "null"},
+          ${o.complained ? "now()" : "null"}, now() - interval '${o.ageMin ?? 0} minutes')
+  returning id`)).id;
+const outcomeOf = async (id) => (await q1(`select outcome from public.v_customer_message_outcome where id = '${id}'`))?.outcome;
+
+{
+  ok("a send the provider refused is 'never sent'",
+    (await outcomeOf(await mk({ status: "failed", pid: "p_failed" }))) === "never sent");
+  ok("delivered is 'delivered'",
+    (await outcomeOf(await mk({ pid: "p_ok", delivered: true }))) === "delivered");
+  ok("bounced is 'bounced'",
+    (await outcomeOf(await mk({ pid: "p_bounce", bounced: true }))) === "bounced");
+
+  // THE PRECEDENCE. A message can be delivered and later complained about; the complaint is the
+  // more important fact, and a screen deciding that for itself is how two panels disagree.
+  ok("a complaint outranks the delivery that came before it",
+    (await outcomeOf(await mk({ pid: "p_both", delivered: true, complained: true }))) === "marked as spam");
+  ok("and a bounce outranks a delivery too",
+    (await outcomeOf(await mk({ pid: "p_db", delivered: true, bounced: true }))) === "bounced");
+  ok("but a refused send outranks everything — it never left",
+    (await outcomeOf(await mk({ status: "failed", pid: "p_f2", delivered: true }))) === "never sent");
+
+  // THE TWO SILENCES. Calling either of them "delivered" would be the entire bug again.
+  ok("just sent, nothing heard back yet, is 'in flight'",
+    (await outcomeOf(await mk({ pid: "p_new", ageMin: 2 }))) === "in flight");
+  ok("an hour of silence is 'no delivery confirmation', not 'delivered'",
+    (await outcomeOf(await mk({ pid: "p_old", ageMin: 120 }))) === "no delivery confirmation");
+  ok("an SMS is not left waiting on an email delivery receipt",
+    (await outcomeOf(await mk({ channel: "sms", pid: "p_sms", ageMin: 120 }))) === "sent");
+}
+
+// The join has to be unambiguous: "which message bounced" cannot be answered with "one of these".
+{
+  let dupe = null;
+  try {
+    await db.exec(`insert into public.customer_messages
+      (channel, kind, to_address, subject, body, status, provider_id)
+      values ('email','receipt','a@b.com','s','b','sent','p_ok')`);
+  } catch (e) { dupe = String(e?.message ?? e); }
+  ok("two messages cannot claim one provider id", dupe !== null, dupe);
+
+  // ...but the index is PARTIAL, so every message sent before 0332 — all of which have no id —
+  // still coexists. A plain unique index would have made the migration fail on real data.
+  let many = null;
+  try {
+    await db.exec(`insert into public.customer_messages (channel, kind, to_address, subject, body, status)
+                   values ('email','receipt','a@b.com','s','b','sent'),
+                          ('email','receipt','c@d.com','s','b','sent')`);
+  } catch (e) { many = String(e?.message ?? e); }
+  ok("messages with no provider id are not in each other's way", many === null, many);
+}
+
+ok("0332 recorded itself",
+  Number((await q1(`select count(*) n from public.schema_migrations
+                     where name = '0332_sent_meant_the_provider_took_it'`))?.n) === 1);
+
 console.log(`WHAT WE TOLD THE CUSTOMER: ${pass} passed, ${fail} failed`);
-console.log(`0326 executed against a real Postgres.\n`);
+console.log(`0326 + 0332 executed against a real Postgres.\n`);
 process.exit(fail ? 1 : 0);
