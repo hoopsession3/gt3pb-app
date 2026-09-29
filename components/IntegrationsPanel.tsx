@@ -11,15 +11,16 @@ import { SQUARE_APP_ID, SQUARE_ENV, squareClientReady } from "@/lib/square";
 // calendar's Outlook bar, and the health endpoint — this is the single pane. Statuses come from
 // what the CLIENT can truthfully know (public config + live probes); server-only secrets
 // (Resend, Teams) are described, not guessed at.
-type Probe = { health: boolean | null; outlook: { configured: boolean; connected: boolean } | null };
+type Probe = { health: boolean | null; outlook: { configured: boolean; connected: boolean } | null; notify: { email: boolean; sms: boolean } | null };
 
 const PUSH_READY = Boolean(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY);
 
 export default function IntegrationsPanel() {
   const loader = useCallback(async (): Promise<Probe> => {
-    const out: Probe = { health: null, outlook: null };
+    const out: Probe = { health: null, outlook: null, notify: null };
     try { const r = await fetch("/api/health", { cache: "no-store" }); out.health = r.ok; } catch { out.health = false; }
     try { const r = await authedFetch("/api/outlook/status"); const j = await r.json(); if (j.ok) out.outlook = { configured: !!j.configured, connected: !!j.connected }; } catch { /* leave null */ }
+    try { const r = await authedFetch("/api/notify"); const j = await r.json(); if (j.ok && j.providers) out.notify = { email: !!j.providers.email, sms: !!j.providers.sms }; } catch { /* leave null */ }
     return out;
   }, []);
   const board = useAsyncData(loader, []);
@@ -40,7 +41,15 @@ export default function IntegrationsPanel() {
           <Row name="App & database" ok={p.health} sub={p.health === false ? "health check failing — see alerts" : "health check live · outage watchdog on"} />
           <Row name="Web push" ok={PUSH_READY} sub={PUSH_READY ? "keys set — go-live pings & alerts deliver" : "VAPID keys not set"} />
           <Row name="Outlook calendar" ok={p.outlook ? (p.outlook.connected ? true : p.outlook.configured ? null : false) : null} sub={p.outlook?.connected ? "connected — two-way sync" : p.outlook?.configured ? "configured — connect from Plan › Calendar" : "needs the one-time Microsoft app setup (developer)"} />
-          <Row name="Email (Resend)" ok={null} sub="server-side — critical alerts & customer notes send when the key is set in Vercel" />
+          {/* These two were a permanent grey dot and a sentence saying they work "when the key is
+              set in Vercel". On 2026-09-29 the first cap order sent no receipt and no screen in the
+              app could say whether email was off or broken — this panel included, which is the one
+              place it should have been visible. Now it asks. */}
+          <Row name="Email (Resend)" ok={p.notify ? p.notify.email : null}
+            sub={p.notify === null ? "couldn't check" : p.notify.email ? "key set — receipts, tracking and critical alerts send" : "NO KEY — every customer receipt is silently skipped"}
+            note={p.notify && !p.notify.email ? "set RESEND_API_KEY + NOTIFY_FROM_EMAIL in Vercel" : undefined} />
+          <Row name="SMS (Twilio)" ok={p.notify ? p.notify.sms : null}
+            sub={p.notify === null ? "couldn't check" : p.notify.sms ? "keys set — order and delivery texts send" : "no keys — texts are skipped"} />
           <Row name="Teams alerts" ok={null} sub="server-side — critical fan-out posts when the webhook is set in Vercel" />
           <div className="intg-sec">
             <b>Security</b>

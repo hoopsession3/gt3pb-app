@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { staffFromRequest, tenantFromRequest } from "@/lib/apiAuth";
-import { notifyCustomer, emailEnabled, smsEnabled, accountEmail } from "@/lib/notify";
+import { notifyCustomer, emailEnabled, smsEnabled, notifyStatus, accountEmail } from "@/lib/notify";
 
 // LIFECYCLE PINGS the crew fires from the boards — the customer can't be expected to sit in the
 // app. order_ready: the pass advanced an order to Ready (walk-up/pre-orders carry no phone, so
@@ -49,4 +49,21 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ ok: false, error: "notify failed" }, { status: 502 });
   }
+}
+
+// THE QUESTION NOBODY COULD ASK. components/IntegrationsPanel renders every service with a live
+// probe except Email and Teams, which carry a permanent grey dot and a sentence saying they work
+// "when the key is set in Vercel" — its own header admits they are "described, not guessed at",
+// because there was no probe to call. So when Ryan's first cap order sent no receipt on
+// 2026-09-29, there was no screen in the app that could say whether email was off or broken.
+//
+// Booleans only. notifyStatus() reads whether the switches are on; no key, no key fragment and no
+// sender address crosses this boundary. Staff-gated all the same — which integrations a business
+// has is not public.
+export async function GET(req: Request) {
+  if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  // Nested under `providers` on purpose: POST on this same route answers with `email` as a
+  // SendResult string. Two verbs answering the same key with different types is a trap, and I
+  // had just built one.
+  return NextResponse.json({ ok: true, providers: notifyStatus() });
 }

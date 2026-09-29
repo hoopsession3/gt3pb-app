@@ -59,14 +59,54 @@ export async function sendSMS(to: string, body: string): Promise<boolean> {
   } catch { return false; }
 }
 
+/**
+ * WHAT HAPPENED TO ONE CHANNEL. Four outcomes, because they are four different problems and
+ * flattening them into a boolean is exactly what hid this:
+ *
+ *   sent        it went.
+ *   off         no provider keys. A STANDING condition — the operator's integrations panel should
+ *               say so once, and no individual order should raise an alarm about it.
+ *   failed      keys are set and the provider refused, or the network died. That IS per-order, and
+ *               somebody has to hear about it.
+ *   no-address  there was nobody to send to. Also per-order, and a different fix.
+ */
+export type SendResult = "sent" | "off" | "failed" | "no-address";
+
+/** Did a channel actually reach anyone? */
+export const didSend = (r: SendResult): boolean => r === "sent";
+
 // Best-effort, both channels in parallel, never throws — an order must never fail because a
 // notification provider hiccuped.
+//
+// ── WHY THIS STOPPED RETURNING BOOLEANS ────────────────────────────────────────────────────────
+// Ryan bought the first cap on 2026-09-29. The charge went through, the order reached the printer,
+// the confirmation screen said "You'll get an email now" — and no email arrived. Nothing anywhere
+// could say why. This returned false for "Resend has no key" and false for "Resend refused it";
+// six of its seven callers awaited it and discarded the answer entirely; and the one operator
+// screen that reports integration health renders Email as a permanent grey dot, because it had
+// nothing it could ask. A no-op nobody can observe is indistinguishable from a feature that works.
 export async function notifyCustomer(opts: {
   phone?: string | null; email?: string | null; subject: string; message: string;
-}): Promise<{ sms: boolean; email: boolean }> {
+}): Promise<{ sms: SendResult; email: SendResult }> {
   const [sms, mail] = await Promise.all([
-    opts.phone ? sendSMS(opts.phone, opts.message) : Promise.resolve(false),
-    opts.email ? sendEmail(opts.email, opts.subject, opts.message) : Promise.resolve(false),
+    (async (): Promise<SendResult> => {
+      if (!opts.phone) return "no-address";
+      if (!smsEnabled()) return "off";
+      return (await sendSMS(opts.phone, opts.message)) ? "sent" : "failed";
+    })(),
+    (async (): Promise<SendResult> => {
+      if (!opts.email || !opts.email.includes("@")) return "no-address";
+      if (!emailEnabled()) return "off";
+      return (await sendEmail(opts.email, opts.subject, opts.message)) ? "sent" : "failed";
+    })(),
   ]);
   return { sms, email: mail };
+}
+
+/**
+ * What an operator may be told about the providers: booleans only. No key, no fragment of a key,
+ * and no sender address ever leaves the server through this — only whether the switch is on.
+ */
+export function notifyStatus(): { email: boolean; sms: boolean } {
+  return { email: emailEnabled(), sms: smsEnabled() };
 }

@@ -3,7 +3,7 @@ import { chargeCard, safeIdemKey } from "@/lib/squareServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
-import { notifyCustomer, accountEmail } from "@/lib/notify";
+import { notifyCustomer, didSend, accountEmail } from "@/lib/notify";
 import { submitOrderToApliiq } from "@/lib/apliiq";
 import { skuFor } from "@/lib/apliiqOrder";
 import { integrationTenant } from "@/lib/tenantScope";
@@ -136,11 +136,29 @@ export async function POST(req: Request) {
       }
     } catch { /* keep the confirmation clean; the order is safely 'needs_fulfillment' */ }
 
+    // WHAT ACTUALLY HAPPENED TO THE RECEIPT. This block used to await notifyCustomer and throw the
+    // answer away, so when Ryan's first cap order sent no email on 2026-09-29 the order looked
+    // perfect from every angle: charged, recorded, at the printer, and a confirmation screen
+    // promising a receipt that was never sent.
+    //
+    // "off" is a STANDING condition — no provider key — and belongs on the integrations panel, not
+    // in an alert per order; alerting on it would fire on every sale until somebody muted it.
+    // "failed" and "no-address" are this order's problem and the crew has to hear about them.
+    let emailed = false;
     try {
-      await notifyCustomer({ email, subject: "Your GT3 order is in", message: `Thanks ${shipName.split(" ")[0] || ""}! We got your order — ${lineItems.map((l) => `${l.qty}× ${l.title}`).join(", ")}. We'll email tracking the moment it ships.` });
-    } catch { /* notify is best-effort */ }
+      const sent = await notifyCustomer({ email, subject: "Your GT3 order is in", message: `Thanks ${shipName.split(" ")[0] || ""}! We got your order — ${lineItems.map((l) => `${l.qty}× ${l.title}`).join(", ")}. We'll email tracking the moment it ships.` });
+      emailed = didSend(sent.email);
+      if (sent.email === "failed" || sent.email === "no-address") {
+        await raiseAlert({
+          severity: "important", category: "order", kind: "fulfillment", subjectId: orderId,
+          title: "Shop receipt didn't send",
+          body: `${shipName} paid ${money(total)} and the confirmation promised an email. ${sent.email === "no-address" ? "No address was on the order." : `Sending to ${email} failed.`} Reach them by hand.`,
+        });
+      }
+    } catch { /* notify is best-effort — a provider hiccup must never fail a paid order */ }
     await raiseAlert({ severity: "fyi", category: "order", kind: "shop_order_new", subjectId: orderId, title: "New shop order 🧢", body: `${shipName} — ${lineItems.map((l) => `${l.qty}× ${l.title}`).join(", ")} · ${money(total)}.` });
-    return NextResponse.json({ ok: true, id: orderId, paid: true, recorded: true });
+    // `emailed` is what the confirmation screen uses instead of promising one unconditionally.
+    return NextResponse.json({ ok: true, id: orderId, paid: true, recorded: true, emailed });
   } catch {
     return NextResponse.json({ error: "Checkout service unavailable" }, { status: 502 });
   }

@@ -42,7 +42,7 @@ export default function Shop() {
   const [view, setView] = useState<"grid" | "product" | "checkout" | "done">("grid");
   const [active, setActive] = useState<Product | null>(null);
   const [cart, setCart] = useState<CartLine[]>([]);
-  const [doneRef, setDoneRef] = useState<{ warn?: string } | null>(null);
+  const [doneRef, setDoneRef] = useState<{ warn?: string; emailed?: boolean } | null>(null);
   // Claim the screen for the whole PURCHASE, not just the form: the drinks CartBar was floating over
   // the Pay button on checkout, and then again under "Order in" on the confirmation, both times
   // quoting a different cart's total. Scoping this to the checkout view alone released it one screen
@@ -139,15 +139,22 @@ export default function Shop() {
 
       {section === "merch" && view === "checkout" && (
         <CheckoutView cart={cart} total={total} isMember={!!user} setQty={setQty}
-          onBack={() => setView("grid")} onDone={(warn) => { setDoneRef({ warn }); setCart([]); setView("done"); }} />
+          onBack={() => setView("grid")} onDone={(warn, emailed) => { setDoneRef({ warn, emailed }); setCart([]); setView("done"); }} />
       )}
 
       {section === "merch" && view === "done" && (
         <div className="shop-done">
           <span className="shop-done-ic"><Icon name="check" /></span>
           <h1 className="shop-h1"><EditableCopy k="shop.done_title" value={t("shop.done_title")} /> <i><EditableCopy k="shop.done_title_em" value={t("shop.done_title_em")} /></i></h1>
+          {/* The lede is editable copy and says "You'll get an email now". That was printed on
+              2026-09-29 under an order whose receipt never sent, because nothing here asked. When
+              the send did not happen the screen says what IS true instead — the order is real
+              either way, and a customer who was promised an email and given none has no way to
+              tell a silent provider from a lost order. */}
           {doneRef?.warn
             ? <p className="shop-lede">{doneRef.warn}</p>
+            : doneRef?.emailed === false
+            ? <p className="shop-lede">Your order is in — we have it. No email receipt went out, so keep this screen: we&apos;ll follow up by hand, and tracking still comes when it ships.</p>
             : <EditableCopy k="shop.done_lede" value={t("shop.done_lede")} as="p" className="shop-lede" multiline />}
           {/* "Keep shopping" is inside a <button> — plain t(), not EditableCopy (same nested-
               interactive rule as Craft's CTAs). Editable via Settings → the Shop group. */}
@@ -218,7 +225,7 @@ function ProductDetail({ product, onBack, onAdd }: { product: Product; onBack: (
 }
 
 function CheckoutView({ cart, total, isMember, setQty, onBack, onDone }: {
-  cart: CartLine[]; total: number; isMember: boolean; setQty: (idx: number, qty: number) => void; onBack: () => void; onDone: (warn?: string) => void;
+  cart: CartLine[]; total: number; isMember: boolean; setQty: (idx: number, qty: number) => void; onBack: () => void; onDone: (warn?: string, emailed?: boolean) => void;
 }) {
   const t = useSiteCopy();
   const payRef = useRef<PaymentCardHandle>(null);
@@ -248,7 +255,7 @@ function CheckoutView({ cart, total, isMember, setQty, onBack, onDone }: {
       });
       const data = await r.json();
       if (!r.ok) { setErr(payErrorText(data.error)); setBusy(false); return; }
-      onDone(data.warn);
+      onDone(data.warn, data.emailed === true);
     } catch { setErr("Something went wrong — you were not charged twice; check your email or try again."); setBusy(false); }
   };
 

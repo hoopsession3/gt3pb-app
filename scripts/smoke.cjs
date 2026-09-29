@@ -2066,6 +2066,50 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   }
   ok("payments: every checkout gets its key from useIdemKey — the nonce is not optional",
     ownIdem.length === 0, ownIdem);
+
+  // ── AND THE RECEIPT NOBODY CHECKED ─────────────────────────────────────────────────────────────
+  // Ryan's first cap order charged, recorded, reached the printer — and sent no email, while the
+  // confirmation said "You'll get an email now". notifyCustomer returned `false` for "no provider
+  // key" and `false` for "the provider refused", six of its seven callers awaited it and discarded
+  // the answer, and the integrations panel rendered Email as a permanent grey dot because it had
+  // nothing to ask. Three separate places where a thing that never happened looked like a thing
+  // that worked.
+  //
+  // The rule is narrow on purpose: a route that tells a CUSTOMER something was sent has to look at
+  // whether it was. A crew-triggered ping that fires and forgets is not this rule's business.
+  const RECEIPT_ROUTES = ["app/api/shop/checkout/route.ts"];
+  const blindSend = [];
+  for (const rel of RECEIPT_ROUTES) {
+    const src = fs.readFileSync(path.join(root, rel), "utf8");
+    // `await notifyCustomer(` with nothing catching the result is the exact shape that hid this.
+    if (/(?<![=\w])await notifyCustomer\(/.test(src.replace(/=\s*await notifyCustomer\(/g, "= await notifyCustomer("))
+        && !/=\s*await notifyCustomer\(/.test(src)) blindSend.push(rel);
+  }
+  ok("receipts: a route that promises the customer an email checks whether one went",
+    blindSend.length === 0, blindSend);
+}
+
+// ── NOTIFY: FOUR OUTCOMES, NOT A BOOLEAN (2026-09-29) ────────────────────────────────────────────
+{
+  const N = require("../.smoke/notify.js");
+  ok("notify: only 'sent' counts as reaching somebody",
+    N.didSend("sent") === true && N.didSend("off") === false &&
+    N.didSend("failed") === false && N.didSend("no-address") === false);
+
+  // THE DISTINCTION THAT WAS MISSING. "off" is a standing condition the operator fixes once in
+  // Vercel; "failed" is this order's problem and somebody has to chase the customer by hand. Both
+  // used to be the same `false`, which is why one order's missing receipt looked like nothing.
+  ok("notify: 'off' and 'failed' are not the same answer — one is a setting, one is an incident",
+    "off" !== "failed" && N.didSend("off") === N.didSend("failed"));
+
+  // notifyStatus never carries a key, a fragment of one, or the sender address off the server.
+  const st = N.notifyStatus();
+  ok("notify: the operator probe answers with booleans and nothing else",
+    typeof st.email === "boolean" && typeof st.sms === "boolean" && Object.keys(st).sort().join() === "email,sms", st);
+  ok("notify: with no env set, both providers read off — the state Ryan's order was actually in",
+    st.email === false && st.sms === false, st);
+  ok("notify: emailEnabled needs BOTH the key and the from-address, not either",
+    N.emailEnabled() === false);
 }
 
 // ── THE IDEMPOTENCY KEY (2026-09-29) ─────────────────────────────────────────────────────────────
