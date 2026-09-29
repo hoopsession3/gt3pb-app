@@ -18,6 +18,7 @@ import PromptSheet from "./PromptSheet";
 import { bandFor, fmtBand, paybackPct, paybackWeeks, FALLBACK_MARGIN_PCT } from "@/lib/uplift";
 import { money } from "@/lib/money";
 import { useCrew, crewLabel } from "./useCrew";
+import { localToday } from "@/lib/dates";
 
 // PIPELINE — the sales funnel (0165). Vendor (the account) × deal (from the owner's catalog,
 // gated per vendor type) × rep × stage. The owner articulates what's on the table in the Deal
@@ -165,7 +166,7 @@ const ACT_TYPES = [
   { key: "restock", label: "Restock" },
   { key: "other", label: "Other" },
 ] as const;
-const actBlank = () => ({ type: "popup", on_date: new Date().toISOString().slice(0, 10), sampled: "", buyers: "", bottles: "", pulled: "", stock_after: "", revenue: "", cost: "", note: "" });
+const actBlank = () => ({ type: "popup", on_date: localToday(), sampled: "", buyers: "", bottles: "", pulled: "", stock_after: "", revenue: "", cost: "", note: "" });
 function ActivityDesk({ o, rows, bizAccts, marginPct, onLog, onChanged, onWire }: {
   o: Opp; rows: Activity[]; bizAccts: BizAcct[]; marginPct: number;
   onLog: (line: string) => void; onChanged: () => void; onWire: (id: string | null) => void;
@@ -532,7 +533,8 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   const liveAccounts = opps.filter((o) => o.stage === "live" || o.stage === "expand");
   const liveMrr = liveAccounts.reduce((s, o) => s + (o.mrr_cents ?? 0), 0);
   // Live/expand accounts keep next-step discipline too (restocks, QBRs) — only lost is exempt.
-  const overdue = (o: Opp) => o.next_step_at && o.next_step_at < new Date().toISOString().slice(0, 10) && o.stage !== "lost";
+  // UTC here marked a next step overdue from 8pm the night before it actually was.
+  const overdue = (o: Opp) => o.next_step_at && o.next_step_at < localToday() && o.stage !== "lost";
 
   // Uplift ledger (0268), grouped once per render — the card line and the desk read the same rows.
   const acts = board.data?.acts ?? [];
@@ -543,7 +545,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   // one margin, no disagreement between "is this deal ok" and "has this spend paid back".
   const marginPct = econ?.marginPct ?? FALLBACK_MARGIN_PCT;
 
-  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayKey = localToday();
   const card = (o: Opp) => (
     <div key={o.id} className={`pipe-card${overdue(o) ? " late" : ""}`} style={{ borderLeftColor: STAGE_COLOR[o.stage] }}>
       <button type="button" className="pipe-head" onClick={() => setOpenId(openId === o.id ? null : o.id)} aria-expanded={openId === o.id}>

@@ -7,6 +7,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import { InfoRow } from "@/components/kit";
 import { RecordLink } from "./RecordSheet";
+import { localToday } from "@/lib/dates";
 
 // WORKLOAD BOARD — who's carrying what. As the team grows 2→5, work distribution can't stay invisible
 // (headcount counts were all we had). Reads the all_tasks spine (0210) — event_tasks + delegated todos
@@ -16,7 +17,7 @@ import { RecordLink } from "./RecordSheet";
 type Person = { id: string; display_name: string | null; role: string };
 type Task = { assignee: string | null; due: string | null };
 type BoardData = { people: Person[]; tasks: Task[] };
-const todayKey = () => new Date().toISOString().slice(0, 10);
+const todayKey = localToday;
 
 const TASK_CAP = 2000;
 

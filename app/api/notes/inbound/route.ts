@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { etToday } from "@/lib/dates";
 
 export const runtime = "nodejs";
 
@@ -61,7 +62,7 @@ export async function POST(req: Request) {
 
   // Title = subject, else first non-empty line of the body, else a dated fallback.
   const firstLine = text.split("\n").map((l) => l.trim()).find(Boolean) ?? "";
-  const title = (subject || firstLine || `Meeting note · ${new Date().toLocaleDateString()}`).slice(0, 160);
+  const title = (subject || firstLine || `Meeting note · ${etToday()}`).slice(0, 160);
   // Summary = a readable lead; full text kept in body so nothing is lost.
   const summary = text.slice(0, 1200) || null;
 

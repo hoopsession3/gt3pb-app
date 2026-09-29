@@ -8,6 +8,7 @@ import EditableCopy from "@/components/EditableCopy";
 import { Masthead, ClosingBeat } from "@/components/kit";
 import { supabase } from "@/lib/supabase";
 import { useSiteCopy, fillCopy } from "@/lib/copy";
+import { etToday } from "@/lib/dates";
 
 // "Book the bar" intake — captures B2B/event requests into Supabase (admins manage them
 // in the back office). Booking Tool v5 stays the rate source of truth; the app never quotes.
@@ -87,7 +88,7 @@ export default function BookScreen() {
         <input id="b-phone" className="auth-input" type="tel" inputMode="tel" autoComplete="tel" value={f.phone} onChange={set("phone")} placeholder={t("book.ph_phone")} maxLength={40} />
         <EditableCopy k="book.consent" value={t("book.consent")} as="p" className="tel-consent" multiline />
         <div className="b-row">
-          <div><label className="auth-label" htmlFor="b-date">{t("book.f_date")}</label><input id="b-date" className="auth-input" type="date" value={f.event_date} onChange={set("event_date")} min={new Date().toISOString().slice(0, 10)} required /></div>
+          <div><label className="auth-label" htmlFor="b-date">{t("book.f_date")}</label><input id="b-date" className="auth-input" type="date" value={f.event_date} onChange={set("event_date")} min={etToday()} required /></div>
           <div><label className="auth-label" htmlFor="b-head">{t("book.f_headcount")}</label><input id="b-head" className="auth-input" type="number" inputMode="numeric" min={1} max={100000} value={f.headcount} onChange={set("headcount")} placeholder={t("book.ph_headcount")} /></div>
         </div>
         <label className="auth-label" htmlFor="b-loc">{t("book.f_location")}</label>

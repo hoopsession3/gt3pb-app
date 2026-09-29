@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
 import { MARKETS, MARKET_LABEL, toMarket, type Market } from "@/lib/markets";
+import { localToday } from "@/lib/dates";
 import {
   STATUS_LABEL, DISPOSITIONS, DISPOSITION_LABEL, CRITICALITY, CRITICALITY_LABEL,
   nextStates, toStatus, toCriticality, validateRetire, isDeployed, isOwned,
@@ -122,7 +123,7 @@ export default function GearLibrary() {
       status: "retired",
       disposition: retireDraft.disposition,
       retire_reason: retireDraft.reason.trim(),
-      retired_on: new Date().toISOString().slice(0, 10),
+      retired_on: localToday(),
     }).eq("id", retiring.id);
     setBusy(false);
     if (error) { setErr(error.message); return; }

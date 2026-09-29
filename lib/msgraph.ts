@@ -2,6 +2,7 @@
 // (authorize → code → tokens → refresh) and thin calendar helpers. Credentials are host secrets;
 // never import this into client code. Degrades to "not configured" until the env is set.
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { etToday } from "./dates";
 
 const TENANT = process.env.MS_TENANT_ID || "common";
 const SCOPES = "offline_access openid email profile User.Read Calendars.ReadWrite";
@@ -63,7 +64,7 @@ export async function graph(token: string, path: string, init?: RequestInit): Pr
 // Our events store a date (events.day) and optional free-text start/end times. For sync fidelity we
 // push all-day events (date-only), which is robust and timezone-safe for a market schedule.
 export function eventToGraph(e: { title: string | null; day: string | null; day_label?: string | null; location_text?: string | null; blurb?: string | null }) {
-  const start = e.day || new Date().toISOString().slice(0, 10);
+  const start = e.day || etToday();
   const endDate = new Date(`${start}T00:00:00`); endDate.setDate(endDate.getDate() + 1); // all-day end is exclusive
   const end = endDate.toISOString().slice(0, 10);
   return {

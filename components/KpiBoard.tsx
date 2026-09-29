@@ -8,6 +8,7 @@ import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import { SectionHeader } from "@/components/kit";
+import { etToday } from "@/lib/dates";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // THE TWELVE (0264 · Playbook v1 §12; 0268 flipped the board live) — every KPI in the strategy,
@@ -145,7 +146,7 @@ export default function KpiBoard() {
     const raw = (entry[key] ?? "").trim();
     const v = Number(raw);
     if (!raw || !Number.isFinite(v)) { toast("Numbers only", "error"); return; }
-    const period = new Date().toISOString().slice(0, 10);
+    const period = etToday();   // a snapshot key: the business's day, not the device's
     const { error } = await supabase.from("kpi_snapshots").upsert(
       { metric: key, period, value: v, created_by: user?.id ?? null }, { onConflict: "metric,period" });
     if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }

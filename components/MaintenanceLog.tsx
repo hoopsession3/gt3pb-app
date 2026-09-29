@@ -9,6 +9,7 @@ import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
 import { InfoRow } from "@/components/kit";
+import { localToday } from "@/lib/dates";
 
 // MAINTENANCE & AUDITS (Settings) — the owner's record of every audit run on the app: what kind, when,
 // the prompt used, the result/score, a summary, findings, and a link to the artifact. Opens with a
@@ -32,7 +33,7 @@ const STATUSES: ["pass" | "warn" | "fail" | "info", string][] = [["pass", "Pass"
 const CADENCES: [Draft["cadence"], string][] = [["once", "One-off"], ["weekly", "Weekly"], ["monthly", "Monthly"], ["quarterly", "Quarterly"]];
 const CADENCE_DAYS: Record<string, number> = { weekly: 7, monthly: 30, quarterly: 90 };
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = localToday;   // when the operator did it, by their own clock — not UTC's
 const BLANK: Draft = { kind: "custom", title: "", status: "info", score: null, summary: "", prompt: "", findings: "", artifact_url: "", ran_on: today(), cadence: "once" };
 
 function daysAgo(iso: string): string {

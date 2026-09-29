@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { staffFromRequest } from "@/lib/apiAuth";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { claimSafeDeep } from "@/lib/claimGuard";
+import { etToday } from "@/lib/dates";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -43,7 +44,10 @@ export async function POST(req: Request) {
   const text = typeof body.text === "string" ? body.text.slice(0, 2000) : "";
   if (!text.trim()) return NextResponse.json({ ok: false, error: "Tell me about the event first." }, { status: 400 });
 
-  const today = new Date().toISOString().slice(0, 10);
+  // This value is interpolated into the prompt three lines down as "Today is ${today}
+  // (America/New_York)". It was the UTC day. After ~8pm ET the model was told a date that was not
+  // today, labelled as Eastern, and asked to resolve "this Saturday" against it.
+  const today = etToday();
   const system =
     `You are GT3's chief of staff helping a crew member create an event or truck stop. Today is ${today} (America/New_York). ` +
     `Read their request and fill the event_draft. Resolve relative dates against today. Classify carefully: a recurring on-the-ground ` +

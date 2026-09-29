@@ -4,7 +4,7 @@ import { callClaude, anthropicEnabled, MODELS, type ClaudeMsg } from "@/lib/anth
 import { menuKnowledge } from "@/lib/conciergeKb";
 import { ownerCorrections, logConvo } from "@/lib/agentKnowledge";
 import { claimSafe, CLAIM_FALLBACK } from "@/lib/claimGuard";
-import { etTimeLabel } from "@/lib/dates";
+import { etTimeLabel, etToday } from "@/lib/dates";
 import { money } from "@/lib/money";
 
 export const runtime = "nodejs";
@@ -82,7 +82,9 @@ export async function POST(req: Request) {
   const trimmed: ClaudeMsg[] = messages.slice(-8).map((m) => ({ role: m?.role === "assistant" ? "assistant" : "user", content: String(m?.content ?? "").slice(0, 1000) }));
 
   // Public live context (best-effort; the concierge still answers from the static menu alone).
-  const today = new Date().toISOString().slice(0, 10);
+  // Customer-facing: this picks the events and prices the concierge quotes. Line ~117 already
+  // uses etTimeLabel for exactly this reason; the day key three lines up was still UTC.
+  const today = etToday();
   let prices = "", live = "", events = "", plans = "";
   if (supabaseAdmin) {
     const [pr, ls, ev, pl] = await Promise.all([

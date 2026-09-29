@@ -16,6 +16,7 @@ import { SectionHeader, InfoRow } from "@/components/kit";
 import InlineCreate from "./InlineCreate";
 import Sheet from "@/components/Sheet";
 import Icon from "@/components/Icon";
+import { addDays, localToday } from "@/lib/dates";
 
 // COMMAND BOARD — the shared war room both founders see: the launch initiatives with a countdown and
 // milestone progress, then This Week · Blockers · Done · Money in one glance. This is the digital twin
@@ -36,8 +37,8 @@ type BoardData = {
 };
 const EMPTY_BOARD: BoardData = { inits: [], miles: [], links: [], week: [], incidents: [], overdue: [], done: [], goals: [], goalLinks: [] };
 
-const todayKey = () => new Date().toISOString().slice(0, 10);
-const weekAheadKey = () => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().slice(0, 10); };
+const todayKey = localToday;
+const weekAheadKey = () => addDays(localToday(), 7);
 const weekAgoISO = () => { const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString(); };
 const daysTo = (iso: string) => Math.round((new Date(`${iso}T12:00:00`).getTime() - Date.now()) / 864e5);
 const countdown = (iso: string | null) => { if (!iso) return ""; const d = daysTo(iso); return d > 1 ? `${d} days left` : d === 1 ? "tomorrow" : d === 0 ? "today" : `${-d}d overdue`; };

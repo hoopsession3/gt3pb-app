@@ -16,6 +16,47 @@ const ET_FMT = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", 
 export const etDayKey = (d: Date) => ET_FMT.format(d);
 export const etToday = () => etDayKey(new Date());
 
+// ── WORKING WITH A DAY KEY ─────────────────────────────────────────────────────────────────────
+// Everything below takes and returns a YYYY-MM-DD key rather than a Date, on purpose. A Date is an
+// instant and carries a time zone question with it everywhere it goes; a key is a calendar day and
+// has already answered that question. The three functions here are what the app kept writing by
+// hand because they had no name.
+
+/**
+ * A Date anchored at LOCAL NOON of that calendar day.
+ *
+ * `new Date("2026-07-18")` parses as midnight UTC, which is the 17th in every US time zone — so
+ * `.getDay()` and `.toLocaleDateString()` on it can both be a day early. Noon is far enough from
+ * either midnight that no offset on earth and no DST shift can move the date. Four files had
+ * already worked this out and written `new Date(\`${key}T12:00:00\`)` inline, each with its own
+ * comment explaining it. This is that trick with a name.
+ */
+export function dayFromKey(key: string): Date {
+  return new Date(`${String(key).slice(0, 10)}T12:00:00`);
+}
+
+/**
+ * A day key N days away. Negative goes back.
+ *
+ * Done through dayFromKey, so a span crossing a DST boundary still lands on the calendar day a
+ * person would name — `Date.now() + n * 864e5` is off by an hour twice a year and off by a whole
+ * day whenever that hour crosses midnight.
+ */
+export function addDays(key: string, n: number): string {
+  const d = dayFromKey(key);
+  if (Number.isNaN(d.getTime())) return key;
+  d.setDate(d.getDate() + n);
+  return dayKey(d);
+}
+
+/** The weekday a key falls on. Takes a key, not a Date, so there is no time zone to get wrong. */
+const WD_LONG = new Intl.DateTimeFormat("en-US", { weekday: "long" });
+const WD_SHORT = new Intl.DateTimeFormat("en-US", { weekday: "short" });
+export function weekdayOf(key: string, style: "long" | "short" = "long"): string {
+  const d = dayFromKey(key);
+  return Number.isNaN(d.getTime()) ? "" : (style === "short" ? WD_SHORT : WD_LONG).format(d);
+}
+
 // Humanized weekday + time, pinned to America/New_York regardless of where the code runs — a
 // server-side route (Node on Vercel, UTC) calling toLocaleTimeString(undefined, ...) silently
 // formats in the SERVER's timezone, not the business's. The concierge API told guests the next

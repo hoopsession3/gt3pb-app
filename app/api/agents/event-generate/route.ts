@@ -3,6 +3,7 @@ import { staffFromRequest, userFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { claimSafeDeep } from "@/lib/claimGuard";
+import { addDays, dayFromKey, etToday, weekdayOf } from "@/lib/dates";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -67,11 +68,12 @@ const TOOL: ToolDef = {
   },
 };
 
-function weekendDates(today: Date) {
-  const sat = new Date(today); sat.setDate(today.getDate() + ((6 - today.getDay() + 7) % 7));
-  const sun = new Date(sat); sun.setDate(sat.getDate() + 1);
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
-  return { sat: iso(sat), sun: iso(sun) };
+// Takes a day KEY, not a Date. The previous version read the server's clock three times —
+// getDay(), getDate() and toISOString() — all of which are UTC on Vercel. On a Saturday evening
+// the server already believes it is Sunday, so "the coming Saturday" resolved a WEEK late.
+function weekendDates(todayKey: string) {
+  const sat = addDays(todayKey, (6 - dayFromKey(todayKey).getDay() + 7) % 7);
+  return { sat, sun: addDays(sat, 1) };
 }
 
 export async function POST(req: Request) {
@@ -115,7 +117,7 @@ export async function POST(req: Request) {
       if (plan.collaboration_note?.title) {
         const { data } = await supabaseAdmin.from("meeting_notes").insert({
           title: String(plan.collaboration_note.title).slice(0, 200), summary: plan.collaboration_note.summary || null,
-          met_on: new Date().toISOString().slice(0, 10), source: "manual",
+          met_on: etToday(), source: "manual",
           event_id: eventIds.find(Boolean) ?? null, created_by: user?.id ?? null,
         }).select("id, title").single();
         if (data) { noteId = data.id; created.note = { id: data.id, title: data.title }; }
@@ -140,10 +142,9 @@ export async function POST(req: Request) {
   // ── PREVIEW: draft the plan from notes ──
   const notes = String(body.notes ?? "").slice(0, 8000);
   if (!notes.trim()) return NextResponse.json({ ok: false, error: "notes required" }, { status: 400 });
-  const today = new Date();
-  const todayIso = today.toISOString().slice(0, 10);
-  const dow = today.toLocaleDateString("en-US", { weekday: "long" });
-  const { sat, sun } = weekendDates(today);
+  const todayIso = etToday();
+  const dow = weekdayOf(todayIso);
+  const { sat, sun } = weekendDates(todayIso);
 
   let plan: any = null;
   try {

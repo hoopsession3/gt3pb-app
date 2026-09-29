@@ -6,6 +6,7 @@ import { MARKET_LABEL, toMarket } from "@/lib/markets";
 import { ROLE_ACCESS, toRoleKey, money, STATUTORY_FIELDS } from "@/lib/offerLetter";
 import { roleLabel } from "@/lib/roles";
 import { payAtVolumes, DEFAULT_VOLUMES } from "@/lib/dealExplainer";
+import { etToday } from "@/lib/dates";
 
 // THE LETTER, AS A LETTER (0286).
 //
@@ -97,7 +98,7 @@ export default function OfferLetterPrint({ row, onClose }: { row: LetterRow; onC
           <p className="ofl-disclaimer">{row.offer_disclaimer}</p>
         )}
 
-        <p className="ofl-date">{longDate(new Date().toISOString().slice(0, 10))}</p>
+        <p className="ofl-date">{longDate(etToday())}</p>
 
         <p className="ofl-to">
           {row.candidate_name}<br />

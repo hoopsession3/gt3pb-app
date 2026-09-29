@@ -5,7 +5,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/AuthProvider";
 import { useRealtimeTable } from "@/lib/realtime";
-import { relativeDay } from "@/lib/dates";
+import { etToday, relativeDay } from "@/lib/dates";
 import Icon, { type IconName } from "@/components/Icon";
 
 // MEMBER INBOX — "what's happening with my stuff," on the customer Today. A read-only aggregation
@@ -127,7 +127,7 @@ export function useHasActiveOrder(): boolean {
   useEffect(() => {
     if (!supabase || !user) { setHas(false); return; }
     let live = true;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = etToday();
     (async () => {
       try {
         const [{ count: p, error: e1 }, { count: d, error: e2 }] = await Promise.all([

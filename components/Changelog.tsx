@@ -8,6 +8,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
+import { localToday } from "@/lib/dates";
 
 // CHANGELOG — "What we've built": the human-readable, categorized record of every improvement shipped,
 // so a cofounder (or any leader) can see the whole build without reading git. Newest first, grouped by
@@ -35,7 +36,7 @@ const CATS: Record<string, { label: string; c: string }> = {
 const CAT_KEYS = Object.keys(CATS);
 const AREAS = ["Ordering", "Studio", "Pipeline", "Money", "Crew", "Brand", "Membership", "Delivery", "AI", "Ops", "Alerts", "Assets"];
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = localToday;
 const monthKey = (iso: string) => iso.slice(0, 7);
 const monthLabel = (iso: string) => new Date(`${iso}-01T12:00:00`).toLocaleDateString(undefined, { month: "long", year: "numeric" });
 const dayLabel = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });

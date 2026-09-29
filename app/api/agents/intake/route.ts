@@ -3,6 +3,7 @@ import { staffFromRequest, userFromRequest, tenantFromRequest } from "@/lib/apiA
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { claimSafeDeep } from "@/lib/claimGuard";
+import { etToday } from "@/lib/dates";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -168,7 +169,7 @@ export async function POST(req: Request) {
       const a = hits?.[0];
       if (a) {
         const { data: maint } = await supabaseAdmin.from("asset_maintenance").select("kind, summary, how_to, next_due_on, performed_on").eq("asset_id", a.id).order("performed_on", { ascending: false }).limit(8);
-        const today = new Date().toISOString().slice(0, 10);
+        const today = etToday();   // compared against next_due_on — UTC marked maintenance due a day early
         const due = (maint ?? []).filter((m: any) => m.next_due_on).sort((x: any, y: any) => x.next_due_on.localeCompare(y.next_due_on));
         knownAsset = {
           id: a.id, name: a.name, make_model: a.make_model, manual_url: a.manual_url, notes: a.notes,

@@ -3,6 +3,7 @@ import { staffFromRequest, userFromRequest, tenantFromRequest } from "@/lib/apiA
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { claimSafeDeep } from "@/lib/claimGuard";
+import { etToday } from "@/lib/dates";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -89,7 +90,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = etToday();
   const okDate = (s: any) => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
 
   // 1 · the session note — the record everything below hangs off

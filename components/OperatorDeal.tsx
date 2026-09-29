@@ -20,6 +20,7 @@ import {
   type DealTerms, type AgreementStatus, type ScopeBasis, type HoursBasis,
 } from "@/lib/operatorDeal";
 import { moneyRound } from "@/lib/money";
+import { localToday } from "@/lib/dates";
 
 // OPERATOR DEAL — build, price and negotiate a market operator's agreement.
 //
@@ -601,7 +602,7 @@ function HoursBlock({ agreementId, covers, basis, extra, canLog, toast, onSaved 
   const acts = useOptions("agreement_activity");
   const mine = acts.filter((a) => covers.includes(a.value));
   const [open, setOpen] = useState(false);
-  const [on, setOn] = useState(() => new Date().toISOString().slice(0, 10));
+  const [on, setOn] = useState(localToday);
   const [act, setAct] = useState("");
   const [hrs, setHrs] = useState("");
   const [note, setNote] = useState("");

@@ -11,6 +11,7 @@ import Sheet, { CloseButton } from "@/components/Sheet";
 import { SectionHeader } from "@/components/kit";
 import Icon from "@/components/Icon";
 import { useCrew, crewLabel } from "./useCrew";
+import { localToday } from "@/lib/dates";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // THE WORKSTREAM REGISTRY (0264, 2026-08-03) — "the one place to manage every component and
@@ -80,7 +81,7 @@ export default function OsRegistry() {
   const save = async () => {
     if (!supabase || !auditing || saving || (anyScored && !scored) || !draft.name.trim() || !draft.owner.trim()) return;
     setSaving(true);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localToday();
     if (scored) {
       const { error } = await supabase.from("workstream_audits").upsert({
         workstream_id: auditing.id, week_of: today,

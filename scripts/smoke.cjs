@@ -457,6 +457,57 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("ageLabel: inside a week → weekday + time", /^Sun /.test(DT.ageLabel(at(2026, 6, 26, 9, 30), NOW)), DT.ageLabel(at(2026, 6, 26, 9, 30), NOW));
   ok("ageLabel: older → month + day", DT.ageLabel(at(2026, 6, 12, 9, 30), NOW) === "Jul 12", DT.ageLabel(at(2026, 6, 12, 9, 30), NOW));
   ok("ageLabel: garbage → empty", DT.ageLabel("not-a-date", NOW) === "");
+
+  // ── WHAT DAY IS IT — the question this file was written to answer once ────────────────────────
+  // This file's header names the bug: "'today' computed three ways (UTC slice, operator-local,
+  // calendar-local), so after ~8pm ET every UTC surface flipped to tomorrow." It was written to end
+  // that. Twenty-four sites in nineteen files went on computing it as `new Date().toISOString()
+  // .slice(0, 10)` anyway — the UTC slice, by name — including a route that interpolated the result
+  // into a prompt as "Today is ${today} (America/New_York)".
+  //
+  // toISOString() is UTC in a BROWSER too, which is why half of those were client-side. An operator
+  // logging maintenance at 9pm in Greenville stamped it with tomorrow.
+  ok("etToday: the business day is a key, and it is the ET one",
+    /^\d{4}-\d{2}-\d{2}$/.test(DT.etToday()) && DT.etToday() === DT.etDayKey(new Date()), DT.etToday());
+  // 01:30 UTC on Oct 1 is 9:30pm ET on Sep 30. The UTC slice says October; the business says
+  // September; and every commerce key in this app means the business's answer.
+  ok("etToday: 9:30pm ET is still yesterday's date in UTC terms — and the business day is the ET one",
+    DT.etDayKey(new Date("2026-10-01T01:30:00Z")) === "2026-09-30",
+    DT.etDayKey(new Date("2026-10-01T01:30:00Z")));
+  ok("etDayKey: and it holds on the other side of DST",
+    DT.etDayKey(new Date("2026-01-15T02:30:00Z")) === "2026-01-14",
+    DT.etDayKey(new Date("2026-01-15T02:30:00Z")));
+
+  // dayFromKey — the noon anchor, which four files had each worked out and written inline.
+  ok("dayFromKey: a key becomes the day it names, not the day before",
+    DT.dayFromKey("2026-07-18").getDate() === 18 && DT.dayFromKey("2026-07-18").getMonth() === 6);
+  ok("dayFromKey: THE reason it is noon — new Date('2026-07-18') is midnight UTC, which is the 17th here",
+    DT.dayFromKey("2026-07-18").getDay() === new Date(2026, 6, 18).getDay());
+  ok("dayFromKey: a full timestamp is trimmed to its day rather than rejected",
+    DT.dayFromKey("2026-07-18T23:45:00Z").getDate() === 18);
+
+  ok("addDays: forward", DT.addDays("2026-07-18", 7) === "2026-07-25");
+  ok("addDays: backward", DT.addDays("2026-07-18", -1) === "2026-07-17");
+  ok("addDays: zero is the same day", DT.addDays("2026-07-18", 0) === "2026-07-18");
+  ok("addDays: across a month end", DT.addDays("2026-01-31", 1) === "2026-02-01");
+  ok("addDays: across a year end", DT.addDays("2026-12-31", 1) === "2027-01-01");
+  // The whole reason this is not `Date.now() + n * 864e5`: a span crossing a DST change is 23 or 25
+  // hours, and the naive arithmetic lands an hour off — which is a DAY off whenever it crosses
+  // midnight. US DST springs forward 2026-03-08.
+  ok("addDays: a span across the DST change still lands on the day a person would name",
+    DT.addDays("2026-03-07", 2) === "2026-03-09" && DT.addDays("2026-03-09", -2) === "2026-03-07",
+    [DT.addDays("2026-03-07", 2), DT.addDays("2026-03-09", -2)]);
+  ok("addDays: nonsense in, the same nonsense out — never 'NaN-aN-aN' on a screen",
+    DT.addDays("not-a-date", 3) === "not-a-date");
+
+  ok("weekdayOf: the day a key falls on", DT.weekdayOf("2026-07-18") === "Saturday", DT.weekdayOf("2026-07-18"));
+  ok("weekdayOf: short form", DT.weekdayOf("2026-07-18", "short") === "Sat");
+  ok("weekdayOf: garbage is empty, not 'Invalid Date'", DT.weekdayOf("nope") === "");
+  // The event planner asked "what weekday is it" of a Date in the server's zone. On a Saturday
+  // evening the server already believes it is Sunday, so the coming Saturday resolved a WEEK late.
+  ok("weekdayOf: a key cannot be read in the wrong zone, which is the entire point of taking a key",
+    DT.weekdayOf(DT.etDayKey(new Date("2026-07-19T01:30:00Z"))) === "Saturday",
+    DT.weekdayOf(DT.etDayKey(new Date("2026-07-19T01:30:00Z"))));
 }
 
 // --- brew math: bottles↔gallons and start-by — the numbers DropOps/BrewPlanner/My Day all share ---
@@ -1959,6 +2010,33 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   }
   ok("money: nobody divides by 100 and formats it themselves — money(), moneyRound() or moneyPlain()",
     inline.length === 0, inline);
+
+  // ── AND THE SAME SHAPE FOR "WHAT DAY IS IT" ────────────────────────────────────────────────────
+  // `new Date().toISOString().slice(0, 10)` is the UTC day. Nobody in this business lives in UTC:
+  // it is neither the operator's wall-clock day (localToday) nor the business day (etToday), and
+  // between about 8pm and midnight Eastern — which is when this truck is actually working — it is
+  // simply tomorrow.
+  //
+  // lib/dates.ts was written to end this. Its header names the exact expression as one of the three
+  // wrong answers. Twenty-four sites in nineteen files went on using it anyway, so the file's
+  // warning is now a check instead of a paragraph.
+  //
+  // Only the zero-argument form is caught. `new Date(someIso).toISOString().slice(0, 10)` normalises
+  // a known instant and is a different, legitimate thing — a rule that flagged it too would be
+  // wrong more often than right, and would get exempted.
+  const UTC_TODAY = /new Date\(\)\s*\.toISOString\(\)\s*\.(slice\(0,\s*10\)|split\("T"\)\[0\])/;
+  const utcToday = [];
+  for (const f of files) {
+    const rel = f.replace(root + "/", "");
+    if (rel === "lib/dates.ts") continue;                      // the canonical home
+    const src = fs.readFileSync(f, "utf8").split("\n")
+      .map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1"))
+      .filter((l) => !/^\s*\*/.test(l))
+      .join("\n");
+    if (UTC_TODAY.test(src)) utcToday.push(rel);
+  }
+  ok("dates: nobody asks UTC what day it is — localToday() for the operator, etToday() for the business",
+    utcToday.length === 0, utcToday);
 }
 
 // ── PLAN NAV (0316) — the jump that has to survive a page load ───────────────────────────────────

@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { claimSafeDeep } from "@/lib/claimGuard";
+import { addDays, etToday } from "@/lib/dates";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -48,8 +49,10 @@ export async function POST(req: Request) {
   if (!anthropicEnabled()) return NextResponse.json({ ok: false, error: "AI not configured (set ANTHROPIC_API_KEY)" }, { status: 503 });
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
 
-  const today = new Date().toISOString().slice(0, 10);
-  const horizon = new Date(Date.now() + 14 * 864e5).toISOString().slice(0, 10);
+  // Was the UTC day: after ~8pm ET this filtered out TODAY's event — from the check whose whole
+  // job is telling you whether you are ready for it.
+  const today = etToday();
+  const horizon = addDays(today, 14);
   const [{ data: events }, { data: inv }] = await Promise.all([
     supabaseAdmin.from("events").select("title, day, day_label, menu_nitro, menu_bottles, menu_nature_aid, menu_salted_maple, menu_broth, expected_attendance, staff_count").eq("tenant_id", tenant)
       .is("archived_at", null).gte("day", today).lte("day", horizon).order("day"),
