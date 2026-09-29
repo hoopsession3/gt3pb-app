@@ -40,20 +40,27 @@ export const SHOP_STATUS_META: Record<ShopStatus, StatusMeta> = {
     means: "Paid, and the printer either wasn't reachable or hasn't been asked. Submit it by hand.",
     waiting: "us",
   },
-  // ── THE STATE THAT LIED (2026-09-29) ───────────────────────────────────────────────────────────
-  // This read "Sent to printer · Apliiq has it. Nothing for us to do unless it stalls." and it was
+  // ── THE STATE THAT LIED, CORRECTED TWICE (2026-09-29) ──────────────────────────────────────────
+  // First it read "Sent to printer · Apliiq has it. Nothing for us to do unless it stalls." That was
   // wrong in the way that costs you an order: it told the operator to stop looking.
   //
-  // POST /Order returning 200 with an id does NOT mean the order is in production. Apliiq puts it
-  // in a PENDING list with a "fulfill" button, and it sits there until somebody presses it — or
-  // until whatever is blocking it clears. The first flagship cap sat in that list overnight under
-  // "Wait For Inventory · Incomplete Shipping Address" while this app said there was nothing to do.
+  // So it was changed to "Accepted by printer · Apliiq has taken it". Hours later Apliiq emailed:
+  // "order #23ac3494… cannot be imported. Therefore the order will not be fulfilled." They had never
+  // taken it. The second version was wrong in the same direction as the first, just more confidently
+  // — and it is worth being precise about why, because the mistake is structural, not a wording slip.
   //
-  // Accepted is not the same as in production. The label now says which one it is, and the order is
-  // waiting on US until Apliiq reports it moved — because pressing fulfill is our job, not theirs.
+  // This status is written in ONE place: checkout, on `submit.ok`. That flag means a POST to Apliiq
+  // returned 200 with an id. It is the LAST thing this app ever learns about the order. Their
+  // importer runs afterwards, on their clock, and can refuse it — no payment method on file, a SKU
+  // they cannot make, whatever — and when it does they email the ACCOUNT OWNER. There is no webhook
+  // for a rejection; /api/apliiq/fulfillment carries shipping and nothing else. So a refused order
+  // stays in this state forever and the panel keeps asserting whatever this string says.
+  //
+  // Which means the string may not assert anything the 200 did not establish. Sent is knowable.
+  // Accepted is not.
   submitted: {
-    label: "Accepted by printer",
-    means: "Apliiq has taken it, but it is NOT in production yet — it sits in their pending list until it is fulfilled. Open Apliiq and check it: a blocked order stays here silently.",
+    label: "Sent, not confirmed",
+    means: "We sent it and Apliiq's API returned an id. That is the last thing this app knows — it is NOT acceptance. Their importer can refuse the order afterwards and tells the account owner by EMAIL, which never reaches here: the first cap was refused that way while this panel read \"Accepted by printer\". Open Apliiq and confirm it actually moved.",
     waiting: "us",
   },
   in_production: {
