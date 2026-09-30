@@ -910,7 +910,7 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
         <div key={a.id} className={`alert sev-${a.severity}`}>
           <div className="alert-row">
             <div className="alert-main">
-              <span className="alert-title">{a.title}{myLane(a.category) && <span className="myday-lane">your lane</span>}<span className="alert-when">{ageLabel(a.created_at)}</span></span>
+              <span className="alert-title">{a.title}{myLane(a.category) && <span className="myday-lane">your lane</span>}{(a.occurrences ?? 1) > 1 && <span className="alert-times" title={`Happened ${a.occurrences} times${a.last_seen_at ? `, last ${ageLabel(a.last_seen_at)}` : ""}`}>×{a.occurrences}</span>}<span className="alert-when">{ageLabel(a.last_seen_at ?? a.created_at)}</span></span>
               {a.body && <span className="alert-body">{a.body}</span>}
             </div>
             {counts[a.id] ? <button type="button" className="alert-discuss" onClick={() => setOpenThread(openThread === a.id ? null : a.id)} aria-label="Discuss"><Icon name="chat" /><span className="cmt-count">{counts[a.id]}</span></button> : null}

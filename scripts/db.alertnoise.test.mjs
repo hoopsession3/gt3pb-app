@@ -37,10 +37,19 @@ await db.exec(`
     id uuid primary key default gen_random_uuid(), title text, category text, area text,
     summary text, shipped_on date, highlight boolean default false
   );
-  create table public.schema_migrations (name text primary key, note text, applied_at timestamptz default now());
-  create or replace function public.record_migration(p_name text, p_note text) returns void language sql as $$
-    insert into public.schema_migrations (name, note) values (p_name, p_note)
-    on conflict (name) do update set note = excluded.note $$;
+  -- A TEST DOUBLE MUST NOT LIE ABOUT THE THING IT DOUBLES. This stub said the ledger's key column
+  -- was "name". Production (0304) calls it "version", and eleven of the thirteen db tests already
+  -- stubbed it correctly — this file and db.messages were the two that did not. On 2026-09-30 that
+  -- cost real time: schema_migrations.name went into production SQL twice, from memory, and the
+  -- memory came from reading this. A double that contradicts its original teaches the wrong schema
+  -- to everything downstream of it, the person included. Gated now against 0304's own text.
+  create table public.schema_migrations (version text primary key, seq int not null,
+    applied_at timestamptz default now(), note text, applied_count int default 1, evidence text);
+  create or replace function public.record_migration(p_version text, p_note text default null)
+    returns void language sql as $$
+    insert into public.schema_migrations (version, seq, applied_at, note)
+    values (p_version, coalesce(nullif(substring(p_version from '^[0-9]{4}'), '')::int, 0), now(), p_note)
+    on conflict (version) do update set applied_count = public.schema_migrations.applied_count + 1 $$;
 `);
 
 // 0050's alerts table and 0255's watchdog, from their own files — the thing being changed.
@@ -77,12 +86,110 @@ ok("0255: three visits and three stale stretches produce THREE separate alerts �
 ok("0255: and every one of them is critical", (await q1(
   `select count(*)::int n from public.alerts where kind = 'heartbeat_stale' and severity = 'critical'`)).n === 3);
 
-// ── NOW THE FIX ────────────────────────────────────────────────────────────────────────────────
-await db.exec(`delete from public.alerts where kind = 'heartbeat_stale'`);
+// ── WHAT THIS TEST DELETED, AND WHAT THAT COST (0333, 2026-09-30) ──────────────────────────────
+// This line used to read:
+//
+//     delete from public.alerts where kind = 'heartbeat_stale';   ← then apply 0327
+//
+// It reproduced the flood above in careful detail, THREW THE FLOOD AWAY, and applied the fix to an
+// empty table. Every assertion below it passed, and all of them were about a world where the bug
+// had never happened. The one question it could not ask is the only one production was about to
+// answer: what does 0327 do for the rows already there?
+//
+// Nothing. Production ran 0327 on 2026-09-29 and on 2026-09-30 the feed still held 50 unacked
+// alerts, 40 of them critical, 32 of those one non-event — because 0258 exempts criticals from
+// expiry ON PURPOSE and FOREVER, and 0327 downgraded only the rows written after it.
+//
+// A test that removes the condition before testing the remedy is the same animal as a gate that
+// cannot fail. So the flood stays now, and 0258 comes with it, and the defect gets proved before
+// it gets fixed.
+await db.exec(readFileSync(join(ROOT, "supabase/migrations/0258_alert_autoexpire.sql"), "utf8"));
 await db.exec(readFileSync(join(ROOT, "supabase/migrations/0327_an_alert_that_cries_wolf.sql"), "utf8"));
 ok("0327 applies against a real Postgres", true);
 ok("0327 records itself", (await q1(
-  `select count(*)::int n from public.schema_migrations where name = '0327_an_alert_that_cries_wolf'`)).n === 1);
+  `select count(*)::int n from public.schema_migrations where version = '0327_an_alert_that_cries_wolf'`)).n === 1);
+
+// ── THE DEFECT, DEMONSTRATED ───────────────────────────────────────────────────────────────────
+const stale = async () => (await q1(
+  `select count(*)::int n from public.alerts where kind='heartbeat_stale' and ack_at is null`)).n;
+ok("0327 leaves the three alerts already in the feed exactly where they were", (await stale()) === 3);
+ok("…still calling themselves critical, though 0327 has just ruled that they are not", (await q1(
+  `select count(*)::int n from public.alerts
+    where kind='heartbeat_stale' and ack_at is null and severity='critical'`)).n === 3);
+
+// Age them two months and sweep. 0258 is the ONLY mechanism that could clear them without a person.
+await db.exec(`update public.alerts set created_at = now() - interval '60 days' where kind='heartbeat_stale'`);
+await db.exec(`select public.alert_autoexpire()`);
+ok("…and no amount of age lets the sweep reach them: critical is exempt, so they are permanent",
+  (await stale()) === 3, await stale());
+
+// ── 0333: THE FIX APPLIED TO THE FIX'S OWN OUTPUT ──────────────────────────────────────────────
+await db.exec(readFileSync(join(ROOT, "supabase/migrations/0333_the_fix_shipped_and_the_flood_stayed.sql"), "utf8"));
+ok("0333 applies against a real Postgres", true);
+ok("0333: the three become ONE open line — 0327's contract, applied to what 0327 left behind",
+  (await stale()) === 1, await stale());
+ok("0333: …carrying the count of all three, not resetting to one", Number((await q1(
+  `select occurrences from public.alerts where kind='heartbeat_stale' and ack_at is null`)).occurrences) === 3);
+ok("0333: …at the severity 0327 decided on, so the sweep can finally reach it", (await q1(
+  `select severity from public.alerts where kind='heartbeat_stale' and ack_at is null`)).severity === "important");
+ok("0333: …and titled what it actually means", /no uptime monitor/i.test((await q1(
+  `select title from public.alerts where kind='heartbeat_stale' and ack_at is null`)).title));
+
+// NOT DELETED. 0258's own rule: the row stays for history, it just leaves the live feed. A fix that
+// destroyed an owner's alert history to tidy his inbox would be a worse bug than the one it fixed.
+ok("0333: the folded rows are acknowledged, not destroyed — the history survives", (await q1(
+  `select count(*)::int n from public.alerts where kind='heartbeat_stale' and ack_at is not null`)).n === 2);
+ok("0333: …and acknowledged by nobody, which is this app's way of saying a mechanism did it", (await q1(
+  `select count(*)::int n from public.alerts
+    where kind='heartbeat_stale' and ack_at is not null and ack_by is null`)).n === 2);
+
+// THE RE-RUN. A fold that double-counts would inflate the exact number it exists to make honest.
+await db.exec(readFileSync(join(ROOT, "supabase/migrations/0333_the_fix_shipped_and_the_flood_stayed.sql"), "utf8"));
+ok("0333 is idempotent — a second run folds one row into itself and changes nothing",
+  (await stale()) === 1 && Number((await q1(
+    `select occurrences from public.alerts where kind='heartbeat_stale' and ack_at is null`)).occurrences) === 3);
+
+// And now the sweep CAN reach it, which is the whole point of restating the severity.
+await db.exec(`update public.alerts set created_at = now() - interval '60 days' where ack_at is null and kind='heartbeat_stale'`);
+await db.exec(`select public.alert_autoexpire()`);
+ok("0333: the row 0258 could never touch now ages out on its own, through the mechanism that already existed",
+  (await stale()) === 0, await stale());
+
+// ── IT MUST NOT HAVE TOUCHED ANYBODY ELSE'S CRITICALS ──────────────────────────────────────────
+// The failure mode of "tidy the inbox" is tidying away the one alert that mattered. 0333 is allowed
+// to restate heartbeat_stale because 0327 already ruled on it. Nothing else.
+await db.exec(`insert into public.alerts (severity, category, title, body, kind)
+  values ('critical','order','A paid order has not moved','x','shop_order_stalled'),
+         ('critical','system','Something nobody has ruled on','x',null)`);
+await db.exec(`update public.alerts set created_at = now() - interval '90 days' where ack_at is null`);
+await db.exec(readFileSync(join(ROOT, "supabase/migrations/0333_the_fix_shipped_and_the_flood_stayed.sql"), "utf8"));
+ok("0333 does not clear other people's criticals, at any age — that is a human's call", (await q1(
+  `select count(*)::int n from public.alerts where ack_at is null and severity='critical'`)).n === 2,
+  (await q1(`select count(*)::int n from public.alerts where ack_at is null and severity='critical'`)).n);
+
+// ── AND IT SAYS SO OUT LOUD ────────────────────────────────────────────────────────────────────
+// Nothing in this app could answer "is the feed still readable", which is why two months of it
+// going wrong was only ever noticed by a person scrolling.
+const health = await q1(`select * from public.v_alert_feed_health`);
+ok("v_alert_feed_health counts the unacked", health.unacked === 2, health);
+ok("…and names the criticals no timer will ever clear", health.criticals === 2, health);
+ok("…and the ones that have outlived every window any other severity gets",
+  health.criticals_past_every_window === 2, health);
+ok("…and gives a verdict in words, not a number to re-interpret on every screen",
+  /only a person can clear them/i.test(health.verdict), health.verdict);
+
+// The invisible ones. An alert past the fetch limit is not low in the list — it is not fetched, not
+// counted in the badge, and cannot be acknowledged from any screen.
+await db.exec(`insert into public.alerts (severity, category, title, body, kind)
+  select 'critical','system','filler '||g,'x',null from generate_series(1,40) g`);
+const h2 = await q1(`select * from public.v_alert_feed_health`);
+ok("…and counts what the feed cannot show at all", h2.beyond_the_feed_window === 12, h2);
+ok("…flagging an invisible critical above everything else, because a noisy feed is at least readable",
+  h2.criticals_nobody_can_see > 0 && /no screen fetches/i.test(h2.verdict), h2.verdict);
+
+// ── THE ORIGINAL CLAIM, ON A CLEAN FEED ────────────────────────────────────────────────────────
+// Everything above is new. What follows is 0327's own contract, unchanged and still proved.
+await db.exec(`delete from public.alerts`);
 
 await episode(240);
 await episode(150);
@@ -121,5 +228,5 @@ ok("0327: a healthy heartbeat raises nothing — the check still has to be able 
   (await q1(`select count(*)::int n from public.alerts where kind = 'heartbeat_stale'`)).n === 0);
 
 console.log(`AN ALERT THAT CRIES WOLF: ${pass} passed, ${fail} failed`);
-console.log(`0255 + 0327 executed against a real Postgres.\n`);
+console.log(`0255 + 0258 + 0327 + 0333 executed against a real Postgres.\n`);
 process.exit(fail ? 1 : 0);

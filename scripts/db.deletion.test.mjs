@@ -61,11 +61,11 @@ await db.exec(`
   create table public.inventory_ledger (id uuid primary key default gen_random_uuid(), qty numeric, batch_id uuid references public.brew_batches(id) on delete set null);
 
   -- guard candidates (no incoming cascade) and the cascade target that must stay unguarded
-  create table public.invoices        (id uuid primary key default gen_random_uuid(), amount numeric);
+  create table public.invoices        (id uuid primary key default gen_random_uuid(), amount_cents int);
   create table public.jug_ledger      (id uuid primary key default gen_random_uuid(), jugs_out int);
-  create table public.event_sales     (id uuid primary key default gen_random_uuid(), gross numeric);
-  create table public.event_economics (id uuid primary key default gen_random_uuid(),
-    event_id uuid references public.events(id) on delete cascade, revenue numeric);
+  create table public.event_sales     (id uuid primary key default gen_random_uuid(), amount_cents int);
+  create table public.event_economics (
+    event_id uuid primary key references public.events(id) on delete cascade, capture_pct numeric);
   create table public.budgets         (id uuid primary key default gen_random_uuid(), category text);
   alter table public.invoices enable row level security;
   alter table public.budgets  enable row level security;
@@ -138,7 +138,7 @@ ok("a non-crew caller is refused", /only crew/i.test(notCrew || ""), notCrew);
 await db.exec(`set test.staff = 'on'`);
 
 // ── 4) the guards ──────────────────────────────────────────────────────────────────────────────
-await db.exec(`insert into public.invoices (amount) values (250)`);
+await db.exec(`insert into public.invoices (amount_cents) values (25000)`);
 const inv = await raises(`delete from public.invoices`);
 ok("an invoice cannot be hard-deleted", /blocked on invoices/i.test(inv || ""), inv);
 ok("the refusal says what to do instead", /reversing entry or a status change/i.test(inv || ""));
@@ -149,14 +149,14 @@ ok("the deliberate escape hatch works — a guard nobody can get past is a guard
   Number((await q1(`select count(*) as n from public.invoices`)).n) === 0);
 await db.exec(`select set_config('gt3.allow_hard_delete','off',false)`);
 
-await db.exec(`insert into public.jug_ledger (jugs_out) values (4); insert into public.event_sales (gross) values (900);`);
+await db.exec(`insert into public.jug_ledger (jugs_out) values (4); insert into public.event_sales (amount_cents) values (90000);`);
 ok("the jug ledger is guarded too", /blocked on jug_ledger/i.test(await raises(`delete from public.jug_ledger`) || ""));
 ok("so are event sales", /blocked on event_sales/i.test(await raises(`delete from public.event_sales`) || ""));
 
 // THE ONE THAT WOULD HAVE BROKEN THE APP. event_economics cascades from events, and events ARE
 // deleted from the console. A guard on the child would have made every event undeletable.
 const ev = (await db.query(`insert into public.events (title) values ('Saturday') returning id`)).rows[0].id;
-await db.exec(`insert into public.event_economics (event_id, revenue) values ('${ev}', 1200)`);
+await db.exec(`insert into public.event_economics (event_id, capture_pct) values ('${ev}', 0.12)`);
 const cascade = await raises(`delete from public.events where id = '${ev}'`);
 ok("deleting an event still works — its economics row is a cascade target and was left unguarded",
   cascade === null, cascade);

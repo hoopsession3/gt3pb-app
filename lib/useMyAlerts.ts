@@ -26,6 +26,12 @@ export type MyFlag = {
   kind: string | null;         // 0174 action contract — names the inline handler
   subject_id: string | null;   // the row that handler acts on
   created_at: string;          // 2026-07-30 (Ryan: "put dates to these alerts") — an alert with no age is a rumor
+  // 0327 added this column so a recurring condition could be ONE line that says how many times.
+  // It wrote the number and nothing ever read it: on 2026-09-30 a row in production stood at ×6 and
+  // no screen had ever shown it. A count that is stored and never displayed is not a feature, it is
+  // a second copy of the thing you were trying to stop — the flood, invisible.
+  occurrences: number | null;
+  last_seen_at: string | null; // when this condition was last true, as opposed to first noticed
 };
 
 // Quiet hours: is the local clock currently inside [start, end)? Wrap-aware (22→7 spans midnight).
@@ -46,7 +52,7 @@ export function useMyAlerts(userId: string | null, enabled = true) {
     const nowIso = new Date().toISOString();
     const [{ data: alerts }, { data: reads }, { data: prefsRow }, { data: snz }] = await Promise.all([
       supabase.from("alerts")
-        .select("id, severity, title, body, category, link, target_user_id, created_by, kind, subject_id, created_at")
+        .select("id, severity, title, body, category, link, target_user_id, created_by, kind, subject_id, created_at, occurrences, last_seen_at")
         .or(`target_user_id.eq.${userId},target_user_id.is.null`)
         .is("ack_at", null)
         .order("created_at", { ascending: false })

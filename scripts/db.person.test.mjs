@@ -49,8 +49,8 @@ await db.exec(`
     operator_user_id uuid, status text default 'draft', covers text[] default '{}',
     scope_basis text default 'standing', scope_until text, created_at timestamptz default now());
   create table public.academy_assignments (id uuid primary key default gen_random_uuid(), user_id uuid);
-  create table public.academy_progress (id uuid primary key default gen_random_uuid(), user_id uuid);
-  create table public.academy_acknowledgements (id uuid primary key default gen_random_uuid(), user_id uuid);
+  create table public.academy_progress (user_id uuid, module_slug text default 'm', primary key (user_id, module_slug));
+  create table public.academy_acknowledgements (user_id uuid, doc_key text default 'd', primary key (user_id, doc_key));
   create table public.user_activity (user_id uuid, seen_on date, last_seen_at timestamptz,
     logins int default 0, actions int default 0);
   create or replace view public.v_agreement_hours as

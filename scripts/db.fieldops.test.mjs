@@ -55,7 +55,7 @@ await db.exec(`
     name text not null, location_text text, lat double precision, lng double precision,
     starts_at timestamptz, ends_at timestamptz, status text, note text, menu_tier text, sort int default 0,
     when_label text, time_label text, tag_label text, notes text, address text,
-    -- poc_name/poc_phone/poc_email/service_dates: present here because this stub is prod state as
+    -- scaffold: poc_name/poc_phone/poc_email/service_dates are present because this stub is prod state as
     -- of ~0221 (right before 0222 applies, which still backfills them into field_ops from here) —
     -- they aren't dropped until 0240, applied near the bottom of this file (section 9), matching
     -- their real chronological position in migration history. Don't remove them from this stub.

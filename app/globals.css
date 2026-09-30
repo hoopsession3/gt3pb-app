@@ -2256,6 +2256,11 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .alert-title{display:block;font-family:'Inter';font-weight:600;font-size:14px;color:var(--cream);line-height:1.3}
 /* When the alert fired (2026-07-30, Ryan: "put dates to these alerts") — every card and digest
    row carries its age; an alert with no timestamp reads as a rumor. */
+/* 0327 folded a repeating condition into one row and counted it; 0333 is what finally shows the
+   count. Reads as a tally, not a badge — the number is information about the alert, not an alarm
+   of its own, and styling it loud would re-create the noise the fold removed. */
+.alert-times{display:inline-block;margin-left:6px;padding:1px 5px;border-radius:999px;font-family:var(--mono);font-weight:600;font-size:10px;letter-spacing:.02em;color:var(--cream-m);background:rgba(255,255,255,.07);vertical-align:middle}
+.app.crew-day .alert-times{color:rgba(26,22,16,.62);background:rgba(26,22,16,.07)}
 .alert-when{display:inline-block;margin-left:8px;font-family:var(--mono);font-weight:500;font-size:10px;letter-spacing:.02em;color:var(--cream-m);white-space:nowrap;vertical-align:middle}
 .app.crew-day .alert-when{color:rgba(26,22,16,.5)}
 .alert.sev-critical .alert-title{color:#ecb4b1}

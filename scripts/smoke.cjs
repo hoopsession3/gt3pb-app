@@ -3204,6 +3204,134 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 }
 
 
+// ── A TEST DOUBLE THAT LIES ABOUT ITS ORIGINAL (2026-09-30) ──────────────────────────────────────
+// Thirteen db.*.test.mjs files stand up a fake world in PGlite and run real migrations against it.
+// Eleven stubbed public.schema_migrations the way 0304 actually defines it. Two invented a column:
+// `name text primary key`, where production has `version`.
+//
+// That is not cosmetic. A double is the description of the real thing that everything downstream
+// reads — and on 2026-09-30 it was read, twice, and `schema_migrations.name` went into SQL run
+// against the live database. Both times Postgres answered `column "name" does not exist`, and both
+// times the wrong name had come from these files. A stub that contradicts its original does not
+// merely fail to catch bugs. It teaches them.
+//
+// TRUTH COMES FROM supabase/schema.columns.json — the column contract, read out of the live
+// database by scripts/columns.audit.mjs. The first version of this gate parsed the migrations
+// instead and got four false positives in its first run (`stops.archived_at`, `live_status
+// .tenant_id` and two more, all real, all added by ALTER statements the regex fumbled). A rule that
+// reconstructs the schema is a second home for the schema, which is the bug one level up.
+//
+// SCAFFOLDING IS ALLOWED, SILENCE IS NOT. A test may stub a cut-down table with a column production
+// does not have — but the line says `-- scaffold:` and why, the same way a tenant-scope exception
+// says `// scoped-by:`. The difference between a considered simplification and drift is whether
+// anyone wrote down which one it is.
+{
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const root = path.join(__dirname, "..");
+
+  let contract = null;
+  try { contract = JSON.parse(fs.readFileSync(path.join(root, "supabase/schema.columns.json"), "utf8")); } catch { /* reported below */ }
+  const colsOf = (t) => {
+    const v = contract?.[t];
+    if (!v) return null;
+    const c = Array.isArray(v) ? v : (v.columns ?? v);
+    const list = Array.isArray(c) ? c : Object.keys(c);
+    return new Set(list.map((x) => String(x).toLowerCase()));
+  };
+
+  // A FAILED READ IS NOT AN EMPTY LIST. Without the contract this gate would pass every file by
+  // finding nothing to judge — the precise shape of the dead check found in columns.audit itself.
+  ok("test doubles: the column contract was read", (colsOf("schema_migrations")?.size ?? 0) >= 6,
+    colsOf("schema_migrations")?.size ?? 0);
+  ok("test doubles: …and it says the ledger's key column is version, not name",
+    colsOf("schema_migrations")?.has("version") === true && colsOf("schema_migrations")?.has("name") === false);
+
+  // Reads a `create table public.X (...)` body and returns the columns it declares that the real X
+  // does not have. Unknown tables are not this rule's business: a fixture with no production
+  // counterpart is a fixture, and the contract predates any table added after its last refresh.
+  // LINE BY LINE, not comma by comma. The first cut split the whole body on "," and dragged three
+  // English words out of a prose comment ("which", "applied", "matching") and reported them as
+  // columns. A column declaration lives on one line; a comment does too.
+  //
+  // The marker reaches FOUR LINES FORWARD, the same distance the tenant-scope audit reads back for
+  // `// scoped-by:`. db.fieldops keeps four dropped columns on purpose and explains why in four
+  // lines directly above them — a rule that demanded the words be moved onto each column would be
+  // asking a considered comment to be made worse to satisfy a parser.
+  const invented = (sql, where) => {
+    const out = [];
+    for (const m of sql.matchAll(/create\s+table\s+(?:if\s+not\s+exists\s+)?public\.([a-z_][a-z0-9_]*)\s*\(([\s\S]*?)\)\s*;/gi)) {
+      const truth = colsOf(m[1].toLowerCase());
+      if (!truth) continue;
+      let excusedFor = 0;
+      for (const rawLine of m[2].split("\n")) {
+        if (/--\s*scaffold:/i.test(rawLine)) { excusedFor = 5; }          // this line and four after
+        const bare = rawLine.replace(/--.*$/, "");                        // a note is not a column
+        if (excusedFor > 0) { excusedFor--; if (bare.trim()) continue; }
+        for (const raw of bare.split(",")) {
+          const c = /^\s*([a-z_][a-z0-9_]*)\s+[a-z]/i.exec(
+            raw.replace(/^\s*(constraint|primary|unique|foreign|check|exclude)\b[\s\S]*/i, ""));
+          if (c && !truth.has(c[1].toLowerCase())) out.push(`${where}: public.${m[1]}.${c[1]}`);
+        }
+      }
+    }
+    return out;
+  };
+
+  const found = [];
+  for (const f of fs.readdirSync(path.join(root, "scripts")).filter((n) => /^db\..*\.test\.mjs$/.test(n))) {
+    found.push(...invented(fs.readFileSync(path.join(root, "scripts", f), "utf8"), f));
+  }
+  ok("test doubles: no db test invents a column its real table does not have, unmarked",
+    found.length === 0, found);
+
+  // PROVE IT BITES. A gate this quiet is worthless unless it can fail, and the defect it exists for
+  // is a plausible-looking column name that production does not have. Fed the exact stub that
+  // shipped, it must name the invented column — and must NOT flag the one that is real.
+  const planted = invented(
+    `create table public.schema_migrations (name text primary key, version text, note text);`, "planted");
+  ok("test doubles: fed the stub that actually shipped, the gate names the invented column",
+    planted.length === 1 && planted[0].endsWith(".name"), planted);
+  // …and the escape hatch has to work, or the next person deletes the rule instead of using it.
+  const marked = invented(
+    "create table public.schema_migrations (\n  -- scaffold: only the key matters in this fixture\n" +
+    "  name text primary key,\n  note text\n);", "planted");
+  ok("test doubles: …and a column marked `-- scaffold:` with a reason is left alone", marked.length === 0, marked);
+}
+
+// ── THE FEED WINDOW, WHICH TWO FILES HAVE TO AGREE ON (0333) ─────────────────────────────────────
+// lib/useMyAlerts.ts fetches the alert feed with .limit(30). v_alert_feed_health reports how many
+// unacked alerts fall PAST that limit — rows that are not low in the list but absent from it: not
+// fetched, not counted in the badge, and impossible to acknowledge from any screen.
+//
+// That is one number living in two files, which is the drift this repo keeps finding. It cannot be
+// collapsed into one home — a React hook cannot read a Postgres view's definition at build time and
+// the view cannot read the hook — so it is declared a KNOWN PAIR and checked, the same treatment
+// raiseAlertOnce and shop_order_stall_watchdog get. A pair that is named but not enforced is just
+// drift with a comment on it, which is precisely what 0327's own note turned out to be.
+{
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const root = path.join(__dirname, "..");
+
+  const hook = fs.readFileSync(path.join(root, "lib/useMyAlerts.ts"), "utf8");
+  const mig = path.join(root, "supabase/migrations/0333_the_fix_shipped_and_the_flood_stayed.sql");
+  const sql = fs.existsSync(mig) ? fs.readFileSync(mig, "utf8") : "";
+
+  const fromHook = /\.limit\((\d+)\)/.exec(hook.slice(hook.indexOf('from("alerts")')));
+  const declared = /--\s*feed-window:\s*(\d+)/i.exec(sql);
+  const used = /where rn >\s*(\d+)/i.exec(sql);
+
+  // A FAILED READ IS NOT A MATCH. If either side stops being found — the hook rewritten, the marker
+  // deleted — this must fail loudly rather than quietly comparing nothing to nothing.
+  ok("feed window: the alert hook's limit was found", fromHook !== null, fromHook && fromHook[1]);
+  ok("feed window: the migration declares it with `-- feed-window:`", declared !== null);
+  ok("feed window: …and the view actually uses that number", used !== null);
+  ok("feed window: the hook and the view agree on where the feed stops",
+    fromHook && declared && used && fromHook[1] === declared[1] && declared[1] === used[1],
+    { hook: fromHook && fromHook[1], declared: declared && declared[1], view: used && used[1] });
+}
+
 // Everything above is synchronous except what PENDING holds. Printing the summary before those
 // land would report a pass count that is wrong in the flattering direction — exactly the kind of
 // quiet lie the rest of this file exists to refuse.

@@ -93,7 +93,7 @@ await db.exec(`
     from public.compliance_rules r where r.active;
 
   -- the three that must NOT appear, present so their absence is a choice and not an accident
-  create table public.event_tasks (id uuid primary key default gen_random_uuid(), title text,
+  create table public.event_tasks (id uuid primary key default gen_random_uuid(), label text,
     due_at timestamptz, done boolean default false);
   create table public.brew_batches (id uuid primary key default gen_random_uuid(), needed_by timestamptz);
   create table public.reserve_claims (id uuid primary key default gen_random_uuid(), hold_expires_at timestamptz);
@@ -165,7 +165,7 @@ await db.exec(`
 
 // ── the exclusions, which are the whole design argument ────────────────────────────────────────
 await db.exec(`
-  insert into public.event_tasks (title, due_at) values ('Swept by task_due_alerts', now() - interval '2 days');
+  insert into public.event_tasks (label, due_at) values ('Swept by task_due_alerts', now() - interval '2 days');
   insert into public.brew_batches (needed_by) values (now() - interval '1 day');
   insert into public.reserve_claims (hold_expires_at) values (now() - interval '1 hour');
 `);

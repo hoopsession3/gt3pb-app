@@ -37,17 +37,22 @@ await db.exec(`
     id uuid primary key default gen_random_uuid(), title text, category text, area text,
     summary text, shipped_on date, highlight boolean default false
   );
-  create table public.schema_migrations (name text primary key, note text, applied_at timestamptz default now());
-  create or replace function public.record_migration(p_name text, p_note text) returns void language sql as $$
-    insert into public.schema_migrations (name, note) values (p_name, p_note)
-    on conflict (name) do update set note = excluded.note $$;
+  -- See the note in db.alertnoise: this stub called the ledger's key column "name". Production
+  -- (0304) calls it "version". Corrected to match, and gated in scripts/smoke.cjs.
+  create table public.schema_migrations (version text primary key, seq int not null,
+    applied_at timestamptz default now(), note text, applied_count int default 1, evidence text);
+  create or replace function public.record_migration(p_version text, p_note text default null)
+    returns void language sql as $$
+    insert into public.schema_migrations (version, seq, applied_at, note)
+    values (p_version, coalesce(nullif(substring(p_version from '^[0-9]{4}'), '')::int, 0), now(), p_note)
+    on conflict (version) do update set applied_count = public.schema_migrations.applied_count + 1 $$;
 `);
 
 // ── the migration itself, from its file ────────────────────────────────────────────────────────
 await db.exec(readFileSync(join(ROOT, "supabase/migrations/0326_what_we_told_the_customer.sql"), "utf8"));
 ok("0326 applies against a real Postgres", true);
 ok("0326 records itself in the ledger",
-  (await q1(`select count(*)::int n from public.schema_migrations where name = '0326_what_we_told_the_customer'`)).n === 1);
+  (await q1(`select count(*)::int n from public.schema_migrations where version = '0326_what_we_told_the_customer'`)).n === 1);
 ok("0326 says what changed, once — re-running must not duplicate the changelog line",
   (await q1(`select count(*)::int n from public.changelog where title = 'Every email we send a customer is now on the order'`)).n === 1);
 
@@ -180,7 +185,7 @@ const outcomeOf = async (id) => (await q1(`select outcome from public.v_customer
 
 ok("0332 recorded itself",
   Number((await q1(`select count(*) n from public.schema_migrations
-                     where name = '0332_sent_meant_the_provider_took_it'`))?.n) === 1);
+                     where version = '0332_sent_meant_the_provider_took_it'`))?.n) === 1);
 
 console.log(`WHAT WE TOLD THE CUSTOMER: ${pass} passed, ${fail} failed`);
 console.log(`0326 + 0332 executed against a real Postgres.\n`);
