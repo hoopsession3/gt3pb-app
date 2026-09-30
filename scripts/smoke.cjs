@@ -1442,7 +1442,20 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const S = require("../.smoke/shopOrder.js");
   const { readFileSync } = require("node:fs");
   const { join } = require("node:path");
-  const sql = readFileSync(join(__dirname, "..", "supabase/migrations/0313_a_paid_order_nobody_can_see.sql"), "utf8");
+  // REACH, corrected 2026-09-30. This read 0313 BY NAME. The rule was right and its reach was
+  // wrong, exactly like the deep-link gate three migrations ago: `create or replace function`
+  // means a later migration can redefine set_shop_order_status, and 0334 did — so this compared
+  // the screen against a definition the database had already replaced, and would have passed while
+  // the two genuinely disagreed. The newest definition wins here for the same reason it wins in
+  // Postgres. Nothing is hardcoded: both sides are read and compared to each other, so a
+  // deliberate change passes as soon as both are edited.
+  const { readdirSync } = require("node:fs");
+  const migDir = join(__dirname, "..", "supabase/migrations");
+  const defining = readdirSync(migDir).filter((n) => n.endsWith(".sql")).sort()
+    .filter((n) => readFileSync(join(migDir, n), "utf8")
+      .includes("create or replace function public.set_shop_order_status"));
+  ok("shopOrder: at least one migration defines the transition table", defining.length >= 1, defining);
+  const sql = readFileSync(join(migDir, defining[defining.length - 1]), "utf8");
 
   const block = (sql.match(/legal\s*:=\s*case o\.status([\s\S]*?)end;/) || [])[1] || "";
   const fromSql = {};

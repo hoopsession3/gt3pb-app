@@ -101,7 +101,15 @@ export const SHOP_STATUS_META: Record<ShopStatus, StatusMeta> = {
 export const SHOP_FLOW: Record<ShopStatus, readonly ShopStatus[]> = {
   paid: ["needs_fulfillment", "submitted", "canceled", "refunded"],
   needs_fulfillment: ["submitted", "shipped", "canceled", "refunded"],
-  submitted: ["in_production", "shipped", "canceled", "refunded"],
+  // 'submitted' → 'needs_fulfillment' added 2026-09-30, and the reason was written onto 'submitted'
+  // itself the day before: "Their importer can refuse the order afterwards and tells the account
+  // owner by EMAIL, which never reaches here." That refusal is the documented failure mode of this
+  // state, it is exactly what happened to the first cap, and until now the state had NO EXIT for
+  // it. When the printer handed an order back, the crew's only moves were: claim it is in
+  // production, claim it shipped, cancel it, or refund it. Three of those four are lies, and the
+  // fourth throws away a sale that is still perfectly fulfillable by hand. A state machine that
+  // documents a failure and then offers no move for it is asking an operator to lie.
+  submitted: ["needs_fulfillment", "in_production", "shipped", "canceled", "refunded"],
   in_production: ["shipped", "refunded"],
   shipped: ["delivered", "refunded"],
   delivered: ["refunded"],

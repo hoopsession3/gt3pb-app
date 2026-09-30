@@ -99,7 +99,21 @@ export async function firstSeen(provider: "apliiq" | "square", eventId: string):
 // required, no country or country_code, lineItems for line_items, and productId where a per-size
 // `sku` ("APQ-########S#A#") is required — plus no per-line id, title or price. A paid order would
 // have been rejected outright. lib/apliiqOrder builds and validates the body; this signs and posts.
-export type ApliiqSubmit = { ok: true; apliiqOrderId: string | null } | { ok: false; error: string };
+// ── ok:true WITH NO ID WAS A REPRESENTABLE STATE (2026-09-30) ──────────────────────────────────
+// It used to read `{ ok: true; apliiqOrderId: string | null }`, and checkout wrote
+// `status = 'submitted'` on any `submit.ok`. So a 2xx whose body we could not read — empty, a
+// different field name, an HTML error page served with 200 — set the status whose own definition
+// (lib/shopOrder) is "We sent it and Apliiq's API returned an id."
+//
+// That is what happened to the first cap: shop_orders holds status='submitted' with
+// apliiq_order_id NULL. The sentence 0329 wrote to stop this app overstating itself was overstating
+// itself, on the only real order in the database.
+//
+// The id is not a nice-to-have. /api/apliiq/fulfillment matches their callbacks on
+// apliiq_order_id, so a null one cannot ever be joined: the order could not hear back even if
+// Apliiq did something. Success now REQUIRES the id, so "we have no idea whether they took it"
+// lands in the crew queue with a reason instead of wearing the word for its opposite.
+export type ApliiqSubmit = { ok: true; apliiqOrderId: string } | { ok: false; error: string };
 export async function submitOrderToApliiq(order: {
   id: string;
   ship: OrderShip;
@@ -125,7 +139,13 @@ export async function submitOrderToApliiq(order: {
     }
     const data = (await r.json().catch(() => ({}))) as { Id?: string | number; id?: string | number };
     const id = data.Id ?? data.id ?? null;
-    return { ok: true, apliiqOrderId: id != null ? String(id) : null };
+    const idStr = id == null ? "" : String(id).trim();
+    // A 2xx we cannot read is not an acceptance. Reported as a failure so the order goes to the
+    // crew queue as needs_fulfillment — which is exactly what it is: paid, and nobody can show the
+    // printer has it. The status text for that one says "the printer either wasn't reachable or
+    // hasn't been asked", and both of those are truer than "Apliiq returned an id".
+    if (!idStr) return { ok: false, error: `Apliiq ${r.status} but no order id in the reply — cannot prove they took it` };
+    return { ok: true, apliiqOrderId: idStr };
   } catch (e) {
     return { ok: false, error: String((e as Error)?.message ?? e).slice(0, 120) };
   }

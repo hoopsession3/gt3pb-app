@@ -290,5 +290,101 @@ ok("0313 recorded itself by filename",
   (await q1(`select version as v from public.schema_migrations where seq=313`)).v === "0313_a_paid_order_nobody_can_see");
 ok("and said what changed, twice", Number((await q1(`select count(*) as c from public.changelog`)).c) === 2);
 
+
+// ── 12) "SUBMITTED" MEANT THEY GAVE US AN ID — AND THEY DID NOT (0334) ────────────────────────
+// Production held exactly one order on 2026-09-30: status='submitted', apliiq_order_id NULL. That
+// status is DEFINED as "Apliiq's API returned an id", so the row was a false statement — and a null
+// id is also unjoinable by /api/apliiq/fulfillment, which matches their callbacks on it.
+//
+// The defect is reproduced FIRST, against 0313 alone, because a fix whose bug you cannot
+// demonstrate is a fix you cannot trust.
+{
+  const lie = (await q1(`insert into public.shop_orders (email, total_cents, status, apliiq_order_id)
+    values ('x@y.com', 3200, 'submitted', null) returning id`)).id;
+  ok("0313: a row can claim 'submitted' with no Apliiq id — the bug, reproduced",
+    (await q1(`select count(*)::int n from public.shop_orders
+                where status='submitted' and apliiq_order_id is null`)).n === 1);
+
+  // AND IT HAD NOWHERE TO GO. The printer refusing an order after we send it is this state's own
+  // documented failure mode, and 0313 gave it no exit back to the queue.
+  let refused = null;
+  try { await db.exec(`select public.set_shop_order_status('${lie}', 'needs_fulfillment', 'handed back')`); }
+  catch (e) { refused = String(e?.message ?? e); }
+  ok("0313: …and the printer handing it back is a move the database refuses",
+    refused !== null && /can go to/.test(refused), refused);
+  // Read the LIST the error offers, not the whole sentence — the message ends "Not
+  // needs_fulfillment", so a naive match on the string finds it in the refusal itself. My first
+  // version of this assertion did exactly that and failed on a correct database.
+  const offered = (/can go to: ([^.]*)\./.exec(refused ?? "") ?? [])[1] ?? "";
+  ok("0313: …leaving only claim-production, claim-shipped, cancel or refund",
+    /in_production/.test(offered) && !/needs_fulfillment/.test(offered), offered);
+
+  // ── 0334 ───────────────────────────────────────────────────────────────────────────────────
+  await db.exec(readFileSync(join(ROOT, "supabase/migrations/0334_submitted_meant_they_gave_us_an_id.sql"), "utf8"));
+  ok("0334 applies against a real Postgres", true);
+
+  ok("0334: the row that could not prove it is now needs_fulfillment, not cancelled or refunded",
+    (await q1(`select status from public.shop_orders where id='${lie}'`)).status === "needs_fulfillment");
+  ok("0334: …with the reason written on the row, not just in a migration nobody rereads",
+    /no Apliiq order id/.test((await q1(`select status_note from public.shop_orders where id='${lie}'`)).status_note));
+  // THE MONEY IS NOT TOUCHED. A repair that quietly refunded a live sale would be far worse than
+  // the mislabel it fixed.
+  ok("0334: …and the money is exactly where it was — nothing refunded, nothing cancelled",
+    (await q1(`select coalesce(refund_amount_cents,0)::int r, total_cents::int t
+                 from public.shop_orders where id='${lie}'`)).r === 0);
+
+  // THE CLAIM IS NOW UNREPRESENTABLE, which is the point — not a comment asking nicely.
+  let blocked = null;
+  try {
+    await db.exec(`insert into public.shop_orders (email, total_cents, status, apliiq_order_id)
+      values ('a@b.com', 100, 'submitted', null)`);
+  } catch (e) { blocked = String(e?.message ?? e); }
+  ok("0334: the database now refuses 'submitted' with no id, on insert", blocked !== null, blocked);
+
+  let blocked2 = null;
+  const ok1 = (await q1(`insert into public.shop_orders (email, total_cents, status, apliiq_order_id)
+    values ('c@d.com', 100, 'submitted', 'APQ-REAL-1') returning id`)).id;
+  try { await db.exec(`update public.shop_orders set apliiq_order_id = null where id='${ok1}'`); }
+  catch (e) { blocked2 = String(e?.message ?? e); }
+  ok("0334: …and on update — the id cannot be taken back off a submitted order", blocked2 !== null, blocked2);
+
+  // …while a real id is accepted, or the constraint would just be an outage.
+  ok("0334: an order WITH an id is submitted normally",
+    (await q1(`select status from public.shop_orders where id='${ok1}'`)).status === "submitted");
+
+  // THE EXIT EXISTS NOW. Wrapped, because an unguarded exec here TAKES THE WHOLE FILE DOWN rather
+  // than failing one assertion — planting the defect (dropping the new move) printed no output at
+  // all instead of a red line, which is a test that cannot report the thing it exists to report.
+  let handBack = null;
+  try { await db.exec(`select public.set_shop_order_status('${ok1}', 'needs_fulfillment', 'Apliiq refused it by email')`); }
+  catch (e) { handBack = String(e?.message ?? e); }
+  ok("0334: the printer can hand an order back and the queue takes it", handBack === null, handBack);
+  ok("0334: …and the order really is back in the queue",
+    (await q1(`select status from public.shop_orders where id='${ok1}'`)).status === "needs_fulfillment");
+
+  // AND NOTHING ELSE MOVED. The splice changed one array; every other guard 0313 wrote must stand,
+  // including the refund floor I nearly turned from `<= 0` into `< 0` by retyping the function.
+  let zero = null;
+  const paid2 = (await q1(`insert into public.shop_orders (email, total_cents, status)
+    values ('e@f.com', 3200, 'paid') returning id`)).id;
+  try { await db.exec(`select public.set_shop_order_status('${paid2}', 'refunded', 'test', 0)`); }
+  catch (e) { zero = String(e?.message ?? e); }
+  ok("0334: a zero-cent refund is still refused — 0313's floor survived the re-emit", zero !== null, zero);
+
+  let noReason = null;
+  try { await db.exec(`select public.set_shop_order_status('${paid2}', 'canceled', '')`); }
+  catch (e) { noReason = String(e?.message ?? e); }
+  ok("0334: cancelling still demands a reason", noReason !== null, noReason);
+
+  let overRefund = null;
+  try { await db.exec(`select public.set_shop_order_status('${paid2}', 'refunded', 'test', 999999)`); }
+  catch (e) { overRefund = String(e?.message ?? e); }
+  ok("0334: a refund larger than the charge is still refused", overRefund !== null, overRefund);
+
+  ok("0334 recorded itself",
+    (await q1(`select count(*)::int n from public.schema_migrations
+                where version = '0334_submitted_meant_they_gave_us_an_id'`)).n === 1);
+}
+
 console.log(`\nA PAID ORDER NOBODY CAN SEE: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
