@@ -3400,6 +3400,79 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   }
 }
 
+// ── AN ALERT GUARD MAY NOT MATCH ON PROSE (0336) ─────────────────────────────────────────────────
+// 0174 decided whether the café already had an open "orders are backing up" alert with
+//
+//     where category = 'order' and title like '%waiting on the pass%'
+//
+// three lines above an INSERT that sets kind = 'order_stale'. The key was written by the same
+// statement and not used. Editing that sentence — for readability, for translation, because someone
+// prefers "counter" — makes the guard match nothing, and the cron is */5: one alert every five
+// minutes, arriving during the exact rush the alert is about. Proved in db.alertnoise: six runs,
+// six alerts, after changing one word.
+//
+// 19 migrations in this repo contain a hand-written guard of this shape. They are NOT rewritten —
+// eighteen of them are a recorded backlog, because re-emitting working watchdogs at three in the
+// morning is how a good night breaks something. FLOOR, like every other rule here: 0336 is where
+// alert_open_once exists, so 0336 is where this starts.
+{
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const FLOOR = 336;
+  const migDir = path.join(__dirname, "..", "supabase", "migrations");
+
+  // SQL comments are `--`. This block's own explanation quotes the broken guard, and so does 0336's
+  // header while explaining why it is gone — reading the file raw finds the defect inside the
+  // sentence describing the fix, which is the trap the resubmit gate fell into two migrations ago.
+  // Comments FIRST (an apostrophe in "0174's guard" would otherwise derail the literal scan), then
+  // STRING LITERALS. Both are needed: the first cut of this gate flagged 0336 itself, because its
+  // record_migration note quotes the broken guard while explaining why it is gone. Stripping
+  // literals to '' leaves a real guard as `title like ''` — still findable — while prose that merely
+  // mentions one disappears entirely, since that prose only ever lives INSIDE a literal.
+  //
+  // Third time tonight a gate has matched the sentence describing the bug instead of the bug.
+  const stripSql = (t) => t
+    .split("\n").map((l) => l.replace(/--.*$/, "")).join("\n")
+    .replace(/'(?:[^']|'')*'/g, "''");
+
+  const files = fs.existsSync(migDir) ? fs.readdirSync(migDir)
+    .filter((n) => n.endsWith(".sql") && Number(n.slice(0, 4)) >= FLOOR).sort() : [];
+  ok("alert guards: the floor still names migrations to check", files.length >= 1, files.length);
+
+  const offenders = [];
+  for (const n of files) {
+    const sql = stripSql(fs.readFileSync(path.join(migDir, n), "utf8"));
+    if (!/insert\s+into\s+public\.alerts/i.test(sql)) continue;
+    // A guard that reads the alert's own prose to decide whether it already exists.
+    for (const m of sql.matchAll(/\btitle\s+(?:i?like|=)\s*''/gi)) {
+      offenders.push(`${n}: ${m[0].trim().slice(0, 60)}`);
+    }
+  }
+  ok("alert guards: no migration at or past the floor keys a dedupe on the alert's own wording",
+    offenders.length === 0, offenders);
+
+  // The replacement has to actually exist and be callable, or this rule just forbids without
+  // offering — which is how a gate gets deleted by the next person in a hurry.
+  const all = fs.readdirSync(migDir).filter((n) => n.endsWith(".sql")).sort()
+    .map((n) => fs.readFileSync(path.join(migDir, n), "utf8")).join("\n");
+  ok("alert guards: alert_open_once exists as the thing to use instead",
+    /create or replace function public\.alert_open_once/.test(all));
+  ok("alert guards: …and it has no parameter for a title to match on, so the mistake cannot be spelled",
+    !/alert_open_once\([^)]*p_title_like/i.test(all));
+
+  // PROVE IT BITES, on the exact text that shipped.
+  {
+    const planted = stripSql(
+      "insert into public.alerts (kind) values ('x');\n" +
+      "-- a comment quoting title like '%not a real guard%' must not count\n" +
+      "select 'a note that says title like ''%nor this one%'' while explaining it' as note;\n" +
+      "select 1 from public.alerts where category = 'order' and title like '%waiting on the pass%';");
+    const found = [...planted.matchAll(/\btitle\s+(?:i?like|=)\s*''/gi)].map((m) => m[0]);
+    ok("alert guards: fed 0174's own guard alongside a comment and a note that both quote it, the rule finds exactly one",
+      found.length === 1, found);
+  }
+}
+
 // Everything above is synchronous except what PENDING holds. Printing the summary before those
 // land would report a pass count that is wrong in the flattering direction — exactly the kind of
 // quiet lie the rest of this file exists to refuse.

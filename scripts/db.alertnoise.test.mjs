@@ -227,6 +227,118 @@ await db.exec(`select public.heartbeat_watchdog()`);
 ok("0327: a healthy heartbeat raises nothing — the check still has to be able to stay quiet",
   (await q1(`select count(*)::int n from public.alerts where kind = 'heartbeat_stale'`)).n === 0);
 
+
+// ── THE GUARD THAT MATCHED ON A SENTENCE (0336) ────────────────────────────────────────────────
+// 0174's alert_stale_orders asks "have I already warned about this?" with
+//   title like '%waiting on the pass%'
+// while WRITING kind='order_stale' three lines below. The key is there and unused, so the dedupe
+// survives only until somebody edits the copy — and the cron is */5.
+{
+  await db.exec(`create table if not exists public.orders (
+    id uuid primary key default gen_random_uuid(), status text, created_at timestamptz default now())`);
+  const stale = async () => (await q1(
+    `select count(*)::int n from public.alerts where kind='order_stale' or title like '%pass%'`)).n;
+  const backUp = async () => db.exec(`insert into public.orders (status, created_at)
+    values ('new', now() - interval '30 minutes')`);
+
+  await backUp();
+  await db.exec(`select public.alert_stale_orders(10)`);
+  await db.exec(`select public.alert_stale_orders(10)`);
+  ok("0174: the prose guard does hold — while the prose is untouched", (await stale()) === 1);
+
+  // NOW EDIT THE COPY — in the FUNCTION, which is what a person actually does. My first version of
+  // this test rewrote the stored ROWS instead and only produced one extra alert, so it failed
+  // against correct code and the premise was the thing that was wrong. The guard and the title live
+  // in the same function and have to agree; editing one and not the other is a two-line diff that
+  // looks like a copy change.
+  await db.exec(`delete from public.alerts where kind='order_stale'`);
+  await db.exec(`create or replace function public.alert_stale_orders(grace_min int default 10) returns int
+    language plpgsql security definer set search_path = public as $$
+    declare n int;
+    begin
+      select count(*) into n from public.orders
+       where status = 'new' and created_at < now() - make_interval(mins => greatest(grace_min, 2));
+      if n > 0 then
+        if not exists (
+          select 1 from public.alerts
+           where category = 'order' and title like '%waiting on the pass%'
+             and (ack_at is null or created_at > now() - interval '15 minutes')
+        ) then
+          insert into public.alerts (severity, category, kind, title, body, link)
+          values ('important', 'order', 'order_stale',
+                  '🧾 ' || n || ' order' || case when n = 1 then '' else 's' end || ' waiting at the counter',
+                  'A ticket has been sitting 10+ minutes in "new" — someone open the kitchen pass.',
+                  '/admin');
+        end if;
+      end if;
+      return n;
+    end $$;`);
+  for (let i = 0; i < 6; i++) await db.exec(`select public.alert_stale_orders(10)`);
+  const flooded = await stale();
+  ok("0174: one word changed in the copy and every run opens another — the flood, reproduced",
+    flooded === 6, flooded);
+  ok("0174: …and at */5 that is one alert every five minutes, all day",
+    flooded >= 6, `${flooded} alerts from 6 runs`);
+
+  // ── 0336 ───────────────────────────────────────────────────────────────────────────────────
+  await db.exec(`delete from public.alerts where kind='order_stale' or title like '%pass%' or title like '%counter%'`);
+  await db.exec(readFileSync(join(ROOT, "supabase/migrations/0336_the_guard_that_matched_on_a_sentence.sql"), "utf8"));
+  ok("0336 applies against a real Postgres", true);
+
+  await db.exec(`select public.alert_stale_orders(10)`);
+  await db.exec(`select public.alert_stale_orders(10)`);
+  ok("0336: two runs, one alert", (await stale()) === 1);
+
+  // THE ONE THAT MATTERS. Same edit, same reason, and now it changes nothing — because the guard
+  // asks about the key the producer writes, not about the sentence a human can rewrite.
+  await db.exec(`update public.alerts set title = replace(title, 'waiting on the pass', 'waiting at the counter')
+                  where kind = 'order_stale'`);
+  await db.exec(`select public.alert_stale_orders(10)`);
+  await db.exec(`select public.alert_stale_orders(10)`);
+  ok("0336: rewording the copy no longer breaks the dedupe — the landmine, disarmed",
+    (await stale()) === 1, await stale());
+
+  // 0174's COOLDOWN, which I nearly dropped. Its guard was (ack_at is null OR created_at > 15 min
+  // ago): acknowledging must NOT get you a new one on the next */5 tick.
+  await db.exec(`update public.alerts set ack_at = now() where kind='order_stale'`);
+  await db.exec(`select public.alert_stale_orders(10)`);
+  ok("0336: acking does not reopen it five minutes later — 0174's 15-minute cooldown survived",
+    (await q1(`select count(*)::int n from public.alerts where kind='order_stale' and ack_at is null`)).n === 0);
+
+  // …but it is a cooldown, not a silencer. Age the acked one past the window and it opens again.
+  await db.exec(`update public.alerts set created_at = now() - interval '2 hours' where kind='order_stale'`);
+  await db.exec(`select public.alert_stale_orders(10)`);
+  ok("0336: …and once the cooldown passes, a still-backed-up pass says so again",
+    (await q1(`select count(*)::int n from public.alerts where kind='order_stale' and ack_at is null`)).n === 1);
+
+  // The condition clearing must raise nothing at all.
+  await db.exec(`delete from public.alerts where kind='order_stale'`);
+  await db.exec(`update public.orders set status='done'`);
+  await db.exec(`select public.alert_stale_orders(10)`);
+  ok("0336: an empty pass raises nothing — the check can still stay quiet", (await stale()) === 0);
+
+  // A kind is the key, so it cannot be omitted.
+  let noKind = null;
+  try { await db.exec(`select public.alert_open_once('')`); } catch (e) { noKind = String(e?.message ?? e); }
+  ok("0336: alert_open_once refuses an empty kind — that is the key the dedupe turns on",
+    noKind !== null && /kind/i.test(noKind), noKind);
+
+  // NULL subject is a real key (the heartbeat has none). `subject_id = null` is never true, so a
+  // naive `=` would make every such alert a brand new row — the flood, rebuilt by accident.
+  await db.exec(`select public.alert_open_once('whole_app_thing', null, 'fyi', 'system', 'x', 'y', '/crew')`);
+  await db.exec(`select public.alert_open_once('whole_app_thing', null, 'fyi', 'system', 'x', 'y', '/crew')`);
+  ok("0336: a null subject is a key, not a wildcard — two calls, one row",
+    (await q1(`select count(*)::int n from public.alerts where kind='whole_app_thing'`)).n === 1);
+
+  ok("0336: authenticated cannot execute it", (await q1(
+    `select has_function_privilege('authenticated',
+      'public.alert_open_once(text,uuid,text,text,text,text,text,interval)','execute') as v`)).v === false);
+
+  ok("0336 recorded itself", (await q1(
+    `select count(*)::int n from public.schema_migrations
+      where version='0336_the_guard_that_matched_on_a_sentence'`)).n === 1);
+}
+
 console.log(`AN ALERT THAT CRIES WOLF: ${pass} passed, ${fail} failed`);
 console.log(`0255 + 0258 + 0327 + 0333 executed against a real Postgres.\n`);
 process.exit(fail ? 1 : 0);
