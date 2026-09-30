@@ -106,6 +106,33 @@ export default function ShopOrderRecord({ orderId, onClose, onChanged }: {
   const reload = state.reload;
 
   const cancelMove = () => { setMove(null); setWhy(""); setAmt(""); };
+  const [sending, setSending] = useState(false);
+
+  // SEND IT TO THE PRINTER (0335). Not a status move — it is an HTTP call to Apliiq that RESULTS in
+  // one, so it goes through /api/shop/resubmit rather than set_shop_order_status. The route holds
+  // the claim that stops two clicks becoming two caps; this only has to not fight it.
+  //
+  // `sending` is its own flag, not `busy`: they guard different things, and sharing one would let a
+  // half-finished status move grey out the send button for reasons a person cannot see.
+  const sendToPrinter = async () => {
+    if (sending) return;
+    setSending(true);
+    let r: { ok?: boolean; error?: string; apliiqOrderId?: string } | null = null;
+    try {
+      const res = await authedFetch("/api/shop/resubmit", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId }),
+      });
+      r = await res.json().catch(() => null);
+    } catch { /* reported below — a thrown fetch and a refused send read the same to an operator */ }
+    setSending(false);
+    // A FAILED READ IS NOT A FAILED SEND. If we cannot tell what happened, say exactly that and tell
+    // them to look before retrying: the retry is what makes a second cap.
+    if (!r) { toast("No answer from the server — check the order before sending again.", "error"); return; }
+    if (!r.ok) { toast(r.error || "Could not send it.", "error"); return; }
+    toast(`At the printer — their order ${r.apliiqOrderId}.`);
+    reload(); onChanged?.();
+  };
 
   const apply = async (to: string, total: number | null) => {
     if (!supabase || busy) return;
@@ -301,6 +328,23 @@ export default function ShopOrderRecord({ orderId, onClose, onChanged }: {
                     {owed === "us" ? "waiting on us" : owed === "nobody" ? "closed" : `waiting on the ${owed}`}
                   </b>
                 </div>
+
+                {/* THE BUTTON THAT DID NOT EXIST. Shown on exactly the condition the database
+                    claim enforces: money collected, nothing at the printer yet. Once Apliiq has an
+                    id it disappears — the order is being made, and the only thing a second press
+                    could achieve is a second cap and a second charge. */}
+                {!o.apliiq_order_id && (o.status === "paid" || o.status === "needs_fulfillment") && (
+                  <div className="so-send">
+                    <button type="button" className="so-go" disabled={sending} onClick={sendToPrinter}>
+                      {sending ? "Sending…" : "Send to printer"}
+                    </button>
+                    <p className="so-warn">
+                      This places the order at Apliiq and charges the card on file there. Their
+                      shipping update comes back to this order automatically — which is why this
+                      button exists instead of typing it into their dashboard.
+                    </p>
+                  </div>
+                )}
 
                 {moves.length === 0 ? (
                   <p className="cp-line dim">This order is {statusLabel(o.status).toLowerCase()}. Nothing moves it from here.</p>

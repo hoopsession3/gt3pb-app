@@ -2259,6 +2259,10 @@ select.note-in{-webkit-appearance:none;appearance:none}
 /* 0327 folded a repeating condition into one row and counted it; 0333 is what finally shows the
    count. Reads as a tally, not a badge — the number is information about the alert, not an alarm
    of its own, and styling it loud would re-create the noise the fold removed. */
+/* The send-to-printer action (0335). Deliberately NOT styled like the status moves beside it: it
+   spends money at a vendor, so it reads as a decision with its consequence printed under it. */
+.so-send{display:flex;flex-direction:column;gap:6px;margin:10px 0 14px}
+.so-send .so-warn{margin:0}
 .alert-times{display:inline-block;margin-left:6px;padding:1px 5px;border-radius:999px;font-family:var(--mono);font-weight:600;font-size:10px;letter-spacing:.02em;color:var(--cream-m);background:rgba(255,255,255,.07);vertical-align:middle}
 .app.crew-day .alert-times{color:rgba(26,22,16,.62);background:rgba(26,22,16,.07)}
 .alert-when{display:inline-block;margin-left:8px;font-family:var(--mono);font-weight:500;font-size:10px;letter-spacing:.02em;color:var(--cream-m);white-space:nowrap;vertical-align:middle}

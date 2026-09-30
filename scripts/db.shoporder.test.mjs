@@ -30,7 +30,7 @@ await db.exec(`
   create schema if not exists auth;
   create table auth.users (id uuid primary key, email text);
   insert into auth.users (id, email) values ('${U1}', 'ryan@example.com');
-  create role anon; create role authenticated;
+  create role anon; create role authenticated; create role service_role;
   create or replace function auth.uid() returns uuid language sql stable as $$
     select nullif(coalesce(current_setting('test.uid', true), ''), '')::uuid $$;
   create or replace function public.is_staff() returns boolean language sql stable as $$
@@ -384,6 +384,90 @@ ok("and said what changed, twice", Number((await q1(`select count(*) as c from p
   ok("0334 recorded itself",
     (await q1(`select count(*)::int n from public.schema_migrations
                 where version = '0334_submitted_meant_they_gave_us_an_id'`)).n === 1);
+}
+
+
+// ── 13) TWO CLICKS MUST NOT MAKE TWO CAPS (0335) ──────────────────────────────────────────────
+// Submitting is not idempotent at Apliiq — it places an order against a card. The check cannot be
+// a read in a route followed by a write later, because two requests both read "not sent yet". This
+// proves the claim is atomic, that it refuses the cases it must, and that it cannot wedge an order.
+{
+  await db.exec(readFileSync(join(ROOT, "supabase/migrations/0335_the_order_the_app_could_not_send.sql"), "utf8"));
+  ok("0335 applies against a real Postgres", true);
+
+  const claim = async (id, stale, tenant = T) => (await q1(
+    `select public.claim_shop_order_for_submit('${id}', ${tenant ? `'${tenant}'` : "null"}${stale != null ? `, ${stale}` : ""}) as v`)).v;
+
+  const paid = (await q1(`insert into public.shop_orders (email, total_cents, status)
+    values ('waiting@customer.com', 3200, 'needs_fulfillment') returning id`)).id;
+
+  // R-002 FIRST, because this is what the first cut of 0335 got wrong. The route holds the service
+  // key and bypasses RLS, so an order id in a request body is a caller-supplied id and proves
+  // nothing about who owns it. Staff of one tenant must not be able to have another tenant's order
+  // placed at the printer on this deployment's account.
+  const OTHER = "00000000-0000-0000-0000-0000000000ff";
+  const cross = await claim(paid, null, OTHER);
+  ok("0335: another tenant cannot claim this order — an id is not proof of ownership",
+    cross !== "ok", cross);
+  // …and the refusal must not confirm the id exists. "That belongs to somebody else" answers the
+  // exact question an IDOR probe is asking.
+  ok("0335: …and the refusal does not reveal that the order exists",
+    /no longer exists/i.test(cross) && !/(another|other|belong|tenant)/i.test(cross), cross);
+  const noTenant = await claim(paid, null, null);
+  ok("0335: a request with no tenant is refused, not treated as unrestricted",
+    noTenant !== "ok" && /no tenant/i.test(noTenant), noTenant);
+  ok("0335: the order is still unclaimed after all three refusals", (await q1(
+    `select apliiq_submit_started_at is null as v from public.shop_orders where id='${paid}'`)).v === true);
+
+  ok("0335: the first press wins the claim", (await claim(paid)) === "ok");
+  // THE ONE THAT MATTERS. A second press while the first is in flight must not proceed.
+  const second = await claim(paid);
+  ok("0335: the second press is refused — this is the one that would make a second cap",
+    second !== "ok" && /sending this order right now/i.test(second), second);
+  ok("0335: …and the refusal is a sentence an operator can act on, not a boolean",
+    second.length > 30 && /refresh|moment/i.test(second), second);
+
+  // A LOCK WITH NO EXPIRY IS AN OUTAGE. If a submit dies mid-flight the order must not be stuck
+  // forever — nobody could ever send a paid order again.
+  await db.exec(`update public.shop_orders set apliiq_submit_started_at = now() - interval '10 minutes' where id='${paid}'`);
+  ok("0335: a claim from a crashed attempt ages out, so the order can still be sent",
+    (await claim(paid)) === "ok");
+
+  // ALREADY AT THE PRINTER — the refusal that saves the money, and it names their id so the person
+  // reading it can go and look.
+  await db.exec(`update public.shop_orders set apliiq_order_id='APQ-ALREADY-1', status='submitted' where id='${paid}'`);
+  const done = await claim(paid);
+  ok("0335: an order Apliiq already has is refused", done !== "ok" && /already/i.test(done), done);
+  ok("0335: …naming their order id, and saying what a second send would cost",
+    /APQ-ALREADY-1/.test(done) && /(second cap|twice)/i.test(done), done);
+
+  // Statuses that are not waiting to be sent.
+  const refunded = (await q1(`insert into public.shop_orders (email, total_cents, status)
+    values ('r@x.com', 100, 'refunded') returning id`)).id;
+  const refClaim = await claim(refunded);
+  ok("0335: a refunded order is not waiting to go to the printer",
+    refClaim !== "ok" && /not waiting/i.test(refClaim), refClaim);
+
+  const gone = await claim("00000000-0000-0000-0000-000000000009");
+  ok("0335: an order that does not exist is refused, not crashed into",
+    gone !== "ok" && /no longer exists/i.test(gone), gone);
+
+  // THE SECURITY MODEL IS THE GRANT. This function deliberately does not check is_staff(), because
+  // its only caller holds the service key and has already gated. That is only safe if a browser
+  // cannot reach it — so the grant IS the check, and it is asserted here rather than trusted.
+  ok("0335: `authenticated` cannot execute the claim — the grant is the whole security model",
+    (await q1(`select has_function_privilege('authenticated',
+       'public.claim_shop_order_for_submit(uuid,uuid,int)', 'execute') as v`)).v === false);
+  ok("0335: …and neither can anon",
+    (await q1(`select has_function_privilege('anon',
+       'public.claim_shop_order_for_submit(uuid,uuid,int)', 'execute') as v`)).v === false);
+  ok("0335: …while service_role can",
+    (await q1(`select has_function_privilege('service_role',
+       'public.claim_shop_order_for_submit(uuid,uuid,int)', 'execute') as v`)).v === true);
+
+  ok("0335 recorded itself",
+    (await q1(`select count(*)::int n from public.schema_migrations
+                where version = '0335_the_order_the_app_could_not_send'`)).n === 1);
 }
 
 console.log(`\nA PAID ORDER NOBODY CAN SEE: ${pass} passed, ${fail} failed`);

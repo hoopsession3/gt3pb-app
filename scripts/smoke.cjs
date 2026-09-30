@@ -3345,6 +3345,61 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     { hook: fromHook && fromHook[1], declared: declared && declared[1], view: used && used[1] });
 }
 
+// ── THE ORDER OF OPERATIONS THAT SPENDS MONEY (0335) ─────────────────────────────────────────────
+// /api/shop/resubmit places an order at Apliiq against a card. Its correctness is almost entirely
+// about SEQUENCE, and sequence is the one thing a unit test of the database cannot see:
+//
+//   1. crew gate            — before anything, because this spends money
+//   2. claim                — before the submit, or two clicks are two caps
+//   3. submit               — the irreversible bit
+//   4. write the id back    — 0334's CHECK refuses the status without it
+//
+// Reordering 1 or 2 after 3 would still pass every database test in the suite and still be wrong.
+{
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const src = fs.readFileSync(path.join(__dirname, "..", "app/api/shop/resubmit/route.ts"), "utf8");
+  // Comments quote the very calls being located, so they are stripped first — the deep-link gate
+  // learned this the hard way two migrations ago.
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, " ")
+    .split("\n").map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1")).join("\n");
+
+  const at = (needle) => code.indexOf(needle);
+  const gate = at("staffFromRequest");
+  const claim = at("claim_shop_order_for_submit");
+  const submit = at("submitOrderToApliiq(");
+  const write = at('status: "submitted"');
+
+  ok("resubmit: the route gates on staff", gate > 0, gate);
+  ok("resubmit: it claims the order through the database", claim > 0, claim);
+  ok("resubmit: it submits to Apliiq", submit > 0, submit);
+  ok("resubmit: the crew gate comes before the money is spent", gate > 0 && gate < submit, { gate, submit });
+  ok("resubmit: THE CLAIM COMES BEFORE THE SUBMIT — otherwise two clicks are two caps",
+    claim > 0 && claim < submit, { claim, submit });
+  ok("resubmit: the id is written back after the submit, never before",
+    write > 0 && submit < write, { submit, write });
+
+  // 0334 narrowed ApliiqSubmit so ok:true carries a real id. If anyone widens it back, this route
+  // silently starts writing the status without evidence again — the exact bug of the first cap.
+  // STRIPPED, for the reason stated eight lines up and then immediately forgotten: lib/apliiq's own
+  // header QUOTES the old `apliiqOrderId: string | null` while explaining why it is gone, so reading
+  // the file raw finds the defect inside the sentence describing the fix. The first run of this gate
+  // failed on correct code for exactly that.
+  const apliiq = fs.readFileSync(path.join(__dirname, "..", "lib/apliiq.ts"), "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .split("\n").map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1")).join("\n");
+  ok("resubmit: a successful Apliiq submit still guarantees an id (0334's narrowed type holds)",
+    /ok:\s*true;\s*apliiqOrderId:\s*string\s*\}/.test(apliiq) &&
+    !/ok:\s*true;\s*apliiqOrderId:\s*string\s*\|\s*null/.test(apliiq));
+
+  // PROVE IT BITES: the same comparison against a file with the claim moved after the submit.
+  {
+    const bad = 'const s = await submitOrderToApliiq(x);\nconst c = await rpc("claim_shop_order_for_submit");';
+    ok("resubmit: fed a route that submits before claiming, the check fails",
+      !(bad.indexOf("claim_shop_order_for_submit") < bad.indexOf("submitOrderToApliiq(")));
+  }
+}
+
 // Everything above is synchronous except what PENDING holds. Printing the summary before those
 // land would report a pass count that is wrong in the flattering direction — exactly the kind of
 // quiet lie the rest of this file exists to refuse.

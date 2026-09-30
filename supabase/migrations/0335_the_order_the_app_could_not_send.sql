@@ -1,23 +1,3 @@
--- ⚠️ NEVER include files from supabase/pending/ in this bundle — those are soak-gated (see
--- supabase/pending/0224_field_ops_contract.sql) and applying them early is irreversible.
---
--- ── GENERATED FILE — DO NOT EDIT BY HAND ─────────────────────────────────────────────────────
--- Regenerate with:  npm run migrations:pending -- --write
---
--- This file is the OUTPUT of comparing supabase/migrations/ against what production's ledger
--- (public.schema_migrations, via /api/migrations) says has actually been applied. Its previous
--- hand-maintained version said "apply all pending migrations" and stopped at 0035 while this
--- directory held 326 files — wrong by 291 migrations, referenced by nothing, checked by nothing.
---
--- The line below is what stops that happening again: scripts/drift.check.mjs fails the release
--- if supabase/migrations/ ever holds a migration numbered above it.
--- pending-from: 0335
--- generated-at: 2026-09-30
--- pending-count: 1
--- ledger-read-from: https://app.gt3pb.com/api/migrations
--- ============================================================
--- 0335_the_order_the_app_could_not_send.sql
--- ============================================================
 -- ── THE ORDER THE APP COULD NOT SEND ──────────────────────────────────────────────────────────
 -- 2026-09-30, 02:40. Ryan fixed the default payment method at Apliiq. The first flagship cap is
 -- paid, real, ready to be made, and sitting in the crew queue — and this app has no way to send it.
@@ -59,13 +39,23 @@ comment on column public.shop_orders.apliiq_submit_started_at is
 --
 -- ONE atomic UPDATE. Every condition is in the WHERE clause, so Postgres decides the winner; there
 -- is no read-then-write gap for a second click to slip through.
+-- p_tenant is NOT decoration and NOT optional. The route holds the service key, which bypasses
+-- RLS, so tenancy is app-enforced here (R-002, the other half of 0134). Without it a staff member
+-- of one tenant could hand this the id of ANOTHER tenant's order and have it placed at the
+-- printer and charged to this deployment's account. An id-keyed access is narrower than a table
+-- scan, but the id still has to be PROVEN to belong to the caller rather than assumed — that is
+-- the IDOR shape, and it does not need a second tenant to exist before it is wrong.
+drop function if exists public.claim_shop_order_for_submit(uuid, int);   -- the unscoped first cut
 create or replace function public.claim_shop_order_for_submit(
-  p_order uuid, p_stale_seconds int default 120)
+  p_order uuid, p_tenant uuid, p_stale_seconds int default 120)
 returns text
 language plpgsql security definer set search_path = public as $$
 declare o public.shop_orders; got uuid;
 begin
-  select * into o from public.shop_orders where id = p_order;
+  if p_tenant is null then return 'No tenant on this request.'; end if;
+  select * into o from public.shop_orders where id = p_order and tenant_id = p_tenant;
+  -- Deliberately the same sentence as a genuinely missing order. Saying "that belongs to somebody
+  -- else" would confirm the id exists, which is the question an IDOR probe is asking.
   if not found then return 'That order no longer exists.'; end if;
 
   -- Said before the claim is attempted so the refusal can name the real reason. The claim's own
@@ -81,6 +71,7 @@ begin
   update public.shop_orders
      set apliiq_submit_started_at = now()
    where id = p_order
+     and tenant_id = p_tenant
      and apliiq_order_id is null
      and status in ('paid', 'needs_fulfillment')
      -- A LOCK WITH NO EXPIRY IS AN OUTAGE. If a submit dies mid-flight — the process is killed, the
@@ -100,10 +91,10 @@ end $$;
 -- is_staff(), because its one caller is /api/shop/resubmit, which holds the service key and has
 -- already gated on staffFromRequest(). A function that skips the staff check and is reachable from
 -- a browser would be a hole, so it is not reachable from one.
-revoke all on function public.claim_shop_order_for_submit(uuid, int) from public, anon, authenticated;
-grant execute on function public.claim_shop_order_for_submit(uuid, int) to service_role;
+revoke all on function public.claim_shop_order_for_submit(uuid, uuid, int) from public, anon, authenticated;
+grant execute on function public.claim_shop_order_for_submit(uuid, uuid, int) to service_role;
 
-comment on function public.claim_shop_order_for_submit(uuid, int) is
+comment on function public.claim_shop_order_for_submit(uuid, uuid, int) is
   'Atomically claim a paid order for submission to Apliiq, or explain in a sentence why not. Exists because submitting is NOT idempotent at Apliiq — it places an order against a card — so the "has this already gone?" check cannot live in a route where two requests can both read "no" before either writes. Service-role only: it deliberately does not check is_staff(), so it must never be reachable from a browser; the staff gate is in /api/shop/resubmit.';
 
 -- ── what changed ───────────────────────────────────────────────────────────────────────────────
@@ -117,10 +108,10 @@ from (values
 where not exists (select 1 from public.changelog c where c.title = v.title);
 
 select public.record_migration('0335_the_order_the_app_could_not_send',
-  'shop_orders.apliiq_submit_started_at + claim_shop_order_for_submit(), behind /api/shop/resubmit. submitOrderToApliiq had exactly one caller — checkout, at payment — so an order that missed the printer could only be placed by hand, which ALSO breaks /api/apliiq/fulfillment: it matches on external_id (API orders only) or apliiq_order_id (null until one returns), so a hand-typed order matches neither and the customer never gets tracking. The claim is a migration rather than a route check because submitting is not idempotent at Apliiq: two clicks would be two caps and two charges, and a read-then-write check in a route cannot prevent that. Claims expire so a crashed attempt cannot wedge a paid order forever. Service-role only; the staff gate is in the route.');
+  'shop_orders.apliiq_submit_started_at + claim_shop_order_for_submit(), behind /api/shop/resubmit. submitOrderToApliiq had exactly one caller — checkout, at payment — so an order that missed the printer could only be placed by hand, which ALSO breaks /api/apliiq/fulfillment: it matches on external_id (API orders only) or apliiq_order_id (null until one returns), so a hand-typed order matches neither and the customer never gets tracking. The claim is a migration rather than a route check because submitting is not idempotent at Apliiq: two clicks would be two caps and two charges, and a read-then-write check in a route cannot prevent that. Claims expire so a crashed attempt cannot wedge a paid order forever. Service-role only and tenant-scoped; the staff gate is in the route. The first cut of this shipped three unscoped service-role accesses and failed the R-002 ratchet — an order id alone is not proof the caller owns it.');
 
 -- verify:
 --   select status, apliiq_order_id, apliiq_submit_started_at from public.shop_orders;
---   select public.claim_shop_order_for_submit('<order id>');      -- 'ok' the first time
---   select public.claim_shop_order_for_submit('<order id>');      -- refused: somebody is sending it
---   select has_function_privilege('authenticated', 'public.claim_shop_order_for_submit(uuid,int)', 'execute');  -- false
+--   select public.claim_shop_order_for_submit('<order id>', '<tenant id>');      -- 'ok' the first time
+--   select public.claim_shop_order_for_submit('<order id>', '<tenant id>');      -- refused: somebody is sending it
+--   select has_function_privilege('authenticated', 'public.claim_shop_order_for_submit(uuid,uuid,int)', 'execute');  -- false
