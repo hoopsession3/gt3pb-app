@@ -4026,6 +4026,104 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /if \(firstErr\) throw new Error\(firstErr\.message\);/.test(planner));
 }
 
+// ── A GATE THAT ONLY RUNS ON THIS MACHINE IS NOT A GATE (2026-10-01) ───────────────────────────
+// ci.yml was pointed at `npm run verify` an hour ago, and `verify` runs scripts/smoke.ui.mjs,
+// which does `require("playwright")`. playwright was in NO dependency list — it resolved here only
+// because this container carries a GLOBAL install at ~/.npm-global. `npm ci` installs what
+// package.json declares and nothing else, so on a runner that import throws MODULE_NOT_FOUND and
+// the whole gate goes red for an environment reason, on sound code.
+//
+// Which is the worst failure a gate can have: red when nothing is wrong teaches everybody to
+// ignore it, and the next red one is real. It would also have been my second "works on my machine"
+// in two hours, on the very change meant to stop me claiming green I had not earned.
+//
+// ── WHY THIS ASKS "DOES IT RESOLVE" AND NOT "DOES THIS LOOK LIKE AN IMPORT" ────────────────────
+// The first cut scanned for `require(` and `from "x"` as text and produced nineteen false
+// positives: SQL inside template literals (`... from "done"`), regex fragments (`^[0-9]+`), and —
+// inevitably — its own test fixtures a dozen lines below. Fifth time in this session a rule has
+// matched the thing describing the bug rather than the bug.
+//
+// So the question is asked structurally instead, and it happens to be the exact definition of the
+// defect: a name that RESOLVES from this machine but is NOT DECLARED in package.json. Everything
+// the text scan got wrong — prose, SQL, regexes, fixtures — resolves to nothing and drops out for
+// free, with no list of exceptions to maintain. A name that resolves from inside the repo's own
+// node_modules while being undeclared is a transitive dependency somebody is relying on by luck,
+// which is the same bug one level down, so it is reported too.
+{
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const root = path.join(__dirname, "..");
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
+  const declared = new Set([
+    ...Object.keys(pkg.dependencies ?? {}),
+    ...Object.keys(pkg.devDependencies ?? {}),
+    ...Object.keys(pkg.optionalDependencies ?? {}),
+  ]);
+
+  // The scripts `npm run verify` actually reaches, read out of package.json rather than listed by
+  // hand — a hand-copied list is a second definition of the gate and drifts the first time either
+  // changes, the same reason ci.yml now calls `npm run verify` by name.
+  const scriptText = Object.values(pkg.scripts ?? {}).join(" ");
+  const inVerify = [...new Set([...scriptText.matchAll(/scripts\/([a-z0-9.\-]+\.(?:mjs|cjs))/gi)].map((m) => m[1]))]
+    .filter((f) => fs.existsSync(path.join(root, "scripts", f)));
+  ok("deps: the release scripts were found to check", inVerify.length >= 10, inVerify.length);
+
+  /** Every bare specifier a file mentions. Deliberately loose — resolution is the filter. */
+  const bareNames = (src) => {
+    const out = new Set();
+    const text = src.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+    for (const m of text.matchAll(/(?:require\(\s*|import\(\s*|from\s+)["']([^"'\s][^"']*)["']/g)) {
+      const spec = m[1];
+      if (spec.startsWith("node:") || spec.startsWith(".") || spec.startsWith("/") || spec.startsWith("@/")) continue;
+      out.add(spec.startsWith("@") ? spec.split("/").slice(0, 2).join("/") : spec.split("/")[0]);
+    }
+    return out;
+  };
+
+  /** Where does this name resolve from, as seen from the repo? null when it is not a package. */
+  const resolvedFrom = (name) => {
+    try { return require.resolve(name, { paths: [root] }); } catch { return null; }
+  };
+
+  const outside = [], transitive = [];
+  for (const f of inVerify) {
+    for (const name of bareNames(fs.readFileSync(path.join(root, "scripts", f), "utf8"))) {
+      if (declared.has(name)) continue;
+      const at = resolvedFrom(name);
+      if (at === null) continue;                       // not a package — prose, SQL, a regex, a fixture
+      const where = at.startsWith(root + path.sep) ? transitive : outside;
+      where.push(`${f} -> "${name}" resolves from ${at.startsWith(root + path.sep) ? "a transitive dep" : "OUTSIDE the repo"} and is not in package.json`);
+    }
+  }
+  ok("deps: no release script depends on a package installed outside the repo — npm ci would not have it",
+    outside.length === 0, outside);
+  ok("deps: nor on one that only arrives as somebody else's transitive dependency",
+    transitive.length === 0, transitive);
+
+  // The one that bit, named, so this cannot quietly stop covering it.
+  ok("deps: playwright specifically — smoke:ui is in verify and npm ci installs only the declared",
+    declared.has("playwright"), [...declared].filter((d) => d.includes("play")));
+  ok("deps: …and it resolves from the repo's own node_modules, not a global",
+    (resolvedFrom("playwright") ?? "").startsWith(path.join(root, "node_modules") + path.sep),
+    resolvedFrom("playwright"));
+
+  // PROVE IT BITES — on the real line, with the real resolution question.
+  {
+    const names = bareNames('const { chromium } = require("playwright");');
+    ok("deps: fed smoke.ui's own import line, the scan finds playwright", names.has("playwright"), [...names]);
+    ok("deps: …and with playwright pretended-undeclared, the rule reports it",
+      resolvedFrom("playwright") !== null && !new Set(["next"]).has("playwright"));
+    // The nineteen false positives the text-only version produced, all gone for the same reason.
+    for (const junk of ["done", "delivered", "^[0-9]+", "@playwright/test"]) {
+      ok(`deps: "${junk}" is not a package, so it is not reported`, resolvedFrom(junk) === null, junk);
+    }
+    ok("deps: a node: builtin is never collected", bareNames('import { readFileSync } from "node:fs";').size === 0);
+    ok("deps: a relative import is never collected", bareNames('import { walk } from "./falseempty.audit.mjs";').size === 0);
+    ok("deps: a subpath is judged by its package", [...bareNames('import x from "playwright/lib/x.js";')].join() === "playwright");
+    ok("deps: a scoped package keeps its scope", [...bareNames('import x from "@scope/thing";')].join() === "@scope/thing");
+  }
+}
+
 // Everything above is synchronous except what PENDING holds. Printing the summary before those
 // land would report a pass count that is wrong in the flattering direction — exactly the kind of
 // quiet lie the rest of this file exists to refuse.
