@@ -1,7 +1,28 @@
-# CI — the same gate we run by hand before every ship: the app must build and the deterministic
-# core (lib/*.ts money/ops math) must pass its smoke assertions. Runs on every push and PR so a
-# red commit can't reach main unnoticed. No env needed: the app guards all Supabase/AI calls
-# behind runtime "enabled" checks, so `next build` succeeds without secrets.
+# CI — the gate, and the SAME gate the repo already defines for a human.
+#
+# ── WHY THIS CHANGED (2026-10-01) ──────────────────────────────────────────────────────────────
+# This workflow used to run build + smoke + db:test. package.json defines `verify` as
+#
+#     test && audit && build && smoke:ui && smoke:authed
+#
+# so CI was checking roughly half of it, and the missing half included `npm run audit`, where the
+# COLUMN CONTRACT lives. That is not an abstract gap. Twice in two days a reviewer caught a release
+# claim that was wrong, and BOTH times the machine could have caught it instead and simply was not
+# looking:
+#
+#   · "db suite green" while `npm test` exited 1 — a grep over the log hid the failure.
+#   · "full suite green by exit code" while `npm run audit` had never been run — it was failing on
+#     a select naming a column production does not have.
+#
+# The common cause was somebody (me) choosing a cheaper subset and reporting its result as the real
+# one. The fix is not to try harder. It is to make the subset impossible: CI runs `npm run verify`
+# ITSELF rather than a hand-copied list of its parts, so the two cannot drift. Change what verified
+# means in package.json and this follows automatically.
+#
+# ── WHY claude/** IS HERE ──────────────────────────────────────────────────────────────────────
+# Work from an agent lands on a claude/** branch and is gated here BEFORE a human reads it, so the
+# owner reviews substance rather than discovering that a gate was skipped. The trigger already
+# listed claude/** before this change; nothing had ever used it.
 name: CI
 
 on:
@@ -14,9 +35,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-and-smoke:
+  verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
+    env:
+      # Absent on a fork, and absent until somebody sets them. scripts/smoke.authed.mjs prints
+      # "NOT CHECKED" and exits 0 in that case rather than passing silently, which is the right
+      # design — so this is safe to wire up before the secrets exist.
+      GT3_SMOKE_EMAIL: ${{ secrets.GT3_SMOKE_EMAIL }}
+      GT3_SMOKE_PASSWORD: ${{ secrets.GT3_SMOKE_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,9 +51,21 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Build
-        run: npm run build
-      - name: Smoke (deterministic core — money/ops math)
-        run: npm run smoke
-      - name: DB smoke (RLS isolation + cancel_own_order, on in-process Postgres)
-        run: npm run db:test
+
+      # smoke:ui drives a real browser. scripts/smoke.ui.mjs prefers a container-local Chromium and
+      # falls back to Playwright's own when that path does not exist, which is the case on a runner.
+      - name: Install Chromium for the UI smoke
+        run: npx playwright install --with-deps chromium
+
+      # Separate from verify because `npm run lint` reports 261 problems and exits 1, so it can
+      # never be a pass/fail step as it stands — and nothing enforced it at all, while commit
+      # messages kept quoting "lint 261 (baseline)" as though something did. The count may fall
+      # freely and may not rise.
+      - name: Lint ratchet
+        run: node scripts/lint.ratchet.mjs
+
+      # THE WHOLE GATE, BY ITS OWN NAME. Do not expand this into separate steps: a copied list is a
+      # second definition of "verified" and it will drift from package.json the first time either
+      # one changes. The log names whichever link failed.
+      - name: verify (test && audit && build && smoke:ui && smoke:authed)
+        run: npm run verify
