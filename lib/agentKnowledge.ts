@@ -59,6 +59,55 @@ async function brewKit(): Promise<string[]> {
     `${a.name}${a.qty && a.qty > 1 ? ` x${a.qty}` : ""}${a.use_case ? ` (${a.use_case})` : ""}`);
 }
 
+// ── TALKING TO SOMEBODY WHO IS HOLDING THE INGREDIENT (2026-10-01) ─────────────────────────────
+// Ryan, adding a second operator who will also be cooking: "make sure that the ai is descriptive in
+// explaining the task… the measuring scale is on a flat surface when measuring out ingredients…
+// make sure that ai, cookbooks, and recipes give it in ounces and grams."
+//
+// ONE block, exported, so the agents a cook actually talks to cannot hold different versions of a
+// safety rule. The operator assistant and the brew planner both get it.
+//
+// WHY THE EXACT FACTOR IS SPELLED OUT: recipeFactLine now hands over both units for the measured
+// anchor, computed in TypeScript. But a scaled batch (3 gal from a 2 gal anchor) is derived in the
+// answer, and the second unit with it — so the model gets the definition rather than a remembered
+// approximation, and has to show the arithmetic. 1 oz = 28.3495 g is a definition, not a rounding:
+// the international pound is exactly 0.45359237 kg.
+//
+// WHY THIS CONTRADICTS "BE CONCISE" ON PURPOSE, AND SAYS SO: the operator prompt tells the model to
+// be brief because Kayla is mid-shift and one-handed. That is right for "is Rise in stock" and
+// wrong for "how do I make the standard batch" when the person asking has never made it. The rule
+// below scopes the exception instead of leaving two instructions to fight: brief for lookups,
+// step-by-step and explicit for anything being MADE. An unscoped "be descriptive" would have made
+// every stock check into an essay.
+export const MEASURING_RULES =
+  "=== MEASURING + HOW TO EXPLAIN A TASK (applies to every answer that tells somebody to make, " +
+  "weigh, or measure something. A new operator is learning these procedures.) ===\n" +
+  "- BOTH UNITS, ALWAYS. Any weight you state gives grams AND ounces, the recipe's own figure first " +
+  "and the other in brackets: `560 g (19.8 oz)`, `32 oz (907 g)`. This is not optional and not " +
+  "only on request.\n" +
+  "- CONVERT EXACTLY, AND SHOW IT. 1 oz = 28.3495 g exactly. Divide grams by 28.3495 for ounces; " +
+  "multiply ounces by 28.3495 for grams. Do the arithmetic in the answer, the same way you already " +
+  "have to for scaling a batch — never state a converted number you did not work out here. Round " +
+  "grams to whole numbers above 10 g and ounces to one decimal above 1 oz.\n" +
+  "- NEVER CONVERT A VOLUME TO A WEIGHT. Gallons, quarts, litres, cups and spoons stay as they are. " +
+  "2 gal of water and 2 gal of honey weigh very different amounts, and nothing on file gives you a " +
+  "density. If asked for the weight of a volume, say it depends on the ingredient's density and is " +
+  "not on file.\n" +
+  "- THE SCALE RULE, EVERY TIME YOU SAY TO WEIGH SOMETHING. State it, do not assume it is known: " +
+  "the scale goes on a hard, flat, level surface — a counter, not a cutting board, a towel, a tray, " +
+  "or the lip of a sink. Empty container on first, press TARE/ZERO until it reads 0, then add until " +
+  "the display matches the target. Re-zero for every ingredient. A tilted scale or one zeroed with " +
+  "something already on it gives a wrong number that looks right, and the ratio is weight to " +
+  "weight, so it carries into the whole batch.\n" +
+  "- BE DESCRIPTIVE WHEN SOMETHING IS BEING MADE. This overrides the general instruction to be " +
+  "brief, and ONLY here: for a recipe, a procedure, or any measuring task, give every step in order, " +
+  "numbered, each one saying what to do, with what, and how you know it is right before moving on. " +
+  "Name the gear. Do not merge two actions into one step and do not leave out a step because it " +
+  "seems obvious — the person asking may be making it for the first time. Lookups (is this in " +
+  "stock, what does it cost, what time is the drop) stay short.\n" +
+  "- DO NOT INVENT A QUANTITY to be helpful. If a figure is not in the recipes or corrections above, " +
+  "say it is not on file and to check with an owner.";
+
 // The brew recipes as exact, grounded facts — so recipe/quantity questions are answered from data,
 // never invented. Quantities are stated per the recipe's base volume; the agent is told to scale
 // linearly and to refuse rather than guess when a recipe isn't on file.

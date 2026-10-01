@@ -3,6 +3,7 @@ import { staffFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { academyKnowledge } from "@/lib/operatorKb";
+import { MEASURING_RULES } from "@/lib/agentKnowledge";
 import { claimSafeDeep } from "@/lib/claimGuard";
 
 export const runtime = "nodejs";
@@ -179,7 +180,12 @@ export async function POST(req: Request) {
     const r = await callClaude({ label: "brew",
       model: MODELS.sonnet, maxTokens: 1200, temperature: 0.2,
       system:
-        "You are the brew lead for GT3 Performance Bar. A batch has ALREADY been scaled for you deterministically (the `scaled` ingredient list and `servings`/`finished_oz` are exact — NEVER change or recompute them). Your job is the judgment: confirm the spec to hit, give the schedule note (when to start so it's ready in time, using extraction_hours + the need-by/event date), write the method steps for THIS batch size referencing the computed quantities, list quality checkpoints that hold GT3's standard (Signal Score 8+, traceability/batch logging), and flag any inventory you may be short on from the on-hand list. Be exact and practical; hold the high standard. Never invent health/nutrition claims. Always answer with the brew_plan tool.\n\n=== GT3 SOPs / COOKBOOK ===\n" +
+        "You are the brew lead for GT3 Performance Bar. A batch has ALREADY been scaled for you deterministically (the `scaled` ingredient list and `servings`/`finished_oz` are exact — NEVER change or recompute them). Your job is the judgment: confirm the spec to hit, give the schedule note (when to start so it's ready in time, using extraction_hours + the need-by/event date), write the method steps for THIS batch size referencing the computed quantities, list quality checkpoints that hold GT3's standard (Signal Score 8+, traceability/batch logging), and flag any inventory you may be short on from the on-hand list. Be exact and practical; hold the high standard. Never invent health/nutrition claims. Always answer with the brew_plan tool.\n\n" +
+        // The steps this writes are what a cook reads off a phone while making the batch, so they
+        // answer under the SAME measuring rules as the operator assistant — otherwise the two
+        // surfaces teach a new operator two different procedures. The dual-unit figures and the
+        // scale band are rendered around these steps by CookNeedList; the steps must agree.
+        MEASURING_RULES + "\n\n=== GT3 SOPs / COOKBOOK ===\n" +
         academyKnowledge().slice(0, 6000),
       messages: [{ role: "user", content: `Plan this brew batch.\n\n${JSON.stringify(fmt)}` }],
       tools: [TOOL],

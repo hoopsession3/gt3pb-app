@@ -2256,6 +2256,72 @@ select.note-in{-webkit-appearance:none;appearance:none}
 .alert-title{display:block;font-family:'Inter';font-weight:600;font-size:14px;color:var(--cream);line-height:1.3}
 /* When the alert fired (2026-07-30, Ryan: "put dates to these alerts") — every card and digest
    row carries its age; an alert with no timestamp reads as a rumor. */
+/* ── COOK ENFORCEMENT (2026-10-01) ────────────────────────────────────────────────────────────
+   The band a new cook must not miss. A FILLED red bar, not red type: this file already records
+   that "brand red is a FILL color; as small TEXT on dark it sits under 3:1", and a safety line in
+   failing contrast is a safety line nobody reads. Cream on brand red clears 7:1 in both themes.
+
+   Colour is never the only signal — the band carries an icon and the word CHECK and a border, so
+   it still reads as "stop" in greyscale, which matters in a kitchen hiring cooks.
+
+   The pulse draws the eye on arrival and then settles; it does not loop forever, because a thing
+   that moves permanently becomes wallpaper — the same reason twenty repeating alerts stopped
+   being read. Four pulses, then still. */
+.ck-enforce{display:flex;gap:10px;align-items:flex-start;margin:8px 0 0;padding:9px 12px;
+  background:var(--red);color:var(--brand-cream);border:2px solid var(--red-d);border-radius:var(--r-md);
+  font-size:13px;line-height:1.45;font-weight:500;
+  animation:ck-pulse 1.1s ease-out 4}
+.ck-enforce-tag{display:inline-flex;align-items:center;gap:5px;flex:none;
+  font-family:var(--mono);font-size:10px;letter-spacing:.06em;padding-top:2px}
+.ck-enforce-tag svg{width:14px;height:14px}
+.ck-enforce-t{display:block}
+@keyframes ck-pulse{
+  0%,100%{box-shadow:0 0 0 0 color-mix(in srgb, var(--brand-red) 0%, transparent)}
+  45%{box-shadow:0 0 0 5px color-mix(in srgb, var(--brand-red) 45%, transparent)}
+}
+/* NOT a nicety. For somebody with vestibular sensitivity a pulsing band is a reason to look away
+   from the exact instruction we need them to read. The red, the icon, the border and the weight
+   all stay; only the movement goes. */
+@media (prefers-reduced-motion: reduce){
+  .ck-enforce{animation:none;box-shadow:0 0 0 3px color-mix(in srgb, var(--brand-red) 35%, transparent)}
+}
+
+/* ── WHAT YOU NEED (components/CookNeedList) ──────────────────────────────────────────────────
+   One list, two screens: BrewSteps' "What you need" and BrewPlanner's "Exact recipe". Both used
+   to write their own `{qty}{unit}` row and both were wrong the same way. */
+.ck-need{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:5px}
+.ck-need li{display:flex;gap:10px;align-items:baseline;font-family:'Inter';font-size:13.5px;
+  color:var(--cream);background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);
+  padding:8px 11px}
+/* A weighed row carries TWO figures, so the number column is a right-aligned STACK rather than one
+   line. The column is the same width on every row whether or not a second figure is there, so the
+   names stay in one column and a mis-read digit stays hard to make. */
+.ck-need li b{flex:0 0 auto;min-width:86px;display:flex;flex-direction:column;align-items:flex-end;
+  gap:1px;line-height:1.25;text-align:right;color:var(--gold2);font-variant-numeric:tabular-nums}
+.ck-need .ck-pri{font-family:var(--mono);font-size:13px}
+/* The second figure — the other measurement system, under the recipe's own. Tabular numerals so
+   the column lines up; subordinate to the primary, and never absent from a weighed line. */
+.ck-need .ck-alt{font-family:var(--mono);font-size:11px;font-weight:600;opacity:.82;
+  font-style:normal;font-variant-numeric:tabular-nums}
+.ck-need-n{display:flex;gap:7px;align-items:baseline;flex-wrap:wrap;min-width:0}
+.ck-fixed{font-style:normal;font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;
+  color:var(--cream-d)}
+/* The per-line marker — what makes "only on weighed lines" visible rather than implied. The band
+   above says "each marked WEIGH"; this is that mark. A red KEYLINE, not a red fill: the fill is
+   reserved for the one band, so the mark points at it instead of competing with it. */
+/* --red-onLight, not --red-h, for the reason this file already measured on .so-move.grave: --red-h
+   sits at 3.8:1 on the day theme's white card, under AA. The token resolves BACK to --red-h in the
+   dark theme, so nothing changes there, and to #8f1d1a under .app.crew-day. A safety marker that
+   is unreadable in half the app is not a safety marker.
+   Measured in a headless render of this exact markup, both themes: WEIGH 4.78:1 dark / 8.90:1 day;
+   the band's cream on the red fill 5.63:1 in both; the figures 7.86:1 / 7.73:1. */
+.ck-weigh{display:inline-flex;align-items:center;gap:3px;flex:none;font-style:normal;
+  font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.07em;
+  padding:1px 5px;border-radius:var(--r-pill);
+  color:var(--red-onLight);border:1px solid color-mix(in srgb, var(--brand-red) 55%, transparent);
+  background:color-mix(in srgb, var(--brand-red) 14%, transparent)}
+.ck-weigh svg{width:11px;height:11px}
+
 /* 0327 folded a repeating condition into one row and counted it; 0333 is what finally shows the
    count. Reads as a tally, not a badge — the number is information about the alert, not an alarm
    of its own, and styling it loud would re-create the noise the fold removed. */
@@ -4383,11 +4449,12 @@ body:has(.conc-sheet) .rail{display:flex}
 .bs-bar>i{display:block;height:100%;background:var(--gold2);border-radius:var(--r-pill)}
 
 .bs-need{border:1px solid var(--line2);border-radius:var(--r-xl);padding:12px 14px}
-.bs-need h3{margin:0 0 8px;font-family:'Inter';font-size:11px;font-weight:800;letter-spacing:.5px;
+/* margin-bottom 0: everything that can follow this heading (the scale band, the .ck-need list)
+   brings its own 8px top margin, and doubling them pushed the list away from its own title. */
+.bs-need h3{margin:0;font-family:'Inter';font-size:11px;font-weight:800;letter-spacing:.5px;
   text-transform:uppercase;color:var(--cream-m)}
-.bs-need ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
-.bs-need li{display:flex;gap:10px;align-items:baseline;font-family:'Inter';font-size:13.5px;color:var(--cream)}
-.bs-need li b{min-width:76px;text-align:right;color:var(--gold2);font-variant-numeric:tabular-nums}
+/* The ingredient list itself is .ck-need (components/CookNeedList) — one home, shared with
+   BrewPlanner's "Exact recipe", so the two screens cannot drift. See below. */
 
 .bs-steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;counter-reset:none}
 .bs-step>button{display:flex;gap:12px;align-items:flex-start;width:100%;text-align:left;

@@ -9,6 +9,7 @@ import { localToday } from "@/lib/dates";
 import AssignTaskSheet from "@/components/AssignTaskSheet";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import BrewSteps from "@/components/BrewSteps";
+import CookNeedList, { type CookIngredient } from "@/components/CookNeedList";
 import ProgressRing from "@/components/ProgressRing";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
@@ -856,11 +857,11 @@ function BrewSheet({ recipe, events, stops, vessels, initialTarget, onClose, onD
               {res.brew_note && <div className="dp-hint" style={{ marginTop: 0 }}>{res.brew_note}</div>}
 
               <div className="brew-block-h">Exact recipe — scaled ×{res.factor}</div>
-              <div className="brew-ing">
-                {(res.scaled ?? []).map((i: any, n: number) => (
-                  <div key={n} className="brew-ing-row"><b>{i.qty}{i.unit ? ` ${i.unit}` : ""}</b><span>{i.name}{i.scales === false ? " (fixed)" : ""}</span></div>
-                ))}
-              </div>
+              {/* Same component as BrewSteps' "What you need" (2026-10-01). This used to render
+                  `{qty}{unit}` straight out of the recipe, so a gram figure never showed ounces and
+                  nothing said to level the scale — and BrewSteps had the identical bug written out
+                  a second time. One home now states a quantity to a cook. */}
+              <CookNeedList ingredients={(res.scaled ?? []) as CookIngredient[]} />
 
               {res.brew_date && <div className="brew-when">Start brewing <b>{fmtDate(res.brew_date)}</b> · ready <b>{fmtTs(res.ready_at)}</b></div>}
 

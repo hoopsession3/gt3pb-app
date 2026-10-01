@@ -757,7 +757,24 @@ export interface Product {
   customer: string; talking: string[]; faqs: { q: string; a: string }[];
   // Three voices to explain it — match the guest: Simple (rushed), GT3 (curious), Founders (the deeper why).
   voices?: { simple: string; gt3: string; founder: string };
-  cookbook?: { batch?: string; brew?: string[]; serve?: string[]; storage?: string; quality?: string; troubleshoot?: { issue: string; fix: string }[] };
+  cookbook?: {
+    batch?: string; brew?: string[]; serve?: string[]; storage?: string; quality?: string;
+    troubleshoot?: { issue: string; fix: string }[];
+    // ── DOES THIS PROCEDURE PUT SOMETHING ON A SCALE? (2026-10-01) ────────────────────────────
+    // A new operator is joining who will be cooking, so the Cookbook now carries the levelling
+    // rule. This is a FLAG and not a regex over the procedure text, on purpose.
+    //
+    // 0336 shipped last night for exactly this mistake: an alert guard that decided "have I
+    // already warned about this?" by searching for its own wording, so editing the copy — even
+    // just to read better — silently broke it. A safety band whose presence depends on the word
+    // "Weigh" surviving in a sentence is that bug with worse consequences: rewrite "Weigh beans
+    // 1:13" as "Measure out beans 1:13" and the scale rule vanishes with no error anywhere.
+    //
+    // Prose-sniffing is fine in a TEST, which fails loudly at build time, and scripts/smoke.cjs
+    // does precisely that: it reads these procedures and fails if one talks about weighing with
+    // this flag unset. It is not fine in a render path, which fails silently in a kitchen.
+    weighs?: boolean;
+  };
 }
 
 export const PRODUCTS: Product[] = [
@@ -778,7 +795,7 @@ export const PRODUCTS: Product[] = [
       gt3: "Rise is our morning bottle — single-origin coffee cold-extracted over ~18 hours so it comes out rounder and less bitter than hot coffee, then finished with organic coconut water for a light, clean lift.",
       founder: "We cold-extract instead of brewing hot out of respect for the coffee — heat rips out bitterness and acid in minutes; cold draws it gently over hours. The coconut water isn't a gimmick, it's GT3's whole-coconut hydration thread carried into the first cup of the day. Rise is the handshake: real coffee, no burnt bite, nothing to hide.",
     },
-    cookbook: { batch: "Standard Batch — GT3 (1:13, ~18-hr cold extraction).", brew: ["Weigh beans 1:13 to mineral water", "Cold-extract ~18 hrs", "Filter, log batch + signal score (target 8+)"], serve: ["Pour over ice", "Top with organic coconut water", "Serve in glass, made to order"], storage: "Keep cold; use within the standard hold window.", quality: "Signal Score 8+ (Energy/Clarity/Flavor/Smoothness).", troubleshoot: [{ issue: "Too bitter", fix: "Check grind/time — over-extraction; pull back toward spec." }, { issue: "Weak", fix: "Verify 1:13 ratio and full 18-hr extraction." }] },
+    cookbook: { weighs: true, batch: "Standard Batch — GT3 (1:13, ~18-hr cold extraction).", brew: ["Weigh beans 1:13 to mineral water", "Cold-extract ~18 hrs", "Filter, log batch + signal score (target 8+)"], serve: ["Pour over ice", "Top with organic coconut water", "Serve in glass, made to order"], storage: "Keep cold; use within the standard hold window.", quality: "Signal Score 8+ (Energy/Clarity/Flavor/Smoothness).", troubleshoot: [{ issue: "Too bitter", fix: "Check grind/time — over-extraction; pull back toward spec." }, { issue: "Weak", fix: "Verify 1:13 ratio and full 18-hr extraction." }] },
   },
   {
     key: "flow", name: "Flow", line: "Activation", price: "$10",
@@ -891,7 +908,7 @@ export const PRODUCTS: Product[] = [
       gt3: "Cold extraction is the foundation of the whole Activation line: single-origin beans at 1:13 to mineral water, drawn cold over ~18 hours, then filtered. Heat rips bitterness out in minutes; cold draws the coffee gently, so what's left is round and smooth — extracted, not sweetened.",
       founder: "We built the entire base on cold extraction for one reason: when you taste the difference, you stop needing anyone to sell it. One great base under Rise, Flow, Dusk and Nitro means the cup is the same in every city. That's not a shortcut — it's the whole point.",
     },
-    cookbook: { batch: "Standard Batch — GT3: 1:13 beans to mineral water, ~18-hr extraction.", brew: ["Weigh to 1:13", "Cold-extract ~18 hrs", "Filter; log batch + signal score"], serve: ["Use as the base for Rise/Flow/Dusk/Nitro"], storage: "Keep cold; honor the hold window.", quality: "Signal Score 8+; smoothness is the watch metric.", troubleshoot: [{ issue: "Low smoothness signal", fix: "Adjust grind/time toward spec; re-profile." }] },
+    cookbook: { weighs: true, batch: "Standard Batch — GT3: 1:13 beans to mineral water, ~18-hr extraction.", brew: ["Weigh to 1:13", "Cold-extract ~18 hrs", "Filter; log batch + signal score"], serve: ["Use as the base for Rise/Flow/Dusk/Nitro"], storage: "Keep cold; honor the hold window.", quality: "Signal Score 8+; smoothness is the watch metric.", troubleshoot: [{ issue: "Low smoothness signal", fix: "Adjust grind/time toward spec; re-profile." }] },
   },
   {
     key: "salted_maple", name: "Salted Maple Latte", line: "Specialty", price: "$14",

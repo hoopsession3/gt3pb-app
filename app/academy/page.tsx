@@ -9,6 +9,7 @@ import Skeleton from "@/components/Skeleton";
 import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
 import { supabase } from "@/lib/supabase";
 import Icon from "@/components/Icon";
+import CookEnforcement from "@/components/CookEnforcement";
 import {
   PRODUCTS, CERTS, ROLES, READINESS, PASS_DEFAULT, ACKS, ackByKey, certExpiryDays,
   moduleBySlug, certByKey, pathForRole, certEarned, requiredModules, sectionMeta, expectationsFor,
@@ -467,7 +468,26 @@ function ProductDetail({ p, onBack }: { p: Product; onBack: () => void }) {
         <>
           <SectionHeader label="Cookbook · operating spec" />
           {p.cookbook.batch && <div className="ac-faq"><b>Batch</b><span>{p.cookbook.batch}</span></div>}
-          {p.cookbook.brew && <div><div className="ac-mini-h">Procedure</div><ol className="ac-ol">{p.cookbook.brew.map((x) => <li key={x}>{x}</li>)}</ol></div>}
+          {p.cookbook.brew && (
+            <div>
+              <div className="ac-mini-h">Procedure</div>
+              {/* 2026-10-01. A new operator is joining who will be cooking, and the Cookbook is
+                  where he reads the method. Driven by the cookbook's `weighs` FLAG, never by
+                  searching these sentences for the word "weigh" — see the note on that field in
+                  lib/academy.ts. It appears on the procedures that weigh and nowhere else, for the
+                  same reason BrewSteps only shows it on weighed lines. */}
+              {p.cookbook.weighs && (
+                <CookEnforcement label="Scale">
+                  Anything weighed here goes on a scale on a <b>hard, flat, level surface</b> — a
+                  counter, not a cutting board, towel, tray, or the lip of a sink. Empty container
+                  on, <b>TARE / ZERO</b> to <b>0</b>, then add until the display matches.{" "}
+                  <b>Re-zero for every ingredient.</b> This ratio is weight to weight, so a tilted
+                  scale — or one zeroed with something already on it — carries into the whole batch.
+                </CookEnforcement>
+              )}
+              <ol className="ac-ol">{p.cookbook.brew.map((x) => <li key={x}>{x}</li>)}</ol>
+            </div>
+          )}
           {p.cookbook.serve && <div><div className="ac-mini-h">Serve</div><ul className="ac-ul">{p.cookbook.serve.map((x) => <li key={x}>{x}</li>)}</ul></div>}
           {p.cookbook.storage && <div className="ac-faq"><b>Storage</b><span>{p.cookbook.storage}</span></div>}
           {p.cookbook.quality && <div className="ac-faq"><b>Quality standard</b><span>{p.cookbook.quality}</span></div>}

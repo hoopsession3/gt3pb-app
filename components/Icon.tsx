@@ -28,7 +28,11 @@ export type IconName =
   // small utility set, cheap to include, comes up constantly in retrofit work
   | "plus" | "info" | "search" | "more"
   // owner-only "edit this" affordance (2026-07-16, the live-copy edit bridge)
-  | "edit";
+  | "edit"
+  // 2026-10-01: a new operator is joining who will be cooking, and "put this on the scale" became
+  // something the app has to say. The glyph lives HERE, not inline in BrewSteps — one home for the
+  // line icons is the whole reason this file exists.
+  | "scale";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   // = OperatorNav ICONS.studio / STREAM_ICONS.brand (reused verbatim — same "AI/brand moment" glyph)
@@ -81,6 +85,9 @@ const PATHS: Record<IconName, React.ReactNode> = {
   more: <><circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" /></>,
   // simple pencil — the owner-only "edit this on the live page" affordance
   edit: <><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></>,
+  // kitchen scale: the weighing bowl, the flat platform under it, the body, the readout. Four
+  // strokes on purpose — this renders at 14px inside a WEIGH tag and has to still read as a scale.
+  scale: <><path d="M8.5 9V6.5h7V9" /><path d="M3 9h18" /><path d="M5 9v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9" /><path d="M9.5 14.5h5" /></>,
 };
 
 export function Icon({

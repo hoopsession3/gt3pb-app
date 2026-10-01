@@ -523,6 +523,75 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("brew: flavorDemand sums mixes, tolerates null mix", JSON.stringify(BM.flavorDemand([{ mix: { RISE: 2 } }, { mix: { RISE: 1, FLOW: 3 } }, { mix: null }], ["RISE", "FLOW"])) === JSON.stringify({ RISE: 3, FLOW: 3 }));
 }
 
+// ── cookQuantity (2026-10-01) — stating a quantity to somebody who is about to measure it ──────
+// Ryan, adding a second operator who will also be cooking: "the ingredient is in the correct
+// measurement of grams and/or make sure that ai, cookbooks, and recipes give it in ounces and
+// grams." BrewSteps and BrewPlanner both rendered `{qty}{unit}` straight out of the recipe, so a
+// gram figure never showed ounces and an ounce figure never showed grams.
+//
+// The assertions that matter most here are the REFUSALS. Converting a volume to a weight needs a
+// density that a recipe line does not carry, and a cook handed a confidently wrong gram figure is
+// worse off than one handed none — so a wrong conversion must be impossible, not merely unlikely.
+{
+  const BM = require("../.smoke/brewMath.js");
+  const q = BM.cookQuantity;
+
+  // Metric in → imperial beside it. 560 / 28.349523125 = 19.753 → 19.8 oz.
+  ok("cook: a gram figure gains ounces", q(560, "g").display === "560 g (19.8 oz)", q(560, "g").display);
+  // Imperial in → metric beside it. 32 × 28.349523125 = 907.18 → 907 g (no decimals on a kitchen
+  // scale at that magnitude; the extra digits read as precision the scale does not have).
+  ok("cook: an ounce figure gains grams", q(32, "oz").display === "32 oz (907 g)", q(32, "oz").display);
+  ok("cook: pounds convert from the exact definition, not 454",
+    q(1, "lb").display === "1 lb (454 g)" && Math.abs(q(1, "lb").grams - 453.59237) < 1e-9, q(1, "lb").display);
+  ok("cook: kilograms read as kilograms and still show ounces",
+    q(1.2, "kg").display === "1.2 kg (42.3 oz)", q(1.2, "kg").display);
+  // Under 10 g a tenth matters (a 7.5 g salt line is not 8 g); under 1 oz, two decimals.
+  ok("cook: small weights keep the decimal a scale can actually show",
+    q(0.25, "oz").display === "0.25 oz (7.1 g)" && q(7, "g").alt === "0.25 oz",
+    `${q(0.25, "oz").display} / ${q(7, "g").alt}`);
+
+  // THE REFUSALS.
+  const gal = q(2, "gal");
+  ok("cook: a VOLUME is passed through untouched — 2 gal of water and 2 gal of honey are not the same weight",
+    gal.kind === "volume" && gal.display === "2 gal" && gal.grams === null && gal.alt === null, gal);
+  for (const u of ["cup", "tbsp", "tsp", "ml", "l", "qt", "fl oz", "pint"]) {
+    ok(`cook: ${u} is never given a weight`, q(1, u).grams === null && q(1, u).needsScale === false, q(1, u));
+  }
+  const pods = q(48, "pods");
+  ok("cook: an unknown unit is counted, never guessed at",
+    pods.kind === "counted" && pods.display === "48 pods" && pods.needsScale === false, pods);
+  ok("cook: a bare count with no unit survives as written", q(1, "").display === "1" && q(1, "").needsScale === false, q(1, ""));
+  ok("cook: junk in does not become a number out",
+    q(null, "g").needsScale === false && q("", "g").needsScale === false && q(-5, "g").needsScale === false
+    && q("abc", "g").needsScale === false,
+    [q(null, "g"), q("abc", "g")]);
+
+  // needsScale is what drives the red band and the WEIGH marks, so it must be true for exactly the
+  // weighed lines and nothing else. A band on "48 pods" teaches a cook the red is noise — the same
+  // disease as the heartbeat flood this app spent two days clearing out.
+  const lines = [
+    { qty: 560, unit: "g" }, { qty: 32, unit: "oz" }, { qty: 2, unit: "gal" },
+    { qty: 48, unit: "pods" }, { qty: 1, unit: "" }, { qty: 0.5, unit: "lb" }, { qty: 250, unit: "ml" },
+  ];
+  const needs = lines.filter((l) => q(l.qty, l.unit).needsScale);
+  ok("cook: needsScale is true for exactly the weighed lines — 3 of 7",
+    needs.length === 3 && needs.every((l) => ["g", "oz", "lb"].includes(l.unit)), needs);
+
+  // primary/alt/display are three views of ONE decision; a UI that styles the two figures
+  // separately must never be able to show something the plain-text form does not say.
+  for (const l of lines) {
+    const c = q(l.qty, l.unit);
+    ok(`cook: display is exactly primary+alt for ${l.qty} ${l.unit || "(none)"}`,
+      c.display === (c.alt ? `${c.primary} (${c.alt})` : c.primary), c);
+    ok(`cook: alt exists iff it is weighed for ${l.qty} ${l.unit || "(none)"}`,
+      (c.alt !== null) === c.needsScale, c);
+  }
+
+  // The conversion is reversible to within the rounding the display admits — proof that one table
+  // is doing both directions rather than two tables drifting.
+  ok("cook: grams→oz→grams round-trips", Math.abs(q(q(560, "g").ounces, "oz").grams - 560) < 1e-6);
+}
+
 // ── equipment lifecycle (0276) — the state machine, proved rather than trusted ──
 {
   const E = require("../.smoke/equipment.js");
@@ -2880,7 +2949,13 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const line = B.recipeFactLine(rise);
 
   ok("brewfacts: the ANCHOR is the measured pair, stated as a pair",
-    /ANCHOR \(measured, use this\): 340 g Coffee : 1\.2 gal water/.test(line), line);
+    /ANCHOR \(measured, use this\): 340 g \(12 oz\) Coffee : 1\.2 gal water/.test(line), line);
+  // 2026-10-01. A new operator is cooking, and the model used to be handed grams ONLY — so "how
+  // much coffee is that in ounces?" meant it doing the arithmetic itself, unchecked, on a number
+  // somebody then weighs. 340 / 28.349523125 = 11.993 → 12 oz, computed by cookQuantity from the
+  // same table the batch math uses.
+  ok("brewfacts: the anchor carries BOTH measurement systems, computed and not recalled",
+    /340 g \(12 oz\)/.test(line) && !/340 g Coffee/.test(line), line);
   ok("brewfacts: the target spec is STATED — it used to be selected from the database and dropped",
     /Target: 2\.5 TDS/.test(line), line);
   ok("brewfacts: the ratio is passed through as a NAME and fenced off from calculation",
@@ -3471,6 +3546,176 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     ok("alert guards: fed 0174's own guard alongside a comment and a note that both quote it, the rule finds exactly one",
       found.length === 1, found);
   }
+}
+
+// ── MEASURING SAFETY (2026-10-01) ──────────────────────────────────────────────────────────────
+// Ryan is adding a second operator who will also be cooking: "make sure that the ai is descriptive
+// in explaining the task… the measuring scale is on a flat surface when measuring out ingredients…
+// make sure that ai, cookbooks, and recipes give it in ounces and grams… all please-enforcements or
+// reinforcements are in red and highlighted with some animation to make sure that nothing gets
+// messed up."
+//
+// Four gates, because four different edits could quietly undo this and none of them would look
+// dangerous at the time:
+//   1. a new screen writes `{qty}{unit}` by hand again — which is how it was wrong in TWO places
+//   2. a cookbook procedure starts weighing something and nobody sets the flag that shows the band
+//   3. the band stops being red, or stops moving, or loses the reduced-motion escape hatch
+//   4. an agent that writes cooking instructions stops being given the measuring rules
+{
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const root = path.join(__dirname, "..");
+  const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
+
+  // ── 1. NOBODY HAND-WRITES A RECIPE QUANTITY AGAIN ────────────────────────────────────────────
+  // The exact shape of the original bug, in JSX: `{i.qty}{i.unit ? ` ${i.unit}` : ""}`. It was
+  // written twice, independently, in BrewSteps and BrewPlanner — which is what made it a one-home
+  // problem rather than a typo. cookQuantity is now the only way to state a quantity to a cook.
+  //
+  // The allow-list is NOT a way around the rule. Each entry is a surface where a quantity is a
+  // FACT ABOUT STOCK OR COST, not an instruction to measure something: converting those to dual
+  // units would be noise, and a WEIGH mark on a reorder point would be a lie. A new file has to
+  // argue its way onto this list.
+  const NOT_A_MEASURING_SURFACE = {
+    "components/CogsCalculator.tsx": "cost per line — a money view; nobody weighs from it",
+    "components/MenuManager.tsx": "per-serving config an owner types; not a prep instruction",
+    "components/BrewPlanner.tsx": "shortfall text + the sizing hint, both about STOCK not measuring",
+    "app/crew/page.tsx": "inventory on hand and reorder points — stock levels, not a recipe",
+  };
+  const walk = (dir, out = []) => {
+    for (const e of fs.readdirSync(path.join(root, dir), { withFileTypes: true })) {
+      const rel = `${dir}/${e.name}`;
+      if (e.isDirectory()) { if (e.name !== "node_modules" && e.name !== ".next") walk(rel, out); }
+      else if (e.name.endsWith(".tsx")) out.push(rel);
+    }
+    return out;
+  };
+  const tsx = [...walk("components"), ...walk("app")];
+  // JSX comments are `{/* … */}` and this file's own notes quote the pattern; strip comments first,
+  // for the reason the alert-guard gate above learned three times in one night.
+  const stripJsx = (t) => t.replace(/\{\s*\/\*[\s\S]*?\*\/\s*\}/g, "").replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+  const RAW_QTY = /\{\s*\w+\.qty\s*\}\s*\{\s*\w+\.unit\s*\?/;
+  const rawOffenders = [];
+  for (const f of tsx) {
+    if (NOT_A_MEASURING_SURFACE[f]) continue;
+    if (RAW_QTY.test(stripJsx(read(f)))) rawOffenders.push(f);
+  }
+  ok("measuring: no screen states an ingredient quantity without cookQuantity",
+    rawOffenders.length === 0, rawOffenders);
+  // RENDERED, not merely imported. Planting the old hand-written row into BrewSteps left the import
+  // in place and a /CookNeedList/ grep stayed green — an import is not a call site, and a check that
+  // cannot fail is a check that lies.
+  ok("measuring: the two screens a cook reads actually RENDER the one shared list",
+    /<CookNeedList\s/.test(read("components/BrewSteps.tsx")) && /<CookNeedList\s/.test(read("components/BrewPlanner.tsx")));
+  ok("measuring: …and that list is the only place the dual-unit row is written",
+    tsx.filter((f) => /className="ck-need"/.test(read(f))).length === 1,
+    tsx.filter((f) => /className="ck-need"/.test(read(f))));
+  // PROVE IT BITES.
+  ok("measuring: fed the original line, the rule finds it",
+    RAW_QTY.test(stripJsx('<li><b>{i.qty}{i.unit ? ` ${i.unit}` : ""}</b><span>{i.name}</span></li>')));
+  ok("measuring: …and fed a comment quoting it, the rule does not",
+    !RAW_QTY.test(stripJsx('{/* this used to be {i.qty}{i.unit ? ` ${i.unit}` : ""} */}\n<CookNeedList />')));
+
+  // ── 2. THE COOKBOOK FLAG AND THE COOKBOOK PROSE AGREE ────────────────────────────────────────
+  // The Cookbook's scale band is keyed on a `weighs` flag, NOT on searching the procedure for the
+  // word "weigh" — 0336 shipped last night for exactly that mistake, and a safety band that
+  // disappears when somebody rewrites "Weigh beans" as "Measure out beans" is that bug with worse
+  // consequences. But the flag can then fall out of step with the prose, so the PROSE IS SNIFFED
+  // HERE: a test fails loudly at build time, where a render path would fail silently in a kitchen.
+  const academy = read("lib/academy.ts");
+  // Each `cookbook: { … }` object, by BRACE MATCHING and not by a regex over indentation. The first
+  // cut of this used `[\s\S]*?\n\s{4}\},` and found 9 of 10 — it ran off the end of one cookbook
+  // into the product object containing it, so one pair of entries was read as a single entry. A
+  // gate that silently policed nine tenths of the list is the kind of quiet lie this file exists
+  // to refuse. Quoted strings are skipped while counting, so a value containing a brace cannot
+  // throw the count off either.
+  const cookbookObjects = (src) => {
+    const out = [];
+    for (let at = src.indexOf("cookbook: {"); at !== -1; at = src.indexOf("cookbook: {", at + 1)) {
+      let depth = 0, q = null;
+      const from = src.indexOf("{", at);
+      for (let i = from; i < src.length; i++) {
+        const c = src[i];
+        if (q) { if (c === "\\") i++; else if (c === q) q = null; continue; }
+        if (c === '"' || c === "'" || c === "`") { q = c; continue; }
+        if (c === "{") depth++;
+        else if (c === "}" && --depth === 0) { out.push(src.slice(from + 1, i)); break; }
+      }
+    }
+    return out;
+  };
+  const cookbooks = cookbookObjects(academy);
+  const declared = (academy.match(/cookbook: \{/g) ?? []).length;
+  ok("cookbooks: the gate finds EVERY cookbook entry it is meant to police",
+    cookbooks.length === declared && declared >= 10, `${cookbooks.length} of ${declared}`);
+  ok("cookbooks: …and each one is its own entry, not two run together",
+    cookbooks.every((cb) => !/cookbook: \{/.test(cb)),
+    cookbooks.filter((cb) => /cookbook: \{/.test(cb)).length);
+  const WEIGH_WORDS = /\b(weigh|weighed|weighing|scale|grams?|\d\s*g\b|ounces?|\boz\b)\b/i;
+  const mismatched = [];
+  for (const cb of cookbooks) {
+    const brew = (cb.match(/brew:\s*\[([^\]]*)\]/) ?? [, ""])[1];
+    const flagged = /\bweighs:\s*true\b/.test(cb);
+    if (WEIGH_WORDS.test(brew) && !flagged) mismatched.push(brew.slice(0, 90));
+  }
+  ok("cookbooks: every procedure that talks about weighing carries weighs:true, so the band shows",
+    mismatched.length === 0, mismatched);
+  ok("cookbooks: at least one procedure IS flagged — a gate that passes on an empty set proves nothing",
+    cookbooks.filter((cb) => /\bweighs:\s*true\b/.test(cb)).length >= 2,
+    cookbooks.filter((cb) => /\bweighs:\s*true\b/.test(cb)).length);
+  ok("cookbooks: the page shows the band from the FLAG and never from the prose",
+    /p\.cookbook\.weighs\s*&&/.test(read("app/academy/page.tsx"))
+    && !WEIGH_WORDS.test((read("app/academy/page.tsx").match(/cookbook\.brew\.(?:some|filter|find)\([\s\S]{0,200}/) ?? [""])[0]));
+  // PROVE IT BITES: a procedure that weighs with the flag absent.
+  ok("measuring: fed an unflagged weighing procedure, the rule finds it",
+    WEIGH_WORDS.test('"Weigh beans 1:13 to mineral water", "Cold-extract ~18 hrs"')
+    && !/\bweighs:\s*true\b/.test('batch: "x", brew: ["Weigh beans 1:13"]'));
+
+  // ── 3. THE BAND IS STILL RED, STILL MOVES, AND STILL STOPS FOR WHOEVER ASKED ──────────────────
+  // Ryan asked for red + highlighted + animated, in those words. All three are load-bearing: this
+  // is the thing standing between a new cook and a wrongly measured batch. The reduced-motion
+  // escape is equally load-bearing in the other direction — for somebody with vestibular
+  // sensitivity a permanently pulsing band is a reason to look AWAY from the instruction.
+  const css = read("app/globals.css");
+  const band = (css.match(/\.ck-enforce\{[^}]*\}/) ?? [""])[0];
+  ok("enforce: the band is a RED FILL, not red text (this file already records that brand red as small text fails contrast)",
+    /background:var\(--red\)/.test(band) && /color:var\(--brand-cream\)/.test(band), band);
+  ok("enforce: it is highlighted with its own border", /border:2px solid var\(--red-d\)/.test(band), band);
+  ok("enforce: it animates", /animation:ck-pulse/.test(band) && /@keyframes ck-pulse/.test(css), band);
+  ok("enforce: the animation is FINITE — a thing that moves forever becomes wallpaper, which is how twenty alerts stopped being read",
+    /animation:ck-pulse [^;}]*\s\d+\}?$/m.test(band) || /animation:ck-pulse 1\.1s ease-out 4/.test(band), band);
+  ok("enforce: reduced-motion stops the movement and keeps the red",
+    /@media \(prefers-reduced-motion: reduce\)\{\s*\.ck-enforce\{animation:none/.test(css));
+  ok("enforce: colour is never the only signal — the band carries an icon and a word",
+    /<Icon name="warning" \/>/.test(read("components/CookEnforcement.tsx"))
+    && /label\.toUpperCase\(\)/.test(read("components/CookEnforcement.tsx")));
+  ok("enforce: it announces itself to a screen reader", /role="alert"/.test(read("components/CookEnforcement.tsx")));
+
+  // ── 4. EVERY AGENT THAT WRITES COOKING INSTRUCTIONS GETS THE RULES ───────────────────────────
+  // One exported block, so the assistant a cook asks and the planner that writes his method steps
+  // cannot teach him two different procedures.
+  const rules = read("lib/agentKnowledge.ts");
+  ok("measuring: the rules demand BOTH units on every weight",
+    /BOTH UNITS, ALWAYS/.test(rules) && /grams AND ounces/.test(rules));
+  ok("measuring: …with the exact factor, so a conversion is derived and not recalled",
+    /1 oz = 28\.3495 g exactly/.test(rules));
+  ok("measuring: …and refuse to turn a volume into a weight",
+    /NEVER CONVERT A VOLUME TO A WEIGHT/.test(rules));
+  ok("measuring: the flat-surface rule is in the words Ryan asked for",
+    /hard, flat, level surface/.test(rules) && /TARE\/ZERO|TARE \/ ZERO/.test(rules));
+  ok("measuring: being descriptive is scoped to things being MADE, so a stock lookup stays short",
+    /BE DESCRIPTIVE WHEN SOMETHING IS BEING MADE/.test(rules) && /Lookups \(/.test(rules));
+  for (const agent of ["app/api/agents/operator/route.ts", "app/api/agents/brew/route.ts"]) {
+    const src = read(agent);
+    ok(`measuring: ${agent.split("/")[3]} imports the shared rules`, /MEASURING_RULES/.test(src)
+      && /from "@\/lib\/agentKnowledge"/.test(src), agent);
+    // Imported is not the same as USED. An import with no interpolation is a check nobody reads —
+    // a mistake made earlier tonight, in this same file.
+    ok(`measuring: …and actually puts them in the prompt it sends`,
+      /\$\{MEASURING_RULES\}|MEASURING_RULES \+/.test(src), agent);
+  }
+  ok("measuring: the recipe grounding hands the model both units rather than asking it to convert",
+    /cookQuantity\(round\(primary\.perGal \* base\), primary\.unit\)\.display/.test(read("lib/brewMath.ts")));
 }
 
 // Everything above is synchronous except what PENDING holds. Printing the summary before those

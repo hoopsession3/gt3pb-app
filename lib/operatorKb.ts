@@ -29,8 +29,14 @@ Taglines: "Only the best for you" · "Pure Signal, No Noise."`;
 export function academyKnowledge(): string {
   const prods = PRODUCTS.map((p) => {
     const cb = p.cookbook;
+    // `weighs` is carried through so the assistant knows which procedures put something on a scale
+    // without having to find the word "weigh" in the prose — the same reason the Cookbook page keys
+    // its scale band on the flag rather than on the sentence (see lib/academy.ts).
+    const weighs = cb?.weighs
+      ? " | THIS PROCEDURE WEIGHS INGREDIENTS — give the scale rules from the MEASURING block every time you explain it"
+      : "";
     const recipe = cb
-      ? `\n  RECIPE — batch: ${cb.batch ?? "—"} | brew: ${(cb.brew ?? []).join(" → ") || "—"} | serve: ${(cb.serve ?? []).join(" → ") || "—"} | storage: ${cb.storage ?? "—"} | quality: ${cb.quality ?? "—"}${cb.troubleshoot?.length ? ` | troubleshoot: ${cb.troubleshoot.map((t) => `${t.issue} → ${t.fix}`).join("; ")}` : ""}`
+      ? `\n  RECIPE — batch: ${cb.batch ?? "—"} | brew: ${(cb.brew ?? []).join(" → ") || "—"}${weighs} | serve: ${(cb.serve ?? []).join(" → ") || "—"} | storage: ${cb.storage ?? "—"} | quality: ${cb.quality ?? "—"}${cb.troubleshoot?.length ? ` | troubleshoot: ${cb.troubleshoot.map((t) => `${t.issue} → ${t.fix}`).join("; ")}` : ""}`
       : "";
     const voices = p.voices ? `\n  Voices — Simple: ${p.voices.simple} | GT3: ${p.voices.gt3} | Founders: ${p.voices.founder}` : "";
     return `## ${p.name} (${p.line}${p.price ? `, ${p.price}` : ""})\n  What: ${p.what}\n  Why: ${p.why}\n  Ingredients: ${p.ingredients.join(", ")}\n  Benefits: ${p.benefits.join(", ")}\n  Talking points: ${p.talking.join(" | ")}${voices}\n  FAQs: ${p.faqs.map((f) => `${f.q} — ${f.a}`).join(" | ")}${recipe}`;

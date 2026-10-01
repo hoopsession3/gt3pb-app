@@ -61,6 +61,83 @@ const grams = (qty: number, unit: string): number | null => {
   return f === undefined ? null : qty * f;
 };
 
+// ── SAYING A QUANTITY TO SOMEBODY WHO IS COOKING IT (2026-10-01) ───────────────────────────────
+// A new operator is joining and will be cooking. BrewSteps rendered `{qty}{unit}` — whatever the
+// recipe happened to store — so "560 g" never showed ounces, "32 oz" never showed grams, and
+// nothing anywhere said to level the scale.
+//
+// THIS IS THE ONLY PLACE THAT DECIDES. A second conversion table living in a component is exactly
+// the drift this repo keeps finding, so this reuses TO_GRAMS above rather than restating it.
+//
+// WHAT IT REFUSES TO DO: convert a volume to a weight. "2 gal of water" is about 7.6 kg and "2 gal
+// of honey" is about 11.4 kg — the difference is density, which a recipe line does not carry. A
+// cook handed a confidently wrong gram figure on a scale is worse off than one handed no figure at
+// all, so volumes and counts are passed through untouched and marked as not-weighed.
+const TO_OUNCES = 1 / 28.349523125;
+const VOLUME_UNITS = new Set([
+  "gal", "gallon", "gallons", "qt", "quart", "quarts", "pt", "pint", "pints",
+  "l", "liter", "liters", "litre", "litres", "ml", "milliliter", "milliliters",
+  "cup", "cups", "tsp", "teaspoon", "teaspoons", "tbsp", "tablespoon", "tablespoons",
+  "fl oz", "floz", "fluid ounce", "fluid ounces",
+]);
+
+export type MeasureKind = "weighed" | "volume" | "counted";
+export type CookQuantity = {
+  kind: MeasureKind;
+  /** The recipe's own figure, exactly as the recipe card and the cookbook state it. Always set. */
+  primary: string;
+  /** The same amount in the other system ("19.8 oz"), unbracketed, for a UI that wants to style
+   *  the two figures differently. NULL unless it is weighed — a volume has no honest weight
+   *  without a density, and nothing here is allowed to invent one. */
+  alt: string | null;
+  /** primary and alt as ONE string, for everywhere that cannot style two elements: the operator
+   *  AI's prompt, a printed prep sheet, a test assertion. One decision, rendered once. */
+  display: string;
+  grams: number | null;
+  ounces: number | null;
+  /** Only true when something actually goes on a scale. A "level the scale" prompt on "48 pods"
+   *  teaches a cook that the red text is noise — the same way twenty heartbeat alerts taught an
+   *  owner to scroll past the word "critical". */
+  needsScale: boolean;
+};
+
+// Grams get a decimal only when the number is small enough for one to matter; 907.18 g on a kitchen
+// scale is 907 g, and the extra digits read as precision the scale does not have.
+const showG = (g: number): string => (g < 10 ? `${Math.round(g * 10) / 10} g` : `${Math.round(g)} g`);
+const showOz = (o: number): string => (o < 1 ? `${Math.round(o * 100) / 100} oz` : `${Math.round(o * 10) / 10} oz`);
+
+/** How to state one recipe line to somebody who is about to make it. */
+export function cookQuantity(qty: number | string | null | undefined, unit?: string | null): CookQuantity {
+  const n = Number(qty);
+  const u = String(unit ?? "").trim();
+  const key = u.toLowerCase();
+  const amount = Number.isFinite(n) && n > 0 ? n : null;
+  const asWritten = `${qty ?? ""}${u ? ` ${u}` : ""}`.trim();
+
+  // Not weighed, by one of three routes: no usable number, a volume, or a unit this table has
+  // never heard of (pods, bags, filters). All three pass the line through untouched.
+  const plain = (kind: MeasureKind): CookQuantity =>
+    ({ kind, primary: asWritten, alt: null, display: asWritten, grams: null, ounces: null, needsScale: false });
+
+  if (amount === null || !u) return plain("counted");
+  if (VOLUME_UNITS.has(key)) return plain("volume");
+
+  const f = TO_GRAMS[key];
+  if (f === undefined) return plain("counted");
+
+  const g = amount * f;
+  const oz = g * TO_OUNCES;
+  // The recipe's own figure leads, so the line still matches the recipe card and the cookbook; the
+  // other system follows in brackets. Both are always present on anything that gets weighed.
+  const metric = key.startsWith("g") || key.startsWith("k");
+  const alt = metric ? showOz(oz) : showG(g);
+  return {
+    kind: "weighed",
+    primary: asWritten, alt, display: `${asWritten} (${alt})`,
+    grams: g, ounces: oz, needsScale: true,
+  };
+}
+
 /** Every ingredient a batch could be sized by: the lines that scale with volume and have a quantity.
  *  A non-scaling line (one filter per brew) can't size anything — doubling it doesn't double a batch. */
 export function sizingOptions(ingredients: SizingIngredient[] | null | undefined, baseWaterGal: number): SizingOption[] {
@@ -181,9 +258,15 @@ export function recipeFactLine(r: RecipeFacts): string {
     return `${head}: no measured base on file — say it is not on file and to check with an owner. Do NOT compute one.`;
   }
 
-  // THE ANCHOR: the measured pair, stated as a pair, in the recipe's own units.
+  // THE ANCHOR: the measured pair, stated as a pair, in the recipe's own units — and, from
+  // 2026-10-01, in BOTH measurement systems. The new operator is cooking, and the model used to be
+  // handed grams only, so answering "how much coffee in ounces?" meant it doing the arithmetic
+  // itself. An LLM converting a safety-relevant quantity in its head is a number nobody checked;
+  // cookQuantity does it here, exactly, from the same table the batch math uses. Derived figures
+  // (a 3 gal batch from a 2 gal anchor) still have to be worked out in the answer — hence the
+  // exact factor and the show-your-working rule in MEASURING_RULES.
   const anchor = primary
-    ? `ANCHOR (measured, use this): ${round(primary.perGal * base)} ${primary.unit} ${primary.name} : ${round(base, 2)} gal water`
+    ? `ANCHOR (measured, use this): ${cookQuantity(round(primary.perGal * base), primary.unit).display} ${primary.name} : ${round(base, 2)} gal water`
     : `ANCHOR (measured, use this): ${round(base, 2)} gal water`;
 
   const rates = opts
@@ -192,7 +275,7 @@ export function recipeFactLine(r: RecipeFacts): string {
 
   const fixed = (Array.isArray(r.ingredients) ? r.ingredients : [])
     .filter((i) => i && i.scales === false && String(i.name ?? "").trim())
-    .map((i) => `${String(i.name).trim()} ${i.qty}${i.unit || ""}`)
+    .map((i) => `${String(i.name).trim()} ${cookQuantity(i.qty, i.unit).display}`)
     .join(", ");
 
   const m = r.method ?? null;

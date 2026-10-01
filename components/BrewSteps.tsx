@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import Icon from "@/components/Icon";
+import CookNeedList from "@/components/CookNeedList";
 
 // BREW STEPS — the sheet you actually brew from.
 //
@@ -99,15 +100,13 @@ export default function BrewSteps({ batch, onClose, onChanged }: { batch: Batch;
           </div>
         )}
 
-        {/* What you need, for THIS run — the scaled list, not the recipe's reference quantities. */}
+        {/* What you need, for THIS run — the scaled list, not the recipe's reference quantities.
+            The list itself (dual units, the scale band, the WEIGH marks) is CookNeedList, shared
+            with BrewPlanner's "Exact recipe" so the two screens cannot drift apart. */}
         {ings.length > 0 && (
           <section className="bs-need">
             <h3>What you need{batch.vessel ? ` · ${batch.vessel}` : ""}</h3>
-            <ul>
-              {ings.map((i, n) => (
-                <li key={n}><b>{i.qty}{i.unit ? ` ${i.unit}` : ""}</b><span>{i.name}</span></li>
-              ))}
-            </ul>
+            <CookNeedList ingredients={ings} />
           </section>
         )}
 
