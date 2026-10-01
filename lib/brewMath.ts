@@ -6,19 +6,72 @@
 // one 10-oz serving; 128 oz to the gallon; a recipe's yield_factor is the share of the vessel
 // that actually becomes pourable product (default 0.92 when a recipe hasn't measured its own).
 
-const GAL_PER_BOTTLE = 10 / 128;
+// ── THE POUR, IN ONE PLACE (2026-10-01) ────────────────────────────────────────────────────────
+// "A serving is 10 oz" had THREE homes: this file's GAL_PER_BOTTLE, app/api/agents/brew's own
+// SERVE_OZ, and an inline `u * 10 / 128` in lib/eventbrief. That was survivable while it was only
+// a display number. It stopped being survivable the moment Ryan set the smallest batch in SERVINGS
+// ("start at 3 servings 30 OZ"): the floor of every batch this app will ever plan is now derived
+// from the pour, so a 12-oz pour entered in one of the three files would quietly move the minimum
+// batch in that file alone. One home, and the other two read it.
+export const SERVE_OZ = 10;
+export const OZ_PER_GAL = 128;
+const GAL_PER_BOTTLE = SERVE_OZ / OZ_PER_GAL;
 const DEFAULT_YIELD = 0.92;
 
-/** Vessels fill in quarter-gallon steps — round demand up to the step a crew can actually pour. */
+// ── THE STEP A BATCH IS ROUNDED TO, AND WHY IT IS NO LONGER A QUARTER GALLON ───────────────────
+// Ryan, 2026-10-01: "Recipe should be able to scale down as small as possible to not waste and
+// expand as needed." Measured before changing anything — gallonsForBottles rounded UP to 0.25 gal,
+// and the waste is not a small-batch problem, it is everywhere:
+//
+//     want  3 bottles -> brewed 0.50 gal -> made  5     2 wasted   (67% over)
+//     want  6 bottles -> brewed 0.75 gal -> made  8     2 wasted
+//     want 12 bottles -> brewed 1.25 gal -> made 14     2 wasted
+//     want 24 bottles -> brewed 2.25 gal -> made 26     2 wasted
+//
+// A quarter gallon is 3.2 servings, so rounding demand up to it throws away up to three servings
+// of coffee on every single brew. The quarter came from quarterGal, whose own doc says it rounds
+// "demand up to the step a crew can actually pour" — a POURING rule that leaked into the brewing
+// size and was never a fact about a vessel.
+//
+// 0.05 gal is 6.4 oz: still a volume somebody can measure into a tower with a jug, and fine enough
+// that every count above now lands on zero waste. It is the smallest honest step, not the smallest
+// possible one — 0.01 gal would be 1.28 oz of water, which nobody can pour accurately, and a step
+// finer than the thing being measured is a false precision.
+export const BREW_STEP_GAL = 0.05;
+
+// Both directions live here, together, because they are one rule read two ways and the direction is
+// never a free choice: covering demand must round UP or somebody is short, and sizing from a fixed
+// amount of coffee must round DOWN or it asks for a bag that is not on the shelf. Writing either one
+// inline at a call site is how a third rounding rule gets invented — BrewPlanner had started to.
+//
+// THE ARITHMETIC IS IN INTEGER HUNDREDTHS OF A GALLON, not in floats. 0.05 has no exact binary
+// representation, so the obvious `Math.floor(g / 0.05) * 0.05` returns 16.150000000000002 for a
+// 16.1997 gal bag — a number that is not wrong by anything that matters and is still wrong, because
+// it goes into brew_batches.batch_gal and onto a screen. Stepping in integers and dividing once at
+// the end keeps every result on a clean two decimals. The 1e-9 absorbs the drift in `g * 100`
+// itself, so a value already sitting on a step does not jump to the next one.
+const STEP_H = Math.round(BREW_STEP_GAL * 100);   // the step, in hundredths of a gallon
+
+/** Round a batch UP to the next brewable step. Demand must always be covered. */
+export const stepUpGal = (g: number) =>
+  (Math.max(1, Math.ceil(g * 100 / STEP_H - 1e-9)) * STEP_H) / 100;
+
+/** Round a batch DOWN to a brewable step — sizing from a fixed amount must never ask for more. */
+export const stepDownGal = (g: number) =>
+  (Math.max(0, Math.floor(g * 100 / STEP_H + 1e-9)) * STEP_H) / 100;
+
+/** Vessels fill in quarter-gallon steps — round demand up to the step a crew can actually pour.
+ *  NOT the brewing step any more (see BREW_STEP_GAL above); kept because it is the right rounding
+ *  for anything that genuinely moves in quarter-gallon units. Nothing in the app calls it today. */
 export const quarterGal = (g: number) => Math.max(0.25, Math.ceil(g * 4) / 4);
 
 /** How many bottles a batch of `gal` gallons makes, after the recipe's yield. */
 export const bottlesFor = (gal: number, yieldFactor: number | null | undefined) =>
-  Math.floor((gal * 128 * (yieldFactor ?? 1)) / 10);
+  Math.floor((gal * OZ_PER_GAL * (yieldFactor ?? 1)) / SERVE_OZ);
 
-/** Gallons to brew to cover `bottles`, after yield, rounded to the pourable quarter-gal. */
+/** Gallons to brew to cover `bottles`, after yield, rounded up to the next brewable step. */
 export const gallonsForBottles = (bottles: number, yieldFactor: number | null | undefined) =>
-  quarterGal((bottles * GAL_PER_BOTTLE) / (Number(yieldFactor) || DEFAULT_YIELD));
+  stepUpGal((bottles * GAL_PER_BOTTLE) / (Number(yieldFactor) || DEFAULT_YIELD));
 
 /** The "start now" rule: a still-planned batch past its latest start won't be ready in time.
  *  (A batch already brewing is committed — no warn.) */
@@ -323,16 +376,166 @@ export function recipeFactLine(r: RecipeFacts): string {
 // a prompt to go and look at the vessel, not a specification of it — so the copy asks rather than
 // asserts, and it never blocks. If the true minimum is ever measured it belongs on brew_vessels as
 // a column, and this heuristic should be deleted the day it is.
+// 2026-10-01: 0337 adds brew_vessels.min_gal, the column this comment asked for. The heuristic is
+// NOT deleted yet, because the column ships empty — deleting it today would leave every vessel with
+// no minimum at all, which is worse than a prompt. Precedence instead: a MEASURED minimum wins and
+// is stated as a fact ("under"), the guess applies only while nothing is measured and keeps asking
+// rather than asserting ("shallow"). The two verdicts are deliberately different words, because one
+// is a measurement and one is a question, and a UI that said the same thing for both would be
+// laundering a guess into a specification. When both vessels carry a number, "shallow" is dead.
 export type VesselFit =
   | { verdict: "fits"; pct: number }
   | { verdict: "over"; pct: number; overBy: number }
+  /** MEASURED: below this vessel's recorded min_gal. A fact. */
+  | { verdict: "under"; pct: number; minGal: number }
+  /** GUESSED: under a third of capacity and nobody has measured this vessel. A question. */
   | { verdict: "shallow"; pct: number };
 
-export function vesselFit(gal: number, capacityGal: number, count = 1): VesselFit | null {
-  const g = Number(gal), cap = Number(capacityGal) * (Number(count) || 1);
+export function vesselFit(
+  gal: number, capacityGal: number, count = 1, minGal?: number | null,
+): VesselFit | null {
+  const n = Number(count) || 1;
+  const g = Number(gal), cap = Number(capacityGal) * n;
   if (!(g > 0) || !(cap > 0)) return null;
   const pct = Math.round((g / cap) * 100);
   if (g > cap + 0.001) return { verdict: "over", pct, overBy: +(g - cap).toFixed(2) };
+  // The recorded minimum is PER VESSEL, so it scales with the count the same way capacity does:
+  // two Toddys brewing in parallel are two batches that each have to clear the bag.
+  const m = Number(minGal);
+  if (Number.isFinite(m) && m > 0) {
+    return g < m * n - 0.001 ? { verdict: "under", pct, minGal: +(m * n).toFixed(2) } : { verdict: "fits", pct };
+  }
   if (g < cap / 3) return { verdict: "shallow", pct };
   return { verdict: "fits", pct };
+}
+
+// ═══ HOW SMALL CAN THIS RECIPE ACTUALLY BE MADE ══════════════════════════════════════════════════
+//
+// Ryan, 2026-10-01: "Recipe should be able to scale down as small as possible to not waste and
+// expand as needed." Asked how small, he said: "Start at 3 servings 30OZ."
+//
+// THE TRAP IN THAT SENTENCE, AND WHY THIS FUNCTION EXISTS RATHER THAN A CONSTANT: 3 servings is
+// 30 oz of FINISHED product, and a batch is measured in water. They are not the same number. At a
+// 0.92 yield, 30 oz of water makes 27.6 oz — TWO servings. Set the floor to 30 oz of water and the
+// app hands somebody who asked for three a batch that pours two, which is exactly the class of
+// quiet lie this codebase keeps finding. The floor is therefore computed THROUGH the recipe's own
+// yield, so "3 servings" means three servings came out.
+//
+// THREE FLOORS, AND THE REAL MINIMUM IS THE LARGEST OF THEM. They are different kinds of fact and
+// the UI needs to know which one is binding, because the way out of each is different:
+//
+//   servings     — policy. Ryan's number. Change it here.
+//   vessel       — physical. Below it the gear does not work: half a gallon does not reach the
+//                  filter basket of a 5 gal tower. MEASURED, never guessed (see brew_vessels.min_gal).
+//                  Null means not measured yet, and a null floor is NOT applied — a floor nobody
+//                  measured is not a floor, and inventing one here would be the same mistake as
+//                  the capacity/3 heuristic this is replacing.
+//   measurement  — the batch stops being weighable. Scale down far enough and a 7 g line becomes
+//                  0.4 g, and a kitchen scale reading whole grams cannot tell 0 from 1. The ratio
+//                  is what makes the product, so an unweighable ratio is an unmakeable recipe.
+//
+// THE MEASUREMENT FLOOR, DERIVED NOT GUESSED. A scale with 1 g resolution displaying "7" means the
+// true weight is somewhere in [6.5, 7.5) — a reading error of ±(resolution / 2). Expressed as a
+// share of the ingredient, that error is (resolution / 2) / weight, and it grows as the batch
+// shrinks. Holding it to 5% gives a smallest trustworthy weight of resolution * 10: on Ryan's 1 g
+// kitchen scale, 10 g. Below that the line is guesswork wearing a number.
+//
+// 5% is chosen, not found, and here is the reasoning rather than a bare constant: this app already
+// treats a 3% difference in the coffee rate as worth a migration (283.333 vs 291.2 g/gal, 0079 →
+// recipeFactLine). A tolerance looser than the differences the business already acts on would be
+// incoherent. If a finer scale is ever bought the floor moves with it — pass its resolution.
+export const SCALE_RESOLUTION_G = 1;      // Ryan, 2026-10-01: a 1 g kitchen scale.
+export const WEIGH_TOLERANCE = 0.05;      // 5% — see above. Not a magic number; a stated one.
+export const MIN_SERVINGS = 3;            // Ryan: "Start at 3 servings 30OZ."
+
+/** The smallest weight a scale of this resolution can state within WEIGH_TOLERANCE. */
+export const smallestTrustworthyG = (resolutionG: number = SCALE_RESOLUTION_G) =>
+  (Math.max(resolutionG, 0.001) / 2) / WEIGH_TOLERANCE;
+
+export type BatchFloorReason = "servings" | "vessel" | "measurement";
+export type BatchFloor = {
+  /** The smallest batch to offer, in gallons, already rounded UP to a brewable step. */
+  gal: number;
+  /** Which floor is binding — the one the UI should explain. */
+  reason: BatchFloorReason;
+  /** What that batch actually pours, after yield. Never fewer than MIN_SERVINGS. */
+  servings: number;
+  /** Every floor, unrounded, so a caller can say how close the others are. */
+  floors: { servings: number; vessel: number | null; measurement: number | null };
+  /** On a measurement floor, the line that runs out first and what it weighs there. */
+  limiting: { name: string; unit: string; gramsAtFloor: number } | null;
+  /** One sentence for a person, naming the binding reason. */
+  note: string;
+};
+
+/**
+ * The smallest batch of this recipe that is worth making, and the reason for the number.
+ * Expanding has no equivalent function on purpose: the ceiling is the vessel, which vesselFit
+ * already owns, and a recipe has no upper limit of its own.
+ */
+export function smallestBatch(opts: {
+  ingredients: SizingIngredient[] | null | undefined;
+  baseWaterGal: number;
+  yieldFactor?: number | null;
+  /** brew_vessels.min_gal x count. NULL until somebody measures it — see the note above. */
+  vesselMinGal?: number | null;
+  scaleResolutionG?: number;
+  minServings?: number;
+}): BatchFloor {
+  const y = Number(opts.yieldFactor) || DEFAULT_YIELD;
+  const wantServings = Math.max(1, Math.floor(opts.minServings ?? MIN_SERVINGS));
+
+  // FLOOR 1 — servings, through the yield. This is the "30 oz of finished, not of water" line.
+  const servingsFloor = (wantServings * GAL_PER_BOTTLE) / y;
+
+  // FLOOR 2 — the vessel, only if somebody measured it.
+  const vm = Number(opts.vesselMinGal);
+  const vesselFloor = Number.isFinite(vm) && vm > 0 ? vm : null;
+
+  // FLOOR 3 — measurement. Every WEIGHED line has a grams-per-gallon rate; the line with the
+  // SMALLEST rate is the one that becomes unreadable first, so it sets the floor for all of them.
+  // Volumes and counts are skipped: nothing puts them on a scale (see cookQuantity).
+  const minG = smallestTrustworthyG(opts.scaleResolutionG ?? SCALE_RESOLUTION_G);
+  const weighed = sizingOptions(opts.ingredients, opts.baseWaterGal)
+    .filter((o) => o.gramsPerGal !== null && (o.gramsPerGal as number) > 0);
+  let measurementFloor: number | null = null;
+  let limiting: BatchFloor["limiting"] = null;
+  if (weighed.length) {
+    const tightest = weighed.reduce((a, b) =>
+      (a.gramsPerGal as number) <= (b.gramsPerGal as number) ? a : b);
+    measurementFloor = minG / (tightest.gramsPerGal as number);
+    limiting = { name: tightest.name, unit: tightest.unit, gramsAtFloor: minG };
+  }
+
+  // The real minimum is the largest of the three — a floor is a floor.
+  const candidates: { gal: number; reason: BatchFloorReason }[] = [
+    { gal: servingsFloor, reason: "servings" },
+    ...(vesselFloor !== null ? [{ gal: vesselFloor, reason: "vessel" as const }] : []),
+    ...(measurementFloor !== null ? [{ gal: measurementFloor, reason: "measurement" as const }] : []),
+  ];
+  const binding = candidates.reduce((a, b) => (b.gal > a.gal ? b : a));
+  const gal = stepUpGal(binding.gal);
+  const servings = bottlesFor(gal, y);
+
+  // The servings sentence has to stay true at a 100% yield, where the gap between the water and
+  // the finished product is the brewable STEP and not the yield. Blaming the yield there would read
+  // as "more than 30 oz because only 100% comes out pourable", which is nonsense dressed as a
+  // reason — and a reason nobody can follow is how a number stops being questioned.
+  const wantOz = wantServings * SERVE_OZ;
+  const note =
+    binding.reason === "servings"
+      ? `${wantServings} servings is the smallest batch worth making. That is ${gal.toFixed(2)} gal of water — `
+        + (y < 1
+          ? `more than ${wantOz} oz, because only ${Math.round(y * 100)}% of what goes in comes out pourable.`
+          : `the next ${BREW_STEP_GAL} gal step above ${wantOz} oz.`)
+      : binding.reason === "vessel"
+        ? `The vessel sets this, not the recipe: below ${vesselFloor?.toFixed(2)} gal the gear does not work. That batch pours ${servings} servings.`
+        : `The scale sets this. Smaller than ${gal.toFixed(2)} gal and ${limiting?.name} falls under ${minG} g, which a ${opts.scaleResolutionG ?? SCALE_RESOLUTION_G} g scale cannot read closely enough to hold the ratio. That batch pours ${servings} servings.`;
+
+  return {
+    gal, reason: binding.reason, servings,
+    floors: { servings: servingsFloor, vessel: vesselFloor, measurement: measurementFloor },
+    limiting: binding.reason === "measurement" ? limiting : null,
+    note,
+  };
 }

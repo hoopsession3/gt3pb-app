@@ -1,5 +1,6 @@
 import type { EventRow } from "./db";
 import type { Projection } from "./economics";
+import { SERVE_OZ, OZ_PER_GAL } from "./brewMath";
 
 // Event Brief — turns the event's config (menu + attendance + rig + crew) into
 // real prep intelligence: how much to brew/pack, the ingredient pull, whether the
@@ -12,7 +13,9 @@ const THROUGHPUT_PER_CREW_HR = 35; // units one person can serve per hour at the
 
 // per-line prep yield (how projected units become a brew/pack instruction)
 const PREP: Record<string, (u: number) => string> = {
-  nitro: (u) => `Charge ${Math.max(1, Math.ceil(u / 64))} keg${u > 64 ? "s" : ""} · ~${(u * 10 / 128).toFixed(1)} gal cold brew`,
+  // SERVE_OZ / OZ_PER_GAL, not an inline 10 / 128 — the pour has one home in lib/brewMath since
+  // the smallest batch started being measured in servings (2026-10-01).
+  nitro: (u) => `Charge ${Math.max(1, Math.ceil(u / 64))} keg${u > 64 ? "s" : ""} · ~${(u * SERVE_OZ / OZ_PER_GAL).toFixed(1)} gal cold brew`,
   bottles: (u) => `Pack ${Math.ceil(u * 1.1)} bottles (units + 10% buffer)`,
   nature_aid: (u) => `~${u} servings · ${Math.ceil(u / 8)} case${u > 8 ? "s" : ""} coconut water + meat`,
   salted_maple: (u) => `${u} servings · cold-brew base + maple/salt build`,

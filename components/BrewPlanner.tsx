@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { FLAVORS } from "@/lib/orderAhead";
-import { bottlesFor, brewStartOverdue, sizingOptions, primarySizing, gallonsFromIngredient, ingredientForGallons, quarterGalDown, vesselFit } from "@/lib/brewMath";
+import { bottlesFor, brewStartOverdue, sizingOptions, primarySizing, gallonsFromIngredient, ingredientForGallons, stepDownGal, vesselFit, smallestBatch, BREW_STEP_GAL } from "@/lib/brewMath";
 import { localToday } from "@/lib/dates";
 import AssignTaskSheet from "@/components/AssignTaskSheet";
 import Sheet, { CloseButton } from "@/components/Sheet";
@@ -26,7 +26,7 @@ import Icon from "@/components/Icon";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 type Recipe = { id: string; name: string; style: string | null; ratio: string | null; target_spec: string | null; base_water_gal: number; extraction_hours: number; yield_factor: number | null; product_slug: string | null; ingredients: ScaledIng[] | null };
-type Vessel = { id: string; name: string; capacity_gal: number; filter_type: string | null };
+type Vessel = { id: string; name: string; capacity_gal: number; filter_type: string | null; min_gal: number | null };
 type ScaledIng = { name: string; qty: number | string; unit?: string | null };
 type Batch = { id: string; recipe_id: string | null; recipe_name: string | null; batch_gal: number; brew_date: string | null; ready_at: string | null; event_id: string | null; stop_id: string | null; status: string; og: string | null; signal_score: number | null; target_spec: string | null; extraction_hours: number | null; brew_started_at: string | null; vessel: string | null; coffee_lot: string | null; brewer: string | null; taste_notes: string | null; created_at?: string | null; needed_by: string | null; latest_start_at: string | null; drop_date: string | null; hold_hours: number | null; scaled: ScaledIng[] | null };
 type InvItem = { name: string; qty: number | null; unit: string | null };
@@ -99,7 +99,7 @@ export default function BrewPlanner() {
       supabase.from("brew_recipes").select("id, name, style, ratio, target_spec, base_water_gal, extraction_hours, yield_factor, product_slug, ingredients").is("archived_at", null).order("sort"),
       supabase.from("brew_batches").select("id, recipe_id, recipe_name, batch_gal, brew_date, ready_at, event_id, stop_id, status, og, signal_score, target_spec, extraction_hours, brew_started_at, vessel, coffee_lot, brewer, taste_notes, created_at, needed_by, latest_start_at, drop_date, hold_hours, scaled").order("created_at", { ascending: false }),
       supabase.from("events").select("id, title, day, day_label").is("archived_at", null).order("day"),
-      supabase.from("brew_vessels").select("id, name, capacity_gal, filter_type").is("archived_at", null).order("sort"),
+      supabase.from("brew_vessels").select("id, name, capacity_gal, filter_type, min_gal").is("archived_at", null).order("sort"),
       supabase.from("stops").select("id, name, starts_at, status").is("archived_at", null).order("starts_at", { ascending: true, nullsFirst: false }),
       supabase.from("inventory_items").select("name, qty, unit"),
     ]);
@@ -701,6 +701,23 @@ function BrewSheet({ recipe, events, stops, vessels, initialTarget, onClose, onD
     if (v) setGal(String(+(v.capacity_gal * count).toFixed(2)));
   };
   const vesselLabel = vessel ? `${vesselCount > 1 ? `${vesselCount}× ` : ""}${vessel.name} (${vessel.capacity_gal} gal${vesselCount > 1 ? ` ea` : ""})` : undefined;
+
+  // ── HOW SMALL THIS ONE CAN GO (2026-10-01) ───────────────────────────────────────────────────
+  // Ryan: "Recipe should be able to scale down as small as possible to not waste and expand as
+  // needed… Start at 3 servings 30OZ." The input used to carry min="0.25" step="0.25" — a flat
+  // floor of 3.2 servings with no reason attached, and a step that is 5% of a 5 gal batch and 50%
+  // of a half-gallon one. Both are computed per recipe now, and the reason is on screen: a minimum
+  // nobody can account for is one somebody overrides out of frustration.
+  const floor = smallestBatch({
+    ingredients: recipe.ingredients, baseWaterGal: recipe.base_water_gal,
+    yieldFactor: recipe.yield_factor,
+    // Per vessel × count, and NULL until somebody measures it (0337). A null floor is not applied.
+    vesselMinGal: vessel?.min_gal != null ? Number(vessel.min_gal) * vesselCount : null,
+  });
+  // Servings is the unit Ryan actually thinks in — he gave the floor as "3 servings 30OZ", not as
+  // gallons. Gallons stay the value the batch is built from; this rides alongside.
+  const servingsNow = bottlesFor(Number(gal) || 0, recipe.yield_factor);
+
   // Upcoming only, soonest first. The raw lists are every event/stop ever (no date floor, oldest
   // first for events) — scanning all of history to find "the next one" was the actual complaint
   // ("planning a brew for the event and next truck stop is frustrating"). Pre-select the soonest of
@@ -784,9 +801,11 @@ function BrewSheet({ recipe, events, stops, vessels, initialTarget, onClose, onD
                 <label className="prod-f">
                   <span>Batch size{vessel && !override ? ` · ${vesselLabel}` : ""}</span>
                   <div className="bsz-row">
+                    {/* min and step are the RECIPE's, not a constant. 0.25/0.25 was a flat 3.2-
+                        serving floor and a step worth half a small batch; see `floor` above. */}
                     <input type="number"
-                           min={sizeUnit === "gal" ? "0.25" : "0"}
-                           step={sizeUnit === "gal" ? "0.25" : "10"}
+                           min={sizeUnit === "gal" ? String(floor.gal) : "0"}
+                           step={sizeUnit === "gal" ? String(BREW_STEP_GAL) : "10"}
                            value={sizeUnit === "gal" ? gal : byIng}
                            onChange={(e) => {
                              const v = e.target.value;
@@ -795,7 +814,11 @@ function BrewSheet({ recipe, events, stops, vessels, initialTarget, onClose, onD
                              setByIng(v);
                              const q = parseFloat(v);
                              if (sizeBy && Number.isFinite(q) && q > 0) {
-                               setGal(String(quarterGalDown(gallonsFromIngredient(q, sizeBy.perGal))));
+                               // Sizing from a fixed amount of coffee still rounds DOWN — asking for
+                               // more than is on the shelf is the one direction that cannot be
+                               // allowed — but down to the brewable step now, not to a quarter
+                               // gallon, which could throw away three servings' worth of a bag.
+                               setGal(stepDownGal(gallonsFromIngredient(q, sizeBy.perGal)).toFixed(2));
                              }
                            }} />
                     <select aria-label="Size this batch by" value={sizeUnit}
@@ -818,7 +841,7 @@ function BrewSheet({ recipe, events, stops, vessels, initialTarget, onClose, onD
                 <div className="bsz">
                   <p className="bsz-note">
                     {Number(gal) > 0
-                      ? <>A {gal} gal batch needs <b>{Math.round(ingredientForGallons(Number(gal), sizeBy.perGal))} {sizeBy.unit}</b>. Sizing from the {sizeBy.unit} rounds down to the quarter-gallon, so it never asks for more than you have.</>
+                      ? <>A {gal} gal batch needs <b>{Math.round(ingredientForGallons(Number(gal), sizeBy.perGal))} {sizeBy.unit}</b> and pours <b>{servingsNow} serving{servingsNow === 1 ? "" : "s"}</b>. Sizing from the {sizeBy.unit} rounds down to the nearest {BREW_STEP_GAL} gal, so it never asks for more than you have.</>
                       : <>Enter what you have and the batch sizes to it.</>}
                     {/* The over-capacity half of this already existed. The other half is what bit a
                         real brew on 2026-09-07: 170 g of coffee sizes to 0.5 gal, which is correct
@@ -826,15 +849,29 @@ function BrewSheet({ recipe, events, stops, vessels, initialTarget, onClose, onD
                         filter basket in a 5 gal tower. The sheet showed the vessel and the size
                         side by side and never mentioned that one did not fit the other. */}
                     {(() => {
-                      const fit = vessel ? vesselFit(Number(gal), vessel.capacity_gal, vesselCount) : null;
+                      const fit = vessel ? vesselFit(Number(gal), vessel.capacity_gal, vesselCount, vessel.min_gal) : null;
                       if (!fit || fit.verdict === "fits") return null;
                       const cap = (vessel!.capacity_gal * vesselCount).toFixed(2);
-                      return fit.verdict === "over"
-                        ? <> <span className="bsz-over">That is {fit.overBy} gal more than {vesselCount > 1 ? `${vesselCount} × ` : ""}{vessel!.name} holds ({cap} gal).</span></>
-                        // Asks rather than asserts: the real minimum depends on where the basket
-                        // sits, which is not on file. It never blocks — Ryan knows his own gear.
-                        : <> <span className="bsz-shallow">That fills only {fit.pct}% of {vessel!.name} ({cap} gal). Check the grounds will actually be submerged before you start.</span></>;
+                      if (fit.verdict === "over") {
+                        return <> <span className="bsz-over">That is {fit.overBy} gal more than {vesselCount > 1 ? `${vesselCount} × ` : ""}{vessel!.name} holds ({cap} gal).</span></>;
+                      }
+                      // MEASURED (0337) — states a fact, with the number somebody went and took.
+                      if (fit.verdict === "under") {
+                        return <> <span className="bsz-shallow">{vessel!.name} cannot brew less than <b>{fit.minGal} gal</b> — that is the measured minimum on file, and this is {gal} gal.</span></>;
+                      }
+                      // GUESSED — asks rather than asserts, because nobody has measured this vessel
+                      // yet. Deliberately different words from the measured case: one is a fact and
+                      // one is a question, and saying them the same way would launder the guess.
+                      return <> <span className="bsz-shallow">That fills only {fit.pct}% of {vessel!.name} ({cap} gal), and no measured minimum is on file for it. Check the grounds will actually be submerged — then record the real minimum so nobody has to guess again.</span></>;
                     })()}
+                  </p>
+                  {/* WHY the box will not go lower. An unexplained minimum is one somebody types
+                      around; a minimum with its reason attached is one they can act on — buy a
+                      finer scale, measure the vessel, or accept it. The three reasons have three
+                      different ways out, which is exactly why smallestBatch names which is binding
+                      instead of returning a bare number. */}
+                  <p className="bsz-floor">
+                    <Icon name="info" /> Smallest batch for {recipe.name}: <b>{floor.gal.toFixed(2)} gal</b> ({floor.servings} serving{floor.servings === 1 ? "" : "s"}). {floor.note}
                   </p>
                 </div>
               )}

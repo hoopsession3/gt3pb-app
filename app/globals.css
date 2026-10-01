@@ -4489,6 +4489,15 @@ body:has(.conc-sheet) .rail{display:flex}
    the water has nowhere to go — while too shallow is a prompt to look at the basket, and the real
    minimum is not recorded anywhere. It reads as a question, so it should not shout like an error. */
 .bsz-shallow{color:var(--gold2);font-weight:650}
+/* WHY the size box will not go lower (2026-10-01). Deliberately not styled as a warning: nothing is
+   wrong, this is the floor and its reason. An unexplained minimum is one somebody types around; the
+   three reasons have three different ways out — buy a finer scale, measure the vessel, or accept
+   it — which is why smallestBatch() names the binding one instead of returning a bare number. */
+.bsz-floor{display:flex;gap:6px;align-items:baseline;margin:8px 0 0;padding-top:8px;
+  border-top:1px solid var(--line);font-family:'Inter';font-size:12px;line-height:1.5;
+  color:var(--cream-m)}
+.bsz-floor b{color:var(--cream);font-variant-numeric:tabular-nums}
+.bsz-floor .k-ic{flex:none;color:var(--gold2);position:relative;top:2px}
 /* "Take me off" beside the waitlist confirmation (0310). Inline and underlined rather than a button
    shape: it sits inside a sentence, and the opt-out should be findable without competing with the
    thing the person actually came to do. */

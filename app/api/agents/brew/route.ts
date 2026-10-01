@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { academyKnowledge } from "@/lib/operatorKb";
 import { MEASURING_RULES } from "@/lib/agentKnowledge";
+import { SERVE_OZ, OZ_PER_GAL } from "@/lib/brewMath";
 import { claimSafeDeep } from "@/lib/claimGuard";
 
 export const runtime = "nodejs";
@@ -16,8 +17,9 @@ export const maxDuration = 60;
 // numbers, it does the judgment: the schedule, the servable yield, inventory flags, and the quality
 // checkpoints that hold the standard. Two phases: plan (no writes) → commit (creates a brew_batch).
 
-const SERVE_OZ = 10; // standard pour (academy: ~210 mg caffeine / 10 oz)
-const OZ_PER_GAL = 128;
+// The pour and the gallon come from lib/brewMath, which is where the batch floor is derived from
+// them (2026-10-01). This file used to declare its own 10 and 128; two copies of a number that now
+// sets the smallest batch this app will plan is one copy too many.
 const round = (n: number) => Math.round(n * 10) / 10;
 
 // Linear scale of a recipe's ingredient list to a target water volume. Exact, deterministic.

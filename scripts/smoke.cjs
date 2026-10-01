@@ -1322,11 +1322,23 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("brew: which is far more than one Toddy holds", gal > 2.5);
 
   // Rounding DOWN, because the coffee is a hard limit.
+  //
+  // 2026-10-01: these two used to assert against quarterGalDown, and BrewPlanner stopped calling it
+  // when the brewable step went from a quarter gallon to 0.05 — so the assertions kept passing
+  // while guarding a function on no app path at all. A test that no longer covers the code it was
+  // written for is the same disease as a gate nobody reads: it reports safety it is not providing.
+  // They assert against stepDownGal, which is what the sheet actually calls.
   ok("brew: a batch sized from a fixed bag rounds down, never up",
-    B.quarterGalDown(16.1997) === 16 && B.quarterGalDown(4.99) === 4.75,
-    `${B.quarterGalDown(16.1997)} / ${B.quarterGalDown(4.99)}`);
+    B.stepDownGal(16.1997) === 16.15 && B.stepDownGal(4.99) === 4.95,
+    `${B.stepDownGal(16.1997)} / ${B.stepDownGal(4.99)}`);
   ok("brew: rounding down never asks for more than you have",
-    B.ingredientForGallons(B.quarterGalDown(gal), 280) <= tenLb);
+    B.ingredientForGallons(B.stepDownGal(gal), 280) <= tenLb);
+  // And the finer step is not just smaller, it is LESS WASTEFUL of a fixed bag: the quarter-gallon
+  // rule left 0.15 gal of brewable coffee in the bag on this very batch.
+  ok("brew: the finer step uses more of a fixed bag than the quarter-gallon rule did",
+    B.stepDownGal(gal) > B.quarterGalDown(gal)
+    && B.ingredientForGallons(B.stepDownGal(gal) - B.quarterGalDown(gal), 280) > 40,
+    `${B.stepDownGal(gal)} vs ${B.quarterGalDown(gal)} gal = ${Math.round(B.ingredientForGallons(B.stepDownGal(gal) - B.quarterGalDown(gal), 280))} g of coffee no longer stranded`);
 
   // A line that does not scale cannot size a batch — doubling one filter does not double a brew.
   const withFilter = B.sizingOptions([...RISE, { name: "Paper filter", qty: 1, unit: "each", scales: false }], 2);
@@ -3759,6 +3771,192 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   }
   ok("measuring: the recipe grounding hands the model both units rather than asking it to convert",
     /cookQuantity\(round\(primary\.perGal \* base\), primary\.unit\)\.display/.test(read("lib/brewMath.ts")));
+}
+
+// ── HOW SMALL A BATCH CAN BE (2026-10-01) ──────────────────────────────────────────────────────
+// Ryan: "Recipe should be able to scale down as small as possible to not waste and expand as
+// needed." Then, asked how small: "Start at 3 servings 30OZ."
+//
+// What was there before: gallonsForBottles rounded UP to a quarter gallon, and the input carried a
+// flat min="0.25" step="0.25". A quarter gallon is 3.2 servings, so the rounding threw away up to
+// three servings of coffee on EVERY brew, not only small ones — measured before the change:
+// 3 wanted -> 5 made, 6 -> 8, 12 -> 14, 24 -> 26.
+{
+  const B = require("../.smoke/brewMath.js");
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const read = (p) => fs.readFileSync(path.join(__dirname, "..", p), "utf8");
+
+  // ── THE WASTE IS GONE, AND DEMAND IS STILL COVERED ───────────────────────────────────────────
+  // Both halves matter and they pull against each other: a step that never over-brews is easy if
+  // you are allowed to under-deliver. Every count, every plausible yield.
+  {
+    const under = [], over = [];
+    for (let n = 1; n <= 120; n++) {
+      for (const y of [0.85, 0.92, 0.95, 1]) {
+        const got = B.bottlesFor(B.gallonsForBottles(n, y), y);
+        if (got < n) under.push([n, y, got]);
+        if (got > n) over.push([n, y, got]);
+      }
+    }
+    ok("batch floor: brewing for N servings never makes fewer than N — 120 counts x 4 yields",
+      under.length === 0, under.slice(0, 3));
+    ok("batch floor: …and never makes MORE either, which is the waste Ryan asked about",
+      over.length === 0, over.slice(0, 3));
+  }
+  // The old rule, kept runnable, so the claim in the commit message is checkable and not folklore.
+  ok("batch floor: the quarter-gallon rule it replaced really did waste 2 servings at 3",
+    B.bottlesFor(B.quarterGal((3 * 10 / 128) / 0.92), 0.92) === 5);
+
+  // ── EVERY STEP RESULT IS CLEAN TO TWO DECIMALS ───────────────────────────────────────────────
+  // 0.05 has no exact binary form, so the obvious float version returns 16.150000000000002 — which
+  // would be written to brew_batches.batch_gal and rendered on a sheet.
+  {
+    const dirty = [];
+    for (let i = 1; i <= 2000; i++) {
+      const g = i * 0.0137;
+      for (const v of [B.stepUpGal(g), B.stepDownGal(g)]) {
+        if (Math.abs(v * 100 - Math.round(v * 100)) > 1e-9) dirty.push([g, v]);
+      }
+    }
+    ok("batch floor: stepping never produces a float with a tail — 2000 values, both directions",
+      dirty.length === 0, dirty.slice(0, 3));
+  }
+  ok("batch floor: a value already on a step does not move in either direction",
+    B.stepUpGal(0.3) === 0.3 && B.stepDownGal(0.3) === 0.3 && B.stepUpGal(4) === 4 && B.stepDownGal(4) === 4,
+    [B.stepUpGal(0.3), B.stepDownGal(0.3)]);
+  ok("batch floor: up covers, down never asks for more — the two directions are not interchangeable",
+    B.stepUpGal(0.2548) === 0.3 && B.stepDownGal(0.2548) === 0.25);
+
+  // ── THREE SERVINGS MEANS THREE CAME OUT ──────────────────────────────────────────────────────
+  // THE trap in "3 servings 30OZ": 30 oz of WATER at a 0.92 yield pours 27.6 oz, which is two
+  // servings. A floor set to 30 oz of water hands somebody who asked for three a batch making two.
+  const RISE = { ingredients: [{ name: "Coffee", qty: 340, unit: "g" }, { name: "Coconut water", qty: 19.2, unit: "oz" }], baseWaterGal: 1.2 };
+  for (const y of [0.8, 0.85, 0.92, 0.95, 1]) {
+    const f = B.smallestBatch({ ...RISE, yieldFactor: y });
+    ok(`batch floor: the floor POURS at least 3 servings at a ${y} yield — not 3 servings of water`,
+      f.servings >= 3, `${f.gal} gal -> ${f.servings}`);
+  }
+  ok("batch floor: 30 oz of water would NOT have done — the naive floor really does pour two",
+    B.bottlesFor(30 / 128, 0.92) === 2, B.bottlesFor(30 / 128, 0.92));
+
+  // ── THE THREE FLOORS, AND WHICH ONE IS BINDING ───────────────────────────────────────────────
+  {
+    const plain = B.smallestBatch({ ...RISE, yieldFactor: 0.92 });
+    ok("batch floor: with nothing else binding, Ryan's 3 servings is the floor",
+      plain.reason === "servings" && plain.gal === 0.3 && plain.servings === 3, plain);
+
+    // A measured vessel minimum is a FACT and outranks the policy floor.
+    const vessel = B.smallestBatch({ ...RISE, yieldFactor: 0.92, vesselMinGal: 1.5 });
+    ok("batch floor: a measured vessel minimum wins over the servings floor",
+      vessel.reason === "vessel" && vessel.gal === 1.5, vessel);
+    // NULL must mean "nobody measured", never "zero" — a guessed floor is the thing 0337 refuses.
+    for (const v of [null, undefined, 0, NaN, -2]) {
+      const f = B.smallestBatch({ ...RISE, yieldFactor: 0.92, vesselMinGal: v });
+      ok(`batch floor: vesselMinGal=${String(v)} is not treated as a floor`,
+        f.floors.vessel === null && f.reason === "servings", f.floors);
+    }
+
+    // The scale. A 7 g salt line per 2 gal is 3.5 g/gal: at 0.3 gal that is 1.05 g, and a 1 g scale
+    // cannot hold a ratio on it. This recipe genuinely cannot be made small on Ryan's scale, and
+    // saying so is the point — the alternative is a batch that is quietly the wrong strength.
+    const salty = { ingredients: [{ name: "Coffee", qty: 560, unit: "g" }, { name: "Sea salt", qty: 7, unit: "g" }], baseWaterGal: 2, yieldFactor: 0.92 };
+    const s1 = B.smallestBatch(salty);
+    ok("batch floor: a pinch-sized line makes the SCALE the binding floor, not the servings",
+      s1.reason === "measurement" && s1.gal === 2.9, s1);
+    ok("batch floor: …and it names the line that runs out first, not just a number",
+      s1.limiting && s1.limiting.name === "Sea salt" && s1.limiting.gramsAtFloor === 10, s1.limiting);
+    // At the floor the limiting line is exactly at the trustworthy weight — the floor is derived
+    // from the ingredient, not picked.
+    ok("batch floor: at the floor the limiting line weighs at least the smallest trustworthy weight",
+      B.ingredientForGallons(s1.gal, 3.5) >= B.smallestTrustworthyG(1) - 1e-9,
+      B.ingredientForGallons(s1.gal, 3.5));
+    // A finer scale moves the floor by exactly the resolution ratio. This is what makes the
+    // "buy a 0.1 g scale" answer a real option rather than a shrug.
+    const s2 = B.smallestBatch({ ...salty, scaleResolutionG: 0.1 });
+    ok("batch floor: a 10x finer scale lowers the measurement floor 10x",
+      Math.abs(s2.floors.measurement * 10 - s1.floors.measurement) < 1e-9,
+      `${s1.floors.measurement} -> ${s2.floors.measurement}`);
+
+    // Volumes and counts are never weighed, so they can never set a measurement floor — the same
+    // refusal cookQuantity makes, reached through the same table.
+    const novol = B.smallestBatch({ ingredients: [{ name: "Coconut water", qty: 2, unit: "gal" }, { name: "Pods", qty: 48, unit: "pods" }], baseWaterGal: 2, yieldFactor: 1 });
+    ok("batch floor: a recipe with nothing weighed has no measurement floor at all",
+      novol.floors.measurement === null && novol.reason === "servings", novol);
+  }
+  ok("batch floor: the trustworthy weight is resolution-derived, not a magic number",
+    B.smallestTrustworthyG(1) === 10 && B.smallestTrustworthyG(0.1) === 1, B.smallestTrustworthyG(1));
+
+  // ── THE SENTENCE ON SCREEN STAYS TRUE AT A 100% YIELD ────────────────────────────────────────
+  // It read "more than 30 oz, because only 100% of what goes in comes out pourable" — a reason
+  // nobody can follow, which is how a number stops being questioned.
+  ok("batch floor: the floor's explanation does not blame the yield when there is no yield loss",
+    !/only 100% /.test(B.smallestBatch({ ingredients: [{ name: "X", qty: 1, unit: "gal" }], baseWaterGal: 1, yieldFactor: 1 }).note));
+
+  // ── NO SCREEN CARRIES ITS OWN FLOOR OR ITS OWN STEP ──────────────────────────────────────────
+  const planner = read("components/BrewPlanner.tsx");
+  // Comments stripped FIRST. The planner's own note explains what min="0.25" step="0.25" used to be
+  // and why it went, so reading the file raw finds the defect inside the sentence describing the
+  // fix. Fourth time in this session a gate has matched the prose about a bug instead of the bug —
+  // the alert-guard gate above learned it three times in one night.
+  const code = (t) => t.replace(/\{\s*\/\*[\s\S]*?\*\/\s*\}/g, "").replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+  const plannerCode = code(planner);
+  ok("batch floor: the planner's size input takes its minimum from the recipe, not a constant",
+    /min=\{sizeUnit === "gal" \? String\(floor\.gal\)/.test(plannerCode));
+  ok("batch floor: …and its step from BREW_STEP_GAL",
+    /step=\{sizeUnit === "gal" \? String\(BREW_STEP_GAL\)/.test(plannerCode));
+  ok("batch floor: …and no hard-coded 0.25 floor or step survives anywhere in it",
+    !/(min|step)=\{?"?0\.25/.test(plannerCode), (plannerCode.match(/(min|step)=\{?"?0\.25[^\n]*/g) || []).slice(0, 2));
+  // PROVE IT BITES, and that the comment-strip makes it precise rather than blind.
+  ok("batch floor: fed the old input, the rule finds it",
+    /(min|step)=\{?"?0\.25/.test(code('<input min="0.25" step="0.25" />')));
+  ok("batch floor: …fed a comment quoting the old input, it does not",
+    !/(min|step)=\{?"?0\.25/.test(code('{/* was min="0.25" step="0.25" */}\n<input min={String(floor.gal)} />')));
+  ok("batch floor: rounding down is the shared helper, not re-spelled inline at the call site",
+    /stepDownGal\(gallonsFromIngredient/.test(plannerCode) && !/Math\.floor\([^)]*BREW_STEP_GAL/.test(plannerCode));
+
+  // ── THE POUR HAS ONE HOME ────────────────────────────────────────────────────────────────────
+  // It had three (brewMath, the brew agent, eventbrief). That was survivable while it was a display
+  // number; it stopped being survivable when the floor of every batch became derived from it.
+  {
+    const files = ["lib/brewMath.ts", "app/api/agents/brew/route.ts", "lib/eventbrief.ts", "lib/economics.ts", "lib/loadout.ts"];
+    const strip = (t) => t.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+    const declarers = files.filter((f) => {
+      try { return /\bSERVE_OZ\s*=\s*\d/.test(strip(read(f))); } catch { return false; }
+    });
+    ok("serving size: exactly one file declares what a serving is",
+      declarers.length === 1 && declarers[0] === "lib/brewMath.ts", declarers);
+    const offenders = files.filter((f) => {
+      try { return f !== "lib/brewMath.ts" && /\b10\s*\/\s*128\b/.test(strip(read(f))); } catch { return false; }
+    });
+    ok("serving size: and nobody re-spells it as 10 / 128",
+      offenders.length === 0, offenders);
+    ok("serving size: the two that used to declare it now import it",
+      /from "@\/lib\/brewMath"/.test(read("app/api/agents/brew/route.ts"))
+      && /from "\.\/brewMath"/.test(read("lib/eventbrief.ts")));
+  }
+
+  // ── THE VESSEL MINIMUM IS A COLUMN NOW, AND THE GUESS KNOWS IT IS A GUESS ────────────────────
+  {
+    const mig = read("supabase/migrations/0337_how_small_can_this_vessel_go.sql");
+    ok("vessel min: the column exists and is nullable with no default",
+      /add column if not exists min_gal numeric;/.test(mig) && !/min_gal numeric[^;]*default/i.test(mig));
+    ok("vessel min: a minimum at or above capacity is refused",
+      /check \(min_gal is null or \(min_gal > 0 and min_gal < capacity_gal\)\)/.test(mig));
+    // MEASURED and GUESSED must not read the same on screen, or the guess gets laundered into a spec.
+    ok("vessel min: a measured minimum is a different verdict from the capacity/3 prompt",
+      B.vesselFit(0.3, 5, 1, 1.5).verdict === "under" && B.vesselFit(0.3, 5, 1, null).verdict === "shallow");
+    ok("vessel min: the measured minimum scales with the vessel COUNT, like capacity does",
+      B.vesselFit(2.0, 5, 2, 1.5).verdict === "under" && B.vesselFit(3.1, 5, 2, 1.5).verdict === "fits",
+      [B.vesselFit(2.0, 5, 2, 1.5), B.vesselFit(3.1, 5, 2, 1.5)]);
+    ok("vessel min: a measured vessel never falls back to the guess, even well under a third",
+      B.vesselFit(1.6, 5, 1, 1.5).verdict === "fits", B.vesselFit(1.6, 5, 1, 1.5));
+    ok("vessel min: over capacity still wins over everything — the water has nowhere to go",
+      B.vesselFit(6, 5, 1, 1.5).verdict === "over");
+    ok("vessel min: the planner passes the measured number through",
+      /vesselFit\(Number\(gal\), vessel\.capacity_gal, vesselCount, vessel\.min_gal\)/.test(plannerCode)
+      && /select\("id, name, capacity_gal, filter_type, min_gal"\)/.test(plannerCode));
+  }
 }
 
 // Everything above is synchronous except what PENDING holds. Printing the summary before those
