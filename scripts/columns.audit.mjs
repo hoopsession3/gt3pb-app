@@ -55,7 +55,7 @@
 // credential to stay alive is a check that dies quietly — so the SQL fallback below is now an INPUT
 // to scripts/schema.snapshot.mjs (--from-sql=…) instead of an instruction to assemble the file by
 // hand, and refreshing it is a query plus a command.
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { walk } from "./falseempty.audit.mjs"; // one file-walker, not four
@@ -64,6 +64,90 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SNAPSHOT = join(ROOT, "supabase/schema.columns.json");
 
 const FROM = /\.from\(\s*["'`]([a-zA-Z0-9_]+)["'`]\s*\)/g;
+
+// ── THE COLUMN THAT DOES NOT EXIST YET (2026-10-01) ────────────────────────────────────────────
+// This check's premise above is right and is not being weakened: truth is PRODUCTION, never the
+// migrations. But it had no way to express the one state this repo is in constantly. Migrations
+// here are pasted BY HAND into the SQL editor and the push happens first, so between a deploy and
+// the paste the code is running against the previous schema — and a column added by a written but
+// unapplied migration is not a typo. It is a column that arrives when somebody pastes.
+//
+// Treating that as "unknown column" deadlocked a release: 0337 adds brew_vessels.min_gal, the
+// snapshot can only learn about it from production, production only learns about it when 0337 is
+// applied, and the bundle carrying 0337 was being held because this check failed. The snapshot was
+// not stale. There was nothing to refresh.
+//
+// WHAT IT NOW ASKS INSTEAD, and this is a STRICTER question, not a looser one:
+//
+//   not in the snapshot, not arriving in any pending migration   → FAIL. 62af8ef, untouched.
+//   arriving, and the call site does NOT survive its absence     → FAIL. This is new, and it is
+//        the real defect: during the window PostgREST answers the whole select with an error
+//        object, so one absent column takes out every other query that shares its Promise.all.
+//        Exactly what shipped in c11e418 and broke the entire Brew board.
+//   arriving, and the call site declares how it survives         → reported, not failed.
+//
+// The declaration is `// arrives-with: NNNN` near the select, the same idiom as `// scoped-by:`
+// and `-- scaffold:` elsewhere in this repo: an exception is allowed, silence is not.
+//
+// WHAT IS PENDING COMES FROM supabase/APPLY_ALL_PENDING.sql's `pending-from` marker, which is
+// generated from the live ledger and which scripts/drift.check.mjs already fails the release over
+// if supabase/migrations/ holds anything above it. So this reads a drift-gated fact rather than
+// inventing a second idea of what production has. Migrations are used ONLY to answer "which column
+// does this pending file add" — never to assert what the database contains.
+//
+// IT RETIRES ITSELF. Once 0337 is applied and the snapshot refreshed, min_gal is in the snapshot,
+// pending-from has moved past 0337, and none of this applies to it again.
+const PENDING_FILE = join(ROOT, "supabase/APPLY_ALL_PENDING.sql");
+const MIGRATIONS = join(ROOT, "supabase/migrations");
+
+/** The lowest migration number production has NOT applied, from the drift-gated marker. */
+export function pendingFrom(file = PENDING_FILE) {
+  try {
+    const m = readFileSync(file, "utf8").match(/^\s*--\s*pending-from:\s*(\d{4})\b/im);
+    return m ? Number(m[1]) : null;
+  } catch { return null; }
+}
+
+/**
+ * Columns that pending migrations ADD, as "relation.column".
+ * Deliberately only `add column` and `create table` — this is not a schema reconstruction, which
+ * is the mistake the header above warns about and which a sibling gate already made once. It
+ * answers one narrow question: is this name something a pending file introduces?
+ */
+export function arrivingColumns(dir = MIGRATIONS, from = pendingFrom()) {
+  const out = new Map(); // "rel.col" -> migration number
+  if (from === null) return out;
+  let files = [];
+  try { files = readdirSync(dir).filter((n) => n.endsWith(".sql") && Number(n.slice(0, 4)) >= from).sort(); }
+  catch { return out; }
+  for (const n of files) {
+    const num = Number(n.slice(0, 4));
+    let sql = "";
+    try { sql = readFileSync(join(dir, n), "utf8"); } catch { continue; }
+    // Comments first. These files explain themselves at length, and a header quoting an older
+    // `add column` would otherwise be read as a declaration — the same trap three gates in
+    // scripts/smoke.cjs fell into on 2026-09-30.
+    sql = sql.split("\n").map((l) => l.replace(/--.*$/, "")).join("\n");
+    for (const m of sql.matchAll(/alter\s+table\s+(?:public\.)?([a-z0-9_]+)\s+add\s+column\s+(?:if\s+not\s+exists\s+)?([a-z0-9_]+)/gi)) {
+      out.set(`${m[1].toLowerCase()}.${m[2].toLowerCase()}`, num);
+    }
+    for (const m of sql.matchAll(/create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?([a-z0-9_]+)\s*\(([\s\S]*?)\n\s*\)\s*;/gi)) {
+      const rel = m[1].toLowerCase();
+      for (const line of m[2].split("\n")) {
+        const c = line.trim().match(/^([a-z0-9_]+)\s+[a-z]/i);
+        if (c && !/^(primary|unique|foreign|constraint|check|exclude)$/i.test(c[1])) {
+          out.set(`${rel}.${c[1].toLowerCase()}`, num);
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/** Does this file declare that it survives the column being absent? `// arrives-with: 0337` */
+export function declaresArrival(src, num) {
+  return new RegExp(`//\\s*arrives-with:\\s*0*${num}\\b`).test(src);
+}
 
 // ── THE SNAPSHOT FORMAT ────────────────────────────────────────────────────────────────────────
 // `{ relation: [column, ...] }` plus one provenance record. This file is the reader, so the format
@@ -208,7 +292,8 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
   }
 
   const schema = JSON.parse(readFileSync(SNAPSHOT, "utf8"));
-  const missingRel = [], missingCol = [];
+  const arriving = arrivingColumns();
+  const missingRel = [], missingCol = [], declared = [], undeclared = [];
   for (const [rel, m] of need) {
     // META is the provenance record, not a relation. It cannot collide with one — relation names are
     // [a-zA-Z0-9_]+ — and nothing here would ever look it up, but naming it keeps that deliberate.
@@ -216,19 +301,48 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
     const have = schema[rel];
     if (!have) { missingRel.push(rel); continue; }
     const set = new Set(have);
-    for (const [c, files] of m) if (!set.has(c)) missingCol.push(`${rel}.${c}  ← ${[...files].join(", ")}`);
+    for (const [c, files] of m) {
+      if (set.has(c)) continue;
+      const where = [...files];
+      const num = arriving.get(`${rel}.${c}`);
+      if (num === undefined) { missingCol.push(`${rel}.${c}  ← ${where.join(", ")}`); continue; }
+      // It arrives with a pending migration. The question is no longer "does this exist" but
+      // "does the screen survive the window before somebody pastes it" — and every file naming
+      // the column has to answer, because they do not share a failure.
+      const silent = where.filter((f) => {
+        try { return !declaresArrival(readFileSync(join(ROOT, f), "utf8"), num); } catch { return true; }
+      });
+      if (silent.length) undeclared.push(`${rel}.${c}  arrives with ${String(num).padStart(4, "0")}  ← ${silent.join(", ")}`);
+      else declared.push(`${rel}.${c}  arrives with ${String(num).padStart(4, "0")}  ← ${where.join(", ")}`);
+    }
   }
 
-  console.log(`COLUMN CONTRACT: ${need.size} relations, ${nCols} columns, ${missingRel.length} unknown relation(s), ${missingCol.length} unknown column(s)`);
+  console.log(`COLUMN CONTRACT: ${need.size} relations, ${nCols} columns, ${missingRel.length} unknown relation(s), ${missingCol.length} unknown column(s), ${declared.length + undeclared.length} arriving with a pending migration`);
   // The age is printed on a PASS as well as a failure. A snapshot pulled months ago passes exactly
   // as loudly as one pulled today, and that is how a check quietly stops being about the database.
   console.log(`  ${ageLine(readMeta(SNAPSHOT))}`);
-  if (missingRel.length || missingCol.length) {
+  // Reported on a PASS too. A column the app reads and production does not have is worth seeing
+  // every run, even when the call site handles it — it is a release that is not finished until
+  // somebody pastes a migration, and silence about that is how a paste gets forgotten.
+  for (const d of declared) console.log(`    ${d}  — handled`);
+
+  if (missingRel.length || missingCol.length || undeclared.length) {
     for (const r of missingRel) console.log(`    relation not in the database: ${r}`);
     for (const c of missingCol) console.log(`    ${c}`);
+    for (const c of undeclared) console.log(`    ${c}`);
     console.log(`\n  ✗ A select naming a column that does not exist returns an ERROR OBJECT, not rows.`);
     console.log(`    If the caller does not check .error, that lands on screen as "nothing here" (62af8ef).`);
-    console.log(`    If the snapshot is simply stale, refresh it: npm run schema:snapshot`);
+    if (missingRel.length || missingCol.length) {
+      console.log(`    If the snapshot is simply stale, refresh it: npm run schema:snapshot`);
+    }
+    if (undeclared.length) {
+      console.log(`\n    The "arrives with" ones are NOT stale-snapshot cases and refreshing will not help —`);
+      console.log(`    production cannot know that column until the migration is pasted. Make the call site`);
+      console.log(`    survive the gap (lib/deploySkew.isMissingColumn) and say so next to the select:`);
+      console.log(`        // arrives-with: 0337  — <how this screen copes until it is applied>`);
+      console.log(`    PostgREST fails the WHOLE select, so one absent column takes out every query`);
+      console.log(`    sharing its Promise.all — which is how c11e418 killed the entire Brew board.`);
+    }
     process.exit(1);
   }
 }

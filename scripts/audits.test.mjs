@@ -10,8 +10,9 @@ import { classifyEffect, effectAt } from "./render.audit.mjs";
 import { isFalseEmpty, catchesButHides } from "./falseempty.audit.mjs";
 import { refusalHeadings, refusesWithoutPolicy, collapsesVerdicts } from "./gate.audit.mjs";
 import { handRollsCrew, bypassesTaskSpine, CREW_EXEMPT, namesRoleVocabulary, rolesNamedIn, rendersRawCrewOption } from "./dupe.audit.mjs";
-import { selectsIn, topLevelParts, columnsOf, ageLine } from "./columns.audit.mjs";
+import { selectsIn, topLevelParts, columnsOf, ageLine, pendingFrom, arrivingColumns, declaresArrival } from "./columns.audit.mjs";
 import { definitionsToSchema, refuseReason, projectRef } from "./schema.snapshot.mjs";
+import { join } from "node:path";
 
 let pass = 0, fail = 0;
 const ok = (n, c, got) => { if (c) pass++; else { fail++; console.log(`  ✗ ${n}` + (got !== undefined ? ` → got ${JSON.stringify(got)}` : "")); } };
@@ -340,6 +341,66 @@ ok("out of scope: a display_name in an option in a file that never touches the c
   rendersRawCrewOption(`{vendors.map((v) => <option key={v.id}>{v.display_name}</option>)}`, "components/Vendors.tsx") === false);
 ok("not flagged: display_name rendered somewhere that is not an option",
   rendersRawCrewOption(CREWY + `<div className="who">{c.display_name}</div>`, "components/X.tsx") === false);
+
+
+// ── THE COLUMN THAT DOES NOT EXIST YET (2026-10-01) ────────────────────────────────────────────
+// Migrations here are pasted by hand AFTER the push, so between a deploy and the paste the code
+// runs against the previous schema. A column added by a written-but-unapplied migration is not a
+// typo, and treating it as one deadlocked a release: the snapshot can only learn about
+// brew_vessels.min_gal from production, production only learns about it when 0337 is pasted, and
+// the bundle carrying 0337 was held because the check failed. There was nothing to refresh.
+import { mkdtempSync, writeFileSync, mkdirSync } from "node:fs";
+import { tmpdir } from "node:os";
+const tmp = mkdtempSync(join(tmpdir(), "cols-"));
+mkdirSync(join(tmp, "m"), { recursive: true });
+const write = (n, body) => writeFileSync(join(tmp, "m", n), body);
+
+write("0336_before.sql", "alter table public.shop_orders add column already_there text;");
+write("0337_adds.sql", [
+  "-- A header that QUOTES an older statement:",
+  "--   alter table public.brew_vessels add column quoted_in_a_comment numeric",
+  "alter table public.brew_vessels add column if not exists min_gal numeric;",
+  "create table if not exists public.new_thing (",
+  "  id uuid primary key default gen_random_uuid(),",
+  "  label text not null,",
+  "  constraint new_thing_label_len check (length(label) < 80)",
+  ");",
+].join("\n"));
+write("0338_later.sql", "alter table public.stops add column later_col text;");
+
+const pendFile = join(tmp, "PENDING.sql");
+writeFileSync(pendFile, "-- generated\n-- pending-from: 0337\n-- pending-count: 2\n");
+
+ok("arriving: the pending floor is read from the drift-gated marker", pendingFrom(pendFile) === 337);
+ok("arriving: a missing or unreadable marker yields null, never a guess at zero",
+  pendingFrom(join(tmp, "nope.sql")) === null);
+
+const arr = arrivingColumns(join(tmp, "m"), pendingFrom(pendFile));
+ok("arriving: a column an at-or-above-floor migration adds is found",
+  arr.get("brew_vessels.min_gal") === 337, [...arr]);
+ok("arriving: a column from a migration BELOW the floor is not — production already has it",
+  arr.has("shop_orders.already_there") === false, [...arr.keys()]);
+ok("arriving: a later pending migration counts too",
+  arr.get("stops.later_col") === 338);
+ok("arriving: create table columns are found as well as add column",
+  arr.get("new_thing.id") === 337 && arr.get("new_thing.label") === 337);
+ok("arriving: a table constraint is not mistaken for a column",
+  arr.has("new_thing.constraint") === false && arr.has("new_thing.new_thing_label_len") === false, [...arr.keys()]);
+// The trap three gates in smoke.cjs fell into on 2026-09-30, and these files explain themselves
+// at length — a header quoting an old statement must not read as a declaration.
+ok("arriving: a statement quoted inside a COMMENT is not a declaration",
+  arr.has("brew_vessels.quoted_in_a_comment") === false, [...arr.keys()]);
+// A floor of null means the marker could not be read. That must mean "exempt nothing", never
+// "exempt everything" — a failed read is not an empty list, in the direction that stays strict.
+ok("arriving: with no floor, NOTHING is treated as arriving",
+  arrivingColumns(join(tmp, "m"), null).size === 0);
+
+ok("arriving: a call site declares it survives the gap with the marker",
+  declaresArrival("// arrives-with: 0337 — falls back\nconst x = 1;", 337) === true);
+ok("arriving: …and the number must match, so an old marker does not cover a new column",
+  declaresArrival("// arrives-with: 0330 — something else", 337) === false);
+ok("arriving: silence is not a declaration",
+  declaresArrival("const x = 1; // we handle it, honest", 337) === false);
 
 console.log(`AUDIT CLASSIFIERS: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -103,6 +103,8 @@ export default function BrewPlanner() {
   // dropped table, a revoked grant or an RLS refusal into a silent empty list, and "a failed read is
   // not an empty list" is the rule this app keeps re-learning. Every other error still throws.
   const vesselsRead = useCallback(async () => {
+    // arrives-with: 0337 — min_gal does not exist in production until 0337 is pasted. The retry
+    // below drops it and the component treats an unmeasured vessel as the normal case, which it is.
     const full = await supabase!.from("brew_vessels")
       .select("id, name, capacity_gal, filter_type, min_gal").is("archived_at", null).order("sort");
     if (!full.error || !isMissingColumn(full.error)) return full;
