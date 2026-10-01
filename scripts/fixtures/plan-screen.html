@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>fixture · Plan › Calendar, day theme</title>
+<!--
+  A TEST DOUBLE OF THE PLAN SCREEN, AND IT SAYS SO.
+
+  The crew console needs a signed-in session, which the design ratchet does not have (and which
+  this repo does not hand to scripts — see scripts/smoke.authed.mjs for the one place credentials
+  may exist). What CAN be tested without a session is the stylesheet, and the stylesheet is where
+  the box-in-box defects were (2026-10-01, Ryan: "boxes inside boxes, this just looks eww, 5/10").
+
+  So this file is the Plan › Calendar screen's DOM, class for class, as app/crew/page.tsx and the
+  components it mounts produce it — styled by the REAL app/globals.css, rendered in the real
+  Chromium at phone width. Every block names the file it was copied from in `data-from`, and
+  scripts/design.ratchet.mjs FAILS if a class used here no longer appears in that file: a double
+  that can drift from its source must be able to say so, the same rule as `-- scaffold:` on a stub
+  column. The text is real copy from the components (so the measurement sees real line counts),
+  with the live numbers swapped for fixed ones.
+
+  Not in here: the data, the handlers, the rail's fold state. The rail is rendered EXPANDED on
+  purpose — that is how it was in all three of Ryan's screenshots.
+-->
+<link rel="stylesheet" href="../../app/globals.css">
+<style>
+  /* The fixture pins what the page gets from the OS: an iPhone-sized viewport is set by the
+     harness; fonts resolve to public/fonts via the relative URL below. Nothing visual is added. */
+  @font-face{font-family:'Inter';font-style:normal;font-weight:100 900;src:url(../../public/fonts/inter-variable.woff2) format('woff2')}
+  @font-face{font-family:'Archivo Black';font-weight:400;src:url(../../public/fonts/archivo-black-400.woff2) format('woff2')}
+  @font-face{font-family:'DM Mono';font-weight:500;src:url(../../public/fonts/dm-mono-500.woff2) format('woff2')}
+  @font-face{font-family:'Fraunces';font-weight:400 500;src:url(../../public/fonts/fraunces-400.woff2) format('woff2')}
+</style>
+</head>
+<body>
+<div class="app crew-day">
+<div class="body">
+<section class="screen admin" data-from="app/crew/page.tsx">
+
+  <div class="op-head">
+    <div class="op-head-row">
+      <h1 class="op-head-t">Plan</h1>
+      <button type="button" class="op-head-when">Booking ahead</button>
+    </div>
+  </div>
+  <div class="grp-toggle" role="tablist">
+    <button type="button" role="tab" class="grp-seg on">Plan</button>
+    <button type="button" role="tab" class="grp-seg">Money</button>
+    <button type="button" role="tab" class="grp-seg">Customers</button>
+    <button type="button" role="tab" class="grp-seg">Team</button>
+    <button type="button" role="tab" class="grp-seg">Notes</button>
+  </div>
+
+  <!-- The section body is script-focused on every section switch (opBodyRef.focus()). The
+       fixture focuses it too, because that is the state the screenshots were taken in. -->
+  <div class="op-trans" id="op-trans" tabindex="-1" role="region" aria-label="Plan section">
+
+    <div class="subnav" role="tablist" aria-label="Plan" data-from="app/crew/page.tsx">
+      <button type="button" role="tab" class="subnav-tab on">Calendar</button>
+      <button type="button" role="tab" class="subnav-tab">Events</button>
+      <button type="button" role="tab" class="subnav-tab">Route</button>
+      <button type="button" role="tab" class="subnav-tab">Leads</button>
+      <span class="subnav-div"></span>
+      <button type="button" role="tab" class="subnav-tab back">Vendors</button>
+    </div>
+
+    <!-- Panel("Needs sorting · events & stops") › ScheduleGaps -->
+    <section id="schedule-gaps" class="mpanel open" data-from="app/crew/page.tsx">
+      <button type="button" class="mpanel-h" aria-expanded="true"><span class="mpanel-t">Needs sorting · events &amp; stops</span><span class="mpanel-chev">›</span></button>
+      <div class="mpanel-body">
+        <div data-from="components/ScheduleGaps.tsx">
+          <p class="so-head due">4 things need sorting across your schedule. 6 problems in all.</p>
+          <div class="so-rows evg">
+            <button type="button" class="so-row">
+              <span class="evg-sev sev-high"></span>
+              <span class="so-row-b"><b>Wine Express — Five Forks</b><i>· The stop says "Wine Express — Five Forks". The venue says "WineXpress". Guests see the difference.</i><i>· Finished, with no after-action note. Two lines on how it went, while you still remember.</i></span>
+              <span class="so-row-m"><b>Done</b><i>Jul 8</i></span>
+              <span class="so-row-c">→</span>
+            </button>
+            <button type="button" class="so-row">
+              <span class="evg-sev sev-medium"></span>
+              <span class="so-row-b"><b>Gratitude Greenville</b><i>The day has passed and this is still in a planning stage. Wrap it or drop it.</i></span>
+              <span class="so-row-m"><b>Confirmed</b><i>Jul 31</i></span>
+              <span class="so-row-c">→</span>
+            </button>
+            <button type="button" class="so-row">
+              <span class="evg-sev sev-medium"></span>
+              <span class="so-row-b"><b>Soul Yoga Workshop — serve window</b><i>The day has passed and this is still in a planning stage. Wrap it or drop it.</i></span>
+              <span class="so-row-m"><b>Confirmed</b><i>Aug 15</i></span>
+              <span class="so-row-c">→</span>
+            </button>
+            <button type="button" class="so-row">
+              <span class="evg-sev sev-medium"></span>
+              <span class="so-row-b"><b>Sassafras Flower Farm</b><i>· Complete, with nothing recorded as sold. If it sold, the number is missing.</i><i>· Complete, with no after-action note. The wrap flow writes one and works.</i></span>
+              <span class="so-row-m"><b>Done</b><i>Sep 6</i></span>
+              <span class="so-row-c">→</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- OperatingRhythm -->
+    <div class="adm-sec rhythm" data-from="components/OperatingRhythm.tsx">
+      <div class="k-sec" data-from="components/kit.tsx"><span class="k-sec-lbl"><h2 class="l">Operating rhythm</h2></span></div>
+      <div class="h-sub">Plan → execute → <b>review</b> → adjust. The review writes itself from live numbers; the retro is captured as additions on the note; every strategic call lands in the ledger.</div>
+      <div class="rhythm-pulse"><span class="rhythm-quiet">💤 6 quiet a week+</span><span class="rhythm-pulse-hint">— check-ins live on Command › Goals</span></div>
+      <div class="rhythm-cards">
+        <div class="rhythm-card">
+          <div class="rhythm-k">Weekly Operating Review</div>
+          <p class="rhythm-sub">The week that was — revenue, goals moved or stalled, events run, incidents, decisions — plus the week ahead. Retro: keep · change · start.</p>
+          <button type="button" class="rhythm-last">Latest: Aug 2 — open in Notes →</button>
+          <button type="button" class="rhythm-go">✦ Assemble this week’s review</button>
+        </div>
+        <div class="rhythm-card">
+          <div class="rhythm-k">Strategy Session</div>
+          <p class="rhythm-sub">The agenda nobody has to remember: open threads, goals needing a call, plays on the table, program hygiene, aging blockers. Close every call with ⚖ Log a decision.</p>
+          <button type="button" class="rhythm-last">Latest: Aug 2 — open in Notes →</button>
+          <button type="button" class="rhythm-go">✦ Start a strategy session</button>
+          <button type="button" class="rhythm-last">⇣ Had the session already? Paste the transcript — extract &amp; file</button>
+        </div>
+      </div>
+      <details class="rhythm-ledger"><summary>⚖ Decision ledger — append-only, with follow-through</summary></details>
+    </div>
+
+    <!-- CompanyCalendar, Agenda view -->
+    <div class="adm-sec cal" data-from="components/CompanyCalendar.tsx">
+      <div class="k-sec" data-from="components/kit.tsx"><span class="k-sec-lbl"><h2 class="l">Calendar</h2></span></div>
+      <div class="cal-titlesub">everything dated — tap anything to edit · swipe ‹ › to walk it</div>
+      <div class="cal-stickysentinel" aria-hidden="true"></div>
+      <div class="cal-sticky">
+        <div class="cal-bar">
+          <div class="cal-nav"><span class="cal-month">Agenda</span></div>
+          <button type="button" class="cal-today">Today</button>
+        </div>
+        <div class="cal-views">
+          <button type="button" class="cal-view on">Agenda</button>
+          <button type="button" class="cal-view">Board</button>
+          <button type="button" class="cal-view">Cards</button>
+          <button type="button" class="cal-view">Week</button>
+          <button type="button" class="cal-view">Month</button>
+          <button type="button" class="cal-view">Quarter</button>
+          <button type="button" class="cal-view">Year</button>
+          <button type="button" class="cal-filterbtn">Filter</button>
+        </div>
+      </div>
+      <div class="cal-list">
+        <div class="cal-lrow">
+          <div class="cal-ldate"><b>24</b><span>Sat</span><span class="cal-lmon">Oct</span></div>
+          <div class="cal-litems">
+            <button type="button" class="cc-chip two" style="border-left-color:#6fa8dc"><span class="cc-dot" style="background:#6fa8dc"></span><span class="cc-bd"><span class="cc-title">Dear Deandra Jazz Brunch</span><span class="cc-sub">Charlotte, NC · Confirmed</span></span></button>
+          </div>
+        </div>
+      </div>
+      <div class="ol-bar quiet">
+        <div class="ol-top"><span class="ol-i">▣</span><b>Outlook sync</b><span class="ol-state off">Not configured</span></div>
+        <div class="ol-note">Two-way Outlook sync needs a one-time Microsoft app setup on the server — a developer task. Once it’s configured, a Connect button appears here.</div>
+      </div>
+    </div>
+
+    <!-- Panel("Discussions · every open thread, one place"), collapsed -->
+    <section id="plan-discussions" class="mpanel" data-from="app/crew/page.tsx">
+      <button type="button" class="mpanel-h" aria-expanded="false"><span class="mpanel-t">Discussions · every open thread, one place</span><span class="mpanel-chev">›</span></button>
+    </section>
+
+  </div>
+</section>
+</div>
+
+<!-- FloatRail, expanded (FloatRail.tsx) with its three tabs -->
+<div class="rail" style="bottom:170px" data-from="components/FloatRail.tsx">
+  <div class="rail-head"><button type="button" class="rail-grip">≡</button><button type="button" class="rail-fold">›</button></div>
+  <button type="button" class="rdg-fab" data-from="components/DisplayToggle.tsx"><span class="rdg-aa"><span class="rdg-a">A</span><span class="rdg-a">A</span></span><span class="rail-txt"><b>Display</b><i>Text size · contrast</i></span></button>
+  <button type="button" class="rdg-fab ec-toggle" data-from="components/EditModeToggle.tsx"><span class="rail-txt"><b>Edit copy</b><i>Click text on the page</i></span></button>
+  <button type="button" class="chub-tab" data-from="components/ConnectHub.tsx"><span class="rail-txt"><b>Connect</b><i>Links · socials · order</i></span></button>
+</div>
+</div>
+<script>
+  // Same state as the screenshots: the section body has just been script-focused.
+  document.getElementById("op-trans").focus();
+  // The component's stuck sentinel, same logic (CompanyCalendar.tsx): painted only while stuck.
+  (() => {
+    const el = document.querySelector(".cal-stickysentinel"), bar = document.querySelector(".cal-sticky");
+    let root = el.parentElement; while (root && !/(auto|scroll)/.test(getComputedStyle(root).overflowY)) root = root.parentElement;
+    new IntersectionObserver(([e]) => bar.classList.toggle("is-stuck", !e.isIntersecting), { root, threshold: 0 }).observe(el);
+  })();
+</script>
+</body>
+</html>

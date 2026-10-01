@@ -115,7 +115,16 @@ p,.entry-why,.gl-uc,.k-sub{text-wrap:pretty}
 .skip-link{position:fixed;top:8px;left:8px;z-index:200;transform:translateY(-150%);background:var(--gold);color:#15120d;font-family:'Inter';font-weight:700;font-size:13px;padding:9px 14px;border-radius:var(--r-lg);box-shadow:0 8px 24px rgba(0,0,0,.4);transition:transform .16s ease}
 .skip-link:focus{transform:none;outline:2px solid var(--cream);outline-offset:2px}
 #body:focus{}
-.op-trans:focus{}
+/* The section body (.op-trans) is script-focused on every section switch so a screen reader lands
+   on the new region. It is tabindex=-1 — no keyboard user can reach it — so a ring here serves
+   nobody, and it was painting a 2px gold FRAME around the entire screen on iPhone (all three of
+   Ryan's 2026-10-01 screenshots, "boxes inside boxes"). The comment beside the focus() call said
+   programmatic focus "won't trigger :focus-visible". It does: WebKit does not move focus to a
+   tapped button, so when the script then focuses the region there is no pointer-focus history to
+   suppress the ring, and Chromium does the same on a fresh page — scripts/design.ratchet.mjs
+   reproduces it (frameOnSectionBody) and fails if it comes back. The empty `.op-trans:focus{}`
+   that stood here was someone noticing and not finishing. */
+.op-trans:focus,.op-trans:focus-visible{outline:none}
 .paper :focus-visible,.menu :focus-visible{outline-color:#221F18}
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
@@ -2794,7 +2803,16 @@ h5.pr-h{font-size:12.5px;color:var(--cream-d)}
 .studio-view{background:transparent;border:1px solid var(--line);border-radius:11px;padding:8px 15px;color:var(--cream-d);font-family:'Inter';font-weight:700;font-size:12px;letter-spacing:.2px;cursor:pointer;-webkit-appearance:none;appearance:none;transition:color .13s,border-color .13s,background .13s}
 .studio-view:hover{color:var(--cream-m)}
 .studio-view.on{background:color-mix(in srgb, var(--brand-gold) 14%, transparent);border-color:var(--gold2);color:var(--gold2)}
-.cal-sticky{position:sticky;top:0;z-index:6;background:var(--bg,#161310);padding-top:4px}
+/* Painted only while stuck: the page behind is a gradient (and grain, in the dark theme), so an
+   always-opaque var(--bg) block showed as a lighter RECTANGLE with hard edges even at rest — one
+   more box, and the first thing under the CALENDAR heading. */
+.cal-sticky{position:sticky;top:0;z-index:6;background:transparent;padding-top:4px}
+/* Stuck = painted, full-bleed to the screen's edges so it reads as a toolbar, not a floating box.
+   The component toggles .is-stuck from a 1px sentinel above the bar. A frosted backdrop-filter was
+   tried first and dropped: it could not be verified here (headless Chromium paints no backdrop
+   blur), and a bar you can read the list through is worse than a flat one. */
+.cal-sticky.is-stuck{background:var(--bg,#161310);margin:0 -22px;padding-left:22px;padding-right:22px;box-shadow:0 1px 0 var(--line)}
+.cal-stickysentinel{height:1px;margin-top:-1px;visibility:hidden}
 .cal-bar{display:flex;align-items:center;justify-content:space-between;padding:4px 0 10px}
 .cal-nav{display:flex;align-items:center;gap:10px}
 .cal-month{font-family:'Fraunces','Inter',serif;font-size:19px;color:var(--cream);min-width:9ch;text-align:center}
@@ -2962,7 +2980,7 @@ h5.pr-h{font-size:12.5px;color:var(--cream-d)}
    (2026-07-09). Two failure families: gold pills whose day background darkened past what ink text
    can sit on (→ white labels), and classes that hardcode dark-theme colors (pink crit text, cream
    chip text, light-blue link, light-red pills) that never flipped for the cream ground. */
-.app.crew-day :is(.grp-seg.on,.subnav-tab.on,.studio-view.on,.cos-tg.on,.rdy-run,.skip-link,.cal-nudge button,.myday-open,.alert-open,.note-tab.on,.oa-msg.user,.oa-send,.insp-yes,.note-fu-addbtn,.guide-go,.qd-fab,.inline-create-go,.crew-bell-b,.myday-inbox-n,.cmt-av,.cmt-count,.studio-peer,.cal-vt.on,.calw-today,.prof-av,.org-av,.fn-day.on,.fn-conv,.cmd-cd,.vipq-yes,.vipv-btn,.fdig-opt.on,.pbd-filter.on,.k-seg-opt.on){color:var(--card)}
+.app.crew-day :is(.grp-seg.on,.subnav-tab.on,.studio-view.on,.cos-tg.on,.rdy-run,.skip-link,.cal-nudge button,.myday-open,.alert-open,.note-tab.on,.oa-msg.user,.oa-send,.insp-yes,.note-fu-addbtn,.guide-go,.qd-fab,.inline-create-go,.crew-bell-b,.myday-inbox-n,.cmt-av,.cmt-count,.studio-peer,.cal-vt.on,.calw-today,.prof-av,.org-av,.fn-day.on,.fn-conv,.cmd-cd,.vipq-yes,.vipv-btn,.fdig-opt.on,.pbd-filter.on,.k-seg-opt.on,.rhythm-go){color:var(--card)}
 /* .modesw-seg.on dropped from the list above (2026-07-16, ground-up redesign): it's no longer a
    filled gold pill (see .modesw-seg, ~line 1263) — it's plain gold2 text, and --gold2 is already
    the deepened, WCAG-safe text-on-cream token in this theme block. Forcing it to var(--card)
@@ -2989,7 +3007,8 @@ h5.pr-h{font-size:12.5px;color:var(--cream-d)}
 :is(.tm-scope,.tm-you,.pay-status,.ol-state.off){color:var(--cream-m)}
 .app.crew-day .opnav{border-top:1px solid var(--gold)}
 .app.crew-day .opnav .tab.on .tl,.app.crew-day .opnav .tab.on .ti{color:var(--gold)}
-.app.crew-day .cal-sticky{background:var(--bg)}
+/* .app.crew-day .cal-sticky override removed 2026-10-01: it re-painted the bar opaque over the
+   frosted rule at .cal-sticky, which already reads var(--bg) through the theme. */
 .app.crew-day .qd-sheet{background:var(--card)}
 /* white-on-dark subtle fills vanish on light → faint dark tint instead */
 .app.crew-day .studio-act,
@@ -3417,7 +3436,7 @@ body:has(.conc-sheet) .rail{display:flex}
 .cal-lrow.today{border-color:var(--gold2)}
 .cal-ldate{flex:0 0 40px;display:flex;flex-direction:column;align-items:center;text-align:center;line-height:1.05}
 .cal-ldate b{font-family:'Fraunces',serif;font-size:19px;color:var(--cream)}
-.cal-ldate span{font-family:'Inter';font-size:10.5px;color:var(--cream-m);text-transform:uppercase}
+.cal-ldate span{font-family:'Inter';font-size:11px;letter-spacing:.04em;color:var(--cream-m);text-transform:uppercase}
 .cal-lmon{color:var(--gold2)!important}
 .cal-litems{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;justify-content:center}
 /* quarter / year — mini months */
@@ -6782,12 +6801,18 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .rhythm-pulse-hint{font-weight:500;font-size:11px;color:var(--cream-m)}
 .rhythm-cards{display:grid;grid-template-columns:1fr;gap:10px}
 @media (min-width:640px){.rhythm-cards{grid-template-columns:1fr 1fr}}
-.rhythm-card{border:1px solid var(--line2);border-radius:var(--r-2xl);padding:14px 15px;background:rgba(0,0,0,.18);display:flex;flex-direction:column;gap:8px}
+/* var(--card), not rgba(0,0,0,.18): that literal was a dark-theme lift with no day value, so in
+   the day theme both ritual cards painted as 18% black over cream — the mud-grey boxes in Ryan's
+   2026-10-01 screenshots. Every other card on this screen is var(--card)/var(--line); these were
+   the only two that were not, and it read as a different, heavier object for no reason. */
+.rhythm-card{border:1px solid var(--line);border-radius:var(--r-2xl);padding:14px 15px;background:var(--card);display:flex;flex-direction:column;gap:8px}
 .rhythm-k{font-family:'Archivo Black';font-size:13px;letter-spacing:.4px;color:var(--cream)}
 .rhythm-sub{font-family:'Inter';font-size:12px;line-height:1.5;color:var(--cream-m);margin:0}
 .rhythm-last{display:inline-flex;align-items:center;gap:6px;background:none;border:none;padding:0;font-family:'Inter';font-weight:600;font-size:11.5px;color:var(--gold2);cursor:pointer;text-align:left;-webkit-appearance:none;appearance:none}
 .rhythm-last svg{width:11px;height:11px}
-.rhythm-go{display:inline-flex;align-items:center;justify-content:center;gap:7px;margin-top:auto;background:color-mix(in srgb, var(--brand-gold2) 10%, transparent);border:1px solid var(--gold2);border-radius:var(--r-pill);padding:8px 14px;cursor:pointer;font-family:'Inter';font-weight:700;font-size:12.5px;color:var(--gold2);-webkit-appearance:none;appearance:none}
+/* Filled, like .grp-seg.on — the one action in the card is a button, not another outlined box
+   inside the box. Day-theme white label comes from the solid-gold-pill list near line 2965. */
+.rhythm-go{display:inline-flex;align-items:center;justify-content:center;gap:7px;margin-top:auto;background:var(--gold);border:1px solid var(--gold);border-radius:var(--r-pill);padding:9px 14px;min-height:40px;cursor:pointer;font-family:'Inter';font-weight:700;font-size:12.5px;color:#1a1610;-webkit-appearance:none;appearance:none}
 .rhythm-go:disabled{opacity:.55;cursor:default}
 .rhythm-go svg{width:13px;height:13px}
 .rhythm-ledger{margin-top:14px}
@@ -8004,3 +8029,57 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .so-resend{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
 .so-resend input{flex:1 1 180px;min-width:0}
 .so-resend button{flex:0 0 auto}
+
+/* ═══ ONE BOX PER LEVEL (2026-10-01) ═══════════════════════════════════════════════════════════
+   Ryan, three screenshots of Plan › Calendar on his phone: "boxes inside boxes, this just looks
+   eww, 5/10". Measured in Chromium at 390px on a class-for-class double of that screen
+   (scripts/fixtures/plan-screen.html): 35 painted boxes, and the rows a cook actually reads sat
+   at DEPTH FOUR — a focus ring around the whole screen, a card, a bordered list inside the card,
+   then the row. The rule this block enforces is the one every design system states and this file
+   had drifted from: a border, a fill or a shadow marks a SEPARATE OBJECT, so one level gets one.
+   Inside a card, structure is whitespace, hairlines and type — not another card.
+
+   Each rule below is scoped to a container, never global: .so-rows is still a bordered list on
+   The Shop · orders where it stands alone, and a .cc-chip is still a chip in a month cell. They
+   only shed their own box when a box already holds them. scripts/design.ratchet.mjs measures the
+   result and fails if the depth climbs back. */
+
+/* A list inside a card is a grouped list: rows run to the card's edges, hairlines between them,
+   the card's own border is the only border. The list used to bring its own. */
+.mpanel-body .so-rows{border:0;border-radius:0;background:transparent;gap:0;margin:0 -14px -14px}
+.mpanel-body .so-row{border-top:1px solid var(--line);padding-left:16px;padding-right:14px}
+.mpanel-body .so-row:focus-visible{outline-offset:-3px}
+
+/* In the agenda the ROW is the item's container (date on the left, the item on the right), so the
+   chip inside it drops its outline and fill and keeps only the lane colour. And it is a list, not
+   a month-grid cell: text at the sizes a 7-column grid needs (10.5 / 9.5 px) is below any phone
+   floor when there is a whole row of room. 14 / 12.5 here; the grid keeps its own. */
+/* border-color, not border: the lane colour arrives as an inline border-left-color from the
+   component and inline wins, so the left bar survives this and the other three sides go. */
+/* .cal-list .cal-lrow, three classes: .app.crew-day .cc-chip is three too and would otherwise
+   win on source order and put its grey fill back. */
+.cal-list .cal-lrow .cc-chip{border-color:transparent;background:transparent;padding:4px 6px 4px 9px;min-height:30px;font-size:14px}
+.cal-lrow .cc-title{font-size:14px;white-space:normal;line-height:1.3}
+.cal-lrow .cc-sub{font-size:12.5px;white-space:normal}
+.cal-lrow .cc-chip.two{min-height:40px}
+
+/* Outlook sync, when there is nothing an operator can do about it: a quiet line under the
+   calendar, not a card with a NOT CONFIGURED badge standing between the calendar and the rest of
+   the screen. The text is unchanged — it is true — only its weight. The full card returns the day
+   it is configured and has a Connect button to offer. */
+.ol-bar.quiet{background:transparent;border:0;border-top:1px solid var(--line);border-radius:0;padding:12px 2px 0;margin-top:16px}
+.ol-bar.quiet .ol-top{font-size:13px}
+.ol-bar.quiet .ol-top b{font-weight:650}
+.ol-bar.quiet .ol-note{font-size:12px;color:var(--cream-d)}
+.ol-bar.quiet .ol-state{border:0;padding:0;letter-spacing:.06em}
+
+/* The rail, expanded, on a phone: three tabs with icon + label + purpose line covered 46% of the
+   viewport, sitting on top of whatever paragraph was under them (the operating-rhythm copy, in the
+   screenshots). The purpose lines are what the WIDTH is for; on a phone they go, the labels stay,
+   and the min-width that was sized for the purpose lines goes with them. Desktop is unchanged —
+   there the rail sits in the frame's margin and covers nothing. */
+@media (max-width:640px){
+  .rail:not(.rail-folded) .rail-txt i{display:none}
+  .rail:not(.rail-folded) :is(.rdg-fab,.chub-tab,.conc-fab){min-width:0;height:42px;padding-right:12px}
+  .rail:not(.rail-folded) .rail-txt b{font-size:12px}
+}

@@ -5317,7 +5317,10 @@ export default function AdminPage() {
   }, [svc]);
   useEffect(() => { if (section !== "now") setSvc(false); }, [section]);
   // Focus the section region when you switch sections (skip the first render so we don't yank focus
-  // on initial load). Programmatic focus won't trigger :focus-visible, so there's no stray ring.
+  // on initial load). This USED to say "programmatic focus won't trigger :focus-visible, so there's
+  // no stray ring" — and it did, a 2px frame around the whole screen on iPhone, because WebKit never
+  // focused the tapped tab and so had no pointer history to suppress the ring with. The ring is
+  // suppressed in globals.css (.op-trans:focus-visible) and measured by scripts/design.ratchet.mjs.
   const opBodyRef = useRef<HTMLDivElement>(null);
   const firstSecRef = useRef(true);
   useEffect(() => {
