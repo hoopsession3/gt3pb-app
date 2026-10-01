@@ -3959,6 +3959,73 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   }
 }
 
+// ── THE DATABASE IS ONE MIGRATION BEHIND THE CODE (2026-10-01) ─────────────────────────────────
+// The mirror image of deploy skew, and in this repo it is not a race — the workflow guarantees it.
+// Migrations are pasted BY HAND into the Supabase SQL editor and the push happens first, so every
+// deploy runs new code against the old schema until somebody opens a browser.
+//
+// 0337 adds brew_vessels.min_gal and BrewPlanner selects it. That loader does
+// `[...].find(x => x.error)` and then THROWS, so one not-yet-existing column takes down the whole
+// Brew board — recipes, batches, events, stops, inventory, none of them related to the column.
+{
+  const D = require("../.smoke/deploySkew.js");
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const planner = fs.readFileSync(path.join(__dirname, "..", "components/BrewPlanner.tsx"), "utf8");
+
+  // PostgREST passes the Postgres code through; PGlite and some proxies send only the text.
+  ok("schema skew: the Postgres undefined_column code is recognised",
+    D.isMissingColumn({ code: "42703", message: "whatever" }) === true);
+  ok("schema skew: …and so is the bare message, for the clients that send no code",
+    D.isMissingColumn({ message: 'column brew_vessels.min_gal does not exist' }) === true
+    && D.isMissingColumn({ message: 'column "min_gal" does not exist' }) === true);
+
+  // THE NARROWNESS IS THE POINT. A blanket catch would turn these into an empty vessel list, and
+  // "a failed read is not an empty list" is the rule this app keeps re-learning. Each of these must
+  // stay as loud as it was before the fallback existed.
+  for (const e of [
+    { code: "42P01", message: 'relation "public.brew_vessels" does not exist' },  // table dropped
+    { code: "42501", message: "permission denied for table brew_vessels" },        // grant revoked
+    { code: "PGRST301", message: "JWT expired" },                                  // auth gone
+    { message: "FetchError: network request failed" },                             // offline
+    { code: "42703x", message: "something else entirely" },                        // near-miss code
+  ]) {
+    ok(`schema skew: NOT forgiven — ${e.code ?? "no code"}`, D.isMissingColumn(e) === false, e);
+  }
+  ok("schema skew: nothing in, false out — never a thrown read mistaken for a missing column",
+    D.isMissingColumn(null) === false && D.isMissingColumn(undefined) === false
+    && D.isMissingColumn({}) === false);
+
+  // THE FALLBACK IS WIRED, AND IT IS THE NARROW ONE.
+  //
+  // CALLED, not merely defined. The first cut of this asserted the helper's BODY existed, and
+  // deleting the call site from the loader left it green — the function sat there, correct and
+  // unreachable, while the board was back to dying on one absent column. Third time tonight for the
+  // same blind spot: an import is not a call, a definition is not a call site, and a check that
+  // cannot fail is a check that lies.
+  ok("schema skew: the vessels read retries without the new column instead of failing the board",
+    /isMissingColumn\(full\.error\)/.test(planner)
+    && /select\("id, name, capacity_gal, filter_type"\)/.test(planner), "vesselsRead body");
+  ok("schema skew: …and the loader CALLS it rather than reading the table directly",
+    /^\s*vesselsRead\(\),\s*$/m.test(planner)
+    && !/Promise\.all\(\[[\s\S]*?from\("brew_vessels"\)[\s\S]*?\]\)/.test(planner),
+    (planner.match(/from\("brew_vessels"\)[^\n]*/g) || []));
+  ok("schema skew: …and every other error still comes back untouched",
+    /if \(!full\.error \|\| !isMissingColumn\(full\.error\)\) return full;/.test(planner));
+  // A fallback that drops the column must leave min_gal ABSENT, not zero — 0337's whole point is
+  // that "not measured" and "zero" are different facts, and a zero here would read as a measured
+  // minimum of nothing and silently switch the UI from asking to asserting.
+  ok("schema skew: the fallback does not invent a min_gal value",
+    !/min_gal:\s*0/.test(planner) && !/min_gal:\s*Number\(/.test(planner));
+
+  // PROVE THE HAZARD WAS REAL: the loader still throws on the first error it finds, which is what
+  // made one absent column fatal for five unrelated queries. If that ever stops being true this
+  // assertion should be revisited — but it must not stop being true by accident.
+  ok("schema skew: the loader does throw on a read error — which is why the narrow retry is needed",
+    /const firstErr = \[r, b, e, v, st, ii\]\.find\(\(x\) => x\.error\)\?\.error;/.test(planner)
+    && /if \(firstErr\) throw new Error\(firstErr\.message\);/.test(planner));
+}
+
 // Everything above is synchronous except what PENDING holds. Printing the summary before those
 // land would report a pass count that is wrong in the flattering direction — exactly the kind of
 // quiet lie the rest of this file exists to refuse.

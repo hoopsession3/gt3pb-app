@@ -11,6 +11,7 @@ import Sheet, { CloseButton } from "@/components/Sheet";
 import BrewSteps from "@/components/BrewSteps";
 import CookNeedList, { type CookIngredient } from "@/components/CookNeedList";
 import ProgressRing from "@/components/ProgressRing";
+import { isMissingColumn } from "@/lib/deploySkew";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
@@ -93,13 +94,34 @@ export default function BrewPlanner() {
   const [view, setView] = useState<"schedule" | "log">("schedule");
   const [now, setNow] = useState(() => Date.now());
 
+  // THE SCHEMA CAN BE ONE MIGRATION BEHIND THIS BUILD (see lib/deploySkew.isMissingColumn). Ask for
+  // min_gal; if the database has not been given 0337 yet, ask again without it and carry on with
+  // min_gal absent — which is precisely the state the rest of this component already handles, since
+  // an unmeasured vessel is the normal case until somebody goes and measures one.
+  //
+  // The forgiveness is narrowed to that ONE condition on purpose. A blanket catch here would turn a
+  // dropped table, a revoked grant or an RLS refusal into a silent empty list, and "a failed read is
+  // not an empty list" is the rule this app keeps re-learning. Every other error still throws.
+  const vesselsRead = useCallback(async () => {
+    const full = await supabase!.from("brew_vessels")
+      .select("id, name, capacity_gal, filter_type, min_gal").is("archived_at", null).order("sort");
+    if (!full.error || !isMissingColumn(full.error)) return full;
+    return supabase!.from("brew_vessels")
+      .select("id, name, capacity_gal, filter_type").is("archived_at", null).order("sort");
+  }, []);
+
   const loader = useCallback(async (): Promise<BrewBoard> => {
     if (!supabase) return { recipes: [], vessels: [], batches: [], events: [], stops: [], inv: [], demand: {} };
     const [r, b, e, v, st, ii] = await Promise.all([
       supabase.from("brew_recipes").select("id, name, style, ratio, target_spec, base_water_gal, extraction_hours, yield_factor, product_slug, ingredients").is("archived_at", null).order("sort"),
       supabase.from("brew_batches").select("id, recipe_id, recipe_name, batch_gal, brew_date, ready_at, event_id, stop_id, status, og, signal_score, target_spec, extraction_hours, brew_started_at, vessel, coffee_lot, brewer, taste_notes, created_at, needed_by, latest_start_at, drop_date, hold_hours, scaled").order("created_at", { ascending: false }),
       supabase.from("events").select("id, title, day, day_label").is("archived_at", null).order("day"),
-      supabase.from("brew_vessels").select("id, name, capacity_gal, filter_type, min_gal").is("archived_at", null).order("sort"),
+      // min_gal arrives with 0337, and migrations here are pasted BY HAND after the push — so every
+      // deploy has a window running new code against the previous schema. Without the fallback in
+      // vesselsRead, one column that does not exist yet throws out of this Promise.all and takes the
+      // whole Brew board with it: recipes, batches, events, stops and inventory, none of which have
+      // anything to do with the new column.
+      vesselsRead(),
       supabase.from("stops").select("id, name, starts_at, status").is("archived_at", null).order("starts_at", { ascending: true, nullsFirst: false }),
       supabase.from("inventory_items").select("name, qty, unit"),
     ]);
@@ -119,7 +141,9 @@ export default function BrewPlanner() {
       });
     }
     return { recipes: (r.data as Recipe[]) ?? [], vessels: (v.data as Vessel[]) ?? [], batches: bb, events: (e.data as Ev[]) ?? [], stops: (st.data as St[]) ?? [], inv, demand };
-  }, []);
+    // vesselsRead is itself useCallback([]) and so stable; naming it here keeps the dependency
+    // honest rather than relying on that from a distance.
+  }, [vesselsRead]);
   const board = useAsyncData(loader, []);
   const { reload } = board;
 

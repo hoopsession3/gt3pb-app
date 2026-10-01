@@ -133,3 +133,34 @@ export function stableErrorKey(message: string | null | undefined): string {
     .replace(/\s+/g, " ")
     .trim();
 }
+
+// ═══ THE OTHER SKEW: THE DATABASE IS ONE MIGRATION BEHIND THE CODE ═══════════════════════════════
+//
+// Everything above is the client being one BUILD behind. This is the mirror image, and in this
+// repo it is not a rare race — it is guaranteed by the workflow. Migrations are applied BY HAND in
+// the Supabase SQL editor, and the push happens first. So between `git push` and the paste, every
+// deploy is running new code against the old schema, and the window is however long it takes
+// somebody to open a browser tab.
+//
+// 2026-10-01 is where this stopped being theoretical. 0337 adds brew_vessels.min_gal and
+// BrewPlanner's loader selects it. PostgREST answers an unknown column with 42703, and that loader
+// does `[...].find(x => x.error)` then THROWS — so one column that does not exist yet takes down
+// the whole Brew board: recipes, batches, events, stops and inventory, none of which have anything
+// to do with the new column. Pushing before pasting would have broken a working screen.
+//
+// WHY A PREDICATE AND NOT A try/catch AT THE CALL SITE. Because a blanket catch would swallow the
+// errors that MATTER — a dropped table, a revoked grant, RLS refusing the read — and turn a loud
+// failure into an empty list. "A failed read is not an empty list" is the rule this repo keeps
+// re-learning; this narrows the forgiveness to exactly one condition, named, and leaves every other
+// error as loud as it was.
+//
+// 42703 is `undefined_column` in the Postgres error-code table, and PostgREST passes it through.
+// The message is matched too, because PGlite and some proxies report the text without the code.
+const MISSING_COLUMN_TEXT = /column\s+\S*\.?\S+\s+does not exist/i;
+
+/** Is this error ONLY "that column is not there yet" — i.e. the schema is behind this build? */
+export function isMissingColumn(err: { code?: string | null; message?: string | null } | null | undefined): boolean {
+  if (!err) return false;
+  if (String(err.code ?? "") === "42703") return true;
+  return MISSING_COLUMN_TEXT.test(String(err.message ?? ""));
+}
