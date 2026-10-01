@@ -1755,9 +1755,52 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("stop-over: just outside it is done", S.derivedStopStatus(null, iso(G + 60_000), null) === "done");
   // The drift that existed: derivedStopStatus used > and isStopPast used <=, which disagree at
   // exactly the boundary. They share one implementation now, so they cannot.
-  ok("stop-over: isStopPast and derivedStopStatus agree across the boundary — the drift that was real",
-    [G - 1000, G, G + 1000, 0, 20 * 3600_000].every((d) =>
-      S.isStopPast(iso(d)) === (S.derivedStopStatus(null, iso(d), null) === "done")));
+  //
+  // ── WHY THE CLOCK IS FROZEN FOR THIS ONE (2026-10-01) ────────────────────────────────────────
+  // This assertion was failing intermittently at exactly d = G, and it was a TEST-AUTHORING race,
+  // not a code bug. Date.now() returns integer milliseconds: two reads microseconds apart usually
+  // return the same number and occasionally differ by 1, because a millisecond boundary fell
+  // between them. The old line read the clock FOUR times for one comparison — iso(d) once per
+  // side, and isStopPast reading again inside each evaluation — and at d = G the whole question
+  // collapses to "did the millisecond tick between those two reads?", asked independently on each
+  // side. Whenever exactly one side straddled a boundary the two functions reported different
+  // answers. Enumerated over the possible read sequences: [0,1,1,1] and [0,0,0,1] both fail.
+  //
+  // Computing iso(d) ONCE and passing the same string to both — the obvious one-line fix — does
+  // NOT close this. It removes one straddle point and leaves the other, because the two functions
+  // still read Date.now() themselves at different instants: sequence [0,0,1] still disagrees.
+  // Established by enumerating the sequences, not by re-running until it went green.
+  //
+  // Freezing is also the STRONGER test, which is the real argument for it. The racing version
+  // could pass at d = G by luck even when the two functions genuinely disagreed about the
+  // boundary — which is exactly the `>` vs `<=` drift this assertion exists to catch. Frozen, it
+  // tests that rule deterministically.
+  //
+  // The restore is in a finally: a throw with Date.now still stubbed would silently freeze the
+  // clock for every assertion after it in this file.
+  {
+    const realNow = Date.now;
+    const AT = realNow();
+    const at = (msAgo) => new Date(AT - msAgo).toISOString();
+    try {
+      Date.now = () => AT;
+      ok("stop-over: isStopPast and derivedStopStatus agree across the boundary — the drift that was real",
+        [G - 1000, G, G + 1000, 0, 20 * 3600_000].every((d) =>
+          S.isStopPast(at(d)) === (S.derivedStopStatus(null, at(d), null) === "done")));
+      // THE BOUNDARY ITSELF, which agreement alone can never check. derivedStopStatus delegates
+      // to isStopPast, so the two agree by construction — the assertion above guards the one-home
+      // property (nobody re-splits them into two implementations) and nothing else. Move the rule
+      // from `>` to `<=` and BOTH move together: they still agree, on the wrong boundary, and the
+      // agreement test stays green. Proved by planting exactly that historical drift — only these
+      // two lines caught it, 3 runs out of 3.
+      ok("stop-over: at exactly the grace a stop is still upcoming — strictly-greater, both ways",
+        S.isStopPast(at(G)) === false && S.derivedStopStatus(null, at(G), null) === "upcoming");
+      ok("stop-over: one millisecond past it, both flip together",
+        S.isStopPast(at(G + 1)) === true && S.derivedStopStatus(null, at(G + 1), null) === "done");
+    } finally { Date.now = realNow; }
+    ok("stop-over: the clock was handed back — everything after this reads the real one",
+      Date.now === realNow && Math.abs(Date.now() - realNow()) < 50);
+  }
   ok("stop-over: isStopPast is false for a stop with no start", S.isStopPast(null) === false && S.isStopPast(undefined) === false);
 
   // the three a customer can actually see
