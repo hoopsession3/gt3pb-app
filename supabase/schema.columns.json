@@ -1,10 +1,10 @@
 {
   "$snapshot": {
-    "pulled_at": "2026-09-29T14:03:40.359Z",
+    "pulled_at": "2026-10-01T13:16:16.761Z",
     "project": "hmpxgomiiyjjxxxyzzbg",
     "source": "sql fallback (pg_class/pg_attribute), run in the Supabase SQL editor",
-    "relations": 197,
-    "columns": 2524
+    "relations": 202,
+    "columns": 2585
   },
   "academy_acknowledgements": [
     "user_id",
@@ -413,7 +413,8 @@
     "sort",
     "archived_at",
     "created_at",
-    "market"
+    "market",
+    "min_gal"
   ],
   "broadcasts": [
     "id",
@@ -639,7 +640,12 @@
     "status",
     "detail",
     "sent_by",
-    "created_at"
+    "created_at",
+    "provider_id",
+    "delivered_at",
+    "bounced_at",
+    "complained_at",
+    "delivery_detail"
   ],
   "customers": [
     "id",
@@ -1998,7 +2004,8 @@
     "status_note",
     "status_changed_at",
     "status_changed_by",
-    "refund_amount_cents"
+    "refund_amount_cents",
+    "apliiq_submit_started_at"
   ],
   "shop_products": [
     "id",
@@ -2044,6 +2051,29 @@
     "active",
     "receipt_required_over_cents",
     "created_at"
+  ],
+  "square_disputes": [
+    "id",
+    "tenant_id",
+    "payment_id",
+    "order_id",
+    "amount_cents",
+    "state",
+    "due_at",
+    "reason",
+    "created_at",
+    "updated_at"
+  ],
+  "square_refunds": [
+    "id",
+    "tenant_id",
+    "payment_id",
+    "order_id",
+    "amount_cents",
+    "status",
+    "reason",
+    "created_at",
+    "updated_at"
   ],
   "stop_ops": [
     "stop_id",
@@ -2239,6 +2269,16 @@
     "integrity",
     "interim_ends_when"
   ],
+  "v_alert_feed_health": [
+    "unacked",
+    "criticals",
+    "criticals_past_every_window",
+    "beyond_the_feed_window",
+    "criticals_nobody_can_see",
+    "loudest_kind",
+    "loudest_kind_rows",
+    "verdict"
+  ],
   "v_ambiguous_overloads": [
     "proname",
     "signature_a",
@@ -2363,6 +2403,25 @@
     "hours_on_interim_work",
     "last_seen_at",
     "active_days_30"
+  ],
+  "v_customer_message_outcome": [
+    "id",
+    "tenant_id",
+    "order_id",
+    "channel",
+    "kind",
+    "to_address",
+    "subject",
+    "status",
+    "detail",
+    "sent_by",
+    "created_at",
+    "provider_id",
+    "delivered_at",
+    "bounced_at",
+    "complained_at",
+    "delivery_detail",
+    "outcome"
   ],
   "v_delete_rights": [
     "table_name",
@@ -2669,6 +2728,18 @@
     "severity",
     "canonical_name",
     "vendor_id"
+  ],
+  "v_shop_money_drift": [
+    "order_id",
+    "created_at",
+    "who",
+    "status",
+    "total_cents",
+    "recorded_in_app",
+    "refunded_in_square",
+    "gap_cents",
+    "open_disputes",
+    "verdict"
   ],
   "v_shop_order_items": [
     "id",

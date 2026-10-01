@@ -10,7 +10,7 @@ import { classifyEffect, effectAt } from "./render.audit.mjs";
 import { isFalseEmpty, catchesButHides } from "./falseempty.audit.mjs";
 import { refusalHeadings, refusesWithoutPolicy, collapsesVerdicts } from "./gate.audit.mjs";
 import { handRollsCrew, bypassesTaskSpine, CREW_EXEMPT, namesRoleVocabulary, rolesNamedIn, rendersRawCrewOption } from "./dupe.audit.mjs";
-import { selectsIn, topLevelParts, columnsOf, ageLine, pendingFrom, arrivingColumns, declaresArrival } from "./columns.audit.mjs";
+import { selectsIn, topLevelParts, columnsOf, ageLine, pendingMigrations, arrivingColumns, declaresArrival } from "./columns.audit.mjs";
 import { definitionsToSchema, refuseReason, projectRef } from "./schema.snapshot.mjs";
 import { join } from "node:path";
 
@@ -349,14 +349,26 @@ ok("not flagged: display_name rendered somewhere that is not an option",
 // typo, and treating it as one deadlocked a release: the snapshot can only learn about
 // brew_vessels.min_gal from production, production only learns about it when 0337 is pasted, and
 // the bundle carrying 0337 was held because the check failed. There was nothing to refresh.
-import { mkdtempSync, writeFileSync, mkdirSync } from "node:fs";
+//
+// WHAT IS PENDING IS THE PASTE FILE'S OWN CONTENTS. This used to read `pending-from` and scan the
+// migrations directory for everything at or above it, and that was wrong in both directions — see
+// the header in columns.audit.mjs. The two regressions have tests of their own below, named.
+// The fixtures below are STRINGS, passed straight to the parser — the only path that touches disk
+// is the one test that asks what an unreadable file does, and it points at a name in an empty temp
+// directory. Nothing is written, so nothing can be left behind for the next run to read.
+import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 const tmp = mkdtempSync(join(tmpdir(), "cols-"));
-mkdirSync(join(tmp, "m"), { recursive: true });
-const write = (n, body) => writeFileSync(join(tmp, "m", n), body);
 
-write("0336_before.sql", "alter table public.shop_orders add column already_there text;");
-write("0337_adds.sql", [
+// The generated shape, copied from scripts/migrations.pending.mjs's own emitter rather than
+// imagined: a banner, the filename, a banner, then that migration's text.
+const BAR = "-- ============================================================";
+const section = (name, body) => [BAR, `-- ${name}`, BAR, body, ""].join("\n");
+const paste = (count, ...sections) =>
+  ["-- generated", "-- pending-from: 0338", `-- pending-count: ${count}`, "", ...sections].join("\n");
+
+const EARLY = "alter table public.shop_orders add column apliiq_submit_started_at timestamptz;";
+const LATE = [
   "-- A header that QUOTES an older statement:",
   "--   alter table public.brew_vessels add column quoted_in_a_comment numeric",
   "alter table public.brew_vessels add column if not exists min_gal numeric;",
@@ -365,23 +377,36 @@ write("0337_adds.sql", [
   "  label text not null,",
   "  constraint new_thing_label_len check (length(label) < 80)",
   ");",
-].join("\n"));
-write("0338_later.sql", "alter table public.stops add column later_col text;");
+].join("\n");
 
-const pendFile = join(tmp, "PENDING.sql");
-writeFileSync(pendFile, "-- generated\n-- pending-from: 0337\n-- pending-count: 2\n");
+const twoPending = paste(2, section("0336_before.sql", EARLY), section("0337_adds.sql", LATE));
 
-ok("arriving: the pending floor is read from the drift-gated marker", pendingFrom(pendFile) === 337);
-ok("arriving: a missing or unreadable marker yields null, never a guess at zero",
-  pendingFrom(join(tmp, "nope.sql")) === null);
+const pm = pendingMigrations(twoPending);
+ok("pending: both sections of the paste file are found", pm !== null && pm.size === 2, pm && [...pm.keys()]);
+ok("pending: a file with no pending-count header is not the generated shape — null, not empty",
+  pendingMigrations("alter table x add column y text;") === null);
+ok("pending: an unreadable file yields null, never a guess at zero",
+  pendingMigrations(null, join(tmp, "nope.sql")) === null);
+// The parse checking itself against the file's own count. A section regex that quietly matched
+// nothing would report "nothing is arriving", and that reads exactly like a pass.
+ok("pending: a section count that disagrees with pending-count is a failed read, not an empty one",
+  pendingMigrations(paste(2, section("0336_before.sql", EARLY))) === null);
+// Nothing pending is a real, common answer and must be distinguishable from a failed read.
+ok("pending: nothing pending is an EMPTY map, not null",
+  pendingMigrations(paste(0))?.size === 0);
+// A migration's prose naming another migration's file must not open a section.
+ok("pending: a filename mentioned in a migration's own prose is not a section start",
+  pendingMigrations(paste(1, section("0337_adds.sql",
+    "-- supersedes 0336_before.sql\nalter table public.stops add column later_col text;")))?.size === 1);
 
-const arr = arrivingColumns(join(tmp, "m"), pendingFrom(pendFile));
-ok("arriving: a column an at-or-above-floor migration adds is found",
+const arr = arrivingColumns(pm);
+ok("arriving: a column a pending migration adds is found",
   arr.get("brew_vessels.min_gal") === 337, [...arr]);
-ok("arriving: a column from a migration BELOW the floor is not — production already has it",
-  arr.has("shop_orders.already_there") === false, [...arr.keys()]);
-ok("arriving: a later pending migration counts too",
-  arr.get("stops.later_col") === 338);
+// THE REGRESSION. `pending-from` is the HIGHEST file in the directory, so scanning `>= it` opened
+// only the last pending migration. A column the EARLIER one adds was called a typo, and would have
+// failed a release that was correct.
+ok("arriving: a column the EARLIER of two pending migrations adds is found too",
+  arr.get("shop_orders.apliiq_submit_started_at") === 336, [...arr.keys()]);
 ok("arriving: create table columns are found as well as add column",
   arr.get("new_thing.id") === 337 && arr.get("new_thing.label") === 337);
 ok("arriving: a table constraint is not mistaken for a column",
@@ -390,10 +415,15 @@ ok("arriving: a table constraint is not mistaken for a column",
 // at length — a header quoting an old statement must not read as a declaration.
 ok("arriving: a statement quoted inside a COMMENT is not a declaration",
   arr.has("brew_vessels.quoted_in_a_comment") === false, [...arr.keys()]);
-// A floor of null means the marker could not be read. That must mean "exempt nothing", never
+// THE OTHER REGRESSION, and the one that was live. With nothing pending, `pending-from` still named
+// the highest APPLIED migration, so every column it added stayed excusable for ever. The old
+// comment claimed the check "retires itself" once the paste lands. It had no way to notice.
+ok("arriving: with nothing pending, NOTHING is arriving — an applied migration excuses no column",
+  arrivingColumns(pendingMigrations(paste(0))).size === 0);
+// A null parse means the pending set could not be read. That must mean "exempt nothing", never
 // "exempt everything" — a failed read is not an empty list, in the direction that stays strict.
-ok("arriving: with no floor, NOTHING is treated as arriving",
-  arrivingColumns(join(tmp, "m"), null).size === 0);
+ok("arriving: an unreadable pending set exempts nothing",
+  arrivingColumns(null).size === 0);
 
 ok("arriving: a call site declares it survives the gap with the marker",
   declaresArrival("// arrives-with: 0337 — falls back\nconst x = 1;", 337) === true);

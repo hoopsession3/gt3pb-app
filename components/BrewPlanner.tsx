@@ -103,8 +103,11 @@ export default function BrewPlanner() {
   // dropped table, a revoked grant or an RLS refusal into a silent empty list, and "a failed read is
   // not an empty list" is the rule this app keeps re-learning. Every other error still throws.
   const vesselsRead = useCallback(async () => {
-    // arrives-with: 0337 — min_gal does not exist in production until 0337 is pasted. The retry
-    // below drops it and the component treats an unmeasured vessel as the normal case, which it is.
+    // 0337 (min_gal) is APPLIED as of 2026-10-01, so this no longer carries an `arrives-with:`
+    // marker — the column is in the snapshot and the audit checks it like any other. The retry
+    // stays because the window it covers is not about this column: a push reaches production
+    // before its migration is pasted, every time, so new code always runs against the previous
+    // schema for a while. Deleting the retry would buy nothing and re-arm c11e418.
     const full = await supabase!.from("brew_vessels")
       .select("id, name, capacity_gal, filter_type, min_gal").is("archived_at", null).order("sort");
     if (!full.error || !isMissingColumn(full.error)) return full;
@@ -118,11 +121,10 @@ export default function BrewPlanner() {
       supabase.from("brew_recipes").select("id, name, style, ratio, target_spec, base_water_gal, extraction_hours, yield_factor, product_slug, ingredients").is("archived_at", null).order("sort"),
       supabase.from("brew_batches").select("id, recipe_id, recipe_name, batch_gal, brew_date, ready_at, event_id, stop_id, status, og, signal_score, target_spec, extraction_hours, brew_started_at, vessel, coffee_lot, brewer, taste_notes, created_at, needed_by, latest_start_at, drop_date, hold_hours, scaled").order("created_at", { ascending: false }),
       supabase.from("events").select("id, title, day, day_label").is("archived_at", null).order("day"),
-      // min_gal arrives with 0337, and migrations here are pasted BY HAND after the push — so every
-      // deploy has a window running new code against the previous schema. Without the fallback in
-      // vesselsRead, one column that does not exist yet throws out of this Promise.all and takes the
-      // whole Brew board with it: recipes, batches, events, stops and inventory, none of which have
-      // anything to do with the new column.
+      // Migrations here are pasted BY HAND after the push, so every deploy has a window running new
+      // code against the previous schema. Without the fallback in vesselsRead, one column that does
+      // not exist yet throws out of this Promise.all and takes the whole Brew board with it:
+      // recipes, batches, events, stops and inventory, none of which have anything to do with it.
       vesselsRead(),
       supabase.from("stops").select("id, name, starts_at, status").is("archived_at", null).order("starts_at", { ascending: true, nullsFirst: false }),
       supabase.from("inventory_items").select("name, qty, unit"),
