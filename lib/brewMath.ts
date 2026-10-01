@@ -528,8 +528,14 @@ export function smallestBatch(opts: {
         + (y < 1
           ? `more than ${wantOz} oz, because only ${Math.round(y * 100)}% of what goes in comes out pourable.`
           : `the next ${BREW_STEP_GAL} gal step above ${wantOz} oz.`)
+      // "RECORDED FOR IT", not "the gear does not work" (2026-10-01). The first wording asserted a
+      // physical mechanism, and the moment real numbers arrived that stopped being safe: Ryan
+      // measured the Cold Brew Avenue at 1.0 gal, but for the Toddy he found no stated minimum and
+      // chose 0.5 as a working floor. The old sentence would have told a cook the gear fails below
+      // half a gallon, which nobody has established. This says what is true of both — there is a
+      // number on file for this vessel — and brew_vessels.notes carries which kind it is.
       : binding.reason === "vessel"
-        ? `The vessel sets this, not the recipe: below ${vesselFloor?.toFixed(2)} gal the gear does not work. That batch pours ${servings} servings.`
+        ? `The vessel sets this, not the recipe: ${vesselFloor?.toFixed(2)} gal is the smallest batch recorded for it. That batch pours ${servings} servings.`
         : `The scale sets this. Smaller than ${gal.toFixed(2)} gal and ${limiting?.name} falls under ${minG} g, which a ${opts.scaleResolutionG ?? SCALE_RESOLUTION_G} g scale cannot read closely enough to hold the ratio. That batch pours ${servings} servings.`;
 
   return {

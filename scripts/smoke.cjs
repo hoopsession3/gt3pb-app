@@ -3846,10 +3846,28 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     ok("batch floor: with nothing else binding, Ryan's 3 servings is the floor",
       plain.reason === "servings" && plain.gal === 0.3 && plain.servings === 3, plain);
 
-    // A measured vessel minimum is a FACT and outranks the policy floor.
+    // A recorded vessel minimum outranks the policy floor.
     const vessel = B.smallestBatch({ ...RISE, yieldFactor: 0.92, vesselMinGal: 1.5 });
-    ok("batch floor: a measured vessel minimum wins over the servings floor",
+    ok("batch floor: a recorded vessel minimum wins over the servings floor",
       vessel.reason === "vessel" && vessel.gal === 1.5, vessel);
+    // AND IT DOES NOT CLAIM A MECHANISM IT CANNOT KNOW. 2026-10-01: Ryan MEASURED the Cold Brew
+    // Avenue at 1.0 gal, but found no stated minimum for the Toddy and chose 0.5 as a working
+    // floor. The sentence used to read "below X gal the gear does not work", which would have told
+    // a cook something nobody has established about half the vessels on file. brew_vessels.notes
+    // carries which kind of number it is; this sentence must stay true of both.
+    ok("batch floor: the vessel sentence states what is RECORDED, not what the gear does",
+      /is the smallest batch recorded for it/.test(vessel.note)
+      && !/the gear does not work/.test(vessel.note), vessel.note);
+    // The two real vessels, at the numbers now in production.
+    for (const [name, min, want] of [["Toddy", 0.5, 5], ["Cold Brew Avenue", 1.0, 11]]) {
+      const f = B.smallestBatch({ ...RISE, yieldFactor: 0.92, vesselMinGal: min });
+      ok(`batch floor: ${name} at ${min} gal floors the batch at ${want} servings`,
+        f.reason === "vessel" && f.gal === min && f.servings === want, f);
+    }
+    // Per vessel, so two in parallel is two batches that each have to clear their own floor.
+    ok("batch floor: the floor scales with the vessel count",
+      B.smallestBatch({ ...RISE, yieldFactor: 0.92, vesselMinGal: 0.5 * 2 }).gal === 1,
+      B.smallestBatch({ ...RISE, yieldFactor: 0.92, vesselMinGal: 1 }).gal);
     // NULL must mean "nobody measured", never "zero" — a guessed floor is the thing 0337 refuses.
     for (const v of [null, undefined, 0, NaN, -2]) {
       const f = B.smallestBatch({ ...RISE, yieldFactor: 0.92, vesselMinGal: v });
