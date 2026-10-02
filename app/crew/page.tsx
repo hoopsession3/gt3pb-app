@@ -144,6 +144,7 @@ const ChiefOfStaff = dynamic(() => import("@/components/ChiefOfStaff"), { loadin
 const ChiefOfSales = dynamic(() => import("@/components/ChiefOfSales"), { loading: () => <PourFill label="Loading…" /> });
 const AuditTrail = dynamic(() => import("@/components/AuditTrail"), { loading: () => <PourFill label="Loading…" /> });
 const IntegrationsPanel = dynamic(() => import("@/components/IntegrationsPanel"), { loading: () => <PourFill label="Loading…" /> });
+const ErrorLog = dynamic(() => import("@/components/ErrorLog"), { loading: () => <PourFill label="Loading…" /> });
 const SmartIntake = dynamic(() => import("@/components/SmartIntake"), { loading: () => <PourFill label="Loading…" /> });
 const DocsFiled = dynamic(() => import("@/components/DocsFiled"), { loading: () => <PourFill label="Loading…" /> });
 import Prose from "@/components/Prose";
@@ -5732,6 +5733,10 @@ export default function AdminPage() {
               connected. Both admin-only, both read-only. */}
           {isAdmin && <Panel id="set-admintrail" title="Change log · who changed what, when"><AuditTrail /></Panel>}
           {isAdmin && <Panel id="set-integrations" title="Integrations & security · what's connected"><IntegrationsPanel /></Panel>}
+          {/* The reading end of the error intake (0133, lib/errorIntake). Every alert that says
+              "App error" or "Server error" points at a row that, until this panel, only the SQL
+              editor could show. */}
+          {isAdmin && <Panel id="set-errors" title="Errors · what broke, how often, where"><ErrorLog /></Panel>}
           <Panel id="set-changelog" title="What we've built · changelog"><Changelog /></Panel>
           {isAdmin && (
             <Panel id="set-audit" title="Audit & maintenance · every review run, scored &amp; dated">

@@ -61,7 +61,7 @@ export const CEILING = {
 export const FRICTION = {
   nativeDialogs: 0,
   crewGroupTitles: 0,
-  collapsedPanels: 33,
+  collapsedPanels: 34,   // 33 → 34 on 2026-10-02: Settings › Advanced › Errors — the reading end of the error intake, closed at rest like its neighbours
 };
 
 export function frictionCounts(read = (p) => readFileSync(join(ROOT, p), "utf8"), list = (d) => readdirSync(join(ROOT, d), { recursive: true })) {
