@@ -8076,7 +8076,9 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .ol-bar.quiet{background:transparent;border:0;border-top:1px solid var(--line);border-radius:0;padding:12px 2px 0;margin-top:16px}
 .ol-bar.quiet .ol-top{font-size:13px}
 .ol-bar.quiet .ol-top b{font-weight:650}
-.ol-bar.quiet .ol-note{font-size:12px;color:var(--cream-d)}
+/* --cream-m, not --cream-d: at 12px the dimmer token measured 3.69:1 on the day ground and 4.48:1
+   on the dark one (2026-10-02) — under AA for text this size. Quiet is the weight, not the ink. */
+.ol-bar.quiet .ol-note{font-size:12px;color:var(--cream-m)}
 .ol-bar.quiet .ol-state{border:0;padding:0;letter-spacing:.06em}
 
 /* The rail, expanded, on a phone: three tabs with icon + label + purpose line covered 46% of the
