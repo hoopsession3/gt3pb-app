@@ -11,10 +11,20 @@ import { supabase } from "@/lib/supabase";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import type { Order } from "@/lib/db";
 
-// THE customer account popout — the things that matter to THEM, in the canonical LV Sheet:
-// who they are, how close they are to a free drink, their credit, one-tap reorder, and their
-// member card. Reachable from any page (the account pill). Staff get their Crew Mode door here
-// too. Deeper management (orders, referral detail, saved events) links out to the /3mpire hub.
+// THE account popout — a MENU, reachable from the avatar on every page.
+//
+// ── WHAT IT STOPPED BEING (2026-10-02) ─────────────────────────────────────────────────────────
+// It used to open with a second copy of the /3mpire hub — the three stat tiles, the red "Order
+// again" block, the gold member-card hero — and only then the rows, so "Switch to Crew Mode" and
+// "Sign out" sat below the fold. Ryan's three screenshots showed the same four facts (name, tier,
+// stamps, usual) rendered on Today, on /3mpire and here, and his own console four taps away.
+// Every function one home: Today shows the card and the usual; /3mpire IS the hub; this is the
+// list of places to go. The identity line at the top is the way to the hub. Nothing is lost —
+// every destination this used to show is one tap away in a row, and the sheet now fits a phone
+// without scrolling.
+//
+// For staff, Crew Mode is the FIRST row and the reason they opened this. lib/mode.ts remembers
+// the side they are on, so most days the owner never needs it: the app opens where he left it.
 const GOAL = 10;
 
 function Coconut() {
@@ -79,86 +89,64 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
   }
 
   const usualNames = last ? last.items.map((i) => DRINKS[i as DrinkId]?.n ?? i).join(" · ") : "";
+  const stamps = inCard === 0 && pts > 0 ? "a free pour is ready" : `${toGo} to your free pour`;
 
   return (
-    <Sheet open onClose={onClose} header={head("Your Member Profile")} className="acs-sheet">
-      {/* Identity — the portrait, the name, the tier */}
-      <div className="acs-hero">
+    <Sheet open onClose={onClose} header={head("Your account")} className="acs-sheet">
+      {/* Identity — who, which tier, how close to free — and the one way to the full card. */}
+      <button type="button" className="acs-hero acs-hero-go" onClick={() => go("/3mpire")} aria-label="Open your member card">
         <div className={`acs-av${photo ? " ph" : ""}`} style={photo ? { backgroundImage: `url(${photo})` } : undefined}>
           {!photo && <Coconut />}
         </div>
         <div className="acs-id">
           <div className="acs-name">{name}</div>
           <span className={`acs-tier${founding ? " founding" : ""}`}>{founding ? <><Icon name="star" /> Founding Member</> : "Member"}</span>
+          <div className="acs-line">{inCard}<i>/{GOAL}</i> · {stamps}{credit > 0 ? ` · $${credit % 1 === 0 ? credit.toFixed(0) : credit.toFixed(2)} credit` : free > 0 ? ` · ${free} free earned` : ""}</div>
         </div>
-      </div>
-
-      {/* Rewards at a glance — every value reads a real, maintained column: points (0012/0152) and
-          credit_cents (0013/0152). "Free earned" is derived from points. No dead columns. */}
-      <div className="acs-stats">
-        <div className="acs-stat">
-          <span className="acs-stat-v">{inCard === 0 && pts > 0 ? "0" : inCard}<i>/{GOAL}</i></span>
-          <span className="acs-stat-k">{inCard === 0 && pts > 0 ? "Free ready" : `${toGo} to free`}</span>
-        </div>
-        <div className="acs-stat">
-          <span className="acs-stat-v">{pts}</span>
-          <span className="acs-stat-k">Points</span>
-        </div>
-        <div className="acs-stat">
-          <span className="acs-stat-v">{credit > 0 ? `$${credit % 1 === 0 ? credit.toFixed(0) : credit.toFixed(2)}` : free}</span>
-          <span className="acs-stat-k">{credit > 0 ? "Credit" : "Free earned"}</span>
-        </div>
-      </div>
-
-      {/* Order again — one tap, from anywhere */}
-      {last && (
-        <button type="button" className="acs-reorder" onClick={() => { reorder(last.items as DrinkId[]); onClose(); }}>
-          <span className="acs-reorder-x"><b>Order again</b><span>{usualNames}</span></span>
-          <span className="acs-reorder-a">1-tap ↻</span>
-        </button>
-      )}
-
-      {/* Your member card — the gold hero action */}
-      <button type="button" className="acs-card" onClick={() => { onClose(); onShowCard(); }}>
-        <span className="acs-card-l">
-          <b>Your member card</b>
-          <span>{founding ? <>Founding status · photo &amp; finish — show it off <Icon name="externalLink" /></> : <>Photo, status &amp; finish — show it off <Icon name="externalLink" /></>}</span>
-        </span>
-        <span className="acs-card-mk"><Gt3Mark tone="cream" /></span>
+        <span className="acs-row-c" aria-hidden>›</span>
       </button>
 
-      {/* Manage — the real destinations: orders, reservations, rewards */}
+      {staff && (
+        <div className="acs-rows acs-rows-first">
+          <button type="button" className="acs-row crew" onClick={() => go("/crew")}>
+            <span className="acs-row-x"><b>Crew Mode</b><span>Your console — shift, prep, plan, money</span></span>
+            <span className="acs-row-c" aria-hidden>›</span>
+          </button>
+        </div>
+      )}
+
       <div className="acs-group">Manage</div>
       <div className="acs-rows">
+        {last && (
+          <button type="button" className="acs-row" onClick={() => { reorder(last.items as DrinkId[]); onClose(); }}>
+            <span className="acs-row-x"><b>Order again</b><span>{usualNames} · one tap</span></span>
+            <span className="acs-row-c" aria-hidden>↻</span>
+          </button>
+        )}
         <button type="button" className="acs-row" onClick={() => go("/3mpire#orders")}>
           <span className="acs-row-x"><b>Orders &amp; deliveries</b><span>Track, reorder &amp; receipts</span></span>
           <span className="acs-row-c" aria-hidden>›</span>
         </button>
-        {/* "Reservations & events" removed — /events is now the Find Us road, a primary nav tab
-            reachable from every screen; a re-link here was a duplicate (RSVPs live on that road). */}
         <button type="button" className="acs-row" onClick={() => go("/office")}>
           <span className="acs-row-x"><b>Office delivery</b><span>Your team&rsquo;s Monday route &amp; jugs</span></span>
           <span className="acs-row-c" aria-hidden>›</span>
         </button>
         <button type="button" className="acs-row" onClick={() => go("/3mpire#rewards")}>
-          <span className="acs-row-x"><b>Rewards &amp; referrals</b><span>Points, credit · give $5 get $5{free > 0 ? ` · ${free} free` : ""}</span></span>
+          <span className="acs-row-x"><b>Rewards &amp; referrals</b><span>Points, credit · give $5 get $5</span></span>
+          <span className="acs-row-c" aria-hidden>›</span>
+        </button>
+        <button type="button" className="acs-row" onClick={() => { onClose(); onShowCard(); }}>
+          <span className="acs-row-x"><b>Your member card</b><span>{founding ? "Founding status · photo & finish — show it off" : "Photo, status & finish — show it off"}</span></span>
           <span className="acs-row-c" aria-hidden>›</span>
         </button>
       </div>
 
-      {/* Account — who you are and how you're reached */}
       <div className="acs-group">Account</div>
       <div className="acs-rows">
         <button type="button" className="acs-row" onClick={onEditProfile}>
           <span className="acs-row-x"><b>Profile &amp; notifications</b><span>Photo · name · order alerts</span></span>
           <span className="acs-row-c" aria-hidden>›</span>
         </button>
-        {staff && (
-          <button type="button" className="acs-row crew" onClick={() => go("/crew")}>
-            <span className="acs-row-x"><b>Switch to Crew Mode</b><span>Your crew console — shift, prep, money</span></span>
-            <span className="acs-row-c" aria-hidden>›</span>
-          </button>
-        )}
         {/* An agreement is a personal document about this person's own terms, so it belongs beside
             their profile rather than inside the crew console — which is also the only place an
             operator could not reach it from. */}
@@ -168,10 +156,6 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
             <span className="acs-row-c" aria-hidden>›</span>
           </button>
         )}
-        <button type="button" className="acs-row" onClick={() => go("/3mpire")}>
-          <span className="acs-row-x"><b>Full member profile</b><span>Card, rewards, orders &amp; history</span></span>
-          <span className="acs-row-c" aria-hidden>›</span>
-        </button>
       </div>
 
       <button type="button" className="acs-signout" onClick={() => { onClose(); signOut(); toast("Signed out"); }}>Sign out</button>

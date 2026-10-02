@@ -21,6 +21,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "@/components/AsyncSection";
 import Owed from "@/components/Owed";  // daily path: the overdue list is on the default screen
 import EmptyState from "@/components/EmptyState";
+import { rememberMode } from "@/lib/mode";
 import { useOperatorSection, sectionsForRole, streamGroups, SECTION_LABEL, TODAY_GROUP, VALID as VALID_SECTIONS, type OpSection } from "@/components/OperatorNav";
 import { useTaskSheet } from "@/components/TaskSheet";
 import { useRecord } from "@/components/RecordSheet";
@@ -5377,6 +5378,14 @@ export default function AdminPage() {
     })();
   }, [sec, canManage, planTab]); // refetch when you switch tabs so badges reflect what you just did
 
+  // This device opens on the crew side from now on, until Customer view or Exit says otherwise
+  // (lib/mode.ts). The condition is INSIDE the effect — a hook after the guard returns below is a
+  // Rules-of-Hooks violation (the lint ratchet caught exactly that placement) — and it is the same
+  // test the guards make, so a member bounced off the console never records "crew".
+  useEffect(() => {
+    if (enabled && ready && user && staffAccess(true, profileStatus, profile) === "allow") rememberMode("crew");
+  }, [enabled, ready, user, profileStatus, profile]);
+
   // Guard returns — all hooks live above (Rules of Hooks compliant).
   if (!enabled) return <section className="screen"><div className="h-title">Admin</div><div className="h-sub">The live backend isn&apos;t configured here.</div></section>;
   if (!ready) return <section className="screen" />;
@@ -5418,10 +5427,12 @@ export default function AdminPage() {
     <CrumbProvider>
     <section className="screen admin">
       <div className="toprow">
-        {/* Mode switch — you're in Crew; tap Customer view to drop to the customer app ("/"). */}
+        {/* Mode switch — you're in Crew; tap Customer view to drop to the customer app ("/").
+            Leaving is remembered (lib/mode.ts), so the app opens on the customer side next time;
+            arriving here is remembered below, so it opens here until you leave again. */}
         <div className="modesw" role="group" aria-label="View mode">
           <span className="modesw-seg on" aria-current="true">Crew</span>
-          <button type="button" className="modesw-seg" onClick={() => router.push("/")}>Customer view</button>
+          <button type="button" className="modesw-seg" onClick={() => { rememberMode("customer"); router.push("/"); }}>Customer view</button>
         </div>
         <div className="toprow-actions">
           {/* Inbox — the one place everything that needs you rolls up (flags + needs-you), from any screen. */}
@@ -5434,7 +5445,7 @@ export default function AdminPage() {
           <button type="button" className="crew-guide" onClick={() => setGuideOpen(true)} aria-haspopup="dialog"><span aria-hidden><Icon name="info" /></span> Guide</button>
           {/* Back = previous section within crew mode; only leaves for /3mpire when there's no
               section history to step back through. */}
-          <button type="button" className="pf" aria-label={canGoBack ? "Back" : "Exit Crew Mode"} onClick={() => { if (!back()) router.push("/3mpire"); }}>‹</button>
+          <button type="button" className="pf" aria-label={canGoBack ? "Back" : "Exit Crew Mode"} onClick={() => { if (!back()) { rememberMode("customer"); router.push("/3mpire"); } }}>‹</button>
         </div>
       </div>
       {guideOpen && <SectionGuide allowed={allowed} current={sec} onGo={setSection} onClose={() => setGuideOpen(false)} />}

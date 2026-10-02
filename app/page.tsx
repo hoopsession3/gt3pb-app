@@ -1,9 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { useAuth, type Profile } from "@/components/AuthProvider";
+import { useAuth, isStaff, type Profile } from "@/components/AuthProvider";
+import AccountPill from "@/components/AccountPill";
+import { readMode } from "@/lib/mode";
 import { useApp } from "@/components/AppProvider";
 import { Masthead, SectionHeader, InfoRow, ClosingBeat } from "@/components/kit";
 import GenerateDay from "@/components/GenerateDay";
@@ -91,14 +92,11 @@ function TodayReal({ t }: { t: (k: string) => string }) {
           // that group is already inline-editable below, this pill is strictly for the stamp card.
           <div className="mast-right">
             <EditCopyPill group="Loyalty card" />
-            <Link
-              className={`pf${profile?.avatar_url ? " pf-photo" : ""}`}
-              href="/3mpire"
-              aria-label="Your 3MPIRE"
-              style={profile?.avatar_url ? { backgroundImage: `url(${profile.avatar_url})` } : undefined}
-            >
-              {profile?.avatar_url ? "" : name.charAt(0)}
-            </Link>
+            {/* The same avatar as every other customer page — the account sheet. This one used to be
+                a link to /3mpire, so the avatar did two different things depending on the page, and
+                for the owner that was the first of four taps to reach his own console (2026-10-02).
+                The card is one tap below in "Open your card", and one tap inside the sheet. */}
+            <AccountPill />
           </div>
         }
       />
@@ -127,12 +125,19 @@ function TodayReal({ t }: { t: (k: string) => string }) {
 // Today is the MEMBER home. Guests (and unconfigured builds) land on the Truck — the public
 // front door: where the bar is, the route, the menu.
 export default function TodayScreen() {
-  const { ready, enabled, user } = useAuth();
+  const { ready, enabled, user, profile, profileStatus } = useAuth();
   const t = useSiteCopy();
   const router = useRouter();
   useEffect(() => {
     if (!enabled || (ready && !user)) router.replace("/truck");
   }, [enabled, ready, user, router]);
+  // A staff member opens the app where they left it (lib/mode.ts). Only once the profile has
+  // actually loaded: roleOf(null) is "member", so deciding on a loading profile would always say
+  // customer and the memory would never fire. Members have no mode and never come through here.
+  useEffect(() => {
+    if (!ready || !user || profileStatus !== "ready") return;
+    if (isStaff(profile) && readMode() === "crew") router.replace("/crew");
+  }, [ready, user, profile, profileStatus, router]);
   if (!enabled || !ready || !user) {
     return <section className="screen" id="s-today"><div className="toprow"><div className="eyb" /></div><Skeleton variant="row" count={4} /></section>;
   }

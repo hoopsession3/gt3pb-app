@@ -38,7 +38,7 @@ const FIXTURE = join(ROOT, "scripts/fixtures/plan-screen.html");
 
 // ── THE CEILINGS — measured, not remembered (2026-10-01, after the one-box-per-level pass) ───────
 export const CEILING = {
-  cardRules: 818,        // rules that make a card: radius + (border | fill)
+  cardRules: 817,        // rules that make a card: radius + (border | fill). 818 → 817: the account sheet lost its stat tiles (2026-10-02)
   rawRadii: 27,          // distinct border-radius values that are not a --r-* token, 50% or 0
   dupSelectors: 55,      // single top-level selectors declared more than once
   rootBlocks: 6,         // separate `:root{` blocks — tokens are supposed to have one home

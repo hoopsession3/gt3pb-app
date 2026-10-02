@@ -1699,6 +1699,8 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .acs-head-t .g3{font-size:15px}
 .acs-head .isheet-x{margin-left:auto}
 /* identity */
+/* .acs-stats / .acs-stat* / .acs-reorder* / .acs-card* removed 2026-10-02 — the sheet is a menu now;
+   those blocks live on Today and /3mpire. Dead rules are debt the ratchet counts. */
 .acs-hero{display:flex;align-items:center;gap:14px;padding:2px 2px 16px}
 .acs-av{position:relative;flex:0 0 auto;width:58px;height:58px;border-radius:50%;background:#1a1310;border:2px solid var(--gold2);display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,.42)}
 .acs-av.ph{background-size:cover;background-position:center;background-repeat:no-repeat}
@@ -1707,26 +1709,8 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .acs-tier{display:inline-block;margin-top:6px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--cream-m);border:1px solid var(--line2);border-radius:var(--r-pill);padding:3px 10px 2px}
 .acs-tier.founding{color:#0e0d0b;background:var(--gold2);border-color:transparent;font-weight:600}
 /* rewards glance */
-.acs-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
-.acs-stat{background:var(--card);border:1px solid var(--line);border-radius:var(--r-2xl);padding:12px 6px;text-align:center}
-.acs-stat-v{display:block;font-family:'Archivo Black';font-size:22px;color:var(--cream);line-height:1}
-.acs-stat-v i{font-style:normal;font-size:13px;color:var(--cream-m)}
-.acs-stat-k{display:block;margin-top:6px;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.07em;text-transform:uppercase;color:var(--gold2)}
 /* order again — one tap from anywhere */
-.acs-reorder{display:flex;align-items:center;gap:10px;width:100%;text-align:left;cursor:pointer;background:var(--red);border:none;border-radius:var(--r-2xl);padding:13px 15px;margin-bottom:10px}
-.acs-reorder:active{transform:scale(.99)}
-.acs-reorder-x{flex:1;min-width:0}
-.acs-reorder-x b{display:block;font-family:'Inter';font-weight:700;font-size:15px;color:#fff}
-.acs-reorder-x span{display:block;margin-top:1px;font-family:'Inter';font-size:12px;color:rgba(255,255,255,.82);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.acs-reorder-a{flex:0 0 auto;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#fff;opacity:.92}
 /* your member card — the gold hero action, shares the member-card ground */
-.acs-card{display:flex;align-items:center;gap:12px;width:100%;text-align:left;cursor:pointer;background:linear-gradient(150deg,#1c1811,#221a10 55%,#2a1c12);border:1px solid color-mix(in srgb, var(--brand-gold2) 40%, transparent);border-radius:var(--r-3xl);padding:15px;margin-bottom:16px;box-shadow:0 12px 30px rgba(0,0,0,.35),inset 0 0 0 1px color-mix(in srgb, var(--brand-gold2) 10%, transparent)}
-.acs-card:active{transform:scale(.99)}
-.acs-card-l{flex:1;min-width:0}
-.acs-card-l b{display:block;font-family:'Inter';font-weight:700;font-size:15px;color:var(--cream)}
-.acs-card-l span{display:block;margin-top:2px;font-family:'Inter';font-size:12px;color:var(--cream-m)}
-.acs-card-mk{flex:0 0 auto;opacity:.9}
-.acs-card-mk .g3{font-size:22px}
 /* grouped, labeled sections — a proper account center, not a flat dump */
 .acs-group{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold2);opacity:.8;margin:2px 4px 7px}
 /* deep-link landing offset so #orders / #rewards don't tuck under the top row */
@@ -8098,3 +8082,16 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .cfm-body{margin-bottom:4px;font-size:14px;color:var(--cream)}
 .cfm-actions{gap:12px}
 .cfm-ok:focus-visible{outline:2px solid var(--gold2);outline-offset:2px}
+
+/* ── THE ACCOUNT SHEET IS A MENU (2026-10-02, components/AccountSheet.tsx) ────────────────────────
+   The identity line is a row that goes to the hub; the three stat tiles, the red reorder block and
+   the gold card hero that used to sit above the rows are gone from here (they live on Today and on
+   /3mpire). For staff the first row is Crew Mode. The sheet now fits a phone without a scroll. */
+.acs-hero-go{width:100%;text-align:left;background:none;border:none;border-radius:11px;padding:6px 10px 14px 4px;cursor:pointer;margin-bottom:6px}
+.acs-hero-go:hover,.acs-hero-go:active{background:rgba(255,255,255,.05)}
+.acs-hero-go .acs-row-c{align-self:center}
+.acs-line{margin-top:7px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.04em;color:var(--cream-m);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.acs-line i{font-style:normal;color:var(--cream-d)}
+.acs-rows-first{margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.acs-row.crew{background:color-mix(in srgb, var(--brand-gold) 10%, transparent)}
+.acs-row.crew:hover,.acs-row.crew:active{background:color-mix(in srgb, var(--brand-gold) 16%, transparent)}
