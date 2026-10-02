@@ -15,6 +15,7 @@
     "verify": "npm run test && npm run audit && npm run build && npm run smoke:ui && npm run smoke:authed",
     "audit": "node scripts/render.audit.mjs && node scripts/falseempty.audit.mjs && node scripts/gate.audit.mjs && node scripts/dupe.audit.mjs && node scripts/columns.audit.mjs && node scripts/design.ratchet.mjs && node scripts/api.audit.mjs",
     "smoke:authed": "node scripts/smoke.authed.mjs",
+    "verify:prod": "node scripts/verify.prod.mjs",
     "migrations:pending": "node scripts/migrations.pending.mjs"
   },
   "dependencies": {

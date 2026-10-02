@@ -124,6 +124,40 @@ export const ROUTE = {
   "/terms":         { depth: 0, tap: 26, text: 14 },
 };
 
+// ── THE SAME ROUTES, ON PRODUCTION, WITH DATA — read by scripts/verify.prod.mjs ─────────────────
+// ROUTE above is measured against a build with no database: for a data-driven route that is the
+// EMPTY state. This table is the populated one, measured on app.gt3pb.com at 390px after the
+// 2026-10-02 deploy (8ac6bf9). The seven that differ are real: a lesson card with its FREE pill
+// is a box in a box the empty /primal never shows; /delivery's Pickup/Delivery choice is one;
+// the sign-in wall on /academy, /playbook and /driver is a box the guest build renders as nothing.
+// /3mpire measures SHALLOWER with data (1, not 2): the empty state's placeholder card is gone.
+// Two tables, two subjects — the same reason the fixture is measured in two themes.
+export const PROD_ROUTE = {
+  "/":              { depth: 2, tap: 26, text: 10 },
+  "/truck":         { depth: 2, tap: 26, text: 10 },
+  "/events":        { depth: 2, tap: 26, text: 10 },
+  "/menu":          { depth: 2, tap: 26, text: 10 },
+  "/reserve":       { depth: 2, tap: 26, text: 10 },
+  "/delivery":      { depth: 2, tap: 26, text: 10 },
+  "/3mpire":        { depth: 1, tap: 26, text: 11 },
+  "/craft":         { depth: 2, tap: 26, text: 10 },
+  "/book":          { depth: 1, tap: 26, text: 10 },
+  "/shop":          { depth: 2, tap: 26, text: 10 },
+  "/primal":        { depth: 2, tap: 26, text: 10 },
+  "/office":        { depth: 1, tap: 26, text: 11 },
+  "/academy":       { depth: 1, tap: 26, text: 11 },
+  "/scan":          { depth: 0, tap: 26, text: 10 },
+  "/architecture":  { depth: 0, tap: 26, text: 10 },
+  "/playbook":      { depth: 1, tap: 26, text: 11 },
+  "/driver":        { depth: 1, tap: 26, text: 11 },
+  "/agreement":     { depth: 1, tap: 26, text: 11 },
+  "/offer":         { depth: 1, tap: 26, text: 11 },
+  "/built/gt3-built-k7m9x4q2": { depth: 1, tap: 34, text: 10 },
+  "/display":       { depth: 1, tap: 26, text: 10 },
+  "/privacy":       { depth: 0, tap: 26, text: 14 },
+  "/terms":         { depth: 0, tap: 26, text: 14 },
+};
+
 /** Compare one route's measurement to its row. Returns the failures (empty = clean). */
 export function routeVerdict(path, m, row = ROUTE[path]) {
   if (!row) return [`${path}: no ceiling recorded — an unmeasured route is not a clean one. Add it to ROUTE in scripts/design.ratchet.mjs with its real numbers.`];
