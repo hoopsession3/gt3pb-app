@@ -4,6 +4,7 @@ import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthro
 import { BRAND_VOICE } from "@/lib/brandVoice";
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -90,8 +91,8 @@ Match the template's mood to the content and the moment. Prefer restraint over s
     const guard = claimSafeDeep(reason);
     if (!guard.ok) console.warn(`[flyer-template] claim-guard dropped the reason on "${guard.hit}"`);
     return NextResponse.json({ ok: true, template: out.template, reason: guard.ok ? reason : "" });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 200) }, { status: 502 });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: errorMessage(e, 200) }, { status: 502 });
   }
 }
 

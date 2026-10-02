@@ -6,6 +6,7 @@ import { academyKnowledge } from "@/lib/operatorKb";
 import { ownerCorrections, brewRecipeFacts, logConvo, MEASURING_RULES } from "@/lib/agentKnowledge";
 import { claimSafe, CLAIM_FALLBACK } from "@/lib/claimGuard";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -87,8 +88,8 @@ async function post(req: Request) {
       return NextResponse.json({ ok: true, reply: CLAIM_FALLBACK });
     }
     return NextResponse.json({ ok: true, reply: r.text });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: errorMessage(e, 300) }, { status: 502 });
   }
 }
 

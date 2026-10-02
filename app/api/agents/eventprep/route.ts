@@ -5,6 +5,7 @@ import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthro
 import { academyKnowledge } from "@/lib/operatorKb";
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 export const runtime = "nodejs";
@@ -94,8 +95,8 @@ async function runPrep(jobId: string, fmt: any) {
       if (!res.summary) res.summary = "Standard run-of-day checklist — tailor the times + stock to this stop.";
     }
     await touch({ status: "done", result: res });
-  } catch (err: any) {
-    await touch({ status: "error", error: String(err?.message ?? err).slice(0, 300) });
+  } catch (err) {
+    await touch({ status: "error", error: errorMessage(err, 300) });
   }
 }
 

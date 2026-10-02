@@ -23,7 +23,7 @@ import { execFileSync } from "node:child_process";
 // ── THE CEILING ────────────────────────────────────────────────────────────────────────────────
 // Measured, not remembered: `npx eslint -f json` summed on 2026-10-01 at 963ddb5.
 // LOWER THIS when you clean some up. Raising it needs a reason in the commit message.
-export const LINT_CEILING = 261;
+export const LINT_CEILING = 259;   // 261 → 259 on 2026-10-02: lib/errorMessage.ts replaced sixty copies of one expression
 
 export function countFrom(json) {
   // Returns null rather than 0 when the shape is not what eslint produces. The difference between

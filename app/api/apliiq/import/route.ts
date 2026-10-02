@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { staffFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { apliiqGet } from "@/lib/apliiq";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
 
 export const runtime = "nodejs";
 // The heavy-route default this codebase already uses everywhere else (agents/*, transcribe, …).
@@ -107,7 +108,7 @@ async function post(req: Request) {
   try {
     raw = await apliiqGet("/Product");
   } catch (e) {
-    return NextResponse.json({ error: `Couldn't reach Apliiq: ${String((e as Error)?.message ?? e).slice(0, 140)}` }, { status: 502 });
+    return NextResponse.json({ error: `Couldn't reach Apliiq: ${errorMessage(e, 140)}` }, { status: 502 });
   }
   const list: any[] = Array.isArray(raw) ? raw : asArray(pick(raw, ["Products", "products", "data", "Data", "items", "Items"]));
   if (list.length === 0) {

@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { supabaseAdmin } from "./supabaseAdmin";
 import { buildOrderPayload, type OrderLine, type OrderShip } from "./apliiqOrder";
+import { errorMessage } from "./errorMessage";
 
 // APLIIQ integration (0271) — print-on-demand fulfillment for the merch line. Two directions:
 // Apliiq calls OUR webhooks (product/search/fulfillment), and we submit orders to THEIR API. Every
@@ -147,6 +148,6 @@ export async function submitOrderToApliiq(order: {
     if (!idStr) return { ok: false, error: `Apliiq ${r.status} but no order id in the reply — cannot prove they took it` };
     return { ok: true, apliiqOrderId: idStr };
   } catch (e) {
-    return { ok: false, error: String((e as Error)?.message ?? e).slice(0, 120) };
+    return { ok: false, error: errorMessage(e, 120) };
   }
 }

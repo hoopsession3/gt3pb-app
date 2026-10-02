@@ -3,6 +3,7 @@ import { staffFromRequest } from "@/lib/apiAuth";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -54,8 +55,8 @@ async function post(req: Request) {
     const buf = await res.arrayBuffer();
     if (buf.byteLength > MAX_BYTES) return NextResponse.json({ ok: false, error: "photo too large to classify" }, { status: 413 });
     b64 = Buffer.from(buf).toString("base64");
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 200) }, { status: 502 });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: errorMessage(e, 200) }, { status: 502 });
   }
 
   let out: any = null;
@@ -69,8 +70,8 @@ async function post(req: Request) {
       tool_choice: { type: "tool", name: "studio_photo_read" },
     });
     out = r.toolUses.find((t) => t.name === "studio_photo_read")?.input ?? null;
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: `Couldn't read that photo: ${String(e?.message ?? e).slice(0, 180)}` }, { status: 502 });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: `Couldn't read that photo: ${errorMessage(e, 180)}` }, { status: 502 });
   }
   if (!out) return NextResponse.json({ ok: false, error: "no read" }, { status: 502 });
 

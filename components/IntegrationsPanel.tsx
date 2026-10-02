@@ -5,6 +5,7 @@ import { authedFetch } from "@/lib/authedFetch";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import { SQUARE_APP_ID, SQUARE_ENV, squareClientReady } from "@/lib/square";
+import { errorMessage } from "@/lib/errorMessage";
 
 // INTEGRATIONS & SECURITY — one card per connected service with an honest status (2026-08-01
 // enterprise round P4). Everything here was already real but scattered across env vars, the
@@ -67,7 +68,7 @@ export default function IntegrationsPanel() {
                 const r = await authedFetch("/api/notify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "test" }) });
                 const j = await r.json();
                 setTest(j.ok ? { sent: !!j.sent, detail: j.detail ?? null, to: j.to ?? "" } : { sent: false, detail: j.error ?? "request failed", to: "" });
-              } catch (e) { setTest({ sent: false, detail: String((e as Error)?.message ?? e), to: "" }); }
+              } catch (e) { setTest({ sent: false, detail: errorMessage(e), to: "" }); }
               setTesting(false);
             }}>{testing ? "Sending…" : "Test"}</button>
           </div>

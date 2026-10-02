@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
 
 export const runtime = "nodejs";
 
@@ -108,8 +109,8 @@ async function post(req: Request) {
       return NextResponse.json({ ok: false, error: "Couldn't draft that record safely — try again or file it manually." }, { status: 502 });
     }
     return NextResponse.json({ ok: true, item: norm(out) });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: errorMessage(e, 300) }, { status: 502 });
   }
 }
 

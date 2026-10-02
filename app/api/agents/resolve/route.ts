@@ -5,6 +5,7 @@ import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthro
 import { academyKnowledge } from "@/lib/operatorKb";
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -73,8 +74,8 @@ ${assets || "(none loaded)"}`;
       tools: [TOOL], tool_choice: { type: "tool", name: "propose_completion" },
     });
     out = r.toolUses.find((t) => t.name === "propose_completion")?.input ?? null;
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: errorMessage(e, 300) }, { status: 502 });
   }
   if (!out) return NextResponse.json({ ok: false, error: "no proposal" }, { status: 502 });
   // Deterministic backstop (F5 — output claim-guard): this PERSISTS to event_tasks.ai_proposal (read

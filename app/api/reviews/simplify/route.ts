@@ -3,6 +3,7 @@ import { staffFromRequest } from "@/lib/apiAuth";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { cleanBody } from "@/lib/reviews";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
 
 export const runtime = "nodejs";
 
@@ -51,8 +52,8 @@ async function post(req: Request) {
     if (!out?.text) return NextResponse.json({ error: "Couldn't simplify — edit it by hand." }, { status: 502 });
     // The AI is the editor; cleanBody is still the guard (PII + length) on whatever it returns.
     return NextResponse.json({ ok: true, text: cleanBody(out.text), droppedClaim: !!out.dropped_claim, stillGenuine: out.still_genuine !== false });
-  } catch (e: any) {
-    return NextResponse.json({ error: String(e?.message ?? e).slice(0, 200) }, { status: 502 });
+  } catch (e) {
+    return NextResponse.json({ error: errorMessage(e, 200) }, { status: 502 });
   }
 }
 

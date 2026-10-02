@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -110,8 +111,8 @@ async function post(req: Request) {
         buffer_min: typeof o.buffer_min === "number" && o.buffer_min > 0 ? Math.round(o.buffer_min) : null,
         risks: Array.isArray(o.risks) ? o.risks.map((s: any) => String(s).slice(0, 160)).slice(0, 4) : [],
       });
-    } catch (err: any) {
-      return NextResponse.json({ ok: false, error: String(err?.message ?? err).slice(0, 300) }, { status: 502 });
+    } catch (err) {
+      return NextResponse.json({ ok: false, error: errorMessage(err, 300) }, { status: 502 });
     }
   }
 
@@ -146,8 +147,8 @@ async function post(req: Request) {
       tool_choice: { type: "tool", name: "draft_day" },
     });
     out = r.toolUses.find((t) => t.name === "draft_day")?.input ?? null;
-  } catch (err: any) {
-    return NextResponse.json({ ok: false, error: String(err?.message ?? err).slice(0, 300) }, { status: 502 });
+  } catch (err) {
+    return NextResponse.json({ ok: false, error: errorMessage(err, 300) }, { status: 502 });
   }
   if (!out) return NextResponse.json({ ok: false, error: "no draft" }, { status: 502 });
   // Deterministic backstop (F5 — output claim-guard).

@@ -7,6 +7,7 @@ import { MEASURING_RULES } from "@/lib/agentKnowledge";
 import { SERVE_OZ, OZ_PER_GAL } from "@/lib/brewMath";
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -195,9 +196,9 @@ async function post(req: Request) {
       tool_choice: { type: "tool", name: "brew_plan" },
     });
     out = r.toolUses.find((t) => t.name === "brew_plan")?.input ?? null;
-  } catch (err: any) {
+  } catch (err) {
     // AI down — still return the exact deterministic plan so the crew is never blocked.
-    return NextResponse.json({ ...base, spec: (recipe as any).target_spec ?? "", brew_note: brewDate ? `Start ${brewDate} for ${needBy}.` : `Allow ${extractionHours}h extraction.`, steps: (recipe as any).method ?? [], checks: [], inventory_flags: [], ai_error: String(err?.message ?? err).slice(0, 200) });
+    return NextResponse.json({ ...base, spec: (recipe as any).target_spec ?? "", brew_note: brewDate ? `Start ${brewDate} for ${needBy}.` : `Allow ${extractionHours}h extraction.`, steps: (recipe as any).method ?? [], checks: [], inventory_flags: [], ai_error: errorMessage(err, 200) });
   }
   // Deterministic backstop (F5 — output claim-guard): a trip degrades exactly like an AI error above —
   // the deterministic scaling/schedule (`base`) is never AI-generated, so the crew is never blocked.

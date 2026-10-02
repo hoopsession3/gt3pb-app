@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import AssignTaskSheet from "./AssignTaskSheet";
 import Icon from "@/components/Icon";
+import { errorMessage } from "@/lib/errorMessage";
 
 // CHIEF OF STAFF — the executive-assistant briefing. Pick a horizon (week / month / quarter) and it
 // reads the whole org and tells you what to focus on and in what order: headline, ranked priorities,
@@ -49,7 +50,7 @@ export default function ChiefOfStaff() {
       // non-owner admin got the bare word "unauthorized" and no idea why. State the actual rule.
       if (r.status === 401 || r.status === 403) setErr("The Chief of Staff briefing is owner-only. Ask an owner to run it for you.");
       else if (!j.ok) setErr(j.error || "Couldn't build the briefing."); else setRes(j);
-    } catch (e: any) { setErr(String(e?.message ?? e)); }
+    } catch (e) { setErr(errorMessage(e)); }
     setBusy(false);
   };
   const pick = (p: "week" | "month" | "quarter") => { setPeriod(p); setRes(null); };

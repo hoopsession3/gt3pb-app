@@ -5,6 +5,7 @@ import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthro
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { addDays, dayFromKey, etToday, weekdayOf } from "@/lib/dates";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -134,8 +135,8 @@ async function post(req: Request) {
         };
       });
       if (rows.length) { const { data } = await supabaseAdmin.from("todos").insert(rows).select("id"); created.todos = data?.length ?? 0; }
-    } catch (e: any) {
-      return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 500 });
+    } catch (e) {
+      return NextResponse.json({ ok: false, error: errorMessage(e, 300) }, { status: 500 });
     }
     return NextResponse.json({ ok: true, created });
   }
@@ -157,8 +158,8 @@ async function post(req: Request) {
       tool_choice: { type: "tool", name: "event_plan" },
     });
     plan = r.toolUses.find((t) => t.name === "event_plan")?.input ?? null;
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: errorMessage(e, 300) }, { status: 502 });
   }
   if (!plan) return NextResponse.json({ ok: false, error: "no plan" }, { status: 502 });
   // Deterministic backstop (F5 — output claim-guard): event blurbs can reach public listings and the

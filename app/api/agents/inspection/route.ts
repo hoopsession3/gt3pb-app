@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ClaudeMsg, type ToolDef } from "@/lib/anthropic";
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -126,8 +127,8 @@ async function processResearchJob(jobId: string, j: { state: string; county: str
       status: "done",
       result: { researched: true, summary: out.summary, checklist: out.checklist ?? [], confidence: out.confidence, proposed, tasksAdded },
     });
-  } catch (e: any) {
-    await touchJob(jobId, { status: "error", error: String(e?.message ?? e).slice(0, 300) });
+  } catch (e) {
+    await touchJob(jobId, { status: "error", error: errorMessage(e, 300) });
   }
 }
 
@@ -184,8 +185,8 @@ async function post(req: Request) {
         ok: true, status: "done", place, researched: false,
         summary: out.summary, checklist: out.checklist ?? [], confidence: out.confidence, proposed: [], tasksAdded,
       });
-    } catch (e: any) {
-      return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });
+    } catch (e) {
+      return NextResponse.json({ ok: false, error: errorMessage(e, 300) }, { status: 502 });
     }
   }
 

@@ -1,0 +1,74 @@
+# PRODUCTION — the gate that runs AFTER the deploy, on the real site.
+#
+# ci.yml runs `npm run verify` on the tree: a build with no database, so what it measures on a
+# data-driven route is the empty state, and nothing in it can say whether Vercel built this commit,
+# whether the migration ledger is current, or how /primal paints with real lessons in it.
+# scripts/verify.prod.mjs is that other half, and until 2026-10-02 it was one person with a
+# browser after every push. This runs it three ways:
+#
+#   push to main   — wait up to 15 minutes for app.gt3pb.com to report THIS commit, then the full
+#                    run (ledger, posture, JSON probes, 23 routes painted at phone width + axe).
+#                    A deploy that never lands, or lands wrong, is a red run — in the inbox, not
+#                    a complaint at the window.
+#   every 30 min   — --quick: health, ledger, posture, probes. No browser. The uptime check this
+#                    app did not have (R-list: "uptime monitor on /api/health").
+#   daily 06:10 UTC — the full run again, because production can drift between deploys
+#                    (a row that changes how a page paints, a policy pasted by hand).
+#
+# No secrets: everything here is what a guest can see. The scheduled runs stop automatically after
+# 60 days without a push (GitHub's rule) — a dormant repo is not a monitored one, and that is fine.
+name: Production
+
+on:
+  push:
+    branches: ["main"]
+  schedule:
+    - cron: "*/30 * * * *"   # quick
+    - cron: "10 6 * * *"     # full
+  workflow_dispatch:
+    inputs:
+      quick:
+        description: "quick (no browser)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+jobs:
+  verify-production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # Which form this run is. A push waits for its own deploy; the half-hourly schedule is quick;
+      # the daily schedule and a manual run are full unless asked otherwise.
+      - name: Decide the form
+        id: form
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "args=--wait=900" >> "$GITHUB_OUTPUT"; echo "browser=yes" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "schedule" ] && [ "${{ github.event.schedule }}" = "*/30 * * * *" ]; then
+            # a short wait so a run that lands mid-deploy is not a false red
+            echo "args=--quick --wait=240" >> "$GITHUB_OUTPUT"; echo "browser=no" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.inputs.quick }}" = "true" ]; then
+            echo "args=--quick" >> "$GITHUB_OUTPUT"; echo "browser=no" >> "$GITHUB_OUTPUT"
+          else
+            echo "args=" >> "$GITHUB_OUTPUT"; echo "browser=yes" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Chromium for the painted pass
+        if: steps.form.outputs.browser == 'yes'
+        run: npx playwright install --with-deps chromium
+
+      # THE GATE, BY ITS OWN NAME — the same script a person runs. Change what verified-in-production
+      # means in scripts/verify.prod.mjs and this follows.
+      - name: verify:prod
+        run: npm run verify:prod -- ${{ steps.form.outputs.args }}

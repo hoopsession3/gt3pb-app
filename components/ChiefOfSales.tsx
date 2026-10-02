@@ -4,6 +4,7 @@ import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import Icon from "@/components/Icon";
+import { errorMessage } from "@/lib/errorMessage";
 
 // CHIEF OF SALES — scouts the web for upcoming opportunities (fitness events, festivals, markets,
 // corporate, wellness expos, local newsletters) in the chosen markets, ranks the fit, and lets you
@@ -39,7 +40,7 @@ export default function ChiefOfSales({ onLeads }: { onLeads?: () => void }) {
   const scout = async () => {
     if (!supabase || busy || markets.length === 0) return;
     setBusy(true); setErr(null); setDone(null);
-    const j = await call({ markets, focus }).catch((e) => ({ ok: false, error: String(e?.message ?? e) }));
+    const j = await call({ markets, focus }).catch((e) => ({ ok: false, error: errorMessage(e) }));
     if (!j.ok) setErr(j.error || "Scout failed."); else { setSummary(j.summary || ""); setOpps(j.opportunities ?? []); }
     setBusy(false);
   };
@@ -48,7 +49,7 @@ export default function ChiefOfSales({ onLeads }: { onLeads?: () => void }) {
     const keep = opps.filter((o) => !o._skip);
     if (!keep.length) return;
     setBusy(true); setErr(null);
-    const j = await call({ commit: { opportunities: keep } }).catch((e) => ({ ok: false, error: String(e?.message ?? e) }));
+    const j = await call({ commit: { opportunities: keep } }).catch((e) => ({ ok: false, error: errorMessage(e) }));
     if (!j.ok) setErr(j.error || "Couldn't save."); else { setDone(j.added ?? 0); setOpps(null); onLeads?.(); }
     setBusy(false);
   };

@@ -3,11 +3,11 @@ import { ownerFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { webflowEnabled, webflowPublish, webflowUnpublish } from "@/lib/webflow";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // Studio → Webflow. Publishes the piece to the GT3 site as a CMS item + publishes the site, marks
 // the piece published, and saves the live URL. Outward-facing — intended for owners/leadership.
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -38,8 +38,8 @@ async function post(req: Request) {
       await webflowUnpublish(item.webflow_item_id);
       await supabaseAdmin.from("content_items").update({ published_url: null, status: "approved" }).eq("id", content_id).eq("tenant_id", tenant);
       return NextResponse.json({ ok: true });
-    } catch (e: any) {
-      return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });
+    } catch (e) {
+      return NextResponse.json({ ok: false, error: errorMessage(e, 300) }, { status: 502 });
     }
   }
 
@@ -49,8 +49,8 @@ async function post(req: Request) {
     const published_url = base ? `${base.replace(/\/$/, "")}/${slug}` : slug;
     await supabaseAdmin.from("content_items").update({ webflow_item_id: itemId, published_url, status: "published" }).eq("id", content_id).eq("tenant_id", tenant);
     return NextResponse.json({ ok: true, webflow_item_id: itemId, published_url });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: errorMessage(e, 300) }, { status: 502 });
   }
 }
 

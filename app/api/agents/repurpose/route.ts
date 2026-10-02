@@ -5,6 +5,7 @@ import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthro
 import { studioSystem } from "@/lib/brandVoice";
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -84,8 +85,8 @@ async function post(req: Request) {
       return NextResponse.json({ ok: false, error: "Generated content needs a rewrite — try again." }, { status: 502 });
     }
     return NextResponse.json({ ok: true, ...out });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 200) }, { status: 502 });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: errorMessage(e, 200) }, { status: 502 });
   }
 }
 

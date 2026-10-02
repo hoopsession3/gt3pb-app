@@ -5,6 +5,7 @@
 // Voice: plain, short, lifecycle facts — never marketing.
 
 import { supabaseAdmin } from "./supabaseAdmin";
+import { errorMessage } from "./errorMessage";
 
 // The three notifyCustomer() call sites each looked up the account email the same way
 // (auth.admin.getUserById → .user?.email) — one lookup instead of three copies.
@@ -73,7 +74,7 @@ export async function sendEmail(to: string, subject: string, text: string): Prom
     const body = await r.text().catch(() => "");
     return { ok: false, detail: `Resend ${r.status}: ${body.slice(0, 300) || "(no body)"}` };
   } catch (e) {
-    return { ok: false, detail: `could not reach Resend: ${String((e as Error)?.message ?? e).slice(0, 200)}` };
+    return { ok: false, detail: `could not reach Resend: ${errorMessage(e, 200)}` };
   }
 }
 
@@ -100,7 +101,7 @@ export async function sendSMS(to: string, body: string): Promise<Sent> {
     const t = await r.text().catch(() => "");
     return { ok: false, detail: `Twilio ${r.status}: ${t.slice(0, 300) || "(no body)"}` };
   } catch (e) {
-    return { ok: false, detail: `could not reach Twilio: ${String((e as Error)?.message ?? e).slice(0, 200)}` };
+    return { ok: false, detail: `could not reach Twilio: ${errorMessage(e, 200)}` };
   }
 }
 

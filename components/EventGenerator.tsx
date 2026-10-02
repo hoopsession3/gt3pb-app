@@ -6,6 +6,7 @@ import { authedFetch } from "@/lib/authedFetch";
 import Prose from "./Prose";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import Icon from "@/components/Icon";
+import { errorMessage } from "@/lib/errorMessage";
 
 // EVENT GENERATOR — say hey, feed it notes: the agent drafts the events + a team collaboration note
 // (your house format) + an action-item to-do list, all linked. You get a quick review, untick
@@ -29,14 +30,14 @@ export default function EventGenerator({ onClose, onCreated, initialNotes }: { o
   const draft = async () => {
     if (!supabase || !notes.trim() || busy) return;
     setBusy(true); setErr(null);
-    const j = await post({ notes }).catch((e) => ({ ok: false, error: String(e?.message ?? e) }));
+    const j = await post({ notes }).catch((e) => ({ ok: false, error: errorMessage(e) }));
     if (!j.ok) setErr(j.error || "Couldn't read those notes."); else setPlan(j.plan);
     setBusy(false);
   };
   const create = async () => {
     if (!supabase || !plan || busy) return;
     setBusy(true); setErr(null);
-    const j = await post({ commit: plan }).catch((e) => ({ ok: false, error: String(e?.message ?? e) }));
+    const j = await post({ commit: plan }).catch((e) => ({ ok: false, error: errorMessage(e) }));
     if (!j.ok) setErr(j.error || "Couldn't create it."); else { setDone(j.created); onCreated(); }
     setBusy(false);
   };

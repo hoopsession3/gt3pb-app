@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import Icon, { type IconName } from "@/components/Icon";
+import { errorMessage } from "@/lib/errorMessage";
 
 // TROUBLESHOOT AI — the field-ops first responder. Something's going wrong at the event/stop RIGHT
 // NOW: pick the area, say what's happening, and the agent gives the most likely cause, an ordered
@@ -44,14 +45,14 @@ export default function TroubleshootAI({ ownerType, ownerId, title, onClose, onL
   const diagnose = async () => {
     if (!supabase || busy || !problem.trim()) return;
     setBusy(true); setErr(null);
-    const j = await post({ symptom, problem }).catch((e) => ({ ok: false, error: String(e?.message ?? e) }));
+    const j = await post({ symptom, problem }).catch((e) => ({ ok: false, error: errorMessage(e) }));
     if (!j.ok) setErr(j.error || "Couldn't diagnose."); else setDiag({ summary: j.summary || "", causes: j.causes ?? [], steps: j.steps ?? [], prevention: j.prevention ?? [] });
     setBusy(false);
   };
   const logIt = async () => {
     if (!supabase || !diag || busy) return;
     setBusy(true); setErr(null);
-    const j = await post({ commit: { symptom, problem, severity: blocker ? "blocker" : "issue", resolved, diagnosis: diag, prevention: diag.prevention } }).catch((e) => ({ ok: false, error: String(e?.message ?? e) }));
+    const j = await post({ commit: { symptom, problem, severity: blocker ? "blocker" : "issue", resolved, diagnosis: diag, prevention: diag.prevention } }).catch((e) => ({ ok: false, error: errorMessage(e) }));
     if (!j.ok) setErr(j.error || "Couldn't log it."); else { setDone({ added: j.added ?? 0 }); onLogged?.(); }
     setBusy(false);
   };

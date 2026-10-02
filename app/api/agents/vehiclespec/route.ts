@@ -3,6 +3,7 @@ import { staffFromRequest } from "@/lib/apiAuth";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -63,8 +64,8 @@ async function post(req: Request) {
       return NextResponse.json({ ok: false, error: "Couldn't produce that estimate safely — try again." }, { status: 502 });
     }
     return NextResponse.json({ ok: true, estimate: true, ...out });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 200) }, { status: 502 });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: errorMessage(e, 200) }, { status: 502 });
   }
 }
 

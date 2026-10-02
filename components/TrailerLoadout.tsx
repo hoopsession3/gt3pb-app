@@ -12,6 +12,7 @@ import { localToday } from "@/lib/dates";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
+import { errorMessage } from "@/lib/errorMessage";
 
 const fmt = (n: number | null | undefined) => (n ?? 0).toLocaleString();
 const ZONE_LABEL: Record<string, string> = { nose: "Nose (front)", axle: "Over axle", tail: "Tail (rear)" };
@@ -119,8 +120,8 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
       const j = await r.json();
       if (!j.ok) { toast(j.error || "Couldn't plan the space", "error"); return; }
       setPlan(j);
-    } catch (e: any) {
-      toast(String(e?.message ?? e).slice(0, 160), "error");
+    } catch (e) {
+      toast(errorMessage(e, 160), "error");
     } finally { setPlanning(false); }
   };
 
@@ -149,7 +150,7 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
       setVeh((v) => ({ ...v, busy: false, spec: j }));
       toast(`${j.resolved}: ~${j.usable_cuft} cu ft for ${j.passengers} riders — applied`);
       reload();
-    } catch (e: any) { toast(String(e?.message ?? e).slice(0, 160), "error"); setVeh((v) => ({ ...v, busy: false })); }
+    } catch (e) { toast(errorMessage(e, 160), "error"); setVeh((v) => ({ ...v, busy: false })); }
   };
 
   return (

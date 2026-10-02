@@ -59,6 +59,11 @@ export const RAWPROSE_BASELINE = 0;
 // Zero. components/useDictation.ts is the only SpeechRecognition. There were two, in the two tabs
 // of the SAME floating sheet.
 export const DICTATION_BASELINE = 0;
+// 9. the message of a thrown value — lib/errorMessage.ts. Sixty copies of `String(e?.message ?? e)`
+//    with four different caps on 2026-10-02, and forty-nine `catch (e: any)` written only so the
+//    copy would type-check. One home now; this counts anything that peels a message off a catch
+//    variable by hand.
+export const ERRMSG_BASELINE = 0;
 
 // ── 1. the crew picker ─────────────────────────────────────────────────────────────────────────
 // The signature is specific: reading profiles AND excluding members is the "who can I assign this
@@ -295,6 +300,19 @@ export function ownsSpeechRecognition(src, file) {
 // amount_off branch returns "Free" for a $5 discount, and coercing null to zero returns "$0.00".
 // A test that fails on the actual defect beats a pattern that fails on innocent neighbours.
 
+// ── 9. the message of a thrown value ──────────────────────────────────────────────────────────
+// `String(x?.message ?? x)`, `String((x as Error)?.message ?? x)`, `x instanceof Error ? x.message
+// : String(x)` — the three spellings that existed. A `.message` read off a RESPONSE body
+// (`session.error?.message ?? "Stripe error."`) is a different thing and is not matched: the
+// patterns need the "or the value itself" fallback that only a thrown-value read has.
+const ERRMSG_IDIOM = /String\(\(?(\w+)(?: as Error)?\)?\?\.message \?\? \1\)|\b(\w+) instanceof Error \? \2\.message : String\(\2\)/;
+export function peelsErrorMessageByHand(src, file) {
+  if (file === "lib/errorMessage.ts") return false;                 // the one canonical home
+  // comments stripped: the home's own header quotes the idiom it replaced, and so may a commit note
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  return ERRMSG_IDIOM.test(code);
+}
+
 export function collect(root = ".") {
   const crew = [];
   const taskWrites = [];
@@ -303,6 +321,7 @@ export function collect(root = ".") {
   const mdParsers = [];
   const rawProse = [];
   const speech = [];
+  const errMsg = [];
   for (const f of walk(root)) {
     const file = f.replace(/^\.\//, "");
     if (file.startsWith("scripts/")) continue;
@@ -314,12 +333,13 @@ export function collect(root = ".") {
     if (parsesMarkdown(src, file)) mdParsers.push(file);
     if (rendersModelProseRaw(src, file)) rawProse.push(file);
     if (ownsSpeechRecognition(src, file)) speech.push(file);
+    if (peelsErrorMessageByHand(src, file)) errMsg.push(file);
   }
-  return { crew, taskWrites, roleNames, crewOpts, mdParsers, rawProse, speech };
+  return { crew, taskWrites, roleNames, crewOpts, mdParsers, rawProse, speech, errMsg };
 }
 
 if (import.meta.url === (await import("node:url")).pathToFileURL(process.argv[1] || "").href) {
-  const { crew, taskWrites, roleNames, crewOpts, mdParsers, rawProse, speech } = collect(".");
+  const { crew, taskWrites, roleNames, crewOpts, mdParsers, rawProse, speech, errMsg } = collect(".");
   if (process.argv.includes("--list")) {
     for (const f of crew) console.log(`  crew-fetch   ${f}`);
     for (const f of taskWrites) console.log(`  task-insert  ${f}`);
@@ -328,8 +348,9 @@ if (import.meta.url === (await import("node:url")).pathToFileURL(process.argv[1]
     for (const f of mdParsers) console.log(`  md-parser    ${f}`);
     for (const f of rawProse) console.log(`  raw-prose    ${f}`);
     for (const f of speech) console.log(`  speech-api   ${f}`);
+    for (const f of errMsg) console.log(`  error-msg    ${f}`);
   }
-  console.log(`DUPLICATION: ${crew.length} hand-rolled crew fetches (baseline ${CREW_BASELINE}), ${taskWrites.length} direct event_tasks writes (baseline ${TASKWRITE_BASELINE}), ${roleNames.length} role-naming maps outside lib/roles (baseline ${ROLENAME_BASELINE}), ${crewOpts.length} crew dropdowns bypassing crewLabel (baseline ${CREWOPT_BASELINE}), ${mdParsers.length} markdown parsers outside lib/prose (baseline ${MDPARSE_BASELINE}), ${rawProse.length} raw renders of model prose (baseline ${RAWPROSE_BASELINE}), ${speech.length} recognisers outside useDictation (baseline ${DICTATION_BASELINE})`);
+  console.log(`DUPLICATION: ${crew.length} hand-rolled crew fetches (baseline ${CREW_BASELINE}), ${taskWrites.length} direct event_tasks writes (baseline ${TASKWRITE_BASELINE}), ${roleNames.length} role-naming maps outside lib/roles (baseline ${ROLENAME_BASELINE}), ${crewOpts.length} crew dropdowns bypassing crewLabel (baseline ${CREWOPT_BASELINE}), ${mdParsers.length} markdown parsers outside lib/prose (baseline ${MDPARSE_BASELINE}), ${rawProse.length} raw renders of model prose (baseline ${RAWPROSE_BASELINE}), ${speech.length} recognisers outside useDictation (baseline ${DICTATION_BASELINE}), ${errMsg.length} hand-peeled error messages outside lib/errorMessage (baseline ${ERRMSG_BASELINE})`);
 
   let bad = false;
   if (crew.length > CREW_BASELINE) {
@@ -369,6 +390,11 @@ if (import.meta.url === (await import("node:url")).pathToFileURL(process.argv[1]
   if (speech.length > DICTATION_BASELINE) {
     for (const f of speech) console.log(`    ${f}`);
     console.log(`\n  ✗ RATCHET: ${speech.length} > ${DICTATION_BASELINE}. useDictation() is the one recogniser. The last duplicate is why a mic fix landed on one of the two mics in the same sheet.`);
+    bad = true;
+  }
+  if (errMsg.length > ERRMSG_BASELINE) {
+    for (const f of errMsg) console.log(`    ${f}`);
+    console.log(`\n  ✗ RATCHET: ${errMsg.length} > ${ERRMSG_BASELINE}. errorMessage(e, max?) in lib/errorMessage.ts is how a thrown value becomes a string — the sixtieth copy is how four different caps happened.`);
     bad = true;
   }
   process.exit(bad ? 1 : 0);

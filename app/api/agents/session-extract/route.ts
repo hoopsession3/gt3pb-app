@@ -5,6 +5,7 @@ import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthro
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { etToday } from "@/lib/dates";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -87,8 +88,8 @@ async function post(req: Request) {
     if (!out?.title) return NextResponse.json({ ok: false, error: "no extraction" }, { status: 502 });
     const guard = claimSafeDeep(out);
     if (!guard.ok) return NextResponse.json({ ok: false, error: "The extraction needs review before filing — try again." }, { status: 502 });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: errorMessage(e, 300) }, { status: 502 });
   }
 
   const today = etToday();

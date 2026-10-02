@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -119,8 +120,8 @@ async function post(req: Request) {
     const operations = (plan.operations ?? []).filter((o: any) => o?.type && o?.title?.trim()).slice(0, 20);
     const gaps = (plan.gaps ?? []).filter((g: any) => g?.need?.trim()).slice(0, 8);
     return NextResponse.json({ ok: true, plan: { headline: plan.headline ?? "", operations, gaps } });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: errorMessage(e, 300) }, { status: 502 });
   }
 }
 

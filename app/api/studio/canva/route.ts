@@ -3,11 +3,11 @@ import { staffFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { canvaEnabled, canvaAutofill, canvaExport } from "@/lib/canva";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // Studio → Canva. action "design": autofill the GT3 brand template from the piece's copy and save
 // the editable design link. action "export": render the finished design to a PNG and save its URL.
 async function post(req: Request) {
@@ -37,8 +37,8 @@ async function post(req: Request) {
     const { id, editUrl } = await canvaAutofill({ title: item.title || "", hook: item.hook || "", caption: item.caption || "" });
     await supabaseAdmin.from("content_items").update({ canva_design_id: id, canva_edit_url: editUrl }).eq("id", content_id).eq("tenant_id", tenant);
     return NextResponse.json({ ok: true, canva_design_id: id, canva_edit_url: editUrl });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: errorMessage(e, 300) }, { status: 502 });
   }
 }
 

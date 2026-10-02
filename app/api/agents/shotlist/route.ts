@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -65,8 +66,8 @@ async function post(req: Request) {
       tool_choice: { type: "tool", name: "draft_shots" },
     });
     out = r.toolUses.find((t) => t.name === "draft_shots")?.input ?? null;
-  } catch (err: any) {
-    return NextResponse.json({ ok: false, error: String(err?.message ?? err).slice(0, 300) }, { status: 502 });
+  } catch (err) {
+    return NextResponse.json({ ok: false, error: errorMessage(err, 300) }, { status: 502 });
   }
   if (!out) return NextResponse.json({ ok: false, error: "no draft" }, { status: 502 });
 

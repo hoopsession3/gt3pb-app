@@ -8,6 +8,7 @@ import Icon, { type IconName } from "@/components/Icon";
 import { useOptions } from "./useOptions";
 import { useSuggestions } from "./useSuggestions";
 import { withCurrent } from "@/lib/options";
+import { errorMessage } from "@/lib/errorMessage";
 
 // SMART INTAKE — drop any file (photo of gear, a permit, a receipt, a manual). It's read by the
 // intake agent, which proposes where it belongs: an asset, an inventory consumable, or a stored
@@ -48,7 +49,7 @@ export default function SmartIntake() {
     const res = await uploadToBucket({ bucket: "intake", file, path });
     if ("error" in res) { setErr(`Upload failed: ${res.error}`); setBusy(null); return; }
     setBusy("Reading the file…");
-    const j = await api({ path, name: file.name, mime: file.type }).catch((e) => ({ ok: false, error: String(e?.message ?? e) }));
+    const j = await api({ path, name: file.name, mime: file.type }).catch((e) => ({ ok: false, error: errorMessage(e) }));
     setBusy(null);
     if (!j.ok) { setErr(j.error || "Couldn't read it."); return; }
     setScan(j); setP({ ...j.proposal });
@@ -57,7 +58,7 @@ export default function SmartIntake() {
   const file = async () => {
     if (!p || !scan || busy) return;
     setBusy("Filing…"); setErr(null);
-    const j = await api({ commit: { ...p, path: scan.path, name: p.name, mime: scan.mime } }).catch((e) => ({ ok: false, error: String(e?.message ?? e) }));
+    const j = await api({ commit: { ...p, path: scan.path, name: p.name, mime: scan.mime } }).catch((e) => ({ ok: false, error: errorMessage(e) }));
     setBusy(null);
     if (!j.ok) { setErr(j.error || "Couldn't file it."); return; }
     setDone(j.filed || "filed"); setScan(null); setP(null);

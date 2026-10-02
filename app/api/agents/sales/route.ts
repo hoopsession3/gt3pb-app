@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef, type ClaudeMsg } from "@/lib/anthropic";
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -90,8 +91,8 @@ async function post(req: Request) {
       rounds++;
     }
     research = (r.text || "").trim();
-  } catch (err: any) {
-    return NextResponse.json({ ok: false, error: `Scout/web search failed: ${String(err?.message ?? err).slice(0, 200)}` }, { status: 502 });
+  } catch (err) {
+    return NextResponse.json({ ok: false, error: `Scout/web search failed: ${errorMessage(err, 200)}` }, { status: 502 });
   }
   if (!research) return NextResponse.json({ ok: true, summary: "No opportunities surfaced — try a broader focus.", opportunities: [] });
   // Deterministic backstop (F5 — output claim-guard): `research` is raw web-search text — an
@@ -106,8 +107,8 @@ async function post(req: Request) {
       tools: [OPP], tool_choice: { type: "tool", name: "opportunities" },
     });
     out = ex.toolUses.find((t) => t.name === "opportunities")?.input ?? null;
-  } catch (err: any) {
-    return NextResponse.json({ ok: false, error: String(err?.message ?? err).slice(0, 200) }, { status: 502 });
+  } catch (err) {
+    return NextResponse.json({ ok: false, error: errorMessage(err, 200) }, { status: 502 });
   }
   const safeResearchSummary = claimSafeDeep(research.slice(0, 300)).ok ? research.slice(0, 300) : "";
   if (!out) return NextResponse.json({ ok: true, summary: safeResearchSummary, opportunities: [] });

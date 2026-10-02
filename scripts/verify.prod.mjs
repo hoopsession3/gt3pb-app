@@ -1,6 +1,8 @@
 // VERIFY PRODUCTION — the half of "npm run verify" that only exists after the push.
 //
 //   npm run verify:prod                  # against https://app.gt3pb.com
+//   npm run verify:prod -- --wait=900    # first wait up to 900s for production to report THIS commit (CI, after a push)
+//   npm run verify:prod -- --quick       # LIVE + CURRENT + POSTURE + ANSWERS only — no browser (the half-hourly health check)
 //   GT3_APP_URL=https://… npm run verify:prod
 //
 // ── WHY (2026-10-02) ───────────────────────────────────────────────────────────────────────────
@@ -23,7 +25,10 @@
 //                  against PROD_ROUTE in scripts/design.ratchet.mjs, the production twin of ROUTE
 //
 // It needs the network and a finished deploy, so it is NOT in `npm run verify` and it is not a
-// build gate: it is the post-deploy gate, and it exits 1 like one.
+// build gate: it is the post-deploy gate, and it exits 1 like one. .github/workflows/production.yml
+// runs it after every push to main (with --wait, since Vercel builds after GitHub sees the push),
+// every half hour with --quick, and in full once a day — so a deploy that lands wrong, or a
+// production that drifts between deploys, is a red run in the owner's inbox and not a complaint.
 import { execSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { MEASURE } from "./design.measure.mjs";
@@ -32,6 +37,8 @@ import { migrationFiles, pendingFrom, readLedger } from "./migrations.pending.mj
 
 const require = createRequire(import.meta.url);
 const APP = (process.env.GT3_APP_URL || "https://app.gt3pb.com").replace(/\/$/, "");
+const QUICK = process.argv.includes("--quick");
+const WAIT = Number((process.argv.find((a) => a.startsWith("--wait=")) || "--wait=0").slice(7)) || 0;
 const CHROME = [process.env.PW_CHROME, "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", "/opt/pw-browsers/chromium/chrome-linux/chrome"].filter(Boolean);
 
 let pass = 0, fail = 0;
@@ -47,10 +54,21 @@ const json = async (path, init) => {
 console.log(`VERIFY PRODUCTION — ${APP}`);
 let head = "";
 try { head = execSync("git rev-parse --short HEAD", { encoding: "utf8" }).trim(); } catch { /* not a checkout */ }
-const health = await json("/api/health");
+const same = (a, b) => !!a && !!b && (a.startsWith(b.slice(0, 7)) || b.startsWith(a.slice(0, 7)));
+let health = await json("/api/health");
+// --wait: a push reaches GitHub before Vercel has built it. Poll until production reports this
+// commit, then judge. A deploy that never lands is a failure of this check, not a skipped one.
+if (WAIT > 0 && head) {
+  const until = Date.now() + WAIT * 1000;
+  while (!same(health.body?.build?.commitShort || "", head) && Date.now() < until) {
+    await new Promise((r) => setTimeout(r, 15000));
+    try { health = await json("/api/health"); } catch { /* keep polling */ }
+  }
+  console.log(`  · waited for production to report ${head}: ${same(health.body?.build?.commitShort || "", head) ? "it does" : `still ${health.body?.build?.commitShort || "?"} after ${WAIT}s`}`);
+}
 const built = health.body?.build?.commitShort || "";
 ok(`live: /api/health answers ok`, health.status === 200 && health.body?.ok === true, `HTTP ${health.status}`);
-if (head) ok(`live: production is this tree (${built || "?"} = ${head})`, built && head.startsWith(built.slice(0, 7)) || built.startsWith(head.slice(0, 7)),
+if (head) ok(`live: production is this tree (${built || "?"} = ${head})`, same(built, head),
   built ? `production runs ${built}; this tree is ${head}. Not deployed yet, or main is ahead/behind — do not read the rest as a verdict on this commit.` : "no build hash in /api/health");
 else console.log("  · live: not a git checkout here — the build hash is not compared");
 
@@ -96,6 +114,11 @@ for (const pr of PROBES) {
 }
 
 // ── 4. PAINTED ──────────────────────────────────────────────────────────────────────────────────
+if (QUICK) {
+  console.log(`  · painted: skipped (--quick) — ${Object.keys(PROD_ROUTE).length} routes are measured by the full run`);
+  console.log(`\nVERIFY PRODUCTION (quick): ${pass} passed, ${fail} failed`);
+  process.exit(fail ? 1 : 0);
+}
 let chromium; try { ({ chromium } = require("playwright")); } catch { ({ chromium } = await import("playwright")); }
 const { existsSync } = require("node:fs");
 const exe = CHROME.find((p) => existsSync(p));

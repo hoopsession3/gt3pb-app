@@ -19,6 +19,7 @@ import { useApp } from "./AppProvider";
 import { SectionHeader } from "@/components/kit";
 import Icon from "@/components/Icon";
 import { useConfirm } from "@/components/ConfirmSheet";
+import { errorMessage } from "@/lib/errorMessage";
 
 // BREW — recipes + a back-scheduled batch plan. Pick a recipe, set the batch size in GALLONS (the
 // recipe scales exactly to it and hits its OG/Signal-Score spec), tie it to the event it's for, and
@@ -656,7 +657,7 @@ function BottleLoadout({ batch, onClose }: { batch: Batch; onClose: () => void }
       const r = await authedFetch("/api/agents/loadout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ batch_id: batch.id, bottle_oz: oz, keg_gal: kg, vehicle }) });
       const j = await r.json();
       if (!j.ok) setErr(j.error || "Couldn't plan the loadout."); else setRes(j);
-    } catch (e: any) { setErr(String(e?.message ?? e)); }
+    } catch (e) { setErr(errorMessage(e)); }
     setBusy(false);
   };
 
@@ -780,14 +781,14 @@ function BrewSheet({ recipe, events, stops, vessels, initialTarget, onClose, onD
   const planIt = async () => {
     if (busy) return;
     setBusy(true); setErr(null);
-    const j = await call({}).catch((e) => ({ ok: false, error: String(e?.message ?? e) }));
+    const j = await call({}).catch((e) => ({ ok: false, error: errorMessage(e) }));
     if (!j.ok) setErr(j.error || "Couldn't plan the batch."); else setRes(j);
     setBusy(false);
   };
   const save = async () => {
     if (busy) return;
     setBusy(true); setErr(null);
-    const j = await call({ commit: { og: res?.spec } }).catch((e) => ({ ok: false, error: String(e?.message ?? e) }));
+    const j = await call({ commit: { og: res?.spec } }).catch((e) => ({ ok: false, error: errorMessage(e) }));
     if (!j.ok) { setErr(j.error || "Couldn't save."); setBusy(false); return; }
     // Link the new batch to EVERY event/stop it serves (many-to-many).
     if (j.batch_id && targets.length && supabase) {

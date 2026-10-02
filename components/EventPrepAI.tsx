@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import Icon from "@/components/Icon";
+import { errorMessage } from "@/lib/errorMessage";
 
 // EVENT PREP AI — tell it about a specific event and it builds a tailored prep / to-do list,
 // grounded in the event's config + run of show, current inventory, gear, jurisdiction compliance,
@@ -50,7 +51,7 @@ export default function EventPrepAI({ ownerType, ownerId, title, onClose, onAdde
   const generate = async () => {
     if (!supabase || busy) return;
     setBusy(true); setErr(null);
-    let j = await post({ notes }).catch((e) => ({ ok: false, error: String(e?.message ?? e) }));
+    let j = await post({ notes }).catch((e) => ({ ok: false, error: errorMessage(e) }));
     // background-job flow: route returns a job id, then we poll for the result
     if (j.ok && j.status === "pending" && j.job_id) j = await waitForJob(j.job_id);
     if (!j.ok) setErr(j.error || "Couldn't build the list."); else { setSummary(j.summary || ""); setTasks(j.tasks ?? []); }
@@ -59,7 +60,7 @@ export default function EventPrepAI({ ownerType, ownerId, title, onClose, onAdde
   const add = async () => {
     if (!supabase || !tasks || busy) return;
     setBusy(true); setErr(null);
-    const j = await post({ commit: { tasks } }).catch((e) => ({ ok: false, error: String(e?.message ?? e) }));
+    const j = await post({ commit: { tasks } }).catch((e) => ({ ok: false, error: errorMessage(e) }));
     if (!j.ok) setErr(j.error || "Couldn't add."); else { setDone(j.added ?? 0); onAdded(); }
     setBusy(false);
   };

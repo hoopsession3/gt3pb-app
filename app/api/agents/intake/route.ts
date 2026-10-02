@@ -5,6 +5,7 @@ import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthro
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { etToday } from "@/lib/dates";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -103,8 +104,8 @@ async function post(req: Request) {
       }).select("id").maybeSingle();
       if (docErr) return NextResponse.json({ ok: false, error: docErr.message }, { status: 502 });
       return NextResponse.json({ ok: true, filed: "document", id: data?.id ?? null });
-    } catch (e: any) {
-      return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 500 });
+    } catch (e) {
+      return NextResponse.json({ ok: false, error: errorMessage(e, 300) }, { status: 500 });
     }
   }
 
@@ -120,8 +121,8 @@ async function post(req: Request) {
     const { data, error } = await supabaseAdmin.storage.from("intake").download(path);
     if (error || !data) return NextResponse.json({ ok: false, error: "couldn't read the uploaded file" }, { status: 502 });
     b64 = Buffer.from(await data.arrayBuffer()).toString("base64");
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 200) }, { status: 502 });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: errorMessage(e, 200) }, { status: 502 });
   }
 
   let out: any = null;
@@ -135,8 +136,8 @@ async function post(req: Request) {
       tool_choice: { type: "tool", name: "intake_read" },
     });
     out = r.toolUses.find((t) => t.name === "intake_read")?.input ?? null;
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: `Couldn't read that file: ${String(e?.message ?? e).slice(0, 180)}` }, { status: 502 });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: `Couldn't read that file: ${errorMessage(e, 180)}` }, { status: 502 });
   }
   if (!out) return NextResponse.json({ ok: false, error: "no read" }, { status: 502 });
   // Deterministic backstop (F5 — output claim-guard).

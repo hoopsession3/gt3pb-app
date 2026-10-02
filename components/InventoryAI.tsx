@@ -8,6 +8,7 @@ import { withCurrent } from "@/lib/options";
 import { authedFetch } from "@/lib/authedFetch";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import Icon from "@/components/Icon";
+import { errorMessage } from "@/lib/errorMessage";
 
 // INVENTORY AI — describe an item and it drafts a COMPLETE inventory record (every attribute filled /
 // inferred). Review + tweak ANY field, then add it to the stock register. Reuses the .gl-* / .dp-*
@@ -45,14 +46,14 @@ export default function InventoryAI({ onClose, onAdded }: { onClose: () => void;
   const draft = async () => {
     if (!supabase || busy || !desc.trim()) return;
     setBusy(true); setErr(null);
-    const j = await post({ description: desc }).catch((e) => ({ ok: false, error: String(e?.message ?? e) }));
+    const j = await post({ description: desc }).catch((e) => ({ ok: false, error: errorMessage(e) }));
     if (!j.ok) setErr(j.error || "Couldn't draft it."); else setItem(j.item);
     setBusy(false);
   };
   const save = async () => {
     if (!supabase || !item || busy || !item.name.trim()) return;
     setBusy(true); setErr(null);
-    const j = await post({ commit: true, item }).catch((e) => ({ ok: false, error: String(e?.message ?? e) }));
+    const j = await post({ commit: true, item }).catch((e) => ({ ok: false, error: errorMessage(e) }));
     if (!j.ok) setErr(j.error || "Couldn't save."); else { setDone(true); onAdded(); }
     setBusy(false);
   };

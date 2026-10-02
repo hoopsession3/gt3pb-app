@@ -5,6 +5,7 @@ import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthro
 import { studioSystem } from "@/lib/brandVoice";
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -100,8 +101,8 @@ Distinct angles, all unmistakably GT3. Always answer with the build_campaign too
       console.warn(`[campaign] claim-guard dropped the ${p?.phase ?? "?"} piece on "${guard.hit}" (${guard.path})`);
       return { phase: p?.phase };
     });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: errorMessage(e, 300) }, { status: 502 });
   }
   if (!pieces.some((p) => p?.title || p?.caption)) return NextResponse.json({ ok: false, error: "no campaign generated" }, { status: 502 });
 

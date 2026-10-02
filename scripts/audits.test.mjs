@@ -9,7 +9,7 @@
 import { classifyEffect, effectAt } from "./render.audit.mjs";
 import { isFalseEmpty, catchesButHides } from "./falseempty.audit.mjs";
 import { refusalHeadings, refusesWithoutPolicy, collapsesVerdicts } from "./gate.audit.mjs";
-import { handRollsCrew, bypassesTaskSpine, CREW_EXEMPT, namesRoleVocabulary, rolesNamedIn, rendersRawCrewOption } from "./dupe.audit.mjs";
+import { handRollsCrew, bypassesTaskSpine, CREW_EXEMPT, namesRoleVocabulary, rolesNamedIn, rendersRawCrewOption, peelsErrorMessageByHand } from "./dupe.audit.mjs";
 import { selectsIn, topLevelParts, columnsOf, ageLine, pendingMigrations, arrivingColumns, declaresArrival } from "./columns.audit.mjs";
 import { definitionsToSchema, refuseReason, projectRef } from "./schema.snapshot.mjs";
 import { classify as classifyRoute, unwrapped } from "./api.audit.mjs";
@@ -477,6 +477,15 @@ ok("wrapper: a bare handler in a comment does not count",
   unwrapped(`// export async function POST(req) — the old shape\nasync function post() {}\nexport const POST = route("x", post);`).length === 0);
 ok("wrapper: export const runtime/maxDuration are not handlers",
   unwrapped(`export const runtime = "nodejs";\nexport const maxDuration = 60;`).length === 0);
+
+// ── dupe.audit: a thrown value's message has one home ─────────────────────────────────────────
+ok("errmsg: the plain idiom is a copy", peelsErrorMessageByHand(`catch (e: any) { return bad(String(e?.message ?? e).slice(0, 300)); }`, "app/api/x/route.ts"));
+ok("errmsg: the cast idiom is a copy", peelsErrorMessageByHand(`catch (e) { return bad(String((e as Error)?.message ?? e)); }`, "lib/x.ts"));
+ok("errmsg: the instanceof idiom is a copy", peelsErrorMessageByHand(`catch (e) { setErr(e instanceof Error ? e.message : String(e)); }`, "components/X.tsx"));
+ok("errmsg: a .message read off a response body is not (it has no fallback to the value)", !peelsErrorMessageByHand(`return bad(session.error?.message ?? "Stripe error.");`, "app/api/x/route.ts"));
+ok("errmsg: the home itself is not a copy", !peelsErrorMessageByHand(`return String(e?.message ?? e);`, "lib/errorMessage.ts"));
+ok("errmsg: the idiom quoted in a comment is not a copy", !peelsErrorMessageByHand(`// used to be String(e?.message ?? e)\nreturn errorMessage(e);`, "lib/x.ts"));
+ok("errmsg: the call to the home is not a copy", !peelsErrorMessageByHand(`catch (e) { return bad(errorMessage(e, 300)); }`, "app/api/x/route.ts"));
 
 // ── security.snapshot + security.audit: every leak shape, measured by the REAL query ────────────
 // The fixture is a database, not a JSON file: scripts/security.snapshot.sql runs here exactly as it

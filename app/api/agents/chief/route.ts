@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -123,8 +124,8 @@ async function post(req: Request) {
       tool_choice: { type: "tool", name: "briefing" },
     });
     out = r.toolUses.find((t) => t.name === "briefing")?.input ?? null;
-  } catch (err: any) {
-    return NextResponse.json({ ok: false, error: String(err?.message ?? err).slice(0, 300) }, { status: 502 });
+  } catch (err) {
+    return NextResponse.json({ ok: false, error: errorMessage(err, 300) }, { status: 502 });
   }
   if (!out) return NextResponse.json({ ok: false, error: "no briefing" }, { status: 502 });
   // Deterministic backstop (F5 — output claim-guard): owner-only today, but this briefing gets acted

@@ -5,6 +5,7 @@ import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthro
 import { computeSpace, rigToBox, type TrailerProfile } from "@/lib/loadout";
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -105,8 +106,8 @@ async function post(req: Request) {
       tool_choice: { type: "tool", name: "space_plan" },
     });
     out = r.toolUses.find((t) => t.name === "space_plan")?.input ?? null;
-  } catch (err: any) {
-    return NextResponse.json({ ...base, summary: fitNote, zones: [], stacking: [], at_risk: [], load_order: [], ai_error: String(err?.message ?? err).slice(0, 200) });
+  } catch (err) {
+    return NextResponse.json({ ...base, summary: fitNote, zones: [], stacking: [], at_risk: [], load_order: [], ai_error: errorMessage(err, 200) });
   }
   // Deterministic backstop (F5 — output claim-guard): a trip degrades exactly like an AI error above —
   // the deterministic fit numbers (`base`) are never AI-generated, so the crew is never blocked.

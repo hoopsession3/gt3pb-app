@@ -5,6 +5,7 @@ import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthro
 import { academyKnowledge } from "@/lib/operatorKb";
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -111,8 +112,8 @@ async function post(req: Request) {
       tool_choice: { type: "tool", name: "loadout_plan" },
     });
     out = r.toolUses.find((t) => t.name === "loadout_plan")?.input ?? null;
-  } catch (err: any) {
-    return NextResponse.json({ ...base, summary: packSummary, containers: [], ice: "Gel/ice packs between rows; pre-chill; hold under 40°F.", layout: ["Upright in dividers", "Packs between layers", "Snug — no shift"], vehicle: "Low, centered, braced, shaded.", checklist: [], ai_error: String(err?.message ?? err).slice(0, 200) });
+  } catch (err) {
+    return NextResponse.json({ ...base, summary: packSummary, containers: [], ice: "Gel/ice packs between rows; pre-chill; hold under 40°F.", layout: ["Upright in dividers", "Packs between layers", "Snug — no shift"], vehicle: "Low, centered, braced, shaded.", checklist: [], ai_error: errorMessage(err, 200) });
   }
   // Deterministic backstop (F5 — output claim-guard): a trip degrades exactly like an AI error above —
   // the deterministic pack counts (`base`) are never AI-generated, so the crew is never blocked.

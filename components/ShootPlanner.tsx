@@ -12,6 +12,7 @@ import Icon from "@/components/Icon";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import { useCrew, crewLabel } from "./useCrew";
 import { useConfirm } from "@/components/ConfirmSheet";
+import { errorMessage } from "@/lib/errorMessage";
 
 // SHOOT PLANNER (0214) — plan any content shoot: date, location, call time, and a shot list you can
 // assign and check off (planned → shot → in edit). The reusable capability behind the Atlanta shoot
@@ -176,7 +177,7 @@ function ShotDraftPanel({ shootId, onClose, onAdd }: { shootId: string; onClose:
       if (!j.ok) { setErr(j.error || "Draft failed"); setShotList(null); }
       else { setShotList(j.shots ?? []); setPick(Object.fromEntries((j.shots ?? []).map((_: unknown, i: number) => [i, true]))); }
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
+      setErr(errorMessage(e));
     }
     setLoading(false);
   };

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { staffFromRequest } from "@/lib/apiAuth";
 import { callClaude, anthropicEnabled, MODELS } from "@/lib/anthropic";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -56,8 +57,8 @@ async function post(req: Request) {
     const text = (r.text ?? "").trim();
     if (!text) return NextResponse.json({ ok: false, error: "Couldn't read the attachments" }, { status: 502 });
     return NextResponse.json({ ok: true, text: text.slice(0, 20000), files: files.length });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: errorMessage(e, 300) }, { status: 502 });
   }
 }
 

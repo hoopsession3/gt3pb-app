@@ -5,6 +5,7 @@ import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthro
 import { academyKnowledge } from "@/lib/operatorKb";
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -155,8 +156,8 @@ async function post(req: Request) {
       tool_choice: { type: "tool", name: "troubleshoot" },
     });
     out = r.toolUses.find((t) => t.name === "troubleshoot")?.input ?? null;
-  } catch (err: any) {
-    return NextResponse.json({ ok: false, error: String(err?.message ?? err).slice(0, 300) }, { status: 502 });
+  } catch (err) {
+    return NextResponse.json({ ok: false, error: errorMessage(err, 300) }, { status: 502 });
   }
   if (!out) return NextResponse.json({ ok: false, error: "Couldn't diagnose — try adding a detail." }, { status: 502 });
   // Deterministic backstop (F5 — output claim-guard).

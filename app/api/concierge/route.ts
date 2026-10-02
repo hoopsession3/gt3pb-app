@@ -7,6 +7,7 @@ import { claimSafe, CLAIM_FALLBACK } from "@/lib/claimGuard";
 import { etTimeLabel, etToday } from "@/lib/dates";
 import { money } from "@/lib/money";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
 
 export const runtime = "nodejs";
 
@@ -174,8 +175,8 @@ To book the truck for a private event, send people to the booking page (/book). 
     }
     void logConvo("concierge", lastQ, r.text, null, null);
     return NextResponse.json({ ok: true, reply: r.text });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: errorMessage(e, 300) }, { status: 502 });
   }
 }
 

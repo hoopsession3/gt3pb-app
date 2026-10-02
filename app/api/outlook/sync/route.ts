@@ -3,6 +3,7 @@ import { ownerFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { refresh, graph, eventToGraph, graphToEvent, outlookConfigured } from "@/lib/msgraph";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
 
 export const runtime = "nodejs";
 
@@ -34,7 +35,7 @@ async function post(req: Request) {
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
 
   let conn;
-  try { conn = await validToken(); } catch (e: any) { return NextResponse.json({ ok: false, error: `Token refresh failed: ${String(e?.message ?? e).slice(0, 200)}` }, { status: 502 }); }
+  try { conn = await validToken(); } catch (e) { return NextResponse.json({ ok: false, error: `Token refresh failed: ${errorMessage(e, 200)}` }, { status: 502 }); }
   if (!conn) return NextResponse.json({ ok: false, error: "Outlook isn't connected yet." }, { status: 400 });
   const { token, base } = conn;
 
@@ -76,8 +77,8 @@ async function post(req: Request) {
       });
       if (!error) pulled++;
     }
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: errorMessage(e, 300) }, { status: 502 });
   }
 
   const note = `Pushed ${pushed}, updated ${updated}, pulled ${pulled}`;

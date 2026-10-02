@@ -9,6 +9,7 @@ import Icon from "@/components/Icon";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import { useLocationSuggestions } from "./useLocationSuggestions";
+import { errorMessage } from "@/lib/errorMessage";
 
 // EVENT DAY PLANNER — a multi-day, time-by-time run of show for one event. Pick how many days the
 // event runs, then build each day block by block: leave home 9:00, drive, arrive Airbnb (address +
@@ -301,7 +302,7 @@ function DraftPanel({ ownerType = "event", eventId, dayIndex, onClose, onAdd }: 
       const j = await r.json();
       if (!j.ok) { setErr(j.error || "Draft failed"); setRows(null); }
       else { setRows(j.items ?? []); setPick(Object.fromEntries((j.items ?? []).map((_: any, i: number) => [i, true]))); }
-    } catch (e: any) { setErr(String(e?.message ?? e)); }
+    } catch (e) { setErr(errorMessage(e)); }
     setLoading(false);
   };
 

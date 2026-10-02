@@ -6,6 +6,7 @@ import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthro
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { addDays, etToday } from "@/lib/dates";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -78,8 +79,8 @@ async function post(req: Request) {
       tool_choice: { type: "tool", name: "report_readiness" },
     });
     out = r.toolUses.find((t) => t.name === "report_readiness")?.input ?? null;
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: errorMessage(e, 300) }, { status: 502 });
   }
   if (!out) return NextResponse.json({ ok: false, error: "no assessment" }, { status: 502 });
   // Deterministic backstop (F5 — output claim-guard): this gets pushed as a staff ALERT via

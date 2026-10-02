@@ -4182,6 +4182,19 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("intake: a server route files under its route path", pathOf("/api/office") === "/api/office" && pathOf("https://app.gt3pb.com/menu?x=1") === "/menu");
 }
 
+// ── errorMessage (lib/errorMessage.ts): the one place a thrown value becomes a string ──────────
+{
+  const { errorMessage } = require("../.smoke/errorMessage.js");
+  ok("errorMessage: an Error gives its message", errorMessage(new Error("boom")) === "boom");
+  ok("errorMessage: an object with a message gives it (a PostgREST error is one of these)", errorMessage({ message: "duplicate key", code: "23505" }) === "duplicate key");
+  ok("errorMessage: a string is itself", errorMessage("just text") === "just text");
+  ok("errorMessage: undefined and null read as the old expression did", errorMessage(undefined) === "undefined" && errorMessage(null) === "null");
+  ok("errorMessage: a message that is not a string is stringified, not dropped", errorMessage({ message: 42 }) === "42");
+  ok("errorMessage: an object with an undefined message falls through to the value", errorMessage({ message: undefined, toString: () => "me" }) === "me");
+  ok("errorMessage: max caps it", errorMessage(new Error("x".repeat(500)), 300).length === 300);
+  ok("errorMessage: no max, no cap", errorMessage(new Error("x".repeat(500))).length === 500);
+}
+
 // Everything above is synchronous except what PENDING holds. Printing the summary before those
 // land would report a pass count that is wrong in the flattering direction — exactly the kind of
 // quiet lie the rest of this file exists to refuse.

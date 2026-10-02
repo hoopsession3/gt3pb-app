@@ -5,6 +5,7 @@ import { studioSystem } from "@/lib/brandVoice";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
 
 // Recent captions the team approved/published — the live voice the agents learn from.
 // Takes the tenant rather than reading whatever is there: a helper that reads tenant data has
@@ -83,8 +84,8 @@ async function post(req: Request) {
       return guard.ok;
     });
     return NextResponse.json({ ok: true, options });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: String(e?.message ?? e).slice(0, 300) }, { status: 502 });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: errorMessage(e, 300) }, { status: 502 });
   }
 }
 
