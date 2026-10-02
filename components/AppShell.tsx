@@ -4,14 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useApp } from "./AppProvider";
 import BottomNav from "./BottomNav";
-import OperatorNav, { OperatorSectionProvider } from "./OperatorNav";
+import { OperatorSectionProvider } from "./OperatorSection";
 import { TaskSheetProvider } from "./TaskSheet";
 import { RecordProvider } from "./RecordSheet";
 import { ConfirmProvider } from "./ConfirmSheet";
 import { PromptProvider } from "./PromptSheet";
-import QuickDock from "./QuickDock";
-import EventCopilot from "./EventCopilot";
-import Concierge from "./Concierge";
 import CartBar from "./CartBar";
 import OrderStatus from "./OrderStatus";
 import DrinkSheet from "./DrinkSheet";
@@ -22,14 +19,27 @@ import ServiceWorkerRegister from "./ServiceWorkerRegister";
 import DisplayToggle, { readDisplay, displayClass, DISPLAY_KEY } from "./DisplayToggle";
 import EditModeToggle from "./EditModeToggle";
 import ConnectHub from "./ConnectHub";
-import CommandPalette from "./CommandPalette";
 import FloatRail from "./FloatRail";
-import SwipeBack from "./SwipeBack";
-import ScrollRestore from "./ScrollRestore";
 import ErrorReporter from "./ErrorReporter";
-import OfflineChip from "./OfflineChip";
 import MarketingSplash from "./MarketingSplash";
 import BroadcastBanner from "./BroadcastBanner";
+import dynamic from "next/dynamic";
+
+// CODE-SPLIT WHAT A GUEST NEVER SEES (2026-10-02). Measured on the built /menu at phone width: the
+// staff console's dock, copilot and command palette — and the concierge chat with its dictation
+// hook — rode in the shared bundle of every public page, because this file imported them
+// statically and rendered them behind `inAdmin &&`. A condition in JSX does not keep code out of
+// a chunk; only a lazy import does. These load when they are first rendered, with SSR intact, so
+// the markup is the same and nothing flashes. scripts/smoke.ui.mjs holds the weight of every
+// public route to a ceiling so the next static import of a staff feature fails there, by name.
+const OperatorNav = dynamic(() => import("./OperatorNav"));
+const QuickDock = dynamic(() => import("./QuickDock"));
+const EventCopilot = dynamic(() => import("./EventCopilot"));
+const CommandPalette = dynamic(() => import("./CommandPalette"));
+const SwipeBack = dynamic(() => import("./SwipeBack"));
+const ScrollRestore = dynamic(() => import("./ScrollRestore"));
+const OfflineChip = dynamic(() => import("./OfflineChip"));
+const Concierge = dynamic(() => import("./Concierge"));
 
 // Routes whose page already renders its own visible <h1> — don't add a second one.
 // "/crew" joined this list 2026-07-29: the console's op-head-t now renders as a real per-section

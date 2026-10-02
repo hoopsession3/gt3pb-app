@@ -6,6 +6,7 @@
 // rendering (no Supabase secrets in this env by design) — exactly the shell+CSS contract we
 // want to guard. Chromium is preinstalled (PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers).
 import { spawn } from "node:child_process";
+import { gzipSync } from "node:zlib";
 import { setTimeout as sleep } from "node:timers/promises";
 import { createRequire } from "node:module";
 // Playwright may be installed globally (this sandbox) or locally (CI) — resolve either way.
@@ -19,9 +20,16 @@ const CHROME = process.env.PW_CHROME || "/opt/pw-browsers/chromium/chrome-linux/
 // route in a 390px context — box depth, smallest tap target, smallest text — against per-route
 // ceilings that live in ONE place, scripts/design.ratchet.mjs, beside the stylesheet's own.
 import { MEASURE } from "./design.measure.mjs";
-import { routeVerdict } from "./design.ratchet.mjs";
+import { routeVerdict, weightVerdict } from "./design.ratchet.mjs";
 const design = [];        // { path, m } per route
 const designErrors = [];  // routes the phone pass could not measure
+// WEIGHT (2026-10-02): what a phone downloads to show each route, cold, from this build — script
+// and stylesheet bytes as sent (gzip, the way `next start` serves them) and the request count. A
+// condition in JSX does not keep a staff feature out of a guest's bundle; only a lazy import does,
+// and this is the number that says whether one slipped back in. Ceilings per route live with the
+// other ceilings in scripts/design.ratchet.mjs (WEIGHT).
+const weight = [];        // { path, w } per route
+const weightErrors = [];
 // axe-core, injected per page. The a11y pass is the first check in this harness that looks at what
 // a screen IS rather than what it contains — every other assertion here is a string match.
 const AXE_PATH = require.resolve("axe-core/axe.min.js");
@@ -238,6 +246,20 @@ try {
       design.push({ path: route.path, m });
     } catch (e) { designErrors.push(`${route.path}: ${String(e.message).slice(0, 120)}`); }
     await pp.close();
+
+    // 5) WEIGHT — deterministic, from the document itself: the script chunks the HTML references
+    //    (minus the noModule polyfill a modern phone never requests) and its stylesheets, each
+    //    fetched and gzipped here. Not the browser's network log: once the page is up the router
+    //    prefetches every link in the bottom nav (24 more chunks on /menu), and how many of those
+    //    land before `load` depends on how warm the server is. The document does not.
+    try {
+      const refs = [...ssrHtml.matchAll(/<script\b([^>]*)\bsrc="(\/_next\/static\/[^"]+\.js)"([^>]*)>/g)].filter((m) => !/\bnomodule\b/i.test(m[1] + m[3])).map((m) => m[2]);
+      const css = [...ssrHtml.matchAll(/<link\b[^>]*\brel="stylesheet"[^>]*\bhref="(\/_next\/static\/[^"]+\.css)"/g)].map((m) => m[1]);
+      const gz = async (u) => { const r = await fetch(BASE + u); const buf = Buffer.from(await r.arrayBuffer()); return gzipSync(buf).length; };
+      const js = (await Promise.all([...new Set(refs)].map(gz))).reduce((a, b) => a + b, 0);
+      const style = (await Promise.all([...new Set(css)].map(gz))).reduce((a, b) => a + b, 0);
+      weight.push({ path: route.path, w: { js: Math.round(js / 1024), css: Math.round(style / 1024), chunks: new Set(refs).size } });
+    } catch (e) { weightErrors.push(`${route.path}: ${String(e.message).slice(0, 120)}`); }
   }
 
   await browser.close();
@@ -292,6 +314,18 @@ try {
     ok(`design · ${d.path} · depth ${d.m.maxLeafDepth}, tap ${d.m.smallestTap}px, text ${d.m.smallestText}px within the recorded ceilings`, problems.length === 0, problems.slice(0, 2).join(" | "));
   }
   ok("design: every route was actually measured — an unmeasured route is not a clean one", designErrors.length === 0, designErrors.slice(0, 2).join("; "));
+}
+
+// ── WEIGHT ──────────────────────────────────────────────────────────────────────────────────────
+{
+  const heaviest = weight.reduce((a, d) => (d.w.js > a.js ? { ...d.w, path: d.path } : a), { js: -1, path: "" });
+  console.log(`\nWEIGHT (cold, phone): ${weight.length} route(s) — heaviest ${heaviest.path} at ${heaviest.js} KB of script${process.env.WEIGHT_LIST ? "" : " (WEIGHT_LIST=1 prints every route)"}`);
+  if (process.env.WEIGHT_LIST) for (const d of weight) console.log(`    ${d.path.padEnd(28)} js ${String(d.w.js).padStart(4)} KB  css ${String(d.w.css).padStart(4)} KB  ${String(d.w.chunks).padStart(3)} chunks`);
+  for (const d of weight) {
+    const problems = weightVerdict(d.path, d.w);
+    ok(`weight · ${d.path} · ${d.w.js} KB script in ${d.w.chunks} chunks, ${d.w.css} KB stylesheet, within the recorded ceilings`, problems.length === 0, problems.join(" | "));
+  }
+  ok("weight: every route was actually weighed — an unweighed route is not a light one", weightErrors.length === 0, weightErrors.slice(0, 2).join("; "));
 }
 
 console.log(`UI SMOKE: ${pass} passed, ${fail} failed`);

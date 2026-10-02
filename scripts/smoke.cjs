@@ -2545,12 +2545,14 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const path = require("node:path");
   const root = path.join(__dirname, "..");
 
-  // The section vocabulary, read from OperatorNav rather than retyped — a section renamed there and
+  // The section vocabulary, read from its one home rather than retyped — a section renamed there and
   // not here would make this check pass on links that are broken.
-  const navSrc = fs.readFileSync(path.join(root, "components/OperatorNav.tsx"), "utf8");
+  // (components/OperatorSection.tsx since 2026-10-02: the provider and VALID moved out of the nav so
+  //  the shell could stop shipping the nav to guests; OperatorNav re-exports them.)
+  const navSrc = fs.readFileSync(path.join(root, "components/OperatorSection.tsx"), "utf8");
   const validLine = /export const VALID = new Set<OpSection>\(\[([^\]]*)\]\)/.exec(navSrc);
   const SECTIONS = new Set((validLine ? validLine[1] : "").match(/"([a-z]+)"/g)?.map((s) => s.slice(1, -1)) ?? []);
-  ok("deep links: the section vocabulary was found in OperatorNav", SECTIONS.size >= 10, SECTIONS.size);
+  ok("deep links: the section vocabulary was found in OperatorSection", SECTIONS.size >= 10, SECTIONS.size);
 
   const files = [];
   (function walk(d) {

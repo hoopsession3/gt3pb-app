@@ -158,6 +158,53 @@ export const PROD_ROUTE = {
   "/terms":         { depth: 0, tap: 26, text: 14 },
 };
 
+// ── WEIGHT — what a phone downloads for each route, cold, from the local build (KB on the wire) ──
+// Measured by scripts/smoke.ui.mjs on 2026-10-02 after the shell stopped carrying the console's
+// dock, copilot, palette, nav and the task sheet into every guest's bundle: the script chunks the
+// document references (not the noModule polyfill, which a modern phone never requests, and not
+// what the router prefetches for the nav's links afterwards), gzipped; the stylesheets; the chunk
+// count. A route may get lighter; it may not get heavier; and a ceiling more than 3 KB above the
+// real number is slack and fails too — bytes move by a few hundred with any edit, so the dead-band
+// is what keeps this from crying wolf. Not here on purpose: images (content, not code) and fonts
+// (the same files on every route).
+export const WEIGHT = {
+  "/truck":                    { js: 284, css: 102, chunks: 16 },
+  "/events":                   { js: 284, css: 102, chunks: 16 },
+  "/menu":                     { js: 268, css: 100, chunks: 16 },
+  "/reserve":                  { js: 291, css: 100, chunks: 17 },
+  "/delivery":                 { js: 290, css: 100, chunks: 17 },
+  "/3mpire":                   { js: 284, css: 100, chunks: 16 },
+  "/craft":                    { js: 268, css: 100, chunks: 16 },
+  "/book":                     { js: 268, css: 100, chunks: 16 },
+  "/academy":                  { js: 316, css: 100, chunks: 16 },
+  "/office":                   { js: 277, css: 100, chunks: 16 },
+  "/scan":                     { js: 260, css: 100, chunks: 15 },
+  "/architecture":             { js: 269, css: 100, chunks: 15 },
+  "/playbook":                 { js: 276, css: 100, chunks: 16 },
+  "/driver":                   { js: 280, css: 102, chunks: 16 },
+  "/agreement":                { js: 267, css: 100, chunks: 15 },
+  "/offer":                    { js: 276, css: 100, chunks: 15 },
+  "/built/gt3-built-k7m9x4q2": { js: 259, css: 100, chunks: 15 },
+  "/display":                  { js: 260, css: 100, chunks: 15 },
+  "/shop":                     { js: 297, css: 100, chunks: 17 },
+  "/primal":                   { js: 269, css: 100, chunks: 16 },
+  "/privacy":                  { js: 257, css: 100, chunks: 14 },
+  "/terms":                    { js: 257, css: 100, chunks: 14 },
+  "/":                         { js: 274, css: 100, chunks: 16 },
+};
+
+export function weightVerdict(path, w, row = WEIGHT[path]) {
+  if (!row) return [`${path}: no weight recorded — add it to WEIGHT in scripts/design.ratchet.mjs with its real numbers.`];
+  const out = [];
+  for (const k of ["js", "css"]) {
+    if (w[k] > row[k]) out.push(`${path}: ${k} ${w[k]} KB — ceiling ${row[k]} KB. Heavier. Something new rides in this route's bundle; a lazy import is usually the fix.`);
+    else if (w[k] < row[k] - 3) out.push(`${path}: ${k} ${w[k]} KB — ceiling ${row[k]} KB sits above it. Good; now lower the ceiling to ${w[k]}.`);
+  }
+  if (w.chunks > row.chunks) out.push(`${path}: ${w.chunks} chunks — ceiling ${row.chunks}. More.`);
+  else if (w.chunks < row.chunks) out.push(`${path}: ${w.chunks} chunks — ceiling ${row.chunks} sits above it. Good; now lower the ceiling to ${w.chunks}.`);
+  return out;
+}
+
 /** Compare one route's measurement to its row. Returns the failures (empty = clean). */
 export function routeVerdict(path, m, row = ROUTE[path]) {
   if (!row) return [`${path}: no ceiling recorded — an unmeasured route is not a clean one. Add it to ROUTE in scripts/design.ratchet.mjs with its real numbers.`];

@@ -1,0 +1,262 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+import { useAuth, roleOf } from "@/components/AuthProvider";
+import { useApp } from "@/components/AppProvider";
+import Sheet from "@/components/Sheet";
+import { updateTask, deleteTask, type TaskSource } from "@/lib/tasks";
+import { useAsyncData } from "@/lib/useAsyncData";
+import AsyncSection from "./AsyncSection";
+import Icon from "@/components/Icon";
+import { useCrew, crewLabel } from "@/components/useCrew";
+import { useConfirm } from "@/components/ConfirmSheet";
+
+// TASKSHEET (the sheet itself; the provider that opens it is components/TaskSheet.tsx and loads
+// this file on first open — a task sheet is staff/member UI and rides in no guest's bundle).
+// TASKSHEET — the ONE task-detail sheet, opened from any task chip anywhere via useTaskSheet().
+// It reads the row from the all_tasks spine (0225) — so it doesn't care whether the task is an
+// event_task or a todo — and writes back through lib/tasks' source-routed adapter. Every surface's
+// job shrinks to: render a chip → openTask(id, source). See the design brief for the full rationale.
+// Fetch state via useAsyncData. This used to conflate two very different things into one "missing"
+// flag: a genuinely gone/no-access row (maybeSingle() resolves with no data, no error) and an actual
+// fetch failure (network drop, RLS error surfaced as a query error) — both showed the exact same
+// "This task was removed or you no longer have access." Now a real fetch error is a real error state,
+// distinct from the empty-but-successful "not there" case.
+
+// The all_tasks columns TaskSheet renders (a subset of the 0225 view).
+type AllTask = {
+  source: TaskSource; id: string; title: string | null; assignee: string | null;
+  due: string | null; done: boolean; done_at: string | null; created_at: string | null;
+  critical: boolean | null; category: string | null; due_at: string | null; warn: boolean | null;
+  op_kind: string | null; op_name: string | null; op_is_live: boolean | null;
+  goal_title: string | null; meeting_note_title: string | null; goal_id: string | null;
+  initiative_id: string | null; initiative_title: string | null; initiative_emoji: string | null;
+};
+type Init = { id: string; title: string; emoji: string | null };
+type Prep = { section: string | null; kind: string | null; target_qty: number | null };
+type Board = { t: AllTask | null; prep: Prep | null };
+
+const OP_ICON: Record<string, ReactNode> = { event: <Icon name="calendar" />, stop: <Icon name="pin" />, brew: "⚗️" };
+
+// ── the sheet ───────────────────────────────────────────────────────────────────────────────────
+export default function TaskSheetBody({ id, source, onClose }: { id: string; source: TaskSource; onClose: () => void }) {
+  const confirm = useConfirm();
+  const { user, profile } = useAuth();
+  const { toast } = useApp();
+  const router = useRouter();
+  const [t, setT] = useState<AllTask | null>(null);
+  const crew = useCrew();  // was a hand-rolled profiles fetch; identical result, one shared read
+  const [inits, setInits] = useState<Init[]>([]);
+  const [editing, setEditing] = useState(false);
+  const [prep, setPrep] = useState<Prep | null>(null);
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const isAdmin = ["admin", "owner"].includes(roleOf(profile));
+
+  const loader = useCallback(async (): Promise<Board> => {
+    if (!supabase) return { t: null, prep: null };
+    const { data, error } = await supabase.from("all_tasks").select("*").eq("id", id).eq("source", source).maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) return { t: null, prep: null }; // genuinely gone, or no RLS access — not a fetch failure
+    let prepRow: Prep | null = null;
+    if (source === "event") {
+      const { data: e, error: e2 } = await supabase.from("event_tasks").select("section, kind, target_qty").eq("id", id).maybeSingle();
+      if (e2) throw new Error(e2.message);
+      prepRow = (e as Prep) ?? null;
+    }
+    return { t: data as AllTask, prep: prepRow };
+  }, [id, source]);
+  const board = useAsyncData(loader, [id, source]);
+  const { reload } = board;
+
+  // Mirror the fetched row into local state — write() below applies optimistic patches to it and
+  // reverts on failure, which needs a real settable copy, not just the board's read-only snapshot.
+  useEffect(() => {
+    if (board.data) { setT(board.data.t); setPrep(board.data.prep); }
+  }, [board.data]);
+
+  // the open initiatives a task can roll up to (0201/0237) — the picker's options
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.from("initiatives").select("id, title, emoji, status").neq("status", "done").order("status").order("title")
+      .then(({ data }) => setInits((data as Init[]) ?? []));
+  }, []);
+  // Live: if someone else changes this task, reflect it (writes hit the base table).
+  useEffect(() => {
+    if (!supabase) return;
+    const ch = supabase.channel(`task-${source}-${id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: source === "event" ? "event_tasks" : "todos", filter: `id=eq.${id}` }, () => reload())
+      .subscribe();
+    return () => { try { void Promise.resolve(supabase?.removeChannel(ch)).catch(() => {}); } catch { /* */ } };
+  }, [id, source, reload]);
+
+  const nameOf = (uid: string | null) => (uid ? crew.find((c) => c.id === uid)?.display_name || "Assigned" : "Unassigned");
+  const dueLocal = useMemo(() => {
+    const iso = source === "event" ? t?.due_at : t?.due;
+    if (!iso) return "";
+    const d = new Date(source === "event" ? iso : `${iso}T12:00:00`);
+    return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) + (source === "event" ? ` · ${d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}` : "");
+  }, [t, source]);
+
+  // Optimistic write helper — apply locally, persist, revert+toast on failure.
+  const write = async (patch: Parameters<typeof updateTask>[2], optimistic: Partial<AllTask>) => {
+    if (!t || busy) return;
+    const prev = t; setT({ ...t, ...optimistic }); setBusy(true);
+    const { error } = await updateTask(source, id, patch, user?.id);
+    setBusy(false);
+    if (error) { setT(prev); toast("Couldn't save that — check your access or connection.", "error"); }
+  };
+
+  const toggleDone = () => t && write({ done: !t.done }, { done: !t.done, done_at: !t.done ? new Date().toISOString() : null });
+  const reassign = (uid: string) => write({ assignee: uid || null }, { assignee: uid || null });
+  const setInitiative = (iid: string) => {
+    const chosen = inits.find((i) => i.id === iid);
+    write({ initiativeId: iid || null }, { initiative_id: iid || null, initiative_title: chosen?.title ?? null, initiative_emoji: chosen?.emoji ?? null });
+  };
+  const reschedule = (val: string) => {
+    // event input is datetime-local; todo input is date. Empty clears the due date.
+    const iso = val ? new Date(source === "event" ? val : `${val}T12:00:00`).toISOString() : null;
+    write({ dueISO: iso }, source === "event" ? { due_at: iso } : { due: iso ? iso.slice(0, 10) : null });
+  };
+  const saveTitle = async () => {
+    if (!draft.trim()) { setEditing(false); return; }
+    await write({ title: draft.trim() }, { title: draft.trim() });
+    setEditing(false);
+  };
+  const remove = async () => {
+    if (!(await confirm({ title: "Delete this task?", body: "This can't be undone.", confirmLabel: "Delete", danger: true }))) return;
+    setBusy(true);
+    const { error } = await deleteTask(source, id);
+    setBusy(false);
+    if (error) { toast("Only a lead/admin can delete this task.", "error"); return; }
+    toast("Task deleted"); onClose();
+  };
+
+  const header = (
+    <div className="tsheet-h">
+      {t?.critical && <span className="tsheet-flame" title="Critical">🔥</span>}
+      <b id="tasksheet-title">{t?.title || (board.status === "ready" && !board.data?.t ? "Task removed" : board.status === "error" ? "Couldn't load" : "…")}</b>
+    </div>
+  );
+
+  return (
+    <Sheet open onClose={onClose} labelledBy="tasksheet-title" header={header} className="tsheet">
+      <AsyncSection state={board} isEmpty={(data) => data.t === null} emptyTitle="This task was removed or you no longer have access" errorTitle="Couldn't load this task">
+        {() => t && (
+          <div className="tsheet-body">
+            {/* context — what this task is FOR (from the spine's joins) */}
+            {(t.op_name || t.goal_title || t.meeting_note_title || t.initiative_title) && (
+              <div className="tsheet-ctx">
+                {t.initiative_title && <span>{t.initiative_emoji || <Icon name="target" />} {t.initiative_title}</span>}
+                {t.op_name && <span>{OP_ICON[t.op_kind ?? ""] ?? "•"} {t.op_name}{t.op_is_live ? " · 🔴 live" : ""}</span>}
+                {/* WAS BROKEN, silently. This pushed "/crew?section=goals" — the section parameter is
+                    `s`, not `section` (OperatorNav), and "goals" is not one of the sections; goals
+                    live under Command. So tapping a goal name from a task landed you on My Day with
+                    no error. Two wrong things in one string, in the app's best detail view.
+                    Lands on Command, where Goals renders — not on an anchor, because there is no
+                    #goals target and a hash nothing handles is the same half-working link. */}
+                {t.goal_title && <button type="button" className="tsheet-ctx-link" onClick={() => { onClose(); router.push("/crew?s=command"); }}>↳ {t.goal_title}</button>}
+                {t.meeting_note_title && <span>{t.meeting_note_title}</span>}
+              </div>
+            )}
+
+            {/* edit title */}
+            {editing ? (
+              <div className="tsheet-edit">
+                <input autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => e.key === "Enter" && saveTitle()} className="auth-input" />
+                <button type="button" className="note-save" onClick={saveTitle} disabled={busy}>Save</button>
+              </div>
+            ) : (
+              <button type="button" className="tsheet-editlink" onClick={() => { setDraft(t.title ?? ""); setEditing(true); }}>Edit title</button>
+            )}
+
+            {/* when */}
+            <label className="tsheet-field">
+              <span className="tsheet-k">When</span>
+              <input
+                type={source === "event" ? "datetime-local" : "date"}
+                className="auth-input"
+                value={source === "event"
+                  ? (t.due_at ? (() => { const d = new Date(t.due_at); const p2 = (n: number) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}`; })() : "")
+                  : (t.due ?? "")}
+                onChange={(e) => reschedule(e.target.value)}
+              />
+            </label>
+            {dueLocal && <div className={`tsheet-due${t.warn ? " warn" : ""}`}>Due {dueLocal}</div>}
+
+            {/* who */}
+            <label className="tsheet-field">
+              <span className="tsheet-k">Owner</span>
+              <select className="auth-input" value={t.assignee ?? ""} onChange={(e) => reassign(e.target.value)}>
+                <option value="">Unassigned</option>
+                {crew.map((c) => <option key={c.id} value={c.id}>{crewLabel(c)}</option>)}
+              </select>
+            </label>
+
+            {/* initiative — the program this task rolls up to (0201/0237) */}
+            <label className="tsheet-field">
+              <span className="tsheet-k">Initiative</span>
+              <select className="auth-input" value={t.initiative_id ?? ""} onChange={(e) => setInitiative(e.target.value)}>
+                <option value="">No initiative</option>
+                {inits.map((i) => <option key={i.id} value={i.id}>{i.emoji ? `${i.emoji} ` : ""}{i.title}</option>)}
+                {t.initiative_id && !inits.some((i) => i.id === t.initiative_id) && (
+                  <option value={t.initiative_id}>{t.initiative_emoji ? `${t.initiative_emoji} ` : ""}{t.initiative_title ?? "Current"}</option>
+                )}
+              </select>
+            </label>
+
+            {/* prep details — event tasks only (section / type / priority / plan-qty), same
+                adapter (lib/tasks), so the prep hub's old TaskEditSheet is fully replaced */}
+            {source === "event" && prep && (
+              <>
+                <div className="tsheet-prep-grid">
+                  <label className="tsheet-field"><span className="tsheet-k">Section</span>
+                    <input className="auth-input" value={prep.section ?? ""} maxLength={60} placeholder="Task"
+                      onChange={(e) => setPrep({ ...prep, section: e.target.value })}
+                      onBlur={() => write({ section: prep.section }, {})} />
+                  </label>
+                  <label className="tsheet-field"><span className="tsheet-k">Type</span>
+                    <select className="auth-input" value={prep.kind === "pack" ? "pack" : "task"}
+                      onChange={(e) => { const k = e.target.value === "pack" ? "pack" as const : "task" as const; setPrep({ ...prep, kind: k }); write({ kind: k }, {}); }}>
+                      <option value="task">To-do</option><option value="pack">Pack / supply</option>
+                    </select>
+                  </label>
+                </div>
+                <div className="tsheet-prep-grid">
+                  <label className="tsheet-field"><span className="tsheet-k">Priority</span>
+                    <select className="auth-input" value={t.critical ? "critical" : t.warn ? "important" : "normal"}
+                      onChange={(e) => { const v = e.target.value; write({ critical: v === "critical", warn: v === "important" }, { critical: v === "critical", warn: v === "important" }); }}>
+                      <option value="normal">Normal</option><option value="important">Important</option><option value="critical">Critical</option>
+                    </select>
+                  </label>
+                  <label className="tsheet-field"><span className="tsheet-k">Plan qty</span>
+                    <input type="number" min={0} className="auth-input" value={prep.target_qty ?? ""} placeholder="blank = plain to-do"
+                      onChange={(e) => setPrep({ ...prep, target_qty: e.target.value === "" ? null : Number(e.target.value) })}
+                      onBlur={() => write({ targetQty: prep.target_qty }, {})} />
+                  </label>
+                </div>
+              </>
+            )}
+
+            {/* meta */}
+            <div className="tsheet-meta">
+              {t.category && <span>{t.category}</span>}
+              {t.done && t.done_at && <span><Icon name="check" /> done {new Date(t.done_at).toLocaleDateString()}</span>}
+              <span>owner: {nameOf(t.assignee)}</span>
+            </div>
+
+            {/* actions */}
+            <div className="tsheet-actions">
+              <button type="button" className={`tsheet-done${t.done ? " on" : ""}`} onClick={toggleDone} disabled={busy}>
+                {t.done ? "↩ Reopen" : <><Icon name="check" /> Mark done</>}
+              </button>
+              {isAdmin && <button type="button" className="tsheet-del" onClick={remove} disabled={busy}>Delete</button>}
+            </div>
+          </div>
+        )}
+      </AsyncSection>
+    </Sheet>
+  );
+}

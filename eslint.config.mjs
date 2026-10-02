@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // `npm run smoke` compiles lib/*.ts into .smoke/ and removes it on success. When a later link
+    // in `npm test` fails, the folder stays — and the lint ratchet then counted 28 "new" problems
+    // in compiled output (2026-10-02). A build artifact must not move the lint count.
+    ".smoke/**",
   ]),
 
   // COMMONJS FILES ARE COMMONJS.
