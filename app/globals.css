@@ -385,7 +385,7 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 .ring{flex:0 0 88px;position:relative;width:88px;height:88px}
 .ring svg{transform:rotate(-90deg)}
 .ring .rc{font-family:'Archivo Black';font-size:22px;color:var(--cream);position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column}
-.ring .rc small{font-family:'Inter';font-weight:500;font-size:8px;letter-spacing:1px;color:var(--cream-m);margin-top:1px}
+.ring .rc small{font-family:'Inter';font-weight:500;font-size:10px;letter-spacing:.8px;color:var(--cream-m);margin-top:1px}
 .memcard .mt .eyb{font-family:'Inter';font-weight:600;letter-spacing:2px;text-transform:uppercase;font-size:10px;color:var(--gold2)}
 .memcard .mt h2{font-family:'Archivo Black';font-size:21px;letter-spacing:-.3px;margin:3px 0 4px}
 .memcard .mt p{font-size:12px;color:var(--cream-m);line-height:1.4}
@@ -395,7 +395,7 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 .ref-sub{font-family:'Inter';font-size:12.5px;line-height:1.5;color:var(--cream-m);margin:0 0 12px}
 .code{display:flex;align-items:center;gap:10px;background:rgba(0,0,0,.25);border:1.5px dashed color-mix(in srgb, var(--brand-red) 50%, transparent);border-radius:13px;padding:13px 15px}
 .code b{font-family:'DM Mono';font-weight:500;font-size:17px;letter-spacing:2px;flex:1;color:var(--cream)}
-.code .cp{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--gold2);cursor:pointer}
+.code .cp{font-family:'Inter';font-weight:600;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--gold2);cursor:pointer;display:inline-flex;align-items:center;min-height:44px;padding:0 10px;margin:-12px -10px -12px 0}
 .ref-share{margin-top:10px;width:100%;font-family:'Inter';font-weight:650;font-size:13.5px;letter-spacing:.2px;color:var(--cream);background:var(--red);border:none;border-radius:var(--r-xl);padding:13px;cursor:pointer}
 .ref-share:active{transform:scale(.99)}
 .ref-stat{margin-top:10px;text-align:center;font-family:'DM Mono';font-size:12px;letter-spacing:.5px;color:var(--gold2)}
@@ -1183,7 +1183,7 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:'Inter';line-hei
 .auth-tag-sm{font-size:30px;line-height:1.02;letter-spacing:-1px;font-family:'Inter';font-weight:700}
 .auth-sub{font-size:13px;color:var(--cream-m);margin-top:14px;line-height:1.55;max-width:330px;opacity:0;animation:authRise .7s ease 1.25s both}
 .auth-form{opacity:0;animation:authRise .7s ease 1.45s both}
-.auth-label{display:block;font-family:'Inter';font-weight:650;letter-spacing:1.2px;text-transform:uppercase;font-size:10px;color:var(--cream-m);margin:18px 0 7px}
+.auth-label{display:block;font-family:'Inter';font-weight:650;letter-spacing:1.2px;text-transform:uppercase;font-size:11px;color:var(--cream-m);margin:18px 0 7px}
 .auth-label span{color:color-mix(in srgb, var(--brand-cream) 32%, transparent);letter-spacing:.5px}
 .auth-input{width:100%;background:var(--field);border:1px solid var(--line2);border-radius:var(--r-2xl);padding:15px 16px;color:var(--cream);font-family:'Inter';font-size:16px;outline:none;transition:border-color .15s,box-shadow .15s}
 .auth-input:focus{border-color:rgba(184,144,47,.55);box-shadow:0 0 0 3px rgba(184,144,47,.1)}
@@ -2980,7 +2980,7 @@ h5.pr-h{font-size:12.5px;color:var(--cream-d)}
    (2026-07-09). Two failure families: gold pills whose day background darkened past what ink text
    can sit on (→ white labels), and classes that hardcode dark-theme colors (pink crit text, cream
    chip text, light-blue link, light-red pills) that never flipped for the cream ground. */
-.app.crew-day :is(.grp-seg.on,.subnav-tab.on,.studio-view.on,.cos-tg.on,.rdy-run,.skip-link,.cal-nudge button,.myday-open,.alert-open,.note-tab.on,.oa-msg.user,.oa-send,.insp-yes,.note-fu-addbtn,.guide-go,.qd-fab,.inline-create-go,.crew-bell-b,.myday-inbox-n,.cmt-av,.cmt-count,.studio-peer,.cal-vt.on,.calw-today,.prof-av,.org-av,.fn-day.on,.fn-conv,.cmd-cd,.vipq-yes,.vipv-btn,.fdig-opt.on,.pbd-filter.on,.k-seg-opt.on,.rhythm-go){color:var(--card)}
+.app.crew-day :is(.grp-seg.on,.subnav-tab.on,.studio-view.on,.cos-tg.on,.rdy-run,.skip-link,.cal-nudge button,.myday-open,.alert-open,.note-tab.on,.oa-msg.user,.oa-send,.insp-yes,.note-fu-addbtn,.guide-go,.qd-fab,.inline-create-go,.crew-bell-b,.myday-inbox-n,.cmt-av,.cmt-count,.studio-peer,.cal-vt.on,.calw-today,.prof-av,.org-av,.fn-day.on,.fn-conv,.cmd-cd,.vipq-yes,.vipv-btn,.fdig-opt.on,.pbd-filter.on,.k-seg-opt.on,.rhythm-go,.cfm-ok){color:var(--card)}
 /* .modesw-seg.on dropped from the list above (2026-07-16, ground-up redesign): it's no longer a
    filled gold pill (see .modesw-seg, ~line 1263) — it's plain gold2 text, and --gold2 is already
    the deepened, WCAG-safe text-on-cream token in this theme block. Forcing it to var(--card)
@@ -5708,7 +5708,10 @@ button.gen-card-top{width:100%;background:none;border:none;padding:0;cursor:poin
 .spb-export{margin-left:auto}
 .spb-head{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
 .k-legal{margin-top:10px;font-family:'Inter';font-size:10.5px;color:var(--cream-d)}
-.k-legal a{color:var(--cream-d);text-decoration:none;border-bottom:1px solid var(--line2)}
+/* 44px tall to the thumb, 10.5px to the eye: the hit area is padding pulled back with margin, and
+   the underline is text-decoration so it stays on the text (a border would sit 15px under it).
+   Measured 14px tall on every public route, 2026-10-01. */
+.k-legal a{color:var(--cream-d);text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:3px;display:inline-block;padding:15px 6px;margin:-15px -6px;line-height:1.3}
 .legal-wrap{max-width:560px;margin:0 auto;padding:8px 2px 40px}
 .legal-wrap h1{font-family:'Fraunces';font-weight:600;font-size:30px;margin:14px 0 2px;color:var(--cream)}
 .legal-date{font-family:'DM Mono';font-size:11px;color:var(--cream-d);margin:0 0 16px}
@@ -6631,7 +6634,9 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .btn-pri{display:block;width:100%;padding:15px;background:var(--red);color:#fff;border:none;border-radius:var(--r-2xl);cursor:pointer;font-family:'Inter';font-weight:700;font-size:14px;letter-spacing:.2px;text-align:center;box-shadow:0 10px 26px color-mix(in srgb, var(--brand-red) 34%, transparent);transition:background .15s}
 .btn-pri:active{background:var(--red-d,#9d1d1a)}
 .btn-sec{display:inline-block;padding:11px 20px;background:transparent;color:var(--cream);border:1px solid var(--line2);border-radius:var(--r-2xl);cursor:pointer;font-family:'Inter';font-weight:700;font-size:14px;letter-spacing:.2px}
-.btn-ter{display:inline-flex;align-items:center;gap:6px;background:none;border:none;padding:2px 0;color:var(--gold2);cursor:pointer;font-family:'Inter';font-weight:600;font-size:14px}
+/* 44px to the thumb (padding pulled back with margin so nothing moves), 14px to the eye. Every
+   text link on the public routes is this class, and every one measured 21px tall (2026-10-02). */
+.btn-ter{display:inline-flex;align-items:center;gap:6px;background:none;border:none;padding:12px 4px;margin:-10px -4px;min-height:44px;color:var(--gold2);cursor:pointer;font-family:'Inter';font-weight:600;font-size:14px}
 .btn-ter b,.btn-ter span{color:var(--gold);font-weight:600}
 /* 04 · Section header — label + italic annotation + hairline */
 .k-sec{display:flex;align-items:baseline;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding-bottom:9px;margin:30px 0 4px}
@@ -6810,9 +6815,12 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
 .rhythm-sub{font-family:'Inter';font-size:12px;line-height:1.5;color:var(--cream-m);margin:0}
 .rhythm-last{display:inline-flex;align-items:center;gap:6px;background:none;border:none;padding:0;font-family:'Inter';font-weight:600;font-size:11.5px;color:var(--gold2);cursor:pointer;text-align:left;-webkit-appearance:none;appearance:none}
 .rhythm-last svg{width:11px;height:11px}
-/* Filled, like .grp-seg.on — the one action in the card is a button, not another outlined box
-   inside the box. Day-theme white label comes from the solid-gold-pill list near line 2965. */
-.rhythm-go{display:inline-flex;align-items:center;justify-content:center;gap:7px;margin-top:auto;background:var(--gold);border:1px solid var(--gold);border-radius:var(--r-pill);padding:9px 14px;min-height:40px;cursor:pointer;font-family:'Inter';font-weight:700;font-size:12.5px;color:#1a1610;-webkit-appearance:none;appearance:none}
+/* THE GOLD PRIMARY — filled, like .grp-seg.on: an action is a button, not another outlined box
+   inside the box. One rule for the rhythm cards' action and the confirm sheet's quiet "yes"
+   (components/ConfirmSheet.tsx), rather than a fourth local gold button beside .ol-btn.primary
+   and .grp-seg.on. Day-theme white label comes from the solid-gold-pill list near line 2965. */
+:is(.rhythm-go,.cfm-ok){display:inline-flex;align-items:center;justify-content:center;gap:7px;margin-top:auto;background:var(--gold);border:1px solid var(--gold);border-radius:var(--r-pill);padding:9px 14px;min-height:40px;cursor:pointer;font-family:'Inter';font-weight:700;font-size:12.5px;color:#1a1610;-webkit-appearance:none;appearance:none}
+.cfm-ok{min-height:44px;padding:11px 18px;font-size:13.5px;margin-top:0}
 .rhythm-go:disabled{opacity:.55;cursor:default}
 .rhythm-go svg{width:13px;height:13px}
 .rhythm-ledger{margin-top:14px}
@@ -8083,3 +8091,10 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
   .rail:not(.rail-folded) :is(.rdg-fab,.chub-tab,.conc-fab){min-width:0;height:42px;padding-right:12px}
   .rail:not(.rail-folded) .rail-txt b{font-size:12px}
 }
+
+/* ── CONFIRM SHEET (2026-10-01) — the one home for "are you sure?", see components/ConfirmSheet.tsx.
+   The confirming button is the house gold pill unless the step is irreversible, when it is the red
+   primary (.note-save) — so red keeps meaning "this cannot be undone". Both are 44px tall. */
+.cfm-body{margin-bottom:4px;font-size:14px;color:var(--cream)}
+.cfm-actions{gap:12px}
+.cfm-ok:focus-visible{outline:2px solid var(--gold2);outline-offset:2px}

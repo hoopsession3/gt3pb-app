@@ -15,6 +15,7 @@ import { goPlanTab, type PlanTab } from "@/lib/planNav";
 import { useWorkStreams } from "@/lib/streams";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import { useRecord } from "./RecordSheet";
+import { useConfirm } from "./ConfirmSheet";
 import { prepHandoffKey, prepHandoffValue } from "@/lib/eventRecord";
 import { useOperatorSection } from "./OperatorNav";
 import { clickable } from "@/lib/a11y";
@@ -793,6 +794,7 @@ const PIPE_STAGES: { key: string; label: string }[] = [
 ];
 const LEAD_STATUSES = ["new", "contacted", "booked", "declined"] as const;
 function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: string; events: Ev[]; onClose: () => void; onSaved: () => void }) {
+  const confirm = useConfirm();
   // events + stops route to FieldOpSheet (the one quick editor) before reaching here — CalEdit
   // handles every other kind: todo / content / task / brew / goal / lead / pipe / meeting.
   const cfg = SRC[kind];
@@ -859,7 +861,9 @@ function CalEdit({ kind, id, events, onClose, onSaved }: { kind: EditKind; id: s
   const removable = kind === "todo" || kind === "content";
   const remove = async () => {
     if (!supabase || !removable) return;
-    if (typeof window !== "undefined" && !window.confirm(kind === "content" ? "Unschedule this from the calendar? (It stays in Studio.)" : "Delete this to-do?")) return;
+    if (!(await confirm(kind === "content"
+      ? { title: "Unschedule this from the calendar?", body: "It stays in Studio.", confirmLabel: "Unschedule" }
+      : { title: "Delete this to-do?", confirmLabel: "Delete", danger: true }))) return;
     setSaving(true);
     if (kind === "todo") await deleteTask("todo", id);   // ONE write path (lib/tasks)
     else await supabase.from("content_items").update({ scheduled_for: null }).eq("id", id);
@@ -980,6 +984,7 @@ function MiniMonth({ mDate, byDay, todayKey, onOpen }: { mDate: Date; byDay: Rec
 
 // Owner-only Outlook connect / sync control.
 function OutlookBar({ onSynced }: { onSynced: () => void }) {
+  const confirm = useConfirm();
   const [st, setSt] = useState<{ configured: boolean; connected: boolean; account: string | null; last_sync: string | null; last_note: string | null } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -1012,7 +1017,7 @@ function OutlookBar({ onSynced }: { onSynced: () => void }) {
     setBusy(null); if (j.ok) { onSynced(); refresh(); }
   };
   const disconnect = async () => {
-    if (typeof window !== "undefined" && !window.confirm("Disconnect Outlook?")) return;
+    if (!(await confirm({ title: "Disconnect Outlook?", body: "Two-way sync stops. Nothing already on the calendar is removed.", confirmLabel: "Disconnect" }))) return;
     setBusy("dc");
     await authedFetch("/api/outlook/disconnect", { method: "POST" });
     setBusy(null); setMsg("Outlook disconnected."); refresh();

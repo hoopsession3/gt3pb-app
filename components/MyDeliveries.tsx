@@ -9,6 +9,7 @@ import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import Icon from "@/components/Icon";
 import { money } from "@/lib/money";
+import { useConfirm } from "./ConfirmSheet";
 
 // YOUR DELIVERIES — the customer's own Sunday-delivery orders, on /3mpire. The delivery success
 // screen promises "track it in your account"; this is what makes that true. Mirrors MyPacks exactly
@@ -44,6 +45,7 @@ const mixLine = (p: MyDelivery) => {
 };
 
 export default function MyDeliveries() {
+  const confirm = useConfirm();
   const { user } = useAuth();
   const { toast } = useApp();
   const [busy, setBusy] = useState<string | null>(null);
@@ -73,10 +75,12 @@ export default function MyDeliveries() {
     if (!supabase || busy) return;
     // "Will follow shortly" overpromised a timeline this flow doesn't actually enforce — canceling
     // only flags it for a staff-processed refund, same fix as /api/orders/cancel's customer message.
-    const msg = p.payment_status === "paid"
-      ? `Cancel your ${p.pack_size}-bottle delivery for ${dayLabel(p.delivery_date)}?\n\nYou paid ${money(p.total_cents)} — we'll flag it for a refund and the crew will process it.`
-      : `Cancel your ${p.pack_size}-bottle delivery for ${dayLabel(p.delivery_date)}?`;
-    if (typeof window !== "undefined" && !window.confirm(msg)) return;
+    const ok0 = await confirm({
+      title: `Cancel your ${p.pack_size}-bottle delivery for ${dayLabel(p.delivery_date)}?`,
+      body: p.payment_status === "paid" ? `You paid ${money(p.total_cents)} — we'll flag it for a refund and the crew will process it.` : undefined,
+      confirmLabel: "Cancel delivery", cancelLabel: "Keep it", danger: true,
+    });
+    if (!ok0) return;
     setBusy(p.id);
     // Route (not the raw RPC) so canceling also pings the crew + texts/emails the customer.
     const ok = await authedFetch("/api/orders/cancel", {

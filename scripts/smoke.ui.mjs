@@ -15,6 +15,13 @@ try { ({ chromium } = require("playwright")); }
 catch { ({ chromium } = await import("playwright")); }
 // Chromium binary: preinstalled in this sandbox; fall back to Playwright's own resolution in CI.
 const CHROME = process.env.PW_CHROME || "/opt/pw-browsers/chromium/chrome-linux/chrome";
+// DESIGN at phone width (2026-10-02): the same measurement the Plan fixture uses, run on every
+// route in a 390px context — box depth, smallest tap target, smallest text — against per-route
+// ceilings that live in ONE place, scripts/design.ratchet.mjs, beside the stylesheet's own.
+import { MEASURE } from "./design.measure.mjs";
+import { routeVerdict } from "./design.ratchet.mjs";
+const design = [];        // { path, m } per route
+const designErrors = [];  // routes the phone pass could not measure
 // axe-core, injected per page. The a11y pass is the first check in this harness that looks at what
 // a screen IS rather than what it contains — every other assertion here is a string match.
 const AXE_PATH = require.resolve("axe-core/axe.min.js");
@@ -60,6 +67,12 @@ const ROUTES = [
   // first-compile in `next start` — reachability-only here; curl + prod deploy verify the kit.
   { path: "/built/gt3-built-k7m9x4q2", must: [], soft: true },
   { path: "/display", must: [], soft: true },       // signage kiosk — bespoke by design, reachability only
+  // Four public routes this harness had never visited (found 2026-10-02 while measuring every
+  // route at phone width): the merch shop, the Primal index, and the two legal pages.
+  { path: "/shop", must: ["k-mast"] },
+  { path: "/primal", must: ["k-mast"] },
+  { path: "/privacy", must: [] },
+  { path: "/terms", must: [] },
   { path: "/", must: [] },   // Today redirects to /truck for guests — just must not crash
 ];
 
@@ -153,6 +166,10 @@ try {
   const launchOpts = fs.existsSync(CHROME) ? { executablePath: CHROME } : {};
   const browser = await chromium.launch(launchOpts);
   const ctx = await browser.newContext();
+  // The phone context pre-dismisses the marketing splash: it is a finding of its own (17s per
+  // session on every customer route — in the audit, Ryan's call), not the page's structure.
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  await phone.addInitScript(() => { try { sessionStorage.setItem("gt3-splash-shown", "1"); } catch { /* */ } });
 
   for (const route of ROUTES) {
     // 1) SSR CONTRACT (deterministic): the raw server response carries status + kit markers.
@@ -205,6 +222,22 @@ try {
     } catch (e) { a11yErrors.push(`${route.path}: ${String(e.message).slice(0, 120)}`); }
 
     await page.close();
+
+    // 4) DESIGN at phone width — structure, not strings. Retried once like axe; an unmeasured
+    //    route is a failure below, never a quiet pass.
+    const pp = await phone.newPage();
+    try {
+      const run = async () => {
+        await pp.goto(BASE + route.path, { waitUntil: "domcontentloaded", timeout: 20000 });
+        try { await pp.waitForLoadState("networkidle", { timeout: 4000 }); } catch { /* settled enough */ }
+        await sleep(700);
+        return pp.evaluate(MEASURE);
+      };
+      let m;
+      try { m = await run(); } catch { await sleep(800); m = await run(); }
+      design.push({ path: route.path, m });
+    } catch (e) { designErrors.push(`${route.path}: ${String(e.message).slice(0, 120)}`); }
+    await pp.close();
   }
 
   await browser.close();
@@ -244,6 +277,21 @@ try {
     rules.slice(0, 3).map((r) => `${r.impact} ${r.id} ×${r.nodes}`).join(" | "));
   ok("a11y: every route was actually scanned — an unscanned route is not a clean one",
     a11yErrors.length === 0, a11yErrors.slice(0, 2).join("; "));
+}
+
+// ── DESIGN AT PHONE WIDTH ───────────────────────────────────────────────────────────────────────
+// Every public route, 390px, splash dismissed: how deep the boxes nest, the smallest thing a thumb
+// is asked to hit, the smallest text. Ceilings per route live in scripts/design.ratchet.mjs. May
+// improve freely; may not get worse; a ceiling left slack is a failure too, same as lint.
+{
+  const worst = design.reduce((a, d) => Math.max(a, d.m.maxLeafDepth), 0);
+  const tiniest = design.reduce((a, d) => (d.m.smallestTap !== null && d.m.smallestTap < a.v) ? { v: d.m.smallestTap, p: d.path, w: d.m.smallestTapWhat } : a, { v: 999, p: "", w: "" });
+  console.log(`\nDESIGN (phone, 390px): ${design.length} route(s) measured — deepest box ${worst}, smallest tap target ${tiniest.v === 999 ? "n/a" : `${tiniest.v}px (${tiniest.p}: ${tiniest.w})`}`);
+  for (const d of design) {
+    const problems = routeVerdict(d.path, d.m);
+    ok(`design · ${d.path} · depth ${d.m.maxLeafDepth}, tap ${d.m.smallestTap}px, text ${d.m.smallestText}px within the recorded ceilings`, problems.length === 0, problems.slice(0, 2).join(" | "));
+  }
+  ok("design: every route was actually measured — an unmeasured route is not a clean one", designErrors.length === 0, designErrors.slice(0, 2).join("; "));
 }
 
 console.log(`UI SMOKE: ${pass} passed, ${fail} failed`);

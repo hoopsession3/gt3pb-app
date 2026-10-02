@@ -7,6 +7,7 @@ import BottomNav from "./BottomNav";
 import OperatorNav, { OperatorSectionProvider } from "./OperatorNav";
 import { TaskSheetProvider } from "./TaskSheet";
 import { RecordProvider } from "./RecordSheet";
+import { ConfirmProvider } from "./ConfirmSheet";
 import QuickDock from "./QuickDock";
 import EventCopilot from "./EventCopilot";
 import Concierge from "./Concierge";
@@ -121,6 +122,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {/* Records open from anywhere (?r=kind:id). Inside TaskSheetProvider so a task sheet can open
           the person it is assigned to, and so both live above every screen that prints a name. */}
       <RecordProvider>
+      {/* "Are you sure?" from anywhere — the one sheet that replaces window.confirm(). Innermost, so
+          a confirm asked from inside a record or task sheet stacks above it. */}
+      <ConfirmProvider>
       <div className={`app${inAdmin && theme === "day" ? " crew-day" : ""}${disp ? ` ${disp}` : ""}`}>
         {/* Skip link — first focusable element; keyboard users jump past the chrome to the content. */}
         <a href="#body" className="skip-link">Skip to content</a>
@@ -159,6 +163,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <ErrorReporter />
         <ServiceWorkerRegister />
       </div>
+      </ConfirmProvider>
       </RecordProvider>
      </TaskSheetProvider>
     </OperatorSectionProvider>

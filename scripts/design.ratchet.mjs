@@ -27,7 +27,7 @@
 //
 // A FAILED READ IS NOT A PASS. No Chromium, no fixture, an unparseable stylesheet: NOT CHECKED and
 // exit 1, never a quiet green.
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
@@ -45,9 +45,98 @@ export const CEILING = {
   maxLeafDepth: 2,       // boxes around the innermost box on the Plan screen (was 4)
   railWidthFraction: 0.27, // expanded rail over a 390px viewport (was 0.46)
 };
+// ── FRICTION, counted in the source (2026-10-02) ──────────────────────────────────────────────────
+// Three things a viewer meets as friction and a grep can see:
+//   nativeDialogs   — window.confirm()/prompt() calls: an unstyled OS dialog titled "app.gt3pb.com
+//                     says", blocking the page, un-swipeable. The house replacements exist
+//                     (components/ConfirmSheet.tsx, components/PromptSheet.tsx); this is the count
+//                     still to migrate. 63 before the first five moved.
+//   crewGroupTitles — `className="crew-group"` section titles: the SECOND way this app titles a
+//                     section beside <SectionHeader> (91 uses), and it is defined twice in the
+//                     stylesheet with different type. One idiom, one home; this may only fall.
+//   collapsedPanels — <Panel> without defaultOpen: 34 accordions closed at rest, the "accordion
+//                     wall" the Money section opens on. Whether to open some is Ryan's call; that
+//                     no new ones appear without a decision is this gate's.
+export const FRICTION = {
+  nativeDialogs: 58,
+  crewGroupTitles: 29,
+  collapsedPanels: 34,
+};
+
+export function frictionCounts(read = (p) => readFileSync(join(ROOT, p), "utf8"), list = (d) => readdirSync(join(ROOT, d), { recursive: true })) {
+  const files = [];
+  for (const dir of ["components", "app"]) for (const f of list(dir)) if (/\.tsx$/.test(String(f))) files.push(`${dir}/${f}`);
+  let nativeDialogs = 0, crewGroupTitles = 0, collapsedPanels = 0;
+  for (const f of files) {
+    let src; try { src = read(f); } catch { continue; }
+    // comments stripped first — three gates in scripts/smoke.cjs matched their own prose once
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+    // The house hook is also called `confirm`, and is always awaited; a native confirm() never is.
+    nativeDialogs += (code.match(/(?<![\w.])(?<!await\s+)(window\.)?(confirm|prompt)\(/g) || []).length;
+    crewGroupTitles += (code.match(/className="crew-group/g) || []).length;
+    for (const m of code.matchAll(/<Panel\b([^>]*)>/g)) if (!/defaultOpen/.test(m[1])) collapsedPanels++;
+  }
+  return { nativeDialogs, crewGroupTitles, collapsedPanels };
+}
+
 export const FLOOR = {
   minAgendaFontPx: 11,   // smallest text in the agenda list (was 9.5)
 };
+
+// ── EVERY PUBLIC ROUTE, AT PHONE WIDTH — read by scripts/smoke.ui.mjs ───────────────────────────
+// Measured 2026-10-02 after the first pass, with the splash dismissed (the splash is a finding of
+// its own, not the page). Three numbers a route may not get worse on:
+//   depth — boxes around the innermost box (ceiling)
+//   tap   — the smallest interactive target's short side, px (floor)
+//   text  — the smallest visible text, px (floor)
+// A route not in this table is UNMEASURED and fails the smoke: add it with its real numbers.
+// 8.5 is the masthead's "Performance Bar" caption, typed in Inter under the real mark — flagged
+// to Ryan (the brand lock says a lockup is never re-typeset; no horizontal masthead variant
+// exists in the asset set). 6.63 is the signage kiosk, bespoke by design. 26 is the folded rail
+// handle, 26 wide by 56 tall. Floors say "not smaller than this", not "this is fine".
+export const ROUTE = {
+  "/":              { depth: 2, tap: 26, text: 8.5 },
+  "/truck":         { depth: 2, tap: 26, text: 8.5 },
+  "/events":        { depth: 2, tap: 26, text: 8.5 },
+  "/menu":          { depth: 2, tap: 26, text: 8.5 },
+  "/reserve":       { depth: 2, tap: 26, text: 8.5 },
+  "/delivery":      { depth: 1, tap: 26, text: 8.5 },
+  "/3mpire":        { depth: 2, tap: 26, text: 8.5 },
+  "/craft":         { depth: 2, tap: 26, text: 8.5 },
+  "/book":          { depth: 1, tap: 26, text: 8.5 },
+  "/shop":          { depth: 2, tap: 26, text: 8.5 },
+  "/primal":        { depth: 1, tap: 26, text: 8.5 },
+  "/office":        { depth: 1, tap: 26, text: 8.5 },
+  "/academy":       { depth: 0, tap: 26, text: 8.5 },
+  "/scan":          { depth: 0, tap: 26, text: 8.5 },
+  "/architecture":  { depth: 0, tap: 26, text: 8.5 },
+  "/playbook":      { depth: 0, tap: 26, text: null },
+  "/driver":        { depth: 0, tap: 26, text: 32 },
+  "/agreement":     { depth: 1, tap: 26, text: 11 },
+  "/offer":         { depth: 1, tap: 26, text: 11 },
+  "/built/gt3-built-k7m9x4q2": { depth: 1, tap: 34, text: 8.5 },
+  "/display":       { depth: 1, tap: 26, text: 6.63 },
+  "/privacy":       { depth: 0, tap: 26, text: 14 },
+  "/terms":         { depth: 0, tap: 26, text: 14 },
+};
+
+/** Compare one route's measurement to its row. Returns the failures (empty = clean). */
+export function routeVerdict(path, m, row = ROUTE[path]) {
+  if (!row) return [`${path}: no ceiling recorded — an unmeasured route is not a clean one. Add it to ROUTE in scripts/design.ratchet.mjs with its real numbers.`];
+  const out = [];
+  const up = (name, v, c) => out.push(`${path}: ${name} ${v} — ceiling ${c}. Up.`);
+  const slack = (name, v, c) => out.push(`${path}: ${name} ${v} — ceiling ${c} sits above it. Good; now lower the ceiling to ${v}.`);
+  if (m.maxLeafDepth > row.depth) up("box depth", m.maxLeafDepth, row.depth); else if (m.maxLeafDepth < row.depth) slack("box depth", m.maxLeafDepth, row.depth);
+  if (m.smallestTap !== null) {
+    if (m.smallestTap < row.tap) out.push(`${path}: smallest tap target ${m.smallestTap}px (${m.smallestTapWhat}) — floor ${row.tap}px. Smaller.`);
+    else if (m.smallestTap > row.tap) out.push(`${path}: smallest tap target ${m.smallestTap}px — floor ${row.tap}px sits below it. Good; now raise the floor to ${m.smallestTap}.`);
+  }
+  if (row.text !== null && m.smallestText !== null) {
+    if (m.smallestText < row.text) out.push(`${path}: smallest text ${m.smallestText}px (${m.smallestTextWhat}) — floor ${row.text}px. Smaller.`);
+    else if (m.smallestText > row.text) out.push(`${path}: smallest text ${m.smallestText}px — floor ${row.text}px sits below it. Good; now raise the floor to ${m.smallestText}.`);
+  }
+  return out;
+}
 
 // ── STATIC ───────────────────────────────────────────────────────────────────────────────────────
 export function staticCounts(css) {
@@ -149,6 +238,11 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
   ratchet("raw corner radii beside the --r-* tokens", s.rawRadii, CEILING.rawRadii);
   ratchet("selectors declared more than once", s.dupSelectors, CEILING.dupSelectors);
   ratchet(":root blocks", s.rootBlocks, CEILING.rootBlocks);
+  const f = frictionCounts();
+  console.log("DESIGN RATCHET — friction in the source:");
+  ratchet("native confirm()/prompt() dialogs still to migrate to the house sheets", f.nativeDialogs, FRICTION.nativeDialogs);
+  ratchet("\"crew-group\" section titles beside <SectionHeader>", f.crewGroupTitles, FRICTION.crewGroupTitles);
+  ratchet("<Panel> accordions closed by default", f.collapsedPanels, FRICTION.collapsedPanels);
   if (list) {
     console.log("  raw radii, most used first:"); for (const [v, n] of s.rawRadiiList.slice(0, 12)) console.log(`    ${String(n).padStart(4)}  ${v}`);
     console.log("  duplicate selectors, most repeated first:"); for (const [v, n] of s.dupList.slice(0, 12)) console.log(`    ${String(n).padStart(4)}  ${v}`);

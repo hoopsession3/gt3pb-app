@@ -9,6 +9,7 @@ import type { Order } from "@/lib/db";
 import { saveSnapshot, readSnapshot, isNetworkError } from "./offline";
 import { snapshotUsable } from "@/lib/offline";
 import Icon from "@/components/Icon";
+import { useConfirm } from "./ConfirmSheet";
 
 // A live "your order" banner for signed-in members — preparing → ready in realtime,
 // no push permission required (RLS lets a member read only their own orders). Guests
@@ -21,6 +22,7 @@ const STATUS_LABEL: Record<string, string> = {
 const RANK: Record<string, number> = { ready: 3, preparing: 2, new: 1 };
 
 export default function OrderStatus() {
+  const confirm = useConfirm();
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [canceling, setCanceling] = useState(false);
@@ -97,7 +99,7 @@ export default function OrderStatus() {
   const cancel = async () => {
     if (!supabase || canceling) return;
     // "Will follow shortly" overpromised a timeline this flow doesn't actually enforce.
-    if (!window.confirm(paid ? "Cancel this order? We'll flag it for a refund and the crew will process it." : "Cancel this order?")) return;
+    if (!(await confirm({ title: "Cancel this order?", body: paid ? "We'll flag it for a refund and the crew will process it." : undefined, confirmLabel: "Cancel order", cancelLabel: "Keep order", danger: true }))) return;
     setCanceling(true);
     // Route (not the raw RPC) so canceling also pings the crew + texts/emails the customer.
     const ok = await authedFetch("/api/orders/cancel", {

@@ -10,6 +10,7 @@ import { authedFetch } from "@/lib/authedFetch";
 import { haptic, HAPTIC } from "@/lib/haptics";
 import { relativeDay } from "@/lib/dates";
 import Icon from "@/components/Icon";
+import { useConfirm } from "./ConfirmSheet";
 
 // YOUR PACK — the customer's own reservations, right on /reserve. Reserving is only half the
 // product: coming back should show what you've got coming, live (staff checking you off at the
@@ -44,6 +45,7 @@ export const packDayLabel = (p: { drop_date: string }): string => {
 export const packMix = (p: { mix: Partial<Mix> }): Mix => ({ ...emptyMix(), ...p.mix });
 
 export default function MyPacks({ onChange, refreshKey, collapsible }: { onChange?: (p: MyPack) => void; refreshKey?: string; collapsible?: boolean }) {
+  const confirm = useConfirm();
   const { user } = useAuth();
   const { toast } = useApp();
   const [rows, setRows] = useState<MyPack[]>([]);
@@ -117,10 +119,12 @@ export default function MyPacks({ onChange, refreshKey, collapsible }: { onChang
     const day = packDayLabel(p);
     // "Will follow shortly" overpromised a timeline this flow doesn't actually enforce — canceling
     // only flags it for a staff-processed refund, same fix as /api/orders/cancel's customer message.
-    const msg = p.paid
-      ? `Cancel your ${p.size}-pack for ${day}?\n\nYou paid ${dollars(p.total_cents / 100)} — we'll flag it for a refund and the crew will process it.`
-      : `Cancel your ${p.size}-pack for ${day}? Nothing was charged.`;
-    if (typeof window !== "undefined" && !window.confirm(msg)) return;
+    const ok0 = await confirm({
+      title: `Cancel your ${p.size}-pack for ${day}?`,
+      body: p.paid ? `You paid ${dollars(p.total_cents / 100)} — we'll flag it for a refund and the crew will process it.` : "Nothing was charged.",
+      confirmLabel: "Cancel pack", cancelLabel: "Keep it", danger: true,
+    });
+    if (!ok0) return;
     setBusy(p.id);
     // Route (not the raw RPC) so canceling also pings the crew + texts/emails the customer.
     const ok = await authedFetch("/api/orders/cancel", {
