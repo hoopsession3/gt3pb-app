@@ -4182,6 +4182,55 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("intake: a different page is a different fingerprint", fingerprintOf("x", "", "/menu") !== fingerprintOf("x", "", "/shop"));
   ok("intake: a different top frame is a different fingerprint", fingerprintOf("x", "at a", "/") !== fingerprintOf("x", "at b", "/"));
   ok("intake: a server route files under its route path", pathOf("/api/office") === "/api/office" && pathOf("https://app.gt3pb.com/menu?x=1") === "/menu");
+
+  // THE BUDGETS. The intake is driven here with doubles for the three things it touches — the
+  // service-role client, raiseAlert, raiseAlertOnce — each one recording what it was asked. The
+  // double's rate_limit_hit is the real function's contract (0154): count per bucket, true while
+  // under p_max. What is proved: a repeat never spends a budget; the sixth new error in ten
+  // minutes files a row and NO alert, and the inbox gets one storm line, keyed so the database
+  // can hold it to one open row; the thirty-first new error in an hour is dropped; and a limiter
+  // that does not answer lets the error through, because telemetry fails open.
+  const { fileError, NEW_ROWS, NEW_ALERTS, ERRORS_LINK } = require("../.smoke/errorIntake.js");
+  const intake = (limiter) => {
+    const rows = [], alerts = [], once = [], counts = {}, seen = new Set();
+    const admin = {
+      rpc: async (fn, args) => {
+        if (fn === "bump_client_error") return { data: seen.has(args.p_fingerprint) };
+        if (fn === "rate_limit_hit") { counts[args.p_bucket] = (counts[args.p_bucket] || 0) + 1; return limiter ? limiter(args, counts[args.p_bucket]) : { data: counts[args.p_bucket] <= args.p_max }; }
+        throw new Error(`unexpected rpc ${fn}`);
+      },
+      from: () => ({ insert: async (row) => { seen.add(row.fingerprint); rows.push(row); return { error: null }; } }),
+    };
+    const deps = { admin, raiseAlert: async (a) => { alerts.push(a); }, raiseAlertOnce: async (a) => { once.push(a); return true; } };
+    const file = (i, extra = {}) => fileError({ message: `error number ${i}`, url: "/menu", ua: "Safari", ...extra }, deps);
+    return { file, rows, alerts, once, counts };
+  };
+  PENDING.push((async () => {
+    const t = intake();
+    ok("budget: a never-seen error files a row and one alert, linked to the Errors screen", (await t.file(1)) === true && t.rows.length === 1 && t.alerts.length === 1 && t.alerts[0].link === ERRORS_LINK);
+    ok("budget: a first-sight alert spends the alert budget and the row budget once each", t.counts[NEW_ALERTS.bucket] === 1 && t.counts[NEW_ROWS.bucket] === 1);
+    ok("budget: the same error again is a bump — no row, no alert, and neither budget is touched", (await t.file(1)) === false && t.rows.length === 1 && t.alerts.length === 1 && t.counts[NEW_ALERTS.bucket] === 1 && t.counts[NEW_ROWS.bucket] === 1);
+    for (let i = 2; i <= NEW_ALERTS.max; i++) await t.file(i);
+    ok(`budget: ${NEW_ALERTS.max} distinct errors are ${NEW_ALERTS.max} alerts`, t.alerts.length === NEW_ALERTS.max && t.once.length === 0);
+    ok("budget: the next new error still files a row but raises NO alert of its own", (await t.file(NEW_ALERTS.max + 1)) === true && t.rows.length === NEW_ALERTS.max + 1 && t.alerts.length === NEW_ALERTS.max);
+    const { etToday: day } = require("../.smoke/dates.js");
+    ok("budget: …the inbox gets one storm line instead, keyed (kind, today) so the database holds it to one open row a day", t.once.length === 1 && t.once[0].kind === "error_storm" && t.once[0].subjectId === day() && t.once[0].link === ERRORS_LINK);
+    await t.file(NEW_ALERTS.max + 2); await t.file(NEW_ALERTS.max + 3);
+    ok("budget: a storm that keeps going asks for the same one line, never a different one", t.alerts.length === NEW_ALERTS.max && t.once.every((a) => a.kind === "error_storm" && a.subjectId === day()));
+    ok("budget: a known error repeating during the storm still spends nothing", (await t.file(1)) === false && t.counts[NEW_ALERTS.bucket] === NEW_ALERTS.max + 3);
+    for (let i = NEW_ALERTS.max + 4; i <= NEW_ROWS.max; i++) await t.file(i);
+    ok(`budget: the ${NEW_ROWS.max}th new error in the hour still lands as a row`, t.rows.length === NEW_ROWS.max);
+    ok(`budget: the ${NEW_ROWS.max + 1}st is dropped — no row, no alert, and it says so`, (await t.file(NEW_ROWS.max + 1)) === false && t.rows.length === NEW_ROWS.max && t.alerts.length === NEW_ALERTS.max);
+    ok("budget: the storm line is never raised for a dropped error (nothing to read about)", t.once.length === NEW_ROWS.max - NEW_ALERTS.max);
+    const mute = intake(() => ({ data: null, error: { message: "limiter unreachable" } }));
+    ok("budget: a limiter that does not answer is not a 'no' — the error files and alerts (fails open)", (await mute.file(1)) === true && mute.rows.length === 1 && mute.alerts.length === 1);
+    const srv = intake();
+    await srv.file(9, { ua: "server", url: "/api/office" });
+    ok("budget: a server route's throw takes the same path and the same link", srv.alerts[0].title === "Server error — a route threw" && srv.alerts[0].link === ERRORS_LINK && /\/api\/office/.test(srv.alerts[0].body));
+    const healed = intake();
+    await healed.file(10, { skew: true });
+    ok("budget: a screen that healed itself is an fyi, not an emergency", healed.alerts[0].severity === "fyi");
+  })());
 }
 
 // ── errorMessage (lib/errorMessage.ts): the one place a thrown value becomes a string ──────────

@@ -57,10 +57,12 @@ export function unwrapped(src) {
   return out;
 }
 
+const stripComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+
 export function classify(src) {
   // Comments first, so a guard named in prose does not count as a guard — the trap three gates
   // in scripts/smoke.cjs fell into on 2026-09-30.
-  const code = src.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+  const code = stripComments(src);
   const guarded = GUARDS.some((g) => g.test(code));
   const pub = /^\s*\/\/\s*public:\s*\S.{9,}/m.test(src);
   if (guarded) return "guarded";
@@ -68,13 +70,36 @@ export function classify(src) {
   return "silent";
 }
 
+// THE BOUND (2026-10-02). A public route that WRITES — POST, PUT, PATCH, DELETE — is something
+// anyone on the internet can make the app do, as often as they like: mint an alert, take a
+// waitlist row, spend the AI budget. It must be bounded in the store every instance shares
+// (rate_limit_hit, 0154): in its own code, or in the one file it names with `// bounded-by: <path>`
+// that calls it. A module-level counter is "N a minute per warm instance" on serverless and does
+// not count; neither does the word in a comment. /api/errors/report had exactly that counter and
+// nothing else for four months, and nobody could have told from the outside.
+const WRITES = "POST|PUT|PATCH|DELETE";
+const CALLS_LIMITER = /\.rpc\(\s*["']rate_limit_hit["']/;
+export function boundOf(src, readFile = (p) => readFileSync(join(ROOT, p), "utf8")) {
+  const code = stripComments(src);
+  const writes = new RegExp(`^export\\s+const\\s+(${WRITES})\\s*=\\s*route\\(`, "m").test(code);
+  if (CALLS_LIMITER.test(code)) return { writes, bounded: true, via: "its own code" };
+  const named = src.match(/^\s*\/\/\s*bounded-by:\s*(\S+)/m);
+  if (named) {
+    let other = "";
+    try { other = readFile(named[1]); } catch { return { writes, bounded: false, via: `${named[1]} (not found)` }; }
+    return CALLS_LIMITER.test(stripComments(other)) ? { writes, bounded: true, via: named[1] } : { writes, bounded: false, via: `${named[1]} (calls no rate_limit_hit)` };
+  }
+  return { writes, bounded: false, via: null };
+}
+
 if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop())) {
   const list = process.argv.includes("--list");
-  const rows = routesUnder().map((p) => { const src = readFileSync(p, "utf8"); return { route: p.slice(ROOT.length + 1), kind: classify(src), bare: unwrapped(src) }; });
+  const rows = routesUnder().map((p) => { const src = readFileSync(p, "utf8"); return { route: p.slice(ROOT.length + 1), kind: classify(src), bare: unwrapped(src), bound: boundOf(src) }; });
   const by = (k) => rows.filter((r) => r.kind === k);
-  if (list) for (const r of rows) console.log(`  ${r.kind.padEnd(8)} ${r.route}${r.bare.length ? `  (unwrapped: ${r.bare.join(", ")})` : ""}`);
+  if (list) for (const r of rows) console.log(`  ${r.kind.padEnd(8)} ${r.route}${r.bare.length ? `  (unwrapped: ${r.bare.join(", ")})` : ""}${r.kind === "public" && r.bound.writes ? `  (write, bounded by ${r.bound.bounded ? r.bound.via : "NOTHING"})` : ""}`);
   const bare = rows.filter((r) => r.bare.length);
-  console.log(`API AUDIT: ${rows.length} route(s) — ${by("guarded").length} guarded, ${by("public").length} public by declaration, ${by("silent").length} silent; ${bare.length} with a handler outside route()`);
+  const unbounded = by("public").filter((r) => r.bound.writes && !r.bound.bounded);
+  console.log(`API AUDIT: ${rows.length} route(s) — ${by("guarded").length} guarded, ${by("public").length} public by declaration (${by("public").filter((r) => r.bound.writes).length} of them writes, ${unbounded.length} unbounded), ${by("silent").length} silent; ${bare.length} with a handler outside route()`);
   if (bare.length) {
     for (const r of bare) console.log(`  ✗ ${r.route} — ${r.bare.join(", ")} exported without lib/apiRoute's route(): a throw here is an HTML 500 nobody sees`);
     console.log(`\n  Every handler is exported as   export const POST = route("<path>", post);   (see lib/apiRoute.ts).`);
@@ -87,6 +112,13 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
     console.log(`      // public: read-only menu prices; nothing here a guest cannot already see at the window`);
     process.exit(1);
   }
+  if (unbounded.length) {
+    for (const r of unbounded) console.log(`  ✗ ${r.route} — public and writes, with no bound every instance shares${r.bound.via ? ` (bounded-by: ${r.bound.via})` : ""}`);
+    console.log(`\n  A public write calls rate_limit_hit (0154) itself —   supabaseAdmin.rpc("rate_limit_hit", { p_bucket, p_window_ms, p_max })   —`);
+    console.log(`  or names the one file that does for it:   // bounded-by: lib/errorIntake.ts — <what is counted>`);
+    console.log(`  A counter in module scope is per warm instance on serverless; it is not a bound and does not count.`);
+    process.exit(1);
+  }
   if (rows.length === 0) { console.log("API AUDIT: NOT CHECKED — no routes found under app/api. Treated as a FAILURE."); process.exit(1); }
-  console.log("API AUDIT: every route is guarded or says why it is not, and every handler leaves through route() — clean.");
+  console.log("API AUDIT: every route is guarded or says why it is not, every public write is bounded in the shared store, and every handler leaves through route() — clean.");
 }

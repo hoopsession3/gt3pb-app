@@ -6,12 +6,20 @@ import { route } from "@/lib/apiRoute";
 export const runtime = "nodejs";
 
 // public: client error intake — guests hit errors too; every field capped, fingerprinted server-side, rate-limited
+// bounded-by: lib/errorIntake.ts — new rows an hour and first-sight alerts per ten minutes, counted in Postgres across every instance
 // CLIENT ERROR INTAKE — the receiving end of components/ErrorReporter. Public by design (guests
 // hit errors too), so it trusts nothing: caps every field, computes the fingerprint server-side,
 // dedupes into one row per unique error, and rate-limits per instance. First occurrence of a new
 // fingerprint raises an alert in the crew inbox (critical if it was an error-boundary/white-screen
 // hit, important otherwise) — after that, repeats only bump the counter. Always 204: telemetry
 // must never give an attacker a signal or a caller an error to chase.
+//
+// The per-instance window below is the cheap first line (no database round trip for a client
+// that is hammering). It is not the bound — on serverless it reads "60 a minute per warm
+// instance". The bound is in lib/errorIntake.ts, where both intakes meet: how many never-seen
+// errors may become rows in an hour, and how many may become alerts in ten minutes, counted in
+// Postgres (0154) so a flood sprayed across instances meets one ceiling. scripts/api.audit.mjs
+// holds every public write to naming its bound this way.
 //
 // TWO THINGS THAT MADE THE DEDUP A LIE, both fixed in lib/errorIntake (where the fingerprint and
 // the alert live now). First, a deploy-skew message carries the

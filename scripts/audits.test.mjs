@@ -12,7 +12,7 @@ import { refusalHeadings, refusesWithoutPolicy, collapsesVerdicts } from "./gate
 import { handRollsCrew, bypassesTaskSpine, CREW_EXEMPT, namesRoleVocabulary, rolesNamedIn, rendersRawCrewOption, peelsErrorMessageByHand } from "./dupe.audit.mjs";
 import { selectsIn, topLevelParts, columnsOf, ageLine, pendingMigrations, arrivingColumns, declaresArrival } from "./columns.audit.mjs";
 import { definitionsToSchema, refuseReason, projectRef } from "./schema.snapshot.mjs";
-import { classify as classifyRoute, unwrapped } from "./api.audit.mjs";
+import { classify as classifyRoute, unwrapped, boundOf } from "./api.audit.mjs";
 import { reassemble } from "./security.snapshot.mjs";
 import { judge, staleBecause, expand } from "./security.audit.mjs";
 import { PGlite } from "@electric-sql/pglite";
@@ -457,6 +457,31 @@ ok("api: an inline session read is a second copy of lib/apiAuth, not a guard (th
   classifyRoute(`import { supabaseAdmin } from "@/lib/supabaseAdmin";\nexport async function POST(req) { const { data } = await supabaseAdmin.auth.getUser(token); if (!data.user) return no(); }`) === "silent");
 ok("api: a guarded route with a stray public: line is still reported as guarded, not public",
   classifyRoute(`// public: left over from before the guard was added, long enough\nimport { staffFromRequest } from "@/lib/apiAuth";\nexport async function GET(req) { await staffFromRequest(req); }`) === "guarded");
+
+// ── api.audit: the bound ───────────────────────────────────────────────────────────────────────
+// A public write names the shared-store cap that bounds it, or the audit names the route. The
+// file-reading hop is injected so these never touch the tree.
+{
+  const files = { "lib/intake.ts": `export async function file(a) { await a.rpc("rate_limit_hit", { p_bucket: "x", p_window_ms: 1, p_max: 1 }); }`, "lib/prose.ts": `// rate_limit_hit( is mentioned here, in prose only\nexport const x = 1;` };
+  const read = (p) => { if (!(p in files)) throw new Error("ENOENT"); return files[p]; };
+  const W = `import { route } from "@/lib/apiRoute";\nasync function post() { return ok(); }\nexport const POST = route("x", post);`;
+  ok("bound: a public GET is not a write and needs none",
+    boundOf(`// public: read-only, long enough to count\nasync function get() {}\nexport const GET = route("x", get);`, read).writes === false);
+  ok("bound: a POST that calls rate_limit_hit itself is bounded by its own code (the waitlist shape)",
+    (() => { const b = boundOf(`${W}\nconst { data } = await supabaseAdmin.rpc("rate_limit_hit", { p_bucket: "b", p_window_ms: 60000, p_max: 30 });`, read); return b.writes && b.bounded && b.via === "its own code"; })());
+  ok("bound: rate_limit_hit in a comment is not a bound",
+    boundOf(`${W}\n// we call supabaseAdmin.rpc("rate_limit_hit") upstream, promise`, read).bounded === false);
+  ok("bound: a module-scope counter is not a bound",
+    boundOf(`let n = 0; const MAX = 60;\n${W}`, read).bounded === false);
+  ok("bound: bounded-by a file that calls the limiter is bounded, via that file",
+    (() => { const b = boundOf(`// bounded-by: lib/intake.ts — new rows an hour\n${W}`, read); return b.bounded && b.via === "lib/intake.ts"; })());
+  ok("bound: bounded-by a file that only mentions the limiter in prose is NOT bounded, and says so",
+    (() => { const b = boundOf(`// bounded-by: lib/prose.ts\n${W}`, read); return b.bounded === false && /calls no rate_limit_hit/.test(b.via); })());
+  ok("bound: bounded-by a file that does not exist is NOT bounded, and says so",
+    (() => { const b = boundOf(`// bounded-by: lib/nowhere.ts\n${W}`, read); return b.bounded === false && /not found/.test(b.via); })());
+  ok("bound: PUT, PATCH and DELETE are writes too",
+    ["PUT", "PATCH", "DELETE"].every((m) => boundOf(`async function h() {}\nexport const ${m} = route("x", h);`, read).writes === true));
+}
 
 // ── api.audit: the wrapper ─────────────────────────────────────────────────────────────────────
 ok("wrapper: the house shape is clean",
