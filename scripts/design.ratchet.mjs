@@ -44,7 +44,7 @@ export const CEILING = {
   rootBlocks: 1,         // separate `:root{` blocks — tokens have one home (6 → 1 on 2026-10-02: motion, spring, eyebrow tracking, color-scheme and the radius scale folded in)
   subFloorFontRules: 0,  // px font-sizes under THE TYPE FLOOR (10px, see the note in globals.css). 184 → 0 on 2026-10-02
   maxLeafDepth: 2,       // boxes around the innermost box on the Plan screen (was 4)
-  railAreaFraction: 0.057, // expanded rail as a share of a 390×844 viewport — a 48px toolbar above the nav (2026-10-02). Width used to be the number (0.46 → 0.27 → a bar); area is what a toolbar can be held to
+  railAreaFraction: 0.066, // expanded rail as a share of a 390×844 viewport — a 48px row plus 8px of air above the nav, in the layout flow (2026-10-02). Width used to be the number (0.46 → 0.27 → a bar); area is what a toolbar can be held to
   railCoversFixed: 0,      // fixed-position buttons the expanded rail sits on top of
 };
 // ── FRICTION, counted in the source (2026-10-02) ──────────────────────────────────────────────────

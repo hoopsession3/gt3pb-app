@@ -541,7 +541,7 @@ body{background:#000;font-family:'Inter',system-ui,sans-serif;color:var(--cream)
 /* bottom lifts above the FAB tier so fixed chrome never collides (CSS audit pack 2 2026-07) */
 .sw-update{position:fixed;left:12px;right:12px;bottom:calc(76px + 78px + env(safe-area-inset-bottom));display:flex;align-items:center;justify-content:center;gap:9px;padding:12px 16px;border:none;border-radius:13px;background:#15110d;border:1px solid var(--gold2);color:var(--gold2);font-family:'Inter';font-weight:650;font-size:13px;cursor:pointer;z-index:70;box-shadow:0 10px 30px rgba(0,0,0,.5);-webkit-appearance:none;appearance:none}
 .sw-update-dot{width:8px;height:8px;border-radius:50%;background:var(--gold2);box-shadow:0 0 0 4px rgba(184,144,47,.2)}
-.nav{flex:0 0 auto;display:flex;background:rgba(15,14,11,.92);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--line);padding:9px 6px calc(10px + env(safe-area-inset-bottom));z-index:30}
+.nav{order:10;/* last in the column even when the expanded rail joins the flow on a phone (see THE RAIL ON A PHONE) */flex:0 0 auto;display:flex;background:rgba(15,14,11,.92);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--line);padding:9px 6px calc(10px + env(safe-area-inset-bottom));z-index:30}
 /* Keyboard up (iOS): Safari pans the page so its input-accessory bar lands where the nav sits —
    tabs + float rail ghost through the OS chrome. Both are untappable mid-typing; visibility (not
    display) keeps the flex column's height stable under the pan. AppShell toggles html.kb-open. */
@@ -8106,15 +8106,23 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
    Expanded on a 390px screen, the rail was three stacked tabs floating at the right edge at
    whatever height the grip had been dragged to — measured on /menu: 106px wide, parked over the
    "+ $10" button of the second drink. A thing that covers the order button is not a quick action.
-   Docked, it is a row of equal tabs just above the bottom nav: full width, nothing to drag (the
-   grip is hidden; there is one place for it), the fold at the end, and its popouts anchored to the
-   row's right edge so a 214px panel never opens off the left of the screen. The folded ‹ handle
-   is unchanged. Desktop is unchanged. The inline `bottom` the component writes for the draggable
-   position is overridden here with !important on purpose — docked means not draggable.
-   Measured by scripts/smoke.ui.mjs on /menu: the expanded rail must sit entirely below the
-   lowest drink row's add button and both popouts must stay inside the viewport. */
+   Docked, it is a row of equal tabs between the page and the bottom nav: full width, nothing to
+   drag (the grip is hidden; there is one place for it), the fold at the end, and its popouts
+   anchored to the row's right edge so a 214px panel never opens off the left of the screen. The
+   folded ‹ handle is unchanged. Desktop is unchanged.
+
+   IN THE FLOW, NOT FIXED. The first docked version was position:fixed at the nav's height — and
+   the cart bar ("Review 1 drink · $10") lives at exactly that height, so with the rail open a
+   customer could not tap their own order; Playwright reported "<b>Connect</b> intercepts pointer
+   events" on the cart bar. Fixed means "over something". So the expanded rail is a flex item of
+   the .app column, ordered after the cart and order bars and before the nav: the page shrinks to
+   make room, and nothing is ever under it. The inline `bottom` the component writes for the
+   draggable position does nothing to a static element, so no !important is needed.
+   Measured by scripts/smoke.ui.mjs on /menu: with a drink in the cart and the rail open, the rail
+   touches neither the cart bar nor the nav, both popouts stay on screen, and the cart bar opens
+   the checkout. */
 @media (max-width:640px){
-  .rail:not(.rail-folded){left:0;right:0;bottom:calc(98px + env(safe-area-inset-bottom,0px))!important;flex-direction:row;align-items:stretch;gap:6px;padding:0 10px}   /* the nav is 88px tall plus the inset; 10px of air */
+  .rail:not(.rail-folded){position:static;order:5;width:100%;flex:0 0 auto;flex-direction:row;align-items:stretch;gap:6px;padding:0 10px 8px}   /* .nav carries order:10 (its own rule) so the row lands between the cart bar and the nav */
   .rail:not(.rail-folded) .rail-head{order:9;margin:0;align-self:stretch}
   .rail:not(.rail-folded) .rail-grip{display:none}
   .rail:not(.rail-folded) .rail-fold{width:38px;height:auto;min-height:44px}
@@ -8127,10 +8135,9 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
   .rail:not(.rail-folded) .rail-txt i{display:none}
   .rail:not(.rail-folded) .rail-txt b{font-size:12px}
   .rail:not(.rail-folded) :is(.rdg-fab,.chub-tab,.conc-fab,.rail-open){animation:none}          /* the row arrives as one, not three tabs rising in turn */
-  .rail:not(.rail-folded) :is(.rdg-panel,.chub-panel){right:10px;bottom:58px}
-  /* The row is a toolbar over the page's foot; give the scroll container that much more room so
-     the last drink on the menu can still be scrolled clear of it. */
-  body:has(.rail:not(.rail-folded)) .body{padding-bottom:64px}
+  /* popouts: the row is static, so they position against the nearest positioned ancestor — .app.
+     Pin them to the app's right edge, above the row (row 56px + nav 88px + the inset). */
+  .rail:not(.rail-folded) :is(.rdg-panel,.chub-panel){right:10px;bottom:calc(152px + env(safe-area-inset-bottom,0px))}
 }
 
 /* ── CONFIRM SHEET (2026-10-01) — the one home for "are you sure?", see components/ConfirmSheet.tsx.

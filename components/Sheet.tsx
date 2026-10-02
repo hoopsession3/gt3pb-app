@@ -48,13 +48,23 @@ export default function Sheet({
   // Exit choreography: when `open` flips false, keep rendering ~220ms with the `out` class so the
   // sheet leaves the way it arrived. Works for every close path since it watches the prop itself;
   // the timeout (not animationend) guarantees unmount even under reduced-motion or missing CSS.
+  //
+  // THE SHEET THAT NEVER LEFT (2026-10-02). For an always-mounted caller (Checkout, DrinkSheet —
+  // `<Sheet open={open}>` with the prop doing the work), a close by Escape or a tap on the scrim
+  // went: requestClose → phase "closing" → 210ms → onClose() → parent flips `open` → this effect
+  // runs, sees phase is not "open", and returns it unchanged — nothing ever scheduled "closed". The
+  // sheet stayed mounted for ever, invisible (opacity 0, pointer-events none), with its scrim still
+  // in the DOM — and `body:has(.sheet2-scrim) .rail{display:none}` then hid the quick-action rail
+  // for the rest of the visit. Measured on production: tap a drink, tap outside it, the ‹ handle
+  // is gone until a reload. The open-prop effect now finishes the job whichever path started it:
+  // from "open" it plays the exit; from "closing" (the gesture already played it) it unmounts.
   const [phase, setPhase] = useState<"closed" | "open" | "closing">(open ? "open" : "closed");
   useEffect(() => {
     if (open) { setPhase("open"); return; }
     let t: ReturnType<typeof setTimeout> | null = null;
     setPhase((p) => {
-      if (p !== "open") return p;
-      t = setTimeout(() => setPhase("closed"), 230);
+      if (p === "closed") return p;
+      t = setTimeout(() => setPhase("closed"), p === "closing" ? 20 : 230);
       return "closing";
     });
     return () => { if (t) clearTimeout(t); };

@@ -262,23 +262,41 @@ try {
     } catch (e) { weightErrors.push(`${route.path}: ${String(e.message).slice(0, 120)}`); }
   }
 
-  // 6) THE RAIL, EXPANDED, ON A PHONE (2026-10-02). Every route above is measured with the rail
-  //    folded — its resting state. Expanded, it is a toolbar docked above the nav: this opens it on
-  //    /menu and holds it to what the stylesheet promises. Measured, because the first version
-  //    opened the Display panel 117px off the left edge of the screen — the tab's rise animation
-  //    made it the popout's containing block for 900ms — and nothing but a measurement sees that.
+  // 6) THE RAIL, EXPANDED, ON A PHONE — WITH A DRINK IN THE CART (2026-10-02). Every route above is
+  //    measured with the rail folded, its resting state. Expanded, it is a toolbar in the layout
+  //    between the cart bar and the nav: this walks the one path that makes money — tap a drink,
+  //    add it, open the rail — and holds the stylesheet to what it promises. Measured, because the
+  //    first docked version opened the Display panel 117px off the left of the screen (the tab's
+  //    rise animation was the popout's containing block for 900ms) and the second sat exactly on
+  //    the cart bar, so "Review 1 drink" could not be tapped with the rail open. Nothing but a
+  //    measurement sees either.
   {
     const rp = await phone.newPage();
     try {
       await rp.goto(BASE + "/menu", { waitUntil: "domcontentloaded", timeout: 20000 });
       try { await rp.waitForLoadState("networkidle", { timeout: 4000 }); } catch { /* settled enough */ }
       await sleep(500);
+      const box = async (sel) => rp.$eval(sel, (el) => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, right: r.right, bottom: r.bottom }; }).catch(() => null);
+      // the order path: a drink opens its sheet, "Add to order" puts it in the cart bar
+      await rp.click(".entry"); await sleep(500);
+      ok("order · tapping a drink opens its sheet", !!(await rp.$("#drink-sheet-title")));
+      // THE SHEET THAT NEVER LEFT (components/Sheet.tsx, 2026-10-02): closing a sheet by tapping
+      // outside it left the scrim mounted for ever and `body:has(.sheet2-scrim)` hid the rail for the
+      // rest of the visit. Measured on production before the fix: the ‹ handle gone after one drink.
+      await rp.mouse.click(200, 40);
+      try { await rp.waitForSelector(".sheet2-scrim", { state: "detached", timeout: 3000 }); } catch { /* judged below */ }
+      ok("sheet · tapping outside a drink's sheet removes it — scrim and all", !(await rp.$(".sheet2-scrim")));
+      const handle = await box(".rail-open");
+      ok("sheet · …and the rail handle is still painted afterwards", !!handle && handle.h > 0, handle ? "the rail is in the DOM but hidden — a stale scrim" : "no rail handle");
+      await rp.click(".entry"); await sleep(500);
+      await rp.click(".order-bar"); await sleep(600);
+      const cartText = await rp.$eval(".cartbar", (e) => e.textContent).catch(() => "");
+      ok("order · adding it shows the cart bar with one drink and its price", /1 drink/.test(cartText) && /\$\d/.test(cartText), cartText);
       await rp.click(".rail-open");
       await sleep(120);   // on purpose: inside the old animation window
-      const box = async (sel) => rp.$eval(sel, (el) => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, right: r.right, bottom: r.bottom }; }).catch(() => null);
-      const rail = await box(".rail"), nav = await box(".nav");
+      const rail = await box(".rail"), nav = await box(".nav"), cart = await box(".cartbar");
       ok("rail · expanded on a phone, it is a full-width toolbar", !!rail && rail.x <= 1 && rail.w >= 388, JSON.stringify(rail));
-      ok("rail · …docked above the nav, not over it", !!rail && !!nav && rail.bottom <= nav.y, `rail bottom ${rail?.bottom}, nav top ${nav?.y}`);
+      ok("rail · …between the cart bar and the nav, touching neither", !!rail && !!nav && !!cart && rail.bottom <= nav.y && rail.y >= cart.bottom, `cart bottom ${cart?.bottom}, rail ${rail?.y}–${rail?.bottom}, nav top ${nav?.y}`);
       const tabs = await rp.$$eval(".rail > *", (els) => els.map((e) => Math.round(e.getBoundingClientRect().y)));
       ok("rail · every tab sits on the same line", tabs.length >= 3 && new Set(tabs).size === 1, tabs.join(","));
       await rp.click(".rdg-fab"); await sleep(150);
@@ -289,8 +307,19 @@ try {
       const hub = await box(".chub-panel");
       ok("rail · the Connect panel opens on screen", !!hub && hub.x >= 0 && hub.right <= 390 && hub.y >= 0, JSON.stringify(hub));
       await rp.click(".chub-tab"); await sleep(150);
-      await rp.click(".rail-fold"); await sleep(200);
-      ok("rail · it folds back to the handle", !!(await box(".rail-open")));
+      // the tap that matters: with the rail open, the cart bar still opens the checkout
+      let opened = false;
+      try { await rp.click(".cartbar", { timeout: 3000 }); await sleep(600); opened = !!(await rp.$("#checkout-title")); } catch { opened = false; }
+      ok("order · with the rail open, the cart bar still opens the checkout", opened);
+      const lines = await rp.$$eval(".co-line", (els) => els.map((e) => e.textContent.replace(/\s+/g, " ").trim())).catch(() => []);
+      ok("order · the checkout lists the drink and a total", lines.length >= 2 && /Total/.test(lines[lines.length - 1]), lines.join(" | "));
+      await rp.keyboard.press("Escape");
+      try { await rp.waitForSelector(".sheet2-scrim", { state: "detached", timeout: 3000 }); } catch { /* judged below */ }
+      await sleep(200);
+      ok("order · Escape closes the checkout and the rail comes back", !(await rp.$(".sheet2-scrim")) && !!(await box(".rail")));
+      await rp.click(".rail-fold", { timeout: 3000 }).catch(() => {}); await sleep(200);
+      const folded = await box(".rail-open");
+      ok("rail · it folds back to the handle", !!folded && folded.h > 0);
     } catch (e) { ok("rail · could be exercised on /menu", false, String(e.message).slice(0, 120)); }
     await rp.close();
   }
