@@ -48,9 +48,9 @@ export function Masthead({ eyebrow, live = false, right, tone = "dark" }: { eyeb
 // in place of a plain string — every existing caller passes a plain string today, which is still
 // valid ReactNode, so this is purely additive. Nothing inside this component does string-specific
 // work on either prop (no .length, no concatenation) — both are only ever interpolated into JSX.
-export function SectionHeader({ label, annotation, right }: { label: ReactNode; annotation?: ReactNode; right?: ReactNode }) {
+export function SectionHeader({ label, annotation, right, id }: { label: ReactNode; annotation?: ReactNode; right?: ReactNode; id?: string }) {
   return (
-    <div className="k-sec">
+    <div className="k-sec" id={id}>
       <span className="k-sec-lbl">
         {/* Real heading (was a span) — this one component backs every section title app-wide, so it was
             the single highest-leverage a11y gap: screen-reader users had no heading outline anywhere.

@@ -6,6 +6,7 @@ import { stableErrorKey } from "@/lib/deploySkew";
 
 export const runtime = "nodejs";
 
+// public: client error intake — guests hit errors too; every field capped, fingerprinted server-side, rate-limited
 // CLIENT ERROR INTAKE — the receiving end of components/ErrorReporter. Public by design (guests
 // hit errors too), so it trusts nothing: caps every field, computes the fingerprint server-side,
 // dedupes into one row per unique error, and rate-limits per instance. First occurrence of a new

@@ -40,8 +40,9 @@ const FIXTURE = join(ROOT, "scripts/fixtures/plan-screen.html");
 export const CEILING = {
   cardRules: 817,        // rules that make a card: radius + (border | fill). 818 → 817: the account sheet lost its stat tiles (2026-10-02)
   rawRadii: 27,          // distinct border-radius values that are not a --r-* token, 50% or 0
-  dupSelectors: 55,      // single top-level selectors declared more than once
+  dupSelectors: 54,      // single top-level selectors declared more than once (55 → 54: .crew-group retired, 2026-10-02)
   rootBlocks: 6,         // separate `:root{` blocks — tokens are supposed to have one home
+  subFloorFontRules: 0,  // px font-sizes under THE TYPE FLOOR (10px, see the note in globals.css). 184 → 0 on 2026-10-02
   maxLeafDepth: 2,       // boxes around the innermost box on the Plan screen (was 4)
   railWidthFraction: 0.27, // expanded rail over a 390px viewport (was 0.46)
 };
@@ -59,7 +60,7 @@ export const CEILING = {
 //                     no new ones appear without a decision is this gate's.
 export const FRICTION = {
   nativeDialogs: 0,
-  crewGroupTitles: 29,
+  crewGroupTitles: 0,
   collapsedPanels: 33,
 };
 
@@ -91,21 +92,23 @@ export const FLOOR = {
 //   text  — the smallest visible text, px (floor)
 // A route not in this table is UNMEASURED and fails the smoke: add it with its real numbers.
 // The masthead caption was 8.5 everywhere and is 11 now (Ryan's call, 2026-10-02: app text at the
-// floor until a horizontal lockup is supplied); what remains under 11 on a route is its own small
-// eyebrow or tag type — 34 rules in the stylesheet sit at 8.5px and are the next typography pass.
-// 6.63 is the signage kiosk, bespoke by design. 26 is the folded rail handle, 26 wide by 56 tall.
+// floor until a horizontal lockup is supplied). The same day, every rule under 10px in the
+// stylesheet was lifted to 10 (THE TYPE FLOOR, globals.css) and every route re-measured: none is
+// under 10 now, /display included — its text is in vmin for a TV, and on a phone its smallest tier
+// used to resolve to 6.63px; max(10px, …) on those tiers is what brought it to 10. 26 is the folded
+// rail handle, 26 wide by 56 tall. /playbook's null: owner-only, and a guest's body paints no text to measure.
 // Floors say "not smaller than this", not "this is fine".
 export const ROUTE = {
-  "/":              { depth: 2, tap: 26, text: 9.5 },
-  "/truck":         { depth: 2, tap: 26, text: 9.5 },
-  "/events":        { depth: 2, tap: 26, text: 9.5 },
-  "/menu":          { depth: 2, tap: 26, text: 8.5 },
-  "/reserve":       { depth: 2, tap: 26, text: 8.5 },
+  "/":              { depth: 2, tap: 26, text: 10 },
+  "/truck":         { depth: 2, tap: 26, text: 10 },
+  "/events":        { depth: 2, tap: 26, text: 10 },
+  "/menu":          { depth: 2, tap: 26, text: 10 },
+  "/reserve":       { depth: 2, tap: 26, text: 10 },
   "/delivery":      { depth: 1, tap: 26, text: 10 },
   "/3mpire":        { depth: 2, tap: 26, text: 10 },
   "/craft":         { depth: 2, tap: 26, text: 10 },
   "/book":          { depth: 1, tap: 26, text: 10 },
-  "/shop":          { depth: 2, tap: 26, text: 8.5 },
+  "/shop":          { depth: 2, tap: 26, text: 10 },
   "/primal":        { depth: 1, tap: 26, text: 10 },
   "/office":        { depth: 1, tap: 26, text: 10 },
   "/academy":       { depth: 0, tap: 26, text: 11 },
@@ -116,7 +119,7 @@ export const ROUTE = {
   "/agreement":     { depth: 1, tap: 26, text: 11 },
   "/offer":         { depth: 1, tap: 26, text: 11 },
   "/built/gt3-built-k7m9x4q2": { depth: 1, tap: 34, text: 10 },
-  "/display":       { depth: 1, tap: 26, text: 6.63 },
+  "/display":       { depth: 1, tap: 26, text: 10 },
   "/privacy":       { depth: 0, tap: 26, text: 14 },
   "/terms":         { depth: 0, tap: 26, text: 14 },
 };
@@ -161,7 +164,11 @@ export function staticCounts(css) {
   }
   const dups = [...seen].filter(([, n]) => n > 1);
   const rootBlocks = (css.match(/^:root\s*\{/gm) || []).length;
-  return { cardRules, rawRadii: radii.size, rawRadiiList: [...radii].sort((a, b) => b[1] - a[1]), dupSelectors: dups.length, dupList: dups.sort((a, b) => b[1] - a[1]), rootBlocks };
+  // THE TYPE FLOOR. Comments stripped first — the note that explains the floor quotes the sizes it
+  // retired. font-size:0 is the icon-whitespace trick, not text; max(10px, …) is the floor itself.
+  const subFloorFontRules = [...css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/font-size\s*:\s*(\d*\.?\d+)px/g)]
+    .map((m) => parseFloat(m[1])).filter((v) => v > 0 && v < 10).length;
+  return { cardRules, rawRadii: radii.size, rawRadiiList: [...radii].sort((a, b) => b[1] - a[1]), dupSelectors: dups.length, dupList: dups.sort((a, b) => b[1] - a[1]), rootBlocks, subFloorFontRules };
 }
 
 // ── THE FIXTURE NAMES ITS SOURCES ────────────────────────────────────────────────────────────────
@@ -239,6 +246,7 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
   ratchet("raw corner radii beside the --r-* tokens", s.rawRadii, CEILING.rawRadii);
   ratchet("selectors declared more than once", s.dupSelectors, CEILING.dupSelectors);
   ratchet(":root blocks", s.rootBlocks, CEILING.rootBlocks);
+  ratchet("px font-sizes under the 10px type floor", s.subFloorFontRules, CEILING.subFloorFontRules);
   const f = frictionCounts();
   console.log("DESIGN RATCHET — friction in the source:");
   ratchet("native confirm()/prompt() dialogs still to migrate to the house sheets", f.nativeDialogs, FRICTION.nativeDialogs);

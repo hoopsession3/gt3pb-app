@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
+// public: a read of one code's marketing fields — nothing here that is not already printed on the card in someone's hand
 // COUPON LOOKUP (0268) — the public face of ONE code-scoped row in the member_benefits engine
 // (0176). The QR landing page reads this to render the offer; nothing here isn't already printed
 // on the card in someone's hand. Read-only, marketing-facing fields only, never throws.

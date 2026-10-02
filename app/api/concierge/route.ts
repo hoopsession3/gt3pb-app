@@ -9,6 +9,7 @@ import { money } from "@/lib/money";
 
 export const runtime = "nodejs";
 
+// public: the guest concierge — anyone at the truck may ask; rate-limited per IP in Postgres, and the prompt treats the supplied history as untrusted
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // PUBLIC CONCIERGE — the guest-facing pocket brain. Answers what's on the menu, where the truck is,
 // how to book it, and how membership works. PUBLIC (no auth) so it grounds ONLY on customer-safe data:

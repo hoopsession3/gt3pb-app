@@ -4,6 +4,7 @@ import { buildInfo } from "@/lib/buildInfo";
 
 export const runtime = "nodejs";
 
+// public: the uptime probe — answers ok/not-ok and the build id, nothing else
 // HEALTH CHECK (2026-07-30 — the "crash/error/outage email" round, part 2). Point any free
 // uptime monitor (UptimeRobot, BetterStack, …) at GET /api/health every few minutes:
 //

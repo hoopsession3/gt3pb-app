@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 
+// public: read-only prices for the menu — the same numbers printed at the window
 // Prices for the app (card AND cash). Source of truth is the managed `products` table; Square is a
 // secondary sync. Returns { prices: { rise: 700, ... } } keyed by slug. Empty → app uses the locked
 // lib/menu.ts catalog as a final fallback.

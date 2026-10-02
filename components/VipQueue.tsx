@@ -11,6 +11,7 @@ import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
 import { RecordLink } from "./RecordSheet";
 import PromptSheet from "./PromptSheet";
+import { SectionHeader } from "@/components/kit";
 
 // VIP QUEUE — the staff moderation side of VIP verification. A bottle owner's proof photo lands here;
 // staff either Reject with a reason, or Verify and choose which grant it earns — plain Founding, or
@@ -109,7 +110,7 @@ export default function VipQueue() {
             ))}
             {recent.length > 0 && (
               <>
-                <div className="crew-group" style={{ marginTop: 12 }}>Recently handled</div>
+                <SectionHeader label="Recently handled" />
                 {recent.map((v) => (
                   <div key={v.id} className="vipq-done">
                     <span className="vipq-done-t"><RecordLink kind="customer" id={v.customer_id}>{v.customers?.name?.trim() || "A member"}</RecordLink></span>

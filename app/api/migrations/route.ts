@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 
+// public: read-only ledger count and high-water mark, so a release can be checked without a credential; no names, no SQL
 // WHAT HAS ACTUALLY BEEN APPLIED TO THIS DATABASE — the read side of 0304's ledger.
 //
 // 0304 built the write side: every migration from 0304 forward ends with record_migration(), and

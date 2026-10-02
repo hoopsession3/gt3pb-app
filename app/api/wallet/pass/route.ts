@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+// public: returns 503 until Apple pass certificates exist; a signed pass is the member's own and carries nothing secret
 // Apple Wallet membership pass. A real .pkpass must be signed with the GT3 **Pass Type ID
 // certificate + private key** and the **Apple WWDR** cert — provided via env (base64). Until those
 // exist this returns 503, and the app hides the "Add to Apple Wallet" button (NEXT_PUBLIC_WALLET_READY).

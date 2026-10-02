@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
+// public: out-of-zone waitlist capture, write-only and bounded — rate-limited in Postgres, no client table access
 // OUT-OF-ZONE WAITLIST — capture only, fail-silent-ish, tightly bounded. No client table access
 // (service role writes). Rate limit lives in Postgres (rate_limit_hit, 0154) — a per-lambda
 // in-memory counter used to live here, which on Vercel serverless is really "30/min per warm

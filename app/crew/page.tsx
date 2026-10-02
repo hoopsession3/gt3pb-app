@@ -1438,7 +1438,7 @@ function MyTasks({ userId, chip = false }: { userId: string | null; chip?: boole
 
   return (
     <div className="adm-sec" id="my-day-tasks">
-      <div className="crew-group">My tasks <span className={`adm-pill${crit || over ? " due" : ""}`}>{tasks.length}{over ? ` · ${over} overdue` : crit ? ` · ${crit} critical` : ""}</span></div>
+      <SectionHeader label="My tasks" right={<span className={`adm-pill${crit || over ? " due" : ""}`}>{tasks.length}{over ? ` · ${over} overdue` : crit ? ` · ${crit} critical` : ""}</span>} />
       {sorted.map((t) => (
         <div key={t.id} className={`mytask${t.critical ? " crit" : isOver(t) ? " crit" : t.warn ? " warn" : ""}`}>
           <button type="button" className="task-check" onClick={() => complete(t)} aria-label={`Mark done: ${t.label}`}>
@@ -4869,7 +4869,7 @@ function EnableAlerts({ userId }: { userId: string | null }) {
   // already has, so it reads as a real feature instead of a leftover.
   return (
     <div className="adm-sec">
-      <div className="crew-group">Notifications</div>
+      <SectionHeader label="Notifications" />
       <div className="h-sub" style={{ marginTop: 0, marginBottom: 10 }}>Get a push alert the moment a new order lands on the pass — even with the app in your pocket.</div>
       <button
         className="btn2"
@@ -5526,7 +5526,7 @@ export default function AdminPage() {
               PlanningBoard cut 2026-07-30 (redundancy audit): it re-listed every goal card below
               it — same title, progress, owner — as a non-tappable horizon grid, and the horizon
               already sits on each card as its tier chip. One list, one home. */}
-          <div className="crew-group">Goals</div>
+          <SectionHeader label="Goals" />
           <Goals />
           <KpiBoard />
         </>
@@ -5585,7 +5585,7 @@ export default function AdminPage() {
               dynamic"), and the global all-prep board bows out while a single target has the
               floor — its numbers would contradict the scoped tiles right above it. */}
           <PrepKpis target={prepSel} />
-          {!prepSel && <div className="crew-group">All open prep · one board</div>}
+          {!prepSel && <SectionHeader label="All open prep · one board" />}
           {!prepSel && <Panel id="prep-board" title="Work every open task — critical first" defaultOpen><PrepBoard /></Panel>}
           {/* 2026-07-30 (Ryan's screenshot): this screen used to stack the stock-check agent +
               Inspection prep ABOVE the actual work, and an "At a glance" block (Overview)
@@ -5593,7 +5593,7 @@ export default function AdminPage() {
               (the cards ARE the glance; live status is Live Ops' job), the stock-check moved home
               to Assets beside the inventory it reads, and Inspection prep — real prep, but
               occasional-use by its own copy — parks at the bottom, collapsed, instead of first. */}
-          {!prepSel && <div className="crew-group">Event prep · by stop</div>}
+          {!prepSel && <SectionHeader label="Event prep · by stop" />}
           <EventPrep sel={prepSel} setSel={setPrepSel} />
           {!prepSel && canManage && <InspectionPrep />}
         </>
@@ -5673,9 +5673,9 @@ export default function AdminPage() {
                   B2B pipeline board, then the Tools zone (Chief of Sales + the deal catalog rides
                   PipelinePanel's own bottom block) — daily flow above, monthly setup below. */}
               <Bookings />
-              <div className="crew-group" id="pipeline-board">Pipeline <span className="crew-group-sub">accounts being worked — stage by stage to Won</span></div>
+              <SectionHeader id="pipeline-board" label="Pipeline" annotation="accounts being worked — stage by stage to Won" />
               <PipelinePanel isAdmin={isAdmin} />
-              <div className="crew-group">Tools</div>
+              <SectionHeader label="Tools" />
               <ChiefOfSales />
             </>
           )}
@@ -5692,7 +5692,7 @@ export default function AdminPage() {
       {sec === "studio" && canManage && (
         <>
           <Studio />
-          <div className="crew-group">Shoots</div>
+          <SectionHeader label="Shoots" />
           <Panel id="shoots" title="Shoot planning · shot list &amp; call sheet"><ShootPlanner /></Panel>
           <Panel id="reviews" title="Customer reviews"><ReviewsAdmin /></Panel>
         </>
@@ -5703,7 +5703,7 @@ export default function AdminPage() {
           {/* The owner control room — one front door for everything you can change without a
               developer. Copy lives HERE (the thing owners hunt for); the rest is a labeled map to
               the surfaces that already own each editor, so nothing is duplicated or piecemeal. */}
-          <div className="crew-group">Owner control room</div>
+          <SectionHeader label="Owner control room" />
           <p className="set-lead">Everything you can change without a developer. Edits go live instantly — no deploy.</p>
           <Panel id="set-copy" title="Copy & wording · every line guests read" defaultOpen><SiteCopyEditor /></Panel>
           <Panel id="set-broadcast" title="Broadcast · a live message or ad to everyone"><BroadcastEditor /></Panel>
@@ -5726,7 +5726,7 @@ export default function AdminPage() {
               itself (what shipped, what got reviewed) rather than tools for running the business —
               they don't need equal billing with Copy/Broadcast/Office, which get touched daily. Same
               access, same panels, just moved behind their own divider instead of interleaved. */}
-          <div className="crew-group">Advanced</div>
+          <SectionHeader label="Advanced" />
           {/* Enterprise round (2026-08-01): the two capabilities the control room lacked — an
               admin change log (who changed what, when — 0260) and one honest pane of what's
               connected. Both admin-only, both read-only. */}
@@ -5739,7 +5739,7 @@ export default function AdminPage() {
               <MaintenanceLog />
             </Panel>
           )}
-          <div className="crew-group">More controls</div>
+          <SectionHeader label="More controls" />
           <div className="set-map">
             {([
               { t: "Brand, splash & reviews", s: "Logo, kit, the pop-up, testimonials", to: "studio" },
@@ -5772,16 +5772,16 @@ export default function AdminPage() {
         <>
           {/* Dashboard, not a filing cabinet: live numbers first, then modules grouped by job. */}
           <MoneyKpis />
-          <div className="crew-group">Spend & budget</div>
+          <SectionHeader label="Spend & budget" />
           <Panel id="spend" title="Spend & budget · what the business spends" defaultOpen><SpendBudget /></Panel>
-          <div className="crew-group">Get paid</div>
+          <SectionHeader label="Get paid" />
           <Panel id="pay" title="Checkout & payments" defaultOpen>
             <PaymentSettings />
             {/* Refunds live in Square by design (the card data never touches this app) — but the
                 DOOR to them belongs here (enterprise round P3). */}
             <a className="adm-golink" style={{ display: "inline-block", marginTop: 10 }} href="https://squareup.com/dashboard/sales/transactions" target="_blank" rel="noreferrer">Refunds &amp; disputes — Square Dashboard <Icon name="externalLink" /></a>
           </Panel>
-          <div className="crew-group">The numbers</div>
+          <SectionHeader label="The numbers" />
           {/* Open at rest (2026-10-02, Ryan: "do all 6"): Money used to open on MoneyKpis and then
               seventeen closed titles — the accordion wall. One panel per section opens on its own,
               the one most looked at; here that is Sales. The rest stay folded and remembered. */}
@@ -5789,23 +5789,23 @@ export default function AdminPage() {
           <Panel id="snapshot" title="Business snapshot"><SnapshotReport /></Panel>
           <Panel id="pnl" title="Per-event P&L"><EventPnlReport /></Panel>
           <Panel id="funnels" title="Funnels · where people drop off"><FunnelReport /></Panel>
-          <div className="crew-group">Catalog &amp; pricing</div>
+          <SectionHeader label="Catalog & pricing" />
           <Panel id="menu" title="Menu & products"><MenuManager /></Panel>
           <Panel id="econ" title="Product economics"><ProductCatalog /></Panel>
           <Panel id="lessons" title="Return to Primal · lessons"><LessonsManager /></Panel>
           <Panel id="merch" title="The Shop · merch"><MerchManager /></Panel>
           <Panel id="cogs" title="COGS calculator"><CogsCalculator /></Panel>
-          <div className="crew-group">Operators</div>
+          <SectionHeader label="Operators" />
           {/* The deal itself: what an operator gets, what they fund, what they earn, and what comes
               back as royalty — built on a slider anchored to the agreed 50/30/20, then sent for their
               response. The money math lives in lib/operatorDeal.ts and is unit-tested. */}
           <Panel id="operators" title="Operator agreements · deals, levels &amp; royalties"><OperatorDeal /></Panel>
           <Panel id="offers" title="Offer letters · hire someone"><OfferLetters /></Panel>
-          <div className="crew-group">Members &amp; subscriptions</div>
+          <SectionHeader label="Members & subscriptions" />
           <Panel id="plans" title="Membership plans"><PlanEditor /></Panel>
           <Panel id="subs" title="Subscribers"><Subscribers /></Panel>
           <Panel id="subint" title="Subscription interest"><SubInterest /></Panel>
-          <div className="crew-group">Records</div>
+          <SectionHeader label="Records" />
           <Panel id="resv" title="Reserve drops"><ReservesAdmin /></Panel>
           <Panel id="orders" title="Order history"><OrdersHistory /></Panel>
           {/* The storefront queue. Lives here rather than under Catalog & pricing with the
@@ -5823,7 +5823,7 @@ export default function AdminPage() {
               next two weeks" is a question about THIS screen's inventory — it lives with its
               subject now instead of squatting above the prep list. */}
           {canManage && <ReadinessAgent />}
-          <div className="crew-group">Assets &amp; stock</div>
+          <SectionHeader label="Assets & stock" />
           <GarageSection />
         </>
       )}
@@ -5833,12 +5833,12 @@ export default function AdminPage() {
         <>
           {/* Money's 10/10 template: glance-first KPIs → crew-group dividers → uniform Panels. */}
           <CustomerKpis />
-          <div className="crew-group">The people</div>
+          <SectionHeader label="The people" />
           <Panel id="cust-book" title="Customer book · every guest &amp; member" defaultOpen><CrmPanel /></Panel>
-          <div className="crew-group">Loyalty &amp; codes</div>
+          <SectionHeader label="Loyalty & codes" />
           <Panel id="cust-perks" title="Founding perks · member vs. VIP"><PerksPanel /></Panel>
           <Panel id="cust-codes" title="Discount codes · mint &amp; manage"><CodesPanel /></Panel>
-          <div className="crew-group">VIP verification</div>
+          <SectionHeader label="VIP verification" />
           <Panel id="cust-vip" title="Bottle-owner proofs · verify → Founding" defaultOpen><VipQueue /></Panel>
         </>
       )}
@@ -5850,18 +5850,18 @@ export default function AdminPage() {
               IN the system: active days, sign-ins, actions, last-seen per person, plus the
               anonymous guest pulse. Admin-only data by RLS. */}
           <UtilizationPanel />
-          {isOwner && <div className="crew-group">Invite a teammate</div>}
+          {isOwner && <SectionHeader label="Invite a teammate" />}
           {isOwner && <InviteTeammate />}
-          <div className="crew-group">Who&apos;s on what</div>
+          <SectionHeader label="Who's on what" />
           <WorkloadBoard />
           {/* Was "Roster" (2026-07-16, ground-up redesign): OrgChart alone renders two labeled
               concerns (Org chart's reporting tiers, then Work streams' ownership grid), and
               Members below adds a third ("Team", the actual member list) — "Roster" only
               accurately described the last of the three. Broadened to cover all of them. */}
-          <div className="crew-group">Team structure</div>
+          <SectionHeader label="Team structure" />
           <OrgChart />
           {isOwner && <Members />}
-          <div className="crew-group">Growth &amp; training</div>
+          <SectionHeader label="Growth & training" />
           {/* Was a flat link with no state, on a page where everything else shows live numbers — so it
               was the one block the eye skipped, and the Academy had zero progress rows for anybody.
               The card now carries the reader's own role path, which lib/academy could already derive. */}

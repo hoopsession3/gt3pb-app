@@ -92,7 +92,7 @@ export default function LessonsManager() {
             if (pillarLessons.length === 0) return null;
             return (
               <div key={p.id} style={{ marginTop: 16 }}>
-                <div className="crew-group">{p.title}</div>
+                <SectionHeader label={p.title} />
                 {mods.map((m) => {
                   const lessons = b.lessons.filter((l) => l.module_id === m.id);
                   if (lessons.length === 0) return null;

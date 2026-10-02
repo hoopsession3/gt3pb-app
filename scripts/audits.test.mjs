@@ -12,6 +12,7 @@ import { refusalHeadings, refusesWithoutPolicy, collapsesVerdicts } from "./gate
 import { handRollsCrew, bypassesTaskSpine, CREW_EXEMPT, namesRoleVocabulary, rolesNamedIn, rendersRawCrewOption } from "./dupe.audit.mjs";
 import { selectsIn, topLevelParts, columnsOf, ageLine, pendingMigrations, arrivingColumns, declaresArrival } from "./columns.audit.mjs";
 import { definitionsToSchema, refuseReason, projectRef } from "./schema.snapshot.mjs";
+import { classify as classifyRoute } from "./api.audit.mjs";
 import { join } from "node:path";
 
 let pass = 0, fail = 0;
@@ -431,6 +432,26 @@ ok("arriving: …and the number must match, so an old marker does not cover a ne
   declaresArrival("// arrives-with: 0330 — something else", 337) === false);
 ok("arriving: silence is not a declaration",
   declaresArrival("const x = 1; // we handle it, honest", 337) === false);
+
+// ── api.audit: guarded / public / silent ───────────────────────────────────────────────────────
+// Shapes lifted from app/api. The trap this guards against is the one that produced "50 unguarded
+// routes" above: a word in a comment counting as (or failing to count as) the real thing.
+ok("api: a route calling a house guard in code is guarded (app/api/office/route.ts shape)",
+  classifyRoute(`import { userFromRequest } from "@/lib/apiAuth";\nexport async function GET(req) { const u = await userFromRequest(req); }`) === "guarded");
+ok("api: a webhook that compares a signature is guarded (timingSafeEqual)",
+  classifyRoute(`import { timingSafeEqual } from "node:crypto";\nexport async function POST(req) { if (!timingSafeEqual(a, b)) return bad(); }`) === "guarded");
+ok("api: a guard named only in a comment is NOT a guard",
+  classifyRoute(`// we rely on userFromRequest( upstream\nexport async function GET() { return ok(); }`) === "silent");
+ok("api: a guard named only in a block comment is NOT a guard",
+  classifyRoute(`/* staffFromRequest( is called by the caller */\nexport async function GET() { return ok(); }`) === "silent");
+ok("api: a route with no guard and a real public: line is public by declaration",
+  classifyRoute(`// public: read-only menu prices; nothing here a guest cannot already see at the window\nexport async function GET() { return ok(); }`) === "public");
+ok("api: a public: line too short to be a reason does not count",
+  classifyRoute(`// public: yes\nexport async function GET() { return ok(); }`) === "silent");
+ok("api: public: must be its own comment line, not buried in code",
+  classifyRoute(`const why = "public: this is a string, not a declaration, long enough";\nexport async function GET() { return ok(); }`) === "silent");
+ok("api: a guarded route with a stray public: line is still reported as guarded, not public",
+  classifyRoute(`// public: left over from before the guard was added, long enough\nimport { staffFromRequest } from "@/lib/apiAuth";\nexport async function GET(req) { await staffFromRequest(req); }`) === "guarded");
 
 console.log(`AUDIT CLASSIFIERS: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
