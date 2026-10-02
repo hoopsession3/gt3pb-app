@@ -13,6 +13,9 @@ import { handRollsCrew, bypassesTaskSpine, CREW_EXEMPT, namesRoleVocabulary, rol
 import { selectsIn, topLevelParts, columnsOf, ageLine, pendingMigrations, arrivingColumns, declaresArrival } from "./columns.audit.mjs";
 import { definitionsToSchema, refuseReason, projectRef } from "./schema.snapshot.mjs";
 import { classify as classifyRoute, unwrapped } from "./api.audit.mjs";
+import { reassemble } from "./security.snapshot.mjs";
+import { judge, staleBecause, expand } from "./security.audit.mjs";
+import { PGlite } from "@electric-sql/pglite";
 import { join } from "node:path";
 
 let pass = 0, fail = 0;
@@ -357,7 +360,7 @@ ok("not flagged: display_name rendered somewhere that is not an option",
 // The fixtures below are STRINGS, passed straight to the parser — the only path that touches disk
 // is the one test that asks what an unreadable file does, and it points at a name in an empty temp
 // directory. Nothing is written, so nothing can be left behind for the next run to read.
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 const tmp = mkdtempSync(join(tmpdir(), "cols-"));
 
@@ -474,6 +477,69 @@ ok("wrapper: a bare handler in a comment does not count",
   unwrapped(`// export async function POST(req) — the old shape\nasync function post() {}\nexport const POST = route("x", post);`).length === 0);
 ok("wrapper: export const runtime/maxDuration are not handlers",
   unwrapped(`export const runtime = "nodejs";\nexport const maxDuration = 60;`).length === 0);
+
+// ── security.snapshot + security.audit: every leak shape, measured by the REAL query ────────────
+// The fixture is a database, not a JSON file: scripts/security.snapshot.sql runs here exactly as it
+// runs in the Supabase editor, so a shape the query stopped seeing would fail here first. One table
+// of each kind: RLS off and granted (the leak), granted to nobody, world-readable, guest-writable,
+// RLS on with no policy (closed), an owner-run view, an invoker view, a definer function the API
+// may call, one it may not, and a plain function (not a definer; must not be listed).
+{
+  const db = new PGlite();
+  await db.exec(`
+    create role anon; create role authenticated; create role service_role;
+    create table public.schema_migrations (seq int, name text); insert into public.schema_migrations values (1, 'a'), (2, 'b');
+    create or replace function public.is_staff() returns boolean language sql stable security definer as $$ select true $$;
+    grant execute on function public.is_staff() to anon, authenticated;
+    create or replace function public.internal_only() returns boolean language sql stable security definer as $$ select true $$;
+    revoke execute on function public.internal_only() from public, anon, authenticated;
+    create or replace function public.plain() returns boolean language sql stable as $$ select true $$;
+    create table public.leak (id int); grant select on public.leak to anon;
+    create table public.service_only (id int);
+    create table public.menu_items (id int); alter table public.menu_items enable row level security;
+    grant select on public.menu_items to anon, authenticated;
+    create policy "public read" on public.menu_items for select using (true);
+    create policy "staff write" on public.menu_items for all to authenticated using ((select public.is_staff())) with check ((select public.is_staff()));
+    create table public.guestbook (id int); alter table public.guestbook enable row level security;
+    grant insert on public.guestbook to anon;
+    create policy "anyone writes" on public.guestbook for insert to anon with check (true);
+    create table public.closed (id int); alter table public.closed enable row level security; grant select on public.closed to authenticated;
+    create view public.v_owner as select id from public.menu_items; grant select on public.v_owner to anon;
+    create view public.v_inv as select id from public.menu_items; alter view public.v_inv set (security_invoker = on); grant select on public.v_inv to anon;
+    -- fourteen ordinary tenant tables, so the document spans several 2000-character rows (the refusals below need more than one)
+    ${Array.from({ length: 14 }, (_, i) => `create table public.plain_${i} (id int, tenant_id uuid); alter table public.plain_${i} enable row level security; grant select on public.plain_${i} to authenticated; create policy "tenant isolation" on public.plain_${i} as restrictive for all using (tenant_id = tenant_id); create policy "staff read" on public.plain_${i} for select using ((select public.is_staff()));`).join("\n")}
+  `);
+  const rows = (await db.query(readFileSync(new URL("./security.snapshot.sql", import.meta.url), "utf8"))).rows;
+  const r = reassemble(rows);
+  ok("security: the query's rows reassemble and the digest row agrees", !r.error, r.error);
+  const snap = r.json || { t: {}, f: [], x: [] };
+  ok("security: the compact shape names every relation and definer function", Object.keys(snap.t).length === 22 && snap.f.length === 2, [Object.keys(snap.t).length, snap.f.length]);
+  ok("security: the fixture spans several rows, so the refusals below mean something", rows.length >= 3, rows.length);
+  ok("security: expressions are stored once and policies point at them", snap.x.includes("true") && snap.t.menu_items[7][0][4] === snap.x.indexOf("true"));
+  const v = judge(snap, {});
+  ok("security: RLS off + a grant is the hard finding", v.hard.some((h) => h.startsWith("rls-off: leak")), v.hard);
+  ok("security: a guest-writable `true` policy is the hard finding", v.hard.some((h) => h.startsWith("open-write: guestbook")), v.hard);
+  ok("security: nothing else is hard", v.hard.length === 2, v.hard);
+  ok("security: a world-readable SELECT is listed, not failed", v.publicRead.join() === "menu_items", v.publicRead);
+  ok("security: a definer function the API may call is listed; one it may not is not; a plain one never", v.definerExec.join() === "is_staff()", v.definerExec);
+  ok("security: an owner-run view the API may read is listed; an invoker view is not", v.definerView.join() === "v_owner", v.definerView);
+  ok("security: a table nobody but the service role can touch is counted, not judged", v.info.serviceOnly === 2 && v.info.failClosed === 1 && v.info.tables === 20, v.info);
+  ok("security: an exemption with a reason clears a finding", judge(snap, { leak: "a planted reason", "guestbook.anyone writes": "a planted reason" }).hard.length === 0);
+  ok("security: an exemption with no reason is itself a finding", judge(snap, { leak: "" }).hard.some((h) => h.includes("NO reason")));
+  ok("security: the expanded shape judges the same", JSON.stringify(judge(expand(snap), {})) === JSON.stringify(v));
+  ok("security: a later migration that touches a policy makes the snapshot stale", staleBecause(snap, [{ file: "0003_x.sql", text: "create policy p on t for select using (true);" }]).length === 1);
+  ok("security: a later migration that only adds a column does not", staleBecause(snap, [{ file: "0003_x.sql", text: "alter table t add column c int; -- grant nothing" }]).length === 0);
+  ok("security: a migration at the mark is not 'later'", staleBecause(snap, [{ file: "0002_x.sql", text: "grant select on t to anon;" }]).length === 0);
+  ok("security: 'grant' inside a comment does not count", staleBecause(snap, [{ file: "0003_x.sql", text: "-- we grant nothing here\nalter table t add column c int;" }]).length === 0);
+  // the read-back refusals: each one is a snapshot that would have lied
+  ok("security: a dropped row is refused", /chunk row/.test(reassemble(rows.filter((_, i) => i !== 1)).error || ""));
+  ok("security: a doubled row is refused", /chunk row/.test(reassemble([...rows.slice(0, 2), rows[1], ...rows.slice(2)]).error || ""));
+  ok("security: a trimmed cell is refused", /trimmed/.test(reassemble(rows.map((x, i) => (i === 0 ? { row: x.row, chunk: x.chunk.slice(0, -1) } : x))).error || ""));
+  ok("security: an altered character is refused", /sha256/.test(reassemble(rows.map((x, i) => (i === 0 ? { row: x.row, chunk: "X" + x.chunk.slice(1) } : x))).error || ""));
+  ok("security: a result read without its digest row is refused", /digest row/.test(reassemble(rows.slice(0, -1)).error || ""));
+  ok("security: the Supabase 'Copy as JSON' shape ({row, chunk}) and a bare [row, chunk] both read", !reassemble(rows.map((x) => [x.row, x.chunk])).error);
+  await db.close();
+}
 
 console.log(`AUDIT CLASSIFIERS: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

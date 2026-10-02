@@ -13,9 +13,10 @@
 // script, so it stops being a thing one person does by hand after every push and starts being a
 // thing that fails.
 //
-// Four checks, in the order a deploy goes wrong:
+// Five checks, in the order a deploy goes wrong:
 //   1. LIVE      — /api/health reports the commit this tree is at (Vercel finished, and built main)
 //   2. CURRENT   — /api/migrations holds every file in supabase/migrations (nothing pending, no gap)
+//   2b. POSTURE  — the committed security snapshot (RLS, grants, policies) judged by security.audit
 //   3. ANSWERS   — a handful of routes, with and without a session, answer JSON — never Next's HTML
 //                  500 page (lib/apiRoute.ts is what makes this true; this is what checks it)
 //   4. PAINTED   — every public route at phone width, with real data: box depth, tap, text, axe —
@@ -61,6 +62,20 @@ try {
     verdict.status === "clean",
     verdict.status === "pending" ? `${verdict.pending.length} pending: ${verdict.pending.map((m) => m.file).join(", ")} — paste supabase/APPLY_ALL_PENDING.sql into the SQL editor` : verdict.reason);
 } catch (e) { ok("current: /api/migrations could be read", false, String(e.message)); }
+
+// ── 2b. POSTURE — the database's RLS/grants/policies, from the committed snapshot ───────────────
+// scripts/security.audit.mjs judges supabase/schema.security.json. It exits 1 on a finding, 0 on
+// clean, and 0 with NOT CHECKED when the snapshot is missing or predates a policy migration; that
+// line is repeated here so the post-deploy read never looks complete while the posture is unread.
+{
+  const { spawnSync } = await import("node:child_process");
+  const run = spawnSync(process.execPath, [new URL("./security.audit.mjs", import.meta.url).pathname], { encoding: "utf8" });
+  const out = (run.stdout || "") + (run.stderr || "");
+  const notChecked = /NOT CHECKED/.test(out);
+  const first = out.split("\n").find((l) => l.startsWith("SECURITY AUDIT")) || "SECURITY AUDIT: (no output)";
+  if (notChecked) { console.log(`  · ${first.replace(/^SECURITY AUDIT: /, "posture: ")}`); console.log("    (pull the snapshot — steps in scripts/security.audit.mjs — and re-run; this is not a pass)"); }
+  else ok(`posture: ${run.status === 0 ? "no table the API roles can touch has RLS off; no write policy is `true`; lists at their ceilings" : "the security audit has findings"}`, run.status === 0, out.split("\n").filter((l) => l.includes("✗")).slice(0, 4).join(" | "));
+}
 
 // ── 3. ANSWERS ──────────────────────────────────────────────────────────────────────────────────
 // Each probe says what it expects. The status is the route's own contract; the JSON body is the
