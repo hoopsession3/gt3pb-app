@@ -41,7 +41,7 @@ export const CEILING = {
   cardRules: 817,        // rules that make a card: radius + (border | fill). 818 → 817: the account sheet lost its stat tiles (2026-10-02)
   rawRadii: 27,          // distinct border-radius values that are not a --r-* token, 50% or 0
   dupSelectors: 54,      // single top-level selectors declared more than once (55 → 54: .crew-group retired, 2026-10-02)
-  rootBlocks: 6,         // separate `:root{` blocks — tokens are supposed to have one home
+  rootBlocks: 1,         // separate `:root{` blocks — tokens have one home (6 → 1 on 2026-10-02: motion, spring, eyebrow tracking, color-scheme and the radius scale folded in)
   subFloorFontRules: 0,  // px font-sizes under THE TYPE FLOOR (10px, see the note in globals.css). 184 → 0 on 2026-10-02
   maxLeafDepth: 2,       // boxes around the innermost box on the Plan screen (was 4)
   railWidthFraction: 0.27, // expanded rail over a 390px viewport (was 0.46)
