@@ -44,7 +44,8 @@ export const CEILING = {
   rootBlocks: 1,         // separate `:root{` blocks — tokens have one home (6 → 1 on 2026-10-02: motion, spring, eyebrow tracking, color-scheme and the radius scale folded in)
   subFloorFontRules: 0,  // px font-sizes under THE TYPE FLOOR (10px, see the note in globals.css). 184 → 0 on 2026-10-02
   maxLeafDepth: 2,       // boxes around the innermost box on the Plan screen (was 4)
-  railWidthFraction: 0.27, // expanded rail over a 390px viewport (was 0.46)
+  railAreaFraction: 0.057, // expanded rail as a share of a 390×844 viewport — a 48px toolbar above the nav (2026-10-02). Width used to be the number (0.46 → 0.27 → a bar); area is what a toolbar can be held to
+  railCoversFixed: 0,      // fixed-position buttons the expanded rail sits on top of
 };
 // ── FRICTION, counted in the source (2026-10-02) ──────────────────────────────────────────────────
 // Three things a viewer meets as friction and a grep can see:
@@ -361,7 +362,8 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
   }
   ratchet("box depth at the innermost box", p.maxLeafDepth, CEILING.maxLeafDepth);
   note(!p.frameOnSectionBody, p.frameOnSectionBody ? "the section body paints a focus frame around the whole screen again" : "no focus frame on the section body");
-  ratchet("rail width, expanded, as a fraction of the viewport", p.railWidthFraction, CEILING.railWidthFraction);
+  ratchet("rail area, expanded, as a fraction of the viewport", p.railAreaFraction, CEILING.railAreaFraction);
+  ratchet("fixed buttons the expanded rail covers", p.railCoversFixed, CEILING.railCoversFixed);
   if (p.minAgendaFontPx === null || p.minAgendaFontPx < FLOOR.minAgendaFontPx) note(false, `smallest agenda text ${p.minAgendaFontPx}px — floor ${FLOOR.minAgendaFontPx}px`);
   else note(true, `smallest agenda text ${p.minAgendaFontPx}px (floor ${FLOOR.minAgendaFontPx}px)`);
   if (list) { console.log("  deepest boxes:"); for (const d of p.deepest.slice(0, 6)) console.log(`    depth ${d.depth}  ${d.cls}  “${d.text}”`); }
@@ -369,7 +371,8 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
   console.log("DESIGN RATCHET — the same screen, dark theme:");
   ratchet("box depth at the innermost box", k.maxLeafDepth, CEILING.maxLeafDepth);
   note(!k.frameOnSectionBody, k.frameOnSectionBody ? "the section body paints a focus frame in the dark theme" : "no focus frame on the section body");
-  ratchet("rail width, expanded, as a fraction of the viewport", k.railWidthFraction, CEILING.railWidthFraction);
+  ratchet("rail area, expanded, as a fraction of the viewport", k.railAreaFraction, CEILING.railAreaFraction);
+  ratchet("fixed buttons the expanded rail covers", k.railCoversFixed, CEILING.railCoversFixed);
   if (k.minAgendaFontPx === null || k.minAgendaFontPx < FLOOR.minAgendaFontPx) note(false, `smallest agenda text ${k.minAgendaFontPx}px — floor ${FLOOR.minAgendaFontPx}px`);
   else note(true, `smallest agenda text ${k.minAgendaFontPx}px (floor ${FLOOR.minAgendaFontPx}px)`);
   note(k.boxes === p.boxes, k.boxes === p.boxes ? `the theme changes colour, not structure: ${k.boxes} boxes in both` : `the dark theme paints ${k.boxes} boxes where day paints ${p.boxes} — a border or fill that exists in one theme only`);

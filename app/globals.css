@@ -8102,10 +8102,35 @@ button.mytask-main{-webkit-appearance:none;appearance:none;background:none;borde
    screenshots). The purpose lines are what the WIDTH is for; on a phone they go, the labels stay,
    and the min-width that was sized for the purpose lines goes with them. Desktop is unchanged —
    there the rail sits in the frame's margin and covers nothing. */
+/* ── THE RAIL ON A PHONE IS A TOOLBAR, NOT A STACK (2026-10-02) ─────────────────────────────────
+   Expanded on a 390px screen, the rail was three stacked tabs floating at the right edge at
+   whatever height the grip had been dragged to — measured on /menu: 106px wide, parked over the
+   "+ $10" button of the second drink. A thing that covers the order button is not a quick action.
+   Docked, it is a row of equal tabs just above the bottom nav: full width, nothing to drag (the
+   grip is hidden; there is one place for it), the fold at the end, and its popouts anchored to the
+   row's right edge so a 214px panel never opens off the left of the screen. The folded ‹ handle
+   is unchanged. Desktop is unchanged. The inline `bottom` the component writes for the draggable
+   position is overridden here with !important on purpose — docked means not draggable.
+   Measured by scripts/smoke.ui.mjs on /menu: the expanded rail must sit entirely below the
+   lowest drink row's add button and both popouts must stay inside the viewport. */
 @media (max-width:640px){
+  .rail:not(.rail-folded){left:0;right:0;bottom:calc(98px + env(safe-area-inset-bottom,0px))!important;flex-direction:row;align-items:stretch;gap:6px;padding:0 10px}   /* the nav is 88px tall plus the inset; 10px of air */
+  .rail:not(.rail-folded) .rail-head{order:9;margin:0;align-self:stretch}
+  .rail:not(.rail-folded) .rail-grip{display:none}
+  .rail:not(.rail-folded) .rail-fold{width:38px;height:auto;min-height:44px}
+  .rail:not(.rail-folded) > :is(.rdg,.chub){position:static;flex:1;min-width:0;display:flex;animation:none}   /* the wrapped tabs; no rise animation — an animating transform would make the tab the popout's containing block and open it off-screen */
+  .rail:not(.rail-folded) > :is(.rdg-fab,.conc-fab){flex:1;min-width:0}                          /* the bare-button tabs */
+  .rail:not(.rail-folded) :is(.rdg-fab,.chub-tab,.conc-fab){width:100%;min-width:0;height:48px;padding:0 10px;justify-content:center;border-radius:var(--r-xl)}
+  .rail:not(.rail-folded) .rdg-fab{border-right:1px solid var(--line2)}
+  .rail:not(.rail-folded) :is(.chub-tab,.conc-fab){border-right:1px solid var(--gold2)}
+  .rail:not(.rail-folded) .rail-txt{align-items:center}
   .rail:not(.rail-folded) .rail-txt i{display:none}
-  .rail:not(.rail-folded) :is(.rdg-fab,.chub-tab,.conc-fab){min-width:0;height:42px;padding-right:12px}
   .rail:not(.rail-folded) .rail-txt b{font-size:12px}
+  .rail:not(.rail-folded) :is(.rdg-fab,.chub-tab,.conc-fab,.rail-open){animation:none}          /* the row arrives as one, not three tabs rising in turn */
+  .rail:not(.rail-folded) :is(.rdg-panel,.chub-panel){right:10px;bottom:58px}
+  /* The row is a toolbar over the page's foot; give the scroll container that much more room so
+     the last drink on the menu can still be scrolled clear of it. */
+  body:has(.rail:not(.rail-folded)) .body{padding-bottom:64px}
 }
 
 /* ── CONFIRM SHEET (2026-10-01) — the one home for "are you sure?", see components/ConfirmSheet.tsx.

@@ -56,9 +56,16 @@ export const MEASURE = `(() => {
   const opCs = op && getComputedStyle(op);
   const frame = !!(op && document.activeElement === op && opCs.outlineStyle !== "none" && parseFloat(opCs.outlineWidth) > 0 && alpha(opCs.outlineColor) > 0.05);
 
-  // The rail: how much of the viewport's width it covers when expanded.
+  // The rail, expanded: how much of the viewport it covers, and whether it sits over the content's
+  // tap targets. On a phone (2026-10-02) it is a toolbar docked above the nav, not a stack at the
+  // right edge, so WIDTH stopped being the number — a full-width bar is the point — and AREA plus
+  // "what it covers" is. A docked bar covers whatever is scrolled under it, which is why the
+  // scroll container gets padding when it is open; covered targets are counted only for the
+  // interactive elements that could not be scrolled clear (the fixed ones).
   const rail = document.querySelector(".rail");
-  const railFrac = rail ? +(rail.getBoundingClientRect().width / innerWidth).toFixed(2) : 0;
+  const rr = rail ? rail.getBoundingClientRect() : null;
+  const railArea = rr ? +((rr.width * rr.height) / (innerWidth * innerHeight)).toFixed(3) : 0;
+  const railCoversFixed = rr ? [...document.querySelectorAll("a,button")].filter((el) => !rail.contains(el) && vis(el) && getComputedStyle(el).position === "fixed").filter((el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.left < rr.right && r.right > rr.left && r.top < rr.bottom && r.bottom > rr.top; }).length : 0;
 
   // The smallest text in the agenda list — the primary calendar view on a phone.
   let minFont = 99;
@@ -99,7 +106,7 @@ export const MEASURE = `(() => {
 
   return {
     viewport: innerWidth + "x" + innerHeight, boxes: boxes.length, leafBoxes: leaves.length, maxLeafDepth: max, leafDepthHistogram: hist, deepest: rows.slice(0, 8),
-    frameOnSectionBody: frame, railWidthFraction: railFrac, minAgendaFontPx: minFont === 99 ? null : minFont,
+    frameOnSectionBody: frame, railAreaFraction: railArea, railCoversFixed, minAgendaFontPx: minFont === 99 ? null : minFont,
     overflowX, smallestTap: smallestTap === 999 ? null : smallestTap, smallestTapWhat, smallestText: smallestText === 99 ? null : smallestText, smallestTextWhat, fixedOverlays, headings, nestedScroll,
   };
 })()`;

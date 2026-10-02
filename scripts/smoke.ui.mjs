@@ -262,6 +262,39 @@ try {
     } catch (e) { weightErrors.push(`${route.path}: ${String(e.message).slice(0, 120)}`); }
   }
 
+  // 6) THE RAIL, EXPANDED, ON A PHONE (2026-10-02). Every route above is measured with the rail
+  //    folded — its resting state. Expanded, it is a toolbar docked above the nav: this opens it on
+  //    /menu and holds it to what the stylesheet promises. Measured, because the first version
+  //    opened the Display panel 117px off the left edge of the screen — the tab's rise animation
+  //    made it the popout's containing block for 900ms — and nothing but a measurement sees that.
+  {
+    const rp = await phone.newPage();
+    try {
+      await rp.goto(BASE + "/menu", { waitUntil: "domcontentloaded", timeout: 20000 });
+      try { await rp.waitForLoadState("networkidle", { timeout: 4000 }); } catch { /* settled enough */ }
+      await sleep(500);
+      await rp.click(".rail-open");
+      await sleep(120);   // on purpose: inside the old animation window
+      const box = async (sel) => rp.$eval(sel, (el) => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, right: r.right, bottom: r.bottom }; }).catch(() => null);
+      const rail = await box(".rail"), nav = await box(".nav");
+      ok("rail · expanded on a phone, it is a full-width toolbar", !!rail && rail.x <= 1 && rail.w >= 388, JSON.stringify(rail));
+      ok("rail · …docked above the nav, not over it", !!rail && !!nav && rail.bottom <= nav.y, `rail bottom ${rail?.bottom}, nav top ${nav?.y}`);
+      const tabs = await rp.$$eval(".rail > *", (els) => els.map((e) => Math.round(e.getBoundingClientRect().y)));
+      ok("rail · every tab sits on the same line", tabs.length >= 3 && new Set(tabs).size === 1, tabs.join(","));
+      await rp.click(".rdg-fab"); await sleep(150);
+      const panel = await box(".rdg-panel");
+      ok("rail · the Display panel opens on screen", !!panel && panel.x >= 0 && panel.right <= 390 && panel.y >= 0, JSON.stringify(panel));
+      await rp.click(".rdg-fab"); await sleep(150);
+      await rp.click(".chub-tab"); await sleep(300);
+      const hub = await box(".chub-panel");
+      ok("rail · the Connect panel opens on screen", !!hub && hub.x >= 0 && hub.right <= 390 && hub.y >= 0, JSON.stringify(hub));
+      await rp.click(".chub-tab"); await sleep(150);
+      await rp.click(".rail-fold"); await sleep(200);
+      ok("rail · it folds back to the handle", !!(await box(".rail-open")));
+    } catch (e) { ok("rail · could be exercised on /menu", false, String(e.message).slice(0, 120)); }
+    await rp.close();
+  }
+
   await browser.close();
 } finally {
   await stopServer();
